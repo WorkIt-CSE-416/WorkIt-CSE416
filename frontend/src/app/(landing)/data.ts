@@ -86,10 +86,10 @@ export const journey: JourneyStep[] = [
     id: "apply",
     title: "Apply",
     line: "Less typing, every time.",
-    body: "Tailor a resume from your Experience Bank, then let autofill fill the company's own form.",
+    body: "Tailor a resume from your Experience Bank, then let Auto Apply fill each company's own form. You press Submit.",
     points: [
       "Resumes built from your Experience Bank",
-      "Autofill on the company's own form",
+      "Auto Apply on the company's own form",
       "A copy of every resume you send",
     ],
     glow: "var(--color-advanced)",

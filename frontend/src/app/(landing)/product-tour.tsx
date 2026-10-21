@@ -1,6 +1,6 @@
 "use client";
 
-import { Bell, FileText, Target, WandSparkles, type LucideIcon } from "lucide-react";
+import { Bell, FileText, Target, Zap, type LucideIcon } from "lucide-react";
 import {
   AnimatePresence,
   MotionConfig,
@@ -22,7 +22,7 @@ import {
 
 import { cn } from "@/lib/cn";
 
-import AutofillVisual from "./autofill-visual";
+import AutoApplyVisual from "./auto-apply-visual";
 import { features, type FeatureId } from "./feature-data";
 import { useMediaQuery } from "./hooks";
 import MatchingVisual from "./matching-visual";
@@ -53,10 +53,11 @@ const STOPS: Record<
     tint: "var(--color-advanced-tint)",
     glow: "var(--color-advanced)",
   },
-  autofill: {
-    label: "Autofill",
-    icon: WandSparkles,
-    Visual: AutofillVisual,
+  "auto-apply": {
+    label: "Auto Apply",
+    // The app's own Auto Apply glyph (the Jobs page's filters, the sidebar).
+    icon: Zap,
+    Visual: AutoApplyVisual,
     tint: "var(--color-positive-tint)",
     glow: "var(--color-positive)",
   },
@@ -75,6 +76,11 @@ function backdrop(id: FeatureId) {
   const blob = (amount: number) => `color-mix(in oklab, ${glow} ${amount}%, transparent)`;
   return `radial-gradient(55% 65% at 12% 18%, ${blob(38)}, transparent), radial-gradient(50% 60% at 88% 85%, ${blob(30)}, transparent), radial-gradient(40% 50% at 70% 10%, white, transparent), ${tint}`;
 }
+
+/** How far `Fit` may scale a pinned stop's visual up: the stories are drawn
+ * at 520px wide, small type included, so past this their 10px labels read
+ * as display type. */
+const MAX_FIT = 1.5;
 
 // Tailwind's lg breakpoint: pinned from here up, stacked below it.
 const DESKTOP_QUERY = "(min-width: 64rem)";
@@ -106,13 +112,15 @@ export function ProductTour() {
 }
 
 /**
- * Scales a visual down to fit: the height and width of `box` (the pinned
- * visual area, minus its padding), or only its own width when there is no
- * box (the stacked stops). So a tall visual such as the resume card fits a
- * short laptop screen instead of losing its top and bottom to the area's
- * overflow clip, and a wide one fits a narrow window. A transform from the
- * top, with the space it frees taken back by a negative margin, so the
- * content keeps its own layout. Never scales up.
+ * Scales a visual to fit: to the height and width of `box` (the pinned
+ * visual area, minus its padding), up to `MAX_FIT`, or down to its own
+ * width when there is no box (the stacked stops). So a tall visual such as
+ * the resume card fits a short laptop screen instead of losing its top and
+ * bottom to the area's overflow clip, and on a big screen the stories fill
+ * their area instead of floating small in the middle of it (the team found
+ * them too small at 1x). A transform from the top, with the space it
+ * frees or takes evened out by the bottom margin, so the content keeps its
+ * own layout. The stacked stops never scale up.
  */
 function Fit({ box, children }: { box?: RefObject<HTMLDivElement | null>; children: ReactNode }) {
   const ref = useRef<HTMLDivElement>(null);
@@ -138,7 +146,7 @@ function Fit({ box, children }: { box?: RefObject<HTMLDivElement | null>; childr
       const w = child?.offsetWidth ?? 0;
       const h = el.offsetHeight;
       setHeight(h);
-      setFit(w > 0 && h > 0 ? Math.min(1, roomW / w, roomH / h) : 1);
+      setFit(w > 0 && h > 0 ? Math.min(box ? MAX_FIT : 1, roomW / w, roomH / h) : 1);
     };
     measure();
     const observer = new ResizeObserver(measure);
@@ -152,7 +160,7 @@ function Fit({ box, children }: { box?: RefObject<HTMLDivElement | null>; childr
       ref={ref}
       className="flex w-full justify-center"
       style={
-        fit < 1
+        fit !== 1
           ? {
               transform: `scale(${fit})`,
               transformOrigin: "top center",
@@ -265,7 +273,7 @@ function PinnedTour() {
             id="tour-panel"
             role="tabpanel"
             aria-labelledby={`tour-tab-${active.id}`}
-            className="mt-4 grid w-full max-w-5xl grid-cols-[2fr_3fr] items-center gap-8 rounded-[2rem] bg-white p-6 shadow-xl shadow-slate-900/5"
+            className="mt-4 grid w-full max-w-[76rem] grid-cols-[5fr_8fr] items-center gap-8 rounded-[2rem] bg-white p-5 shadow-xl shadow-slate-900/5"
           >
             {/* No initial={false} on these: it blocks the first animation of
                 every motion element inside, so the Matching rows sat still at
@@ -286,7 +294,7 @@ function PinnedTour() {
 
             <div
               ref={boxRef}
-              className="relative flex h-[clamp(20rem,calc(100dvh-15rem),40rem)] items-center justify-center overflow-hidden rounded-[1.5rem] p-6"
+              className="relative flex h-[clamp(20rem,calc(100dvh-13.5rem),50rem)] items-center justify-center overflow-hidden rounded-[1.5rem] p-4"
               style={{ background: backdrop(active.id) }}
             >
               <AnimatePresence mode="wait">

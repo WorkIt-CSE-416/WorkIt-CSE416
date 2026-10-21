@@ -32,27 +32,27 @@ import { GLIDE, Story, type StoryScene } from "./story";
  * entries from a student's experience bank gather into one pile; a template
  * is picked (Jake's); the resume writes itself in Jake's look; then a job
  * posting arrives and the same page is tailored to it, its match rising.
- * The timing, step bar and reduced motion are the shared Story's
+ * The timing, scene title and reduced motion are the shared Story's
  * (story.tsx); with reduced motion it holds the finished, tailored resume.
  */
 
 const SCENES = [
   {
     id: "bank",
-    label: "Experience",
+
     caption: "Everything you've done, in one experience bank",
     hold: 3800,
   },
-  { id: "template", label: "Template", caption: "Pick a template", hold: 3200 },
+  { id: "template", caption: "Pick a template", hold: 3200 },
   {
     id: "generate",
-    label: "Generate",
+
     caption: "WorkIt writes the resume from your bank",
     hold: 4200,
   },
   {
     id: "tailor",
-    label: "Tailor",
+
     caption: "Tailor it, or a resume you upload, to each job",
     hold: 7800,
   },
@@ -60,13 +60,7 @@ const SCENES = [
 
 export default function ResumeVisual() {
   return (
-    <Story
-      label="Resume steps"
-      scenes={SCENES}
-      rest="tailor"
-      accent="bg-advanced/50"
-      stageHeight={480}
-    >
+    <Story scenes={SCENES} rest="tailor" accent="bg-advanced" stageHeight={480}>
       {(scene) => (
         // Generate and Tailor share one key, so tailoring changes the page
         // in place rather than swapping it.
@@ -181,57 +175,62 @@ function TemplateScene() {
 
   return (
     <motion.div
-      className="absolute inset-0 flex items-center justify-center gap-3"
+      className="absolute inset-0 flex items-center justify-center"
       initial={{ opacity: 0, y: 10 }}
       animate={{ opacity: 1, y: 0 }}
       exit={{ opacity: 0, scale: 0.96, transition: { duration: 0.2 } }}
       transition={{ duration: 0.3, ease: GLIDE }}
     >
-      {resumeFeature.templates.map((template, i) => {
-        const chosen = template.id === "jakes";
-        return (
-          <motion.div
-            key={template.id}
-            className="flex flex-col items-center gap-2"
-            initial={{ opacity: 0, y: 14 }}
-            animate={{
-              opacity: picked && !chosen ? 0.4 : 1,
-              y: 0,
-              scale: picked && chosen ? 1.06 : 1,
-            }}
-            transition={{ delay: picked ? 0 : 0.1 + i * 0.08, duration: 0.35, ease: GLIDE }}
-          >
-            <div
-              className={cn(
-                "relative h-[150px] w-[112px] rounded-lg bg-white p-2.5 shadow-[0_12px_28px_-16px_rgb(16_48_94/0.55)] ring-1 transition-[box-shadow,--tw-ring-color] duration-300",
-                picked && chosen ? "ring-advanced ring-2" : "ring-slate-900/5",
-              )}
+      {/* Drawn at thumbnail size and scaled up, so the row fills the stage
+          the way the other scenes do. The pointer's target below is
+          Jake's card at this scale. */}
+      <div className="flex scale-[1.3] items-center gap-4">
+        {resumeFeature.templates.map((template, i) => {
+          const chosen = template.id === "jakes";
+          return (
+            <motion.div
+              key={template.id}
+              className="flex flex-col items-center gap-2"
+              initial={{ opacity: 0, y: 14 }}
+              animate={{
+                opacity: picked && !chosen ? 0.4 : 1,
+                y: 0,
+                scale: picked && chosen ? 1.06 : 1,
+              }}
+              transition={{ delay: picked ? 0 : 0.1 + i * 0.08, duration: 0.35, ease: GLIDE }}
             >
-              <TemplateSketch id={template.id} />
-              <AnimatePresence>
-                {picked && chosen && (
-                  <motion.span
-                    className="bg-advanced absolute -top-2 -right-2 grid size-5 place-items-center rounded-full text-white shadow"
-                    initial={{ scale: 0 }}
-                    animate={{ scale: 1 }}
-                    transition={{ type: "spring", stiffness: 500, damping: 24 }}
-                  >
-                    <Check className="size-3" aria-hidden="true" />
-                  </motion.span>
+              <div
+                className={cn(
+                  "relative h-[150px] w-[112px] rounded-lg bg-white p-2.5 shadow-[0_12px_28px_-16px_rgb(16_48_94/0.55)] ring-1 transition-[box-shadow,--tw-ring-color] duration-300",
+                  picked && chosen ? "ring-advanced ring-2" : "ring-slate-900/5",
                 )}
-              </AnimatePresence>
-            </div>
-            <span className="text-ink text-[11px] font-medium">{template.label}</span>
-          </motion.div>
-        );
-      })}
+              >
+                <TemplateSketch id={template.id} />
+                <AnimatePresence>
+                  {picked && chosen && (
+                    <motion.span
+                      className="bg-advanced absolute -top-2 -right-2 grid size-5 place-items-center rounded-full text-white shadow"
+                      initial={{ scale: 0 }}
+                      animate={{ scale: 1 }}
+                      transition={{ type: "spring", stiffness: 500, damping: 24 }}
+                    >
+                      <Check className="size-3" aria-hidden="true" />
+                    </motion.span>
+                  )}
+                </AnimatePresence>
+              </div>
+              <span className="text-ink text-[11px] font-medium">{template.label}</span>
+            </motion.div>
+          );
+        })}
+      </div>
 
       {/* The pointer glides onto Jake's and clicks. */}
       <motion.span
         aria-hidden="true"
         className="text-ink absolute"
         initial={{ left: "78%", top: "82%", opacity: 0 }}
-        animate={{ left: "24%", top: "47%", opacity: 1, scale: picked ? [1, 0.85, 1] : 1 }}
+        animate={{ left: "17%", top: "48%", opacity: 1, scale: picked ? [1, 0.85, 1] : 1 }}
         transition={{
           left: { duration: 0.9, ease: GLIDE, delay: 0.5 },
           top: { duration: 0.9, ease: GLIDE, delay: 0.5 },

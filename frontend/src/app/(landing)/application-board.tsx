@@ -1,19 +1,27 @@
 import { Calendar } from "lucide-react";
-import { Marquee } from "./marquee";
-import { stages, type Stage, type TrackedJob } from "./board-data";
+
 import { cn } from "@/lib/cn";
+
+import { stages, type Stage, type TrackedJob } from "./board-data";
+import { FaviconLogo } from "./favicon-logo";
+import { Marquee } from "./marquee";
+import { scoreTone } from "./score-tone";
 
 /**
  * Tilted 3D board of WorkIt job cards, one auto-scrolling column per stage.
  * Pure CSS animation: render it without a client directive (no JS shipped).
  * It's decorative (cards repeat), so it's hidden from assistive tech; the
- * surrounding section's copy describes the feature.
+ * surrounding section's copy describes the feature. The cards are frosted
+ * glass (`.glass-card`) over soft blobs in the four stages' colours, so the
+ * glass has colour to blur; nothing between the blobs and the cards may
+ * fade, filter or mask, or the blur sees nothing (landing.css).
  */
 export default function ApplicationBoard() {
   return (
     <div
       aria-hidden="true"
-      className="relative flex h-[28rem] w-full items-center justify-center overflow-hidden [perspective:650px] sm:h-[34rem] lg:h-[32rem]"
+      className="relative isolate flex h-[28rem] w-full items-center justify-center overflow-hidden rounded-[2rem] [perspective:650px] sm:h-[34rem] lg:h-[32rem]"
+      style={{ background: BACKDROP }}
     >
       {/* Perspective and angles are tuned for 4 × w-72 columns at the site's
           content width; the original demo's 300px perspective suits an 800px box.
@@ -43,93 +51,72 @@ export default function ApplicationBoard() {
         ))}
       </div>
 
-      {/* Fade the board into the page on every edge. */}
-      <div className="from-background pointer-events-none absolute inset-x-0 top-0 h-1/4 bg-linear-to-b" />
-      <div className="from-background pointer-events-none absolute inset-x-0 bottom-0 h-1/4 bg-linear-to-t" />
-      <div className="from-background pointer-events-none absolute inset-y-0 left-0 w-1/4 bg-linear-to-r lg:w-1/8" />
-      <div className="from-background pointer-events-none absolute inset-y-0 right-0 w-1/4 bg-linear-to-l lg:w-1/8" />
+      {/* Soften the board's top and bottom into the panel. */}
+      <div className="pointer-events-none absolute inset-x-0 top-0 h-16 bg-linear-to-b from-white/70" />
+      <div className="pointer-events-none absolute inset-x-0 bottom-0 h-16 bg-linear-to-t from-white/70" />
     </div>
   );
 }
 
-/** A WorkIt job card, matching the product's card layout. */
+/**
+ * The panel behind the board: a blob per stage, in its timeline colour
+ * (board-data.ts), over the violet tint.
+ */
+const BACKDROP = [
+  "radial-gradient(40% 45% at 18% 22%, color-mix(in oklab, var(--color-brand) 34%, transparent), transparent)",
+  "radial-gradient(38% 42% at 82% 18%, color-mix(in oklab, var(--color-warning-fill) 30%, transparent), transparent)",
+  "radial-gradient(42% 46% at 78% 82%, color-mix(in oklab, var(--color-positive) 26%, transparent), transparent)",
+  "radial-gradient(40% 44% at 22% 80%, color-mix(in oklab, var(--color-match-good) 22%, transparent), transparent)",
+  "var(--color-brand-tint)",
+].join(", ");
+
+/** A WorkIt job card in frosted glass, after the product's card layout. */
 function JobCard({ job, stage }: { job: TrackedJob; stage: Stage }) {
-  const Logo = job.logo;
   const StageIcon = stage.icon;
   const FooterIcon = stage.footerIcon;
 
   return (
-    <div className="bg-card text-card-foreground border-border w-72 rounded-2xl border p-5 shadow-sm shadow-slate-900/5">
-      <span
-        className={cn(
-          "inline-flex items-center gap-1.5 rounded-full px-2 py-0.5 text-[11px] font-medium",
-          stage.chipClass,
-        )}
-      >
-        <StageIcon className={cn("size-3", stage.iconClass)} />
-        {stage.cardLabel}
-      </span>
-
-      <p className="text-ink mt-2.5 text-base font-semibold">{job.title}</p>
-      <p className="text-ink-meta mt-1 text-xs/5">{job.note}</p>
-
-      <div className="mt-3 flex items-center justify-between gap-3">
-        <div className="flex min-w-0 items-center gap-2.5">
-          <span
-            className={cn(
-              "flex size-8 shrink-0 items-center justify-center rounded-lg",
-              job.logoTone,
-            )}
-          >
-            <Logo className="size-4" />
-          </span>
-          <span className="text-ink-meta truncate text-xs">{job.company}</span>
-        </div>
-        <span className="border-border text-ink-meta flex shrink-0 items-center gap-1.5 rounded-full border px-2 py-0.5 text-xs">
-          <ScoreRing value={job.score} />
+    <div className="glass-card text-ink w-72 rounded-2xl p-5">
+      <div className="flex items-center justify-between gap-2">
+        <span
+          className={cn(
+            "inline-flex items-center gap-1.5 rounded-full px-2 py-0.5 text-[11px] font-medium",
+            stage.chipClass,
+          )}
+        >
+          <StageIcon className={cn("size-3", stage.iconClass)} />
+          {stage.cardLabel}
+        </span>
+        <span
+          className={cn(
+            "shrink-0 rounded-md px-[7px] py-0.5 text-[11px] font-bold shadow-[inset_0_1px_0_rgb(255_255_255/0.8)] ring-1 ring-inset",
+            scoreTone(job.score),
+          )}
+        >
           {job.score}%
         </span>
       </div>
 
-      <div className="bg-surface mt-3 flex gap-2.5 rounded-lg p-3">
+      <div className="mt-3 flex items-center gap-2.5">
+        <FaviconLogo domain={job.domain} />
+        <span className="min-w-0 flex-1">
+          <span className="block text-sm/5 font-semibold text-balance">{job.title}</span>
+          <span className="text-ink-meta block text-xs">{job.company}</span>
+        </span>
+      </div>
+
+      <div className="mt-3 flex gap-2.5 rounded-xl bg-white/55 p-3 ring-1 ring-white/70 ring-inset">
         <Calendar className="text-ink-meta mt-0.5 size-3.5 shrink-0" />
         <div>
-          <p className="text-ink text-xs font-semibold">Next: {job.next.label}</p>
+          <p className="text-xs font-semibold">Next: {job.next.label}</p>
           <p className="text-ink-meta mt-0.5 text-[11px]">{job.next.when}</p>
         </div>
       </div>
 
-      <div className="border-border text-ink-meta mt-3 flex items-center gap-2 border-t pt-3 text-[11px]">
+      <div className="text-ink-meta mt-3 flex items-center gap-2 border-t border-white/70 pt-3 text-[11px]">
         <FooterIcon className="size-3.5 shrink-0" />
         {job.footer}
       </div>
     </div>
-  );
-}
-
-function ScoreRing({ value }: { value: number }) {
-  const radius = 5;
-  const circumference = 2 * Math.PI * radius;
-  return (
-    <svg viewBox="0 0 14 14" className="size-3.5 -rotate-90">
-      <circle
-        cx="7"
-        cy="7"
-        r={radius}
-        fill="none"
-        strokeWidth="2.5"
-        className="stroke-landing-brand-100"
-      />
-      <circle
-        cx="7"
-        cy="7"
-        r={radius}
-        fill="none"
-        strokeWidth="2.5"
-        strokeLinecap="round"
-        strokeDasharray={`${(value / 100) * circumference} ${circumference}`}
-        className="stroke-landing-brand-600"
-      />
-    </svg>
   );
 }

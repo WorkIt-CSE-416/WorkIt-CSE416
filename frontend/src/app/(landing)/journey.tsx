@@ -7,7 +7,8 @@ import { cn } from "@/lib/cn";
 
 import { stages } from "./board-data";
 import { journey, type JourneyStep } from "./data";
-import { autofillFeature, updatesFeature } from "./feature-data";
+import { FaviconLogo } from "./favicon-logo";
+import { autoApplyFeature, updatesFeature } from "./feature-data";
 
 /**
  * The search from end to end as four tall cards, after Calendly's "Book,
@@ -96,13 +97,10 @@ function Demo({ id }: { id: JourneyStep["id"] }) {
 
   if (id === "find") {
     const job = stages[1].jobs[0];
-    const Logo = job.logo;
     return (
       <div aria-hidden="true" className={shell}>
         <div className="flex items-center gap-3">
-          <span className={cn("flex size-9 items-center justify-center rounded-lg", job.logoTone)}>
-            <Logo className="size-4" />
-          </span>
+          <FaviconLogo domain={job.domain} className="rounded-lg" />
           <div className="min-w-0 flex-1">
             <p className="text-ink truncate text-sm font-semibold">{job.title}</p>
             <p className="text-ink-meta text-xs">{job.company}</p>
@@ -118,15 +116,18 @@ function Demo({ id }: { id: JourneyStep["id"] }) {
   if (id === "apply") {
     return (
       <div aria-hidden="true" className={cn(shell, "space-y-2")}>
-        {autofillFeature.fields.map((field) => (
-          <div key={field.id} className="flex items-center gap-3 text-xs">
-            <span className="text-ink-meta w-16 shrink-0">{field.label}</span>
-            <span className="text-ink bg-surface ring-border flex h-7 flex-1 items-center rounded-md px-2 ring-1">
-              {field.value}
-            </span>
-            <Check className="text-positive size-3.5" aria-hidden="true" />
-          </div>
-        ))}
+        {autoApplyFeature.sections
+          .flatMap((section) => section.fields)
+          .filter((field) => ["email", "phone", "resume"].includes(field.id))
+          .map((field) => (
+            <div key={field.id} className="flex items-center gap-3 text-xs">
+              <span className="text-ink-meta w-16 shrink-0">{field.label}</span>
+              <span className="text-ink bg-surface ring-border flex h-7 flex-1 items-center rounded-md px-2 ring-1">
+                {field.value}
+              </span>
+              <Check className="text-positive size-3.5" aria-hidden="true" />
+            </div>
+          ))}
       </div>
     );
   }
@@ -157,17 +158,9 @@ function Demo({ id }: { id: JourneyStep["id"] }) {
 
   const update =
     updatesFeature.updates.find((item) => item.kind === "offer") ?? updatesFeature.updates[0];
-  const Logo = update.logo;
   return (
     <div aria-hidden="true" className={cn(shell, "flex items-center gap-3")}>
-      <span
-        className={cn(
-          "flex size-9 shrink-0 items-center justify-center rounded-lg",
-          update.logoTone,
-        )}
-      >
-        <Logo className="size-4" />
-      </span>
+      <FaviconLogo domain={update.domain} className="rounded-lg" />
       <div className="min-w-0 flex-1 text-sm">
         <p className="text-ink truncate">
           <span className="font-semibold">{update.company}</span> {update.action}

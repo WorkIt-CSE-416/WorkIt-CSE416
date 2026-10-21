@@ -80,19 +80,43 @@ CLI are in the root `CLAUDE.md`. `API_URL` points at the API project
   reverted once: the team wants the site's look unless it asks. **Layout,
   after Calendly's homepage:** every full-width band (hero, grey bands,
   footer) is a rounded panel inset from the window (`PANEL` and
-  `PANEL_INSET` in `page.tsx`); the header floats as a white rounded bar
+  `PANEL_INSET` in `layout-parts.tsx`, the frame every marketing page
+  shares with `CONTAINER` and `SectionHeading`; the group's `layout.tsx`
+  renders the header and footer, and each page renders its own `<main>`); the header floats as a white rounded bar
   once the page scrolls (`floating-header.tsx`); and the site's feature
   carousel and grey product placeholder became one pinned product tour
   (`product-tour.tsx`): from lg up it pins to the screen and scrolling steps
   through the four features, each with its own app colour, in the hero
-  headline's order (Resumes, Matching, Autofill, Updates for Tailored,
+  headline's order (Resumes, Matching, Auto Apply, Updates for Tailored,
   Matched, Applied, Tracked), set by `features` in `feature-data.ts`.
   The Resumes and Matching stops are each one story told a scene at a
   time, not every step at once, on the shared `Story` (`story.tsx`: the
-  scene timer, the step bar that jumps to a scene, the caption and the
-  stage). A story plays only in view, from the start each time, and holds
-  one finished scene for reduced motion. Autofill and Updates should move
-  onto it when they are redone. Resumes (`resume-visual.tsx`): loose
+  scene timer, the scene title and the stage). The title is a glass pill
+  with the scene's number, its caption and a progress line; it is not a
+  switcher: the team had the step bar of buttons removed (KAN-316), and
+  the caption had floated as small grey text under it. A story plays only
+  in view, from the start each time (its stage remounts on each return,
+  so a scene that plays on mount starts when it is seen), and holds one
+  finished scene for reduced motion. All four stops are on it (KAN-316).
+  Auto Apply (`auto-apply-visual.tsx`, the stop the team renamed from
+  Autofill as the bigger claim): one Greenhouse-style application fills
+  field by field (typed, picked, the tailored resume attached, an answer
+  drafted from the bank) while the page scrolls to Submit, and the
+  student's pointer clicks Submit; then the camera pulls back to 3 × 3,
+  5 × 5 and 7 × 7 windows of the queue, filled for the student. **Its copy
+  must match what auto apply does** (`auto-apply/architecture.md`,
+  `autofiller_extension/CLAUDE.md`): it fills one application at a time in
+  one background tab and never submits, so the page never says "at once",
+  "in parallel" or that WorkIt sends an application. The team first asked
+  for "49 in parallel"; that was reworded to a queue when the run was
+  checked. Change it if the run changes. Every window is drawn at the
+  stage's size and one transform scales the grid; the far windows are big
+  type and bars, filled by CSS transitions, and a ring mounts only one
+  step before the camera reaches it. Updates (`updates-visual.tsx`): the same Cloudflare application
+  hears back. Each update drops in as a notification, then lands: the
+  card's track moves on (the board's stage colours, Viewed in the stop's
+  pink) and the update opens below it. It replaced a live feed with a
+  green "Live" dot, which the team found generic. Resumes (`resume-visual.tsx`): loose
   experience-bank entries gather into
   one pile, a template is picked, the resume writes itself in Jake's look,
   then a job posting arrives and the same page is tailored to it: mock AI
@@ -110,14 +134,30 @@ CLI are in the root `CLAUDE.md`. `API_URL` points at the API project
   Title, Experience) as bars with no numbers, since the weights are still
   guesses in the code; then the cards sort into Best Match order, the
   Jobs page's own name for it. Its postings name real employers, like the
-  hero's cards. Scores on the hero and in both stories are green, amber or
-  red through `scoreTone` (`score-tone.ts`). Below lg the
+  hero's cards; so do the Autofill and Updates stops and the journey
+  cards, which take their companies from the applications board
+  (`board-data.ts`), each logo a favicon tile (`favicon-logo.tsx`). Scores
+  on the hero, the board and both stories are green, amber or red through
+  `scoreTone` (`score-tone.ts`). Below lg the
   stops stack, because a pinned card with the resume animation does not fit
   a phone. The site's placeholder benefit grid and three steps became an
   expanding card row (`journey.tsx`: Find, Apply, Track, Hear back; the
   card under the pointer widens) and a hiring-system section
   (`hiring-systems.tsx`). The site's closing "Be first in line" banner is
-  removed for now. **The hiring-system list in
+  removed for now. **The applications section** ("Every application, from
+  saved to signed.", KAN-316): its board (`application-board.tsx`) shows
+  real employers from `scraper/boards.csv` with intern or new-grad titles
+  and no note line, its cards frosted glass over blobs in the four stages'
+  colours, so the glass has colour to blur. The stage list beside it is
+  `StageTimeline` (`stage-timeline.tsx`): one search moving from saved to
+  signed, a track that fills stage by stage, nodes that light in each
+  stage's colour, a glass highlight that slides to the current stage, a
+  tally that counts up, and a burst at the offer. Its rows are a fixed
+  height (`ROW`), since the track and fill are measured in rows; a longer
+  description must still fit two lines at phone width. Node colours are
+  CSS variables, so they change by CSS transition: motion cannot tween a
+  `var()`. The list is `isolate`, or the highlight's `-z-10` drops behind
+  the page's background. **The hiring-system list in
   `data.ts` is a claim that WorkIt reads those systems**: it must match
   `scraper/workit_scraper/providers.py`'s `LISTING_URL`. Its logos come from
   the Google favicon host `next.config.ts` already allows; Workday's and
@@ -145,7 +185,8 @@ CLI are in the root `CLAUDE.md`. `API_URL` points at the API project
   fixed breakpoint once hid them on every laptop-width window. Measure text
   runs, not elements: a block line's box spans the full width. The cards are
   frosted glass (`.glass-card` in `landing.css`, a `backdrop-filter` over
-  the towers). Their fade runs on the tag's children, never the tag itself:
+  the towers; the page's one glass look, shared with the tour's scene
+  titles and the board's cards). Their fade runs on the tag's children, never the tag itself:
   an ancestor below full opacity is a backdrop root, so the blur would see
   nothing behind it and snap on only when the fade ended. Two cards on one
   side of the city once stacked on each other: a card now shows for less
@@ -157,9 +198,12 @@ CLI are in the root `CLAUDE.md`. `API_URL` points at the API project
   `score-tone.ts`, from the positive, warning and danger tokens), not the
   app's magenta match bands: the team wanted the hero to show a spread of
   fits at a glance. In the
-  pinned product tour, `Fit` scales a visual down to the visual area's
-  height and width (and, in the stacked stops, to their width), so the
-  520px-wide stories fit a short or narrow laptop screen; and its
+  pinned product tour, `Fit` scales a visual to the visual area's height
+  and width, up to 1.5x (and, in the stacked stops, down to their width
+  only), so the 520px-wide stories fit a short laptop screen and fill a
+  big one: at 1x they sat small in an area of empty colour, which the team
+  flagged. Each story's stage is the height of its tallest scene, no more,
+  since spare stage height is what shrinks the scale; and its
   `AnimatePresence` must not get `initial={false}`, which blocks the first
   animation of every motion element inside it: the old Matching stop's
   rows once sat still at their end value until a tab switch remounted

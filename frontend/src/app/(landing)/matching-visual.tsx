@@ -16,31 +16,34 @@ import { GLIDE, Story, type StoryScene } from "./story";
  * things it weighs, and sorts them into Best Match order. The student is
  * the Resumes stop's Alex Morgan, so the two stops read as one pipeline.
  * One board across all four scenes, so the profile and the cards move
- * rather than swap. Timing and the step bar are the shared Story's.
+ * rather than swap. Timing and the scene title are the shared Story's.
  */
 
 const SCENES = [
-  { id: "read", label: "Read", caption: "WorkIt reads your experience bank", hold: 3200 },
+  { id: "read", caption: "WorkIt reads your experience bank", hold: 3200 },
   {
     id: "scan",
-    label: "Scan",
+
     caption: "Then every job posting, for what you already have",
     hold: 4400,
   },
   {
     id: "score",
-    label: "Score",
+
     caption: "Each posting gets a match, and the reasons for it",
     hold: 4600,
   },
-  { id: "rank", label: "Rank", caption: "The best fits rise to the top", hold: 4200 },
+  { id: "rank", caption: "The best fits rise to the top", hold: 4200 },
 ] as const satisfies readonly StoryScene<string>[];
 
 type Phase = (typeof SCENES)[number]["id"];
 const PHASE_INDEX: Record<Phase, number> = { read: 0, scan: 1, score: 2, rank: 3 };
 
-/** The stage's columns: the profile on the left, the postings on the right. */
+/** The stage's columns: the profile on the left, the postings on the right.
+ * The height is the tallest scene's, so the tour's `Fit` scales the story to
+ * fill its area rather than leaving a band of empty stage under it. */
 const STAGE_W = 520;
+const STAGE_H = 400;
 const LEFT_W = 172;
 
 /** Seconds between two cards' scans. */
@@ -53,13 +56,7 @@ const has = (keyword: string) => profile.skills.includes(keyword);
 
 export default function MatchingVisual() {
   return (
-    <Story
-      label="Matching steps"
-      scenes={SCENES}
-      rest="rank"
-      accent="bg-brand/50"
-      stageHeight={480}
-    >
+    <Story scenes={SCENES} rest="rank" accent="bg-brand" stageHeight={STAGE_H}>
       {(scene) => <Board phase={scene} />}
     </Story>
   );
@@ -72,10 +69,16 @@ function Board({ phase }: { phase: Phase }) {
   return (
     <div className="absolute inset-0 flex gap-3">
       {/* The profile: centred while it is read, then to the left column. */}
+      {/* Larger and in the middle of the stage while it is the only thing
+          on it, so the first scene is not one small card at the top. */}
       <motion.div
-        className="flex shrink-0 flex-col gap-3"
+        className="flex shrink-0 origin-top flex-col gap-3"
         style={{ width: LEFT_W }}
-        animate={{ x: p === 0 ? (STAGE_W - LEFT_W) / 2 : 0 }}
+        animate={{
+          x: p === 0 ? (STAGE_W - LEFT_W) / 2 : 0,
+          y: p === 0 ? 64 : 0,
+          scale: p === 0 ? 1.3 : 1,
+        }}
         // Back to the middle only once the cards have faded out.
         transition={{ duration: 0.6, ease: GLIDE, delay: p === 0 ? 0.2 : 0 }}
       >
