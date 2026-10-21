@@ -1,10 +1,12 @@
 "use client";
 
+import Image from "next/image";
 import { useEffect, useRef, useState, useSyncExternalStore, type CSSProperties } from "react";
 
 import { cn } from "@/lib/cn";
 
 import { buildCity, STRIP_HEIGHT, STRIP_TOP, STRIP_WIDTH, type City } from "./city-model";
+import { scoreTone } from "./score-tone";
 
 // Built once per page load: the model is deterministic, so every render
 // draws the same city.
@@ -226,20 +228,30 @@ export function HeroCity() {
             <div
               data-card
               style={{ transform: `translateX(${placement[tag.company] ?? 0}px)` }}
-              className="text-ink flex items-center gap-2.5 rounded-[10px] bg-white py-2 pr-2.5 pl-2 whitespace-nowrap shadow-[inset_0_0_0_1px_rgba(76,39,163,0.16),0_12px_28px_-12px_rgba(20,10,50,0.45)]"
+              className="glass-card text-ink flex items-center gap-2.5 rounded-xl py-2 pr-2.5 pl-2 whitespace-nowrap"
             >
-              <span
-                className="flex size-[26px] items-center justify-center rounded-[7px] text-xs font-bold"
-                style={{ background: tag.tint, color: tag.ink }}
-              >
-                {tag.company[0]}
+              {/* The company's own logo, from the favicon service the
+                  hiring-system tiles use. */}
+              <span className="flex size-[26px] items-center justify-center rounded-[7px] bg-white shadow-[inset_0_0_0_1px_rgba(76,39,163,0.12)]">
+                <Image
+                  src={`https://www.google.com/s2/favicons?domain=${tag.domain}&sz=64`}
+                  alt=""
+                  width={18}
+                  height={18}
+                  className="size-[18px] rounded-[4px]"
+                />
               </span>
               <span className="flex flex-col text-left">
                 <span className="text-xs font-semibold">{tag.title}</span>
                 <span className="text-ink-meta text-[11px]">{tag.company}</span>
               </span>
-              <span className="bg-landing-brand-100 text-landing-brand-700 rounded-md px-[7px] py-0.5 text-[11px] font-bold shadow-[inset_0_0_0_1px_rgba(124,92,240,0.3)]">
-                {tag.score}
+              <span
+                className={cn(
+                  "rounded-md px-[7px] py-0.5 text-[11px] font-bold shadow-[inset_0_1px_0_rgb(255_255_255/0.8)] ring-1 ring-inset",
+                  scoreTone(tag.score),
+                )}
+              >
+                {tag.score}%
               </span>
             </div>
             <span className="h-[22px] w-px bg-linear-to-b from-[#6d3fd8] to-transparent" />

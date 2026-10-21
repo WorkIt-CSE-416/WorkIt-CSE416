@@ -84,7 +84,34 @@ CLI are in the root `CLAUDE.md`. `API_URL` points at the API project
   once the page scrolls (`floating-header.tsx`); and the site's feature
   carousel and grey product placeholder became one pinned product tour
   (`product-tour.tsx`): from lg up it pins to the screen and scrolling steps
-  through the four features, each with its own app colour; below lg the
+  through the four features, each with its own app colour, in the hero
+  headline's order (Resumes, Matching, Autofill, Updates for Tailored,
+  Matched, Applied, Tracked), set by `features` in `feature-data.ts`.
+  The Resumes and Matching stops are each one story told a scene at a
+  time, not every step at once, on the shared `Story` (`story.tsx`: the
+  scene timer, the step bar that jumps to a scene, the caption and the
+  stage). A story plays only in view, from the start each time, and holds
+  one finished scene for reduced motion. Autofill and Updates should move
+  onto it when they are redone. Resumes (`resume-visual.tsx`): loose
+  experience-bank entries gather into
+  one pile, a template is picked, the resume writes itself in Jake's look,
+  then a job posting arrives and the same page is tailored to it: mock AI
+  suggestions (Keep, Cut, Rewrite, Add) appear in the gutters beside the
+  lines they change, each marked with `SparkleIcon`, and apply on the page
+  as a highlight, a red strike or a green insertion while the match
+  climbs. The page sizes to its content; fixed to the stage's height it
+  squeezed its last lines. Its Modern and Compact templates are looks the
+  app does not have yet (it renders Jake's Resume only), a choice the team
+  made for the page; drop them or mark them if that matters. Matching
+  (`matching-visual.tsx`) follows the real score
+  (`backend/app/services/matching/scoring.py`): the same student's bank is
+  read into a profile, five postings are scanned for the student's skills,
+  each is scored, and the top one shows its four factors (Meaning, Skills,
+  Title, Experience) as bars with no numbers, since the weights are still
+  guesses in the code; then the cards sort into Best Match order, the
+  Jobs page's own name for it. Its postings name real employers, like the
+  hero's cards. Scores on the hero and in both stories are green, amber or
+  red through `scoreTone` (`score-tone.ts`). Below lg the
   stops stack, because a pinned card with the resume animation does not fit
   a phone. The site's placeholder benefit grid and three steps became an
   expanding card row (`journey.tsx`: Find, Apply, Track, Hear back; the
@@ -103,7 +130,10 @@ CLI are in the root `CLAUDE.md`. `API_URL` points at the API project
   reach there and were once cut flat at the top. The ground grid runs ten
   rows behind the back row of buildings and fades out towards the text, so
   it reads as a plane behind the low centre. Its heights are capped per
-  column so nothing reaches the text at its 1600px design scale; it keeps
+  column so nothing reaches the text at its 1600px design scale. The cap
+  slopes between the text's steps (`SLOPE`) and towers ease into it
+  (`soft`): cut flat at four stepped caps, the skyline stood in terraces
+  with sharp corners near the middle; it keeps
   that scale from lg up (cropped at the sides) and shrinks to the panel's
   width below lg, under the text. A change to the hero's text size or the
   buttons' width means re-checking those caps (`ceiling` in
@@ -113,12 +143,27 @@ CLI are in the root `CLAUDE.md`. `API_URL` points at the API project
   sides and the text's line boxes (`data-hero-text`, `data-hero-box` in
   `page.tsx`) on every resize, nudging a card inward or skipping it; a
   fixed breakpoint once hid them on every laptop-width window. Measure text
-  runs, not elements: a block line's box spans the full width. In the
-  pinned product tour, `FitHeight` scales a visual down to the visual
-  area's height, so the resume card fits a short laptop screen; and its
+  runs, not elements: a block line's box spans the full width. The cards are
+  frosted glass (`.glass-card` in `landing.css`, a `backdrop-filter` over
+  the towers). Their fade runs on the tag's children, never the tag itself:
+  an ancestor below full opacity is a backdrop root, so the blur would see
+  nothing behind it and snap on only when the fade ended. Two cards on one
+  side of the city once stacked on each other: a card now shows for less
+  time than the gap between two tags on its side (`city-model.ts`'s
+  delays, `hero-city-tag-fade`), so change both together. The cards name
+  real employers from `scraper/boards.csv` with intern or new-grad titles,
+  the only roles the scraper keeps, and their logos come from the favicon
+  host. Their score chips are green, amber or red (`scoreTone` in
+  `score-tone.ts`, from the positive, warning and danger tokens), not the
+  app's magenta match bands: the team wanted the hero to show a spread of
+  fits at a glance. In the
+  pinned product tour, `Fit` scales a visual down to the visual area's
+  height and width (and, in the stacked stops, to their width), so the
+  520px-wide stories fit a short or narrow laptop screen; and its
   `AnimatePresence` must not get `initial={false}`, which blocks the first
-  animation of every motion element inside it: the Matching rows once sat
-  still at their end value until a tab switch remounted them. Violet is
+  animation of every motion element inside it: the old Matching stop's
+  rows once sat still at their end value until a tab switch remounted
+  them. Violet is
   the wireframes' alone; keep roofs and spires neutral. It does not use
   `ui/` components, Title Case or the type tokens; those rules are for app
   screens. Rules in `landing.css` that set `display` or a size sit in
@@ -131,8 +176,9 @@ CLI are in the root `CLAUDE.md`. `API_URL` points at the API project
   page's sections, since the site's other pages are not in the app; the
   waitlist form became a sign-up link, since its email went through the
   site's own server; every call to action goes to `/signup`, `/login` or
-  `signInWithOAuth`. The testimonial and FAQ still hold the site's
-  placeholder copy.
+  `signInWithOAuth`. The testimonial still holds the site's placeholder
+  copy; never fill it with an invented quote. The FAQ answers are product
+  claims, each tied to its source in a comment in `data.ts`.
 - **The Calendar, and the Dashboard's Next Up, Up Next and Waiting, are
   archived for now** (KAN-261): the tracker stores no dated events or
   follow-ups yet. `src/proxy.ts` sends `/calendar` to the Dashboard, its

@@ -23,20 +23,17 @@ import {
 import { cn } from "@/lib/cn";
 
 import AutofillVisual from "./autofill-visual";
-import { features, skillTags, type FeatureId } from "./feature-data";
+import { features, type FeatureId } from "./feature-data";
 import { useMediaQuery } from "./hooks";
-import MagnifiedTags from "./magnified-tags";
+import MatchingVisual from "./matching-visual";
 import ResumeVisual from "./resume-visual";
 import UpdatesVisual from "./updates-visual";
 
-function SkillsVisual() {
-  return <MagnifiedTags rows={skillTags} className="h-72 sm:h-80" />;
-}
-
 /**
- * Each stop's tab and colours. The colours are the app's own: violet for
- * matching, then the advanced blue, positive green and the match pink, so
- * each stop reads as its own product while staying in the palette.
+ * Each stop's tab and colours. The colours are the app's own: the advanced
+ * blue for resumes, then violet for matching, positive green and the match
+ * pink, so each stop reads as its own product while staying in the palette.
+ * The order is `features` in feature-data.ts; a stop keeps its colour.
  */
 const STOPS: Record<
   FeatureId,
@@ -45,7 +42,7 @@ const STOPS: Record<
   matching: {
     label: "Matching",
     icon: Target,
-    Visual: SkillsVisual,
+    Visual: MatchingVisual,
     tint: "var(--color-brand-tint)",
     glow: "var(--color-brand)",
   },
@@ -109,32 +106,39 @@ export function ProductTour() {
 }
 
 /**
- * Scales its content down to the height of `box` (the pinned visual area,
- * minus its padding), so a tall visual such as the resume card fits on a
+ * Scales a visual down to fit: the height and width of `box` (the pinned
+ * visual area, minus its padding), or only its own width when there is no
+ * box (the stacked stops). So a tall visual such as the resume card fits a
  * short laptop screen instead of losing its top and bottom to the area's
- * overflow clip. A transform, so the content keeps its own layout; it is
- * centred by the area's flex. Never scales up.
+ * overflow clip, and a wide one fits a narrow window. A transform from the
+ * top, with the space it frees taken back by a negative margin, so the
+ * content keeps its own layout. Never scales up.
  */
-function FitHeight({
-  box,
-  children,
-}: {
-  box: RefObject<HTMLDivElement | null>;
-  children: ReactNode;
-}) {
+function Fit({ box, children }: { box?: RefObject<HTMLDivElement | null>; children: ReactNode }) {
   const ref = useRef<HTMLDivElement>(null);
   const [fit, setFit] = useState(1);
+  const [height, setHeight] = useState(0);
 
   useEffect(() => {
     const el = ref.current;
-    const area = box.current;
-    if (!el || !area) return;
+    if (!el) return;
+    const area = box?.current ?? el.parentElement;
+    if (!area) return;
     const measure = () => {
       const style = getComputedStyle(area);
-      const room =
-        area.clientHeight - parseFloat(style.paddingTop) - parseFloat(style.paddingBottom);
-      // offsetHeight ignores the transform, so this is the unscaled height.
-      setFit(el.offsetHeight > 0 ? Math.min(1, room / el.offsetHeight) : 1);
+      const roomW =
+        area.clientWidth - parseFloat(style.paddingLeft) - parseFloat(style.paddingRight);
+      const roomH = box
+        ? area.clientHeight - parseFloat(style.paddingTop) - parseFloat(style.paddingBottom)
+        : Infinity;
+      // offsetWidth and offsetHeight ignore the transform, so these are the
+      // unscaled sizes. The child's width, not the wrapper's: the wrapper
+      // stretches to the area, while a wide visual overflows it.
+      const child = el.firstElementChild as HTMLElement | null;
+      const w = child?.offsetWidth ?? 0;
+      const h = el.offsetHeight;
+      setHeight(h);
+      setFit(w > 0 && h > 0 ? Math.min(1, roomW / w, roomH / h) : 1);
     };
     measure();
     const observer = new ResizeObserver(measure);
@@ -147,7 +151,15 @@ function FitHeight({
     <div
       ref={ref}
       className="flex w-full justify-center"
-      style={{ transform: fit < 1 ? `scale(${fit})` : undefined }}
+      style={
+        fit < 1
+          ? {
+              transform: `scale(${fit})`,
+              transformOrigin: "top center",
+              marginBottom: -height * (1 - fit),
+            }
+          : undefined
+      }
     >
       {children}
     </div>
@@ -286,9 +298,9 @@ function PinnedTour() {
                   exit={{ opacity: 0, y: -12, filter: "blur(6px)" }}
                   transition={{ duration: reduceMotion ? 0 : 0.35, ease: [0.16, 1, 0.3, 1] }}
                 >
-                  <FitHeight box={boxRef}>
+                  <Fit box={boxRef}>
                     <Visual />
-                  </FitHeight>
+                  </Fit>
                 </motion.div>
               </AnimatePresence>
             </div>
@@ -314,7 +326,9 @@ function StackedTour() {
               <StopCopy id={feature.id} />
             </div>
             <div className="flex justify-center px-2 py-8">
-              <Visual />
+              <Fit>
+                <Visual />
+              </Fit>
             </div>
           </div>
         );
