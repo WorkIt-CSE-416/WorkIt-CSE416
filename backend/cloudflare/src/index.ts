@@ -37,7 +37,7 @@ const FORWARDED = [
   "AI_ASSISTANT_SHARE",
 ] as const;
 
-type Env = { API: DurableObjectNamespace<Api> } & Partial<Record<(typeof FORWARDED)[number], string>>;
+type Env = { API: DurableObjectNamespace<Api>; VERSION: WorkerVersionMetadata } & Partial<Record<(typeof FORWARDED)[number], string>>;
 
 export class Api extends Container<Env> {
   defaultPort = 8080;
@@ -53,6 +53,21 @@ export class Api extends Container<Env> {
       if (value !== undefined && value !== "") vars[name] = value;
     }
     this.envVars = vars;
+  }
+
+  // A container keeps the environment it started with, and an Api object
+  // that finds its container still running attaches to it as it is. So
+  // after a deploy or a secret change, one instance answered with a stale
+  // [SENSITIVE] setting for every third request (2026-10-21). Each object
+  // records the Worker version its container started under and replaces a
+  // container from any other version before serving.
+  override async fetch(request: Request): Promise<Response> {
+    const version = this.env.VERSION.id;
+    if ((await this.ctx.storage.get<string>("version")) !== version) {
+      if (this.ctx.container?.running) await this.destroy();
+      await this.ctx.storage.put("version", version);
+    }
+    return super.fetch(request);
   }
 }
 

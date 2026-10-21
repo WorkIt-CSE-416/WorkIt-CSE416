@@ -20,6 +20,9 @@
       "max_instances": 3
     }
   ],
+  // The Worker version's id, which Api compares with the one its running
+  // container started under (src/index.ts)
+  "version_metadata": { "binding": "VERSION" },
   "durable_objects": {
     "bindings": [{ "name": "API", "class_name": "Api" }]
   },

@@ -714,7 +714,13 @@ removed at cutover, not before. Until then a change must work on both.
   Worker's `Api` class copies the names in its `FORWARDED` list into the
   container's environment, skipping any the Worker lacks so the code's
   default applies. **A new setting the API reads must join `FORWARDED`**, or
-  the container never sees it. CI deploys with `npm ci && npm run deploy`
+  the container never sees it. **A container keeps the environment it
+  started with**, and an `Api` object that finds its container running
+  attaches to it as it is, so after a secret change one instance went on
+  answering with the old values (2026-10-21). `Api.fetch` therefore stores
+  the Worker version (`version_metadata`) its container started under and
+  destroys a container from any other version before serving: the first
+  request to each instance after a deploy pays a cold start. CI deploys with `npm ci && npm run deploy`
   in `cloudflare/`; `npx wrangler deploy --dry-run` there checks the config
   and builds the image without deploying. Nobody runs `wrangler login` or a
   real deploy from a laptop.
