@@ -35,13 +35,6 @@ jobs:
           NEXT_PUBLIC_SUPABASE_ANON_KEY: ${{ vars.NEXT_PUBLIC_SUPABASE_ANON_KEY }}
       # Prints the token's account and scopes (never the token), so a
       # permission error below can be read straight from the log.
-      - name: Diagnose API access (temporary)
-        working-directory: .
-        run: |
-          A="https://api.cloudflare.com/client/v4/accounts/$CLOUDFLARE_ACCOUNT_ID"
-          H="Authorization: Bearer $CLOUDFLARE_API_TOKEN"
-          for u in "$A/tokens/verify" "$A/workers/scripts" "$A/workers/scripts/workit-web/secrets" "$A/workers/subdomain" "$A/workers/services/workit-web"; do
-            echo "== ${u#$A}"; curl -s -H "$H" "$u" | python3 -c "import sys,json;d=json.load(sys.stdin);print('success',d.get('success'),'errors',d.get('errors'),'n',len(d.get('result') or []) if isinstance(d.get('result'),list) else type(d.get('result')).__name__)"
-          done
       - run: npx wrangler whoami
+      - run: ../.github/scripts/ensure-worker.sh workit-web
       - run: npm run cf:deploy
