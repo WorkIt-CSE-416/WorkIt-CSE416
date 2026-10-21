@@ -751,7 +751,12 @@ Application Questions shows and edits them (KAN-269).
   is. Questions with no fixed key (a company's own screening question)
   will need their text stored, but only once the extension records what a
   student types into a form; they get their own part of the bank then,
-  with no migration, since the column is JSONB.
+  with no migration, since the column is JSONB. **Still true as of the
+  essay-answer feature** (`routers/essay_answer.py`, KAN-164): that route
+  reads the question's literal text from the extension's request and never
+  writes it anywhere — it's exactly the "extension records what a student
+  types" moment this note anticipated, and persisting it is a deliberate,
+  deferred follow-up, not an oversight.
 - **Written per key, never replaced whole.** `PATCH` merges in the database
   (`answers || new - cleared`), so a tab holding an old copy can't erase an
   answer it never loaded. The frontend sends only the answers the seeker
