@@ -554,7 +554,8 @@ stages. Resume is the sent resume the application names
 auto apply attached; "Not sent" when the student said No Resume, applied
 before KAN-267 with nothing sent, or deleted that sent resume. **With one, the cell is View Resume** (KAN-267,
 `applications/view-resume.tsx`): an sm button naming the resume, the cell's
-whole width, that opens it in a dialog over the list. A click anywhere in
+whole width, that opens it in a dialog over the list, 80% of the window's
+width and height (it follows a resize), the PDF filling it. A click anywhere in
 that cell around the button is a near miss and opens nothing (it is
 prevented, which `ClickableRow` leaves alone), and a click inside the
 dialog stops there. The dialog shows the PDF in a frame: a built resume's

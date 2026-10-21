@@ -79,7 +79,14 @@ export function ViewResumeButton({
         {/* React passes a click inside the dialog up to the row or card it
             was opened from, portal or not: stop it here, so reading the
             resume never opens the application. */}
-        <DialogContent className="sm:max-w-3xl" onClick={(event) => event.stopPropagation()}>
+        {/* 80% of the window each way, whatever its size (vw and vh follow
+            a resize): a resume needs the room, and a fixed width left it a
+            narrow strip on a wide screen. A flex column, so the frame takes
+            whatever the title leaves. */}
+        <DialogContent
+          className="flex h-[80vh] w-[80vw] max-w-none flex-col sm:max-w-none"
+          onClick={(event) => event.stopPropagation()}
+        >
           <DialogHeader>
             <DialogTitle className="text-subtitle truncate pr-8 font-semibold">
               {resume.name}
@@ -127,7 +134,7 @@ function ResumeFile({
   onToggleText: () => void;
 }) {
   return (
-    <div className="flex flex-col gap-3">
+    <div className="flex min-h-0 flex-1 flex-col gap-3">
       {file.rebuilt && (
         <div className="text-note text-ink-muted flex flex-wrap items-center gap-x-3 gap-y-1">
           <p>
@@ -142,7 +149,7 @@ function ResumeFile({
         </div>
       )}
       {showText && file.original_text ? (
-        <pre className="text-note text-ink bg-well rounded-card max-h-[70vh] overflow-auto p-4 font-sans whitespace-pre-wrap">
+        <pre className="text-note text-ink bg-well rounded-card min-h-0 flex-1 overflow-auto p-4 font-sans whitespace-pre-wrap">
           {file.original_text}
         </pre>
       ) : (
@@ -150,7 +157,7 @@ function ResumeFile({
           <iframe
             src={src}
             title={file.file_name}
-            className="border-border rounded-card h-[70vh] w-full border bg-white"
+            className="border-border rounded-card min-h-0 w-full flex-1 border bg-white"
           />
         )
       )}
