@@ -142,8 +142,8 @@ CLI are in the root `CLAUDE.md`. `API_URL` points at the API project
   stops stack, because a pinned card with the resume animation does not fit
   a phone. The site's placeholder benefit grid and three steps became an
   expanding card row (`journey.tsx`: Find, Apply, Track, Hear back; the
-  card under the pointer widens) and a hiring-system section
-  (`hiring-systems.tsx`). The site's closing "Be first in line" banner is
+  card under the pointer widens) and the hiring-systems section
+  (below). The site's closing "Be first in line" banner is
   removed for now. **The applications section** ("Every application, from
   saved to signed.", KAN-316): its board (`application-board.tsx`) shows
   real employers from `scraper/boards.csv` with intern or new-grad titles
@@ -159,9 +159,37 @@ CLI are in the root `CLAUDE.md`. `API_URL` points at the API project
   `var()`. The list is `isolate`, or the highlight's `-z-10` drops behind
   the page's background. **The hiring-system list in
   `data.ts` is a claim that WorkIt reads those systems**: it must match
-  `scraper/workit_scraper/providers.py`'s `LISTING_URL`. Its logos come from
-  the Google favicon host `next.config.ts` already allows; Workday's and
-  BambooHR's are only 16px there, so they look soft on a sharp screen.
+  `scraper/workit_scraper/providers.py`'s `LISTING_URL`. Its logos are
+  files in `public/hiring-systems/`, each from the company's own site or
+  its GitHub organization, square and at least 48px: the Google favicon
+  host had only 16-32px copies of BambooHR's and Workday's, which looked
+  blurry. A hiring system added to the list needs its file there too.
+  **The hiring-systems section** (`hiring-systems.tsx`) draws the job
+  pipeline (`docs/job-pipeline.md`) as a stream. From lg up, one lane per
+  hiring system carries job postings from real employers on that system
+  in `scraper/boards.csv` (`streams` in `data.ts`) into WorkIt's mark: a
+  senior role is struck through and falls away, an internship or new-grad
+  role goes in and comes out as a glass card on the Jobs page side,
+  sorted by Best Match. Below lg it runs top to bottom in two or three
+  columns. The lines under the mark are pipeline steps, so each is a
+  claim. The team dropped the two cards that sat under it (Autofill for
+  Chrome, Scout): their feature pages cover them. One clock (a motion
+  value, in seconds) drives every chip and moves only in view and in a
+  visible tab; with reduced motion it stays at `STILL_AT`, the one still
+  frame. A lane's chips are evenly spaced slots, and each takes the lane's
+  next posting every lap; a lane too short for two (below about 1200px)
+  carries one, since two overlapped at 1024px. `STILL_AT` was picked by
+  simulating every layout, so no chip is mid-fall and the first card comes
+  out within two seconds; re-check it after changing lanes, speeds or
+  postings. When a kept posting's card is already shown, the next one not
+  shown comes out instead: with the same few postings going round, the
+  list once sat unchanged for 15 seconds. A chip keeps its lap in a ref as
+  well as state: `useTransform` sets its value again while the chip
+  renders, and a listener that set state from the old lap looped ("Too
+  many re-renders"). While the Browser pane is hidden it draws no frames,
+  so neither `requestAnimationFrame` nor `ResizeObserver` runs and the
+  stream stands still; each screenshot draws one frame (about 40ms of the
+  clock), so check it with screenshots and script reads, not by waiting.
   The hero's backdrop is an animated SVG city (`city-model.ts` draws it,
   `hero-city.tsx` renders it after hydration, since server-rendered its path
   data would add hundreds of KB to the page): New York-style towers, six of
@@ -269,8 +297,8 @@ CLI are in the root `CLAUDE.md`. `API_URL` points at the API project
   content files never reach the browser. Features and Pricing share one
   box, `NAV_ITEM` in `layout-parts.tsx`: Pricing as a bare inline link
   sat 1px lower, its 14px text on the list item's 16px baseline. The
-  menu's foot row links to the home page's `#hiring-systems` until that
-  has a page. **The bar's white fill
+  menu's foot row links to the home page's `#hiring-systems`; the team
+  decided that section gets no page of its own. **The bar's white fill
   is a layer behind the nav, not the nav's parent**: with `backdrop-blur`
   on an ancestor, that ancestor is the panel's backdrop root, and the
   panel's own blur would see nothing behind it. The phone menu is the

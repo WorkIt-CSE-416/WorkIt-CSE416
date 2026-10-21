@@ -118,41 +118,164 @@ export const journey: JourneyStep[] = [
 ];
 
 /**
- * The hiring systems the scraper reads company job boards from
- * (scraper/workit_scraper/providers.py, LISTING_URL). Keep the two lists
- * the same: a name here is a claim that WorkIt reads it. `domain` feeds the
- * favicon service next.config.ts already allows.
+ * The home page's hiring-systems section: the job pipeline
+ * (docs/job-pipeline.md) drawn as a stream (hiring-systems.tsx). Every line
+ * is a claim: the scraper runs every 3 hours, reads the company job boards
+ * on the hiring systems below, keeps only internship and new-grad roles,
+ * reads their facts, merges duplicates and drops postings that closed.
  */
 export const hiringSystemsSection = {
   eyebrow: "Hiring systems",
   title: "Straight from the hiring systems companies use",
   subtitle:
-    "WorkIt reads job postings from company job boards on these hiring systems, so every role links to the company's own application.",
+    "Every 3 hours, WorkIt reads thousands of company job boards on these hiring systems, keeps the internships and new-grad roles, and links each one to the company's own application.",
+  intake: "Company job boards",
+  output: "Your Jobs page",
+  sort: "Sorted by Best Match",
+  cadence: "Every 3 hours",
+  /** What WorkIt does to the stream, one line at a time under its mark. */
+  steps: [
+    "Keeping internships and new-grad roles",
+    "Reading pay, work style and visa",
+    "Merging duplicate job postings",
+    "Dropping job postings that closed",
+  ],
 };
 
+/**
+ * The hiring systems the scraper reads company job boards from
+ * (scraper/workit_scraper/providers.py, LISTING_URL). Keep the two lists
+ * the same: a name here is a claim that WorkIt reads it. `logo` is a file
+ * in public/hiring-systems/, from the company's own site or its GitHub
+ * organization: Google's favicon host had only 16-32px copies of
+ * BambooHR's and Workday's, which looked blurry. The header's Features
+ * menu names the first three.
+ */
 export const hiringSystems = [
-  { name: "Greenhouse", domain: "greenhouse.com" },
-  { name: "Lever", domain: "lever.co" },
-  { name: "Ashby", domain: "ashbyhq.com" },
-  { name: "Workday", domain: "workday.com" },
-  { name: "Workable", domain: "workable.com" },
-  { name: "BambooHR", domain: "bamboohr.com" },
-  { name: "Recruitee", domain: "recruitee.com" },
-];
-
-/** The two cards under the hiring systems, after Calendly's suite cards. */
-export const companions = [
-  {
-    id: "extension",
-    title: "Autofill for Chrome",
-    body: "The WorkIt extension fills the company's own application form from your profile. You check it over and press Submit yourself.",
-  },
-  {
-    id: "scout",
-    title: "Scout, your job assistant",
-    body: "Ask Scout about any job posting: what the role needs, how you fit, and what to do next.",
-  },
+  { name: "Greenhouse", logo: "/hiring-systems/greenhouse.png" },
+  { name: "Lever", logo: "/hiring-systems/lever.png" },
+  { name: "Ashby", logo: "/hiring-systems/ashby.png" },
+  { name: "Workday", logo: "/hiring-systems/workday.png" },
+  { name: "Workable", logo: "/hiring-systems/workable.svg" },
+  { name: "BambooHR", logo: "/hiring-systems/bamboohr.png" },
+  { name: "Recruitee", logo: "/hiring-systems/recruitee.png" },
 ] as const;
+
+export type HiringSystemName = (typeof hiringSystems)[number]["name"];
+
+/** A job posting in the hiring-systems section's stream. */
+export interface StreamPosting {
+  company: string;
+  /** The company's site, for its favicon. */
+  domain: string;
+  title: string;
+  /** Only on a role the scraper keeps: the clean card it becomes. */
+  card?: {
+    location: string;
+    /** Work style, then pay. */
+    facts: [string, string];
+    /** The match, in the score chip. */
+    score: number;
+  };
+}
+
+/**
+ * Each hiring system's lane in the stream: real employers whose company
+ * job board is on that hiring system in scraper/boards.csv. A posting with
+ * a `card` is an internship, co-op or new-grad role in one of the
+ * scraper's categories, so it is kept (docs/job-pipeline.md, 3.1); one
+ * without is a senior role, dropped at WorkIt. The postings, facts and
+ * scores are made up.
+ */
+export const streams: Record<HiringSystemName, StreamPosting[]> = {
+  Greenhouse: [
+    {
+      company: "Stripe",
+      domain: "stripe.com",
+      title: "Software Engineer Intern",
+      card: { location: "Seattle, WA", facts: ["Hybrid", "$55/hr"], score: 94 },
+    },
+    { company: "Cloudflare", domain: "cloudflare.com", title: "Senior Systems Engineer" },
+    {
+      company: "Databricks",
+      domain: "databricks.com",
+      title: "Data Science Intern",
+      card: { location: "San Francisco, CA", facts: ["Hybrid", "$60/hr"], score: 89 },
+    },
+  ],
+  Lever: [
+    {
+      company: "Palantir",
+      domain: "palantir.com",
+      title: "Software Engineer, New Grad",
+      card: { location: "New York, NY", facts: ["On site", "$160k/yr"], score: 81 },
+    },
+    { company: "Spotify", domain: "spotify.com", title: "Engineering Manager" },
+    {
+      company: "Zoox",
+      domain: "zoox.com",
+      title: "Firmware Engineer Intern",
+      card: { location: "Foster City, CA", facts: ["On site", "$48/hr"], score: 72 },
+    },
+  ],
+  Ashby: [
+    {
+      company: "Notion",
+      domain: "notion.so",
+      title: "Product Design Intern",
+      card: { location: "San Francisco, CA", facts: ["Hybrid", "$50/hr"], score: 77 },
+    },
+    { company: "OpenAI", domain: "openai.com", title: "Research Scientist" },
+    {
+      company: "Plaid",
+      domain: "plaid.com",
+      title: "Product Manager Intern",
+      card: { location: "New York, NY", facts: ["Hybrid", "$52/hr"], score: 83 },
+    },
+  ],
+  Workday: [
+    {
+      company: "NVIDIA",
+      domain: "nvidia.com",
+      title: "Hardware Engineering Intern",
+      card: { location: "Santa Clara, CA", facts: ["On site", "$58/hr"], score: 91 },
+    },
+    { company: "Netflix", domain: "netflix.com", title: "Senior Software Engineer" },
+    {
+      company: "Capital One",
+      domain: "capitalone.com",
+      title: "Financial Analyst Intern",
+      card: { location: "McLean, VA", facts: ["Hybrid", "$45/hr"], score: 79 },
+    },
+  ],
+  Workable: [
+    {
+      company: "Infleqtion",
+      domain: "infleqtion.com",
+      title: "Quantum Software Intern",
+      card: { location: "Boulder, CO", facts: ["On site", "$32/hr"], score: 86 },
+    },
+    { company: "Genetec", domain: "genetec.com", title: "Director of Product Sales" },
+  ],
+  BambooHR: [
+    { company: "Lunar Outpost", domain: "lunaroutpost.com", title: "Principal Systems Engineer" },
+    {
+      company: "Berkshire Grey",
+      domain: "berkshiregrey.com",
+      title: "Mechanical Engineering Co-op",
+      card: { location: "Bedford, MA", facts: ["On site", "$28/hr"], score: 74 },
+    },
+  ],
+  Recruitee: [
+    {
+      company: "1X",
+      domain: "1x.tech",
+      title: "Robotics Engineering Intern",
+      card: { location: "Palo Alto, CA", facts: ["On site", "$45/hr"], score: 68 },
+    },
+    { company: "Hard Rock Digital", domain: "hardrockdigital.com", title: "Senior Data Engineer" },
+  ],
+};
 
 export const testimonial = {
   quote:
