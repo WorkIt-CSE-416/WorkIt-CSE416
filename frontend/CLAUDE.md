@@ -227,7 +227,11 @@ CLI are in the root `CLAUDE.md`. `API_URL` points at the API project
 - **The marketing site is the home page, a page per feature and Pricing**,
   all in `app/(landing)/`, after Linear, Notion and Calendly. The home page
   is the overview. The header reads Features ▾, Pricing, Log in and Get
-  started (the team renamed Product to Features); its old anchor links (Features, Applications, FAQ) are gone.
+  started (the team renamed Product to Features); its old anchor links
+  (Features, Applications, FAQ) are gone. Two links is a decision, not a
+  gap: the team turned down a third (Integrations, too small for a page;
+  a public job list, since it does not want postings shown signed out;
+  Help Center, What's New, For Career Centers).
   **The feature list is `features/catalog.ts`**: each feature page's slug,
   name, icon and colour, in menu order. The Features menu, the phone menu,
   the footer's Features column, each page's related-feature cards and the
