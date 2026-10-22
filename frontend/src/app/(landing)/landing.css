@@ -307,7 +307,7 @@ html:has(.landing) {
  * Frosted glass, the page's one glass look: a translucent white with a
  * violet cast, blurring what is behind it, a bright top edge and a soft
  * violet rim. The hero's job cards, the tour's scene titles and the
- * applications board's cards share it, so they read as one family. An
+ * hiring-systems section's cards share it, so they read as one family. An
  * ancestor below full opacity, or with a filter or mask, is a backdrop
  * root: the blur then sees nothing behind it.
  */
@@ -545,7 +545,8 @@ html[data-tab-flight="flying"] .tour-tabs {
  * The thread below the tour (thread.tsx, Flight): while the followed card
  * flies from one section to the next, each end hides while the card is not
  * there, so it is drawn once. "board" runs from the statement to the
- * applications board, "deck" from the board to the journey's Track card.
+ * applications route's first stop, "deck" from its last stop to the
+ * journey's Track card.
  * With no flight the attribute is absent and both ends show.
  */
 html[data-thread-board="flying"] [data-thread-from="board"],

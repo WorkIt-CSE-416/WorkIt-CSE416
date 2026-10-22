@@ -23,8 +23,8 @@ import { GLIDE } from "./story";
  * The thread below the product tour: the application the tour followed
  * (`followedJob`, Stripe) carried from section to section, after Twain's
  * habit of handing one object down the page. The statement ends on it as
- * the tailored application, it crosses the applications board stage by
- * stage, and it lands on the journey's Track card. `FollowedCard` draws it
+ * the tailored application, it rides the applications route stop by
+ * stop, and it lands on the journey's Track card. `FollowedCard` draws it
  * the same way everywhere, and `Flight` carries it from one section to the
  * next as the page scrolls.
  */

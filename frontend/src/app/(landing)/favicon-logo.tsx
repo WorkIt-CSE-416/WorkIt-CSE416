@@ -4,7 +4,7 @@ import { cn } from "@/lib/cn";
 
 /**
  * A company's logo on a white tile, from the Google favicon host
- * `next.config.ts` allows: the applications board, the Auto Apply and
+ * `next.config.ts` allows: the applications route's piles, the Auto Apply and
  * Updates stops and the journey cards. The hiring systems pass a file in
  * `public/hiring-systems/` instead, since Google had only blurry copies of
  * some of theirs. Decorative; the company's name sits beside it.

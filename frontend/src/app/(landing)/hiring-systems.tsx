@@ -527,8 +527,9 @@ function StreamChip({
   );
 }
 
-/** A clean job posting card, as the Jobs page shows one. */
-function JobCard({ posting, wide }: { posting: StreamPosting; wide: boolean }) {
+/** A clean job posting card, as the Jobs page shows one. The 3D pipeline
+ * (hiring-pipeline.tsx) draws its cards with it too. */
+export function JobCard({ posting, wide }: { posting: StreamPosting; wide: boolean }) {
   const card = posting.card!;
   return (
     <motion.li

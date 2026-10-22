@@ -196,27 +196,27 @@ CLI are in the root `CLAUDE.md`. `API_URL` points at the API project
   screen; with reduced motion it holds progress at 1, the finished frame.
   The paragraph is product copy, so its claims follow the rules above. The site's closing "Be first in line" banner is
   removed for now. **The applications section** ("Every application, from
-  saved to signed.", KAN-316): its board (`application-board.tsx`) shows
-  real employers from `scraper/boards.csv` with intern or new-grad titles
-  and no note line, its cards frosted glass over blobs in the four stages'
-  colours, so the glass has colour to blur. The stage list beside it is
-  `StageTimeline` (`stage-timeline.tsx`): one search moving from saved to
-  signed as the page scrolls ("The home page's lower half", below), a track that fills stage by stage, nodes that light in each
-  stage's colour, a glass highlight that slides to the current stage, a
-  tally that counts up, and a burst at the offer. Its rows are a fixed
-  height (`ROW`), since the track and fill are measured in rows; a longer
-  description must still fit two lines at phone width. Node colours are
-  CSS variables, so they change by CSS transition: motion cannot tween a
-  `var()`. The list is `isolate`, or the highlight's `-z-10` drops behind
-  the page's background. **The hiring-system list in
+  saved to signed.", KAN-316) is one search's route (`applications.tsx`,
+  "The home page's lower half", below): four stops, Saved, Applied,
+  Interview and Job Offers, each with its stage's line and count
+  (`stages` in `board-data.ts`), and under each a pile of real employers'
+  logos counting the search down. A tilted board of glass cards over
+  blobs in the four stages' colours, with a stage list whose glass
+  highlight slid from row to row, was here first: the team found the
+  board, the card laid over its tilt and the gradient ugly, and had the
+  section redrawn on 2026-10-22.
+  **The hiring-system list in
   `data.ts` is a claim that WorkIt reads those systems**: it must match
   `scraper/workit_scraper/providers.py`'s `LISTING_URL`. Its logos are
   files in `public/hiring-systems/`, each from the company's own site or
   its GitHub organization, square and at least 48px: the Google favicon
   host had only 16-32px copies of BambooHR's and Workday's, which looked
   blurry. A hiring system added to the list needs its file there too.
-  **The hiring-systems section** (`hiring-systems.tsx`) draws the job
-  pipeline (`docs/job-pipeline.md`) as a stream. From lg up, one lane per
+  **The hiring-systems section** draws the job pipeline
+  (`docs/job-pipeline.md`). From lg up it is a 3D scene after Twain's ring
+  of logo coins (`hiring-pipeline.tsx`, "The home page's lower half",
+  below); the flat stream (`hiring-systems.tsx`) is its still version,
+  below lg and with reduced motion, and lends it `JobCard`. In the stream, from lg up, one lane per
   hiring system carries job postings from real employers on that system
   in `scraper/boards.csv` (`streams` in `data.ts`) into WorkIt's mark: a
   senior role is struck through and falls away, an internship or new-grad
@@ -454,12 +454,12 @@ CLI are in the root `CLAUDE.md`. `API_URL` points at the API project
   tour followed (`followedJob`), drawn as a tracker card by `FollowedCard`
   (`thread.tsx`; its text per stage is `followedStages` in
   `board-data.ts`, dated after the Updates stop). It flies from the
-  statement's last frame onto the applications board's Saved column,
-  crosses the board stage by stage, and flies on to land on the journey's
-  Track card. The statement is built in its own file by another session;
+  statement's last frame onto the applications route's first stop, rides
+  the route stop by stop, and flies on to land on the journey's Track
+  card. The statement is built in its own file by another session;
   its one duty to this thread is to end on the tailored application as
   `<FollowedCard stage="saved" data-thread-from="board" />`, shown at its
-  pin's end. Until it does, the board's flight finds no start and the
+  pin's end. Until it does, the route's flight finds no start and the
   card simply sits on Saved. `Flight` carries it:
   mounted by the pinned scene it lands in, with that section's entry
   progress, it moves a fixed copy from `data-thread-from=<name>` to
@@ -468,20 +468,25 @@ CLI are in the root `CLAUDE.md`. `API_URL` points at the API project
   `data-thread-<name>` (idle, flying, landed); landing.css hides each end
   while the card is not there, as the bridge's `TabFlight` does. With no
   flight both ends show. **The applications section** (`applications.tsx`)
-  pins for 280vh from lg up, and the scroll alone drives it: the timeline
-  has no timer. `stageAt` in `stage-timeline.tsx` holds at a stage, then
-  glides to the next over the last 60% of its stretch, and the fill, the
-  glass highlight and the board's card all read it, so they arrive
-  together as the node lights. The lit column glows behind its glass
-  cards (the glow fades itself, never the cards) and outlines them in the
-  stage's colour: an outline, since a ring loses to `.glass-card`'s
-  box-shadow. The card crosses the board flat, over the 3D tilt, at each
-  column's centre (`data-board-col` markers, measured relative to the
-  board and read through a ref), kept inside the board's edges: the outer
-  columns' centres sit near them and the corners cut the card. Under
-  760px of height the rows shrink to 70px so the heading and four stages
-  fit. `Burst` keeps its 0.55s delay for the Updates stop; the timeline
-  passes its own. **The journey** (`journey.tsx`) pins for 300vh: the four
+  pins for 280vh from lg up, and the scroll alone drives it. The card
+  rides above a line through the four stops, flush with the line's ends
+  at the first and last; `stageAt` in `stage-timeline.tsx` holds at a
+  stop, then glides to the next over the last 60% of its stretch, and the
+  card, the line's fill and the flying logos all read it, so they arrive
+  together as the stop lights and its line replaces the caption beside
+  the heading. The piles hold each stage's count (24, 12, 4, 1) from one
+  list, `LOGOS`, furthest first, so every logo that reaches a stop came
+  from the pile before and the last one is the followed application. A
+  logo going on waits on the pile before, exactly over its twin so it
+  cannot be seen, until that pile is reached, then flies on an arc; the
+  piles' places are plain arithmetic from the stops, nothing measured but
+  the route's width. One violet runs the route; the stage colour shows
+  only in the card's chip and ring: the team found the old four-colour
+  gradient ugly. Under 800px of height the card is drawn at 78% so the
+  heading, route and piles fit at 1280 × 720. `Burst` keeps its 0.55s
+  delay for the Updates stop; the route passes its own. Below lg the
+  stops are a still list with full piles and the card at its offer.
+  **The journey** (`journey.tsx`) pins for 300vh: the four
   cards start as a deck with Track on top, where the card lands, fan into
   a row, then flip in turn (`rotateY`, faces with `backface-visibility:
   hidden`) from a front with the step and a picture of it, each the Stripe
@@ -496,18 +501,32 @@ CLI are in the root `CLAUDE.md`. `API_URL` points at the API project
   A scroll-driven `view()` animation was tried first: under a pin, Chrome
   placed the heading's view timeline hundreds of pixels off and it stayed
   blurred for most of the pinned stretch. The FAQ's rows do rise on
-  `view()`, since the FAQ never pins. The hiring-systems and testimonial
-  panels grow into place (`GrowIn`, a scale only: a fade or filter on a
-  panel would make it the backdrop root of the glass inside); the
-  stream's inside is untouched. The testimonial reads word by word like
+  `view()`, since the FAQ never pins. **Hiring systems**
+  (`hiring-pipeline.tsx`), at the user's request after Twain's ring of
+  logo coins, pins for 280vh in a grey panel: the seven hiring systems
+  come in as thick coins (CSS 3D: a face, stacked discs for the edge, a
+  back, under the stage's `perspective`) tumbling in a ring beside the
+  heading; then each flies to the pipe and turns side-on as a coupling,
+  the glass pipe grows out to WorkIt's mark, and the postings flow. The
+  couplings sit together at the intake end like a manifold: spread along
+  the whole pipe they hid most titles. The postings ride a conveyor of
+  evenly spaced places (`SPACING`), each given to the hiring systems in
+  turn and shown from that system's coupling on, so they never overlap
+  in the one pipe; a senior role is struck through and filtered out
+  before the mark, a kept role goes in and comes out as a `JobCard`. The
+  flow's clock runs only once the pipe has formed, in view and in a
+  visible tab. The testimonial's panel grows into place (`GrowIn`, a
+  scale only: a fade or filter on a panel would make it the backdrop root
+  of the glass inside). The testimonial reads word by word like
   the statement's paragraph and keeps its placeholder copy. The footer,
   on every marketing page, closes on "workit" (the logo's own outline,
   `LOGO_WORD` from `components/logo.tsx`, as a clip path) filled with rows
   of the page's job titles, the followed one in violet, which slide in
   from alternate sides as it comes up (`footer-wordmark.tsx`). **Below lg
   and with reduced motion every one of these is still**: no pin, no
-  flight, no heading blur, the finished frame. The statement alone still
-  follows its section through the screen below lg. **Checking these scenes in
+  flight, no heading blur, the finished frame. Two exceptions below lg:
+  the statement still follows its section through the screen, and hiring
+  systems falls back to the flat stream, which keeps flowing. **Checking these scenes in
   the Browser pane**: `html` has `scroll-behavior: smooth`, so a script's
   `scrollTo` must pass `behavior: "instant"`; the pane draws frames
   lazily, so a screenshot after a script scroll often shows an older

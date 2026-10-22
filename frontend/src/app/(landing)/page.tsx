@@ -5,13 +5,13 @@ import { cn } from "@/lib/cn";
 
 import { Applications } from "./applications";
 import { Bridge } from "./bridge";
-import { faqs, hero, hiringSystemsSection, site } from "./data";
+import { faqs, hero, site } from "./data";
 import { FaqList } from "./faq-list";
 import { FocusIn } from "./focus-in";
 import { GrowIn } from "./grow-in";
 import { HeroCity } from "./hero-city";
 import { HeroTitle } from "./hero-title";
-import { HiringSystems } from "./hiring-systems";
+import { HiringSystemsSection } from "./hiring-pipeline";
 import { Journey } from "./journey";
 import { CONTAINER, PANEL, PANEL_INSET, SectionHeading } from "./layout-parts";
 import { ProductTour } from "./product-tour";
@@ -91,22 +91,9 @@ export default function LandingPage() {
       {/* How it works: a deck of four cards that fans and flips: journey.tsx. */}
       <Journey />
 
-      {/* Hiring systems, in a rounded panel that grows into place. The
-            Features menu's foot row links here. */}
-      <section id="hiring-systems" className={PANEL_INSET}>
-        <GrowIn className={cn(PANEL, "bg-surface py-20 sm:py-28")}>
-          <div className={CONTAINER}>
-            <FocusIn>
-              <SectionHeading
-                eyebrow={hiringSystemsSection.eyebrow}
-                title={hiringSystemsSection.title}
-                subtitle={hiringSystemsSection.subtitle}
-              />
-            </FocusIn>
-            <HiringSystems />
-          </div>
-        </GrowIn>
-      </section>
+      {/* Hiring systems: a ring of logo coins that becomes a 3D pipeline
+            (hiring-pipeline.tsx). The Features menu's foot row links here. */}
+      <HiringSystemsSection />
 
       {/* Testimonial, read word by word: testimonial.tsx. */}
       <section className={cn(PANEL_INSET, "mt-2 sm:mt-6")}>
