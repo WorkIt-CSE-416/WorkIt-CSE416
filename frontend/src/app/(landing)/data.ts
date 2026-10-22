@@ -22,9 +22,9 @@ export const site = {
     {
       title: "Product",
       links: [
-        { label: "Features", href: "#features" },
-        { label: "Applications", href: "#applications" },
-        { label: "FAQ", href: "#faq" },
+        { label: "Features", href: "/#features" },
+        { label: "Applications", href: "/#applications" },
+        { label: "FAQ", href: "/#faq" },
       ],
     },
     {
@@ -32,6 +32,13 @@ export const site = {
       links: [
         { label: "Log in", href: "/login" },
         { label: "Sign up", href: "/signup" },
+      ],
+    },
+    {
+      title: "Legal",
+      links: [
+        { label: "Privacy Policy", href: "/privacy" },
+        { label: "Terms of Service", href: "/terms" },
       ],
     },
   ],
