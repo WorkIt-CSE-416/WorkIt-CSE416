@@ -208,22 +208,31 @@ async def remove_queued(db: AsyncSession, applicant_id: uuid.UUID, job_id: uuid.
     return removed is not None
 
 
-async def set_stage(
-    db: AsyncSession, applicant_id: uuid.UUID, job_id: uuid.UUID, stage: application_stage
-) -> None:
-    """Moves this application to `stage`. Applied also records when, unless
-    it already has a date."""
+async def move_stage(
+    db: AsyncSession,
+    applicant_id: uuid.UUID,
+    job_id: uuid.UUID,
+    stage: application_stage,
+    allowed: Sequence[application_stage],
+) -> bool:
+    """Moves this application to `stage` only if it is at one of `allowed`,
+    in one conditional UPDATE, so two moves at once can't both pass a check
+    made before either writes. False when it isn't (or there is none).
+    Applied also records when, unless it already has a date."""
     values: dict = {"stage": stage}
     if stage == application_stage.applied:
         values["applied_at"] = func.coalesce(Job_Application.applied_at, func.now())
-    await db.execute(
+    moved = await db.scalar(
         update(Job_Application)
         .where(
             Job_Application.applicant_id == applicant_id,
             Job_Application.job_id == job_id,
+            Job_Application.stage.in_(list(allowed)),
         )
         .values(**values)
+        .returning(Job_Application.job_id)
     )
+    return moved is not None
 
 
 @dataclass(frozen=True)

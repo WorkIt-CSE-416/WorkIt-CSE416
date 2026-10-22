@@ -137,24 +137,25 @@ def test_queue_job_refuses_a_job_that_isnt_open(monkeypatch):
 )
 def test_finish_application_moves_the_stage(monkeypatch, before, outcome, after):
     fake_stage(monkeypatch, before)
-    set_stage = AsyncMock()
-    monkeypatch.setattr(pipeline, "set_stage", set_stage)
+    move_stage = AsyncMock(return_value=True)
+    monkeypatch.setattr(pipeline, "move_stage", move_stage)
     db = FakeDB()
 
     assert asyncio.run(pipeline.finish_application(db, APPLICANT, JOB, outcome)) == after
-    set_stage.assert_awaited_once_with(db, APPLICANT, JOB, after)
+    move_stage.assert_awaited_once_with(db, APPLICANT, JOB, after, pipeline.FINISHABLE)
     db.commit.assert_awaited_once()
 
 
 @pytest.mark.parametrize("stage", [application_stage.applied, application_stage.skipped])
 def test_finish_application_refuses_a_finished_one(monkeypatch, stage):
     fake_stage(monkeypatch, stage)
-    set_stage = AsyncMock()
-    monkeypatch.setattr(pipeline, "set_stage", set_stage)
+    # The conditional UPDATE matched no row: the stage is read to say why.
+    monkeypatch.setattr(pipeline, "move_stage", AsyncMock(return_value=False))
+    db = FakeDB()
 
     with pytest.raises(pipeline.WrongStage, match="Queue a new job"):
-        asyncio.run(pipeline.finish_application(FakeDB(), APPLICANT, JOB, "submitted"))
-    set_stage.assert_not_awaited()
+        asyncio.run(pipeline.finish_application(db, APPLICANT, JOB, "submitted"))
+    db.commit.assert_not_awaited()
 
 
 def test_get_application_without_one_is_not_found(monkeypatch):
@@ -168,6 +169,7 @@ def test_get_application_without_one_is_not_found(monkeypatch):
 
 def test_finish_application_needs_an_application(monkeypatch):
     fake_stage(monkeypatch, None)
+    monkeypatch.setattr(pipeline, "move_stage", AsyncMock(return_value=False))
 
     with pytest.raises(pipeline.NotFound):
         asyncio.run(pipeline.finish_application(FakeDB(), APPLICANT, JOB, "skipped"))

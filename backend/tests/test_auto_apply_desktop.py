@@ -192,6 +192,23 @@ async def test_claim_leaves_filling_while_desktop_beats(database):
     assert await _stage(database, me, busy) == application_stage.filling
 
 
+async def test_two_approvals_at_once_move_it_once(database):
+    me = await _seed_applicant(database)
+    job = await _seed_application(database, me, "filling")
+    async with database() as session:
+        await pipeline.submit_review(session, me, job, _review())
+
+    async def approve():
+        async with database() as session:
+            try:
+                return await pipeline.approve_application(session, me, job)
+            except pipeline.WrongStage:
+                return "409"
+
+    results = await asyncio.gather(approve(), approve())
+    assert sorted(map(str, results)) == ["409", "approved"]
+
+
 # --- review, approve, finish ---
 
 

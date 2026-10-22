@@ -98,16 +98,18 @@ def test_list_filters_by_stage_newest_first():
     assert "ORDER BY job_applications.created_at DESC" in sql
 
 
-def test_set_stage_applied_keeps_the_first_date():
+def test_move_stage_applied_keeps_the_first_date():
     db = Recorder()
-    asyncio.run(queries.set_stage(db, APPLICANT, JOB, application_stage.applied))
+    asyncio.run(queries.move_stage(db, APPLICANT, JOB, application_stage.applied, [application_stage.queued]))
     assert "applied_at=coalesce(job_applications.applied_at, now())" in db.sql()
 
 
-def test_set_stage_skipped_leaves_the_date():
+def test_move_stage_is_conditional_on_the_allowed_stages():
     db = Recorder()
-    asyncio.run(queries.set_stage(db, APPLICANT, JOB, application_stage.skipped))
-    assert "applied_at" not in db.sql()
+    asyncio.run(queries.move_stage(db, APPLICANT, JOB, application_stage.skipped, [application_stage.review]))
+    sql = db.sql()
+    assert "applied_at" not in sql
+    assert "job_applications.stage IN" in sql and "RETURNING job_applications.job_id" in sql
 
 
 def test_mark_applied_turns_a_queued_job_applied_and_keeps_a_first_date():

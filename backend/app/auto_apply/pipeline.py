@@ -25,13 +25,13 @@ from app.auto_apply.queries import (
     fetch_review,
     fetch_stage,
     link_resume,
+    move_stage,
     pick_resume,
     queue_applications,
     remove_queued,
     requeue_stale,
     save_beat,
     save_review,
-    set_stage,
 )
 from app.auto_apply.rules import pick_batch
 from app.models.dto import application_stage
@@ -274,17 +274,16 @@ async def finish_application(
     is none, WrongStage when it is saved, skipped or applied already.
     Desktop's `note` (why it ended) goes to the log only: no column keeps it.
     """
-    stage = await fetch_stage(db, applicant_id, job_id)
-    if stage is None:
-        raise NotFound("No application for that job. Queue it first.")
-    if stage not in FINISHABLE:
+    new = OUTCOME_STAGE[outcome]
+    if not await move_stage(db, applicant_id, job_id, new, FINISHABLE):
+        stage = await fetch_stage(db, applicant_id, job_id)
+        if stage is None:
+            raise NotFound("No application for that job. Queue it first.")
         raise WrongStage(
             f"That application is {stage}, so it can't be finished. Queue a new job instead."
         )
-    new = OUTCOME_STAGE[outcome]
     if note:
         logger.info("Auto apply fill of job %s ended %s: %s", job_id, outcome, note)
-    await set_stage(db, applicant_id, job_id, new)
     await db.commit()
     return new
 
@@ -383,15 +382,17 @@ async def submit_review(
     filling application takes one: raises NotFound when there is none,
     WrongStage at any other stage (claim it first).
     """
-    stage = await fetch_stage(db, applicant_id, job_id)
-    if stage is None:
-        raise NotFound("No application for that job. Queue it first.")
-    if stage != application_stage.filling:
+    moved = await move_stage(
+        db, applicant_id, job_id, application_stage.review, [application_stage.filling]
+    )
+    if not moved:
+        stage = await fetch_stage(db, applicant_id, job_id)
+        if stage is None:
+            raise NotFound("No application for that job. Queue it first.")
         raise WrongStage(
             f"That application is {stage}, so it can't be reviewed. Claim it first."
         )
     await save_review(db, applicant_id, job_id, review)
-    await set_stage(db, applicant_id, job_id, application_stage.review)
     await db.commit()
     return application_stage.review
 
@@ -418,15 +419,18 @@ async def approve_application(
     NotFound when there is no application, WrongStage when it isn't in
     review.
     """
-    stage = await fetch_stage(db, applicant_id, job_id)
-    if stage is None:
-        raise NotFound("No application for that job. Queue it first.")
-    if stage != application_stage.review:
+    moved = await move_stage(
+        db, applicant_id, job_id, application_stage.approved, [application_stage.review]
+    )
+    if not moved:
+        stage = await fetch_stage(db, applicant_id, job_id)
+        if stage is None:
+            raise NotFound("No application for that job. Queue it first.")
         raise WrongStage(f"That application is {stage}, so there is nothing to approve.")
     if not await approve_review(db, applicant_id, job_id, answers):
         # A review row always comes with the review stage (submit_review).
+        await db.rollback()
         raise NotFound("That application has no review.")
-    await set_stage(db, applicant_id, job_id, application_stage.approved)
     await db.commit()
     return application_stage.approved
 
