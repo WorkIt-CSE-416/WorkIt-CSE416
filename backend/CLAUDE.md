@@ -702,7 +702,10 @@ removed at cutover, not before. Until then a change must work on both.
 - **A `docker build` that hangs at "load metadata for ghcr.io/..." on a Mac
   is Docker Desktop's keychain credential helper** waiting on a prompt no
   one sees. Build with `DOCKER_CONFIG` pointing at a folder whose
-  `config.json` has no `credsStore` (both images are public). Never run
+  `config.json` has no `credsStore` (both images are public). Link that
+  folder's `cli-plugins` and `contexts` to `~/.docker`'s: an empty folder
+  loses the buildx plugin, and `wrangler deploy --dry-run` then fails with
+  "unknown flag: --load" (2026-10-22). Never run
   `docker buildx history ls` while a build runs: on Docker Desktop 4.55 it
   panicked dockerd and stopped every container (2026-10-20).
 - **The image uses the base image's Python 3.12, not a uv-managed one**
