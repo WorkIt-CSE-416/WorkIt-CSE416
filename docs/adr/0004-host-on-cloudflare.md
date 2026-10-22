@@ -11,7 +11,7 @@ The app runs on Cloudflare Workers through the OpenNext adapter, and the API run
 
 ## Consequences
 
-- The API container sleeps after a quiet spell, and the first request after that waits a few seconds for it to start. Memory is billed while it is awake, so `sleepAfter` trades latency against cost.
+- A sleeping API container makes the next request wait 6–13 s while it starts. A cron pings each of the two instances every 5 minutes, so none sleeps. Memory and disk are billed while a container is awake, so this costs about $15 a month (`backend/CLAUDE.md`, Deployment).
 - OpenNext does not support Node middleware yet. If it rejects Next 16's `proxy.ts`, the file goes back to `middleware.ts` on the Edge runtime.
 - `NEXT_PUBLIC_*` variables are inlined at build time, so they are Workers Builds build variables, not runtime secrets.
 - Request bodies may reach 100 MB, which ends Vercel's 4.5 MB cap below the 5 MB upload limit.
