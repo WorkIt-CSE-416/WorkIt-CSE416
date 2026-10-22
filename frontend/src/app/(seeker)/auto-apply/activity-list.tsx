@@ -1,4 +1,4 @@
-import { AppWindow, Eye, PenLine, SkipForward, TriangleAlert, Zap } from "lucide-react";
+import { AppWindow, Eye, PenLine, Send, SkipForward, TriangleAlert, Zap } from "lucide-react";
 import Link from "next/link";
 import type { ComponentType, ReactNode } from "react";
 
@@ -32,12 +32,21 @@ type Glyph = ComponentType<{ className?: string }>;
 
 /** Where one application stands in the pipeline. The order a job moves
  *  through: queued, browser (open in the run's Chrome tab), tailoring,
- *  filling, then review or failed, then applied or skipped. Only queued,
- *  failed, skipped and applied are stored (job_applications.stage); browser
- *  comes from the extension (./live-activity.tsx), and tailoring, filling
- *  and review are the runner's live states, for when it reports them. */
+ *  filling, then review or failed, approved (WorkIt Desktop submitting
+ *  it), then applied or skipped. Browser comes from the extension
+ *  (./live-activity.tsx) and tailoring is the runner's live state, for when
+ *  it reports it; the rest are stored (job_applications.stage), filling,
+ *  review and approved by WorkIt Desktop (KAN-323). */
 export type ActivityStatus =
-  "queued" | "browser" | "tailoring" | "filling" | "review" | "failed" | "skipped" | "applied";
+  | "queued"
+  | "browser"
+  | "tailoring"
+  | "filling"
+  | "review"
+  | "approved"
+  | "failed"
+  | "skipped"
+  | "applied";
 
 export type ActivityItem = {
   id: string;
@@ -62,6 +71,9 @@ export type ActivityItem = {
 /** Each stored stage's status, and the line it needs under its badge. */
 const STAGE_ROW: Record<RunStage, { status: ActivityStatus; detail: string | null }> = {
   queued: { status: "queued", detail: null },
+  filling: { status: "filling", detail: null },
+  review: { status: "review", detail: null },
+  approved: { status: "approved", detail: null },
   needs_you: { status: "failed", detail: "Finish it on the job's page" },
   skipped: { status: "skipped", detail: null },
   applied: { status: "applied", detail: null },
@@ -92,14 +104,15 @@ export function activityOf(application: Application<RunStage>): ActivityItem {
  * the Applications page:
  *
  *   queued, skipped              inert grey   not begun, or set aside: nothing owed
- *   browser, tailoring, filling  advanced     in flight: WorkIt is doing the work
+ *   browser, tailoring, filling,
+ *   approved                     advanced     in flight: WorkIt is doing the work
  *   review, failed               warning      halted, waiting on the seeker
  *   applied                      brand        the Applied stage
  *
  * Each badge leads with its status's glyph, so a status reads by shape as
  * well as colour (asked for 2026-10-20): a clock for Queued, a window for
  * Working in Browser, the AI sparkle for Tailoring Resume, a pen for
- * Autofilling, an eye for Needs Review, a warning for Couldn't Finish, the
+ * Filling, a paper plane for Submitting, an eye for Needs Review, a warning for Needs You, the
  * Applied stage's own briefcase (../stage-colors.ts), a skip for Skipped.
  *
  * `group` is the Status filter's option a status belongs to; `rank` is the Status sort, what needs the seeker first.
@@ -125,7 +138,7 @@ export const STATUS: Record<
   },
   failed: {
     Icon: TriangleAlert,
-    label: "Couldn't Finish",
+    label: "Needs You",
     tone: "warning",
     dot: "bg-warning-strong",
     group: "needs_you",
@@ -149,7 +162,15 @@ export const STATUS: Record<
   },
   filling: {
     Icon: PenLine,
-    label: "Autofilling",
+    label: "Filling",
+    tone: "advanced",
+    dot: "bg-advanced",
+    group: "progress",
+    rank: 1,
+  },
+  approved: {
+    Icon: Send,
+    label: "Submitting",
     tone: "advanced",
     dot: "bg-advanced",
     group: "progress",
@@ -193,7 +214,7 @@ export const GROUPS: Record<StatusFilter, { label: string; Icon: Glyph; ink: str
   skipped: { label: "Skipped", Icon: SkipForward, ink: "text-ink-meta" },
 };
 
-const IN_FLIGHT: ActivityStatus[] = ["browser", "tailoring", "filling"];
+export const IN_FLIGHT: ActivityStatus[] = ["browser", "tailoring", "filling", "approved"];
 
 /** What each sort orders by; null sorts last, whichever way it runs. */
 const SORT_VALUE: Record<Sort, (item: ActivityItem) => string | number | null> = {

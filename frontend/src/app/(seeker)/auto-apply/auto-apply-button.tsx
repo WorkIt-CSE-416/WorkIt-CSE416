@@ -14,6 +14,9 @@ import { openedNote } from "./opened-note";
 /** What the button says once the job posting has an application. */
 const STAGE_LABEL: Record<RunStage, string> = {
   queued: "Queued",
+  filling: "Filling",
+  review: "Needs Review",
+  approved: "Submitting",
   needs_you: "Needs You",
   skipped: "Skipped",
   applied: "Applied",

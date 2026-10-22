@@ -71,7 +71,15 @@ export async function getApplications<Stage extends ApplicationStage = Applicati
 /** What auto apply has run or will run, for Live Activity: every stage but
  *  saved, which is only the Save button's. Scored, since its table has a
  *  Match column (KAN-285), as the Applications page's list does. */
-const RUN_STAGES: readonly RunStage[] = ["queued", "needs_you", "skipped", "applied"];
+export const RUN_STAGES: readonly RunStage[] = [
+  "queued",
+  "filling",
+  "review",
+  "approved",
+  "needs_you",
+  "skipped",
+  "applied",
+];
 
 export function getRunApplications() {
   return getApplications(RUN_STAGES, { scored: true });
