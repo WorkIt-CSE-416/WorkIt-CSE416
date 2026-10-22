@@ -36,6 +36,13 @@ export const site = {
         { label: "Sign up", href: "/signup" },
       ],
     },
+    {
+      title: "Legal",
+      links: [
+        { label: "Privacy Policy", href: "/privacy" },
+        { label: "Terms of Service", href: "/terms" },
+      ],
+    },
   ],
 };
 
