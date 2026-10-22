@@ -730,10 +730,17 @@ URL (`?tab=job` for the second):
   name (the board's column headers; a badge's fill is the tint itself), a
   one-line status such as "Waiting to Hear Back", the resume sent (and
   when it was saved, for a saved job), the timeline left to right (`Timeline`'s
-  `horizontal`), and two cards of facts (KAN-286): whether the posting is
+  `horizontal`; each dot wears its stage's glyph, not a check, KAN-317), and
+  two cards of facts (KAN-286): whether the posting is
   Open or Closed, then the days since the seeker applied (for a saved job,
   the days since the posting went up). The status line drops the applied
-  date, which the card and the timeline already carry. A closed posting
+  date, which the card and the timeline already carry. **What one action
+  wrote is one step** (KAN-317): Apply saves, sends the resume and applies
+  within a second, in no fixed order, and sorted by the millisecond the
+  timeline once read Sent, Saved, Applied at one minute. A resume sent
+  within two minutes of applying is now the Applied step's "Resume sent",
+  and a save that close is left out; steps further apart keep their own dot,
+  and a tie sorts Saved, Sent, Applied. A closed posting
   says so in its card only, with no badge beside the stage. The cards
   replaced day counts that did not help: save to apply read 0 for every
   Apply (Apply saves and applies at once), and posted before applying only
@@ -748,13 +755,19 @@ URL (`?tab=job` for the second):
   `highlights` with `match`). Ruled, square cells were tried first and read
   as a spreadsheet next to the app's rounded cards. The match sits right of
   the rest from 576px of card and under it below that. Under the card,
-  What You Sent lists every sent resume linked to the
-  posting, each as View Resume (above) with its format, a Rebuilt tag
-  for a rebuilt upload and Applied With on the one the application names,
-  or, with none, a dashed placeholder box (the upload dropzone's
-  outline) saying "No resume sent yet". It replaced two lines of
-  explanation. Neither Apply nor auto apply keeps the answers typed into
-  the employer's form, so the tab cannot show them.
+  What You Sent has two parts, Resume and Answers (KAN-317). Resume lists
+  every sent resume linked to the posting as a row in the Resumes view's
+  box (`SentResumeRow` in `view-resume.tsx`, on `RESUME_ROW`): the file
+  mark, the name, "Sent Oct 21 · PDF", a Rebuilt tag for a rebuilt upload
+  and, on the one the application names, the Applied status badge (the
+  list's own, not a green Applied With). The whole row opens
+  View Resume's dialog (`useResumeViewer`, shared with the list's button).
+  It was a bare View Resume button with loose tags until KAN-317, unlike a
+  resume anywhere else. With none sent, a dashed placeholder box (the
+  upload dropzone's outline) says "No resume sent yet". Answers is that
+  same dashed box for now: neither Apply nor auto apply keeps the answers
+  typed into the employer's form yet, and the slot holds their place so
+  the section keeps its shape when they arrive.
 - **Job Description**: About the Role alone (`JobViewBody`'s
   `descriptionOnly`). The job page's sent and applied notes and its
   Key Requirements card stay off: they pushed the description down and are

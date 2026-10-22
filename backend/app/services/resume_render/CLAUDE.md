@@ -86,6 +86,18 @@ resume; KAN-207 renders the bank and retired the proof endpoint.
   (`cs.example.edu/~jdoe`). `\_`, `\%` and `\#` already reach the link as
   the bare character. `tests/test_resume_render.py` reads the PDF's link
   targets back.
+  **The PDF's Title is the other exception, and goes through `pdf_title()`**
+  (KAN-317): "Jane Doe Resume", from the identity's name, written by
+  `render()` at the start of every template's body as an xdvipdfmx
+  `\special{pdf:docinfo ...}`. The name goes in as UTF-16 hex digits, so it
+  never meets the TeX parser or PDF string syntax; the test renders a name
+  holding `\input{...}`, brackets and `>>` and reads it back. With no Title,
+  Chrome's viewer showed the in-app dialog's `blob:` link id as the name.
+  A special is a whatsit, so the page and its content stream are unchanged,
+  and the sent resume's content hash (view, identity, template) is too.
+  `latex()` leaves the Title out: pdfLaTeX, Overleaf's default, ignores an
+  xdvipdfmx special with a warning, and the student's `.tex` should be
+  Jake's own.
   **`--untrusted` is not what keeps this safe:** it turns off shell escape,
   but Tectonic still reads any file the process can (`\input{/etc/hosts}`
   compiled in the prototype, 2026-10-12). Escaping is the guard.

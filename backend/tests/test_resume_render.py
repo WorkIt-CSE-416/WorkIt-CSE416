@@ -158,6 +158,22 @@ def test_escaped_text_prints_literally_and_runs_nothing() -> None:
     assert "root:" not in text
 
 
+
+def test_the_pdf_is_titled_with_the_name_and_the_name_runs_nothing() -> None:
+    # KAN-317: with no Title, a viewer showed the blob: link's random id
+    _tectonic_or_skip()
+    from pypdf import PdfReader
+
+    def title(name: str) -> str:
+        pdf = render(VIEW, replace(IDENTITY, name=name), "jakes").pdf
+        return PdfReader(io.BytesIO(pdf)).metadata["/Title"]
+
+    assert title("José O'Brien") == "José O'Brien Resume"
+    assert title("\\input{/etc/passwd} (a) >> <b>") == "\\input{/etc/passwd} (a) >> <b> Resume"
+    assert title("  ") == "Resume"
+    # The Overleaf source stays Jake's own: pdfLaTeX would warn on the special
+    assert "pdf:docinfo" not in resume_render.latex(VIEW, IDENTITY, "jakes")
+
 def _content_streams(pdf: bytes) -> list[bytes]:
     from pypdf import PdfReader
 
