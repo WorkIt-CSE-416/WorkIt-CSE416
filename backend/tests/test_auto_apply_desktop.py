@@ -557,3 +557,14 @@ async def test_desktop_routes_are_the_owners_only(student, database):
     ]:
         assert (await client.request(method, base + path, json=body)).status_code == 403
     assert await _stage(database, other, job) == application_stage.filling
+
+
+def test_a_reviews_facts_and_flags_are_capped_each():
+    from pydantic import ValidationError
+
+    with pytest.raises(ValidationError):
+        Review.model_validate({**_review().model_dump(), "flags": ["x" * 501]})
+    answer = _review().answers[1].model_dump()
+    with pytest.raises(ValidationError):
+        ReviewAnswer.model_validate({**answer, "facts": ["x" * 501]})
+    assert ReviewAnswer.model_validate({**answer, "facts": ["x" * 500]}).facts == ["x" * 500]

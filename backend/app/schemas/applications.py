@@ -1,6 +1,6 @@
 import datetime
 import uuid
-from typing import Literal
+from typing import Annotated, Literal
 
 from pydantic import BaseModel, Field, model_validator
 
@@ -96,6 +96,9 @@ class ApplicationStage(BaseModel):
 
 
 # --- WorkIt Desktop (KAN-323, auto-apply/desktop.md) ---
+
+# One fact or flag in a Review: capped like its other strings.
+Line = Annotated[str, Field(max_length=500)]
 # Stored as sent (application_reviews, desktop_heartbeats), so every string
 # and list is capped (routers/CLAUDE.md, "Validate at the boundary").
 
@@ -120,7 +123,7 @@ class ReviewAnswer(BaseModel):
     answer: str = Field(max_length=20_000)
     source: Literal["profile", "answer_bank", "written", "missing"]
     essay: bool = False
-    facts: list[str] = Field([], max_length=50)
+    facts: list[Line] = Field([], max_length=50)
 
 
 class ReviewResume(BaseModel):
@@ -141,7 +144,7 @@ class Review(BaseModel):
     answers: list[ReviewAnswer] = Field(max_length=300)
     resume: ReviewResume | None = None
     cover_letter: str | None = Field(None, max_length=20_000)
-    flags: list[str] = Field([], max_length=50)
+    flags: list[Line] = Field([], max_length=50)
     note: str | None = Field(None, max_length=500)
     filled_at: datetime.datetime
 

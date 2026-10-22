@@ -84,7 +84,7 @@ Review {
   answers: [ReviewAnswer],          # every question on the form, in form order
   resume: {name: str, sent_resume_id: uuid | null} | null,
   cover_letter: str | null,
-  flags: [str],                     # why it needs a look: unsupported claim, missing fact, read-back mismatch
+  flags: [str],                     # why it needs a look: unsupported claim, missing fact, read-back mismatch (each ≤ 500 chars)
   note: str | null,                 # Desktop's one-line summary
   filled_at: datetime
 }
@@ -94,7 +94,7 @@ ReviewAnswer {
                                     # approved answers by it (else by question); a blank answer is left blank
   source: "profile" | "answer_bank" | "written" | "missing",
   essay: bool,                      # free text written for this job
-  facts: [str]                      # bank facts an essay's claims came from
+  facts: [str]                      # bank facts an essay's claims came from; each at most 500 characters
 }
 DesktopBeat   { workers: int, busy: int, usage: {five_hour: float, weekly: float} | null, version: str,
                 instance: uuid | null }   # new each time Desktop starts (Leases)
