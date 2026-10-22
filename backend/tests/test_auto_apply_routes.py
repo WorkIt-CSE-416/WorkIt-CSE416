@@ -24,6 +24,16 @@ from tests.test_jobs import no_database  # noqa: F401
 APPLICANT = uuid.UUID("0b8e8f3c-6a0e-4f43-9d55-6c1d7b0d9a11")
 JOB = uuid.UUID("5a1d2c3e-0000-4000-8000-000000000001")
 BASE = f"/applicants/{APPLICANT}"
+# WorkIt Desktop's bodies (KAN-323)
+REVIEW = {
+    "answers": [{"question": "Why Acme?", "answer": "...", "source": "written", "essay": True}],
+    "resume": {"name": "General SWE", "sent_resume_id": None},
+    "cover_letter": None,
+    "flags": [],
+    "note": None,
+    "filled_at": "2026-10-22T03:00:00Z",
+}
+BEAT = {"workers": 4, "busy": 1, "usage": {"five_hour": 0.2, "weekly": 0.1}, "version": "0.1.0"}
 
 
 def _account(account_type=AccountType.APPLICANT, id=APPLICANT):
@@ -70,6 +80,12 @@ def step(monkeypatch, name, result=None, raises=None):
         ("post", f"/applications/{JOB}/finish", {"outcome": "skipped"}),
         ("post", f"/applications/{JOB}/resume", None),
         ("delete", f"/applications/{JOB}", None),
+        ("post", "/applications/claim", {"n": 1}),
+        ("put", f"/applications/{JOB}/review", REVIEW),
+        ("get", f"/applications/{JOB}/review", None),
+        ("post", f"/applications/{JOB}/approve", {"answers": []}),
+        ("put", "/desktop", BEAT),
+        ("get", "/desktop", None),
     ],
 )
 def test_every_route_is_the_owners_only(client, method, path, body):
@@ -209,3 +225,68 @@ def test_dequeue_answers_204(client, monkeypatch):
 def test_dequeue_errors(client, monkeypatch, raises, status):
     step(monkeypatch, "dequeue_job", raises=raises)
     assert client.delete(BASE + f"/applications/{JOB}").status_code == status
+
+
+# --- WorkIt Desktop (KAN-323) ---
+
+
+def test_claim_hands_n_to_the_step(client, monkeypatch):
+    calls = step(monkeypatch, "claim_applications", [])
+    res = client.post(BASE + "/applications/claim", json={"n": 4})
+    assert (res.status_code, res.json()) == (200, [])
+    assert calls[0][0][1:] == (APPLICANT, 4)
+
+
+@pytest.mark.parametrize("n", [0, 11])
+def test_claim_takes_1_to_10(client, n):
+    assert client.post(BASE + "/applications/claim", json={"n": n}).status_code == 422
+
+
+def test_review_answers_the_stage(client, monkeypatch):
+    calls = step(monkeypatch, "submit_review", application_stage.review)
+    res = client.put(BASE + f"/applications/{JOB}/review", json=REVIEW)
+    assert res.json() == {"job_id": str(JOB), "stage": "review"}
+    assert calls[0][0][3].answers[0].essay
+
+
+def test_review_reads_only_known_sources(client):
+    bad = {**REVIEW, "answers": [{"question": "q", "answer": "a", "source": "guess"}]}
+    assert client.put(BASE + f"/applications/{JOB}/review", json=bad).status_code == 422
+
+
+@pytest.mark.parametrize(
+    ("name", "method", "path", "body"),
+    [
+        ("submit_review", "put", f"/applications/{JOB}/review", REVIEW),
+        ("approve_application", "post", f"/applications/{JOB}/approve", {"answers": []}),
+    ],
+)
+@pytest.mark.parametrize(
+    ("raises", "status"), [(pipeline.NotFound("none"), 404), (pipeline.WrongStage("queued"), 409)]
+)
+def test_review_and_approve_errors(client, monkeypatch, name, method, path, body, raises, status):
+    step(monkeypatch, name, raises=raises)
+    assert client.request(method, BASE + path, json=body).status_code == status
+
+
+def test_get_review_without_one_is_404(client, monkeypatch):
+    step(monkeypatch, "get_review", raises=pipeline.NotFound("none"))
+    assert client.get(BASE + f"/applications/{JOB}/review").status_code == 404
+
+
+def test_approve_hands_the_edited_answers(client, monkeypatch):
+    calls = step(monkeypatch, "approve_application", application_stage.approved)
+    res = client.post(BASE + f"/applications/{JOB}/approve", json={"answers": REVIEW["answers"]})
+    assert res.json() == {"job_id": str(JOB), "stage": "approved"}
+    assert calls[0][0][3][0].question == "Why Acme?"
+
+
+def test_finish_hands_the_note(client, monkeypatch):
+    calls = step(monkeypatch, "finish_application", application_stage.needs_you)
+    body = {"outcome": "failed", "note": "Sign-in needed"}
+    assert client.post(BASE + f"/applications/{JOB}/finish", json=body).status_code == 200
+    assert calls[0][0][3:] == ("failed", "Sign-in needed")
+
+
+def test_a_beat_with_more_busy_than_workers_is_422(client):
+    assert client.put(BASE + "/desktop", json={**BEAT, "busy": 5}).status_code == 422

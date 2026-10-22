@@ -1,19 +1,24 @@
 """
 WorkIt Desktop's queue (KAN-323, auto-apply/desktop.md) against real
 Postgres: the claim, its stale requeue, each stage move and its 409, the
-review, the approval and the heartbeat. Layer 2 is called directly.
+review, the approval and the heartbeat. Layer 2 is called directly; the
+routes once end to end at the end, owner checks included.
 """
 
 import asyncio
 import uuid
 from datetime import UTC, datetime, timedelta
 
+import httpx
 import pytest
 from sqlalchemy import text
 
 from app.auto_apply import pipeline, queries
+from app.deps import get_current_account
+from app.main import app
 from app.models.dto import application_stage
 from app.schemas.applications import DesktopBeat, Review, ReviewAnswer
+from app.schemas.auth import AccountType, AuthenticatedAccount
 
 pytestmark = pytest.mark.anyio
 
@@ -352,3 +357,64 @@ async def test_desktop_is_offline_45_seconds_after_its_last_beat(database):
         status = await pipeline.desktop_status(session, me)
     assert not status.online
     assert (status.workers, status.busy, status.usage.five_hour) == (4, 2, 0.4)
+
+
+# --- the routes, end to end ---
+
+
+@pytest.fixture
+async def student(database):
+    applicant_id = await _seed_applicant(database)
+    app.dependency_overrides[get_current_account] = lambda: AuthenticatedAccount(
+        id=applicant_id,
+        email="sam@example.com",
+        full_name="Sam Seeker",
+        account_type=AccountType.APPLICANT,
+        onboarding_completed=True,
+    )
+    transport = httpx.ASGITransport(app=app)
+    async with httpx.AsyncClient(transport=transport, base_url="http://test") as client:
+        yield client, applicant_id
+    app.dependency_overrides.pop(get_current_account, None)
+
+
+async def test_desktop_routes_from_claim_to_applied(student, database):
+    client, me = student
+    job = await _seed_application(database, me)
+    base = f"/applicants/{me}"
+
+    beat = await client.put(f"{base}/desktop", json=BEAT.model_dump())
+    assert (beat.status_code, beat.json()["online"]) == (200, True)
+    claimed = await client.post(f"{base}/applications/claim", json={"n": 2})
+    assert [(a["job"]["id"], a["stage"]) for a in claimed.json()] == [(str(job), "filling")]
+
+    review = _review().model_dump(mode="json")
+    assert (await client.put(f"{base}/applications/{job}/review", json=review)).json()["stage"] == "review"
+    assert (await client.put(f"{base}/applications/{job}/review", json=review)).status_code == 409
+    assert (await client.get(f"{base}/applications/{job}/review")).json() == review
+    edited = [{**review["answers"][0], "answer": "No"}]
+    approved = await client.post(f"{base}/applications/{job}/approve", json={"answers": edited})
+    assert approved.json() == {"job_id": str(job), "stage": "approved"}
+    assert (await client.get(f"{base}/applications/{job}/review")).json()["answers"][0]["answer"] == "No"
+    assert (await client.post(f"{base}/applications/{job}/approve", json={"answers": []})).status_code == 409
+    finished = await client.post(f"{base}/applications/{job}/finish", json={"outcome": "submitted"})
+    assert finished.json()["stage"] == "applied"
+    listed = await client.get(f"{base}/applications", params={"stage": "applied"})
+    assert [a["job"]["id"] for a in listed.json()] == [str(job)]
+
+
+async def test_desktop_routes_are_the_owners_only(student, database):
+    client, _ = student
+    other = await _seed_applicant(database)
+    job = await _seed_application(database, other, "filling")
+    base = f"/applicants/{other}"
+    for method, path, body in [
+        ("post", "/applications/claim", {"n": 1}),
+        ("get", f"/applications/{job}/review", None),
+        ("put", f"/applications/{job}/review", _review().model_dump(mode="json")),
+        ("post", f"/applications/{job}/approve", {"answers": []}),
+        ("put", "/desktop", BEAT.model_dump()),
+        ("get", "/desktop", None),
+    ]:
+        assert (await client.request(method, base + path, json=body)).status_code == 403
+    assert await _stage(database, other, job) == application_stage.filling

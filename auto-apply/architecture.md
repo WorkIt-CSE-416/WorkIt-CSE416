@@ -784,6 +784,10 @@ function. Every route checks that the caller owns the applicant, like
 | POST | `/applicants/{id}/applications/{job_id}/finish` | `finish_application` | `{"outcome": "submitted" \| "skipped" \| "failed"}`; 409 when not queued or needs_you. **Built**; takes the autofill run's report once `autofill_runs` exists |
 | POST | `/applicants/{id}/applications/{job_id}/resume` | `prepare_resume` | Picks the resume and keeps it as a sent resume for the job posting. Answers the sent resume and a 5-minute link, or `null` with no resume. 404 with no application or a closed job posting, 409 when not queued or needs_you, 503 when the PDF cannot be made, 502 when Storage refuses the file. **Built** |
 
+WorkIt Desktop's routes (KAN-323) are in `desktop.md`, "API": `claim`,
+`review` (PUT and GET), `approve` and `desktop` (PUT and GET); `finish` and
+`resume` also take its stages there. **Built** (backend).
+
 An application is named by its job id: the row's key is `(applicant_id,
 job_id)`, and the applicant is in the path. `/jobs/recommended/{id}` stays
 the Jobs page's route; it does not leave out queued jobs.

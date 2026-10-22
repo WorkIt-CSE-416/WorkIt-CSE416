@@ -40,12 +40,38 @@ POST /applicants/{id}/applications/{job_id}/resume
      job posting. Answers SentResumeDownload (`url`: a 5-minute download
      link), or null when there is no such resume. A repeat with unchanged
      content answers the same sent resume. 404 with no application or a
-     closed job posting, 409 when it isn't queued or needs_you, 503 when the
-     PDF cannot be made, 502 when Storage refuses the file.
-POST /applicants/{id}/applications/{job_id}/finish  {"outcome": "submitted"}
+     closed job posting, 409 when it isn't queued, needs_you, filling or
+     approved, 503 when the PDF cannot be made, 502 when Storage refuses the
+     file.
+POST /applicants/{id}/applications/{job_id}/finish
+     {"outcome": "submitted", "note": "..."}
      How a fill ended: submitted → applied, skipped → skipped, failed →
-     needs_you. 404 with no application, 409 when it isn't queued or
-     needs_you.
+     needs_you. `note` (optional) is logged. 404 with no application, 409
+     when it isn't queued, needs_you, filling, review or approved.
+
+WorkIt Desktop (KAN-323, auto-apply/desktop.md):
+POST /applicants/{id}/applications/claim  {"n": 1..10}
+     A Desktop's claim: up to n of the oldest queued applications whose job
+     posting is open, moved to filling and answered as Applications, oldest
+     first; [] when none is left. Never the same one to two claims. First
+     sends back to queued every filling one whose Desktop has not beaten
+     for 10 minutes.
+PUT  /applicants/{id}/applications/{job_id}/review  Review
+     Desktop filled the form and stopped before Submit: keeps the review and
+     answers the stage, review. 404 with no application, 409 when it isn't
+     filling.
+GET  /applicants/{id}/applications/{job_id}/review
+     The Review; its `answers` are the approved ones once approved. 404 when
+     it has none.
+POST /applicants/{id}/applications/{job_id}/approve  {"answers": [ReviewAnswer]}
+     The student approves it, with edited answers or [] for the review's
+     own. Answers the stage, approved. 404 with no application, 409 when it
+     isn't in review.
+PUT  /applicants/{id}/desktop  DesktopBeat
+     Desktop's heartbeat, every 15 s. Answers the DesktopStatus.
+GET  /applicants/{id}/desktop
+     DesktopStatus: `online` with a beat in the last 45 s; offline with
+     null `last_seen` and 0 counts when it never beat.
 
 Applicant accounts only, and only their own id (assert_applicant_owns).
 """
@@ -64,10 +90,15 @@ from app.routers.jobs import EmptyBank, read_filters
 from app.schemas.applications import (
     Application,
     ApplicationStage,
+    ApproveRequest,
     BatchQueued,
     BatchRequest,
+    ClaimRequest,
+    DesktopBeat,
+    DesktopStatus,
     FinishRequest,
     QueueRequest,
+    Review,
 )
 from app.schemas.auth import AuthenticatedAccount
 from app.schemas.jobs import ScoredJob
@@ -153,6 +184,18 @@ async def next_application(
     return await pipeline.next_application(db, applicant_id)
 
 
+@router.post("/applications/claim", response_model=list[Application])
+async def claim_applications(
+    applicant_id: uuid.UUID,
+    body: ClaimRequest,
+    account: AuthenticatedAccount = Depends(get_current_account),
+    db: AsyncSession = Depends(get_session),
+) -> list[Application]:
+    """A Desktop claims up to n queued applications to fill."""
+    assert_applicant_owns(account, applicant_id)
+    return await pipeline.claim_applications(db, applicant_id, body.n)
+
+
 # After /applications/next: a job id is a UUID, so "next" would match this
 # path first and fail its validation with a 422.
 @router.get("/applications/{job_id}", response_model=Application)
@@ -222,9 +265,87 @@ async def finish_application(
     """Records how one application's fill ended."""
     assert_applicant_owns(account, applicant_id)
     try:
-        stage = await pipeline.finish_application(db, applicant_id, job_id, body.outcome)
+        stage = await pipeline.finish_application(
+            db, applicant_id, job_id, body.outcome, body.note
+        )
     except pipeline.NotFound as exc:
         raise HTTPException(status.HTTP_404_NOT_FOUND, str(exc)) from exc
     except pipeline.WrongStage as exc:
         raise HTTPException(status.HTTP_409_CONFLICT, str(exc)) from exc
     return ApplicationStage(job_id=job_id, stage=stage)
+
+
+@router.put("/applications/{job_id}/review", response_model=ApplicationStage)
+async def submit_review(
+    applicant_id: uuid.UUID,
+    job_id: uuid.UUID,
+    body: Review,
+    account: AuthenticatedAccount = Depends(get_current_account),
+    db: AsyncSession = Depends(get_session),
+) -> ApplicationStage:
+    """Keeps what Desktop filled, for the student's review."""
+    assert_applicant_owns(account, applicant_id)
+    try:
+        stage = await pipeline.submit_review(db, applicant_id, job_id, body)
+    except pipeline.NotFound as exc:
+        raise HTTPException(status.HTTP_404_NOT_FOUND, str(exc)) from exc
+    except pipeline.WrongStage as exc:
+        raise HTTPException(status.HTTP_409_CONFLICT, str(exc)) from exc
+    return ApplicationStage(job_id=job_id, stage=stage)
+
+
+@router.get("/applications/{job_id}/review", response_model=Review)
+async def get_review(
+    applicant_id: uuid.UUID,
+    job_id: uuid.UUID,
+    account: AuthenticatedAccount = Depends(get_current_account),
+    db: AsyncSession = Depends(get_session),
+) -> Review:
+    """One application's review."""
+    assert_applicant_owns(account, applicant_id)
+    try:
+        return await pipeline.get_review(db, applicant_id, job_id)
+    except pipeline.NotFound as exc:
+        raise HTTPException(status.HTTP_404_NOT_FOUND, str(exc)) from exc
+
+
+@router.post("/applications/{job_id}/approve", response_model=ApplicationStage)
+async def approve_application(
+    applicant_id: uuid.UUID,
+    job_id: uuid.UUID,
+    body: ApproveRequest,
+    account: AuthenticatedAccount = Depends(get_current_account),
+    db: AsyncSession = Depends(get_session),
+) -> ApplicationStage:
+    """The student approves a reviewed application for Desktop to submit."""
+    assert_applicant_owns(account, applicant_id)
+    try:
+        stage = await pipeline.approve_application(db, applicant_id, job_id, body.answers)
+    except pipeline.NotFound as exc:
+        raise HTTPException(status.HTTP_404_NOT_FOUND, str(exc)) from exc
+    except pipeline.WrongStage as exc:
+        raise HTTPException(status.HTTP_409_CONFLICT, str(exc)) from exc
+    return ApplicationStage(job_id=job_id, stage=stage)
+
+
+@router.put("/desktop", response_model=DesktopStatus)
+async def desktop_beat(
+    applicant_id: uuid.UUID,
+    body: DesktopBeat,
+    account: AuthenticatedAccount = Depends(get_current_account),
+    db: AsyncSession = Depends(get_session),
+) -> DesktopStatus:
+    """Desktop's heartbeat."""
+    assert_applicant_owns(account, applicant_id)
+    return await pipeline.desktop_beat(db, applicant_id, body)
+
+
+@router.get("/desktop", response_model=DesktopStatus)
+async def desktop_status(
+    applicant_id: uuid.UUID,
+    account: AuthenticatedAccount = Depends(get_current_account),
+    db: AsyncSession = Depends(get_session),
+) -> DesktopStatus:
+    """Whether the applicant's Desktop is running."""
+    assert_applicant_owns(account, applicant_id)
+    return await pipeline.desktop_status(db, applicant_id)
