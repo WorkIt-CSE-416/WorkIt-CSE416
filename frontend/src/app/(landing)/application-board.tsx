@@ -1,3 +1,4 @@
+import type { CSSProperties, ReactNode } from "react";
 import { Calendar } from "lucide-react";
 
 import { cn } from "@/lib/cn";
@@ -15,11 +16,24 @@ import { scoreTone } from "./score-tone";
  * glass (`.glass-card`) over soft blobs in the four stages' colours, so the
  * glass has colour to blur; nothing between the blobs and the cards may
  * fade, filter or mask, or the blur sees nothing (landing.css).
+ *
+ * In the pinned applications section (applications.tsx) the column of the
+ * timeline's current stage (`active`) glows in its stage's colour, behind
+ * the glass, so its cards take the colour; `children` draw over the board,
+ * flat, where the followed application's card crosses it. Each column marks
+ * its centre (`data-board-col`), so that card can find it.
  */
-export default function ApplicationBoard() {
+export default function ApplicationBoard({
+  active = null,
+  children,
+}: {
+  active?: number | null;
+  children?: ReactNode;
+}) {
   return (
     <div
       aria-hidden="true"
+      data-board
       className="relative isolate flex h-[28rem] w-full items-center justify-center overflow-hidden rounded-[2rem] [perspective:650px] sm:h-[34rem] lg:h-[32rem]"
       style={{ background: BACKDROP }}
     >
@@ -36,24 +50,39 @@ export default function ApplicationBoard() {
         }}
       >
         {stages.map((stage, index) => (
-          <Marquee
+          <div
             key={stage.id}
-            pauseOnHover
-            reverse={index % 2 === 1}
-            repeat={3}
-            tabIndex={-1}
-            className="[--duration:40s]"
+            data-lit={active === index || undefined}
+            className="board-column relative"
+            style={{ "--lit": stage.color } as CSSProperties}
           >
-            {stage.jobs.map((job) => (
-              <JobCard key={`${job.company}-${job.title}`} job={job} stage={stage} />
-            ))}
-          </Marquee>
+            {/* Lit while the timeline is on this stage: a glow behind the
+                cards, which fades itself, never them, and an outline on
+                each card (landing.css). */}
+            <div
+              className="absolute -inset-x-4 top-1/2 -z-10 h-[44rem] -translate-y-1/2 rounded-[3rem] blur-2xl transition-opacity duration-500 ease-out"
+              style={{ background: stage.color, opacity: active === index ? 0.8 : 0 }}
+            />
+            <span data-board-col={index} className="absolute top-1/2 left-1/2" />
+            <Marquee
+              pauseOnHover
+              reverse={index % 2 === 1}
+              repeat={3}
+              tabIndex={-1}
+              className="[--duration:40s]"
+            >
+              {stage.jobs.map((job) => (
+                <JobCard key={`${job.company}-${job.title}`} job={job} stage={stage} />
+              ))}
+            </Marquee>
+          </div>
         ))}
       </div>
 
       {/* Soften the board's top and bottom into the panel. */}
       <div className="pointer-events-none absolute inset-x-0 top-0 h-16 bg-linear-to-b from-white/70" />
       <div className="pointer-events-none absolute inset-x-0 bottom-0 h-16 bg-linear-to-t from-white/70" />
+      {children}
     </div>
   );
 }

@@ -240,3 +240,30 @@ export const stages: Stage[] = [
     ],
   },
 ];
+
+/**
+ * The application the product tour follows (`followedJob` in
+ * feature-data.ts), as its card reads at each stage: the statement's
+ * tailored application, the card that crosses the board as the timeline
+ * fills, and the journey's Track card. The dates follow the Updates stop:
+ * applied Oct 1, a 45-minute technical interview on Thursday the 8th, an
+ * offer for Summer 2027 to answer by Oct 20.
+ */
+export const followedStages: Record<Stage["id"], Pick<TrackedJob, "next" | "footer">> = {
+  saved: {
+    next: { label: "Apply with your tailored resume", when: "Due Sep 30" },
+    footer: "Resume tailored to this posting",
+  },
+  applied: {
+    next: { label: "Follow up with the recruiter", when: "Oct 6" },
+    footer: "Applied: Oct 1",
+  },
+  interview: {
+    next: { label: "Technical interview", when: "Thu, Oct 8, 1:00 PM" },
+    footer: "Interview: 45 minutes",
+  },
+  offer: {
+    next: { label: "Reply to the offer", when: "By Oct 20" },
+    footer: "Offer for Summer 2027",
+  },
+};

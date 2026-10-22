@@ -56,9 +56,12 @@ export const hero = {
 };
 
 /**
- * The search end to end, in the hero's own words (journey.tsx). `line` shows
- * while a card is closed, `body` once it is open. `glow` is an app colour, so
- * each step matches its stop in the product tour.
+ * The search end to end, in the hero's own words (journey.tsx): four cards
+ * that start as a deck, fan into a row and flip. `line` is on a card's
+ * front with a picture of the step, `body` and `points` on its back.
+ * `glow` is an app colour, so each step matches its stop in the product
+ * tour. `soon` marks a step the product does not do yet: the tracker
+ * stores no employer replies, so Hear back says "Coming soon".
  */
 export type JourneyStep = {
   id: "find" | "apply" | "track" | "hear";
@@ -67,6 +70,7 @@ export type JourneyStep = {
   body: string;
   points: string[];
   glow: string;
+  soon?: boolean;
 };
 
 export const journeySection = {
@@ -109,7 +113,7 @@ export const journey: JourneyStep[] = [
     points: [
       "One board from Saved to Offer",
       "The next step and deadline on each card",
-      "Interviews on your calendar",
+      "Every job you save or apply to, in one place",
     ],
     glow: "var(--color-positive)",
   },
@@ -124,6 +128,7 @@ export const journey: JourneyStep[] = [
       "Your tracker updates itself",
     ],
     glow: "var(--color-match-good)",
+    soon: true,
   },
 ];
 
@@ -331,3 +336,11 @@ export const faqs = [
       "Sign up and upload a resume. WorkIt reads it into your experience bank and starts ranking jobs by how well you fit.",
   },
 ];
+
+/** The applications section's heading (applications.tsx), as KAN-316 wrote it. */
+export const applicationsSection = {
+  eyebrow: "For applicants",
+  title: "Every application, from saved to signed.",
+  subtitle:
+    "Keep every role you're pursuing on one board, with the next step and the deadline right on each card.",
+};

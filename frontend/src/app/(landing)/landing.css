@@ -555,3 +555,89 @@ html[data-tab-flight="flying"] .tour-tabs {
 .tour-tabs {
   transition: opacity 0.3s ease-out;
 }
+
+/*
+ * The thread below the tour (thread.tsx, Flight): while the followed card
+ * flies from one section to the next, each end hides while the card is not
+ * there, so it is drawn once. "board" runs from the statement to the
+ * applications board, "deck" from the board to the journey's Track card.
+ * With no flight the attribute is absent and both ends show.
+ */
+html[data-thread-board="flying"] [data-thread-from="board"],
+html[data-thread-board="landed"] [data-thread-from="board"],
+html[data-thread-board="idle"] [data-thread-to="board"],
+html[data-thread-board="flying"] [data-thread-to="board"],
+html[data-thread-deck="flying"] [data-thread-from="deck"],
+html[data-thread-deck="landed"] [data-thread-from="deck"],
+html[data-thread-deck="idle"] [data-thread-to="deck"],
+html[data-thread-deck="flying"] [data-thread-to="deck"] {
+  visibility: hidden;
+}
+
+/*
+ * The applications board's lit column (application-board.tsx): an outline
+ * in the stage's colour on each of its glass cards. An outline, since a
+ * ring loses to .glass-card's own box-shadow.
+ */
+.board-column .glass-card {
+  outline: 2px solid transparent;
+  outline-offset: -1px;
+  transition: outline-color 0.4s ease-out;
+}
+
+.board-column[data-lit] .glass-card {
+  outline-color: color-mix(in oklab, var(--lit) 65%, transparent);
+}
+
+/*
+ * A section heading comes into focus as it arrives (focus-in.tsx marks the
+ * wrapper): the eyebrow, the title and the subtitle each rise out of a
+ * blur, a little apart. "wait" has no transition, so hiding is instant;
+ * "in" transitions back to the elements' own values, so the blur ends as
+ * `none`, never a leftover blur(0px), which would make the heading a
+ * backdrop root.
+ */
+.focus-in[data-focus="wait"] > * > * {
+  opacity: 0;
+  filter: blur(10px);
+  transform: translateY(14px);
+}
+
+.focus-in[data-focus="in"] > * > * {
+  transition:
+    opacity 0.7s ease-out,
+    filter 0.8s ease-out,
+    transform 0.9s var(--ease-glide);
+}
+
+.focus-in[data-focus="in"] > * > :nth-child(2) {
+  transition-delay: 0.1s;
+}
+
+.focus-in[data-focus="in"] > * > :nth-child(3) {
+  transition-delay: 0.22s;
+}
+
+/*
+ * The FAQ's questions rise in one after another as they scroll in. A
+ * scroll-driven CSS animation, which is safe here: the FAQ is never pinned.
+ * Only `from` is set and the fill is backwards, so nothing stays on a row
+ * once its range ends; a browser without view timelines, and reduced
+ * motion, show the rows as they are.
+ */
+@supports (animation-timeline: view()) {
+  @media (prefers-reduced-motion: no-preference) {
+    .faq-rise > * {
+      animation: faq-rise linear backwards;
+      animation-timeline: view();
+      animation-range: entry 0% entry 100%;
+    }
+  }
+}
+
+@keyframes faq-rise {
+  from {
+    opacity: 0;
+    transform: translateY(18px);
+  }
+}

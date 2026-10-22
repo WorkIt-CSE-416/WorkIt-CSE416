@@ -4,6 +4,7 @@ import { Logo } from "@/components/logo";
 
 import { site } from "./data";
 import { featurePages } from "./features/catalog";
+import { FooterWordmark } from "./footer-wordmark";
 import { resourcePages } from "./resources/catalog";
 
 /** The header's two menus, then the footer's own columns. */
@@ -21,7 +22,8 @@ const COLUMNS = [
 
 /**
  * A dark rounded panel inset from the window, like the bands above it, that
- * opens on the site's tagline set large. The logo turns white with a filter:
+ * opens on the site's tagline set large and closes on "workit" drawn from
+ * job titles (footer-wordmark.tsx). The logo turns white with a filter:
  * the shared Logo draws its word in ink, which would vanish on ink.
  */
 export function Footer() {
@@ -29,7 +31,7 @@ export function Footer() {
 
   return (
     <footer className="px-2 pb-2 sm:px-6 sm:pb-6">
-      <div className="bg-ink rounded-[2rem] text-white lg:rounded-[3rem]">
+      <div className="bg-ink overflow-hidden rounded-[2rem] text-white lg:rounded-[3rem]">
         {/* Four link columns: two by two on a phone, one row of four under
             the tagline at md, beside it from lg. */}
         <div className="mx-auto grid w-full max-w-6xl grid-cols-2 gap-x-6 gap-y-10 px-6 pt-16 pb-14 sm:px-10 md:grid-cols-4 lg:grid-cols-[2fr_repeat(4,1fr)] lg:px-8">
@@ -65,6 +67,10 @@ export function Footer() {
               &copy; {year} {site.name}. All rights reserved.
             </p>
           </div>
+        </div>
+
+        <div className="px-4 pt-4 pb-6 sm:px-8 lg:px-10 lg:pb-10">
+          <FooterWordmark />
         </div>
       </div>
     </footer>

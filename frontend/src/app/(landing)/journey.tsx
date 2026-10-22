@@ -1,77 +1,283 @@
 "use client";
 
-import { Check, type LucideIcon } from "lucide-react";
-import { useState } from "react";
+import * as React from "react";
+import {
+  motion,
+  useReducedMotion,
+  useScroll,
+  useTransform,
+  type MotionValue,
+} from "motion/react";
+import { Check } from "lucide-react";
 
 import { cn } from "@/lib/cn";
 
-import { stages } from "./board-data";
-import { journey, type JourneyStep } from "./data";
+import { journey, journeySection as copy, type JourneyStep } from "./data";
 import { FaviconLogo } from "./favicon-logo";
-import { autoApplyFeature, updatesFeature } from "./feature-data";
+import { autoApplyFeature, followedJob, updatesFeature } from "./feature-data";
+import { FocusIn } from "./focus-in";
+import { useMediaQuery } from "./hooks";
+import { CONTAINER, SectionHeading } from "./layout-parts";
+import { scoreTone } from "./score-tone";
+import { Flight, FollowedCard, ScaledToWidth } from "./thread";
 
 /**
- * The search from end to end as four tall cards, after Calendly's "Book,
- * Prep, Capture, Follow up" row. From lg up the open card is wider and shows
- * its points and a small demo; the others keep only their title and line.
- * Pointing at a card, focusing it or clicking it opens it, and it stays open
- * until another one is. Below lg every card is open, stacked, since there is
- * no hover to open one.
+ * The search from end to end as four tall cards (Find, Apply, Track, Hear
+ * back), after Twain's deck of results. From lg up the section pins and the
+ * scroll drives it: the cards start as a stacked deck with Track on top,
+ * where the application that crossed the board lands (`Flight`, thread.tsx),
+ * then the deck fans into a row, each card's front showing that same Stripe
+ * application at its step, and each card flips in turn to show its detail.
+ * Below lg, and with reduced motion, the cards are a still grid with both
+ * sides' copy.
  */
+
+// Tailwind's lg breakpoint: pinned from here up.
+const DESKTOP_QUERY = "(min-width: 64rem)";
+/** The gap between the cards in the row, in px. */
+const GAP = 12;
+/** The deck's order from the top: Track, where the board's card lands. */
+const STACK: JourneyStep["id"][] = ["track", "apply", "hear", "find"];
+/** Each card's place in the deck by its depth: a turn, a nudge, a drop. */
+const DECK = [
+  { rotate: 0, x: 0, y: 0 },
+  { rotate: -5, x: -16, y: 10 },
+  { rotate: 4.5, x: 18, y: 16 },
+  { rotate: -8.5, x: -28, y: 24 },
+];
+
+// The pinned stretch's beats, as progress from 0 to 1.
+const FAN: [number, number] = [0.04, 0.3];
+const FLIP_AT = 0.38;
+const FLIP_STEP = 0.12;
+const FLIP_LEN = 0.16;
+
+const clamp = (v: number) => Math.min(1, Math.max(0, v));
+const between = (v: number, [a, b]: [number, number]) => clamp((v - a) / (b - a));
+const ease = (t: number) => (t < 0.5 ? 4 * t * t * t : 1 - Math.pow(-2 * t + 2, 3) / 2);
+const lerp = (a: number, b: number, t: number) => a + (b - a) * t;
+
 export function Journey() {
-  const [open, setOpen] = useState<JourneyStep["id"]>(journey[0].id);
+  const isDesktop = useMediaQuery(DESKTOP_QUERY);
+  const reduceMotion = useReducedMotion();
+  if (isDesktop === true && !reduceMotion) return <PinnedJourney />;
+  return <StillJourney />;
+}
+
+function Heading() {
+  return (
+    <FocusIn>
+      <SectionHeading eyebrow={copy.eyebrow} title={copy.title} subtitle={copy.subtitle} />
+    </FocusIn>
+  );
+}
+
+function PinnedJourney() {
+  const ref = React.useRef<HTMLElement>(null);
+  const rowRef = React.useRef<HTMLDivElement>(null);
+  const { scrollYProgress: q } = useScroll({ target: ref, offset: ["start start", "end end"] });
+  // The section coming up from the screen's foot to its pin: the flight.
+  const { scrollYProgress: entry } = useScroll({
+    target: ref,
+    offset: ["start end", "start start"],
+  });
+  // The row's width, read inside the transforms through a ref.
+  const width = React.useRef(1088);
+  React.useLayoutEffect(() => {
+    const row = rowRef.current;
+    if (!row) return;
+    const measure = () => {
+      width.current = row.offsetWidth;
+    };
+    measure();
+    const observer = new ResizeObserver(measure);
+    observer.observe(row);
+    return () => observer.disconnect();
+  }, []);
 
   return (
-    <div className="grid gap-3 sm:grid-cols-2 lg:flex lg:h-[34rem] lg:gap-3">
-      {journey.map((step) => {
-        const isOpen = step.id === open;
-        return (
-          <article
-            key={step.id}
-            data-open={isOpen || undefined}
-            onPointerEnter={(event) => event.pointerType === "mouse" && setOpen(step.id)}
-            onFocus={() => setOpen(step.id)}
-            onClick={() => setOpen(step.id)}
-            className={cn(
-              "group/card relative isolate flex flex-col overflow-hidden rounded-[2rem] bg-white p-6 ring-1 ring-slate-900/5",
-              "lg:min-w-0 lg:flex-1 lg:transition-[flex-grow] lg:duration-500 lg:ease-[cubic-bezier(0.16,1,0.3,1)] lg:data-open:flex-[2.4] lg:motion-reduce:transition-none",
-            )}
-          >
-            {/* The card's glow: faint while closed, full once open. */}
-            <div
-              aria-hidden="true"
-              className="absolute inset-x-0 bottom-0 -z-10 h-2/3 opacity-60 transition-opacity duration-500 group-data-open/card:opacity-100 max-lg:opacity-100"
-              style={{
-                background: `radial-gradient(70% 90% at 30% 100%, color-mix(in oklab, ${step.glow} 30%, transparent), transparent), radial-gradient(60% 80% at 90% 100%, color-mix(in oklab, ${step.glow} 18%, transparent), transparent)`,
-              }}
-            />
+    <section ref={ref} className="h-[300vh]">
+      <Flight name="deck" progress={entry}>
+        <FollowedCard stage="offer" />
+      </Flight>
+      <div className="sticky top-0 flex h-dvh flex-col pt-24 pb-8">
+        <div className={cn(CONTAINER, "flex min-h-0 flex-1 flex-col justify-center")}>
+          <Heading />
+          <div ref={rowRef} className="relative mt-10 h-full max-h-[34rem] min-h-0 flex-1">
+            {journey.map((step, slot) => (
+              <DeckCard key={step.id} step={step} slot={slot} q={q} width={width} />
+            ))}
+          </div>
+        </div>
+      </div>
+    </section>
+  );
+}
 
-            <h3>
-              <button
-                type="button"
-                aria-expanded={isOpen}
-                className="text-ink text-left text-2xl font-semibold tracking-tight focus-visible:outline-none"
-              >
-                {step.title}
-              </button>
-            </h3>
-            <p className="text-ink-meta mt-2 text-sm lg:max-w-[20rem]">
-              {isOpen ? step.body : step.line}
-            </p>
+/** One card: its place between the deck and the row, and its flip. */
+function DeckCard({
+  step,
+  slot,
+  q,
+  width,
+}: {
+  step: JourneyStep;
+  slot: number;
+  q: MotionValue<number>;
+  width: React.RefObject<number>;
+}) {
+  const depth = STACK.indexOf(step.id);
+  const deck = DECK[depth];
+  const flipAt: [number, number] = [
+    FLIP_AT + slot * FLIP_STEP,
+    FLIP_AT + slot * FLIP_STEP + FLIP_LEN,
+  ];
 
-            {/* Kept in the layout while closed, so opening never reflows the
-                text above; only shown from lg up once open. */}
-            <div
-              className={cn(
-                "mt-5 flex flex-1 flex-col transition-opacity duration-300 motion-reduce:transition-none",
-                "lg:invisible lg:opacity-0 lg:group-data-open/card:visible lg:group-data-open/card:opacity-100 lg:group-data-open/card:delay-150",
-              )}
+  const pose = (v: number) => {
+    const card = (width.current - 3 * GAP) / 4;
+    // From the deck at the row's centre to the card's own place.
+    const toCentre = (1.5 - slot) * (card + GAP);
+    const t = ease(between(v, FAN));
+    const f = ease(between(v, flipAt));
+    const lift = Math.sin(Math.PI * f);
+    return {
+      x: lerp(toCentre + deck.x, 0, t),
+      y: lerp(deck.y, 0, t) - Math.sin(Math.PI * t) * 14 * Math.abs(1.5 - slot) - lift * 12,
+      rotate: lerp(deck.rotate, 0, t),
+      scale: lerp(1 - depth * 0.03, 1, t) * (1 + lift * 0.04),
+      flip: f * 180,
+    };
+  };
+  const x = useTransform(q, (v) => pose(v).x);
+  const y = useTransform(q, (v) => pose(v).y);
+  const rotate = useTransform(q, (v) => pose(v).rotate);
+  const scale = useTransform(q, (v) => pose(v).scale);
+  const rotateY = useTransform(q, (v) => pose(v).flip);
+
+  return (
+    <motion.article
+      className="absolute inset-y-0"
+      style={{
+        left: `calc(${slot} * ((100% - ${3 * GAP}px) / 4 + ${GAP}px))`,
+        width: `calc((100% - ${3 * GAP}px) / 4)`,
+        x,
+        y,
+        rotate,
+        scale,
+        zIndex: 10 - depth,
+        perspective: "1400px",
+      }}
+    >
+      <motion.div
+        className="relative size-full"
+        style={{ rotateY, transformStyle: "preserve-3d" }}
+      >
+        <Front step={step} />
+        <Back step={step} />
+      </motion.div>
+    </motion.article>
+  );
+}
+
+const FACE =
+  "absolute inset-0 flex flex-col overflow-hidden rounded-[2rem] p-6 ring-1 ring-slate-900/5 [backface-visibility:hidden]";
+
+/** A card's front: the step, its line and a picture of it. */
+function Front({ step }: { step: JourneyStep }) {
+  return (
+    <div className={cn(FACE, "isolate bg-white shadow-[0_24px_48px_-28px_rgb(40_20_90/0.35)]")}>
+      <Glow step={step} />
+      <div className="flex items-center justify-between gap-2">
+        <h3 className="text-ink text-3xl font-semibold tracking-tight">
+          {step.title}
+        </h3>
+        {step.soon && <Soon />}
+      </div>
+      <p className="text-ink-meta mt-2 text-sm">{step.line}</p>
+      <div className="mt-auto pt-6">
+        <Demo id={step.id} />
+      </div>
+    </div>
+  );
+}
+
+/** A card's back: what the step does, in full. */
+function Back({ step }: { step: JourneyStep }) {
+  return (
+    <div
+      className={cn(FACE, "isolate bg-white")}
+      style={{
+        transform: "rotateY(180deg)",
+        background: `linear-gradient(160deg, color-mix(in oklab, ${step.glow} 14%, white), white 70%)`,
+      }}
+    >
+      <div className="flex items-center justify-between gap-2">
+        <p aria-hidden="true" className="text-ink text-xl font-semibold tracking-tight">
+          {step.title}
+        </p>
+        {step.soon && <Soon />}
+      </div>
+      <p className="text-ink mt-3 text-[15px] leading-relaxed text-pretty">{step.body}</p>
+      <ul className="mt-auto space-y-2.5 pt-6">
+        {step.points.map((point) => (
+          <li key={point} className="text-ink flex items-start gap-2.5 text-sm">
+            <span
+              className="mt-px flex size-5 shrink-0 items-center justify-center rounded-full text-white"
+              style={{ background: step.glow }}
             >
-              <ul className="space-y-2.5">
+              <Check className="size-3" strokeWidth={3} aria-hidden="true" />
+            </span>
+            {point}
+          </li>
+        ))}
+      </ul>
+    </div>
+  );
+}
+
+function Glow({ step }: { step: JourneyStep }) {
+  return (
+    <div
+      aria-hidden="true"
+      className="absolute inset-x-0 bottom-0 -z-10 h-2/3"
+      style={{
+        background: `radial-gradient(70% 90% at 30% 100%, color-mix(in oklab, ${step.glow} 30%, transparent), transparent), radial-gradient(60% 80% at 90% 100%, color-mix(in oklab, ${step.glow} 18%, transparent), transparent)`,
+      }}
+    />
+  );
+}
+
+function Soon() {
+  return (
+    <span className="bg-surface text-ink-meta shrink-0 rounded-full px-2 py-0.5 text-[11px] font-semibold ring-1 ring-slate-900/5">
+      Coming soon
+    </span>
+  );
+}
+
+/** Below lg, and with reduced motion: the four cards, both sides' copy. */
+function StillJourney() {
+  return (
+    <section className="py-20 sm:py-28">
+      <div className={CONTAINER}>
+        <Heading />
+        <div className="mt-12 grid gap-3 sm:mt-16 sm:grid-cols-2 lg:grid-cols-4">
+          {journey.map((step) => (
+            <article
+              key={step.id}
+              className="relative isolate flex flex-col overflow-hidden rounded-[2rem] bg-white p-6 ring-1 ring-slate-900/5"
+            >
+              <Glow step={step} />
+              <div className="flex items-center justify-between gap-2">
+                <h3 className="text-ink text-2xl font-semibold tracking-tight">{step.title}</h3>
+                {step.soon && <Soon />}
+              </div>
+              <p className="text-ink-meta mt-2 text-sm">{step.body}</p>
+              <ul className="mt-5 space-y-2.5">
                 {step.points.map((point) => (
-                  <li key={point} className="text-ink flex items-center gap-2.5 text-sm">
+                  <li key={point} className="text-ink flex items-start gap-2.5 text-sm">
                     <span
-                      className="flex size-5 shrink-0 items-center justify-center rounded-full text-white"
+                      className="mt-px flex size-5 shrink-0 items-center justify-center rounded-full text-white"
                       style={{ background: step.glow }}
                     >
                       <Check className="size-3" strokeWidth={3} aria-hidden="true" />
@@ -80,33 +286,42 @@ export function Journey() {
                   </li>
                 ))}
               </ul>
-              <div className="mt-auto pt-6 lg:w-[25rem] lg:max-w-full">
+              <div className="mt-auto pt-6">
                 <Demo id={step.id} />
               </div>
-            </div>
-          </article>
-        );
-      })}
-    </div>
+            </article>
+          ))}
+        </div>
+      </div>
+    </section>
   );
 }
 
-/** A small, still picture of the step, drawn from the page's sample data. */
+/**
+ * A small picture of the step, each the application the page has followed
+ * (`followedJob`, Stripe): its posting and match, the form Auto Apply
+ * fills, its tracker card at the offer (where the board's card lands) and
+ * the offer as an update.
+ */
 function Demo({ id }: { id: JourneyStep["id"] }) {
   const shell = "rounded-2xl bg-white p-4 shadow-lg ring-1 shadow-slate-900/10 ring-slate-900/5";
 
   if (id === "find") {
-    const job = stages[1].jobs[0];
     return (
       <div aria-hidden="true" className={shell}>
         <div className="flex items-center gap-3">
-          <FaviconLogo domain={job.domain} className="rounded-lg" />
+          <FaviconLogo domain={followedJob.domain} className="rounded-lg" />
           <div className="min-w-0 flex-1">
-            <p className="text-ink truncate text-sm font-semibold">{job.title}</p>
-            <p className="text-ink-meta text-xs">{job.company}</p>
+            <p className="text-ink truncate text-sm font-semibold">{followedJob.title}</p>
+            <p className="text-ink-meta text-xs">{followedJob.company}</p>
           </div>
-          <span className="bg-landing-brand-100 text-landing-brand-800 rounded-full px-2 py-0.5 text-xs font-semibold">
-            {job.score}% match
+          <span
+            className={cn(
+              "shrink-0 rounded-md px-1.5 py-0.5 text-[11px] font-bold ring-1 ring-inset",
+              scoreTone(followedJob.score),
+            )}
+          >
+            {followedJob.score}%
           </span>
         </div>
       </div>
@@ -120,12 +335,12 @@ function Demo({ id }: { id: JourneyStep["id"] }) {
           .flatMap((section) => section.fields)
           .filter((field) => ["email", "phone", "resume"].includes(field.id))
           .map((field) => (
-            <div key={field.id} className="flex items-center gap-3 text-xs">
-              <span className="text-ink-meta w-16 shrink-0">{field.label}</span>
-              <span className="text-ink bg-surface ring-border flex h-7 flex-1 items-center rounded-md px-2 ring-1">
-                {field.value}
+            <div key={field.id} className="flex items-center gap-2 text-xs">
+              <span className="text-ink-meta w-12 shrink-0">{field.label}</span>
+              <span className="text-ink bg-surface ring-border flex h-7 min-w-0 flex-1 items-center truncate rounded-md px-2 ring-1">
+                <span className="truncate">{field.value}</span>
               </span>
-              <Check className="text-positive size-3.5" aria-hidden="true" />
+              <Check className="text-positive size-3.5 shrink-0" aria-hidden="true" />
             </div>
           ))}
       </div>
@@ -134,40 +349,23 @@ function Demo({ id }: { id: JourneyStep["id"] }) {
 
   if (id === "track") {
     return (
-      <div aria-hidden="true" className={cn(shell, "flex flex-wrap items-center gap-1.5")}>
-        {stages.map((stage, index) => {
-          const Icon: LucideIcon = stage.icon;
-          return (
-            <span key={stage.id} className="flex items-center gap-1.5">
-              <span
-                className={cn(
-                  "inline-flex items-center gap-1 rounded-full px-2 py-1 text-xs font-medium",
-                  stage.chipClass,
-                )}
-              >
-                <Icon className={cn("size-3", stage.iconClass)} />
-                {stage.label}
-              </span>
-              {index < stages.length - 1 && <span className="text-ink-faint text-xs">→</span>}
-            </span>
-          );
-        })}
-      </div>
+      <ScaledToWidth>
+        <FollowedCard stage="offer" data-thread-to="deck" />
+      </ScaledToWidth>
     );
   }
 
-  const update =
-    updatesFeature.updates.find((item) => item.kind === "offer") ?? updatesFeature.updates[0];
   return (
     <div aria-hidden="true" className={cn(shell, "flex items-center gap-3")}>
-      <FaviconLogo domain={update.domain} className="rounded-lg" />
+      <FaviconLogo domain={followedJob.domain} className="rounded-lg" />
       <div className="min-w-0 flex-1 text-sm">
         <p className="text-ink truncate">
-          <span className="font-semibold">{update.company}</span> {update.action}
+          <span className="font-semibold">{followedJob.company}</span> sent you an offer
         </p>
-        <p className="text-ink-meta truncate text-xs">{update.detail}</p>
+        <p className="text-ink-meta truncate text-xs">
+          {updatesFeature.offer.term} · reply by {updatesFeature.offer.replyBy}
+        </p>
       </div>
-      <span className="text-ink-meta text-xs">Just now</span>
     </div>
   );
 }

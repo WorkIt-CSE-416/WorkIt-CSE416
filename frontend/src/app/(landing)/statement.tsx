@@ -15,6 +15,7 @@ import { cn } from "@/lib/cn";
 
 import { useMediaQuery } from "./hooks";
 import { CONTAINER, PANEL, PANEL_INSET } from "./layout-parts";
+import { FollowedCard } from "./thread";
 
 /**
  * The statement between the product tour and the applications section,
@@ -22,7 +23,9 @@ import { CONTAINER, PANEL, PANEL_INSET } from "./layout-parts";
  * scroll drives everything, nothing runs on a timer. The headline steps
  * into a staircase, the paragraph beside it darkens word by word as it is
  * read, then a generic cover letter appears and its words fall one by one
- * into a bin, and the closing line lands. Below lg it does not pin; the
+ * into a bin, and the closing line lands with the application the tour
+ * followed rising where the letter was: the start of the thread
+ * (thread.tsx) that carries it onto the applications board. Below lg it does not pin; the
  * same moves follow the section through the screen. With reduced motion it
  * shows the finished frame (progress held at 1).
  *
@@ -146,6 +149,9 @@ function Stage({ p }: { p: MotionValue<number> }) {
   );
   const closeOpacity = useTransform(p, CLOSE_AT, [0, 1]);
   const closeY = useTransform(p, CLOSE_AT, [12, 0]);
+  // The tailored application rises where the letter was.
+  const cardY = useTransform(p, CLOSE_AT, [36, 0]);
+  const cardScale = useTransform(p, CLOSE_AT, [0.94, 1]);
 
   return (
     <div ref={stageRef} className="relative">
@@ -189,6 +195,14 @@ function Stage({ p }: { p: MotionValue<number> }) {
           style={{ opacity: binOpacity, rotate: binRotate, transformOrigin: "50% 100%" }}
         >
           <Bin />
+        </motion.div>
+        {/* The application written for the job: the thread's card, which
+            flies on to the board as the page scrolls (thread.tsx). */}
+        <motion.div
+          className="absolute -top-3 left-1/2 -ml-[144px]"
+          style={{ opacity: closeOpacity, y: cardY, scale: cardScale }}
+        >
+          <FollowedCard stage="saved" data-thread-from="board" />
         </motion.div>
       </div>
 

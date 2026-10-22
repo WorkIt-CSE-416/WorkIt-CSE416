@@ -3,10 +3,12 @@ import type { CSSProperties } from "react";
 
 import { cn } from "@/lib/cn";
 
-import ApplicationBoard from "./application-board";
+import { Applications } from "./applications";
 import { Bridge } from "./bridge";
-import { faqs, hero, hiringSystemsSection, journeySection, site, testimonial } from "./data";
+import { faqs, hero, hiringSystemsSection, site } from "./data";
 import { FaqList } from "./faq-list";
+import { FocusIn } from "./focus-in";
+import { GrowIn } from "./grow-in";
 import { HeroCity } from "./hero-city";
 import { HeroTitle } from "./hero-title";
 import { HiringSystems } from "./hiring-systems";
@@ -14,8 +16,8 @@ import { Journey } from "./journey";
 import { CONTAINER, PANEL, PANEL_INSET, SectionHeading } from "./layout-parts";
 import { ProductTour } from "./product-tour";
 import { SocialSignUpButton } from "./social-sign-up";
-import { StageTimeline } from "./stage-timeline";
 import { Statement } from "./statement";
+import { Testimonial } from "./testimonial";
 
 export const metadata: Metadata = {
   title: { absolute: `${site.name} · ${site.tagline}` },
@@ -83,80 +85,45 @@ export default function LandingPage() {
       {/* Why it matters, read by scrolling: statement.tsx. */}
       <Statement />
 
-      {/* Applicant tracking showcase */}
-      <section id="applications" className="pt-20 pb-10 sm:pt-28 sm:pb-16">
-        <div
-          className={cn(
-            CONTAINER,
-            "grid grid-cols-1 items-center gap-4 sm:gap-6 lg:grid-cols-5 lg:gap-12",
-          )}
-        >
-          <div className="lg:col-span-2">
-            <SectionHeading
-              align="left"
-              eyebrow="For applicants"
-              title="Every application, from saved to signed."
-              subtitle="Keep every role you're pursuing on one board, with the next step and the deadline right on each card."
-            />
-            <StageTimeline />
-          </div>
-          <div className="lg:col-span-3">
-            <ApplicationBoard />
-          </div>
-        </div>
-      </section>
+      {/* The followed application crosses the board: applications.tsx. */}
+      <Applications />
 
-      {/* How it works: the search end to end, as an expanding card row. */}
-      <section className="py-20 sm:py-28">
-        <div className={CONTAINER}>
-          <SectionHeading
-            eyebrow={journeySection.eyebrow}
-            title={journeySection.title}
-            subtitle={journeySection.subtitle}
-          />
-          <div className="mt-12 sm:mt-16">
-            <Journey />
-          </div>
-        </div>
-      </section>
+      {/* How it works: a deck of four cards that fans and flips: journey.tsx. */}
+      <Journey />
 
-      {/* Hiring systems, in a rounded panel. The Features menu's foot row
-            links here. */}
+      {/* Hiring systems, in a rounded panel that grows into place. The
+            Features menu's foot row links here. */}
       <section id="hiring-systems" className={PANEL_INSET}>
-        <div className={cn(PANEL, "bg-surface py-20 sm:py-28")}>
+        <GrowIn className={cn(PANEL, "bg-surface py-20 sm:py-28")}>
           <div className={CONTAINER}>
-            <SectionHeading
-              eyebrow={hiringSystemsSection.eyebrow}
-              title={hiringSystemsSection.title}
-              subtitle={hiringSystemsSection.subtitle}
-            />
+            <FocusIn>
+              <SectionHeading
+                eyebrow={hiringSystemsSection.eyebrow}
+                title={hiringSystemsSection.title}
+                subtitle={hiringSystemsSection.subtitle}
+              />
+            </FocusIn>
             <HiringSystems />
           </div>
-        </div>
+        </GrowIn>
       </section>
 
-      {/* Testimonial */}
+      {/* Testimonial, read word by word: testimonial.tsx. */}
       <section className={cn(PANEL_INSET, "mt-2 sm:mt-6")}>
-        <div className={cn(PANEL, "bg-surface py-20 sm:py-28")}>
+        <GrowIn className={cn(PANEL, "bg-surface py-20 sm:py-28")}>
           <div className={CONTAINER}>
-            <figure className="mx-auto max-w-3xl text-center">
-              <blockquote className="text-ink text-2xl font-medium tracking-tight text-balance sm:text-3xl">
-                <p>“{testimonial.quote}”</p>
-              </blockquote>
-              <figcaption className="mt-8">
-                <p className="text-ink font-semibold">{testimonial.name}</p>
-                <p className="text-ink-meta text-sm">{testimonial.role}</p>
-              </figcaption>
-            </figure>
+            <Testimonial />
           </div>
-        </div>
+        </GrowIn>
       </section>
 
-      {/* FAQ */}
+      {/* FAQ: the questions rise in as they scroll in (landing.css). */}
       <section id="faq" className="py-20 sm:py-28">
         <div className={CONTAINER}>
-          <SectionHeading eyebrow="FAQ" title="Questions, answered." />
-          <FaqList items={faqs} className="mt-12" />
+          <FocusIn>
+            <SectionHeading eyebrow="FAQ" title="Questions, answered." />
+          </FocusIn>
+          <FaqList items={faqs} className="faq-rise mt-12" />
         </div>
       </section>
     </main>

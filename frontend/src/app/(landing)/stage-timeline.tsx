@@ -6,10 +6,10 @@ import {
   MotionConfig,
   animate,
   motion,
-  useInView,
   useMotionValue,
   useReducedMotion,
   useTransform,
+  type MotionValue,
 } from "motion/react";
 
 import { cn } from "@/lib/cn";
@@ -18,57 +18,74 @@ import { stages } from "./board-data";
 import { GLIDE } from "./story";
 
 /** Each row's height in px. The track and its fill are measured in rows. */
-const ROW = 84;
+export const ROW = 84;
 /** The node's size in px; the track runs through the nodes' centres. */
 const NODE = 44;
-/** How long each stage holds before the next lights up, in ms. */
-const STEP_MS = 1700;
-/** How long the finished search holds before it starts over, in ms. */
-const DONE_MS = 3600;
+/** The share of each stage's stretch of scroll spent gliding to the next
+ * stage; the rest holds, so a stage can be read. */
+const SPAN = 0.6;
+
+const clamp = (v: number) => Math.min(1, Math.max(0, v));
+const ease = (t: number) => (t < 0.5 ? 4 * t * t * t : 1 - Math.pow(-2 * t + 2, 3) / 2);
+
+/**
+ * Where the timeline is at `s` (0 at Saved to 3 at Job Offers): between
+ * stage `from` and stage `to`, `u` of the way. Everything that moves with
+ * the stages (the fill, the highlight, the board's card) holds at a stage,
+ * then glides to the next, arriving as `s` reaches it.
+ */
+export function stageAt(s: number) {
+  const to = Math.min(stages.length - 1, Math.floor(s) + 1);
+  const from = to - 1;
+  return { from, to, u: ease(clamp((s - from - (1 - SPAN)) / SPAN)) };
+}
+
+/** The stage `s` has reached: lit, and the board's card on its column. */
+export function stepAt(s: number) {
+  return Math.min(stages.length - 1, Math.floor(s + 1e-6));
+}
 
 /**
  * The applications section's stage list, told as one search moving from
  * saved to signed: a track fills from stage to stage, each node lights up
  * in its stage's colour as the fill reaches it, a glass highlight slides
  * to the current stage, and its tally counts up. At the offer, a small
- * burst. It plays only in view and starts over each time it comes back;
- * with reduced motion every stage shows lit, still.
+ * burst. The scroll drives it (`s`, from the pinned section in
+ * applications.tsx), nothing runs on a timer; with no `s` (below lg,
+ * reduced motion) every stage shows lit, still.
  */
-export function StageTimeline() {
-  const ref = React.useRef<HTMLOListElement>(null);
-  const inView = useInView(ref, { amount: 0.5 });
+export function StageTimeline({
+  s,
+  step = stages.length - 1,
+  row = ROW,
+}: {
+  s: MotionValue<number> | null;
+  step?: number;
+  row?: number;
+}) {
   const reduceMotion = useReducedMotion();
-  const [step, setStep] = React.useState(0);
-  // Bumped on each new run, so the burst plays again.
+  const still = !s || !!reduceMotion;
+  const shown = still ? stages.length - 1 : step;
+  const trackStops = stages.map((stage) => stage.color).join(", ");
+  const at = (v: number) => {
+    const { from, u } = stageAt(v);
+    return from + u;
+  };
+  const fallback = useMotionValue(stages.length - 1);
+  const source = s ?? fallback;
+  const fill = useTransform(source, (v) => (still ? stages.length - 1 : at(v)) * row);
+
+  // The burst plays each time the fill reaches the offer.
   const [run, setRun] = React.useState(0);
-
-  // Start over each time the list leaves the screen. Set during render, not
-  // in an effect.
-  const [wasInView, setWasInView] = React.useState(inView);
-  if (inView !== wasInView) {
-    setWasInView(inView);
-    if (!inView) setStep(0);
+  const [lastShown, setLastShown] = React.useState(shown);
+  if (shown !== lastShown) {
+    setLastShown(shown);
+    if (shown === stages.length - 1) setRun((r) => r + 1);
   }
-
-  React.useEffect(() => {
-    if (!inView || reduceMotion) return;
-    const last = step === stages.length - 1;
-    const timer = window.setTimeout(
-      () => {
-        if (last) setRun((r) => r + 1);
-        setStep(last ? 0 : step + 1);
-      },
-      last ? DONE_MS : STEP_MS,
-    );
-    return () => window.clearTimeout(timer);
-  }, [inView, reduceMotion, step]);
-
-  const shown = reduceMotion ? stages.length - 1 : step;
-  const trackStops = stages.map((s) => s.color).join(", ");
 
   return (
     <MotionConfig reducedMotion="user">
-      <ol ref={ref} className="relative isolate mt-10" aria-label="Application stages">
+      <ol className="relative isolate mt-10" aria-label="Application stages">
         {/* The track, through the nodes' centres, and its fill. */}
         <div
           aria-hidden="true"
@@ -76,22 +93,20 @@ export function StageTimeline() {
           style={{
             left: NODE / 2 - 1.5,
             top: NODE / 2,
-            height: (stages.length - 1) * ROW,
+            height: (stages.length - 1) * row,
           }}
         >
           <motion.div
             className="relative w-full rounded-full"
             style={{
+              height: fill,
               background: `linear-gradient(to bottom, ${trackStops})`,
-              backgroundSize: `100% ${(stages.length - 1) * ROW}px`,
+              backgroundSize: `100% ${(stages.length - 1) * row}px`,
             }}
-            initial={false}
-            animate={{ height: shown * ROW }}
-            transition={{ duration: 0.7, ease: GLIDE }}
           >
             {/* The comet at the fill's head. */}
             <span
-              className="absolute -bottom-1 left-1/2 size-2.5 -translate-x-1/2 rounded-full bg-white"
+              className="absolute -bottom-1 left-1/2 size-2.5 -translate-x-1/2 rounded-full bg-white transition-shadow duration-300"
               style={{
                 boxShadow: `0 0 0 2px ${stages[shown].color}, 0 0 12px 3px ${stages[shown].color}`,
               }}
@@ -99,34 +114,30 @@ export function StageTimeline() {
           </motion.div>
         </div>
 
+        {/* The glass highlight, sliding with the fill to the current stage. */}
+        <motion.span
+          aria-hidden="true"
+          className="glass-card absolute -inset-x-3 -top-2.5 -z-10 rounded-2xl"
+          style={{ y: fill, height: row + 2 }}
+        />
+
         {stages.map((stage, index) => {
           const Icon = stage.icon;
           const lit = index <= shown;
           const current = index === shown;
           return (
-            <li key={stage.id} className="relative flex gap-4" style={{ height: ROW }}>
-              {/* The glass highlight slides to the current stage. */}
-              {current && (
-                <motion.span
-                  layoutId="stage-highlight"
-                  aria-hidden="true"
-                  className="glass-card absolute -inset-x-3 -top-2.5 -z-10 rounded-2xl"
-                  style={{ height: NODE + 20 + 22 }}
-                  transition={{ duration: 0.6, ease: GLIDE }}
-                />
-              )}
-
+            <li key={stage.id} className="relative flex gap-4" style={{ height: row }}>
               <span className="relative shrink-0" style={{ width: NODE, height: NODE }}>
                 {/* A ring that ripples out from the current node. */}
-                {current && !reduceMotion && (
+                {current && !still && (
                   <motion.span
-                    key={`ripple-${run}-${index}`}
+                    key={`ripple-${index}`}
                     aria-hidden="true"
                     className="absolute inset-0 rounded-full"
                     style={{ boxShadow: `0 0 0 2px ${stage.color}` }}
                     initial={{ scale: 1, opacity: 0.6 }}
                     animate={{ scale: 1.7, opacity: 0 }}
-                    transition={{ delay: 0.45, duration: 1.2, ease: "easeOut", repeat: Infinity }}
+                    transition={{ duration: 1.2, ease: "easeOut", repeat: Infinity }}
                   />
                 )}
                 {/* CSS transitions, not motion: the colours are CSS variables,
@@ -134,20 +145,18 @@ export function StageTimeline() {
                 <span
                   className={cn(
                     "relative grid size-full place-items-center rounded-full ring-1 ring-slate-900/8 transition-[background-color,color,box-shadow,scale] duration-300 ring-inset motion-reduce:transition-none",
-                    current ? "scale-108" : "scale-100",
+                    current && !still ? "scale-108" : "scale-100",
                   )}
                   style={{
                     background: lit ? stage.color : "white",
                     color: lit ? "white" : "#94a3b8",
                     boxShadow: lit ? `0 8px 20px -8px ${stage.color}` : undefined,
-                    // Lights as the fill arrives.
-                    transitionDelay: lit && current ? "450ms" : "0ms",
                   }}
                 >
                   <Icon className="size-[18px]" aria-hidden="true" />
                 </span>
-                {stage.id === "offer" && current && !reduceMotion && (
-                  <Burst key={`burst-${run}`} color={stage.color} />
+                {stage.id === "offer" && current && !still && run > 0 && (
+                  <Burst key={`burst-${run}`} color={stage.color} delay={0.1} />
                 )}
               </span>
 
@@ -161,7 +170,7 @@ export function StageTimeline() {
                   >
                     {stage.label}
                   </span>
-                  <Tally stage={stage} lit={lit} instant={!!reduceMotion} />
+                  <Tally stage={stage} lit={lit} instant={still} />
                 </p>
                 <p className="text-ink-meta mt-0.5 text-sm text-pretty">{stage.description}</p>
               </div>
@@ -186,9 +195,12 @@ function Tally({
   const value = useMotionValue(instant ? stage.tally.count : 0);
   const text = useTransform(value, (v) => `${Math.round(v)} ${stage.tally.unit}`);
   React.useEffect(() => {
-    if (instant) return;
+    if (instant) {
+      value.set(stage.tally.count);
+      return;
+    }
     const controls = lit
-      ? animate(value, stage.tally.count, { delay: 0.45, duration: 0.8, ease: GLIDE })
+      ? animate(value, stage.tally.count, { duration: 0.8, ease: GLIDE })
       : animate(value, 0, { duration: 0.2 });
     return () => controls.stop();
   }, [lit, instant, value, stage.tally.count]);
@@ -205,7 +217,7 @@ function Tally({
           initial={{ opacity: 0, x: -4 }}
           animate={{ opacity: 1, x: 0 }}
           exit={{ opacity: 0, transition: { duration: 0.15 } }}
-          transition={{ delay: instant ? 0 : 0.45, duration: 0.3 }}
+          transition={{ duration: 0.3 }}
         >
           <motion.span>{text}</motion.span>
         </motion.span>
@@ -215,8 +227,8 @@ function Tally({
 }
 
 /** A few sparks flying out of an offer: the timeline's node, and the
- * Updates stop's offer. */
-export function Burst({ color }: { color: string }) {
+ * Updates stop's offer. `delay` waits for whatever brought the offer in. */
+export function Burst({ color, delay = 0.55 }: { color: string; delay?: number }) {
   const sparks = 10;
   return (
     <span aria-hidden="true" className="pointer-events-none absolute inset-0">
@@ -241,7 +253,7 @@ export function Burst({ color }: { color: string }) {
               opacity: [0, 1, 0],
               scale: [0.4, 1, 0.6],
             }}
-            transition={{ delay: 0.55, duration: 0.9, ease: "easeOut" }}
+            transition={{ delay, duration: 0.9, ease: "easeOut" }}
           />
         );
       })}
