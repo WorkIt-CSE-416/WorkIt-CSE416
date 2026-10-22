@@ -121,6 +121,8 @@ class HeaderIdentity:
     email: str | None = None
     phone: str | None = None
     links: tuple[tuple[str, str], ...] = ()
+    # Prints "U.S. Citizen" after the links (My Profile's check box)
+    us_citizen: bool = False
 
 
 @dataclass(frozen=True)

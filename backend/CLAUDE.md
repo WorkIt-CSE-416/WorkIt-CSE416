@@ -721,6 +721,10 @@ free tier). Render with a Dockerfile is the fallback.
   that writes it.** The model maps the column, so every upload's INSERT
   names it: deployed first, every upload answers 500. It only adds a
   nullable column and an index, so applying it early is safe.
+- **Apply `b4e8c2a6f1d3` (`applicant_profiles.us_citizen_on_resume`)
+  before the deploy that maps it.** Every signup INSERT names the column,
+  so deployed first, every signup answers 500. It only adds a column with
+  a server default of false, so applying it early is safe.
 - **Apply `a7d3e5c1b942` (`autofill_answers`, KAN-283) before the deploy
   that reads it.** It sits on KAN-262's `9d3f6b1e4a72`
   (`applicant_profiles.contact_email`), which sits on `c785e96ac011`. It

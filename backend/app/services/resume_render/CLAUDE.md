@@ -39,6 +39,12 @@ resume; KAN-207 renders the bank and retired the proof endpoint.
   is why `HeaderIdentity.links` carries each link's column. The `email` box
   prints the profile's `email_for_employers`: the contact email, else the
   sign-in email (KAN-262). The editor never types it; My Profile sets it.
+  **"U.S. Citizen"** (`fields.US_CITIZEN`) ends the contact line, PDF,
+  LaTeX and Word alike, when `HeaderIdentity.us_citizen` is set (My
+  Profile's check box, `applicant_profiles.us_citizen_on_resume`). It has
+  no box, since the editor types only fields it can save. A sent resume's
+  hash and snapshot leave `us_citizen` out while it is false
+  (`sent_resumes._identity`), so a resume sent before it still repeats.
   The name's box
   reaches `NAME_ASCENT`/`NAME_DESCENT`, since it prints `\Huge`. The editor
   types them into the profile. The render route sends them as `RenderResponse.boxes`
