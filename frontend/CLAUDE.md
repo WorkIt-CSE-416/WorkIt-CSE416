@@ -188,9 +188,8 @@ CLI are in the root `CLAUDE.md`. `API_URL` points at the API project
   timers: from lg up it pins for 260vh while the headline ("Stop sending
   slop applications") steps into a staircase (steps in em, so they shrink
   with the type; in px they pushed "applications" past a phone's panel), the paragraph darkens word by word as it is read, and a
-  generic cover letter's words fall one by one into a bin, then the bin
-  goes and the closing line lands over the followed application's card
-  ("The home page's lower half", below). Each word's way to the bin is measured from layout
+  generic cover letter's words fall one by one into a bin before the
+  closing line lands. Each word's way to the bin is measured from layout
   offsets and read through a ref inside a function transform: a
   `useTransform` built from arrays keeps the ranges it first saw. Below lg
   it does not pin and the same moves follow the section through the
@@ -454,11 +453,14 @@ CLI are in the root `CLAUDE.md`. `API_URL` points at the API project
   above it. **One object is carried down the page**: the application the
   tour followed (`followedJob`), drawn as a tracker card by `FollowedCard`
   (`thread.tsx`; its text per stage is `followedStages` in
-  `board-data.ts`, dated after the Updates stop). The statement ends on it
-  as the tailored application, rising where the letter was as the bin
-  fades (it covered the bin's top at 1280 × 720); it flies onto the
-  applications board's Saved column, crosses the board stage by stage, and
-  flies on to land on the journey's Track card. `Flight` carries it:
+  `board-data.ts`, dated after the Updates stop). It flies from the
+  statement's last frame onto the applications board's Saved column,
+  crosses the board stage by stage, and flies on to land on the journey's
+  Track card. The statement is built in its own file by another session;
+  its one duty to this thread is to end on the tailored application as
+  `<FollowedCard stage="saved" data-thread-from="board" />`, shown at its
+  pin's end. Until it does, the board's flight finds no start and the
+  card simply sits on Saved. `Flight` carries it:
   mounted by the pinned scene it lands in, with that section's entry
   progress, it moves a fixed copy from `data-thread-from=<name>` to
   `data-thread-to=<name>`, measured every frame since both move, scaling
