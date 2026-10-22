@@ -1,40 +1,26 @@
-import Link from "next/link";
 import type { ReactNode } from "react";
-
-import { Logo } from "@/components/logo";
-
-import { Footer } from "./footer";
 
 /** The date both drafts show. Change it with every edit to either page. */
 export const LEGAL_UPDATED = "2026-10-22";
 
 /**
- * The shell of /privacy and /terms: a plain bar with the logo back to /, one
- * readable column of text, and the landing page's footer. Both pages are
- * drafts for the team to review; Google's OAuth brand verification needs
- * them public on the site's own domain, so they render signed out.
+ * The shell of /privacy and /terms: one readable column of text. The
+ * group's layout draws the header and the footer around it, as on every
+ * marketing page, so the shell draws neither. Both pages are drafts for the
+ * team to review; Google's OAuth brand verification needs them public on
+ * the site's own domain, so they render signed out.
  */
 export function LegalPage({ title, children }: { title: string; children: ReactNode }) {
   return (
-    <>
-      <header className="mx-auto w-full max-w-3xl px-6 pt-8 sm:px-10">
-        <Link href="/" aria-label="WorkIt home" className="inline-block">
-          <Logo size="card" decorative />
-        </Link>
-      </header>
-
-      <main id="main" className="flex-1">
-        <article className="text-ink-muted [&_a]:text-brand [&_h2]:text-ink [&_strong]:text-ink mx-auto w-full max-w-3xl px-6 pt-12 pb-20 text-base leading-7 sm:px-10 [&_a]:underline [&_h2]:mt-10 [&_h2]:text-xl [&_h2]:font-semibold [&_li]:mt-2 [&_p]:mt-4 [&_ul]:mt-4 [&_ul]:list-disc [&_ul]:pl-6">
-          <h1 className="text-ink text-4xl font-semibold tracking-tight">{title}</h1>
-          <p className="text-ink-meta">
-            Draft — last updated {LEGAL_UPDATED}. This draft is awaiting review by the WorkIt team.
-          </p>
-          {children}
-        </article>
-      </main>
-
-      <Footer />
-    </>
+    <main id="main" className="flex-1">
+      <article className="text-ink-muted [&_a]:text-brand [&_h2]:text-ink [&_strong]:text-ink mx-auto w-full max-w-3xl px-6 pt-12 pb-20 text-base leading-7 sm:px-10 [&_a]:underline [&_h2]:mt-10 [&_h2]:text-xl [&_h2]:font-semibold [&_li]:mt-2 [&_p]:mt-4 [&_ul]:mt-4 [&_ul]:list-disc [&_ul]:pl-6">
+        <h1 className="text-ink text-4xl font-semibold tracking-tight">{title}</h1>
+        <p className="text-ink-meta">
+          Draft — last updated {LEGAL_UPDATED}. This draft is awaiting review by the WorkIt team.
+        </p>
+        {children}
+      </article>
+    </main>
   );
 }
 

@@ -16,8 +16,8 @@ const googleSans = Google_Sans({
 });
 
 /**
- * The marketing pages' shell: the home page, the feature pages, Pricing and
- * the Resources pages.
+ * The marketing pages' shell: the home page, the feature pages, Pricing,
+ * the Resources pages and the legal pages.
  * No app bar or sidebar; every page in the group shares the floating
  * header and the footer, and renders its own `<main>`. `.landing` scopes
  * landing.css.

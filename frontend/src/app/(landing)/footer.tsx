@@ -37,10 +37,11 @@ export function Footer() {
   return (
     <footer className="px-2 pb-2 sm:px-6 sm:pb-6">
       <div className="bg-ink overflow-hidden rounded-[2rem] text-white lg:rounded-[3rem]">
-        {/* Four link columns: two by two on a phone, one row of four under
-            the tagline at md, beside it from lg. */}
-        <div className="mx-auto grid w-full max-w-6xl grid-cols-2 gap-x-6 gap-y-10 px-6 pt-16 pb-14 sm:px-10 md:grid-cols-4 lg:grid-cols-[2fr_repeat(4,1fr)] lg:px-8">
-          <div className="col-span-2 max-w-sm md:col-span-4 lg:col-span-1">
+        {/* Five link columns: two a row on a phone, three at md, one row of
+            five under the tagline at lg, beside it from xl, where a column
+            is still wide enough for "Application Tracker" on one line. */}
+        <div className="mx-auto grid w-full max-w-6xl grid-cols-2 gap-x-6 gap-y-10 px-6 pt-16 pb-14 sm:px-10 md:grid-cols-3 lg:grid-cols-5 lg:px-8 xl:grid-cols-[2fr_repeat(5,1fr)]">
+          <div className="col-span-2 max-w-sm md:col-span-3 lg:col-span-5 xl:col-span-1">
             <p className="text-3xl leading-tight font-semibold tracking-tight text-balance sm:text-4xl">
               {site.tagline}
             </p>

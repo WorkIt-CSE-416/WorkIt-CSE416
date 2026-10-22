@@ -946,8 +946,10 @@ the KAN-296 cutover.
     small PNGs already, and some 60 each went through `/_next/image`.
   - Write a `data-*` mark on `<html>` only when it changes.
 - **The legal pages, `/privacy` and `/terms`, are drafts awaiting team
-  review**, in `app/(landing)/` on the shared `legal-page.tsx` shell and
-  linked from the footer's Legal column. Google's OAuth brand verification
+  review**, in `app/(landing)/` on the shared `legal-page.tsx` shell (one
+  readable column of text; the group's layout draws the header and footer
+  around it, so the shell draws neither) and linked from the footer's Legal
+  column. Google's OAuth brand verification
   needs both public on the site's own domain, so they render signed out and
   no redirect may catch them. Each sentence describes what the code does
   today; a business or legal decision stays a `TeamToDecide` placeholder,
