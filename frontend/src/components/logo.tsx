@@ -98,6 +98,10 @@ export function Logo({ size = "bar", decorative = false, className }: LogoProps)
   );
 }
 
+/** The word's outline and its box, for a page that fills the word its own
+ *  way: the marketing footer draws it from job titles. */
+export const LOGO_WORD = { d: WORD, width: WORD_WIDTH, height: HEIGHT } as const;
+
 /**
  * The seeker shell's logo: the mark and the word drawn as two pieces, so the
  * panel can fade only the word when it collapses to its rail

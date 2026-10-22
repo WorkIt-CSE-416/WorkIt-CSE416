@@ -675,9 +675,11 @@ export function buildCity(): City {
       shape: "box",
       delay: "0s",
       job: {
+        // The job the page follows into the tour (followedJob in
+        // feature-data.ts), so its score matches Matching's.
         title: "Software Engineer Intern",
         company: "Stripe",
-        score: 94,
+        score: 91,
         domain: "stripe.com",
       },
     },

@@ -1,3 +1,5 @@
+"use client";
+
 import * as React from "react";
 import Image from "next/image";
 import {
@@ -13,6 +15,7 @@ import {
   Briefcase,
   Check,
   Code,
+  FileText,
   FolderGit2,
   GraduationCap,
   MousePointer2,
@@ -32,41 +35,39 @@ import { GLIDE, Story, type StoryScene } from "./story";
  * entries from a student's experience bank gather into one pile; a template
  * is picked (Jake's); the resume writes itself in Jake's look; then a job
  * posting arrives and the same page is tailored to it, its match rising.
- * The timing, step bar and reduced motion are the shared Story's
+ * The timing, scene title and reduced motion are the shared Story's
  * (story.tsx); with reduced motion it holds the finished, tailored resume.
  */
 
 const SCENES = [
   {
     id: "bank",
-    label: "Experience",
+
     caption: "Everything you've done, in one experience bank",
     hold: 3800,
   },
-  { id: "template", label: "Template", caption: "Pick a template", hold: 3200 },
+  { id: "template", caption: "Pick a template", hold: 3200 },
   {
     id: "generate",
-    label: "Generate",
+
     caption: "WorkIt writes the resume from your bank",
     hold: 4200,
   },
   {
     id: "tailor",
-    label: "Tailor",
+
     caption: "Tailor it, or a resume you upload, to each job",
     hold: 7800,
   },
 ] as const satisfies readonly StoryScene<string>[];
 
+/** The stage's size: the Story's width, and the tallest scene's height. */
+const STAGE_W = 520;
+const STAGE_H = 480;
+
 export default function ResumeVisual() {
   return (
-    <Story
-      label="Resume steps"
-      scenes={SCENES}
-      rest="tailor"
-      accent="bg-advanced/50"
-      stageHeight={480}
-    >
+    <Story scenes={SCENES} rest="tailor" accent="bg-advanced" stageHeight={STAGE_H}>
       {(scene) => (
         // Generate and Tailor share one key, so tailoring changes the page
         // in place rather than swapping it.
@@ -99,7 +100,7 @@ const CARD_W = 184;
 function BankScene() {
   const ref = React.useRef<HTMLDivElement>(null);
   // The stage's size, for the offsets from each card's spot to the pile.
-  const [size, setSize] = React.useState({ w: 520, h: 480 });
+  const [size, setSize] = React.useState({ w: STAGE_W, h: STAGE_H });
   const [gathered, setGathered] = React.useState(false);
   React.useLayoutEffect(() => {
     const el = ref.current;
@@ -162,7 +163,11 @@ function BankScene() {
             animate={{ opacity: 1, y: 0 }}
             transition={{ delay: 0.5, duration: 0.3 }}
           >
-            Experience bank · {resumeFeature.bank.length} entries
+            {/* On a white pill: straight on the blue backdrop it read at
+                4.4:1. */}
+            <span className="rounded-full bg-white/85 px-2 py-0.5">
+              Experience bank · {resumeFeature.bank.length} entries
+            </span>
           </motion.p>
         )}
       </AnimatePresence>
@@ -181,60 +186,70 @@ function TemplateScene() {
 
   return (
     <motion.div
-      className="absolute inset-0 flex items-center justify-center gap-3"
+      className="absolute inset-0 flex items-center justify-center"
       initial={{ opacity: 0, y: 10 }}
       animate={{ opacity: 1, y: 0 }}
       exit={{ opacity: 0, scale: 0.96, transition: { duration: 0.2 } }}
       transition={{ duration: 0.3, ease: GLIDE }}
     >
-      {resumeFeature.templates.map((template, i) => {
-        const chosen = template.id === "jakes";
-        return (
-          <motion.div
-            key={template.id}
-            className="flex flex-col items-center gap-2"
-            initial={{ opacity: 0, y: 14 }}
-            animate={{
-              opacity: picked && !chosen ? 0.4 : 1,
-              y: 0,
-              scale: picked && chosen ? 1.06 : 1,
-            }}
-            transition={{ delay: picked ? 0 : 0.1 + i * 0.08, duration: 0.35, ease: GLIDE }}
-          >
-            <div
-              className={cn(
-                "relative h-[150px] w-[112px] rounded-lg bg-white p-2.5 shadow-[0_12px_28px_-16px_rgb(16_48_94/0.55)] ring-1 transition-[box-shadow,--tw-ring-color] duration-300",
-                picked && chosen ? "ring-advanced ring-2" : "ring-slate-900/5",
-              )}
+      {/* Drawn at thumbnail size and scaled up, so the row fills the stage
+          the way the other scenes do. The pointer's target below is
+          Jake's card at this scale. */}
+      <div className="flex scale-[1.3] items-center gap-4">
+        {resumeFeature.templates.map((template, i) => {
+          const chosen = template.id === "jakes";
+          return (
+            <motion.div
+              key={template.id}
+              className="flex flex-col items-center gap-2"
+              initial={{ opacity: 0, y: 14 }}
+              animate={{
+                opacity: picked && !chosen ? 0.4 : 1,
+                y: 0,
+                scale: picked && chosen ? 1.06 : 1,
+              }}
+              transition={{ delay: picked ? 0 : 0.1 + i * 0.08, duration: 0.35, ease: GLIDE }}
             >
-              <TemplateSketch id={template.id} />
-              <AnimatePresence>
-                {picked && chosen && (
-                  <motion.span
-                    className="bg-advanced absolute -top-2 -right-2 grid size-5 place-items-center rounded-full text-white shadow"
-                    initial={{ scale: 0 }}
-                    animate={{ scale: 1 }}
-                    transition={{ type: "spring", stiffness: 500, damping: 24 }}
-                  >
-                    <Check className="size-3" aria-hidden="true" />
-                  </motion.span>
+              <div
+                className={cn(
+                  "relative h-[150px] w-[112px] rounded-lg bg-white p-2.5 shadow-[0_12px_28px_-16px_rgb(16_48_94/0.55)] ring-1 transition-[box-shadow,--tw-ring-color] duration-300",
+                  picked && chosen ? "ring-advanced ring-2" : "ring-slate-900/5",
                 )}
-              </AnimatePresence>
-            </div>
-            <span className="text-ink text-[11px] font-medium">{template.label}</span>
-          </motion.div>
-        );
-      })}
+              >
+                <TemplateSketch id={template.id} />
+                <AnimatePresence>
+                  {picked && chosen && (
+                    <motion.span
+                      className="bg-advanced absolute -top-2 -right-2 grid size-5 place-items-center rounded-full text-white shadow"
+                      initial={{ scale: 0 }}
+                      animate={{ scale: 1 }}
+                      transition={{ type: "spring", stiffness: 500, damping: 24 }}
+                    >
+                      <Check className="size-3" aria-hidden="true" />
+                    </motion.span>
+                  )}
+                </AnimatePresence>
+              </div>
+              <span className="text-ink text-[11px] font-medium">{template.label}</span>
+            </motion.div>
+          );
+        })}
+      </div>
 
       {/* The pointer glides onto Jake's and clicks. */}
       <motion.span
         aria-hidden="true"
-        className="text-ink absolute"
-        initial={{ left: "78%", top: "82%", opacity: 0 }}
-        animate={{ left: "24%", top: "47%", opacity: 1, scale: picked ? [1, 0.85, 1] : 1 }}
+        className="text-ink absolute top-0 left-0"
+        initial={{ x: STAGE_W * 0.78, y: STAGE_H * 0.82, opacity: 0 }}
+        animate={{
+          x: STAGE_W * 0.17,
+          y: STAGE_H * 0.48,
+          opacity: 1,
+          scale: picked ? [1, 0.85, 1] : 1,
+        }}
         transition={{
-          left: { duration: 0.9, ease: GLIDE, delay: 0.5 },
-          top: { duration: 0.9, ease: GLIDE, delay: 0.5 },
+          x: { duration: 0.9, ease: GLIDE, delay: 0.5 },
+          y: { duration: 0.9, ease: GLIDE, delay: 0.5 },
           opacity: { duration: 0.2, delay: 0.5 },
           scale: { duration: 0.25 },
         }}
@@ -336,6 +351,15 @@ const CARD_H = 70;
 /** One beat of the tailoring, in ms: a suggestion shows, then applies. */
 const BEAT = 650;
 
+/** The page writing itself, in s: when the first line starts, how far
+ * apart the lines start, and how long each takes to draw. */
+const FIRST_LINE = 0.15;
+const LINE_STEP = 0.07;
+const LINE_FOR = 0.35;
+
+/** A section of the page, by the line its heading is on. */
+type Section = { name: string; at: number };
+
 function ResumeScene({ tailored }: { tailored: boolean }) {
   const { job, suggestions } = resumeFeature;
 
@@ -380,13 +404,117 @@ function ResumeScene({ tailored }: { tailored: boolean }) {
   // Each line is revealed in order, left to right, like it is being written.
   let line = 0;
   const reveal = (): Reveal => {
-    const delay = 0.15 + line++ * 0.07;
+    const delay = FIRST_LINE + line++ * LINE_STEP;
     return {
       initial: { opacity: 0, clipPath: "inset(0 100% 0 0)" },
       animate: { opacity: 1, clipPath: "inset(0 0% 0 0)" },
-      transition: { delay, duration: 0.35, ease: GLIDE },
+      transition: { delay, duration: LINE_FOR, ease: GLIDE },
     };
   };
+  // A section heading's line, noted so the status can name the section
+  // being written.
+  const sections: Section[] = [];
+  const heading = (name: string) => {
+    sections.push({ name, at: line });
+    return reveal();
+  };
+
+  // The page, in Jake's look: centred name, small-caps headings over a
+  // rule, bold entries with dates, tight bullets. Sized to its content, so
+  // nothing is squeezed at the bottom. Built before the status, which needs
+  // its line count to keep time.
+  const paper = (
+    <div
+      className="rounded-md bg-white px-4 py-4 text-[9px] leading-[1.4] text-slate-900 shadow-[0_18px_40px_-22px_rgb(16_48_94/0.6)] ring-1 ring-slate-900/5"
+      style={{ fontFamily: JAKES_FACE, width: PAPER_W }}
+    >
+      <motion.p
+        {...reveal()}
+        className="text-center text-[16px] leading-tight font-bold tracking-wide"
+      >
+        {candidate.name}
+      </motion.p>
+      <motion.p {...reveal()} className="mt-0.5 text-center text-[8px] text-slate-600">
+        alex@example.com | linkedin.com/in/alexmorgan | github.com/alexmorgan
+      </motion.p>
+
+      <Heading reveal={heading("Education")}>Education</Heading>
+      <Entry
+        reveal={reveal()}
+        left="Northview University"
+        right="Sep 2023 – May 2027"
+        sub="B.S. in Computer Science"
+      />
+
+      <Heading reveal={heading("Experience")}>Experience</Heading>
+      <Entry
+        reveal={reveal()}
+        left="Teaching Assistant"
+        right="Jan 2025 – Present"
+        sub="Data Structures, Northview University"
+      />
+      <Bullet reveal={reveal()} target="ta">
+        <Kept on={applied("ta")}>Held weekly office hours for 120 students.</Kept>
+      </Bullet>
+      <Struck on={applied("help-desk")}>
+        <Entry
+          reveal={reveal()}
+          target="help-desk"
+          left="IT Support Intern"
+          right="May 2024 – Aug 2024"
+          sub="Campus Help Desk"
+        />
+        <Bullet reveal={reveal()}>Resolved 300+ tickets for laptops and Wi-Fi.</Bullet>
+      </Struck>
+
+      <Heading reveal={heading("Projects")}>Projects</Heading>
+      <Entry
+        reveal={reveal()}
+        left={
+          <>
+            Budget Tracker <span className="font-normal italic">| React, Node.js</span>
+          </>
+        }
+        right="2025"
+      />
+      <Bullet reveal={reveal()} target="budget">
+        <Struck inline on={applied("budget")}>
+          Built a budgeting app that 200 students use every week.
+        </Struck>
+        {applied("budget") && (
+          <Inserted>
+            {" "}
+            Built a TypeScript budgeting app on a REST API, used by 200 students weekly.
+          </Inserted>
+        )}
+      </Bullet>
+
+      <Heading reveal={heading("Leadership")}>Leadership</Heading>
+      <Entry
+        reveal={reveal()}
+        left="Treasurer"
+        right="Sep 2024 – Present"
+        sub="Coding Club, Northview University"
+      />
+
+      <Heading reveal={heading("Technical Skills")}>Technical Skills</Heading>
+      <motion.p {...reveal()} data-target="languages">
+        <span className="font-bold">Languages: </span>
+        {applied("languages") && <Inserted>TypeScript, </Inserted>}
+        Python, SQL, JavaScript, Java
+      </motion.p>
+      <motion.p {...reveal()}>
+        <span className="font-bold">Tools: </span>
+        Git, React, Node.js, PostgreSQL
+      </motion.p>
+    </div>
+  );
+  const writeFor = FIRST_LINE + (line - 1) * LINE_STEP + LINE_FOR;
+  const [written, setWritten] = React.useState(false);
+  React.useEffect(() => {
+    const timer = window.setTimeout(() => setWritten(true), writeFor * 1000);
+    return () => window.clearTimeout(timer);
+  }, [writeFor]);
 
   return (
     <motion.div
@@ -412,6 +540,7 @@ function ResumeScene({ tailored }: { tailored: boolean }) {
                 <Image
                   src={`https://www.google.com/s2/favicons?domain=${job.domain}&sz=64`}
                   alt=""
+                  unoptimized
                   width={18}
                   height={18}
                   className="size-[18px] rounded-[4px]"
@@ -430,15 +559,10 @@ function ResumeScene({ tailored }: { tailored: boolean }) {
           ) : (
             <motion.div
               key="status"
-              className="text-ink-meta absolute inset-0 flex items-center justify-center gap-2 text-[11px] font-medium"
+              className="absolute inset-0"
               exit={{ opacity: 0, transition: { duration: 0.15 } }}
             >
-              <motion.span
-                className="bg-advanced size-1.5 rounded-full"
-                animate={{ opacity: [1, 0.3, 1] }}
-                transition={{ duration: 1, repeat: Infinity }}
-              />
-              Generating with Jake&rsquo;s Resume
+              <WriteStatus duration={writeFor} sections={sections} done={written} />
             </motion.div>
           )}
         </AnimatePresence>
@@ -446,93 +570,7 @@ function ResumeScene({ tailored }: { tailored: boolean }) {
 
       {/* The page with a gutter either side for the suggestions. */}
       <div ref={rowRef} className="relative flex w-full justify-center">
-        {/* The page, in Jake's look: centred name, small-caps headings over
-            a rule, bold entries with dates, tight bullets. Sized to its
-            content, so nothing is squeezed at the bottom. */}
-        <div
-          className="rounded-md bg-white px-4 py-4 text-[9px] leading-[1.4] text-slate-900 shadow-[0_18px_40px_-22px_rgb(16_48_94/0.6)] ring-1 ring-slate-900/5"
-          style={{ fontFamily: JAKES_FACE, width: PAPER_W }}
-        >
-          <motion.p
-            {...reveal()}
-            className="text-center text-[16px] leading-tight font-bold tracking-wide"
-          >
-            {candidate.name}
-          </motion.p>
-          <motion.p {...reveal()} className="mt-0.5 text-center text-[8px] text-slate-600">
-            alex@example.com | linkedin.com/in/alexmorgan | github.com/alexmorgan
-          </motion.p>
-
-          <Heading reveal={reveal()}>Education</Heading>
-          <Entry
-            reveal={reveal()}
-            left="Northview University"
-            right="Sep 2023 – May 2027"
-            sub="B.S. in Computer Science"
-          />
-
-          <Heading reveal={reveal()}>Experience</Heading>
-          <Entry
-            reveal={reveal()}
-            left="Teaching Assistant"
-            right="Jan 2025 – Present"
-            sub="Data Structures, Northview University"
-          />
-          <Bullet reveal={reveal()} target="ta">
-            <Kept on={applied("ta")}>Held weekly office hours for 120 students.</Kept>
-          </Bullet>
-          <Struck on={applied("help-desk")}>
-            <Entry
-              reveal={reveal()}
-              target="help-desk"
-              left="IT Support Intern"
-              right="May 2024 – Aug 2024"
-              sub="Campus Help Desk"
-            />
-            <Bullet reveal={reveal()}>Resolved 300+ tickets for laptops and Wi-Fi.</Bullet>
-          </Struck>
-
-          <Heading reveal={reveal()}>Projects</Heading>
-          <Entry
-            reveal={reveal()}
-            left={
-              <>
-                Budget Tracker <span className="font-normal italic">| React, Node.js</span>
-              </>
-            }
-            right="2025"
-          />
-          <Bullet reveal={reveal()} target="budget">
-            <Struck inline on={applied("budget")}>
-              Built a budgeting app that 200 students use every week.
-            </Struck>
-            {applied("budget") && (
-              <Inserted>
-                {" "}
-                Built a TypeScript budgeting app on a REST API, used by 200 students weekly.
-              </Inserted>
-            )}
-          </Bullet>
-
-          <Heading reveal={reveal()}>Leadership</Heading>
-          <Entry
-            reveal={reveal()}
-            left="Treasurer"
-            right="Sep 2024 – Present"
-            sub="Coding Club, Northview University"
-          />
-
-          <Heading reveal={reveal()}>Technical Skills</Heading>
-          <motion.p {...reveal()} data-target="languages">
-            <span className="font-bold">Languages: </span>
-            {applied("languages") && <Inserted>TypeScript, </Inserted>}
-            Python, SQL, JavaScript, Java
-          </motion.p>
-          <motion.p {...reveal()}>
-            <span className="font-bold">Tools: </span>
-            Git, React, Node.js, PostgreSQL
-          </motion.p>
-        </div>
+        {paper}
 
         {/* The suggestions, in the gutters beside the lines they change. */}
         {suggestions.map(
@@ -550,6 +588,128 @@ function ResumeScene({ tailored }: { tailored: boolean }) {
         )}
       </div>
     </motion.div>
+  );
+}
+
+/**
+ * The status while the page writes itself, the same card as the job card
+ * that takes its place: a ring spins round the page icon, the line under
+ * the title names the section being written, and a bar along the foot
+ * fills with the percentage, all timed to the lines (`duration`). Then it
+ * rests as ready, green. Mounted after the page is written (Generate
+ * clicked after Tailor), it starts as ready, since the page does not
+ * write itself again.
+ */
+function WriteStatus({
+  duration,
+  sections,
+  done,
+}: {
+  duration: number;
+  sections: Section[];
+  done: boolean;
+}) {
+  const [startedDone] = React.useState(done);
+  const progress = useMotionValue(startedDone ? 1 : 0);
+  React.useEffect(() => {
+    if (startedDone) return;
+    const controls = animate(progress, 1, { duration, ease: "linear" });
+    return () => controls.stop();
+  }, [progress, duration, startedDone]);
+  const percent = useTransform(progress, (v) => `${Math.round(v * 100)}%`);
+  // The last heading the writing has reached; the name and contact line
+  // come before the first.
+  const section = useTransform(progress, (v) => {
+    const at = (v * duration - FIRST_LINE) / LINE_STEP;
+    return sections.reduce((name, s) => (s.at <= at ? s.name : name), "Header");
+  });
+  const swap = {
+    initial: { opacity: 0, y: 4 },
+    animate: { opacity: 1, y: 0 },
+    exit: { opacity: 0, y: -4, transition: { duration: 0.12 } },
+    transition: { duration: 0.2, ease: GLIDE },
+  };
+
+  return (
+    <div className="absolute inset-0 flex items-center gap-2.5 overflow-hidden rounded-xl bg-white/90 px-2.5 shadow-sm ring-1 ring-slate-900/5">
+      {/* The icon tile: a page with a ring spinning round it, then a check. */}
+      <span className="relative grid size-7 shrink-0 place-items-center">
+        <AnimatePresence mode="popLayout" initial={false}>
+          {done ? (
+            <motion.span
+              key="done"
+              className="bg-positive-tint text-positive-ink ring-positive/30 absolute inset-0 grid place-items-center rounded-lg ring-1"
+              initial={{ scale: 0.6, opacity: 0 }}
+              animate={{ scale: 1, opacity: 1 }}
+              transition={{ type: "spring", stiffness: 500, damping: 22 }}
+            >
+              <Check className="size-4" strokeWidth={3} />
+            </motion.span>
+          ) : (
+            <motion.span
+              key="writing"
+              className="text-advanced absolute inset-0 grid place-items-center rounded-lg bg-white ring-1 ring-slate-900/5"
+              exit={{ opacity: 0, scale: 0.8 }}
+            >
+              <FileText className="size-3.5" />
+              {/* A CSS loop (landing.css, .tour-spin), on its own layer. */}
+              <svg viewBox="0 0 32 32" className="tour-spin absolute -inset-[3px]">
+                <circle
+                  cx="16"
+                  cy="16"
+                  r="14.5"
+                  fill="none"
+                  stroke="currentColor"
+                  strokeWidth="2"
+                  strokeLinecap="round"
+                  strokeDasharray="22 70"
+                />
+              </svg>
+            </motion.span>
+          )}
+        </AnimatePresence>
+      </span>
+
+      <span className="relative min-w-0 flex-1">
+        {/* One title at a time: crossed, the two overlapped mid-swap. */}
+        <AnimatePresence mode="wait" initial={false}>
+          <motion.span key={done ? "done" : "writing"} {...swap} className="block">
+            <span className="text-ink block truncate text-[11px] font-semibold">
+              {done ? "Resume ready" : "Writing your resume"}
+            </span>
+            <span className="text-ink-meta block truncate text-[10px]">
+              Jake&rsquo;s Resume ·{" "}
+              {done ? "from your experience bank" : <motion.span>{section}</motion.span>}
+            </span>
+          </motion.span>
+        </AnimatePresence>
+      </span>
+
+      <motion.span
+        className={cn(
+          "text-[11px] font-bold tabular-nums transition-colors duration-300",
+          done ? "text-positive-ink" : "text-advanced",
+        )}
+      >
+        {percent}
+      </motion.span>
+
+      {/* The bar along the card's foot edge, clear of the text: blue with
+          a sheen while it writes, green once the page is done. */}
+      <span className="absolute inset-x-0 bottom-0 h-[3px] bg-slate-900/[0.06]">
+        <motion.span
+          className={cn(
+            "absolute inset-0 origin-left rounded-r-full transition-colors duration-300",
+            done ? "bg-positive" : "bg-advanced",
+          )}
+          style={{ scaleX: progress }}
+        >
+          {!done && (
+            <span className="tour-sheen absolute inset-y-0 w-1/3 bg-gradient-to-r from-transparent via-white/70 to-transparent" />
+          )}
+        </motion.span>
+      </span>
+    </div>
   );
 }
 
@@ -676,7 +836,7 @@ function SuggestionCard({
   return (
     <motion.div
       className={cn(
-        "absolute w-[86px] rounded-lg bg-white/90 p-1.5 shadow-[0_10px_24px_-14px_rgb(16_48_94/0.55)] ring-1 ring-slate-900/5 backdrop-blur-sm",
+        "absolute w-[86px] rounded-lg bg-white/90 p-1.5 shadow-[0_10px_24px_-14px_rgb(16_48_94/0.55)] ring-1 ring-slate-900/5",
         left ? "left-1" : "right-1",
       )}
       // The title row sits level with the line's first row.
@@ -698,7 +858,7 @@ function SuggestionCard({
         )}
         {suggestion.title}
       </p>
-      <p className="text-ink-meta mt-0.5 text-[9px] leading-snug">{suggestion.body}</p>
+      <p className="text-ink-muted mt-0.5 text-[10px] leading-snug">{suggestion.body}</p>
       {/* The rule to the page. */}
       <span
         aria-hidden="true"
