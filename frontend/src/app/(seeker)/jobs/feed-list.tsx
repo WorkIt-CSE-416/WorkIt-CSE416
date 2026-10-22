@@ -10,6 +10,7 @@ import { PAGE_SIZE } from "./filter-query";
 import type { ApplicationStage } from "../auto-apply/actions";
 import { ListingCard } from "./listing-card";
 import type { JobListing } from "./listings";
+import { rememberList } from "./shown-list";
 
 /**
  * The feed's cards on /jobs and /search, and its Load More (KAN-171). The
@@ -90,6 +91,14 @@ export function FeedList({
   const [focusId, setFocusId] = useState<string | null>(null);
   const list = useRef<HTMLUListElement>(null);
   const tailoredIds = new Set(tailored);
+
+  // The roles as shown, for the rail beside a job's page (./shown-list).
+  // Keyed by their ids: `first` and `loaded` are new arrays every render.
+  const shownIds = [...first, ...loaded].map((job) => job.id).join();
+  useEffect(() => {
+    rememberList({ query, source, jobs: [...first, ...loaded], offset, more });
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- when the roles shown change
+  }, [shownIds, query, source, offset, more]);
 
   useEffect(() => {
     if (!focusId) return;

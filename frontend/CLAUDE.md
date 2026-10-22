@@ -1000,6 +1000,11 @@ the KAN-296 cutover.
   its link re-ran the whole feed fetch and Best Match scoring, so the list
   seemed slow to load; `BackToJobs` now calls `router.back()` when
   `cameFrom()` is its target (`docs/screens.md`, Job posting page).
+- **A job posting's page has a rail of jobs beside it** (KAN-297), drawn by
+  `(seeker)/jobs/layout.tsx` so it survives job-to-job navigation. It reads
+  the list `FeedList` last showed (`jobs/shown-list.ts`); a new list screen
+  whose cards open job pages writes it the same way, or the rail shows the
+  last /jobs or /search list (`docs/screens.md`, Job posting page).
 - **Promote to `src/components` on the second consumer**, not in anticipation;
   anything used by one route stays beside it (the per-route `icons.tsx`).
 - **`src/components/ui` is hand-written and is what screens import.**
