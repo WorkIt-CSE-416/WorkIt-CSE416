@@ -73,10 +73,12 @@ async def _stage(database, applicant_id: uuid.UUID, job_id: uuid.UUID) -> applic
         return await queries.fetch_stage(session, applicant_id, job_id)
 
 
-async def _beat(database, applicant_id: uuid.UUID, ago: timedelta) -> None:
-    """A Desktop heartbeat `ago` in the past."""
+async def _beat(
+    database, applicant_id: uuid.UUID, ago: timedelta, instance: uuid.UUID | None = None
+) -> None:
+    """A Desktop heartbeat `ago` in the past, from Desktop run `instance`."""
     async with database() as session:
-        await queries.save_beat(session, applicant_id, BEAT)
+        await queries.save_beat(session, applicant_id, BEAT.model_copy(update={"instance": instance}))
         await session.execute(
             text("UPDATE desktop_heartbeats SET last_seen = now() - CAST(:ago AS interval) WHERE applicant_id = :a"),
             {"ago": ago, "a": applicant_id},
@@ -190,6 +192,56 @@ async def test_claim_leaves_filling_while_desktop_beats(database):
     async with database() as session:
         assert await pipeline.claim_applications(session, me, 10) == []
     assert await _stage(database, me, busy) == application_stage.filling
+
+
+async def _claimed(database, applicant_id: uuid.UUID, job_id: uuid.UUID, ago: timedelta) -> None:
+    """Backdates this application's claim by `ago`."""
+    async with database() as session:
+        await session.execute(
+            text("UPDATE job_applications SET claimed_at = now() - CAST(:ago AS interval)"
+                 " WHERE applicant_id = :a AND job_id = :j"),
+            {"ago": ago, "a": applicant_id, "j": job_id},
+        )
+        await session.commit()
+
+
+async def test_a_restarted_desktop_takes_back_what_its_last_run_held(database):
+    me, first, second = await _seed_applicant(database), uuid.uuid4(), uuid.uuid4()
+    job = await _seed_application(database, me)
+    await _beat(database, me, timedelta(0), first)
+    async with database() as session:
+        assert len(await pipeline.claim_applications(session, me, 1)) == 1
+        # The same run claiming again leaves it filling.
+        assert await pipeline.claim_applications(session, me, 1) == []
+
+    await _beat(database, me, timedelta(0), second)  # restarted seconds later
+    async with database() as session:
+        claimed = await pipeline.claim_applications(session, me, 1)
+    assert [uuid.UUID(a.job.id) for a in claimed] == [job]
+
+
+async def test_a_lease_that_ran_out_goes_back_while_desktop_beats(database):
+    me, run = await _seed_applicant(database), uuid.uuid4()
+    lost = await _seed_application(database, me, age=2)
+    held = await _seed_application(database, me, age=1)
+    await _beat(database, me, timedelta(0), run)
+    async with database() as session:
+        assert len(await pipeline.claim_applications(session, me, 2)) == 2
+    # Its review never reached WorkIt: 31 minutes on, it is queued again.
+    await _claimed(database, me, lost, timedelta(minutes=31))
+    async with database() as session:
+        assert await queries.requeue_stale(session, me) == {lost}
+        await session.commit()
+    assert await _stage(database, me, held) == application_stage.filling
+
+
+async def test_a_desktop_without_an_instance_keeps_its_claims(database):
+    me = await _seed_applicant(database)
+    await _seed_application(database, me)
+    await _beat(database, me, timedelta(0))
+    async with database() as session:
+        assert len(await pipeline.claim_applications(session, me, 1)) == 1
+        assert await queries.requeue_stale(session, me) == set()
 
 
 async def test_two_approvals_at_once_move_it_once(database):

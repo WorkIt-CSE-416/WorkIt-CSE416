@@ -31,6 +31,8 @@ class Desktop_Heartbeat(Base):
     # when Desktop could not read it.
     usage: Mapped[dict | None] = mapped_column(JSONB)
     version: Mapped[str]
+    # The running Desktop, new each time it starts; NULL from a Desktop too old to send one.
+    instance: Mapped[uuid.UUID | None]
     # The database's clock, never Desktop's: online and stale compare it to now().
     last_seen: Mapped[datetime.datetime] = mapped_column(
         DateTime(timezone=True), server_default=func.now())

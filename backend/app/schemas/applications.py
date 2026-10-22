@@ -167,6 +167,9 @@ class DesktopBeat(BaseModel):
     busy: int = Field(ge=0, le=10)
     usage: DesktopUsage | None = None
     version: str = Field(max_length=50)
+    # The running Desktop, new each time it starts: a claim requeues the
+    # filling applications an earlier run holds (auto-apply/desktop.md, "Leases").
+    instance: uuid.UUID | None = None
 
     @model_validator(mode="after")
     def _busy_within_workers(self) -> "DesktopBeat":

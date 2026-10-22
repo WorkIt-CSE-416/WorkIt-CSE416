@@ -29,7 +29,28 @@ that never beat counts as stopped, so **Desktop sends its first heartbeat
 before its first claim**; otherwise its next claim takes back what the last
 one gave it.
 
-Built (backend): the stages and tables are migration `40329c7aef62`
+### Leases
+
+A claim leases each application it moves to `filling` to the Desktop run
+beating at that moment: `job_applications.claimed_at` and `claimed_by` (the
+beat's `instance`, a new id each time Desktop starts). Each claim first sends
+back to `queued` every `filling` application its Desktop no longer holds:
+
+- its Desktop has been silent 10 minutes (or never beat), as above;
+- its lease ran out: claimed 30 minutes ago, longer than any fill, so a fill
+  whose review or finish never reached WorkIt comes back while Desktop runs;
+- an earlier run claimed it: `claimed_by` isn't the instance now beating, so a
+  Desktop restarted within the 10 minutes takes its last run's work back on
+  its first claim.
+
+A Desktop that sends no `instance` keeps the first two rules only.
+
+Each stage move (review, approve, finish) is one conditional `UPDATE ... WHERE
+stage IN (allowed) RETURNING`: two moves at once can't both pass, and the one
+that matches no row answers 409.
+
+Built (backend): the stages and tables are migration `40329c7aef62`, the
+lease columns `b7c1e9d4a2f0`
 (`application_reviews`, one row per application; `desktop_heartbeats`, one
 per applicant); the steps are `claim_applications`, `submit_review`,
 `get_review`, `approve_application`, `desktop_beat` and `desktop_status` in
@@ -39,7 +60,7 @@ per applicant); the steps are `claim_applications`, `submit_review`,
 
 | Route | Body | Answers | Stage move |
 |---|---|---|---|
-| `POST applications/claim` | `{"n": 1..10}` | `list[Application]` (oldest queued open job postings first; `[]` when none) | queued → filling |
+| `POST applications/claim` | `{"n": 1..10}` | `list[Application]` (oldest queued open job postings first; `[]` when none) | queued → filling, leased to the beating instance; first requeues what no Desktop holds (Leases) |
 | `PUT applications/{job_id}/review` | `Review` | `ApplicationStage` | filling → review (409 otherwise) |
 | `GET applications/{job_id}/review` | | `Review` (404 when none) | |
 | `POST applications/{job_id}/approve` | `{"answers": [ReviewAnswer]}` (the edited list; may be empty to keep the review's) | `ApplicationStage` | review → approved |
@@ -63,7 +84,8 @@ ReviewAnswer {
   essay: bool,                      # free text written for this job
   facts: [str]                      # bank facts an essay's claims came from
 }
-DesktopBeat   { workers: int, busy: int, usage: {five_hour: float, weekly: float} | null, version: str }
+DesktopBeat   { workers: int, busy: int, usage: {five_hour: float, weekly: float} | null, version: str,
+                instance: uuid | null }   # new each time Desktop starts (Leases)
 DesktopStatus { online: bool, last_seen: datetime | null, workers: int, busy: int, usage: {...} | null }
 ```
 

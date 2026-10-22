@@ -51,6 +51,11 @@ class Job_Application(Base):
     # auto apply's resume step; NULL for one applied without a resume. Its
     # foreign key (below) is the applicant's own sent resumes only.
     sent_resume_id: Mapped[uuid.UUID | None] = mapped_column(index=True)
+    # WorkIt Desktop's lease (KAN-323): when a claim moved it to filling, and
+    # the running Desktop (its heartbeat's `instance`) that holds it. A claim
+    # requeues a filling one whose lease ran out or whose Desktop restarted.
+    claimed_at: Mapped[datetime.datetime | None] = mapped_column(DateTime(timezone=True))
+    claimed_by: Mapped[uuid.UUID | None]
 
     __table_args__ = (
         # the primary key serves "this applicant's jobs" (the feed's filter);

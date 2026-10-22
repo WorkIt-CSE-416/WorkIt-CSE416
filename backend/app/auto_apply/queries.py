@@ -28,6 +28,7 @@ from sqlalchemy import (
     func,
     literal,
     null,
+    or_,
     select,
     update,
 )
@@ -288,6 +289,10 @@ async def pick_resume(
 # A `filling` application whose Desktop has been silent this long goes back
 # to queued on the next claim: the Desktop crashed or was closed.
 STALE_AFTER = datetime.timedelta(minutes=10)
+# A `filling` application held this long since its claim goes back to queued
+# on the next claim, even while its Desktop beats: its review or finish never
+# reached WorkIt. Longer than any one fill.
+LEASE = datetime.timedelta(minutes=30)
 # Desktop beats every 15 s; three missed beats and it reads as offline.
 ONLINE_WITHIN = datetime.timedelta(seconds=45)
 
@@ -297,20 +302,38 @@ def _since(window: datetime.timedelta):
     return func.now() - literal(window, Interval())
 
 
+def _current_instance(applicant_id: uuid.UUID):
+    """The running Desktop's instance, from its last beat (NULL when none sent)."""
+    return (
+        select(Desktop_Heartbeat.instance)
+        .where(Desktop_Heartbeat.applicant_id == applicant_id)
+        .scalar_subquery()
+    )
+
+
 async def requeue_stale(db: AsyncSession, applicant_id: uuid.UUID) -> set[uuid.UUID]:
-    """Sends this applicant's `filling` applications back to queued when
-    their Desktop has not beaten for STALE_AFTER (or never has); answers
-    which. They keep their created_at, so the next claim takes them first."""
+    """Sends back to queued each of this applicant's `filling` applications
+    its Desktop no longer holds: the Desktop has not beaten for STALE_AFTER
+    (or never has), or its lease ran out (claimed LEASE ago), or an earlier
+    run of Desktop claimed it (its `claimed_by` isn't the instance now
+    beating). Answers which. They keep their created_at, so the next claim
+    takes them first."""
     alive = exists().where(
         Desktop_Heartbeat.applicant_id == applicant_id,
         Desktop_Heartbeat.last_seen >= _since(STALE_AFTER),
     )
+    current = _current_instance(applicant_id)
     requeued = await db.scalars(
         update(Job_Application)
         .where(
             Job_Application.applicant_id == applicant_id,
             Job_Application.stage == application_stage.filling,
-            ~alive,
+            or_(
+                ~alive,
+                Job_Application.claimed_at < _since(LEASE),
+                # A Desktop too old to send an instance never matches, and never strands one.
+                and_(current.is_not(None), Job_Application.claimed_by.is_distinct_from(current)),
+            ),
         )
         .values(stage=application_stage.queued)
         .returning(Job_Application.job_id)
@@ -351,7 +374,11 @@ async def claim_queued(db: AsyncSession, applicant_id: uuid.UUID, n: int) -> lis
                 Job_Application.job_id.in_(select(picked.c.job_id)),
                 Job_Application.stage == application_stage.queued,
             )
-            .values(stage=application_stage.filling)
+            .values(
+                stage=application_stage.filling,
+                claimed_at=func.now(),
+                claimed_by=_current_instance(applicant_id),
+            )
             .returning(Job_Application.job_id)
         )
     )
@@ -450,6 +477,7 @@ async def save_beat(db: AsyncSession, applicant_id: uuid.UUID, beat: DesktopBeat
         busy=beat.busy,
         usage=beat.usage.model_dump() if beat.usage else null(),
         version=beat.version,
+        instance=beat.instance,
         last_seen=func.now(),
     )
     row = (
@@ -458,7 +486,7 @@ async def save_beat(db: AsyncSession, applicant_id: uuid.UUID, beat: DesktopBeat
                 index_elements=[Desktop_Heartbeat.applicant_id],
                 set_={
                     column: upsert.excluded[column]
-                    for column in ("workers", "busy", "usage", "version", "last_seen")
+                    for column in ("workers", "busy", "usage", "version", "instance", "last_seen")
                 },
             ).returning(*_STATUS)
         )
