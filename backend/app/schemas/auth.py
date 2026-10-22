@@ -86,6 +86,25 @@ class SignupRequest(AccountTypeSelection):
     full_name: str = Field(alias="name", min_length=1, max_length=50)
     email: NormalizedEmail
     password: str = Field(min_length=8)
+    # Where Supabase's confirmation email sends the browser after it
+    # verifies the token — built from the request's own origin
+    # (frontend/src/lib/oauth-actions.ts's signInWithOAuth does the same for
+    # OAuth), so a local or preview signup confirms back to itself rather
+    # than production. Forwarded to Supabase's own `email_redirect_to`
+    # as-is: Supabase checks it against the project's allow-listed Redirect
+    # URLs itself, so there's nothing more for this API to validate.
+    redirect_to: str | None = Field(None, alias="redirectTo")
+
+
+class ResendConfirmationRequest(BaseModel):
+    """POST body for /auth/resend-confirmation — the one unauthenticated
+    route in this file, reached from the check-your-email screen before any
+    session exists."""
+
+    model_config = ConfigDict(populate_by_name=True)
+
+    email: NormalizedEmail
+    redirect_to: str | None = Field(None, alias="redirectTo")
 
 
 class AuthenticatedAccount(BaseModel):

@@ -22,14 +22,25 @@ one account per email.
 
 ```
 signup   Next action ──POST /auth/signup──▶ FastAPI ──admin API──▶ Supabase Auth
-                                              │ creates auth.users row with
-                                              │ app_metadata.account_type,
+                                              │ creates auth.users row, UNCONFIRMED,
+                                              │ with app_metadata.account_type,
                                               │ then the profile row, same id
                                               │ (company: the company row and
                                               │ its owner's membership)
-         Next action ──signInWithPassword──▶ Supabase Auth  (sets sb-* cookies)
+                                              │ then resend({type:"signup"}) —
+                                              │ Supabase's own "Confirm signup"
+                                              │ email, to email_redirect_to
+         Next action ──redirect──▶ /signup/check-email (no session yet)
 
-login    Next action ──signInWithPassword──▶ Supabase Auth  (sets sb-* cookies)
+confirm  Browser clicks the email's link ──▶ Supabase Auth verifies the token,
+                                              sets email_confirmed_at, redirects
+                                              to email_redirect_to with ?code=
+         Browser ──▶ /auth/callback (route.ts) ──exchangeCodeForSession──▶
+                      Supabase Auth (sets sb-* cookies) ──▶ onboarding/company
+
+login    Next action ──signInWithPassword──▶ Supabase Auth  (sets sb-* cookies;
+                                              refuses an unconfirmed account —
+                                              "Confirm email" dashboard setting)
          Next action ──GET /auth/me, Bearer──▶ FastAPI  (role check, redirect)
 
 request  Browser ──sb-* cookie──▶ Next (src/proxy.ts refreshes the session)
@@ -54,9 +65,29 @@ request  Browser ──sb-* cookie──▶ Next (src/proxy.ts refreshes the ses
   for an applicant, so the route never checks.
 - **Login** is checked by Supabase Auth; the Next action then calls `/auth/me`
   for the account type and onboarding state.
-- **Signup creates the user already confirmed** (`email_confirm=True`).
-  Turning on email verification means dropping that flag and adding a
-  confirmation route on the frontend.
+- **A password signup is created unconfirmed** (`email_confirm=False`) and
+  immediately sent Supabase's own "Confirm signup" email
+  (`supabase.auth.resend`, `backend/app/routers/auth.py`'s
+  `_send_confirmation_email`) — never `admin.generate_link`, whose own
+  docstring says it only returns a link "to be sent via a custom email
+  provider" rather than sending anything. The signup action never signs the
+  student in (Supabase refuses a session for an unconfirmed email once
+  "Confirm email" is on, below); it redirects to `/signup/check-email`
+  instead, which also offers a Resend Email button
+  (`POST /auth/resend-confirmation`, unauthenticated, same generic
+  "sent" answer for an unknown or already-confirmed address that
+  `INVALID_CREDENTIALS` already uses at login, for the same reason). OAuth
+  signups are unaffected: the provider already verified that email, and
+  they never reach `signup()` at all.
+- **The confirmation link reuses `/auth/callback`, unmodified.** Supabase
+  points the link's redirect at the same route OAuth already uses, and
+  under the PKCE flow `@supabase/ssr` defaults to, it lands there the same
+  way — a `?code=` `exchangeCodeForSession` already knows how to handle,
+  followed by the same "does this identity have an account_type and a
+  profile row yet" check the OAuth path runs. A password account already
+  has both (set at signup, not after), so it falls straight to the
+  returning-sign-in branch: onboarding if `onboarding_completed` is false,
+  the Dashboard or `/company` otherwise.
 
 ## Dashboard settings (live nowhere in code)
 
@@ -66,6 +97,19 @@ Auth directly. Set these on any new Supabase project:
 - **Minimum password length 8**, matching `SignupRequest.password` and the
   form's `PASSWORD_MIN_LENGTH`, so a signed-in user can't `updateUser()` to a
   shorter one.
+- **Authentication → Settings → "Confirm email" must be ON.** This is the
+  entire enforcement mechanism for email verification — GoTrue refuses to
+  issue a session for an unconfirmed `signInWithPassword()` when it's on, so
+  there is no session for an unconfirmed account to ever present to this
+  API. Nothing here checks confirmation per request: a JWT's claims don't
+  carry live confirmation status, and checking it would mean a Supabase
+  Admin API call on every authenticated request, against "How a token is
+  verified" below. Off, email verification is built but inert — every
+  account signs in exactly as before.
+- **Authentication → Settings → SMTP Settings.** Supabase's own
+  default/shared mailer is rate-limited (documented low emails/hour, meant
+  for testing) — fine to ship with, but production signup volume will
+  eventually need a real SMTP provider configured here.
 - **Authentication → "Allow new users to sign up" ON.** Turning it off was the
   original plan, to force account creation through this API. But GoTrue
   applies that switch to every path that creates an `auth.users` row, OAuth

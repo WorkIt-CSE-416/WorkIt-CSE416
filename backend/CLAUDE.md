@@ -898,7 +898,10 @@ why each rule exists.
 
 Still open:
 
-- Email verification and password reset: supported by Supabase, not wired up.
+- Password reset: supported by Supabase, not wired up. Email verification
+  is — a password signup is created unconfirmed and sent Supabase's own
+  "Confirm signup" email, with a self-serve resend
+  (`POST /auth/resend-confirmation`); `../docs/auth.md` has the flow.
 - Deleting an account cascades its rows but not its Storage objects
   (`Resume/<id>/`, `Avatar/<id>/`).
 - Joining an existing company: no endpoint; the form's Join tab is a
