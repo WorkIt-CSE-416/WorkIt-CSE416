@@ -22,6 +22,9 @@ export type AnswerSource = "profile" | "answer_bank" | "written" | "missing";
 /** One question on the form and what Desktop filled in, in form order. */
 export type ReviewAnswer = {
   question: string;
+  /** The form's own id for the question (two with one label stay apart);
+   *  kept as sent when an answer is edited. */
+  key?: string | null;
   answer: string;
   source: AnswerSource;
   /** Free text written for this job. */

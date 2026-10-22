@@ -111,9 +111,12 @@ class ReviewAnswer(BaseModel):
     """One question on the form and what Desktop filled in. `source`: the
     profile, the answer bank, written for this job (`essay`), or missing (no
     fact to answer it with). `facts` are the bank facts an essay's claims
-    came from."""
+    came from. `key` is the form's own id for the question, so two questions
+    with one label stay apart; optional (a Desktop too old to send it keys
+    answers by label), and an approval keeps it as sent."""
 
     question: str = Field(max_length=2_000)
+    key: str | None = Field(None, max_length=500)
     answer: str = Field(max_length=20_000)
     source: Literal["profile", "answer_bank", "written", "missing"]
     essay: bool = False

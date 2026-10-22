@@ -92,7 +92,10 @@ BEAT = DesktopBeat(workers=4, busy=2, usage={"five_hour": 0.4, "weekly": 0.1}, v
 def _review(answer: str = "Yes") -> Review:
     return Review(
         answers=[
-            ReviewAnswer(question="Are you authorized to work in the US?", answer=answer, source="answer_bank"),
+            ReviewAnswer(
+                question="Are you authorized to work in the US?", key="question_7", answer=answer,
+                source="answer_bank",
+            ),
             ReviewAnswer(
                 question="Why Acme?", answer="I built a queue.", source="written",
                 essay=True, facts=["Built WorkIt's queue"],
@@ -526,7 +529,8 @@ async def test_desktop_routes_from_claim_to_applied(student, database):
     edited = [{**review["answers"][0], "answer": "No"}]
     approved = await client.post(f"{base}/applications/{job}/approve", json={"answers": edited})
     assert approved.json() == {"job_id": str(job), "stage": "approved"}
-    assert (await client.get(f"{base}/applications/{job}/review")).json()["answers"][0]["answer"] == "No"
+    approved_answer = (await client.get(f"{base}/applications/{job}/review")).json()["answers"][0]
+    assert (approved_answer["answer"], approved_answer["key"]) == ("No", "question_7")
     assert (await client.post(f"{base}/applications/{job}/approve", json={"answers": []})).status_code == 409
     taken = await client.post(f"{base}/applications/claim-approved", json={"n": 2})
     assert [(a["job"]["id"], a["stage"]) for a in taken.json()] == [(str(job), "submitting")]

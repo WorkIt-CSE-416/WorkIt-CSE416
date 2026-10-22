@@ -90,6 +90,8 @@ Review {
 }
 ReviewAnswer {
   question: str, answer: str,
+  key: str | null,                  # the form's own id for the question; optional. Desktop keys
+                                    # approved answers by it (else by question); a blank answer is left blank
   source: "profile" | "answer_bank" | "written" | "missing",
   essay: bool,                      # free text written for this job
   facts: [str]                      # bank facts an essay's claims came from
