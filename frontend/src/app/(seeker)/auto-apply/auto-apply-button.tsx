@@ -9,6 +9,7 @@ import { useToast } from "@/components/ui/toast";
 import { openNextApplication, showRunTab, useRunnerJob } from "@/lib/autofill-extension";
 
 import { dequeueJob, queueJob, type ApplicationStage, type RunStage } from "./actions";
+import { getDesktopStatus } from "./desktop-actions";
 import { openedNote } from "./opened-note";
 
 /** What the button says once the job posting has an application. */
@@ -50,7 +51,8 @@ const STAGE_LABEL: Record<RunStage, string> = {
  * switches to that tab instead of taking the job out of the queue. The
  * opening runs after the click settles, so the button never waits on a
  * page load; only a failure shows (no extension stays silent: most
- * visitors have none).
+ * visitors have none). While WorkIt Desktop runs nothing opens: Desktop
+ * claims the queued job (KAN-323).
  */
 export function AutoApplyButton({
   jobId,
@@ -101,8 +103,11 @@ export function AutoApplyButton({
     );
   }
 
-  /** The tab opens in the background; only a failure is worth a line. */
+  /** The tab opens in the background; only a failure is worth a line.
+   *  Not while WorkIt Desktop runs (KAN-323): it claims the queued job
+   *  itself, and the extension would fill it a second time. */
   async function openInBrowser() {
+    if ((await getDesktopStatus()).data?.online) return;
     const result = await openNextApplication();
     if (!result.opened && (result.reason === "signed_out" || result.reason === "error")) {
       setError(openedNote(result));
