@@ -180,16 +180,17 @@ CLI are in the root `CLAUDE.md`. `API_URL` points at the API project
   on the hero, the board and both stories are green, amber or red through
   `scoreTone` (`score-tone.ts`). Below lg the
   stops stack, because a pinned card with the resume animation does not fit
-  a phone. The site's placeholder benefit grid and three steps became an
-  expanding card row (`journey.tsx`: Find, Apply, Track, Hear back; the
-  card under the pointer widens) and the hiring-systems section
+  a phone. The site's placeholder benefit grid and three steps became a
+  deck of four cards (`journey.tsx`: Find, Apply, Track, Hear back; "The
+  home page's lower half", below) and the hiring-systems section
   (below). **The statement** (`statement.tsx`, between the tour and the
   applications section, after Twain's) is driven by scroll alone, no
   timers: from lg up it pins for 260vh while the headline ("Stop sending
   slop applications") steps into a staircase (steps in em, so they shrink
   with the type; in px they pushed "applications" past a phone's panel), the paragraph darkens word by word as it is read, and a
-  generic cover letter's words fall one by one into a bin before the
-  closing line lands. Each word's way to the bin is measured from layout
+  generic cover letter's words fall one by one into a bin, then the bin
+  goes and the closing line lands over the followed application's card
+  ("The home page's lower half", below). Each word's way to the bin is measured from layout
   offsets and read through a ref inside a function transform: a
   `useTransform` built from arrays keeps the ranges it first saw. Below lg
   it does not pin and the same moves follow the section through the
@@ -201,7 +202,7 @@ CLI are in the root `CLAUDE.md`. `API_URL` points at the API project
   and no note line, its cards frosted glass over blobs in the four stages'
   colours, so the glass has colour to blur. The stage list beside it is
   `StageTimeline` (`stage-timeline.tsx`): one search moving from saved to
-  signed, a track that fills stage by stage, nodes that light in each
+  signed as the page scrolls ("The home page's lower half", below), a track that fills stage by stage, nodes that light in each
   stage's colour, a glass highlight that slides to the current stage, a
   tally that counts up, and a burst at the offer. Its rows are a fixed
   height (`ROW`), since the track and fill are measured in rows; a longer
@@ -447,6 +448,70 @@ CLI are in the root `CLAUDE.md`. `API_URL` points at the API project
   and a focus colour needs `!`. The Monthly / 3 months switch is two native
   radios, and the prices read the checked one with `group-has-[...]`, so the
   page ships no script for it.
+- **The home page's lower half** (after the tour: the statement, the
+  applications section, the journey, hiring systems, the testimonial, the
+  FAQ and the footer) reads as one story, like the hero, bridge and tour
+  above it. **One object is carried down the page**: the application the
+  tour followed (`followedJob`), drawn as a tracker card by `FollowedCard`
+  (`thread.tsx`; its text per stage is `followedStages` in
+  `board-data.ts`, dated after the Updates stop). The statement ends on it
+  as the tailored application, rising where the letter was as the bin
+  fades (it covered the bin's top at 1280 × 720); it flies onto the
+  applications board's Saved column, crosses the board stage by stage, and
+  flies on to land on the journey's Track card. `Flight` carries it:
+  mounted by the pinned scene it lands in, with that section's entry
+  progress, it moves a fixed copy from `data-thread-from=<name>` to
+  `data-thread-to=<name>`, measured every frame since both move, scaling
+  from one's width to the other's, and marks `<html>` with
+  `data-thread-<name>` (idle, flying, landed); landing.css hides each end
+  while the card is not there, as the bridge's `TabFlight` does. With no
+  flight both ends show. **The applications section** (`applications.tsx`)
+  pins for 280vh from lg up, and the scroll alone drives it: the timeline
+  has no timer. `stageAt` in `stage-timeline.tsx` holds at a stage, then
+  glides to the next over the last 60% of its stretch, and the fill, the
+  glass highlight and the board's card all read it, so they arrive
+  together as the node lights. The lit column glows behind its glass
+  cards (the glow fades itself, never the cards) and outlines them in the
+  stage's colour: an outline, since a ring loses to `.glass-card`'s
+  box-shadow. The card crosses the board flat, over the 3D tilt, at each
+  column's centre (`data-board-col` markers, measured relative to the
+  board and read through a ref), kept inside the board's edges: the outer
+  columns' centres sit near them and the corners cut the card. Under
+  760px of height the rows shrink to 70px so the heading and four stages
+  fit. `Burst` keeps its 0.55s delay for the Updates stop; the timeline
+  passes its own. **The journey** (`journey.tsx`) pins for 300vh: the four
+  cards start as a deck with Track on top, where the card lands, fan into
+  a row, then flip in turn (`rotateY`, faces with `backface-visibility:
+  hidden`) from a front with the step and a picture of it, each the Stripe
+  application, to a back with the body and points. Nothing in the 3D card
+  may take `opacity` below 1, which flattens `preserve-3d`. Hear back
+  carries "Coming soon" (`soon` in `data.ts`), since the tracker stores
+  no employer replies; its chip sits under the line, as beside the title
+  it pushed "Hear back" onto two lines. Track's old point "Interviews on
+  your calendar" went with the archived Calendar. **Headings come into
+  focus** through `FocusIn` (`focus-in.tsx`): an observer marks the
+  wrapper and a CSS transition ends at the element's own `filter: none`.
+  A scroll-driven `view()` animation was tried first: under a pin, Chrome
+  placed the heading's view timeline hundreds of pixels off and it stayed
+  blurred for most of the pinned stretch. The FAQ's rows do rise on
+  `view()`, since the FAQ never pins. The hiring-systems and testimonial
+  panels grow into place (`GrowIn`, a scale only: a fade or filter on a
+  panel would make it the backdrop root of the glass inside); the
+  stream's inside is untouched. The testimonial reads word by word like
+  the statement's paragraph and keeps its placeholder copy. The footer,
+  on every marketing page, closes on "workit" (the logo's own outline,
+  `LOGO_WORD` from `components/logo.tsx`, as a clip path) filled with rows
+  of the page's job titles, the followed one in violet, which slide in
+  from alternate sides as it comes up (`footer-wordmark.tsx`). **Below lg
+  and with reduced motion every one of these is still**: no pin, no
+  flight, no heading blur, the finished frame. The statement alone still
+  follows its section through the screen below lg. **Checking these scenes in
+  the Browser pane**: `html` has `scroll-behavior: smooth`, so a script's
+  `scrollTo` must pass `behavior: "instant"`; the pane draws frames
+  lazily, so a screenshot after a script scroll often shows an older
+  frame and motion values and rects read by script are stale. A real
+  wheel scroll (the computer tool's scroll) draws fresh frames; scroll by
+  script, then wheel one notch, then look.
 - **The Calendar, and the Dashboard's Next Up, Up Next and Waiting, are
   archived for now** (KAN-261): the tracker stores no dated events or
   follow-ups yet. `src/proxy.ts` sends `/calendar` to the Dashboard, its

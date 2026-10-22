@@ -95,15 +95,7 @@ export function FooterWordmark() {
   );
 }
 
-function Row({
-  index,
-  titles,
-  p,
-}: {
-  index: number;
-  titles: string[];
-  p: MotionValue<number>;
-}) {
+function Row({ index, titles, p }: { index: number; titles: string[]; p: MotionValue<number> }) {
   // Alternate rows come from alternate sides, a little apart, so the word
   // fills from the middle rows outward.
   const side = index % 2 ? 1 : -1;

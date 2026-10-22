@@ -1,13 +1,7 @@
 "use client";
 
 import * as React from "react";
-import {
-  motion,
-  useReducedMotion,
-  useScroll,
-  useTransform,
-  type MotionValue,
-} from "motion/react";
+import { motion, useReducedMotion, useScroll, useTransform, type MotionValue } from "motion/react";
 import { Check } from "lucide-react";
 
 import { cn } from "@/lib/cn";
@@ -168,10 +162,7 @@ function DeckCard({
         perspective: "1400px",
       }}
     >
-      <motion.div
-        className="relative size-full"
-        style={{ rotateY, transformStyle: "preserve-3d" }}
-      >
+      <motion.div className="relative size-full" style={{ rotateY, transformStyle: "preserve-3d" }}>
         <Front step={step} />
         <Back step={step} />
       </motion.div>
@@ -187,13 +178,15 @@ function Front({ step }: { step: JourneyStep }) {
   return (
     <div className={cn(FACE, "isolate bg-white shadow-[0_24px_48px_-28px_rgb(40_20_90/0.35)]")}>
       <Glow step={step} />
-      <div className="flex items-center justify-between gap-2">
-        <h3 className="text-ink text-3xl font-semibold tracking-tight">
-          {step.title}
-        </h3>
-        {step.soon && <Soon />}
-      </div>
+      <h3 className="text-ink text-3xl font-semibold tracking-tight">{step.title}</h3>
       <p className="text-ink-meta mt-2 text-sm">{step.line}</p>
+      {/* Under the line, not beside the title, which it pushed onto two
+          lines in a narrow card. */}
+      {step.soon && (
+        <div className="mt-3">
+          <Soon />
+        </div>
+      )}
       <div className="mt-auto pt-6">
         <Demo id={step.id} />
       </div>
@@ -217,7 +210,10 @@ function Back({ step }: { step: JourneyStep }) {
         </p>
         {step.soon && <Soon />}
       </div>
-      <p className="text-ink mt-3 text-[15px] leading-relaxed text-pretty">{step.body}</p>
+      {/* Larger on a tall screen, where the back has room to spare. */}
+      <p className="text-ink mt-3 text-[15px] leading-relaxed text-pretty [@media(min-height:52rem)]:text-lg">
+        {step.body}
+      </p>
       <ul className="mt-auto space-y-2.5 pt-6">
         {step.points.map((point) => (
           <li key={point} className="text-ink flex items-start gap-2.5 text-sm">

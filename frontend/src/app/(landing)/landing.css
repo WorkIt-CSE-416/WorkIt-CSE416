@@ -622,11 +622,11 @@ html[data-thread-deck="flying"] [data-thread-to="deck"] {
  * The FAQ's questions rise in one after another as they scroll in. A
  * scroll-driven CSS animation, which is safe here: the FAQ is never pinned.
  * Only `from` is set and the fill is backwards, so nothing stays on a row
- * once its range ends; a browser without view timelines, and reduced
- * motion, show the rows as they are.
+ * once its range ends; below lg, with reduced motion and in a browser
+ * without view timelines the rows sit still.
  */
 @supports (animation-timeline: view()) {
-  @media (prefers-reduced-motion: no-preference) {
+  @media (prefers-reduced-motion: no-preference) and (width >= 64rem) {
     .faq-rise > * {
       animation: faq-rise linear backwards;
       animation-timeline: view();
