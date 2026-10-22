@@ -101,8 +101,10 @@ def render_docx(view: ResumeView, identity: HeaderIdentity) -> bytes:
     name = _paragraph(doc, align=WD_ALIGN_PARAGRAPH.CENTER).add_run(identity.name)
     name.bold = True
     name.font.size = Pt(20)
-    contact = [x for x in (identity.phone, identity.email) if x] + [link_text(u) for _, u in identity.links] + (
-        [US_CITIZEN] if identity.us_citizen else []
+    contact = (
+        ([US_CITIZEN] if identity.us_citizen else [])
+        + [x for x in (identity.phone, identity.email) if x]
+        + [link_text(u) for _, u in identity.links]
     )
     if contact:
         _paragraph(doc, space_after=4, align=WD_ALIGN_PARAGRAPH.CENTER).add_run(" | ".join(contact))

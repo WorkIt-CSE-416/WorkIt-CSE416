@@ -179,7 +179,7 @@ async def test_the_header_says_us_citizen_once_the_citizenship_answer_does(stude
 
     res = await client.patch(f"{me}/autofill-answers", json={"work_authorization_status": "us_citizen"})
     assert res.status_code == 200
-    assert r"$|$ U.S. Citizen" in (await client.get(f"{me}/built-resumes/{resume_id}/tex")).text
+    assert r"U.S. Citizen $|$ " in (await client.get(f"{me}/built-resumes/{resume_id}/tex")).text
 
 
 async def test_the_latex_file_is_only_its_owners(student):

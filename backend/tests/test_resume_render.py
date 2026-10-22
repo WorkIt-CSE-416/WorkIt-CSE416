@@ -269,8 +269,8 @@ def test_the_header_gives_a_box_for_each_profile_field() -> None:
 
 def test_the_header_says_us_citizen_only_when_checked() -> None:
     assert "U.S. Citizen" not in jakes_body(VIEW, IDENTITY)
-    # Last on the contact line, after the links
-    assert r"\underline{github.com/jake}} $|$ U.S. Citizen" in jakes_body(
+    # First on the contact line, before the phone
+    assert r"\small U.S. Citizen $|$ 123-456-7890 $|$ " in jakes_body(
         VIEW, replace(IDENTITY, us_citizen=True), marks=False)
     _tectonic_or_skip()
     rendered = render(VIEW, replace(IDENTITY, us_citizen=True), "jakes")
@@ -374,7 +374,8 @@ def test_the_word_file_says_us_citizen_when_checked() -> None:
     from app.services.resume_render.word import render_docx
 
     doc = Document(io.BytesIO(render_docx(VIEW, replace(IDENTITY, us_citizen=True))))
-    assert doc.paragraphs[1].text.endswith(" | U.S. Citizen")
+    assert doc.paragraphs[1].text == (
+        "U.S. Citizen | 123-456-7890 | jake@su.edu | linkedin.com/in/jake | github.com/jake")
 
 
 def test_an_unchecked_header_hashes_as_before_the_check_box() -> None:

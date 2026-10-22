@@ -37,7 +37,9 @@ def _header(identity: HeaderIdentity, marks: bool) -> list[str]:
     def slot(kind: str, latex: str) -> str:
         return mark(HEADER, kind, latex) if marks else latex
 
-    contact = []
+    # "U.S. Citizen" leads the line. No box: the editor types only the
+    # fields it can save, and this one is Application Questions' answer
+    contact = [US_CITIZEN] if identity.us_citizen else []
     if identity.phone:
         contact.append(slot("phone_number", escape(identity.phone)))
     if identity.email:
@@ -47,10 +49,6 @@ def _header(identity: HeaderIdentity, marks: bool) -> list[str]:
         slot(field, rf"\href{{{escape_url(u)}}}{{\underline{{{escape(link_text(u))}}}}}")
         for field, u in identity.links
     ]
-    if identity.us_citizen:
-        # No box: the editor types only the fields it can save, and this
-        # one is My Profile's check box
-        contact.append(US_CITIZEN)
     name = slot("full_name", rf"\textbf{{\Huge \scshape {escape(identity.name)}}}")
     lines = [r"\begin{center}", rf"{name} \\ \vspace{{1pt}}"]
     if contact:
