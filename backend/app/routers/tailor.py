@@ -112,18 +112,18 @@ async def run(
     session: AsyncSession = Depends(get_session),
 ) -> TailorProposal:
     assert_applicant_owns(account, applicant_id)
+    # KAN-319: the Tailor limit is lifted for now. Check before anything else 
+    # left = await uses_left(session, applicant_id, Feature.TAILOR)
+    # if left <= 0:
+    #     raise HTTPException(429, AI.spent)
+    left = get_settings().ai_tailor_cap
+
     job = await _posting(session, body.job_posting_id)
     # Before the bank loads: an uploaded source merges into it.
     choices, _ = await _source(session, applicant_id, body)
     bank = await load_bank(session, applicant_id)
     if not bank.entries:
         raise HTTPException(409, EMPTY_BANK)
-    # KAN-319: the Tailor limit is lifted for now.
-    # left = await uses_left(session, applicant_id, Feature.TAILOR)
-    # if left <= 0:
-    #     raise HTTPException(429, AI.spent)
-    left = get_settings().ai_tailor_cap
-
     try:
         found, extracted = await keywords.ensure(job, llm)
     except ScoutUnavailable as exc:
