@@ -59,8 +59,8 @@ here:
 
 **`externally_connectable.matches` takes exact origins, never a glued
 prefix+wildcard.** `manifest.json` lists `http://localhost:3000/*` and the
-one known Vercel preview origin
-(`https://workit-web-gamma.vercel.app/*`) by exact hostname —
+deployed webapp origins (`https://workitjobs.ai/*`,
+`https://workit-web-gamma.vercel.app/*`) by exact hostname —
 `https://workit-web*.vercel.app/*` looks like it should mean "any preview
 of this project" but Chrome refuses to even load the manifest over it
 ("Invalid host wildcard"). A match pattern's wildcard can only be an
@@ -258,6 +258,24 @@ access_token means the popup asks the user to revisit a WorkIt tab (which
 refreshes it) rather than this extension trying to fix it quietly. See
 Open Items for what a from-scratch refresh story would need to look like
 if this turns out to be too conservative in practice.
+
+**Two host families until the KAN-296 cutover.** Production runs on
+Cloudflare (`workitjobs.ai`, `api.workitjobs.ai`) and on Vercel
+(`workit-web-gamma.vercel.app`, `workit-api.vercel.app`) at the same time.
+Both share one Supabase project and database. `config.js`'s `PROD_SITES`
+pairs each webapp origin with its API, Cloudflare first.
+`webapp-session.js` reads the cookie from localhost, then each pair in
+order, and tags the session with the origin it came from. `api.js` then
+calls the API paired with that origin, so a student who signed in on
+Vercel stays on Vercel. A localhost session with no local API uses the
+first pair. The popup's sign-in link opens the first pair's webapp. A
+host in `PROD_SITES` must also be in `manifest.json`'s `host_permissions`
+(and, for a webapp origin, `externally_connectable.matches`); without it,
+the cookie read and the site's Auto Apply message fail silently. Drop the
+Vercel pair and its manifest entries at the cutover. **A new
+`host_permissions` entry makes Chrome disable the extension on update
+until each installed user approves the new hosts**, so add hosts in
+batches, not one at a time.
 
 ## No backend changes, and why that's safe (almost always)
 
@@ -700,17 +718,6 @@ Flagged here rather than silently deferred — the user asked for a
 prototype open to reorganization, and this is the honest list of what that
 openness covers:
 
-- **The extension knows only the Vercel origins, not `workitjobs.ai`**
-  (KAN-169). `PROD_WEB_URL`, `PROD_API_URL` and `manifest.json`'s
-  `host_permissions` and `externally_connectable` name
-  `workit-web-gamma.vercel.app` and `workit-api.vercel.app` alone. Signed in
-  on `workitjobs.ai` only, a student has no session cookie where
-  `webapp-session.js` looks, so the extension reads them as signed out and
-  the site's Auto Apply cannot reach it. Both domains share one Supabase
-  project and database, so pointing these at `workitjobs.ai` and
-  `api.workitjobs.ai` is the whole change; it belongs with the KAN-296
-  cutover. A new `host_permissions` entry makes Chrome ask installed users
-  to approve it again.
 - **Essay-question generation: the detection, overlay, and backend route
   are each confirmed working on their own; the full round trip through a
   loaded, reloaded extension (popup click → injected content script →

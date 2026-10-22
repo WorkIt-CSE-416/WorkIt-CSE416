@@ -5,20 +5,26 @@
 // no bundler in this prototype to inject env vars at build time, so a
 // plain checked-in module is the honest equivalent.
 //
-// Dev vs. prod backend: tried in order by src/background/api.js, which
-// treats an unreachable DEV_API_URL as "not running locally" and falls
-// back to PROD_API_URL rather than erroring. Both must also be listed in
-// manifest.json's host_permissions, or the background worker's fetch()
-// calls hit the page's normal CORS rules instead of bypassing them.
+// Dev vs. prod: src/background/api.js treats an unreachable DEV_API_URL
+// as "not running locally" and falls back to a deployed API rather than
+// erroring. Every origin here must also be listed in manifest.json's
+// host_permissions, or the background worker's fetch() calls hit the
+// page's normal CORS rules instead of bypassing them, and chrome.cookies
+// can't read the session there. Web origins also go in
+// externally_connectable.matches.
 export const DEV_API_URL = "http://localhost:8000";
-export const PROD_API_URL = "https://workit-api.vercel.app";
-
-// The webapp's own origins — where src/background/webapp-session.js reads
-// the sb-* session cookie from, and where the popup sends the user to sign
-// in. Must match manifest.json's host_permissions (chrome.cookies needs a
-// matching host permission per origin) and externally_connectable.matches.
 export const DEV_WEB_URL = "http://localhost:3000";
-export const PROD_WEB_URL = "https://workit-web-gamma.vercel.app";
+
+// The deployed webapp origins, each paired with its own API. Cloudflare
+// first, then Vercel, which stays live until the KAN-296 cutover. Both
+// share one Supabase project, so a session from either works on either
+// API; the pairing just keeps a student on the host family they signed
+// in on. src/background/webapp-session.js reads the sb-* cookie from each
+// web origin in this order; the popup sends sign-ins to the first.
+export const PROD_SITES = [
+  { web: "https://workitjobs.ai", api: "https://api.workitjobs.ai" },
+  { web: "https://workit-web-gamma.vercel.app", api: "https://workit-api.vercel.app" },
+];
 
 export const SUPABASE_URL = "https://zhdrvdrojipkluhzgsea.supabase.co";
 export const SUPABASE_ANON_KEY =
