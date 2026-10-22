@@ -577,6 +577,7 @@ async def load_header_identity(session: AsyncSession, applicant_id: uuid.UUID) -
             for field in ("linkedin_url", "github_url", "portfolio_url", "other_url")
             if (url := getattr(profile, field))
         ),
+        us_citizen=profile.us_citizen_on_resume,
     )
 
 

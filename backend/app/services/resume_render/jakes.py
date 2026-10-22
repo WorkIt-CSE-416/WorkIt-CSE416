@@ -21,6 +21,7 @@ from app.services.resume_render.fields import (
     SECTION_LABELS,
     SKILLS_LABEL,
     TWO_ROW,
+    US_CITIZEN,
     details,
     heading,
     heading_fields,
@@ -46,6 +47,10 @@ def _header(identity: HeaderIdentity, marks: bool) -> list[str]:
         slot(field, rf"\href{{{escape_url(u)}}}{{\underline{{{escape(link_text(u))}}}}}")
         for field, u in identity.links
     ]
+    if identity.us_citizen:
+        # No box: the editor types only the fields it can save, and this
+        # one is My Profile's check box
+        contact.append(US_CITIZEN)
     name = slot("full_name", rf"\textbf{{\Huge \scshape {escape(identity.name)}}}")
     lines = [r"\begin{center}", rf"{name} \\ \vspace{{1pt}}"]
     if contact:

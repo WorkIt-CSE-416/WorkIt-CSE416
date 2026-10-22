@@ -405,8 +405,9 @@ are in `docs/auth.md`.
   A duplicate upload (`uploadResume`'s `duplicateOf`) is no failure for
   onboarding: the file is already there.
 - **A built resume's download keeps nothing** (KAN-267): the PDF through
-  `renderResumePdf` (base64 and its `file_name`), the Word file through
-  `downloadWordResume` (`lib/built-resume-actions.ts`), saved by the
+  `renderResumePdf` (base64 and its `file_name`), the Word file and the
+  PDF's LaTeX source through `downloadResumeFile(id, "docx" | "tex")`
+  (`lib/built-resume-actions.ts`), saved by the
   browser from a Blob (`resumes/download-menu.tsx`). Until KAN-267 every
   download went through `sendBuiltResume` and kept a sent resume in
   Storage, so the bucket filled with files no employer saw; that action is

@@ -29,6 +29,7 @@ from app.services.resume_render import (
     jakes_document,
     render,
 )
+from app.services.resume_render.jakes import body as jakes_body
 from app.services.resume_render.sample import IDENTITY, VIEW
 from app.services.resume_view import ResumeView, ViewBullet, ViewEntry, ViewSection
 
@@ -266,6 +267,19 @@ def test_the_header_gives_a_box_for_each_profile_field() -> None:
             assert bbox[0] - 1.5 <= box.x0 and box.x1 <= bbox[2] + 1.5
 
 
+def test_the_header_says_us_citizen_only_when_checked() -> None:
+    assert "U.S. Citizen" not in jakes_body(VIEW, IDENTITY)
+    # Last on the contact line, after the links
+    assert r"\underline{github.com/jake}} $|$ U.S. Citizen" in jakes_body(
+        VIEW, replace(IDENTITY, us_citizen=True), marks=False)
+    _tectonic_or_skip()
+    rendered = render(VIEW, replace(IDENTITY, us_citizen=True), "jakes")
+    assert any("U.S. Citizen" in t for t, _, _ in _text_lines(rendered.pdf))
+    # No box: the editor cannot type it
+    assert {b.kind for b in rendered.boxes if b.item_id == "header"} == {
+        "full_name", "phone_number", "email", "linkedin_url", "github_url"}
+
+
 def test_a_wrapped_bullet_box_covers_both_lines() -> None:
     _tectonic_or_skip()
     long = ViewBullet(uuid.uuid4(), "Mentored twelve first-year students in data structures and algorithms each "
@@ -352,3 +366,20 @@ def test_a_binary_without_its_execute_bit_runs_from_an_executable_copy(read_only
         copies = set(pool.map(lambda _: resume_render._binary(), range(16)))
     assert copies == {tmp / "workit-tectonic"}
     assert os.access(tmp / "workit-tectonic", os.X_OK)
+
+
+def test_the_word_file_says_us_citizen_when_checked() -> None:
+    from docx import Document
+
+    from app.services.resume_render.word import render_docx
+
+    doc = Document(io.BytesIO(render_docx(VIEW, replace(IDENTITY, us_citizen=True))))
+    assert doc.paragraphs[1].text.endswith(" | U.S. Citizen")
+
+
+def test_an_unchecked_header_hashes_as_before_the_check_box() -> None:
+    from app.services.sent_resumes import _identity
+
+    # A resume sent before the field existed still matches its repeat
+    assert "us_citizen" not in _identity(IDENTITY)
+    assert _identity(replace(IDENTITY, us_citizen=True))["us_citizen"] is True

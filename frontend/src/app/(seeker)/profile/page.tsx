@@ -13,6 +13,7 @@ import {
 } from "react";
 
 import { MailIcon, PencilIcon, TrashIcon } from "@/components/icons";
+import { Checkbox } from "@/components/shadcn/checkbox";
 import {
   Dialog,
   DialogClose,
@@ -60,7 +61,8 @@ import { useProfileCache } from "../profile-cache";
  *   Contact &       an open section: the contact email, the phone and the
  *   Links           four links (CONTACT_LINKS), each under a visible label;
  *                   its Edit turns the values into text fields in place;
- *                   closed by a hairline
+ *                   then the U.S. Citizen check box (UsCitizenCheck), which
+ *                   saves on its own; closed by a hairline
  *   Application     an open section: the answers onboarding asked
  *   Questions       (./application-questions, KAN-269), edited the same way
  *                   with a picker each; closed by a hairline
@@ -649,7 +651,60 @@ function ContactSection({
           ))}
         </dl>
       )}
+
+      <UsCitizenCheck profile={profile} onSaved={onSaved} />
     </section>
+  );
+}
+
+/**
+ * "Show U.S. Citizen on my resumes": the resume header prints "U.S. Citizen"
+ * at the end of its contact line while it is checked. It saves on click, as
+ * a switch does, in reading and edit mode alike, so it never waits on the
+ * section's Save. A failed save puts the box back and says so. It is a
+ * display choice only: Application Questions' citizenship answer, which the
+ * autofiller fills in, is a separate question and does not change.
+ */
+function UsCitizenCheck({
+  profile,
+  onSaved,
+}: {
+  profile: ApplicantProfile;
+  onSaved: (p: ApplicantProfile) => void;
+}) {
+  // The value being saved, shown at once; null when none is, so the box
+  // shows the profile, including a background refetch's newer value.
+  const [pending, setPending] = useState<boolean | null>(null);
+  const [error, setError] = useState<string | null>(null);
+  // A cached profile from before the field reads as unchecked
+  const checked = pending ?? profile.us_citizen_on_resume ?? false;
+
+  async function toggle(next: boolean) {
+    setPending(next);
+    setError(null);
+    const { profile: updated, error: err } = await updateProfile({ us_citizen_on_resume: next });
+    if (updated && !err) onSaved(updated);
+    else setError(err ?? "Could not save. Try again.");
+    setPending(null);
+  }
+
+  return (
+    <div className="mt-6">
+      {/* A wrapping <label>: Base UI's pattern for its Checkbox
+          (company/jobs/new/screening-questions.tsx says why). */}
+      <label className="text-body text-ink flex w-fit cursor-pointer items-center gap-2.5">
+        <Checkbox checked={checked} disabled={pending !== null} onCheckedChange={toggle} />
+        Show &ldquo;U.S. Citizen&rdquo; on my resumes
+      </label>
+      <p className="text-meta text-ink-meta mt-1 pl-6.5">
+        Your resume header prints it after your links.
+      </p>
+      {error && (
+        <p role="alert" className="text-meta text-danger mt-1 pl-6.5">
+          {error}
+        </p>
+      )}
+    </div>
   );
 }
 
