@@ -357,6 +357,11 @@ the KAN-296 cutover.
   against "Oct 20" (a browser in the Americas) broke hydration with React
   error #418 (2026-10-22). `toLocaleDateString()` in render is safe only for
   data fetched in an effect.
+- **A relative time ("Posted 5 minutes ago") rendered in a client component
+  sits in an element with `suppressHydrationWarning`**, as the job card's
+  badge does. The clock moves between the server render and hydration, so
+  the text can differ by one unit; the flag covers that element's own text
+  only, so keep it on the innermost one.
 
 ## Auth and the API
 

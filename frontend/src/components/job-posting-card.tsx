@@ -291,7 +291,9 @@ export function JobPostingCard({
               ) : (
                 job.timing != null && (
                   <Badge variant="status" tone="positive">
-                    {job.timing}
+                    {/* "Posted 5 minutes ago" reads the clock, which moves
+                        between the server render and hydration. */}
+                    <span suppressHydrationWarning>{job.timing}</span>
                   </Badge>
                 )
               )}
