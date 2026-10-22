@@ -33,7 +33,10 @@ Every push to `main` deploys both halves to Cloudflare Workers Paid
 `backend/cloudflare/` (`api.workitjobs.ai`), and the web job builds the app
 with OpenNext and deploys it (`workitjobs.ai`). A branch never deploys on
 push, because each deploy overwrites production. To try one before merge, run
-it by hand: `gh workflow run deploy.yml --ref <branch>`.
+it by hand: `gh workflow run deploy.yml --ref <branch>`. Every run shares one
+concurrency group (`deploy-cloudflare`), whatever its ref: a group per ref let
+a branch run and a push to `main` deploy at once, so the app could end up on
+one's code and the API on the other's.
 
 - **Secrets:** `CLOUDFLARE_API_TOKEN` (account token from the "Edit Cloudflare
   Workers" template, scoped to the WorkIt account and the `workitjobs.ai`
@@ -57,7 +60,10 @@ it by hand: `gh workflow run deploy.yml --ref <branch>`.
   Worker that does not exist yet, Cloudflare answers wrangler's secrets lookup
   with "No access to the specified resource" rather than "not found" when the
   token is an account token, and the deploy fails. The script uploads a
-  one-line placeholder first, only when the Worker is missing.
+  one-line placeholder first, only when the Worker is missing from the
+  account's script list. A failed lookup is never read as "missing": it
+  stops the deploy, because the placeholder answers 503, and put over the
+  live Worker it would take the site down until the real deploy lands.
 - **The token's account permissions must be scoped to the account**, not to
   the `workitjobs.ai` zone. Scoped to the zone, Workers Scripts Write grants
   nothing and every call answers "No access" (found 2026-10-21). Zone scope is

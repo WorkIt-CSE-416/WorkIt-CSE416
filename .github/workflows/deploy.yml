@@ -8,8 +8,10 @@ on:
     branches: [main]
   workflow_dispatch:
 
+# One group for every ref: a branch run by hand and a push to main deploy the
+# same two Workers, so they queue instead of mixing one's app with the other's API.
 concurrency:
-  group: deploy-${{ github.ref }}
+  group: deploy-cloudflare
   cancel-in-progress: false
 
 env:

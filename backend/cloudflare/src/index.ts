@@ -30,11 +30,13 @@ const FORWARDED = [
   "AI_TAILOR_CAP",
   "AI_PARSING_CAP",
   "AI_ASSISTANT_CAP",
+  "AI_ESSAY_CAP",
   "AI_TAILOR_SHARE",
   "AI_INTAKE_SHARE",
   "AI_SCOUT_SHARE",
   "AI_PARSING_SHARE",
   "AI_ASSISTANT_SHARE",
+  "AI_ESSAY_SHARE",
 ] as const;
 
 type Env = { API: DurableObjectNamespace<Api>; VERSION: WorkerVersionMetadata } & Partial<Record<(typeof FORWARDED)[number], string>>;
