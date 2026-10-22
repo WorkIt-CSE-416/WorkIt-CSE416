@@ -219,6 +219,14 @@ the KAN-296 cutover.
   `signInWithOAuth`. The testimonial still holds the site's placeholder
   copy; never fill it with an invented quote. The FAQ answers are product
   claims, each tied to its source in a comment in `data.ts`.
+- **The legal pages, `/privacy` and `/terms`, are drafts awaiting team
+  review**, in `app/(landing)/` on the shared `legal-page.tsx` shell and
+  linked from the footer's Legal column. Google's OAuth brand verification
+  needs both public on the site's own domain, so they render signed out and
+  no redirect may catch them. Each sentence describes what the code does
+  today; a business or legal decision stays a `TeamToDecide` placeholder,
+  never a guess. A change to what WorkIt collects, shares or sends to a
+  model updates `/privacy` in the same change, with `LEGAL_UPDATED`.
 - **The Calendar, and the Dashboard's Next Up, Up Next and Waiting, are
   archived for now** (KAN-261): the tracker stores no dated events or
   follow-ups yet. `src/proxy.ts` sends `/calendar` to the Dashboard, its
