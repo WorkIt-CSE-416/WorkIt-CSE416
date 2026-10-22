@@ -5,7 +5,7 @@
 // where state actually has to live (popup.js's own state is thrown away
 // every time the popup closes).
 
-import { DEV_WEB_URL, PROD_WEB_URL } from "../shared/config.js";
+import { DEV_WEB_URL, PROD_SITES } from "../shared/config.js";
 import { CONTENT_SCRIPT_FILES } from "../shared/content-scripts.js";
 
 const root = document.getElementById("root");
@@ -25,7 +25,7 @@ async function webappUrl() {
   } catch {
     // dev server isn't running — fall through to prod
   }
-  return PROD_WEB_URL;
+  return PROD_SITES[0].web;
 }
 
 function renderLoginView(errorText) {

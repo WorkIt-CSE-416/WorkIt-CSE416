@@ -15,7 +15,7 @@
 // real test (see autofiller_extension/CLAUDE.md's Open Items), enabling
 // CORS on the FastAPI app for this extension's origin is the fallback.
 
-import { DEV_API_URL, PROD_API_URL } from "../shared/config.js";
+import { DEV_API_URL, PROD_SITES } from "../shared/config.js";
 import { getSession } from "./auth.js";
 
 const CACHE_KEY = "workit_autofill_profile";
@@ -24,7 +24,7 @@ const CACHE_KEY = "workit_autofill_profile";
 const CACHE_TTL_MS = 10 * 60 * 1000;
 
 /** Resolved once per service-worker lifetime, not on every call. */
-let resolvedApiUrl = null;
+let devApiReachable = null;
 
 async function reachable(url) {
   try {
@@ -35,11 +35,17 @@ async function reachable(url) {
   }
 }
 
-/** Dev backend if it's actually running locally, otherwise the deployed one. */
-async function apiUrl() {
-  if (resolvedApiUrl) return resolvedApiUrl;
-  resolvedApiUrl = (await reachable(DEV_API_URL)) ? DEV_API_URL : PROD_API_URL;
-  return resolvedApiUrl;
+/**
+ * Dev backend if it's actually running locally, otherwise the deployed API
+ * paired with the webapp origin the session came from (a dev session, or
+ * an unknown origin, falls back to the first PROD_SITES entry).
+ * @param {import("../shared/types.js").Session} session
+ */
+async function apiUrl(session) {
+  devApiReachable ??= await reachable(DEV_API_URL);
+  if (devApiReachable) return DEV_API_URL;
+  const site = PROD_SITES.find((s) => s.web === session.web_origin) ?? PROD_SITES[0];
+  return site.api;
 }
 
 class ApiError extends Error {
@@ -64,7 +70,7 @@ async function apiRequest(path, init = {}) {
   const session = await getSession();
   if (!session) throw new ApiError(401, "Not signed in");
 
-  const base = await apiUrl();
+  const base = await apiUrl(session);
   const response = await fetch(`${base}${path}`, {
     ...init,
     headers: {

@@ -7,6 +7,7 @@
  * @property {string} access_token
  * @property {string} refresh_token
  * @property {number} expires_at  Unix seconds
+ * @property {string} web_origin  the webapp origin the cookie was read from
  */
 
 /**
