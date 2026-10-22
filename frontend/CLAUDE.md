@@ -352,7 +352,11 @@ the KAN-296 cutover.
   the Americas. Swap the local day in after hydration (`useSyncExternalStore`);
   `LocalDate` and `When` in `(seeker)/local-time.tsx` do it for a seeker
   screen. `formatDate` in `lib/format-date.ts` formats in UTC and suits
-  date-only strings only.
+  date-only strings only. A `"use client"` component is no exception: the
+  server renders it first. The Resumes view's "Uploaded Oct 21" (server)
+  against "Oct 20" (a browser in the Americas) broke hydration with React
+  error #418 (2026-10-22). `toLocaleDateString()` in render is safe only for
+  data fetched in an effect.
 
 ## Auth and the API
 
