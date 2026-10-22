@@ -195,8 +195,14 @@ and /jobs itself draw no rail. `FeedList` writes the list as it shows it
 query and order, and the rail's Load More continues it with the same
 actions. A list over 30 minutes old is fetched again, and a job opened with
 no list (a shared link) shows the newest roles. The rail shows from
-`@4xl/main` at 288px, which leaves the page 683px at a 1280px window; below
-that the page is as it was. It scrolls on its own, held to the page panel's
+`@4xl/main`; below that the page is as it was. Beside it the job's page
+stops at 60rem, not 70rem, and the rail takes the room past that, from 18rem
+to 40rem: 288px at a 1280px window, where the page keeps 683px. **Closing
+the menu widens only the rail**: on job pages the frame spans the whole page
+panel, taking back the --panel-gain the shell leaves around a page, and the
+rail grows by the gain, so the job's page keeps its place and width in both
+states (asked for 2026-10-22: with the menu closed, half the gain stood
+empty left of the rail). It scrolls on its own, held to the page panel's
 height by the shell's chrome (6.375rem); change that with the shell's
 padding or bar height.
 It is the mock's `JobDetailHeader` with the card's own facts
