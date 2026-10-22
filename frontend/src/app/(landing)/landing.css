@@ -92,24 +92,9 @@ html:has(.landing) {
   }
 }
 
-/* One copy of a Marquee's cards, scrolling up by its own height. */
-.landing-marquee {
-  animation: landing-marquee var(--duration) linear infinite;
-}
-
-@keyframes landing-marquee {
-  to {
-    transform: translateY(calc(-100% - var(--gap)));
-  }
-}
-
 @media (prefers-reduced-motion: reduce) {
   html:has(.landing) {
     scroll-behavior: auto;
-  }
-
-  .landing-marquee {
-    animation-play-state: paused;
   }
 }
 
@@ -572,21 +557,6 @@ html[data-thread-deck="landed"] [data-thread-from="deck"],
 html[data-thread-deck="idle"] [data-thread-to="deck"],
 html[data-thread-deck="flying"] [data-thread-to="deck"] {
   visibility: hidden;
-}
-
-/*
- * The applications board's lit column (application-board.tsx): an outline
- * in the stage's colour on each of its glass cards. An outline, since a
- * ring loses to .glass-card's own box-shadow.
- */
-.board-column .glass-card {
-  outline: 2px solid transparent;
-  outline-offset: -1px;
-  transition: outline-color 0.4s ease-out;
-}
-
-.board-column[data-lit] .glass-card {
-  outline-color: color-mix(in oklab, var(--lit) 65%, transparent);
 }
 
 /*

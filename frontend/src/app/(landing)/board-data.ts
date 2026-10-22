@@ -1,6 +1,7 @@
 /**
- * Sample jobs for the landing page's applications board
- * (application-board.tsx); each stage becomes one scrolling column. Every
+ * Sample jobs for the landing page: the stages and their counts on the
+ * applications section's route (applications.tsx), whose logo piles, like
+ * the bridge's, the tour's and the journey's cards, draw on these. Every
  * company is a real employer on scraper/boards.csv with an intern or
  * new-grad title, the only roles the scraper keeps, like the hero's cards;
  * the logo is the company's favicon. The dates and scores are made up.
