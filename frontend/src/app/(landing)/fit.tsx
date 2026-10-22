@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useRef, useState, type ReactNode, type RefObject } from "react";
+import { motion } from "motion/react";
 
 /** How far `Fit` may scale a visual up: the stories are drawn at 520px
  * wide, small type included, so past this their 10px labels read as
@@ -58,21 +59,16 @@ export function Fit({
     return () => observer.disconnect();
   }, [box]);
 
+  // A motion element, so motion knows its scale: a `layout` move inside a
+  // plain scaled div (Matching's Best Match sort) started each card from its
+  // old place times the scale, almost a row out at 1.3x.
   return (
-    <div
+    <motion.div
       ref={ref}
       className="flex w-full justify-center"
-      style={
-        fit !== 1
-          ? {
-              transform: `scale(${fit})`,
-              transformOrigin: "top center",
-              marginBottom: -height * (1 - fit),
-            }
-          : undefined
-      }
+      style={{ scale: fit, originY: 0, marginBottom: fit === 1 ? 0 : -height * (1 - fit) }}
     >
       {children}
-    </div>
+    </motion.div>
   );
 }

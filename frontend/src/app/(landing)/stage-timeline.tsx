@@ -6,25 +6,24 @@ import { stages } from "./board-data";
 
 /**
  * The applications section's stage math, and the offer's burst. The
- * section (applications.tsx) reads the scroll as `s`, from 0 at Saved to 3
- * at Job Offers; everything that moves with the stages (the card on the
- * route, the route's fill, the logos flying between piles) reads `stageAt`,
- * so they hold at a stage, glide to the next, and arrive together.
+ * section (applications.tsx) keeps its route's timeline as `s`, from 0 at
+ * Saved to 3 at Job Offers, cued by the scroll and played in time;
+ * everything that moves with the stages (the card on the route, the
+ * route's fill, the logos flying between piles) reads `stageAt`, so they
+ * glide to the next stage together and arrive together.
  */
-
-/** The share of each stage's stretch of scroll spent gliding to the next
- * stage; the rest holds, so a stage can be read. */
-const SPAN = 0.6;
 
 const clamp = (v: number) => Math.min(1, Math.max(0, v));
 const ease = (t: number) => (t < 0.5 ? 4 * t * t * t : 1 - Math.pow(-2 * t + 2, 3) / 2);
 
 /** Where the stages are at `s`: between stage `from` and stage `to`, `u`
- * of the way, eased. */
+ * of the way, eased. The whole stretch glides: the section moves `s` on a
+ * cue, in time (scene-time.ts), and rests on whole stages, so it needs no
+ * hold of its own (scrubbed by the scroll, it held for the first 40%). */
 export function stageAt(s: number) {
   const to = Math.min(stages.length - 1, Math.floor(s) + 1);
   const from = to - 1;
-  return { from, to, u: ease(clamp((s - from - (1 - SPAN)) / SPAN)) };
+  return { from, to, u: ease(clamp(s - from)) };
 }
 
 /** How far the glide into stage `i` has gone at `s`: 0 before it starts,

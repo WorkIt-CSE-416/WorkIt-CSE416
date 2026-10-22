@@ -1,10 +1,13 @@
 import { Check } from "lucide-react";
 import type { Metadata } from "next";
 import Link from "next/link";
+import type { CSSProperties } from "react";
 
 import { cn } from "@/lib/cn";
 
 import { GlassButton } from "../buttons";
+import { FaqList } from "../faq-list";
+import { FocusIn } from "../focus-in";
 import { CONTAINER, PANEL, PANEL_INSET, SectionHeading } from "../layout-parts";
 import {
   billing,
@@ -16,6 +19,7 @@ import {
   type Plan,
   type PlanId,
 } from "./data";
+import { RowArrival } from "./row-arrival";
 
 export const metadata: Metadata = {
   title: "Pricing",
@@ -27,9 +31,19 @@ export const metadata: Metadata = {
  * /pricing, after Jobright's pricing page: one board where the plans head
  * their own columns and every feature runs across them as a row, then the
  * billing FAQ and a sign-up panel. Everything it says about a plan lives in
- * data.ts. No JavaScript: the Monthly / 3 months switch is two native radios
- * (arrow keys move between them), and the prices read the checked one with
- * :has().
+ * data.ts. The Monthly / 3 months switch needs no JavaScript: it is two
+ * native radios (arrow keys move between them), and the prices read the
+ * checked one with :has().
+ *
+ * It opens with motion (landing.css, "The Pricing page's motion"): the hero
+ * and the board rise in, the cards one after another, the Popular pill pops
+ * on and a light sweeps once across Plus; a switched price rolls in and its
+ * strike draws; each feature row rises in as it reaches the screen
+ * (`RowArrival`); the FAQ and the closing band rise as on the home page.
+ * Every piece is a CSS animation of `opacity` and `transform` that runs from
+ * the server's HTML, so it plays before the script loads and ends on the
+ * page as drawn; nothing above the glass fades. With reduced motion it is
+ * still.
  */
 export default function PricingPage() {
   return (
@@ -43,13 +57,22 @@ export default function PricingPage() {
           style={{ background: HERO_BACKDROP }}
         >
           <div className={cn(CONTAINER, "text-center")}>
-            <p className="text-landing-brand-800 mx-auto w-fit rounded-full px-4 py-1.5 text-xs font-semibold tracking-[0.18em] uppercase [box-shadow:var(--brand-glass-edge)] [background:var(--brand-glass-fill)]">
+            <p
+              className="hero-rise text-landing-brand-800 mx-auto w-fit rounded-full px-4 py-1.5 text-xs font-semibold tracking-[0.18em] uppercase [box-shadow:var(--brand-glass-edge)] [background:var(--brand-glass-fill)]"
+              style={{ "--rd": "0s" } as CSSProperties}
+            >
               Pricing
             </p>
-            <h1 className="from-ink to-landing-brand-800 mx-auto mt-6 max-w-3xl bg-linear-to-b from-40% bg-clip-text pb-[0.1em] text-[2.75rem] leading-[1.05] font-semibold tracking-[-0.035em] text-balance text-transparent sm:text-6xl">
+            <h1
+              className="hero-rise from-ink to-landing-brand-800 mx-auto mt-6 max-w-3xl bg-linear-to-b from-40% bg-clip-text pb-[0.1em] text-[2.75rem] leading-[1.08] font-semibold tracking-[-0.035em] text-balance text-transparent sm:text-6xl"
+              style={{ "--rd": "0.08s" } as CSSProperties}
+            >
               Plans built for students.
             </h1>
-            <p className="text-ink-muted mx-auto mt-4 max-w-[600px] text-lg leading-[1.55] text-pretty sm:text-[19px]">
+            <p
+              className="hero-rise text-ink-muted mx-auto mt-4 max-w-[600px] text-lg leading-[1.55] text-pretty sm:text-[19px]"
+              style={{ "--rd": "0.18s" } as CSSProperties}
+            >
               Start free. Upgrade when you want more applications filled and more resumes tailored
               each day.
             </p>
@@ -64,10 +87,16 @@ export default function PricingPage() {
         </div>
       </section>
 
+      {/* The home page's FAQ: the heading comes into focus and the questions
+          rise in one after another once the list is on screen. */}
       <section className="py-20 sm:py-28">
         <div className={CONTAINER}>
-          <SectionHeading eyebrow="FAQ" title="Billing, answered." />
-          <FaqList items={billingFaqs} />
+          <FocusIn>
+            <SectionHeading eyebrow="FAQ" title="Billing, answered." />
+          </FocusIn>
+          <FocusIn>
+            <FaqList items={billingFaqs} className="faq-rise mt-12" />
+          </FocusIn>
         </div>
       </section>
 
@@ -77,20 +106,23 @@ export default function PricingPage() {
           className={cn(PANEL, "py-20 text-center sm:py-24")}
           style={{ background: CLOSING_BACKDROP }}
         >
-          <div className={CONTAINER}>
-            <h2 className="text-ink mx-auto max-w-2xl text-3xl font-semibold tracking-tight text-balance sm:text-4xl">
-              Start your search for free.
-            </h2>
-            <p className="text-ink-meta mx-auto mt-4 max-w-xl text-lg text-pretty">
-              Sign up and upload a resume, and WorkIt starts ranking jobs by how well you fit. No
-              card needed.
-            </p>
-            <GlassButton
-              href="/signup"
-              label="Get started for free"
-              className="mt-8 h-12 px-6 text-base"
-            />
-          </div>
+          {/* Its headline, line and button rise in, a little apart. */}
+          <FocusIn>
+            <div className={CONTAINER}>
+              <h2 className="text-ink mx-auto max-w-2xl text-3xl leading-tight font-semibold tracking-tight text-balance sm:text-4xl">
+                Start your search for free.
+              </h2>
+              <p className="text-ink-meta mx-auto mt-4 max-w-xl text-lg text-pretty">
+                Sign up and upload a resume, and WorkIt starts ranking jobs by how well you fit. No
+                card needed.
+              </p>
+              <GlassButton
+                href="/signup"
+                label="Get started for free"
+                className="mt-8 h-12 px-6 text-base"
+              />
+            </div>
+          </FocusIn>
         </div>
       </section>
     </main>
@@ -112,11 +144,23 @@ export default function PricingPage() {
 function PlanBoard() {
   return (
     <div className="group/pricing relative isolate mx-auto grid max-w-md grid-cols-1 gap-6 md:max-w-3xl md:grid-cols-3 md:gap-4 xl:max-w-none xl:grid-cols-[2rem_minmax(0,1fr)_14rem_14rem_1.5rem_1.5rem_14rem] xl:gap-0 xl:py-8">
-      <div className="glass-card absolute inset-0 -z-10 hidden rounded-[2rem] xl:col-[1/6] xl:block" />
-      <div className="bg-canvas ring-border absolute inset-0 -z-10 hidden rounded-[2rem] ring-1 ring-inset xl:col-[7/8] xl:block" />
-      <div className="bg-landing-brand-100/80 absolute inset-x-1 inset-y-5 -z-10 hidden rounded-[1.5rem] xl:col-[3/4] xl:block" />
+      {/* The panels settle in, each on itself: the glass may fade, but
+          nothing above it may. Plus's strip grows down from the top. */}
+      <div
+        className="price-panel glass-card absolute inset-0 -z-10 hidden rounded-[2rem] xl:col-[1/6] xl:block"
+        style={{ "--d": "0.22s" } as CSSProperties}
+      />
+      <div
+        className="price-panel bg-canvas ring-border absolute inset-0 -z-10 hidden rounded-[2rem] ring-1 ring-inset xl:col-[7/8] xl:block"
+        style={{ "--d": "0.3s" } as CSSProperties}
+      />
+      <div className="price-strip bg-landing-brand-100/80 absolute inset-x-1 inset-y-5 -z-10 hidden rounded-[1.5rem] xl:col-[3/4] xl:block" />
+      <RowArrival />
 
-      <div className="text-center md:col-span-3 md:mb-4 xl:col-[2] xl:row-[1] xl:mb-0 xl:pr-8 xl:pb-8 xl:text-left">
+      <div
+        className="hero-rise text-center md:col-span-3 md:mb-4 xl:col-[2] xl:row-[1] xl:mb-0 xl:pr-8 xl:pb-8 xl:text-left"
+        style={{ "--rd": "0.3s" } as CSSProperties}
+      >
         <h2 className="text-ink text-2xl font-semibold tracking-tight">Choose your plan</h2>
         <p className="text-ink-meta mt-2 text-sm text-pretty">
           Every plan includes every feature. Paid plans raise the daily limits.
@@ -124,31 +168,45 @@ function PlanBoard() {
         <BillingSwitch />
       </div>
 
-      <PlanHeader plan={plans.plus} className="xl:col-[3] xl:row-[1] xl:mx-2 xl:mb-8" />
-      <PlanHeader plan={plans.pro} className="xl:col-[4] xl:row-[1] xl:mx-2 xl:mb-8" />
-      <PlanHeader plan={plans.free} className="xl:col-[7] xl:row-[1]" />
+      {/* The cards rise in one after another, in board order. */}
+      <PlanHeader
+        plan={plans.plus}
+        delay={0.38}
+        className="xl:col-[3] xl:row-[1] xl:mx-2 xl:mb-8"
+      />
+      <PlanHeader plan={plans.pro} delay={0.48} className="xl:col-[4] xl:row-[1] xl:mx-2 xl:mb-8" />
+      <PlanHeader plan={plans.free} delay={0.58} className="xl:col-[7] xl:row-[1]" />
 
-      <h2 className="text-ink mt-6 text-lg font-semibold md:col-span-3 xl:col-[2/5] xl:row-[2] xl:mt-0 xl:pb-3">
+      <h2
+        data-row
+        className="price-cell text-ink mt-6 text-lg font-semibold md:col-span-3 xl:col-[2/5] xl:row-[2] xl:mt-0 xl:pb-3"
+        style={{ "--i": 0 } as CSSProperties}
+      >
         What each plan includes
       </h2>
       <ul role="list" className="md:col-span-3 xl:contents">
-        {features.map((row) => (
+        {/* Each row rises in, its feature first and then each plan's cell
+            (`--i`, `--j`); a row below the screen waits for it. */}
+        {features.map((row, i) => (
           <li
             key={row.feature}
+            data-row
             className="border-landing-brand-950/10 border-t pt-5 xl:col-span-full xl:grid xl:grid-cols-subgrid xl:border-0 xl:pt-0"
+            style={{ "--i": i + 1 } as CSSProperties}
           >
-            <div className="xl:border-landing-brand-950/8 xl:col-[2] xl:border-t xl:py-4 xl:pr-6">
+            <div className="price-cell xl:border-landing-brand-950/8 xl:col-[2] xl:border-t xl:py-4 xl:pr-6">
               <p className="text-ink font-semibold">{row.feature}</p>
               <p className="text-ink-meta mt-0.5 text-sm">{row.detail}</p>
             </div>
             <div className="mt-3 grid grid-cols-3 gap-2 xl:contents">
-              {COLUMNS.map(({ id, className }) => (
+              {COLUMNS.map(({ id, className }, j) => (
                 <div
                   key={id}
                   className={cn(
-                    "ring-landing-brand-950/5 xl:border-landing-brand-950/8 flex flex-col items-center justify-center gap-1.5 rounded-xl bg-white/60 px-2 py-2.5 text-center ring-1 xl:rounded-none xl:border-t xl:bg-transparent xl:py-4 xl:ring-0",
+                    "price-cell ring-landing-brand-950/5 xl:border-landing-brand-950/8 flex flex-col items-center justify-center gap-1.5 rounded-xl bg-white/60 px-2 py-2.5 text-center ring-1 xl:rounded-none xl:border-t xl:bg-transparent xl:py-4 xl:ring-0",
                     className,
                   )}
+                  style={{ "--j": j + 1 } as CSSProperties}
                 >
                   <span className="text-ink-meta text-[11px] font-semibold tracking-wide uppercase xl:sr-only">
                     {plans[id].name}
@@ -180,7 +238,7 @@ function Value({ cell, plan }: { cell: Cell; plan: PlanId }) {
     return (
       <span
         className={cn(
-          "inline-flex size-6 items-center justify-center rounded-full text-white",
+          "price-check inline-flex size-6 items-center justify-center rounded-full text-white",
           plan === "free" ? "bg-ink-meta" : "bg-landing-brand-600",
         )}
       >
@@ -234,9 +292,13 @@ const FEATURED_FILL = [
 ].join(", ");
 
 /** One term's price shows, the other's hides: the board is `group/pricing`,
- *  and it holds the switch's radios. */
-const ON_MONTHLY = "group-has-[#billing-quarterly:checked]/pricing:hidden";
-const ON_QUARTERLY = "hidden group-has-[#billing-quarterly:checked]/pricing:inline";
+ *  and it holds the switch's radios. Each rolls in as it shows
+ *  (`.price-swap`: a CSS animation starts again each time its element is
+ *  shown), so a switched price slides up into place with no script; an
+ *  inline block, since a transform does nothing to an inline box. */
+const ON_MONTHLY = "price-swap inline-block group-has-[#billing-quarterly:checked]/pricing:hidden";
+const ON_QUARTERLY =
+  "price-swap hidden group-has-[#billing-quarterly:checked]/pricing:inline-block";
 
 /** Monthly or 3 months: two native radios drawn as a segmented control, so
  *  Tab reaches it and the arrow keys switch it with no script. */
@@ -245,9 +307,11 @@ function BillingSwitch() {
     <fieldset className="ring-landing-brand-950/10 mx-auto mt-5 flex w-fit rounded-full bg-white/80 p-1 shadow-sm ring-1 xl:mx-0">
       <legend className="sr-only">Billing period</legend>
       {billing.map((term, index) => (
+        // The checked option's pill grows into place behind its label, a
+        // layer of its own so it can scale; no script.
         <label
           key={term.id}
-          className="text-ink-meta has-checked:text-ink has-focus-visible:outline-landing-brand-500 has-checked:bg-landing-brand-100 flex h-10 cursor-pointer items-center gap-2 rounded-full px-4 text-sm font-semibold transition-colors select-none has-focus-visible:outline-2 has-focus-visible:outline-offset-2"
+          className="text-ink-meta has-checked:text-ink has-focus-visible:outline-landing-brand-500 before:bg-landing-brand-100 relative isolate flex h-10 cursor-pointer items-center gap-2 rounded-full px-4 text-sm font-semibold transition-colors select-none before:absolute before:inset-0 before:-z-10 before:scale-75 before:rounded-full before:opacity-0 before:transition-[opacity,scale] before:duration-300 before:ease-[var(--ease-glide)] has-checked:before:scale-100 has-checked:before:opacity-100 has-focus-visible:outline-2 has-focus-visible:outline-offset-2 motion-reduce:before:transition-none"
         >
           <input
             type="radio"
@@ -275,7 +339,16 @@ function BillingSwitch() {
  * `overflow-hidden`. Free is grey, the basic tier; from xl up it sits in its
  * own grey panel, so there it drops its card and reaches the panel's top.
  */
-function PlanHeader({ plan, className }: { plan: Plan; className: string }) {
+function PlanHeader({
+  plan,
+  className,
+  delay,
+}: {
+  plan: Plan;
+  className: string;
+  /** When it rises in, in s (`.price-card`). */
+  delay: number;
+}) {
   const featured = plan.highlighted;
   const free = plan.id === "free";
   // Until billing ships, a paid plan's button leads to the free sign-up and
@@ -290,7 +363,7 @@ function PlanHeader({ plan, className }: { plan: Plan; className: string }) {
   return (
     <div
       className={cn(
-        "relative isolate flex flex-col rounded-[1.75rem] p-6 text-left md:p-5",
+        "price-card relative isolate flex flex-col rounded-[1.75rem] p-6 text-left md:p-5",
         featured &&
           "text-white shadow-[0_24px_48px_-20px_rgb(58_30_124/0.7)] ring-1 ring-white/25 ring-inset",
         plan.id === "pro" && "text-ink ring-landing-brand-950/10 bg-white/80 shadow-sm ring-1",
@@ -298,12 +371,30 @@ function PlanHeader({ plan, className }: { plan: Plan; className: string }) {
           "text-ink bg-canvas ring-border ring-1 xl:-mt-8 xl:rounded-t-[2rem] xl:rounded-b-none xl:bg-transparent xl:px-5 xl:pt-13 xl:pb-13 xl:ring-0",
         className,
       )}
-      style={featured ? { background: FEATURED_FILL } : undefined}
+      style={
+        {
+          ...(featured ? { background: FEATURED_FILL } : {}),
+          "--d": `${delay}s`,
+        } as CSSProperties
+      }
     >
       {featured && (
-        <span className="text-landing-brand-800 ring-landing-brand-950/10 absolute -top-3.5 right-5 -rotate-6 rounded-full bg-white px-3 py-1.5 text-[10px] font-bold tracking-[0.14em] uppercase shadow-[0_8px_20px_-6px_rgb(34_17_75/0.55)] ring-1">
-          Recommended
-        </span>
+        <>
+          {/* A light sweeps once across the card after it lands, clipped to
+              the card by this layer, never by the card: the pill hangs over
+              its edge. Behind the text. */}
+          <span
+            aria-hidden="true"
+            className="price-sheen pointer-events-none absolute inset-0 -z-10 overflow-hidden rounded-[1.75rem]"
+          >
+            <span className="absolute inset-y-0 left-0 w-1/2 bg-linear-to-r from-transparent via-white/25 to-transparent" />
+          </span>
+          {/* Straight, centred on the top edge, popping on once the card has
+              landed: the team found a tilted "Recommended" out of place. */}
+          <span className="price-badge text-landing-brand-800 ring-landing-brand-950/10 absolute -top-3 left-1/2 -translate-x-1/2 rounded-full bg-white px-3 py-1.5 text-[10px] font-bold tracking-[0.14em] uppercase shadow-[0_8px_20px_-6px_rgb(34_17_75/0.55)] ring-1">
+            Popular
+          </span>
+        </>
       )}
 
       <h3 className="text-xl font-semibold">{plan.name}</h3>
@@ -317,7 +408,8 @@ function PlanHeader({ plan, className }: { plan: Plan; className: string }) {
         {!free && (
           <span className={cn(ON_QUARTERLY, "text-lg", meta)}>
             <span className="sr-only">instead of </span>
-            <s>${plan.price.monthly}</s>
+            {/* Its strike draws across, left to right (`.price-strike`). */}
+            <s className="price-strike">${plan.price.monthly}</s>
           </span>
         )}
         <span className={cn("text-sm", meta)}>/ month</span>
@@ -352,27 +444,6 @@ function PlanHeader({ plan, className }: { plan: Plan; className: string }) {
           <GlassButton href="/signup" label={label} className="h-11 w-full rounded-full" />
         )}
       </div>
-    </div>
-  );
-}
-
-/** The home page's FAQ list (`../page.tsx`), for the billing questions. */
-function FaqList({ items }: { items: { question: string; answer: string }[] }) {
-  return (
-    <div className="divide-border border-border mx-auto mt-12 max-w-3xl divide-y border-y">
-      {items.map((item) => (
-        // A shared name, so opening one question closes the others.
-        <details key={item.question} name="billing-faq" className="group py-5">
-          <summary className="text-ink flex cursor-pointer list-none items-center justify-between gap-6 font-medium [&::-webkit-details-marker]:hidden">
-            {item.question}
-            <span
-              className="text-ink-meta relative size-4 shrink-0 before:absolute before:inset-x-0 before:top-1/2 before:h-0.5 before:-translate-y-1/2 before:rounded before:bg-current after:absolute after:inset-y-0 after:left-1/2 after:w-0.5 after:-translate-x-1/2 after:rounded after:bg-current after:transition-transform group-open:after:scale-y-0"
-              aria-hidden="true"
-            />
-          </summary>
-          <p className="text-ink-meta mt-3 pr-10">{item.answer}</p>
-        </details>
-      ))}
     </div>
   );
 }

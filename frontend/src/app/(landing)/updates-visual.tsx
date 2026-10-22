@@ -34,7 +34,7 @@ import { GLIDE, Story, type StoryScene } from "./story";
 const SCENES = [
   {
     id: "viewed",
-    caption: `${updatesFeature.application.company} opens your application`,
+    caption: `${updatesFeature.application.company} views your application`,
     hold: 3800,
   },
   { id: "message", caption: "Their recruiter writes back", hold: 4800 },
@@ -79,7 +79,8 @@ const STEPS: { label: string; icon: LucideIcon; color: string; ink: string; at: 
     label: "Viewed",
     icon: Eye,
     color: "var(--color-match-good)",
-    ink: "var(--color-match-good)",
+    // The pink a step darker as text: on its own tint it was 4.1:1.
+    ink: "var(--color-match-strong)",
     at: 0,
   },
   {
@@ -126,9 +127,9 @@ function Board({ scene }: { scene: Scene }) {
 
   return (
     <div className="absolute inset-0 flex flex-col gap-3 pt-2">
-      <Notice scene={scene} hidden={showing} />
       <ApplicationCard landed={landed} />
       <div className="relative min-h-0 flex-1">
+        <Notice scene={scene} hidden={showing} />
         <AnimatePresence mode="wait">
           {showing && (
             <motion.div
@@ -137,7 +138,8 @@ function Board({ scene }: { scene: Scene }) {
               initial={{ opacity: 0, y: 14 }}
               animate={{ opacity: 1, y: 0 }}
               exit={{ opacity: 0, y: -8, transition: { duration: 0.18 } }}
-              transition={{ duration: 0.4, ease: GLIDE }}
+              // After the notification has risen away, never beside it.
+              transition={{ duration: 0.4, delay: 0.2, ease: GLIDE }}
             >
               {scene === "viewed" && <ViewedUpdate />}
               {scene === "message" && <MessageUpdate />}
@@ -151,7 +153,10 @@ function Board({ scene }: { scene: Scene }) {
   );
 }
 
-/** The notification: drops in over the card, then rises away as it lands. */
+/** The notification: drops in under the card, into the room its update
+ * will fill, then rises away as the update lands there. Dropped in over the
+ * card, its glass blurred the card's title into a grey smear under its own
+ * text. */
 function Notice({ scene, hidden }: { scene: Scene; hidden: boolean }) {
   const { company, domain } = updatesFeature.application;
   const { icon: Icon, text, color } = NOTICE[scene];
@@ -160,11 +165,12 @@ function Notice({ scene, hidden }: { scene: Scene; hidden: boolean }) {
       {!hidden && (
         <motion.div
           key={scene}
-          className="glass-card text-ink absolute inset-x-6 top-2 z-20 flex items-center gap-3 rounded-2xl p-2.5 pr-4"
+          className="glass-card text-ink absolute inset-x-6 top-3 z-20 flex items-center gap-3 rounded-2xl p-2.5 pr-4"
           initial={{ opacity: 0, y: -24, scale: 0.96 }}
           animate={{ opacity: 1, y: 0, scale: 1 }}
           exit={{ opacity: 0, y: -14, scale: 0.98, transition: { duration: 0.25 } }}
-          transition={{ type: "spring", stiffness: 360, damping: 26 }}
+          // After the last update has left the room.
+          transition={{ type: "spring", stiffness: 360, damping: 26, delay: 0.2 }}
         >
           <span className="relative shrink-0">
             <FaviconLogo domain={domain} eager className="rounded-xl" />
@@ -274,7 +280,7 @@ const PANEL =
 function ViewedUpdate() {
   return (
     <div className={PANEL}>
-      {/* The tailored resume they opened, a recruiter's eye on it. */}
+      {/* The application's resume, a recruiter's eye on it. */}
       <div className="relative h-[136px] w-[104px] shrink-0 rounded-md bg-white p-2.5 shadow-[0_12px_28px_-16px_rgb(16_48_94/0.55)] ring-1 ring-slate-900/5">
         <span className="mx-auto block h-[5px] w-1/2 rounded-full bg-slate-500" />
         <span className="mx-auto mt-1 block h-[3px] w-3/4 rounded-full bg-slate-200" />
@@ -286,27 +292,29 @@ function ViewedUpdate() {
             <span className="block h-[3px] w-3/5 rounded-full bg-slate-200" />
           </div>
         ))}
-        {/* A slow scan down the page, as it is read. */}
-        <motion.span
+        {/* A slow scan down the page, as it is read: a CSS loop of a
+            transform (landing.css, .tour-scan). */}
+        <span
           aria-hidden="true"
-          className="via-match-good/25 pointer-events-none absolute inset-x-0 h-8 bg-linear-to-b from-transparent to-transparent"
-          initial={{ top: "-20%" }}
-          animate={{ top: "100%" }}
-          transition={{ duration: 1.6, ease: "easeInOut", repeat: Infinity, repeatDelay: 0.4 }}
+          className="tour-scan via-match-good/25 pointer-events-none absolute inset-x-0 top-0 h-8 bg-linear-to-b from-transparent to-transparent"
         />
         <span className="bg-match-good absolute -top-2 -right-2 grid size-7 place-items-center rounded-full text-white shadow-md">
           <Eye className="size-3.5" aria-hidden="true" />
         </span>
       </div>
+      {/* The notification's own words: "Your resume was opened … by the
+          recruiting team, just now" claimed WorkIt sees a recruiter open a
+          file, which nothing in it does. */}
       <div className="min-w-0">
-        <p className="text-ink text-[15px] font-semibold">Your resume was opened</p>
+        <p className="text-ink text-[15px] font-semibold">
+          {updatesFeature.application.company} viewed your application
+        </p>
         <p className="text-ink-meta mt-1 flex items-center gap-1.5 text-[12px]">
           <FileText className="text-danger size-3.5 shrink-0" aria-hidden="true" />
           Alex_Morgan_{updatesFeature.application.company}.pdf
         </p>
         <p className="text-ink-meta mt-3 text-[12px] leading-snug">
-          By {updatesFeature.application.company}&rsquo;s recruiting team, just now. Your tracker
-          marks it Viewed, so you know where it stands.
+          Your tracker marks it Viewed, so you know where it stands.
         </p>
       </div>
     </div>
@@ -342,11 +350,10 @@ function MessageUpdate() {
               exit={{ opacity: 0, transition: { duration: 0.1 } }}
             >
               {[0, 1, 2].map((dot) => (
-                <motion.span
+                <span
                   key={dot}
-                  className="size-1.5 rounded-full bg-slate-400"
-                  animate={{ y: [0, -3, 0] }}
-                  transition={{ duration: 0.6, repeat: Infinity, delay: dot * 0.12 }}
+                  className="tour-typing size-1.5 rounded-full bg-slate-400"
+                  style={{ animationDelay: `${dot * 0.12}s` }}
                 />
               ))}
             </motion.span>
@@ -428,7 +435,8 @@ function InterviewUpdate() {
             <span
               className={cn(
                 "grid size-6 place-items-center rounded-full text-[11px] font-semibold",
-                i === day ? "bg-warning-fill text-white" : "text-ink",
+                // Ink, not white: white on the amber fill is 2.1:1.
+                i === day ? "bg-warning-fill text-ink" : "text-ink",
               )}
             >
               {d.date}
@@ -510,7 +518,7 @@ function OfferUpdate() {
           {title} · {term}
         </p>
         <div className="mt-3 flex flex-wrap gap-2">
-          <span className="bg-positive rounded-full px-3 py-1 text-[12px] font-semibold text-white">
+          <span className="bg-positive-ink rounded-full px-3 py-1 text-[12px] font-semibold text-white">
             Review offer
           </span>
           <span className="text-ink rounded-full bg-white px-3 py-1 text-[12px] font-medium ring-1 ring-slate-900/10">

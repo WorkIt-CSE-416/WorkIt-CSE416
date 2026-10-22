@@ -1,7 +1,7 @@
 /**
  * Sample jobs for the landing page: the stages and their counts on the
  * applications section's route (applications.tsx), whose logo piles, like
- * the bridge's, the tour's and the journey's cards, draw on these. Every
+ * the bridge's and the tour's cards, draw on these. Every
  * company is a real employer on scraper/boards.csv with an intern or
  * new-grad title, the only roles the scraper keeps, like the hero's cards;
  * the logo is the company's favicon. The dates and scores are made up.
@@ -49,6 +49,10 @@ export interface Stage {
   /** One student's search, told as counts that narrow from saved to signed. */
   tally: { count: number; unit: string };
   jobs: TrackedJob[];
+  /** Not built yet: the stop says "Coming soon" (`SoonChip`). The tracker
+   * stores no employer replies, so its Interviewing and Offer columns stay
+   * empty. */
+  soon?: boolean;
 }
 
 export const stages: Stage[] = [
@@ -102,7 +106,9 @@ export const stages: Stage[] = [
   {
     id: "applied",
     label: "Applied",
-    description: "Know when you applied and when to follow up.",
+    // Which resume went out is kept (the sent resume); a follow-up day was
+    // tried and dropped, so the line no longer promises one.
+    description: "Know when you applied and which resume you sent.",
     cardLabel: "Applied",
     chipClass: "bg-landing-brand-100 text-landing-brand-800",
     icon: Send,
@@ -150,6 +156,7 @@ export const stages: Stage[] = [
     id: "interview",
     label: "Interview",
     description: "See every round and prep for the next one.",
+    soon: true,
     cardLabel: "Interview",
     chipClass: "bg-amber-100 text-amber-800",
     icon: MessagesSquare,
@@ -197,6 +204,7 @@ export const stages: Stage[] = [
     id: "offer",
     label: "Job Offers",
     description: "Compare offers before the deadline to accept.",
+    soon: true,
     cardLabel: "Job Offer",
     chipClass: "bg-emerald-100 text-emerald-800",
     icon: Handshake,
@@ -245,14 +253,16 @@ export const stages: Stage[] = [
 /**
  * The application the product tour follows (`followedJob` in
  * feature-data.ts), as its card reads at each stage: the statement's
- * tailored application, the card that crosses the board as the timeline
- * fills, and the journey's Track card. The dates follow the Updates stop:
+ * tailored application and the card that crosses the board as the
+ * timeline fills. The dates follow the Updates stop:
  * applied Oct 1, a 45-minute technical interview on Thursday the 8th, an
  * offer for Summer 2027 to answer by Oct 20.
  */
 export const followedStages: Record<Stage["id"], Pick<TrackedJob, "next" | "footer">> = {
   saved: {
-    next: { label: "Apply with your tailored resume", when: "Due Sep 30" },
+    // One line on the card, as every later stage's is: on two, the card
+    // stood taller at Saved and its top dropped as it moved on.
+    next: { label: "Apply with tailored resume", when: "Due Sep 30" },
     footer: "Resume tailored to this posting",
   },
   applied: {

@@ -139,7 +139,7 @@ export function NavMenu({ label, children }: { label: string; children: ReactNod
             current?.id === id && current.why === "click" ? null : { id, why: "click" },
           )
         }
-        className={cn(NAV_ITEM, open && "text-ink")}
+        className={cn(NAV_ITEM, open && "bg-slate-900/[0.04]")}
       >
         {label}
         <ChevronDown

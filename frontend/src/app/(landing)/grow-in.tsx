@@ -1,15 +1,12 @@
 "use client";
 
 import * as React from "react";
-import { motion, useReducedMotion, useScroll, useTransform } from "motion/react";
+import { easeOut, motion, useReducedMotion, useScroll, useTransform } from "motion/react";
 
 import { useMediaQuery } from "./hooks";
 
 // Tailwind's lg breakpoint: grown from here up.
 const DESKTOP_QUERY = "(min-width: 64rem)";
-
-const clamp = (v: number) => Math.min(1, Math.max(0, v));
-const out = (t: number) => 1 - Math.pow(1 - t, 3);
 
 /**
  * A rounded panel that grows into place as it scrolls up the screen, like
@@ -23,10 +20,17 @@ export function GrowIn({ className, children }: { className?: string; children: 
   const isDesktop = useMediaQuery(DESKTOP_QUERY);
   const reduceMotion = useReducedMotion();
   const moving = isDesktop === true && !reduceMotion;
-  const { scrollYProgress } = useScroll({ target: ref, offset: ["start end", "start 0.3"] });
-  const scale = useTransform(scrollYProgress, (v) => (moving ? 0.92 + 0.08 * out(clamp(v)) : 1));
+  // The top's whole way up the screen, grown by 70% of it (the upper
+  // third), as a transform string with array ranges: motion then hands it
+  // to the browser as a scroll animation. A function `scale` over
+  // ["start end", "start 0.3"], an offset the browser cannot express,
+  // repainted the whole panel on every frame.
+  const { scrollYProgress } = useScroll({ target: ref, offset: ["start end", "start start"] });
+  const grow = useTransform(scrollYProgress, [0, 0.7], ["scale(0.92)", "scale(1)"], {
+    ease: easeOut,
+  });
   return (
-    <motion.div ref={ref} className={className} style={{ scale }}>
+    <motion.div ref={ref} className={className} style={{ transform: moving ? grow : "none" }}>
       {children}
     </motion.div>
   );

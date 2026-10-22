@@ -24,6 +24,8 @@ import { TabFlight } from "./bridge";
 import { TOUR_TABS, type TourTab } from "./tour-tabs";
 import MatchingVisual from "./matching-visual";
 import ResumeVisual from "./resume-visual";
+import { SoonChip } from "./layout-parts";
+import { scrollPageTo } from "./smooth-scroll";
 import UpdatesVisual from "./updates-visual";
 
 /**
@@ -95,7 +97,10 @@ function PinnedTour() {
     target: ref,
     offset: ["start end", "start start"],
   });
-  const scale = useTransform(entry, [0, 1], reduceMotion ? [1, 1] : [0.9, 1]);
+  // A transform string, not `scale`: motion runs only `transform` (with
+  // opacity, filter and clipPath) as the browser's own scroll animation, so
+  // `scale` repainted the whole panel on every frame of its entry.
+  const grow = useTransform(entry, [0, 1], ["scale(0.9)", "scale(1)"]);
 
   const jumpTo = (stop: number) => {
     const section = ref.current;
@@ -103,10 +108,9 @@ function PinnedTour() {
     const top = section.getBoundingClientRect().top + window.scrollY;
     const span = section.offsetHeight - window.innerHeight;
     // The middle of the stop's stretch, so a small scroll does not leave it.
-    window.scrollTo({
-      top: top + ((stop + 0.5) / features.length) * span,
-      behavior: reduceMotion ? "auto" : "smooth",
-    });
+    // Through Lenis while it runs (smooth-scroll.tsx): a native smooth
+    // scroll under it fought its glide.
+    scrollPageTo(top + ((stop + 0.5) / features.length) * span, { instant: !!reduceMotion });
   };
 
   const active = features[index];
@@ -126,8 +130,11 @@ function PinnedTour() {
           ran into its bottom one. */}
       <div className="sticky top-0 flex h-dvh flex-col px-6 pt-24 pb-6">
         <motion.div
-          style={{ scale }}
-          className="relative isolate flex min-h-0 flex-1 flex-col items-center justify-center gap-5 overflow-hidden rounded-[3rem] px-10 py-6 xl:px-14"
+          style={{ transform: reduceMotion ? "none" : grow }}
+          // Tighter on a short window (a laptop's), so the stories keep
+          // their design size: at a 790px window Resumes was drawn at 0.9,
+          // its smallest text 8px.
+          className="relative isolate flex min-h-0 flex-1 flex-col items-center justify-center gap-5 overflow-hidden rounded-[3rem] px-10 py-6 xl:px-14 [@media(max-height:50rem)]:gap-3 [@media(max-height:50rem)]:py-4"
         >
           {/* One backdrop per stop, crossfading, so the colour shift is smooth. */}
           {features.map((feature, i) => (
@@ -183,7 +190,7 @@ function PinnedTour() {
             id="tour-panel"
             role="tabpanel"
             aria-labelledby={`tour-tab-${active.id}`}
-            className="grid [max-height:52rem] min-h-0 w-full max-w-[76rem] flex-1 grid-cols-[5fr_8fr] grid-rows-[minmax(0,1fr)] gap-8 rounded-[2rem] bg-white p-5 shadow-xl shadow-slate-900/5"
+            className="grid [max-height:52rem] min-h-0 w-full max-w-[76rem] flex-1 grid-cols-[5fr_8fr] grid-rows-[minmax(0,1fr)] gap-8 rounded-[2rem] bg-white p-5 shadow-xl shadow-slate-900/5 [@media(max-height:50rem)]:p-3"
           >
             {/* No initial={false} on these: it blocks the first animation of
                 every motion element inside, so the Matching rows sat still at
@@ -204,9 +211,20 @@ function PinnedTour() {
 
             <div
               ref={boxRef}
-              className="relative flex h-full min-h-0 items-center justify-center overflow-hidden rounded-[1.5rem] p-4"
-              style={{ background: backdrop(active.id) }}
+              className="relative isolate flex h-full min-h-0 items-center justify-center overflow-hidden rounded-[1.5rem] p-4 [@media(max-height:50rem)]:p-2"
             >
+              {/* Its colour crossfades with the panel's, one layer per stop:
+                  set as one gradient it changed in a single frame while the
+                  panel around it faded. Siblings of the story, never its
+                  ancestors, so the scene titles' glass still blurs them. */}
+              {features.map((feature, i) => (
+                <div
+                  key={feature.id}
+                  aria-hidden="true"
+                  className="absolute inset-0 -z-10 transition-opacity duration-700 ease-out motion-reduce:transition-none"
+                  style={{ background: backdrop(feature.id), opacity: i === index ? 1 : 0 }}
+                />
+              ))}
               <AnimatePresence mode="wait">
                 <motion.div
                   key={active.id}
@@ -274,8 +292,9 @@ function StopCopy({ id }: { id: FeatureId }) {
       <p className="text-ink inline-flex items-center gap-2 text-sm font-medium">
         <FeatureIcon feature={{ icon: Icon, glow }} />
         {label}
+        {feature.soon && <SoonChip />}
       </p>
-      <h2 className="text-ink mt-4 text-3xl font-semibold tracking-tight text-balance">
+      <h2 className="text-ink mt-4 text-3xl leading-tight font-semibold tracking-tight text-balance">
         {feature.title}
       </h2>
       <p className="text-ink-meta mt-3 text-pretty">{feature.description}</p>

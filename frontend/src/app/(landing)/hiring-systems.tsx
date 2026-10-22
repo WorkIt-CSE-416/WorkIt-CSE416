@@ -16,7 +16,6 @@ import {
   type FrameData,
   type MotionValue,
 } from "motion/react";
-import { ArrowDownWideNarrow, RefreshCw } from "lucide-react";
 
 import { Logo } from "@/components/logo";
 import { cn } from "@/lib/cn";
@@ -32,9 +31,18 @@ const WIDE_QUERY = "(min-width: 1024px)";
 /** Each lane's speed in px a second, so the stream keeps its pace at
  * every width; lanes differ, so job postings arrive out of step. */
 const WIDE_SPEEDS = [42, 33, 37, 30, 36, 29, 39];
-const NARROW_SPEEDS = [30, 26, 28];
-/** Chips in a lane below lg, where a lane is a column. */
-const NARROW_SLOTS = 5;
+/** Below lg every column runs at one speed and the columns' chips take
+ * turns, so they stay interleaved where the columns meet at WorkIt: at
+ * different speeds, five chips a column drifted into each other and
+ * overlapped in most frames on a phone. */
+const NARROW_SPEED = 28;
+/** Chips in a column below lg, and the job postings they take turns
+ * carrying. */
+const NARROW_SLOTS = 3;
+const NARROW_POSTINGS = 5;
+/** Three columns from this stream width up, two below it: narrower, the
+ * three columns' two-line chips met where the columns converge. */
+const NARROW_THREE = 640;
 /** Room a chip needs along a wide lane, in px. A lane too short for two
  * chips carries one, which shows the lane's next job posting each lap. */
 const WIDE_SLOT = 232;
@@ -49,10 +57,12 @@ const CARD_GAP = 1.4;
 /** How long each of WorkIt's steps shows under its mark, in seconds. */
 const STEP_S = 3.2;
 /** The stream's clock for its first frame, and the one still frame shown
- * with reduced motion. Picked by simulating every layout: no chip is
- * mid-fall, a role or two is struck, and the first card comes out within
- * two seconds. Re-check it when lanes, speeds or postings change. */
-const STILL_AT = 94.3;
+ * with reduced motion. Picked by simulating every width below lg (where
+ * the stream plays): no chip is mid-fall or overlapping another, a role
+ * is struck, and the first card comes out within two seconds; from lg up,
+ * where only reduced motion shows it, few chips are mid-fall. Re-check it
+ * when lanes, speeds or postings change. */
+const STILL_AT = 167.4;
 /** Cards on the Jobs page side. */
 const CARDS = { wide: 4, narrow: 3 };
 
@@ -114,11 +124,13 @@ const MIXED = (() => {
   return kept.flatMap((p, i) => (dropped[i] ? [p, dropped[i]] : [p]));
 })();
 
-/** Two or three columns of job postings, kept and dropped in turn. */
+/** Two or three columns of job postings, kept and dropped in turn. The
+ * columns' chips take turns, one column's after another's. */
 function narrowChips(g: Geometry): Chip[] {
+  const turn = 1 / (g.lanes.length * NARROW_SLOTS);
   return g.lanes.flatMap((_, lane) => {
-    const column = MIXED.slice(lane * NARROW_SLOTS, (lane + 1) * NARROW_SLOTS);
-    return laneChips(column, lane, column.length, g.travel / NARROW_SPEEDS[lane], 0.29);
+    const column = MIXED.slice(lane * NARROW_POSTINGS, (lane + 1) * NARROW_POSTINGS);
+    return laneChips(column, lane, NARROW_SLOTS, g.travel / NARROW_SPEED, turn);
   });
 }
 
@@ -135,7 +147,7 @@ function geometryFor(wide: boolean, width: number, height: number): Geometry {
       lanes: Array.from({ length: n }, (_, i) => ((i + 0.5) * height) / n - height / 2),
     };
   }
-  const n = width >= 520 ? 3 : 2;
+  const n = width >= NARROW_THREE ? 3 : 2;
   return {
     wide,
     width,
@@ -316,14 +328,12 @@ export function HiringSystems() {
         className="bg-landing-brand-100 relative isolate mt-12 overflow-hidden rounded-[2rem] p-4 ring-1 ring-slate-900/5 sm:p-6 lg:mt-16 lg:p-8"
       >
         <div className="grid grid-cols-1 gap-y-4 lg:grid-cols-[132px_minmax(0,1fr)_minmax(0,360px)] lg:gap-y-5">
-          <div className="flex items-center justify-between gap-3 lg:col-span-2">
-            <Label>{copy.intake}</Label>
-            <span className="text-landing-brand-700 flex items-center gap-1.5 text-xs font-semibold lg:mr-1">
-              <RefreshCw className="size-3.5" aria-hidden="true" />
-              {copy.cadence}
-            </span>
+          <div className="lg:col-span-2">
+            <DiagramLabel>{copy.intake}</DiagramLabel>
           </div>
-          <OutputLabel className="hidden lg:flex lg:pl-10" />
+          <div className="hidden lg:block lg:pl-10">
+            <DiagramLabel>{copy.output}</DiagramLabel>
+          </div>
 
           {/* The hiring systems, as the stream's sources: a column from lg
               up, one pill per lane; a wrapped row below it. */}
@@ -409,7 +419,7 @@ export function HiringSystems() {
                 <AnimatePresence mode="wait" initial={false}>
                   <motion.p
                     key={step}
-                    className="text-ink-meta text-[11px] leading-4 font-medium text-balance"
+                    className="text-ink-muted text-[11px] leading-4 font-medium text-balance"
                     initial={{ opacity: 0, y: 4 }}
                     animate={{ opacity: 1, y: 0 }}
                     exit={{ opacity: 0, y: -4, transition: { duration: 0.15 } }}
@@ -422,7 +432,9 @@ export function HiringSystems() {
             </div>
           </div>
 
-          <OutputLabel className="flex lg:hidden" />
+          <div className="lg:hidden">
+            <DiagramLabel>{copy.output}</DiagramLabel>
+          </div>
 
           {/* The Jobs page side: the newest kept postings as clean cards,
               best match first. */}
@@ -440,19 +452,19 @@ export function HiringSystems() {
   );
 }
 
-function Label({ children }: { children: React.ReactNode }) {
-  return <p className="text-ink text-sm font-semibold">{children}</p>;
-}
-
-function OutputLabel({ className }: { className?: string }) {
+/**
+ * A label on the pipeline diagram ("Company job boards", "Your Jobs page"):
+ * small capitals set wide in the body grey, so it reads as an annotation on
+ * the drawing, not as content, and the two ends match. Both views use it.
+ * It replaced a bold label beside a coloured "Always fresh" and a "Sorted
+ * by Best Match" note, which the team found cluttered. In the paler meta
+ * grey and spaced 0.14em it read faint on the tinted panels.
+ */
+export function DiagramLabel({ children }: { children: React.ReactNode }) {
   return (
-    <div className={cn("items-center justify-between gap-3", className)}>
-      <Label>{copy.output}</Label>
-      <span className="text-ink-meta flex items-center gap-1.5 text-xs font-medium">
-        <ArrowDownWideNarrow className="size-3.5" aria-hidden="true" />
-        {copy.sort}
-      </span>
-    </div>
+    <p className="text-ink-muted text-[11px] leading-none font-semibold tracking-[0.08em] uppercase">
+      {children}
+    </p>
   );
 }
 
@@ -477,7 +489,9 @@ function StreamChip({
   // The strike is a background on each line of the title, so a title that
   // wraps below lg is struck on both lines.
   const strike = useTransform(pose, (p) => `${p.strike * 100}% 1.5px`);
-  const dim = useTransform(pose, (p) => 1 - 0.5 * p.strike);
+  // Dimmed only a little: the strike already marks it, and "Senior" must
+  // stay readable.
+  const dim = useTransform(pose, (p) => 1 - 0.3 * p.strike);
 
   // Each lap ends inside WorkIt: a kept posting goes on to be a card, and
   // the chip comes round again with the lane's next posting.
@@ -499,7 +513,13 @@ function StreamChip({
   const laneWidth = geometry.wide ? undefined : geometry.width / geometry.lanes.length - 8;
 
   return (
-    <motion.div className="absolute top-0 left-0" style={{ x, y, scale, rotate, opacity }}>
+    // It scales and turns about its leading point, where it meets WorkIt:
+    // about its box's centre, off the drawn chip, a kept chip drifted wide
+    // of the mark as it shrank.
+    <motion.div
+      className="absolute top-0 left-0 origin-top-left"
+      style={{ x, y, scale, rotate, opacity }}
+    >
       <div
         className={cn(
           "text-ink flex items-center gap-2 rounded-xl bg-white py-1 pr-3 pl-1 font-medium shadow-[0_6px_16px_-10px_rgba(40,20,90,0.35)] ring-1 ring-slate-900/[0.07]",
@@ -529,11 +549,24 @@ function StreamChip({
 
 /** A clean job posting card, as the Jobs page shows one. The 3D pipeline
  * (hiring-pipeline.tsx) draws its cards with it too. */
-export function JobCard({ posting, wide }: { posting: StreamPosting; wide: boolean }) {
+export function JobCard({
+  posting,
+  wide,
+  ref,
+}: {
+  posting: StreamPosting;
+  wide: boolean;
+  /** AnimatePresence's `popLayout` measures a leaving card through it:
+   * dropped, the card could not pop out of the list, and the others
+   * jumped instead of gliding. */
+  ref?: React.Ref<HTMLLIElement>;
+}) {
   const card = posting.card!;
   return (
     <motion.li
-      layout
+      ref={ref}
+      // Position only: a size animation stretched the glass and its text.
+      layout="position"
       className="glass-card text-ink flex items-center gap-3 rounded-2xl p-3"
       initial={{ opacity: 0, x: wide ? -24 : 0, y: wide ? 0 : -12, scale: 0.97 }}
       animate={{ opacity: 1, x: 0, y: 0, scale: 1 }}
@@ -548,14 +581,14 @@ export function JobCard({ posting, wide }: { posting: StreamPosting; wide: boole
       <FaviconLogo domain={posting.domain} eager className="size-10 rounded-xl" />
       <div className="min-w-0 flex-1">
         <p className="truncate text-[13px] font-semibold">{posting.title}</p>
-        <p className="text-ink-meta truncate text-xs">
+        <p className="text-ink-muted truncate text-xs">
           {posting.company} · {card.location}
         </p>
         <p className="mt-1.5 flex gap-1.5">
           {card.facts.map((fact) => (
             <span
               key={fact}
-              className="text-ink-meta rounded-md bg-white/70 px-1.5 py-0.5 text-[11px] font-medium ring-1 ring-slate-900/5"
+              className="text-ink-muted rounded-md bg-white/70 px-1.5 py-0.5 text-[11px] font-medium ring-1 ring-slate-900/5"
             >
               {fact}
             </span>

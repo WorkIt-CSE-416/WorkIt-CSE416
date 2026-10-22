@@ -24,8 +24,13 @@
   background: white;
 }
 
+/* See-through, so a line's highlight tints the letters of the line above
+ * where they reach into it instead of hiding them: Plus Jakarta Sans is
+ * 1.26em tall, taller than every display heading's line, and the opaque
+ * brand-100 it was cut off the descenders (g, p, y) of the line above. On
+ * white it reads as brand-100 did. */
 .landing ::selection {
-  background: var(--color-landing-brand-100);
+  background: color-mix(in oklab, var(--color-landing-brand-600) 14%, transparent);
   color: var(--color-landing-brand-900);
 }
 
@@ -34,13 +39,57 @@
   outline-offset: 2px;
 }
 
+/*
+ * The statement's red wavy underline under "slop" (statement.tsx), drawn as
+ * a layer of its own: a text decoration is repainted with the selected
+ * text, only inside the highlight, so selecting the headline cut off the
+ * wave's lower half. Placed as the decoration was, 0.16em under the
+ * baseline (the line box's foot is 0.222em under it).
+ */
+.slop-wave {
+  position: relative;
+}
+
+.slop-wave::after {
+  --wave: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 8 4'%3E%3Cpath d='M0 2Q2 0 4 2T8 2' fill='none' stroke='black' stroke-width='1.3'/%3E%3C/svg%3E");
+  content: "";
+  position: absolute;
+  inset-inline: 0;
+  top: calc(100% - 0.062em);
+  height: 0.15em;
+  pointer-events: none;
+  background: var(--color-danger);
+  -webkit-mask: var(--wave) 0 0 / 0.3em 100% repeat-x;
+  mask: var(--wave) 0 0 / 0.3em 100% repeat-x;
+}
+
 .font-google {
   font-family: var(--font-google-sans), ui-sans-serif, system-ui, sans-serif;
 }
 
+/* No `scroll-behavior: smooth`: Lenis glides the wheel and in-page links,
+ * and on <html> it animated every jump a script made, a new page's move to
+ * its top included, so a page opened from the footer showed its foot and
+ * scrolled up (smooth-scroll.tsx keeps each page's place). */
 html:has(.landing) {
-  scroll-behavior: smooth;
   scroll-padding-top: 5rem;
+}
+
+/*
+ * Lenis (smooth-scroll.tsx) marks <html> with .lenis while it runs. These
+ * are lenis.css's rules, less its `html.lenis { height: auto }`, which
+ * undid `h-full` on <html> so a short page ended above the window's foot.
+ */
+.lenis:not(.lenis-autoToggle).lenis-stopped {
+  overflow: clip;
+}
+
+.lenis [data-lenis-prevent] {
+  overscroll-behavior: contain;
+}
+
+.lenis.lenis-smooth iframe {
+  pointer-events: none;
 }
 
 /*
@@ -92,12 +141,6 @@ html:has(.landing) {
   }
 }
 
-@media (prefers-reduced-motion: reduce) {
-  html:has(.landing) {
-    scroll-behavior: auto;
-  }
-}
-
 /*
  * The hero city (hero-city.tsx, city-model.ts). A 1600x560 strip (100px of
  * it above the ground's origin, for the tallest side towers) pinned to
@@ -137,6 +180,77 @@ html:has(.landing) {
   .hero-city {
     width: max(1600px, 115cqw);
   }
+}
+
+/*
+ * The footer wordmark's rows drift slowly once they have settled
+ * (footer-wordmark.tsx): each row's track holds its titles twice and moves
+ * by half its width, so the loop has no seam. Paused while the word is not
+ * on screen, and off with reduced motion.
+ */
+@keyframes wordmark-drift {
+  to {
+    transform: translateX(-50%);
+  }
+}
+
+.wordmark-drift {
+  animation: wordmark-drift 180s linear infinite;
+}
+
+[data-paused] .wordmark-drift {
+  animation-play-state: paused;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .wordmark-drift {
+    animation: none;
+  }
+}
+
+/*
+ * The bridge's postings that will not fit float a little while the scene
+ * rests (bridge.tsx), so the flood stays alive between the scroll's cues.
+ * A transform on the card inside the moved one, so it runs on the
+ * compositor and never fights the move; stopped off screen.
+ */
+@keyframes bridge-float {
+  0%,
+  100% {
+    transform: translateY(0);
+  }
+  50% {
+    transform: translateY(-5px);
+  }
+}
+
+.bridge-float {
+  animation: bridge-float 6s ease-in-out infinite;
+  animation-delay: var(--float-delay, 0s);
+}
+
+[data-paused] .bridge-float {
+  animation-play-state: paused;
+}
+
+/* The six that fit stop floating once they sort into their grid. */
+[data-sorted] .bridge-fit {
+  animation: none;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .bridge-float {
+    animation: none;
+  }
+}
+
+/* Off screen the city's loops stop (hero-city.tsx sets the attribute):
+ * they repainted its thousands of paths on every frame of the scroll.
+ * !important: each piece's `animation` shorthand below, as specific and
+ * later, sets the play state back to running. */
+.hero-city[data-paused],
+.hero-city[data-paused] * {
+  animation-play-state: paused !important;
 }
 
 @keyframes hero-city-in {
@@ -532,32 +646,82 @@ html[data-tab-flight="landed"] [data-bridge-pill] {
   visibility: hidden;
 }
 
+/* No fade: the flying pills land looking as the tabs do and vanish in the
+ * frame the tabs show. A 0.3s fade in made the pills blink as they landed,
+ * and on the way back up both sets showed at once. */
 html[data-tab-flight="idle"] .tour-tabs,
 html[data-tab-flight="flying"] .tour-tabs {
   opacity: 0;
 }
 
-.tour-tabs {
-  transition: opacity 0.3s ease-out;
+/*
+ * The tour stops' endless loops: the Resumes loader's spinning ring and its
+ * bar's sheen, the Updates scan down the opened resume and the typing dots.
+ * CSS animations of a transform, which the browser runs off the main
+ * thread; as motion loops they ran script on every frame while they showed.
+ * Still with reduced motion, as motion's were, and the scan hidden.
+ */
+.tour-spin {
+  animation: tour-spin 0.9s linear infinite;
 }
 
-/*
- * The thread below the tour (thread.tsx, Flight): while the followed card
- * flies from one section to the next, each end hides while the card is not
- * there, so it is drawn once. "board" runs from the statement to the
- * applications route's first stop, "deck" from its last stop to the
- * journey's Track card.
- * With no flight the attribute is absent and both ends show.
- */
-html[data-thread-board="flying"] [data-thread-from="board"],
-html[data-thread-board="landed"] [data-thread-from="board"],
-html[data-thread-board="idle"] [data-thread-to="board"],
-html[data-thread-board="flying"] [data-thread-to="board"],
-html[data-thread-deck="flying"] [data-thread-from="deck"],
-html[data-thread-deck="landed"] [data-thread-from="deck"],
-html[data-thread-deck="idle"] [data-thread-to="deck"],
-html[data-thread-deck="flying"] [data-thread-to="deck"] {
-  visibility: hidden;
+.tour-sheen {
+  animation: tour-sheen 1s linear infinite;
+}
+
+/* 1.6s down the page, then 0.4s at its foot before the next pass. */
+.tour-scan {
+  animation: tour-scan 2s infinite;
+}
+
+.tour-typing {
+  animation: tour-typing 0.6s ease-in-out infinite;
+}
+
+@keyframes tour-spin {
+  to {
+    transform: rotate(360deg);
+  }
+}
+
+@keyframes tour-sheen {
+  from {
+    transform: translateX(-100%);
+  }
+  to {
+    transform: translateX(300%);
+  }
+}
+
+/* From 20% of the page above its top to its foot, in the band's own
+ * height: the page is 136px, the band 32px, so 4.25 bands. */
+@keyframes tour-scan {
+  0% {
+    transform: translateY(-85%);
+    animation-timing-function: ease-in-out;
+  }
+  80%,
+  100% {
+    transform: translateY(425%);
+  }
+}
+
+@keyframes tour-typing {
+  50% {
+    transform: translateY(-3px);
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .tour-spin,
+  .tour-sheen,
+  .tour-typing {
+    animation: none;
+  }
+
+  .tour-scan {
+    display: none;
+  }
 }
 
 /*
@@ -590,25 +754,304 @@ html[data-thread-deck="flying"] [data-thread-to="deck"] {
 }
 
 /*
- * The FAQ's questions rise in one after another as they scroll in. A
- * scroll-driven CSS animation, which is safe here: the FAQ is never pinned.
- * Only `from` is set and the fill is backwards, so nothing stays on a row
- * once its range ends; below lg, with reduced motion and in a browser
- * without view timelines the rows sit still.
+ * The FAQ's questions rise in one after another once the list is on screen,
+ * in time: the list sits in a FocusIn (page.tsx), whose rules above move
+ * each row, and each row waits its turn (`--i`, faq-list.tsx). Scrubbed by
+ * the scroll over each row's own few pixels at the screen's foot, a row
+ * that stopped there stayed half faded.
  */
-@supports (animation-timeline: view()) {
-  @media (prefers-reduced-motion: no-preference) and (width >= 64rem) {
-    .faq-rise > * {
-      animation: faq-rise linear backwards;
-      animation-timeline: view();
-      animation-range: entry 0% entry 100%;
-    }
+.focus-in[data-focus="in"] > .faq-rise > * {
+  transition-delay: calc(var(--i, 0) * 0.07s);
+}
+
+/*
+ * The Pricing page's motion (pricing/page.tsx). Every piece is a CSS
+ * animation of `opacity` and `transform` from the server's HTML, so it plays
+ * before the script loads and ends on the page as drawn (`both`, from-only
+ * keyframes). Nothing above the board's glass fades: the panels fade on
+ * themselves, and an ancestor below full opacity would be the glass's
+ * backdrop root. Still with reduced motion (below).
+ */
+.price-panel {
+  animation: price-panel 1s var(--ease-glide) both;
+  animation-delay: var(--d, 0s);
+}
+
+@keyframes price-panel {
+  from {
+    opacity: 0;
+    transform: translateY(18px) scale(0.985);
   }
 }
 
-@keyframes faq-rise {
+/* Plus's strip grows down from its top as its card lands. */
+.price-strip {
+  transform-origin: top;
+  animation: price-strip 0.9s var(--ease-glide) 0.5s both;
+}
+
+@keyframes price-strip {
   from {
     opacity: 0;
-    transform: translateY(18px);
+    transform: scaleY(0.2);
+  }
+}
+
+/* The plan cards rise in one after another (`--d`, PlanHeader). */
+.price-card {
+  animation: price-card 0.9s var(--ease-glide) both;
+  animation-delay: var(--d, 0s);
+}
+
+@keyframes price-card {
+  from {
+    opacity: 0;
+    transform: translateY(28px) scale(0.97);
+  }
+}
+
+/* The Popular pill pops on once Plus has landed, then a light sweeps once
+ * across the card (`.price-sheen`, a layer that clips the light to the
+ * card: the card itself may not clip, since the pill hangs over its edge). */
+.price-badge {
+  animation: price-badge 0.55s cubic-bezier(0.34, 1.56, 0.64, 1) 1s both;
+}
+
+@keyframes price-badge {
+  from {
+    opacity: 0;
+    transform: translateY(8px) scale(0.5);
+  }
+}
+
+.price-sheen > span {
+  transform: translateX(-110%) skewX(-18deg);
+  animation: price-sheen 1.1s ease-in-out 1.25s both;
+}
+
+@keyframes price-sheen {
+  to {
+    transform: translateX(260%) skewX(-18deg);
+  }
+}
+
+/* A switched price rolls up into place: a CSS animation starts again each
+ * time its element is shown, so the switch needs no script. The old
+ * price's strike then draws across, left to right. */
+.price-swap {
+  animation: price-swap 0.45s var(--ease-glide) both;
+}
+
+@keyframes price-swap {
+  from {
+    opacity: 0;
+    transform: translateY(0.45em);
+    filter: blur(4px);
+  }
+}
+
+.price-strike {
+  position: relative;
+  text-decoration: none;
+}
+
+.price-strike::after {
+  content: "";
+  position: absolute;
+  inset-inline: -0.08em;
+  top: 52%;
+  height: 0.09em;
+  border-radius: 1px;
+  background: currentColor;
+  transform-origin: left;
+  animation: price-strike 0.4s var(--ease-glide) 0.2s both;
+}
+
+@keyframes price-strike {
+  from {
+    transform: scaleX(0);
+  }
+}
+
+/* Each feature row rises in, its feature first and then each plan's cell
+ * (`--i` the row, `--j` the cell), and a check pops a moment after its
+ * cell. On load the rows follow the cards; a row below the screen waits
+ * (`data-row="wait"`, row-arrival.tsx) and rises as it arrives (`in`). */
+.price-cell {
+  animation: price-cell 0.7s var(--ease-glide) both;
+  animation-delay: calc(0.75s + var(--i, 0) * 0.07s + var(--j, 0) * 0.06s);
+}
+
+.price-check {
+  animation: price-check 0.5s cubic-bezier(0.34, 1.56, 0.64, 1) both;
+  animation-delay: calc(0.95s + var(--i, 0) * 0.07s + var(--j, 0) * 0.06s);
+}
+
+[data-row="wait"] .price-cell,
+.price-cell[data-row="wait"],
+[data-row="wait"] .price-check {
+  animation: none;
+  opacity: 0;
+}
+
+[data-row="in"] .price-cell,
+.price-cell[data-row="in"] {
+  animation-delay: calc(var(--j, 0) * 0.07s);
+}
+
+[data-row="in"] .price-check {
+  animation-delay: calc(0.18s + var(--j, 0) * 0.07s);
+}
+
+@keyframes price-cell {
+  from {
+    opacity: 0;
+    transform: translateY(12px);
+  }
+}
+
+@keyframes price-check {
+  from {
+    opacity: 0;
+    transform: scale(0.3);
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .price-panel,
+  .price-strip,
+  .price-card,
+  .price-badge,
+  .price-cell,
+  .price-check,
+  .price-swap,
+  .price-strike::after {
+    animation: none;
+  }
+
+  .price-sheen {
+    display: none;
+  }
+}
+
+/*
+ * The statement's chips (statement.tsx): each gate's mark moves while the
+ * story plays, and the finale's WorkIt figure hops now and then. Transforms
+ * and opacity on a few SVG parts; paused while the section is off screen
+ * (`data-paused`) and still with reduced motion.
+ */
+.gate-scan .gate-scan-line {
+  animation: gate-scan 2s ease-in-out infinite;
+}
+
+@keyframes gate-scan {
+  0% {
+    opacity: 0;
+    transform: translateY(0);
+  }
+  15%,
+  80% {
+    opacity: 1;
+  }
+  100% {
+    opacity: 0;
+    transform: translateY(14px);
+  }
+}
+
+.gate-shield .gate-shield-body {
+  transform-box: fill-box;
+  transform-origin: 50% 90%;
+  animation: gate-shake 2.6s ease-in-out infinite;
+}
+
+@keyframes gate-shake {
+  0%,
+  60%,
+  100% {
+    transform: rotate(0deg);
+  }
+  67% {
+    transform: rotate(-12deg);
+  }
+  75% {
+    transform: rotate(10deg);
+  }
+  83% {
+    transform: rotate(-6deg);
+  }
+  91% {
+    transform: rotate(3deg);
+  }
+}
+
+.gate-shield .gate-shield-mark {
+  animation: gate-blink 1.3s steps(1) infinite;
+}
+
+@keyframes gate-blink {
+  50% {
+    opacity: 0.25;
+  }
+}
+
+.gate-bot .gate-bot-eyes {
+  transform-box: fill-box;
+  transform-origin: center;
+  animation: gate-eyes 3s ease-in-out infinite;
+}
+
+@keyframes gate-eyes {
+  0%,
+  42%,
+  50%,
+  100% {
+    transform: scaleY(1);
+  }
+  46% {
+    transform: scaleY(0.1);
+  }
+}
+
+.gate-bot .gate-bot-antenna {
+  animation: gate-blink 1.6s ease-in-out infinite;
+}
+
+.workit-hop circle {
+  transform-box: fill-box;
+  transform-origin: center;
+  animation: workit-hop 2.6s ease-in-out infinite;
+}
+
+@keyframes workit-hop {
+  0%,
+  62%,
+  100% {
+    transform: translateY(0);
+  }
+  72% {
+    transform: translateY(-11px);
+  }
+  82% {
+    transform: translateY(0);
+  }
+  88% {
+    transform: translateY(-4px);
+  }
+}
+
+[data-paused] .gate-scan *,
+[data-paused] .gate-shield *,
+[data-paused] .gate-bot *,
+[data-paused] .workit-hop circle {
+  animation-play-state: paused;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .gate-scan *,
+  .gate-shield *,
+  .gate-bot *,
+  .workit-hop circle {
+    animation: none;
   }
 }

@@ -16,6 +16,7 @@ import { cn } from "@/lib/cn";
 
 import { FaviconLogo } from "./favicon-logo";
 import { autoApplyFeature, type ApplicationField, type GridApplication } from "./feature-data";
+import { scoreTone } from "./score-tone";
 import { GLIDE, Story, type StoryScene } from "./story";
 
 /**
@@ -94,8 +95,9 @@ type SceneId = (typeof SCENES)[number]["id"];
 const LEVEL: Record<SceneId, number> = { one: 0, nine: 1, twentyFive: 2, fortyNine: 3 };
 
 export default function AutoApplyVisual() {
+  // The darker green: white on the brand green is 2.8:1.
   return (
-    <Story scenes={SCENES} rest="fortyNine" accent="bg-positive" stageHeight={H}>
+    <Story scenes={SCENES} rest="fortyNine" accent="bg-positive-ink" stageHeight={H}>
       {(scene) => <Stage level={LEVEL[scene]} />}
     </Story>
   );
@@ -123,7 +125,9 @@ function Stage({ level }: { level: number }) {
       className="absolute inset-0 overflow-hidden rounded-2xl transition-shadow duration-700 motion-reduce:transition-none"
       style={{ boxShadow: level === 0 ? "0 24px 48px -24px rgb(16 48 94 / 0.55)" : "none" }}
     >
-      <AnimatePresence>
+      {/* The old grid fades out before the blank form fades in: together,
+          the two showed through each other for a moment. */}
+      <AnimatePresence mode="wait">
         <Camera key={run} level={level} />
       </AnimatePresence>
       <SentCount level={level} />
@@ -315,7 +319,7 @@ function Application({
           <motion.div
             className={cn(
               "mt-6 flex h-10 items-center justify-center gap-2 rounded-lg text-[13px] font-semibold text-white transition-colors duration-300",
-              sent ? "bg-positive" : "bg-slate-900",
+              sent ? "bg-positive-ink" : "bg-slate-900",
             )}
             // Pressed by the student's click.
             animate={{ scale: sent && live ? [1, 0.95, 1] : 1 }}
@@ -339,19 +343,19 @@ function Application({
           {live && active >= COUNT && (
             <motion.span
               aria-hidden="true"
-              className="text-ink absolute z-10"
-              initial={{ left: W * 0.86, top: VIEW + 10, opacity: 0 }}
+              className="text-ink absolute top-0 left-0 z-10"
+              initial={{ x: W * 0.86, y: VIEW + 10, opacity: 0 }}
               animate={{
-                left: W / 2 + 28,
-                top: VIEW - 50,
+                x: W / 2 + 28,
+                y: VIEW - 50,
                 // Gone a moment after the click, off the button's label.
                 opacity: sent ? 0 : 1,
                 scale: sent ? [1, 0.8, 1] : 1,
               }}
               exit={{ opacity: 0 }}
               transition={{
-                left: { duration: 0.75, ease: GLIDE },
-                top: { duration: 0.75, ease: GLIDE },
+                x: { duration: 0.75, ease: GLIDE },
+                y: { duration: 0.75, ease: GLIDE },
                 opacity: { duration: 0.25, delay: sent ? 0.5 : 0 },
                 scale: { duration: 0.25 },
               }}
@@ -404,7 +408,7 @@ function ExtensionChip({ active }: { active: number }) {
     <span
       className={cn(
         "flex shrink-0 items-center gap-1.5 rounded-full px-2.5 py-1 text-[10.5px] font-semibold text-white tabular-nums transition-colors duration-300",
-        sent ? "bg-positive" : "bg-brand",
+        sent ? "bg-positive-ink" : "bg-brand",
       )}
     >
       {sent ? (
@@ -510,7 +514,7 @@ function FieldValue({
             {field.value}
           </motion.span>
         ) : (
-          <span className="truncate text-slate-400">Select...</span>
+          <span className="text-ink-meta truncate">Select...</span>
         )}
         <ChevronDown
           className="absolute right-2 size-3.5 text-slate-400 transition-opacity data-[on=true]:opacity-0"
@@ -524,7 +528,7 @@ function FieldValue({
   if (kind === "file") {
     if (!on) {
       return (
-        <span className="flex items-center gap-1.5 text-slate-400">
+        <span className="text-ink-meta flex items-center gap-1.5">
           <Paperclip className="size-3.5" aria-hidden="true" />
           Attach, or drop a file here
         </span>
@@ -558,9 +562,9 @@ function FieldValue({
         {!instant && (
           <motion.span
             aria-hidden="true"
-            className="bg-positive absolute -bottom-1 left-0 h-0.5 rounded-full"
-            initial={{ width: "0%", opacity: 1 }}
-            animate={{ width: "100%", opacity: [1, 1, 0] }}
+            className="bg-positive absolute inset-x-0 -bottom-1 h-0.5 origin-left rounded-full"
+            initial={{ scaleX: 0, opacity: 1 }}
+            animate={{ scaleX: 1, opacity: [1, 1, 0] }}
             transition={{ duration: seconds, ease: "easeOut" }}
           />
         )}
@@ -569,7 +573,7 @@ function FieldValue({
   }
 
   if (kind === "long") {
-    if (!on) return <span className="text-slate-400">Type your answer</span>;
+    if (!on) return <span className="text-ink-meta">Type your answer</span>;
     // Word by word, as if written.
     const words = field.value.split(" ");
     return (
@@ -660,12 +664,21 @@ function MiniApplication({
       <div className="px-8 pt-6">
         <div className="flex items-center gap-4">
           <FaviconLogo domain={app.domain} eager className="size-16 rounded-2xl" />
-          <div className="min-w-0">
+          <div className="min-w-0 flex-1">
             <p className="text-ink truncate text-[30px] leading-tight font-semibold">
               {app.company}
             </p>
             <p className="text-ink-meta truncate text-[20px]">{app.title}</p>
           </div>
+          {/* Its match, so the queue reads as the best fits. */}
+          <span
+            className={cn(
+              "shrink-0 self-start rounded-xl px-3 py-1 text-[22px] font-bold ring-2 ring-inset",
+              scoreTone(app.score),
+            )}
+          >
+            {app.score}%
+          </span>
         </div>
         <div className="mt-6 grid grid-cols-2 gap-x-5 gap-y-4">
           {MINI_VALUES.map((width, k) => (
@@ -686,7 +699,7 @@ function MiniApplication({
         <div
           className={cn(
             "mt-5 flex h-12 items-center justify-center gap-2 rounded-2xl text-[20px] font-semibold transition-colors duration-300 motion-reduce:transition-none",
-            go ? "bg-positive text-white" : "bg-slate-100 text-transparent",
+            go ? "bg-positive-ink text-white" : "bg-slate-100 text-transparent",
           )}
           style={after(MINI_VALUES.length + 1)}
         >

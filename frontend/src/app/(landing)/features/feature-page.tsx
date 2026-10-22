@@ -3,6 +3,7 @@ import Link from "next/link";
 
 import { cn } from "@/lib/cn";
 
+import { ClosingCta } from "../closing-cta";
 import { FaqList } from "../faq-list";
 import { CONTAINER, PANEL, PANEL_INSET, SectionHeading } from "../layout-parts";
 import { SocialSignUpButton } from "../social-sign-up";
@@ -141,19 +142,7 @@ export function FeaturePage({ feature }: { feature: Feature }) {
           </div>
         </section>
 
-        <section className={cn(PANEL_INSET, "mb-2 sm:mb-6")}>
-          <div className={cn(PANEL, "py-20 text-center sm:py-24")} style={{ background: ground }}>
-            <div className={CONTAINER}>
-              <h2 className="text-ink mx-auto max-w-2xl text-3xl font-semibold tracking-tight text-balance sm:text-5xl">
-                {content.cta.title}
-              </h2>
-              <p className="text-ink-muted mx-auto mt-4 max-w-xl text-lg text-pretty">
-                {content.cta.subtitle}
-              </p>
-              <SignUpButtons className="mt-8" />
-            </div>
-          </div>
-        </section>
+        <ClosingCta title={content.cta.title} subtitle={content.cta.subtitle} background={ground} />
       </main>
     </FeatureMotion>
   );

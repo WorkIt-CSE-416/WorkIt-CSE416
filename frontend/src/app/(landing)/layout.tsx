@@ -5,6 +5,7 @@ import { cn } from "@/lib/cn";
 import { Footer } from "./footer";
 import { Header } from "./header";
 import "./landing.css";
+import { SmoothScroll } from "./smooth-scroll";
 
 /** Only for the "Sign up with Google / LinkedIn" buttons: Google's branding
  *  guidelines require Google Sans Medium on the Google sign-in button. */
@@ -24,6 +25,7 @@ const googleSans = Google_Sans({
 export default function LandingLayout({ children }: LayoutProps<"/">) {
   return (
     <div className={cn("landing flex flex-1 flex-col overflow-x-clip", googleSans.variable)}>
+      <SmoothScroll />
       <Header />
       {children}
       <Footer />

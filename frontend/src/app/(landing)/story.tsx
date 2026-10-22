@@ -89,10 +89,12 @@ export function Story<Id extends string>({
       {/* The scene's title: a glass pill with its number, not a switcher.
           The scenes play on their own. */}
       <div className="glass-card relative flex h-10 w-[380px] items-center gap-2.5 overflow-hidden rounded-full pr-4 pl-1.5">
+        {/* The count changes with the number and caption, in the same
+            swap: outside it, "2/4" showed beside the last scene's caption. */}
         <AnimatePresence mode="wait" initial={false}>
           <motion.span
             key={scene.id}
-            className="flex min-w-0 items-center gap-2.5"
+            className="flex min-w-0 flex-1 items-center gap-2.5"
             initial={{ opacity: 0, y: 6 }}
             animate={{ opacity: 1, y: 0 }}
             exit={{ opacity: 0, y: -6 }}
@@ -109,11 +111,11 @@ export function Story<Id extends string>({
             <span className="text-ink truncate text-[13px] font-semibold tracking-tight">
               {scene.caption}
             </span>
+            <span className="text-ink-muted ml-auto shrink-0 text-[11px] font-medium tabular-nums">
+              {shown + 1}/{scenes.length}
+            </span>
           </motion.span>
         </AnimatePresence>
-        <span className="text-ink-meta ml-auto shrink-0 text-[11px] font-medium tabular-nums">
-          {shown + 1}/{scenes.length}
-        </span>
       </div>
 
       <div key={pass} className="relative w-full" style={{ height: stageHeight }}>

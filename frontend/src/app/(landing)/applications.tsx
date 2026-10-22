@@ -2,7 +2,6 @@
 
 import * as React from "react";
 import {
-  AnimatePresence,
   animate,
   motion,
   useMotionValue,
@@ -21,21 +20,24 @@ import { FaviconLogo } from "./favicon-logo";
 import { followedJob, matchingFeature } from "./feature-data";
 import { FocusIn } from "./focus-in";
 import { useMediaQuery } from "./hooks";
-import { CONTAINER, SectionHeading } from "./layout-parts";
+import { CONTAINER, SectionHeading, SoonChip } from "./layout-parts";
+import { useSceneTime, type Cue } from "./scene-time";
 import { Burst, arrivalAt, stageAt, stepAt } from "./stage-timeline";
 import { GLIDE } from "./story";
-import { CARD_WIDTH, Flight, FollowedCard } from "./thread";
+import { CARD_WIDTH, FollowedCard } from "./thread";
 
 /**
  * The applications section ("Every application, from saved to signed."),
  * drawn as one search's route. Four stops run across the section (Saved,
  * Applied, Interview, Job Offers), and under each a pile of company logos
  * counts the search down: 24 roles saved, 12 sent, 4 in play, 1 signed.
- * From lg up it pins and the scroll alone drives it: the application the
- * statement ended on flies in and lands on the first stop (`Flight`,
- * thread.tsx), then rides the route stop by stop, its stage and next step
- * changing as it lands, while the logos that go on fly from one pile to the
- * next. At the last stop it is the one offer, and the journey picks it up.
+ * From lg up it pins: the followed application, the one the statement
+ * ended on, waits on the first stop, then rides the route stop by stop,
+ * its stage and next step changing as it lands, while the logos
+ * that go on fly from one pile to the next. The scroll cues each move and
+ * the move plays in time (scene-time.ts), so the card never stops between
+ * two stops. At the last stop it is the one offer, where its trip down
+ * the page ends.
  * Below lg, and with reduced motion, it is the still version: the four
  * stops as a list with every pile full.
  */
@@ -45,9 +47,14 @@ const DESKTOP_QUERY = "(min-width: 64rem)";
 /** Laptop screens 800px tall or less draw the card smaller, so the
  * heading, the route and the piles fit under the header. */
 const SHORT_QUERY = "(max-height: 50rem)";
-/** The pinned stretch's beats, as progress from 0 to 1: the card rides
- * from Saved to Job Offers between these, and holds the offer after. */
-const RUN: [number, number] = [0.06, 0.86];
+/** The scroll's cues, as progress through the pinned stretch: the card
+ * moves on to each stop as the scroll reaches its cue (`to` is the stop),
+ * and holds the offer after. */
+const CUES: Cue[] = [
+  { at: 0.2, to: 1 },
+  { at: 0.45, to: 2 },
+  { at: 0.7, to: 3 },
+];
 /** A logo tile's size and the gap between tiles in a pile, in px. Change
  * TILE with the tile's `size-[22px]` class. */
 const TILE = 22;
@@ -55,7 +62,7 @@ const TILE_GAP = 5;
 /** Tiles in a pile's row. */
 const PER_ROW = 8;
 /** The card's tallest look at full size, in px: its track's height. */
-const CARD_HEIGHT = 228;
+const CARD_HEIGHT = 222;
 
 type Logo = { company: string; domain: string };
 
@@ -127,14 +134,22 @@ function PinnedApplications() {
   // 0 when the section's top meets the screen's top, 1 when its bottom
   // meets the screen's bottom: the stretch where it is pinned.
   const { scrollYProgress: p } = useScroll({ target: ref, offset: ["start start", "end end"] });
-  // The section coming up from the screen's foot to its pin: the flight in.
+  // The section coming up from the screen's foot to its pin.
   const { scrollYProgress: entry } = useScroll({
     target: ref,
     offset: ["start end", "start start"],
   });
-  const s = useTransform(p, (v) => clamp((v - RUN[0]) / (RUN[1] - RUN[0])) * (stages.length - 1));
+  // The route's timeline, in stops: the scroll cues each move, time plays
+  // it, about a second and a quarter a stop.
+  const s = useSceneTime(p, CUES, { rate: 0.8, longest: 2 });
   const [step, setStep] = React.useState(() => stepAt(s.get()));
   useMotionValueEvent(s, "change", (v) => setStep(stepAt(v)));
+  // The stop the card rests on, if it rests, once the section has pinned:
+  // the stop's caption shows only then.
+  const [resting, setResting] = React.useState(() => restingAt(s.get()));
+  useMotionValueEvent(s, "change", (v) => setResting(restingAt(v)));
+  const [landed, setLanded] = React.useState(() => entry.get() >= 0.985);
+  useMotionValueEvent(entry, "change", (v) => setLanded(v >= 0.985));
 
   // The route's width; the stops are laid out from it.
   const [width, setWidth] = React.useState(0);
@@ -154,15 +169,9 @@ function PinnedApplications() {
 
   return (
     <section ref={ref} id="applications" className="h-[280vh]">
-      <Flight name="board" progress={entry}>
-        <FollowedCard stage="saved" />
-      </Flight>
       <div className="sticky top-0 flex h-dvh flex-col pt-24 pb-8">
         <div className={cn(CONTAINER, "flex min-h-0 flex-1 flex-col justify-center")}>
-          <div className="flex items-end justify-between gap-12">
-            <Heading />
-            <Caption step={step} />
-          </div>
+          <Heading />
 
           <div ref={routeRef} className="relative isolate mt-8 shrink-0">
             {/* A faint dot grid under the route, like a map's. */}
@@ -173,6 +182,15 @@ function PinnedApplications() {
             {width > 0 && (
               <>
                 <div className="relative" style={{ height: CARD_HEIGHT * scale + 14 }}>
+                  {stages.map((stage, i) => (
+                    <RouteCaption
+                      key={stage.id}
+                      index={i}
+                      stop={stops[i]}
+                      scale={scale}
+                      shown={landed && resting === i}
+                    />
+                  ))}
                   <RouteCard s={s} step={step} stops={stops} scale={scale} />
                 </div>
                 <Track s={s} step={step} stops={stops} />
@@ -186,37 +204,79 @@ function PinnedApplications() {
   );
 }
 
-/** The current stop's line, beside the heading. */
-function Caption({ step }: { step: number }) {
-  const stage = stages[step];
+/** The captions' width, and their gap from the card, in px. */
+const CAPTION_W = 240;
+const CAPTION_GAP = 36;
+
+/** The stop the route rests on at `v`, or null while the card moves. */
+const restingAt = (v: number) => (Math.abs(v - Math.round(v)) < 1e-3 ? Math.round(v) : null);
+
+/**
+ * One stop's line, beside the card while it rests there: right of the card
+ * at the first two stops, left of it at the last two, where the route ends.
+ * Each stop has its own caption, fixed at that stop, which fades in once
+ * the card has landed (so it matches the card's new stage) and out as soon
+ * as it moves on. So no caption changes its words, or its side, while it
+ * can be seen: one caption that swapped both as the card landed glitched,
+ * since the card's stage changes at the landing.
+ */
+function RouteCaption({
+  index,
+  stop,
+  scale,
+  shown,
+}: {
+  index: number;
+  stop: number;
+  scale: number;
+  shown: boolean;
+}) {
+  const half = (CARD_WIDTH * scale) / 2;
+  const right = index < 2;
+  const stage = stages[index];
+
   return (
-    <div className="relative mb-1 h-[5.5rem] w-[20rem] shrink-0">
-      <AnimatePresence mode="popLayout" initial={false}>
-        <motion.div
-          key={stage.id}
-          className="absolute inset-x-0 bottom-0"
-          initial={{ opacity: 0, y: 14 }}
-          animate={{ opacity: 1, y: 0 }}
-          exit={{ opacity: 0, y: -10, transition: { duration: 0.15 } }}
-          transition={{ duration: 0.35, ease: GLIDE }}
+    <motion.div
+      className="absolute bottom-0 flex items-center"
+      style={{
+        left: right ? stop + half + CAPTION_GAP : stop - half - CAPTION_GAP - CAPTION_W,
+        width: CAPTION_W,
+        height: CARD_HEIGHT * scale,
+      }}
+      initial={false}
+      // In just after the card's landing pop, out at once as it moves on.
+      animate={shown ? { opacity: 1, y: 0 } : { opacity: 0, y: 6 }}
+      transition={
+        shown ? { duration: 0.35, delay: 0.15, ease: GLIDE } : { duration: 0.15, ease: "easeOut" }
+      }
+    >
+      {/* A short rule back towards the card. */}
+      <span
+        aria-hidden="true"
+        className={cn("absolute top-1/2 h-px w-5 bg-slate-300", right ? "-left-7" : "-right-7")}
+      />
+      <div className={cn("w-full", right ? "text-left" : "text-right")}>
+        <p
+          className={cn(
+            "text-landing-brand-700 flex items-center gap-2 text-sm font-semibold tabular-nums",
+            right ? "justify-start" : "justify-end",
+          )}
         >
-          <p className="text-landing-brand-700 text-sm font-semibold tabular-nums">
-            {String(step + 1).padStart(2, "0")} · {stage.label}
-          </p>
-          <p className="text-ink mt-1 text-xl leading-snug font-medium text-pretty">
-            {stage.description}
-          </p>
-        </motion.div>
-      </AnimatePresence>
-    </div>
+          {String(index + 1).padStart(2, "0")} · {stage.label}
+          {stage.soon && <SoonChip />}
+        </p>
+        <p className="text-ink mt-1 text-xl leading-snug font-medium text-balance">
+          {stage.description}
+        </p>
+      </div>
+    </motion.div>
   );
 }
 
 /**
  * The followed application riding the route. It holds at its stop, then
  * glides to the next with a small lift and lean, and pops as it lands with
- * the new stage on it. It is both the flight's landing (from the
- * statement) and its next take-off (to the journey's Track card).
+ * the new stage on it.
  */
 function RouteCard({
   s,
@@ -230,13 +290,14 @@ function RouteCard({
   scale: number;
 }) {
   const half = (CARD_WIDTH * scale) / 2;
-  const at = (v: number) => {
+  // One pose a frame, each part read from it.
+  const pose = useTransform(s, (v) => {
     const { from, to, u } = stageAt(v);
     return { x: lerp(stops[from], stops[to], u), lift: Math.sin(Math.PI * u) };
-  };
-  const x = useTransform(s, (v) => at(v).x - half);
-  const y = useTransform(s, (v) => -at(v).lift * 12);
-  const rotate = useTransform(s, (v) => at(v).lift * 2.5);
+  });
+  const x = useTransform(pose, ({ x }) => x - half);
+  const y = useTransform(pose, ({ lift }) => -lift * 12);
+  const rotate = useTransform(pose, ({ lift }) => lift * 2.5);
 
   // A small pop as the card lands on a new stop.
   const pop = useMotionValue(1);
@@ -253,14 +314,12 @@ function RouteCard({
   const stage = stages[step];
   return (
     <motion.div
-      className="absolute bottom-0 left-0 origin-bottom"
+      className="absolute bottom-0 left-0 origin-bottom will-change-transform"
       style={{ x, y, rotate, scale: pop }}
     >
       <div className="origin-bottom-left" style={{ transform: `scale(${scale})` }}>
         <FollowedCard
           stage={stage.id}
-          data-thread-to="board"
-          data-thread-from="deck"
           className="transition-shadow duration-300"
           style={{
             boxShadow: `0 0 0 1.5px color-mix(in oklab, ${stage.color} 55%, transparent), 0 24px 44px -22px rgb(40 20 90 / 0.45)`,
@@ -274,9 +333,12 @@ function RouteCard({
 /** The route: a line through the four stops, filled up to the card, and
  * each stop's node, name and count. */
 function Track({ s, step, stops }: { s: MotionValue<number>; step: number; stops: number[] }) {
+  // The fill is the whole line, scaled from its left end: a width set on
+  // every frame laid the route out again each time.
+  const length = stops[stops.length - 1] - stops[0];
   const fill = useTransform(s, (v) => {
     const { from, to, u } = stageAt(v);
-    return lerp(stops[from], stops[to], u) - stops[0];
+    return (lerp(stops[from], stops[to], u) - stops[0]) / length;
   });
 
   // The burst plays each time the card reaches the offer.
@@ -292,9 +354,12 @@ function Track({ s, step, stops }: { s: MotionValue<number>; step: number; stops
       <div
         aria-hidden="true"
         className="absolute top-[19px] h-0.5 rounded-full bg-slate-200"
-        style={{ left: stops[0], width: stops[stops.length - 1] - stops[0] }}
+        style={{ left: stops[0], width: length }}
       >
-        <motion.div className="bg-brand h-full rounded-full" style={{ width: fill }} />
+        <motion.div
+          className="bg-brand h-full origin-left rounded-full will-change-transform"
+          style={{ scaleX: fill }}
+        />
       </div>
       <ol aria-label="Application stages">
         {stages.map((stage, i) => (
@@ -363,7 +428,7 @@ function Stop({
         <span
           className={cn(
             "rounded-full px-1.5 py-px text-[11px] font-semibold tabular-nums transition-colors duration-300",
-            lit ? "bg-landing-brand-100 text-landing-brand-800" : "bg-surface text-ink-meta",
+            lit ? "bg-landing-brand-100 text-landing-brand-800" : "bg-surface text-ink-muted",
           )}
         >
           {stage.tally.count} {stage.tally.unit}
@@ -453,13 +518,19 @@ function FlyingTile({
   to: { x: number; y: number };
 }) {
   const stagger = Math.min(0.04, 0.45 / count);
-  const at = (v: number) =>
-    clamp((arrivalAt(stop, v) - index * stagger) / (1 - (count - 1) * stagger));
-  const x = useTransform(s, (v) => lerp(from.x, to.x, at(v)));
-  const y = useTransform(s, (v) => lerp(from.y, to.y, at(v)) - Math.sin(Math.PI * at(v)) * 30);
+  // One pose a frame, as one transform.
+  const transform = useTransform(s, (v) => {
+    const t = clamp((arrivalAt(stop, v) - index * stagger) / (1 - (count - 1) * stagger));
+    const x = lerp(from.x, to.x, t);
+    const y = lerp(from.y, to.y, t) - Math.sin(Math.PI * t) * 30;
+    return `translate(${x}px, ${y}px)`;
+  });
   const opacity = useTransform(s, (v) => (v >= stop - 1 - 1e-6 ? 1 : 0));
   return (
-    <motion.span className="absolute top-0 left-0" style={{ x, y, opacity }}>
+    <motion.span
+      className="absolute top-0 left-0 will-change-transform"
+      style={{ transform, opacity }}
+    >
       <LogoTile logo={LOGOS[index]} />
     </motion.span>
   );
@@ -489,6 +560,7 @@ function StillApplications() {
                       <span className="bg-landing-brand-100 text-landing-brand-800 rounded-full px-1.5 py-px text-[11px] font-semibold tabular-nums">
                         {count} {stage.tally.unit}
                       </span>
+                      {stage.soon && <SoonChip />}
                     </p>
                     <p className="text-ink-meta mt-0.5 text-sm text-pretty">{stage.description}</p>
                     <div aria-hidden="true" className="mt-3 flex flex-wrap gap-[5px]">

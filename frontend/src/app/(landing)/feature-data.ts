@@ -6,14 +6,9 @@
  * Auto Apply and Updates stops take theirs from the applications board
  * (./board-data.ts), so the sections match.
  */
-import { stages } from "./board-data";
+import { Headset, Presentation, type LucideIcon } from "lucide-react";
 
-/** A company's site on the applications board, for its favicon. */
-function boardDomain(company: string): string {
-  const job = stages.flatMap((stage) => stage.jobs).find((item) => item.company === company);
-  if (!job) throw new Error(`No application-board job for company "${company}"`);
-  return job.domain;
-}
+import { stages } from "./board-data";
 
 export type FeatureId = "matching" | "resumes" | "auto-apply" | "updates";
 
@@ -22,7 +17,14 @@ export type FeatureId = "matching" | "resumes" | "auto-apply" | "updates";
  * Matched, Applied (auto apply), Tracked (updates). `seconds` is how long each
  * shows before auto-advancing.
  */
-export const features: { id: FeatureId; title: string; description: string; seconds: number }[] = [
+export const features: {
+  id: FeatureId;
+  title: string;
+  description: string;
+  seconds: number;
+  /** Not built yet: the stop says "Coming soon" (`SoonChip`). */
+  soon?: boolean;
+}[] = [
   {
     id: "resumes",
     title: "A resume for every job",
@@ -50,6 +52,8 @@ export const features: { id: FeatureId; title: string; description: string; seco
     description:
       "A view, a recruiter’s message, an interview invite, an offer: each one lands on your tracker the moment it happens, and moves the application along.",
     seconds: 9,
+    // The tracker stores no employer replies yet.
+    soon: true,
   },
 ];
 
@@ -88,9 +92,17 @@ export interface MatchJob {
 export const matchingFeature = {
   /** What the score reads from Alex Morgan's experience bank (the Resumes stop's). */
   profile: {
-    degree: "Computer Science · 2027",
+    degree: "Computer Science",
+    year: "Class of 2027",
     skills: ["TypeScript", "Python", "SQL", "React", "Node.js"],
-    titles: ["Teaching Assistant", "IT Support Intern"],
+    /** The bank's experience entries (the Resumes stop's, `resumeFeature`),
+     * each with a mark of the job: the score reads their titles. Shown as
+     * bare "Past titles" they read as a list, not as the student's
+     * experience. */
+    experiences: [
+      { title: "Teaching Assistant", detail: "Data Structures", icon: Presentation },
+      { title: "IT Support Intern", detail: "Campus Help Desk", icon: Headset },
+    ] satisfies { title: string; detail: string; icon: LucideIcon }[],
   },
   factorLabels: {
     meaning: "Meaning",
@@ -325,6 +337,7 @@ export interface GridApplication {
   company: string;
   domain: string;
   title: string;
+  score: number;
 }
 
 export const autoApplyFeature = {
@@ -422,30 +435,22 @@ export const autoApplyFeature = {
     },
   ] satisfies { title: string; fields: ApplicationField[] }[],
   /** The other applications in the grid: the board's and Matching's real
-   * employers, the followed job's company (filled up close) left out. */
+   * employers, the followed job's company (filled up close) left out, and
+   * the weak fits too (under 70), since the stop queues the best matches.
+   * Each window shows its match, so the queue reads as fits, not as the
+   * mass copy-paste the statement warns about. */
   grid: [
     ...stages
       .flatMap((stage) => stage.jobs)
-      .filter((job) => job.company !== followedJob.company)
-      .map(({ company, domain, title }) => ({ company, domain, title })),
+      .filter((job) => job.company !== followedJob.company && job.score >= 70)
+      .map(({ company, domain, title, score }) => ({ company, domain, title, score })),
     ...matchingFeature.jobs
-      .filter((job) => job.company !== followedJob.company)
-      .map(({ company, domain, title }) => ({ company, domain, title })),
+      .filter((job) => job.company !== followedJob.company && job.score >= 70)
+      .map(({ company, domain, title, score }) => ({ company, domain, title, score })),
   ] satisfies GridApplication[],
 };
 
 // --- Recruiter updates ---
-
-export interface RecruiterUpdate {
-  id: string;
-  company: string;
-  /** The company's site, for its favicon. */
-  domain: string;
-  kind: "viewed" | "screen" | "interview" | "message" | "offer";
-  /** Follows the company name, e.g. "Cloudflare viewed your application". */
-  action: string;
-  detail: string;
-}
 
 export const updatesFeature = {
   /** The application the Updates stop follows: the one Auto Apply just filled. */
@@ -474,45 +479,4 @@ export const updatesFeature = {
     time: "1:00 – 1:45 PM",
   },
   offer: { term: "Summer 2027", replyBy: "Oct 20" },
-  /** A feed of updates across the board's companies, for the journey's
-   * "Hear back" card. */
-  updates: (
-    [
-      {
-        id: "cloudflare-viewed",
-        company: "Cloudflare",
-        kind: "viewed",
-        action: "viewed your application",
-        detail: "Frontend Engineer Intern",
-      },
-      {
-        id: "ramp-interview",
-        company: "Ramp",
-        kind: "interview",
-        action: "moved you to Interview",
-        detail: "System design round · Oct 8",
-      },
-      {
-        id: "coinbase-message",
-        company: "Coinbase",
-        kind: "message",
-        action: "sent you a message",
-        detail: "“Are you free Thursday to pair?”",
-      },
-      {
-        id: "plaid-screen",
-        company: "Plaid",
-        kind: "screen",
-        action: "booked a recruiter screen",
-        detail: "Oct 3, 2:30 PM EST",
-      },
-      {
-        id: "vercel-offer",
-        company: "Vercel",
-        kind: "offer",
-        action: "sent you an offer",
-        detail: "Software Engineer, New Grad · reply by Oct 20",
-      },
-    ] satisfies Omit<RecruiterUpdate, "domain">[]
-  ).map((update): RecruiterUpdate => ({ ...update, domain: boardDomain(update.company) })),
 };

@@ -10,9 +10,10 @@ import { cn } from "@/lib/cn";
 /** The header's links, Features ▾, Resources ▾ and Pricing: one box for
  *  all three, so their text lines up. A bare inline link sat 1px below the
  *  Features button, its 14px text on the baseline of the list item's 16px
- *  line. */
+ *  line. A hover tints the box, as in the menus' items: the slate-800 text
+ *  darkening to ink was too slight to see. */
 export const NAV_ITEM =
-  "hover:text-ink inline-flex items-center gap-1 rounded-md px-3 py-2 text-sm font-medium text-slate-800 transition-colors";
+  "text-ink inline-flex items-center gap-1 rounded-md px-3 py-2 text-sm font-medium transition-colors hover:bg-slate-900/[0.04]";
 
 /** The site's `container-page` utility. */
 export const CONTAINER = "mx-auto w-full max-w-6xl px-4 sm:px-6 lg:px-8";
@@ -40,10 +41,30 @@ export function SectionHeading({
   return (
     <div className={cn("max-w-2xl", align === "center" && "mx-auto text-center")}>
       {eyebrow && <p className="text-landing-brand-700 text-sm font-semibold">{eyebrow}</p>}
-      <h2 className="text-ink mt-2 text-3xl font-semibold tracking-tight text-balance sm:text-4xl">
+      <h2 className="text-ink mt-2 text-3xl leading-tight font-semibold tracking-tight text-balance sm:text-4xl">
         {title}
       </h2>
       {subtitle && <p className="text-ink-meta mt-4 text-lg text-pretty">{subtitle}</p>}
     </div>
+  );
+}
+
+/**
+ * "Coming soon" beside something the product does not do yet. The tracker
+ * stores no employer replies, so the tour's Updates stop and the
+ * applications route's Interview and Job Offers stops carry it: once the
+ * "How it works" section went, which had carried it on its Hear back card,
+ * the page showed replies as working.
+ */
+export function SoonChip({ className }: { className?: string }) {
+  return (
+    <span
+      className={cn(
+        "bg-surface text-ink-muted shrink-0 rounded-full px-2 py-0.5 text-[11px] leading-4 font-semibold ring-1 ring-slate-900/5",
+        className,
+      )}
+    >
+      Coming soon
+    </span>
   );
 }

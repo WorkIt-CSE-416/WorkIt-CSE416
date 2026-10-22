@@ -26,17 +26,26 @@ export function FocusIn({ children }: { children: React.ReactNode }) {
       window.matchMedia("(prefers-reduced-motion: reduce)").matches
     )
       return;
-    const observer = new IntersectionObserver(
+    // In once well inside the screen; back to waiting only once wholly
+    // below it. One observer did both at the arrival line, so a heading
+    // vanished in full view when the reader scrolled back a little.
+    const show = new IntersectionObserver(
       ([entry]) => {
         if (entry.isIntersecting) el.dataset.focus = "in";
-        else if (entry.boundingClientRect.top > 0) el.dataset.focus = "wait";
       },
       { rootMargin: "0px 0px -12% 0px" },
     );
+    const hide = new IntersectionObserver(([entry]) => {
+      if (!entry.isIntersecting && entry.boundingClientRect.top > 0) el.dataset.focus = "wait";
+    });
     // Already on screen: show it as it is.
     if (el.getBoundingClientRect().top > window.innerHeight * 0.88) el.dataset.focus = "wait";
-    observer.observe(el);
-    return () => observer.disconnect();
+    show.observe(el);
+    hide.observe(el);
+    return () => {
+      show.disconnect();
+      hide.disconnect();
+    };
   }, []);
   return (
     <div ref={ref} className="focus-in">

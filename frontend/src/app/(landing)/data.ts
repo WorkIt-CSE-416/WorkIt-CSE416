@@ -1,14 +1,19 @@
 /**
  * The landing page's copy, from the team's marketing site (its site.ts and
- * home.ts). The testimonial is still the site's placeholder, written as guidance:
- * replace it with a real quote and the layout stays intact. The feature
- * carousel's copy is in feature-data.ts, the application board's in
- * board-data.ts.
+ * home.ts). The testimonial is still the site's placeholder, written as
+ * guidance, and stays hidden (`show`) until a real quote replaces it; the
+ * layout stays intact. The feature carousel's copy is in feature-data.ts,
+ * the application board's in board-data.ts.
  */
+
+import { followedJob } from "./feature-data";
 
 export const site = {
   name: "WorkIt",
-  tagline: "Where candidates and recruiters finally share a platform.",
+  // The footer's sign-off and the home page's title. For students: the
+  // site's two-sided pitch to recruiters went while the business side is
+  // hidden.
+  tagline: "Your job search, without the busywork.",
   primaryCta: { label: "Get started for free", href: "/signup" },
   login: { label: "Log in", href: "/login" },
   pricing: { label: "Pricing", href: "/pricing" },
@@ -35,10 +40,11 @@ export const site = {
 };
 
 export const hero = {
-  // The tagline, "Stop ___ by hand." (hero-title.tsx): the blank walks the
-  // pipeline in the tour's order, one chore a student knows per step, and
-  // rests on `rest`, auto apply, which with matching matters most. "By hand"
-  // carries the pain; each phrase is a step WorkIt takes over.
+  // The tagline, "Stop ___ by hand." (hero-title.tsx): the blank loops
+  // through the pipeline in the tour's order, one chore a student knows per
+  // step, starting on `rest`, auto apply, which with matching matters most;
+  // with reduced motion it shows only `rest`. "By hand" carries the pain;
+  // each phrase is a step WorkIt takes over.
   lead: "Stop",
   phrases: [
     "rewriting resumes",
@@ -56,98 +62,23 @@ export const hero = {
 };
 
 /**
- * The search end to end, in the hero's own words (journey.tsx): four cards
- * that start as a deck, fan into a row and flip. `line` is on a card's
- * front with a picture of the step, `body` and `points` on its back.
- * `glow` is an app colour, so each step matches its stop in the product
- * tour. `soon` marks a step the product does not do yet: the tracker
- * stores no employer replies, so Hear back says "Coming soon".
- */
-export type JourneyStep = {
-  id: "find" | "apply" | "track" | "hear";
-  title: string;
-  line: string;
-  body: string;
-  points: string[];
-  glow: string;
-  soon?: boolean;
-};
-
-export const journeySection = {
-  eyebrow: "How it works",
-  title: "Your whole job search, in one place",
-  subtitle:
-    "From the first search to the offer, WorkIt keeps every step together, so nothing slips between tabs.",
-};
-
-export const journey: JourneyStep[] = [
-  {
-    id: "find",
-    title: "Find",
-    line: "Roles you fit, first.",
-    body: "Open roles come straight from company job boards, ranked by how well your skills fit each one.",
-    points: [
-      "A match score on every job posting",
-      "Filters for role, level and work style",
-      "Save a role for later in one click",
-    ],
-    glow: "var(--color-brand)",
-  },
-  {
-    id: "apply",
-    title: "Apply",
-    line: "Less typing, every time.",
-    body: "Tailor a resume from your Experience Bank, then let Auto Apply fill each company's own form. You press Submit.",
-    points: [
-      "Resumes built from your Experience Bank",
-      "Auto Apply on the company's own form",
-      "A copy of every resume you send",
-    ],
-    glow: "var(--color-advanced)",
-  },
-  {
-    id: "track",
-    title: "Track",
-    line: "Every application, one board.",
-    body: "Each application moves from Saved to Offer, with its next step and deadline on the card.",
-    points: [
-      "One board from Saved to Offer",
-      "The next step and deadline on each card",
-      "Every job you save or apply to, in one place",
-    ],
-    glow: "var(--color-positive)",
-  },
-  {
-    id: "hear",
-    title: "Hear back",
-    line: "Know the moment they act.",
-    body: "Views, interview invites, messages and offers show up the moment a recruiter acts.",
-    points: [
-      "Updates as recruiters move you forward",
-      "Interview times and offer deadlines",
-      "Your tracker updates itself",
-    ],
-    glow: "var(--color-match-good)",
-    soon: true,
-  },
-];
-
-/**
  * The home page's hiring-systems section: the job pipeline
  * (docs/job-pipeline.md) drawn as a stream (hiring-systems.tsx). Every line
  * is a claim: the scraper runs every 3 hours, reads the company job boards
  * on the hiring systems below, keeps only internship and new-grad roles,
- * reads their facts, merges duplicates and drops postings that closed.
+ * reads their facts, merges duplicates and drops postings that closed. The
+ * page says "freshest" rather than the 3-hour schedule, at the team's ask,
+ * and labels only the two ends of the pipeline (no cadence or sort note).
  */
 export const hiringSystemsSection = {
   eyebrow: "Hiring systems",
-  title: "Straight from the hiring systems companies use",
+  // "hiring systems" kept on one line: the page's own term, split across
+  // two it read as two words.
+  title: "Straight from the hiring\u00a0systems companies use",
   subtitle:
-    "Every 3 hours, WorkIt reads thousands of company job boards on these hiring systems, keeps the internships and new-grad roles, and links each one to the company's own application.",
+    "WorkIt pulls the freshest internships and new-grad roles from thousands of company job boards on these hiring systems, and links each one to the company's own application.",
   intake: "Company job boards",
   output: "Your Jobs page",
-  sort: "Sorted by Best Match",
-  cadence: "Every 3 hours",
   /** What WorkIt does to the stream, one line at a time under its mark. */
   steps: [
     "Keeping internships and new-grad roles",
@@ -208,7 +139,8 @@ export const streams: Record<HiringSystemName, StreamPosting[]> = {
       company: "Stripe",
       domain: "stripe.com",
       title: "Software Engineer Intern",
-      card: { location: "Seattle, WA", facts: ["Hybrid", "$55/hr"], score: 94 },
+      // The application the page follows: one score everywhere it shows.
+      card: { location: "Seattle, WA", facts: ["Hybrid", "$55/hr"], score: followedJob.score },
     },
     { company: "Cloudflare", domain: "cloudflare.com", title: "Senior Systems Engineer" },
     {
@@ -293,6 +225,10 @@ export const streams: Record<HiringSystemName, StreamPosting[]> = {
 };
 
 export const testimonial = {
+  // Hidden until a real, approved quote replaces the placeholder: shown, it
+  // read as an unfinished site on production. Never fill it with an
+  // invented quote.
+  show: false,
   quote:
     "A short, specific customer quote about an outcome goes here. “We cut X in half within a month” lands harder than general praise.",
   name: "Customer Name",
@@ -308,8 +244,10 @@ export const testimonial = {
 export const faqs = [
   {
     question: "What is WorkIt?",
+    // "On one board" went: the Applications board is archived and the list
+    // is the default view (KAN-256).
     answer:
-      "WorkIt is a job search app for college students. It finds the internships and new-grad jobs that fit you, tailors your resume to each one, fills in the application, and keeps every application on one board.",
+      "WorkIt is a job search app for college students. It finds the internships and new-grad jobs that fit you, tailors your resume to each one, fills in the application, and keeps track of every job you save or apply to.",
   },
   {
     question: "Who is WorkIt for?",
@@ -339,8 +277,21 @@ export const faqs = [
 
 /** The applications section's heading (applications.tsx), as KAN-316 wrote it. */
 export const applicationsSection = {
-  eyebrow: "For applicants",
+  // The feature's name, as in the Features menu: "For applicants" said
+  // nothing once the whole site was for applicants.
+  eyebrow: "Application tracker",
   title: "Every application, from saved to signed.",
+  // What the tracker keeps today (frontend/CLAUDE.md, the application
+  // tracker): one list, each job's match score and the resume it went out
+  // with. The board, a next step and a deadline per card are not built.
   subtitle:
-    "Keep every role you're pursuing on one board, with the next step and the deadline right on each card.",
+    "Every role you save or apply to sits in one list, with its match score and, once you apply, the resume you sent.",
+};
+
+/** The home page's closing call to action (closing-cta.tsx). Its claims
+ * are the FAQ's "How do I get started?" answer. */
+export const closing = {
+  title: "Find the jobs that fit you",
+  subtitle:
+    "Sign up free and upload a resume. WorkIt reads it and starts ranking jobs by how well you fit.",
 };

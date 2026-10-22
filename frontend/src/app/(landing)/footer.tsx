@@ -15,7 +15,12 @@ const COLUMNS = [
   },
   {
     title: "Resources",
-    links: resourcePages.map((resource) => ({ label: resource.name, href: resource.href })),
+    // Marked Soon, as the header's menu marks them: none has a page yet.
+    links: resourcePages.map((resource) => ({
+      label: resource.name,
+      href: resource.href,
+      soon: Boolean(resource.soon),
+    })),
   },
   ...site.footer,
 ];
@@ -36,7 +41,7 @@ export function Footer() {
             the tagline at md, beside it from lg. */}
         <div className="mx-auto grid w-full max-w-6xl grid-cols-2 gap-x-6 gap-y-10 px-6 pt-16 pb-14 sm:px-10 md:grid-cols-4 lg:grid-cols-[2fr_repeat(4,1fr)] lg:px-8">
           <div className="col-span-2 max-w-sm md:col-span-4 lg:col-span-1">
-            <p className="text-3xl font-semibold tracking-tight text-balance sm:text-4xl">
+            <p className="text-3xl leading-tight font-semibold tracking-tight text-balance sm:text-4xl">
               {site.tagline}
             </p>
             <Logo size="card" className="mt-10 brightness-0 invert" />
@@ -50,9 +55,14 @@ export function Footer() {
                   <li key={link.href}>
                     <Link
                       href={link.href}
-                      className="text-sm text-white/65 transition-colors hover:text-white"
+                      className="text-sm text-white/80 transition-colors hover:text-white"
                     >
                       {link.label}
+                      {"soon" in link && link.soon === true && (
+                        <span className="ml-2 rounded-full bg-white/10 px-1.5 py-px text-[11px] leading-4 font-medium text-white/70">
+                          Soon
+                        </span>
+                      )}
                     </Link>
                   </li>
                 ))}
@@ -62,7 +72,7 @@ export function Footer() {
         </div>
 
         <div className="mx-auto w-full max-w-6xl px-6 sm:px-10 lg:px-8">
-          <div className="flex flex-col gap-4 border-t border-white/10 py-6 text-sm text-white/65 sm:flex-row sm:items-center sm:justify-between">
+          <div className="flex flex-col gap-4 border-t border-white/10 py-6 text-sm text-white/80 sm:flex-row sm:items-center sm:justify-between">
             <p>
               &copy; {year} {site.name}. All rights reserved.
             </p>

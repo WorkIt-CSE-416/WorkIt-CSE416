@@ -104,7 +104,10 @@ CLI are in the root `CLAUDE.md`. `API_URL` points at the API project
   field by field (typed, picked, the tailored resume attached, an answer
   drafted from the bank) while the page scrolls to Submit, and the
   student's pointer clicks Submit; then the camera pulls back to 3 × 3,
-  5 × 5 and 7 × 7 windows of the queue, filled for the student. **Its copy
+  5 × 5 and 7 × 7 windows of the queue, filled for the student. Each far
+  window shows its match (`scoreTone`), and the queue leaves out the weak
+  fits (under 70), so it reads as the best fits, not as the mass
+  copy-paste the statement warns about. **Its copy
   must match what auto apply does** (`auto-apply/architecture.md`,
   `autofiller_extension/CLAUDE.md`): it fills one application at a time in
   one background tab and never submits, so the page never says "at once",
@@ -113,14 +116,21 @@ CLI are in the root `CLAUDE.md`. `API_URL` points at the API project
   checked. Change it if the run changes. Every window is drawn at the
   stage's size and one transform scales the grid; the far windows are big
   type and bars, filled by CSS transitions, and a ring mounts only one
-  step before the camera reaches it. The camera is clipped at the stage,
+  step before the camera reaches it. A restart fades the old grid out
+  before the blank form comes in (`mode="wait"`): together they showed
+  through each other. The camera is clipped at the stage,
   which is the close-up window's own size and corners, and the window's
   shadow is drawn on the clip, outside it: a clip 24px wider, to leave the
   shadow room, showed as a pale band over the gradient and under the
   scene title. Updates (`updates-visual.tsx`): the same application
   hears back. Each update drops in as a notification, then lands: the
   card's track moves on (the board's stage colours, Viewed in the stop's
-  pink) and the update opens below it. It replaced a live feed with a
+  pink) and the update opens below it. The notification drops into that
+  room under the card, and the update comes in once it has risen away:
+  dropped over the card, its glass blurred the card's title into a grey
+  smear. The Viewed update says only what its notification says ("Stripe
+  viewed your application"): "Your resume was opened … by the recruiting
+  team, just now" claimed WorkIt sees a recruiter open a file. It replaced a live feed with a
   green "Live" dot, which the team found generic. **One application
   runs through the whole tour** (after Twain's way of carrying one object
   down the page): `followedJob` in `feature-data.ts`, Stripe's Software
@@ -136,19 +146,34 @@ CLI are in the root `CLAUDE.md`. `API_URL` points at the API project
   `TourBaton` in that dock. Measure both ends of the flight every frame,
   since both move, and leave the copy room on short screens. **The bridge**
   (`bridge.tsx`, between the hero and the tour) is the segue the team
-  asked for: from lg up the scroll drives it from the moment it comes up
-  under the hero (so the postings seem to rise out of the city) through a
-  pinned stretch, 260vh in all. Real employers' postings flood the screen
-  ("Thousands of internships open every season"), the six that fit sort
-  into a grid with their scores while the rest blur away ("WorkIt finds the
-  ones that fit you"), they stack into one under the four steps, which
-  light in turn ("Then it helps with every step after that"), and as the
+  asked for: from lg up the scroll cues its phases and each plays to its
+  end in time (`useSceneTime`, "Scroll cues, time plays", below), from the
+  moment it comes up under the hero (so the postings seem to rise out of
+  the city) through a pinned stretch, 260vh in all; every posting floats
+  while the scene rests (`.bridge-float`), the six that fit until they
+  sort (`data-sorted`), so they do not stand out by standing still. Real
+  employers' postings flood the screen ("Thousands of internships open
+  every season"): the line comes up with the section, and the flood rises
+  on a cue of its own once the stage is on screen (played with the line,
+  the rise ran below the fold). The six that fit, the six highest scores,
+  sort into a grid with their scores while the rest go ("WorkIt finds the
+  ones that fit you"); their cards are wider (`FIT_W`), so each title
+  shows whole beside its score (at the others' width it read "Software
+  Engin…"). One line shows at a time, and only the line on screen takes a
+  click or a selection: the three sit in one place, and a drag over the
+  visible one selected a hidden one. The six then stack into one under
+  the four steps, which light in turn ("And it helps with every step of
+  the search": "every step after that" put Matching after the match), and as the
   tour comes up those four pills fly into its tab bar (`TabFlight`,
   mounted by `PinnedTour` with the pin's entry progress). The flight marks
   `<html>` with `data-tab-flight` (idle, flying, landed), and landing.css
   hides the bridge's pills while they fly and the tour's tab bar until
   they land, so each pill is drawn once; with no flight the attribute is
-  absent and the tabs show. Below lg and with reduced motion it is a still
+  absent and the tabs show. The flying pills leave with the bridge pills'
+  colour rings and land looking as the tabs do (the first white, the rest
+  clear with grey labels), and the tab bar shows with no fade: drawn
+  plain, the four rings vanished at take-off, and a fade made the pills
+  blink as they landed. Below lg and with reduced motion it is a still
   block, no pin. The four tabs' labels, icons and colours are one list,
   `TOUR_TABS` in `tour-tabs.ts`, a plain module that both the tour and the
   bridge import: a server page cannot pass icon components to a client
@@ -156,14 +181,24 @@ CLI are in the root `CLAUDE.md`. `API_URL` points at the API project
   hands scroll-linked opacity and filters to the browser's own animations,
   which throw on a keyframe offset past 1 ("Offsets must be null or in the
   range [0,1]"), and a bridge caption's range ending at 1.01 crashed the
-  whole page. Resumes (`resume-visual.tsx`): loose
+  whole page. The Browser pane's console keeps messages across reloads and
+  merges repeats, so an old error looks current: before chasing one,
+  check that the chunk in its stack is in this build's
+  `.next/static/chunks`. Resumes (`resume-visual.tsx`): loose
   experience-bank entries gather into
   one pile, a template is picked, the resume writes itself in Jake's look,
   then a job posting arrives and the same page is tailored to it: mock AI
   suggestions (Keep, Cut, Rewrite, Add) appear in the gutters beside the
   lines they change, each marked with `SparkleIcon`, and apply on the page
   as a highlight, a red strike or a green insertion while the match
-  climbs. The page sizes to its content; fixed to the stage's height it
+  climbs. While the page writes itself, the status above it is a loader
+  card the shape of the job card that replaces it (the team found a
+  pulsing dot and a line of text too plain): a spinning ring round the
+  page icon, the section being written, a percentage, and a bar along its
+  foot edge, then a green "Resume ready". It keeps time from the page's own
+  line count (`FIRST_LINE`, `LINE_STEP`, `LINE_FOR`), so it ends as the
+  last line lands; a line added to the page needs no change there. The
+  page sizes to its content; fixed to the stage's height it
   squeezed its last lines. Its Modern and Compact templates are looks the
   app does not have yet (it renders Jake's Resume only), a choice the team
   made for the page; drop them or mark them if that matters. Matching
@@ -173,34 +208,109 @@ CLI are in the root `CLAUDE.md`. `API_URL` points at the API project
   each is scored, and the top one shows its four factors (Meaning, Skills,
   Title, Experience) as bars with no numbers, since the weights are still
   guesses in the code; then the cards sort into Best Match order, the
-  Jobs page's own name for it. Its postings name real employers, like the
-  hero's cards; so do the Autofill and Updates stops and the journey
-  cards, which take their companies from the applications board
+  Jobs page's own name for it. The weak fits keep full strength once
+  ranked (faded to 0.55, their 10px lines fell to 2.2:1; their scores and
+  the order say they fit less), and the profile's first scene plays again
+  on each loop (a `key` per reading: the board stays mounted, and from the
+  second loop that scene held still). Each reading appears in the middle
+  of the stage, in place: with no starting pose the card flew in from the
+  stage's top left corner each time, which the team found odd. The card
+  lists the bank's experiences (`profile.experiences`, the Resumes stop's
+  entries), each with an icon for the job, not bare "Past titles", and its
+  "Read from your experience bank" pill stays on one line (wrapped, it
+  broke into two pills). Its postings name real employers, like the
+  hero's cards; so do the Autofill and Updates stops, which take their
+  companies from the applications board
   (`board-data.ts`), each logo a favicon tile (`favicon-logo.tsx`). Scores
   on the hero, the board and both stories are green, amber or red through
   `scoreTone` (`score-tone.ts`). Below lg the
   stops stack, because a pinned card with the resume animation does not fit
-  a phone. The site's placeholder benefit grid and three steps became a
-  deck of four cards (`journey.tsx`: Find, Apply, Track, Hear back; "The
-  home page's lower half", below) and the hiring-systems section
-  (below). **The statement** (`statement.tsx`, between the tour and the
-  applications section, after Twain's) is driven by scroll alone, no
-  timers: from lg up it pins for 260vh while the headline ("Stop sending
-  slop applications") steps into a staircase (steps in em, so they shrink
-  with the type; in px they pushed "applications" past a phone's panel), the paragraph darkens word by word as it is read, and a
-  generic cover letter's words fall one by one into a bin before the
-  closing line lands. Each word's way to the bin is measured from layout
-  offsets and read through a ref inside a function transform: a
-  `useTransform` built from arrays keeps the ranges it first saw. Below lg
-  it does not pin and the same moves follow the section through the
-  screen; with reduced motion it holds progress at 1, the finished frame.
-  The paragraph is product copy, so its claims follow the rules above. The site's closing "Be first in line" banner is
+  a phone. The site's placeholder benefit grid and three steps became the
+  hiring-systems section (below). A "How it works" deck of four step
+  cards (Find, Apply, Track, Hear back) that flipped in turn after the
+  applications section was removed on 2026-10-22, at the user's ask: it
+  told the tour's four steps a third time, after the reader had seen
+  each one, and made the page about 15% longer. It had carried the page's
+  only "Coming soon" mark for employer replies, so the tour's Updates stop
+  and the route's Interview and Job Offers stops now carry their own
+  (`SoonChip` in `layout-parts.tsx`, from `soon` on the feature or the
+  stage): the tracker stores no employer replies. **The statement**
+  (`statement.tsx`, between the hiring-systems section and the
+  applications section, after Twain's) tells one thing at a time and
+  plays on its own like a carousel that loops (`useStoryLoop`): once the
+  scene is on screen the beats follow one another in time, the finale
+  holds about three seconds, then both columns fade, the story resets
+  (bin emptied, count back to nothing) and starts again; it pauses off
+  screen and in a hidden tab. The scroll plays no part: the section is a
+  screen-high panel, not pinned, and nothing the scroll does moves the
+  story. Cued beat by beat by the scroll, it stopped whenever the reader
+  did, which the team found broken; then, pinned for 260vh with a bar per
+  beat over the caption and the scroll taking it to its finale near the
+  pin's end (a hand-off for the card's flight into the applications
+  section), it still read as driven by the scroll, and the bars sat close
+  over the gate's red chip, so the team had the bars, the pin and the
+  hand-off taken out on 2026-10-22. A beat lasts about four seconds (`RATE`), so the page, its
+  marks, its notes and its verdict hold together for over a second, the
+  evidence its caption names: at three seconds they shared the screen for
+  a quarter of one. The team found
+  four captions at
+  once too much text and the first scene's gates, glass bin and rubber
+  stamps "AI slop". The headline, "Slop
+  applications get skipped." with "Slop" under a red wavy line, runs one
+  line across the top. It was "Stop sending slop applications.", a second
+  "Stop" right after the hero's tagline; it now says what the three beats
+  show. The wave is a layer of its own (`.slop-wave`): a
+  text decoration is repainted only inside a selection's highlight, so
+  selecting the headline cut off the wave's lower half. On the left only the current beat's caption shows,
+  under its gate's chip; it lifts away as the next comes in, and its words
+  come into focus as they are read. The chips are label-sized, each gate's
+  mark on a white disc, and from lg up the marks move (`GateIcon`,
+  `.gate-*` in landing.css: a scan line runs down the page, the shield
+  shakes and its "!" blinks, the bot blinks and its antenna light pulses);
+  the team found small chips with still icons hard to notice. The finale's
+  chip is "With" and WorkIt's own logo, mark and word, its figure's head
+  hopping now and then (`.workit-hop`), where it had a check and "With
+  WorkIt" in text, and the screening panel's header names WorkIt with the
+  logo too. The marks rest while the section is off screen (`data-paused`)
+  and with reduced motion. On the right
+  one screening panel for one posting (`followedJob`) reads three things
+  a student sends blind, one after another: a generic resume (ATS
+  filter), a copy-paste application (spam detection), a template cover
+  letter (slop detection). A scan line runs down each page, the lines
+  that sink it get a red mark and a note beside the page (the reason, not
+  a stamp), the panel's status turns to its verdict, and the page
+  crumples into a paper ball thrown on an arc into a solid wastebasket
+  (never see-through: its far wall is drawn behind the balls, its body in
+  front), which rocks as each lands; the balls pile at the rim under a
+  count. The pages are laid out on fixed lines (`top-[..]`) so each
+  note's `y` meets its line. Then the same panel reads WorkIt's
+  application, `<FollowedCard stage="saved" />`, and finds it ready to
+  submit, with three green checks; it sits inside the panel, clear of the
+  bin. The captions, the panel's titles and
+  statuses and the notes are array ranges on `opacity` and `transform`,
+  so the browser runs them; the pages and balls are one pose per frame
+  on `will-change` layers. The scene is drawn at a fixed size and scaled
+  by `Fit`; its root is `shrink-0`, since its children are all absolute
+  and, as Fit's flex child, it shrank to the column, so Fit read that
+  width and never scaled it down on a phone. Below lg and with reduced
+  motion it is still: every caption in a short list, then the finished
+  frame; on a phone only the finale's card and checks, at their own size
+  (the whole scene scaled into the column was a 58% miniature, its labels
+  7px). The captions and notes are product copy: the gates' are hedged
+  ("often", "look like"), since they describe the market, and the last
+  one's claims follow the rules above, never a promise to pass an ATS. The site's closing "Be first in line" banner is
   removed for now. **The applications section** ("Every application, from
   saved to signed.", KAN-316) is one search's route (`applications.tsx`,
   "The home page's lower half", below): four stops, Saved, Applied,
   Interview and Job Offers, each with its stage's line and count
   (`stages` in `board-data.ts`), and under each a pile of real employers'
-  logos counting the search down. A tilted board of glass cards over
+  logos counting the search down. Its copy says what the tracker keeps
+  today: one list, each job's match score and the resume each
+  application went out with. A board, a next step and a deadline per card,
+  and a follow-up day are not built, so no line promises them, and
+  Interview and Job Offers say "Coming soon". Its eyebrow is the
+  feature's name, "Application tracker": "For applicants" said nothing
+  once the whole site was for applicants. A tilted board of glass cards over
   blobs in the four stages' colours, with a stage list whose glass
   highlight slid from row to row, was here first: the team found the
   board, the card laid over its tilt and the gradient ugly, and had the
@@ -229,10 +339,16 @@ CLI are in the root `CLAUDE.md`. `API_URL` points at the API project
   visible tab; with reduced motion it stays at `STILL_AT`, the one still
   frame. A lane's chips are evenly spaced slots, and each takes the lane's
   next posting every lap; a lane too short for two (below about 1200px)
-  carries one, since two overlapped at 1024px. `STILL_AT` was picked by
-  simulating every layout, so no chip is mid-fall and the first card comes
-  out within two seconds; re-check it after changing lanes, speeds or
-  postings. When a kept posting's card is already shown, the next one not
+  carries one, since two overlapped at 1024px. Below lg the columns run at
+  one speed and their chips take turns across the columns, three a column,
+  two columns below a 640px stream and three from it: at different speeds,
+  five chips a column drifted into each other and overlapped in most
+  frames on a phone, and three narrower columns met where they converge.
+  A chip scales about its leading point (`origin-top-left`), so a kept one
+  shrinks into the mark. `STILL_AT` was picked by simulating every width
+  below lg: no chip is mid-fall or overlapping, a role is struck, and the
+  first card comes out within two seconds; re-check it after changing
+  lanes, speeds or postings. When a kept posting's card is already shown, the next one not
   shown comes out instead: with the same few postings going round, the
   list once sat unchanged for 15 seconds. A chip keeps its lap in a ref as
   well as state: `useTransform` sets its value again while the chip
@@ -241,20 +357,39 @@ CLI are in the root `CLAUDE.md`. `API_URL` points at the API project
   so neither `requestAnimationFrame` nor `ResizeObserver` runs and the
   stream stands still; each screenshot draws one frame (about 40ms of the
   clock), so check it with screenshots and script reads, not by waiting.
-  **The hero's tagline** is "Applying to jobs shouldn't feel like a
-  second job" (`hero` in `data.ts`; it replaced "Tailored. Matched.
-  Applied. Tracked."). `HeroTitle` in `page.tsx` splits it into words that
-  rise out of a blur in turn, and the emphasis ("second job") takes the
-  brand violet and a brush stroke that sweeps in under it once the line
-  has landed (`.hero-word`, `.hero-swash` in `landing.css`): CSS only, so
-  it renders on the server. The words are inline blocks, so the emphasis
-  carries its own gradient; a parent's bg-clip-text does not reach text
-  inside a transformed child. With reduced motion the rise and the stroke
-  are not run at all (`animation: none`): paused at their first frame, as
-  the old rule did, the subtitle and buttons stayed invisible. The longer
-  lines were checked against the city's caps at phone, tablet and laptop
-  widths. The statement further down took its own headline so it does not
-  repeat the tagline.
+  **The hero's tagline** is "Stop ___ by hand." (`hero` in `data.ts`,
+  `hero-title.tsx`), after Twain's swapping word. The team wanted one hard
+  line that names the pain and the whole pipeline with matching and auto
+  apply first; earlier taglines ("Tailored. Matched. Applied. Tracked.",
+  "Applying to jobs shouldn't feel like a second job") each missed part of
+  that. The blank loops through the pipeline in the tour's order
+  (rewriting resumes, searching for jobs, filling out applications,
+  tracking applications), starting on filling out applications, each
+  phrase held 3.2 s (`HOLD`), and pauses off screen and in a hidden tab.
+  It walked the pipeline once and rested on filling out applications, so
+  that phrase showed twice and the headline then stood still, which the
+  team disliked; at 2.3 s a phrase read for about a second. It starts on
+  the widest phrase, so the job cards, placed against the text a second
+  after load, clear every later one. A swap rolls the old
+  phrase out letter by letter (tipping back in 3D and lifting, each word
+  blurring as one) as the new one rolls up, the two crossing (`AnimatePresence`
+  `mode="popLayout"`); "Stop" and the phrase are `layout="position"`, so
+  "Stop" glides as the line changes width; a brush stroke redraws under
+  each phrase. The first phrase is server-rendered and rises by CSS
+  (`.hero-char`), so the headline shows before the script; screen readers
+  get the whole sentence once in a hidden line, and the moving copy, which
+  carries `data-hero-text` for the job cards' placement, is hidden from
+  them. From lg up "Stop filling out applications" must fit one line (the
+  h1's clamp size and `max-w-6xl`). Below lg a phrase wraps between words,
+  the stroke goes under its last word (under the whole box it ran past the
+  text), and the h1 keeps four lines' room, centred, so the subtitle does
+  not jump on each swap, and "by hand." glides with the phrase. The swaps
+  pause in a hidden tab, and the hidden sentence for screen readers is not
+  selectable (a drag over the headline copied it as well). With reduced
+  motion it rests and never swaps.
+  The rise and stroke are `animation: none` there: paused at their first
+  frame, as an older rule did, the subtitle and buttons stayed invisible.
+  The subtitle names the steps and says the student clicks Submit.
   The hero's backdrop is an animated SVG city (`city-model.ts` draws it,
   `hero-city.tsx` renders it after hydration, since server-rendered its path
   data would add hundreds of KB to the page): New York-style towers, six of
@@ -297,7 +432,15 @@ CLI are in the root `CLAUDE.md`. `API_URL` points at the API project
   only), so the 520px-wide stories fit a short laptop screen and fill a
   big one: at 1x they sat small in an area of empty colour, which the team
   flagged. Each story's stage is the height of its tallest scene, no more,
-  since spare stage height is what shrinks the scale. The pinned card
+  since spare stage height is what shrinks the scale. `Fit` is a motion
+  element, so motion knows its scale: a `layout` move inside a plain
+  scaled div (Matching's Best Match sort) started each card from its old
+  place times the scale. Under 50rem of window height the tour's padding
+  tightens, so the stories keep their design size on a laptop. The visual
+  area's colour crossfades with the panel's, one layer per stop, siblings
+  of the story so its glass still blurs them: as one gradient it changed
+  in a single frame. The scene count in each title pill swaps with the
+  number and caption. The pinned card
   takes the height left inside the panel's padding (flex, not a height
   worked out from the window's): sized as 100dvh minus the chrome it left
   8px to spare, and the switcher sat on the panel's top edge and the card
@@ -323,7 +466,9 @@ CLI are in the root `CLAUDE.md`. `API_URL` points at the API project
   waitlist form became a sign-up link, since its email went through the
   site's own server; every call to action goes to `/signup`, `/login` or
   `signInWithOAuth`. The testimonial still holds the site's placeholder
-  copy; never fill it with an invented quote. The FAQ answers are product
+  copy, so it is hidden (`testimonial.show` in `data.ts`) until a real,
+  approved quote exists: shown, it read as an unfinished site on
+  production. Never fill it with an invented quote. The FAQ answers are product
   claims, each tied to its source in a comment in `data.ts`.
 - **The marketing site is the home page, a page per feature, Pricing and
   the Resources pages**, all in `app/(landing)/`, after Linear, Notion and
@@ -375,9 +520,12 @@ CLI are in the root `CLAUDE.md`. `API_URL` points at the API project
   `"use client"` so a server file can import them); the template wraps it
   in `FeatureMotion` (`MotionConfig reducedMotion="user"`) and `Fit`. A
   page with no animation (Scout, for now), or a deep dive with no
-  `visual`, shows a placeholder in the feature's colour. The hero and the
-  closing call to action use `SocialSignUpButton` (`social-sign-up.tsx`,
-  shared with the home hero) and the FAQ is `FaqList` (`faq-list.tsx`).
+  `visual`, shows a placeholder in the feature's colour. The hero uses
+  `SocialSignUpButton` (`social-sign-up.tsx`, shared with the home hero),
+  the closing call to action is `ClosingCta` (`closing-cta.tsx`, shared
+  with the home page; its own file so the client scenes that import
+  `layout-parts.tsx` do not pull the sign-up's server action in), and the
+  FAQ is `FaqList` (`faq-list.tsx`).
   **The header menus** (`NavMenu` in `nav-menu.tsx`, both Features and
   Resources) are disclosures with `aria-expanded`, not ARIA menus, since
   their items are links: a mouse hover opens one, a click pins it, Esc
@@ -433,9 +581,11 @@ CLI are in the root `CLAUDE.md`. `API_URL` points at the API project
   of three from md, then a box per plan under each feature; the 14rem plan
   columns need xl's width. The board replaced three cards with lists and a
   separate comparison table, which the team found boring. Colour follows the
-  tiers: Plus, the recommended plan, is filled violet with a tilted
-  "Recommended" badge over its top edge, so no plan may take
-  `overflow-hidden`; Pro is white with violet pills; Free, the basic tier,
+  tiers: Plus, the recommended plan, is filled violet with a straight
+  "Popular" pill centred on its top edge, so no plan may take
+  `overflow-hidden`. The team had a tilted "Recommended" badge made
+  straight and renamed on 2026-10-22; "Popular" is a claim no sale backs
+  yet (every account is on Free), so revisit it if it must be literal. Pro is white with violet pills; Free, the basic tier,
   is grey (`canvas`, grey checks, a plain white button), since violet on
   Free read as a paid plan. The hero's blobs are violet only and the same on
   both sides: a magenta blob once showed through the glass as pink. The team
@@ -446,35 +596,54 @@ CLI are in the root `CLAUDE.md`. `API_URL` points at the API project
   utility; a ring on a glass card loses to its box-shadow (use an outline),
   and a focus colour needs `!`. The Monthly / 3 months switch is two native
   radios, and the prices read the checked one with `group-has-[...]`, so the
-  page ships no script for it.
-- **The home page's lower half** (after the tour: the statement, the
-  applications section, the journey, hiring systems, the testimonial, the
-  FAQ and the footer) reads as one story, like the hero, bridge and tour
+  page ships no script for it. **It opens with motion** (`.price-*` in
+  landing.css), all CSS animations of `opacity` and `transform` from the
+  server's HTML, so they play before the script loads and end on the page
+  as drawn: the hero rises in (`.hero-rise`), the board's panels settle,
+  Plus's strip grows down, the plan cards rise one after another (`--d`),
+  the Popular pill pops on and a light sweeps once across Plus (clipped by
+  its own layer, since the card may not clip). A switched price rolls in
+  and the old price's strike draws, with no script: a CSS animation starts
+  again each time its element is shown, so each price is an inline block
+  (a transform does nothing to an inline box). Each feature row rises in,
+  its feature and then each plan's cell, with its check popping; on load
+  the rows follow the cards, and from lg up a row still below the screen
+  waits and rises as it arrives (`RowArrival`, `data-row`). Nothing above
+  the glass fades: the panels fade on themselves. The FAQ is the shared
+  `FaqList` in a `FocusIn`, as on the home page, and the closing band's
+  headline, line and button rise in a `FocusIn`. Still with reduced
+  motion.
+- **The home page's lower half** (after the tour: hiring systems, the
+  statement, the applications section, the FAQ, the closing call to
+  action and the footer; the testimonial is hidden) reads as one story, like the hero, bridge and tour
   above it. **One object is carried down the page**: the application the
   tour followed (`followedJob`), drawn as a tracker card by `FollowedCard`
   (`thread.tsx`; its text per stage is `followedStages` in
-  `board-data.ts`, dated after the Updates stop). It flies from the
-  statement's last frame onto the applications route's first stop, rides
-  the route stop by stop, and flies on to land on the journey's Track
-  card. The statement is built in its own file by another session;
-  its one duty to this thread is to end on the tailored application as
-  `<FollowedCard stage="saved" data-thread-from="board" />`, shown at its
-  pin's end. Until it does, the route's flight finds no start and the
-  card simply sits on Saved. `Flight` carries it:
-  mounted by the pinned scene it lands in, with that section's entry
-  progress, it moves a fixed copy from `data-thread-from=<name>` to
-  `data-thread-to=<name>`, measured every frame since both move, scaling
-  from one's width to the other's, and marks `<html>` with
-  `data-thread-<name>` (idle, flying, landed); landing.css hides each end
-  while the card is not there, as the bridge's `TabFlight` does. With no
-  flight both ends show. **The applications section** (`applications.tsx`)
-  pins for 280vh from lg up, and the scroll alone drives it. The card
-  rides above a line through the four stops, flush with the line's ends
-  at the first and last; `stageAt` in `stage-timeline.tsx` holds at a
-  stop, then glides to the next over the last 60% of its stretch, and the
-  card, the line's fill and the flying logos all read it, so they arrive
-  together as the stop lights and its line replaces the caption beside
-  the heading. The piles hold each stage's count (24, 12, 4, 1) from one
+  `board-data.ts`, dated after the Updates stop). The statement's finale
+  reads it, and it waits on the applications route's first stop and rides
+  the route stop by stop to the offer, where its trip ends. A `Flight`
+  once carried it from the statement's last frame onto the route, and on
+  from the route to a "How it works" card: both went (the cards with
+  their section, the first when the statement came to loop on its own,
+  since its finale was rarely on screen as the reader moved on, and the
+  card flew out of nowhere). **The applications section** (`applications.tsx`)
+  pins for 280vh from lg up; the scroll cues each move to the next stop
+  (`CUES`) and the move plays in time (`useSceneTime`, about 1.25 s a
+  stop), so the card never rests between two stops. The card rides above
+  a line through the four stops, flush with the line's ends at the first
+  and last; `stageAt` in `stage-timeline.tsx` glides between whole stops,
+  and the card, the line's fill and the flying logos all read it, so they
+  arrive together as the stop lights. Each stop's line sits beside the
+  card while it rests there (`RouteCaption`), right of it at the first
+  two stops and left at the last two, where the route ends; beside the
+  heading, far from the card, the team found it out of place. Each stop
+  has its own caption, fixed at that stop, shown only while the card
+  rests on that stop once the section has pinned: it fades in just
+  after the landing pop and out as soon as the card moves, so no caption
+  changes its words or side while it can be seen. One caption that
+  swapped both glitched: the card's stage changes at the landing, and
+  that caption had already faded back in with the old words, then
+  swapped them and jumped sides in view. The piles hold each stage's count (24, 12, 4, 1) from one
   list, `LOGOS`, furthest first, so every logo that reaches a stop came
   from the pile before and the last one is the followed application. A
   logo going on waits on the pile before, exactly over its twin so it
@@ -484,55 +653,258 @@ CLI are in the root `CLAUDE.md`. `API_URL` points at the API project
   only in the card's chip and ring: the team found the old four-colour
   gradient ugly. Under 800px of height the card is drawn at 78% so the
   heading, route and piles fit at 1280 × 720. `Burst` keeps its 0.55s
-  delay for the Updates stop; the route passes its own. Below lg the
-  stops are a still list with full piles and the card at its offer.
-  **The journey** (`journey.tsx`) pins for 300vh: the four
-  cards start as a deck with Track on top, where the card lands, fan into
-  a row, then flip in turn (`rotateY`, faces with `backface-visibility:
-  hidden`) from a front with the step and a picture of it, each the Stripe
-  application, to a back with the body and points. Nothing in the 3D card
-  may take `opacity` below 1, which flattens `preserve-3d`. Hear back
-  carries "Coming soon" (`soon` in `data.ts`), since the tracker stores
-  no employer replies; its chip sits under the line, as beside the title
-  it pushed "Hear back" onto two lines. Track's old point "Interviews on
-  your calendar" went with the archived Calendar. **Headings come into
+  delay for the Updates stop; the route passes its own. The tracker
+  card's next step fits one line at every stage (Saved's reads "Apply with
+  tailored resume"), so the card keeps one height (`CARD_HEIGHT`): on two
+  lines at Saved it stood taller and its top dropped as it moved on. Its
+  new words come in as the old ones finish going (`swap`'s delay):
+  `popLayout` ran both at once, and two lines showed through each other.
+  Below lg the stops are a still list with full piles and the card at its
+  offer.
+  **Headings come into
   focus** through `FocusIn` (`focus-in.tsx`): an observer marks the
   wrapper and a CSS transition ends at the element's own `filter: none`.
   A scroll-driven `view()` animation was tried first: under a pin, Chrome
   placed the heading's view timeline hundreds of pixels off and it stayed
-  blurred for most of the pinned stretch. The FAQ's rows do rise on
-  `view()`, since the FAQ never pins. **Hiring systems**
+  blurred for most of the pinned stretch. The FAQ's list sits in a
+  `FocusIn` too, so its rows rise in one after another, in time (`--i`
+  on each row); on `view()` each row was scrubbed over its own few pixels
+  at the screen's foot and stopped half faded there. Its answers are in
+  the body colour (`ink-muted`), its questions `text-lg`: in the meta grey
+  at body size the list read faint. The page ends, as every feature page
+  does, on a closing call to action (`ClosingCta` on the brand's
+  backdrop; its copy is `closing` in `data.ts`, the FAQ's "How do I get
+  started?" claim): without it the FAQ ran into the footer and the only
+  sign-up buttons were in the hero and the header. **Hiring systems**
   (`hiring-pipeline.tsx`), at the user's request after Twain's ring of
-  logo coins, pins for 280vh in a grey panel: the seven hiring systems
-  come in as thick coins (CSS 3D: a face, stacked discs for the edge, a
-  back, under the stage's `perspective`) tumbling in a ring beside the
-  heading; then each flies to the pipe and turns side-on as a coupling,
-  the glass pipe grows out to WorkIt's mark, and the postings flow. The
+  logo coins, comes right after the tour, before the statement: it is
+  where the postings come from, the proof behind the bridge's flood and
+  Matching, and it names the systems whose filter is the statement's
+  first beat. At the page's end it read as an afterthought, just above
+  the FAQ's "Where do the jobs come from?". It pins for 220vh in a grey
+  panel: the seven hiring systems
+  come in as thick coins (CSS 3D: a face, three stacked discs for the
+  edge, a back, under the stage's `perspective`; seven discs read the
+  same at every angle but edge-on) and keep tumbling in a slowly turning
+  ring beside the heading, on their own clock (`useLoopClock`), for as
+  long as the reader rests there: scrubbed by the scroll, the ring froze
+  whenever the reader stopped. The clock alone turns them, at one steady
+  pace (`ORBIT`, `TUMBLE`), whether or not the page moves: the scroll
+  added its own turn as the section came up, so the coins spun fast while
+  scrolling and crawled once the reader stopped. The scroll's cue, a third through, sends
+  each coin to the pipe, in time, to turn side-on as a coupling; the
+  glass pipe grows out to WorkIt's mark, and the postings flow. The
+  ring's clock stops while the coins fly, so their landing turns, reckoned
+  from the ring, hold still. Each coin carries its logo on both faces and
+  stands near upright, a few degrees askew: turned with its place on the
+  ring, a logo stood on its side or upside down, and the blank back hid it
+  for half the tumble. The
   couplings sit together at the intake end like a manifold: spread along
   the whole pipe they hid most titles. The postings ride a conveyor of
   evenly spaced places (`SPACING`), each given to the hiring systems in
   turn and shown from that system's coupling on, so they never overlap
   in the one pipe; a senior role is struck through and filtered out
-  before the mark, a kept role goes in and comes out as a `JobCard`. The
-  flow's clock runs only once the pipe has formed, in view and in a
-  visible tab. The testimonial's panel grows into place (`GrowIn`, a
+  before the mark, a kept role goes in and comes out as a `JobCard` as it
+  folds into the mark: sent at the end of its lap, out of sight past the
+  mark, a card came some six seconds after its posting and read as
+  unrelated to it. The pipe fills from the couplings when the flow first
+  runs (`fresh`): shown at once, three postings popped in mid-pipe; a
+  return to a running flow fades it in. The flow's clock runs only once
+  the pipe has formed, in view and in a visible tab. The pipe starts just behind the first coupling, whose coin
+  hides its end: an open-end ellipse there, and later the bare rounded
+  end, read as a stray circle. WorkIt's mark is plain glass on the grey,
+  with no violet glow behind it (the team found it decorative). A card
+  comes at most every `CARD_GAP` (2.8 s), so each settles before the
+  next; `JobCard` takes the `ref` that `AnimatePresence`'s `popLayout`
+  passes (dropped, a leaving card could not pop out and the rest jumped)
+  and animates its position only. The copy says "freshest", never the
+  scraper's 3-hour schedule, at the team's ask, and the diagram labels
+  only its two ends, "Company job boards" and "Your Jobs page", in one
+  annotation style (`DiagramLabel`: small capitals set wide, in the body
+  grey, since the meta grey spaced 0.14em read faint on the tinted
+  panels); the team found a bold label with "Always fresh" beside it and a "Sorted by
+  Best Match" note cluttered. The first coin's edge and the left label
+  sit on the heading's left edge. A posting pill has a fixed width
+  (`PILL_W`), so its right edge is known: it stops `MARK_GAP` short of
+  WorkIt's mark and a kept one folds into it from that edge; sized to
+  its title, a pill slid under the mark. Its level (Intern, New Grad,
+  Co-op) stays whole while the role before it is cut short: it is why
+  WorkIt keeps the posting, as "Senior" is why it drops one. The testimonial's panel grows into place (`GrowIn`, a
   scale only: a fade or filter on a panel would make it the backdrop root
-  of the glass inside). The testimonial reads word by word like
-  the statement's paragraph and keeps its placeholder copy. The footer,
+  of the glass inside; a `transform` string over an offset the browser
+  can express, so it runs as a scroll animation, below). The testimonial reads word by word, in
+  time, once it is well on screen (`useArrived` in `hooks.ts`), and keeps
+  its placeholder copy, hidden for now. The footer,
   on every marketing page, closes on "workit" (the logo's own outline,
-  `LOGO_WORD` from `components/logo.tsx`, as a clip path) filled with rows
-  of the page's job titles, the followed one in violet, which slide in
-  from alternate sides as it comes up (`footer-wordmark.tsx`). **Below lg
+  `LOGO_WORD` from `components/logo.tsx`, as a CSS mask) filled with
+  HTML rows of the page's job titles, the followed one in the pale
+  brand violet a weight up, which slide in from alternate sides, in time,
+  once 60% of the word shows (`footer-wordmark.tsx`, `useArrived` with a
+  threshold: a line a third up the screen was out of reach on a tall
+  window), then keep drifting slowly (`.wordmark-drift`, a track of the
+  titles twice moved by half its width), paused off screen. It opens on
+  `site.tagline`, which is also the home page's title, so it speaks to
+  students ("Your job search, without the busywork."): the site's
+  two-sided pitch to recruiters went while the business side is hidden.
+  The footer marks the Resources pages Soon, as the header's menu does: none has a
+  page yet. **Below lg
   and with reduced motion every one of these is still**: no pin, no
   flight, no heading blur, the finished frame. Two exceptions below lg:
   the statement still follows its section through the screen, and hiring
   systems falls back to the flat stream, which keeps flowing. **Checking these scenes in
-  the Browser pane**: `html` has `scroll-behavior: smooth`, so a script's
-  `scrollTo` must pass `behavior: "instant"`; the pane draws frames
-  lazily, so a screenshot after a script scroll often shows an older
+  the Browser pane**: a script's `scrollTo` jumps, but a Lenis glide still
+  under way overrides it, so start from a still page; the pane draws
+  frames lazily, so a screenshot after a script scroll often shows an older
   frame and motion values and rects read by script are stale. A real
   wheel scroll (the computer tool's scroll) draws fresh frames; scroll by
-  script, then wheel one notch, then look.
+  script, then wheel one notch, then look. IntersectionObservers and CSS
+  transitions wait for frames too: take a screenshot before reading
+  `data-paused` or a transitioned colour. Each screenshot draws one frame,
+  so a scene on a clock (the pipe's flow, the statement's loop, a held
+  scroll) moves about 40ms per screenshot: take a batch of small ones to
+  move it on.
+- **Scroll cues, time plays.** The home page's scenes move on their own;
+  the scroll only takes the reader to the next phase. The team disliked
+  scenes scrubbed by the scroll, which froze half way through a move
+  whenever the reader stopped (a ball in mid-air, the card between two
+  stops, the coin ring standing still). So:
+  - A scene that tells a short story the reader should see whole (the
+    statement) plays it on its own and loops, like a carousel, and is not
+    pinned: the scroll plays no part in it.
+  - A pinned scene's poses read a timeline from `useSceneTime`
+    (`scene-time.ts`): once the scroll reaches a phase's cue, the scene
+    plays the whole phase in time and rests at its end; scrolling back
+    plays it back. A cue holds until the scroll is 0.02 short of it, so a
+    reader resting on its line does not set it going to and fro. Pick a
+    cue's `to` where nothing is half done: a scene resting half way
+    through a move is the bug this fixes. A label that changes at a
+    phase's boundary swaps just after it, never before: the statement's
+    beats rest on their boundary, and with the swap before it a resting
+    beat showed no caption, title or verdict (`fadeWindow`).
+  - A phase that should keep moving while it rests runs its own loop on
+    `useLoopClock`, stopped off screen and in a hidden tab: the coin
+    ring, the pipe's flow, the bridge's floating postings (CSS).
+  - A reveal on arrival (the testimonial's words, the footer wordmark's
+    rows, the headings' and the FAQ's `FocusIn`) plays in time once the
+    element is well on screen (`useArrived`), and resets only once it is
+    wholly below the screen, with a second observer: one observer that
+    reset at the arrival line undid reveals in full view whenever the
+    reader scrolled back a little.
+  - Still scroll-linked, by design: the flight that carries the bridge's
+    step pills into the tour's tabs (both ends move with the page), and
+    entrances that track their section's position (the tour panel's and
+    `GrowIn`'s scale).
+  - Timeline values from `useSceneTime` are animated by script, so their
+    transforms run on the main thread while a phase plays and cost
+    nothing at rest; the array-range rule below matters for what is
+    still scroll-linked.
+- **The marketing pages scroll smoothly with Lenis** (`smooth-scroll.tsx`,
+  mounted by the `(landing)` layout): a wheel or trackpad glides to rest.
+  Touch stays native and reduced motion turns it off. It ticks in motion's
+  `frame.setup`, before motion reads the scroll; in `frame.update`, as
+  Lenis's docs show, every scroll-linked value ran a frame behind and the
+  flying card and pills trailed their ends. A script scroll goes through
+  `scrollPageTo` (a native smooth scroll fought the glide), which
+  measures the page again first, since Lenis clamps a scroll to the
+  height it measured up to 250 ms before; a scroll area inside a page
+  needs `data-lenis-prevent` (the phone menu has it). Its CSS is in
+  landing.css, not `lenis/dist/lenis.css`, whose `html.lenis { height:
+  auto }` undid `h-full` on `<html>`. The pages set no `scroll-behavior:
+  smooth`: Lenis glides the wheel and in-page links, and on `<html>` it
+  animated every jump a script made.
+- **Each marketing page keeps its place across navigations**
+  (`smooth-scroll.tsx`): a link to another page opens it at its top, a
+  link with a #section lands on that section under the header, and Back
+  and Forward return to where the reader was on that history entry (the
+  Navigation API's entry key, or the URL where the API is missing), kept
+  in sessionStorage (`workit:landing-scroll`) so a return from another
+  site does too. A reload starts at the top, or at the URL's #section,
+  where the hero's intro and the pinned scenes start: restoring the
+  reader's place on a reload was tried first, and the team found it
+  wrong for these pages. The key is not the seeker shell's
+  `workit:scroll` ((seeker)/scroll-memory.tsx, which keeps its places in
+  another shape): one shared key left each side reading the other's
+  data, and the Jobs feed lost its place after a visit here. While these
+  pages show,
+  `history.scrollRestoration` is "manual", and it is set back on leaving
+  them. A place is saved on each scroll, and also as a click lands and as
+  the page is left: a scroll's own event waits for the next frame, so a
+  link clicked right after a scroll could leave before its place was
+  kept. A return is held each frame until the page can reach it and its
+  height stands still (a second and a half at most; the reader's own
+  scroll ends it), since the home page grows after it mounts: held only
+  until the height stood still, a return to its foot stopped 280px short.
+  Before this, `scroll-behavior: smooth` animated Next's move to a new
+  page's top, so a page showed its foot and scrolled up; Next skips that
+  move when the new page's start is already on screen, so a short page
+  opened from the footer stayed at its foot; and the browser restored a
+  place before the home page had grown, so Back stopped short.
+- **Type on the marketing pages.** Plus Jakarta Sans is 1.26em tall
+  (ascent 1.038, descent 0.222), taller than any display line, so a
+  wrapped heading's lines overlap by a few pixels. The selection
+  (`.landing ::selection`) is see-through, 14% of the brand violet, so a
+  line's highlight tints the letters of the line above where they reach
+  into it: the opaque brand-100 cut off their descenders (g, p, y).
+  Headings that wrap at 30 to 36px (`SectionHeading`, the footer tagline,
+  the tour's stop headings, the closing call to action on a phone) take
+  `leading-tight`, which clears the overlap; display lines (the hero,
+  the statement, the bridge) keep 1.08 and rely on the see-through
+  selection. A decoration that hangs below the line is drawn as a layer
+  of its own (`.slop-wave`), since a selection repaints decorations only
+  inside its highlight. Labels at 12px and under on a tinted panel or on
+  glass use `ink-muted`: there the meta grey fell under 4.5:1 (the
+  pipeline's labels and step captions, the tracker card's lines, company
+  lines, Soon chips, the tour's scene count); on plain white `ink-meta`
+  holds 5.6:1. White text
+  sits only on a fill that holds 4.5:1: `positive-ink`, not `positive`
+  (2.8:1), and ink, not white, on the amber fill. The header's links tint
+  their box on hover (`NAV_ITEM`), as the menus' items do: slate-800
+  darkening to ink was too slight to see.
+- **Scroll-driven motion stays cheap, or the page lags.** A team member
+  found the home page laggy; an audit traced it to these, now rules:
+  - Motion hands a scroll-linked value to the browser (it runs off the
+    main thread) only for the keys `opacity`, `filter`, `clipPath`,
+    `transform` and `backgroundColor`, from `useTransform` with array
+    ranges, not chained, on an HTML element, over a `useScroll` offset the
+    browser can express. So a scale or a rise is a `transform` string
+    (`["scale(0.9)", "scale(1)"]`), never `scale`, `x` or `y`, which
+    always run as script; `["start end", "start 0.3"]` cannot be
+    expressed, `["start end", "start start"]` with a `[0, 0.7]` range can.
+    An array range is fixed at first render, so a value that switches
+    after mount goes in the style (`moving ? grow : "none"`).
+  - A function transform runs every scroll frame, so derive one pose per
+    element per frame (`useTransform(p, v => poseAt(v))`, then each part
+    from it), not one call per part.
+  - An element moved by script gets `will-change-transform`, so the move
+    is composited instead of repainting what is under it.
+  - No filter left on at rest: end a blur on `"none"`, never
+    `blur(0px)`. Never animate a blur per letter, nor per word in a
+    scroll-driven scene; the hero tagline blurs its two or three words as
+    a swap plays, while its letters only roll.
+  - Animate transforms, never `top`, `left`, `width` or `height`: a bar
+    that fills is drawn at its full length and grows by `scaleX` from
+    its left end (the applications route, Matching's factor bars, Auto
+    Apply's upload bar, the hiring-systems strike), and a sweep moves by
+    `x` on a layer the size of the card it crosses.
+  - Nothing scroll-linked is SVG: the browser never moves SVG content on
+    its own layer, so the footer wordmark's 29 rows of titles (some
+    12,000 glyphs, once SVG text under a clip path) repainted the whole
+    word on every frame. They are HTML under a CSS mask of the outline.
+  - Never fade a `preserve-3d` root: below full opacity it flattens. The
+    hiring-systems coins fade their faces, and each coin's pose is one
+    `transform` string a frame.
+  - An endless loop is a CSS animation of a transform (`.tour-*` in
+    landing.css: the Resumes loader's ring and sheen, the Updates scan
+    and typing dots), never a motion `repeat: Infinity`, which runs
+    script on every frame it shows.
+  - Loops stop off screen: the hero city's 67 SVG animations pause through
+    `data-paused` (an IntersectionObserver, with `!important` over each
+    piece's `animation` shorthand). The city's wireframe glow stays an SVG
+    blur filter: a wide faint stroke in its place was tried and read as a
+    hard band, not a glow.
+  - Logos from the Google favicon host load `unoptimized`: they are
+    small PNGs already, and some 60 each went through `/_next/image`.
+  - Write a `data-*` mark on `<html>` only when it changes.
 - **The Calendar, and the Dashboard's Next Up, Up Next and Waiting, are
   archived for now** (KAN-261): the tracker stores no dated events or
   follow-ups yet. `src/proxy.ts` sends `/calendar` to the Dashboard, its
@@ -658,7 +1030,9 @@ CLI are in the root `CLAUDE.md`. `API_URL` points at the API project
   only the editor route's client manifest names the pdf.js chunk.
   `npm install` on a Mac dropped two optional `@emnapi/*` entries from the
   lockfile when pdf.js was added; they were put back by hand. Check the
-  lockfile diff for removals after adding any dependency.
+  lockfile diff for removals after adding any dependency. Adding Lenis
+  only cleared `"dev": true` on `sharp`'s `@img/*` packages (`next`
+  depends on `sharp` too), which is correct and removes no entry.
 - **A saved timestamp becomes a calendar day in the browser, never on the
   server.** The server runs in UTC, so a day computed there is a day off for
   the Americas. Swap the local day in after hydration (`useSyncExternalStore`);
