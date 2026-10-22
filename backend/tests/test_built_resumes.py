@@ -171,6 +171,17 @@ async def test_the_latex_file_is_the_pdfs_source_without_markers(student):
     assert r"\wimark" not in tex and r"\pdfsavepos" not in tex
 
 
+async def test_the_header_says_us_citizen_once_the_citizenship_answer_does(student):
+    client, me = student
+    await _fill_bank(client, me)
+    resume_id = await _generate(client, me, "General SWE")
+    assert "U.S. Citizen" not in (await client.get(f"{me}/built-resumes/{resume_id}/tex")).text
+
+    res = await client.patch(f"{me}/autofill-answers", json={"work_authorization_status": "us_citizen"})
+    assert res.status_code == 200
+    assert r"$|$ U.S. Citizen" in (await client.get(f"{me}/built-resumes/{resume_id}/tex")).text
+
+
 async def test_the_latex_file_is_only_its_owners(student):
     client, me = student
     res = await client.get(f"{me}/built-resumes/{uuid.uuid4()}/tex")

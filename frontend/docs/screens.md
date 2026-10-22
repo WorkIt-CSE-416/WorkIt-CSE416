@@ -1025,13 +1025,6 @@ headline line used to leave a gap between the name and the row below.
   `https://` on Save, in the section and again in the API; anything that
   is not an http(s) address is refused with "Enter a web address" under the
   field. The section never makes an href of a link that fails the check.
-- **Show "U.S. Citizen" on my resumes** is a check box under the fields,
-  in both modes. It saves on click, apart from the section's Save, and a
-  failed save puts the box back with the error under it. While checked,
-  every resume header (PDF, Word and LaTeX) ends its contact line with
-  "U.S. Citizen". It is a display choice only: Application Questions'
-  citizenship answer, which the autofiller fills in, does not change with
-  it (`backend/app/models/CLAUDE.md`, `us_citizen_on_resume`).
 
 **Application Questions (KAN-269)** is an open section between Contact &
 Links and Resumes & Experiences: the nine questions onboarding's Profile
@@ -1040,6 +1033,10 @@ clearance, and the voluntary gender, Hispanic or Latino, race, veteran and
 disability self-identification), with the seeker's answers
 (`(seeker)/profile/application-questions.tsx`).
 
+- **U.S. Citizen as the citizenship answer puts "U.S. Citizen" on every
+  resume header** (PDF, Word and LaTeX), at the end of the contact line.
+  A separate check box for it in Contact & Links was built and removed
+  on 2026-10-21: it asked the same question twice.
 - **The same two modes as Contact & Links.** Reading, each question is its
   answer's label or "Not answered" in grey. Edit turns every answer into a
   picker (`ui/select-field.tsx`) in place, the first one focused, each over
