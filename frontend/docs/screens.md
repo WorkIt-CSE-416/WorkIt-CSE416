@@ -305,7 +305,9 @@ Apply.", with Undo, which takes the job out again (`dequeueJob`) and turns
 the button back to Auto Apply: Live Activity's cross and Undo, the other way
 round. A failed Undo says so in a toast and leaves the button Queued.
 A click that leaves the job queued then runs Start Auto Apply's pipeline
-without the matching: it asks the extension to open the oldest queued job
+without the matching. While WorkIt Desktop runs (KAN-323,
+`auto-apply/desktop.md`) that is all: Desktop claims the queued job, and
+Start Auto Apply likewise only queues its batch. Otherwise it asks the extension to open the oldest queued job
 in a background tab beside this one (`openNextApplication`), which is this
 job only when nothing older waits. Once its form is ready, the extension
 switches the student to that tab and fills it (the popup's fill; its
