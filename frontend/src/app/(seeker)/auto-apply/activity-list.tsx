@@ -21,11 +21,11 @@ type Glyph = ComponentType<{ className?: string }>;
 
 /** Where one application stands in the pipeline. The order a job moves
  *  through: queued, browser (open in the run's Chrome tab), tailoring,
- *  filling, then review or failed, approved (WorkIt Desktop submitting
- *  it), then applied or skipped. Browser comes from the extension
+ *  filling, then review or failed, approved, submitting (WorkIt Desktop
+ *  submitting it), then applied or skipped. Browser comes from the extension
  *  (./live-activity.tsx) and tailoring is the runner's live state, for when
  *  it reports it; the rest are stored (job_applications.stage), filling,
- *  review and approved by WorkIt Desktop (KAN-323). */
+ *  review, approved and submitting by WorkIt Desktop (KAN-323). */
 export type ActivityStatus =
   | "queued"
   | "browser"
@@ -33,6 +33,7 @@ export type ActivityStatus =
   | "filling"
   | "review"
   | "approved"
+  | "submitting"
   | "failed"
   | "skipped"
   | "applied";
@@ -66,6 +67,7 @@ const STAGE_ROW: Record<RunStage, { status: ActivityStatus; detail: string | nul
   filling: { status: "filling", detail: null },
   review: { status: "review", detail: null },
   approved: { status: "approved", detail: null },
+  submitting: { status: "submitting", detail: null },
   needs_you: { status: "failed", detail: "Finish it on the job's page" },
   skipped: { status: "skipped", detail: null },
   applied: { status: "applied", detail: null },
@@ -163,6 +165,14 @@ export const STATUS: Record<
   },
   approved: {
     Icon: Send,
+    label: "Approved",
+    tone: "advanced",
+    dot: "bg-advanced",
+    group: "progress",
+    rank: 1,
+  },
+  submitting: {
+    Icon: Send,
     label: "Submitting",
     tone: "advanced",
     dot: "bg-advanced",
@@ -207,7 +217,7 @@ export const GROUPS: Record<StatusFilter, { label: string; Icon: Glyph; ink: str
   skipped: { label: "Skipped", Icon: SkipForward, ink: "text-ink-meta" },
 };
 
-export const IN_FLIGHT: ActivityStatus[] = ["browser", "tailoring", "filling", "approved"];
+export const IN_FLIGHT: ActivityStatus[] = ["browser", "tailoring", "filling", "approved", "submitting"];
 
 /** The inbox's order: what needs the seeker first, then in flight, the
  *  queue, applied, skipped (STATUS's `rank`); queue order (oldest added

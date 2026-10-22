@@ -17,6 +17,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.auto_apply.queries import (
     approve_review,
+    claim_approved,
     claim_queued,
     fetch_application,
     fetch_applications,
@@ -32,6 +33,7 @@ from app.auto_apply.queries import (
     requeue_stale,
     save_beat,
     save_review,
+    strand_submitting,
 )
 from app.auto_apply.rules import pick_batch
 from app.models.dto import application_stage
@@ -67,22 +69,25 @@ OUTCOME_STAGE = {
 }
 # The stages a fill can end from: queued, or needs_you when the student
 # finishes a failed form by hand, or any of WorkIt Desktop's (KAN-323):
-# filling (it failed or was skipped), review (the student skipped it) and
-# approved (Desktop submitted it).
+# filling (it failed or was skipped), review (the student skipped it),
+# approved and submitting (Desktop submitted it, or its fill ended).
 FINISHABLE = (
     application_stage.queued,
     application_stage.needs_you,
     application_stage.filling,
     application_stage.review,
     application_stage.approved,
+    application_stage.submitting,
 )
 # The stages that get a resume: a fill's, and Desktop's two fills, the
-# first (filling) and the one with the approved answers (approved).
+# first (filling) and the one with the approved answers (approved, then
+# submitting once a Desktop takes it).
 RESUMABLE = (
     application_stage.queued,
     application_stage.needs_you,
     application_stage.filling,
     application_stage.approved,
+    application_stage.submitting,
 )
 # The most applications one claim takes: one per Desktop Worker.
 MAX_CLAIM = 10
@@ -369,6 +374,23 @@ async def claim_applications(
     """
     await requeue_stale(db, applicant_id)
     claimed = await claim_queued(db, applicant_id, min(n, MAX_CLAIM))
+    await db.commit()
+    return claimed
+
+
+async def claim_approved_applications(
+    db: AsyncSession, applicant_id: uuid.UUID, n: int
+) -> list[Application]:
+    """
+    A Desktop's claim of approved applications to submit: up to `n` (at most
+    MAX_CLAIM), oldest first, moved to submitting and leased to the beating
+    Desktop in one commit; [] when none is approved. First moves to needs_you
+    every submitting application its Desktop no longer holds
+    (strand_submitting): its form may have gone, so it is never submitted
+    again. Two claims at once never answer the same application.
+    """
+    await strand_submitting(db, applicant_id)
+    claimed = await claim_approved(db, applicant_id, min(n, MAX_CLAIM))
     await db.commit()
     return claimed
 

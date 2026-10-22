@@ -9,12 +9,13 @@ reviews every application before it is submitted. The extension's runner
 
 ## Stages
 
-`job_applications.stage` gains three values:
+`job_applications.stage` gains four values:
 
 ```
-queued ──claim──▶ filling ──review──▶ review ──approve──▶ approved ──finish(submitted)──▶ applied
-                     │                   │                    │
-                     └─finish(failed)─▶ needs_you   finish(skipped)─▶ skipped
+queued ──claim──▶ filling ──review──▶ review ──approve──▶ approved ──claim-approved──▶ submitting ──finish(submitted)──▶ applied
+                     │                   │                                              │
+                     └─finish(failed)─▶ needs_you   finish(skipped)─▶ skipped           ├─finish(failed) or lost lease─▶ needs_you
+                                                                                        └─finish(skipped)─▶ skipped
 ```
 
 - `filling`: a Desktop Worker claimed it. Two Workers never claim the same one.
@@ -22,6 +23,10 @@ queued ──claim──▶ filling ──review──▶ review ──approve�
   (the answers, essays and resume it used) waits for the student.
 - `approved`: the student approved it, maybe after editing answers; Desktop
   fills it again with the approved answers and submits.
+- `submitting`: a Desktop took an approved application to submit
+  (`claim-approved`). It is **never submitted again**: one whose Desktop no
+  longer holds it (the Leases rules below) goes to `needs_you`, never back to
+  `approved`, since its form may have gone; the student checks it.
 
 A `filling` application whose Desktop stopped heartbeating for 10 minutes goes
 back to `queued` on the next claim, so a crash never strands it. A Desktop
@@ -45,14 +50,18 @@ back to `queued` every `filling` application its Desktop no longer holds:
 
 A Desktop that sends no `instance` keeps the first two rules only.
 
+`claim-approved` leases each application it moves to `submitting` the same
+way, and first moves to `needs_you` every `submitting` application its
+Desktop no longer holds, by the same three rules.
+
 Each stage move (review, approve, finish) is one conditional `UPDATE ... WHERE
 stage IN (allowed) RETURNING`: two moves at once can't both pass, and the one
 that matches no row answers 409.
 
 Built (backend): the stages and tables are migration `40329c7aef62`, the
-lease columns `b7c1e9d4a2f0`
+lease columns `b7c1e9d4a2f0`, `submitting` `c3d5f7a9b1e2`
 (`application_reviews`, one row per application; `desktop_heartbeats`, one
-per applicant); the steps are `claim_applications`, `submit_review`,
+per applicant); the steps are `claim_applications`, `claim_approved_applications`, `submit_review`,
 `get_review`, `approve_application`, `desktop_beat` and `desktop_status` in
 `backend/app/auto_apply/pipeline.py`.
 
@@ -61,11 +70,12 @@ per applicant); the steps are `claim_applications`, `submit_review`,
 | Route | Body | Answers | Stage move |
 |---|---|---|---|
 | `POST applications/claim` | `{"n": 1..10}` | `list[Application]` (oldest queued open job postings first; `[]` when none) | queued → filling, leased to the beating instance; first requeues what no Desktop holds (Leases) |
+| `POST applications/claim-approved` | `{"n": 1..10}` | `list[Application]` (oldest approved first; `[]` when none) | approved → submitting, leased to the beating instance; first moves to needs_you every submitting one no Desktop holds |
 | `PUT applications/{job_id}/review` | `Review` | `ApplicationStage` | filling → review (409 otherwise) |
 | `GET applications/{job_id}/review` | | `Review` (404 when none) | |
 | `POST applications/{job_id}/approve` | `{"answers": [ReviewAnswer]}` (the edited list; may be empty to keep the review's) | `ApplicationStage` | review → approved |
-| `POST applications/{job_id}/finish` | `{"outcome": "submitted" \| "skipped" \| "failed", "note": str?}` | `ApplicationStage` | now also from filling, review, approved |
-| `POST applications/{job_id}/resume` | | as before | now also from filling and approved |
+| `POST applications/{job_id}/finish` | `{"outcome": "submitted" \| "skipped" \| "failed", "note": str?}` | `ApplicationStage` | now also from filling, review, approved, submitting |
+| `POST applications/{job_id}/resume` | | as before | now also from filling, approved and submitting |
 | `PUT desktop` | `DesktopBeat` | `DesktopStatus` | heartbeat, every 15 s |
 | `GET desktop` | | `DesktopStatus` | |
 
@@ -100,8 +110,8 @@ DesktopStatus { online: bool, last_seen: datetime | null, workers: int, busy: in
 batch when Desktop is online (Desktop claims it); otherwise it also opens the
 extension's runner as before.
 
-Desktop learns of new work by polling `claim` and `GET applications?stage=approved`
-every 3 s. Supabase Realtime on `job_applications` can replace the poll later.
+Desktop learns of new work by polling `claim-approved` and `claim` every 3 s;
+it never submits from a listing, so no restart or second Desktop submits twice. Supabase Realtime on `job_applications` can replace the poll later.
 
 ## Hosts
 

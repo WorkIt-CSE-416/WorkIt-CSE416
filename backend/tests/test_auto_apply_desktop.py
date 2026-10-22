@@ -244,6 +244,65 @@ async def test_a_desktop_without_an_instance_keeps_its_claims(database):
         assert await queries.requeue_stale(session, me) == set()
 
 
+# --- claim-approved ---
+
+
+async def test_claim_approved_takes_each_approved_once(database):
+    me, run = await _seed_applicant(database), uuid.uuid4()
+    older = await _seed_application(database, me, "approved", age=2)
+    newer = await _seed_application(database, me, "approved", age=1)
+    await _seed_application(database, me, "review")
+    await _beat(database, me, timedelta(0), run)
+    async with database() as session:
+        claimed = await pipeline.claim_approved_applications(session, me, 10)
+    assert [uuid.UUID(a.job.id) for a in claimed] == [older, newer]
+    assert {a.stage for a in claimed} == {application_stage.submitting}
+    async with database() as session:
+        assert await pipeline.claim_approved_applications(session, me, 10) == []  # never twice
+
+
+async def test_concurrent_approved_claims_never_return_the_same_job(database):
+    me = await _seed_applicant(database)
+    jobs = [await _seed_application(database, me, "approved", age=i) for i in range(5)]
+    await _beat(database, me, timedelta(0), uuid.uuid4())
+
+    async def claim():
+        async with database() as session:
+            return [uuid.UUID(a.job.id) for a in await pipeline.claim_approved_applications(session, me, 2)]
+
+    claimed = [job for batch in await asyncio.gather(*(claim() for _ in range(4))) for job in batch]
+    assert len(claimed) == len(set(claimed)) == len(jobs)
+
+
+async def test_a_restart_never_submits_again_it_goes_to_needs_you(database):
+    me, first, second = await _seed_applicant(database), uuid.uuid4(), uuid.uuid4()
+    job = await _seed_application(database, me, "approved")
+    await _beat(database, me, timedelta(0), first)
+    async with database() as session:
+        assert len(await pipeline.claim_approved_applications(session, me, 1)) == 1
+        # The same run claiming again leaves it submitting.
+        assert await pipeline.claim_approved_applications(session, me, 1) == []
+    assert await _stage(database, me, job) == application_stage.submitting
+
+    await _beat(database, me, timedelta(0), second)  # restarted: its form may have gone
+    async with database() as session:
+        assert await pipeline.claim_approved_applications(session, me, 1) == []
+    assert await _stage(database, me, job) == application_stage.needs_you
+
+
+async def test_a_silent_desktops_submit_goes_to_needs_you(database):
+    me = await _seed_applicant(database)
+    job = await _seed_application(database, me, "approved")
+    await _beat(database, me, timedelta(0))
+    async with database() as session:
+        assert len(await pipeline.claim_approved_applications(session, me, 1)) == 1
+    await _beat(database, me, timedelta(minutes=11))
+    async with database() as session:
+        assert await queries.strand_submitting(session, me) == {job}
+        await session.commit()
+    assert await _stage(database, me, job) == application_stage.needs_you
+
+
 async def test_two_approvals_at_once_move_it_once(database):
     me = await _seed_applicant(database)
     job = await _seed_application(database, me, "filling")
@@ -347,6 +406,9 @@ async def test_approve_needs_review(database):
         ("review", "skipped", application_stage.skipped),
         ("approved", "submitted", application_stage.applied),
         ("approved", "failed", application_stage.needs_you),
+        ("submitting", "submitted", application_stage.applied),
+        ("submitting", "failed", application_stage.needs_you),
+        ("submitting", "skipped", application_stage.skipped),
     ],
 )
 async def test_finish_from_desktops_stages(database, stage, outcome, after):
@@ -368,7 +430,7 @@ async def test_finish_past_the_fill_is_wrong_stage(database, stage):
 
 @pytest.mark.parametrize(
     ("stage", "resumable"),
-    [("filling", True), ("approved", True), ("review", False), ("saved", False)],
+    [("filling", True), ("approved", True), ("submitting", True), ("review", False), ("saved", False)],
 )
 async def test_resume_from_desktops_fills_only(database, monkeypatch, stage, resumable):
     me = await _seed_applicant(database)
@@ -466,6 +528,9 @@ async def test_desktop_routes_from_claim_to_applied(student, database):
     assert approved.json() == {"job_id": str(job), "stage": "approved"}
     assert (await client.get(f"{base}/applications/{job}/review")).json()["answers"][0]["answer"] == "No"
     assert (await client.post(f"{base}/applications/{job}/approve", json={"answers": []})).status_code == 409
+    taken = await client.post(f"{base}/applications/claim-approved", json={"n": 2})
+    assert [(a["job"]["id"], a["stage"]) for a in taken.json()] == [(str(job), "submitting")]
+    assert (await client.post(f"{base}/applications/claim-approved", json={"n": 2})).json() == []
     finished = await client.post(f"{base}/applications/{job}/finish", json={"outcome": "submitted"})
     assert finished.json()["stage"] == "applied"
     listed = await client.get(f"{base}/applications", params={"stage": "applied"})
@@ -479,6 +544,7 @@ async def test_desktop_routes_are_the_owners_only(student, database):
     base = f"/applicants/{other}"
     for method, path, body in [
         ("post", "/applications/claim", {"n": 1}),
+        ("post", "/applications/claim-approved", {"n": 1}),
         ("get", f"/applications/{job}/review", None),
         ("put", f"/applications/{job}/review", _review().model_dump(mode="json")),
         ("post", f"/applications/{job}/approve", {"answers": []}),

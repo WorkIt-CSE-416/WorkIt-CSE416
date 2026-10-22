@@ -28,7 +28,7 @@ const STATUS_OPTIONS: FacetOption[] = STATUS_FILTERS.map((group) => ({
 
 /** The stages that move without the seeker: while any row is in one, the
  *  list asks again every POLL_MS. */
-const MOVING: RunStage[] = ["queued", "filling", "approved"];
+const MOVING: RunStage[] = ["queued", "filling", "approved", "submitting"];
 const POLL_MS = 3_000;
 
 /**
@@ -38,8 +38,8 @@ const POLL_MS = 3_000;
  * (./review-pane.tsx). Below 896px of page the two stack.
  *
  * THE ROWS ARE THE SERVER'S, KEPT CURRENT HERE. The page reads them scored
- * (./applications.ts) and passes them in; while any is queued, filling or
- * approved, this re-reads the list every 3 seconds (pollApplications,
+ * (./applications.ts) and passes them in; while any is queued, filling,
+ * approved or submitting, this re-reads the list every 3 seconds (pollApplications,
  * unscored) so Desktop's Workers and the extension's runner show as they
  * move, and keeps each job's score from the page's read. A refresh of the
  * route (Start, the cross) passes new rows in, which replace the polled

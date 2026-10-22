@@ -162,7 +162,8 @@ class application_stage(enum.StrEnum):
     Submitted, skipped when they click Skip, needs_you when the fill failed.
     WorkIt Desktop (KAN-323, auto-apply/desktop.md) adds three between queued
     and applied: filling once a Worker claims it, review once it stops before
-    Submit, approved once the student approves it. The Applied button sets
+    Submit, approved once the student approves it, submitting once a
+    Desktop takes it to submit (never submitted twice). The Applied button sets
     applied straight away. Save sets saved (KAN-261), which counts as no
     application yet: queueing or applying moves it on. A new value is an
     ALTER TYPE and a coordinated deploy (models/CLAUDE.md)
@@ -174,6 +175,8 @@ class application_stage(enum.StrEnum):
     filling= "filling"
     review= "review"
     approved= "approved"
+    # added by c3d5f7a9b1e2 (KAN-323): Desktop took it to submit, never twice
+    submitting= "submitting"
     needs_you= "needs_you"
     skipped= "skipped"
     applied= "applied"

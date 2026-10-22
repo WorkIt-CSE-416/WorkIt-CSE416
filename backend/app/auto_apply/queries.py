@@ -311,34 +311,57 @@ def _current_instance(applicant_id: uuid.UUID):
     )
 
 
-async def requeue_stale(db: AsyncSession, applicant_id: uuid.UUID) -> set[uuid.UUID]:
-    """Sends back to queued each of this applicant's `filling` applications
-    its Desktop no longer holds: the Desktop has not beaten for STALE_AFTER
-    (or never has), or its lease ran out (claimed LEASE ago), or an earlier
-    run of Desktop claimed it (its `claimed_by` isn't the instance now
-    beating). Answers which. They keep their created_at, so the next claim
-    takes them first."""
+def _not_held(applicant_id: uuid.UUID):
+    """Whether an application's Desktop no longer holds it: the Desktop has
+    not beaten for STALE_AFTER (or never has), or its lease ran out (claimed
+    LEASE ago), or an earlier run of Desktop claimed it (its `claimed_by`
+    isn't the instance now beating)."""
     alive = exists().where(
         Desktop_Heartbeat.applicant_id == applicant_id,
         Desktop_Heartbeat.last_seen >= _since(STALE_AFTER),
     )
     current = _current_instance(applicant_id)
+    return or_(
+        ~alive,
+        Job_Application.claimed_at < _since(LEASE),
+        # A Desktop too old to send an instance never matches, and never strands one.
+        and_(current.is_not(None), Job_Application.claimed_by.is_distinct_from(current)),
+    )
+
+
+async def requeue_stale(db: AsyncSession, applicant_id: uuid.UUID) -> set[uuid.UUID]:
+    """Sends back to queued each of this applicant's `filling` applications
+    its Desktop no longer holds (_not_held). Answers which. They keep their
+    created_at, so the next claim takes them first."""
     requeued = await db.scalars(
         update(Job_Application)
         .where(
             Job_Application.applicant_id == applicant_id,
             Job_Application.stage == application_stage.filling,
-            or_(
-                ~alive,
-                Job_Application.claimed_at < _since(LEASE),
-                # A Desktop too old to send an instance never matches, and never strands one.
-                and_(current.is_not(None), Job_Application.claimed_by.is_distinct_from(current)),
-            ),
+            _not_held(applicant_id),
         )
         .values(stage=application_stage.queued)
         .returning(Job_Application.job_id)
     )
     return set(requeued)
+
+
+async def strand_submitting(db: AsyncSession, applicant_id: uuid.UUID) -> set[uuid.UUID]:
+    """Moves to needs_you each of this applicant's `submitting` applications
+    its Desktop no longer holds (_not_held). Never back to approved: its form
+    may have been sent, so it is never submitted again; the student checks
+    it. Answers which."""
+    stranded = await db.scalars(
+        update(Job_Application)
+        .where(
+            Job_Application.applicant_id == applicant_id,
+            Job_Application.stage == application_stage.submitting,
+            _not_held(applicant_id),
+        )
+        .values(stage=application_stage.needs_you)
+        .returning(Job_Application.job_id)
+    )
+    return set(stranded)
 
 
 async def claim_queued(db: AsyncSession, applicant_id: uuid.UUID, n: int) -> list[Application]:
@@ -350,6 +373,28 @@ async def claim_queued(db: AsyncSession, applicant_id: uuid.UUID, n: int) -> lis
     them after this commits sees them `filling`, so two Workers never get
     the same application. Empty when nothing is queued.
     """
+    return await _claim(db, applicant_id, n, application_stage.queued, application_stage.filling, LISTED)
+
+
+async def claim_approved(db: AsyncSession, applicant_id: uuid.UUID, n: int) -> list[Application]:
+    """
+    Moves up to `n` of this applicant's oldest approved applications to
+    `submitting`, leased to the beating Desktop as claim_queued leases, and
+    answers them: a submit is taken once, so no restart or second Desktop
+    sends a form twice. A closed job posting is taken too: its fill finds it
+    closed and finishes it skipped.
+    """
+    return await _claim(db, applicant_id, n, application_stage.approved, application_stage.submitting)
+
+
+async def _claim(
+    db: AsyncSession,
+    applicant_id: uuid.UUID,
+    n: int,
+    from_stage: application_stage,
+    to_stage: application_stage,
+    *where,
+) -> list[Application]:
     # A materialized CTE, run once: as a plain IN (subquery), Postgres can run
     # the LIMIT again on a recheck and take more than `n`.
     picked = (
@@ -357,8 +402,8 @@ async def claim_queued(db: AsyncSession, applicant_id: uuid.UUID, n: int) -> lis
         .join(Job_Post, Job_Post.id == Job_Application.job_id)
         .where(
             Job_Application.applicant_id == applicant_id,
-            Job_Application.stage == application_stage.queued,
-            LISTED,
+            Job_Application.stage == from_stage,
+            *where,
         )
         .order_by(Job_Application.created_at, Job_Application.job_id)
         .limit(n)
@@ -372,10 +417,10 @@ async def claim_queued(db: AsyncSession, applicant_id: uuid.UUID, n: int) -> lis
             .where(
                 Job_Application.applicant_id == applicant_id,
                 Job_Application.job_id.in_(select(picked.c.job_id)),
-                Job_Application.stage == application_stage.queued,
+                Job_Application.stage == from_stage,
             )
             .values(
-                stage=application_stage.filling,
+                stage=to_stage,
                 claimed_at=func.now(),
                 claimed_by=_current_instance(applicant_id),
             )

@@ -12,11 +12,12 @@ import { getApplicantSession } from "@/lib/session";
 
 /** Where one application stands: backend `dto.application_stage`. Saved
  *  (KAN-261) is a job's Save button, not a run: it counts as no application
- *  yet, so queueing a saved job queues it. Filling, review and approved are
- *  WorkIt Desktop's (KAN-323, auto-apply/desktop.md): a Worker claimed it,
- *  it waits for the seeker's review, the seeker approved it. */
+ *  yet, so queueing a saved job queues it. Filling, review, approved and
+ *  submitting are WorkIt Desktop's (KAN-323, auto-apply/desktop.md): a
+ *  Worker claimed it, it waits for the seeker's review, the seeker approved
+ *  it, a Desktop took it to submit (never twice). */
 export type ApplicationStage =
-  "saved" | "queued" | "filling" | "review" | "approved" | "needs_you" | "skipped" | "applied";
+  "saved" | "queued" | "filling" | "review" | "approved" | "submitting" | "needs_you" | "skipped" | "applied";
 
 /** The stages auto apply itself writes: Live Activity's rows. */
 export type RunStage = Exclude<ApplicationStage, "saved">;

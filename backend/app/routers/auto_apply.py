@@ -40,14 +40,15 @@ POST /applicants/{id}/applications/{job_id}/resume
      job posting. Answers SentResumeDownload (`url`: a 5-minute download
      link), or null when there is no such resume. A repeat with unchanged
      content answers the same sent resume. 404 with no application or a
-     closed job posting, 409 when it isn't queued, needs_you, filling or
-     approved, 503 when the PDF cannot be made, 502 when Storage refuses the
+     closed job posting, 409 when it isn't queued, needs_you, filling,
+     approved or submitting, 503 when the PDF cannot be made, 502 when Storage refuses the
      file.
 POST /applicants/{id}/applications/{job_id}/finish
      {"outcome": "submitted", "note": "..."}
      How a fill ended: submitted → applied, skipped → skipped, failed →
      needs_you. `note` (optional) is logged. 404 with no application, 409
-     when it isn't queued, needs_you, filling, review or approved.
+     when it isn't queued, needs_you, filling, review, approved or
+     submitting.
 
 WorkIt Desktop (KAN-323, auto-apply/desktop.md):
 POST /applicants/{id}/applications/claim  {"n": 1..10}
@@ -56,6 +57,11 @@ POST /applicants/{id}/applications/claim  {"n": 1..10}
      first; [] when none is left. Never the same one to two claims. First
      sends back to queued every filling one whose Desktop has not beaten
      for 10 minutes.
+POST /applicants/{id}/applications/claim-approved  {"n": 1..10}
+     A Desktop's claim of approved applications to submit: up to n, moved
+     to submitting (leased like a claim) and answered, oldest first. Never
+     the same one twice: a submitting one its Desktop no longer holds goes
+     to needs_you first, never back to approved.
 PUT  /applicants/{id}/applications/{job_id}/review  Review
      Desktop filled the form and stopped before Submit: keeps the review and
      answers the stage, review. 404 with no application, 409 when it isn't
@@ -194,6 +200,18 @@ async def claim_applications(
     """A Desktop claims up to n queued applications to fill."""
     assert_applicant_owns(account, applicant_id)
     return await pipeline.claim_applications(db, applicant_id, body.n)
+
+
+@router.post("/applications/claim-approved", response_model=list[Application])
+async def claim_approved_applications(
+    applicant_id: uuid.UUID,
+    body: ClaimRequest,
+    account: AuthenticatedAccount = Depends(get_current_account),
+    db: AsyncSession = Depends(get_session),
+) -> list[Application]:
+    """A Desktop claims up to n approved applications to submit."""
+    assert_applicant_owns(account, applicant_id)
+    return await pipeline.claim_approved_applications(db, applicant_id, body.n)
 
 
 # After /applications/next: a job id is a UUID, so "next" would match this

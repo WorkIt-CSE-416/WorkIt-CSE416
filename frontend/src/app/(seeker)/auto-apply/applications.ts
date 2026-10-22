@@ -76,6 +76,7 @@ export const RUN_STAGES: readonly RunStage[] = [
   "filling",
   "review",
   "approved",
+  "submitting",
   "needs_you",
   "skipped",
   "applied",
