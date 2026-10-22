@@ -714,14 +714,23 @@ removed at cutover, not before. Until then a change must work on both.
   writable in place and no render copies it to `/tmp`. A build that cannot
   fetch it fails (`app/services/resume_render/CLAUDE.md`).
 - **The Worker (`cloudflare/`) holds no logic.** It forwards each request to
-  one of 3 instances, picked at random (as the library's `getRandom`, until
+  one of 2 instances, picked at random (as the library's `getRandom`, until
   Cloudflare ships autoscaling): the API is stateless, so any instance serves
-  any request, and three let renders run side by side on `basic`'s 1/4 vCPU.
+  any request, and two let renders run side by side on `basic`'s 1/4 vCPU.
   `max_instances` in `wrangler.jsonc` is twice `INSTANCES` in `src/index.ts`:
   after a rename (below) the old containers stay awake for `sleepAfter` and
-  still count, so an equal cap could refuse the new ones. The cost: each instance cold-starts on its own first request, and
-  each stays billed for `sleepAfter` (10 minutes) after its last one.
-  Shorter saves memory-hours; longer means fewer cold starts.
+  still count, so an equal cap could refuse the new ones.
+- **Both instances stay awake all the time.** A cold container made the
+  next request wait 6–13 s, after each idle spell and after each deploy
+  (2026-10-22). So a Cron Trigger (`triggers.crons`, every 5 minutes) runs
+  the Worker's `scheduled` handler, which sends `GET /health` (no database)
+  to each instance. **The interval must stay shorter than `sleepAfter`** (10
+  minutes), or each instance sleeps between pings. After a deploy, the first
+  ping also swaps in the new version's container (below), so a user rarely
+  pays that cold start. The cost is about $15 a month for two `basic`
+  instances, memory and disk billed around the clock; the team chose it over
+  the waits (KAN-169). A third instance adds about $7 a month. The cron needs
+  no secret.
 - **The containers run in eastern North America, beside the database**
   (Supabase is us-east-1): `constraints.regions: ["ENAM"]` in
   `wrangler.jsonc`. Unconstrained, Cloudflare placed them on the West Coast
@@ -742,7 +751,8 @@ removed at cutover, not before. Until then a change must work on both.
   answering with the old values (2026-10-21). `Api.fetch` therefore stores
   the Worker version (`version_metadata`) its container started under and
   destroys a container from any other version before serving: the first
-  request to each instance after a deploy pays a cold start. The swap runs in
+  request to each instance after a deploy (usually the cron's ping) pays a
+  cold start. The swap runs in
   `blockConcurrencyWhile`: `destroy()` is not a storage call, so without it a
   second request read the old version mid-swap and destroyed the container
   again. CI deploys with `npm ci && npm run deploy`

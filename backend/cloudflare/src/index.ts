@@ -3,8 +3,9 @@
 // backend/Dockerfile. The rules are in backend/CLAUDE.md, Deployment.
 import { Container } from "@cloudflare/containers";
 
-// Half of max_instances in wrangler.jsonc, which leaves room for a rename
-const INSTANCES = 3;
+// Half of max_instances in wrangler.jsonc, which leaves room for a rename.
+// The cron (scheduled, below) keeps every one of them awake.
+const INSTANCES = 2;
 
 // Every name the API or Scout reads from the environment (app/config.py,
 // ../scout/workit_scout/settings.py). Set as Worker secrets by CI, plus
@@ -43,8 +44,9 @@ type Env = { API: DurableObjectNamespace<Api>; VERSION: WorkerVersionMetadata } 
 
 export class Api extends Container<Env> {
   defaultPort = 8080;
-  // Memory is billed while awake; the first request after sleep waits for a
-  // cold start (ADR 0004, Consequences)
+  // Longer than the cron's interval (wrangler.jsonc), so the pings keep each
+  // instance awake. An instance the Worker no longer routes to (after
+  // INSTANCES shrinks) sleeps this long after its last request.
   sleepAfter = "10m";
 
   constructor(ctx: DurableObjectState<{}>, env: Env) {
@@ -79,13 +81,36 @@ export class Api extends Container<Env> {
   }
 }
 
+// A location hint, so each object sits near its container, which
+// wrangler.jsonc's constraints keep in eastern North America. A hint places
+// an object only when it is first made, hence the "enam-N" names (2026-10-21).
+function instance(env: Env, n: number) {
+  return env.API.get(env.API.idFromName(`enam-${n}`), { locationHint: "enam" });
+}
+
 export default {
+  // As the library's getRandom: the API is stateless, so any instance serves
+  // any request
   async fetch(request: Request, env: Env): Promise<Response> {
-    // getRandom with a location hint, so each object sits near its
-    // container, which wrangler.jsonc's constraints keep in eastern North
-    // America. A hint places an object only when it is first made, hence
-    // the new "enam-N" names (2026-10-21).
-    const id = env.API.idFromName(`enam-${Math.floor(Math.random() * INSTANCES)}`);
-    return env.API.get(id, { locationHint: "enam" }).fetch(request);
+    return instance(env, Math.floor(Math.random() * INSTANCES)).fetch(request);
+  },
+
+  // The cron in wrangler.jsonc. A cold container made the next request wait
+  // 6-13 s (2026-10-22), so each instance gets a GET /health (no database)
+  // more often than sleepAfter, and never sleeps. After a deploy, the first
+  // ping also swaps in the new version's container, so no user waits for it.
+  // A failed ping is logged and left: the next one tries again.
+  async scheduled(_controller: ScheduledController, env: Env, ctx: ExecutionContext): Promise<void> {
+    const pings = Array.from({ length: INSTANCES }, (_, n) =>
+      instance(env, n).fetch("https://api.workitjobs.ai/health"),
+    );
+    ctx.waitUntil(
+      Promise.allSettled(pings).then((results) =>
+        results.forEach((r, n) => {
+          if (r.status === "rejected") console.error(`enam-${n} ping failed`, r.reason);
+          else if (!r.value.ok) console.error(`enam-${n} ping answered ${r.value.status}`);
+        }),
+      ),
+    );
   },
 } satisfies ExportedHandler<Env>;
