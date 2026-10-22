@@ -323,7 +323,8 @@ Find files with a directory listing; these are the rules for where code goes.
   `tests/test_resume_editor.py`.
 - **Only a send is a sent resume; a download keeps nothing** (KAN-267).
   The editor's Download takes `GET .../built-resumes/{rid}/render` (the PDF,
-  base64, with its `file_name`) or `.../docx` and stores nothing. Every
+  base64, with its `file_name`), `.../docx` or `.../tex` (the PDF's LaTeX
+  source) and stores nothing. Every
   download was kept as a sent resume (KAN-208) until then, PDF or Word,
   which filled the bucket with files no employer saw. **Apply** (KAN-220)
   is `POST /applicants/{id}/sent-resumes` with `job_posting_id`, now

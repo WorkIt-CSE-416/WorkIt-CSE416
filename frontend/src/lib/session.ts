@@ -1,8 +1,9 @@
 import "server-only";
 
+import { redirect } from "next/navigation";
 import { cache } from "react";
 
-import { apiFetch, type AuthenticatedAccount } from "@/lib/auth";
+import { apiFetch, homePath, type AuthenticatedAccount } from "@/lib/auth";
 import { createSupabaseServerClient } from "@/lib/supabase/server";
 
 /**
@@ -59,3 +60,17 @@ export const getCurrentAccount = cache(async (): Promise<AuthenticatedAccount | 
     return null;
   }
 });
+
+/** Sends someone already signed in from /login or /signup to where their
+ *  account lands, so a returning visitor never sees a sign-in screen they
+ *  don't need. A visitor with no session, or one the API doesn't know (an
+ *  OAuth sign-in still choosing its account type, or the API down), stays
+ *  on the page. The verified claims come first, so a signed-out visit never
+ *  waits on the API, and a clone with no Supabase keys counts as signed out
+ *  so its sign-in screens still render. */
+export async function redirectIfSignedIn(): Promise<void> {
+  const user = await getSessionUser().catch(() => null);
+  if (!user) return;
+  const account = await getCurrentAccount();
+  if (account) redirect(homePath(account));
+}

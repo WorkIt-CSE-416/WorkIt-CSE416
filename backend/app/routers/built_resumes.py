@@ -45,6 +45,9 @@ POST   /applicants/{id}/built-resumes/{rid}/fit    -> FitResponse {hidden, undo,
        503 like render; a failed render saves nothing.
 GET    /applicants/{id}/built-resumes/{rid}/docx   -> the Word file, as an attachment:
        the editor's Download Word, which keeps nothing (KAN-267)
+GET    /applicants/{id}/built-resumes/{rid}/tex    -> the LaTeX source, as an attachment:
+       the editor's Download LaTeX, the PDF's .tex without its position
+       markers, for Overleaf. Needs no Tectonic. Keeps nothing.
 GET    /applicants/{id}/built-resumes/{rid}/keyword-match?job_posting_id=
        -> KeywordMatchResponse {job_posting_id, matched, missing, uses_left}
        The keyword match ("12 of 18") against a posting; with no
@@ -91,6 +94,7 @@ from app.services.resume_render import (
     HeaderIdentity,
     Rendered,
     TectonicUnavailable,
+    latex,
     render,
 )
 from app.services.resume_render.word import render_docx
@@ -309,6 +313,24 @@ async def download_docx(
         data,
         media_type=DOCX_TYPE,
         headers={"Content-Disposition": f'attachment; filename="{service.file_name(resume.name, "docx")}"'},
+    )
+
+
+@router.get("/{resume_id}/tex")
+async def download_tex(
+    resume_id: uuid.UUID,
+    applicant_id: uuid.UUID = Depends(owned_applicant),
+    session: AsyncSession = Depends(get_session),
+) -> Response:
+    try:
+        resume, view = await service.load_view(session, applicant_id, resume_id)
+    except NotFound:
+        raise HTTPException(404, "Resume not found")
+    identity = await _identity(session, applicant_id)
+    return Response(
+        latex(view, identity, resume.template),
+        media_type="application/x-tex",
+        headers={"Content-Disposition": f'attachment; filename="{service.file_name(resume.name, "tex")}"'},
     )
 
 

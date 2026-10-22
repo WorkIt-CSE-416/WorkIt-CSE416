@@ -763,6 +763,11 @@ Application Questions shows and edits them (KAN-269).
   changed.
 - **A key or option the code no longer knows reads as unanswered**
   (`answers_from_bank`), so the bank outlives any one version of the questions.
+- **The resume header reads one answer:** `work_authorization_status`
+  `us_citizen` prints "U.S. Citizen" (`built_resumes.load_header_identity`).
+  A profile check box for it was built and removed the same day
+  (2026-10-21): it asked the student the same question twice, and the two
+  answers could disagree. Read citizenship from the bank, never a copy.
 - **The self-identification answers are sensitive** (gender, Hispanic or
   Latino, race, veteran, disability). Only their owner reads them
   (`owned_applicant`), and they never go to a model.

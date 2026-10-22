@@ -307,7 +307,10 @@ round. A failed Undo says so in a toast and leaves the button Queued.
 A click that leaves the job queued then runs Start Auto Apply's pipeline
 without the matching: it asks the extension to open the oldest queued job
 in a background tab beside this one (`openNextApplication`), which is this
-job only when nothing older waits. It runs after the click settles, so the
+job only when nothing older waits. Once its form is ready, the extension
+switches the student to that tab and fills it (the popup's fill; its
+overlay says what was filled): a hidden tab left most dropdowns empty. A failed
+fill shows nothing here yet. It runs after the click settles, so the
 button never waits on a page load; only a failure shows, as a line above
 the button (no extension stays silent). The job open in that tab reads
 **Working in Browser** (the AppWindow glyph) on every card that shows it,
@@ -343,7 +346,15 @@ titled as a field is (`text-label`, ink): **Generated Resumes** (built and
 tailored), **Uploaded Resumes**, **Sent a Different Resume?** (the upload,
 below), then a full-width **No Resume** button, not a section: pressed
 (the brand fill, `aria-pressed`), it is the pick and every radio above
-clears; a radio pick unpresses it. An empty section says so in one line. A row shows the resume's name alone: a grey
+clears; a radio pick unpresses it. An empty section says so in one line.
+The dialog is wide (`sm:max-w-3xl`, not the default `sm:max-w-sm`), with
+Generated and Uploaded side by side from `md` up, so it fits a full-screen
+window without a scrollbar: at the default width it was a narrow column
+taller than the window. It still scrolls inside itself on a short window.
+Each section's fieldset is `min-w-0` and a long name wraps, never
+truncates: a fieldset is as wide as its content by default, so a long name
+once ran over the other column, and two resumes tailored for one company
+differ only at the end of their names. A row shows the resume's name alone: a grey
 kind line under each ("Built resume", "Uploaded file") only repeated its
 section's title, and went on the user's ask. It lists the resumes Pick a
 Resume lists plus No Resume, starting on the one picked at Apply, or No
@@ -717,12 +728,22 @@ URL (`?tab=job` for the second):
   reads as the seeker's record rather than a second white card under the
   job's header. On the tint: the stage as its glyph on a solid disc and its
   name (the board's column headers; a badge's fill is the tint itself), a
-  one-line status such as "Waiting to Hear Back", when it was applied or
-  saved and the resume sent, the timeline left to right (`Timeline`'s
-  `horizontal`), and the day counts (waiting to hear back, save to apply,
-  posted before applying; or since saving and since posting for a saved
-  job). The counts and the match are rounded white boxes on the tint: each
-  count a `Card`, the match the Jobs page card's `MatchRail` with
+  one-line status such as "Waiting to Hear Back", the resume sent (and
+  when it was saved, for a saved job), the timeline left to right (`Timeline`'s
+  `horizontal`), and two cards of facts (KAN-286): whether the posting is
+  Open or Closed, then the days since the seeker applied (for a saved job,
+  the days since the posting went up). The status line drops the applied
+  date, which the card and the timeline already carry. A closed posting
+  says so in its card only, with no badge beside the stage. The cards
+  replaced day counts that did not help: save to apply read 0 for every
+  Apply (Apply saves and applies at once), and posted before applying only
+  told the student about the past. A suggested follow-up day was tried and
+  dropped, as any fixed number of days is a guess. A total applicant count
+  would fit, but no hiring system WorkIt reads publishes one; a count of
+  WorkIt's own applicants is possible from `job_applications` and would
+  need a field on the tracker's response. The cards and the match are
+  rounded white boxes on the tint: each
+  card a `Card`, the match the Jobs page card's `MatchRail` with
   `standalone` on white, with its reasons (`?scored=true` sends
   `highlights` with `match`). Ruled, square cells were tried first and read
   as a spreadsheet next to the app's rounded cards. The match sits right of
@@ -743,8 +764,8 @@ The application comes from `getTracker`, so its score, resume and stage
 match its row. A job the seeker has not saved or applied to is not found. A
 closed posting has no job page (`GET /jobs/{id}` answers 404), so the header
 shows what the tracker knows, marked Closed, and the description tab says it
-is gone. The day counts round elapsed time, as "Posted 8 days ago" does:
-cut, an application sent 47 hours ago read as waiting 1 day.
+is gone. The cards round elapsed time, as "Posted 8 days ago" does: cut,
+an application sent 47 hours ago read as waiting 1 day.
 
 ## Auto Apply
 
@@ -777,8 +798,10 @@ application's page in a background tab beside this one
 (`openNextApplication` in `src/lib/autofill-extension.ts`, the message
 `run/open`), and the note says so, or why not (no extension, signed out) in
 red (`auto-apply/opened-note.ts`, shared with the job card). A tab already
-on that job stays as it is, so Start never wipes a form in progress. Pause
-and Resume only move the state: nothing fills a form yet. It is off until
+on that job stays as it is, so Start never wipes a form in progress. A tab
+the extension opens, it also fills, with the student taken to it
+(KAN-305). Pause and Resume only move
+the state. It is off until
 the Resume List has a resume (the panel holds both lists' read,
 `useResumes`, for that), and while a batch is queueing. It never waits on
 the tab's page load: the note says how many jobs it queued at once and adds
@@ -1010,6 +1033,10 @@ clearance, and the voluntary gender, Hispanic or Latino, race, veteran and
 disability self-identification), with the seeker's answers
 (`(seeker)/profile/application-questions.tsx`).
 
+- **U.S. Citizen as the citizenship answer puts "U.S. Citizen" on every
+  resume header** (PDF, Word and LaTeX), first on the contact line.
+  A separate check box for it in Contact & Links was built and removed
+  on 2026-10-21: it asked the same question twice.
 - **The same two modes as Contact & Links.** Reading, each question is its
   answer's label or "Not answered" in grey. Edit turns every answer into a
   picker (`ui/select-field.tsx`) in place, the first one focused, each over

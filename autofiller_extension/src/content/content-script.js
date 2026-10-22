@@ -141,40 +141,57 @@
   // once the student opts in via the overlay's one batch prompt below.
   const essayCandidates = [];
 
-  for (const field of fields) {
-    if (field.id && handledIds.has(field.id)) continue; // already filled precisely by the Greenhouse adapter above
-
-    const labelText = dom.findLabelText(field);
-    const match = fieldMap.matchLabel(labelText, profile, occurrences);
-    if (!match) {
-      // An essay question is a textarea no rule above claims — there's no
-      // fixed vocabulary for "why this company" to ever match. Previously
-      // this just fell through silently (the line this comment replaces);
-      // now it's tracked (needs_generation) so the overlay at least says
-      // it exists, same honesty rule as every other field here.
-      if (field.tagName === "TEXTAREA" && labelText) {
-        const key = `essay#${fields.indexOf(field)}`;
-        status.register(key, labelText, fieldMap.isRequired(field));
-        status.setStatus(key, "needs_generation");
-        essayCandidates.push({ key, field, question: labelText, maxLength: field.maxLength > 0 ? field.maxLength : null });
-      }
-      continue; // not something WorkIt has an opinion about — leave it alone, don't clutter the overlay
-    }
-
-    const required = fieldMap.isRequired(field);
-    const key = `${match.key}#${fields.indexOf(field)}`; // unique per field even if the same key matches twice on one page
-    status.register(key, labelText || match.key, required);
-
-    if (!match.value) {
-      status.setStatus(key, required ? "failed" : "skipped", required ? "No WorkIt profile data for this field" : undefined);
-      continue;
-    }
-
+  // A `for...of` over a fixed snapshot, deliberately replaced by an index
+  // loop over `fields` itself: Greenhouse's EEOC "Please identify your
+  // race" combobox doesn't exist in the DOM at all until "Are you
+  // Hispanic/Latino?" has an answer — confirmed live (Ai2's posting). A
+  // field that wasn't there when `fields` was snapshotted above would
+  // never get a turn under a `for...of`. The `finally` below runs after
+  // every iteration regardless of which `continue` fired, appends any
+  // field newly visible in the DOM, and `i < fields.length` re-reads the
+  // (now longer) array on the loop's own next pass — so a reveal chain of
+  // any length, not just this one field, gets picked up the same way.
+  for (let i = 0; i < fields.length; i++) {
+    const field = fields[i];
     try {
-      const result = await fill.fillField(field, match.value);
-      status.setStatus(key, result.ok ? "filled" : "failed", result.ok ? undefined : result.reason);
-    } catch (error) {
-      status.setStatus(key, "failed", error instanceof Error ? error.message : "Fill failed");
+      if (field.id && handledIds.has(field.id)) continue; // already filled precisely by the Greenhouse adapter above
+
+      const labelText = dom.findLabelText(field);
+      const match = fieldMap.matchLabel(labelText, profile, occurrences);
+      if (!match) {
+        // An essay question is a textarea no rule above claims — there's no
+        // fixed vocabulary for "why this company" to ever match. Previously
+        // this just fell through silently (the line this comment replaces);
+        // now it's tracked (needs_generation) so the overlay at least says
+        // it exists, same honesty rule as every other field here.
+        if (field.tagName === "TEXTAREA" && labelText) {
+          const key = `essay#${i}`;
+          status.register(key, labelText, fieldMap.isRequired(field));
+          status.setStatus(key, "needs_generation");
+          essayCandidates.push({ key, field, question: labelText, maxLength: field.maxLength > 0 ? field.maxLength : null });
+        }
+        continue; // not something WorkIt has an opinion about — leave it alone, don't clutter the overlay
+      }
+
+      const required = fieldMap.isRequired(field);
+      const key = `${match.key}#${i}`; // unique per field even if the same key matches twice on one page
+      status.register(key, labelText || match.key, required);
+
+      if (!match.value) {
+        status.setStatus(key, required ? "failed" : "skipped", required ? "No WorkIt profile data for this field" : undefined);
+        continue;
+      }
+
+      try {
+        const result = await fill.fillField(field, match.value);
+        status.setStatus(key, result.ok ? "filled" : "failed", result.ok ? undefined : result.reason);
+      } catch (error) {
+        status.setStatus(key, "failed", error instanceof Error ? error.message : "Fill failed");
+      }
+    } finally {
+      for (const discovered of dom.findFormFields(document)) {
+        if (!fields.includes(discovered)) fields.push(discovered);
+      }
     }
   }
 

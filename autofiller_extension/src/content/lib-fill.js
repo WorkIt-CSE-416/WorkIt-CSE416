@@ -84,24 +84,32 @@ window.WIA = window.WIA || {};
 
   /**
    * A short wait for a debounced search to render its filtered options —
-   * most ATS comboboxes search on a 150–400ms debounce. Polls rather than
-   * using a single fixed delay, so it resolves as soon as options actually
-   * exist instead of always waiting the worst case.
+   * most ATS comboboxes search on a 150–400ms debounce. Resolves as soon as
+   * options actually exist instead of always waiting the worst case
+   * (lib-dom.js's waitUntil, which also works in a hidden tab). The limit
+   * leaves room for a hidden tab, where Chrome runs the page's own debounce
+   * timer about once a second.
    * @param {() => Element[]} getOptions
    * @param {number} [timeoutMs]
    */
-  function waitForOptions(getOptions, timeoutMs = 1200) {
+  async function waitForOptions(getOptions, timeoutMs = 3000) {
+    await window.WIA.dom.waitUntil(() => getOptions().length > 0, timeoutMs);
+    return getOptions();
+  }
+
+  /**
+   * The pause between typed characters. In a hidden tab (the auto-apply
+   * runner's), Chrome runs a timer at most about once a second, which made
+   * "United States" take 13 seconds; there it yields one task through a
+   * MessageChannel, which Chrome does not slow.
+   * @param {number} ms
+   */
+  function pause(ms) {
+    if (!document.hidden) return new Promise((resolve) => setTimeout(resolve, ms));
     return new Promise((resolve) => {
-      const start = Date.now();
-      const tick = () => {
-        const options = getOptions();
-        if (options.length > 0 || Date.now() - start > timeoutMs) {
-          resolve(options);
-          return;
-        }
-        requestAnimationFrame(tick);
-      };
-      tick();
+      const channel = new MessageChannel();
+      channel.port1.onmessage = () => resolve();
+      channel.port2.postMessage(null);
     });
   }
 
@@ -139,7 +147,7 @@ window.WIA = window.WIA || {};
       // school-name lookup hitting a real API) a moment between keystrokes
       // rather than firing the whole string as one burst.
       // eslint-disable-next-line no-await-in-loop
-      await new Promise((resolve) => setTimeout(resolve, 20));
+      await pause(20);
     }
   }
 
@@ -231,16 +239,47 @@ window.WIA = window.WIA || {};
   }
 
   /**
-   * Entry point field-map.js and content-script.js call — dispatches to
-   * the right strategy by field shape.
+   * Dispatches to the right strategy by field shape, for one candidate
+   * value.
    * @param {Element} field
    * @param {string} value
    * @returns {Promise<{ ok: true } | { ok: false, reason: string }>}
    */
-  async function fillField(field, value) {
+  async function fillOne(field, value) {
     if (field instanceof HTMLSelectElement) return fillSelect(field, value);
     if (field.getAttribute("role") === "combobox") return fillCombobox(field, value);
     return fillText(field, value);
+  }
+
+  /**
+   * Entry point field-map.js and content-script.js call. `value` is
+   * usually one string, but a rule that cares what kind of field it landed
+   * on without inspecting the DOM itself (field-map.js never sees the
+   * element) can instead give an ordered list of candidates — the first
+   * one `fillOne` accepts wins. A free-text field accepts its first
+   * candidate immediately, since fillText only ever fails on a field that
+   * cannot hold text at all; a select or combobox tries each in turn,
+   * which is what lets "WorkIt" be offered first (an unlikely but honest
+   * try, for a free-text field that really does take it) and "Job Board"
+   * be a safe second choice no real dropdown's own option list is likely
+   * to miss (the "How did you hear about us?" rule in field-map.js is the
+   * one caller today).
+   * @param {Element} field
+   * @param {string | string[]} value
+   * @returns {Promise<{ ok: true } | { ok: false, reason: string }>}
+   */
+  async function fillField(field, value) {
+    const candidates = Array.isArray(value) ? value : [value];
+    let last = { ok: false, reason: "No value to fill" };
+    for (const candidate of candidates) {
+      if (!candidate) continue;
+      // eslint-disable-next-line no-await-in-loop -- each candidate must be
+      // tried in order, not raced: a combobox candidate types into the
+      // field itself, so two at once would corrupt each other's input.
+      last = await fillOne(field, candidate);
+      if (last.ok) return last;
+    }
+    return last;
   }
 
   window.WIA.fill = { fillField, setNativeValue, fillFile };

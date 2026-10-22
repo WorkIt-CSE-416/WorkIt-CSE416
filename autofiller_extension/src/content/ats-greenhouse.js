@@ -309,6 +309,38 @@ window.WIA = window.WIA || {};
   }
 
   /**
+   * TEMPORARY overrides for fields with no honest general answer yet —
+   * keyed by Greenhouse's own job id (the number at the end of
+   * job-boards.greenhouse.io/<board>/jobs/<id>), so this can never reach
+   * any other posting. Added to get one specific application (The Allen
+   * Institute for AI's Robotics Research Internship,
+   * .../thealleninstitute/jobs/8293641) filling end to end right now.
+   * Delete an entry here once that posting's gone, or once the field it
+   * covers gets a real WorkIt data source: "candidate-location" has no
+   * profile field anywhere (no part of WorkIt tracks a student's city),
+   * and the other is this posting's own one-off custom question. The
+   * relocation question used to be a third entry here, but it generalized
+   * cleanly enough (field-map.js's "willing_to_relocate" rule) that it's
+   * now handled by the generic engine instead, for every posting, not
+   * just this one.
+   * @type {Record<number, Record<string, { label: string, value: string }>>}
+   */
+  const POSTING_OVERRIDES = {
+    8293641: {
+      "candidate-location": { label: "Location (City)", value: "Seattle, WA" },
+      question_69947152: { label: "Certify information is true", value: "I agree" },
+    },
+  };
+
+  /**
+   * @returns {number | null}
+   */
+  function currentPostingId() {
+    const match = /\/jobs\/(\d+)/.exec(location.pathname);
+    return match ? Number(match[1]) : null;
+  }
+
+  /**
    * Fills Greenhouse's identity fields and education block directly by
    * Greenhouse's own stable ids — never by label-synonym matching, since
    * Greenhouse already names every field exactly and the same way on every
@@ -400,6 +432,20 @@ window.WIA = window.WIA || {};
         }
         const result = await fill.fillField(field, value);
         status.setStatus(key, result.ok ? "filled" : "failed", result.ok ? undefined : result.reason);
+      }
+    }
+
+    const overrides = POSTING_OVERRIDES[currentPostingId()];
+    if (overrides) {
+      for (const [id, { label, value }] of Object.entries(overrides)) {
+        const field = document.getElementById(id);
+        if (!field) continue;
+        handled.add(id);
+
+        const required = fieldMap.isRequired(field);
+        status.register(id, label, required);
+        const result = await fill.fillField(field, value);
+        status.setStatus(id, result.ok ? "filled" : "failed", result.ok ? undefined : result.reason);
       }
     }
 

@@ -1,6 +1,6 @@
 import { NextResponse, type NextRequest } from "next/server";
 
-import { apiFetch, type OAuthStatus } from "@/lib/auth";
+import { apiFetch, homePath, type OAuthStatus } from "@/lib/auth";
 import { createSupabaseServerClient } from "@/lib/supabase/server";
 
 /**
@@ -68,16 +68,9 @@ export async function GET(request: NextRequest) {
     return NextResponse.redirect(`${origin}/signup/choose-account-type`);
   }
 
-  // A returning sign-in: the same destination login/actions.ts sends a
-  // password account to, onboarding for an applicant who hasn't finished it
-  // and the Dashboard after. A first sign-in went to choose-account-type
-  // above, which starts an applicant on onboarding.
-  const account = oauthStatus.account;
-  const destination =
-    account?.account_type === "company"
-      ? "/company"
-      : account && !account.onboarding_completed
-        ? "/onboarding/applicant"
-        : "/dashboard";
+  // A returning sign-in. A first sign-in went to choose-account-type above,
+  // which starts an applicant on onboarding. With no account the API said
+  // nothing useful, so the Dashboard's own sign-in check takes it from there.
+  const destination = oauthStatus.account ? homePath(oauthStatus.account) : "/dashboard";
   return NextResponse.redirect(`${origin}${destination}`);
 }

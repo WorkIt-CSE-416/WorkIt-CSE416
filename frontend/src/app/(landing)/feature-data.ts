@@ -1,38 +1,13 @@
 /**
  * Copy and sample data for the landing page's product tour
  * (product-tour.tsx): the feature list and the data each feature's
- * animation uses. The candidate, resumes and companies are fictional;
- * companies reuse the logos from the application board (./board-data.ts)
- * so the two sections match.
+ * animation uses. The candidate and resumes are fictional. The Autofill and
+ * Updates stops' companies are too, and reuse the logos from the
+ * application board (./board-data.ts) so the two sections match; the
+ * Resumes and Matching stops name real employers the scraper reads, like
+ * the hero's cards.
  */
-import {
-  Accessibility,
-  Braces,
-  Briefcase,
-  Building2,
-  ChartColumn,
-  CircleDollarSign,
-  Clock,
-  Cloud,
-  Code,
-  Container,
-  Database,
-  FlaskConical,
-  Globe,
-  GraduationCap,
-  HeartPulse,
-  Layers,
-  MessageCircle,
-  PenTool,
-  RefreshCw,
-  Rocket,
-  Search,
-  Target,
-  Terminal,
-  Users,
-  type LucideIcon,
-} from "lucide-react";
-import type { MagnifiedTag } from "./magnified-tags";
+import type { LucideIcon } from "lucide-react";
 import { stages } from "./board-data";
 
 /** Logo and tile colors for a company on the application board. */
@@ -44,21 +19,25 @@ function companyLogo(company: string): { logo: LucideIcon; logoTone: string } {
 
 export type FeatureId = "matching" | "resumes" | "autofill" | "updates";
 
-/** The carousel's features, in order. `seconds` is how long each shows before auto-advancing. */
+/**
+ * The carousel's features, in the hero's pipeline order: Tailored (resumes),
+ * Matched, Applied (autofill), Tracked (updates). `seconds` is how long each
+ * shows before auto-advancing.
+ */
 export const features: { id: FeatureId; title: string; description: string; seconds: number }[] = [
+  {
+    id: "resumes",
+    title: "A resume for every job",
+    description:
+      "Put everything you’ve done in one experience bank, or upload the resume you have. Pick a template and WorkIt writes the resume, then tailors it to each job posting.",
+    seconds: 10,
+  },
   {
     id: "matching",
     title: "Matched on your skills",
     description:
-      "WorkIt reads the skills and experience in your profile and looks for them in every role, so the jobs you’re qualified for rise to the top.",
+      "WorkIt scores every job posting against your experience bank, on your skills, past titles and experience, and puts the best fits first.",
     seconds: 7,
-  },
-  {
-    id: "resumes",
-    title: "Resumes that pass the ATS",
-    description:
-      "Keep a resume for every kind of role. WorkIt reads each one the way applicant tracking systems do, scores it, and suggests exact fixes you can apply in a click.",
-    seconds: 10,
   },
   {
     id: "autofill",
@@ -76,181 +55,245 @@ export const features: { id: FeatureId; title: string; description: string; seco
   },
 ];
 
-// --- Skill matching ---
+// --- Matching: read the bank, scan postings, score, rank ---
 
-// Example profile skills, experience, and preferences, one scrolling row each.
-export const skillTags = [
-  [
-    { id: "react", icon: Code, label: "React" },
-    { id: "product-design", icon: PenTool, label: "Product Design" },
-    { id: "sql", icon: Database, label: "SQL" },
-    { id: "ux-research", icon: Search, label: "UX Research" },
-    { id: "python", icon: Terminal, label: "Python" },
-  ],
-  [
-    { id: "experience", icon: Briefcase, label: "5+ yrs experience" },
-    { id: "leadership", icon: Users, label: "Team Leadership" },
-    { id: "remote", icon: Globe, label: "Remote" },
-    { id: "communication", icon: MessageCircle, label: "Stakeholder Communication" },
-    { id: "agile", icon: RefreshCw, label: "Agile" },
-  ],
-  [
-    { id: "typescript", icon: Braces, label: "TypeScript" },
-    { id: "aws", icon: Cloud, label: "AWS" },
-    { id: "data-analysis", icon: ChartColumn, label: "Data Analysis" },
-    { id: "design-systems", icon: Layers, label: "Design Systems" },
-    { id: "accessibility", icon: Accessibility, label: "Accessibility" },
-  ],
-  [
-    { id: "strategy", icon: Target, label: "Product Strategy" },
-    { id: "kubernetes", icon: Container, label: "Kubernetes" },
-    { id: "ab-testing", icon: FlaskConical, label: "A/B Testing" },
-    { id: "mentoring", icon: GraduationCap, label: "Mentoring" },
-    { id: "figma", icon: PenTool, label: "Figma" },
-  ],
-  [
-    { id: "hybrid", icon: Building2, label: "Hybrid" },
-    { id: "salary", icon: CircleDollarSign, label: "$140k+ salary" },
-    { id: "full-time", icon: Clock, label: "Full-time" },
-    { id: "startups", icon: Rocket, label: "Series B startups" },
-    { id: "healthcare", icon: HeartPulse, label: "Healthcare" },
-  ],
-] satisfies MagnifiedTag[][];
+/** The four things the app scores a posting on (backend matching/scoring.py). */
+export type MatchFactor = "meaning" | "skills" | "title" | "experience";
+
+export interface MatchJob {
+  id: string;
+  title: string;
+  company: string;
+  domain: string;
+  /** A line from the posting; `keywords` light up where the student has them. */
+  snippet: string;
+  keywords: string[];
+  score: number;
+  /** Each factor from 0 to 1, for the top job's "why" bars. */
+  factors: Record<MatchFactor, number>;
+}
+
+export const matchingFeature = {
+  /** What the score reads from Alex Morgan's experience bank (the Resumes stop's). */
+  profile: {
+    degree: "Computer Science · 2027",
+    skills: ["TypeScript", "Python", "SQL", "React", "Node.js"],
+    titles: ["Teaching Assistant", "IT Support Intern"],
+  },
+  factorLabels: {
+    meaning: "Meaning",
+    skills: "Skills",
+    title: "Title",
+    experience: "Experience",
+  } satisfies Record<MatchFactor, string>,
+  /**
+   * In the order they are scanned; ranking sorts them by score. Real
+   * employers from scraper/boards.csv, intern and new-grad titles only,
+   * like the hero's cards. The scores and lines are made up.
+   */
+  jobs: [
+    {
+      id: "spotify",
+      title: "Backend Engineer Intern",
+      company: "Spotify",
+      domain: "spotify.com",
+      snippet: "Build Java services on Kafka, with some Python tooling.",
+      keywords: ["Java", "Kafka", "Python"],
+      score: 63,
+      factors: { meaning: 0.6, skills: 0.35, title: 0.5, experience: 1 },
+    },
+    {
+      id: "stripe",
+      title: "Software Engineer Intern",
+      company: "Stripe",
+      domain: "stripe.com",
+      snippet: "Ship TypeScript and React tools on our payments APIs.",
+      keywords: ["TypeScript", "React", "APIs"],
+      score: 91,
+      factors: { meaning: 0.92, skills: 0.85, title: 0.75, experience: 1 },
+    },
+    {
+      id: "roblox",
+      title: "Game Engineer Intern",
+      company: "Roblox",
+      domain: "roblox.com",
+      snippet: "Write C++ and Lua for game systems and tools.",
+      keywords: ["C++", "Lua"],
+      score: 48,
+      factors: { meaning: 0.45, skills: 0.1, title: 0.4, experience: 1 },
+    },
+    {
+      id: "databricks",
+      title: "New Grad Software Engineer",
+      company: "Databricks",
+      domain: "databricks.com",
+      snippet: "Build data products in Python and SQL on Spark.",
+      keywords: ["Python", "SQL", "Spark"],
+      score: 86,
+      factors: { meaning: 0.85, skills: 0.75, title: 0.7, experience: 1 },
+    },
+    {
+      id: "duolingo",
+      title: "Data Science Intern",
+      company: "Duolingo",
+      domain: "duolingo.com",
+      snippet: "Run A/B tests and analyze them with SQL and R.",
+      keywords: ["SQL", "R", "A/B tests"],
+      score: 74,
+      factors: { meaning: 0.72, skills: 0.45, title: 0.55, experience: 1 },
+    },
+  ] satisfies MatchJob[],
+};
 
 export const candidate = { name: "Alex Morgan" };
 
-// --- Resumes + ATS feedback ---
+// --- Resumes: experience bank, template, generate, tailor ---
 
-export interface ResumeSuggestion {
+/** One loose entry in the experience bank, before it becomes a resume. */
+export interface BankEntry {
   id: string;
-  kind: "keyword" | "impact" | "clarity";
+  section: "Education" | "Experience" | "Projects" | "Leadership" | "Awards" | "Skills";
   title: string;
   detail: string;
-  /** Index of the bullet this suggestion rewrites. */
-  bullet: number;
-  /** The bullet after the suggestion is applied. */
-  after: string;
-  /** Score gained by applying it. */
-  points: number;
-}
-
-export interface ResumeVersion {
-  id: string;
-  /** Label in the version switcher. */
-  label: string;
-  file: string;
-  role: string;
-  /** ATS score before any suggestions are applied. */
-  score: number;
-  bullets: string[];
-  /** Phrases highlighted as ATS matches once the scan finishes. */
-  keywords: string[];
-  suggestions: ResumeSuggestion[];
+  /** Where it floats in the jumble, in % of the stage, and its tilt. */
+  x: number;
+  y: number;
+  tilt: number;
 }
 
 export const resumeFeature = {
-  versions: [
+  bank: [
     {
-      id: "design",
-      label: "Design",
-      file: "Design.pdf",
-      role: "Product Designer",
-      score: 74,
-      bullets: [
-        "Redesigned the checkout flow with the payments team.",
-        "Improved onboarding for new users.",
-        "Built and maintained the design system.",
-      ],
-      keywords: ["checkout flow", "design system", "onboarding", "Figma"],
-      suggestions: [
-        {
-          id: "design-impact",
-          kind: "impact",
-          title: "Quantify your impact",
-          detail: "Numbers catch a recruiter’s eye.",
-          bullet: 1,
-          after: "Cut onboarding drop-off 30% with a guided first-run flow.",
-          points: 9,
-        },
-        {
-          id: "design-figma",
-          kind: "keyword",
-          title: "Add “Figma”",
-          detail: "It’s in 4 of your saved roles.",
-          bullet: 2,
-          after: "Built and maintained the Figma design system used by 6 teams.",
-          points: 8,
-        },
-      ],
+      id: "degree",
+      section: "Education",
+      title: "B.S. Computer Science",
+      detail: "Northview University",
+      x: 4,
+      y: 6,
+      tilt: -5,
     },
     {
-      id: "frontend",
-      label: "Frontend",
-      file: "Frontend.pdf",
-      role: "Frontend Engineer",
-      score: 68,
-      bullets: [
-        "Worked on the React dashboard customers use.",
-        "Helped make pages load faster.",
-        "Set up end-to-end tests with Playwright.",
-      ],
-      keywords: ["React", "TypeScript", "Playwright", "code splitting"],
-      suggestions: [
-        {
-          id: "frontend-typescript",
-          kind: "keyword",
-          title: "Add “TypeScript”",
-          detail: "It’s in 5 of your saved roles.",
-          bullet: 0,
-          after: "Shipped the React and TypeScript dashboard used by 40k customers.",
-          points: 10,
-        },
-        {
-          id: "frontend-impact",
-          kind: "impact",
-          title: "Show the result",
-          detail: "Say how much faster, not just faster.",
-          bullet: 1,
-          after: "Cut page load time from 3.2s to 1.1s with code splitting.",
-          points: 12,
-        },
-      ],
+      id: "ta",
+      section: "Experience",
+      title: "Teaching Assistant",
+      detail: "Data Structures",
+      x: 50,
+      y: 2,
+      tilt: 4,
     },
     {
-      id: "data",
-      label: "Data",
-      file: "Data.pdf",
-      role: "Data Analyst",
-      score: 71,
-      bullets: [
-        "Built dashboards for the sales team.",
-        "Analyzed customer churn with SQL and Python.",
-        "Responsible for weekly reporting.",
-      ],
-      keywords: ["SQL", "Python", "Tableau", "churn"],
-      suggestions: [
-        {
-          id: "data-tableau",
-          kind: "keyword",
-          title: "Add “Tableau”",
-          detail: "It’s in 3 of your saved roles.",
-          bullet: 0,
-          after: "Built Tableau dashboards the sales team checks daily.",
-          points: 9,
-        },
-        {
-          id: "data-verb",
-          kind: "clarity",
-          title: "Lead with an action verb",
-          detail: "“Responsible for” sounds passive.",
-          bullet: 2,
-          after: "Automated weekly reporting, saving the team 6 hours a week.",
-          points: 8,
-        },
-      ],
+      id: "help-desk",
+      section: "Experience",
+      title: "IT Support Intern",
+      detail: "Campus Help Desk",
+      x: 44,
+      y: 30,
+      tilt: -3,
     },
-  ] satisfies ResumeVersion[],
+    {
+      id: "budget",
+      section: "Projects",
+      title: "Budget Tracker",
+      detail: "React · Node.js",
+      x: 2,
+      y: 38,
+      tilt: 3,
+    },
+    {
+      id: "club",
+      section: "Leadership",
+      title: "Treasurer",
+      detail: "Coding Club",
+      x: 50,
+      y: 60,
+      tilt: 5,
+    },
+    {
+      id: "hackathon",
+      section: "Awards",
+      title: "1st Place",
+      detail: "Spring Hackathon",
+      x: 8,
+      y: 70,
+      tilt: -4,
+    },
+    {
+      id: "skills",
+      section: "Skills",
+      title: "Python · SQL · Git",
+      detail: "Languages and tools",
+      x: 30,
+      y: 84,
+      tilt: 2,
+    },
+  ] satisfies BankEntry[],
+  /** Jake's Resume is the template the app renders; the other two are looks to come. */
+  templates: [
+    { id: "jakes", label: "Jake's" },
+    { id: "modern", label: "Modern" },
+    { id: "compact", label: "Compact" },
+  ],
+  job: {
+    title: "Software Engineer Intern",
+    company: "Stripe",
+    domain: "stripe.com",
+    keywords: ["TypeScript", "REST APIs"],
+    /** The match before tailoring; each suggestion adds its points. */
+    before: 72,
+  },
+  /**
+   * Mock AI suggestions for the tailor scene, two on each side of the page.
+   * `target` names the line on the page it changes (resume-visual.tsx).
+   */
+  suggestions: [
+    {
+      id: "keep",
+      kind: "keep",
+      side: "right",
+      target: "ta",
+      title: "Keep",
+      body: "Teaching shows you can explain code.",
+      points: 0,
+    },
+    {
+      id: "cut",
+      kind: "cut",
+      side: "left",
+      target: "help-desk",
+      title: "Cut",
+      body: "Help desk work doesn’t fit this role.",
+      points: 5,
+    },
+    {
+      id: "rewrite",
+      kind: "rewrite",
+      side: "right",
+      target: "budget",
+      title: "Rewrite",
+      body: "Name the stack the posting asks for.",
+      points: 8,
+    },
+    {
+      id: "add",
+      kind: "add",
+      side: "left",
+      target: "languages",
+      title: "Add",
+      body: "TypeScript is the first skill they list.",
+      points: 6,
+    },
+  ] satisfies ResumeSuggestion[],
 };
+
+export interface ResumeSuggestion {
+  id: string;
+  kind: "keep" | "cut" | "rewrite" | "add";
+  side: "left" | "right";
+  target: "ta" | "help-desk" | "budget" | "languages";
+  title: string;
+  body: string;
+  points: number;
+}
 
 // --- Autofill ---
 

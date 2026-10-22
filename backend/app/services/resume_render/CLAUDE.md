@@ -15,11 +15,16 @@ resume; KAN-207 renders the bank and retired the proof endpoint.
   id is a `ValueError`. Add fields to `Rendered`, never a second render
   function.
 - **A template is a function from the view and identity to a LaTeX body**
-  (`jakes.py`), registered by its stable id in `render()`. The id is stored
+  (`jakes.py`), registered by its stable id in `_document()`. The id is stored
   on `built_resumes.template`, so never rename one.
 - **`fields.py` is how a field reads as text** (dates, GPA, headings, skill
   groups), shared by the PDF and the Word file so the two never disagree.
   Change wording there, not in a layout.
+- **`latex(view, identity, template)` is the same document's source**,
+  for the editor's Download LaTeX (`GET .../built-resumes/{rid}/tex`): the
+  body with `marks=False`, so the student gets Jake's own `.tex` with no
+  `\wimark` lines, ready for Overleaf. It shares `_document()` with
+  `render()`, so the two never print different text. It needs no Tectonic.
 - **The Word file is `word.py`'s one plain layout**, Letter only. It is not a
   copy of Jake's look and has no template id.
 - **Boxes place the editor's click targets** (KAN-209): one `Box(item_id,
@@ -35,6 +40,14 @@ resume; KAN-207 renders the bank and retired the proof endpoint.
   is why `HeaderIdentity.links` carries each link's column. The `email` box
   prints the profile's `email_for_employers`: the contact email, else the
   sign-in email (KAN-262). The editor never types it; My Profile sets it.
+  **"U.S. Citizen"** (`fields.US_CITIZEN`) leads the contact line, PDF,
+  LaTeX and Word alike, when `HeaderIdentity.us_citizen` is set: the
+  answer bank's `work_authorization_status` is `us_citizen` (My Profile's
+  Application Questions, onboarding's Profile step). It has
+  no box, since the editor types only fields it can save. The line's
+  order is U.S. Citizen, phone, email, LinkedIn, GitHub, portfolio, other. A sent resume's
+  hash and snapshot leave `us_citizen` out while it is false
+  (`sent_resumes._identity`), so a resume sent before it still repeats.
   The name's box
   reaches `NAME_ASCENT`/`NAME_DESCENT`, since it prints `\Huge`. The editor
   types them into the profile. The render route sends them as `RenderResponse.boxes`

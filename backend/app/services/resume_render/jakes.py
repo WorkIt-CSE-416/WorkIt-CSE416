@@ -21,6 +21,7 @@ from app.services.resume_render.fields import (
     SECTION_LABELS,
     SKILLS_LABEL,
     TWO_ROW,
+    US_CITIZEN,
     details,
     heading,
     heading_fields,
@@ -36,7 +37,9 @@ def _header(identity: HeaderIdentity, marks: bool) -> list[str]:
     def slot(kind: str, latex: str) -> str:
         return mark(HEADER, kind, latex) if marks else latex
 
-    contact = []
+    # "U.S. Citizen" leads the line. No box: the editor types only the
+    # fields it can save, and this one is Application Questions' answer
+    contact = [US_CITIZEN] if identity.us_citizen else []
     if identity.phone:
         contact.append(slot("phone_number", escape(identity.phone)))
     if identity.email:

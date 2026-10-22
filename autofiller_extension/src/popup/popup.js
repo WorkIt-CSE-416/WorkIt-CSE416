@@ -6,23 +6,9 @@
 // every time the popup closes).
 
 import { DEV_WEB_URL, PROD_WEB_URL } from "../shared/config.js";
+import { CONTENT_SCRIPT_FILES } from "../shared/content-scripts.js";
 
 const root = document.getElementById("root");
-
-// Injected in this exact order — lib-dom/lib-fill/lib-status/field-map/
-// ats-greenhouse populate window.WIA, overlay.js reads from it, and
-// content-script.js (last) is the only one that expects everything above
-// it to already exist. See content-script.js's own comment for why these
-// can't be ES modules instead.
-const CONTENT_SCRIPT_FILES = [
-  "src/content/lib-dom.js",
-  "src/content/lib-fill.js",
-  "src/content/lib-status.js",
-  "src/content/field-map.js",
-  "src/content/ats-greenhouse.js",
-  "src/content/overlay.js",
-  "src/content/content-script.js",
-];
 
 /** @param {{ type: string, [key: string]: any }} message */
 function sendMessage(message) {
