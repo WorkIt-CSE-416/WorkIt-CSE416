@@ -40,8 +40,9 @@ resume; KAN-207 renders the bank and retired the proof endpoint.
   prints the profile's `email_for_employers`: the contact email, else the
   sign-in email (KAN-262). The editor never types it; My Profile sets it.
   **"U.S. Citizen"** (`fields.US_CITIZEN`) ends the contact line, PDF,
-  LaTeX and Word alike, when `HeaderIdentity.us_citizen` is set (My
-  Profile's check box, `applicant_profiles.us_citizen_on_resume`). It has
+  LaTeX and Word alike, when `HeaderIdentity.us_citizen` is set: the
+  answer bank's `work_authorization_status` is `us_citizen` (My Profile's
+  Application Questions, onboarding's Profile step). It has
   no box, since the editor types only fields it can save. A sent resume's
   hash and snapshot leave `us_citizen` out while it is false
   (`sent_resumes._identity`), so a resume sent before it still repeats.

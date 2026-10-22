@@ -21,7 +21,6 @@ class ApplicantProfileResponse(BaseModel):
     portfolio_url: str | None
     github_url: str | None
     other_url: str | None
-    us_citizen_on_resume: bool
 
 
 LINK_FIELDS = ("linkedin_url", "portfolio_url", "github_url", "other_url")
@@ -61,8 +60,6 @@ class ApplicantProfileUpdate(BaseModel):
     portfolio_url: str | None = Field(None, max_length=500)
     github_url: str | None = Field(None, max_length=500)
     other_url: str | None = Field(None, max_length=500)
-    # Not nullable: null is a 422, never a NULL in a NOT NULL column
-    us_citizen_on_resume: bool = False
 
     @field_validator("contact_email", "phone_number", "headline", *LINK_FIELDS, mode="before")
     @classmethod

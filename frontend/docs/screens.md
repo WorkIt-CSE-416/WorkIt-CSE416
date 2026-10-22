@@ -1033,6 +1033,10 @@ clearance, and the voluntary gender, Hispanic or Latino, race, veteran and
 disability self-identification), with the seeker's answers
 (`(seeker)/profile/application-questions.tsx`).
 
+- **U.S. Citizen as the citizenship answer puts "U.S. Citizen" on every
+  resume header** (PDF, Word and LaTeX), at the end of the contact line.
+  A separate check box for it in Contact & Links was built and removed
+  on 2026-10-21: it asked the same question twice.
 - **The same two modes as Contact & Links.** Reading, each question is its
   answer's label or "Not answered" in grey. Edit turns every answer into a
   picker (`ui/select-field.tsx`) in place, the first one focused, each over
