@@ -2,6 +2,7 @@
 
 import { FileDown, Import, Star } from "lucide-react";
 
+import { LocalDate } from "@/app/(seeker)/local-time";
 import { PdfIcon, PencilIcon, TrashIcon } from "@/components/icons";
 import { IconButton } from "@/components/ui/icon-button";
 import { cn } from "@/lib/cn";
@@ -12,17 +13,6 @@ import type { ResumeItem } from "@/lib/resume-actions";
  *  box, so nothing jumps when the real row arrives. */
 export const RESUME_ROW =
   "border-border-subtle bg-app rounded-control mt-2 flex items-center gap-3 border p-2";
-
-/** Rows only exist after the client-side fetch, so this is the browser's own
- *  calendar day, never the server's UTC one. */
-function uploadedOn(createdAt: string | null) {
-  if (!createdAt) return "Uploaded";
-  const day = new Date(createdAt).toLocaleDateString(undefined, {
-    month: "short",
-    day: "numeric",
-  });
-  return `Uploaded ${day}`;
-}
 
 /** A row's icon actions: 32px boxes, side by side with no gap. */
 export const ROW_ACTION = "rounded-control hover:bg-hover size-8";
@@ -126,7 +116,17 @@ export function ResumeRow({
         >
           {name}
         </button>
-        <p className="text-note text-ink-meta">{uploadedOn(resume.created_at)}</p>
+        {/* The upload's local day, swapped in after hydration: the server
+            renders the list too, in UTC (#418 on /resumes, 2026-10-22). */}
+        <p className="text-note text-ink-meta">
+          Uploaded
+          {resume.created_at && (
+            <>
+              {" "}
+              <LocalDate at={resume.created_at} />
+            </>
+          )}
+        </p>
       </div>
       {/* No gap between them: each is a 32px box already. Above the
           stretched button, so a press on an icon is the icon's. */}

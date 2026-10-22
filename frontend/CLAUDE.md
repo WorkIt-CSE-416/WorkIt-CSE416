@@ -352,7 +352,16 @@ the KAN-296 cutover.
   the Americas. Swap the local day in after hydration (`useSyncExternalStore`);
   `LocalDate` and `When` in `(seeker)/local-time.tsx` do it for a seeker
   screen. `formatDate` in `lib/format-date.ts` formats in UTC and suits
-  date-only strings only.
+  date-only strings only. A `"use client"` component is no exception: the
+  server renders it first. The Resumes view's "Uploaded Oct 21" (server)
+  against "Oct 20" (a browser in the Americas) broke hydration with React
+  error #418 (2026-10-22). `toLocaleDateString()` in render is safe only for
+  data fetched in an effect.
+- **A relative time ("Posted 5 minutes ago") rendered in a client component
+  sits in an element with `suppressHydrationWarning`**, as the job card's
+  badge does. The clock moves between the server render and hydration, so
+  the text can differ by one unit; the flag covers that element's own text
+  only, so keep it on the innermost one.
 
 ## Auth and the API
 
