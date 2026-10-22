@@ -3,16 +3,18 @@ import Image from "next/image";
 import Link from "next/link";
 
 import { Logo } from "@/components/logo";
+import { cn } from "@/lib/cn";
 
 import { hiringSystems, site } from "./data";
-import { featurePages } from "./features/catalog";
+import { featurePages, type Feature } from "./features/catalog";
 import { featureContent } from "./features/content";
 import { FeatureIcon } from "./features/feature-icon";
 import { FloatingHeader } from "./floating-header";
 import { GlassButton, OutlineButton } from "./buttons";
-import { FeaturesMenu } from "./features-menu";
 import { NAV_ITEM } from "./layout-parts";
 import { MobileMenu } from "./mobile-menu";
+import { NavMenu, NavMenuGroup } from "./nav-menu";
+import { resourcePages, type Resource } from "./resources/catalog";
 
 /** The Features menu's foot row: the first few hiring systems by name. */
 const WORKS_WITH = hiringSystems.slice(0, 3);
@@ -22,7 +24,7 @@ const WORKS_WITH = hiringSystems.slice(0, 3);
  * floats: the bar becomes a white rounded panel with a shadow, inset from
  * the window's edges like the panels below it (FloatingHeader sets the
  * state). The links: Features ▾ (the feature pages, features/catalog.ts),
- * Pricing, then Log in and Get started.
+ * Resources ▾ (resources/catalog.ts), Pricing, then Log in and Get started.
  *
  * The site's Applicant / Company switcher is left out while the business side
  * is hidden (KAN-239, frontend/CLAUDE.md).
@@ -32,8 +34,8 @@ export function Header() {
     <FloatingHeader>
       <div className="relative isolate">
         {/* The bar's fill is a layer behind the nav, not the nav's parent:
-            its backdrop-filter would make it the Features panel's backdrop
-            root, and the panel's own blur would see nothing behind it. */}
+            its backdrop-filter would make it the menu panels' backdrop
+            root, and a panel's own blur would see nothing behind it. */}
         <div
           aria-hidden="true"
           className="absolute inset-0 -z-10 rounded-2xl transition-[background-color,box-shadow] duration-300 group-data-scrolled:bg-white/90 group-data-scrolled:shadow-lg group-data-scrolled:ring-1 group-data-scrolled:shadow-slate-900/5 group-data-scrolled:ring-slate-900/5 group-data-scrolled:backdrop-blur-md"
@@ -50,18 +52,25 @@ export function Header() {
             </Link>
           </div>
 
-          <ul className="hidden items-center gap-1 lg:flex">
-            <li>
-              <FeaturesMenu label="Features">
-                <FeaturesPanel />
-              </FeaturesMenu>
-            </li>
-            <li>
-              <Link href={site.pricing.href} className={NAV_ITEM}>
-                {site.pricing.label}
-              </Link>
-            </li>
-          </ul>
+          <NavMenuGroup>
+            <ul className="hidden items-center gap-1 lg:flex">
+              <li>
+                <NavMenu label="Features">
+                  <FeaturesPanel />
+                </NavMenu>
+              </li>
+              <li>
+                <NavMenu label="Resources">
+                  <ResourcesPanel />
+                </NavMenu>
+              </li>
+              <li>
+                <Link href={site.pricing.href} className={NAV_ITEM}>
+                  {site.pricing.label}
+                </Link>
+              </li>
+            </ul>
+          </NavMenuGroup>
 
           <div className="flex items-center gap-2 lg:justify-self-end">
             <div className="hidden md:block">
@@ -99,31 +108,9 @@ export function Header() {
           </button>
         </div>
         <ul className="mt-4 grid gap-1">
-          <li>
-            {/* The Features menu as an expandable list. */}
-            <details className="group">
-              <summary className="text-ink hover:bg-surface flex cursor-pointer list-none items-center justify-between rounded-lg px-3 py-2.5 font-medium [&::-webkit-details-marker]:hidden">
-                Features
-                <ChevronDown
-                  aria-hidden="true"
-                  className="ease-glide size-5 opacity-60 transition-transform duration-200 group-open:rotate-180"
-                />
-              </summary>
-              <ul className="grid gap-0.5 pt-1 pb-2">
-                {featurePages.map((page) => (
-                  <li key={page.slug}>
-                    <Link
-                      href={page.href}
-                      className="text-ink hover:bg-surface flex items-center gap-3 rounded-lg px-3 py-2"
-                    >
-                      <FeatureIcon feature={page} />
-                      {page.name}
-                    </Link>
-                  </li>
-                ))}
-              </ul>
-            </details>
-          </li>
+          {/* The two header menus as expandable lists. */}
+          <MobileGroup label="Features" items={featurePages} />
+          <MobileGroup label="Resources" items={resourcePages} />
           <li>
             <Link
               href={site.pricing.href}
@@ -146,30 +133,27 @@ export function Header() {
   );
 }
 
+/** A menu item's mark, name and link: a feature or a resource. A resource
+ *  with no page yet carries `soon`. */
+type MenuItem = Pick<Feature, "href" | "name" | "icon" | "glow"> & Partial<Pick<Resource, "soon">>;
+
+/** The surface both menu panels share, the floating bar's. */
+const MENU_PANEL =
+  "rounded-2xl bg-white/90 p-2 shadow-lg ring-1 shadow-slate-900/5 ring-slate-900/5 backdrop-blur-md";
+
 /**
  * The Features menu's panel: the feature pages in two columns, each with its
  * mark, its name and its content file's `line`, then the hiring systems.
- * Drawn here on the server and passed into FeaturesMenu, so the content
- * files never reach the browser. Its surface is the floating bar's.
+ * Drawn here on the server and passed into NavMenu, so the content files
+ * never reach the browser.
  */
 function FeaturesPanel() {
   return (
-    <div className="w-[36rem] rounded-2xl bg-white/90 p-2 shadow-lg ring-1 shadow-slate-900/5 ring-slate-900/5 backdrop-blur-md">
+    <div className={cn(MENU_PANEL, "w-[36rem]")}>
       <ul className="grid grid-cols-2 gap-1">
         {featurePages.map((page) => (
           <li key={page.slug}>
-            <Link
-              href={page.href}
-              className="flex items-start gap-3 rounded-xl p-3 transition-colors duration-200 hover:bg-slate-900/[0.04]"
-            >
-              <FeatureIcon feature={page} size="md" />
-              <span className="min-w-0">
-                <span className="text-ink block text-sm font-semibold">{page.name}</span>
-                <span className="text-ink-meta mt-0.5 block text-[13px] leading-5">
-                  {featureContent[page.slug].line}
-                </span>
-              </span>
-            </Link>
+            <MenuLink item={page} line={featureContent[page.slug].line} />
           </li>
         ))}
       </ul>
@@ -197,5 +181,80 @@ function FeaturesPanel() {
         />
       </Link>
     </div>
+  );
+}
+
+/** The Resources menu's panel: one column, drawn like the Features panel's
+ *  items. An item with no page yet is marked Soon. */
+function ResourcesPanel() {
+  return (
+    <div className={cn(MENU_PANEL, "w-[21rem]")}>
+      <ul className="grid gap-1">
+        {resourcePages.map((resource) => (
+          <li key={resource.slug}>
+            <MenuLink item={resource} line={resource.line} />
+          </li>
+        ))}
+      </ul>
+    </div>
+  );
+}
+
+/** One item in a desktop menu panel: its mark, its name and a line under it. */
+function MenuLink({ item, line }: { item: MenuItem; line: string }) {
+  return (
+    <Link
+      href={item.href}
+      className="flex items-start gap-3 rounded-xl p-3 transition-colors duration-200 hover:bg-slate-900/[0.04]"
+    >
+      <FeatureIcon feature={item} size="md" />
+      <span className="min-w-0">
+        <span className="text-ink flex items-center gap-2 text-sm font-semibold">
+          {item.name}
+          {item.soon && <SoonBadge />}
+        </span>
+        <span className="text-ink-meta mt-0.5 block text-[13px] leading-5">{line}</span>
+      </span>
+    </Link>
+  );
+}
+
+/** One header menu in the phone menu: a native disclosure listing its items. */
+function MobileGroup({ label, items }: { label: string; items: MenuItem[] }) {
+  return (
+    <li>
+      <details className="group">
+        <summary className="text-ink hover:bg-surface flex cursor-pointer list-none items-center justify-between rounded-lg px-3 py-2.5 font-medium [&::-webkit-details-marker]:hidden">
+          {label}
+          <ChevronDown
+            aria-hidden="true"
+            className="ease-glide size-5 opacity-60 transition-transform duration-200 group-open:rotate-180"
+          />
+        </summary>
+        <ul className="grid gap-0.5 pt-1 pb-2">
+          {items.map((item) => (
+            <li key={item.href}>
+              <Link
+                href={item.href}
+                className="text-ink hover:bg-surface flex items-center gap-3 rounded-lg px-3 py-2"
+              >
+                <FeatureIcon feature={item} />
+                {item.name}
+                {item.soon && <SoonBadge />}
+              </Link>
+            </li>
+          ))}
+        </ul>
+      </details>
+    </li>
+  );
+}
+
+/** Marks a menu item whose page is a coming-soon placeholder. */
+function SoonBadge() {
+  return (
+    <span className="text-ink-meta rounded-full bg-slate-900/[0.06] px-1.5 py-px text-[11px] leading-4 font-medium">
+      Soon
+    </span>
   );
 }

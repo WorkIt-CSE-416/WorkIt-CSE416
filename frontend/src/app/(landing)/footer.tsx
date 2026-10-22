@@ -4,11 +4,17 @@ import { Logo } from "@/components/logo";
 
 import { site } from "./data";
 import { featurePages } from "./features/catalog";
+import { resourcePages } from "./resources/catalog";
 
+/** The header's two menus, then the footer's own columns. */
 const COLUMNS = [
   {
     title: "Features",
     links: featurePages.map((page) => ({ label: page.name, href: page.href })),
+  },
+  {
+    title: "Resources",
+    links: resourcePages.map((resource) => ({ label: resource.name, href: resource.href })),
   },
   ...site.footer,
 ];
@@ -24,8 +30,10 @@ export function Footer() {
   return (
     <footer className="px-2 pb-2 sm:px-6 sm:pb-6">
       <div className="bg-ink rounded-[2rem] text-white lg:rounded-[3rem]">
-        <div className="mx-auto grid w-full max-w-6xl gap-10 px-6 pt-16 pb-14 sm:px-10 md:grid-cols-[1.5fr_repeat(3,1fr)] lg:px-8">
-          <div className="max-w-sm">
+        {/* Four link columns: two by two on a phone, one row of four under
+            the tagline at md, beside it from lg. */}
+        <div className="mx-auto grid w-full max-w-6xl grid-cols-2 gap-x-6 gap-y-10 px-6 pt-16 pb-14 sm:px-10 md:grid-cols-4 lg:grid-cols-[2fr_repeat(4,1fr)] lg:px-8">
+          <div className="col-span-2 max-w-sm md:col-span-4 lg:col-span-1">
             <p className="text-3xl font-semibold tracking-tight text-balance sm:text-4xl">
               {site.tagline}
             </p>

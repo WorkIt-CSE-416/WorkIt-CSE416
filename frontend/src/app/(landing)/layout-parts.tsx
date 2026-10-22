@@ -3,13 +3,14 @@ import { cn } from "@/lib/cn";
 /**
  * The landing pages' shared frame: the content width, the rounded panels
  * every full-width band sits in, and the section heading. The home page,
- * the feature pages and Pricing all draw with these, so the pages read as
+ * the feature pages, Pricing and the Resources pages all draw with these, so the pages read as
  * one site; add a shared piece here rather than copying it into a page.
  */
 
-/** The header's links, Features ▾ and Pricing: one box for both, so their
- *  text lines up. A bare inline link sat 1px below the Features button,
- *  its 14px text on the baseline of the list item's 16px line. */
+/** The header's links, Features ▾, Resources ▾ and Pricing: one box for
+ *  all three, so their text lines up. A bare inline link sat 1px below the
+ *  Features button, its 14px text on the baseline of the list item's 16px
+ *  line. */
 export const NAV_ITEM =
   "hover:text-ink inline-flex items-center gap-1 rounded-md px-3 py-2 text-sm font-medium text-slate-800 transition-colors";
 

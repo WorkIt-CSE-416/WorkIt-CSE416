@@ -252,14 +252,28 @@ CLI are in the root `CLAUDE.md`. `API_URL` points at the API project
   `signInWithOAuth`. The testimonial still holds the site's placeholder
   copy; never fill it with an invented quote. The FAQ answers are product
   claims, each tied to its source in a comment in `data.ts`.
-- **The marketing site is the home page, a page per feature and Pricing**,
-  all in `app/(landing)/`, after Linear, Notion and Calendly. The home page
-  is the overview. The header reads Features ▾, Pricing, Log in and Get
-  started (the team renamed Product to Features); its old anchor links
-  (Features, Applications, FAQ) are gone. Two links is a decision, not a
-  gap: the team turned down a third (Integrations, too small for a page;
-  a public job list, since it does not want postings shown signed out;
-  Help Center, What's New, For Career Centers).
+- **The marketing site is the home page, a page per feature, Pricing and
+  the Resources pages**, all in `app/(landing)/`, after Linear, Notion and
+  Calendly. The home page is the overview. The header reads Features ▾,
+  Resources ▾, Pricing, Log in and Get started (the team renamed Product to
+  Features); its old anchor links (Features, Applications, FAQ) are gone.
+  The team first kept two links and turned down a third, Help Center among
+  them; on 2026-10-21 it reversed that and added Resources ▾ (MCP docs,
+  Help Center, Blog). Still turned down: Integrations (too small for a
+  page), a public job list (no postings shown signed out), What's New and
+  For Career Centers.
+  **The Resources list is `resources/catalog.ts`**: each item's name, link,
+  icon and menu line, in menu order. The Resources menu, the phone menu and
+  the footer's Resources column read it. None of the three has a page yet,
+  so each item carries `soon`: the menus mark it Soon, and its route
+  (`docs/mcp/`, `help-center/`, `blog/`) renders `ComingSoonPage`
+  (`resources/coming-soon.tsx`) with the item's copy, kept out of search
+  results. Its copy is a claim like the FAQ's: the MCP server is only
+  planned (`auto-apply/architecture.md`, section 14), so no line says it
+  exists. A real page replaces the route file and the item drops `soon`.
+  The Help Center is `/help-center` because `/help` is the signed-in app's
+  Help page (`app/(seeker)/help/`): a second `/help` in this group stops
+  every page with "two parallel pages that resolve to the same path".
   **The feature list is `features/catalog.ts`**: each feature page's slug,
   name, icon and colour, in menu order. The Features menu, the phone menu,
   the footer's Features column, each page's related-feature cards and the
@@ -289,22 +303,31 @@ CLI are in the root `CLAUDE.md`. `API_URL` points at the API project
   `visual`, shows a placeholder in the feature's colour. The hero and the
   closing call to action use `SocialSignUpButton` (`social-sign-up.tsx`,
   shared with the home hero) and the FAQ is `FaqList` (`faq-list.tsx`).
-  **The Features menu** (`features-menu.tsx`) is a disclosure with
-  `aria-expanded`, not an ARIA menu, since its items are links: a mouse
-  hover opens it, a click pins it, Esc closes it and returns focus, and
-  tabbing out, a click outside, a link inside or a route change closes it.
-  `header.tsx` draws its panel on the server and passes it in, so the
-  content files never reach the browser. Features and Pricing share one
-  box, `NAV_ITEM` in `layout-parts.tsx`: Pricing as a bare inline link
-  sat 1px lower, its 14px text on the list item's 16px baseline. The
-  menu's foot row links to the home page's `#hiring-systems`; the team
-  decided that section gets no page of its own. **The bar's white fill
+  **The header menus** (`NavMenu` in `nav-menu.tsx`, both Features and
+  Resources) are disclosures with `aria-expanded`, not ARIA menus, since
+  their items are links: a mouse hover opens one, a click pins it, Esc
+  closes it and returns focus, and tabbing out, a click outside, a link
+  inside or a route change closes it. `NavMenuGroup` holds which one is
+  open, so only one shows: a hover on the other trigger moves to it, and
+  with a state per menu a pinned panel stayed open under the other's.
+  `header.tsx` draws both panels on the server and passes them in, so the
+  content files never reach the browser; both draw their items with
+  `MenuLink` (`FeatureIcon`, name, line), and the Resources tile is one
+  neutral colour, never a feature's. Features, Resources and Pricing
+  share one box, `NAV_ITEM` in `layout-parts.tsx`: Pricing as a bare
+  inline link sat 1px lower, its 14px text on the list item's 16px
+  baseline. The Features panel's foot row links to the home page's
+  `#hiring-systems`; the team decided that section gets no page of its
+  own. **The bar's white fill
   is a layer behind the nav, not the nav's parent**: with `backdrop-blur`
   on an ancestor, that ancestor is the panel's backdrop root, and the
   panel's own blur would see nothing behind it. The phone menu is the
   native popover in `mobile-menu.tsx`, which also closes when one of its
   links is followed: the header stays mounted from page to page, so an
-  open popover would sit over the next page.
+  open popover would sit over the next page. Each header menu is one
+  expandable group in it (`MobileGroup`, a native `<details>`). The
+  footer's link columns are Features and Resources, from the two
+  catalogs, then `site.footer`'s.
 - **The Pricing page, `app/(landing)/pricing/`, shows the team's plans.**
   Every plan, price, daily limit, feature row and billing answer lives in
   its `data.ts`; the page holds layout only. The team picked Free, Plus
