@@ -1,31 +1,20 @@
 import { AppWindow, Eye, PenLine, Send, SkipForward, TriangleAlert, Zap } from "lucide-react";
-import Link from "next/link";
-import type { ComponentType, ReactNode } from "react";
+import type { ComponentType } from "react";
 
-import { ClickableRow } from "@/components/clickable-row";
 import { CompanyLogo } from "@/components/company-logo";
-import { ClockIcon, SortIcon, SparkleIcon } from "@/components/icons";
+import { ClockIcon, SparkleIcon } from "@/components/icons";
 import { MatchBadge } from "@/components/match-badge";
 import { Reflow } from "@/components/reflow";
-import {
-  Table,
-  TableBody,
-  TableCell,
-  TableHead,
-  TableHeader,
-  TableRow,
-} from "@/components/shadcn/table";
 import { Badge, type BadgeTone } from "@/components/ui/badge";
 import { IconButton } from "@/components/ui/icon-button";
-import { Card } from "@/components/ui/card";
 import { showRunTab } from "@/lib/autofill-extension";
 import { cn } from "@/lib/cn";
+import type { SentResume } from "@/lib/sent-resume-actions";
 
-import { LocalDate } from "../local-time";
 import { STAGE_ICON } from "../stage-colors";
 import type { RunStage } from "./actions";
 import type { Application } from "./applications";
-import type { Sort, StatusFilter } from "./query";
+import type { StatusFilter } from "./query";
 import { RemoveFromQueue } from "./remove-from-queue";
 
 type Glyph = ComponentType<{ className?: string }>;
@@ -64,8 +53,11 @@ export type ActivityItem = {
    *  and the queue's order. */
   addedAt: string;
   appliedAt: string | null;
-  /** The job posting's own page; the whole row opens it. None once closed. */
+  /** The job posting's own page; the review's title links it. None once
+   *  closed. */
   href?: string;
+  /** The resume it went out with, once applied (KAN-267). */
+  sentResume: SentResume | null;
 };
 
 /** Each stored stage's status, and the line it needs under its badge. */
@@ -95,6 +87,7 @@ export function activityOf(application: Application<RunStage>): ActivityItem {
     addedAt: application.added_at,
     appliedAt: application.applied_at,
     href: open ? `/jobs/${job.id}` : undefined,
+    sentResume: application.sent_resume ?? null,
   };
 }
 
@@ -115,7 +108,7 @@ export function activityOf(application: Application<RunStage>): ActivityItem {
  * Filling, a paper plane for Submitting, an eye for Needs Review, a warning for Needs You, the
  * Applied stage's own briefcase (../stage-colors.ts), a skip for Skipped.
  *
- * `group` is the Status filter's option a status belongs to; `rank` is the Status sort, what needs the seeker first.
+ * `group` is the Status filter's option a status belongs to; `rank` is the inbox order, what needs the seeker first.
  */
 export const STATUS: Record<
   ActivityStatus,
@@ -216,232 +209,129 @@ export const GROUPS: Record<StatusFilter, { label: string; Icon: Glyph; ink: str
 
 export const IN_FLIGHT: ActivityStatus[] = ["browser", "tailoring", "filling", "approved"];
 
-/** What each sort orders by; null sorts last, whichever way it runs. */
-const SORT_VALUE: Record<Sort, (item: ActivityItem) => string | number | null> = {
-  queue: (item) => Date.parse(item.addedAt),
-  company: (item) => `${item.company}\u0000${item.role}`.toLowerCase(),
-  status: (item) => STATUS[item.status].rank,
-  match: (item) => item.match,
-  applied: (item) => (item.appliedAt ? Date.parse(item.appliedAt) : null),
-};
-
-/** Which way each sort runs: true is largest first. */
-const SORT_DESC: Record<Sort, boolean> = {
-  queue: false,
-  company: false,
-  status: false,
-  match: true,
-  applied: true,
-};
-
-/** `items` in `sort`'s order. Stable, so ties keep the queue order. */
-export function sortItems(items: ActivityItem[], sort: Sort) {
-  const value = SORT_VALUE[sort];
-  const sign = SORT_DESC[sort] ? -1 : 1;
-  return [...items].sort((a, b) => {
-    const x = value(a);
-    const y = value(b);
-    if (x == null || y == null) return x == null ? (y == null ? 0 : 1) : -1;
-    return (x < y ? -1 : x > y ? 1 : 0) * sign;
-  });
+/** The inbox's order: what needs the seeker first, then in flight, the
+ *  queue, applied, skipped (STATUS's `rank`); queue order (oldest added
+ *  first) within each, so the job the run takes next is at the top of the
+ *  queued ones. */
+export function inboxOrder(items: ActivityItem[]) {
+  return [...items].sort(
+    (a, b) =>
+      STATUS[a.status].rank - STATUS[b.status].rank ||
+      Date.parse(a.addedAt) - Date.parse(b.addedAt),
+  );
 }
 
-/** The table's columns: a width each but Role, which takes the rest. */
-const COLUMNS: { id: string; label: string; sort?: Sort; hint?: string; width?: string }[] = [
-  { id: "role", label: "Role", sort: "company", hint: "Sort by company, A to Z" },
-  {
-    id: "status",
-    label: "Status",
-    sort: "status",
-    hint: "Sort by status, what needs you first",
-    // The longest badge, Working in Browser with its glyph and ringing
-    // dot, is about 151px.
-    width: "w-48",
-  },
-  { id: "match", label: "Match", sort: "match", hint: "Sort by match, best first", width: "w-26" },
-  {
-    id: "added",
-    label: "Date Added",
-    sort: "queue",
-    hint: "Sort in queue order, oldest first",
-    width: "w-30",
-  },
-  {
-    id: "applied",
-    label: "Date Applied",
-    sort: "applied",
-    hint: "Sort by date applied, latest first",
-    width: "w-30",
-  },
-  { id: "action", label: "Actions", width: "w-16" },
-];
-
-const TH = "px-4 text-note text-ink-meta font-medium";
-const TD = "px-4 py-3 text-note text-ink";
-/** Every column but Role is centred, heading and cell (asked for
- *  2026-10-20): each holds one short value under its heading. */
-const CENTER = "text-center";
-/** Role is frozen at the left while the rest scrolls, from 672px of page up,
- *  as on the Applications list (applications/list.tsx says why not below). */
-const FROZEN =
-  "z-1 bg-panel @2xl/main:sticky @2xl/main:left-0 @2xl/main:shadow-[1px_0_0_var(--color-border-subtle)]";
-
 /**
- * Live Activity's table (KAN-285): one row per job posting, in one white
- * card with 12px grey headings and rules between rows, the Applications
- * list's frame (applications/list.tsx). Columns: Role (the logo, then the
- * role over its company), Status, Match, Date Added, Date Applied, and
- * Actions at the right end.
+ * Live Activity's list, the Inbox's left half (KAN-323, chosen from the
+ * WorkIt Desktop prototypes): one row per job posting in one white card,
+ * each the logo, the role over its company, and its status badge, with a
+ * line under it where the status needs one. A click on a row shows its
+ * application on the right (./review-pane.tsx); the row shown is marked
+ * selected. It replaced KAN-285's table, whose dates and sorts the review
+ * side has no room beside.
  *
- * Every column but Role is centred. A row with an `href` (its job posting
- * is still open) opens it on a click anywhere (components/clickable-row.tsx);
- * the role is its link. Actions is a narrow column of icon buttons, to save
- * width: a queued row's cross takes it out of the queue
- * (./remove-from-queue.tsx), and the row open in the extension's tab has a
- * window glyph that goes to that tab; the row leaves clicks on a button to
- * the button.
- *
- * A heading sorts the table (`onSort`), each one way, as the Applications
- * list's headings do; the sort in force says so in aria-sort and its chevron.
- * It scrolls sideways under 864px rather than squeezing the role.
+ * A queued row keeps its cross that takes it out of the queue
+ * (./remove-from-queue.tsx), and the row open in the extension's tab its
+ * window glyph that goes to that tab: each sits beside the row's button,
+ * never inside it, since a button cannot hold a button.
  *
  * A row in flight rings out from its dot, three times and then rests
  * (`animate-status-ping`): a dot that never stops is the one thing on screen
  * the eye cannot leave alone.
  */
-export function ActivityTable({
+export function ActivityList({
   items,
-  sort,
-  onSort,
+  selected,
+  onSelect,
 }: {
   items: ActivityItem[];
-  sort: Sort;
-  onSort: (sort: Sort) => void;
+  selected: string | null;
+  onSelect: (id: string) => void;
 }) {
   return (
-    <Card padding="none" className="mt-3 overflow-hidden">
-      <Table className="min-w-[54rem] table-fixed">
-        <TableHeader>
-          <TableRow className="hover:bg-transparent">
-            {COLUMNS.map((column) => {
-              const active = column.sort != null && column.sort === sort;
-              const direction = column.sort && SORT_DESC[column.sort] ? "desc" : "asc";
-              return (
-                <TableHead
-                  key={column.id}
-                  aria-sort={
-                    active ? (direction === "asc" ? "ascending" : "descending") : undefined
-                  }
-                  className={cn(TH, column.width, column.id === "role" ? FROZEN : CENTER)}
-                >
-                  {column.sort ? (
-                    <SortButton
-                      label={column.label}
-                      hint={column.hint}
-                      active={active}
-                      direction={direction}
-                      onClick={() => onSort(column.sort!)}
-                    />
-                  ) : (
-                    // Actions is named for a screen reader only: the column
-                    // holds one icon button with its own tooltip, and the
-                    // word would not fit its 64px.
-                    <span className="sr-only">{column.label}</span>
-                  )}
-                </TableHead>
-              );
-            })}
-          </TableRow>
-        </TableHeader>
-
-        {/* Not a live region: a sort or a filter redraws every row, and a
-            screen reader read them all aloud (KAN-285 review). No status
-            changes in place yet; Start and Remove say what they did. */}
-        <TableBody>
-          {items.map((item, i) => (
-            <Reflow key={item.id}>
-              <Row item={item} index={i} />
-            </Reflow>
-          ))}
-        </TableBody>
-      </Table>
-    </Card>
+    <ul className="divide-border-subtle divide-y">
+      {items.map((item, i) => (
+        <Reflow key={item.id}>
+          <Row
+            item={item}
+            index={i}
+            selected={item.id === selected}
+            onSelect={() => onSelect(item.id)}
+          />
+        </Reflow>
+      ))}
+    </ul>
   );
 }
 
-function Row({ item, index }: { item: ActivityItem; index: number }) {
+function Row({
+  item,
+  index,
+  selected,
+  onSelect,
+}: {
+  item: ActivityItem;
+  index: number;
+  selected: boolean;
+  onSelect: () => void;
+}) {
   const status = STATUS[item.status];
-  const cells: ReactNode = (
-    <>
-      <TableCell className={cn(TD, FROZEN, "group-hover/row:bg-hover transition-colors")}>
-        <div className="flex min-w-0 items-center gap-3">
-          <CompanyLogo
-            name={item.company}
-            src={item.logoUrl}
-            className="text-meta size-8 shrink-0 rounded"
-          />
-          <div className="min-w-0">
-            {item.href ? (
-              <Link
-                href={item.href}
-                title={item.role}
-                className="text-label text-ink hover:text-brand focus-visible:ring-brand-ring block truncate rounded-xs font-semibold transition-colors duration-150 focus-visible:ring-2 focus-visible:outline-none"
-              >
-                {item.role}
-              </Link>
-            ) : (
-              <p className="text-label text-ink truncate font-semibold" title={item.role}>
-                {item.role}
-              </p>
-            )}
-            <p className="text-note text-ink-meta truncate" title={item.company}>
-              {item.company}
-            </p>
-          </div>
-        </div>
-      </TableCell>
-
-      <TableCell className={cn(TD, CENTER, "overflow-hidden")}>
-        <div className="flex items-center justify-center gap-2">
-          {IN_FLIGHT.includes(item.status) && (
-            <span
-              aria-hidden="true"
-              className={cn("relative size-1.5 shrink-0 rounded-full", status.dot)}
-            >
-              <span
-                className={cn("animate-status-ping absolute inset-0 rounded-full", status.dot)}
-              />
-            </span>
-          )}
-          <Badge tone={status.tone}>
-            <status.Icon aria-hidden className="mr-1 size-3.5 shrink-0" />
-            {status.label}
-          </Badge>
-        </div>
-        {item.detail && (
-          <p className="text-note text-ink-meta mt-1 truncate" title={item.detail}>
-            {item.detail}
+  // Fades in down the list on arrival, 25ms apart, as the Applications
+  // list's rows do.
+  const style = { animationDelay: `${Math.min(index, 10) * 25}ms` };
+  return (
+    <li
+      className={cn(
+        "animate-fade flex items-center gap-1 pr-2 transition-colors",
+        selected ? "bg-selected" : "hover:bg-hover",
+      )}
+      style={style}
+    >
+      <button
+        type="button"
+        onClick={onSelect}
+        aria-current={selected ? "true" : undefined}
+        className="focus-visible:ring-brand-ring flex min-w-0 flex-1 items-center gap-3 py-2.5 pl-4 text-left focus-visible:ring-2 focus-visible:outline-none focus-visible:ring-inset"
+      >
+        <CompanyLogo
+          name={item.company}
+          src={item.logoUrl}
+          className="text-meta size-8 shrink-0 rounded"
+        />
+        <div className="min-w-0 flex-1">
+          <p className="text-label text-ink truncate font-semibold" title={item.role}>
+            {item.role}
           </p>
-        )}
-      </TableCell>
-
-      <TableCell className={cn(TD, CENTER)}>
-        {item.match != null ? (
-          <MatchBadge score={item.match} />
-        ) : (
-          <span className="text-ink-meta">Not scored</span>
-        )}
-      </TableCell>
-
-      <TableCell className={cn(TD, CENTER)}>
-        <LocalDate at={item.addedAt} />
-      </TableCell>
-
-      <TableCell className={cn(TD, CENTER, !item.appliedAt && "text-ink-meta")}>
-        {item.appliedAt ? <LocalDate at={item.appliedAt} /> : "Not yet"}
-      </TableCell>
-
-      <TableCell className={cn(TD, CENTER, "py-0")}>
+          <p className="text-note text-ink-meta truncate" title={item.company}>
+            {item.company}
+          </p>
+          {item.detail && (
+            <p className="text-note text-ink-meta truncate" title={item.detail}>
+              {item.detail}
+            </p>
+          )}
+        </div>
+        <div className="flex shrink-0 flex-col items-end gap-1">
+          <span className="flex items-center gap-2">
+            {IN_FLIGHT.includes(item.status) && (
+              <span
+                aria-hidden="true"
+                className={cn("relative size-1.5 shrink-0 rounded-full", status.dot)}
+              >
+                <span
+                  className={cn("animate-status-ping absolute inset-0 rounded-full", status.dot)}
+                />
+              </span>
+            )}
+            <Badge tone={status.tone}>
+              <status.Icon aria-hidden className="mr-1 size-3.5 shrink-0" />
+              {status.label}
+            </Badge>
+          </span>
+          {item.match != null && <MatchBadge score={item.match} />}
+        </div>
+      </button>
+      <div className="flex w-8 shrink-0 justify-center">
         {item.status === "queued" ? (
           <RemoveFromQueue jobId={item.id} role={item.role} company={item.company} />
         ) : item.status === "browser" ? (
@@ -454,53 +344,7 @@ function Row({ item, index }: { item: ActivityItem; index: number }) {
             <AppWindow aria-hidden className="size-4" />
           </IconButton>
         ) : null}
-      </TableCell>
-    </>
-  );
-
-  // Fades in down the table on arrival, 25ms apart, as the Applications
-  // list's rows do; a row cannot rise (its transform does not paint).
-  const style = { animationDelay: `${Math.min(index, 10) * 25}ms` };
-  return item.href ? (
-    <ClickableRow href={item.href} className="hover:bg-hover animate-fade" style={style}>
-      {cells}
-    </ClickableRow>
-  ) : (
-    <TableRow className="group/row animate-fade hover:bg-transparent" style={style}>
-      {cells}
-    </TableRow>
-  );
-}
-
-/** A heading that sorts: its label and a chevron, brand while in force. */
-function SortButton({
-  label,
-  hint,
-  active,
-  direction,
-  onClick,
-}: {
-  label: string;
-  hint?: string;
-  active: boolean;
-  direction: "asc" | "desc";
-  onClick: () => void;
-}) {
-  return (
-    <button
-      type="button"
-      onClick={onClick}
-      title={hint}
-      className="hover:text-ink focus-visible:ring-brand-ring inline-flex min-w-0 items-center gap-1 rounded-xs transition-colors duration-150 focus-visible:ring-2 focus-visible:outline-none"
-    >
-      <span className="truncate">{label}</span>
-      {/* Keyed on its state, so the glyph pops in when the column takes the
-          sort rather than swapping in place. */}
-      <SortIcon
-        key={active ? direction : "none"}
-        className={cn("animate-pop size-3.5 shrink-0", active ? "text-brand" : "text-ink-faint")}
-        direction={active ? direction : undefined}
-      />
-    </button>
+      </div>
+    </li>
   );
 }

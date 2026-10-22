@@ -1,18 +1,23 @@
 "use client";
 
-import { CircleDot } from "lucide-react";
-import { useRef } from "react";
+import { CircleDot, Inbox } from "lucide-react";
+import { useCallback, useEffect, useRef, useState } from "react";
 
 import { FieldFacet, type FacetOption } from "@/components/field-facet";
 import { CloseIcon, FilterIcon } from "@/components/icons";
 import { useShallowParams, useShallowPush } from "@/components/shallow-routing";
 import { Button } from "@/components/ui/button";
+import { Card } from "@/components/ui/card";
 import { EmptyState } from "@/components/ui/empty-state";
 import { IconButton } from "@/components/ui/icon-button";
 import { useRunnerJob } from "@/lib/autofill-extension";
 
-import { ActivityTable, GROUPS, sortItems, STATUS, type ActivityItem } from "./activity-list";
+import type { RunStage } from "./actions";
+import { ActivityList, activityOf, GROUPS, inboxOrder, STATUS } from "./activity-list";
+import type { Application } from "./applications";
+import { pollApplications } from "./desktop-actions";
 import { activityHref, parseActivityQuery, STATUS_FILTERS, type StatusFilter } from "./query";
+import { ReviewPane } from "./review-pane";
 
 const STATUS_OPTIONS: FacetOption[] = STATUS_FILTERS.map((group) => ({
   value: group,
@@ -21,44 +26,87 @@ const STATUS_OPTIONS: FacetOption[] = STATUS_FILTERS.map((group) => ({
   iconClassName: GROUPS[group].ink,
 }));
 
+/** The stages that move without the seeker: while any row is in one, the
+ *  list asks again every POLL_MS. */
+const MOVING: RunStage[] = ["queued", "filling", "approved"];
+const POLL_MS = 3_000;
+
 /**
- * Live Activity (KAN-285): the Status filter and the table of applications
- * (./activity-list.tsx).
+ * Live Activity as the Inbox (KAN-323, picked from the WorkIt Desktop
+ * prototypes): the Status filter, then the list of applications on the left
+ * (./activity-list.tsx) and the picked one's review on the right
+ * (./review-pane.tsx). Below 896px of page the two stack.
+ *
+ * THE ROWS ARE THE SERVER'S, KEPT CURRENT HERE. The page reads them scored
+ * (./applications.ts) and passes them in; while any is queued, filling or
+ * approved, this re-reads the list every 3 seconds (pollApplications,
+ * unscored) so Desktop's Workers and the extension's runner show as they
+ * move, and keeps each job's score from the page's read. A refresh of the
+ * route (Start, the cross) passes new rows in, which replace the polled
+ * ones. Supabase Realtime can replace the poll later (auto-apply/desktop.md).
  *
  * It adds the one row the server cannot know: the queued job posting open
- * in the extension's run tab reads Working in Browser (useRunnerJob), in
- * flight, and has a glyph that goes to the tab instead of the cross, since
- * taking it out of the queue would leave the tab on a job that is gone.
- * Every other row is as the server drew it.
+ * in the extension's run tab reads Working in Browser (useRunnerJob).
  *
- * THE FILTER AND THE SORT ARE THE URL'S (./query.ts), read through shallow
- * routing so a pick redraws in the next frame: the rows are all here, so
- * this filters and sorts them itself and never asks the server. The Status
- * dropdown is the Applications page's (components/field-facet.tsx), its
- * options the status groups, each with its glyph in its colour; Clear Filters is an outlined
- * cross while a status is picked. Both Clear Filters, the cross and the empty
- * state's button, hand focus back to the dropdown: each leaves the page as
- * it clears, and focus would otherwise fall to the top of the page.
- * A row of counts by status sat above the table until the user asked for
- * it to go (2026-10-20).
+ * THE PICK: a click on a row shows it on the right. With none picked, the
+ * first application that needs review is shown; after Approve or Skip the
+ * next one is. The pick is the page's own state, not the URL's.
+ *
+ * THE FILTER IS THE URL'S (./query.ts), read through shallow routing so a
+ * pick redraws in the next frame. The Status dropdown is the Applications
+ * page's (components/field-facet.tsx); Clear Filters is an outlined cross
+ * while a status is picked. Both Clear Filters hand focus back to the
+ * dropdown, since each leaves the page as it clears.
  */
-export function LiveActivity({ items }: { items: ActivityItem[] }) {
+export function LiveActivity({ applications }: { applications: Application<RunStage>[] }) {
   const query = parseActivityQuery(useShallowParams());
   const push = useShallowPush();
   const runnerJob = useRunnerJob();
   const statusButton = useRef<HTMLButtonElement>(null);
+  const [picked, setPicked] = useState<string | null>(null);
 
-  const rows = items.map((item) =>
-    item.status === "queued" && item.id === runnerJob
-      ? { ...item, status: "browser" as const, detail: "Open in a background tab" }
-      : item,
+  // The last poll, tied to the rows it followed: new rows from the server
+  // make it stale at once, with no effect to clear it.
+  const [polled, setPolled] = useState<{
+    from: Application<RunStage>[];
+    rows: Application<RunStage>[];
+  } | null>(null);
+  const current = polled?.from === applications ? polled.rows : applications;
+  const moving = current.some((a) => MOVING.includes(a.stage));
+
+  const refresh = useCallback(async () => {
+    const { data } = await pollApplications();
+    if (data) setPolled({ from: applications, rows: data });
+  }, [applications]);
+
+  useEffect(() => {
+    if (!moving) return;
+    const timer = setInterval(() => void refresh(), POLL_MS);
+    return () => clearInterval(timer);
+  }, [moving, refresh]);
+
+  const scores = new Map(applications.map((a) => [a.job.id, a.match ?? null]));
+  const rows = inboxOrder(
+    current.map((application) => {
+      const item = activityOf(application);
+      const match = item.match ?? scores.get(item.id) ?? null;
+      return item.status === "queued" && item.id === runnerJob
+        ? { ...item, match, status: "browser" as const, detail: "Open in a background tab" }
+        : { ...item, match };
+    }),
   );
-  const shown = sortItems(
+  const shown =
     query.statuses.length === 0
       ? rows
-      : rows.filter((item) => query.statuses.includes(STATUS[item.status].group)),
-    query.sort,
-  );
+      : rows.filter((item) => query.statuses.includes(STATUS[item.status].group));
+  const selected =
+    rows.find((item) => item.id === picked) ?? shown.find((item) => item.status === "review");
+
+  /** After Approve or Skip: the next review, then the list read again. */
+  function done(id: string) {
+    setPicked(shown.find((item) => item.status === "review" && item.id !== id)?.id ?? null);
+    void refresh();
+  }
 
   const setStatuses = (statuses: string[]) =>
     push(activityHref(query, { statuses: statuses as StatusFilter[] }), undefined, {
@@ -68,12 +116,10 @@ export function LiveActivity({ items }: { items: ActivityItem[] }) {
     statusButton.current?.focus();
     setStatuses([]);
   };
+  const reviews = rows.filter((item) => item.status === "review").length;
 
   return (
     <>
-      {/* The filter row, as the Applications page's starts: the Status
-          dropdown, then Clear Filters as an outlined cross while a status
-          is picked. */}
       <div className="mt-3 flex items-center gap-2">
         <FieldFacet
           ref={statusButton}
@@ -94,14 +140,29 @@ export function LiveActivity({ items }: { items: ActivityItem[] }) {
             <CloseIcon className="size-4" />
           </IconButton>
         )}
+        {reviews > 0 && (
+          <p className="text-note text-ink-meta ml-auto">
+            {reviews} {reviews === 1 ? "needs" : "need"} your review
+          </p>
+        )}
       </div>
 
       {shown.length > 0 ? (
-        <ActivityTable
-          items={shown}
-          sort={query.sort}
-          onSort={(sort) => push(activityHref(query, { sort }))}
-        />
+        <div className="mt-3 grid items-start gap-4 @4xl/main:grid-cols-[minmax(0,2fr)_minmax(0,3fr)]">
+          <Card padding="none" className="max-h-[75vh] overflow-y-auto">
+            <ActivityList items={shown} selected={selected?.id ?? null} onSelect={setPicked} />
+          </Card>
+          {selected ? (
+            <Card padding="lg" className="@4xl/main:sticky @4xl/main:top-4">
+              <ReviewPane key={selected.id} item={selected} onDone={() => done(selected.id)} />
+            </Card>
+          ) : (
+            <EmptyState Icon={Inbox} title="Nothing to Review">
+              Applications land here for your review as WorkIt Desktop fills them. Pick any job on
+              the left to see where it stands.
+            </EmptyState>
+          )}
+        </div>
       ) : (
         <EmptyState
           Icon={FilterIcon}

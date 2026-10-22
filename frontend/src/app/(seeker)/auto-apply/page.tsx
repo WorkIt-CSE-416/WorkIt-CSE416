@@ -6,7 +6,6 @@ import { cn } from "@/lib/cn";
 
 import { SEEKER_GUTTER } from "../gutter";
 import { RememberFeed } from "../jobs/[jobId]/page-actions";
-import { activityOf } from "./activity-list";
 import { getRunApplications } from "./applications";
 import { getDesktopStatus } from "./desktop-actions";
 import { AutoApplyPanel } from "./auto-apply-panel";
@@ -27,17 +26,19 @@ export const metadata: Metadata = {
  *
  *   Resume List            every resume, since each application gets its
  *                          own pick, as a table (./resume-list.tsx)
- *   Live Activity          the seeker's applications from the API
- *                          (./applications.ts), with their match scores,
- *                          as a table filtered by status and sorted from
- *                          the URL (./live-activity.tsx, ./query.ts); queue
- *                          order by default (oldest first, the API's list
- *                          reversed): each job posting queued with a batch
- *                          or a job's Auto Apply button, and where it stands
- *                          (./activity-list.tsx)
+ *   Live Activity          the Inbox (KAN-323): the seeker's applications
+ *                          from the API (./applications.ts), with their
+ *                          match scores, as a list filtered by status from
+ *                          the URL (./live-activity.tsx, ./query.ts), what
+ *                          needs review first (./activity-list.tsx), and
+ *                          beside it the picked one's review, where the
+ *                          seeker approves or skips what WorkIt Desktop
+ *                          filled (./review-pane.tsx)
  *
  * The rows are read here, on the server, and passed through the client
- * panel; a batch refreshes the route to redraw them.
+ * panel; a batch refreshes the route to redraw them, and Live Activity
+ * polls while any is moving. WorkIt Desktop's status is read here too, for
+ * the first paint of its bar (./desktop-status.tsx).
  * A failed read says so, never a fixture (backend/CLAUDE.md). A <div>, since
  * SidebarInset is already the <main>.
  */
@@ -66,11 +67,7 @@ export default async function AutoApplyPage() {
             Start Auto Apply to queue your best matches, or click Auto Apply on any job.
           </EmptyState>
         ) : (
-          // Queue order, oldest first: the API answers newest first, but the
-          // job the extension opens next belongs at the top and a newly
-          // queued one joins at the bottom. The table's default sort keeps
-          // it (./query.ts, `queue`).
-          <LiveActivity items={[...applications].reverse().map(activityOf)} />
+          <LiveActivity applications={applications} />
         )}
       </AutoApplyPanel>
     </div>
