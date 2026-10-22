@@ -10,7 +10,7 @@ import { openNextApplication } from "@/lib/autofill-extension";
 import { cn } from "@/lib/cn";
 
 import { startBatch } from "./actions";
-import type { DesktopStatus } from "./desktop-actions";
+import { getDesktopStatus, type DesktopStatus } from "./desktop-actions";
 import { DesktopStatusBar, useDesktopStatus } from "./desktop-status";
 import { openedNote } from "./opened-note";
 import { ResumeList, useResumes } from "./resume-list";
@@ -47,7 +47,13 @@ const RUN_BUTTON: Record<
  * resume (the Resume List's, read here by useResumes), and while a batch is
  * queueing. The note on what happened sits under the header.
  *
- * START QUEUES A BATCH, THEN OPENS THE FIRST APPLICATION. From idle, the
+ * START QUEUES A BATCH. WITH WORKIT DESKTOP RUNNING, THAT IS ALL (KAN-323):
+ * Desktop's Workers claim the queued jobs, fill them and stop each before
+ * Submit for the seeker's review in Live Activity. Whether Desktop runs is
+ * read again with the batch (getDesktopStatus), not taken from the bar.
+ *
+ * WITHOUT DESKTOP, START QUEUES A BATCH, THEN OPENS THE FIRST APPLICATION in
+ * the extension, as before Desktop. From idle, the
  * button asks the API for the seeker's best matches (./actions, startBatch:
  * 10, leaving out every job they already have an application for) and
  * refreshes the route so the list shows them. Then it asks the extension's
@@ -71,7 +77,7 @@ export function AutoApplyPanel({
   children: ReactNode;
 }) {
   const router = useRouter();
-  const [desktop] = useDesktopStatus(initialDesktop);
+  const [desktop, setDesktop] = useDesktopStatus(initialDesktop);
   const resumes = useResumes();
   const [run, setRun] = useState<RunState>("idle");
   const [note, setNote] = useState<{ text: string; error: boolean } | null>(null);
@@ -100,7 +106,10 @@ export function AutoApplyPanel({
     queueing.current = true;
     start(async () => {
       try {
-        const result = await startBatch();
+        // Desktop's status is read again with the queueing, not taken from
+        // the bar: it decides who fills the batch.
+        const [result, status] = await Promise.all([startBatch(), getDesktopStatus()]);
+        setDesktop(status.data);
         if (result.error != null) {
           setNote({ text: result.error, error: true });
           return;
@@ -111,6 +120,14 @@ export function AutoApplyPanel({
           result.queued === 0
             ? "No new matches to queue."
             : `Queued ${result.queued} ${result.queued === 1 ? "job" : "jobs"}.`;
+        if (status.data?.online) {
+          // WorkIt Desktop claims queued jobs itself (auto-apply/desktop.md).
+          setNote({
+            text: result.queued === 0 ? queued : `${queued} WorkIt Desktop is filling them.`,
+            error: false,
+          });
+          return;
+        }
         setNote({ text: queued, error: false });
         void openInBrowser(queued);
       } finally {
