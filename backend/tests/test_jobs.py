@@ -758,7 +758,7 @@ def test_route_reads_auto_apply_supported(no_database, monkeypatch, query, only)
     assert TestClient(app).get(f"/jobs{query}").status_code == 200
     (filters,) = seen
     assert filters.auto_apply_only is only
-    # Greenhouse's hosts only, the rule auto apply's matches use too.
+    # hosts.py's hiring systems only, the rule auto apply's matches use too.
     clauses = [_sql(c) for c in matching(filters)]
     assert any("apply_url ~*" in c for c in clauses) is only
 

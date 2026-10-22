@@ -103,8 +103,8 @@ module docstring has the steps.
   `storage` fixture is the pattern: an in-memory bucket that records uploads
   and removals.
 - **An auto apply test seeds a Greenhouse `apply_url`** (`_seed_posting(database,
-  url)` in `tests/test_sent_resumes.py`): the queue refuses every other host
-  (`app/auto_apply/hosts.py`) with a 404. The Greenhouse-only rule broke six
+  url)` in `tests/test_sent_resumes.py`): the queue refuses every host not in
+  `app/auto_apply/hosts.py` with a 404. The Greenhouse-only rule broke six
   database tests that seeded `example.com`; they skip without the local
   container, so only CI caught it (2026-10-17). Run them with the container
   up before pushing a change to auto apply's queue.
@@ -190,8 +190,8 @@ Find files with a directory listing; these are the rules for where code goes.
   `services/sent_resumes.py`, never Storage or the renderer itself, so a
   resume auto apply sends is a sent resume under Apply's rules (the repeat
   hash, the file kept while a row uses it). **Which job postings it takes is
-  one list, `app/auto_apply/hosts.py`** (Greenhouse for now): the matches
-  and `queue_applications` require its SQL form (`AUTO_APPLY_SUPPORTED` in
+  one list, `app/auto_apply/hosts.py`** (the hiring systems WorkIt Desktop
+  fills, KAN-323): the matches and `queue_applications` require its SQL form (`AUTO_APPLY_SUPPORTED` in
   `queries/jobs/filters.py`) and `JobListing.auto_apply` its Python form,
   which the Jobs page reads to show the button. One pattern serves both, so
   they agree; the Python form is tested against URLs, the SQL form only by

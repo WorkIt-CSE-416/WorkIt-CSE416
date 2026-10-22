@@ -194,7 +194,7 @@ Names are not final.
 |---|---|---|
 | 1 | `fetch_recommended(db, account, filters, min_match, limit)` | Scores and ranks job postings. **Built** |
 | 1, pure | `pick_batch(scored, size)` | Drops repeats of one company and title; takes the first `size`. **Built** |
-| 1, pure | `auto_apply_supported(apply_url)` (`hosts.py`) | Whether the host is a hiring system auto apply fills: Greenhouse for now. `AUTO_APPLY_SUPPORTED` in `queries/jobs/filters.py` is the same rule in SQL, required by the matches and `queue_applications`. **Built** |
+| 1, pure | `auto_apply_supported(apply_url)` (`hosts.py`) | Whether the host is a hiring system auto apply fills (`AUTO_APPLY_HOSTS`, KAN-323). `AUTO_APPLY_SUPPORTED` in `queries/jobs/filters.py` is the same rule in SQL, required by the matches and `queue_applications`. **Built** |
 | 1 | `queue_applications(db, applicant_id, job_ids)` | Saves the open ones with no application yet as `queued`; answers which. **Built** |
 | 1 | `fetch_stage(db, applicant_id, job_id)` | The application's stage, or `None`. **Built** |
 | 1 | `fetch_applications(db, applicant_id, stages)` | The applications, newest first, each with its job posting's listing and `open`. **Built** |
@@ -312,9 +312,11 @@ One click of **Start Auto Apply** queues a batch of 10 job postings.
    `filters=`, or let them set filters on the Auto Apply page.
 5. **Keep one job posting per company and title.** Some roles are listed
    once per office.
-6. **Only hiring systems the extension fills: Greenhouse, for now.** The
+6. **Only hiring systems auto apply fills.** Greenhouse, Lever, Ashby,
+   Workday, Workable, Rippling and Eightfold since WorkIt Desktop (KAN-323,
+   `desktop.md`); the extension's runner fills Greenhouse only. The
    matches, a batch and a job's Auto Apply button take a job posting only
-   when its `apply_url` host is a `greenhouse.io` one
+   when its `apply_url` host is one of theirs
    (`backend/app/auto_apply/hosts.py`, the one list; the SQL condition and
    `JobListing.auto_apply` both read it). A company's own careers page that
    embeds Greenhouse (`?gh_jid=`) stays out: the run would land on the

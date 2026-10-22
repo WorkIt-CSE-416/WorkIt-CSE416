@@ -36,7 +36,7 @@ def storage(monkeypatch):
 
 
 # Auto apply queues only job postings on a hiring system it fills
-# (app/auto_apply/hosts.py): Greenhouse for now.
+# (app/auto_apply/hosts.py): Greenhouse is one.
 GREENHOUSE = "https://job-boards.greenhouse.io/acme/jobs/1"
 
 
@@ -148,7 +148,7 @@ async def test_a_queued_job_can_leave_the_queue_and_come_back(student, storage, 
 
 
 @pytest.mark.parametrize("url", [
-    "https://jobs.lever.co/acme/1",
+    "https://jobs.smartrecruiters.com/Acme/1",
     # A company's own careers page embedding Greenhouse: not its form.
     "https://stripe.com/jobs/search?gh_jid=1",
 ])

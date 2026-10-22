@@ -56,8 +56,25 @@ def test_auto_apply_takes_greenhouse(url):
 
 
 @pytest.mark.parametrize("url", [
-    "https://jobs.ashbyhq.com/acme/1/application",
     "https://jobs.lever.co/acme/1",
+    "https://jobs.eu.lever.co/acme/1/apply",
+    "https://jobs.ashbyhq.com/acme/1/application",
+    "https://acme.wd5.myworkdayjobs.com/en-US/careers/job/NY/SWE_R1",
+    "https://apply.workable.com/acme/j/ABC123/",
+    "https://ats.rippling.com/acme/jobs/1",
+    "https://acme.eightfold.ai/careers?pid=1",
+])
+def test_auto_apply_takes_the_hiring_systems_desktop_fills(url):
+    assert auto_apply_supported(url)
+    assert job("1", url).auto_apply
+
+
+@pytest.mark.parametrize("url", [
+    "https://jobs.smartrecruiters.com/Acme/1",
+    "https://www.workday.com/en-us/company/careers.html",
+    # Rippling's own site, not a job board on it.
+    "https://www.rippling.com/careers",
+    "https://jobs.lever.co.example.com/acme",
     # A company's own careers page that embeds Greenhouse: not its form.
     "https://stripe.com/jobs/search?gh_jid=8257892",
     "https://example.com/?next=https://boards.greenhouse.io/acme",

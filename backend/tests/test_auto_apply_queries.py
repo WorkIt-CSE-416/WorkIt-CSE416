@@ -57,7 +57,7 @@ def test_queue_inserts_only_listed_jobs_and_moves_only_saved_rows():
     assert "CAST(%(param_2)s AS application_stage)" in sql
     assert "job_postings.company_id IS NULL" in sql
     assert "job_postings.status = %(status_1)s" in sql
-    assert "job_postings.apply_url ~* %(apply_url_1)s" in sql  # Greenhouse only
+    assert "job_postings.apply_url ~* %(apply_url_1)s" in sql  # hosts.py's only
     # Only a saved job moves to queued; any other stage keeps its row.
     assert "ON CONFLICT (applicant_id, job_id) DO UPDATE SET stage = " in sql
     assert "created_at = now()" in sql
@@ -139,3 +139,4 @@ def test_matches_can_take_only_jobs_auto_apply_fills():
     (clause,) = matching(JobFilters(auto_apply_only=True))
     assert _sql(clause).startswith("job_postings.apply_url ~* '^https?://")
     assert "greenhouse\\.io" in _sql(clause)
+    assert "myworkdayjobs\\.com" in _sql(clause)

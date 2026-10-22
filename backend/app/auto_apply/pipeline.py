@@ -141,8 +141,8 @@ async def get_matches(
     Jobs page's own listing (title, company, logo, apply_url...) plus `match`
     and `highlights`. Reads only; start_batch queues them.
 
-    Only job postings on a hiring system auto apply fills (Greenhouse for
-    now, app/auto_apply/hosts.py). Leaves out every job posting the
+    Only job postings on a hiring system auto apply fills
+    (app/auto_apply/hosts.py). Leaves out every job posting the
     applicant has an application for (queued, skipped, needs_you or applied)
     and repeats of one company and title (pick_batch). Raises EmptyBank (routers/jobs.py) when the applicant's
     experience bank is empty.
