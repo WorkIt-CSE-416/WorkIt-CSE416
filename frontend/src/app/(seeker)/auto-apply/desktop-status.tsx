@@ -44,8 +44,9 @@ export function useDesktopStatus(initial: DesktopStatus | null) {
 /**
  * The bar over Live Activity (KAN-323, the Inbox design): whether WorkIt
  * Desktop is running on the seeker's computer, how many of its Workers are
- * filling an application, and how much of their Claude plan's 5-hour window
- * and week is used, when Desktop reports it. While Desktop is off it says
+ * filling an application, whether it has paused (near the Claude plan
+ * limit, it takes nothing new), and how much of their Claude plan's 5-hour
+ * window and week is used, when Desktop reports it. While Desktop is off it says
  * the extension will be used instead, one application at a time, which is
  * what Start Auto Apply then does (./auto-apply-panel.tsx).
  */
@@ -77,6 +78,11 @@ export function DesktopStatusBar({
               ? `${status.busy} of ${status.workers} ${status.workers === 1 ? "Worker" : "Workers"} busy`
               : "Auto Apply will use the WorkIt extension, one application at a time."}
           </p>
+          {online && status.paused && (
+            <p className="text-note text-warning">
+              Paused: {status.paused_reason || "Claude plan limit"}
+            </p>
+          )}
         </div>
       </div>
       {online && status.usage && (

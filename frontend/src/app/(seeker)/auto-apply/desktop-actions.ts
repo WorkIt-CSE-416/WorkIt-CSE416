@@ -57,6 +57,9 @@ export type DesktopStatus = {
   workers: number;
   busy: number;
   usage: DesktopUsage | null;
+  /** Desktop takes nothing new, and why (near the Claude plan limit). */
+  paused?: boolean;
+  paused_reason?: string | null;
 };
 
 type StageAnswer = { stage: RunStage };

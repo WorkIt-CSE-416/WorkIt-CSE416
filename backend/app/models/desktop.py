@@ -6,7 +6,7 @@ ex: applicant 7's Desktop was last seen 10 s ago with 4 Workers, 2 busy
 import datetime
 import uuid
 
-from sqlalchemy import CheckConstraint, DateTime, ForeignKey, func
+from sqlalchemy import CheckConstraint, DateTime, ForeignKey, false, func
 from sqlalchemy.dialects.postgresql import JSONB
 from sqlalchemy.orm import Mapped, mapped_column
 
@@ -33,6 +33,9 @@ class Desktop_Heartbeat(Base):
     version: Mapped[str]
     # The running Desktop, new each time it starts; NULL from a Desktop too old to send one.
     instance: Mapped[uuid.UUID | None]
+    # Desktop takes nothing new (near the Claude plan limit), and why.
+    paused: Mapped[bool] = mapped_column(server_default=false())
+    paused_reason: Mapped[str | None]
     # The database's clock, never Desktop's: online and stale compare it to now().
     last_seen: Mapped[datetime.datetime] = mapped_column(
         DateTime(timezone=True), server_default=func.now())

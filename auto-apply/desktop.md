@@ -97,8 +97,10 @@ ReviewAnswer {
   facts: [str]                      # bank facts an essay's claims came from; each at most 500 characters
 }
 DesktopBeat   { workers: int, busy: int, usage: {five_hour: float, weekly: float} | null, version: str,
-                instance: uuid | null }   # new each time Desktop starts (Leases)
-DesktopStatus { online: bool, last_seen: datetime | null, workers: int, busy: int, usage: {...} | null }
+                instance: uuid | null,    # new each time Desktop starts (Leases)
+                paused: bool, paused_reason: str | null }  # takes nothing new, e.g. "Claude plan limit"
+DesktopStatus { online: bool, last_seen: datetime | null, workers: int, busy: int, usage: {...} | null,
+                paused: bool, paused_reason: str | null }
 ```
 
 - After approval, `GET review` answers the approved answers in `answers`

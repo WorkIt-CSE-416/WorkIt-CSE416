@@ -176,6 +176,9 @@ class DesktopBeat(BaseModel):
     # The running Desktop, new each time it starts: a claim requeues the
     # filling applications an earlier run holds (auto-apply/desktop.md, "Leases").
     instance: uuid.UUID | None = None
+    # Desktop takes nothing new, and why ("Claude plan limit").
+    paused: bool = False
+    paused_reason: str | None = Field(None, max_length=200)
 
     @model_validator(mode="after")
     def _busy_within_workers(self) -> "DesktopBeat":
@@ -195,3 +198,5 @@ class DesktopStatus(BaseModel):
     workers: int
     busy: int
     usage: DesktopUsage | None
+    paused: bool = False
+    paused_reason: str | None = None

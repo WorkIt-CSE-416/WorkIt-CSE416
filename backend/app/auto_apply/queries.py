@@ -510,6 +510,8 @@ _STATUS = (
     Desktop_Heartbeat.workers,
     Desktop_Heartbeat.busy,
     Desktop_Heartbeat.usage,
+    Desktop_Heartbeat.paused,
+    Desktop_Heartbeat.paused_reason,
 )
 
 
@@ -523,6 +525,8 @@ async def save_beat(db: AsyncSession, applicant_id: uuid.UUID, beat: DesktopBeat
         usage=beat.usage.model_dump() if beat.usage else null(),
         version=beat.version,
         instance=beat.instance,
+        paused=beat.paused,
+        paused_reason=beat.paused_reason,
         last_seen=func.now(),
     )
     row = (
@@ -531,7 +535,9 @@ async def save_beat(db: AsyncSession, applicant_id: uuid.UUID, beat: DesktopBeat
                 index_elements=[Desktop_Heartbeat.applicant_id],
                 set_={
                     column: upsert.excluded[column]
-                    for column in ("workers", "busy", "usage", "version", "instance", "last_seen")
+                    for column in (
+                        "workers", "busy", "usage", "version", "instance", "paused", "paused_reason", "last_seen"
+                    )
                 },
             ).returning(*_STATUS)
         )

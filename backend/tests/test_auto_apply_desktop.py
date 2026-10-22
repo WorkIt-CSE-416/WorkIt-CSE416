@@ -470,6 +470,7 @@ async def test_desktop_is_offline_until_it_beats(database):
         status = await pipeline.desktop_status(session, me)
     assert status.model_dump() == {
         "online": False, "last_seen": None, "workers": 0, "busy": 0, "usage": None,
+        "paused": False, "paused_reason": None,
     }
 
 
@@ -482,6 +483,17 @@ async def test_a_beat_is_online_and_overwrites_the_last(database):
     assert (status.online, status.workers, status.busy, status.usage) == (True, 2, 0, None)
     async with database() as session:
         assert (await pipeline.desktop_status(session, me)).online
+
+
+async def test_a_paused_beat_says_so_until_the_next_one(database):
+    me = await _seed_applicant(database)
+    paused = BEAT.model_copy(update={"paused": True, "paused_reason": "Claude plan limit"})
+    async with database() as session:
+        status = await pipeline.desktop_beat(session, me, paused)
+    assert (status.paused, status.paused_reason) == (True, "Claude plan limit")
+    async with database() as session:
+        status = await pipeline.desktop_beat(session, me, BEAT)
+    assert (status.paused, status.paused_reason) == (False, None)
 
 
 async def test_desktop_is_offline_45_seconds_after_its_last_beat(database):
