@@ -92,7 +92,8 @@ export function DesktopStatusBar({
 /** A share of the plan used, as a bar: amber past 80%, where a batch may
  *  stop for the window to reset. */
 function Meter({ label, value }: { label: string; value: number }) {
-  const percent = Math.min(100, Math.max(0, value));
+  // Desktop sends each window as a share, 0 to 1.
+  const percent = Math.min(100, Math.max(0, value * 100));
   return (
     <div className="min-w-36">
       <div className="text-note text-ink-meta flex justify-between gap-3">
