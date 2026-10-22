@@ -1,0 +1,74 @@
+name: Deploy to Cloudflare
+
+# Both halves run on Cloudflare Workers Paid (docs/adr/0004-host-on-cloudflare.md):
+# the app on Workers through OpenNext at workitjobs.ai, the API in a Container
+# behind a Worker at api.workitjobs.ai. Vercel stays live until KAN-296.
+on:
+  push:
+    branches: [main]
+  workflow_dispatch:
+
+# One group for every ref: a branch run by hand and a push to main deploy the
+# same two Workers, so they queue instead of mixing one's app with the other's API.
+concurrency:
+  group: deploy-cloudflare
+  cancel-in-progress: false
+
+env:
+  CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+  CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
+
+jobs:
+  api:
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: backend/cloudflare
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version-file: .nvmrc
+      - run: npm ci
+      - run: ../../.github/scripts/ensure-worker.sh workit-api
+      # One JSON secret holds every runtime value. It goes on before the
+      # deploy: the deploy's image rollout restarts the containers with the
+      # secrets of that moment, and a secrets-only version restarts none
+      # (.github/CLAUDE.md, "Deploy to Cloudflare").
+      - name: Set runtime secrets
+        env:
+          SECRETS_JSON: ${{ secrets.CF_API_SECRETS_JSON }}
+        run: printf '%s' "$SECRETS_JSON" | npx wrangler secret bulk
+      # wrangler builds backend/Dockerfile (context: the repo root) with the
+      # runner's Docker and pushes it to Cloudflare's registry.
+      - run: npm run deploy
+      - name: Health check
+        run: |
+          for i in $(seq 1 30); do
+            if curl -fsS https://api.workitjobs.ai/health/db; then exit 0; fi
+            sleep 10
+          done
+          exit 1
+
+  web:
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: frontend
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version-file: .nvmrc
+      - run: npm ci
+      # NEXT_PUBLIC_* are inlined at build time, so they come in here, not as
+      # Worker secrets. Both are public by design (the anon key and URL).
+      - run: npm run cf:build
+        env:
+          NEXT_PUBLIC_SUPABASE_URL: ${{ vars.NEXT_PUBLIC_SUPABASE_URL }}
+          NEXT_PUBLIC_SUPABASE_ANON_KEY: ${{ vars.NEXT_PUBLIC_SUPABASE_ANON_KEY }}
+      # Prints the token's account and scopes (never the token), so a
+      # permission error below can be read straight from the log.
+      - run: npx wrangler whoami
+      - run: ../.github/scripts/ensure-worker.sh workit-web
+      - run: npm run cf:deploy

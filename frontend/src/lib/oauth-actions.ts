@@ -25,8 +25,15 @@ export type OAuthProvider = "google" | "linkedin_oidc";
  */
 export async function signInWithOAuth(provider: OAuthProvider): Promise<void> {
   const headersList = await headers();
-  const host = headersList.get("x-forwarded-host") ?? headersList.get("host");
-  const protocol = headersList.get("x-forwarded-proto") ?? "http";
+  // Vercel's proxy sets x-forwarded-host itself. On Cloudflare it is whatever
+  // the browser sent, while Host is the name Cloudflare routed on, so only
+  // Vercel reads the forwarded one.
+  const host =
+    (process.env.VERCEL ? headersList.get("x-forwarded-host") : null) ?? headersList.get("host");
+  // Plain http only on a local machine; a deployed host is https even when a
+  // proxy in front of it leaves x-forwarded-proto off.
+  const isLocal = /^(localhost|127\.0\.0\.1|\[::1\]|[\w.-]+\.localhost)(:\d+)?$/.test(host ?? "");
+  const protocol = headersList.get("x-forwarded-proto") ?? (isLocal ? "http" : "https");
   const origin = `${protocol}://${host}`;
 
   const supabase = await createSupabaseServerClient();

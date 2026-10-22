@@ -29,6 +29,10 @@ coverage/
 .next/
 out/
 
+# OpenNext and Wrangler build output (frontend/, KAN-294). Unanchored, as above.
+.open-next/
+.wrangler/
+
 # production
 build/
 

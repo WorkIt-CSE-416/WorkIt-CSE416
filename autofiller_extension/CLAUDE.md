@@ -700,6 +700,17 @@ Flagged here rather than silently deferred — the user asked for a
 prototype open to reorganization, and this is the honest list of what that
 openness covers:
 
+- **The extension knows only the Vercel origins, not `workitjobs.ai`**
+  (KAN-169). `PROD_WEB_URL`, `PROD_API_URL` and `manifest.json`'s
+  `host_permissions` and `externally_connectable` name
+  `workit-web-gamma.vercel.app` and `workit-api.vercel.app` alone. Signed in
+  on `workitjobs.ai` only, a student has no session cookie where
+  `webapp-session.js` looks, so the extension reads them as signed out and
+  the site's Auto Apply cannot reach it. Both domains share one Supabase
+  project and database, so pointing these at `workitjobs.ai` and
+  `api.workitjobs.ai` is the whole change; it belongs with the KAN-296
+  cutover. A new `host_permissions` entry makes Chrome ask installed users
+  to approve it again.
 - **Essay-question generation: the detection, overlay, and backend route
   are each confirmed working on their own; the full round trip through a
   loaded, reloaded extension (popup click → injected content script →

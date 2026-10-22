@@ -98,6 +98,15 @@ shells into it.
 CI runs on every PR to `main`; merge only on a green check. The jobs, the
 scheduled scrape and its gotchas are in `.github/CLAUDE.md`.
 
+**Both halves are moving to Cloudflare Workers Paid** (KAN-169,
+`docs/adr/0004-host-on-cloudflare.md`): the app on Workers through OpenNext at
+https://workitjobs.ai, the API in a Container at https://api.workitjobs.ai,
+both deployed by `.github/workflows/deploy.yml` with no Cloudflare login on
+anyone's machine. The Cloudflare account is owned by the team Gmail, never one
+person's login; teammates are members with Developer Platform Admin on the
+account and Administrator on the `workitjobs.ai` zone only. Until the cutover
+(KAN-296) Vercel stays production, as described next.
+
 Both halves deploy to **Vercel as two projects from this repo** (Root
 Directory `frontend` and `backend`, the API as one Vercel Function).
 Production is https://workit-web-gamma.vercel.app (app) and
