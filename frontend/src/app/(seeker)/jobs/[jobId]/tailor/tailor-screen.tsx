@@ -410,7 +410,6 @@ function KeywordList({ label, keywords }: { label: string; keywords: Keyword[] }
 
 const WHAT: Record<TailorChange["kind"], string> = {
   reword: "New wording",
-  show_entry: "Bring back",
   show_skill: "Show skill",
   order: "Reorder bullets",
 };

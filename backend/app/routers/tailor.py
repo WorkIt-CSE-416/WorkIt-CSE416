@@ -10,7 +10,8 @@ skills it holds, everything else hidden; built in memory, never saved).
 
 POST /applicants/{id}/tailor       TailorRun {job_posting_id, source} -> TailorProposal
      One Tailor run: proposed changes from the picked source, which the
-     proposal names again for Done. Saves nothing but what reading an
+     proposal names again for Done. It tailors only the entries and
+     bullets the source shows; it never proposes one it hides. Saves nothing but what reading an
      uploaded source merged into the bank (nothing until Done).
      Free while KAN-319 lifts the limit: no Tailor use is checked or
      counted, and uses_left is always the cap. Restoring the commented
@@ -134,16 +135,18 @@ async def run(
         await session.commit()
 
     tailored = await built_resumes.tailored_for(session, applicant_id, job.id)
-    ranks = await tailor.rank_bullets(session, applicant_id, tailor.posting_text(job, found))
+    # Only what the picked resume shows: a run never adds an entry it hides.
+    resume = tailor.on_resume(bank, choices)
+    ranks = await tailor.rank_bullets(session, resume, tailor.posting_text(job, found))
 
     identity = await load_identity(session, account)
     try:
         reading = await llm.complete_json(
-            tailor.prompt(job, found, bank, choices, ranks), TailorReading, identity=identity)
+            tailor.prompt(job, found, resume, choices, ranks), TailorReading, identity=identity)
     except ScoutUnavailable as exc:
         raise HTTPException(503, AI.failure(exc)) from exc
-    changes, dropped = tailor.propose(bank, choices, reading, ranks, found)
-    matched, missing = tailor.match(bank, choices, found)
+    changes, dropped = tailor.propose(resume, choices, reading, ranks, found)
+    matched, missing = tailor.match(resume, choices, found)
     tailored_id = tailored.id if tailored else None
     # KAN-319: the Tailor limit is lifted for now.
     # await count_use(session, applicant_id, Feature.TAILOR)
@@ -157,7 +160,7 @@ async def run(
         weak_match=tailor.weak_match(job),
         matched=matched,
         missing=missing,
-        questions=tailor.questions(bank, found, missing),
+        questions=tailor.questions(resume, found, missing),
         changes=changes,
         dropped=dropped,
         uses_left=left,  # KAN-319: was left - 1

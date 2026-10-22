@@ -532,7 +532,7 @@ Find files with a directory listing; these are the rules for where code goes.
     (`tailor.upload_source`, Import Again's merge, so Done's second read
     adds nothing), and its source is built in memory, never saved: the
     bank entries its reading names (`find_duplicate`) and its skills show,
-    every other entry and skill waits hidden for "Bring back". It used to
+    every other entry and skill waits hidden. It used to
     start from the newest base resume by `created_at`, which ignored the
     star and the student's edits, and to generate one when there was
     none. An upload the parser reads nothing from answers 409. Done
@@ -544,24 +544,29 @@ Find files with a directory listing; these are the rules for where code goes.
     skills is dropped from the proposals and refused (422) at Done, since
     the browser can send any text. Change what counts as a tool there and
     nowhere else.
-  - **A missing keyword that is nowhere in the bank is a question**
-    ("Have you used X?"), never words. Yes adds the skill through the
-    bank's own routes and shows it, with no AI call.
+  - **A run tailors only what the picked resume shows** (KAN-318,
+    `tailor.on_resume`): its shown entries and their shown bullets are
+    all that is ranked, sent to the model, reworded, reordered and
+    matched. It never proposes an entry or bullet the resume hides, so a
+    pick keeps its focus and length. "Bring back" (`show_entry`) is gone,
+    and the API refuses it at Done (422). Skills are the exception: every
+    bank skill stays in, so a hidden one that adds a keyword is still
+    proposed, and the truth rule still reads them all. Before this, the
+    whole bank went to the model, and the hidden bullets took places among
+    the best 40 although a reword of one was always dropped.
+  - **A missing keyword that neither the resume's entries nor any bank
+    skill hold is a question** ("Have you used X?"), never words. A hidden
+    entry's words do not count, since the run never brings it back. Yes
+    adds the skill through the bank's own routes and shows it, with no AI
+    call.
   - **The model sees handles (b1, e1), never ids**, and no links: an
     entry's link field is left out and the seam removes identity data.
     Postgres text search (`ts_rank`, the posting's words OR'd) ranks the
-    bullets: the best 40 go to the model, and the rank proposes each
-    entry's bullet order. A posting with no description is read by its
+    resume's bullets: the best 40 go to the model, and the rank proposes
+    each entry's bullet order. A posting with no description is read by its
     title, with `weak_match`.
-  - **An entry brought back is never a copy of one shown** (`bank.py`'s
-    `copy_key`: section, title and organization ignoring case, and the
-    same months, which Generate and intake's bank match also use), and it takes its date-order place among its
-    section's shown entries (`_bring_back`), not the end. A change names
-    its entry with the organization ("Software Intern, Acme"). An import
-    saved "as new" left a second Software Engineer Intern at Clever Devices
-    off a resume; Tailor offered "Bring back: Software Engineer Intern",
-    showed the job twice below an older one, and ran to 2 pages
-    (2026-10-14).
+  - **A change names its entry with the organization** ("Software Intern,
+    Acme"), since two jobs can share a title.
   - **One run is one `TAILOR` use**, counted after the model answers and
     the proposals are built; a keyword extraction inside the run is not a
     second use. **Lifted for now (KAN-319):** the route's `uses_left`

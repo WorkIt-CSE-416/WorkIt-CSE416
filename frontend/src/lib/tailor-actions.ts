@@ -13,7 +13,7 @@ import type { BuiltResume } from "@/lib/built-resume-actions";
 export type Keyword = { keyword: string; kind: "required" | "preferred" };
 
 export type TailorChange = {
-  kind: "reword" | "show_entry" | "show_skill" | "order";
+  kind: "reword" | "show_skill" | "order";
   bullet_id: string | null;
   entry_id: string | null;
   skill_id: string | null;

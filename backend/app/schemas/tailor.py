@@ -15,12 +15,11 @@ class Reword(BaseModel):
 
 
 class TailorReading(BaseModel):
-    """The model's reply: new wordings for bullets and the left-out entries
-    to bring back, each named by its handle in the prompt (b1, e1). Unknown
-    handles are ignored; every wording then faces the truth-rule check."""
+    """The model's reply: new wordings for the resume's bullets, each named
+    by its handle in the prompt (b1). Unknown handles are ignored; every
+    wording then faces the truth-rule check."""
 
     rewords: list[Reword] = []
-    add_entries: list[str] = []
 
 
 class TailorSource(BaseModel):
@@ -50,7 +49,6 @@ class TailorChange(BaseModel):
     """One proposed change, which the student accepts or rejects.
 
     - `reword`: show `text` for `bullet_id` (in place of `original`).
-    - `show_entry`: put `entry_id` (left off the resume) back, with its bullets.
     - `show_skill`: show `skill_id`.
     - `order`: show `entry_id`'s bullets in the order `bullet_ids`.
 
@@ -58,7 +56,7 @@ class TailorChange(BaseModel):
     add to the match) are for display; Done ignores them.
     """
 
-    kind: Literal["reword", "show_entry", "show_skill", "order"]
+    kind: Literal["reword", "show_skill", "order"]
     bullet_id: UUID | None = None
     entry_id: UUID | None = None
     skill_id: UUID | None = None

@@ -35,13 +35,10 @@ KEYWORDS = [
 LINKEDIN = "https://linkedin.com/in/sam-seeker"
 
 
-def reply(rewords=(), add_entries=()) -> list[str]:
-    """A ScriptedLLM script: the model's Tailor reply. Bullets and entries
-    are named by their handles in the prompt (b1, e1: bank order)."""
-    return [json.dumps({
-        "rewords": [{"bullet": b, "text": t} for b, t in rewords],
-        "add_entries": list(add_entries),
-    })]
+def reply(rewords=()) -> list[str]:
+    """A ScriptedLLM script: the model's Tailor reply. Bullets are named by
+    their handles in the prompt (b1: the resume's bullets, in bank order)."""
+    return [json.dumps({"rewords": [{"bullet": b, "text": t} for b, t in rewords]})]
 
 
 def rate_limited() -> RateLimitError:
@@ -247,63 +244,38 @@ async def test_a_bank_skill_left_off_the_resume_is_proposed_not_asked(student, d
     assert _words(body["questions"]) == ["Go"]
 
 
-async def test_a_left_out_entry_the_model_names_is_proposed(student, database, use_model):
-    project = await student.entry(
+async def test_an_entry_the_resume_hides_is_left_out_of_the_run(student, database, use_model):
+    # Added after the base resume was generated, so the resume hides it.
+    await student.entry(
         section="projects", title="Cluster Tool", bullets=["Wrote a Go tool to restart services"])
     posting = await _seed_posting(database)
-    # e1 is the Experience entry (on the resume); e2 the project (left out).
-    use_model(reply(add_entries=["e2", "e1", "e9"]))
+    # Only the resume's two bullets have handles: b3 names nothing.
+    fake = use_model(reply(rewords=[("b3", "Wrote a Go tool to restart services fast")]))
 
     body = (await student.tailor(posting)).json()
 
-    shows = [c for c in body["changes"] if c["kind"] == "show_entry"]
-    assert [(c["entry_id"], c["keywords"]) for c in shows] == [(project["id"], ["Go"])]
-    assert _words(body["questions"]) == ["Kubernetes"]
+    sent = "\n".join(m["content"] for m in fake.prompts[0])
+    assert "Software Intern" in sent and "Cluster Tool" not in sent and "Go tool" not in sent
+    assert "reword" not in _kinds(body)
+    # The hidden project's Go does not count: it is asked about.
+    assert _words(body["questions"]) == ["Go", "Kubernetes"]
 
 
-async def test_a_left_out_copy_of_a_shown_entry_is_not_proposed(student, database, use_model):
-    # An import saved "as new" left a second Software Intern at Acme off the
-    # resume; bringing it back showed the same job twice and ran to 2 pages.
-    copy = {"section": "experience", "title": "software intern", "organization": "ACME",
-            "start_month": "2025-06", "end_month": "2025-08", "bullets": ["Fixed bugs in a React dashboard"]}
-    assert (await student.post("/bank/entries?allow_duplicate=true", copy)).status_code == 201
-    posting = await _seed_posting(database)
-    use_model(reply(add_entries=["e1", "e2"]))
-
-    body = (await student.tailor(posting)).json()
-
-    assert "show_entry" not in _kinds(body)
-
-
-async def test_an_entry_brought_back_is_named_with_its_organization(student, database, use_model):
-    await student.entry(
-        section="experience", title="Research Assistant", organization="AI Lab",
-        start_month="2024-01", end_month="2024-05", bullets=["Wrote a Go tool to restart services"])
-    posting = await _seed_posting(database)
-    use_model(reply(add_entries=["e2"]))
-
-    body = (await student.tailor(posting)).json()
-
-    shows = [c for c in body["changes"] if c["kind"] == "show_entry"]
-    assert [c["label"] for c in shows] == ["Research Assistant, AI Lab"]
-
-
-async def test_an_entry_brought_back_takes_its_date_order_place(student, database, use_model):
-    # Newer than the job on the resume, so it goes above it, not last.
-    newer = await student.entry(
-        section="experience", title="Platform Intern", organization="Globex",
-        start_month="2026-01", end_month="2026-05", bullets=["Wrote a Go tool to restart services"])
-    posting = await _seed_posting(database)
-    use_model(reply(add_entries=["e1"]))
-    run = (await student.tailor(posting)).json()
-    show = next(c for c in run["changes"] if c["kind"] == "show_entry")
-    assert show["entry_id"] == newer["id"]
-
-    res = await student.done(posting, source_of(run), [show])
-
+async def test_a_bullet_the_resume_hides_is_left_out_of_the_run(student, database, use_model):
+    bank = (await student.client.get(f"{student.me}/bank")).json()
+    b2 = bank["entries"][0]["bullets"][1]["id"]
+    res = await student.client.patch(
+        f"{student.me}/built-resumes/{student.base}/choices", json={"bullets": [{"bullet_id": b2, "shown": False}]})
     assert res.status_code == 200, res.text
-    shown = await student.words(res.json()["resume"]["id"])
-    assert shown.index("Platform Intern") < shown.index("Software Intern")
+    posting = await _seed_posting(database)
+    fake = use_model(reply(rewords=[("b2", "Built Python billing services")]))
+
+    body = (await student.tailor(posting)).json()
+
+    sent = "\n".join(m["content"] for m in fake.prompts[0])
+    assert "React dashboard" in sent and "billing services" not in sent
+    assert "reword" not in _kinds(body)
+    assert "order" not in _kinds(body)
 
 
 async def test_text_search_puts_the_posting_s_bullets_first(student, database, use_model):
@@ -388,9 +360,9 @@ async def _entries(student) -> list[tuple[str, str | None]]:
 async def test_an_upload_is_read_into_the_bank_and_tailored_as_its_own_entries(student, database, use_model):
     upload = {"uploaded_resume_id": await _seed_upload(database, student.id, UPLOAD_TEXT)}
     posting = await _seed_posting(database)
-    # The bank's order: Initech (newest) e1, Acme e2, Maze Robot e3. Acme is
-    # not on the upload, so it waits hidden and can be brought back.
-    use_model(reply(add_entries=["e2"]))
+    # The bank's order: Initech (newest), Acme, Maze Robot. Acme is not on
+    # the upload, so it waits hidden and the run leaves it out.
+    fake = use_model(reply())
 
     run = (await student.tailor(posting, upload)).json()
 
@@ -399,8 +371,11 @@ async def test_an_upload_is_read_into_the_bank_and_tailored_as_its_own_entries(s
         ("Backend Intern", "Initech"), ("Software Intern", "Acme"), ("Maze Robot", None)]
     # The upload's facts only: Acme's Python and the bank's Docker are hidden.
     assert _words(run["matched"]) == ["Go", "Kubernetes"]
-    shows = [c for c in run["changes"] if c["kind"] == "show_entry"]
-    assert [c["label"] for c in shows] == ["Software Intern, Acme"]
+    assert "Acme" not in fake.prompts[0][-1]["content"]
+    # The bank's Docker is a skill, so it is proposed; Acme's Python is asked.
+    shows = [c for c in run["changes"] if c["kind"] == "show_skill"]
+    assert [c["label"] for c in shows] == ["Docker"]
+    assert _words(run["questions"]) == ["Python"]
 
     res = await student.done(posting, source_of(run), [])
 
@@ -607,6 +582,16 @@ async def test_done_refuses_a_variant_that_breaks_the_truth_rule(student, databa
 
     assert res.status_code == 422
     assert "Go" in res.json()["detail"]
+    assert [r["job_posting_id"] for r in await student.resumes()] == [None]
+
+
+async def test_done_refuses_bringing_back_an_entry(student, database, use_model):
+    project = await student.entry(section="projects", title="Cluster Tool", bullets=["Wrote a Go tool"])
+    posting = await _seed_posting(database)
+
+    res = await student.done(posting, built(student.base), [{"kind": "show_entry", "entry_id": project["id"]}])
+
+    assert res.status_code == 422
     assert [r["job_posting_id"] for r in await student.resumes()] == [None]
 
 
