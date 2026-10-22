@@ -13,6 +13,10 @@ reply into changes, dropping any wording that breaks the truth rule
 (`services/truth_rule.py`), and adds what code can find alone: bank skills
 left off the resume that match a keyword, and the ranked bullet order.
 
+The source is the resume the student picked: a built resume's choices, or an
+uploaded resume read into the bank again and shown as the entries it holds
+(`upload_source`), built in memory and never saved.
+
 Tailor changes only what shows, the order, which bullet variant shows and
 which skills show; it never writes the bank's text. A missing keyword that
 is nowhere in the bank becomes a question ("Have you used X?"), never words.
@@ -29,10 +33,20 @@ from workit_scout.identity import placeholders_in
 
 from app.models.bank import Bank_Bullet, Bank_Bullet_Variant, Bank_Entry
 from app.models.jobs import Job_Post
+from app.models.resume import Resume
 from app.schemas.keywords import Keyword
 from app.schemas.tailor import TailorChange, TailorReading
+from app.services import bank_import
 from app.services import keywords as kw
-from app.services.bank import Bank, Entry, NotFound, copy_key
+from app.services.bank import (
+    Bank,
+    Entry,
+    NotFound,
+    copy_key,
+    find_duplicate,
+    load_bank,
+    merge_import,
+)
 from app.services.matching.embeddings import job_part
 from app.services.resume_view import (
     BulletChoice,
@@ -200,6 +214,46 @@ def with_changes(
             for i, bullet_id in enumerate([*listed, *rest]):
                 bullets[bullet_id] = dataclasses.replace(bullets[bullet_id], position=i)
     return Choices(entries, bullets, skills)
+
+
+class NothingRead(Exception):
+    """The upload has no text, or the parser read no entry or skill from it."""
+
+
+def upload_choices(bank: Bank, entry_ids: set[uuid.UUID], skill_names: set[str]) -> Choices:
+    """A resume of the upload's entries (with every bullet the bank holds for
+    them) and skills, pure. Every other entry and skill waits hidden, as
+    Generate leaves a copy, so a run can still offer to bring it back.
+    `skill_names` are lowercased."""
+    chosen = all_chosen(bank)
+    entries = {i: c if i in entry_ids else dataclasses.replace(c, shown=False) for i, c in chosen.entries.items()}
+    names = {s.id: s.name.lower() for s in bank.skills}
+    skills = {i: c if names[i] in skill_names else dataclasses.replace(c, shown=False)
+              for i, c in chosen.skills.items()}
+    return Choices(entries, chosen.bullets, skills)
+
+
+async def upload_source(session: AsyncSession, applicant_id: uuid.UUID, resume_id: uuid.UUID) -> Choices:
+    """An uploaded resume as a Tailor source. Its stored text is read and
+    merged into the bank (Import Again's merge, so a parser fix reaches it
+    and a second call adds nothing), then each entry it read is found in the
+    bank by section, title and organization. Run and Done both call it, so
+    Done rebuilds what the run proposed against. Flushes, never commits.
+    Raises NotFound for another applicant's upload, NothingRead when the
+    reading finds nothing."""
+    resume = await session.scalar(select(Resume).where(Resume.id == resume_id, Resume.applicant_id == applicant_id))
+    if resume is None:
+        raise NotFound
+    drafts, skills = bank_import.read(resume.raw_text)
+    if not drafts and not skills:
+        raise NothingRead
+    await merge_import(session, applicant_id, drafts, skills)
+    entry_ids = set()
+    for draft in drafts:
+        found = await find_duplicate(session, applicant_id, draft.section, draft.title, draft.organization)
+        if found is not None:
+            entry_ids.add(found.row.id)
+    return upload_choices(await load_bank(session, applicant_id), entry_ids, {name.lower() for name, _ in skills})
 
 
 def match(bank: Bank, choices: Choices, keywords: Sequence[Keyword]) -> tuple[list[Keyword], list[Keyword]]:

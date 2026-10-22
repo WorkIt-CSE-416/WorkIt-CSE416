@@ -1418,6 +1418,16 @@ in Docs (suggested answers in the chat, not a banner).
   "Your Tailored Resume" once the student has one for that posting.
 - **The run waits for a click.** Each run spends one of today's 2 Tailor
   runs, so loading the page never starts one.
+- **Tailor My Resume opens Pick a Resume to Tailor** (KAN-318): the
+  posting's resumes as "Did You Apply?" lists them (Generated Resumes and
+  Uploaded Resumes, one radio group), starting on the resume tailored to
+  this job, else the default, and an upload with the same limit, replace
+  step and duplicate rule. Both dialogs share `jobs/resume-picker.tsx`,
+  so a rule changed there changes both. The dialog's Tailor My Resume
+  closes it and runs; "Tailoring…" and errors show on the card. A pick
+  other than this job's tailored resume warns that Done replaces it. An
+  upload is read into the bank and tailored as its own entries; nothing
+  new appears under Generated Resumes.
 - **The keyword match** shows "12 of 18" before, and again with what the
   student has accepted, required keywords first. The second count adds
   each accepted change's `keywords` and each Yes in the browser, with no

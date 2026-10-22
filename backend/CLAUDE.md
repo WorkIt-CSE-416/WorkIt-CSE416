@@ -522,9 +522,22 @@ Find files with a directory listing; these are the rules for where code goes.
   by the hash, an invalid or failed reply counts nothing, the cap).
 - **Tailor** (KAN-217) is `routers/tailor.py` over `services/tailor.py`.
   A run (`POST .../tailor`) proposes changes and saves nothing but the
-  count; Done (`POST .../tailor/done`) saves the accepted ones on the
+  count and an uploaded source's reading, merged into the bank; Done (`POST .../tailor/done`) saves the accepted ones on the
   posting's one tailored resume, approved wordings as bullet variants for
   the posting. Rules, each with a test in `tests/test_tailor.py`:
+  - **The student picks the source** (KAN-318): run and Done each take
+    exactly one of `built_resume_id` or `uploaded_resume_id` (422
+    otherwise; 404 for one not the applicant's). A built resume gives its
+    choices. An upload is read again and merged into the bank
+    (`tailor.upload_source`, Import Again's merge, so Done's second read
+    adds nothing), and its source is built in memory, never saved: the
+    bank entries its reading names (`find_duplicate`) and its skills show,
+    every other entry and skill waits hidden for "Bring back". It used to
+    start from the newest base resume by `created_at`, which ignored the
+    star and the student's edits, and to generate one when there was
+    none. An upload the parser reads nothing from answers 409. Done
+    writes the posting's one tailored resume from whichever source it is
+    sent, so a new source replaces what it showed.
   - **The truth rule is one pure function**, `services/truth_rule.py`'s
     `invented` (tested directly, `tests/test_truth_rule.py`): a wording
     with a number or tool in neither its original bullet nor the bank's
@@ -551,8 +564,7 @@ Find files with a directory listing; these are the rules for where code goes.
     (2026-10-14).
   - **One run is one `TAILOR` use**, counted after the model answers and
     the proposals are built; a keyword extraction inside the run is not a
-    second use. A run with no base resume generates one first (saved with
-    the count). **Lifted for now (KAN-319):** the route's `uses_left`
+    second use. **Lifted for now (KAN-319):** the route's `uses_left`
     check and `count_use` are commented out, it answers `uses_left` as the
     cap, the Tailor screen hides its "runs left today" and "Each run uses
     one of today's 2 Tailor runs" lines, and the three

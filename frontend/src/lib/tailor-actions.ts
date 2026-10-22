@@ -25,9 +25,15 @@ export type TailorChange = {
   keywords: string[];
 };
 
+/** The resume the student picked to tailor: a built resume, or an upload
+ *  (read into the bank again and shown as its own entries; never saved). */
+export type TailorSource = { built_resume_id: string } | { uploaded_resume_id: string };
+
 export type TailorProposal = {
   job_posting_id: string;
-  source_resume_id: string;
+  /** The source the run was given, one of the two; Done sends it back. */
+  built_resume_id: string | null;
+  uploaded_resume_id: string | null;
   tailored_resume_id: string | null;
   weak_match: boolean;
   matched: Keyword[];
@@ -45,20 +51,30 @@ function post<T>(path: string, body: unknown): Promise<Result<T>> {
   return applicantCall<T>(`/tailor${path}`, { method: "POST", body: JSON.stringify(body) });
 }
 
-/** One Tailor run: spends one of today's Tailor runs. Saves nothing. */
-export async function runTailor(postingId: string): Promise<Result<TailorProposal>> {
-  return post<TailorProposal>("", { job_posting_id: postingId });
+/** One Tailor run from the picked resume: spends one of today's Tailor
+ *  runs. Saves nothing but what an upload's reading adds to the bank. */
+export async function runTailor(
+  postingId: string,
+  source: TailorSource,
+): Promise<Result<TailorProposal>> {
+  return post<TailorProposal>("", { job_posting_id: postingId, ...source });
+}
+
+/** The source a run names, as Done takes it back. */
+function sourceOf(proposal: TailorProposal): TailorSource {
+  return proposal.built_resume_id
+    ? { built_resume_id: proposal.built_resume_id }
+    : { uploaded_resume_id: proposal.uploaded_resume_id as string };
 }
 
 /** Done: saves the accepted changes on the posting's one tailored resume. Free. */
 export async function finishTailor(
-  postingId: string,
-  sourceResumeId: string,
+  proposal: TailorProposal,
   changes: TailorChange[],
 ): Promise<Result<TailorResult>> {
   return post<TailorResult>("/done", {
-    job_posting_id: postingId,
-    source_resume_id: sourceResumeId,
+    job_posting_id: proposal.job_posting_id,
+    ...sourceOf(proposal),
     changes,
   });
 }

@@ -2,25 +2,34 @@
 check the token's account owns `applicant_id` first. The rules live in
 `app/services/tailor.py`; the truth rule in `app/services/truth_rule.py`.
 
-POST /applicants/{id}/tailor       TailorRun {job_posting_id} -> TailorProposal
-     One Tailor run: proposed changes for the posting's tailored resume,
-     starting from it when it exists, else the newest base resume, else a
-     base resume generated first. Saves nothing else (nothing until Done).
+Both bodies name the source the student picked in Tailor's dialog: exactly
+one of `built_resume_id` (its choices) or `uploaded_resume_id` (its stored
+text read and merged into the bank again, then shown as the entries and
+skills it holds, everything else hidden; built in memory, never saved).
+422 for neither or both.
+
+POST /applicants/{id}/tailor       TailorRun {job_posting_id, source} -> TailorProposal
+     One Tailor run: proposed changes from the picked source, which the
+     proposal names again for Done. Saves nothing but what reading an
+     uploaded source merged into the bank (nothing until Done).
      Free while KAN-319 lifts the limit: no Tailor use is checked or
      counted, and uses_left is always the cap. Restoring the commented
      lines brings back one use per successful run (a keyword extraction
      inside the run is part of it, not a second use) and the 429.
      404 a posting the Jobs page does not list (unknown, draft, paused,
-     closed); 409 {detail} empty bank (send the student to
+     closed) or a source not the applicant's; 409 {detail} an upload the
+     parser reads nothing from, or an empty bank (send the student to
      intake);
      503 when the model fails or answers out of
      schema (nothing counted).
-POST /applicants/{id}/tailor/done  TailorDone -> TailorResult {resume, matched, missing}
-     Saves the accepted changes on the posting's one tailored resume
-     (made on the first Done, updated after), approved wordings as bullet
-     variants for the posting. Free: no model call. 404 a posting the Jobs page does not list,
-     resume or a bank id not the applicant's; 422 {detail} a wording that
-     breaks the truth rule (nothing saved).
+POST /applicants/{id}/tailor/done  TailorDone {job_posting_id, source, changes} -> TailorResult {resume, matched, missing}
+     Saves the accepted changes, applied to the source, on the posting's
+     one tailored resume (made on the first Done, updated after; a
+     different source than last time replaces what it showed), approved
+     wordings as bullet variants for the posting. Free: no model call. 404
+     a posting the Jobs page does not list, a source or a bank id not the
+     applicant's; 409 an upload read as nothing; 422 {detail} a wording
+     that breaks the truth rule (nothing saved).
 """
 
 import logging
@@ -45,11 +54,13 @@ from app.schemas.tailor import (
     TailorReading,
     TailorResult,
     TailorRun,
+    TailorSource,
 )
 from app.services import built_resumes, keywords, postings, tailor
 from app.services.ai_messages import AIMessages
 from app.services.bank import NotFound, load_bank
 from app.services.identity import load_identity
+from app.services.resume_view import Choices
 
 # KAN-319: the Tailor limit is lifted for now; restore with the lines in run().
 # from app.services.usage import Feature, count_use, uses_left
@@ -59,6 +70,9 @@ logger = logging.getLogger(__name__)
 router = APIRouter(prefix="/applicants/{applicant_id}/tailor", tags=["tailor"])
 
 EMPTY_BANK = "Your experience bank is empty. Add what you did first, then Tailor."
+NOTHING_READ = (
+    "WorkIt couldn't read anything from this resume. Pick another, or use Read It With AI on Resumes first."
+)
 AI = AIMessages(
     spent="You've used today's Tailor runs. They reset at midnight UTC.",
     offline="Tailor can't reach WorkIt's AI right now. Try again in a minute.",
@@ -73,6 +87,22 @@ async def _posting(session: AsyncSession, posting_id: uuid.UUID) -> Job_Post:
     return job
 
 
+async def _source(session: AsyncSession, applicant_id: uuid.UUID, body: TailorSource) -> tuple[Choices, str]:
+    """The picked resume's choices and the template a new tailored resume
+    takes: a built resume's own, else the default (an upload has none)."""
+    try:
+        if body.built_resume_id is not None:
+            resume = await built_resumes.get_resume(session, applicant_id, body.built_resume_id)
+            return await built_resumes.load_choices(session, resume.id), resume.template
+        assert body.uploaded_resume_id is not None  # TailorSource checks one is given
+        choices = await tailor.upload_source(session, applicant_id, body.uploaded_resume_id)
+        return choices, built_resumes.DEFAULT_TEMPLATE
+    except NotFound:
+        raise HTTPException(404, "Resume not found")
+    except tailor.NothingRead:
+        raise HTTPException(409, NOTHING_READ)
+
+
 @router.post("", response_model=TailorProposal)
 async def run(
     body: TailorRun,
@@ -83,6 +113,8 @@ async def run(
 ) -> TailorProposal:
     assert_applicant_owns(account, applicant_id)
     job = await _posting(session, body.job_posting_id)
+    # Before the bank loads: an uploaded source merges into it.
+    choices, _ = await _source(session, applicant_id, body)
     bank = await load_bank(session, applicant_id)
     if not bank.entries:
         raise HTTPException(409, EMPTY_BANK)
@@ -102,10 +134,6 @@ async def run(
         await session.commit()
 
     tailored = await built_resumes.tailored_for(session, applicant_id, job.id)
-    source = tailored or await built_resumes.latest_base(session, applicant_id)
-    if source is None:
-        source = await built_resumes.generate(session, applicant_id)
-    choices = await built_resumes.load_choices(session, source.id)
     ranks = await tailor.rank_bullets(session, applicant_id, tailor.posting_text(job, found))
 
     identity = await load_identity(session, account)
@@ -116,15 +144,16 @@ async def run(
         raise HTTPException(503, AI.failure(exc)) from exc
     changes, dropped = tailor.propose(bank, choices, reading, ranks, found)
     matched, missing = tailor.match(bank, choices, found)
-    source_id = source.id
+    tailored_id = tailored.id if tailored else None
     # KAN-319: the Tailor limit is lifted for now.
     # await count_use(session, applicant_id, Feature.TAILOR)
-    # One commit: the count and a base resume generated for this run.
+    # One commit: the count and what an uploaded source merged into the bank.
     await session.commit()
     return TailorProposal(
         job_posting_id=job.id,
-        source_resume_id=source_id,
-        tailored_resume_id=tailored.id if tailored else None,
+        built_resume_id=body.built_resume_id,
+        uploaded_resume_id=body.uploaded_resume_id,
+        tailored_resume_id=tailored_id,
         weak_match=tailor.weak_match(job),
         matched=matched,
         missing=missing,
@@ -149,8 +178,8 @@ async def done(
     assert_applicant_owns(account, applicant_id)
     job = await _posting(session, body.job_posting_id)
     found = keywords.cached(job) or []
+    source, template = await _source(session, applicant_id, body)
     try:
-        source = await built_resumes.get_resume(session, applicant_id, body.source_resume_id)
         bank = await load_bank(session, applicant_id)
         tailor.validate(bank, body.changes)
     except NotFound:
@@ -160,12 +189,12 @@ async def done(
     except tailor.BreaksTruthRule as exc:
         await session.rollback()
         raise HTTPException(422, str(exc))
-    choices = tailor.with_changes(bank, await built_resumes.load_choices(session, source.id), body.changes, variants)
+    choices = tailor.with_changes(bank, source, body.changes, variants)
 
     resume = await built_resumes.tailored_for(session, applicant_id, job.id)
     if resume is None:
         resume = Built_Resume(
-            id=uuid.uuid4(), applicant_id=applicant_id, name=_name(job), template=source.template,
+            id=uuid.uuid4(), applicant_id=applicant_id, name=_name(job), template=template,
             job_posting_id=job.id)
         session.add(resume)
         await session.flush()
