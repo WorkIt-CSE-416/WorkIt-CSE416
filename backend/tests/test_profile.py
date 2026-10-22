@@ -12,6 +12,7 @@ from pydantic import ValidationError
 from app.db import get_session
 from app.deps import get_current_account
 from app.main import app
+from app.models.autofill_answers import Autofill_Answers
 from app.models.profiles import Applicant_Profile
 from app.schemas.auth import AccountType, AuthenticatedAccount
 from app.schemas.profile import ApplicantProfileUpdate
@@ -22,20 +23,20 @@ URL = f"/applicants/{APPLICANT}/profile"
 
 
 def _profile(**fields) -> Applicant_Profile:
-    # us_citizen_on_resume's default applies at flush, which a fake session
-    # never does, so it is set here as the database would
     return Applicant_Profile(
-        id=APPLICANT, email="signin@example.com", full_name="Jake Ryan",
-        **{"us_citizen_on_resume": False, **fields},
+        id=APPLICANT, email="signin@example.com", full_name="Jake Ryan", **fields
     )
 
 
 class FakeSession:
-    def __init__(self, profile):
+    def __init__(self, profile, answers=None):
         self.profile = profile
+        self.answers = answers
         self.commits = 0
 
-    async def get(self, _model, _id):
+    async def get(self, model, _id):
+        if model is Autofill_Answers:
+            return self.answers and Autofill_Answers(applicant_id=APPLICANT, answers=self.answers)
         return self.profile
 
     async def commit(self):
@@ -140,18 +141,17 @@ def test_a_resume_header_prints_the_contact_email():
     assert asyncio.run(load_header_identity(session, APPLICANT)).email == "signin@example.com"
 
 
-def test_patch_saves_the_us_citizen_check_box_and_refuses_null(client):
-    http, session = client
-    assert http.get(URL).json()["us_citizen_on_resume"] is False
-    res = http.patch(URL, json={"us_citizen_on_resume": True})
-    assert res.status_code == 200
-    assert res.json()["us_citizen_on_resume"] is True
-    assert http.patch(URL, json={"us_citizen_on_resume": None}).status_code == 422
-    assert session.profile.us_citizen_on_resume is True
-
-
-def test_a_resume_header_says_us_citizen_only_when_checked():
-    session = FakeSession(_profile())
-    assert asyncio.run(load_header_identity(session, APPLICANT)).us_citizen is False
-    session = FakeSession(_profile(us_citizen_on_resume=True))
-    assert asyncio.run(load_header_identity(session, APPLICANT)).us_citizen is True
+@pytest.mark.parametrize(
+    ("answers", "printed"),
+    [
+        (None, False),
+        ({}, False),
+        ({"work_authorization_status": "us_citizen"}, True),
+        ({"work_authorization_status": "permanent_resident"}, False),
+        # An option the code no longer knows reads as unanswered
+        ({"work_authorization_status": "US citizen"}, False),
+    ],
+)
+def test_a_resume_header_says_us_citizen_from_the_citizenship_answer(answers, printed):
+    session = FakeSession(_profile(), answers)
+    assert asyncio.run(load_header_identity(session, APPLICANT)).us_citizen is printed
