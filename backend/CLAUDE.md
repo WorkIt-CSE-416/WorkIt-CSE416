@@ -589,6 +589,21 @@ Find files with a directory listing; these are the rules for where code goes.
   would eventually get its own JSONB-backed slot). One `ESSAY` use per
   generated answer (cap 5, share 10%: on top of the spec's four shares plus
   the assistant's, following the same accepted-overshoot precedent).
+  **A personal/logistics question has no honest bank-grounded answer at
+  all** — "What date can you start?" or "Which locations would you want
+  to be considered for?" name nothing the bank could ever truthfully
+  answer, so the model would either invent one (caught by `truth_rule`,
+  422) or the student would be left to type it manually every time.
+  `essay_answer.general_answer` matches a short, growable synonym list
+  (same shape as `field-map.js`'s own rules) and answers these directly,
+  skipping the model and the `ESSAY` quota both — free, for every student,
+  even at the daily limit, the same "a cached lookup costs nothing"
+  precedent the keyword match already sets. `bank_context` labels each
+  entry's heading with its section name (Education, Experience, Projects,
+  ...) and the prompt is told to prefer the matching section, so a
+  project-themed question ("describe a project you're proud of") grounds
+  in the bank's actual Projects entries rather than whichever section
+  happens to come first in the join.
 - **Utils** (`app/utils/`): the resume parser; `app/utils/CLAUDE.md`.
 - **Scripts** (`app/scripts/`): commands run by hand,
   `uv run python -m app.scripts.<name>`.
