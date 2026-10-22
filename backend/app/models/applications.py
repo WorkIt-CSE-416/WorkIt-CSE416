@@ -14,9 +14,10 @@ from sqlalchemy import (
     Index,
     func,
 )
+from sqlalchemy.dialects.postgresql import JSONB
 from sqlalchemy.orm import Mapped, mapped_column
 
-from app.db import Base
+from app.db import Base, BaseModel
 from app.models import dto
 
 
@@ -67,5 +68,42 @@ class Job_Application(Base):
         ForeignKeyConstraint(
             ["sent_resume_id", "applicant_id"], ["sent_resumes.id", "sent_resumes.applicant_id"],
             ondelete="SET NULL (sent_resume_id)", name="job_applications_sent_resume_fkey",
+        ),
+    )
+
+
+class Application_Review(BaseModel):
+    '''
+    what WorkIt Desktop filled into one application before it stopped short
+    of Submit (KAN-323, auto-apply/desktop.md): one row per application,
+    written when it moves to review and replaced when it is reviewed again.
+    `review` is the Review schema as Desktop sent it (schemas/applications.py);
+    `approved_answers` the answers the student approved, maybe edited, NULL
+    until they approve. Kept apart so the answers Desktop wrote stay readable
+    after an edit.
+
+    JSONB, not a row per answer: nothing queries one answer, and the form's
+    questions differ by job.
+    '''
+    __tablename__ = "application_reviews"
+    applicant_id: Mapped[uuid.UUID] = mapped_column(primary_key=True)
+    job_id: Mapped[uuid.UUID] = mapped_column(primary_key=True)
+    review: Mapped[dict] = mapped_column(JSONB, nullable=False)
+    approved_answers: Mapped[list | None] = mapped_column(JSONB)
+
+    __table_args__ = (
+        # Goes with its application: dequeueing, the job posting or the
+        # account deletes the review too.
+        ForeignKeyConstraint(
+            ["applicant_id", "job_id"],
+            ["job_applications.applicant_id", "job_applications.job_id"],
+            ondelete="CASCADE", name="application_reviews_application_fkey",
+        ),
+        CheckConstraint(
+            "jsonb_typeof(review) = 'object'", name="application_reviews_review_object"
+        ),
+        CheckConstraint(
+            "approved_answers IS NULL OR jsonb_typeof(approved_answers) = 'array'",
+            name="application_reviews_approved_array",
         ),
     )

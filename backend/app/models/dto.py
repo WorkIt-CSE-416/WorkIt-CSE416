@@ -160,13 +160,20 @@ class application_stage(enum.StrEnum):
     Auto apply moves it (auto-apply/architecture.md, "The run"): queued by a
     batch or a job's Auto Apply button, then applied when the student clicks
     Submitted, skipped when they click Skip, needs_you when the fill failed.
-    The Applied button sets applied straight away. Save sets saved (KAN-261),
-    which counts as no application yet: queueing or applying moves it on. A
-    new value is an ALTER TYPE and a coordinated deploy (models/CLAUDE.md)
+    WorkIt Desktop (KAN-323, auto-apply/desktop.md) adds three between queued
+    and applied: filling once a Worker claims it, review once it stops before
+    Submit, approved once the student approves it. The Applied button sets
+    applied straight away. Save sets saved (KAN-261), which counts as no
+    application yet: queueing or applying moves it on. A new value is an
+    ALTER TYPE and a coordinated deploy (models/CLAUDE.md)
     '''
     # added by 17ea74fa4573
     saved= "saved"
     queued= "queued"
+    # added by 40329c7aef62 (KAN-323)
+    filling= "filling"
+    review= "review"
+    approved= "approved"
     needs_you= "needs_you"
     skipped= "skipped"
     applied= "applied"

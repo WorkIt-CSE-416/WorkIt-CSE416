@@ -905,7 +905,7 @@ a `NOT EXISTS`); auto apply's matches leave out every stage, `saved` too
 - **CASCADE from both sides**: deleting the account or the job deletes the
   row. A closed job keeps its rows, since closing is a status, not a delete.
 - **`stage` is the status** (`dto.application_stage`: `saved`, `queued`,
-  `needs_you`, `skipped`, `applied`; `c0467afe819c`, `saved` from
+  `filling`, `review`, `approved`, `needs_you`, `skipped`, `applied`; `c0467afe819c`, `saved` from
   `17ea74fa4573`), a column here rather than a second table, so one row is
   one application. `created_at` orders the queue.
 - **`saved` is a bookmark, not an application** (KAN-261). Nothing queues
@@ -949,6 +949,23 @@ a `NOT EXISTS`); auto apply's matches leave out every stage, `saved` too
   resume; the job posting or the account cascades both. The migration
   backfilled each applied application with its posting's last sent
   resume, which the tracker showed until then.
+- **WorkIt Desktop's stages (KAN-323, `40329c7aef62`,
+  `../../auto-apply/desktop.md`):** `filling` (a Desktop Worker claimed it),
+  `review` (filled, stopped before Submit) and `approved` (the student
+  approved it; Desktop submits). Only a claim moves `queued` to `filling`,
+  with `FOR UPDATE SKIP LOCKED`, so two Workers never take one application;
+  the same claim first sends `filling` rows back to `queued` when that
+  applicant's Desktop has not beaten for 10 minutes. Apply the migration
+  before the deploy; it only adds, so the running code never meets them.
+- **`application_reviews` is one row per application** (CASCADE from
+  `job_applications`, so dequeueing deletes it): `review` is the Review
+  Desktop sent (`schemas/applications.py`), replaced when it is reviewed
+  again; `approved_answers` the answers the student approved, NULL until
+  then. The approved list is read in place of the review's answers, and
+  the review's own stays, so an edit never erases what Desktop wrote.
+- **`desktop_heartbeats` is one row per applicant**, overwritten every 15 s,
+  stamped with the database's `now()`, never Desktop's clock. Online is a
+  beat in the last 45 s.
 - An undo is not built. The tracker's later stages
   (interviewing, offer) are Out of scope below.
 
