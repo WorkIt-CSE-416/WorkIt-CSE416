@@ -4,6 +4,7 @@ Built resumes as Jake's Resume, compiled by Tectonic (ADR 0002, KAN-204).
     render(view, identity, template)  a built resume view -> Rendered
                         (PDF bytes, page count, characters the font lacks,
                         a box for each marked line)
+    latex(view, identity, template)   the same resume as a .tex source, unmarked
     escape(text)        the one way applicant text enters the LaTeX
     jakes_document(b)   Jake's preamble, byte for byte, around body b
     MARKS, mark(id, kind, latex)  position markers a template's body uses
@@ -182,13 +183,25 @@ def render(view, identity: HeaderIdentity, template: str) -> Rendered:
     Raises ValueError for a template id it does not know, and
     TectonicUnavailable when the compile cannot run or fails.
     '''
+    return compile_document(_document(view, identity, template, marks=True))
+
+
+def latex(view, identity: HeaderIdentity, template: str) -> str:
+    '''
+    The LaTeX source `render` compiles, without the position markers, so the
+    student can take it to Overleaf. Raises ValueError like `render`.
+    '''
+    return _document(view, identity, template, marks=False)
+
+
+def _document(view, identity: HeaderIdentity, template: str, *, marks: bool) -> str:
     # Imported here: the template modules import escape() from this one
     from app.services.resume_render import jakes
 
-    templates = {"jakes": lambda v, i: jakes_document(jakes.body(v, i))}
+    templates = {"jakes": lambda v, i: jakes_document(jakes.body(v, i, marks=marks))}
     if template not in templates:
         raise ValueError(f"unknown template {template!r}")
-    return compile_document(templates[template](view, identity))
+    return templates[template](view, identity)
 
 
 def escape(text: str) -> str:

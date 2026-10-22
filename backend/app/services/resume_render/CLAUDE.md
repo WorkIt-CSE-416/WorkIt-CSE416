@@ -14,11 +14,16 @@ resume; KAN-207 renders the bank and retired the proof endpoint.
   id is a `ValueError`. Add fields to `Rendered`, never a second render
   function.
 - **A template is a function from the view and identity to a LaTeX body**
-  (`jakes.py`), registered by its stable id in `render()`. The id is stored
+  (`jakes.py`), registered by its stable id in `_document()`. The id is stored
   on `built_resumes.template`, so never rename one.
 - **`fields.py` is how a field reads as text** (dates, GPA, headings, skill
   groups), shared by the PDF and the Word file so the two never disagree.
   Change wording there, not in a layout.
+- **`latex(view, identity, template)` is the same document's source**,
+  for the editor's Download LaTeX (`GET .../built-resumes/{rid}/tex`): the
+  body with `marks=False`, so the student gets Jake's own `.tex` with no
+  `\wimark` lines, ready for Overleaf. It shares `_document()` with
+  `render()`, so the two never print different text. It needs no Tectonic.
 - **The Word file is `word.py`'s one plain layout**, Letter only. It is not a
   copy of Jake's look and has no template id.
 - **Boxes place the editor's click targets** (KAN-209): one `Box(item_id,
