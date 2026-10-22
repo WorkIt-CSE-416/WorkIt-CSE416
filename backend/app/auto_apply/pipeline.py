@@ -16,21 +16,34 @@ from sqlalchemy.exc import SQLAlchemyError
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.auto_apply.queries import (
+    approve_review,
+    claim_queued,
     fetch_application,
     fetch_applications,
+    fetch_desktop,
     fetch_next_application,
+    fetch_review,
     fetch_stage,
     link_resume,
     pick_resume,
     queue_applications,
     remove_queued,
+    requeue_stale,
+    save_beat,
+    save_review,
     set_stage,
 )
 from app.auto_apply.rules import pick_batch
 from app.models.dto import application_stage
 from app.queries.jobs.filters import JobFilters
 from app.routers.jobs import EmptyBank, fetch_recommended
-from app.schemas.applications import Application
+from app.schemas.applications import (
+    Application,
+    DesktopBeat,
+    DesktopStatus,
+    Review,
+    ReviewAnswer,
+)
 from app.schemas.auth import AuthenticatedAccount
 from app.schemas.jobs import ScoredJob
 from app.schemas.sent_resume import SentResumeDownload
@@ -53,8 +66,26 @@ OUTCOME_STAGE = {
     "failed": application_stage.needs_you,
 }
 # The stages a fill can end from: queued, or needs_you when the student
-# finishes a failed form by hand.
-FINISHABLE = (application_stage.queued, application_stage.needs_you)
+# finishes a failed form by hand, or any of WorkIt Desktop's (KAN-323):
+# filling (it failed or was skipped), review (the student skipped it) and
+# approved (Desktop submitted it).
+FINISHABLE = (
+    application_stage.queued,
+    application_stage.needs_you,
+    application_stage.filling,
+    application_stage.review,
+    application_stage.approved,
+)
+# The stages that get a resume: a fill's, and Desktop's two fills, the
+# first (filling) and the one with the approved answers (approved).
+RESUMABLE = (
+    application_stage.queued,
+    application_stage.needs_you,
+    application_stage.filling,
+    application_stage.approved,
+)
+# The most applications one claim takes: one per Desktop Worker.
+MAX_CLAIM = 10
 
 
 class NotFound(Exception):
@@ -235,11 +266,13 @@ async def finish_application(
     applicant_id: uuid.UUID,
     job_id: uuid.UUID,
     outcome: Literal["submitted", "skipped", "failed"],
+    note: str | None = None,
 ) -> application_stage:
     """
     Records how a fill ended (OUTCOME_STAGE) and answers the new stage.
-    Only a queued or needs_you application can finish: raises NotFound when
-    there is none, WrongStage when it is skipped or applied already.
+    Only an application in FINISHABLE can finish: raises NotFound when there
+    is none, WrongStage when it is saved, skipped or applied already.
+    Desktop's `note` (why it ended) goes to the log only: no column keeps it.
     """
     stage = await fetch_stage(db, applicant_id, job_id)
     if stage is None:
@@ -249,6 +282,8 @@ async def finish_application(
             f"That application is {stage}, so it can't be finished. Queue a new job instead."
         )
     new = OUTCOME_STAGE[outcome]
+    if note:
+        logger.info("Auto apply fill of job %s ended %s: %s", job_id, outcome, note)
     await set_stage(db, applicant_id, job_id, new)
     await db.commit()
     return new
@@ -265,9 +300,10 @@ async def prepare_resume(
     a 5-minute link (`url`) for an uploaded one. None when the student has no such resume:
     the form is filled without one. Never tailors.
 
-    Only a queued or needs_you application gets one: raises NotFound when
-    there is none or its job posting closed, WrongStage when it is skipped or
-    applied. A repeat with unchanged content returns the same sent resume, so
+    Only an application in RESUMABLE gets one (queued, needs_you, or
+    Desktop's filling and approved): raises NotFound when there is none or
+    its job posting closed, WrongStage when it is saved, in review, skipped
+    or applied. A repeat with unchanged content returns the same sent resume, so
     a run that starts again keeps nothing new. The application names the
     sent resume (`link_resume`, KAN-267). Raises TectonicUnavailable
     when the PDF cannot be made, FileFailed when Storage cannot sign the link.
@@ -275,7 +311,7 @@ async def prepare_resume(
     stage = await fetch_stage(db, applicant_id, job_id)
     if stage is None:
         raise NotFound("No application for that job. Queue it first.")
-    if stage not in FINISHABLE:
+    if stage not in RESUMABLE:
         raise WrongStage(
             f"That application is {stage}, so it gets no resume. Queue a new job instead."
         )
@@ -316,3 +352,99 @@ async def prepare_resume(
     return SentResumeDownload.of(sent.row, file, sent.missing_characters)
 
 
+
+
+# --- WorkIt Desktop (KAN-323, auto-apply/desktop.md) ---
+
+
+async def claim_applications(
+    db: AsyncSession, applicant_id: uuid.UUID, n: int
+) -> list[Application]:
+    """
+    A Desktop's claim: up to `n` (at most MAX_CLAIM) of the applicant's
+    oldest queued applications whose job posting is open, moved to filling
+    in one commit, oldest first; [] when none is left. First sends back to
+    queued any filling application whose Desktop stopped beating 10 minutes
+    ago (requeue_stale), so a crash never strands one. Two claims at once
+    never answer the same application (claim_queued).
+    """
+    await requeue_stale(db, applicant_id)
+    claimed = await claim_queued(db, applicant_id, min(n, MAX_CLAIM))
+    await db.commit()
+    return claimed
+
+
+async def submit_review(
+    db: AsyncSession, applicant_id: uuid.UUID, job_id: uuid.UUID, review: Review
+) -> application_stage:
+    """
+    Desktop filled the form to its last page and stopped before Submit: keeps
+    its review and moves the application to review, in one commit. Only a
+    filling application takes one: raises NotFound when there is none,
+    WrongStage at any other stage (claim it first).
+    """
+    stage = await fetch_stage(db, applicant_id, job_id)
+    if stage is None:
+        raise NotFound("No application for that job. Queue it first.")
+    if stage != application_stage.filling:
+        raise WrongStage(
+            f"That application is {stage}, so it can't be reviewed. Claim it first."
+        )
+    await save_review(db, applicant_id, job_id, review)
+    await set_stage(db, applicant_id, job_id, application_stage.review)
+    await db.commit()
+    return application_stage.review
+
+
+async def get_review(db: AsyncSession, applicant_id: uuid.UUID, job_id: uuid.UUID) -> Review:
+    """The application's review: what Desktop filled, with the approved
+    answers once the student approved it. Raises NotFound when it has none."""
+    review = await fetch_review(db, applicant_id, job_id)
+    if review is None:
+        raise NotFound("That application has no review.")
+    return review
+
+
+async def approve_application(
+    db: AsyncSession,
+    applicant_id: uuid.UUID,
+    job_id: uuid.UUID,
+    answers: Sequence[ReviewAnswer] = (),
+) -> application_stage:
+    """
+    The student approves an application in review, with their edited
+    `answers` or, when empty, the review's own: keeps them and moves it to
+    approved in one commit, for Desktop to fill again and submit. Raises
+    NotFound when there is no application, WrongStage when it isn't in
+    review.
+    """
+    stage = await fetch_stage(db, applicant_id, job_id)
+    if stage is None:
+        raise NotFound("No application for that job. Queue it first.")
+    if stage != application_stage.review:
+        raise WrongStage(f"That application is {stage}, so there is nothing to approve.")
+    if not await approve_review(db, applicant_id, job_id, answers):
+        # A review row always comes with the review stage (submit_review).
+        raise NotFound("That application has no review.")
+    await set_stage(db, applicant_id, job_id, application_stage.approved)
+    await db.commit()
+    return application_stage.approved
+
+
+async def desktop_beat(
+    db: AsyncSession, applicant_id: uuid.UUID, beat: DesktopBeat
+) -> DesktopStatus:
+    """Records a Desktop heartbeat (every 15 s) in one commit and answers the
+    status it makes: online."""
+    status = await save_beat(db, applicant_id, beat)
+    await db.commit()
+    return status
+
+
+async def desktop_status(db: AsyncSession, applicant_id: uuid.UUID) -> DesktopStatus:
+    """Whether the applicant's Desktop is running: online with a beat in the
+    last 45 s. Offline with no counts when it never beat."""
+    status = await fetch_desktop(db, applicant_id)
+    if status is None:
+        return DesktopStatus(online=False, last_seen=None, workers=0, busy=0, usage=None)
+    return status

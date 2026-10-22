@@ -24,7 +24,16 @@ queued ──claim──▶ filling ──review──▶ review ──approve�
   fills it again with the approved answers and submits.
 
 A `filling` application whose Desktop stopped heartbeating for 10 minutes goes
-back to `queued` on the next claim, so a crash never strands it.
+back to `queued` on the next claim, so a crash never strands it. A Desktop
+that never beat counts as stopped, so **Desktop sends its first heartbeat
+before its first claim**; otherwise its next claim takes back what the last
+one gave it.
+
+Built (backend): the stages and tables are migration `40329c7aef62`
+(`application_reviews`, one row per application; `desktop_heartbeats`, one
+per applicant); the steps are `claim_applications`, `submit_review`,
+`get_review`, `approve_application`, `desktop_beat` and `desktop_status` in
+`backend/app/auto_apply/pipeline.py`.
 
 ## API (all under `/applicants/{id}`, Bearer token, owner-checked)
 
@@ -57,6 +66,13 @@ ReviewAnswer {
 DesktopBeat   { workers: int, busy: int, usage: {five_hour: float, weekly: float} | null, version: str }
 DesktopStatus { online: bool, last_seen: datetime | null, workers: int, busy: int, usage: {...} | null }
 ```
+
+- After approval, `GET review` answers the approved answers in `answers`
+  (the review's own when the approval sent none); the answers Desktop wrote
+  stay stored beside them. A second `PUT review` (only from `filling`)
+  replaces the review and clears the approval.
+- `finish`'s `note` is logged, not stored.
+- `busy` above `workers` is a 422; `workers` and `busy` are 0..10.
 
 `online` means a heartbeat in the last 45 s. Start Auto Apply only queues a
 batch when Desktop is online (Desktop claims it); otherwise it also opens the

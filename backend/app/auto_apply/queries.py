@@ -6,31 +6,37 @@ the transaction.
 
 The queue is the applicant's job_applications rows: `stage` says where each
 stands (dto.application_stage), `created_at` orders them. pick_resume reads
-the resume rows, never writes them.
+the resume rows, never writes them. WorkIt Desktop (KAN-323,
+auto-apply/desktop.md) claims queued rows, keeps each one's review in
+application_reviews and beats into desktop_heartbeats.
 """
 
+import datetime
 import uuid
 from collections.abc import Sequence
 from dataclasses import dataclass
 
 from sqlalchemy import (
     DateTime,
+    Interval,
     Select,
     Uuid,
     and_,
     cast,
     delete,
+    exists,
     func,
     literal,
     null,
     select,
     update,
 )
-from sqlalchemy.dialects.postgresql import insert
+from sqlalchemy.dialects.postgresql import JSONB, insert
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from app.models.applications import Job_Application
+from app.models.applications import Application_Review, Job_Application
 from app.models.built_resume import Built_Resume
+from app.models.desktop import Desktop_Heartbeat
 from app.models.dto import application_stage
 from app.models.jobs import Job_Post
 from app.models.profiles import Applicant_Profile
@@ -38,7 +44,13 @@ from app.models.resume import Resume
 from app.models.sent_resume import Sent_Resume
 from app.queries.jobs.filters import AUTO_APPLY_SUPPORTED, LISTED
 from app.queries.jobs.listings import LISTING_COLUMNS, to_listing
-from app.schemas.applications import Application
+from app.schemas.applications import (
+    Application,
+    DesktopBeat,
+    DesktopStatus,
+    Review,
+    ReviewAnswer,
+)
 from app.schemas.sent_resume import SentResumeResponse
 
 
@@ -260,3 +272,195 @@ async def pick_resume(
     if default.uploaded_id is not None:
         return ResumeChoice(uploaded_resume_id=default.uploaded_id)
     return None
+
+
+# --- WorkIt Desktop (KAN-323) ---
+
+# A `filling` application whose Desktop has been silent this long goes back
+# to queued on the next claim: the Desktop crashed or was closed.
+STALE_AFTER = datetime.timedelta(minutes=10)
+# Desktop beats every 15 s; three missed beats and it reads as offline.
+ONLINE_WITHIN = datetime.timedelta(seconds=45)
+
+
+def _since(window: datetime.timedelta):
+    """now() less `window`, on the database's clock."""
+    return func.now() - literal(window, Interval())
+
+
+async def requeue_stale(db: AsyncSession, applicant_id: uuid.UUID) -> set[uuid.UUID]:
+    """Sends this applicant's `filling` applications back to queued when
+    their Desktop has not beaten for STALE_AFTER (or never has); answers
+    which. They keep their created_at, so the next claim takes them first."""
+    alive = exists().where(
+        Desktop_Heartbeat.applicant_id == applicant_id,
+        Desktop_Heartbeat.last_seen >= _since(STALE_AFTER),
+    )
+    requeued = await db.scalars(
+        update(Job_Application)
+        .where(
+            Job_Application.applicant_id == applicant_id,
+            Job_Application.stage == application_stage.filling,
+            ~alive,
+        )
+        .values(stage=application_stage.queued)
+        .returning(Job_Application.job_id)
+    )
+    return set(requeued)
+
+
+async def claim_queued(db: AsyncSession, applicant_id: uuid.UUID, n: int) -> list[Application]:
+    """
+    Moves up to `n` of this applicant's oldest queued applications whose job
+    posting is open to `filling`, and answers them, oldest first. One
+    statement whose pick locks with FOR UPDATE SKIP LOCKED: a second claim at
+    the same moment passes over the rows this one holds, and one that reads
+    them after this commits sees them `filling`, so two Workers never get
+    the same application. Empty when nothing is queued.
+    """
+    # A materialized CTE, run once: as a plain IN (subquery), Postgres can run
+    # the LIMIT again on a recheck and take more than `n`.
+    picked = (
+        select(Job_Application.job_id)
+        .join(Job_Post, Job_Post.id == Job_Application.job_id)
+        .where(
+            Job_Application.applicant_id == applicant_id,
+            Job_Application.stage == application_stage.queued,
+            LISTED,
+        )
+        .order_by(Job_Application.created_at, Job_Application.job_id)
+        .limit(n)
+        .with_for_update(of=Job_Application, skip_locked=True)
+        .cte("picked")
+        .prefix_with("MATERIALIZED", dialect="postgresql")
+    )
+    claimed = list(
+        await db.scalars(
+            update(Job_Application)
+            .where(
+                Job_Application.applicant_id == applicant_id,
+                Job_Application.job_id.in_(select(picked.c.job_id)),
+                Job_Application.stage == application_stage.queued,
+            )
+            .values(stage=application_stage.filling)
+            .returning(Job_Application.job_id)
+        )
+    )
+    if not claimed:
+        return []
+    rows = await db.execute(
+        _applications(applicant_id)
+        .where(Job_Application.job_id.in_(claimed))
+        .order_by(Job_Application.created_at, Job_Application.job_id)
+    )
+    return [_to_application(row) for row in rows]
+
+
+async def save_review(
+    db: AsyncSession, applicant_id: uuid.UUID, job_id: uuid.UUID, review: Review
+) -> None:
+    """Keeps what Desktop filled into this application, replacing an earlier
+    review and the answers approved from it. Flushes; the caller commits."""
+    upsert = insert(Application_Review).values(
+        applicant_id=applicant_id, job_id=job_id, review=review.model_dump(mode="json")
+    )
+    await db.execute(
+        upsert.on_conflict_do_update(
+            index_elements=[Application_Review.applicant_id, Application_Review.job_id],
+            set_={
+                "review": upsert.excluded.review,
+                # null(), not None: a JSONB column writes None as JSON null.
+                "approved_answers": null(),
+                "updated_at": func.now(),
+            },
+        )
+    )
+
+
+async def fetch_review(
+    db: AsyncSession, applicant_id: uuid.UUID, job_id: uuid.UUID
+) -> Review | None:
+    """This application's review, with the approved answers in place of
+    Desktop's once the student approved it; None when it has none."""
+    row = (
+        await db.execute(
+            select(Application_Review.review, Application_Review.approved_answers).where(
+                Application_Review.applicant_id == applicant_id,
+                Application_Review.job_id == job_id,
+            )
+        )
+    ).first()
+    if row is None:
+        return None
+    if row.approved_answers is None:
+        return Review.model_validate(row.review)
+    return Review.model_validate({**row.review, "answers": row.approved_answers})
+
+
+async def approve_review(
+    db: AsyncSession,
+    applicant_id: uuid.UUID,
+    job_id: uuid.UUID,
+    answers: Sequence[ReviewAnswer],
+) -> bool:
+    """Keeps the answers the student approved: `answers`, or the review's
+    own when it is empty. Answers whether the application has a review.
+    Flushes; the caller commits."""
+    approved = (
+        literal([a.model_dump(mode="json") for a in answers], JSONB)
+        if answers
+        else Application_Review.review["answers"]
+    )
+    kept = await db.scalar(
+        update(Application_Review)
+        .where(
+            Application_Review.applicant_id == applicant_id,
+            Application_Review.job_id == job_id,
+        )
+        .values(approved_answers=approved, updated_at=func.now())
+        .returning(Application_Review.job_id)
+    )
+    return kept is not None
+
+
+_STATUS = (
+    (Desktop_Heartbeat.last_seen >= _since(ONLINE_WITHIN)).label("online"),
+    Desktop_Heartbeat.last_seen,
+    Desktop_Heartbeat.workers,
+    Desktop_Heartbeat.busy,
+    Desktop_Heartbeat.usage,
+)
+
+
+async def save_beat(db: AsyncSession, applicant_id: uuid.UUID, beat: DesktopBeat) -> DesktopStatus:
+    """Records a Desktop heartbeat, stamped with the database's now(), over
+    the last one; answers the status it makes. The caller commits."""
+    upsert = insert(Desktop_Heartbeat).values(
+        applicant_id=applicant_id,
+        workers=beat.workers,
+        busy=beat.busy,
+        usage=beat.usage.model_dump() if beat.usage else null(),
+        version=beat.version,
+        last_seen=func.now(),
+    )
+    row = (
+        await db.execute(
+            upsert.on_conflict_do_update(
+                index_elements=[Desktop_Heartbeat.applicant_id],
+                set_={
+                    column: upsert.excluded[column]
+                    for column in ("workers", "busy", "usage", "version", "last_seen")
+                },
+            ).returning(*_STATUS)
+        )
+    ).one()
+    return DesktopStatus.model_validate(row, from_attributes=True)
+
+
+async def fetch_desktop(db: AsyncSession, applicant_id: uuid.UUID) -> DesktopStatus | None:
+    """This applicant's Desktop as its last heartbeat left it; None when it
+    never beat."""
+    row = (
+        await db.execute(select(*_STATUS).where(Desktop_Heartbeat.applicant_id == applicant_id))
+    ).first()
+    return DesktopStatus.model_validate(row, from_attributes=True) if row else None
