@@ -554,7 +554,8 @@ Find files with a directory listing; these are the rules for where code goes.
     second use. A run with no base resume generates one first (saved with
     the count). **Lifted for now (KAN-319):** the route's `uses_left`
     check and `count_use` are commented out, it answers `uses_left` as the
-    cap, the Tailor screen hides its "runs left today" line, and the three
+    cap, the Tailor screen hides its "runs left today" and "Each run uses
+    one of today's 2 Tailor runs" lines, and the three
     cap tests in `test_tailor.py` are skipped. Restore all four together.
     The keyword match in `routers/built_resumes.py` still spends `TAILOR`
     uses.

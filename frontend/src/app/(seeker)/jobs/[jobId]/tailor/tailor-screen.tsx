@@ -113,9 +113,11 @@ export function TailorScreen({
         <Button className="mt-3" onClick={run} disabled={running}>
           <SparkleIcon /> {running ? "Tailoring…" : "Tailor My Resume"}
         </Button>
+        {/* KAN-319: the Tailor limit is lifted for now, so the cost is hidden.
         <p className="text-note text-ink-meta mt-2">
           Each run uses one of today&apos;s 2 Tailor runs.
         </p>
+        */}
         <TailorError error={error} />
       </Card>
     );
