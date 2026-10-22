@@ -35,14 +35,24 @@ export const site = {
 };
 
 export const hero = {
-  // The pipeline in order, one beat per step, each in the past tense: things
-  // WorkIt did for you. Plain spaces: text-balance makes two lines of two
-  // from sm up, and one beat per line on a phone, where a pair of beats is
-  // wider than the screen (a joined pair once overflowed, and overflowing
-  // text is invisible under bg-clip-text).
-  titleLines: ["Tailored. Matched. Applied. Tracked."],
+  // The tagline, "Stop ___ by hand." (hero-title.tsx): the blank walks the
+  // pipeline in the tour's order, one chore a student knows per step, and
+  // rests on `rest`, auto apply, which with matching matters most. "By hand"
+  // carries the pain; each phrase is a step WorkIt takes over.
+  lead: "Stop",
+  phrases: [
+    "rewriting resumes",
+    "searching for jobs",
+    "filling out applications",
+    "tracking applications",
+  ],
+  rest: 2,
+  tail: "by hand.",
+  // The promise, step by step. Auto apply fills the form and the student
+  // clicks Submit (auto-apply/architecture.md), so it never says WorkIt
+  // applies or sends.
   subtitle:
-    "WorkIt tailors your resume to each role, finds the jobs that fit, applies for you, and keeps every application on track.",
+    "WorkIt learns your experience, builds and tailors your resume, finds the jobs that fit and fills in each application. You just click Submit.",
 };
 
 /**

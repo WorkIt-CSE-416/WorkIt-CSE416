@@ -456,10 +456,102 @@ html:has(.landing) {
   }
 }
 
+/*
+ * The hero's tagline (hero-title.tsx). "Stop" and "by hand." rise in word
+ * by word (.hero-word); the first phrase's letters rise the same way
+ * (.hero-char), server-rendered, and later phrases roll in with motion.
+ * The phrase is in the brand violet, per letter (.hero-char-em: a parent's
+ * bg-clip-text does not reach text inside a transformed child), over a
+ * brush stroke (.hero-swash), drawn in by CSS under the first phrase and
+ * by motion under the rest. In @layer components, since these set display.
+ */
+@layer components {
+  .hero-word,
+  .hero-char {
+    display: inline-block;
+    animation: hero-word 0.9s cubic-bezier(0.16, 1, 0.3, 1) both;
+    animation-delay: var(--wd);
+  }
+
+  .hero-char-em {
+    background: linear-gradient(
+      180deg,
+      var(--color-landing-brand-500),
+      var(--color-landing-brand-800)
+    );
+    -webkit-background-clip: text;
+    background-clip: text;
+    color: transparent;
+    /* Keeps descenders ("g", "p", "j") clear of the clip. */
+    padding-bottom: 0.1em;
+    margin-bottom: -0.1em;
+  }
+
+  .hero-swash {
+    position: absolute;
+    left: -2%;
+    bottom: -0.16em;
+    z-index: -1;
+    width: 104%;
+    height: 0.32em;
+    overflow: visible;
+  }
+
+  .hero-swash-first {
+    animation: hero-swash 0.85s cubic-bezier(0.65, 0, 0.35, 1) both;
+    animation-delay: 1s;
+  }
+}
+
+@keyframes hero-word {
+  from {
+    opacity: 0;
+    transform: translateY(0.42em) rotate(2deg);
+    filter: blur(10px);
+  }
+}
+
+@keyframes hero-swash {
+  from {
+    clip-path: inset(0 100% 0 0);
+  }
+  to {
+    clip-path: inset(0 0 0 0);
+  }
+}
+
 @media (prefers-reduced-motion: reduce) {
   .hero-city,
-  .hero-city *,
-  .hero-rise {
+  .hero-city * {
     animation-play-state: paused;
   }
+
+  /* Shown at their end, not paused: paused at the first frame, the rise
+   * left the subtitle and buttons invisible (their "from" is opacity 0). */
+  .hero-rise,
+  .hero-word,
+  .hero-char,
+  .hero-swash-first {
+    animation: none;
+  }
+}
+
+/*
+ * The bridge's handoff (bridge.tsx, TabFlight): while its four pills fly
+ * into the tour, the bridge's own pills hide, and the tour's tab bar shows
+ * only once they land, so each pill is drawn once. With no flight the
+ * attribute is absent and the tab bar simply shows.
+ */
+html[data-tab-flight="flying"] [data-bridge-pill],
+html[data-tab-flight="landed"] [data-bridge-pill] {
+  visibility: hidden;
+}
+
+html[data-tab-flight="idle"] .tour-tabs,
+html[data-tab-flight="flying"] .tour-tabs {
+  opacity: 0;
+}
+
+.tour-tabs {
+  transition: opacity 0.3s ease-out;
 }

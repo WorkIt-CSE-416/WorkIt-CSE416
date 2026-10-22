@@ -1,6 +1,5 @@
 "use client";
 
-import { Bell, FileText, Target, Zap, type LucideIcon } from "lucide-react";
 import {
   AnimatePresence,
   MotionConfig,
@@ -17,10 +16,12 @@ import { cn } from "@/lib/cn";
 
 import AutoApplyVisual from "./auto-apply-visual";
 import { features, type FeatureId } from "./feature-data";
-import { backdrop as featureBackdrop, FEATURES, type FeatureSlug } from "./features/catalog";
+import { backdrop as featureBackdrop, FEATURES } from "./features/catalog";
 import { FeatureIcon } from "./features/feature-icon";
 import { Fit } from "./fit";
 import { useMediaQuery } from "./hooks";
+import { TabFlight } from "./bridge";
+import { TOUR_TABS, type TourTab } from "./tour-tabs";
 import MatchingVisual from "./matching-visual";
 import ResumeVisual from "./resume-visual";
 import UpdatesVisual from "./updates-visual";
@@ -32,22 +33,15 @@ import UpdatesVisual from "./updates-visual";
  * and the match pink, each stop its own product within the palette. The
  * order is `features` in feature-data.ts; a stop keeps its colour.
  */
-const STOPS: Record<
-  FeatureId,
-  { label: string; icon: LucideIcon; Visual: ComponentType; page: FeatureSlug }
-> = {
-  matching: { label: "Matching", icon: Target, Visual: MatchingVisual, page: "matching" },
-  resumes: { label: "Resumes", icon: FileText, Visual: ResumeVisual, page: "resumes" },
-  "auto-apply": {
-    label: "Auto Apply",
-    // The app's own Auto Apply glyph (the Jobs page's filters, the sidebar).
-    icon: Zap,
-    Visual: AutoApplyVisual,
-    page: "auto-apply",
-  },
-  // The Application Tracker's page shows this stop's animation.
-  updates: { label: "Updates", icon: Bell, Visual: UpdatesVisual, page: "tracker" },
+const VISUALS: Record<FeatureId, ComponentType> = {
+  resumes: ResumeVisual,
+  matching: MatchingVisual,
+  "auto-apply": AutoApplyVisual,
+  updates: UpdatesVisual,
 };
+const STOPS = Object.fromEntries(
+  TOUR_TABS.map((tab) => [tab.id, { ...tab, Visual: VISUALS[tab.id] }]),
+) as Record<FeatureId, TourTab & { Visual: ComponentType }>;
 
 /** A stop's soft, two-blob gradient over its tint. */
 function backdrop(id: FeatureId) {
@@ -124,10 +118,16 @@ function PinnedTour() {
       className="hidden lg:block"
       style={{ height: `calc(100dvh + ${(features.length - 1) * STOP_VH}vh)` }}
     >
-      <div className="sticky top-0 flex h-dvh flex-col px-6 pt-22 pb-6">
+      <TabFlight progress={entry} />
+      {/* The card takes whatever height is left inside the panel's padding,
+          so the switcher and the card keep their room at any window height.
+          A fixed height from the window's (100dvh minus the chrome) left the
+          panel 8px to spare: the switcher sat on its top edge and the card
+          ran into its bottom one. */}
+      <div className="sticky top-0 flex h-dvh flex-col px-6 pt-24 pb-6">
         <motion.div
           style={{ scale }}
-          className="relative isolate flex flex-1 flex-col items-center justify-center overflow-hidden rounded-[3rem] px-8"
+          className="relative isolate flex min-h-0 flex-1 flex-col items-center justify-center gap-5 overflow-hidden rounded-[3rem] px-10 py-6 xl:px-14"
         >
           {/* One backdrop per stop, crossfading, so the colour shift is smooth. */}
           {features.map((feature, i) => (
@@ -144,7 +144,8 @@ function PinnedTour() {
           <div
             role="tablist"
             aria-label="Features"
-            className="flex gap-1 rounded-full bg-white/50 p-1 ring-1 ring-white/70"
+            // tour-tabs: hidden while the bridge's pills fly in (landing.css).
+            className="tour-tabs flex shrink-0 gap-1 rounded-full bg-white/50 p-1 ring-1 ring-white/70"
           >
             {features.map((feature, i) => {
               const { icon: Icon, label } = STOPS[feature.id];
@@ -182,7 +183,7 @@ function PinnedTour() {
             id="tour-panel"
             role="tabpanel"
             aria-labelledby={`tour-tab-${active.id}`}
-            className="mt-4 grid w-full max-w-[76rem] grid-cols-[5fr_8fr] items-center gap-8 rounded-[2rem] bg-white p-5 shadow-xl shadow-slate-900/5"
+            className="grid [max-height:52rem] min-h-0 w-full max-w-[76rem] flex-1 grid-cols-[5fr_8fr] grid-rows-[minmax(0,1fr)] gap-8 rounded-[2rem] bg-white p-5 shadow-xl shadow-slate-900/5"
           >
             {/* No initial={false} on these: it blocks the first animation of
                 every motion element inside, so the Matching rows sat still at
@@ -195,7 +196,7 @@ function PinnedTour() {
                 animate={{ opacity: 1, y: 0 }}
                 exit={{ opacity: 0, y: -8 }}
                 transition={{ duration: reduceMotion ? 0 : 0.3, ease: [0.16, 1, 0.3, 1] }}
-                className="pl-4"
+                className="self-center pl-4"
               >
                 <StopCopy id={active.id} />
               </motion.div>
@@ -203,7 +204,7 @@ function PinnedTour() {
 
             <div
               ref={boxRef}
-              className="relative flex h-[clamp(20rem,calc(100dvh-13.5rem),50rem)] items-center justify-center overflow-hidden rounded-[1.5rem] p-4"
+              className="relative flex h-full min-h-0 items-center justify-center overflow-hidden rounded-[1.5rem] p-4"
               style={{ background: backdrop(active.id) }}
             >
               <AnimatePresence mode="wait">
@@ -211,7 +212,16 @@ function PinnedTour() {
                   key={active.id}
                   className="flex w-full justify-center"
                   initial={{ opacity: 0, y: 12, filter: "blur(6px)" }}
-                  animate={{ opacity: 1, y: 0, filter: "blur(0px)" }}
+                  // The filter comes off once the blur-in ends: a filter,
+                  // even blur(0px), draws the stop on a surface of its own,
+                  // which washed out the Auto Apply camera's big layer and
+                  // is a backdrop root that stops the glass blurring.
+                  animate={{
+                    opacity: 1,
+                    y: 0,
+                    filter: "blur(0px)",
+                    transitionEnd: { filter: "none" },
+                  }}
                   exit={{ opacity: 0, y: -12, filter: "blur(6px)" }}
                   transition={{ duration: reduceMotion ? 0 : 0.35, ease: [0.16, 1, 0.3, 1] }}
                 >
@@ -269,16 +279,13 @@ function StopCopy({ id }: { id: FeatureId }) {
         {feature.title}
       </h2>
       <p className="text-ink-meta mt-3 text-pretty">{feature.description}</p>
-      <div className="mt-6 flex flex-wrap items-center gap-x-6 gap-y-3 text-sm font-medium">
-        <Link
-          href="/signup"
-          className="text-ink inline-flex items-center gap-1.5 border-b border-current pb-0.5"
-        >
-          Try it free <span aria-hidden="true">→</span>
-        </Link>
+      {/* One link per stop, to its feature page. A "Try it free" beside it
+          made two calls to action for one paragraph; the header and the
+          hero already ask for the sign-up. */}
+      <div className="mt-6 text-sm font-medium">
         <Link
           href={href}
-          className="group text-ink-meta hover:text-ink inline-flex items-center gap-1.5 border-b border-transparent pb-0.5 transition-colors duration-200 hover:border-current"
+          className="group text-ink inline-flex items-center gap-1.5 border-b border-current pb-0.5"
         >
           Learn more<span className="sr-only"> about {name}</span>
           <span

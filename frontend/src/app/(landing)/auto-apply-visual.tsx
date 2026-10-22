@@ -114,9 +114,15 @@ function Stage({ level }: { level: number }) {
   }
 
   return (
-    // Clipped a little outside the stage, so the close-up window's shadow
-    // is not cut off at its edges.
-    <div className="absolute -inset-6 overflow-hidden">
+    // Clipped at the stage, which is the close-up window's own size and
+    // corners, and the window's shadow drawn here, outside the clip, so it
+    // is not cut. The clip once ran 24px past the stage to leave the shadow
+    // room, and that band showed as a pale tint over the gradient, under
+    // the scene title. The shadow fades as the camera pulls back.
+    <div
+      className="absolute inset-0 overflow-hidden rounded-2xl transition-shadow duration-700 motion-reduce:transition-none"
+      style={{ boxShadow: level === 0 ? "0 24px 48px -24px rgb(16 48 94 / 0.55)" : "none" }}
+    >
       <AnimatePresence>
         <Camera key={run} level={level} />
       </AnimatePresence>
@@ -154,8 +160,8 @@ function Camera({ level }: { level: number }) {
       style={{
         width: GRID_W,
         height: GRID_H,
-        left: (W - GRID_W) / 2 + 24,
-        top: (H - GRID_H) / 2 + 24,
+        left: (W - GRID_W) / 2,
+        top: (H - GRID_H) / 2,
       }}
       initial={{ opacity: 0, scale: frame(ACROSS[level]) }}
       animate={{ opacity: 1, scale: frame(ACROSS[level]) }}
@@ -256,7 +262,7 @@ function Application({
         // Ringed in the stop's green once the camera pulls back, so the
         // window that was filled up close stays easy to find; thicker as
         // the grid grows, since the camera shrinks it.
-        boxShadow: `0 0 0 ${[0, 10, 18, 26][level]}px color-mix(in oklab, var(--color-positive) 75%, transparent), 0 24px 48px -24px rgb(16 48 94 / 0.55)`,
+        boxShadow: `0 0 0 ${[0, 10, 18, 26][level]}px color-mix(in oklab, var(--color-positive) 75%, transparent)`,
       }}
     >
       <WindowBar>
@@ -721,7 +727,7 @@ function SentCount({ level }: { level: number }) {
     <AnimatePresence>
       {level > 0 && (
         <motion.div
-          className="glass-card text-ink absolute bottom-9 left-1/2 flex -translate-x-1/2 items-center gap-2 rounded-full py-1.5 pr-4 pl-1.5 text-[13px] font-semibold whitespace-nowrap"
+          className="glass-card text-ink absolute bottom-3 left-1/2 flex -translate-x-1/2 items-center gap-2 rounded-full py-1.5 pr-4 pl-1.5 text-[13px] font-semibold whitespace-nowrap"
           initial={{ opacity: 0, y: 10 }}
           animate={{ opacity: 1, y: 0 }}
           exit={{ opacity: 0, transition: { duration: 0.2 } }}

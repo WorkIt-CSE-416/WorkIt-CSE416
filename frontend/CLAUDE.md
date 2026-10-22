@@ -86,15 +86,16 @@ CLI are in the root `CLAUDE.md`. `API_URL` points at the API project
   once the page scrolls (`floating-header.tsx`); and the site's feature
   carousel and grey product placeholder became one pinned product tour
   (`product-tour.tsx`): from lg up it pins to the screen and scrolling steps
-  through the four features, each with its own app colour, in the hero
-  headline's order (Resumes, Matching, Auto Apply, Updates for Tailored,
-  Matched, Applied, Tracked), set by `features` in `feature-data.ts`.
+  through the four features, each with its own app colour, in the
+  pipeline's order (Resumes, Matching, Auto Apply, Updates), set by
+  `features` in `feature-data.ts`.
   The Resumes and Matching stops are each one story told a scene at a
   time, not every step at once, on the shared `Story` (`story.tsx`: the
   scene timer, the scene title and the stage). The title is a glass pill
-  with the scene's number, its caption and a progress line; it is not a
-  switcher: the team had the step bar of buttons removed (KAN-316), and
-  the caption had floated as small grey text under it. A story plays only
+  with the scene's number and its caption; it is not a switcher: the team
+  had the step bar of buttons removed (KAN-316), the caption had floated
+  as small grey text under it, and a progress line along the pill's foot
+  was removed too. A story plays only
   in view, from the start each time (its stage remounts on each return,
   so a scene that plays on mount starts when it is seen), and holds one
   finished scene for reduced motion. All four stops are on it (KAN-316).
@@ -112,11 +113,50 @@ CLI are in the root `CLAUDE.md`. `API_URL` points at the API project
   checked. Change it if the run changes. Every window is drawn at the
   stage's size and one transform scales the grid; the far windows are big
   type and bars, filled by CSS transitions, and a ring mounts only one
-  step before the camera reaches it. Updates (`updates-visual.tsx`): the same Cloudflare application
+  step before the camera reaches it. The camera is clipped at the stage,
+  which is the close-up window's own size and corners, and the window's
+  shadow is drawn on the clip, outside it: a clip 24px wider, to leave the
+  shadow room, showed as a pale band over the gradient and under the
+  scene title. Updates (`updates-visual.tsx`): the same application
   hears back. Each update drops in as a notification, then lands: the
   card's track moves on (the board's stage colours, Viewed in the stop's
   pink) and the update opens below it. It replaced a live feed with a
-  green "Live" dot, which the team found generic. Resumes (`resume-visual.tsx`): loose
+  green "Live" dot, which the team found generic. **One application
+  runs through the whole tour** (after Twain's way of carrying one object
+  down the page): `followedJob` in `feature-data.ts`, Stripe's Software
+  Engineer Intern posting, is the hero's Stripe card, the job Resumes
+  tailors to, Matching's top match, the form Auto Apply fills and the
+  application Updates follows; change it there and every stop follows. A card
+  that flew from the hero's Stripe card into the tour and docked above
+  each stop's copy as a tracker of that application (`JobFlight` and
+  `TourBaton` in `tour-baton.tsx`) was built and taken out for now: the
+  team found it out of place beside the copy. The file stays, not
+  mounted; to bring it back, render `JobFlight` in `PinnedTour` with the
+  pin's entry progress and a ref on a dock above the copy, and
+  `TourBaton` in that dock. Measure both ends of the flight every frame,
+  since both move, and leave the copy room on short screens. **The bridge**
+  (`bridge.tsx`, between the hero and the tour) is the segue the team
+  asked for: from lg up the scroll drives it from the moment it comes up
+  under the hero (so the postings seem to rise out of the city) through a
+  pinned stretch, 260vh in all. Real employers' postings flood the screen
+  ("Thousands of internships open every season"), the six that fit sort
+  into a grid with their scores while the rest blur away ("WorkIt finds the
+  ones that fit you"), they stack into one under the four steps, which
+  light in turn ("Then it helps with every step after that"), and as the
+  tour comes up those four pills fly into its tab bar (`TabFlight`,
+  mounted by `PinnedTour` with the pin's entry progress). The flight marks
+  `<html>` with `data-tab-flight` (idle, flying, landed), and landing.css
+  hides the bridge's pills while they fly and the tour's tab bar until
+  they land, so each pill is drawn once; with no flight the attribute is
+  absent and the tabs show. Below lg and with reduced motion it is a still
+  block, no pin. The four tabs' labels, icons and colours are one list,
+  `TOUR_TABS` in `tour-tabs.ts`, a plain module that both the tour and the
+  bridge import: a server page cannot pass icon components to a client
+  one as props. **Keep every scroll-linked range inside 0 to 1**: motion
+  hands scroll-linked opacity and filters to the browser's own animations,
+  which throw on a keyframe offset past 1 ("Offsets must be null or in the
+  range [0,1]"), and a bridge caption's range ending at 1.01 crashed the
+  whole page. Resumes (`resume-visual.tsx`): loose
   experience-bank entries gather into
   one pile, a template is picked, the resume writes itself in Jake's look,
   then a job posting arrives and the same page is tailored to it: mock AI
@@ -143,7 +183,18 @@ CLI are in the root `CLAUDE.md`. `API_URL` points at the API project
   a phone. The site's placeholder benefit grid and three steps became an
   expanding card row (`journey.tsx`: Find, Apply, Track, Hear back; the
   card under the pointer widens) and the hiring-systems section
-  (below). The site's closing "Be first in line" banner is
+  (below). **The statement** (`statement.tsx`, between the tour and the
+  applications section, after Twain's) is driven by scroll alone, no
+  timers: from lg up it pins for 260vh while the headline ("Stop sending
+  slop applications") steps into a staircase (steps in em, so they shrink
+  with the type; in px they pushed "applications" past a phone's panel), the paragraph darkens word by word as it is read, and a
+  generic cover letter's words fall one by one into a bin before the
+  closing line lands. Each word's way to the bin is measured from layout
+  offsets and read through a ref inside a function transform: a
+  `useTransform` built from arrays keeps the ranges it first saw. Below lg
+  it does not pin and the same moves follow the section through the
+  screen; with reduced motion it holds progress at 1, the finished frame.
+  The paragraph is product copy, so its claims follow the rules above. The site's closing "Be first in line" banner is
   removed for now. **The applications section** ("Every application, from
   saved to signed.", KAN-316): its board (`application-board.tsx`) shows
   real employers from `scraper/boards.csv` with intern or new-grad titles
@@ -190,6 +241,20 @@ CLI are in the root `CLAUDE.md`. `API_URL` points at the API project
   so neither `requestAnimationFrame` nor `ResizeObserver` runs and the
   stream stands still; each screenshot draws one frame (about 40ms of the
   clock), so check it with screenshots and script reads, not by waiting.
+  **The hero's tagline** is "Applying to jobs shouldn't feel like a
+  second job" (`hero` in `data.ts`; it replaced "Tailored. Matched.
+  Applied. Tracked."). `HeroTitle` in `page.tsx` splits it into words that
+  rise out of a blur in turn, and the emphasis ("second job") takes the
+  brand violet and a brush stroke that sweeps in under it once the line
+  has landed (`.hero-word`, `.hero-swash` in `landing.css`): CSS only, so
+  it renders on the server. The words are inline blocks, so the emphasis
+  carries its own gradient; a parent's bg-clip-text does not reach text
+  inside a transformed child. With reduced motion the rise and the stroke
+  are not run at all (`animation: none`): paused at their first frame, as
+  the old rule did, the subtitle and buttons stayed invisible. The longer
+  lines were checked against the city's caps at phone, tablet and laptop
+  widths. The statement further down took its own headline so it does not
+  repeat the tagline.
   The hero's backdrop is an animated SVG city (`city-model.ts` draws it,
   `hero-city.tsx` renders it after hydration, since server-rendered its path
   data would add hundreds of KB to the page): New York-style towers, six of
@@ -232,7 +297,15 @@ CLI are in the root `CLAUDE.md`. `API_URL` points at the API project
   only), so the 520px-wide stories fit a short laptop screen and fill a
   big one: at 1x they sat small in an area of empty colour, which the team
   flagged. Each story's stage is the height of its tallest scene, no more,
-  since spare stage height is what shrinks the scale; and its
+  since spare stage height is what shrinks the scale. The pinned card
+  takes the height left inside the panel's padding (flex, not a height
+  worked out from the window's): sized as 100dvh minus the chrome it left
+  8px to spare, and the switcher sat on the panel's top edge and the card
+  ran into its bottom one. Each
+  stop's blur-in ends with `filter: none` (`transitionEnd`): a leftover
+  `blur(0px)` drew the stop on a surface of its own, which washed out the
+  Auto Apply camera's big layer, and made it a backdrop root, which stops
+  the glass blurring. Its
   `AnimatePresence` must not get `initial={false}`, which blocks the first
   animation of every motion element inside it: the old Matching stop's
   rows once sat still at their end value until a tab switch remounted
@@ -277,7 +350,9 @@ CLI are in the root `CLAUDE.md`. `API_URL` points at the API project
   **The feature list is `features/catalog.ts`**: each feature page's slug,
   name, icon and colour, in menu order. The Features menu, the phone menu,
   the footer's Features column, each page's related-feature cards and the
-  tour's "Learn more" links all read it, and the tour's stops take their
+  tour's "Learn more" links (each stop's only link: the team dropped the
+  "Try it free" beside it, since the header and hero already ask for the
+  sign-up) all read it, and the tour's stops take their
   colours from it, so a feature wears one colour and one mark
   (`FeatureIcon`) everywhere. Tracker shows the tour's Updates animation
   in its pink; Scout had no stop, so it took amber, the one app colour

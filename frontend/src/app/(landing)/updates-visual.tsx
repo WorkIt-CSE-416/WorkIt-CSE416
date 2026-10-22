@@ -23,7 +23,7 @@ import { Burst } from "./stage-timeline";
 import { GLIDE, Story, type StoryScene } from "./story";
 
 /**
- * The Updates stop: one application hearing back, the Cloudflare one the
+ * The Updates stop: one application hearing back, the followed job's one the
  * Auto Apply stop filled. Each scene's update drops in as a notification, then
  * lands: the application's track moves on and the update opens below it
  * (the resume they opened, the recruiter's message, the interview on the
@@ -32,7 +32,11 @@ import { GLIDE, Story, type StoryScene } from "./story";
  */
 
 const SCENES = [
-  { id: "viewed", caption: "Cloudflare opens your application", hold: 3800 },
+  {
+    id: "viewed",
+    caption: `${updatesFeature.application.company} opens your application`,
+    hold: 3800,
+  },
   { id: "message", caption: "Their recruiter writes back", hold: 4800 },
   { id: "interview", caption: "The interview lands on your week", hold: 4000 },
   { id: "offer", caption: "Then the offer, the moment it is sent", hold: 5000 },
@@ -298,7 +302,7 @@ function ViewedUpdate() {
         <p className="text-ink text-[15px] font-semibold">Your resume was opened</p>
         <p className="text-ink-meta mt-1 flex items-center gap-1.5 text-[12px]">
           <FileText className="text-danger size-3.5 shrink-0" aria-hidden="true" />
-          Alex_Morgan_Cloudflare.pdf
+          Alex_Morgan_{updatesFeature.application.company}.pdf
         </p>
         <p className="text-ink-meta mt-3 text-[12px] leading-snug">
           By {updatesFeature.application.company}&rsquo;s recruiting team, just now. Your tracker
@@ -457,7 +461,7 @@ function InterviewUpdate() {
         </p>
         <p className="text-ink-meta mt-0.5 flex items-center gap-1.5 text-[12px]">
           <Video className="size-3.5 shrink-0" aria-hidden="true" />
-          Video call with the frontend team
+          Video call with the hiring team
         </p>
         <motion.p
           className="text-positive-ink mt-3 flex items-center gap-1.5 text-[12px] font-semibold"

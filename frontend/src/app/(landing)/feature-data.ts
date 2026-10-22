@@ -53,6 +53,20 @@ export const features: { id: FeatureId; title: string; description: string; seco
   },
 ];
 
+/**
+ * The one job the home page follows from the hero to the offer: the hero's
+ * Stripe card flies into the product tour and every stop works on it
+ * (Resumes tailors to it, Matching ranks it first, Auto Apply fills its
+ * application, Updates hears back). Change it here and every stop follows.
+ * Stripe is a real employer on scraper/boards.csv (Greenhouse).
+ */
+export const followedJob = {
+  title: "Software Engineer Intern",
+  company: "Stripe",
+  domain: "stripe.com",
+  score: 91,
+};
+
 // --- Matching: read the bank, scan postings, score, rank ---
 
 /** The four things the app scores a posting on (backend matching/scoring.py). */
@@ -102,12 +116,12 @@ export const matchingFeature = {
     },
     {
       id: "stripe",
-      title: "Software Engineer Intern",
-      company: "Stripe",
-      domain: "stripe.com",
+      title: followedJob.title,
+      company: followedJob.company,
+      domain: followedJob.domain,
       snippet: "Ship TypeScript and React tools on our payments APIs.",
       keywords: ["TypeScript", "React", "APIs"],
-      score: 91,
+      score: followedJob.score,
       factors: { meaning: 0.92, skills: 0.85, title: 0.75, experience: 1 },
     },
     {
@@ -232,9 +246,9 @@ export const resumeFeature = {
     { id: "compact", label: "Compact" },
   ],
   job: {
-    title: "Software Engineer Intern",
-    company: "Stripe",
-    domain: "stripe.com",
+    title: followedJob.title,
+    company: followedJob.company,
+    domain: followedJob.domain,
     keywords: ["TypeScript", "REST APIs"],
     /** The match before tailoring; each suggestion adds its points. */
     before: 72,
@@ -315,13 +329,13 @@ export interface GridApplication {
 
 export const autoApplyFeature = {
   job: {
-    title: "Frontend Engineer Intern",
-    company: "Cloudflare",
-    domain: boardDomain("Cloudflare"),
-    place: "Austin, TX · Internship",
+    title: followedJob.title,
+    company: followedJob.company,
+    domain: followedJob.domain,
+    place: "San Francisco, CA · Internship",
   },
   /** The address bar's text: a Greenhouse job board, as the scraper reads them. */
-  url: "job-boards.greenhouse.io/cloudflare",
+  url: "job-boards.greenhouse.io/stripe",
   /** The application, a Greenhouse-style form, in sections. */
   sections: [
     {
@@ -339,7 +353,12 @@ export const autoApplyFeature = {
       title: "Resume",
       fields: [
         // The resume tailored to this posting in the Resumes stop.
-        { id: "resume", label: "Resume/CV", value: "Alex_Morgan_Cloudflare.pdf", kind: "file" },
+        {
+          id: "resume",
+          label: "Resume/CV",
+          value: `Alex_Morgan_${followedJob.company}.pdf`,
+          kind: "file",
+        },
       ],
     },
     {
@@ -375,9 +394,9 @@ export const autoApplyFeature = {
         },
         {
           id: "why",
-          label: "Why do you want to work at Cloudflare?",
+          label: `Why do you want to work at ${followedJob.company}?`,
           value:
-            "I want to build the tools that keep the web fast and safe. Shipping a budgeting app that 200 students use every week showed me how much a slow page costs real people.",
+            "I want to build the tools businesses run their money on. Shipping a budgeting app that 200 students use every week showed me how much a clear, fast payment flow matters.",
           kind: "long",
         },
       ],
@@ -403,13 +422,15 @@ export const autoApplyFeature = {
     },
   ] satisfies { title: string; fields: ApplicationField[] }[],
   /** The other applications in the grid: the board's and Matching's real
-   * employers, Cloudflare (the one filled up close) left out. */
+   * employers, the followed job's company (filled up close) left out. */
   grid: [
     ...stages
       .flatMap((stage) => stage.jobs)
-      .filter((job) => job.company !== "Cloudflare")
+      .filter((job) => job.company !== followedJob.company)
       .map(({ company, domain, title }) => ({ company, domain, title })),
-    ...matchingFeature.jobs.map(({ company, domain, title }) => ({ company, domain, title })),
+    ...matchingFeature.jobs
+      .filter((job) => job.company !== followedJob.company)
+      .map(({ company, domain, title }) => ({ company, domain, title })),
   ] satisfies GridApplication[],
 };
 
@@ -429,9 +450,9 @@ export interface RecruiterUpdate {
 export const updatesFeature = {
   /** The application the Updates stop follows: the one Auto Apply just filled. */
   application: {
-    title: "Frontend Engineer Intern",
-    company: "Cloudflare",
-    domain: boardDomain("Cloudflare"),
+    title: followedJob.title,
+    company: followedJob.company,
+    domain: followedJob.domain,
     applied: "Oct 1",
   },
   /** What the recruiter writes, and the student's quick replies. */

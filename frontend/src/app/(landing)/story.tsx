@@ -5,10 +5,10 @@ import { cn } from "@/lib/cn";
 
 /**
  * A product tour stop told as a short story that loops a scene at a time,
- * never every step at once (the Resumes and Matching stops). It plays only
- * while in view and starts over each time it comes back. A glass pill over
- * the stage titles the current scene, numbers it and shows how long it has
- * left; it is not a switcher (the team removed the step bar's buttons).
+ * never every step at once (all four tour stops). It plays only while in
+ * view and starts over each time it comes back. A glass pill over the stage
+ * titles the current scene and numbers it; it is not a switcher (the team
+ * removed the step bar's buttons) and has no progress line (removed too).
  * With reduced motion it holds one finished scene, `rest`. Rendered
  * by the product tour, whose MotionConfig makes transforms instant for
  * those visitors.
@@ -35,7 +35,7 @@ export function Story<Id extends string>({
   scenes: readonly StoryScene<Id>[];
   /** The scene shown, still, with reduced motion. */
   rest: Id;
-  /** The stop's colour, a background class: the scene number and progress line. */
+  /** The stop's colour, a background class: the scene number's disc. */
   accent: string;
   /** The stage's height in px; every scene draws inside it. */
   stageHeight: number;
@@ -46,7 +46,7 @@ export function Story<Id extends string>({
   const inView = useInView(ref, { amount: 0.4 });
   const reduceMotion = useReducedMotion();
   const [step, setStep] = React.useState(0);
-  // Bumped on every scene change, so the progress line restarts.
+  // Bumped on every scene change, so the scene's timer restarts.
   const [tick, setTick] = React.useState(0);
 
   const go = React.useCallback((next: number) => {
@@ -86,8 +86,8 @@ export function Story<Id extends string>({
 
   return (
     <div ref={ref} className="flex w-[520px] flex-col items-center gap-4">
-      {/* The scene's title: a glass pill with its number and a progress
-          line, not a switcher. The scenes play on their own. */}
+      {/* The scene's title: a glass pill with its number, not a switcher.
+          The scenes play on their own. */}
       <div className="glass-card relative flex h-10 w-[380px] items-center gap-2.5 overflow-hidden rounded-full pr-4 pl-1.5">
         <AnimatePresence mode="wait" initial={false}>
           <motion.span
@@ -114,16 +114,6 @@ export function Story<Id extends string>({
         <span className="text-ink-meta ml-auto shrink-0 text-[11px] font-medium tabular-nums">
           {shown + 1}/{scenes.length}
         </span>
-        {!reduceMotion && (
-          <motion.span
-            key={tick}
-            aria-hidden="true"
-            className={cn("absolute bottom-0 left-0 h-[2px] opacity-60", accent)}
-            initial={{ width: 0 }}
-            animate={{ width: "100%" }}
-            transition={{ duration: scene.hold / 1000, ease: "linear" }}
-          />
-        )}
       </div>
 
       <div key={pass} className="relative w-full" style={{ height: stageHeight }}>
