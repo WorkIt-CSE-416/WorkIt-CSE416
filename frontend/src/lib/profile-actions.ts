@@ -16,6 +16,8 @@ export type ApplicantProfile = {
   portfolio_url: string | null;
   github_url: string | null;
   other_url: string | null;
+  /** My Profile's check box: the resume header prints "U.S. Citizen". */
+  us_citizen_on_resume: boolean;
 };
 
 export async function getProfile(): Promise<{

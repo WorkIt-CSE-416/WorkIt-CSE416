@@ -22,8 +22,11 @@ URL = f"/applicants/{APPLICANT}/profile"
 
 
 def _profile(**fields) -> Applicant_Profile:
+    # us_citizen_on_resume's default applies at flush, which a fake session
+    # never does, so it is set here as the database would
     return Applicant_Profile(
-        id=APPLICANT, email="signin@example.com", full_name="Jake Ryan", **fields
+        id=APPLICANT, email="signin@example.com", full_name="Jake Ryan",
+        **{"us_citizen_on_resume": False, **fields},
     )
 
 
@@ -135,3 +138,20 @@ def test_a_resume_header_prints_the_contact_email():
 
     session = FakeSession(_profile())
     assert asyncio.run(load_header_identity(session, APPLICANT)).email == "signin@example.com"
+
+
+def test_patch_saves_the_us_citizen_check_box_and_refuses_null(client):
+    http, session = client
+    assert http.get(URL).json()["us_citizen_on_resume"] is False
+    res = http.patch(URL, json={"us_citizen_on_resume": True})
+    assert res.status_code == 200
+    assert res.json()["us_citizen_on_resume"] is True
+    assert http.patch(URL, json={"us_citizen_on_resume": None}).status_code == 422
+    assert session.profile.us_citizen_on_resume is True
+
+
+def test_a_resume_header_says_us_citizen_only_when_checked():
+    session = FakeSession(_profile())
+    assert asyncio.run(load_header_identity(session, APPLICANT)).us_citizen is False
+    session = FakeSession(_profile(us_citizen_on_resume=True))
+    assert asyncio.run(load_header_identity(session, APPLICANT)).us_citizen is True

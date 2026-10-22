@@ -19,6 +19,8 @@ SECTION_LABELS = {
     "certifications": "Certifications",
 }
 SKILLS_LABEL = "Technical Skills"
+# What the header prints when My Profile's U.S. Citizen box is checked
+US_CITIZEN = "U.S. Citizen"
 # Jake's own spelling of months: "Aug. 2018", "June 2020", "Sep. 2018"
 _MONTHS = ("Jan.", "Feb.", "Mar.", "Apr.", "May", "June", "July", "Aug.", "Sep.", "Oct.", "Nov.", "Dec.")
 # Sections whose heading is two rows (title and place, then subtitle and

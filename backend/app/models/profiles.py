@@ -4,7 +4,7 @@ hold model schema for profile table
 import datetime
 import uuid
 
-from sqlalchemy import DateTime, ForeignKey, String, text
+from sqlalchemy import Boolean, DateTime, ForeignKey, String, false, text
 from sqlalchemy.orm import Mapped, mapped_column
 
 from app.db import BaseModel
@@ -48,6 +48,10 @@ class Applicant_Profile(Profile):
     portfolio_url: Mapped[str | None]
     github_url: Mapped[str | None]
     other_url: Mapped[str | None]    # add another url for extra options
+    # My Profile's check box: the resume header prints "U.S. Citizen". A
+    # display choice only; the citizenship answer itself is the answer
+    # bank's work_authorization_status, which this never reads or writes.
+    us_citizen_on_resume: Mapped[bool] = mapped_column(Boolean, server_default=false(), default=False)
 
     @property
     def email_for_employers(self) -> str:

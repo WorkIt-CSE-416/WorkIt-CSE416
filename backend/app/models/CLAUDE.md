@@ -972,6 +972,12 @@ What that means for the account tables:
   not an edit of `email`, because the seeker may apply with a different
   address than the one they sign in with, and changing the sign-in email is
   Supabase's job. Not unique: it signs nobody in.
+- **`us_citizen_on_resume` is a display choice, not the citizenship
+  fact** (`applicant_profiles` only, `b4e8c2a6f1d3`): My Profile's check
+  box, and the resume header prints "U.S. Citizen" while it is set. The
+  fact a form asks for stays the answer bank's `work_authorization_status`,
+  and neither reads the other: a check box that wrote the bank would change
+  what the autofiller fills in without the student seeing that question.
 - **Global email uniqueness now comes from `auth.users`,** which the old
   per-table `UNIQUE` on `email` could never give. The per-table constraints
   stay as a second check.
