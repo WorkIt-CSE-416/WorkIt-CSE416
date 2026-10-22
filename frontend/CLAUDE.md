@@ -24,6 +24,11 @@ them). Notes the scripts don't say:
 
 - **Install with `npm ci`.** Plain `npm install` rewrites `package-lock.json`;
   use `npm install <pkg>` only when adding a dependency, and only here.
+  On a Mac it drops the top-level `@emnapi/core` and `@emnapi/runtime`
+  entries (optional, for wasm32), and CI's `npm ci` on Linux then fails
+  with "Missing: @emnapi/runtime from lock file" (KAN-169, and pdf.js
+  before it). Copy them back from `main`'s lockfile, and check it with
+  `npm ci` in a `node:22` container before pushing.
 - `typecheck` runs `next typegen` first because `LayoutProps`/`PageProps` are
   generated route types that do not exist on a fresh clone; bare `tsc` fails.
 - There is no test runner yet. When one is added, document it here.
@@ -35,19 +40,54 @@ them). Notes the scripts don't say:
 
 ## Deployment
 
-Vercel project with Root Directory `frontend`; production URLs and the Vercel
-CLI are in the root `CLAUDE.md`. `API_URL` points at the API project
-(server-only, never `NEXT_PUBLIC_`); the other env vars are
-`NEXT_PUBLIC_SUPABASE_URL` and `NEXT_PUBLIC_SUPABASE_ANON_KEY`.
+**Cloudflare Workers through OpenNext** (KAN-294, ADR 0004): the Worker
+`workit-web` at `workitjobs.ai`, configured in `wrangler.jsonc`, deployed by
+CI with `CLOUDFLARE_API_TOKEN` and `CLOUDFLARE_ACCOUNT_ID`. The Vercel project
+(Root Directory `frontend`, URLs in the root `CLAUDE.md`) keeps running until
+the KAN-296 cutover.
 
+- **Scripts**: `cf:build` runs `next build` and turns `.next/` into
+  `.open-next/`; `cf:preview` serves that output in the local Workers runtime;
+  `cf:deploy` uploads it. Each is one binary, so `cf:preview` and `cf:deploy`
+  need a fresh `cf:build` first. `npx wrangler deploy --dry-run --outdir
+  <dir>` prints the upload size with no Cloudflare login: the Workers Paid cap
+  is 10 MiB gzip (3.6 MiB on 2026-10-20). Never run a real deploy locally.
+- **`@opennextjs/cloudflare` is pinned exactly**: each release's peer range
+  sets a floor on `next` (1.20.6 is the newest that takes `next` 16.3.3).
+  Raise them together; a newer adapter on an older Next fails to install.
+- **`NEXT_PUBLIC_*` are build-time.** Next inlines them into the bundle, so
+  they must be set where `cf:build` runs (the CI build step), not as Worker
+  vars or secrets. Server-only runtime values (`API_URL`, never
+  `NEXT_PUBLIC_`) are `vars` in `wrangler.jsonc`, or Worker secrets if secret.
+- **The build bakes `.env*` files into the Worker** as fallbacks under its
+  vars (`.open-next/cloudflare/next-env.mjs`). Build for a deploy only where
+  no `.env.local` exists (CI), or the local `API_URL` ships as a fallback.
+- **`src/proxy.ts` stays a Node proxy.** OpenNext 1.20 bundles Node
+  middleware with a warning ("experimental, not officially maintained"); the
+  redirects and the sign-in redirect worked under `wrangler dev` on
+  2026-10-20, with dummy Supabase vars; a real session refresh is untested.
+  If a later adapter rejects it, rename it back to `middleware.ts`
+  exporting `middleware` on the Edge runtime (ADR 0004).
+- **`next/image` is unoptimized on Cloudflare** (`next.config.ts`): logos
+  load from their own hosts. Vercel keeps the optimizer until the KAN-296
+  cutover, read from `VERCEL`, which every Vercel build sets and OpenNext's
+  never does. The Cloudflare Images binding bills per unique transformation
+  past 5,000 a month, which the feed's logos would outrun. Where it is off,
+  `remotePatterns` and the SVG settings do nothing; they stay for the day the
+  optimizer returns.
+- **The OpenNext build is not guaranteed on Windows.** Run `cf:*` in WSL, or
+  leave them to CI; `dev`, `build` and the rest work natively.
 - **OAuth needs each origin allow-listed in Supabase** (Authentication → URL
   Configuration → Redirect URLs): production, a wildcard for previews and
   `http://localhost:3000`, each with `/auth/callback`. `oauth-actions.ts`
-  builds `redirectTo` from `x-forwarded-host`, but Supabase silently falls back
-  to its Site URL for any origin not on the list.
+  builds `redirectTo` from `x-forwarded-host` on Vercel, whose proxy sets it,
+  and from `Host` elsewhere: on Cloudflare `x-forwarded-host` is whatever the
+  browser sent. It assumes https for any host
+  but localhost when `x-forwarded-proto` is missing; Supabase silently falls
+  back to its Site URL for any origin not on the list.
 - **Vercel refuses request bodies over 4.5 MB** before Next runs, while uploads
-  are capped at 5 MB, so a 4.5–5 MB upload fails deployed with a bare 413.
-  Still open.
+  are capped at 5 MB, so a 4.5–5 MB upload fails there with a bare 413.
+  Cloudflare allows 100 MB, so this closes at the KAN-296 cutover.
 
 ## Architecture
 
@@ -990,8 +1030,10 @@ CLI are in the root `CLAUDE.md`. `API_URL` points at the API project
 - **Name a variant for its role, never its look**: `primary`, `positive`,
   `quiet`, not `blue`, `green`, `plain`.
 - **`components/company-logo.tsx` hosts are allow-listed** in `next.config.ts`
-  and must match `scraper/workit_scraper/logos.py`; an unlisted host throws
-  and fails the whole page. It measures each logo on load: a square mark
+  and must match `scraper/workit_scraper/logos.py`. With the optimizer on, an
+  unlisted host throws and fails the whole page (on Vercel); where
+  `images.unoptimized` holds (Cloudflare, Deployment), the list is not checked, so keep it current anyway. It
+  measures each logo on load: a square mark
   fills the tile edge to edge, a wide wordmark sits on white with padding.
   Framed with padding, square marks on their own colour (Figma, Cloudflare)
   looked shrunk. The image is hidden until measured, and next/image only
@@ -1133,8 +1175,9 @@ are in `docs/auth.md`.
   A duplicate upload (`uploadResume`'s `duplicateOf`) is no failure for
   onboarding: the file is already there.
 - **A built resume's download keeps nothing** (KAN-267): the PDF through
-  `renderResumePdf` (base64 and its `file_name`), the Word file through
-  `downloadWordResume` (`lib/built-resume-actions.ts`), saved by the
+  `renderResumePdf` (base64 and its `file_name`), the Word file and the
+  PDF's LaTeX source through `downloadResumeFile(id, "docx" | "tex")`
+  (`lib/built-resume-actions.ts`), saved by the
   browser from a Blob (`resumes/download-menu.tsx`). Until KAN-267 every
   download went through `sendBuiltResume` and kept a sent resume in
   Storage, so the bucket filled with files no employer saw; that action is

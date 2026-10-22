@@ -34,6 +34,7 @@ from collections.abc import Awaitable, Callable
 from sqlalchemy import delete, func, select, update
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from app.models.autofill_answers import Autofill_Answers
 from app.models.bank import Bank_Bullet_Variant
 from app.models.built_resume import (
     Built_Resume,
@@ -44,6 +45,7 @@ from app.models.built_resume import (
 from app.models.jobs import Job_Post
 from app.models.profiles import Applicant_Profile
 from app.models.resume import Resume
+from app.schemas.autofill_answers import answers_from_bank
 from app.schemas.built_resume import (
     BulletChoiceResponse,
     ChoicesResponse,
@@ -562,12 +564,15 @@ async def fit_to_one_page(
 
 
 async def load_header_identity(session: AsyncSession, applicant_id: uuid.UUID) -> HeaderIdentity:
-    """The profile's identity fields a resume's header prints. Not
+    """The profile's identity fields a resume's header prints, and "U.S.
+    Citizen" when Application Questions' citizenship answer says so. Not
     `services/identity.py`'s `load_identity`, which loads the same fields
     for removal before a model sees text; this one is for display."""
     profile = await session.get(Applicant_Profile, applicant_id)
     if profile is None:
         raise NotFound
+    bank = await session.get(Autofill_Answers, applicant_id)
+    answers = answers_from_bank(bank.answers if bank else {})
     return HeaderIdentity(
         name=profile.full_name,
         email=profile.email_for_employers,
@@ -577,6 +582,7 @@ async def load_header_identity(session: AsyncSession, applicant_id: uuid.UUID) -
             for field in ("linkedin_url", "github_url", "portfolio_url", "other_url")
             if (url := getattr(profile, field))
         ),
+        us_citizen=answers.work_authorization_status == "us_citizen",
     )
 
 

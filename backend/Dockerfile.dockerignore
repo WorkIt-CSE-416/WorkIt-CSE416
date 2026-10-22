@@ -1,0 +1,20 @@
+# BuildKit reads this for backend/Dockerfile, whose context is the repo root
+# (a .dockerignore there would be root tooling). Only backend/ and scout/ go in.
+# It speeds up a local `docker build -f backend/Dockerfile` only: `wrangler
+# deploy` passes the Dockerfile on stdin, so BuildKit skips this file and the
+# Dockerfile's named COPYs are what keep .venv and vendor/ out.
+*
+!backend
+!scout
+**/.venv
+**/__pycache__
+**/*.py[cod]
+**/.pytest_cache
+**/.ruff_cache
+**/.DS_Store
+**/.env*
+backend/vendor
+backend/tests
+backend/cloudflare
+backend/.vercel
+scout/tests

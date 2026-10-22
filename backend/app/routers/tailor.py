@@ -6,12 +6,14 @@ POST /applicants/{id}/tailor       TailorRun {job_posting_id} -> TailorProposal
      One Tailor run: proposed changes for the posting's tailored resume,
      starting from it when it exists, else the newest base resume, else a
      base resume generated first. Saves nothing else (nothing until Done).
-     Spends one Tailor use, counted only when the run succeeds; a keyword
-     extraction inside the run is part of it, not a second use.
+     Free while KAN-319 lifts the limit: no Tailor use is checked or
+     counted, and uses_left is always the cap. Restoring the commented
+     lines brings back one use per successful run (a keyword extraction
+     inside the run is part of it, not a second use) and the 429.
      404 a posting the Jobs page does not list (unknown, draft, paused,
      closed); 409 {detail} empty bank (send the student to
      intake);
-     429 at the Tailor limit; 503 when the model fails or answers out of
+     503 when the model fails or answers out of
      schema (nothing counted).
 POST /applicants/{id}/tailor/done  TailorDone -> TailorResult {resume, matched, missing}
      Saves the accepted changes on the posting's one tailored resume
@@ -29,6 +31,7 @@ from sqlalchemy.exc import SQLAlchemyError
 from sqlalchemy.ext.asyncio import AsyncSession
 from workit_scout.llm import LLM, ScoutUnavailable
 
+from app.config import get_settings
 from app.db import get_session
 from app.deps import assert_applicant_owns, get_current_account
 from app.models.built_resume import Built_Resume
@@ -47,7 +50,9 @@ from app.services import built_resumes, keywords, postings, tailor
 from app.services.ai_messages import AIMessages
 from app.services.bank import NotFound, load_bank
 from app.services.identity import load_identity
-from app.services.usage import Feature, count_use, uses_left
+
+# KAN-319: the Tailor limit is lifted for now; restore with the lines in run().
+# from app.services.usage import Feature, count_use, uses_left
 
 logger = logging.getLogger(__name__)
 
@@ -81,9 +86,11 @@ async def run(
     bank = await load_bank(session, applicant_id)
     if not bank.entries:
         raise HTTPException(409, EMPTY_BANK)
-    left = await uses_left(session, applicant_id, Feature.TAILOR)
-    if left <= 0:
-        raise HTTPException(429, AI.spent)
+    # KAN-319: the Tailor limit is lifted for now.
+    # left = await uses_left(session, applicant_id, Feature.TAILOR)
+    # if left <= 0:
+    #     raise HTTPException(429, AI.spent)
+    left = get_settings().ai_tailor_cap
 
     try:
         found, extracted = await keywords.ensure(job, llm)
@@ -110,7 +117,8 @@ async def run(
     changes, dropped = tailor.propose(bank, choices, reading, ranks, found)
     matched, missing = tailor.match(bank, choices, found)
     source_id = source.id
-    await count_use(session, applicant_id, Feature.TAILOR)
+    # KAN-319: the Tailor limit is lifted for now.
+    # await count_use(session, applicant_id, Feature.TAILOR)
     # One commit: the count and a base resume generated for this run.
     await session.commit()
     return TailorProposal(
@@ -123,7 +131,7 @@ async def run(
         questions=tailor.questions(bank, found, missing),
         changes=changes,
         dropped=dropped,
-        uses_left=left - 1,
+        uses_left=left,  # KAN-319: was left - 1
     )
 
 

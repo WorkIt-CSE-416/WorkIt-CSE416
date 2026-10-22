@@ -7,7 +7,9 @@ way and what bites.
 ## CI (`workflows/ci.yml`)
 
 `scout/` has no job of its own: the backend installs it, so the backend job
-lints and tests it too.
+lints and tests it too. The `api-worker` job type-checks the API's Cloudflare
+Worker (`backend/cloudflare/`, `npm run check`), which nothing else builds
+before the deploy on `main`.
 
 The backend job runs `pgvector/pgvector:pg15` as a service on port 54330,
 the same image and port as the local test container, and sets
@@ -24,6 +26,56 @@ template text test fails, never skips, when Tectonic is missing
 The frontend job runs `format:check`, so an unformatted file fails the PR.
 Run `npm run format` before pushing. Markdown docs are in
 `frontend/.prettierignore`, so Prettier never rewrites prose.
+
+## Deploy to Cloudflare (`workflows/deploy.yml`, KAN-169)
+
+Every push to `main` deploys both halves to Cloudflare Workers Paid
+(`../docs/adr/0004-host-on-cloudflare.md`): the API job builds
+`backend/Dockerfile` into a Container behind the Worker in
+`backend/cloudflare/` (`api.workitjobs.ai`), and the web job builds the app
+with OpenNext and deploys it (`workitjobs.ai`). A branch never deploys on
+push, because each deploy overwrites production. To try one before merge, run
+it by hand: `gh workflow run deploy.yml --ref <branch>`. Every run shares one
+concurrency group (`deploy-cloudflare`), whatever its ref: a group per ref let
+a branch run and a push to `main` deploy at once, so the app could end up on
+one's code and the API on the other's.
+
+- **Secrets:** `CLOUDFLARE_API_TOKEN` (account token from the "Edit Cloudflare
+  Workers" template, scoped to the WorkIt account and the `workitjobs.ai`
+  zone) and `CLOUDFLARE_ACCOUNT_ID`, which wrangler reads from the env.
+- **The API's runtime values are one secret, `CF_API_SECRETS_JSON`**: a JSON
+  object of every variable the API reads in production, copied from Vercel's
+  production env. The job pipes it to `wrangler secret bulk` **before** the
+  deploy: the image rollout restarts the containers with the secrets of that
+  moment, and a secrets-only version restarts none, so set after, the new
+  values reach no container until each sleeps (found 2026-10-21). `secret
+  bulk` never deletes a secret, so a key dropped from the JSON keeps its old
+  value. **Build it from the root `.env`, never `vercel env pull`**: Vercel
+  returns every sensitive variable as the text `[SENSITIVE]`, which once
+  shipped as the database URL and keys. To change one value, rewrite the whole JSON
+  (`gh secret set CF_API_SECRETS_JSON < file.json`); never put a value in the
+  workflow. `DIRECT_URL` never goes in it: migrations stay a local step.
+- **`NEXT_PUBLIC_SUPABASE_URL` and `NEXT_PUBLIC_SUPABASE_ANON_KEY` are repo
+  variables, not secrets**: Next inlines them at build time and both are public
+  by design. Setting them as Worker secrets would do nothing.
+- **A new Worker's first deploy needs `scripts/ensure-worker.sh`.** For a
+  Worker that does not exist yet, Cloudflare answers wrangler's secrets lookup
+  with "No access to the specified resource" rather than "not found" when the
+  token is an account token, and the deploy fails. The script uploads a
+  one-line placeholder first, only when the Worker is missing from the
+  account's script list. A failed lookup is never read as "missing": it
+  stops the deploy, because the placeholder answers 503, and put over the
+  live Worker it would take the site down until the real deploy lands.
+- **The token's account permissions must be scoped to the account**, not to
+  the `workitjobs.ai` zone. Scoped to the zone, Workers Scripts Write grants
+  nothing and every call answers "No access" (found 2026-10-21). Zone scope is
+  right only for Workers Routes Write.
+- **The health check** polls `https://api.workitjobs.ai/health/db` for five
+  minutes, the database route because `/health` answers 200 with every
+  secret wrong (it did, with `[SENSITIVE]` placeholders). Five minutes,
+  because a fresh Container takes a while to start and a rollout replaces
+  instances in steps; a red API job with a green deploy step usually means
+  the rollout is not finished.
 
 ## Scheduled scrape and import (KAN-160)
 

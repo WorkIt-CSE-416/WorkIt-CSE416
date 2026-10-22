@@ -156,6 +156,38 @@ async def test_the_word_file_has_every_entry_in_section_order_newest_first(stude
     ]
 
 
+async def test_the_latex_file_is_the_pdfs_source_without_markers(student):
+    client, me = student
+    await _fill_bank(client, me)
+    resume_id = await _generate(client, me, "General SWE")
+
+    res = await client.get(f"{me}/built-resumes/{resume_id}/tex")
+    assert res.status_code == 200
+    assert res.headers["content-disposition"] == 'attachment; filename="General SWE.tex"'
+    tex = res.text
+    assert tex.startswith("%") and r"\begin{document}" in tex and tex.rstrip().endswith(r"\end{document}")
+    assert r"\scshape Sam Seeker" in tex and "555-010-2030" in tex
+    assert r"\section{Experience}" in tex and "Cut page load time by 30\\%" in tex
+    assert r"\wimark" not in tex and r"\pdfsavepos" not in tex
+
+
+async def test_the_header_says_us_citizen_once_the_citizenship_answer_does(student):
+    client, me = student
+    await _fill_bank(client, me)
+    resume_id = await _generate(client, me, "General SWE")
+    assert "U.S. Citizen" not in (await client.get(f"{me}/built-resumes/{resume_id}/tex")).text
+
+    res = await client.patch(f"{me}/autofill-answers", json={"work_authorization_status": "us_citizen"})
+    assert res.status_code == 200
+    assert r"U.S. Citizen $|$ " in (await client.get(f"{me}/built-resumes/{resume_id}/tex")).text
+
+
+async def test_the_latex_file_is_only_its_owners(student):
+    client, me = student
+    res = await client.get(f"{me}/built-resumes/{uuid.uuid4()}/tex")
+    assert res.status_code == 404
+
+
 async def test_the_word_file_is_letter_size(student):
     from io import BytesIO
 

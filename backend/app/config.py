@@ -56,6 +56,11 @@ class Settings(BaseSettings):
     # the transaction pooler of Supabase, same as DATABASE_URL
     database_url: str | None = None
 
+    # Connections the API keeps open; 0 opens one per request (NullPool).
+    # The container sets 5 (Dockerfile): it lives for minutes, and opening a
+    # connection there took ~1 s, the most of every request (2026-10-21).
+    db_pool_size: int = Field(default=0, ge=0)
+
     # The session pooler for alembic to use for migrations
     direct_url: str | None = None
 

@@ -11,14 +11,14 @@ import {
   DropdownMenuTrigger,
 } from "@/components/shadcn/dropdown-menu";
 import { Button } from "@/components/ui/button";
-import { downloadWordResume, renderResumePdf, type ResumeFile } from "@/lib/built-resume-actions";
+import { downloadResumeFile, renderResumePdf, type ResumeFile } from "@/lib/built-resume-actions";
 
 import { saveFile } from "@/lib/save-file";
 
-type Format = "pdf" | "docx";
+type Format = "pdf" | "docx" | "tex";
 
 /**
- * A built resume's download, PDF or Word, in the resume editor: it sat on
+ * A built resume's download, PDF, Word or LaTeX, in the resume editor: it sat on
  * every row of the Resumes view until KAN-258, where it crowded each card.
  * A download keeps nothing (KAN-267): the API renders the file and the
  * browser saves it. Every download was kept as a sent resume until then,
@@ -35,8 +35,8 @@ export function useResumeDownload(resumeId: string) {
     setBusy(format);
     setError(null);
     setHeld(null);
-    if (format === "docx") {
-      const { data, error } = await downloadWordResume(resumeId);
+    if (format !== "pdf") {
+      const { data, error } = await downloadResumeFile(resumeId, format);
       setBusy(null);
       return data ? saveFile(data) : setError(error);
     }
@@ -66,8 +66,15 @@ export function useResumeDownload(resumeId: string) {
 
 export type ResumeDownload = ReturnType<typeof useResumeDownload>;
 
+const BUSY: Record<Format, string> = {
+  pdf: "Making PDF…",
+  docx: "Making Word…",
+  tex: "Making LaTeX…",
+};
+
 /**
- * One Download for both files: PDF and Word were two buttons. While a file
+ * One Download for every file: PDF and Word were two buttons. LaTeX is the
+ * PDF's own source, for a student who edits it in Overleaf. While a file
  * is being made, the trigger says which one and takes no second pick.
  */
 export function DownloadMenu({ download }: { download: ResumeDownload }) {
@@ -78,13 +85,13 @@ export function DownloadMenu({ download }: { download: ResumeDownload }) {
         disabled={busy !== null}
         render={<Button variant="secondary" size="sm" />}
       >
-        <FileDown />{" "}
-        {busy === "pdf" ? "Making PDF…" : busy === "docx" ? "Making Word…" : "Download"}
+        <FileDown /> {busy ? BUSY[busy] : "Download"}
         <ChevronDownIcon className="text-ink-meta" />
       </DropdownMenuTrigger>
       <DropdownMenuContent>
         <DropdownMenuItem onClick={() => pick("pdf")}>PDF</DropdownMenuItem>
         <DropdownMenuItem onClick={() => pick("docx")}>Word</DropdownMenuItem>
+        <DropdownMenuItem onClick={() => pick("tex")}>LaTeX</DropdownMenuItem>
       </DropdownMenuContent>
     </DropdownMenu>
   );

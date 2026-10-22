@@ -12,6 +12,7 @@ from pydantic import ValidationError
 from app.db import get_session
 from app.deps import get_current_account
 from app.main import app
+from app.models.autofill_answers import Autofill_Answers
 from app.models.profiles import Applicant_Profile
 from app.schemas.auth import AccountType, AuthenticatedAccount
 from app.schemas.profile import ApplicantProfileUpdate
@@ -28,11 +29,14 @@ def _profile(**fields) -> Applicant_Profile:
 
 
 class FakeSession:
-    def __init__(self, profile):
+    def __init__(self, profile, answers=None):
         self.profile = profile
+        self.answers = answers
         self.commits = 0
 
-    async def get(self, _model, _id):
+    async def get(self, model, _id):
+        if model is Autofill_Answers:
+            return self.answers and Autofill_Answers(applicant_id=APPLICANT, answers=self.answers)
         return self.profile
 
     async def commit(self):
@@ -135,3 +139,19 @@ def test_a_resume_header_prints_the_contact_email():
 
     session = FakeSession(_profile())
     assert asyncio.run(load_header_identity(session, APPLICANT)).email == "signin@example.com"
+
+
+@pytest.mark.parametrize(
+    ("answers", "printed"),
+    [
+        (None, False),
+        ({}, False),
+        ({"work_authorization_status": "us_citizen"}, True),
+        ({"work_authorization_status": "permanent_resident"}, False),
+        # An option the code no longer knows reads as unanswered
+        ({"work_authorization_status": "US citizen"}, False),
+    ],
+)
+def test_a_resume_header_says_us_citizen_from_the_citizenship_answer(answers, printed):
+    session = FakeSession(_profile(), answers)
+    assert asyncio.run(load_header_identity(session, APPLICANT)).us_citizen is printed
