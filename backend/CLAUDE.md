@@ -654,6 +654,10 @@ Find files with a directory listing; these are the rules for where code goes.
   `prepared_statement_cache_size=0` because the transaction pooler hands each
   statement to any free backend: a prepared statement made on one is absent on
   the next, and queries fail intermittently under load, never in development.
+  asyncpg still names each statement it prepares, and its numbered names
+  restart per connection, so `prepared_statement_name_func` gives each a
+  `uuid4` name: with a pool, two client connections could otherwise collide
+  on one backend (SQLAlchemy's advice for pgbouncer-style poolers).
   Both cache settings go in `connect_args`; passed to `create_async_engine()`
   they raise `TypeError: Invalid argument(s)`. `hide_parameters=True` keeps
   the values a statement sent out of its error's text, which every route's
@@ -732,7 +736,10 @@ removed at cutover, not before. Until then a change must work on both.
   answering with the old values (2026-10-21). `Api.fetch` therefore stores
   the Worker version (`version_metadata`) its container started under and
   destroys a container from any other version before serving: the first
-  request to each instance after a deploy pays a cold start. CI deploys with `npm ci && npm run deploy`
+  request to each instance after a deploy pays a cold start. The swap runs in
+  `blockConcurrencyWhile`: `destroy()` is not a storage call, so without it a
+  second request read the old version mid-swap and destroyed the container
+  again. CI deploys with `npm ci && npm run deploy`
   in `cloudflare/`; `npx wrangler deploy --dry-run` there checks the config
   and builds the image without deploying. Nobody runs `wrangler login` or a
   real deploy from a laptop.
@@ -838,10 +845,12 @@ removed at cutover, not before. Until then a change must work on both.
   `NullPool`, and the Dockerfile sets 5. Under `NullPool` in the container
   every request spent ~1 s opening its connection, and pages took 3–9 s
   (2026-10-21). A Vercel Function is short-lived, so it keeps `NullPool`.
-  Three instances hold at most 15 (plus overflow) Supavisor clients, which
-  still pools them onto a few Postgres backends. `pool_pre_ping` and
+  `max_overflow` equals the pool size, so three instances hold at most 30
+  Supavisor clients, which still pools them onto a few Postgres backends. `pool_pre_ping` and
   `pool_recycle` replace a connection Supavisor has dropped.
-- **`/health/db` reports `pool`, `first_ms` and `again_ms`**, timed
+- **`/health/db?timing=true` reports `pool`, `first_ms` and `again_ms`**
+  (plain `/health/db` runs one query and returns only the status, since the
+  route is public), timed
   in-process: `again_ms` is one database round trip from wherever the API
   runs (8–30 ms from ENAM; 150 ms from the West Coast). Read it first when
   the deployed API turns slow. They are in the body because Cloudflare drops

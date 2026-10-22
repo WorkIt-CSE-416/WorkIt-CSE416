@@ -16,8 +16,10 @@ const nextConfig: NextConfig = {
     // several widths would outrun, and logos are small already. While this is
     // true, next/image skips its loader, so it neither checks remotePatterns
     // nor applies the SVG settings below; both stay so turning the optimizer
-    // back on is one line.
-    unoptimized: true,
+    // back on is one line. Vercel keeps its optimizer until the KAN-296
+    // cutover: VERCEL is set in every Vercel build and never in OpenNext's,
+    // so there next/image still checks remotePatterns and resizes logos.
+    unoptimized: !process.env.VERCEL,
     // Some Ashby boards serve their logo as SVG behind a `.png` URL (Snowflake,
     // Cerebras), which the optimizer otherwise refuses -- the card falls back
     // to initials. Next's documented safeguards: scripts in an SVG cannot run,

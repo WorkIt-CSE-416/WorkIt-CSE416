@@ -80,9 +80,11 @@ async def health() -> dict[str, str]:
 
 
 @app.get("/health/db")
-async def health_db() -> JSONResponse:
+async def health_db(timing: bool = False) -> JSONResponse:
     '''
-    check the health of the database
+    check the health of the database. One query, and only the status, unless
+    ?timing=true asks for the pool and the split wait: the route is public,
+    so the extra query and the numbers are opt-in.
     '''
     try:
         # Splits the wait, timed in-process: "first" includes taking (or
@@ -92,9 +94,10 @@ async def health_db() -> JSONResponse:
         async with get_sessionmaker()() as session:
             await session.execute(text("select 1"))
             first = time.perf_counter()
-            await session.execute(text("select 1"))
-            again = time.perf_counter()
-            pool = type(session.bind.pool).__name__
+            if timing:
+                await session.execute(text("select 1"))
+                again = time.perf_counter()
+                pool = type(session.bind.pool).__name__
     except Exception as exc:
         logger.exception("Database health check failed")
 
@@ -107,10 +110,11 @@ async def health_db() -> JSONResponse:
             },
         )
 
-    return JSONResponse(content={
-        "status": "ok",
-        "database": "reachable",
-        "pool": pool,
-        "first_ms": round((first - start) * 1000),
-        "again_ms": round((again - first) * 1000),
-    })
+    body = {"status": "ok", "database": "reachable"}
+    if timing:
+        body |= {
+            "pool": pool,
+            "first_ms": round((first - start) * 1000),
+            "again_ms": round((again - first) * 1000),
+        }
+    return JSONResponse(content=body)

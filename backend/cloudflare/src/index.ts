@@ -62,12 +62,18 @@ export class Api extends Container<Env> {
   // after a deploy or a secret change, one instance answered with a stale
   // [SENSITIVE] setting for every third request (2026-10-21). Each object
   // records the Worker version its container started under and replaces a
-  // container from any other version before serving.
+  // container from any other version before serving. The replacement runs
+  // inside blockConcurrencyWhile: destroy() is not a storage call, so without
+  // it a second request could read the old version while the first waited,
+  // and destroy the container again or start one mid-teardown.
   override async fetch(request: Request): Promise<Response> {
     const version = this.env.VERSION.id;
     if ((await this.ctx.storage.get<string>("version")) !== version) {
-      if (this.ctx.container?.running) await this.destroy();
-      await this.ctx.storage.put("version", version);
+      await this.ctx.blockConcurrencyWhile(async () => {
+        if ((await this.ctx.storage.get<string>("version")) === version) return;
+        if (this.ctx.container?.running) await this.destroy();
+        await this.ctx.storage.put("version", version);
+      });
     }
     return super.fetch(request);
   }

@@ -68,9 +68,11 @@ the KAN-296 cutover.
   2026-10-20, with dummy Supabase vars; a real session refresh is untested.
   If a later adapter rejects it, rename it back to `middleware.ts`
   exporting `middleware` on the Edge runtime (ADR 0004).
-- **`next/image` is unoptimized** (`next.config.ts`): logos load from their
-  own hosts. The Cloudflare Images binding bills per unique transformation
-  past 5,000 a month, which the feed's logos would outrun. While it is off,
+- **`next/image` is unoptimized on Cloudflare** (`next.config.ts`): logos
+  load from their own hosts. Vercel keeps the optimizer until the KAN-296
+  cutover, read from `VERCEL`, which every Vercel build sets and OpenNext's
+  never does. The Cloudflare Images binding bills per unique transformation
+  past 5,000 a month, which the feed's logos would outrun. Where it is off,
   `remotePatterns` and the SVG settings do nothing; they stay for the day the
   optimizer returns.
 - **The OpenNext build is not guaranteed on Windows.** Run `cf:*` in WSL, or
@@ -78,7 +80,9 @@ the KAN-296 cutover.
 - **OAuth needs each origin allow-listed in Supabase** (Authentication → URL
   Configuration → Redirect URLs): production, a wildcard for previews and
   `http://localhost:3000`, each with `/auth/callback`. `oauth-actions.ts`
-  builds `redirectTo` from `x-forwarded-host`, and assumes https for any host
+  builds `redirectTo` from `x-forwarded-host` on Vercel, whose proxy sets it,
+  and from `Host` elsewhere: on Cloudflare `x-forwarded-host` is whatever the
+  browser sent. It assumes https for any host
   but localhost when `x-forwarded-proto` is missing; Supabase silently falls
   back to its Site URL for any origin not on the list.
 - **Vercel refuses request bodies over 4.5 MB** before Next runs, while uploads
@@ -301,8 +305,8 @@ the KAN-296 cutover.
   `quiet`, not `blue`, `green`, `plain`.
 - **`components/company-logo.tsx` hosts are allow-listed** in `next.config.ts`
   and must match `scraper/workit_scraper/logos.py`. With the optimizer on, an
-  unlisted host throws and fails the whole page; while `images.unoptimized`
-  holds (Deployment), the list is not checked, so keep it current anyway. It
+  unlisted host throws and fails the whole page (on Vercel); where
+  `images.unoptimized` holds (Cloudflare, Deployment), the list is not checked, so keep it current anyway. It
   measures each logo on load: a square mark
   fills the tile edge to edge, a wide wordmark sits on white with padding.
   Framed with padding, square marks on their own colour (Figma, Cloudflare)

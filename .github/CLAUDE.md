@@ -7,7 +7,9 @@ way and what bites.
 ## CI (`workflows/ci.yml`)
 
 `scout/` has no job of its own: the backend installs it, so the backend job
-lints and tests it too.
+lints and tests it too. The `api-worker` job type-checks the API's Cloudflare
+Worker (`backend/cloudflare/`, `npm run check`), which nothing else builds
+before the deploy on `main`.
 
 The backend job runs `pgvector/pgvector:pg15` as a service on port 54330,
 the same image and port as the local test container, and sets
