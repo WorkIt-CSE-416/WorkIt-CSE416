@@ -10,6 +10,8 @@ import { openNextApplication } from "@/lib/autofill-extension";
 import { cn } from "@/lib/cn";
 
 import { startBatch } from "./actions";
+import type { DesktopStatus } from "./desktop-actions";
+import { DesktopStatusBar, useDesktopStatus } from "./desktop-status";
 import { openedNote } from "./opened-note";
 import { ResumeList, useResumes } from "./resume-list";
 
@@ -57,9 +59,19 @@ const RUN_BUTTON: Record<
  * load. Nothing fills the form yet, and Pause and Resume only move this state
  * (`auto-apply/architecture.md`, "The run"). The state is the page's own,
  * so a return visit starts idle, and Start queues another batch.
+ *
+ * WORKIT DESKTOP'S STATUS (KAN-323) sits under the header
+ * (./desktop-status.tsx): read by the page for the first paint, then polled.
  */
-export function AutoApplyPanel({ children }: { children: ReactNode }) {
+export function AutoApplyPanel({
+  desktop: initialDesktop,
+  children,
+}: {
+  desktop: DesktopStatus | null;
+  children: ReactNode;
+}) {
   const router = useRouter();
+  const [desktop] = useDesktopStatus(initialDesktop);
   const resumes = useResumes();
   const [run, setRun] = useState<RunState>("idle");
   const [note, setNote] = useState<{ text: string; error: boolean } | null>(null);
@@ -143,6 +155,8 @@ export function AutoApplyPanel({ children }: { children: ReactNode }) {
           {note.text}
         </p>
       )}
+
+      <DesktopStatusBar status={desktop} className="mt-4" />
 
       <ResumeList resumes={resumes} />
 

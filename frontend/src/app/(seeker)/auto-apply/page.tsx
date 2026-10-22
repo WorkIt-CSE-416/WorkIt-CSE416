@@ -8,6 +8,7 @@ import { SEEKER_GUTTER } from "../gutter";
 import { RememberFeed } from "../jobs/[jobId]/page-actions";
 import { activityOf } from "./activity-list";
 import { getRunApplications } from "./applications";
+import { getDesktopStatus } from "./desktop-actions";
 import { AutoApplyPanel } from "./auto-apply-panel";
 import { LiveActivity } from "./live-activity";
 
@@ -41,13 +42,16 @@ export const metadata: Metadata = {
  * SidebarInset is already the <main>.
  */
 export default async function AutoApplyPage() {
-  const { applications, error } = await getRunApplications();
+  const [{ applications, error }, desktop] = await Promise.all([
+    getRunApplications(),
+    getDesktopStatus(),
+  ]);
 
   return (
     <div className={cn("max-w-app mx-auto w-full flex-1 py-6", SEEKER_GUTTER)}>
       {/* So a queued job's page goes back here, not to the feed. */}
       <RememberFeed />
-      <AutoApplyPanel>
+      <AutoApplyPanel desktop={desktop.data}>
         {error != null ? (
           <EmptyState
             Icon={CloudOff}
