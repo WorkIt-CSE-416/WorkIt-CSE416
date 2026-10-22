@@ -159,9 +159,11 @@ export function TailorScreen({
           label="Missing"
           keywords={proposal.missing.filter((k) => !gained.has(k.keyword))}
         />
+        {/* KAN-319: the Tailor limit is lifted for now, so the count is hidden.
         <p className="text-note text-ink-meta mt-2">
           {proposal.uses_left} Tailor {proposal.uses_left === 1 ? "run" : "runs"} left today.
         </p>
+        */}
       </Card>
 
       {proposal.questions.length > 0 && (

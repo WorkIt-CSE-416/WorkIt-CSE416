@@ -552,7 +552,12 @@ Find files with a directory listing; these are the rules for where code goes.
   - **One run is one `TAILOR` use**, counted after the model answers and
     the proposals are built; a keyword extraction inside the run is not a
     second use. A run with no base resume generates one first (saved with
-    the count).
+    the count). **Lifted for now (KAN-319):** the route's `uses_left`
+    check and `count_use` are commented out, it answers `uses_left` as the
+    cap, the Tailor screen hides its "runs left today" line, and the three
+    cap tests in `test_tailor.py` are skipped. Restore all four together.
+    The keyword match in `routers/built_resumes.py` still spends `TAILOR`
+    uses.
 - **The editor assistant** (KAN-221) is `routers/assistant.py` (`POST
   .../built-resumes/{rid}/assistant`) over `services/assistant.py`. The
   model only **reads** the student's message into one action (fit, hide,

@@ -388,6 +388,7 @@ async def test_a_posting_the_jobs_page_does_not_list_is_404(student, database, u
 # --- The Tailor cap -------------------------------------------------------
 
 
+@pytest.mark.skip(reason="KAN-319: the Tailor limit is lifted for now")
 async def test_each_run_counts_against_the_tailor_cap(student, database, use_model):
     posting = await _seed_posting(database)
     use_model(reply())
@@ -400,6 +401,7 @@ async def test_each_run_counts_against_the_tailor_cap(student, database, use_mod
     assert fake.prompts == []
 
 
+@pytest.mark.skip(reason="KAN-319: the Tailor limit is lifted for now")
 async def test_a_run_that_extracts_keywords_counts_once(student, database):
     posting = await _seed_posting(database, cached=False)
     fake = QueuedLLM(json.dumps({"keywords": KEYWORDS}), reply()[0])
@@ -414,6 +416,7 @@ async def test_a_run_that_extracts_keywords_counts_once(student, database):
     assert body["uses_left"] == get_settings().ai_tailor_cap - 1
 
 
+@pytest.mark.skip(reason="KAN-319: the Tailor limit is lifted for now")
 async def test_an_invalid_reply_answers_503_and_counts_no_run(student, database, use_model):
     posting = await _seed_posting(database)
     use_model([json.dumps({"rewords": "all of them"})])
