@@ -187,7 +187,12 @@ The page is capped at 70rem (1120px), a little wider than the other reading
 pages' `max-w-app`, which left its facts and checklist cramped (KAN-279).
 **A rail of jobs sits on its left** (KAN-297, after Cooper's job board): the
 roles the seeker last saw on /jobs or /search, in that list's order, the open
-one marked, each a link to its own page. It lives in `jobs/layout.tsx`
+one marked, each a link to its own page. Each rail card has the logo, title,
+company, when it was posted and its match, then the feed card's six facts in
+the feed card's own grid (`JobFactGrid` in `components/job-posting-card.tsx`,
+fed by `listingFacts`), two columns in a narrow rail and three from 448px of
+card: asked for 2026-10-22, when a card showed only the company and place.
+It lives in `jobs/layout.tsx`
 (`jobs/jobs-rail.tsx`), above the job's segment, so it stays mounted and
 scrolled where it was while the seeker opens one job after another; Tailor
 and /jobs itself draw no rail. `FeedList` writes the list as it shows it

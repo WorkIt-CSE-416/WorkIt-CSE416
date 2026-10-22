@@ -12,13 +12,15 @@ import {
 } from "react";
 
 import { CompanyLogo } from "@/components/company-logo";
+import { JobFactGrid } from "@/components/job-posting-card";
 import { MatchBadge } from "@/components/match-badge";
 import { Skeleton } from "@/components/shadcn/skeleton";
 import { Button } from "@/components/ui/button";
 import { cn } from "@/lib/cn";
 
 import { loadMoreJobs, loadMoreRecommended } from "./actions";
-import { formatPlaces } from "./format";
+import { formatPosted } from "./format";
+import { listingFacts } from "./listing-card";
 import { isFresh, readShownList, rememberList, subscribe, type ShownList } from "./shown-list";
 
 /** A job posting's own page, /jobs/<id>; not its Tailor page under it. */
@@ -191,33 +193,42 @@ function listTitle({ source, query }: ShownList): string {
   return new URLSearchParams(query).get("q") ? "Search Results" : "Newest Jobs";
 }
 
+/** One role as a rail card: who and what, when it was posted and its match,
+ *  then the feed card's own six facts (location, job type, salary, work
+ *  style, level, start or years) in its grid, empty slots and all
+ *  (`JobFactGrid`, `listingFacts`). Two columns of facts in a narrow rail,
+ *  three once the card is 448px wide, as on the feed card. */
 function RailRow({ job, current }: { job: ShownList["jobs"][number]; current: boolean }) {
-  const place = formatPlaces(job.location_label ?? job.location);
   return (
     <Link
       href={`/jobs/${encodeURIComponent(job.id)}`}
       aria-current={current ? "page" : undefined}
       className={cn(
-        "rounded-card focus-visible:ring-brand-ring flex gap-3 border p-3 transition-colors focus-visible:ring-2 focus-visible:outline-none",
+        "rounded-card focus-visible:ring-brand-ring @container block border p-4 transition-colors focus-visible:ring-2 focus-visible:outline-none",
         current ? "border-brand bg-brand-tint" : "border-border-subtle hover:bg-hover",
       )}
     >
-      <CompanyLogo
-        name={job.company}
-        src={job.logo_url}
-        className="text-note rounded-control size-9 shrink-0"
-      />
-      <span className="min-w-0 flex-1">
-        <span className="text-label text-ink block truncate">{job.title}</span>
-        <span className="text-meta text-ink-meta block truncate">
-          {place ? `${job.company} · ${place}` : job.company}
-        </span>
-        {job.match != null && (
-          <span className="mt-1.5 flex">
-            <MatchBadge score={job.match} />
+      <span className="flex items-start gap-3">
+        <CompanyLogo
+          name={job.company}
+          src={job.logo_url}
+          className="text-label rounded-control size-11 shrink-0"
+        />
+        <span className="min-w-0 flex-1">
+          <span title={job.title} className="text-label text-ink block truncate">
+            {job.title}
           </span>
-        )}
+          <span className="text-meta text-ink-meta mt-0.5 block truncate">
+            {job.company}
+            {/* The clock moves between the server render and hydration. */}
+            {job.posted_at && (
+              <span suppressHydrationWarning> · {formatPosted(job.posted_at)}</span>
+            )}
+          </span>
+        </span>
+        {job.match != null && <MatchBadge score={job.match} />}
       </span>
+      <JobFactGrid job={listingFacts(job)} className="border-border-subtle mt-3 border-t pt-3" />
     </Link>
   );
 }
@@ -226,11 +237,18 @@ function RailSkeleton() {
   return (
     <ul aria-hidden="true" className="flex flex-col gap-2">
       {Array.from({ length: 6 }, (_, i) => (
-        <li key={i} className="rounded-card border-border-subtle flex gap-3 border p-3">
-          <Skeleton className="rounded-control size-9 shrink-0" />
-          <span className="flex flex-1 flex-col gap-2 pt-1">
-            <Skeleton className="h-3 w-4/5" />
-            <Skeleton className="h-2.5 w-3/5" />
+        <li key={i} className="rounded-card border-border-subtle border p-4">
+          <span className="flex gap-3">
+            <Skeleton className="rounded-control size-11 shrink-0" />
+            <span className="flex flex-1 flex-col gap-2 pt-1">
+              <Skeleton className="h-3 w-4/5" />
+              <Skeleton className="h-2.5 w-3/5" />
+            </span>
+          </span>
+          <span className="border-border-subtle mt-3 grid grid-cols-2 gap-2 border-t pt-3">
+            {Array.from({ length: 4 }, (_, j) => (
+              <Skeleton key={j} className="h-2.5 w-3/4" />
+            ))}
           </span>
         </li>
       ))}
