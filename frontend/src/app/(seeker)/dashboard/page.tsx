@@ -29,8 +29,8 @@ export const metadata: Metadata = {
  * from git.
  *
  * TOP MATCHES UNDER THE NUMBERS (KAN-342, ./top-matches.tsx): the
- * seeker's three best-scoring jobs as the Jobs page's own cards, stacked,
- * with no score floor. New Matches, the
+ * seeker's twelve best-scoring jobs as flat rows that scroll inside one
+ * tile, with no score floor. New Matches, the
  * newest postings in posting order, sat there until Good Matches replaced
  * New Roles; the user asked for a list back, ordered by fit, since a new
  * seeker can have only weak matches and still needs their best ones. It
@@ -54,7 +54,7 @@ export const metadata: Metadata = {
  * and Activity runs the full width under them:
  *
  *   Good Matches (violet)   Saved   Applied   Interviewing
- *   Top Matches, three feed cards stacked, See More Matches at its right
+ *   Top Matches, a scrolling list of rows, See More Matches at its right
  *   Activity, the full width
  *
  * Next Up, Up Next and Waiting are archived for now (the note above says

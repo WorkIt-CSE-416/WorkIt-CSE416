@@ -205,14 +205,12 @@ function salary(job: JobListing) {
  * container), so the tile, the grid and the rail break at the same widths.
  * Stated once for a screen reader; the shapes themselves are hidden.
  */
-/** The feed's cards while they load, `count` of them (4 on the Jobs page; the
- *  Dashboard's Top Matches holds its own number). */
-export function ListingsSkeleton({ count = 4 }: { count?: number } = {}) {
+export function ListingsSkeleton() {
   return (
     <div role="status" className="mt-4">
       <span className="sr-only">Loading jobs</span>
       <ul aria-hidden="true" className="flex flex-col gap-3">
-        {Array.from({ length: count }, (_, index) => (
+        {Array.from({ length: 4 }, (_, index) => (
           <li key={index}>
             <Card padding="none" className="@container overflow-hidden">
               <div className="flex flex-col @xl:flex-row">

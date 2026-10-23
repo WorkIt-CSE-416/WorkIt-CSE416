@@ -91,7 +91,7 @@ const GOOD_MATCHES_NOTE: Record<RangeKey, string> = {
  * an empty experience bank there is nothing to score, so the tile asks for
  * the bank instead. The tile opens the Jobs page in Best Match order, where
  * those jobs come first; Top Matches under the numbers (./top-matches.tsx)
- * shows the best three whatever their score.
+ * lists the best twelve whatever their score.
  *
  * Applied counts the tracker's applications sent in the range, against
  * the same length of days before it. Saved is the seeker's live saved jobs

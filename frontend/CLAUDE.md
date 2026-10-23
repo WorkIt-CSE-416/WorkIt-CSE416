@@ -998,8 +998,9 @@ the KAN-296 cutover.
   Interviews number is a dash, KAN-342); a failed read shows an error, never
   stand-in cards. The Dashboard's four numbers are all live and all links
   (KAN-342); its Good Matches reads the Best Match scores
-  (`getGoodMatchDates`), and Top Matches under them stacks the three
-  best-scoring jobs as feed cards, with no score floor (`getTopMatches`). A job's application
+  (`getGoodMatchDates`), and Top Matches under them lists the twelve
+  best-scoring jobs as flat rows that scroll inside a tile, with no score
+  floor (`getTopMatches`). A job's application
   stage (`saved`, `queued`...) reaches its Save and Auto Apply buttons from
   one read per page. Auto Apply never picks a saved job for a batch; only
   the job's own Auto Apply click queues it.

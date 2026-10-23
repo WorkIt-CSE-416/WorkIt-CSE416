@@ -433,20 +433,26 @@ The archived tiles' code stays (`next-up-hero.tsx`, `up-next.tsx`,
 how to bring them back. The notes below still describe them.
 
 **Top Matches sits under the numbers** (KAN-342, `dashboard/top-matches.tsx`):
-the seeker's three best-scoring open jobs, best first, as the Jobs page's own
-cards stacked one over the next (`ListingCard`: match rail, Save, Tailor,
-Apply Now), from the Best Match scores (`getTopMatches`,
-`GET /jobs/recommended?limit=3`), with no score floor. A new seeker's thin
-experience bank can score every job a Weak Match, and their best weak ones
-are still where to start; the Good Matches number above counts only 65 and
-up. See More Matches, a secondary button at the heading's right, opens Best
-Match. It is an open section, not a tile: the feed's cards are cards
-already, and inside a white tile they drew a box in a box. With an empty
-bank it asks for the bank. It streams in its own `<Suspense>`, over the
-feed's skeleton (`ListingsSkeleton count`), so the numbers never wait on
-scoring. It replaced New Matches, the newest postings in posting order,
-which went when Good Matches replaced New Roles and came back ordered by fit
-at the user's ask. The notes below that name
+the seeker's twelve best-scoring open jobs, best first, from the Best Match
+scores (`getTopMatches`, `GET /jobs/recommended?limit=12`), with no score
+floor. A new seeker's thin experience bank can score every job a Weak
+Match, and their best weak ones are still where to start; the Good Matches
+number above counts only 65 and up. Each is a flat row in one tile: a well
+with the logo, the title (its link to the job posting page), the company,
+the match ring, when it was posted, and Apply Now (the same dialog as
+everywhere, KAN-290). See More Matches, a secondary button at the heading's
+right, opens Best Match. From `@4xl/main` the list scrolls inside the tile at
+`h-80`, about four and a half rows, with a quiet bar along the tile's edge
+and a fade at its foot; below it the list shows five rows and does not
+scroll (a box that scrolls inside a scrolling page traps the swipe), and
+below `@xl/main` Apply Now takes its own full-width line, since beside the
+text it squeezed the title to two words a line. The Jobs page's own cards
+were tried here first and were too tall for a glance: three filled the
+screen. With an empty bank it asks for the bank. It streams in its own
+`<Suspense>` with a skeleton in the same frame, so the numbers never wait on
+scoring. It replaced New Matches, the newest postings in posting order in
+the same scrolling frame, which went when Good Matches replaced New Roles
+and came back ordered by fit at the user's ask. The notes below that name
 New Matches describe the archived three-column layout.
 
 **The seeker Dashboard is a bento of tiles** (KAN-173), modelled on a
@@ -560,8 +566,7 @@ numbers as they fade (`--streak-h2` and the room in `streak-canvas.ts`).
 With a 3D height of its own the section swelled and shrank through each
 switch, since the canvas and the folding numbers ran on different curves,
 and in 3D it ran past the fold. The page scrolls: at 1280 × 720 the numbers
-and the top of Top Matches show above the fold, and Activity follows the
-feed cards. Before Top Matches came back the whole page fit with no scroll. They show only
+and the top of Top Matches show above the fold, and Activity follows it. Before Top Matches came back the whole page fit with no scroll. They show only
 there: the 3D skyline stands alone, with no numbers under it or in its corners. `streak-model.ts`
 is its pure maths (grid, levels, stats, camera), `streak-canvas.ts` the
 canvas engine (no React: the section mounts it once and it re-reads a ref
