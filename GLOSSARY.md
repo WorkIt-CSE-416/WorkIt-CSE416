@@ -99,7 +99,7 @@ One job posting a student is following in the Applications Tracker, at one stage
 _Avoid_: Applications (as the page's name)
 
 **Strong Match**:
-A job posting that scores 80 or more for a student, the Strong Match band and above. The Dashboard's first number counts them.
+A job posting that scores 80 or more for a student, the Strong Match band and above. The Dashboard's first number, Strong Matches, counts them.
 _Avoid_: good match (for that number), new role, recommendation
 
 **Top Match**:

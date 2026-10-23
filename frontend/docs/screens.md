@@ -436,7 +436,7 @@ how to bring them back. The notes below still describe them.
 the seeker's twelve best-scoring open jobs, best first, from the Best Match
 scores (`getTopMatches`, `GET /jobs/recommended?limit=12`), with no score
 floor. A new seeker's thin experience bank can score every job a Weak
-Match, and their best weak ones are still where to start; the Strong Match
+Match, and their best weak ones are still where to start; the Strong Matches
 number above counts only 80 and up. Each is a flat row in one tile: a well
 with the logo, the title (its link to the job posting page), the company,
 the match ring, when it was posted, and Apply Now (the same dialog as
@@ -451,7 +451,7 @@ were tried here first and were too tall for a glance: three filled the
 screen. With an empty bank it asks for the bank. It streams in its own
 `<Suspense>` with a skeleton in the same frame, so the numbers never wait on
 scoring. It replaced New Matches, the newest postings in posting order in
-the same scrolling frame, which went when Strong Match replaced New Roles
+the same scrolling frame, which went when Strong Matches replaced New Roles
 and came back ordered by fit at the user's ask. The notes below that name
 New Matches describe the archived three-column layout.
 
@@ -467,7 +467,7 @@ alone is capped at `max-w-dashboard` (1440px) rather than `max-w-app`.
 From `@4xl/main` (896px, not `@5xl`'s 1024: a 13-inch laptop at 100% zoom
 gives the page about 1010px and fell back to two columns of oversized
 tiles) the four numbers run across the top in a grid of their own
-(Strong Match filled violet, the only solid tile), and the tiles under them sit in
+(Strong Matches filled violet, the only solid tile), and the tiles under them sit in
 thirds. Left to right is apply, then manage: New Matches two thirds wide
 beside Next Up (a white reminder tile, its title in violet over one filled
 button) over Up Next, then Activity two thirds wide beside Waiting (three
@@ -508,7 +508,7 @@ All the Agenda; Waiting's Follow Up opens the Applications list filtered to
 Applied. That is a placeholder: it helps nobody contact anyone, and KAN-174
 (still open) plans the real flow, a list of only what has waited two weeks,
 a Scout-drafted note, a recruiter search, then marking an application
-followed up or closed once the tracker has a backend. The headline numbers are Strong Match, Saved, Applied and Interviewing
+followed up or closed once the tracker has a backend. The headline numbers are Strong Matches, Saved, Applied and Interviewing
 (`getHeadline` in `dashboard/data.ts`), all live (KAN-342). **The Tracker's
 tiles are named for its stages**, the Status filter each one opens: Applied
 was "Applications", the same word as the page it opened, and Interviewing
@@ -518,12 +518,12 @@ so the left half is what is left to do and the right half how it is going
 (in the 2 x 2 grid on a phone too). Interviewing, a dash until the tracker
 stores it, sits last as the outcome, not as a gap in the middle. The order
 was Applications, New Roles, Interviews, Saved, which read out of sequence.
-**Strong Match wears the violet fill**, where the next application starts,
+**Strong Matches wears the violet fill**, where the next application starts,
 so the eye lands on the head of the search. Applied wore it until the
 reorder; the user moved it, since a seeker comes to find what to apply to
 next. A violet 0 is the cost on a week with no good matches. Applied
 counts the tracker's applications sent in the range, against the same
-length of days before it. Strong Match counts the job postings from the
+length of days before it. Strong Matches counts the job postings from the
 range that score Strong Match (80) or better for this seeker (it was Good
 Matches, counting from 65, until the user renamed it; the threshold moved
 with the name, so a 70% job never sits under a label its own Good Match
@@ -561,9 +561,10 @@ map, and its four numbers (Past Year, Busiest Day, the two streaks) show only
 there, each in a grey well (`--color-well`) with its dates in a tag pill, as
 the Dashboard draws every date; as open text in ink-muted under each figure
 they read as loose lines (KAN-342). A number with nothing to date says so in
-its pill ("None yet", "Apply today"), so the four keep one shape; each
-well's pill sits on its label's line and wraps under it where the well is
-narrow. **The section is one height in both views** (KAN-342): the 3D
+its pill ("None yet", "Apply today"), so the four keep one shape. Label,
+figure and pill each take a line of their own: with the pill on the
+label's line, "Apply today" wrapped under "Current Streak" alone and that
+well stood taller than the other three. **The section is one height in both views** (KAN-342): the 3D
 skyline takes the room the heat map and its numbers share, growing over the
 numbers as they fade (`--streak-h2` and the room in `streak-canvas.ts`).
 With a 3D height of its own the section swelled and shrank through each

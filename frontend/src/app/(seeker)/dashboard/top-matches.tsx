@@ -16,7 +16,7 @@ import { SectionCard } from "./section-card";
 /**
  * Top Matches, under the headline numbers (KAN-342): the seeker's best-scoring
  * open jobs, best first, as flat rows in one tile. The scores are Best
- * Match's (`getTopMatches`), with no score floor, unlike the Strong Match
+ * Match's (`getTopMatches`), with no score floor, unlike the Strong Matches
  * number above: a new seeker's thin experience bank can score every job a
  * Weak Match, and their best weak ones are still where to start. See More
  * Matches, at the heading's right, opens the Jobs page in Best Match order.

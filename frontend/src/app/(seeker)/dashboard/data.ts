@@ -23,7 +23,7 @@ const DAY_MS = 86_400_000;
 
 /* Headline numbers ------------------------------------------------------- */
 
-export type StatKey = "strongMatch" | "saved" | "applied" | "interviewing";
+export type StatKey = "strongMatches" | "saved" | "applied" | "interviewing";
 
 export type DashboardStat = {
   key: StatKey;
@@ -39,30 +39,30 @@ export type DashboardStat = {
   href: string;
 };
 
-/** The lowest score Strong Match counts: the Strong Match band and up in
+/** The lowest score Strong Matches counts: the Strong Match band and up in
  *  @/lib/match. It counted from 65, Good Match, while the tile was named
- *  Strong Match; renamed Strong Match, it counts that band, so a 70% job
+ *  Strong Matches; renamed Strong Matches, it counts that band, so a 70% job
  *  never sits under a label its own badge contradicts. */
 const STRONG_MATCH = 80;
 
-/** Where the Jobs page shows what Strong Match counts, best first. Its Date
+/** Where the Jobs page shows what Strong Matches counts, best first. Its Date
  *  Posted filter offers a week and a month but no season, so Season opens
  *  the whole Best Match list. */
-const STRONG_MATCH_HREF: Record<RangeKey, string> = {
+const STRONG_MATCHES_HREF: Record<RangeKey, string> = {
   week: "/jobs?sort=match&posted_within=7",
   month: "/jobs?sort=match&posted_within=30",
   season: "/jobs?sort=match",
 };
 
-/** Under Strong Match in place of a change. */
-const STRONG_MATCH_NOTE: Record<RangeKey, string> = {
+/** Under Strong Matches in place of a change. */
+const STRONG_MATCHES_NOTE: Record<RangeKey, string> = {
   week: "Posted this week",
   month: "Posted in 30 days",
   season: "Posted since Aug 4",
 };
 
 /**
- * The four headline numbers for every range, in tile order: Strong Match,
+ * The four headline numbers for every range, in tile order: Strong Matches,
  * Saved, Applied, Interviewing. Each tile links to the page that lists
  * what it counts (KAN-342).
  *
@@ -85,8 +85,8 @@ const STRONG_MATCH_NOTE: Record<RangeKey, string> = {
  * user moved it, since a seeker comes to the Dashboard to find what to apply
  * to next. A violet 0 is the cost on a week with no good matches.
  *
- * Strong Match is the job postings from the range that score Strong Match or
- * better for this seeker (STRONG_MATCH), from the Best Match scores
+ * Strong Matches is the job postings from the range that score Strong Match
+ * or better for this seeker (STRONG_MATCH), from the Best Match scores
  * (GET /jobs/recommended). It replaced New Roles, a count of every posting
  * in the feed, which said nothing about the seeker and drew a red change
  * whenever employers posted less. It shows no change: the score fades with
@@ -113,7 +113,7 @@ export async function getHeadline(): Promise<Record<RangeKey, DashboardStat[]>> 
     getTracker(),
   ]);
   /** Good matches posted in the last `days` days; null without scores. */
-  const strongMatch = (days: number) =>
+  const strongMatches = (days: number) =>
     Array.isArray(matched)
       ? matched.filter((at) => now.getTime() - Date.parse(at) < days * DAY_MS).length
       : null;
@@ -135,13 +135,16 @@ export async function getHeadline(): Promise<Record<RangeKey, DashboardStat[]>> 
 
   const tiles = (range: RangeKey): DashboardStat[] => [
     {
-      key: "strongMatch",
-      label: "Strong Match",
-      value: strongMatch(rangeDays(range, now)),
+      key: "strongMatches",
+      label: "Strong Matches",
+      value: strongMatches(rangeDays(range, now)),
       previous: null,
       ...(matched === "empty"
         ? { note: "Add your experience first", href: "/bank" }
-        : { note: matched ? STRONG_MATCH_NOTE[range] : undefined, href: STRONG_MATCH_HREF[range] }),
+        : {
+            note: matched ? STRONG_MATCHES_NOTE[range] : undefined,
+            href: STRONG_MATCHES_HREF[range],
+          }),
     },
     {
       key: "saved",

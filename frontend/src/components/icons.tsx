@@ -135,7 +135,7 @@ export function EllipsisIcon({ className }: IconProps) {
   return <DotsThree aria-hidden className={className} />;
 }
 
-/** A job posting that fits the seeker: the Dashboard's Strong Match. A
+/** A job posting that fits the seeker: the Dashboard's Strong Matches. A
  *  target, not SparkleIcon, which marks Scout and AI only (KAN-257). */
 export function MatchIcon({ className }: IconProps) {
   return <Target aria-hidden className={className} />;
