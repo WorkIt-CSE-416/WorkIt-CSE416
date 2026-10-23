@@ -739,7 +739,9 @@ URL (`?tab=job` for the second):
   within a second, in no fixed order, and sorted by the millisecond the
   timeline once read Sent, Saved, Applied at one minute. A resume sent
   within two minutes of applying is now the Applied step's "Resume sent",
-  and a save that close is left out; steps further apart keep their own dot,
+  and a save within five seconds is left out (the same click writes both at
+  one time; a two-minute window once hid a save made a minute before
+  applying); steps further apart keep their own dot,
   and a tie sorts Saved, Sent, Applied. A closed posting
   says so in its card only, with no badge beside the stage. The cards
   replaced day counts that did not help: save to apply read 0 for every
