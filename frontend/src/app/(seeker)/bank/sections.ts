@@ -82,7 +82,10 @@ function without<T extends object, K extends keyof T>(source: T, ...keys: K[]): 
 
 export function draftOf(entry: BankEntry): EntryDraft {
   return {
-    ...without(entry, "id", "bullets"),
+    // resume_ids (KAN-343) is response-only: EntryUpdate's schema forbids
+    // it, so echoing it back in a PATCH 422s "Extra inputs are not
+    // permitted" on every edit of an entry that holds any resume.
+    ...without(entry, "id", "bullets", "resume_ids"),
     bullets: entry.bullets.map((b) => ({ id: b.id, text: b.text })),
   };
 }
