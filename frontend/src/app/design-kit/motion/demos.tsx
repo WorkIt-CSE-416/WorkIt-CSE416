@@ -1,6 +1,6 @@
 "use client";
 
-import { ChevronLeft, ChevronRight } from "lucide-react";
+import { CaretLeftIcon, CaretRightIcon } from "@phosphor-icons/react/ssr";
 import { addTransitionType, startTransition, useState, ViewTransition } from "react";
 
 import { BellIcon, CloseIcon } from "@/components/icons";
@@ -208,7 +208,7 @@ export function StepDemo() {
         disabled={month === 0}
         onClick={() => step(month - 1, "nav-back")}
       >
-        <ChevronLeft className="size-4" />
+        <CaretLeftIcon aria-hidden className="size-4" />
       </IconButton>
       <span className="w-36 overflow-hidden text-center">
         <ViewTransition
@@ -227,7 +227,7 @@ export function StepDemo() {
         disabled={month === MONTHS.length - 1}
         onClick={() => step(month + 1, "nav-forward")}
       >
-        <ChevronRight className="size-4" />
+        <CaretRightIcon aria-hidden className="size-4" />
       </IconButton>
     </>
   );

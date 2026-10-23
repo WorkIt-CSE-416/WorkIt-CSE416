@@ -112,7 +112,10 @@ export function Headline({ stats }: { stats: Record<RangeKey, DashboardStat[]> }
                 {/* Under the pointer the glyph slides out to the right and
                     an arrow slides in after it: the tile says where it
                     goes. Clipped by the ring. */}
-                <Icon className="ease-glide size-4 transition-[translate,opacity] duration-200 group-hover/stat:translate-x-5 group-hover/stat:opacity-0 motion-reduce:transition-none" />
+                <Icon
+                  aria-hidden
+                  className="ease-glide size-4 transition-[translate,opacity] duration-200 group-hover/stat:translate-x-5 group-hover/stat:opacity-0 motion-reduce:transition-none"
+                />
                 <ArrowRightIcon className="ease-glide absolute size-4 -translate-x-5 opacity-0 transition-[translate,opacity] duration-200 group-hover/stat:translate-x-0 group-hover/stat:opacity-100 motion-reduce:transition-none" />
               </span>
             </div>

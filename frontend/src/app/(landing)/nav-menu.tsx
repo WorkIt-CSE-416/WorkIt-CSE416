@@ -1,6 +1,6 @@
 "use client";
 
-import { ChevronDown } from "lucide-react";
+import { CaretDownIcon } from "@phosphor-icons/react/ssr";
 import { usePathname } from "next/navigation";
 import {
   createContext,
@@ -142,7 +142,7 @@ export function NavMenu({ label, children }: { label: string; children: ReactNod
         className={cn(NAV_ITEM, open && "bg-slate-900/[0.04]")}
       >
         {label}
-        <ChevronDown
+        <CaretDownIcon
           aria-hidden="true"
           className={cn(
             "ease-glide size-4 opacity-60 transition-transform duration-200",

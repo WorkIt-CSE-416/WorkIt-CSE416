@@ -1,6 +1,7 @@
 "use client";
 
-import { Pause, Play, Zap } from "lucide-react";
+import { PauseIcon, PlayIcon } from "@phosphor-icons/react/ssr";
+import { LightningRoundedIcon } from "@/components/custom-icons";
 import { useRouter } from "next/navigation";
 import { useRef, useState, useTransition, type ReactNode } from "react";
 
@@ -21,11 +22,11 @@ export type RunState = "idle" | "running" | "paused";
  *  fill again. */
 const RUN_BUTTON: Record<
   RunState,
-  { label: string; variant: "default" | "secondary"; Icon: typeof Zap }
+  { label: string; variant: "default" | "secondary"; Icon: typeof LightningRoundedIcon }
 > = {
-  idle: { label: "Start Auto Apply", variant: "default", Icon: Zap },
-  running: { label: "Pause Auto Apply", variant: "secondary", Icon: Pause },
-  paused: { label: "Resume Auto Apply", variant: "default", Icon: Play },
+  idle: { label: "Start Auto Apply", variant: "default", Icon: LightningRoundedIcon },
+  running: { label: "Pause Auto Apply", variant: "secondary", Icon: PauseIcon },
+  paused: { label: "Resume Auto Apply", variant: "default", Icon: PlayIcon },
 };
 
 /**

@@ -358,7 +358,7 @@ function Heading({ text, sectioned }: { text: string; sectioned: boolean }) {
   if (Icon) {
     return (
       <h3 className="text-subtitle text-ink mt-3 flex items-center gap-2 font-bold">
-        <Icon className="text-brand size-5 shrink-0" />
+        <Icon aria-hidden className="text-brand size-5 shrink-0" />
         {text}
       </h3>
     );

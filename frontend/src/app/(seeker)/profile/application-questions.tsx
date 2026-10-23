@@ -133,7 +133,7 @@ export function ApplicationQuestions({
                       a click on the words open the picker's list, as a
                       click on the picker does (checked in Chromium). */}
                   <label htmlFor={id} className={FIELD_HEADING}>
-                    <Icon className="text-brand size-5 shrink-0" />
+                    <Icon aria-hidden className="text-brand size-5 shrink-0" />
                     {q.label}
                   </label>
                   <div className={cn("mt-1.5", VALUE_INDENT)}>
@@ -188,7 +188,7 @@ export function ApplicationQuestions({
             return (
               <div key={q.key} className="min-w-0">
                 <dt className={FIELD_HEADING}>
-                  <Icon className="text-brand size-5 shrink-0" />
+                  <Icon aria-hidden className="text-brand size-5 shrink-0" />
                   {q.label}
                 </dt>
                 <dd className={cn("text-body text-ink-muted mt-1.5 min-w-0", VALUE_INDENT)}>

@@ -1,6 +1,12 @@
 "use client";
 
-import { Check, CircleAlert, CircleCheck, Pencil, SkipForward } from "lucide-react";
+import {
+  CheckCircleIcon,
+  CheckIcon,
+  PencilSimpleIcon,
+  SkipForwardIcon,
+  WarningCircleIcon,
+} from "@phosphor-icons/react/ssr";
 
 import { Button } from "@/components/ui/button";
 import type { BankEntry } from "@/lib/bank-actions";
@@ -138,14 +144,14 @@ export function DraftPreview({
           the right, Save Entry last as the step most people take. */}
       <div className="border-border-subtle flex items-center gap-2 border-t px-2 py-2">
         <Button size="sm" variant="ghost" className="gap-1.5" onClick={onSkip} disabled={busy}>
-          <SkipForward aria-hidden /> {skipLabel}
+          <SkipForwardIcon aria-hidden /> {skipLabel}
         </Button>
         <span className="flex-1" />
         <Button size="sm" variant="secondary" onClick={onEdit}>
-          <Pencil /> Edit
+          <PencilSimpleIcon aria-hidden /> Edit
         </Button>
         <Button size="sm" onClick={onSave} disabled={saving}>
-          <Check /> {saving ? "Saving…" : "Save Entry"}
+          <CheckIcon aria-hidden /> {saving ? "Saving…" : "Save Entry"}
         </Button>
       </div>
     </section>
@@ -198,7 +204,7 @@ export function DraftStatus({ needed, done }: { needed: readonly string[]; done:
     return (
       <span className="text-note text-warning flex items-start gap-1.5">
         {/* On the first line's centre: 12px type on a 16px line. */}
-        <CircleAlert aria-hidden className="mt-0.5 size-3.5 shrink-0" />
+        <WarningCircleIcon aria-hidden className="mt-0.5 size-3.5 shrink-0" />
         Still needed: {needed.join(", ")}
       </span>
     );
@@ -206,7 +212,7 @@ export function DraftStatus({ needed, done }: { needed: readonly string[]; done:
   if (!done) return null;
   return (
     <span className="text-note text-positive-ink flex items-center gap-1.5">
-      <CircleCheck aria-hidden className="size-3.5 shrink-0" />
+      <CheckCircleIcon aria-hidden className="size-3.5 shrink-0" />
       Ready to save
     </span>
   );

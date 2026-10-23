@@ -1,7 +1,13 @@
 "use client";
 
 import { AppSidebar, type SidebarNavGroup } from "@/components/app-sidebar";
-import { BriefcaseBusiness, Building2, LayoutDashboard, Settings, UsersRound } from "lucide-react";
+import {
+  BriefcaseIcon,
+  BuildingOfficeIcon,
+  GearIcon,
+  SquaresFourIcon,
+  UsersThreeIcon,
+} from "@phosphor-icons/react/ssr";
 
 /**
  * The company shell's left panel.
@@ -32,15 +38,15 @@ import { BriefcaseBusiness, Building2, LayoutDashboard, Settings, UsersRound } f
 const GROUPS: SidebarNavGroup[] = [
   {
     items: [
-      { href: "/company", label: "Overview", Icon: LayoutDashboard, exact: true },
-      { href: "/company/jobs", label: "Job Postings", Icon: BriefcaseBusiness },
-      { href: "/company/applicants", label: "Applicants", Icon: UsersRound },
-      { href: "/company/profile", label: "Company Profile", Icon: Building2 },
+      { href: "/company", label: "Overview", Icon: SquaresFourIcon, exact: true },
+      { href: "/company/jobs", label: "Job Postings", Icon: BriefcaseIcon },
+      { href: "/company/applicants", label: "Applicants", Icon: UsersThreeIcon },
+      { href: "/company/profile", label: "Company Profile", Icon: BuildingOfficeIcon },
     ],
   },
 ];
 
-const FOOTER = [{ href: "/company/settings", label: "Settings", Icon: Settings }];
+const FOOTER = [{ href: "/company/settings", label: "Settings", Icon: GearIcon }];
 
 export function CompanySidebar() {
   return (

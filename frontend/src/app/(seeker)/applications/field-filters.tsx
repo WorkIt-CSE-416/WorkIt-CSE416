@@ -348,7 +348,7 @@ function Section({
   return (
     <section className={cn("py-4", !first && "border-border-subtle border-t")}>
       <h3 className="text-body text-ink mb-2.5 flex items-center gap-2 font-semibold">
-        <Icon className="text-ink-meta size-4 shrink-0" />
+        <Icon aria-hidden className="text-ink-meta size-4 shrink-0" />
         {label}
       </h3>
       <div className="flex flex-wrap items-center gap-2">{children}</div>

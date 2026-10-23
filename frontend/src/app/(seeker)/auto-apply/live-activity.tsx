@@ -1,6 +1,6 @@
 "use client";
 
-import { CircleDot } from "lucide-react";
+import { RadioButtonIcon } from "@phosphor-icons/react/ssr";
 import { useRef } from "react";
 
 import { FieldFacet, type FacetOption } from "@/components/field-facet";
@@ -78,7 +78,7 @@ export function LiveActivity({ items }: { items: ActivityItem[] }) {
         <FieldFacet
           ref={statusButton}
           label="Status"
-          Icon={CircleDot}
+          Icon={RadioButtonIcon}
           options={STATUS_OPTIONS}
           values={query.statuses}
           onChange={setStatuses}

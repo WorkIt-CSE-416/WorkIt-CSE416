@@ -1,4 +1,4 @@
-import { ArrowRight, ChevronDown, Menu, X } from "lucide-react";
+import { ArrowRightIcon, CaretDownIcon, ListIcon, XIcon } from "@phosphor-icons/react/ssr";
 import Image from "next/image";
 import Link from "next/link";
 
@@ -85,7 +85,7 @@ export function Header() {
               className="text-ink hover:bg-surface inline-flex size-10 items-center justify-center rounded-lg lg:hidden"
               aria-label="Open menu"
             >
-              <Menu className="size-6" aria-hidden="true" />
+              <ListIcon className="size-6" aria-hidden="true" />
             </button>
           </div>
         </nav>
@@ -104,7 +104,7 @@ export function Header() {
             className="text-ink hover:bg-surface inline-flex size-10 items-center justify-center rounded-lg"
             aria-label="Close menu"
           >
-            <X className="size-6" aria-hidden="true" />
+            <XIcon className="size-6" aria-hidden="true" />
           </button>
         </div>
         <ul className="mt-4 grid gap-1">
@@ -175,7 +175,7 @@ function FeaturesPanel() {
           ))}
         </span>
         Works with {WORKS_WITH.map((system) => system.name).join(", ")} and more
-        <ArrowRight
+        <ArrowRightIcon
           aria-hidden="true"
           className="ml-auto size-4 transition-transform duration-200 group-hover:translate-x-0.5"
         />
@@ -226,7 +226,7 @@ function MobileGroup({ label, items }: { label: string; items: MenuItem[] }) {
       <details className="group">
         <summary className="text-ink hover:bg-surface flex cursor-pointer list-none items-center justify-between rounded-lg px-3 py-2.5 font-medium [&::-webkit-details-marker]:hidden">
           {label}
-          <ChevronDown
+          <CaretDownIcon
             aria-hidden="true"
             className="ease-glide size-5 opacity-60 transition-transform duration-200 group-open:rotate-180"
           />

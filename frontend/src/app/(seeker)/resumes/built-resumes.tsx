@@ -1,6 +1,6 @@
 "use client";
 
-import { FileText } from "lucide-react";
+import { FileTextIcon } from "@phosphor-icons/react/ssr";
 import { useState } from "react";
 
 import { RESUME_ROW } from "@/components/resume-row";
@@ -82,7 +82,7 @@ export function BuiltResumes({
         view="resumes"
         action={
           <Button size="sm" onClick={generate} disabled={generating}>
-            <FileText /> {generating ? "Generating…" : "Generate Resume"}
+            <FileTextIcon aria-hidden /> {generating ? "Generating…" : "Generate Resume"}
           </Button>
         }
       />
@@ -104,7 +104,7 @@ export function BuiltResumes({
               empty box does. */}
           {base.length === 0 ? (
             <div className={RESUME_ROW}>
-              <FileText aria-hidden className="text-ink-faint size-5 shrink-0" />
+              <FileTextIcon aria-hidden className="text-ink-faint size-5 shrink-0" />
               <div className="min-w-0 flex-1">
                 <p className="text-label text-ink-muted truncate">No generated resumes yet</p>
                 <p className="text-note text-ink-meta">

@@ -1,4 +1,4 @@
-import { LifeBuoy, Newspaper, Plug } from "lucide-react";
+import { LifebuoyIcon, NewspaperIcon, PlugIcon } from "@phosphor-icons/react/ssr";
 import type { ComponentType } from "react";
 
 /**
@@ -42,7 +42,7 @@ export const RESOURCES: Record<ResourceSlug, Resource> = {
   mcp: resource("mcp", {
     name: "MCP docs",
     href: "/docs/mcp",
-    icon: Plug,
+    icon: PlugIcon,
     line: "Use WorkIt from an AI agent",
     soon: {
       summary:
@@ -53,7 +53,7 @@ export const RESOURCES: Record<ResourceSlug, Resource> = {
   help: resource("help", {
     name: "Help Center",
     href: "/help-center",
-    icon: LifeBuoy,
+    icon: LifebuoyIcon,
     line: "Guides and answers for WorkIt",
     soon: {
       summary:
@@ -64,7 +64,7 @@ export const RESOURCES: Record<ResourceSlug, Resource> = {
   blog: resource("blog", {
     name: "Blog",
     href: "/blog",
-    icon: Newspaper,
+    icon: NewspaperIcon,
     line: "News and tips from the team",
     soon: {
       summary:

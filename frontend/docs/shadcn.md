@@ -55,7 +55,8 @@ Radix. Two things follow:
   exactly. The current <https://ui.shadcn.com> docs are the source of truth.
 
 The `nova` preset pairs Lucide icons with Geist — which this project was already
-using, so the fonts needed no change.
+using, so the fonts needed no change. The icons have since moved to Phosphor
+(KAN-350, decision e below).
 
 ### What landed
 
@@ -65,12 +66,12 @@ using, so the fonts needed no change.
 | `.mcp.json`                | Registers the shadcn MCP server for Claude Code           |
 | `src/components/shadcn/`   | Where vendored components land                            |
 | `@base-ui/react`           | Accessibility primitives underneath every component       |
-| `lucide-react`             | Icon set the generated components import                  |
+| `lucide-react`             | Icon set the generated components imported (now Phosphor) |
 | `class-variance-authority` | How generated components express variants                 |
 | `tw-animate-css`           | Enter/exit animations                                     |
 | `shadcn`                   | Provides `shadcn/tailwind.css`, imported by `globals.css` |
 
-### Four decisions that differ from a stock install
+### Five decisions that differ from a stock install
 
 Anyone re-running `init` should know these, or they will be undone.
 
@@ -265,6 +266,24 @@ is one colour whether it is drawn as a pill or as a bar. The reasoning, the
 validator results, and why there is no fifth hue are recorded above the block in
 `globals.css`; the rendered swatches are on `/design-kit/colour`.
 
+#### e. Icons are Phosphor's, not Lucide's
+
+`components.json` sets `iconLibrary` to `phosphor` (KAN-350): Lucide reads as
+the default set of every shadcn app and AI builder, and the app dropped it.
+With that setting `shadcn add` writes Phosphor icons, but in its own form,
+which needs two fixes by hand in each generated file:
+
+- It imports from `@phosphor-icons/react`. Change the path to
+  `@phosphor-icons/react/ssr`: the main entry reads a React context, which a
+  server component cannot. The lint fails on the main entry, in `shadcn/` too.
+- It passes `strokeWidth={2}`, which does nothing to a Phosphor glyph (its
+  glyphs are filled shapes). Drop it; a heavier mark is `weight="bold"`.
+
+A component copied from the shadcn docs instead still imports `lucide-react`,
+which the lint refuses everywhere: map each icon to its Phosphor name (the
+`*Icon` exports; the bare names are deprecated). Never install `lucide-react`
+again to make one compile.
+
 ### Dark mode
 
 Not defined, on purpose — guessing a palette bakes in colours nobody designed.
@@ -335,7 +354,8 @@ npm run typecheck && npm run lint && npm run format
 ```
 
 Generated files are not written to this repo's Prettier style, so `format` will
-reformat them. That is expected — commit the result.
+reformat them. That is expected — commit the result. Fix the icon imports by
+hand first (decision e above); the lint names each one.
 
 ---
 

@@ -1,6 +1,6 @@
 "use client";
 
-import { FileText } from "lucide-react";
+import { FileTextIcon } from "@phosphor-icons/react/ssr";
 import Link from "next/link";
 import { useState } from "react";
 
@@ -190,7 +190,7 @@ export function YourResumes({
             first resume lands exactly where it stood. */}
         {uploaded.length === 0 && uploading === null ? (
           <div className={RESUME_ROW}>
-            <FileText aria-hidden className="text-ink-faint size-5 shrink-0" />
+            <FileTextIcon aria-hidden className="text-ink-faint size-5 shrink-0" />
             <div className="min-w-0 flex-1">
               <p className="text-label text-ink-muted truncate">No uploaded resumes yet</p>
               <p className="text-note text-ink-meta">Upload one to add its experiences.</p>

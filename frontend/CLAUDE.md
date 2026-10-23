@@ -1024,9 +1024,18 @@ the KAN-296 cutover.
   `shadcn/button.tsx` re-exports it and an ESLint rule keeps app code on the
   canonical path (likewise `badge` and `card`). A control's styling belongs in
   its component, not at the call site.
+- **Icons are Phosphor's, from `@phosphor-icons/react/ssr`** (KAN-350),
+  through the wrappers in `components/icons.tsx` or a route's own
+  `icons.tsx`. Lucide is gone (it read as every AI app's default) and the
+  lint refuses `lucide-react`, and Phosphor's main entry too: its icons read
+  a React context, so a server component that imported one would fail.
+  Phosphor adds no `aria-hidden` and fills by `weight`, never by a `fill`
+  class, which paints the whole glyph. A glyph Phosphor lacks goes in
+  `components/custom-icons.tsx` with all its weights (`docs/design.md`,
+  Brand and icons).
 - **One mark for Scout and AI, `SparkleIcon`** (`components/icons.tsx`,
   KAN-257): every Scout or AI control, and Scout's mark in the chat and
-  the panel header, draws it. An ESLint rule refuses Lucide's `Sparkles`
+  the panel header, draws it. An ESLint rule refuses Phosphor's sparkle
   imported anywhere else; a hand-drawn sparkle beside Lucide's had given
   the assistant two marks (`docs/design.md`, Brand and icons).
 - **A button is a rounded rectangle; a pill is a chip** (`ui/chip.tsx`, KAN-251).

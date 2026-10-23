@@ -1,4 +1,5 @@
-import { FileUp, MessageSquarePlus } from "lucide-react";
+import { FileArrowUpIcon } from "@phosphor-icons/react/ssr";
+import { ChatPlusIcon } from "@/components/custom-icons";
 
 import { ButtonLink } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
@@ -34,15 +35,15 @@ export async function BankPrompt() {
       <div className="mt-3 flex flex-wrap gap-3">
         {hasUpload ? (
           <ButtonLink href="/bank?import=1" size="sm">
-            <FileUp /> Import Your Resume
+            <FileArrowUpIcon aria-hidden /> Import Your Resume
           </ButtonLink>
         ) : (
           <ButtonLink href="/resumes" size="sm">
-            <FileUp /> Upload a Resume
+            <FileArrowUpIcon aria-hidden /> Upload a Resume
           </ButtonLink>
         )}
         <ButtonLink href="/bank" variant="secondary" size="sm">
-          <MessageSquarePlus /> Add What You Did
+          <ChatPlusIcon aria-hidden /> Add What You Did
         </ButtonLink>
       </div>
     </Card>

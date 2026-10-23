@@ -1,4 +1,4 @@
-import { CloudOff } from "lucide-react";
+import { CloudSlashIcon } from "@phosphor-icons/react/ssr";
 import type { Metadata } from "next";
 import { connection } from "next/server";
 
@@ -40,7 +40,7 @@ export default async function ResumesPage() {
         <>
           <ResumesHeader view="resumes" />
           <EmptyState
-            Icon={CloudOff}
+            Icon={CloudSlashIcon}
             title="Your Resumes Aren't Loading Right Now"
             className="mt-4"
             action={

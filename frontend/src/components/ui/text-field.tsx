@@ -97,7 +97,10 @@ export function TextField({
 
       <div className="relative">
         {Icon && (
-          <Icon className="text-ink-meta pointer-events-none absolute top-1/2 left-3.5 size-5 -translate-y-1/2" />
+          <Icon
+            aria-hidden
+            className="text-ink-meta pointer-events-none absolute top-1/2 left-3.5 size-5 -translate-y-1/2"
+          />
         )}
         <input
           id={id}

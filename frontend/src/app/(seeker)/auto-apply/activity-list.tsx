@@ -1,4 +1,11 @@
-import { AppWindow, Eye, PenLine, SkipForward, TriangleAlert, Zap } from "lucide-react";
+import {
+  AppWindowIcon,
+  EyeIcon,
+  PencilLineIcon,
+  SkipForwardIcon,
+  WarningIcon,
+} from "@phosphor-icons/react/ssr";
+import { LightningRoundedIcon } from "@/components/custom-icons";
 import Link from "next/link";
 import type { ComponentType, ReactNode } from "react";
 
@@ -116,7 +123,7 @@ export const STATUS: Record<
   }
 > = {
   review: {
-    Icon: Eye,
+    Icon: EyeIcon,
     label: "Needs Review",
     tone: "warning",
     dot: "bg-warning-strong",
@@ -124,7 +131,7 @@ export const STATUS: Record<
     rank: 0,
   },
   failed: {
-    Icon: TriangleAlert,
+    Icon: WarningIcon,
     label: "Couldn't Finish",
     tone: "warning",
     dot: "bg-warning-strong",
@@ -132,7 +139,7 @@ export const STATUS: Record<
     rank: 0,
   },
   browser: {
-    Icon: AppWindow,
+    Icon: AppWindowIcon,
     label: "Working in Browser",
     tone: "advanced",
     dot: "bg-advanced",
@@ -148,7 +155,7 @@ export const STATUS: Record<
     rank: 1,
   },
   filling: {
-    Icon: PenLine,
+    Icon: PencilLineIcon,
     label: "Autofilling",
     tone: "advanced",
     dot: "bg-advanced",
@@ -172,7 +179,7 @@ export const STATUS: Record<
     rank: 3,
   },
   skipped: {
-    Icon: SkipForward,
+    Icon: SkipForwardIcon,
     label: "Skipped",
     tone: "inert",
     dot: "bg-ink-faint",
@@ -187,10 +194,10 @@ export const STATUS: Record<
  *  it is the run at work. */
 export const GROUPS: Record<StatusFilter, { label: string; Icon: Glyph; ink: string }> = {
   queued: { label: "Queued", Icon: ClockIcon, ink: "text-ink-meta" },
-  progress: { label: "In Progress", Icon: Zap, ink: "text-advanced" },
-  needs_you: { label: "Needs You", Icon: TriangleAlert, ink: "text-warning" },
+  progress: { label: "In Progress", Icon: LightningRoundedIcon, ink: "text-advanced" },
+  needs_you: { label: "Needs You", Icon: WarningIcon, ink: "text-warning" },
   applied: { label: "Applied", Icon: STAGE_ICON.applied, ink: "text-brand" },
-  skipped: { label: "Skipped", Icon: SkipForward, ink: "text-ink-meta" },
+  skipped: { label: "Skipped", Icon: SkipForwardIcon, ink: "text-ink-meta" },
 };
 
 const IN_FLIGHT: ActivityStatus[] = ["browser", "tailoring", "filling"];
@@ -430,7 +437,7 @@ function Row({ item, index }: { item: ActivityItem; index: number }) {
             className="size-8"
             onClick={() => void showRunTab()}
           >
-            <AppWindow aria-hidden className="size-4" />
+            <AppWindowIcon aria-hidden className="size-4" />
           </IconButton>
         ) : null}
       </TableCell>

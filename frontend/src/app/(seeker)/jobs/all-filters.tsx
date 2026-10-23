@@ -1,6 +1,6 @@
 "use client";
 
-import { Zap } from "lucide-react";
+import { LightningRoundedIcon } from "@/components/custom-icons";
 import { useSearchParams } from "next/navigation";
 import { Suspense, use, useEffect, useState, type ComponentType, type ReactNode } from "react";
 
@@ -265,7 +265,7 @@ function PanelBody({
         {/* Under the sidebar's Auto Apply glyph, as on a job's Auto Apply
             button. One chip: on, only the job postings that button shows
             on (Greenhouse for now); off, every job posting. */}
-        <Section Icon={Zap} label="Auto Apply">
+        <Section Icon={LightningRoundedIcon} label="Auto Apply">
           <Chip pressed={draft.autoApply} onClick={() => set({ autoApply: !draft.autoApply })}>
             Auto Apply Supported
           </Chip>
@@ -340,7 +340,7 @@ function Section({
   return (
     <section className={cn("py-4", !first && "border-border-subtle border-t")}>
       <h3 className="text-body text-ink mb-2.5 flex items-center gap-2 font-semibold">
-        <Icon className="text-ink-meta size-4 shrink-0" />
+        <Icon aria-hidden className="text-ink-meta size-4 shrink-0" />
         {label}
       </h3>
       <div className="flex flex-wrap items-center gap-2">{children}</div>

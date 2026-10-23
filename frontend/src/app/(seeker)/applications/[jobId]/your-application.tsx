@@ -1,4 +1,4 @@
-import { MessageSquareText } from "lucide-react";
+import { ChatTextIcon } from "@phosphor-icons/react/ssr";
 import type { ReactNode } from "react";
 
 import { FileIcon } from "@/components/icons";
@@ -209,7 +209,7 @@ export function YourApplication({
         )}
 
         <h3 className="text-label text-ink mt-5 font-semibold">Answers</h3>
-        <EmptySlot icon={<MessageSquareText aria-hidden className="text-ink-meta size-5" />}>
+        <EmptySlot icon={<ChatTextIcon aria-hidden className="text-ink-meta size-5" />}>
           Your answers to this application&apos;s questions will show here.
         </EmptySlot>
       </Section>

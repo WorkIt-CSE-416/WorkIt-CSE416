@@ -1,6 +1,6 @@
 "use client";
 
-import { Pencil, Plus, Trash2, X } from "lucide-react";
+import { PencilSimpleIcon, PlusIcon, TrashIcon, XIcon } from "@phosphor-icons/react/ssr";
 import { useEffect, useMemo, useRef, useState, type FormEvent, type ReactNode } from "react";
 
 import { setScoutOpen, useScout } from "@/components/scout/scout-store";
@@ -296,7 +296,7 @@ export function BankScreen({
                   variant="section"
                   onClick={() => open({ kind: "new", section: section.id })}
                 >
-                  <Plus /> Add
+                  <PlusIcon aria-hidden /> Add
                 </Button>
               )}
             </div>
@@ -498,10 +498,10 @@ function EntryView({
         <div className="flex shrink-0 items-center gap-3">
           {dates && <span className="text-note text-ink-meta hidden @xl/main:inline">{dates}</span>}
           <IconButton label="Edit Entry" tooltip="Edit this entry" onClick={onEdit}>
-            <Pencil className="size-4" />
+            <PencilSimpleIcon aria-hidden className="size-4" />
           </IconButton>
           <IconButton label="Delete Entry" tooltip="Delete this entry" onClick={confirm}>
-            <Trash2 className="size-4" />
+            <TrashIcon aria-hidden className="size-4" />
           </IconButton>
         </div>
       </div>
@@ -631,7 +631,7 @@ function SkillsCard({
               setAdding(true);
             }}
           >
-            <Plus /> Add
+            <PlusIcon aria-hidden /> Add
           </Button>
         )}
       </div>
@@ -667,14 +667,14 @@ function SkillsCard({
                         setGroup(skill.group ?? "");
                       }}
                     >
-                      <Pencil className="size-3" />
+                      <PencilSimpleIcon aria-hidden className="size-3" />
                     </IconButton>
                     <IconButton
                       label={`Remove ${skill.name}`}
                       tooltip="Remove this skill"
                       onClick={() => remove(skill)}
                     >
-                      <X className="size-3" />
+                      <XIcon aria-hidden className="size-3" />
                     </IconButton>
                   </span>
                 ))}

@@ -1,4 +1,5 @@
-import { FileText, SquareKanban, Target, Zap } from "lucide-react";
+import { FileTextIcon, KanbanIcon, TargetIcon } from "@phosphor-icons/react/ssr";
+import { LightningRoundedIcon } from "@/components/custom-icons";
 import type { ComponentType } from "react";
 
 import { SparkleIcon } from "@/components/icons";
@@ -36,27 +37,27 @@ function feature(slug: FeatureSlug, rest: Omit<Feature, "slug" | "href">): Featu
 export const FEATURES: Record<FeatureSlug, Feature> = {
   resumes: feature("resumes", {
     name: "Resume Builder",
-    icon: FileText,
+    icon: FileTextIcon,
     tint: "var(--color-advanced-tint)",
     glow: "var(--color-advanced)",
   }),
   matching: feature("matching", {
     name: "Job Matching",
-    icon: Target,
+    icon: TargetIcon,
     tint: "var(--color-brand-tint)",
     glow: "var(--color-brand)",
   }),
   "auto-apply": feature("auto-apply", {
     name: "Auto Apply",
     // The app's own Auto Apply glyph (the sidebar, the Jobs page's filters).
-    icon: Zap,
+    icon: LightningRoundedIcon,
     tint: "var(--color-positive-tint)",
     glow: "var(--color-positive)",
   }),
   tracker: feature("tracker", {
     name: "Application Tracker",
     // The sidebar's Applications glyph.
-    icon: SquareKanban,
+    icon: KanbanIcon,
     tint: "var(--color-danger-tint)",
     glow: "var(--color-match-good)",
   }),

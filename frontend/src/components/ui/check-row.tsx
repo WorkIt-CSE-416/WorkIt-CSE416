@@ -1,4 +1,4 @@
-import { CheckIcon } from "lucide-react";
+import { CheckIcon } from "@phosphor-icons/react/ssr";
 
 /**
  * A row that reads as a checkbox (label on the left, box on the right) for a
@@ -38,7 +38,10 @@ export function CheckRowBox() {
       aria-hidden
       className="border-ink-meta text-primary-foreground group-data-[selected]/check-row:border-primary group-data-[selected]/check-row:bg-primary group-data-[checked]/check-row:border-primary group-data-[checked]/check-row:bg-primary pointer-events-none flex size-4 shrink-0 items-center justify-center rounded-[4px] border transition-colors"
     >
-      <CheckIcon className="size-3.5 opacity-0 group-data-[checked]/check-row:opacity-100 group-data-[selected]/check-row:opacity-100" />
+      <CheckIcon
+        aria-hidden
+        className="size-3.5 opacity-0 group-data-[checked]/check-row:opacity-100 group-data-[selected]/check-row:opacity-100"
+      />
     </span>
   );
 }

@@ -1,4 +1,4 @@
-import { Check } from "lucide-react";
+import { CheckIcon } from "@phosphor-icons/react/ssr";
 import Link from "next/link";
 
 import { cn } from "@/lib/cn";
@@ -179,7 +179,7 @@ function DeepDive({
                   className="mt-0.5 flex size-5 shrink-0 items-center justify-center rounded-full text-white"
                   style={{ background: feature.glow }}
                 >
-                  <Check className="size-3" strokeWidth={3} />
+                  <CheckIcon aria-hidden className="size-3" weight="bold" />
                 </span>
                 {point}
               </li>
@@ -208,7 +208,7 @@ function Placeholder({ feature, className }: { feature: Feature; className?: str
         className="glass-card flex size-24 items-center justify-center rounded-3xl"
         style={{ color: glow }}
       >
-        <Icon className="size-10" />
+        <Icon aria-hidden className="size-10" />
       </span>
     </div>
   );
