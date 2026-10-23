@@ -14,7 +14,7 @@ them; a row that code writes in between has only full_name, and the API
 splits it when read.
 
 Revision ID: 0457dddf041a
-Revises: 7c2e9a4b1f63
+Revises: 9e4b2d7a5c18
 Create Date: 2026-10-23 12:00:00.000000
 
 """
@@ -26,7 +26,7 @@ import sqlalchemy as sa
 
 # revision identifiers, used by Alembic.
 revision: str = '0457dddf041a'
-down_revision: Union[str, Sequence[str], None] = '7c2e9a4b1f63'
+down_revision: Union[str, Sequence[str], None] = '9e4b2d7a5c18'
 branch_labels: Union[str, Sequence[str], None] = None
 depends_on: Union[str, Sequence[str], None] = None
 
