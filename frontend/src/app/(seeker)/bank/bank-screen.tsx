@@ -256,7 +256,12 @@ export function BankScreen({
         />
       </ScoutTakeover>
       {bank.resumes.length > 0 && (
-        <ResumePicker resumes={bank.resumes} value={current} counts={counts} onChange={choose} />
+        <ResumePicker
+          resumes={bank.resumes}
+          value={current}
+          showNone={counts(NONE) > 0}
+          onChange={choose}
+        />
       )}
       {notice && (
         <p role="status" className="text-note text-ink-muted">

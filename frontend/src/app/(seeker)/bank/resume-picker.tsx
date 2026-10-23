@@ -31,26 +31,25 @@ function label(resume: BankResume): string {
  * The Experiences view's resume dropdown (KAN-343): All Experiences, every
  * uploaded and built resume (grouped, in the API's order, the starred one
  * marked as on the Resumes view), then Not From an Upload when something no
- * upload holds exists. Each option carries how many entries and skills it
- * shows. Drawn as <SelectField>'s trigger is, with its label beside it.
+ * upload holds exists. Drawn as <SelectField>'s trigger is, with its label
+ * beside it.
  */
 export function ResumePicker({
   resumes,
   value,
-  counts,
+  showNone,
   onChange,
 }: {
   resumes: BankResume[];
   value: Pick;
-  counts: (pick: Pick) => number;
+  showNone: boolean;
   onChange: (pick: Pick) => void;
 }) {
   const items = [
-    { value: ALL, label: `All Experiences (${counts(ALL)})` },
-    ...resumes.map((r) => ({ value: r.id, label: `${label(r)} (${counts(r.id)})` })),
-    { value: NONE, label: `Not From an Upload (${counts(NONE)})` },
+    { value: ALL, label: "All Experiences" },
+    ...resumes.map((r) => ({ value: r.id, label: label(r) })),
+    { value: NONE, label: "Not From an Upload" },
   ];
-  const showNone = counts(NONE) > 0;
 
   return (
     <div className="flex flex-wrap items-center gap-3">
@@ -93,7 +92,6 @@ export function ResumePicker({
                         </>
                       )}
                       <span className="truncate">{label(r)}</span>
-                      <span className="text-ink-meta shrink-0">({counts(r.id)})</span>
                     </span>
                   </SelectItem>
                 ))}

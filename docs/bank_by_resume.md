@@ -213,31 +213,32 @@ A **resume dropdown** sits under the Resumes & Experiences header, above
 the first section card. It lists every resume, grouped by kind:
 
 ```
-Show  [ ★ Resume #2 (16)  ▾ ]
-        All Experiences (24)
+Show  [ ★ Resume #2  ▾ ]
+        All Experiences
         ── Uploaded ──
-        resume.pdf (14)
-        resume-v2.pdf (17)
+        resume.pdf
+        resume-v2.pdf
         ── Built ──
-        ★ Resume #2 (16)
-        Resume #3 · Backend Intern at Initech (12)
+        ★ Resume #2
+        Resume #3 · Backend Intern at Initech
         ──
-        Not From an Upload (3)
+        Not From an Upload
 ```
 
 - **The options:** All Experiences; the uploads; the built resumes (base,
   then tailored, a tailored one labelled with its posting as on the
   Resumes page); then Not From an Upload when at least one entry or skill
   no upload holds. The primary resume is starred, as on the Resumes page.
-  Each count is the entries and skills that option shows. A group with no
-  resume is left out.
+  A group with no resume is left out. The options carry no counts: a
+  count summed entries and skills, which students read as a number of
+  experiences (removed 2026-10-23).
 - **The page opens on the primary resume**, whichever kind it is. With no
   primary (none starred), it opens on the newest resume of any kind. With
   no resume at all, there is no dropdown and the page shows the whole
   bank, as today.
-- **Items no resume holds are hidden on arrival.** The dropdown's counts
-  for All Experiences and Not From an Upload say they exist, so the
-  student finds them in one pick.
+- **Items no resume holds are hidden on arrival.** Not From an Upload
+  appears in the dropdown only when such items exist, so the student finds
+  them in one pick.
 - **A resume shows** the entries and skills whose `resume_ids` hold it:
   for an upload, what its import found; for a built resume, what it shows
   now. Not From an Upload shows the entries and skills that no upload
@@ -333,7 +334,7 @@ explicit click, as today.
 - **Open the dropdown on All Experiences.** Rejected: the page would open
   on the mixed bank this change exists to avoid. The cost of opening on
   the primary resume is that items no resume holds are hidden on arrival;
-  the dropdown's counts show they exist.
+  the dropdown's Not From an Upload option shows they exist.
 
 ## Build order
 
