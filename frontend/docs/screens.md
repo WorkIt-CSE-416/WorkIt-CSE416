@@ -432,12 +432,22 @@ The archived tiles' code stays (`next-up-hero.tsx`, `up-next.tsx`,
 `getUpNext`, `waiting.tsx`, `WAITING`); a note in `dashboard/page.tsx` says
 how to bring them back. The notes below still describe them.
 
-**The Dashboard lists no jobs** (KAN-342). New Matches, a list of the
-newest postings with Apply buttons, sat under the numbers until Good
-Matches replaced New Roles: that tile opens the Jobs page in Best Match
-order, which lists the same jobs better, so the Dashboard keeps no second,
-shorter copy of the feed. The notes below that name New Matches describe
-the archived three-column layout.
+**Top Matches sits under the numbers** (KAN-342, `dashboard/top-matches.tsx`):
+the seeker's three best-scoring open jobs, best first, as the Jobs page's own
+cards stacked one over the next (`ListingCard`: match rail, Save, Tailor,
+Apply Now), from the Best Match scores (`getTopMatches`,
+`GET /jobs/recommended?limit=3`), with no score floor. A new seeker's thin
+experience bank can score every job a Weak Match, and their best weak ones
+are still where to start; the Good Matches number above counts only 65 and
+up. See More Matches, a secondary button at the heading's right, opens Best
+Match. It is an open section, not a tile: the feed's cards are cards
+already, and inside a white tile they drew a box in a box. With an empty
+bank it asks for the bank. It streams in its own `<Suspense>`, over the
+feed's skeleton (`ListingsSkeleton count`), so the numbers never wait on
+scoring. It replaced New Matches, the newest postings in posting order,
+which went when Good Matches replaced New Roles and came back ordered by fit
+at the user's ask. The notes below that name
+New Matches describe the archived three-column layout.
 
 **The seeker Dashboard is a bento of tiles** (KAN-173), modelled on a
 reference the user picked: white tiles with no outline on the white page
@@ -497,7 +507,7 @@ followed up or closed once the tracker has a backend. The headline numbers are G
 tiles are named for its stages**, the Status filter each one opens: Applied
 was "Applications", the same word as the page it opened, and Interviewing
 was "Interviews". **The order is the search, left to right**: find, save,
-apply, hear back, as the Tracker's stages and the landing page's route run,
+apply, hear back, as the Applications Tracker's stages and the landing page's route run,
 so the left half is what is left to do and the right half how it is going
 (in the 2 x 2 grid on a phone too). Interviewing, a dash until the tracker
 stores it, sits last as the outcome, not as a gap in the middle. The order
@@ -520,7 +530,7 @@ drew a red change whenever employers posted less. Interviewing is a dash,
 the seeker had none. Saved counts the seeker's live saved jobs (KAN-261)
 and ignores the range. Applied and Saved show a dash when the tracker
 can't be read. **Every tile links**: a click anywhere on a tile opens the
-page that lists what it counts (the Tracker filtered to applied,
+page that lists what it counts (the Applications Tracker filtered to applied,
 interviewing or saved; the Jobs page in Best Match order, filtered to the
 week or 30 days posted). The lists take no date window, so the Applied
 list can hold more than its number. Under the pointer a tile lifts 2px onto
@@ -549,8 +559,9 @@ skyline takes the room the heat map and its numbers share, growing over the
 numbers as they fade (`--streak-h2` and the room in `streak-canvas.ts`).
 With a 3D height of its own the section swelled and shrank through each
 switch, since the canvas and the folding numbers ran on different curves,
-and in 3D it ran past the fold. The whole Dashboard fits a 1280 × 720
-window with no scroll; check that after changing its spacing. They show only
+and in 3D it ran past the fold. The page scrolls: at 1280 × 720 the numbers
+and the top of Top Matches show above the fold, and Activity follows the
+feed cards. Before Top Matches came back the whole page fit with no scroll. They show only
 there: the 3D skyline stands alone, with no numbers under it or in its corners. `streak-model.ts`
 is its pure maths (grid, levels, stats, camera), `streak-canvas.ts` the
 canvas engine (no React: the section mounts it once and it re-reads a ref
@@ -568,16 +579,19 @@ hydration, then on the viewer's own (`localDay`), by the same
 `useSyncExternalStore` swap as `today`. A failed tracker read draws the
 empty year with a line saying the applications aren't loading.
 
-## Applications (the Tracker)
+## Applications (the Applications Tracker)
 
-**Its name on screen is the Tracker** (KAN-342): "Tracker" in the sidebar
-and the browser tab, "Application Tracker" as its heading (the marketing
-site's name for the feature), and "Back to Tracker" on an application's
-page. It was "Applications", the word the Dashboard also used for a count,
-so the page and the number read as one thing. The URL, the folder and the
-code keep `applications`: moving the folder would collide with every open
-branch that edits the page. Say "the Tracker" in copy; a stage is one of
-Saved, Applied, Interviewing and Offer (`GLOSSARY.md`).
+**Its name on screen is the Applications Tracker** (KAN-342): in the
+sidebar, the browser tab and its heading, and "Back to Applications
+Tracker" on an application's page. It was "Applications", the word the
+Dashboard also used for a count, so the page and the number read as one
+thing; then "Tracker" in the sidebar with "Application Tracker" as its
+heading, until the user named it Applications Tracker everywhere. The
+marketing site still calls the feature "Application Tracker". The URL, the
+folder and the code keep `applications`: moving the folder would collide
+with every open branch that edits the page. Say "the Applications Tracker"
+in copy; a stage is one of Saved, Applied, Interviewing and Offer
+(`GLOSSARY.md`).
 
 /applications is the tracker: a list (the default) and a grid over
 `applications/data.ts`, every choice in the URL; a row or card opens the

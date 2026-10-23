@@ -86,16 +86,16 @@ _Avoid_: personal info, PII, contact details (for the whole set)
 
 ## Tracking
 
-**Tracker**:
-The page that holds every job posting a student is following, from saved to offer. Its heading is Application Tracker.
-_Avoid_: Applications (for the page), My Applications, board
+**Applications Tracker**:
+The page that holds every job posting a student is following, from saved to offer.
+_Avoid_: Applications (alone, for the page), Tracker (alone), My Applications, board
 
 **Stage**:
-Where one application stands in the Tracker: Saved, Applied, Interviewing or Offer.
-_Avoid_: column, step (the Tracker's Status filter picks stages)
+Where one application stands in the Applications Tracker: Saved, Applied, Interviewing or Offer.
+_Avoid_: column, step (the Applications Tracker's Status filter picks stages)
 
 **Application**:
-One job posting a student is following in the Tracker, at one stage.
+One job posting a student is following in the Applications Tracker, at one stage.
 _Avoid_: Applications (as the page's name)
 
 **Good Match**:

@@ -980,8 +980,8 @@ the KAN-296 cutover.
   fetch in a page calls `await connection()` so `next build` does not prerender
   it with no API running.
 - **The application tracker is live and has no fixture** (KAN-261), and
-  its page shows as the Tracker (KAN-342: "Tracker" in the sidebar,
-  "Application Tracker" as its heading) while its URL and code keep
+  its page shows as the Applications Tracker (KAN-342: in the sidebar,
+  the tab and its heading) while its URL and code keep
   `applications` (`docs/screens.md`, Applications). Saved
   and applied jobs come from the API (`(seeker)/applications/tracked.ts`,
   cached per request by `getTracker` in `data.ts`), each with the Jobs
@@ -998,7 +998,8 @@ the KAN-296 cutover.
   Interviews number is a dash, KAN-342); a failed read shows an error, never
   stand-in cards. The Dashboard's four numbers are all live and all links
   (KAN-342); its Good Matches reads the Best Match scores
-  (`getGoodMatchDates`), and it lists no jobs of its own. A job's application
+  (`getGoodMatchDates`), and Top Matches under them stacks the three
+  best-scoring jobs as feed cards, with no score floor (`getTopMatches`). A job's application
   stage (`saved`, `queued`...) reaches its Save and Auto Apply buttons from
   one read per page. Auto Apply never picks a saved job for a batch; only
   the job's own Auto Apply click queues it.
