@@ -542,7 +542,15 @@ map, and its four numbers (Past Year, Busiest Day, the two streaks) show only
 there, each in a grey well (`--color-well`) with its dates in a tag pill, as
 the Dashboard draws every date; as open text in ink-muted under each figure
 they read as loose lines (KAN-342). A number with nothing to date says so in
-its pill ("None yet", "Apply today"), so the four keep one shape. They show only
+its pill ("None yet", "Apply today"), so the four keep one shape; each
+well's pill sits on its label's line and wraps under it where the well is
+narrow. **The section is one height in both views** (KAN-342): the 3D
+skyline takes the room the heat map and its numbers share, growing over the
+numbers as they fade (`--streak-h2` and the room in `streak-canvas.ts`).
+With a 3D height of its own the section swelled and shrank through each
+switch, since the canvas and the folding numbers ran on different curves,
+and in 3D it ran past the fold. The whole Dashboard fits a 1280 × 720
+window with no scroll; check that after changing its spacing. They show only
 there: the 3D skyline stands alone, with no numbers under it or in its corners. `streak-model.ts`
 is its pure maths (grid, levels, stats, camera), `streak-canvas.ts` the
 canvas engine (no React: the section mounts it once and it re-reads a ref

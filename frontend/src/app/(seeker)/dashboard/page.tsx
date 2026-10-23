@@ -106,7 +106,7 @@ export default async function DashboardPage() {
   const firstName = account?.full_name.split(" ")[0];
 
   return (
-    <div className={cn("max-w-dashboard mx-auto w-full flex-1 py-6", SEEKER_GUTTER)}>
+    <div className={cn("max-w-dashboard mx-auto w-full flex-1 py-5", SEEKER_GUTTER)}>
       <header className="flex flex-wrap items-end justify-between gap-4">
         <div>
           {firstName ? (
@@ -128,7 +128,7 @@ export default async function DashboardPage() {
 
       {/* The numbers, in a grid of their own: four across, with Activity
           the full width under them. */}
-      <div className="mt-6 grid grid-cols-2 gap-4 @4xl/main:grid-cols-4">
+      <div className="mt-5 grid grid-cols-2 gap-4 @4xl/main:grid-cols-4">
         <Headline stats={stats} />
       </div>
 

@@ -241,10 +241,33 @@ export function Streak({
         />
       </div>
 
-      <div className="relative mt-4">
+      {/* One room for both views (./streak-canvas.ts, MAX_H2): a spacer the
+          heat map's height, then the numbers, with the stage laid over the
+          top. In 3D the stage grows over the numbers as they fade, so the
+          section never changes height. */}
+      <div className="relative mt-3">
+        <div aria-hidden="true" style={{ height: "var(--streak-h2, 150px)" }} />
+
+        <div
+          aria-hidden={!showRow}
+          inert={!showRow}
+          className="ease-glide grid grid-cols-2 gap-3 pt-3 transition-opacity @2xl/streak:grid-cols-4"
+          style={{
+            opacity: showRow ? 1 : 0,
+            // Out at once, ahead of the rising bars; back only once the
+            // grid has folded flat above them.
+            transitionDuration: showRow ? "300ms" : "200ms",
+            transitionDelay: showRow ? `${MORPH_MS - 300}ms` : "0ms",
+          }}
+        >
+          {blocks.map((block) => (
+            <Stat key={block.label} {...block} />
+          ))}
+        </div>
+
         <div
           ref={stageRef}
-          className="outline-brand-ring relative w-full overflow-hidden rounded-md outline-offset-4 has-[:focus-visible]:outline-2"
+          className="outline-brand-ring absolute inset-x-0 top-0 overflow-hidden rounded-md outline-offset-4 has-[:focus-visible]:outline-2"
           style={{ height: 150 }}
         >
           <canvas
@@ -280,25 +303,6 @@ export function Streak({
         </div>
       </div>
 
-      <div
-        aria-hidden={!showRow}
-        className="grid transition-[grid-template-rows,opacity]"
-        style={{
-          gridTemplateRows: showRow ? "1fr" : "0fr",
-          opacity: showRow ? 1 : 0,
-          transitionDuration: `${MORPH_MS}ms`,
-          transitionTimingFunction: "var(--ease-glide)",
-        }}
-      >
-        <div className="min-h-0 overflow-hidden">
-          <div className="grid grid-cols-2 gap-3 pt-5 @2xl/streak:grid-cols-4">
-            {blocks.map((block) => (
-              <Stat key={block.label} {...block} />
-            ))}
-          </div>
-        </div>
-      </div>
-
       <p aria-live="polite" className="sr-only">
         {announcement}
       </p>
@@ -310,24 +314,29 @@ type StatBlock = { label: string; value: string; unit: string; sub: string };
 
 /**
  * One number in the row under the heat map, in a recessed well
- * (--color-well) like the match rail's: its label over it, its unit beside
- * it, and its dates in a pill under it, as the Dashboard draws every date
- * (docs/screens.md). They were open text in ink-muted under the figure, which
+ * (--color-well) like the match rail's: its label and its dates in a pill
+ * on one line over it, as a headline tile sets its label and ring, and its
+ * unit beside it. The Dashboard draws every date in a pill
+ * (docs/screens.md). The pill sat under the figure until the section had
+ * to fit a 1280 x 720 window; it wraps under the label where the well is
+ * narrow. They were open text in ink-muted under the figure, which
  * read as loose lines rather than four readings of one chart. A block with
  * nothing to date says so in the pill ("None yet", "Apply today"), so the
  * four keep one shape.
  */
 function Stat({ label, value, unit, sub }: StatBlock) {
   return (
-    <div className="bg-well rounded-card flex min-w-0 flex-col items-start gap-2 p-4">
-      <p className="text-note text-ink-meta">{label}</p>
+    <div className="bg-well rounded-card flex min-w-0 flex-col gap-1 px-4 py-3">
+      <div className="flex flex-wrap items-center justify-between gap-x-2 gap-y-1">
+        <p className="text-note text-ink-meta">{label}</p>
+        <Badge variant="tag" pill>
+          {sub}
+        </Badge>
+      </div>
       <p className="flex items-baseline gap-1.5">
         <span className="text-display text-ink">{value}</span>
         <span className="text-body text-ink-muted">{unit}</span>
       </p>
-      <Badge variant="tag" pill>
-        {sub}
-      </Badge>
     </div>
   );
 }
