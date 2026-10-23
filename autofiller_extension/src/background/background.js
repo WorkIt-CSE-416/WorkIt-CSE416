@@ -9,7 +9,8 @@
 import { getSession } from "./auth.js";
 import { getAutofillProfile, generateEssayAnswer, ApiError } from "./api.js";
 import { openNextApplication, runStatus, showRunTab } from "./runner.js";
-import { engineCaller, fieldResult, fillOrder, planFill, planRows, runEngine } from "./engine.js";
+import { engineCaller, handleFill, jobOf, runEngine } from "./engine.js";
+import { injectFill } from "../shared/content-scripts.js";
 
 /**
  * Calls the Fill engine in the frame that sent `sender`'s message: the
@@ -25,11 +26,22 @@ function engineIn(sender) {
   });
 }
 
-async function fetchText(url) {
-  const response = await fetch(url);
+async function fetchText(url, init) {
+  const response = await fetch(url, init && { ...init, headers: { "Content-Type": "application/json" } });
   if (!response.ok) throw new Error(`${new URL(url).hostname} answered ${response.status}`);
   return response.text();
 }
+
+// The nested prompts the engine read on each Workday tenant (fill/plan, fill/unit), kept for its next fill.
+const WORKDAY_TREES_KEY = "workday_trees";
+const workdayTrees = {
+  async load() {
+    return (await chrome.storage.local.get(WORKDAY_TREES_KEY))[WORKDAY_TREES_KEY] ?? {};
+  },
+  async save(saved) {
+    await chrome.storage.local.set({ [WORKDAY_TREES_KEY]: { ...(await this.load()), ...saved } });
+  },
+};
 
 /** Today in the student's own time zone, as the engine's rules read it ("YYYY-MM-DD"). */
 function today() {
@@ -64,23 +76,53 @@ async function handleMessage(message, sender) {
     }
 
     // The content script's fill (content-script.js): the Plan for the page
-    // it runs in, then each planned answer filled through the engine.
-    case "fill/plan": {
+    // it runs in (fill/plan), then each unit of planned answers filled
+    // through the engine (fill/unit). A Workday tab is remembered, so its
+    // fill starts again when a step loads as a new page.
+    case "fill/plan":
+    case "fill/unit": {
       const profile = await getAutofillProfile();
-      const prepared = await planFill({
-        url: sender.url, profile, today: today(), call: engineIn(sender), fetchText,
+      if (message.type === "fill/plan" && jobOf(sender.url)?.site === "workday") await rememberWorkdayTab(sender.tab.id);
+      return handleFill(message, {
+        url: sender.url, profile, today: today(), call: engineIn(sender), fetchText, trees: workdayTrees,
       });
-      if (!prepared.covered) return prepared;
-      return { ...prepared, applicantId: profile.id, order: fillOrder(prepared), rows: planRows(prepared) };
     }
-
-    case "fill/field":
-      return { result: await fieldResult(engineIn(sender), message, message.name, message.value) };
 
     default:
       throw new Error(`Unknown message type: ${message.type}`);
   }
 }
+
+// Workday tabs a fill ran in. Workday moves between an application's steps
+// in the page, where the content script fills each step as it shows; a step
+// that loads as a new page drops the content script, so the fill is injected
+// again there. A tab that leaves Workday is forgotten.
+const WORKDAY_TABS_KEY = "workday_fill_tabs";
+
+async function workdayTabs() {
+  return (await chrome.storage.session.get(WORKDAY_TABS_KEY))[WORKDAY_TABS_KEY] ?? [];
+}
+
+async function rememberWorkdayTab(tabId) {
+  const tabs = await workdayTabs();
+  if (!tabs.includes(tabId)) await chrome.storage.session.set({ [WORKDAY_TABS_KEY]: [...tabs, tabId] });
+}
+
+chrome.tabs.onUpdated.addListener(async (tabId, change, tab) => {
+  if (change.status !== "complete") return;
+  const tabs = await workdayTabs();
+  if (!tabs.includes(tabId)) return;
+  if (jobOf(tab.url ?? "")?.site !== "workday") {
+    await chrome.storage.session.set({ [WORKDAY_TABS_KEY]: tabs.filter((id) => id !== tabId) });
+    return;
+  }
+  injectFill(tabId).catch((error) => console.warn("[fill] Workday's next page wasn't filled:", error));
+});
+
+chrome.tabs.onRemoved.addListener(async (tabId) => {
+  const tabs = await workdayTabs();
+  if (tabs.includes(tabId)) await chrome.storage.session.set({ [WORKDAY_TABS_KEY]: tabs.filter((id) => id !== tabId) });
+});
 
 // Messages from the popup and the content script (same extension, so this
 // channel, not the External one below).

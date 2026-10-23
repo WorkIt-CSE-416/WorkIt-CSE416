@@ -56,11 +56,12 @@ window.WIA = window.WIA || {};
    * @param {string} key
    * @param {import("../shared/types.js").FieldStatus} status
    * @param {string} [reason]
+   * @param {string | string[]} [shows]  what a filled field shows now, as the engine read it back
    */
-  function setStatus(key, status, reason) {
+  function setStatus(key, status, reason, shows) {
     const existing = results.get(key);
     if (!existing) return;
-    results.set(key, { ...existing, status, reason });
+    results.set(key, { ...existing, status, reason, shows });
     notify();
   }
 

@@ -1,63 +1,28 @@
-// The extension's one fill test (KAN-340): the Fill engine loaded the way the
-// content-script list loads it, filling a saved Greenhouse form from a
-// WorkIt-shaped profile through the same calls the background makes.
+// The extension's Greenhouse tests (KAN-340): the fill run as Chrome runs it
+// (extension.ts) on a saved Greenhouse form from a WorkIt-shaped profile, and
+// the Plan's rows for essays.
 import { readFileSync } from "node:fs";
 import { join } from "node:path";
 import { runInNewContext } from "node:vm";
 import { expect, test } from "@playwright/test";
 import { FakeJobServer, FORMS } from "../fill-engine/test/fake-job-server";
 import { ENGINE_FILES } from "../src/shared/content-scripts.js";
-import { engineCaller, fieldResult, fillOrder, planFill, planRows, runEngine } from "../src/background/engine.js";
+import { engineCaller, planFill, planRows, runEngine } from "../src/background/engine.js";
+import { STUDENT, bridge, failed, inject, settled, shown } from "./extension";
 
 const EXTENSION = join(__dirname, "..");
-
-/** A WorkIt applicant as background/api.js's fetchAutofillProfile returns one. Dummy data only. */
-const STUDENT = {
-  id: "00000000-0000-0000-0000-000000000001",
-  email: "test.person@example.com",
-  full_name: "Test Person",
-  phone_number: "+1 555 010 0199",
-  headline: null,
-  linkedin_url: "https://www.linkedin.com/in/test-person",
-  portfolio_url: null,
-  github_url: "https://github.com/test-person",
-  other_url: null,
-  bank: {
-    entries: [
-      {
-        id: "e1", section: "education", title: "Example State University", organization: null, location: null,
-        start_month: "2024-08", end_month: "2028-05", end_kind: "expected", degree: "B.S.", field_of_study: "Computer Science",
-        gpa: 3.7, gpa_scale: 4, coursework: [], honors: null, link: null, issuer: null, award_date: null, bullets: [],
-      },
-    ],
-    skills: [],
-  },
-  answers: {
-    work_authorized_us: "yes", needs_sponsorship: "no", work_authorization_status: "us_citizen", security_clearance: "none",
-    gender: "declined", hispanic_latino: "no", race: "asian", veteran_status: "not_protected_veteran", disability_status: "declined",
-  },
-  resume: { filename: "resume.pdf", mimeType: "application/pdf", base64: Buffer.from("%PDF-1.4\n%%EOF\n").toString("base64") },
-  fetched_at: 0,
-};
 
 test("fills a saved Greenhouse form from a WorkIt profile and submits nothing", async ({ context }) => {
   const arc = new FakeJobServer("greenhouse-arc");
   const page = await arc.open(context);
-  for (const file of ENGINE_FILES) await page.addScriptTag({ path: join(EXTENSION, file) });
-  const call = engineCaller((request) => page.evaluate(runEngine, request));
   const job = readFileSync(join(FORMS, "greenhouse-arc", "questions.json"), "utf8");
+  await bridge(page, async () => job);
 
-  const prepared = await planFill({
-    url: arc.url, profile: STUDENT, today: "2026-10-22", call,
-    fetchText: async () => job,
-  });
-  const results: Record<string, unknown> = {};
-  for (const name of fillOrder(prepared)) {
-    results[name] = await fieldResult(call, prepared, name, prepared.answers[name]);
-  }
+  await inject(page);
+  const { phase, rows } = await settled(page);
 
-  const shown = Object.fromEntries(Object.entries(results).map(([name, r]: [string, any]) => [name, r.shows]));
-  expect(shown).toMatchObject({
+  expect(phase).toBe("filled");
+  expect(shown(rows)).toMatchObject({
     first_name: "Test",
     last_name: "Person",
     email: "test.person@example.com",
@@ -71,7 +36,7 @@ test("fills a saved Greenhouse form from a WorkIt profile and submits nothing", 
     gender: "Decline To Self Identify",
     resume: "resume.pdf",
   });
-  expect(Object.values(results).every((r: any) => r.status === "filled")).toBe(true);
+  expect(failed(rows)).toEqual({});
   expect(arc.submissions).toEqual([]);
 });
 

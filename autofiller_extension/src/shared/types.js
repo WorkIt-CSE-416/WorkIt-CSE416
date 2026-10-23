@@ -139,4 +139,5 @@
  * @property {FieldStatus} status
  * @property {string} [reason]      Shown on hover when status is "failed" —
  *   e.g. "No matching option for \"SUNY Korea\""
+ * @property {string | string[]} [shows]  What a filled field shows now, as the engine read it back
  */
