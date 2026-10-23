@@ -32,7 +32,7 @@ async function fetchText(url, init) {
   return response.text();
 }
 
-// The nested prompts the engine read on each Workday tenant (fill/plan, fill/unit), kept for its next fill.
+// The nested prompts the engine read on each Workday tenant (fill/plan, fill/page), kept for its next fill.
 const WORKDAY_TREES_KEY = "workday_trees";
 const workdayTrees = {
   async load() {
@@ -76,11 +76,11 @@ async function handleMessage(message, sender) {
     }
 
     // The content script's fill (content-script.js): the Plan for the page
-    // it runs in (fill/plan), then each unit of planned answers filled
-    // through the engine (fill/unit). A Workday tab is remembered, so its
+    // it runs in (fill/plan), then the planned answers filled through the
+    // engine (fill/page). A Workday tab is remembered, so its
     // fill starts again when a step loads as a new page.
     case "fill/plan":
-    case "fill/unit": {
+    case "fill/page": {
       const profile = await getAutofillProfile();
       if (message.type === "fill/plan" && jobOf(sender.url)?.site === "workday") await rememberWorkdayTab(sender.tab.id);
       return handleFill(message, {

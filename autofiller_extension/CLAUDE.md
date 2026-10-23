@@ -60,7 +60,7 @@ builds it: `dist/engine.js` is committed in the engine repo.
   alike. The content script reaches the engine through the background,
   which runs `engine.js`'s `runEngine` (the engine's own dispatcher,
   `FillEngine.call`) in the page's MAIN world with
-  `chrome.scripting.executeScript` (`fill/plan`, `fill/unit`, both answered
+  `chrome.scripting.executeScript` (`fill/plan`, `fill/page`, both answered
   by `engine.js`'s `handleFill`). The background also imports the bundle
   itself, for what needs no page: reading the job and planning.
 - **The engine reads the job.** `fill/plan` gets the job's Question set,
@@ -72,13 +72,15 @@ builds it: `dist/engine.js` is committed in the engine repo.
   fails. It then asks the engine's `plan` for answers from the WorkIt
   profile (`engineProfile`) and `POLICIES`. No job system's URLs, queries,
   parsing or company names live here: change them in the engine repo.
-  `fill/unit` fills the planned answers in the units `fillUnits` cuts:
-  mostly one field per engine call, so the overlay shows each field's
-  result (filled, failed with the engine's reason, skipped when the form
-  never showed it) and one bad field doesn't stop the rest. Files go first
-  (the résumé parse of Lever, Rippling, Eightfold and Workable types over
-  the form), except on Greenhouse, last. Workable is one call (its fill
-  adds entries first and blanks every text box it isn't given).
+- **The engine fills the page and checks it.** `fill/page` calls the
+  engine's `fillEach`, which fills in the engine's own order (files first
+  where the job system parses the résumé into the form, Workable in one go,
+  Workday's repeating sections first) and says how each field went:
+  filled, failed with the engine's reason, or skipped when the form never
+  showed it. One field the engine can't fill doesn't stop the rest. A field
+  that shows something other than its planned answer (or a wording the
+  Plan accepts) is failed with what the page shows, so the student checks
+  it.
 - **More questions mean a new plan.** A fill that brings on questions
   (Eightfold's follow-ups, Workday's new panels) answers `more`; the
   content script plans again with them (`extra`) and fills what is new.

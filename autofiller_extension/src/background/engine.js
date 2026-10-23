@@ -1,9 +1,9 @@
 // The extension's side of the Fill engine (the fill-engine submodule, KAN-329):
 // the WorkIt profile mapped to the engine's profile, and the two fill
-// messages. Everything about a job is the engine's: which job systems it
-// covers (`jobOf`), the job's Question set, names and text, read from the job
-// system's public APIs with the background's fetch, and the Plan. The fill
-// is done in the application's page (the page's MAIN world,
+// messages. Everything about a job and its form is the engine's: which job
+// systems it covers (`jobOf`), the job's Question set, names and text, read
+// from the job system's public APIs with the background's fetch, the Plan,
+// and the fill, done in the application's page (the page's MAIN world,
 // ENGINE_FILES), which this module reaches through `call`: the background
 // makes it with chrome.scripting.executeScript and the test with
 // Playwright's page.evaluate, both running `runEngine` in the page.
@@ -212,9 +212,8 @@ async function readQuestions({ job, url, call, fetchText, state }) {
 /**
  * Everything a fill needs, before anything is filled: the job's Question set
  * (with `extra`, the questions earlier fills brought on), and the engine's
- * Plan for the WorkIt profile, with file answers holding their bytes, cut
- * into the units it is filled in (`fillUnits`) and the rows the overlay lists
- * besides (`planRows`). On a page
+ * Plan for the WorkIt profile, with file answers holding their bytes, and the
+ * rows the overlay lists besides the planned answers (`planRows`). On a page
  * the engine doesn't cover, `{ covered: false }` and nothing is fetched; on a
  * job's page that isn't its form, `openForm`. On Workday it is the step
  * shown, with `step` and the engine's `state`.
@@ -242,74 +241,30 @@ export async function planFill({ url, profile, today, call, fetchText, extra = [
     : { answers: {}, essays: [], drafts: [], missing: [], handoffs: [], accepted: {} };
   const answers = withFiles(plan.answers, profile);
   const prepared = { covered: true, site, posting, questions, plan, answers, applicantId: profile.id, step: read.step, state: read.state };
-  return { ...prepared, units: fillUnits(prepared), rows: planRows(prepared) };
+  return { ...prepared, rows: planRows(prepared) };
 }
 
 /**
- * The planned answers cut into the engine calls that fill them, in order: a
- * field per call, so the overlay shows each field's own result and one field
- * the engine can't fill doesn't stop the rest, except where the engine fills
- * fields together:
- * - Files first, as the engine's own fill does: Lever, Rippling, Eightfold and
- *   Workable parse the résumé into the form, over anything already typed.
- *   Greenhouse's last: its uploader may not be ready at first.
- * - Workable in one call: its fill adds the Education and Experience entries
- *   first, and blanks every text box it isn't given (what Workable typed in
- *   itself, such as a guessed address).
- * - Workday's repeating sections in one call first: they add the panels whose
- *   fields the step then asks.
- * @returns {string[][]}
- */
-export function fillUnits({ site, questions, answers, step }) {
-  const names = questions.map((q) => q.name).filter((name) => name in answers);
-  if (site === "workable") return names.length ? [names] : [];
-  const isFile = (name) => questions.find((q) => q.name === name)?.kind === "file";
-  if (site === "workday") {
-    const sections = names.filter((name) => step?.sections?.includes(name));
-    return [...(sections.length ? [sections] : []), ...names.filter((name) => !sections.includes(name)).map((name) => [name])];
-  }
-  const files = names.filter(isFile).map((name) => [name]);
-  const fields = names.filter((name) => !isFile(name)).map((name) => [name]);
-  return site === "greenhouse" ? [...fields, ...files] : [...files, ...fields];
-}
-
-/**
- * Fills one unit of planned answers through the engine and says how each went,
- * as the overlay shows it: "filled" with what the field shows now, "skipped"
- * when the form never showed the field (it depends on another answer), or
- * "failed" with the engine's reason. `more`: questions the fill brought on
+ * Fills `answers` on the page through the engine's `fillEach`, which fills
+ * the whole page in its own order and says how each answer went, as the
+ * overlay shows it: "filled" with what the field shows now, "skipped" when
+ * the form never showed the field (it depends on another answer), or
+ * "failed" with the engine's reason, including a field that shows something
+ * other than its planned answer. `more`: questions the fill brought on
  * (Eightfold's follow-ups, Workday's new panels and follow-ups), to plan and
- * fill next; a field Workday hasn't filled yet then has no result.
+ * fill next; a field not filled yet then has no result.
  * @returns {Promise<{ results: Record<string, Result>, more?: object[], state?: object }>}
  * @typedef {{ status: "filled", shows: string | string[] } | { status: "skipped" | "failed", reason: string }} Result
  */
-export async function fillUnit({ call, site, questions, names, answers, state }) {
-  const given = Object.fromEntries(names.map((name) => [name, answers[name]]));
-  const steps = site === "workday" ? [state] : [];
-  let filled;
+export async function fillPage({ call, site, questions, answers, accepted, state, sections }) {
   try {
-    filled = await call("fill", site, questions, given, ...steps);
+    const filled = await call("fillEach", site, questions, answers, { accepted: accepted ?? {}, state, sections });
+    return { results: filled.results, ...(filled.moreQuestions ? { more: filled.moreQuestions } : {}), state: filled.state ?? state };
   } catch (error) {
-    const reason = error.name === "FillError" || error.name === "Handoff" ? error.message.replace(/^[^:]+: /, "") : `Fill failed: ${error.message}`;
-    return { results: Object.fromEntries(names.map((name) => [name, { status: "failed", reason }])), state };
+    const reason = ["FillError", "Handoff", "NoForm"].includes(error.name) ? error.message : `Fill failed: ${error.message}`;
+    return { results: Object.fromEntries(Object.keys(answers).map((name) => [name, { status: "failed", reason }])), state };
   }
-  if (site === "workday") {
-    state = filled.state;
-    filled = filled.moreQuestions ? { moreQuestions: filled.moreQuestions } : filled.readback;
-  }
-  if (filled?.moreQuestions) {
-    // Eightfold brings questions on once a field is filled; Workday says so before it fills anything.
-    const shown = site === "workday" ? {} : await call("readback", site, questions, names);
-    const results = Object.fromEntries(names.filter((name) => !blank(shown[name])).map((name) => [name, { status: "filled", shows: shown[name] }]));
-    return { results, more: filled.moreQuestions, state };
-  }
-  const results = Object.fromEntries(names.map((name) => [name, blank(filled?.[name])
-    ? { status: "skipped", reason: "The form didn't show this question" }
-    : { status: "filled", shows: filled[name] }]));
-  return { results, state };
 }
-
-const blank = (shows) => shows === undefined || shows === "" || (Array.isArray(shows) && shows.length === 0);
 
 /**
  * What the overlay lists besides the planned answers, from the Plan:
@@ -340,7 +295,7 @@ export function planRows({ plan }) {
 
 /**
  * The content script's two fill messages, as the background answers them:
- * `fill/plan` (planFill, for the page at `url`) and `fill/unit` (fillUnit).
+ * `fill/plan` (planFill, for the page at `url`) and `fill/page` (fillPage).
  * On Workday, the nested prompts the engine read for a tenant are kept
  * (`trees`, chrome.storage in the extension) and given back on its next
  * call, as Apply keeps them: reading Workday's own How Did You Hear About
@@ -360,8 +315,8 @@ export async function handleFill(message, { url, profile, today, call, fetchText
     let state = message.state;
     if (!state && trees && jobOf(url)?.site === "workday") state = { tenant: jobOf(url).tenant, trees: {} };
     answer = await planFill({ url, profile, today, call, fetchText, extra: message.extra, state: await withTrees(state) });
-  } else if (message.type === "fill/unit") {
-    answer = await fillUnit({ call, ...message, state: await withTrees(message.state) });
+  } else if (message.type === "fill/page") {
+    answer = await fillPage({ call, ...message, state: await withTrees(message.state) });
   } else {
     throw new Error(`Unknown fill message: ${message.type}`);
   }

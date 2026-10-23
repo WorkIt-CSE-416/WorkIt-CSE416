@@ -4,9 +4,10 @@
 // the page first). It never submits, and never moves a form in steps on.
 //
 // The engine does the work: the background reads the job's Question set and
-// plans every answer from the WorkIt profile ("fill/plan"), then fills the
-// planned answers a unit at a time ("fill/unit": mostly one field), so the
-// overlay shows each field's own result. A fill that brings on new
+// plans every answer from the WorkIt profile ("fill/plan"), then the engine
+// fills the page in its own order ("fill/page") and says how each field
+// went, so the overlay shows each field's own result: a field showing
+// something other than its planned answer is failed. A fill that brings on new
 // questions (Eightfold's follow-ups, Workday's new panels) is planned again
 // with them and goes on. Questions that need a written answer wait for the
 // student's one Generate click, then go to the essay-answer route.
@@ -79,11 +80,11 @@
         return null;
       }
       state = prepared.state;
-      const { questions, answers, units, rows } = prepared;
+      const { questions, answers, rows } = prepared;
       const byName = new Map(questions.map((q) => [q.name, q]));
       const isNew = (name) => !shown.has(name) && shown.add(name);
 
-      for (const name of units.flat()) if (isNew(name)) status.register(name, byName.get(name)?.label ?? name, byName.get(name)?.required ?? false);
+      for (const name of Object.keys(answers)) if (isNew(name)) status.register(name, byName.get(name)?.label ?? name, byName.get(name)?.required ?? false);
       for (const q of rows.written) {
         written.set(q.name, q);
         if (!isNew(q.name)) continue;
@@ -99,23 +100,24 @@
 
       let more = null;
       let filledAny = false;
-      for (const names of units) {
-        if (names.every((name) => done.has(name))) continue;
-        const answer = await send({ type: "fill/unit", site: prepared.site, questions, names, answers, state });
+      const left = Object.fromEntries(Object.entries(answers).filter(([name]) => !done.has(name)));
+      if (Object.keys(left).length) {
+        const answer = await send({
+          type: "fill/page", site: prepared.site, questions, answers: left, accepted: prepared.plan.accepted, state, sections: prepared.step?.sections,
+        });
         if (!answer.ok) {
-          for (const name of names) status.setStatus(name, "failed", answer.error);
-          names.forEach((name) => done.add(name));
-          continue;
-        }
-        state = answer.state ?? state;
-        for (const [name, result] of Object.entries(answer.results)) {
-          done.add(name);
-          filledAny = true;
-          status.setStatus(name, result.status, result.reason, result.shows);
-        }
-        if (answer.more) {
-          more = answer.more;
-          break;
+          for (const name of Object.keys(left)) {
+            status.setStatus(name, "failed", answer.error);
+            done.add(name);
+          }
+        } else {
+          state = answer.state ?? state;
+          for (const [name, result] of Object.entries(answer.results)) {
+            done.add(name);
+            filledAny = true;
+            status.setStatus(name, result.status, result.reason, result.shows);
+          }
+          more = answer.more ?? null;
         }
       }
       if (more) {
@@ -132,7 +134,7 @@
 
   /** Fills one answer that needed writing, through the engine, and shows how it went. */
   async function fillWritten(prepared, name, value) {
-    const answer = await send({ type: "fill/unit", site: prepared.site, questions: prepared.questions, names: [name], answers: { [name]: value }, state: prepared.state });
+    const answer = await send({ type: "fill/page", site: prepared.site, questions: prepared.questions, answers: { [name]: value }, state: prepared.state });
     const result = answer.ok ? answer.results[name] ?? { status: "failed", reason: "The form changed before this was filled" } : { status: "failed", reason: answer.error };
     status.setStatus(name, result.status, result.reason, result.shows);
   }
