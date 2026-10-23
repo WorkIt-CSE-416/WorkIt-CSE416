@@ -9,9 +9,39 @@
 import { getSession } from "./auth.js";
 import { getAutofillProfile, generateEssayAnswer, ApiError } from "./api.js";
 import { openNextApplication, runStatus, showRunTab } from "./runner.js";
+import { engineCaller, fieldResult, fillOrder, planFill, planRows, runEngine } from "./engine.js";
 
-/** @param {{ type: string, [key: string]: any }} message */
-async function handleMessage(message) {
+/**
+ * Calls the Fill engine in the frame that sent `sender`'s message: the
+ * engine runs in the page's MAIN world (content-scripts.js's ENGINE_FILES),
+ * which the content script, in its isolated world, can't call itself.
+ * @param {chrome.runtime.MessageSender} sender
+ */
+function engineIn(sender) {
+  const target = { tabId: sender.tab.id, frameIds: [sender.frameId ?? 0] };
+  return engineCaller(async (request) => {
+    const [injection] = await chrome.scripting.executeScript({ target, world: "MAIN", func: runEngine, args: [request] });
+    return injection?.result;
+  });
+}
+
+async function fetchText(url) {
+  const response = await fetch(url);
+  if (!response.ok) throw new Error(`${new URL(url).hostname} answered ${response.status}`);
+  return response.text();
+}
+
+/** Today in the student's own time zone, as the engine's rules read it ("YYYY-MM-DD"). */
+function today() {
+  const now = new Date();
+  return `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, "0")}-${String(now.getDate()).padStart(2, "0")}`;
+}
+
+/**
+ * @param {{ type: string, [key: string]: any }} message
+ * @param {chrome.runtime.MessageSender} sender
+ */
+async function handleMessage(message, sender) {
   switch (message.type) {
     case "auth/status": {
       const session = await getSession();
@@ -33,6 +63,20 @@ async function handleMessage(message) {
       return { answer, usesLeft: uses_left };
     }
 
+    // The content script's fill (content-script.js): the Plan for the page
+    // it runs in, then each planned answer filled through the engine.
+    case "fill/plan": {
+      const profile = await getAutofillProfile();
+      const prepared = await planFill({
+        url: sender.url, profile, today: today(), call: engineIn(sender), fetchText,
+      });
+      if (!prepared.covered) return prepared;
+      return { ...prepared, applicantId: profile.id, order: fillOrder(prepared), rows: planRows(prepared) };
+    }
+
+    case "fill/field":
+      return { result: await fieldResult(engineIn(sender), message, message.name, message.value) };
+
     default:
       throw new Error(`Unknown message type: ${message.type}`);
   }
@@ -40,8 +84,8 @@ async function handleMessage(message) {
 
 // Messages from the popup and the content script (same extension, so this
 // channel, not the External one below).
-chrome.runtime.onMessage.addListener((message, _sender, sendResponse) => {
-  handleMessage(message)
+chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
+  handleMessage(message, sender)
     .then((result) => sendResponse({ ok: true, ...result }))
     .catch((error) => {
       const status = error instanceof ApiError ? error.status : undefined;

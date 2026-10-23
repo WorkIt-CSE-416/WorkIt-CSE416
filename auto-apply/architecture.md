@@ -947,8 +947,10 @@ gap.
 from `prepare_resume`'s link and sends it to the content script (base64). The
 content script makes a `File`, puts it in a `DataTransfer`, sets the file
 input's `files`, and sends `input` and `change` events. Some hiring
-systems use a drop zone instead (Workday). Test each hiring system. The
-sample form (`test/sample-form.html`) needs a file input.
+systems use a drop zone instead (Workday). Since KAN-340 the Fill engine
+(the `fill-engine` submodule, `autofiller_extension/CLAUDE.md`) attaches
+files, from the bytes the background passes it; its tests cover each
+hiring system's saved forms.
 
 ## 18. Build order
 

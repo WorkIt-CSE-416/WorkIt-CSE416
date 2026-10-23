@@ -9,7 +9,7 @@
 // worker any URL could make it open any site.
 
 import { ApiError, me, nextApplication } from "./api.js";
-import { CONTENT_SCRIPT_FILES } from "../shared/content-scripts.js";
+import { injectFill } from "../shared/content-scripts.js";
 
 // The run's tab and the job posting open in it, kept in
 // chrome.storage.session rather than a variable: Chrome stops this worker
@@ -91,9 +91,7 @@ async function startFill(tabId) {
   if (!found) return { fill: "failed", reason: "no_form" };
 
   await chrome.tabs.update(tabId, { active: true });
-  chrome.scripting
-    .executeScript({ target, files: CONTENT_SCRIPT_FILES })
-    .catch((error) => console.warn("[runner] the fill stopped:", error));
+  injectFill(tabId).catch((error) => console.warn("[runner] the fill stopped:", error));
   return { fill: "started" };
 }
 

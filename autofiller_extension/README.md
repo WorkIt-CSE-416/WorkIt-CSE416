@@ -6,6 +6,9 @@ still open.
 
 ## Load it
 
+0. Fetch the Fill engine once: `git submodule update --init` (from the repo
+   root). It is the private `WorkIt-CSE-416/fill-engine` repo, pinned to a
+   tag; without it Chrome can't load `fill-engine/dist/engine.js`.
 1. Have the backend running (`uv run uvicorn app.main:app --reload`, from
    `backend/` — see the root `CLAUDE.md`). The extension tries
    `http://localhost:8000` first and falls back to the deployed API if
@@ -20,8 +23,9 @@ still open.
    and email. If it instead says to sign in, click **I Signed In — Check
    Again** after step 4, or confirm you're actually signed in on
    `localhost:3000` (not just the deployed site, or vice versa).
-6. Open a job application page, click the icon again, then
-   **Autofill This Page**.
+6. Open a Greenhouse job application page, click the icon again, then
+   **Autofill This Page**. On any other hiring system it fills nothing and
+   says so.
 
 It never submits anything — review the filled form and click the site's
 own Submit button yourself.
@@ -32,3 +36,11 @@ Chrome doesn't pick up changes to an unpacked extension automatically:
 `chrome://extensions` → the extension's reload icon. A content-script file
 edit also needs the page itself reloaded, since the files were already
 injected into it.
+
+## Test
+
+```sh
+npm --prefix autofiller_extension/test ci
+npx --prefix autofiller_extension/test playwright install chromium   # once
+npm --prefix autofiller_extension/test test
+```
