@@ -10,6 +10,7 @@
 
 import { ApiError, me, nextApplication } from "./api.js";
 import { injectFill } from "../shared/content-scripts.js";
+import { formUrl } from "./engine.js";
 
 // The run's tab and the job posting open in it, kept in
 // chrome.storage.session rather than a variable: Chrome stops this worker
@@ -51,7 +52,8 @@ export async function openNextApplication(sender) {
   }
 
   const jobId = application.job.id;
-  const url = application.job.apply_url;
+  // The form, not the job's page, where the two differ (a Lever posting's form is at .../apply).
+  const url = formUrl(application.job.apply_url);
   if (saved?.jobId === jobId) return { opened: true, jobId, url, fill: "kept" };
   const tabId = await openApplicationTab(saved, jobId, url, sender.tab);
   return { opened: true, jobId, url, ...(await startFill(tabId)) };
