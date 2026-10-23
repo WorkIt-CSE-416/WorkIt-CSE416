@@ -68,10 +68,14 @@ const GOOD_MATCHES_NOTE: Record<RangeKey, string> = {
  * route. The left half is what is left to do and the right half how it is
  * going, which holds in the 2 x 2 grid on a phone too. Interviews, a dash
  * until the tracker stores it, sits last as the outcome rather than as a gap
- * in the middle. Applications keeps the violet fill out of first place: it
- * is the one number the seeker wholly controls, and Activity under it counts
- * the same habit. The order was Applications, New Roles, Interviews, Saved,
+ * in the middle. The order was Applications, New Roles, Interviews, Saved,
  * which read sent, then find, then outcome, then shortlist.
+ *
+ * GOOD MATCHES WEARS THE VIOLET FILL, where the next application starts: the
+ * eye lands on the head of the search and reads on from there. Applications
+ * wore it until the reorder, as the number the seeker wholly controls; the
+ * user moved it, since a seeker comes to the Dashboard to find what to apply
+ * to next. A violet 0 is the cost on a week with no good matches.
  *
  * Good Matches is the job postings from the range that score Good Match or
  * better for this seeker (GOOD_MATCH), from the Best Match scores
