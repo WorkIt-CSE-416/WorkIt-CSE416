@@ -207,26 +207,37 @@ export const FolderGitBranchIcon = customIcon("FolderGitBranch", {
   ),
 });
 
-/** A person in a suit and tie, the Role filter's (KAN-252): wide shoulders,
- *  a collar and a knotted tie. Phosphor has no person in a suit. */
+/** A person in a suit and tie, the Role filter's (KAN-252). The tie is a
+ *  knot over a blade that runs to the foot, up to 5 units wide, so its inside
+ *  stays open at 16px: the first drawing's tie was 2 units wide and read as a
+ *  solid line. Phosphor has no person in a suit. */
+const KNOT = "M10.5 13.5h3l-.75 2.25h-1.5z";
+const BLADE = "M11.25 15.75 9.5 19.75 12 22l2.5-2.25-1.75-4z";
+
 export const UserTieIcon = customIcon("UserTie", {
   outline: (
     <>
-      <circle cx="12" cy="6" r="3.5" />
-      <path d="M4 21v-1a6 6 0 0 1 6-6h4a6 6 0 0 1 6 6v1" />
+      <circle cx="12" cy="5.5" r="3.25" />
+      <path d="M4 22v-1.5a7 7 0 0 1 7-7h2a7 7 0 0 1 7 7V22" />
     </>
   ),
   holes: (
     <>
-      <path d="m10.5 14 1.5 2 1.5-2" />
-      <path d="m12 16-1 3 1 2 1-2z" />
+      <path d={KNOT} />
+      <path d={BLADE} />
     </>
   ),
-  tint: <circle cx="12" cy="6" r="3.5" />,
+  tint: (
+    <>
+      <circle cx="12" cy="5.5" r="3.25" />
+      <path d={KNOT} />
+      <path d={BLADE} />
+    </>
+  ),
   body: (
     <>
-      <circle cx="12" cy="6" r="3.5" />
-      <path d="M4 21v-1a6 6 0 0 1 6-6h4a6 6 0 0 1 6 6v1z" />
+      <circle cx="12" cy="5.5" r="3.25" />
+      <path d="M4 22v-1.5a7 7 0 0 1 7-7h2a7 7 0 0 1 7 7V22z" />
     </>
   ),
 });
