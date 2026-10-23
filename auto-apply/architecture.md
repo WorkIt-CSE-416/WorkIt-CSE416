@@ -470,6 +470,10 @@ yet; the column below is the plan for that warning.
   hiring systems auto apply takes ("The batch"). A hiring system added there
   is added to the manifest in the same change. An unpacked extension gets
   the new permission when the student reloads it in `chrome://extensions`.
+  The manifest also lists the six other hiring systems the extension fills
+  from its popup (KAN-341): its background fetches their job APIs, and
+  injects Workday's fill again when a step loads as a new page. Auto apply
+  still takes Greenhouse alone until `hosts.py` adds them.
 - **The resume is the profile's for now.** The fill attaches what the
   popup attaches: the default resume (`resolveResumeFile`). It does not
   call `prepare_resume`, so it does not yet attach a tailored resume (11.3)

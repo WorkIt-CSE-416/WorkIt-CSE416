@@ -59,16 +59,45 @@ builds it: `dist/engine.js` is committed in the engine repo.
   `injectFill` loads both, engine first, for the popup and the runner
   alike. The content script reaches the engine through the background,
   which runs `engine.js`'s `runEngine` in the page's MAIN world with
-  `chrome.scripting.executeScript` (`fill/plan`, `fill/field`).
-- **Plan, then fill one field at a time.** `fill/plan` fetches the job's
-  Question set from the job system's API (Greenhouse's Job Board API, and
-  the posting page as served for its education block: the page no longer
-  holds it once Greenhouse's app starts), has the engine read it, and asks
-  the engine's `plan` for answers from the WorkIt profile (`engineProfile`)
-  and `POLICIES`. `fill/field` then fills each planned answer with its own
-  engine call, so the overlay shows each field's result (filled, failed
-  with the engine's reason, skipped when the form never showed it). Files
-  go last.
+  `chrome.scripting.executeScript` (`fill/plan`, `fill/unit`, both answered
+  by `engine.js`'s `handleFill`).
+- **Plan, then fill a unit at a time.** `fill/plan` reads the job's
+  Question set as Apply reads it (`engine.js`'s `READERS`): fetched from the
+  job system's public API and parsed by the engine (Greenhouse's Job Board
+  API, plus the posting page as served for its education block; Lever's
+  `/apply` page; Ashby's `ApiJobPosting` query, else the form on the page;
+  Rippling's and Workable's job APIs), or read off the open form by the
+  engine (Eightfold, whose questions API answers only the page's own
+  session; Workday, a step at a time). It then asks the engine's `plan` for
+  answers from the WorkIt profile (`engineProfile`) and `POLICIES`.
+  `fill/unit` fills the planned answers in the units `fillUnits` cuts:
+  mostly one field per engine call, so the overlay shows each field's
+  result (filled, failed with the engine's reason, skipped when the form
+  never showed it) and one bad field doesn't stop the rest. Files go first
+  (the résumé parse of Lever, Rippling, Eightfold and Workable types over
+  the form), except on Greenhouse, last. Workable is one call (its fill
+  adds entries first and blanks every text box it isn't given). No parsing
+  lives here: a job system whose Question set needs parsing gets a parser
+  in the engine (`parseQuestions`).
+- **More questions mean a new plan.** A fill that brings on questions
+  (Eightfold's follow-ups, Workday's new panels) answers `more`; the
+  content script plans again with them (`extra`) and fills what is new.
+- **Workday, a step at a time.** The student signs in and starts the
+  application; the content script fills each step as it shows (sections
+  first, then each field, then reads the step again for follow-ups), then
+  waits. The student checks the step and presses Save and Continue; the
+  next step is filled when Workday shows it. The extension never presses
+  Save and Continue or Submit. A step that loads as a new page drops the
+  content script, so the background remembers the tab
+  (`workday_fill_tabs`, session storage) and injects the fill again when
+  it loads. Workday's nested prompts (its own How Did You Hear About Us?)
+  are slow to read, so each tenant's are kept in `chrome.storage.local`
+  (`workday_trees`), as Apply keeps them.
+- **A job's page is not always its form.** A Lever, Ashby, Rippling,
+  Workable or Eightfold posting shows the job on one page and the form on
+  another (`jobOf`'s `form`). On the job's page the overlay names the
+  form's link and fills nothing; the runner opens the form itself
+  (`formUrl`).
 - **The profile adapter gives only what WorkIt holds.** Name, email,
   phone, links, the default resume, the latest school and the jobs from the
   bank, and the nine autofill answers, in the words the engine's rules
@@ -79,15 +108,19 @@ builds it: `dist/engine.js` is committed in the engine repo.
   Board". The engine's own rules decide everything else; change a rule in
   the engine repo, not here.
 - **Only job systems the engine covers are filled.** `engine.js`'s `jobOf`
-  names them (Greenhouse, for now). On any other page the overlay says
+  names them (Greenhouse, Lever, Ashby, Rippling, Workable, Eightfold and
+  Workday). On any other page the overlay says
   WorkIt can't fill this job system yet and nothing is touched: there is
   no generic filler any more (the old label-matching one filled most forms
   wrong, and was deleted with its Greenhouse adapter in KAN-340).
-- **Tests**: `test/greenhouse.spec.ts` loads `ENGINE_FILES` into a saved
-  Greenhouse form (served by the engine repo's own fake job server and
-  fixtures, through the submodule) and fills it from a WorkIt-shaped
-  profile through `engine.js`, checking what each field shows and that
-  nothing was submitted. Run: `npm --prefix autofiller_extension/test ci`,
+- **Tests**: `test/extension.ts` runs the fill as Chrome does, minus
+  Chrome: `ENGINE_FILES` and `CONTENT_SCRIPT_FILES` evaluated in a saved
+  form's page (served by the engine repo's own fakes and fixtures, through
+  the submodule), the content script's messages answered by `handleFill`.
+  `greenhouse.spec.ts` and `job-systems.spec.ts` fill one saved form of each
+  job system (Workday step by step, the student's Save and Continue played
+  by the test) from a WorkIt-shaped profile, checking what each field shows
+  and that nothing was submitted. Run: `npm --prefix autofiller_extension/test ci`,
   then `npm --prefix autofiller_extension/test test` (Chromium:
   `npx playwright install chromium` once).
 
@@ -184,7 +217,10 @@ Browser": `run/status` answers which job posting the run's tab shows
   `backend/app/auto_apply/hosts.py` (Greenhouse only). A host added there
   is added to `manifest.json` in the same change, or its fills answer
   `not_allowed`. After pulling a manifest change, reload the unpacked
-  extension in `chrome://extensions`.
+  extension in `chrome://extensions`. The manifest also lists the six
+  other job systems the extension fills (KAN-341), which auto apply
+  doesn't take yet: the background fetches their job APIs, and injects
+  Workday's fill again on its next page.
 - **The fill is the popup's fill.** Both call `injectFill`
   (`src/shared/content-scripts.js`); `content-script.js` runs on
   injection, so injecting is starting. The resume is the profile's default
@@ -234,8 +270,9 @@ Browser": `run/status` answers which job posting the run's tab shows
   can't check hidden-tab timing: Chrome keeps a tab it drives visible and
   focused, so test with the real runner.
 
-Still open: a Lever `apply_url` opens the job posting, not the form (that
-is at `.../apply`). Why a hidden tab's dropdowns stay empty is not pinned
+The runner opens a job's form, not its page (`formUrl`: a Lever
+`apply_url` opens the posting, and the form is at `.../apply`). Still
+open: why a hidden tab's dropdowns stay empty is not pinned
 down (focus is the likeliest); if found, the fill could stay hidden. With
 the student's Chrome window behind another app, macOS may still count the
 shown tab as hidden. A tab closed within a second or two
@@ -527,14 +564,21 @@ openness covers:
   refreshing it already does (`src/proxy.ts`) and this extension only
   ever reading, never writing, the cookie — not independent refresh logic
   here.
-- **Greenhouse only.** The engine fills Ashby, Lever, Workday, Rippling,
-  Workable and Eightfold too; each needs its question source in
-  `engine.js` (`jobOf`, `planFill`), its hosts in `manifest.json`, and
-  Workday's steps a loop of its own (KAN-341).
+- **Six job systems not yet checked live through the loaded extension
+  (KAN-341).** Lever, Ashby, Rippling, Workable and Eightfold filled live
+  forms through this fill path in a test browser, not the loaded
+  extension; Workday was not filled live at all (it needs a signed-in
+  student). Auto apply still takes Greenhouse only (`hosts.py`).
 - **One school, and no phone country.** The adapter gives the engine the
   latest education entry only, and WorkIt holds no place the student lives,
-  so Greenhouse's Country picker beside Phone is left for the student. The
-  engine reads "I am not a protected veteran" as not a veteran at all.
+  so Greenhouse's Country picker beside Phone is left for the student.
+- **No "not a veteran" answer.** WorkIt's `veteran_status` is
+  protected_veteran, not_protected_veteran or declined. Since the engine's
+  fix (KAN-329), "I am not a protected veteran" answers only
+  protected-status questions; a plain "Are you a veteran?" or military
+  service question is the student's (a Missing fact). Answering it needs a
+  new value such as `not_veteran`, mapped to "I am not a veteran"; never
+  map not_protected_veteran to false.
 - **First/last name is the first word and the rest** of `full_name` —
   wrong for anyone with a multi-word given name. WorkIt's own database
   has no separate first/last name fields to read instead
