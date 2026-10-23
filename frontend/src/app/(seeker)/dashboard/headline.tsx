@@ -23,7 +23,7 @@ import { SectionCard } from "./section-card";
  *  on this side of the server boundary. */
 const STAT_ICONS: Record<StatKey, ComponentType<{ className?: string }>> = {
   applications: BriefcaseIcon,
-  newRoles: SparkleIcon,
+  goodMatches: SparkleIcon,
   interviews: CalendarIcon,
   saved: BookmarkIcon,
 };
@@ -38,12 +38,12 @@ const STAT_ICONS: Record<StatKey, ComponentType<{ className?: string }>> = {
  * Applications is filled violet, the row's one solid colour, and the other
  * three are white. Each wears its glyph in a ring at the top right.
  *
- * ONLY NEW ROLES AND SAVED LINK: their figures are the ones their
- * destinations show, the Jobs page filtered by date posted and the saved
- * applications. Applications counts a window of the tracker, which the
- * Applications page does not filter by, and Interviews is a dash, so a link
- * from either would open a list that disagrees with its number. A linked tile is one target, its label the link stretched
- * over it, and lifts under the pointer like the Applications grid's cards.
+ * EVERY TILE IS A LINK, AND NONE REACTS TO HOVER (KAN-342): a click
+ * anywhere on a tile opens the page that lists what it counts (the
+ * Applications list filtered to its stage, or the Jobs page in Best Match
+ * order), its label the link stretched over it. The tiles used to lift
+ * under the pointer, and only two linked; the user wanted them all to link
+ * and none to move. A keyboard focus still rings the tile.
  *
  * Its own tile rather than components/stat-tile.tsx, which the company
  * Dashboard keeps: this one sets the figure large at medium weight
@@ -70,31 +70,23 @@ export function Headline({ stats }: { stats: Record<RangeKey, DashboardStat[]> }
             key={stat.key}
             as="div"
             tone={brand ? "brand" : "plain"}
-            className={cn(
-              "@container/stat flex flex-col",
-              stat.href &&
-                "hover:shadow-lift ease-glide has-[a:focus-visible]:ring-brand-ring transition-[transform,box-shadow] duration-200 hover:-translate-y-0.5 active:translate-y-0 active:scale-[0.99] has-[a:focus-visible]:ring-2",
-            )}
+            className="has-[a:focus-visible]:ring-brand-ring @container/stat flex flex-col has-[a:focus-visible]:ring-2"
           >
             {/* The label centred on its 36px ring, and the row 36px tall
                 even where the ring is hidden, so a figure sits at the same
                 height in every tile. */}
             <div className="flex min-h-9 items-center justify-between gap-3">
-              {stat.href ? (
-                <Link
-                  href={stat.href}
-                  className={cn(
-                    labelClass,
-                    // The overlay sits over the figure too, which is layered (its
-                    // count animates), so a click anywhere on the tile lands.
-                    "after:absolute after:inset-0 after:z-10 focus-visible:outline-none",
-                  )}
-                >
-                  {stat.label}
-                </Link>
-              ) : (
-                <p className={labelClass}>{stat.label}</p>
-              )}
+              <Link
+                href={stat.href}
+                className={cn(
+                  labelClass,
+                  // The overlay sits over the figure too, which is layered (its
+                  // count animates), so a click anywhere on the tile lands.
+                  "after:absolute after:inset-0 after:z-10 focus-visible:outline-none",
+                )}
+              >
+                {stat.label}
+              </Link>
               <span
                 aria-hidden="true"
                 className={cn(

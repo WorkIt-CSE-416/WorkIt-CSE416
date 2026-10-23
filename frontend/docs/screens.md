@@ -254,7 +254,7 @@ Resumes & Experiences only, so Open in Resumes goes to a built resume's
 editor (its Download) or, for an upload, the Resumes view. It had a
 Download Resume button until then. Apply Without a Resume leaves for the employer's posting at once.
 **Every Apply Now opens this dialog** (KAN-290): the page's, the feed card's
-on /jobs and /search, and New Matches' Apply on the Dashboard. WorkIt cannot
+on /jobs and /search. WorkIt cannot
 see the employer's site, so the dialog is its one chance to learn which
 resume went and whether the student applied; a card's Apply Now once linked
 straight to the employer and recorded neither. A card's button has no
@@ -379,8 +379,7 @@ applied leaves its list at once, in the browser (`FeedList`, KAN-290
 review), with focus on the next role's title: a refresh redraws only the
 server's first page, so a job from a Load More page stayed listed. The kept
 Load More offset drops by one with it, as the API's later pages move up one,
-so the next Load More skips nothing. New Matches refreshes the route, which
-drops the row.
+so the next Load More skips nothing.
 A live card's location is the import's `location_label` where it has one
 ("San Francisco, CA" for "SF": the resolver's city, backend
 models/CLAUDE.md), else the board's text tidied (`placesOf` and
@@ -425,16 +424,20 @@ too, with nothing for a screen reader. A live fetch in a page calls
 /dashboard is the seeker's home: sign-in lands there.
 
 **Next Up, Up Next and Waiting are archived for now** (KAN-261), and the
-header's Find Jobs button is gone (the sidebar's Jobs row and New Matches'
-Newest Jobs lead there; it read "All Jobs" until KAN-288 retired that view). The tracker stores no dated events yet, so Next Up and
+header's Find Jobs button is gone (the sidebar's Jobs row and the Good
+Matches tile lead there). The tracker stores no dated events yet, so Next Up and
 Up Next only said "nothing scheduled", and Waiting's buckets were a fixture.
-Under the numbers, New Matches runs the full width with Activity under it.
-From `@4xl/main` New Matches has a fixed height (`h-96`, set in the page's
-`PLACE`) and its list scrolls inside it: the tile is built to take its
-height from a neighbour, so alone on a row it would collapse.
+Under the numbers, Activity runs the full width.
 The archived tiles' code stays (`next-up-hero.tsx`, `up-next.tsx`,
-`getUpNext`, `waiting.tsx`, `WAITING`); `PLACE` in `dashboard/page.tsx` says
+`getUpNext`, `waiting.tsx`, `WAITING`); a note in `dashboard/page.tsx` says
 how to bring them back. The notes below still describe them.
+
+**The Dashboard lists no jobs** (KAN-342). New Matches, a list of the
+newest postings with Apply buttons, sat under the numbers until Good
+Matches replaced New Roles: that tile opens the Jobs page in Best Match
+order, which lists the same jobs better, so the Dashboard keeps no second,
+shorter copy of the feed. The notes below that name New Matches describe
+the archived three-column layout.
 
 **The seeker Dashboard is a bento of tiles** (KAN-173), modelled on a
 reference the user picked: white tiles with no outline on the white page
@@ -489,20 +492,29 @@ All the Agenda; Waiting's Follow Up opens the Applications list filtered to
 Applied. That is a placeholder: it helps nobody contact anyone, and KAN-174
 (still open) plans the real flow, a list of only what has waited two weeks,
 a Scout-drafted note, a recruiter search, then marking an application
-followed up or closed once the tracker has a backend. The headline numbers are Applications, New Roles, Interviews and Saved
-(`getHeadline` in `dashboard/data.ts`); New Roles and Saved replaced
-Response Rate and Offers, which for a student sit near zero all season. New
-Roles is the live feed, `GET /jobs/count?posted_within=` for the range and
-the window before it, cached five minutes; Saved counts the seeker's live
-saved jobs (KAN-261), ignores the range, and shows a dash when they can't be
-read. Only those two tiles link (to the Jobs page filtered by date posted,
-and to the saved applications), since their figures are what their
-destinations show. Applications counts the live tracker's applications sent
-in the range, against the same length of days before it (KAN-342), and is a
-dash when the tracker can't be read; it does not link, since the
-Applications page has no date window and would disagree with its number.
-Interviews is a dash, "Not tracked yet": the API stores no interviewing
-stage, and a 0 would say the seeker had none. Its range is `?range=`, moved in place: the
+followed up or closed once the tracker has a backend. The headline numbers are Applications, Good Matches, Interviews and Saved
+(`getHeadline` in `dashboard/data.ts`), all live (KAN-342). Applications
+counts the tracker's applications sent in the range, against the same
+length of days before it. Good Matches counts the job postings from the
+range that score Good Match (65) or better for this seeker, from the Best
+Match scores (`getGoodMatchDates`, one `GET /jobs/recommended` call with
+`min_match` over the longest range, counted per range in `data.ts`). It
+shows no change, since a score fades with a posting's age and last week's
+postings would always count fewer; with an empty experience bank it says
+"Add your experience first" and opens the bank. It replaced New Roles, a
+count of every posting in the feed, which said nothing about the seeker and
+drew a red change whenever employers posted less. Interviews is a dash,
+"Not tracked yet": the API stores no interviewing stage, and a 0 would say
+the seeker had none. Saved counts the seeker's live saved jobs (KAN-261)
+and ignores the range. Applications and Saved show a dash when the tracker
+can't be read. **Every tile links, and none reacts to hover**: a click
+anywhere on a tile opens the page that lists what it counts (the
+Applications list filtered to applied, interviewing or saved; the Jobs page
+in Best Match order, filtered to the week or 30 days posted). The lists
+take no date window, so Applications' list can hold more than its number.
+The tiles used to lift under the pointer, and only two linked; the user
+wanted them all to link and none to move. A keyboard focus still rings the
+tile. Its range is `?range=`, moved in place: the
 headline (`dashboard/headline.tsx`) is handed every range's figures and reads
 `?range=` itself (`useRange` in `range-switch.tsx`), so a new range counts
 its numbers with the switch's thumb instead of after the server draws the

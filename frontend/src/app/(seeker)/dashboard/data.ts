@@ -1,15 +1,14 @@
 import { getApplications, getNow, getTracker } from "../applications/data";
-import { countJobsPostedWithin } from "../jobs/listings";
+import { getGoodMatchDates } from "../jobs/listings";
 import { upcomingEvents, type EventKind, type TrackerEvent } from "../tracker";
 import { rangeDays, type RangeKey } from "./range";
 
 /**
  * The seeker Dashboard's data: the headline numbers per window, the year of
- * applications behind Activity's streak, what is waiting, and Up Next. New
- * Roles (in `getHeadline`) reads the live job feed here; Applications, Saved
- * and Activity read the live tracker (KAN-261, KAN-342); New Matches and the
- * profile strength card read the live API too, beside the components that
- * fetch them. Interviews and Waiting have no source yet: the tracker stores
+ * applications behind Activity's streak, what is waiting, and Up Next. Good
+ * Matches (in `getHeadline`) reads the seeker's Best Match scores;
+ * Applications, Saved and Activity read the live tracker (KAN-261,
+ * KAN-342). Interviews and Waiting have no source yet: the tracker stores
  * no stage past applied.
  *
  * UP NEXT IS DERIVED FROM THE TRACKER (../applications/data.ts), not written
@@ -24,7 +23,7 @@ const DAY_MS = 86_400_000;
 
 /* Headline numbers ------------------------------------------------------- */
 
-export type StatKey = "applications" | "newRoles" | "interviews" | "saved";
+export type StatKey = "applications" | "goodMatches" | "interviews" | "saved";
 
 export type DashboardStat = {
   key: StatKey;
@@ -36,30 +35,48 @@ export type DashboardStat = {
   suffix?: string;
   /** Under the figure in place of a change, over the range's own note. */
   note?: string;
-  /** Where the tile leads: only for a figure its destination agrees with. */
-  href?: string;
+  /** Where the tile leads: every tile is a link (KAN-342). */
+  href: string;
 };
 
-/** Where the Jobs page shows what New Roles counts. Its Date Posted filter
- *  offers a week and a month but no season, so Season opens the whole feed. */
-const NEW_ROLES_HREF: Record<RangeKey, string> = {
-  week: "/jobs?posted_within=7",
-  month: "/jobs?posted_within=30",
-  season: "/jobs",
+/** The lowest score Good Matches counts: Good Match and up in @/lib/match. */
+const GOOD_MATCH = 65;
+
+/** Where the Jobs page shows what Good Matches counts, best first. Its Date
+ *  Posted filter offers a week and a month but no season, so Season opens
+ *  the whole Best Match list. */
+const GOOD_MATCHES_HREF: Record<RangeKey, string> = {
+  week: "/jobs?sort=match&posted_within=7",
+  month: "/jobs?sort=match&posted_within=30",
+  season: "/jobs?sort=match",
+};
+
+/** Under Good Matches in place of a change. */
+const GOOD_MATCHES_NOTE: Record<RangeKey, string> = {
+  week: "Posted this week",
+  month: "Posted in 30 days",
+  season: "Posted since Aug 4",
 };
 
 /**
  * The four headline numbers for every range, in tile order: Applications,
- * New Roles, Interviews, Saved. New Roles and Saved replaced Response Rate and
- * Offers, which for a student sit near zero all season and only discouraged;
- * the two new ones are things a seeker can act on.
+ * Good Matches, Interviews, Saved. Each tile links to the page that lists
+ * what it counts (KAN-342).
  *
- * New Roles is the live feed: what was posted in the range (GET /jobs/count),
- * against the window before it (twice the range, less the range).
+ * Good Matches is the job postings from the range that score Good Match or
+ * better for this seeker (GOOD_MATCH), from the Best Match scores
+ * (GET /jobs/recommended). It replaced New Roles, a count of every posting
+ * in the feed, which said nothing about the seeker and drew a red change
+ * whenever employers posted less. It shows no change: the score fades with
+ * a posting's age, so last week's postings would always count fewer. With
+ * an empty experience bank there is nothing to score, so the tile asks for
+ * the bank instead. The Dashboard lists no jobs of its own: the tile opens
+ * the Jobs page in Best Match order, where those jobs come first.
+ *
  * Applications counts the tracker's applications sent in the range, against
- * the same length of days before it (KAN-342). Saved is the seeker's live
- * saved jobs not yet applied to (KAN-261), the same in every range. Both are
- * a dash when the tracker can't be read.
+ * the same length of days before it. Saved is the seeker's live saved jobs
+ * not yet applied to (KAN-261), the same in every range. Both are a dash
+ * when the tracker can't be read.
  *
  * Interviews is always a dash for now: the API stores no interviewing stage,
  * and a 0 would say the seeker had none. Count `stage === "interviewing"`
@@ -67,17 +84,16 @@ const NEW_ROLES_HREF: Record<RangeKey, string> = {
  */
 export async function getHeadline(): Promise<Record<RangeKey, DashboardStat[]>> {
   const now = getNow();
-  const [[week, twoWeeks, month, twoMonths, season], tracker] = await Promise.all([
-    Promise.all([7, 14, 30, 60, rangeDays("season", now)].map(countJobsPostedWithin)),
+  const seasonDays = rangeDays("season", now);
+  const [matched, tracker] = await Promise.all([
+    getGoodMatchDates(Math.max(30, seasonDays), GOOD_MATCH),
     getTracker(),
   ]);
-  const before = (range: number | null, both: number | null) =>
-    range != null && both != null ? both - range : null;
-  const newRoles: Record<RangeKey, [number | null, number | null]> = {
-    week: [week, before(week, twoWeeks)],
-    month: [month, before(month, twoMonths)],
-    season: [season, null],
-  };
+  /** Good matches posted in the last `days` days; null without scores. */
+  const goodMatches = (days: number) =>
+    Array.isArray(matched)
+      ? matched.filter((at) => now.getTime() - Date.parse(at) < days * DAY_MS).length
+      : null;
   const apps = tracker.applications;
   const saved = apps && apps.filter((app) => app.stage === "saved").length;
   /** Applications sent between `to` and `from` days ago; null on a failed read. */
@@ -91,7 +107,7 @@ export async function getHeadline(): Promise<Record<RangeKey, DashboardStat[]>> 
   const applications: Record<RangeKey, [number | null, number | null]> = {
     week: [sent(7), sent(14, 7)],
     month: [sent(30), sent(60, 30)],
-    season: [sent(rangeDays("season", now)), null],
+    season: [sent(seasonDays), null],
   };
 
   const tiles = (range: RangeKey): DashboardStat[] => [
@@ -100,13 +116,16 @@ export async function getHeadline(): Promise<Record<RangeKey, DashboardStat[]>> 
       label: "Applications",
       value: applications[range][0],
       previous: applications[range][1],
+      href: "/applications?stage=applied",
     },
     {
-      key: "newRoles",
-      label: "New Roles",
-      value: newRoles[range][0],
-      previous: newRoles[range][1],
-      href: NEW_ROLES_HREF[range],
+      key: "goodMatches",
+      label: "Good Matches",
+      value: goodMatches(rangeDays(range, now)),
+      previous: null,
+      ...(matched === "empty"
+        ? { note: "Add your experience first", href: "/bank" }
+        : { note: matched ? GOOD_MATCHES_NOTE[range] : undefined, href: GOOD_MATCHES_HREF[range] }),
     },
     {
       key: "interviews",
@@ -114,6 +133,7 @@ export async function getHeadline(): Promise<Record<RangeKey, DashboardStat[]>> 
       value: null,
       previous: null,
       note: "Not tracked yet",
+      href: "/applications?stage=interviewing",
     },
     {
       key: "saved",

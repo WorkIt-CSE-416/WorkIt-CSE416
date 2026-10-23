@@ -990,7 +990,9 @@ the KAN-296 cutover.
   `/applications/[jobId]` (KAN-256), not a side panel. Interviewing, Offer and
   dated events stay empty until the API stores them (the Dashboard's
   Interviews number is a dash, KAN-342); a failed read shows an error, never
-  stand-in cards. A job's application
+  stand-in cards. The Dashboard's four numbers are all live and all links
+  (KAN-342); its Good Matches reads the Best Match scores
+  (`getGoodMatchDates`), and it lists no jobs of its own. A job's application
   stage (`saved`, `queued`...) reaches its Save and Auto Apply buttons from
   one read per page. Auto Apply never picks a saved job for a batch; only
   the job's own Auto Apply click queues it.
@@ -1206,8 +1208,8 @@ are in `docs/auth.md`.
   posting page): Apply Now opens the employer's page and asks "Did You
   Apply?", whose Yes keeps the pick through `applyWithResume`. It went through
   `applyWithResume` (KAN-220) at Apply wherever it
-  sits: the job posting page, the feed cards on /jobs and /search, and the
-  Dashboard's New Matches (KAN-290). It keeps its sent resume: the student
+  sits: the job posting page and the feed cards on /jobs and /search
+  (KAN-290). It keeps its sent resume: the student
   is told WorkIt kept a copy, so it is never deleted behind their back.
   **Resume files download on Resumes & Experiences only** (KAN-267): the
   editor's Download and an upload's row (`lib/save-file.ts`). The Apply
