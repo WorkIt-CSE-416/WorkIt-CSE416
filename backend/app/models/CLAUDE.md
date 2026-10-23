@@ -279,6 +279,13 @@ change here must keep:
   no applicant column, so it cannot check that both sides share an owner:
   `services/bank.py`'s `link_skill` does, and a link written any other way
   can join two students' rows.
+- **`bank_entry_sources` and `bank_skill_sources` say which uploads hold an
+  item** (KAN-343, `../../../docs/bank_by_resume.md`): many-to-many, since
+  import merges and one entry comes from several uploads; a `resume_id`
+  column would lose all but one. No applicant column either, so only
+  `merge_import` writes them. Both sides cascade: deleting an upload drops
+  its sources and leaves its entries (ADR 0003). Built resumes need no
+  source rows: their shown choice rows already say what they hold.
 
 ## Built resumes
 

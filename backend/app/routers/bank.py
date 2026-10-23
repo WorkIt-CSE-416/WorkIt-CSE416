@@ -45,6 +45,12 @@ POST   /applicants/{id}/bank/import              ImportRequest -> ImportResponse
        is down or answers in the wrong shape, and then writes nothing.
 
 A SkillResponse carries `entry_ids`: its linked entries, in bank order.
+
+GET /bank also sends `resumes` (every uploaded, base and tailored resume,
+with `kind`, `name`, a tailored one's `posting` and the starred one's
+`primary`) and, on each entry and skill, `resume_ids`: the uploads whose
+import found it and the built resumes that show it (KAN-343). Import adds
+the upload as a source of everything it read.
 """
 
 import logging
@@ -125,7 +131,8 @@ async def get_bank(
     applicant_id: uuid.UUID = Depends(owned_applicant),
     session: AsyncSession = Depends(get_session),
 ) -> BankResponse:
-    return bank_response(await service.load_bank(session, applicant_id))
+    bank = await service.load_bank(session, applicant_id)
+    return bank_response(bank, await service.load_holdings(session, applicant_id))
 
 
 @router.post(
@@ -320,7 +327,7 @@ async def import_resume(
         entries, skills, read_by = model_drafts(reading), skill_pairs(model_skills(reading)), "model"
 
     async with _writing(session):
-        merged = await service.merge_import(session, applicant_id, entries, skills)
+        merged = await service.merge_import(session, applicant_id, resume.id, entries, skills)
     return ImportResponse(
         resume_id=resume.id,
         filename=resume.original_filename,

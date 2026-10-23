@@ -253,6 +253,18 @@ Find files with a directory listing; these are the rules for where code goes.
   fill only as a set, when the bank entry has none: a merge never pairs one
   resume's start with another's end. A fill that clashes with a kept field
   (a GPA above the bank's scale) is dropped, and the bullets still go in.
+- **An import records its sources** (KAN-343, `../docs/bank_by_resume.md`):
+  `merge_import` takes the upload's `resume_id` and writes a
+  `bank_entry_sources` / `bank_skill_sources` row for **every** entry and
+  skill the reading found, merged or unchanged, since a merge that adds
+  nothing still means the file holds it. Upload flushes the `Resume` row
+  first (the rows point at it); Import Updated Resume clears the row's old
+  sources first (`clear_sources`), so an entry the new file dropped leaves
+  that resume's view and stays in the bank; Import Again only adds. Sources
+  never clear the embedding. `GET /bank` sends each item's `resume_ids`
+  (uploads from sources, built resumes from their shown choice rows,
+  `load_holdings`) and `resumes`; other `bank_response` callers (Scout)
+  send none. Tests: `tests/test_bank_import.py`, "sources".
 - **Import Again** is `POST /applicants/{id}/bank/import`: the same read and
   merge on a stored upload, from intake's Use One I Uploaded and the Jobs
   page's empty-bank card. It re-reads `raw_text`, so a resume uploaded
@@ -797,6 +809,10 @@ removed at cutover, not before. Until then a change must work on both.
   `sent_resumes.snapshot_id`, so deployed first, every Apply and auto apply
   resume answers 500. It only adds a table, a nullable column and a CHECK
   the existing rows meet, so applying it early is safe.
+- **Apply `7c2e9a4b1f63` (`bank_entry_sources`, `bank_skill_sources`,
+  KAN-343) before the deploy that writes them.** The models map both
+  tables, so deployed first, every upload, Import Again and `GET /bank`
+  answers 500. It only adds two tables, so applying it early is safe.
 - **Apply `d642d93fcfbc` (`resumes.text_hash`, KAN-267) before the deploy
   that writes it.** The model maps the column, so every upload's INSERT
   names it: deployed first, every upload answers 500. It only adds a

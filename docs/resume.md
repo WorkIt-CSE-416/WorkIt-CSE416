@@ -81,6 +81,11 @@ row on the Resumes view, takes a newer version of that file: it replaces the
 file on the same row and merges the new reading the same way.
 Deleting an upload leaves the bank as it is.
 
+**Each import records what it found** (KAN-343, `bank_by_resume.md`): a
+source row per entry and skill, so the Experiences view can show one
+resume's facts. Built resumes need none; their choice rows say what they
+show.
+
 KAN-211 had import return drafts the student saved one by one, and wrote
 nothing itself. Students uploaded, saw nothing happen and never found the
 review, so the bank stayed empty. The parser's own copy,

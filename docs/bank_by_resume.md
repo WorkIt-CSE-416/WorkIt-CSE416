@@ -1,8 +1,8 @@
 # The experience bank by resume (KAN-343)
 
-Status: **design, not built.** Every decision here is final unless this
-file says otherwise; the open questions are listed at the end. `resume.md`,
-"The experience bank", describes what is built today.
+Status: **built** (migration `7c2e9a4b1f63`; apply it before the deploy).
+Not built: the open questions at the end. Every decision here is final
+unless this file says otherwise.
 
 ## Goal
 
@@ -164,7 +164,8 @@ and each skill, plus the list the dropdown needs:
   "entries": [{ "id": "e1", "title": "Software Intern", …, "resume_ids": ["u1", "b1"] }],
   "skills":  [{ "id": "s1", "name": "Python", …, "entry_ids": […], "resume_ids": ["u1"] }],
   "resumes": [
-    { "id": "u1", "kind": "uploaded", "name": "resume.pdf",       "primary": false },
+    { "id": "u1", "kind": "uploaded", "name": "resume.pdf",       "primary": false,
+      "created_at": "2026-10-20T14:03:00Z" },
     { "id": "b1", "kind": "base",     "name": "Resume #2",        "primary": true  },
     { "id": "t1", "kind": "tailored", "name": "Resume #3",
       "posting": "Backend Intern at Initech",                     "primary": false }
@@ -187,7 +188,11 @@ and each skill, plus the list the dropdown needs:
   `applicant_profiles.default_resume_id` (an upload) or
   `default_built_resume_id` (a built resume). At most one is set
   (`applicant_profiles_one_default_resume`), so at most one is true.
-- **`load_bank` reads the holdings with four small queries**: the source
+- **`created_at`** is when the upload or built resume was made: with no
+  starred resume, the page opens on the newest.
+- **`load_holdings` reads them with four small queries**, called by
+  `GET /bank` only, so Generate, Tailor and Scout's `load_bank` pay
+  nothing for them: the source
   tables keyed on the ids it already loaded (`WHERE entry_id IN (...)`),
   and the shown `built_resume_entries` and `built_resume_skills` rows of
   the applicant's built resumes (one join to `built_resumes` on

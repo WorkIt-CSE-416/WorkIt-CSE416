@@ -1,8 +1,9 @@
 '''
 The experience bank (KAN-206): one bank row per applicant, its entries, the
 entries' bullets, the bullets' variants (KAN-217), the applicant's skills,
-and the skill links (KAN-216) between skills and entries. Built resumes are
-a later table that points at these.
+the skill links (KAN-216) between skills and entries, and the sources
+(KAN-343) that say which uploaded resumes an entry or skill was read from.
+Built resumes are a later table that points at these.
 '''
 import datetime
 import uuid as _uuid
@@ -148,3 +149,31 @@ class Bank_Skill_Link(BaseModel):
         ForeignKey("bank_skills.id", ondelete="CASCADE"), primary_key=True)
     entry_id: Mapped[_uuid.UUID] = mapped_column(
         ForeignKey("bank_entries.id", ondelete="CASCADE"), primary_key=True, index=True)
+
+
+class Bank_Entry_Source(BaseModel):
+    '''
+    Says an uploaded resume's import found this entry (KAN-343,
+    docs/bank_by_resume.md), so the Experiences view can show one resume's
+    entries. Many-to-many because import merges, never copies: one entry can
+    come from several uploads. An entry with none was made by the student.
+    Both sides belong to the same applicant; only `services/bank.py`'s
+    `merge_import` writes these. Deleting either side deletes the row, and
+    deleting an upload leaves its entries in the bank (ADR 0003).
+    '''
+    __tablename__ = "bank_entry_sources"
+
+    entry_id: Mapped[_uuid.UUID] = mapped_column(
+        ForeignKey("bank_entries.id", ondelete="CASCADE"), primary_key=True)
+    resume_id: Mapped[_uuid.UUID] = mapped_column(
+        ForeignKey("resumes.id", ondelete="CASCADE"), primary_key=True, index=True)
+
+
+class Bank_Skill_Source(BaseModel):
+    '''The same as Bank_Entry_Source, for a skill.'''
+    __tablename__ = "bank_skill_sources"
+
+    skill_id: Mapped[_uuid.UUID] = mapped_column(
+        ForeignKey("bank_skills.id", ondelete="CASCADE"), primary_key=True)
+    resume_id: Mapped[_uuid.UUID] = mapped_column(
+        ForeignKey("resumes.id", ondelete="CASCADE"), primary_key=True, index=True)

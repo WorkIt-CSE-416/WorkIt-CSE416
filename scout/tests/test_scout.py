@@ -295,6 +295,19 @@ def test_bank_facts_carry_every_section_and_the_original_bullets():
     assert "github.com" not in facts.model_dump_json()
 
 
+def test_bank_facts_ignore_which_resumes_hold_an_entry():
+    # GET /bank's KAN-343 fields: resume names are the student's file names,
+    # and they never become facts.
+    bank = {
+        "entries": [_entry("projects", "WorkIt", resume_ids=["r1"])],
+        "skills": [{"name": "Python", "entry_ids": [], "resume_ids": ["r1"]}],
+        "resumes": [{"id": "r1", "kind": "uploaded", "name": "jane-doe-resume.pdf", "primary": True}],
+    }
+    facts = bank_facts(bank, has_upload=True)
+    assert (facts.projects, facts.skills) == (["WorkIt"], ["Python"])
+    assert "jane-doe" not in facts.model_dump_json()
+
+
 def test_a_long_entry_is_one_short_line():
     bullets = [{"id": str(i), "position": i, "text": "Shipped a feature " * 10} for i in range(5)]
     facts = bank_facts({"entries": [_entry("projects", "Big", bullets=bullets)], "skills": []}, has_upload=False)
