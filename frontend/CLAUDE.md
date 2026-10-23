@@ -1207,7 +1207,11 @@ are in `docs/auth.md`.
   API's `resume_ids`; never work out a resume's items in a component.
   Intake always gets the whole bank. A
   new entry or skill saved under a resume pick is on no resume yet, so the
-  page says where it went instead of letting it vanish.
+  page says where it went instead of letting it vanish. **Decided, not
+  built** (ADR 0005, 2026-10-23): each upload will own its own entries, so
+  `resume_ids` names at most one upload and "Also used in" names built
+  resumes only; All Experiences and Not From an Upload leave the dropdown,
+  and Add saves into the picked resume.
 - **Applicant server actions call the API through `applicantCall`**
   (`lib/applicant-call.ts`, server-only): the session, the Bearer token,
   GET/DELETE/fetch, and a `Result<T>` (`data`, `error`, `status`) that never

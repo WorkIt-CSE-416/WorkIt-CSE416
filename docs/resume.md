@@ -78,6 +78,10 @@ Jobs page's empty-bank card) reads a stored upload the same way, so a
 parser fix reaches old uploads. **Import Updated Resume**, on each upload's
 row on the Resumes view, takes a newer version of that file: it replaces the
 file on the same row and merges the new reading the same way.
+
+**Decided, not built (ADR 0005, 2026-10-23):** the merge goes. Each upload
+will own its own entries and skills, with no duplicate check across
+resumes. `bank_by_resume.md` has the design.
 Deleting an upload leaves the bank as it is.
 
 **Each import records what it found** (KAN-343, `bank_by_resume.md`): a

@@ -244,6 +244,11 @@ Find files with a directory listing; these are the rules for where code goes.
   reading found, written or not) so the screen can tell "read nothing"
   from "already in your bank". A reading never fails an upload: a parser
   crash reads as nothing.
+- **Decided, not built: uploads stop merging** (ADR 0005,
+  `../docs/bank_by_resume.md`, 2026-10-23). Each upload will own its
+  entries and skills (`resume_id` on both tables), with no
+  `find_duplicate` across resumes, and the source tables go. The two rules
+  below describe the code as it runs today.
 - **Import merges, never copies.** `merge_import` adds an entry the bank
   lacks; one that `find_duplicate` matches gains only the fields it has
   empty and the bullets it lacks (ignoring case and spacing), so what the

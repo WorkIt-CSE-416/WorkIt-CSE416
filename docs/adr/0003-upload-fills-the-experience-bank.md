@@ -26,7 +26,8 @@ Uploading a resume saves the file, reads its text into `resumes.raw_text`, parse
 - Deploy the code before dropping the column (`3f7a2c9d1e84`): the code before this change writes `parsed_json` on every upload, so dropping it first breaks every upload. The order is merge and deploy, then `uv run alembic upgrade head`.
 - The Chrome autofiller extension read `parsed_json` through `GET /applicants/{id}/resumes/{resume_id}`, which now returns the resume's metadata only, so the extension fills no Education or Experience until its owner moves it to `GET /applicants/{id}/bank`. That code is being rewritten by its owner and is left alone here.
 - The review screen's drafts, Save All and "Already in Your Bank" are gone. Intake's "Have a resume?" keeps Upload Resume, and "Use One I Uploaded" runs Import Again.
-- KAN-343 (`../bank_by_resume.md`) keeps this merge and adds a record of
-  which uploads found each entry and skill, so the Experiences view can show
-  one resume at a time without a bank per resume.
+- KAN-343 (`../bank_by_resume.md`) first kept this merge and added a record
+  of which uploads found each entry and skill. **ADR 0005 (2026-10-23)
+  replaces the merge**: each upload owns its own entries, and deleting an
+  upload deletes them.
 - Scout, for an empty bank beside an upload, now says the upload could not be read and points at Import Again and Read It With AI, not at an import still waiting.
