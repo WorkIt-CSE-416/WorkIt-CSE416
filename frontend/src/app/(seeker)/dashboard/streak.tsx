@@ -5,6 +5,7 @@ import { useEffect, useLayoutEffect, useMemo, useRef, useState, useSyncExternalS
 import { SegmentedToggle } from "@/components/ui/segmented-control";
 import { cn } from "@/lib/cn";
 
+import { localDay } from "../tracker";
 import { MORPH_MS, mountSkyline, type Skyline, type SkylineState } from "./streak-canvas";
 import {
   buildGrid,
@@ -41,7 +42,11 @@ import { SectionCard } from "./section-card";
  * is. The server renders UTC's today, the reader's own for most of the day,
  * and the browser swaps in its own after hydration — useSyncExternalStore
  * keeps that from being a mismatch, as PostedDate does in
- * company/jobs/jobs-table.tsx.
+ * company/jobs/jobs-table.tsx. Each application's day is the viewer's too, by
+ * the same swap: it gets the instant it was sent (`applied`, from the live
+ * tracker) and counts it on its UTC day until hydration, then on the
+ * browser's own (KAN-342). A failed read draws the empty year with a line
+ * that says so, never stand-in days.
  *
  * Adapted from the Contribution Skyline component on 21st.dev.
  */
@@ -94,9 +99,23 @@ const localToday = () => {
   return `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}`;
 };
 const utcToday = () => new Date().toISOString().slice(0, 10);
+const inBrowser = () => true;
+const onServer = () => false;
 
-export function Streak({ days, className }: { days: AppliedDay[]; className?: string }) {
+export function Streak({
+  applied,
+  className,
+}: {
+  /** When each application was sent; null when the tracker can't be read. */
+  applied: string[] | null;
+  className?: string;
+}) {
   const today = useSyncExternalStore(noSubscription, localToday, utcToday);
+  const local = useSyncExternalStore(noSubscription, inBrowser, onServer);
+  const days = useMemo<AppliedDay[]>(
+    () => (applied ?? []).map((at) => ({ date: local ? localDay(at) : at.slice(0, 10), count: 1 })),
+    [applied, local],
+  );
   const model = useMemo(() => {
     const grid = buildGrid(days, dayMs(today));
     return {
@@ -200,9 +219,16 @@ export function Streak({ days, className }: { days: AppliedDay[]; className?: st
       className={cn("@container/streak", className)}
     >
       <div className="flex flex-wrap items-center justify-between gap-3">
-        <h2 id="streak" className="text-subtitle text-ink font-medium">
-          Activity
-        </h2>
+        <div>
+          <h2 id="streak" className="text-subtitle text-ink font-medium">
+            Activity
+          </h2>
+          {applied === null && (
+            <p className="text-note text-ink-meta mt-1">
+              Your applications aren&apos;t loading right now.
+            </p>
+          )}
+        </div>
         <SegmentedToggle
           label="Chart View"
           options={VIEW_OPTIONS}

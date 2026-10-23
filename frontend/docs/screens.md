@@ -476,10 +476,10 @@ its edge on the tile's edge: New Matches reaches into the tile's right
 padding (`-mr-5`) and pads its rows back in (`pr-5`), so the bar runs down
 the tile's side instead of beside the Apply buttons. There is no
 pipeline section: its
-funnel only restated the headline numbers. Fixtures are in
-`(seeker)/dashboard/data.ts` until the tracker stores stages past applied,
-except Saved, which counts the live saved jobs, and Next Up and Up Next,
-which take the tracker's upcoming events (`getUpNext`). The tracker stores
+funnel only restated the headline numbers. Everything the page shows is
+live (KAN-342); the one fixture left in `(seeker)/dashboard/data.ts` is the
+archived Waiting tile's buckets. Next Up and Up Next take the tracker's
+upcoming events (`getUpNext`). The tracker stores
 no dated events yet, so Next Up reads "You're All Caught Up" with Browse
 Jobs, and Up Next "Nothing else scheduled." Next
 Up's View Details button opens that application's own page (its old
@@ -497,8 +497,12 @@ the window before it, cached five minutes; Saved counts the seeker's live
 saved jobs (KAN-261), ignores the range, and shows a dash when they can't be
 read. Only those two tiles link (to the Jobs page filtered by date posted,
 and to the saved applications), since their figures are what their
-destinations show; Applications and Interviews are a separate fixture from
-the tracker, so a link would open a list that disagrees with its number. Its range is `?range=`, moved in place: the
+destinations show. Applications counts the live tracker's applications sent
+in the range, against the same length of days before it (KAN-342), and is a
+dash when the tracker can't be read; it does not link, since the
+Applications page has no date window and would disagree with its number.
+Interviews is a dash, "Not tracked yet": the API stores no interviewing
+stage, and a 0 would say the seeker had none. Its range is `?range=`, moved in place: the
 headline (`dashboard/headline.tsx`) is handed every range's figures and reads
 `?range=` itself (`useRange` in `range-switch.tsx`), so a new range counts
 its numbers with the switch's thumb instead of after the server draws the
@@ -519,10 +523,12 @@ validated as ordinal in `globals.css`, and `--color-border-subtle` for an
 empty day, so a token edit restyles it. The current streak runs to the
 viewer's today (yesterday while today is open), so `today` comes from
 `useSyncExternalStore`: UTC on the server, the browser's own after hydration.
-It ignores `?range=`, since a streak is every day. Its fixture is
-`appliedDays()` in `data.ts`, seeded and walked from a fixed epoch so a date
-keeps its count; the tracker swaps in one `{ date: appliedOn, count: 1 }` per
-sent application.
+It ignores `?range=`, since a streak is every day. It is live (KAN-342):
+`getAppliedTimes()` in `data.ts` hands it each sent application's
+`appliedOn` instant, and the streak counts each on its UTC day until
+hydration, then on the viewer's own (`localDay`), by the same
+`useSyncExternalStore` swap as `today`. A failed tracker read draws the
+empty year with a line saying the applications aren't loading.
 
 ## Applications
 

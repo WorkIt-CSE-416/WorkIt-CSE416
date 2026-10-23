@@ -6,7 +6,7 @@ import { getCurrentAccount } from "@/lib/session";
 
 import { Greeting } from "../greeting";
 import { SEEKER_GUTTER } from "../gutter";
-import { appliedDays, getHeadline } from "./data";
+import { getAppliedTimes, getHeadline } from "./data";
 import { Headline } from "./headline";
 import { NewMatches, NewMatchesSkeleton } from "./new-matches";
 import { RangeSwitch } from "./range-switch";
@@ -31,7 +31,7 @@ export const metadata: Metadata = {
  * NEXT UP, UP NEXT AND WAITING ARE ARCHIVED FOR NOW (KAN-261), their code
  * kept. Next Up and Up Next went with the Calendar: the tracker stores no
  * dated events yet, so both only ever said "nothing scheduled". Waiting's
- * buckets were a fixture with no tracker data behind them. They stood in a
+ * buckets are a fixture with no tracker data behind them. They stood in a
  * third column (Next Up over Up Next, Waiting under them), New Matches
  * spanning the first two columns and two rows, Activity across two beside
  * Waiting. To bring them back, render <NextUpHero> and <UpNext> from
@@ -98,18 +98,23 @@ const PLACE = {
  * them in place without asking the server for the page again. Next Up, Up
  * Next, New Matches and Waiting are about now.
  *
- * Most of it is fixtures (./data.ts) until the application tracker stores
- * stages past applied; New Roles and New Matches are the live feed, and
- * Saved the live tracker (KAN-261).
+ * Nothing shown is a fixture (KAN-342): New Roles and New Matches are the
+ * live feed, and Applications, Saved and Activity the live tracker.
+ * Interviews is a dash, "Not tracked yet", until the tracker stores stages
+ * past applied (./data.ts).
  *
  * The grid breaks on @container/main, the page's own width, since the panel
  * takes 256px of the window when open. Up Next moves its dates at
  * @md/upnext, keyed to its own tile.
  */
 export default async function DashboardPage() {
-  // New Roles and Saved read the API; asked for alongside the account, not
-  // after.
-  const [account, stats] = await Promise.all([getCurrentAccount(), getHeadline()]);
+  // The numbers and Activity read the API; asked for alongside the account,
+  // not after. getTracker caches the one tracker read both make.
+  const [account, stats, applied] = await Promise.all([
+    getCurrentAccount(),
+    getHeadline(),
+    getAppliedTimes(),
+  ]);
   const firstName = account?.full_name.split(" ")[0];
 
   return (
@@ -143,7 +148,7 @@ export default async function DashboardPage() {
         <Suspense fallback={<NewMatchesSkeleton className={PLACE.matches} />}>
           <NewMatches className={PLACE.matches} />
         </Suspense>
-        <Streak days={appliedDays()} />
+        <Streak applied={applied} />
       </div>
     </div>
   );

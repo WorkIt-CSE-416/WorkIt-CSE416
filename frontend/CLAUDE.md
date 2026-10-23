@@ -988,8 +988,9 @@ the KAN-296 cutover.
   stretched link, and a dialog opened from one stops its own clicks, since
   React passes them up through the portal. A row or card opens the application's own page,
   `/applications/[jobId]` (KAN-256), not a side panel. Interviewing, Offer and
-  dated events stay empty until the API stores them; a failed read shows an
-  error, never stand-in cards. A job's application
+  dated events stay empty until the API stores them (the Dashboard's
+  Interviews number is a dash, KAN-342); a failed read shows an error, never
+  stand-in cards. A job's application
   stage (`saved`, `queued`...) reaches its Save and Auto Apply buttons from
   one read per page. Auto Apply never picks a saved job for a batch; only
   the job's own Auto Apply click queues it.
