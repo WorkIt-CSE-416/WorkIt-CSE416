@@ -24,7 +24,9 @@ freeze first** (KAN-267, `sent_resumes.freeze_upload`): the sent resumes
 that point at the old file become a snapshot of its text, in the same
 commit, so the file is no longer in use and goes; one with no readable
 text keeps the file. It merges, so an entry
-the new version dropped stays in the bank. It answers what upload answers.
+the new version dropped stays in the bank, but it first clears the row's
+bank sources (KAN-343), so that entry leaves this resume's view on the
+Experiences page. It answers what upload answers.
 `PATCH .../{resume_id}` ({"name"}) renames it (KAN-268): the name is the
 row's `original_filename`, which every screen shows and a DOCX downloads
 under, so it keeps the stored file's extension. Import Updated Resume
@@ -312,7 +314,10 @@ async def upload_resume(
     # The row and what it adds to the bank commit together (ADR 0003).
     try:
         session.add(resume)
-        merged = await bank.merge_import(session, applicant_id, entries, skills)
+        # The bank's source rows point at the resume, and no relationship()
+        # orders the inserts (models/CLAUDE.md).
+        await session.flush()
+        merged = await bank.merge_import(session, applicant_id, resume.id, entries, skills)
         left = await uses_left(session, applicant_id, Feature.PARSING)
         await built_resumes.default_if_only(session, applicant_id)
         default_id = await _default_id(session, applicant_id)
@@ -396,7 +401,9 @@ async def replace_resume(
     resume.created_at = datetime.now(UTC)
 
     try:
-        merged = await bank.merge_import(session, applicant_id, entries, skills)
+        # A newer file: what the old one held leaves its view (KAN-343).
+        await bank.clear_sources(session, resume.id)
+        merged = await bank.merge_import(session, applicant_id, resume.id, entries, skills)
         left = await uses_left(session, applicant_id, Feature.PARSING)
         default_id = await _default_id(session, applicant_id)
         await session.commit()

@@ -38,11 +38,29 @@ export type EntryFields = {
 };
 
 export type Bullet = { id: string; position: number; text: string };
-export type BankEntry = EntryFields & { id: string; bullets: Bullet[] };
-/** `entry_ids`: the entries the skill is linked to, in bank order (KAN-216). */
-export type Skill = { id: string; name: string; group: string | null; entry_ids: string[] };
-/** Entries in section order, ongoing first and then newest. */
-export type Bank = { entries: BankEntry[]; skills: Skill[] };
+/** `resume_ids`: the resumes that hold it (KAN-343), in `Bank.resumes`
+ *  order: uploads whose import found it, built resumes that show it. */
+export type BankEntry = EntryFields & { id: string; bullets: Bullet[]; resume_ids: string[] };
+/** `resume_ids`: as an entry's. */
+export type Skill = {
+  id: string;
+  name: string;
+  group: string | null;
+  resume_ids: string[];
+};
+/** One resume in the Experiences view's dropdown. `posting` names a tailored
+ *  resume's job posting; `primary` is the starred resume, of either kind. */
+export type BankResume = {
+  id: string;
+  kind: "uploaded" | "base" | "tailored";
+  name: string;
+  posting: string | null;
+  primary: boolean;
+  created_at: string;
+};
+/** Entries in section order, ongoing first and then newest. `resumes`:
+ *  uploads, then base, then tailored resumes, each newest first. */
+export type Bank = { entries: BankEntry[]; skills: Skill[]; resumes: BankResume[] };
 
 const id = encodeId;
 
@@ -174,13 +192,4 @@ export async function importResume(
       ...(options.readWithAi ? { read_with_ai: true } : {}),
     }),
   });
-}
-
-/** Links a skill to an entry that shows it; linking twice is a no-op. */
-export async function linkSkill(skillId: string, entryId: string): Promise<Result<null>> {
-  return call<null>(`/skills/${id(skillId)}/entries/${id(entryId)}`, { method: "PUT" });
-}
-
-export async function unlinkSkill(skillId: string, entryId: string): Promise<Result<null>> {
-  return call<null>(`/skills/${id(skillId)}/entries/${id(entryId)}`, { method: "DELETE" });
 }

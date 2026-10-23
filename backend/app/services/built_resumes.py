@@ -230,15 +230,6 @@ async def tailored_postings(session: AsyncSession, applicant_id: uuid.UUID) -> d
     return {r.id: TailoredPosting(r.title, r.company_name, not r.listed) for r in rows}
 
 
-async def latest_base(session: AsyncSession, applicant_id: uuid.UUID) -> Built_Resume | None:
-    return await session.scalar(
-        select(Built_Resume)
-        .where(Built_Resume.applicant_id == applicant_id, Built_Resume.job_posting_id.is_(None))
-        .order_by(Built_Resume.created_at.desc(), Built_Resume.id)
-        .limit(1)
-    )
-
-
 async def tailored_for(session: AsyncSession, applicant_id: uuid.UUID, posting_id: uuid.UUID) -> Built_Resume | None:
     """The applicant's one tailored resume for the posting, if any."""
     return await session.scalar(
