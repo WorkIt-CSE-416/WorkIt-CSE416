@@ -1,3 +1,5 @@
+"use client";
+
 import * as React from "react";
 import Image from "next/image";
 import { AnimatePresence, animate, motion, useMotionValue, useTransform } from "motion/react";
@@ -16,32 +18,37 @@ import { GLIDE, Story, type StoryScene } from "./story";
  * things it weighs, and sorts them into Best Match order. The student is
  * the Resumes stop's Alex Morgan, so the two stops read as one pipeline.
  * One board across all four scenes, so the profile and the cards move
- * rather than swap. Timing and the step bar are the shared Story's.
+ * rather than swap. Timing and the scene title are the shared Story's.
  */
 
 const SCENES = [
-  { id: "read", label: "Read", caption: "WorkIt reads your experience bank", hold: 3200 },
+  { id: "read", caption: "WorkIt reads your experience bank", hold: 3200 },
   {
     id: "scan",
-    label: "Scan",
+
     caption: "Then every job posting, for what you already have",
     hold: 4400,
   },
   {
     id: "score",
-    label: "Score",
+
     caption: "Each posting gets a match, and the reasons for it",
     hold: 4600,
   },
-  { id: "rank", label: "Rank", caption: "The best fits rise to the top", hold: 4200 },
+  { id: "rank", caption: "The best fits rise to the top", hold: 4200 },
 ] as const satisfies readonly StoryScene<string>[];
 
 type Phase = (typeof SCENES)[number]["id"];
 const PHASE_INDEX: Record<Phase, number> = { read: 0, scan: 1, score: 2, rank: 3 };
 
-/** The stage's columns: the profile on the left, the postings on the right. */
+/** The stage's columns: the profile on the left, the postings on the right.
+ * The height is the tallest scene's, so the tour's `Fit` scales the story to
+ * fill its area rather than leaving a band of empty stage under it. */
 const STAGE_W = 520;
+const STAGE_H = 400;
 const LEFT_W = 172;
+/** The profile's place while it is the only thing on the stage. */
+const MIDDLE_X = (STAGE_W - LEFT_W) / 2;
 
 /** Seconds between two cards' scans. */
 const SCAN_STEP = 0.55;
@@ -53,13 +60,7 @@ const has = (keyword: string) => profile.skills.includes(keyword);
 
 export default function MatchingVisual() {
   return (
-    <Story
-      label="Matching steps"
-      scenes={SCENES}
-      rest="rank"
-      accent="bg-brand/50"
-      stageHeight={480}
-    >
+    <Story scenes={SCENES} rest="rank" accent="bg-brand" stageHeight={STAGE_H}>
       {(scene) => <Board phase={scene} />}
     </Story>
   );
@@ -68,35 +69,66 @@ export default function MatchingVisual() {
 function Board({ phase }: { phase: Phase }) {
   const p = PHASE_INDEX[phase];
   const order = p === 3 ? ranked : jobs;
+  // A new reading each time the story comes back to the first scene, so
+  // the profile appears again and its skills and experiences come in: the
+  // board stays mounted through the loop, and from the second loop on the
+  // first scene held still for three seconds. Set during render, not in an
+  // effect.
+  const [reading, setReading] = React.useState(0);
+  const [seenPhase, setSeenPhase] = React.useState(p);
+  if (p !== seenPhase) {
+    setSeenPhase(p);
+    if (p === 0) setReading((r) => r + 1);
+  }
 
   return (
     <div className="absolute inset-0 flex gap-3">
-      {/* The profile: centred while it is read, then to the left column. */}
-      <motion.div
-        className="flex shrink-0 flex-col gap-3"
-        style={{ width: LEFT_W }}
-        animate={{ x: p === 0 ? (STAGE_W - LEFT_W) / 2 : 0 }}
-        // Back to the middle only once the cards have faded out.
-        transition={{ duration: 0.6, ease: GLIDE, delay: p === 0 ? 0.2 : 0 }}
-      >
-        <ProfileCard lit={p >= 1} />
-        <AnimatePresence mode="wait">
-          {p === 0 ? (
-            <motion.p
-              key="source"
-              className="text-brand text-center text-[11px] font-semibold"
-              initial={{ opacity: 0, y: 6 }}
-              animate={{ opacity: 1, y: 0 }}
-              exit={{ opacity: 0, transition: { duration: 0.15 } }}
-              transition={{ delay: 1.4, duration: 0.3 }}
-            >
-              Read from your experience bank
-            </motion.p>
-          ) : (
-            p >= 2 && <WhyPanel key="why" />
-          )}
-        </AnimatePresence>
-      </motion.div>
+      {/* The profile: centred while it is read, then to the left column.
+          Larger and in the middle of the stage while it is the only thing
+          on it, so the first scene is not one small card at the top. Each
+          reading appears there, in place: with no starting pose the card
+          flew in from the stage's top left corner each time the story
+          began, which the team found odd. A new reading waits for the last
+          one, and the postings, to fade. */}
+      <AnimatePresence mode="wait">
+        <motion.div
+          key={reading}
+          className="flex shrink-0 origin-top flex-col gap-3"
+          style={{ width: LEFT_W }}
+          initial={{ x: MIDDLE_X, y: 64, scale: 1.22, opacity: 0 }}
+          animate={{
+            x: p === 0 ? MIDDLE_X : 0,
+            y: p === 0 ? 64 : 0,
+            scale: p === 0 ? 1.3 : 1,
+            opacity: 1,
+          }}
+          exit={{ opacity: 0, transition: { duration: 0.2 } }}
+          transition={{ duration: 0.6, ease: GLIDE, delay: p === 0 ? 0.2 : 0 }}
+        >
+          <ProfileCard lit={p >= 1} />
+          <AnimatePresence mode="wait">
+            {p === 0 ? (
+              <motion.p
+                key="source"
+                // One line, centred on the card even where it is wider than
+                // the column: wrapped, its pill broke into two.
+                className="text-brand flex justify-center text-[11px] font-semibold"
+                initial={{ opacity: 0, y: 6 }}
+                animate={{ opacity: 1, y: 0 }}
+                exit={{ opacity: 0, transition: { duration: 0.15 } }}
+                transition={{ delay: 1.4, duration: 0.3 }}
+              >
+                {/* On a white pill, as Resumes' "Experience bank" line. */}
+                <span className="rounded-full bg-white/85 px-2 py-0.5 whitespace-nowrap">
+                  Read from your experience bank
+                </span>
+              </motion.p>
+            ) : (
+              p >= 2 && <WhyPanel key="why" />
+            )}
+          </AnimatePresence>
+        </motion.div>
+      </AnimatePresence>
 
       {/* The postings: read, scored, then sorted. */}
       <AnimatePresence>
@@ -138,7 +170,10 @@ function ProfileCard({ lit }: { lit: boolean }) {
         </span>
         <span className="min-w-0">
           <span className="text-ink block truncate text-xs font-semibold">{candidate.name}</span>
+          {/* Degree and year on lines of their own: on one, the line broke
+              after its "·". */}
           <span className="text-ink-meta block text-[10px] leading-tight">{profile.degree}</span>
+          <span className="text-ink-meta block text-[10px] leading-tight">{profile.year}</span>
         </span>
       </div>
 
@@ -162,18 +197,28 @@ function ProfileCard({ lit }: { lit: boolean }) {
         ))}
       </div>
 
-      <p className="text-ink-meta mt-2.5 text-[10px] font-medium">Past titles</p>
-      <div className="mt-1 flex flex-col gap-0.5">
-        {profile.titles.map((title, i) => (
-          <motion.span
+      <p className="text-ink-meta mt-2.5 text-[10px] font-medium">Experiences</p>
+      <div className="mt-1 flex flex-col gap-1.5">
+        {profile.experiences.map(({ title, detail, icon: Icon }, i) => (
+          <motion.div
             key={title}
-            className="text-ink text-[10px]"
+            className="flex items-center gap-2"
             initial={{ opacity: 0, x: -6 }}
             animate={{ opacity: 1, x: 0 }}
             transition={{ delay: 1 + i * 0.12, duration: 0.3 }}
           >
-            {title}
-          </motion.span>
+            <span className="bg-brand-tint text-brand-ink grid size-6 shrink-0 place-items-center rounded-md">
+              <Icon className="size-3.5" aria-hidden="true" />
+            </span>
+            <span className="min-w-0">
+              <span className="text-ink block truncate text-[10px] leading-tight font-semibold">
+                {title}
+              </span>
+              <span className="text-ink-meta block truncate text-[10px] leading-tight">
+                {detail}
+              </span>
+            </span>
+          </motion.div>
         ))}
       </div>
     </div>
@@ -203,9 +248,10 @@ function WhyPanel() {
             </span>
             <span className="bg-brand-tint h-1.5 flex-1 overflow-hidden rounded-full">
               <motion.span
-                className="bg-brand block h-full rounded-full"
-                initial={{ width: 0 }}
-                animate={{ width: `${best.factors[factor] * 100}%` }}
+                className="bg-brand block h-full origin-left rounded-full"
+                style={{ width: `${best.factors[factor] * 100}%` }}
+                initial={{ scaleX: 0 }}
+                animate={{ scaleX: 1 }}
                 transition={{ delay: 1.2 + i * 0.15, duration: 0.6, ease: GLIDE }}
               />
             </span>
@@ -269,8 +315,10 @@ function JobCard({
         first ? "ring-brand/50 ring-2" : "ring-slate-900/5",
       )}
       initial={{ opacity: 0, y: 10 }}
-      // Once ranked, the weak fits step back.
-      animate={{ opacity: p === 3 && job.score < 70 ? 0.55 : 1, y: 0 }}
+      // The weak fits stay at full strength once ranked: faded to 0.55 to
+      // step back, their 10px lines fell to 2.2:1. Their red and amber
+      // scores and the order already say they fit less.
+      animate={{ opacity: 1, y: 0 }}
       transition={{
         layout: { duration: 0.6, ease: GLIDE },
         default: { delay: turn * 0.1, duration: 0.35, ease: GLIDE },
@@ -281,6 +329,7 @@ function JobCard({
           <Image
             src={`https://www.google.com/s2/favicons?domain=${job.domain}&sz=64`}
             alt=""
+            unoptimized
             width={18}
             height={18}
             className="size-[18px] rounded-[4px]"
@@ -300,15 +349,19 @@ function JobCard({
         <Snippet job={job} lit={p >= 1} delay={p === 1 ? scanAt + 0.35 : 0} />
       </p>
 
-      {/* The scan: a soft band sweeps the card once, in turn. */}
+      {/* The scan: a soft band sweeps the card once, in turn. It rides a
+          layer the card's size, so a percentage moves it by the card's
+          width; the card clips it. */}
       {p === 1 && (
         <motion.span
           aria-hidden="true"
-          className="via-brand/20 pointer-events-none absolute inset-y-0 w-16 bg-linear-to-r from-transparent to-transparent"
-          initial={{ left: "-20%", opacity: 1 }}
-          animate={{ left: "110%", opacity: [1, 1, 0] }}
+          className="pointer-events-none absolute inset-0"
+          initial={{ x: "-20%", opacity: 1 }}
+          animate={{ x: "110%", opacity: [1, 1, 0] }}
           transition={{ delay: scanAt, duration: 0.7, ease: "easeInOut" }}
-        />
+        >
+          <span className="via-brand/20 absolute inset-y-0 left-0 w-16 bg-linear-to-r from-transparent to-transparent" />
+        </motion.span>
       )}
     </motion.div>
   );

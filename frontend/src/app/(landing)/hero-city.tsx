@@ -105,7 +105,13 @@ export function HeroCity() {
     window.addEventListener("resize", place);
     // Again once the text has finished rising into place.
     const settle = window.setTimeout(place, 1000);
+    // Its loops stop while it is off screen (landing.css).
+    const seen = new IntersectionObserver(([entry]) =>
+      root.toggleAttribute("data-paused", !entry.isIntersecting),
+    );
+    seen.observe(root);
     return () => {
+      seen.disconnect();
       observer.disconnect();
       window.removeEventListener("resize", place);
       window.clearTimeout(settle);
@@ -236,6 +242,7 @@ export function HeroCity() {
                 <Image
                   src={`https://www.google.com/s2/favicons?domain=${tag.domain}&sz=64`}
                   alt=""
+                  unoptimized
                   width={18}
                   height={18}
                   className="size-[18px] rounded-[4px]"
@@ -243,7 +250,7 @@ export function HeroCity() {
               </span>
               <span className="flex flex-col text-left">
                 <span className="text-xs font-semibold">{tag.title}</span>
-                <span className="text-ink-meta text-[11px]">{tag.company}</span>
+                <span className="text-ink-muted text-[11px]">{tag.company}</span>
               </span>
               <span
                 className={cn(
@@ -255,7 +262,7 @@ export function HeroCity() {
               </span>
             </div>
             <span className="h-[22px] w-px bg-linear-to-b from-[#6d3fd8] to-transparent" />
-            <span className="size-[5px] rounded-full bg-[#6d3fd8] shadow-[0_0_8px_2px_rgba(109,63,216,0.5)]" />
+            <span className="size-[5px] rounded-full bg-[#6d3fd8]" />
           </div>
         </div>
       ))}

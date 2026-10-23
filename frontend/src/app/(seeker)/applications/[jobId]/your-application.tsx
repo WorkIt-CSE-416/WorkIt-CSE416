@@ -1,5 +1,7 @@
+import { MessageSquareText } from "lucide-react";
+import type { ReactNode } from "react";
+
 import { FileIcon } from "@/components/icons";
-import { Badge } from "@/components/ui/badge";
 import { Card } from "@/components/ui/card";
 import { Section } from "@/components/ui/section";
 import { cn } from "@/lib/cn";
@@ -11,7 +13,7 @@ import { LocalDate } from "../../local-time";
 import { STAGE_COLOR, STAGE_ICON, STAGE_LABEL } from "../../stage-colors";
 import { sortKey, type Application, type TimelineStep } from "../../tracker";
 import { Timeline } from "../timeline";
-import { ViewResumeButton } from "../view-resume";
+import { SentResumeRow } from "../view-resume";
 
 const DAY_MS = 24 * 60 * 60 * 1000;
 
@@ -183,58 +185,100 @@ export function YourApplication({
         </div>
       </Card>
 
+      {/* WHAT YOU SENT (KAN-317): the resume as the Resumes view draws its
+          rows, then the answers the application asked for. Answers are not
+          stored yet; the dashed slot holds their place so the section's
+          shape does not change when they arrive. Both empty slots are the
+          upload dropzone's dashed outline, as the empty resume list's was. */}
       <Section title="What You Sent">
+        <h3 className="text-label text-ink mt-3 font-semibold">Resume</h3>
         {sent.length > 0 ? (
-          <ul className="mt-3 flex flex-col gap-2">
+          <ul>
             {sent.map((resume) => (
-              <li key={resume.id} className="text-body text-ink flex flex-wrap items-center gap-2">
-                <ViewResumeButton resume={resume} />
-                <Badge tone="inert">{resume.format.toUpperCase()}</Badge>
-                {resume.rebuilt && <Badge tone="inert">Rebuilt</Badge>}
-                {/* The one the application names (KAN-267): what the
-                    student said they sent, among every send to the posting. */}
-                {app.sentResume?.id === resume.id && <Badge tone="positive">Applied With</Badge>}
-                <span className="text-note text-ink-meta">
-                  Sent <LocalDate at={resume.created_at} />
-                </span>
-              </li>
+              <SentResumeRow
+                key={resume.id}
+                resume={resume}
+                appliedWith={app.sentResume?.id === resume.id}
+              />
             ))}
           </ul>
         ) : (
-          // A placeholder in the upload dropzone's dashed outline: the slot a
-          // sent resume fills, rather than a paragraph about why it's empty.
-          <div className="border-border-strong bg-well rounded-card mt-3 flex flex-col items-center gap-2 border border-dashed px-4 py-7">
-            <FileIcon className="text-ink-meta size-5" />
-            <p className="text-body text-ink-meta">No resume sent yet</p>
-          </div>
+          <EmptySlot icon={<FileIcon className="text-ink-meta size-5" />}>
+            No resume sent yet
+          </EmptySlot>
         )}
+
+        <h3 className="text-label text-ink mt-5 font-semibold">Answers</h3>
+        <EmptySlot icon={<MessageSquareText aria-hidden className="text-ink-meta size-5" />}>
+          Your answers to this application&apos;s questions will show here.
+        </EmptySlot>
       </Section>
     </>
   );
 }
 
-/** Saved, each resume sent, then applied, oldest first. All behind it: the
- *  tracker stores nothing still to come (../../tracker.ts). A sent resume
- *  wears Applied's violet, as the applied date does. */
+/** An empty slot in the upload dropzone's dashed outline: the place a sent
+ *  resume or the answers fill, rather than a paragraph about why it's
+ *  empty. */
+function EmptySlot({ icon, children }: { icon: ReactNode; children: ReactNode }) {
+  return (
+    <div className="border-border-strong bg-well rounded-card mt-2 flex flex-col items-center gap-2 border border-dashed px-4 py-7">
+      {icon}
+      <p className="text-body text-ink-meta text-center">{children}</p>
+    </div>
+  );
+}
+
+/** Steps closer than this came from one action: "Did You Apply?"'s Yes
+ *  saves the job, sends the resume and applies within a second or two. */
+const ONE_ACTION_MS = 2 * 60 * 1000;
+
+/** The order of steps from one action, whatever their milliseconds say. */
+const RANK: Partial<Record<TimelineStep["kind"], number>> = { saved: 0, sent: 1, applied: 2 };
+
+/**
+ * Saved, each resume sent, then applied, oldest first. All behind it: the
+ * tracker stores nothing still to come (../../tracker.ts).
+ *
+ * WHAT ONE ACTION WROTE IS ONE STEP (KAN-317). Apply writes the save, the
+ * sent resume and the application within a second, in no fixed order, so
+ * sorting by the millisecond once drew Sent, Saved, Applied, all at 3:02
+ * PM: a resume sent before the job was saved. Now a resume sent with the
+ * application is the Applied step's note, and a save from the same click
+ * is left out, since the student never saved the job first. Steps further
+ * apart keep their own dot; a tie still sorts Saved, Sent, Applied.
+ */
 function timeline(app: Application, sent: SentResume[]): TimelineStep[] {
-  const steps: TimelineStep[] = [
-    { id: "saved", kind: "saved", title: "Saved", at: app.savedOn, state: "done" },
-    ...sent.map((resume) => ({
+  const applied = app.appliedOn ? sortKey(app.appliedOn) : null;
+  const withApplying = (at: string) =>
+    applied != null && Math.abs(sortKey(at) - applied) <= ONE_ACTION_MS;
+
+  const steps: TimelineStep[] = [];
+  if (!withApplying(app.savedOn)) {
+    steps.push({ id: "saved", kind: "saved", title: "Saved", at: app.savedOn, state: "done" });
+  }
+  const alone = sent.filter((resume) => !withApplying(resume.created_at));
+  for (const resume of alone) {
+    steps.push({
       id: resume.id,
-      kind: "applied" as const,
-      title: `Sent ${resume.name}`,
+      kind: "sent",
+      title: "Sent a Resume",
       at: resume.created_at,
-      state: "done" as const,
-    })),
-  ];
+      state: "done",
+    });
+  }
   if (app.appliedOn) {
     steps.push({
       id: "applied",
       kind: "applied",
       title: "Applied",
       at: app.appliedOn,
+      // What You Sent, under this card, names the resume.
+      note: alone.length < sent.length ? "Resume sent" : undefined,
       state: "done",
     });
   }
-  return steps.sort((a, b) => sortKey(a.at) - sortKey(b.at));
+  return steps.sort(
+    (a, b) => sortKey(a.at) - sortKey(b.at) || (RANK[a.kind] ?? 0) - (RANK[b.kind] ?? 0),
+  );
 }
