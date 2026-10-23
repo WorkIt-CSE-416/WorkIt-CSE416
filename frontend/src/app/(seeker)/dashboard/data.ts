@@ -59,9 +59,19 @@ const GOOD_MATCHES_NOTE: Record<RangeKey, string> = {
 };
 
 /**
- * The four headline numbers for every range, in tile order: Applications,
- * Good Matches, Interviews, Saved. Each tile links to the page that lists
+ * The four headline numbers for every range, in tile order: Good Matches,
+ * Saved, Applications, Interviews. Each tile links to the page that lists
  * what it counts (KAN-342).
+ *
+ * THE ORDER IS THE SEARCH, LEFT TO RIGHT: find a job, save it, apply, hear
+ * back, the order of the Applications page's stages and the landing page's
+ * route. The left half is what is left to do and the right half how it is
+ * going, which holds in the 2 x 2 grid on a phone too. Interviews, a dash
+ * until the tracker stores it, sits last as the outcome rather than as a gap
+ * in the middle. Applications keeps the violet fill out of first place: it
+ * is the one number the seeker wholly controls, and Activity under it counts
+ * the same habit. The order was Applications, New Roles, Interviews, Saved,
+ * which read sent, then find, then outcome, then shortlist.
  *
  * Good Matches is the job postings from the range that score Good Match or
  * better for this seeker (GOOD_MATCH), from the Best Match scores
@@ -112,13 +122,6 @@ export async function getHeadline(): Promise<Record<RangeKey, DashboardStat[]>> 
 
   const tiles = (range: RangeKey): DashboardStat[] => [
     {
-      key: "applications",
-      label: "Applications",
-      value: applications[range][0],
-      previous: applications[range][1],
-      href: "/applications?stage=applied",
-    },
-    {
       key: "goodMatches",
       label: "Good Matches",
       value: goodMatches(rangeDays(range, now)),
@@ -128,20 +131,27 @@ export async function getHeadline(): Promise<Record<RangeKey, DashboardStat[]>> 
         : { note: matched ? GOOD_MATCHES_NOTE[range] : undefined, href: GOOD_MATCHES_HREF[range] }),
     },
     {
-      key: "interviews",
-      label: "Interviews",
-      value: null,
-      previous: null,
-      note: "Not tracked yet",
-      href: "/applications?stage=interviewing",
-    },
-    {
       key: "saved",
       label: "Saved",
       value: saved,
       previous: null,
       note: "Not applied to yet",
       href: "/applications?stage=saved",
+    },
+    {
+      key: "applications",
+      label: "Applications",
+      value: applications[range][0],
+      previous: applications[range][1],
+      href: "/applications?stage=applied",
+    },
+    {
+      key: "interviews",
+      label: "Interviews",
+      value: null,
+      previous: null,
+      note: "Not tracked yet",
+      href: "/applications?stage=interviewing",
     },
   ];
 

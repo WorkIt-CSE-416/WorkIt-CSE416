@@ -450,8 +450,8 @@ were pills, `shape="pill"`, until KAN-251 made every pill a chip). It
 alone is capped at `max-w-dashboard` (1440px) rather than `max-w-app`.
 From `@4xl/main` (896px, not `@5xl`'s 1024: a 13-inch laptop at 100% zoom
 gives the page about 1010px and fell back to two columns of oversized
-tiles) the four numbers run across the top in a grid of their own (the
-first filled violet, the only solid tile), and the tiles under them sit in
+tiles) the four numbers run across the top in a grid of their own
+(Applications filled violet, the only solid tile), and the tiles under them sit in
 thirds. Left to right is apply, then manage: New Matches two thirds wide
 beside Next Up (a white reminder tile, its title in violet over one filled
 button) over Up Next, then Activity two thirds wide beside Waiting (three
@@ -492,8 +492,16 @@ All the Agenda; Waiting's Follow Up opens the Applications list filtered to
 Applied. That is a placeholder: it helps nobody contact anyone, and KAN-174
 (still open) plans the real flow, a list of only what has waited two weeks,
 a Scout-drafted note, a recruiter search, then marking an application
-followed up or closed once the tracker has a backend. The headline numbers are Applications, Good Matches, Interviews and Saved
-(`getHeadline` in `dashboard/data.ts`), all live (KAN-342). Applications
+followed up or closed once the tracker has a backend. The headline numbers are Good Matches, Saved, Applications and Interviews
+(`getHeadline` in `dashboard/data.ts`), all live (KAN-342). **The order is
+the search, left to right**: find, save, apply, hear back, as the
+Applications page's stages and the landing page's route run, so the left
+half is what is left to do and the right half how it is going (in the 2 x 2
+grid on a phone too). Interviews, a dash until the tracker stores it, sits
+last as the outcome, not as a gap in the middle. Applications keeps the
+violet fill in third place: it is the one number the seeker wholly
+controls, and Activity under it counts the same habit. The order was
+Applications, New Roles, Interviews, Saved, which read out of sequence. Applications
 counts the tracker's applications sent in the range, against the same
 length of days before it. Good Matches counts the job postings from the
 range that score Good Match (65) or better for this seeker, from the Best

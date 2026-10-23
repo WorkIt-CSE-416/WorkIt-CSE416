@@ -48,14 +48,14 @@ export const metadata: Metadata = {
  * From @4xl/main the numbers run four across the top in their own grid,
  * and Activity runs the full width under them:
  *
- *   Applications (violet)   Good Matches   Interviews   Saved
+ *   Good Matches   Saved   Applications (violet)   Interviews
  *   Activity, the full width
  *
  * Next Up, Up Next and Waiting are archived for now (the note above says
  * why and how to bring them back); the notes below still describe them, for
  * that day.
  *
- * The first number is the one filled tile. Next Up is a reminder: its
+ * Applications is the one filled tile (./data.ts says why it is third). Next Up is a reminder: its
  * commitment in violet over one filled button. Below @4xl/main the numbers
  * pair up two by two.
  *
