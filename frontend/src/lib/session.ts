@@ -45,6 +45,19 @@ export const getSessionUser = cache(
   },
 );
 
+/** How the signed-in account signs in: its Supabase identities' providers
+ *  ("email", "google", "linkedin_oidc"), asked of Supabase Auth so a method
+ *  linked or unlinked a moment ago shows at once (the token's
+ *  `app_metadata.providers` waits for a refresh). Settings' Sign-In &
+ *  Security reads it, and Change Password checks the current password only
+ *  when "email" is in it. Empty when signed out or Supabase can't say. */
+export async function getSignInProviders(): Promise<string[]> {
+  const supabase = await createSupabaseServerClient();
+  const { data, error } = await supabase.auth.getUserIdentities();
+  if (error || !data) return [];
+  return [...new Set(data.identities.map((identity) => identity.provider))];
+}
+
 /** The signed-in account as the API knows it (GET /auth/me): the real name
  *  the shell shows, rather than a fixture. Null when signed out or when the
  *  API can't be reached, so a caller renders a neutral bar instead of

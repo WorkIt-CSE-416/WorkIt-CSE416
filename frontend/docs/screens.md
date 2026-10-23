@@ -983,7 +983,9 @@ link into the Calendar from anywhere else goes through `DayLink` in
 
 **My Profile holds the photo and the identity fields**, the Application
 Questions, and a "Resumes & Experiences" section that links to both views of
-that page.
+that page. The photo, name and headline are shown here and edited in
+Settings' Personal Details (KAN-326): the identity band's Edit is a link
+there.
 
 **Contact & Links (KAN-262)** is an open section between the identity band
 and Resumes & Experiences. It lists all six fields under visible labels, two
@@ -1003,8 +1005,11 @@ under the heading's text.
   under the name (a seeker with no links saw no sign they could add any,
   and nothing said which email it was), then an Add button on each empty
   field (it offered an edit while the section was not being edited).
-- **These fields are edited here only.** The identity band's Edit opens a
-  dialog with Full Name and Headline alone, so no value has two editors.
+- **These fields are edited here only**, and the photo, name and headline
+  in Settings only, so no value has two editors. The identity band's Edit
+  opened a Full Name and Headline dialog, and a pencil on the photo changed
+  it, until KAN-326 moved both to Settings' Personal Details. (The resume
+  editor's header still writes the name, phone and links back.)
 - **Example text only where it cannot pass for a saved value**
   (`you@example.com`, "Your phone number", `your-name`): the sign-in email
   as Contact Email's placeholder read as already filled in, and so did a
@@ -1868,7 +1873,9 @@ bank first (`PATCH /applicants/{id}/autofill-answers`, only the changed ones,
 KAN-283), then step 1's as the seeker's preferences (`PUT
 /applicants/{id}/preferences`, KAN-231, which also marks onboarding
 complete). The bank goes first because a finished seeker is never sent back
-here, and no other screen asks those questions yet.
+here, and only My Profile's Application Questions asks those questions
+again. Step 1's fields are `role-step.tsx`, which Settings' Job Preferences
+draws too, so the wizard and Settings ask the same questions.
 Continue then uploads the file through `uploadResume`, and the API reads it
 into the experience bank as it reads any upload (ADR 0003). Both open /jobs,
 whose Best Match order scores the saved filters' jobs against the bank. The
@@ -1882,6 +1889,63 @@ edits. `?step=2` opens the wizard on its second step, Profile; intake's "Back to
 Pay & Visa" linked there until KAN-275, and nothing does now. Without saved
 answers `?step=2` opens on the first step, which holds the answers that must
 be given.
+
+## Settings (`/settings`)
+
+KAN-326. Opened from the account menu (the bar's photo). Four sections, each
+its own route under one layout (`(seeker)/settings/layout.tsx`), so a link
+opens one and each page loads only its own data; bare `/settings` opens
+Personal Details. The section nav (`settings-nav.tsx`) is a column beside
+the section from `@3xl/main` and a row that scrolls sideways above it below
+that, scrolling the current section into view: a segmented control's equal
+widths do not fit "Sign-In & Security" and three other labels at 375px.
+Each section is cards in a column of at most `max-w-2xl`. **A setting most
+visits leave alone is a row with a button, and its form opens in a dialog**
+(the user's call, 2026-10-23): three empty password fields on the page read
+as something to fill in.
+
+- **Personal Details** (`/settings/personal`): the photo (Change Photo,
+  Remove Photo; it saves on pick, shows the file at once and rolls back if
+  the upload fails), First Name, Middle Name (optional) and Last Name, as
+  signup asks them, and Headline, with Save and Discard. Save sends only
+  what changed; the API joins the parts into the full name every other
+  screen prints (`backend/app/models/CLAUDE.md`, Names). These are edited
+  here only; My Profile shows them and links here. Saving
+  refreshes the route so the bar's name and photo follow. **Delete Account**
+  sits at the foot in a red-edged card of its own: a red button opens a
+  dialog that stays locked until the student types their sign-in email (one
+  click on a red button is too easy to make by mistake); on success the
+  action signs out and opens the landing page, on failure the dialog stays
+  open with the error.
+- **Sign-In & Security** (`/settings/security`), three cards of rows:
+  Sign-In (Email with Change, Password with Change Password or, for a
+  Google- or LinkedIn-only account, Set Password; each opens a dialog),
+  Sign-In Methods (Google and LinkedIn, each Connected with Disconnect, or
+  Connect; no Disconnect on the last method), and Sign Out, which does what
+  the menu's does (local drafts first, then the session, on every device).
+  The methods come from Supabase's identity list (`getSignInProviders` in
+  `lib/session.ts`), so one linked a moment ago shows at once. Change Email
+  sends a confirm link and says where to look; the change and a link both
+  come back through the auth callback with a notice at the top
+  (`?notice=email`, `email-pending`, `linked`). The rules and the
+  dashboard setting Connect needs are in `../../docs/auth.md`, Settings.
+- **Notifications** (`/settings/notifications`): the design only. A row
+  per alert the bell promises (New Matches, Employer Replies), each with a
+  switch, disabled and marked Coming Soon: nothing stores or sends
+  notifications yet, and the notification work (KAN-298) wires each switch
+  to what it saves. Disabled, not live, because a switch that saves nothing
+  is what My Profile's Autofill switch was removed for. Keep the list in
+  step with the bell's line in `(seeker)/layout.tsx`.
+- **Job Preferences** (`/settings/preferences`): onboarding's own first
+  step (`RoleStep` in `onboarding/applicant/role-step.tsx`, `dense`: 18px
+  labels, tighter rows, h3 headings), on the saved preferences, with Save
+  and Discard; Save needs the role, job type and workplace onboarding
+  requires, and saves as onboarding does (PUT, a picked state narrowing its
+  country). The pickers' options come from `role-options.ts`, which
+  onboarding reads too, so the two offer the same roles, places and start
+  dates. No other screen edits saved preferences.
+
+The company side's `/company/settings` is still a placeholder.
 
 ## Company screens
 
