@@ -1431,6 +1431,17 @@ in Docs (suggested answers in the chat, not a banner).
   "Your Tailored Resume" once the student has one for that posting.
 - **The run waits for a click.** Each run spends one of today's 2 Tailor
   runs, so loading the page never starts one.
+- **Tailor My Resume opens Pick a Resume to Tailor** (KAN-318): the
+  posting's resumes as "Did You Apply?" lists them (Generated Resumes and
+  Uploaded Resumes, one radio group), starting on the resume tailored to
+  this job, else the default, and an upload with the same limit, replace
+  step and duplicate rule. Both dialogs share `jobs/resume-picker.tsx`,
+  so a rule changed there changes both. The dialog's Tailor My Resume
+  closes it and runs; "Tailoring…" and errors show on the card. A pick
+  other than this job's tailored resume warns that Done replaces it. An
+  upload is read into the bank and tailored as its own entries; nothing
+  new appears under Generated Resumes. A run changes only what the picked
+  resume shows: it never proposes an entry or bullet that resume hides.
 - **The keyword match** shows "12 of 18" before, and again with what the
   student has accepted, required keywords first. The second count adds
   each accepted change's `keywords` and each Yes in the browser, with no
@@ -1438,11 +1449,10 @@ in Docs (suggested answers in the chat, not a banner).
   description shows the "weak match" notice.
 - **Every change has Accept and Reject**, plus Accept All; a new wording
   shows beside the old one. Nothing saves until Done; Leave Without Saving
-  goes back to the posting. "Bring back" and "Reorder bullets" name the
-  entry with its organization ("Software Intern, Acme"), since two jobs can
-  share a title; the API never offers a copy of an entry already shown.
-- **"Have you used X?"** lists missing keywords that are nowhere in the
-  bank. Yes adds the skill to the bank (it is saved at once, being true),
+  goes back to the posting. "Reorder bullets" names the entry with its
+  organization ("Software Intern, Acme"), since two jobs can share a title.
+- **"Have you used X?"** lists missing keywords that neither the picked
+  resume's entries nor any bank skill hold. Yes adds the skill to the bank (it is saved at once, being true),
   shows it on the tailored resume, and offers to link it to an entry.
 - An empty bank (409) shows a link to the bank page, where intake starts.
 

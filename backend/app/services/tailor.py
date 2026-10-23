@@ -4,12 +4,19 @@ the rules Done saves them by. Like services/bank.py, functions that touch
 rows take the caller's session, scope to the applicant, flush and never
 commit; the rest are pure.
 
+The source is the resume the student picked: a built resume's choices, or an
+uploaded resume read into the bank again and shown as the entries it holds
+(`upload_source`), built in memory and never saved. A run tailors only what
+that resume shows (`on_resume`): its entries and their bullets, never an entry
+or bullet it hides. Skills are the exception: every bank skill stays in, so a
+hidden one can still be proposed and the truth rule reads them all.
+
 A run (`routers/tailor.py`) reads the posting's keywords (KAN-215's cache, or
-one extraction), ranks the bank's bullets against the posting with Postgres
-text search (`rank_bullets`), and sends the model the posting and the bank
+one extraction), ranks the resume's bullets against the posting with Postgres
+text search (`rank_bullets`), and sends the model the posting and the resume
 (`prompt`): no links, and the model seam removes identity data. The model
-names bullets and entries by handle (b1, e1), never by id. `propose` turns its
-reply into changes, dropping any wording that breaks the truth rule
+names bullets by handle (b1), never by id. `propose` turns its reply into
+changes, dropping any wording that breaks the truth rule
 (`services/truth_rule.py`), and adds what code can find alone: bank skills
 left off the resume that match a keyword, and the ranked bullet order.
 
@@ -29,23 +36,31 @@ from workit_scout.identity import placeholders_in
 
 from app.models.bank import Bank_Bullet, Bank_Bullet_Variant, Bank_Entry
 from app.models.jobs import Job_Post
+from app.models.resume import Resume
 from app.schemas.keywords import Keyword
 from app.schemas.tailor import TailorChange, TailorReading
+from app.services import bank_import
 from app.services import keywords as kw
-from app.services.bank import Bank, Entry, NotFound, copy_key
+from app.services.bank import (
+    Bank,
+    Entry,
+    NotFound,
+    find_duplicate,
+    load_bank,
+    merge_import,
+)
 from app.services.matching.embeddings import job_part
 from app.services.resume_view import (
     BulletChoice,
     Choices,
-    EntryChoice,
     SkillChoice,
     all_chosen,
     build_view,
 )
 from app.services.truth_rule import invented
 
-# The model sees at most this many bullets, the best-ranked first, so a big
-# bank keeps the prompt small.
+# The model sees at most this many bullets, the best-ranked first, so a long
+# resume keeps the prompt small.
 MAX_BULLETS = 40
 MAX_REWORDS = 6
 MAX_TEXT = 500
@@ -55,15 +70,13 @@ PROMPT = """\
 You tailor a student's resume to one job posting. You may only rephrase \
 facts the student gave: never add a number, tool, skill or result that the \
 bullet or the student's skills do not already hold. Answer with JSON only: \
-{"rewords": [{"bullet": "b1", "text": ...}], "add_entries": ["e2"]}.
+{"rewords": [{"bullet": "b1", "text": ...}]}.
 
 - rewords: at most 6 bullets the posting cares about, reworded to use the \
 posting's words where the bullet already supports them. One line each, \
 under 200 characters, starting with a strong verb. Leave out a bullet that \
 already fits.
-- add_entries: entries marked "not on the resume" worth bringing back for \
-this posting.
-- Use only the handles given (b1, e1).
+- Use only the bullet handles given (b1).
 """
 
 
@@ -79,15 +92,18 @@ def weak_match(job: Job_Post) -> bool:
     return not (job.description or "").strip()
 
 
-async def rank_bullets(session: AsyncSession, applicant_id: uuid.UUID, text: str) -> dict[uuid.UUID, float]:
-    """Each of the applicant's bullets with its text-search rank against
-    `text`. The posting's words are OR'd (plainto_tsquery ANDs them, which
-    no bullet would match), so a bullet ranks by how many it shares."""
+async def rank_bullets(session: AsyncSession, bank: Bank, text: str) -> dict[uuid.UUID, float]:
+    """Each of `bank`'s bullets (the resume's, from `on_resume`) with its
+    text-search rank against `text`. The posting's words are OR'd
+    (plainto_tsquery ANDs them, which no bullet would match), so a bullet
+    ranks by how many it shares."""
+    ids = [b.id for e in bank.entries for b in e.bullets]
+    if not ids:
+        return {}
     query = cast(func.replace(cast(func.plainto_tsquery("english", text), Text), "&", "|"), TSQUERY)
     rows = await session.execute(
         select(Bank_Bullet.id, func.ts_rank(func.to_tsvector("english", Bank_Bullet.text), query))
-        .join(Bank_Entry, Bank_Entry.id == Bank_Bullet.entry_id)
-        .where(Bank_Entry.applicant_id == applicant_id)
+        .where(Bank_Bullet.id.in_(ids))
     )
     return {bullet_id: float(rank) for bullet_id, rank in rows}
 
@@ -109,20 +125,31 @@ def _shown(choices: Mapping[uuid.UUID, object], item_id: uuid.UUID) -> bool:
     return choice is not None and choice.shown  # type: ignore[attr-defined]
 
 
+def on_resume(bank: Bank, choices: Choices) -> Bank:
+    """`bank` cut to what the resume shows: its shown entries, each with its
+    shown bullets, and every skill. A run reads this, never the whole bank,
+    so it tailors the picked resume and adds no entry the student left off."""
+    entries = [
+        Entry(e.row, [b for b in e.bullets if _shown(choices.bullets, b.id)])
+        for e in bank.entries
+        if _shown(choices.entries, e.row.id)
+    ]
+    return Bank(entries=entries, skills=bank.skills, skill_links=bank.skill_links)
+
+
 def prompt(
     job: Job_Post, keywords: Sequence[Keyword], bank: Bank, choices: Choices, ranks: Mapping[uuid.UUID, float]
 ) -> list[dict[str, str]]:
-    """The posting and the bank, with no links: an entry's link field is left
-    out, and the model seam replaces any URL left in the text."""
+    """The posting and the resume (`bank` is `on_resume`'s), with no links:
+    an entry's link field is left out, and the model seam replaces any URL
+    left in the text."""
     named = {v: k for k, v in handles(bank).items()}
     every = [b for e in bank.entries for b in e.bullets]
     best = set(sorted((b.id for b in every), key=lambda i: -ranks.get(i, 0.0))[:MAX_BULLETS])
     lines = []
     for entry in bank.entries:
         row = entry.row
-        where = "on the resume" if _shown(choices.entries, row.id) else "not on the resume"
-        title = ", ".join(p for p in (row.title, row.organization) if p)
-        lines.append(f"{named[row.id]} [{row.section}] {title} ({where})")
+        lines.append(f"{named[row.id]} [{row.section}] {_label(row)}")
         for bullet in entry.bullets:
             if bullet.id in best:
                 shows = choices.bullets.get(bullet.id)
@@ -135,7 +162,7 @@ def prompt(
     skills = ", ".join(s.name for s in bank.skills) or "(none)"
     user = (
         f"Job posting: {job.title}\n\n{description}\n\nKeywords: {words}\n\n"
-        f"The student's skills: {skills}\n\nThe student's entries:\n" + "\n".join(lines)
+        f"The student's skills: {skills}\n\nThe resume's entries:\n" + "\n".join(lines)
     )
     return [{"role": "system", "content": PROMPT}, {"role": "user", "content": user}]
 
@@ -149,43 +176,18 @@ def _label(row: Bank_Entry) -> str:
     return ", ".join(p for p in (row.title, row.organization) if p)
 
 
-def _bring_back(bank: Bank, entries: dict[uuid.UUID, EntryChoice], entry: Entry) -> None:
-    """Show the entry at its date-order place among its section's shown
-    entries (the bank lists newest first), keeping the order the student set
-    for the rest. Added last, a newer job showed below an older one."""
-    me = entry.row.id
-    section = [e.row.id for e in bank.entries if e.row.section == entry.row.section]
-    shown = sorted((i for i in section if i != me and _shown(entries, i)), key=lambda i: entries[i].position)
-    later = set(section[section.index(me) + 1:])
-    at = next((n for n, i in enumerate(shown) if i in later), len(shown))
-    entries[me] = dataclasses.replace(entries.get(me, EntryChoice()), shown=True)
-    for n, i in enumerate([*shown[:at], me, *shown[at:]]):
-        entries[i] = dataclasses.replace(entries[i], position=n)
-
-
 def with_changes(
     bank: Bank,
     choices: Choices,
     changes: Sequence[TailorChange],
     variant_ids: Mapping[uuid.UUID, uuid.UUID] | None = None,
 ) -> Choices:
-    """`choices` with the changes applied, pure. An entry brought back takes
-    its date-order place in its section (`_bring_back`) with all its bullets;
-    a reworded bullet shows the change's text (and `variant_ids[bullet]`,
-    once saved)."""
+    """`choices` with the changes applied, pure. A reworded bullet shows the
+    change's text (and `variant_ids[bullet]`, once saved)."""
     entries, bullets, skills = dict(choices.entries), dict(choices.bullets), dict(choices.skills)
     by_id = {e.row.id: e for e in bank.entries}
-    ordered = sorted(changes, key=lambda c: c.kind != "show_entry")
-    for change in ordered:
-        if change.kind == "show_entry" and change.entry_id in by_id:
-            entry = by_id[change.entry_id]
-            if not _shown(entries, entry.row.id):
-                _bring_back(bank, entries, entry)
-                for i, bullet in enumerate(entry.bullets):
-                    if not _shown(bullets, bullet.id):
-                        bullets[bullet.id] = dataclasses.replace(
-                            bullets.get(bullet.id, BulletChoice()), shown=True, position=i)
-        elif change.kind == "reword" and change.bullet_id is not None:
+    for change in changes:
+        if change.kind == "reword" and change.bullet_id is not None:
             old = bullets.get(change.bullet_id, BulletChoice(position=_next(c.position for c in bullets.values())))
             bullets[change.bullet_id] = dataclasses.replace(
                 old, variant_id=(variant_ids or {}).get(change.bullet_id), text=change.text)
@@ -202,12 +204,54 @@ def with_changes(
     return Choices(entries, bullets, skills)
 
 
+class NothingRead(Exception):
+    """The upload has no text, or the parser read no entry or skill from it."""
+
+
+def upload_choices(bank: Bank, entry_ids: set[uuid.UUID], skill_names: set[str]) -> Choices:
+    """A resume of the upload's entries (with every bullet the bank holds for
+    them) and skills, pure. Every other entry and skill waits hidden, as
+    Generate leaves a copy: a run leaves those entries out, and can still
+    propose a hidden skill. `skill_names` are lowercased."""
+    chosen = all_chosen(bank)
+    entries = {i: c if i in entry_ids else dataclasses.replace(c, shown=False) for i, c in chosen.entries.items()}
+    names = {s.id: s.name.lower() for s in bank.skills}
+    skills = {i: c if names[i] in skill_names else dataclasses.replace(c, shown=False)
+              for i, c in chosen.skills.items()}
+    return Choices(entries, chosen.bullets, skills)
+
+
+async def upload_source(session: AsyncSession, applicant_id: uuid.UUID, resume_id: uuid.UUID) -> Choices:
+    """An uploaded resume as a Tailor source. Its stored text is read and
+    merged into the bank (Import Again's merge, so a parser fix reaches it
+    and a second call adds nothing), then each entry it read is found in the
+    bank by section, title and organization. Run and Done both call it, so
+    Done rebuilds what the run proposed against. Flushes, never commits.
+    Raises NotFound for another applicant's upload, NothingRead when the
+    reading finds nothing."""
+    resume = await session.scalar(select(Resume).where(Resume.id == resume_id, Resume.applicant_id == applicant_id))
+    if resume is None:
+        raise NotFound
+    drafts, skills = bank_import.read(resume.raw_text)
+    if not drafts and not skills:
+        raise NothingRead
+    await merge_import(session, applicant_id, drafts, skills)
+    entry_ids = set()
+    for draft in drafts:
+        found = await find_duplicate(session, applicant_id, draft.section, draft.title, draft.organization)
+        if found is not None:
+            entry_ids.add(found.row.id)
+    return upload_choices(await load_bank(session, applicant_id), entry_ids, {name.lower() for name, _ in skills})
+
+
 def match(bank: Bank, choices: Choices, keywords: Sequence[Keyword]) -> tuple[list[Keyword], list[Keyword]]:
     return kw.match(build_view(bank, choices), list(keywords))
 
 
 def questions(bank: Bank, keywords: Sequence[Keyword], missing: Sequence[Keyword]) -> list[Keyword]:
-    """The missing keywords that are nowhere in the bank: "Have you used X?"."""
+    """The missing keywords that neither the resume's entries nor any bank
+    skill hold (`bank` is `on_resume`'s): "Have you used X?". A hidden
+    entry's words do not count: a run never brings that entry back."""
     _, nowhere = match(bank, all_chosen(bank), keywords)
     absent = {k.keyword for k in nowhere}
     return [k for k in missing if k.keyword in absent]
@@ -232,34 +276,17 @@ def propose(
     ranks: Mapping[uuid.UUID, float],
     keywords: Sequence[Keyword],
 ) -> tuple[list[TailorChange], int]:
-    """(changes, how many wordings the truth rule dropped)."""
+    """(changes, how many wordings the truth rule dropped). `bank` is
+    `on_resume`'s, so every entry and bullet in it shows."""
     ids = handles(bank)
-    entries = {e.row.id: e for e in bank.entries}
-    bullet_entry = {b.id: e.row.id for e in bank.entries for b in e.bullets}
     originals = {b.id: b.text for e in bank.entries for b in e.bullets}
     changes: list[TailorChange] = []
     dropped = 0
-
-    # A left-out copy of an entry the resume shows (an import saved "as
-    # new") is never offered: it showed the same job twice.
-    showing = {copy_key(e.row) for e in bank.entries if _shown(choices.entries, e.row.id)}
-    brought: list[uuid.UUID] = []
-    for handle in reading.add_entries:
-        entry_id = ids.get(handle.strip())
-        if entry_id not in entries or _shown(choices.entries, entry_id) or entry_id in brought:
-            continue
-        if copy_key(entries[entry_id].row) in showing:
-            continue
-        showing.add(copy_key(entries[entry_id].row))
-        brought.append(entry_id)
-        changes.append(TailorChange(kind="show_entry", entry_id=entry_id, label=_label(entries[entry_id].row)))
 
     reworded: set[uuid.UUID] = set()
     for item in reading.rewords:
         bullet_id = ids.get(item.bullet.strip())
         if bullet_id not in originals or bullet_id in reworded or len(reworded) >= MAX_REWORDS:
-            continue
-        if not (_shown(choices.bullets, bullet_id) or bullet_entry[bullet_id] in brought):
             continue
         text = _clean(item.text)
         current = choices.bullets.get(bullet_id)
@@ -276,10 +303,9 @@ def propose(
             changes.append(TailorChange(kind="show_skill", skill_id=skill.id, label=skill.name))
 
     for entry in bank.entries:
-        shown = sorted((b.id for b in entry.bullets if _shown(choices.bullets, b.id)),
-                       key=lambda b: choices.bullets[b].position)
+        shown = sorted((b.id for b in entry.bullets), key=lambda b: choices.bullets[b].position)
         best = sorted(shown, key=lambda b: -ranks.get(b, 0.0))
-        if len(shown) > 1 and best != shown and _shown(choices.entries, entry.row.id):
+        if len(shown) > 1 and best != shown:
             changes.append(TailorChange(kind="order", entry_id=entry.row.id, bullet_ids=best, label=_label(entry.row)))
 
     before = {k.keyword for k in match(bank, choices, keywords)[0]}
@@ -300,7 +326,7 @@ def validate(bank: Bank, changes: Sequence[TailorChange]) -> None:
     for c in changes:
         if c.kind == "reword" and c.bullet_id not in bullets:
             raise NotFound
-        if c.kind in ("show_entry", "order") and c.entry_id not in entries:
+        if c.kind == "order" and c.entry_id not in entries:
             raise NotFound
         if c.kind == "show_skill" and c.skill_id not in skills:
             raise NotFound

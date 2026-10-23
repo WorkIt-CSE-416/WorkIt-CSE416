@@ -137,10 +137,7 @@ class Bank_Skill(BaseModel):
 
 class Bank_Skill_Link(BaseModel):
     '''
-    Says a skill was used in an entry (KAN-216), so Tailor can show the skill
-    with proof. A skill with no links is fine: learned on one's own. Both
-    sides belong to the same applicant; services/bank.py checks that, since
-    the table cannot. Deleting either side deletes the link.
+    Potentially bad design, links each skill with entry, this may not be needed to save DB costs
     '''
     __tablename__ = "bank_skill_links"
 

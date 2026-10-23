@@ -33,15 +33,15 @@ MAX_DESCRIPTION_CHARS = 12_000
 # in a message after it.
 PROMPT = """\
 You read a job posting and list the keywords a resume for it should show: \
-skills, tools, languages, frameworks, methods and qualifications. Answer \
+skills, tools, languages, coding languages, coding frameworks, and qualifications. Answer \
 with JSON only: {"keywords": [{"keyword": ..., "kind": "required" | \
 "preferred"}]}.
 
 - At most 20 keywords, the most important first.
-- kind is "required" when the posting asks for it outright, "preferred" when \
-it says nice to have, a plus, preferred or bonus.
+- kind is "required" when the posting asks for it such as in the Requirements section, "preferred" when \
+it says nice to have, a plus, preferred or bonus, usually written under Preferred Qualifications section
 - Use the posting's own words, short: "Python", "REST APIs", "SQL". No \
-soft skills ("team player"), no benefits, no company names.
+soft skills ("team player"), no benefits, no company names, and exclude conference names if the job is asking for publications in those. \
 """
 
 
