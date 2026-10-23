@@ -1,30 +1,15 @@
 "use client";
 
 import { useRouter } from "next/navigation";
-import { useEffect, useRef, useState, type ComponentType, type ReactNode } from "react";
+import { useEffect, useRef, useState, type ReactNode } from "react";
 
 import {
-  EXPERIENCE_OPTIONS,
-  JOB_TYPE_OPTIONS,
   NO_FILTERS,
-  PAY_OPTIONS,
-  payUnits,
   statesNarrowCountries,
-  WORKPLACE_OPTIONS,
   type FeedFilters,
 } from "@/app/(seeker)/jobs/filter-query";
-import { SalaryPicker, SearchPicker, type PickOption } from "@/components/filter-controls";
-import {
-  answerIcon,
-  BriefcaseIcon,
-  CalendarIcon,
-  CoinIcon,
-  FileIcon,
-  LevelIcon,
-  PinIcon,
-  RoleIcon,
-  workStyleIcon,
-} from "@/components/icons";
+import type { PickOption } from "@/components/filter-controls";
+import { answerIcon, FileIcon } from "@/components/icons";
 import { ResumeUpload } from "@/components/resume-upload";
 import { Stepper } from "@/components/stepper";
 import { Button } from "@/components/ui/button";
@@ -36,6 +21,7 @@ import { NO_ANSWERS, PROFILE_QUESTIONS, type AutofillAnswers } from "@/lib/autof
 
 import { savePreferences } from "./actions";
 import { ChoiceTile } from "./choice-tile";
+import { Field, fieldId, RoleStep } from "./role-step";
 import { SignedInAs } from "./signed-in-as";
 import { ONBOARDING_STEPS } from "./steps";
 import { StoryPanel } from "./story-panel";
@@ -70,15 +56,14 @@ import { StoryPanel } from "./story-panel";
  * uploads the picked file; the API reads it into the experience bank matching
  * reads (ADR 0003). Skip saves the answers alone. Either opens the Jobs
  * page in its Best Match order. The answer bank saves first because a finished
- * seeker is never sent back here, and nothing else asks these questions yet;
+ * seeker is never sent back here, and only My Profile's Application
+ * Questions asks them again;
  * a failed upload leaves onboarding done and this step to retry from, and
  * saving again changes nothing.
  *
  * `initial` and `initialAnswers` are what the seeker saved, so a finished
  * seeker who comes back edits them rather than starting over.
  */
-
-type Glyph = ComponentType<{ className?: string }>;
 
 /** Each step's question, and the tip Scout types in its bubble below it: a
  *  tip, not the question again, which is what made the two hard to tell
@@ -109,9 +94,6 @@ const STEPS: { question: ReactNode; line: string }[] = [
     line: "One file, and I'll know what you've done. No resume yet? Skip it.",
   },
 ];
-
-const toggle = <T,>(values: T[], value: T) =>
-  values.includes(value) ? values.filter((v) => v !== value) : [...values, value];
 
 export function OnboardingForm({
   roles,
@@ -315,130 +297,6 @@ export function OnboardingForm({
   );
 }
 
-type StepProps = { answers: FeedFilters; set: (change: Partial<FeedFilters>) => void };
-
-function RoleStep({
-  answers,
-  set,
-  roles,
-  places,
-  seasons,
-}: StepProps & { roles: PickOption[]; places: PickOption[]; seasons: PickOption[] }) {
-  const interns = answers.jobTypes.includes("internship");
-  return (
-    <>
-      <Field Icon={RoleIcon} label="Role" required>
-        <SearchPicker
-          size="lg"
-          label="Roles"
-          placeholder="Search a role, like Software Engineer"
-          empty="No role by that name."
-          options={roles}
-          values={answers.roles}
-          onChange={(next) => set({ roles: next })}
-        />
-      </Field>
-      <Field Icon={BriefcaseIcon} label="Job Type" required>
-        <div className="grid grid-cols-2 gap-2 lg:gap-3">
-          {JOB_TYPE_OPTIONS.map((o) => (
-            <ChoiceTile
-              key={o.value}
-              pressed={answers.jobTypes.includes(o.value)}
-              onClick={() => {
-                const jobTypes = toggle(answers.jobTypes, o.value);
-                const units = payUnits(jobTypes);
-                // The salary's unit starts on the one these job types fit
-                // (interns /hr), and a typed range keeps its own. It is set
-                // here, not forced on the picker, so the /hr /yr toggle can
-                // still change it and the unit saved is the one shown.
-                const unset = answers.minPay == null && answers.maxPay == null;
-                set({
-                  jobTypes,
-                  ...(units.length === 1 && unset ? { payPer: units[0] } : {}),
-                  ...(jobTypes.includes("internship") ? {} : { startTerms: [] }),
-                });
-              }}
-            >
-              {o.label}
-            </ChoiceTile>
-          ))}
-        </div>
-      </Field>
-      {interns && (
-        <Field Icon={CalendarIcon} label="Start Date">
-          {seasons.length === 0 ? (
-            <p className="text-body text-ink-meta">No start dates in the feed yet.</p>
-          ) : (
-            <SearchPicker
-              size="lg"
-              label="Start Dates"
-              placeholder="Search a season, or leave empty for any"
-              empty="No season by that name has jobs."
-              options={seasons}
-              values={answers.startTerms}
-              onChange={(next) => set({ startTerms: next })}
-            />
-          )}
-        </Field>
-      )}
-      {/* After Job Type, which says what kind of job: this says how much
-          experience it asks for, and internships count as Entry Level, so
-          no pair of the two empties the feed (KAN-284). */}
-      <Field Icon={LevelIcon} label="Experience Level">
-        <div className="grid grid-cols-1 gap-2 sm:grid-cols-2 lg:gap-3">
-          {EXPERIENCE_OPTIONS.map((o) => (
-            <ChoiceTile
-              key={o.value}
-              pressed={answers.levels.includes(o.value)}
-              onClick={() => set({ levels: toggle(answers.levels, o.value) })}
-            >
-              {o.label}
-            </ChoiceTile>
-          ))}
-        </div>
-      </Field>
-      <Field Icon={workStyleIcon("onsite")} label="Workplace" required>
-        <div className="grid grid-cols-1 gap-2 sm:grid-cols-3 lg:gap-3">
-          {WORKPLACE_OPTIONS.map((o) => (
-            <ChoiceTile
-              key={o.value}
-              Icon={workStyleIcon(o.value)}
-              pressed={answers.workStyles.includes(o.value)}
-              onClick={() => set({ workStyles: toggle(answers.workStyles, o.value) })}
-            >
-              {o.label}
-            </ChoiceTile>
-          ))}
-        </div>
-      </Field>
-      <Field Icon={PinIcon} label="Location">
-        <SearchPicker
-          size="lg"
-          label="Places"
-          placeholder="Search a state or country, or leave empty for anywhere"
-          empty="No place by that name has jobs."
-          options={places}
-          values={answers.places}
-          onChange={(next) => set({ places: next })}
-        />
-      </Field>
-      {/* Pay is part of the role (KAN-283): its units follow the job types
-          picked above. */}
-      <Field Icon={CoinIcon} label="Salary Range">
-        <SalaryPicker
-          size="lg"
-          units={payUnits(answers.jobTypes)}
-          presets={PAY_OPTIONS}
-          minPay={answers.minPay}
-          maxPay={answers.maxPay}
-          payPer={answers.payPer}
-          onChange={(minPay, maxPay, per) => set({ minPay, maxPay, payPer: per })}
-        />
-      </Field>
-    </>
-  );
-}
-
 /** One of the Profile step's questions: one answer of a group, as dots. A
  *  pressed answer pressed again is cleared, since every one is optional. */
 function OneOf<V extends string>({
@@ -510,57 +368,5 @@ function ProfileStep({
         </Field>
       ))}
     </>
-  );
-}
-
-/** One question on the right: its glyph and label, a red star when it must be
- *  answered to go on, "Optional" when it need not be.
- *
- *  THE SCREEN HAS THREE TYPE SIZES, AT EVERY WIDTH: 20px for these labels,
- *  16px for every answer (tiles, chips, pills, typed text) and 14px for every
- *  note beside one. The answers' size is text-subtitle, whose own weight is
- *  600, so each answer sets its weight. */
-/** A Field's heading id, from its label; its hint is the same id plus
- *  "-hint". */
-const fieldId = (label: string) => `field-${label.toLowerCase().replaceAll(" ", "-")}`;
-
-function Field({
-  Icon,
-  label,
-  hint,
-  required = false,
-  children,
-}: {
-  Icon: Glyph;
-  label: string;
-  /** A 14px note under the label: the question as forms word it. */
-  hint?: string;
-  required?: boolean;
-  children: ReactNode;
-}) {
-  const id = fieldId(label);
-  return (
-    <section
-      aria-labelledby={id}
-      className="border-border-subtle border-t py-8 first:border-t-0 first:pt-0"
-    >
-      <h2 id={id} className="text-title text-ink mb-4 flex items-center gap-2.5 font-semibold">
-        <Icon aria-hidden className="text-ink-meta size-5 shrink-0" />
-        {label}
-        {required ? (
-          <span className="text-danger" aria-label="required">
-            *
-          </span>
-        ) : (
-          <span className="text-body text-ink-faint ml-auto font-normal">Optional</span>
-        )}
-      </h2>
-      {hint && (
-        <p id={`${id}-hint`} className="text-body text-ink-meta -mt-2 mb-4">
-          {hint}
-        </p>
-      )}
-      {children}
-    </section>
   );
 }

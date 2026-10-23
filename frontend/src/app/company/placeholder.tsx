@@ -23,8 +23,8 @@ import { EmptyState } from "@/components/ui/empty-state";
  * up when you click between them.
  *
  * THE BODY IS FOR THE RECRUITER WHO LANDS HERE, not for whoever builds the
- * page next: the seeker /settings page's <EmptyState>, saying the page is
- * coming and offering the way back to the Overview. It said "Not built yet:
+ * page next: an <EmptyState> saying the page is coming and offering the way
+ * back to the Overview. It said "Not built yet:
  * route and shell only." once, which is a note to a developer.
  *
  * It is a <div> rather than a <main>: the company shell's SidebarInset is the

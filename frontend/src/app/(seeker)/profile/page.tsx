@@ -1,31 +1,19 @@
 "use client";
 
 import { PhoneIcon } from "@phosphor-icons/react/ssr";
-import { useRouter } from "next/navigation";
 import {
   useEffect,
   useRef,
   useState,
-  type ChangeEvent,
   type ComponentType,
   type FormEvent,
   type ReactNode,
 } from "react";
 
-import { MailIcon, PencilIcon, TrashIcon } from "@/components/icons";
-import {
-  Dialog,
-  DialogClose,
-  DialogContent,
-  DialogDescription,
-  DialogFooter,
-  DialogHeader,
-  DialogTitle,
-} from "@/components/shadcn/dialog";
+import { MailIcon, PencilIcon } from "@/components/icons";
 import { Button, ButtonLink } from "@/components/ui/button";
-import { IconButton } from "@/components/ui/icon-button";
 import { SectionHeading } from "@/components/ui/section-heading";
-import { FIELD_CONTROL, FIELD_LABEL } from "@/components/ui/text-field";
+import { FIELD_CONTROL } from "@/components/ui/text-field";
 import { cn } from "@/lib/cn";
 
 import { Avatar } from "@/components/avatar";
@@ -37,13 +25,15 @@ import { SectionAction } from "./section-action";
 import { getProfile, updateProfile, type ApplicantProfile } from "@/lib/profile-actions";
 import { linkText, safeHref, siteName, webLink } from "@/lib/profile-links";
 import { GitHubGlyph, LinkedInGlyph, OtherLinkGlyph, WebsiteGlyph } from "./icons";
-import { getAvatar, removeAvatar, uploadAvatar } from "@/lib/avatar-actions";
-import { AVATAR_MIME_TYPES, avatarFileError } from "@/lib/avatar-rules";
+import { getAvatar } from "@/lib/avatar-actions";
 import { SEEKER_GUTTER } from "../gutter";
 import { useProfileCache } from "../profile-cache";
 
 /**
  * The profile screen: the profile photo and the identity fields, both live.
+ * The photo, name and headline are shown here and edited in Settings'
+ * Personal Details (KAN-326), through the band's Edit link, so each has one
+ * editor; Contact & Links and Application Questions are edited here.
  * Name, headline, contact details and links come from the applicant_profiles
  * table via getProfile(). A return visit renders the last visit's data at once
  * (../profile-cache.tsx) and refetches it behind the scenes. The tab title
@@ -55,8 +45,8 @@ import { useProfileCache } from "../profile-cache";
  * Settings (an Autofill switch that saved nothing) went the same day. Resume
  * facts are edited in the experience bank (/bank), never here (KAN-211).
  *
- *   identity        an open band under the title: the photo and its edit
- *                   control, the name and headline, closed by a hairline
+ *   identity        an open band under the title: the photo, the name and
+ *                   headline, and Edit (to Settings), closed by a hairline
  *   Contact &       an open section: the contact email, the phone and the
  *   Links           four links (CONTACT_LINKS), each under a visible label;
  *                   its Edit turns the values into text fields in place;
@@ -78,7 +68,6 @@ import { useProfileCache } from "../profile-cache";
 export default function ProfilePage() {
   // The last visit's data, if any, read once. A return visit renders it at
   // once, and the effects below refetch in the background.
-  const router = useRouter();
   const cache = useProfileCache();
   const [cached] = useState(cache.read);
 
@@ -88,16 +77,9 @@ export default function ProfilePage() {
   );
   // The answer bank (Application Questions).
   const [answers, setAnswers] = useState<AutofillAnswers | null>(cached?.answers ?? null);
-  // The Edit Profile dialog (name and headline).
-  const [editOpen, setEditOpen] = useState(false);
 
-  // Profile photo. avatarUrl is a signed URL from the API, or a blob: preview
-  // while an upload is in flight. avatarLoaded separates the first fetch,
-  // which shows the avatar as is, from an upload or removal, which dims it.
-  const avatarInput = useRef<HTMLInputElement>(null);
+  // Profile photo, a signed URL from the API. Settings changes it.
   const [avatarUrl, setAvatarUrl] = useState<string | null>(cached?.avatarUrl ?? null);
-  const [avatarError, setAvatarError] = useState<string | null>(null);
-  const [avatarBusy, setAvatarBusy] = useState(cached === null);
   const [avatarLoaded, setAvatarLoaded] = useState(cached !== null);
   const [loadFailed, setLoadFailed] = useState(false);
 
@@ -110,10 +92,7 @@ export default function ProfilePage() {
       })
       // The action call itself failed, e.g. stale action IDs after a deploy.
       .catch(() => setLoadFailed(true))
-      .finally(() => {
-        setAvatarBusy(false);
-        setAvatarLoaded(true);
-      });
+      .finally(() => setAvatarLoaded(true));
 
     getProfile()
       .then(({ profile: p, error }) => {
@@ -131,64 +110,13 @@ export default function ProfilePage() {
       .catch(() => setLoadFailed(true));
   }, []);
 
-  // Save each settled state for the next visit. Not mid-load, not while a
-  // photo upload's blob: preview (revoked afterwards) is on screen, and not
+  // Save each settled state for the next visit. Not mid-load, and not
   // after a failed load, which would show the next visit an empty profile.
   useEffect(() => {
-    if (avatarLoaded && !avatarBusy && applicantProfile && answers && !loadFailed) {
+    if (avatarLoaded && applicantProfile && answers && !loadFailed) {
       cache.write({ avatarUrl, applicantProfile, answers });
     }
-  }, [cache, avatarLoaded, avatarBusy, loadFailed, avatarUrl, applicantProfile, answers]);
-
-  async function handleAvatarSelect(event: ChangeEvent<HTMLInputElement>) {
-    const file = event.target.files?.[0];
-    // Cleared so picking the same file again still fires onChange.
-    event.target.value = "";
-    if (!file || avatarBusy) return;
-
-    const invalid = avatarFileError(file);
-    if (invalid) {
-      setAvatarError(invalid);
-      return;
-    }
-
-    // Show the picked file immediately; roll back if the upload fails.
-    const previous = avatarUrl;
-    const preview = URL.createObjectURL(file);
-    setAvatarUrl(preview);
-    setAvatarError(null);
-    setAvatarBusy(true);
-
-    const fd = new FormData();
-    fd.append("file", file);
-    try {
-      const { url, error } = await uploadAvatar(fd);
-      if (error) {
-        setAvatarUrl(previous);
-        setAvatarError(error);
-        return;
-      }
-      setAvatarUrl(url ?? previous);
-      router.refresh();
-    } finally {
-      URL.revokeObjectURL(preview);
-      setAvatarBusy(false);
-    }
-  }
-
-  async function handleAvatarRemove() {
-    if (avatarBusy) return;
-    setAvatarError(null);
-    setAvatarBusy(true);
-    const { error } = await removeAvatar();
-    setAvatarBusy(false);
-    if (error) {
-      setAvatarError(error);
-      return;
-    }
-    setAvatarUrl(null);
-    router.refresh();
-  }
+  }, [cache, avatarLoaded, loadFailed, avatarUrl, applicantProfile, answers]);
 
   return (
     <div className={cn("max-w-app mx-auto w-full flex-1 py-6", SEEKER_GUTTER)}>
@@ -210,76 +138,42 @@ export default function ProfilePage() {
 
       {/* The identity band: open on the page, not a card, and closed by a
           hairline rather than boxed. The photo leads the name the way a
-          company logo leads a job title everywhere else in the app. Remove
-          Photo follows the name on its baseline, beside the photo it acts
-          on, rather than in a heading's top-right slot, which across this
-          band would put it a page away from the photo and read as an action
-          on the whole profile. It is shorter than the name's line, so
-          appearing once there is a photo moves nothing else; only a name too
-          long to share a phone's width with it wraps it to a line below. */}
+          company logo leads a job title everywhere else in the app. Its
+          Edit opens Settings' Personal Details, the one editor of the
+          photo, name and headline (KAN-326). */}
       <section
         aria-labelledby="identity"
         className="border-border-subtle flex items-center gap-4 border-b pb-6 @xl/main:gap-5"
       >
-        <div className="relative shrink-0">
-          <Avatar
-            name={applicantProfile?.full_name ?? ""}
-            src={avatarUrl}
-            className={cn(
-              "text-title size-16 @xl/main:size-18",
-              avatarBusy && avatarLoaded && "opacity-60",
-            )}
-          />
-          <IconButton
-            label="Change profile photo"
-            variant="brand"
-            className="absolute -right-0.5 -bottom-0.5"
-            disabled={avatarBusy}
-            onClick={() => avatarInput.current?.click()}
-          >
-            <PencilIcon className="size-3" />
-          </IconButton>
-          <input
-            ref={avatarInput}
-            type="file"
-            accept={AVATAR_MIME_TYPES.join(",")}
-            className="hidden"
-            onChange={handleAvatarSelect}
-          />
-        </div>
+        <Avatar
+          name={applicantProfile?.full_name ?? ""}
+          src={avatarUrl}
+          className="text-title size-16 @xl/main:size-18"
+        />
 
         <div className="min-w-0 flex-1">
-          <div className="flex flex-wrap items-baseline gap-x-4 gap-y-1">
-            <SectionHeading id="identity">{applicantProfile?.full_name ?? "\u00A0"}</SectionHeading>
-            {avatarUrl && !avatarBusy && (
-              <SectionAction onClick={handleAvatarRemove}>
-                <TrashIcon />
-                Remove Photo
-              </SectionAction>
-            )}
-          </div>
+          <SectionHeading id="identity">{applicantProfile?.full_name ?? "\u00A0"}</SectionHeading>
           {/* A held line while the profile loads; once loaded, no headline
               means no line, so the name centres beside the photo instead of
               sitting over an empty row. */}
           {(!applicantProfile || applicantProfile.headline) && (
             <p className="text-body text-ink-meta">{applicantProfile?.headline ?? "\u00A0"}</p>
           )}
-
-          {avatarError && (
-            <p role="alert" className="text-meta text-danger mt-2">
-              {avatarError}
-            </p>
-          )}
         </div>
 
-        {applicantProfile && (
-          <div className="ml-auto shrink-0 self-start">
-            <SectionAction aria-label="Edit Profile" onClick={() => setEditOpen(true)}>
-              <PencilIcon />
-              Edit
-            </SectionAction>
-          </div>
-        )}
+        <div className="ml-auto shrink-0 self-start">
+          {/* A link in SectionAction's look, since it goes to Settings
+              rather than acting here. */}
+          <ButtonLink
+            href="/settings/personal"
+            variant="section"
+            size="section"
+            aria-label="Edit Profile in Settings"
+          >
+            <PencilIcon />
+            Edit
+          </ButtonLink>
+        </div>
       </section>
 
       {applicantProfile && (
@@ -306,14 +200,6 @@ export default function ProfilePage() {
           </ButtonLink>
         </div>
       </section>
-
-      {applicantProfile && editOpen && (
-        <EditProfileDialog
-          profile={applicantProfile}
-          onClose={() => setEditOpen(false)}
-          onSaved={setApplicantProfile}
-        />
-      )}
     </div>
   );
 }
@@ -678,93 +564,4 @@ function toDraft<F extends keyof ApplicantProfile>(
   ids: readonly F[],
 ): Record<F, string> {
   return Object.fromEntries(ids.map((id) => [id, p[id] ?? ""])) as Record<F, string>;
-}
-
-// --- Edit Profile Dialog ---------------------------------------------------
-
-const PROFILE_FIELDS = ["full_name", "headline"] as const;
-type ProfileField = (typeof PROFILE_FIELDS)[number];
-
-/** The name and headline. Contact & Links has its own edit mode. */
-function EditProfileDialog({
-  profile,
-  onClose,
-  onSaved,
-}: {
-  profile: ApplicantProfile;
-  onClose: () => void;
-  onSaved: (p: ApplicantProfile) => void;
-}) {
-  const [draft, setDraft] = useState<Record<ProfileField, string>>(() =>
-    toDraft(profile, PROFILE_FIELDS),
-  );
-  const [saving, setSaving] = useState(false);
-  const [error, setError] = useState<string | null>(null);
-
-  async function handleSubmit(e: FormEvent) {
-    e.preventDefault();
-    setError(null);
-    const fields = changedFields(profile, draft);
-    // full_name must not be null
-    if ("full_name" in fields) fields.full_name = fields.full_name || profile.full_name;
-    if (Object.keys(fields).length === 0) {
-      onClose();
-      return;
-    }
-    setSaving(true);
-    const { profile: updated, error: err } = await updateProfile(fields);
-    setSaving(false);
-    if (err) {
-      setError(err);
-      return;
-    }
-    if (updated) onSaved(updated);
-    onClose();
-  }
-
-  return (
-    <Dialog open onOpenChange={(open) => !open && onClose()}>
-      <DialogContent>
-        <DialogHeader>
-          <DialogTitle className="text-subtitle font-semibold">Edit Profile</DialogTitle>
-          <DialogDescription>Your name and the line under it.</DialogDescription>
-        </DialogHeader>
-
-        <form onSubmit={handleSubmit} className="flex flex-col gap-4">
-          {(
-            [
-              ["full_name", "Full Name"],
-              ["headline", "Headline"],
-            ] as const
-          ).map(([id, label]) => (
-            <div key={id} className="flex flex-col gap-1">
-              <label htmlFor={`edit-${id}`} className={FIELD_LABEL}>
-                {label}
-              </label>
-              <input
-                id={`edit-${id}`}
-                value={draft[id]}
-                onChange={(e) => setDraft((d) => ({ ...d, [id]: e.target.value }))}
-                required={id === "full_name"}
-                className={cn(FIELD_CONTROL, "px-3.5 py-2.5")}
-              />
-            </div>
-          ))}
-
-          {error && (
-            <p role="alert" className="text-meta text-danger">
-              {error}
-            </p>
-          )}
-
-          <DialogFooter>
-            <DialogClose render={<Button variant="secondary">Cancel</Button>} />
-            <Button type="submit" disabled={saving}>
-              {saving ? "Saving…" : "Save"}
-            </Button>
-          </DialogFooter>
-        </form>
-      </DialogContent>
-    </Dialog>
-  );
 }
