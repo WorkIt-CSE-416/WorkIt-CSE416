@@ -179,8 +179,6 @@ class SkillResponse(BaseModel):
     id: UUID
     name: str
     group: str | None
-    entry_ids: list[UUID] = []
-    """The entries this skill is linked to, in bank order (KAN-216)."""
     resume_ids: list[UUID] = []
     """The resumes that hold this skill, as an entry's `resume_ids`."""
 

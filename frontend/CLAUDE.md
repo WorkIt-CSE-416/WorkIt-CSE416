@@ -1187,7 +1187,7 @@ are in `docs/auth.md`.
   newest. The rules (which items a pick shows, the opening pick, the "Also
   used in" line) live in `(seeker)/bank/holdings.ts` and read only the
   API's `resume_ids`; never work out a resume's items in a component.
-  Intake and the entry editor's skill links always get the whole bank. A
+  Intake always gets the whole bank. A
   new entry or skill saved under a resume pick is on no resume yet, so the
   page says where it went instead of letting it vanish.
 - **Applicant server actions call the API through `applicantCall`**

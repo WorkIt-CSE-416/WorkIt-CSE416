@@ -260,7 +260,7 @@ def _entry(section, title, **fields):
 
 def test_bank_facts_carry_every_section_and_the_original_bullets():
     bank = {
-        "skills": [{"name": "Python", "group": "Languages", "entry_ids": []}],
+        "skills": [{"name": "Python", "group": "Languages"}],
         "entries": [
             _entry(
                 "education", "Stony Brook University", degree="BS", field_of_study="CS",
@@ -300,7 +300,7 @@ def test_bank_facts_ignore_which_resumes_hold_an_entry():
     # and they never become facts.
     bank = {
         "entries": [_entry("projects", "WorkIt", resume_ids=["r1"])],
-        "skills": [{"name": "Python", "entry_ids": [], "resume_ids": ["r1"]}],
+        "skills": [{"name": "Python", "resume_ids": ["r1"]}],
         "resumes": [{"id": "r1", "kind": "uploaded", "name": "jane-doe-resume.pdf", "primary": True}],
     }
     facts = bank_facts(bank, has_upload=True)

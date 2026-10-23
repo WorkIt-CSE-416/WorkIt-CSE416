@@ -7,7 +7,7 @@ import { SparkleIcon } from "@/components/icons";
 import { Badge } from "@/components/ui/badge";
 import { Button, ButtonLink } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
-import { addSkill, getBank, linkSkill, type BankEntry } from "@/lib/bank-actions";
+import { addSkill } from "@/lib/bank-actions";
 import { cn } from "@/lib/cn";
 import {
   finishTailor,
@@ -332,8 +332,7 @@ function ChangeRow({
 }
 
 /** "Have you used X?" Yes adds X to the bank as a skill and shows it on
- *  the tailored resume (an accepted change), then offers to link it to the
- *  entry where it was used. No AI call. */
+ *  the tailored resume (an accepted change). No AI call. */
 function Question({
   keyword,
   answer,
@@ -345,9 +344,6 @@ function Question({
 }) {
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
-  const [skillId, setSkillId] = useState<string | null>(null);
-  const [entries, setEntries] = useState<BankEntry[]>([]);
-  const [linked, setLinked] = useState<string | null>(null);
 
   async function yes() {
     setBusy(true);
@@ -357,7 +353,6 @@ function Question({
       setBusy(false);
       return setError(error);
     }
-    setSkillId(data.id);
     onAnswer("yes", {
       kind: "show_skill",
       skill_id: data.id,
@@ -369,16 +364,7 @@ function Question({
       label: data.name,
       keywords: [keyword.keyword],
     });
-    const bank = await getBank();
-    setEntries(bank.data?.entries ?? []);
     setBusy(false);
-  }
-
-  async function link(entryId: string) {
-    if (!skillId || !entryId) return;
-    const { error } = await linkSkill(skillId, entryId);
-    if (error) return setError(error);
-    setLinked(entryId);
   }
 
   return (
@@ -405,24 +391,6 @@ function Question({
           </p>
         )}
       </div>
-      {answer === "yes" && entries.length > 0 && (
-        <label className="text-note text-ink-muted mt-2 flex flex-wrap items-center gap-2">
-          Where Did You Use It?
-          <select
-            className="border-border-subtle bg-surface text-body rounded-control border px-2 py-1"
-            value={linked ?? ""}
-            onChange={(e) => link(e.target.value)}
-          >
-            <option value="">Choose an Entry (Optional)</option>
-            {entries.map((e) => (
-              <option key={e.id} value={e.id}>
-                {e.title}
-                {e.organization ? `, ${e.organization}` : ""}
-              </option>
-            ))}
-          </select>
-        </label>
-      )}
       {error && (
         <p role="alert" className="text-note text-danger mt-1">
           {error}

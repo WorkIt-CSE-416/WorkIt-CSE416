@@ -17,7 +17,6 @@ applicant_profiles
   ├── bank_entries       one per job, degree, project, club role, award or certification
   │     └── bank_bullets the entry's lines, in order, in their original wording
   └── bank_skills        a plain list, each with an optional group
-        └── bank_skill_links  the entries that show the skill (none is fine)
 ```
 
 - **Six entry sections, not seven.** Skills is the seventh section, but a
@@ -38,10 +37,10 @@ applicant_profiles
   code is deployed (expand, then contract).
 - **The duplicate check matches section, title and organization, ignoring
   case.** It warns and never blocks: two real roles may share a title.
-- **A skill links to the entries that show it** (KAN-216), so Tailor can
-  show the skill with proof. A skill with no links is fine: one learned on
-  one's own. Links do not clear the embedding, whose text never pairs a
-  skill with an entry.
+- **A skill is one list per student, never tied to an entry.** KAN-216
+  linked a skill to the entries that showed it, as proof for Tailor; that
+  use was never built, no upload wrote a link, and only the bank screen
+  read them, so the links were removed (`9e4b2d7a5c18`).
 - **A bullet variant is another wording kept beside the original**
   (`bank_bullet_variants`, KAN-217), never in its place. It belongs to a
   job posting (made by Tailor) or to one built resume (typed on it, the

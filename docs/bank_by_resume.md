@@ -60,7 +60,7 @@ bank already has it from resume A, B's reading merges into A's entry. That
 one entry now comes from two uploads. One column would keep A and lose B,
 so B's view would miss an entry B plainly holds.
 
-So the source is a many-to-many link, as `bank_skill_links` is. Each row
+So the source is a many-to-many link table. Each row
 is one pair: "this entry (or skill) was found in this upload". The rows
 hold no text; the words stay on the entry or skill.
 
@@ -81,7 +81,7 @@ e1        B               s2 (Java)    B
 
 ### Schema
 
-One migration, two tables. Both follow `bank_skill_links`' pattern.
+One migration, two tables of the same shape.
 
 | Table | Columns | Keys |
 |---|---|---|
@@ -95,7 +95,7 @@ One migration, two tables. Both follow `bank_skill_links`' pattern.
 - **The PK leads with the bank side**, so "the sources of these entries"
   (the bank read) uses it; the `resume_id` index serves the cascade from
   `resumes` and "the entries of this upload".
-- **No applicant column**, as with `bank_skill_links`, so the table cannot
+- **No applicant column**, so the table cannot
   check that both sides share an owner. `services/bank.py` writes the rows
   only from an import, where the resume and the entry are both already
   scoped to the applicant. A source row written any other way can join two
@@ -103,9 +103,9 @@ One migration, two tables. Both follow `bank_skill_links`' pattern.
 - **RLS on, no policies** (root `CLAUDE.md`, Auth).
 - **The bank embedding does not change.** A source row is not an entry,
   bullet or skill change, and the embedding text never names a resume, so
-  writing one does not call `clear_embedding` (same rule as skill links).
-- Models go in `backend/app/models/bank.py` beside `Bank_Skill_Link`
-  (`Bank_Entry_Source`, `Bank_Skill_Source`). No `relationship()`
+  writing one does not call `clear_embedding`.
+- Models go in `backend/app/models/bank.py` (`Bank_Entry_Source`,
+  `Bank_Skill_Source`). No `relationship()`
   (`models/CLAUDE.md`, "Insert order is not foreign-key order").
 - Adding two tables is safe on the running code. **Apply the migration
   before the deploy that writes them**, or every upload answers 500.
@@ -162,7 +162,7 @@ and each skill, plus the list the dropdown needs:
 ```jsonc
 {
   "entries": [{ "id": "e1", "title": "Software Intern", …, "resume_ids": ["u1", "b1"] }],
-  "skills":  [{ "id": "s1", "name": "Python", …, "entry_ids": […], "resume_ids": ["u1"] }],
+  "skills":  [{ "id": "s1", "name": "Python", …, "resume_ids": ["u1"] }],
   "resumes": [
     { "id": "u1", "kind": "uploaded", "name": "resume.pdf",       "primary": false,
       "created_at": "2026-10-20T14:03:00Z" },

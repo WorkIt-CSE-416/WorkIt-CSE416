@@ -13,13 +13,11 @@ place:
 - The duplicate check (`find_duplicate`) matches section, title and
   organization, ignoring case. Intake uses it to flag a draft; import
   (`merge_import`) merges into the entry it finds.
-- A skill link (KAN-216) joins a skill to an entry of the same applicant.
-  Adding or removing one does not clear the embedding: the embedding text
-  holds skills and entries, never which skill goes with which entry.
 - A source (KAN-343, docs/bank_by_resume.md) says an upload's import found
   an entry or skill. Only `merge_import` writes one, for everything the
   reading found, merged or not; Import Updated Resume clears the old ones
-  first (`clear_sources`). Sources do not clear the embedding either.
+  first (`clear_sources`). Sources do not clear the embedding: its text
+  never names a resume.
 - Functions flush but never commit: the caller owns the transaction, so an
   import can save many entries in one.
 
@@ -29,7 +27,7 @@ The session is handed in by the caller; this module opens no connection.
 import datetime
 import uuid
 from collections.abc import Mapping, Sequence
-from dataclasses import dataclass, field
+from dataclasses import dataclass
 
 from pydantic import ValidationError
 from sqlalchemy import delete, func, select
@@ -41,7 +39,6 @@ from app.models.bank import (
     Bank_Entry,
     Bank_Entry_Source,
     Bank_Skill,
-    Bank_Skill_Link,
     Bank_Skill_Source,
     Experience_Bank,
 )
@@ -89,12 +86,10 @@ class Entry:
 class Bank:
     """A whole bank, ordered the way every screen and resume reads it:
     entries in section order, ongoing first and then newest; skills by
-    group, then name. `skill_links` maps a skill id to the ids of its
-    linked entries, in bank order; a skill with no links is absent."""
+    group, then name."""
 
     entries: list[Entry]
     skills: list[Bank_Skill]
-    skill_links: dict[uuid.UUID, list[uuid.UUID]] = field(default_factory=dict)
 
 
 _SECTION_ORDER = {section: i for i, section in enumerate(bank_section)}
@@ -162,17 +157,7 @@ async def load_bank(session: AsyncSession, applicant_id: uuid.UUID) -> Bank:
         .where(Bank_Skill.applicant_id == applicant_id)
         .order_by(Bank_Skill.group.asc().nulls_last(), func.lower(Bank_Skill.name))
     )
-    order = {r.id: i for i, r in enumerate(rows)}
-    links: dict[uuid.UUID, list[uuid.UUID]] = {}
-    for link in await session.scalars(
-        select(Bank_Skill_Link)
-        .join(Bank_Skill, Bank_Skill.id == Bank_Skill_Link.skill_id)
-        .where(Bank_Skill.applicant_id == applicant_id)
-    ):
-        links.setdefault(link.skill_id, []).append(link.entry_id)
-    for entry_ids in links.values():
-        entry_ids.sort(key=order.__getitem__)
-    return Bank(entries=[Entry(r, bullets[r.id]) for r in rows], skills=list(skills), skill_links=links)
+    return Bank(entries=[Entry(r, bullets[r.id]) for r in rows], skills=list(skills))
 
 
 async def _entry_row(session: AsyncSession, applicant_id: uuid.UUID, entry_id: uuid.UUID) -> Bank_Entry:
@@ -583,39 +568,6 @@ async def load_holdings(session: AsyncSession, applicant_id: uuid.UUID) -> Holdi
     )
 
 
-async def linked_entry_ids(session: AsyncSession, skill_id: uuid.UUID) -> list[uuid.UUID]:
-    """The ids of the entries a skill (already checked as owned) links to."""
-    entries = list(
-        await session.scalars(
-            select(Bank_Entry).join(Bank_Skill_Link, Bank_Skill_Link.entry_id == Bank_Entry.id)
-            .where(Bank_Skill_Link.skill_id == skill_id)
-        )
-    )
-    entries.sort(key=_newest_first)
-    return [e.id for e in entries]
-
-
-async def link_skill(session: AsyncSession, applicant_id: uuid.UUID, skill_id: uuid.UUID, entry_id: uuid.UUID) -> None:
-    """Link a skill to an entry; linking twice is a no-op. Raises NotFound
-    unless both belong to this applicant."""
-    await _owned_skill(session, applicant_id, skill_id)
-    await _entry_row(session, applicant_id, entry_id)
-    await session.execute(
-        insert(Bank_Skill_Link).values(skill_id=skill_id, entry_id=entry_id).on_conflict_do_nothing()
-    )
-    await session.flush()
-
-
-async def unlink_skill(session: AsyncSession, applicant_id: uuid.UUID, skill_id: uuid.UUID, entry_id: uuid.UUID) -> None:
-    """Remove a link. Raises NotFound when this applicant has no such link."""
-    await _owned_skill(session, applicant_id, skill_id)
-    link = await session.get(Bank_Skill_Link, (skill_id, entry_id))
-    if link is None:
-        raise NotFound
-    await session.delete(link)
-    await session.flush()
-
-
 def entry_response(entry: Entry, resume_ids: list[uuid.UUID] | None = None) -> EntryResponse:
     fields = {name: getattr(entry.row, name) for name in EntryFields.model_fields}
     return EntryResponse.model_validate({
@@ -626,12 +578,8 @@ def entry_response(entry: Entry, resume_ids: list[uuid.UUID] | None = None) -> E
     })
 
 
-def skill_response(
-    skill: Bank_Skill, entry_ids: list[uuid.UUID], resume_ids: list[uuid.UUID] | None = None
-) -> SkillResponse:
-    return SkillResponse(
-        id=skill.id, name=skill.name, group=skill.group, entry_ids=entry_ids, resume_ids=resume_ids or []
-    )
+def skill_response(skill: Bank_Skill, resume_ids: list[uuid.UUID] | None = None) -> SkillResponse:
+    return SkillResponse(id=skill.id, name=skill.name, group=skill.group, resume_ids=resume_ids or [])
 
 
 def bank_response(bank: Bank, holdings: Holdings | None = None) -> BankResponse:
@@ -640,8 +588,6 @@ def bank_response(bank: Bank, holdings: Holdings | None = None) -> BankResponse:
     holdings = holdings or Holdings(resumes=[], entries={}, skills={})
     return BankResponse(
         entries=[entry_response(e, holdings.entries.get(e.row.id)) for e in bank.entries],
-        skills=[
-            skill_response(s, bank.skill_links.get(s.id, []), holdings.skills.get(s.id)) for s in bank.skills
-        ],
+        skills=[skill_response(s, holdings.skills.get(s.id)) for s in bank.skills],
         resumes=holdings.resumes,
     )

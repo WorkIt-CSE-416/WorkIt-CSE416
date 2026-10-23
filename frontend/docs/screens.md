@@ -1336,13 +1336,9 @@ in Docs (suggested answers in the chat, not a banner).
   add, for the next skill, and closes after an edit; the skill being edited
   takes the brand outline. A form always open under the list made Skills the
   only card that never looked finished.
-- **Skill links live in the entry editor** (KAN-216, `skill-links.tsx`):
-  "Skills Used Here" shows one toggle per bank skill, pressed when linked.
-  The editor only edits the list; on save the screen sends the link and
-  unlink calls after the entry's own save (for a new entry, after it is
-  created). Once the entry has saved, a failed later step closes the editor
-  and says "Some changes did not save", because a retry would repeat the
-  steps that worked. Intake omits `skills`, so no links show.
+- **The entry editor has no skills field.** KAN-216's "Skills Used Here"
+  toggles (skill links) were removed: a skill is one list per student,
+  edited on the Skills card only.
 - **Intake** (`intake.tsx`, KAN-213), in the look of the intake prototype's
   variant G: a lavender chat with Scout's gradient mark and a chapter line
   per section. On the bank page it is in Scout's panel, in the three bands
@@ -1443,7 +1439,8 @@ in Docs (suggested answers in the chat, not a banner).
   share a title; the API never offers a copy of an entry already shown.
 - **"Have you used X?"** lists missing keywords that are nowhere in the
   bank. Yes adds the skill to the bank (it is saved at once, being true),
-  shows it on the tailored resume, and offers to link it to an entry.
+  and shows it on the tailored resume. It no longer asks where the skill
+  was used: skill links were removed.
 - An empty bank (409) shows a link to the bank page, where intake starts.
 
 ## Resumes (`/resumes`)

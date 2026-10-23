@@ -18,8 +18,6 @@ import {
   entryResumeCount,
   getBank,
   importResume,
-  linkSkill,
-  unlinkSkill,
   updateSkill,
   type Bank,
   type BankEntry,
@@ -29,7 +27,7 @@ import {
 
 import { DeleteConfirm } from "../resumes/delete-confirm";
 import { EntryEditor } from "./entry-editor";
-import { editSteps, type SaveStep } from "./entry-save";
+import { editSteps } from "./entry-save";
 import { ALL, NONE, openingPick, shows, uploadIds, usedIn, type Pick } from "./holdings";
 import { Intake, type IntakeFocus } from "./intake";
 import {
@@ -42,7 +40,6 @@ import {
   type EntryDraft,
 } from "./sections";
 import { ResumePicker } from "./resume-picker";
-import { linkChanges } from "./skill-links";
 
 /**
  * The bank page's live screen: one card per section, each entry with its
@@ -63,8 +60,7 @@ import { linkChanges } from "./skill-links";
  * entries and skills at a time: it opens on the URL's `?resume=`, else the
  * starred resume, else the newest. The rest of the bank stays one pick away
  * (All Experiences), and every edit is still to the one bank, which a shared
- * entry's "Also used in" line says. Intake and the entry editor's skill
- * links always see the whole bank.
+ * entry's "Also used in" line says. Intake always sees the whole bank.
  */
 
 type Editing = { kind: "new"; section: Section } | { kind: "edit"; entry: BankEntry } | null;
@@ -183,18 +179,14 @@ export function BankScreen({
     setPageError(null);
   }
 
-  /** The skill ids linked to an entry, from the skills' `entry_ids`. */
-  const linkedTo = (entryId: string) =>
-    bank.skills.filter((s) => s.entry_ids.includes(entryId)).map((s) => s.id);
-
-  async function save(draft: EntryDraft, skillIds: string[], allowDuplicate = false) {
+  async function save(draft: EntryDraft, allowDuplicate = false) {
     setSaving(true);
     setError(null);
     added.current = null;
     const failed =
       editing?.kind === "edit"
-        ? await saveEdit(editing.entry, draft, skillIds)
-        : await saveNew(draft, skillIds, allowDuplicate);
+        ? await saveEdit(editing.entry, draft)
+        : await saveNew(draft, allowDuplicate);
     setSaving(false);
     if (failed === "duplicate" || failed === "closed") return;
     if (failed) return setError(failed);
@@ -217,7 +209,7 @@ export function BankScreen({
   // The id of the entry the last Add saved.
   const added = useRef<string | null>(null);
 
-  async function saveNew(draft: EntryDraft, skillIds: string[], allowDuplicate: boolean) {
+  async function saveNew(draft: EntryDraft, allowDuplicate: boolean) {
     const { bullets, ...fields } = draft;
     const res = await createEntry(
       fields,
@@ -229,40 +221,13 @@ export function BankScreen({
       return "duplicate" as const;
     }
     if (!res.entry) return res.error;
-    const entryId = res.entry.id;
-    added.current = entryId;
-    // The entry is saved: a failed link closes the editor (a retry would
-    // make the entry twice) and says so on the page.
-    return runAfterSave(skillIds.map((skillId) => () => linkSkill(skillId, entryId)));
-  }
-
-  /** Steps that run once the entry itself has saved. On a failure the
-   *  editor closes on the bank as it now is, since retrying from it would
-   *  repeat the steps that worked. */
-  async function runAfterSave(steps: (() => Promise<{ error: string | null }>)[]) {
-    for (const step of steps) {
-      const { error } = await step();
-      if (!error) continue;
-      open(null);
-      await reload();
-      setPageError(`Some changes did not save: ${error}`);
-      return "closed" as const;
-    }
+    added.current = res.entry.id;
     return null;
   }
 
-  /** The fields and bullets as `editSteps` gives them, with the skill links
-   *  and unlinks after the fields. */
-  async function saveEdit(entry: BankEntry, draft: EntryDraft, skillIds: string[]) {
-    const { link, unlink } = linkChanges(linkedTo(entry.id), skillIds);
-    const [fields, ...bulletSteps] = editSteps(entry, draft);
-    const steps: SaveStep[] = [
-      fields,
-      ...link.map((skillId) => () => linkSkill(skillId, entry.id)),
-      ...unlink.map((skillId) => () => unlinkSkill(skillId, entry.id)),
-      ...bulletSteps,
-    ];
-    for (const [i, step] of steps.entries()) {
+  /** The fields, then the bullets, as `editSteps` gives them. */
+  async function saveEdit(entry: BankEntry, draft: EntryDraft) {
+    for (const [i, step] of editSteps(entry, draft).entries()) {
       const { error } = await step();
       if (!error) continue;
       if (i === 0) return error; // Nothing saved yet: the editor stays open to fix it.
@@ -352,9 +317,7 @@ export function BankScreen({
                   {editing?.kind === "edit" && editing.entry.id === entry.id ? (
                     <EntryEditor
                       initial={draftOf(entry)}
-                      skills={bank.skills}
-                      linkedSkillIds={linkedTo(entry.id)}
-                      onSave={(draft, skillIds) => save(draft, skillIds)}
+                      onSave={(draft) => save(draft)}
                       onCancel={() => open(null)}
                       saving={saving}
                       error={error}
@@ -375,13 +338,12 @@ export function BankScreen({
               <div className="mt-2">
                 <EntryEditor
                   initial={emptyDraft(section.id)}
-                  skills={bank.skills}
-                  onSave={(draft, skillIds) => save(draft, skillIds)}
+                  onSave={(draft) => save(draft)}
                   onCancel={() => open(null)}
                   saving={saving}
                   error={error}
                   duplicate={duplicate}
-                  onSaveAsNew={(draft, skillIds) => save(draft, skillIds, true)}
+                  onSaveAsNew={(draft) => save(draft, true)}
                 />
               </div>
             )}

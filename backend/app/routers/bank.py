@@ -23,11 +23,7 @@ PATCH  /applicants/{id}/bank/bullets/{bullet_id} BulletUpdate -> BulletResponse
 DELETE /applicants/{id}/bank/bullets/{bullet_id} -> 204
 POST   /applicants/{id}/bank/skills              SkillCreate -> 201 SkillResponse (409 if the name exists)
 PATCH  /applicants/{id}/bank/skills/{skill_id}   SkillUpdate -> SkillResponse (409 if the name exists)
-DELETE /applicants/{id}/bank/skills/{skill_id}   -> 204 (its links too)
-PUT    /applicants/{id}/bank/skills/{skill_id}/entries/{entry_id} -> 204
-       link the skill to the entry (KAN-216); linking twice is a no-op.
-DELETE /applicants/{id}/bank/skills/{skill_id}/entries/{entry_id} -> 204
-       (404 when there is no such link)
+DELETE /applicants/{id}/bank/skills/{skill_id}   -> 204
 POST   /applicants/{id}/bank/import              ImportRequest -> ImportResponse
        Import Again (ADR 0003): reads one uploaded resume (resume_id, else
        the default resume, else the newest) with the heuristic parser and
@@ -43,8 +39,6 @@ POST   /applicants/{id}/bank/import              ImportRequest -> ImportResponse
        the bank writes; the response says `read_by` ("parser" or "model")
        and `uses_left`. It answers 429 at the limit and 503 when the model
        is down or answers in the wrong shape, and then writes nothing.
-
-A SkillResponse carries `entry_ids`: its linked entries, in bank order.
 
 GET /bank also sends `resumes` (every uploaded, base and tailored resume,
 with `kind`, `name`, a tailored one's `posting` and the starred one's
@@ -91,7 +85,7 @@ from app.schemas.bank import (
 from app.services import bank as service
 from app.services import built_resumes
 from app.services.ai_messages import AIMessages
-from app.services.bank import bank_response, entry_response, skill_response
+from app.services.bank import bank_response, entry_response
 from app.services.bank_import import (
     model_drafts,
     model_skills,
@@ -257,8 +251,7 @@ async def update_skill(
         skill = await service.update_skill(
             session, applicant_id, skill_id, body.model_dump(include=body.model_fields_set)
         )
-        entry_ids = await service.linked_entry_ids(session, skill.id)
-    return skill_response(skill, entry_ids)
+    return SkillResponse.model_validate(skill)
 
 
 @router.delete("/skills/{skill_id}", status_code=204)
@@ -339,26 +332,3 @@ async def import_resume(
         uses_left=left,
     )
 
-
-@router.put("/skills/{skill_id}/entries/{entry_id}", status_code=204)
-async def link_skill(
-    skill_id: uuid.UUID,
-    entry_id: uuid.UUID,
-    applicant_id: uuid.UUID = Depends(owned_applicant),
-    session: AsyncSession = Depends(get_session),
-) -> Response:
-    async with _writing(session):
-        await service.link_skill(session, applicant_id, skill_id, entry_id)
-    return Response(status_code=204)
-
-
-@router.delete("/skills/{skill_id}/entries/{entry_id}", status_code=204)
-async def unlink_skill(
-    skill_id: uuid.UUID,
-    entry_id: uuid.UUID,
-    applicant_id: uuid.UUID = Depends(owned_applicant),
-    session: AsyncSession = Depends(get_session),
-) -> Response:
-    async with _writing(session):
-        await service.unlink_skill(session, applicant_id, skill_id, entry_id)
-    return Response(status_code=204)

@@ -17,7 +17,7 @@ One of the fixed kinds of entry in the experience bank: Education, Experience, P
 _Avoid_: category, block, custom section
 
 **Skill**:
-A named ability in the experience bank, optionally linked to the entries that show it was used.
+A named ability in the experience bank. Skills are one list per student, not tied to entries.
 _Avoid_: keyword, tag
 
 **Bullet**:

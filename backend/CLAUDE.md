@@ -208,9 +208,7 @@ Find files with a directory listing; these are the rules for where code goes.
   entries).
 - **The experience bank is written only through `services/bank.py`.** It
   holds the ownership scoping, the duplicate check and the clearing of the
-  bank embedding on every entry, bullet or skill change (a skill link is
-  not one: the embedding text never says which skill goes with which
-  entry); a route or script
+  bank embedding on every entry, bullet or skill change; a route or script
   that writes `bank_*` rows itself leaves the recommender on a stale
   embedding. Schema rationale: `../docs/resume.md`, "The experience bank".
 - **The recommender and Scout read the bank, never an uploaded resume**
@@ -813,6 +811,15 @@ removed at cutover, not before. Until then a change must work on both.
   KAN-343) before the deploy that writes them.** The models map both
   tables, so deployed first, every upload, Import Again and `GET /bank`
   answers 500. It only adds two tables, so applying it early is safe.
+- **`9e4b2d7a5c18` (drops `bank_skill_links`, KAN-216's skill links) goes
+  on only AFTER the deploy that stopped reading it.** The code before it
+  queries the table on every bank load, so applying it first makes the
+  Experiences page, Generate, Tailor and Scout answer 500. The order:
+  `uv run alembic upgrade 7c2e9a4b1f63`, merge and deploy, then `uv run
+  alembic upgrade head`. Skill links were removed because nothing used
+  them: an upload never wrote one, and Tailor, the resume view, Generate,
+  Scout, the recommender and the embedding all ignored them. A skill is
+  one list per student.
 - **Apply `d642d93fcfbc` (`resumes.text_hash`, KAN-267) before the deploy
   that writes it.** The model maps the column, so every upload's INSERT
   names it: deployed first, every upload answers 500. It only adds a
