@@ -41,6 +41,15 @@ def _present(word: str, text: str) -> bool:
 
 
 def _shaped_like_a_tool(word: str, leads: bool) -> bool:
+    # "I" is capitalized by English grammar regardless of where it falls in
+    # a sentence, never because it names a tool — unlike a real single-letter
+    # tool name ("R", "C"), which this still catches. Essay generation is the
+    # only caller whose text is first-person prose (Tailor's bullets and the
+    # assistant's rewordings aren't), so a clause like "..., and I believe
+    # this fits" was flagging "I" as invented on almost every multi-clause
+    # answer — "and I", "because I", any comma before it.
+    if word == "I":
+        return False
     if "+" in word or "#" in word:
         return True
     if any(c.isupper() for c in word[1:]):

@@ -598,6 +598,36 @@ Find files with a directory listing; these are the rules for where code goes.
   would eventually get its own JSONB-backed slot). One `ESSAY` use per
   generated answer (cap 5, share 10%: on top of the spec's four shares plus
   the assistant's, following the same accepted-overshoot precedent).
+  **A personal/logistics question has no honest bank-grounded answer at
+  all** — "What date can you start?" or "Which locations would you want
+  to be considered for?" name nothing the bank could ever truthfully
+  answer, so the model would either invent one (caught by `truth_rule`,
+  422) or the student would be left to type it manually every time.
+  `essay_answer.general_answer` matches a short, growable synonym list
+  (same shape as `field-map.js`'s own rules) and answers these directly,
+  skipping the model and the `ESSAY` quota both — free, for every student,
+  even at the daily limit, the same "a cached lookup costs nothing"
+  precedent the keyword match already sets. `bank_context` labels each
+  entry's heading with its section name (Education, Experience, Projects,
+  ...) and the prompt is told to prefer the matching section, so a
+  project-themed question ("describe a project you're proud of") grounds
+  in the bank's actual Projects entries rather than whichever section
+  happens to come first in the join.
+  **Two real grounding bugs, found live (2026-10-22), not hypothetical:**
+  (1) `prompt()` tells the model which company/role the question is from
+  (`"...from an application for {role} at {company}"`), so a well-grounded
+  answer naturally names the company back — but `generate()`'s truth-rule
+  check validated only against `bank_context()`'s own text, never the
+  request's `company_name`/`job_title`, so almost every "why this
+  company" answer failed 422 regardless of how well it used the bank.
+  Fixed by folding both into the text `invented()` treats as known. (2)
+  `truth_rule.invented` (below) flagged the pronoun "I" as an invented
+  tool whenever it fell anywhere but the very first word of a sentence
+  ("...and I believe...", "...because I...") — essay generation is the
+  only caller that writes first-person prose at all (Tailor's bullets and
+  the assistant's rewordings never do), so this broke almost every
+  multi-clause answer. Fixed in `truth_rule.py` itself, benefiting every
+  caller.
 - **Utils** (`app/utils/`): the resume parser; `app/utils/CLAUDE.md`.
 - **Scripts** (`app/scripts/`): commands run by hand,
   `uv run python -m app.scripts.<name>`.

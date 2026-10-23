@@ -63,3 +63,15 @@ def test_go_is_not_found_inside_another_word() -> None:
 
 def test_each_invented_fact_is_named_once() -> None:
     assert invented("Used Rust and Rust with 5 and 5 engineers", "Wrote code", []) == ["5", "Rust"]
+
+
+def test_the_pronoun_i_is_never_a_tool_wherever_it_falls() -> None:
+    # Essay generation writes first-person prose, unlike Tailor's bullets —
+    # "I" is grammatically capitalized everywhere, not because it names a
+    # tool, in a clause like "..., and I believe..." or "because I...".
+    assert invented("I built an app, and I believe this fits the role.", "Built an app", []) == []
+    assert invented("I think I can help because I know Python.", "", ["Python"]) == []
+
+
+def test_a_real_single_letter_tool_is_still_invented() -> None:
+    assert invented("I used R for the analysis.", "Did data work", []) == ["R"]

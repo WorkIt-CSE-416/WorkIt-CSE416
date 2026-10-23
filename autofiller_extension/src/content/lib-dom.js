@@ -291,5 +291,39 @@ window.WIA = window.WIA || {};
     });
   }
 
-  window.WIA.dom = { isVisible, walkAllElements, findFormFields, findLabelText, findAddButton, waitUntil };
+  /**
+   * Resolves immediately if the tab is already visible, otherwise waits
+   * for a `visibilitychange` that makes it so. For the user-triggered fill
+   * loop only (content-script.js) — the auto-apply runner's own tab
+   * doesn't need this, since it force-activates itself before filling
+   * (runner.js) rather than ever running while genuinely backgrounded by
+   * the student. This is for the opposite situation: the student's own
+   * active tab, switched away from mid-fill. Unlike the runner, this
+   * never re-activates the tab itself — a deliberate tab switch the
+   * student made shouldn't be silently undone; it only waits for them to
+   * come back on their own.
+   * @returns {Promise<void>}
+   */
+  function waitUntilVisible() {
+    if (!document.hidden) return Promise.resolve();
+    return new Promise((resolve) => {
+      function onVisible() {
+        if (!document.hidden) {
+          document.removeEventListener("visibilitychange", onVisible);
+          resolve();
+        }
+      }
+      document.addEventListener("visibilitychange", onVisible);
+    });
+  }
+
+  window.WIA.dom = {
+    isVisible,
+    walkAllElements,
+    findFormFields,
+    findLabelText,
+    findAddButton,
+    waitUntil,
+    waitUntilVisible,
+  };
 })();

@@ -23,6 +23,28 @@ const CACHE_KEY = "workit_autofill_profile";
 // the webapp shows up here without an explicit "refresh" click.
 const CACHE_TTL_MS = 10 * 60 * 1000;
 
+/**
+ * The access token's own `sub` claim (the signed-in account's id), read
+ * with no signature verification — this is a cache-key choice, not an
+ * auth decision; every real request still carries the token to the
+ * backend, which verifies it for real (`backend/CLAUDE.md`'s Auth
+ * section). Local parse only: split on ".", base64url-decode the middle
+ * segment, read `sub` out of the JSON. Returns null on anything
+ * malformed, so a decode failure degrades to the old single-key
+ * behavior rather than throwing.
+ * @param {string} accessToken
+ * @returns {string | null}
+ */
+function accountIdFromToken(accessToken) {
+  try {
+    const payload = accessToken.split(".")[1];
+    const json = atob(payload.replace(/-/g, "+").replace(/_/g, "/"));
+    return JSON.parse(json).sub ?? null;
+  } catch {
+    return null;
+  }
+}
+
 /** Resolved once per service-worker lifetime, not on every call. */
 let devApiReachable = null;
 
@@ -338,6 +360,7 @@ async function fetchAutofillProfile() {
     full_name: account.full_name,
     phone_number: profile.phone_number,
     headline: profile.headline,
+    location: profile.location,
     linkedin_url: profile.linkedin_url,
     portfolio_url: profile.portfolio_url,
     github_url: profile.github_url,
@@ -362,6 +385,15 @@ async function fetchAutofillProfile() {
  * branch never used to call anything that would notice. One extra
  * chrome.storage read (getSession, below) is cheap insurance against
  * autofilling a stale, signed-out identity.
+ *
+ * The cache key itself is scoped to the session's own account id
+ * (`accountIdFromToken`), not one fixed key — a sign-out-then-different-
+ * sign-in within CACHE_TTL_MS used to return the *previous* account's
+ * cached profile, since the old truthy-session check above verified a
+ * session existed but never checked whose it was. Scoping the key is the
+ * root-cause fix: a different account's cache is now a plain miss, not a
+ * second staleness check layered on top. A token that fails to decode
+ * falls back to the one shared key, same as before this fix.
  * @param {{ force?: boolean }} [options]
  * @returns {Promise<import("../shared/types.js").AutofillProfile>}
  */
@@ -369,13 +401,16 @@ export async function getAutofillProfile({ force = false } = {}) {
   const session = await getSession();
   if (!session) throw new ApiError(401, "Not signed in");
 
-  const { [CACHE_KEY]: cached } = await chrome.storage.local.get(CACHE_KEY);
+  const accountId = accountIdFromToken(session.access_token);
+  const cacheKey = accountId ? `${CACHE_KEY}:${accountId}` : CACHE_KEY;
+
+  const { [cacheKey]: cached } = await chrome.storage.local.get(cacheKey);
   if (cached && !force && Date.now() - cached.fetched_at < CACHE_TTL_MS) {
     return cached;
   }
 
   const fresh = await fetchAutofillProfile();
-  await chrome.storage.local.set({ [CACHE_KEY]: fresh });
+  await chrome.storage.local.set({ [cacheKey]: fresh });
   return fresh;
 }
 

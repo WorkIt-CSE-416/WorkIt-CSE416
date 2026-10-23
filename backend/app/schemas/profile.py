@@ -17,6 +17,7 @@ class ApplicantProfileResponse(BaseModel):
     full_name: str
     phone_number: str | None
     headline: str | None
+    location: str | None
     linkedin_url: str | None
     portfolio_url: str | None
     github_url: str | None
@@ -56,12 +57,13 @@ class ApplicantProfileUpdate(BaseModel):
     contact_email: EmailStr | None = Field(None, max_length=100)
     phone_number: str | None = Field(None, max_length=30)
     headline: str | None = Field(None, max_length=50)
+    location: str | None = Field(None, max_length=100)
     linkedin_url: str | None = Field(None, max_length=500)
     portfolio_url: str | None = Field(None, max_length=500)
     github_url: str | None = Field(None, max_length=500)
     other_url: str | None = Field(None, max_length=500)
 
-    @field_validator("contact_email", "phone_number", "headline", *LINK_FIELDS, mode="before")
+    @field_validator("contact_email", "phone_number", "headline", "location", *LINK_FIELDS, mode="before")
     @classmethod
     def _blank_is_none(cls, value: object) -> object:
         return None if isinstance(value, str) and not value.strip() else value

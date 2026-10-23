@@ -40,6 +40,10 @@ window.WIA = window.WIA || {};
       }
       .header button:hover { background: rgba(255,255,255,0.15); }
       .summary { padding: 8px 12px; font-size: 12px; color: #4b5563; border-bottom: 1px solid #eee; }
+      .paused-banner {
+        padding: 8px 12px; background: #fef3c7; border-bottom: 1px solid #fde68a;
+        font-size: 12px; color: #92400e; font-weight: 600;
+      }
       .essay-banner {
         padding: 10px 12px; background: #eff6ff; border-bottom: 1px solid #dbeafe;
         font-size: 12px; color: #1e3a8a;
@@ -100,6 +104,21 @@ window.WIA = window.WIA || {};
   }
 
   /**
+   * Shown while the fill loop is paused for a hidden tab (content-script.js's
+   * waitUntilVisible) — honest feedback in place of a string of per-field
+   * failures with no explanation. Safe to call before mount() has ever run
+   * (root is null then, same guard promptForEssays uses) — a pause that
+   * starts before the panel exists just has nothing to show yet.
+   * @param {boolean} paused
+   */
+  function setPaused(paused) {
+    const banner = root?.querySelector(".paused-banner");
+    if (!banner) return;
+    banner.hidden = !paused;
+    banner.textContent = paused ? "Paused — switch back to this tab to resume" : "";
+  }
+
+  /**
    * The one opt-in gate for every detected essay question on the page at
    * once (never a per-question prompt — one decision for the whole batch).
    * Nothing is generated until the student clicks Generate; `onDismiss`
@@ -149,6 +168,7 @@ window.WIA = window.WIA || {};
         <button type="button" aria-label="Close" data-close>✕</button>
       </div>
       <div class="summary"></div>
+      <div class="paused-banner" hidden></div>
       <div class="essay-banner" hidden></div>
       <div class="list"></div>
     `;
@@ -188,5 +208,5 @@ window.WIA = window.WIA || {};
     root = null;
   }
 
-  window.WIA.overlay = { mount, unmount, promptForEssays };
+  window.WIA.overlay = { mount, unmount, promptForEssays, setPaused };
 })();

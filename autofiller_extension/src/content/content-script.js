@@ -93,6 +93,24 @@
     return match ? { jobTitle: match[1].trim(), companyName: match[2].trim() } : { jobTitle: null, companyName: null };
   }
 
+  /**
+   * Confirmed missing before this: the auto-apply runner found that a
+   * hidden tab throttles requestAnimationFrame to never fire and other
+   * timers to about once a second, and fixed its own tab by force-
+   * reactivating itself before filling (runner.js). This flow is the
+   * opposite case — the student's own active tab, switched away from
+   * mid-fill — where re-stealing focus back would undo a deliberate
+   * switch rather than respect it. Pausing honestly instead: stop before
+   * the next field rather than let it run throttled and time out with a
+   * generic failure reason that never says why.
+   */
+  async function pauseIfHidden() {
+    if (!document.hidden) return;
+    overlay.setPaused(true);
+    await dom.waitUntilVisible();
+    overlay.setPaused(false);
+  }
+
   overlay.mount();
   status.reset();
 
@@ -112,19 +130,22 @@
   // real heading element, which would defeat the generic findAddButton's
   // section-heading fallback (see ats-greenhouse.js's top comment).
   const isGreenhouse = greenhouse?.detect() ?? false;
-  const handledIds = isGreenhouse ? await greenhouse.run(profile, { status, fill, dom, fieldMap }) : new Set();
+  const handledIds = isGreenhouse
+    ? await greenhouse.run(profile, { status, fill, dom, fieldMap, pauseIfHidden })
+    : new Set();
 
-  // Skipped entirely on Greenhouse, not just for "education": none of the
-  // Greenhouse postings looked at expose a structured, generically-
-  // discoverable experience/employment section at all, and a page with
-  // exactly one generic "Add another" button (Greenhouse's education one)
-  // and nothing else to disambiguate against will have this click that one
-  // button for "experience" too — it's the only candidate, so
-  // findAddButton's "only one, unambiguous" shortcut returns it regardless
-  // of which group asked. Confirmed live: this silently added a second,
-  // wrongly-indexed education block. Greenhouse's own education block is
-  // already fully handled above, by exact field id, so there's nothing
-  // left here for Greenhouse to legitimately need.
+  // Skipped entirely on Greenhouse, not just for "education": a Greenhouse
+  // posting that does expose a structured experience section (confirmed
+  // live on Coinbase's, KAN-312 — ats-greenhouse.js's own `run()` now
+  // fills it by Greenhouse's stable ids, same as education) is handled
+  // above already; one that doesn't needs nothing here either. Running
+  // this generic path on Greenhouse at all is actively wrong when only
+  // education has a block to expand: a page with exactly one generic "Add
+  // another" button and nothing else to disambiguate against will have
+  // this click that one button for "experience" too — it's the only
+  // candidate, so findAddButton's "only one, unambiguous" shortcut returns
+  // it regardless of which group asked. Confirmed live: this silently
+  // added a second, wrongly-indexed education block.
   if (!isGreenhouse) {
     for (const config of REPEATED_GROUPS) {
       const neededCount = (profile.bank?.entries ?? []).filter((e) => e.section === config.group).length;
@@ -154,6 +175,7 @@
   for (let i = 0; i < fields.length; i++) {
     const field = fields[i];
     try {
+      await pauseIfHidden();
       if (field.id && handledIds.has(field.id)) continue; // already filled precisely by the Greenhouse adapter above
 
       const labelText = dom.findLabelText(field);
@@ -169,8 +191,25 @@
           status.register(key, labelText, fieldMap.isRequired(field));
           status.setStatus(key, "needs_generation");
           essayCandidates.push({ key, field, question: labelText, maxLength: field.maxLength > 0 ? field.maxLength : null });
+        } else if (labelText && fieldMap.isRequired(field)) {
+          // Found live on Coinbase's Greenhouse posting: a required custom
+          // compliance question ("Have you previously been employed by
+          // Coinbase in any capacity?") that no rule claims is NOT a gap
+          // any student would want hidden — it still blocks Submit. Left
+          // untracked, it also quietly shrinks requiredTotal itself, so
+          // the overlay's own percentage could read "100%" while a real
+          // required question sits blank on the page — the exact kind of
+          // dishonest rollup the status tracker exists to rule out
+          // (lib-status.js's own doc comment). An *optional* unmatched
+          // field stays untracked on purpose, same as before: nothing
+          // blocks submission over it, and tracking every such field on
+          // an unfamiliar ATS would clutter the overlay with noise no
+          // student asked for.
+          const key = `unclassified#${i}`;
+          status.register(key, labelText, true);
+          status.setStatus(key, "failed", "No WorkIt profile data for this field");
         }
-        continue; // not something WorkIt has an opinion about — leave it alone, don't clutter the overlay
+        continue; // not something WorkIt has an opinion about to try filling — leave the field itself alone
       }
 
       const required = fieldMap.isRequired(field);
@@ -211,6 +250,7 @@
       // this way the overlay shows real one-at-a-time progress instead of
       // every row flipping at once at the end.
       for (const candidate of essayCandidates) {
+        await pauseIfHidden();
         const result = await chrome.runtime.sendMessage({
           type: "essay/generate",
           applicantId: profile.id,
