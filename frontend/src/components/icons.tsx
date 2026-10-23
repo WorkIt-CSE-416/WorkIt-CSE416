@@ -48,6 +48,7 @@ import {
   ShieldCheck,
   Sparkles,
   Star,
+  Target,
   Trash2,
   TrendingDown,
   TrendingUp,
@@ -128,6 +129,12 @@ export function ArrowRightIcon({ className }: IconProps) {
 /** Opens the overflow menu on a card or a column. */
 export function EllipsisIcon({ className }: IconProps) {
   return <Ellipsis aria-hidden className={className} />;
+}
+
+/** A job posting that fits the seeker: the Dashboard's Good Matches. A
+ *  target, not SparkleIcon, which marks Scout and AI only (KAN-257). */
+export function MatchIcon({ className }: IconProps) {
+  return <Target aria-hidden className={className} />;
 }
 
 /** Filled is the saved state; the outline is the affordance to save. */

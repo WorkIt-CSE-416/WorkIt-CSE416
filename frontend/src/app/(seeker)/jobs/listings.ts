@@ -21,8 +21,8 @@ import {
  * The live feed: scraped roles from the API's `GET /jobs`, which reads the
  * imported job_postings rows (backend/app/routers/jobs.py). Mirrors
  * backend/app/schemas/jobs.py field for field. Read by /jobs, by /search (which
- * sends its words as `q`), by their Load More (./actions) a page at a time, and
- * by the Dashboard's New Matches.
+ * sends its words as `q`), and by their Load More (./actions) a page at a
+ * time. The Dashboard's Good Matches reads the Best Match scores here too.
  *
  * NOT IN ./data.ts, THOUGH THAT IS THE USUAL SEAM. Client components import
  * ./data's types (`filters.tsx`, `filter-query.ts`), and `apiGet` is
@@ -170,6 +170,43 @@ export async function getRecommendedPage(query: string, offset: number): Promise
   }
 }
 
+/** The most GET /jobs/recommended returns at once. */
+const RECOMMENDED_MAX = 500;
+
+/**
+ * When each job posting from the last `days` days that scores at least
+ * `minMatch` for the seeker went up: the Dashboard's Good Matches (KAN-342),
+ * from the same scores as Best Match. "empty" when there is nothing to score
+ * against (the API's 404 for an empty bank, or 403 for a company account);
+ * null when the API can't say. Pages on past the API's limit, since
+ * `min_match` drops the weak ones before the page is cut.
+ */
+export async function getGoodMatchDates(
+  days: number,
+  minMatch: number,
+): Promise<string[] | "empty" | null> {
+  try {
+    const { id, token } = await getApplicantSession();
+    const dates: string[] = [];
+    for (let offset = 0; ; offset += RECOMMENDED_MAX) {
+      const params = new URLSearchParams({
+        posted_within: String(days),
+        min_match: String(minMatch),
+        limit: String(RECOMMENDED_MAX),
+        offset: String(offset),
+      });
+      const res = await apiGet(`/jobs/recommended/${id}?${params}`, token);
+      if (res.status === 404 || res.status === 403) return "empty";
+      if (!res.ok) return null;
+      const jobs = (await res.json()) as JobListing[];
+      dates.push(...jobs.flatMap((job) => (job.posted_at ? [job.posted_at] : [])));
+      if (jobs.length < RECOMMENDED_MAX) return dates;
+    }
+  } catch {
+    return null;
+  }
+}
+
 /** The seeker's saved preferences as the feed's filters, or null when they
  *  have saved none or the API can't say: a fresh visit's starting filters
  *  (./page). */
@@ -260,23 +297,6 @@ export async function getJobFacets(): Promise<JobFacets> {
     return res.ok ? { ...NO_FACETS, ...((await res.json()) as Partial<JobFacets>) } : NO_FACETS;
   } catch {
     return NO_FACETS;
-  }
-}
-
-/**
- * How many open jobs were posted in the last `days` days: the Dashboard's
- * New Roles. Cached like the facets above, since the figure only moves when
- * the scheduled import lands. Null when the API can't answer.
- */
-export async function countJobsPostedWithin(days: number): Promise<number | null> {
-  try {
-    const res = await apiGet(`/jobs/count?posted_within=${days}`, undefined, {
-      revalidate: COUNTS_TTL,
-    });
-    if (!res.ok) return null;
-    return ((await res.json()) as { jobs: number }).jobs;
-  } catch {
-    return null;
   }
 }
 

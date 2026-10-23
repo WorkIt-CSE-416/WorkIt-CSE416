@@ -83,3 +83,21 @@ _Avoid_: guardrail, hallucination check
 **Identity data**:
 The parts of a student's data that name or reach them: name, email, phone, street address and links. WorkIt never sends it to a model; school, employers and dates are not identity data.
 _Avoid_: personal info, PII, contact details (for the whole set)
+
+## Tracking
+
+**Tracker**:
+The page that holds every job posting a student is following, from saved to offer. Its heading is Application Tracker.
+_Avoid_: Applications (for the page), My Applications, board
+
+**Stage**:
+Where one application stands in the Tracker: Saved, Applied, Interviewing or Offer.
+_Avoid_: column, step (the Tracker's Status filter picks stages)
+
+**Application**:
+One job posting a student is following in the Tracker, at one stage.
+_Avoid_: Applications (as the page's name)
+
+**Good Match**:
+A job posting that scores 65 or more for a student, the Good Match band and above.
+_Avoid_: new role, recommendation, top job

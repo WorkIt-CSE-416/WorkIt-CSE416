@@ -57,7 +57,7 @@ function sentKey(sent: SentDownload): string {
  * who has not marked this job already (`applied`).
  *
  * EVERY APPLY NOW OPENS THIS DIALOG (KAN-290): the job posting page, the feed
- * card (/jobs, /search) and the Dashboard's New Matches. WorkIt cannot see the
+ * card (/jobs, /search). WorkIt cannot see the
  * employer's site, so this is its one chance to learn which resume went and
  * whether the student applied; a card's Apply Now once linked straight to the
  * employer and recorded neither.
@@ -77,8 +77,6 @@ export function ApplyButton({
   applied = false,
   // showsSent: read only by Pick a Resume's Apply, hidden for now.
   onApplied,
-  label = "Apply Now",
-  "aria-label": ariaLabel,
   className,
 }: {
   jobId: string;
@@ -93,10 +91,6 @@ export function ApplyButton({
   /** Takes the job off the caller's list once marked applied, in place of
    *  refreshing the route. */
   onApplied?: () => void;
-  /** The button's words: New Matches' row has room for "Apply" only. */
-  label?: string;
-  /** For a short label, the job it applies to, as a screen reader hears it. */
-  "aria-label"?: string;
   className?: string;
 }) {
   const router = useRouter();
@@ -170,8 +164,7 @@ export function ApplyButton({
     if (result.error) return setError(result.error);
     setOpen(false);
     if (onApplied) return onApplied();
-    // The page's "You applied on …" reads the new mark, and New Matches
-    // drops the job.
+    // The page's "You applied on …" reads the new mark.
     router.refresh();
   }
 
@@ -190,7 +183,6 @@ export function ApplyButton({
         target="_blank"
         rel="noopener noreferrer"
         className={buttonClasses({ size: "sm", className })}
-        aria-label={ariaLabel}
         onClick={() => {
           if (!canMarkApplied || applied) return;
           setOpen(true);
@@ -198,7 +190,7 @@ export function ApplyButton({
           void load();
         }}
       >
-        {label}
+        Apply Now
         <ExternalLinkIcon className="size-4" />
         <span className="sr-only"> (opens in a new tab)</span>
       </a>

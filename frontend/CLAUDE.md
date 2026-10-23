@@ -979,7 +979,10 @@ the KAN-296 cutover.
   `import "server-only"` (`(seeker)/jobs/listings.ts` is the first). A live
   fetch in a page calls `await connection()` so `next build` does not prerender
   it with no API running.
-- **The application tracker is live and has no fixture** (KAN-261): saved
+- **The application tracker is live and has no fixture** (KAN-261), and
+  its page shows as the Tracker (KAN-342: "Tracker" in the sidebar,
+  "Application Tracker" as its heading) while its URL and code keep
+  `applications` (`docs/screens.md`, Applications). Saved
   and applied jobs come from the API (`(seeker)/applications/tracked.ts`,
   cached per request by `getTracker` in `data.ts`), each with the Jobs
   page's own match score (`?scored=true`, KAN-256) and the sent resume the
@@ -991,8 +994,11 @@ the KAN-296 cutover.
   stretched link, and a dialog opened from one stops its own clicks, since
   React passes them up through the portal. A row or card opens the application's own page,
   `/applications/[jobId]` (KAN-256), not a side panel. Interviewing, Offer and
-  dated events stay empty until the API stores them; a failed read shows an
-  error, never stand-in cards. A job's application
+  dated events stay empty until the API stores them (the Dashboard's
+  Interviews number is a dash, KAN-342); a failed read shows an error, never
+  stand-in cards. The Dashboard's four numbers are all live and all links
+  (KAN-342); its Good Matches reads the Best Match scores
+  (`getGoodMatchDates`), and it lists no jobs of its own. A job's application
   stage (`saved`, `queued`...) reaches its Save and Auto Apply buttons from
   one read per page. Auto Apply never picks a saved job for a batch; only
   the job's own Auto Apply click queues it.
@@ -1217,8 +1223,8 @@ are in `docs/auth.md`.
   posting page): Apply Now opens the employer's page and asks "Did You
   Apply?", whose Yes keeps the pick through `applyWithResume`. It went through
   `applyWithResume` (KAN-220) at Apply wherever it
-  sits: the job posting page, the feed cards on /jobs and /search, and the
-  Dashboard's New Matches (KAN-290). It keeps its sent resume: the student
+  sits: the job posting page and the feed cards on /jobs and /search
+  (KAN-290). It keeps its sent resume: the student
   is told WorkIt kept a copy, so it is never deleted behind their back.
   **Resume files download on Resumes & Experiences only** (KAN-267): the
   editor's Download and an upload's row (`lib/save-file.ts`). The Apply
