@@ -888,10 +888,13 @@ What writes them, and why, is `../services/matching/CLAUDE.md`.
 
 **Tailor's keywords are cached on the posting (KAN-215).** `keywords` (JSONB,
 at most 20 `{"keyword", "kind"}`) and `keywords_hash` (the SHA-256 of the
-description they came from), both `deferred`, from `e1c4a7b9d215`. A hash
-that differs from the description's means stale, so a company's edit is
-caught with no extra code; the feed import also clears both when it changes
-a description, so a stale list never sits in the table. Only
+title and the description's job part, `job_part`, which is all the model
+read), both `deferred`, from `e1c4a7b9d215`. A hash that differs means
+stale, so a company's edit to the job or its title is caught with no extra
+code, an edit to its perks
+alone keeps the cache, and a change to `job_part`'s headings refreshes the
+caches it changes. The feed import also clears both when it changes a
+description at all, so a stale list never sits in the table. Only
 `services/keywords.py` reads or writes them. Apply the migration before the
 deploy: the model maps them, so company job creation fails on a database
 without them (above).

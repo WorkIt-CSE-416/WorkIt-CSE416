@@ -147,13 +147,17 @@ async def run(
             tailor.prompt(job, found, resume, choices, ranks), TailorReading, identity=identity)
     except ScoutUnavailable as exc:
         raise HTTPException(503, AI.failure(exc)) from exc
+    # propose new order 
     changes, dropped = tailor.propose(resume, choices, reading, ranks, found)
+    # extract all missing and matching bullet points 
     matched, missing = tailor.match(resume, choices, found)
     tailored_id = tailored.id if tailored else None
     # KAN-319: the Tailor limit is lifted for now.
     # await count_use(session, applicant_id, Feature.TAILOR)
     # One commit: the count and what reading an uploaded source wrote.
     await session.commit()
+
+    # commit proposed changes to generate 
     return TailorProposal(
         job_posting_id=job.id,
         built_resume_id=body.built_resume_id,
@@ -165,7 +169,7 @@ async def run(
         questions=tailor.questions(resume, found, missing),
         changes=changes,
         dropped=dropped,
-        uses_left=left,  # KAN-319: was left - 1
+        uses_left=left,  # need to update when to deduct uses_left 
     )
 
 

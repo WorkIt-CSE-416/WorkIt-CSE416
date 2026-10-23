@@ -521,7 +521,8 @@ Find files with a directory listing; these are the rules for where code goes.
   script before a new endpoint joins the chain.
 - **The keyword match** (KAN-215) is `GET .../built-resumes/{rid}/keyword-match`
   over `services/keywords.py`: a job posting's keywords, extracted once by
-  the model and cached on the posting with a hash of its description, and
+  the model and cached on the posting with a hash of its title and the
+  description's job part (`job_part`), all the model read, and
   the pure count of those the built resume view shows (text and skills,
   whole words, ignoring case). **Only an extraction spends a use, and it
   counts under `TAILOR`**; a cached match is free, for every student. Tailor

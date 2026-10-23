@@ -92,10 +92,9 @@ def weak_match(job: Job_Post) -> bool:
 
 
 async def rank_bullets(session: AsyncSession, bank: Bank, text: str) -> dict[uuid.UUID, float]:
-    """Each of `bank`'s bullets (the resume's, from `on_resume`) with its
-    text-search rank against `text`. The posting's words are OR'd
-    (plainto_tsquery ANDs them, which no bullet would match), so a bullet
-    ranks by how many it shares."""
+    '''
+    bring all entries, format the job description + title into one 
+    '''
     ids = [b.id for e in bank.entries for b in e.bullets]
     if not ids:
         return {}

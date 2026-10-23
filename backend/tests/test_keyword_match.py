@@ -248,6 +248,43 @@ async def test_a_description_changed_elsewhere_is_extracted_again(student, datab
     assert (body["matched"], body["missing"]) == ([], [{"keyword": "Rust", "kind": "required"}])
 
 
+async def test_an_edit_outside_the_job_part_keeps_the_keywords(student, database, use_model):
+    client, resume = student
+    job = f"Requirements\n{DESCRIPTION}"
+    posting = await _seed_posting(database, job)
+    use_model(reading(KEYWORDS))
+    await _match(client, resume, posting)
+
+    # The model never read Benefits, so the hash of what it read still holds.
+    async with database() as session:
+        await session.execute(
+            text("UPDATE job_postings SET description = :d WHERE id = :id"),
+            {"d": f"{job}\nBenefits\nFree lunch.", "id": posting})
+        await session.commit()
+    fake = use_model(rate_limited())
+    res = await _match(client, resume, posting)
+
+    assert res.status_code == 200, res.text
+    assert fake.prompts == []
+
+
+async def test_a_new_title_is_extracted_again(student, database, use_model):
+    client, resume = student
+    posting = await _seed_posting(database)
+    use_model(reading(KEYWORDS))
+    await _match(client, resume, posting)
+
+    # The model read the title too, so the hash covers it.
+    async with database() as session:
+        await session.execute(
+            text("UPDATE job_postings SET title = 'Rust Intern' WHERE id = :id"), {"id": posting})
+        await session.commit()
+    fake = use_model(reading([{"keyword": "Rust", "kind": "required"}]))
+    await _match(client, resume, posting)
+
+    assert len(fake.prompts) == 1
+
+
 async def test_at_most_20_keywords_without_repeats(student, database, use_model):
     client, resume = student
     posting = await _seed_posting(database)

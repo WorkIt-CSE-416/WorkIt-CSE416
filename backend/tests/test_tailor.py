@@ -19,9 +19,10 @@ from workit_scout.testing import ScriptedLLM
 from app.config import get_settings
 from app.deps import get_current_account
 from app.main import app
+from app.models.jobs import Job_Post
 from app.routers.scout import get_llm
 from app.schemas.auth import AccountType, AuthenticatedAccount
-from app.services.keywords import description_hash
+from app.services.keywords import posting_hash
 
 pytestmark = pytest.mark.anyio
 
@@ -174,7 +175,7 @@ async def _seed_posting(database, description: str | None = DESCRIPTION, *, cach
         if cached:
             await session.execute(
                 text("UPDATE job_postings SET keywords = CAST(:k AS jsonb), keywords_hash = :h WHERE id = :id"),
-                {"k": json.dumps(KEYWORDS), "h": description_hash(description), "id": posting},
+                {"k": json.dumps(KEYWORDS), "h": posting_hash(Job_Post(title="Backend Intern", description=description)), "id": posting},
             )
         await session.commit()
     return str(posting)
