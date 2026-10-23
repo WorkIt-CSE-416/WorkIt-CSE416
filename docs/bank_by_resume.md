@@ -1,11 +1,12 @@
 # The experience bank by resume (KAN-343)
 
-Status: **decided 2026-10-23, not built.** Each uploaded resume owns its
-own entries and skills; nothing is shared or merged across uploads (ADR
-0005). The code still runs the first design, which merged every upload
+Status: **built 2026-10-23** (ADR 0005). Each uploaded resume owns its own
+entries and skills; nothing is shared or merged across uploads. Apply
+migration `b5e1c3a7d920` before the deploy and `c8f2a4e6b913` after it
+(`backend/CLAUDE.md`, Deployment). The first design merged every upload
 into one bank and recorded each entry's uploads in link tables
-(`bank_entry_sources`, `bank_skill_sources`, migration `7c2e9a4b1f63`).
-"What changes from the first design" below lists what goes.
+(`bank_entry_sources`, `bank_skill_sources`, migration `7c2e9a4b1f63`);
+"What changes from the first design" below lists what went.
 
 **Scope: the experience bank only.** Import, the bank's API and the
 Experiences view change. Generate, Tailor's ranking, the recommender,
@@ -131,8 +132,8 @@ created_at).
 - **"Also used in" names built resumes only.** An upload's entry is never
   on another upload, but a built resume may show it, and an edit changes
   it there too.
-- **The old-upload prompt** ("WorkIt hasn't linked this resume's entries
-  yet. [Import Again]") stays for an upload that owns nothing. Import
+- **The old-upload prompt** ("This resume has no entries in your bank
+  yet. [Import Again]") shows for an upload that owns nothing. Import
   Again writes that upload's own entries.
 - **Delete Entry** deletes that one row. Its confirm still counts the
   built resumes that show it.
@@ -166,7 +167,7 @@ summary (`lib/import-summary.ts`) loses "filled in", since nothing merges.
 - **Warn before a replace.** Rejected: the student clicked to have the
   file read again.
 
-## Build order
+## Build order (done)
 
 1. **Migration 1**: add the two `resume_id` columns, fill them from
    single-source links, swap the skill index. Check offline with `--sql`;

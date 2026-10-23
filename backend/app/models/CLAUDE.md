@@ -279,14 +279,14 @@ change here must keep:
   proof for Tailor) was removed in `9e4b2d7a5c18`: no upload wrote a link,
   and nothing but the bank screen read one. Do not add it back without a
   reader that needs it.
-- **`bank_entry_sources` and `bank_skill_sources` say which uploads hold an
-  item** (KAN-343, `../../../docs/bank_by_resume.md`): many-to-many, since
-  import merges and one entry comes from several uploads; a `resume_id`
-  column would lose all but one. No applicant column, so the table
-  cannot check that both sides share an owner: only `merge_import` writes
-  them, and a row written any other way can join two students' rows. Both sides cascade: deleting an upload drops
-  its sources and leaves its entries (ADR 0003). Built resumes need no
-  source rows: their shown choice rows already say what they hold.
+- **An entry or skill belongs to at most one upload** (`resume_id`, ADR
+  0005, `../../../docs/bank_by_resume.md`): uploads never merge, so one
+  column holds the truth and the link tables of KAN-343 were dropped
+  (`c8f2a4e6b913`). It cascades: deleting an upload deletes its entries
+  and skills. Null means the student made it. A skill's name is unique
+  per owner (`bank_skills_applicant_name_key`, `NULLS NOT DISTINCT`, so
+  the student's own skills are one list). Built resumes need no owner
+  column: their shown choice rows say what they hold.
 
 ## Built resumes
 

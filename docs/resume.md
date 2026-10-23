@@ -69,20 +69,16 @@ transaction as the `resumes` row. Nothing waits for review; the student
 fixes an entry in the bank, where every fact is edited. The parser reads all
 seven sections, Leadership & Activities and Awards included.
 
-An entry the bank already has (the duplicate check: section, title and
-organization, ignoring case) is **merged, never copied**: it gains only the
-fields it has empty and the bullets it lacks, so the student's fixes stay
-and several resumes add up to one bank. Dates fill only as a set, when the
-bank entry has none. **Import Again** (intake's Use One I Uploaded, the
-Jobs page's empty-bank card) reads a stored upload the same way, so a
-parser fix reaches old uploads. **Import Updated Resume**, on each upload's
-row on the Resumes view, takes a newer version of that file: it replaces the
-file on the same row and merges the new reading the same way.
-
-**Decided, not built (ADR 0005, 2026-10-23):** the merge goes. Each upload
-will own its own entries and skills, with no duplicate check across
-resumes. `bank_by_resume.md` has the design.
-Deleting an upload leaves the bank as it is.
+**Each upload owns what it imported** (ADR 0005, `bank_by_resume.md`):
+`bank_entries.resume_id` and `bank_skills.resume_id`. An import never
+looks at another resume's entries, so the same job on two uploads is two
+rows. **Import Again** (intake's Use One I Uploaded, the Jobs page's
+empty-bank card) reads a stored upload again and **replaces** what it owns,
+so a parser fix reaches old uploads. **Import Updated Resume**, on each
+upload's row on the Resumes view, takes a newer version of that file: it
+replaces the file on the same row and the upload's entries with the new
+reading. Deleting an upload deletes its entries and skills. Until 2026-10-23
+an import merged into the entry the bank already had (ADR 0003).
 
 **Each import records what it found** (KAN-343, `bank_by_resume.md`): a
 source row per entry and skill, so the Experiences view can show one

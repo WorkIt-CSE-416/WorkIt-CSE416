@@ -28,6 +28,6 @@ Uploading a resume saves the file, reads its text into `resumes.raw_text`, parse
 - The review screen's drafts, Save All and "Already in Your Bank" are gone. Intake's "Have a resume?" keeps Upload Resume, and "Use One I Uploaded" runs Import Again.
 - KAN-343 (`../bank_by_resume.md`) first kept this merge and added a record
   of which uploads found each entry and skill. **ADR 0005 (2026-10-23)
-  replaces the merge**: each upload owns its own entries, and deleting an
-  upload deletes them.
+  replaced the merge**: each upload owns its own entries, a new import
+  replaces them, and deleting an upload deletes them.
 - Scout, for an empty bank beside an upload, now says the upload could not be read and points at Import Again and Read It With AI, not at an import still waiting.

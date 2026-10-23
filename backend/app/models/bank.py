@@ -1,8 +1,8 @@
 '''
 The experience bank (KAN-206): one bank row per applicant, its entries, the
-entries' bullets, the bullets' variants (KAN-217), the applicant's skills
-(one list per applicant), and the sources (KAN-343) that say which uploaded
-resumes an entry or skill was read from.
+entries' bullets, the bullets' variants (KAN-217) and the applicant's skills.
+An entry or skill read from an upload belongs to that upload (`resume_id`,
+ADR 0005); one the student made belongs to none.
 Built resumes are a later table that points at these.
 '''
 import datetime
@@ -45,13 +45,18 @@ class Bank_Entry(BaseModel):
     One thing the applicant did, in one section. Months are stored as the
     first day of the month. The section fields (degree ... award_date) are
     null outside their own section; schemas/bank.py enforces which is which.
+    `resume_id` is the upload whose import wrote it (ADR 0005): uploads never
+    share an entry, so the same job on two uploads is two rows, and deleting
+    or re-reading the upload deletes its entries. Null: the student made it.
     '''
     __tablename__ = "bank_entries"
+    __table_args__ = (Index("bank_entries_applicant_resume_idx", "applicant_id", "resume_id"),)
 
     id: Mapped[_uuid.UUID] = mapped_column(
         primary_key=True, default=_uuid.uuid4, server_default=text("gen_random_uuid()"))
     applicant_id: Mapped[_uuid.UUID] = mapped_column(
         ForeignKey("applicant_profiles.id", ondelete="CASCADE"), index=True)
+    resume_id: Mapped[_uuid.UUID | None] = mapped_column(ForeignKey("resumes.id", ondelete="CASCADE"))
     section: Mapped[bank_section]
     title: Mapped[str]
     organization: Mapped[str | None]
@@ -120,45 +125,23 @@ class Bank_Bullet_Variant(BaseModel):
 
 class Bank_Skill(BaseModel):
     '''
-    A named ability, with an optional group ("Languages"). A name appears
-    once per applicant, ignoring case (bank_skills_applicant_name_key).
+    A named ability, with an optional group ("Languages"). Owned as an entry
+    is (`resume_id`). A name appears once per owner, ignoring case: once per
+    upload, and once among the student's own (bank_skills_applicant_name_key,
+    NULLS NOT DISTINCT).
     '''
     __tablename__ = "bank_skills"
     __table_args__ = (
-        Index("bank_skills_applicant_name_key", "applicant_id", text("lower(name)"), unique=True),
+        Index("bank_skills_applicant_name_key", "applicant_id", "resume_id", text("lower(name)"), unique=True,
+              postgresql_nulls_not_distinct=True),
+        Index("bank_skills_applicant_resume_idx", "applicant_id", "resume_id"),
     )
 
     id: Mapped[_uuid.UUID] = mapped_column(
         primary_key=True, default=_uuid.uuid4, server_default=text("gen_random_uuid()"))
     applicant_id: Mapped[_uuid.UUID] = mapped_column(
         ForeignKey("applicant_profiles.id", ondelete="CASCADE"))
+    resume_id: Mapped[_uuid.UUID | None] = mapped_column(ForeignKey("resumes.id", ondelete="CASCADE"))
     name: Mapped[str]
     group: Mapped[str | None]
 
-
-class Bank_Entry_Source(BaseModel):
-    '''
-    Says an uploaded resume's import found this entry (KAN-343,
-    docs/bank_by_resume.md), so the Experiences view can show one resume's
-    entries. Many-to-many because import merges, never copies: one entry can
-    come from several uploads. An entry with none was made by the student.
-    Both sides belong to the same applicant; only `services/bank.py`'s
-    `merge_import` writes these. Deleting either side deletes the row, and
-    deleting an upload leaves its entries in the bank (ADR 0003).
-    '''
-    __tablename__ = "bank_entry_sources"
-
-    entry_id: Mapped[_uuid.UUID] = mapped_column(
-        ForeignKey("bank_entries.id", ondelete="CASCADE"), primary_key=True)
-    resume_id: Mapped[_uuid.UUID] = mapped_column(
-        ForeignKey("resumes.id", ondelete="CASCADE"), primary_key=True, index=True)
-
-
-class Bank_Skill_Source(BaseModel):
-    '''The same as Bank_Entry_Source, for a skill.'''
-    __tablename__ = "bank_skill_sources"
-
-    skill_id: Mapped[_uuid.UUID] = mapped_column(
-        ForeignKey("bank_skills.id", ondelete="CASCADE"), primary_key=True)
-    resume_id: Mapped[_uuid.UUID] = mapped_column(
-        ForeignKey("resumes.id", ondelete="CASCADE"), primary_key=True, index=True)

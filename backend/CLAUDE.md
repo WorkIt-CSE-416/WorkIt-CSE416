@@ -237,45 +237,38 @@ Find files with a directory listing; these are the rules for where code goes.
 - **An upload fills the bank** (KAN-240, `../docs/adr/0003-upload-fills-the-experience-bank.md`).
   `POST .../resumes` extracts `raw_text`, reads it with the heuristic
   parser (`services/bank_import.py`'s `read`, pure) and writes it with
-  `services/bank.py`'s `merge_import`, in the same transaction as the
+  `services/bank.py`'s `import_upload`, in the same transaction as the
   resume row: if the commit fails, nothing is kept and the Storage file is
   removed. The parser's reading is stored nowhere else (`parsed_json` is
-  gone). The response's `bank` says what went in, with `found` (what the
-  reading found, written or not) so the screen can tell "read nothing"
-  from "already in your bank". A reading never fails an upload: a parser
-  crash reads as nothing.
-- **Decided, not built: uploads stop merging** (ADR 0005,
-  `../docs/bank_by_resume.md`, 2026-10-23). Each upload will own its
-  entries and skills (`resume_id` on both tables), with no
-  `find_duplicate` across resumes, and the source tables go. The two rules
-  below describe the code as it runs today.
-- **Import merges, never copies.** `merge_import` adds an entry the bank
-  lacks; one that `find_duplicate` matches gains only the fields it has
-  empty and the bullets it lacks (ignoring case and spacing), so what the
-  student fixed stays fixed and several resumes add up to one bank. Dates
-  fill only as a set, when the bank entry has none: a merge never pairs one
-  resume's start with another's end. A fill that clashes with a kept field
-  (a GPA above the bank's scale) is dropped, and the bullets still go in.
-- **An import records its sources** (KAN-343, `../docs/bank_by_resume.md`):
-  `merge_import` takes the upload's `resume_id` and writes a
-  `bank_entry_sources` / `bank_skill_sources` row for **every** entry and
-  skill the reading found, merged or unchanged, since a merge that adds
-  nothing still means the file holds it. Upload flushes the `Resume` row
-  first (the rows point at it); Import Updated Resume clears the row's old
-  sources first (`clear_sources`), so an entry the new file dropped leaves
-  that resume's view and stays in the bank; Import Again only adds. Sources
-  never clear the embedding. `GET /bank` sends each item's `resume_ids`
-  (uploads from sources, built resumes from their shown choice rows,
-  `load_holdings`) and `resumes`; other `bank_response` callers (Scout)
-  send none. Tests: `tests/test_bank_import.py`, "sources".
-- **Import Again** is `POST /applicants/{id}/bank/import`: the same read and
-  merge on a stored upload, from intake's Use One I Uploaded and the Jobs
-  page's empty-bank card. It re-reads `raw_text`, so a resume uploaded
-  before a parser fix gets the fix. It can bring back a bullet the student
-  deleted; that is the student's explicit click.
+  gone). The response's `bank` says what went in (`found`,
+  `entries_added`, `skills_added`). A reading never fails an upload: a
+  parser crash reads as nothing.
+- **Each upload owns its entries and skills; uploads never merge** (ADR
+  0005, `../docs/bank_by_resume.md`). `import_upload` deletes what the
+  upload owns (`bank_entries.resume_id`, `bank_skills.resume_id`), then
+  writes the whole reading as the upload's own, with no `find_duplicate`
+  across resumes: the same job on two uploads is two rows, and Generate,
+  Tailor's ranking, Scout and the recommender read both (accepted). A
+  re-read replaces, so the student's edits to that upload's entries and
+  their places on built resumes go, with no warning. Deleting an upload
+  deletes its rows (cascade). Upload flushes the `Resume` row first (the
+  rows point at it). An item with no owner was made by the student, by
+  intake or by Tailor's "Have you used X?". Add (`POST .../bank/entries`
+  and `.../skills`) takes `?resume_id=`: an upload owns the new item, a
+  built resume gets a shown choice row; its duplicate check and the skill
+  name index (`NULLS NOT DISTINCT`) look at one owner only. `GET /bank`
+  sends each item's `resume_ids` (the owner, then the built resumes that
+  show it, `load_holdings`) and `resumes`; other `bank_response` callers
+  (Scout) send none. Tests: `tests/test_bank_import.py`, "owners" and
+  "Add under a resume pick".
+- **Import Again** is `POST /applicants/{id}/bank/import`: the same read on
+  a stored upload, replacing what it owns, from intake's Use One I
+  Uploaded, the Jobs page's empty-bank card and the Experiences view's
+  prompt for an upload that owns nothing. It re-reads `raw_text`, so a
+  resume uploaded before a parser fix gets the fix.
 - **Import Updated Resume** is `PUT /applicants/{id}/resumes/{resume_id}`
   with a file, from an upload's row on the Resumes view: a newer version replaces the row's
-  file and is read and merged as an upload is. The row keeps its id and
+  file and is read as an upload is, replacing what the upload owned. The row keeps its id and
   primary star, and its `created_at` becomes now, the upload date the row
   shows. The file goes to a new Storage path: a sent resume may point at the
   old one, and a sent resume's file never changes, so the old file goes only
@@ -546,11 +539,12 @@ Find files with a directory listing; these are the rules for where code goes.
   - **The student picks the source** (KAN-318): run and Done each take
     exactly one of `built_resume_id` or `uploaded_resume_id` (422
     otherwise; 404 for one not the applicant's). A built resume gives its
-    choices. An upload is read again and merged into the bank
-    (`tailor.upload_source`, Import Again's merge, so Done's second read
-    adds nothing and the upload's sources are recorded, KAN-343), and its source is built in memory, never saved: the
-    bank entries its reading names (`find_duplicate`) and its skills show,
-    every other entry and skill waits hidden. It used to
+    choices. An upload gives the entries and skills it owns
+    (`tailor.upload_source`, ADR 0005), built in memory, never saved;
+    every other entry and skill waits hidden. It never reads an upload
+    that owns something again: a reading replaces what it owns, which
+    would drop those entries from the tailored resume. One that owns
+    nothing is read into the bank first. It used to
     start from the newest base resume by `created_at`, which ignored the
     star and the student's edits, and to generate one when there was
     none. An upload the parser reads nothing from answers 409. Done
@@ -833,6 +827,15 @@ removed at cutover, not before. Until then a change must work on both.
   KAN-343) before the deploy that writes them.** The models map both
   tables, so deployed first, every upload, Import Again and `GET /bank`
   answers 500. It only adds two tables, so applying it early is safe.
+- **ADR 0005 is two migrations around one deploy.** Apply `b5e1c3a7d920`
+  (adds `resume_id` to `bank_entries` and `bank_skills`, fills it from
+  single-source rows, swaps the skill name index) before the deploy: the
+  models map the column, so deployed first, every bank read and upload
+  answers 500. Then merge and deploy, then `uv run alembic upgrade head`
+  for `c8f2a4e6b913`, which drops the source tables; applied before the
+  deploy, the running code's `GET /bank` and uploads answer 500. An entry
+  that came from several uploads stays unowned and shows under no upload
+  until Import Again.
 - **`9e4b2d7a5c18` (drops `bank_skill_links`, KAN-216's skill links) goes
   on only AFTER the deploy that stopped reading it.** The code before it
   queries the table on every bank load, so applying it first makes the

@@ -1,6 +1,6 @@
 # Each uploaded resume owns its own entries; uploads are never merged
 
-Status: decided 2026-10-23, not built. Supersedes ADR 0003's merge rule and
+Status: built 2026-10-23 (migrations `b5e1c3a7d920`, then `c8f2a4e6b913` after the deploy). Supersedes ADR 0003's merge rule and
 its "deleting an upload leaves the bank as it is".
 
 An upload writes every entry and skill its reading found as new rows owned
