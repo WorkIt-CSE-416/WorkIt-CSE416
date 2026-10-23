@@ -2,9 +2,11 @@
 
 import { useEffect, useLayoutEffect, useMemo, useRef, useState, useSyncExternalStore } from "react";
 
+import { Badge } from "@/components/ui/badge";
 import { SegmentedToggle } from "@/components/ui/segmented-control";
 import { cn } from "@/lib/cn";
 
+import { localDay } from "../tracker";
 import { MORPH_MS, mountSkyline, type Skyline, type SkylineState } from "./streak-canvas";
 import {
   buildGrid,
@@ -41,7 +43,11 @@ import { SectionCard } from "./section-card";
  * is. The server renders UTC's today, the reader's own for most of the day,
  * and the browser swaps in its own after hydration — useSyncExternalStore
  * keeps that from being a mismatch, as PostedDate does in
- * company/jobs/jobs-table.tsx.
+ * company/jobs/jobs-table.tsx. Each application's day is the viewer's too, by
+ * the same swap: it gets the instant it was sent (`applied`, from the live
+ * tracker) and counts it on its UTC day until hydration, then on the
+ * browser's own (KAN-342). A failed read draws the empty year with a line
+ * that says so, never stand-in days.
  *
  * Adapted from the Contribution Skyline component on 21st.dev.
  */
@@ -62,6 +68,11 @@ const DAY = new Intl.DateTimeFormat("en-US", {
 const DAY_YEAR = new Intl.DateTimeFormat("en-US", {
   month: "short",
   day: "numeric",
+  year: "numeric",
+  timeZone: "UTC",
+});
+const MONTH_YEAR = new Intl.DateTimeFormat("en-US", {
+  month: "short",
   year: "numeric",
   timeZone: "UTC",
 });
@@ -94,9 +105,23 @@ const localToday = () => {
   return `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}`;
 };
 const utcToday = () => new Date().toISOString().slice(0, 10);
+const inBrowser = () => true;
+const onServer = () => false;
 
-export function Streak({ days, className }: { days: AppliedDay[]; className?: string }) {
+export function Streak({
+  applied,
+  className,
+}: {
+  /** When each application was sent; null when the tracker can't be read. */
+  applied: string[] | null;
+  className?: string;
+}) {
   const today = useSyncExternalStore(noSubscription, localToday, utcToday);
+  const local = useSyncExternalStore(noSubscription, inBrowser, onServer);
+  const days = useMemo<AppliedDay[]>(
+    () => (applied ?? []).map((at) => ({ date: local ? localDay(at) : at.slice(0, 10), count: 1 })),
+    [applied, local],
+  );
   const model = useMemo(() => {
     const grid = buildGrid(days, dayMs(today));
     return {
@@ -169,27 +194,25 @@ export function Streak({ days, className }: { days: AppliedDay[]; className?: st
       label: "Past Year",
       value: NUMBER.format(stats.total),
       unit: applications(stats.total),
-      sub: span(stats.first, stats.last, true),
+      sub: stats.first ? `Since ${MONTH_YEAR.format(dayMs(stats.first))}` : "None yet",
     },
     {
       label: "Busiest Day",
       value: NUMBER.format(stats.busiest.count),
       unit: applications(stats.busiest.count),
-      sub: stats.busiest.date ? DAY.format(dayMs(stats.busiest.date)) : "—",
+      sub: stats.busiest.date ? DAY.format(dayMs(stats.busiest.date)) : "None yet",
     },
     {
       label: "Longest Streak",
       value: NUMBER.format(stats.longest.days),
       unit: daysWord(stats.longest.days),
-      sub: span(stats.longest.start, stats.longest.end),
+      sub: stats.longest.days ? span(stats.longest.start, stats.longest.end) : "None yet",
     },
     {
       label: "Current Streak",
       value: NUMBER.format(stats.current.days),
       unit: daysWord(stats.current.days),
-      sub: stats.current.days
-        ? span(stats.current.start, stats.current.end)
-        : "Apply today to start one",
+      sub: stats.current.days ? span(stats.current.start, stats.current.end) : "Apply today",
     },
   ];
 
@@ -200,9 +223,16 @@ export function Streak({ days, className }: { days: AppliedDay[]; className?: st
       className={cn("@container/streak", className)}
     >
       <div className="flex flex-wrap items-center justify-between gap-3">
-        <h2 id="streak" className="text-subtitle text-ink font-medium">
-          Activity
-        </h2>
+        <div>
+          <h2 id="streak" className="text-subtitle text-ink font-medium">
+            Activity
+          </h2>
+          {applied === null && (
+            <p className="text-note text-ink-meta mt-1">
+              Your applications aren&apos;t loading right now.
+            </p>
+          )}
+        </div>
         <SegmentedToggle
           label="Chart View"
           options={VIEW_OPTIONS}
@@ -211,10 +241,33 @@ export function Streak({ days, className }: { days: AppliedDay[]; className?: st
         />
       </div>
 
-      <div className="relative mt-4">
+      {/* One room for both views (./streak-canvas.ts, MAX_H2): a spacer the
+          heat map's height, then the numbers, with the stage laid over the
+          top. In 3D the stage grows over the numbers as they fade, so the
+          section never changes height. */}
+      <div className="relative mt-3">
+        <div aria-hidden="true" style={{ height: "var(--streak-h2, 150px)" }} />
+
+        <div
+          aria-hidden={!showRow}
+          inert={!showRow}
+          className="ease-glide grid grid-cols-2 gap-3 pt-3 transition-opacity @2xl/streak:grid-cols-4"
+          style={{
+            opacity: showRow ? 1 : 0,
+            // Out at once, ahead of the rising bars; back only once the
+            // grid has folded flat above them.
+            transitionDuration: showRow ? "300ms" : "200ms",
+            transitionDelay: showRow ? `${MORPH_MS - 300}ms` : "0ms",
+          }}
+        >
+          {blocks.map((block) => (
+            <Stat key={block.label} {...block} />
+          ))}
+        </div>
+
         <div
           ref={stageRef}
-          className="outline-brand-ring relative w-full overflow-hidden rounded-md outline-offset-4 has-[:focus-visible]:outline-2"
+          className="outline-brand-ring absolute inset-x-0 top-0 overflow-hidden rounded-md outline-offset-4 has-[:focus-visible]:outline-2"
           style={{ height: 150 }}
         >
           <canvas
@@ -250,25 +303,6 @@ export function Streak({ days, className }: { days: AppliedDay[]; className?: st
         </div>
       </div>
 
-      <div
-        aria-hidden={!showRow}
-        className="grid transition-[grid-template-rows,opacity]"
-        style={{
-          gridTemplateRows: showRow ? "1fr" : "0fr",
-          opacity: showRow ? 1 : 0,
-          transitionDuration: `${MORPH_MS}ms`,
-          transitionTimingFunction: "var(--ease-glide)",
-        }}
-      >
-        <div className="min-h-0 overflow-hidden">
-          <div className="grid grid-cols-2 gap-x-6 gap-y-5 pt-5 @2xl/streak:grid-cols-4">
-            {blocks.map((block) => (
-              <Stat key={block.label} {...block} />
-            ))}
-          </div>
-        </div>
-      </div>
-
       <p aria-live="polite" className="sr-only">
         {announcement}
       </p>
@@ -278,20 +312,31 @@ export function Streak({ days, className }: { days: AppliedDay[]; className?: st
 
 type StatBlock = { label: string; value: string; unit: string; sub: string };
 
-/** One number in the row under the heat map: its label over it, its unit
- *  beside it, and its dates under it. */
+/**
+ * One number in the row under the heat map, in a recessed well
+ * (--color-well) like the match rail's: its label and its dates in a pill
+ * on one line over it, as a headline tile sets its label and ring, and its
+ * unit beside it. The Dashboard draws every date in a pill
+ * (docs/screens.md). The pill sat under the figure until the section had
+ * to fit a 1280 x 720 window; it wraps under the label where the well is
+ * narrow. They were open text in ink-muted under the figure, which
+ * read as loose lines rather than four readings of one chart. A block with
+ * nothing to date says so in the pill ("None yet", "Apply today"), so the
+ * four keep one shape.
+ */
 function Stat({ label, value, unit, sub }: StatBlock) {
   return (
-    <div className="min-w-0">
-      <p className="text-note text-ink-meta">{label}</p>
-      <p className="mt-1 flex items-baseline gap-1.5">
+    <div className="bg-well rounded-card flex min-w-0 flex-col gap-1 px-4 py-3">
+      <div className="flex flex-wrap items-center justify-between gap-x-2 gap-y-1">
+        <p className="text-note text-ink-meta">{label}</p>
+        <Badge variant="tag" pill>
+          {sub}
+        </Badge>
+      </div>
+      <p className="flex items-baseline gap-1.5">
         <span className="text-display text-ink">{value}</span>
         <span className="text-body text-ink-muted">{unit}</span>
       </p>
-      {/* Its dates in --color-ink-muted, not meta grey, which read too faint
-          under a 28px figure in Plus Jakarta Sans; two lines on a phone
-          rather than "Oct 5, 2025 – Oct 10, 20…". */}
-      <p className="text-note text-ink-muted mt-0.5 line-clamp-2">{sub}</p>
     </div>
   );
 }

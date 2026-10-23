@@ -37,7 +37,16 @@ import {
 /** The tallest the stage grows, in each view. The drawing scales to fit the
  *  stage both ways, so past these it stops growing with the width and centres
  *  instead. Activity shares a row with Waiting on the Dashboard, and an
- *  uncapped skyline made that row over 500px tall. */
+ *  uncapped skyline made that row over 500px tall.
+ *
+ *  THE SKYLINE TAKES THE ROOM THE HEAT MAP AND ITS NUMBERS SHARE (KAN-342),
+ *  not a height of its own: the stage's parent is that room, sized by a
+ *  spacer of the heat map's height (--streak-h2, set here) and the numbers
+ *  under it, and the 3D stage grows over the numbers as they fade. So the
+ *  section is one height in both views. With a 3D height of its own, the
+ *  stage grew on this file's curve while the numbers folded away on CSS's,
+ *  and the section swelled and shrank through every switch; in 3D it also
+ *  ran past the fold. MAX_H3 is the fallback with no room to read. */
 const MAX_H2 = 170;
 const MAX_H3 = 260;
 
@@ -69,8 +78,8 @@ export type Skyline = {
   destroy: () => void;
 };
 
-/** How long the morph between the two views takes. streak.tsx folds the stats
- *  row away over the same time. */
+/** How long the morph between the two views takes. streak.tsx fades the
+ *  numbers out at its start and back in at its end. */
 export const MORPH_MS = 1300;
 
 /** Empty, then levels 1–4. */
@@ -177,6 +186,7 @@ export function mountSkyline(
   let H2 = 0;
   let H3 = 0;
   let Hmax = 0;
+  let roomH = 0;
   let lastH = -1;
   let dpr = 1;
   let gutter = 30;
@@ -289,7 +299,10 @@ export function mountSkyline(
     H2 = Math.min(20 + 4 + ((b2.maxy - b2.miny) / (b2.maxx - b2.minx)) * (W - gutter - 4), MAX_H2);
     const b3 = extent(camera(1), 1, true);
     const natural = ((b3.maxy - b3.miny) / (b3.maxx - b3.minx)) * (W - 40) + 40;
-    H3 = Math.max(Math.min(natural, W * 0.72, MAX_H3), Math.min(natural, 240));
+    const room = stage.parentElement;
+    room?.style.setProperty("--streak-h2", `${H2.toFixed(1)}px`);
+    roomH = room?.clientHeight ?? 0;
+    H3 = roomH > H2 ? roomH : Math.max(Math.min(natural, W * 0.72, MAX_H3), Math.min(natural, 240));
     Hmax = Math.ceil(Math.max(H2, H3));
     canvas.width = Math.round(W * dpr);
     canvas.height = Math.round(Hmax * dpr);
@@ -703,10 +716,14 @@ export function mountSkyline(
   );
   io.observe(stage);
 
+  // A new width redraws the grid; a new room (the numbers wrapping to two
+  // rows, a font arriving) moves the skyline's height with it.
   const ro = new ResizeObserver(() => {
-    if (Math.round(stage.clientWidth) !== W) relayout();
+    const room = stage.parentElement?.clientHeight ?? 0;
+    if (Math.round(stage.clientWidth) !== W || Math.abs(room - roomH) > 0.5) relayout();
   });
   ro.observe(stage);
+  if (stage.parentElement) ro.observe(stage.parentElement);
 
   const onReduce = () => {
     reduced = reduceMq.matches;

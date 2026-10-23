@@ -154,7 +154,7 @@ function BackToApplications({ className = "group/back mb-3" }: { className?: str
   return (
     <ButtonLink href="/applications" variant="secondary" size="sm" className={className}>
       <ArrowLeftIcon className="ease-glide size-3.5 transition-transform duration-200 group-hover/back:-translate-x-0.5" />
-      Back to Applications
+      Back to Tracker
     </ButtonLink>
   );
 }

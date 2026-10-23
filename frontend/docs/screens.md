@@ -254,7 +254,7 @@ Resumes & Experiences only, so Open in Resumes goes to a built resume's
 editor (its Download) or, for an upload, the Resumes view. It had a
 Download Resume button until then. Apply Without a Resume leaves for the employer's posting at once.
 **Every Apply Now opens this dialog** (KAN-290): the page's, the feed card's
-on /jobs and /search, and New Matches' Apply on the Dashboard. WorkIt cannot
+on /jobs and /search. WorkIt cannot
 see the employer's site, so the dialog is its one chance to learn which
 resume went and whether the student applied; a card's Apply Now once linked
 straight to the employer and recorded neither. A card's button has no
@@ -379,8 +379,7 @@ applied leaves its list at once, in the browser (`FeedList`, KAN-290
 review), with focus on the next role's title: a refresh redraws only the
 server's first page, so a job from a Load More page stayed listed. The kept
 Load More offset drops by one with it, as the API's later pages move up one,
-so the next Load More skips nothing. New Matches refreshes the route, which
-drops the row.
+so the next Load More skips nothing.
 A live card's location is the import's `location_label` where it has one
 ("San Francisco, CA" for "SF": the resolver's city, backend
 models/CLAUDE.md), else the board's text tidied (`placesOf` and
@@ -425,16 +424,20 @@ too, with nothing for a screen reader. A live fetch in a page calls
 /dashboard is the seeker's home: sign-in lands there.
 
 **Next Up, Up Next and Waiting are archived for now** (KAN-261), and the
-header's Find Jobs button is gone (the sidebar's Jobs row and New Matches'
-Newest Jobs lead there; it read "All Jobs" until KAN-288 retired that view). The tracker stores no dated events yet, so Next Up and
+header's Find Jobs button is gone (the sidebar's Jobs row and the Good
+Matches tile lead there). The tracker stores no dated events yet, so Next Up and
 Up Next only said "nothing scheduled", and Waiting's buckets were a fixture.
-Under the numbers, New Matches runs the full width with Activity under it.
-From `@4xl/main` New Matches has a fixed height (`h-96`, set in the page's
-`PLACE`) and its list scrolls inside it: the tile is built to take its
-height from a neighbour, so alone on a row it would collapse.
+Under the numbers, Activity runs the full width.
 The archived tiles' code stays (`next-up-hero.tsx`, `up-next.tsx`,
-`getUpNext`, `waiting.tsx`, `WAITING`); `PLACE` in `dashboard/page.tsx` says
+`getUpNext`, `waiting.tsx`, `WAITING`); a note in `dashboard/page.tsx` says
 how to bring them back. The notes below still describe them.
+
+**The Dashboard lists no jobs** (KAN-342). New Matches, a list of the
+newest postings with Apply buttons, sat under the numbers until Good
+Matches replaced New Roles: that tile opens the Jobs page in Best Match
+order, which lists the same jobs better, so the Dashboard keeps no second,
+shorter copy of the feed. The notes below that name New Matches describe
+the archived three-column layout.
 
 **The seeker Dashboard is a bento of tiles** (KAN-173), modelled on a
 reference the user picked: white tiles with no outline on the white page
@@ -447,8 +450,8 @@ were pills, `shape="pill"`, until KAN-251 made every pill a chip). It
 alone is capped at `max-w-dashboard` (1440px) rather than `max-w-app`.
 From `@4xl/main` (896px, not `@5xl`'s 1024: a 13-inch laptop at 100% zoom
 gives the page about 1010px and fell back to two columns of oversized
-tiles) the four numbers run across the top in a grid of their own (the
-first filled violet, the only solid tile), and the tiles under them sit in
+tiles) the four numbers run across the top in a grid of their own
+(Good Matches filled violet, the only solid tile), and the tiles under them sit in
 thirds. Left to right is apply, then manage: New Matches two thirds wide
 beside Next Up (a white reminder tile, its title in violet over one filled
 button) over Up Next, then Activity two thirds wide beside Waiting (three
@@ -476,10 +479,10 @@ its edge on the tile's edge: New Matches reaches into the tile's right
 padding (`-mr-5`) and pads its rows back in (`pr-5`), so the bar runs down
 the tile's side instead of beside the Apply buttons. There is no
 pipeline section: its
-funnel only restated the headline numbers. Fixtures are in
-`(seeker)/dashboard/data.ts` until the tracker stores stages past applied,
-except Saved, which counts the live saved jobs, and Next Up and Up Next,
-which take the tracker's upcoming events (`getUpNext`). The tracker stores
+funnel only restated the headline numbers. Everything the page shows is
+live (KAN-342); the one fixture left in `(seeker)/dashboard/data.ts` is the
+archived Waiting tile's buckets. Next Up and Up Next take the tracker's
+upcoming events (`getUpNext`). The tracker stores
 no dated events yet, so Next Up reads "You're All Caught Up" with Browse
 Jobs, and Up Next "Nothing else scheduled." Next
 Up's View Details button opens that application's own page (its old
@@ -489,16 +492,43 @@ All the Agenda; Waiting's Follow Up opens the Applications list filtered to
 Applied. That is a placeholder: it helps nobody contact anyone, and KAN-174
 (still open) plans the real flow, a list of only what has waited two weeks,
 a Scout-drafted note, a recruiter search, then marking an application
-followed up or closed once the tracker has a backend. The headline numbers are Applications, New Roles, Interviews and Saved
-(`getHeadline` in `dashboard/data.ts`); New Roles and Saved replaced
-Response Rate and Offers, which for a student sit near zero all season. New
-Roles is the live feed, `GET /jobs/count?posted_within=` for the range and
-the window before it, cached five minutes; Saved counts the seeker's live
-saved jobs (KAN-261), ignores the range, and shows a dash when they can't be
-read. Only those two tiles link (to the Jobs page filtered by date posted,
-and to the saved applications), since their figures are what their
-destinations show; Applications and Interviews are a separate fixture from
-the tracker, so a link would open a list that disagrees with its number. Its range is `?range=`, moved in place: the
+followed up or closed once the tracker has a backend. The headline numbers are Good Matches, Saved, Applied and Interviewing
+(`getHeadline` in `dashboard/data.ts`), all live (KAN-342). **The Tracker's
+tiles are named for its stages**, the Status filter each one opens: Applied
+was "Applications", the same word as the page it opened, and Interviewing
+was "Interviews". **The order is the search, left to right**: find, save,
+apply, hear back, as the Tracker's stages and the landing page's route run,
+so the left half is what is left to do and the right half how it is going
+(in the 2 x 2 grid on a phone too). Interviewing, a dash until the tracker
+stores it, sits last as the outcome, not as a gap in the middle. The order
+was Applications, New Roles, Interviews, Saved, which read out of sequence.
+**Good Matches wears the violet fill**, where the next application starts,
+so the eye lands on the head of the search. Applied wore it until the
+reorder; the user moved it, since a seeker comes to find what to apply to
+next. A violet 0 is the cost on a week with no good matches. Applied
+counts the tracker's applications sent in the range, against the same
+length of days before it. Good Matches counts the job postings from the
+range that score Good Match (65) or better for this seeker, from the Best
+Match scores (`getGoodMatchDates`, one `GET /jobs/recommended` call with
+`min_match` over the longest range, counted per range in `data.ts`). It
+shows no change, since a score fades with a posting's age and last week's
+postings would always count fewer; with an empty experience bank it says
+"Add your experience first" and opens the bank. It replaced New Roles, a
+count of every posting in the feed, which said nothing about the seeker and
+drew a red change whenever employers posted less. Interviewing is a dash,
+"Not tracked yet": the API stores no interviewing stage, and a 0 would say
+the seeker had none. Saved counts the seeker's live saved jobs (KAN-261)
+and ignores the range. Applied and Saved show a dash when the tracker
+can't be read. **Every tile links**: a click anywhere on a tile opens the
+page that lists what it counts (the Tracker filtered to applied,
+interviewing or saved; the Jobs page in Best Match order, filtered to the
+week or 30 days posted). The lists take no date window, so the Applied
+list can hold more than its number. Under the pointer a tile lifts 2px onto
+`--shadow-lift`, its ring fills violet (white on the violet tile), and its
+glyph slides out as an arrow slides in, so it reads as clickable; a press
+settles it, and reduced motion keeps only the colour. A lift alone, which
+only two linked tiles once had, was too slight to say so. A keyboard focus
+rings the tile. Its range is `?range=`, moved in place: the
 headline (`dashboard/headline.tsx`) is handed every range's figures and reads
 `?range=` itself (`useRange` in `range-switch.tsx`), so a new range counts
 its numbers with the switch's thumb instead of after the server draws the
@@ -509,6 +539,18 @@ a weekly pace chart: the past year of applications per day as a heat map that
 folds into a 3D skyline, adapted from 21st.dev's Contribution Skyline. Its
 heading is Activity; its files and tokens say streak. It opens on the 2D heat
 map, and its four numbers (Past Year, Busiest Day, the two streaks) show only
+there, each in a grey well (`--color-well`) with its dates in a tag pill, as
+the Dashboard draws every date; as open text in ink-muted under each figure
+they read as loose lines (KAN-342). A number with nothing to date says so in
+its pill ("None yet", "Apply today"), so the four keep one shape; each
+well's pill sits on its label's line and wraps under it where the well is
+narrow. **The section is one height in both views** (KAN-342): the 3D
+skyline takes the room the heat map and its numbers share, growing over the
+numbers as they fade (`--streak-h2` and the room in `streak-canvas.ts`).
+With a 3D height of its own the section swelled and shrank through each
+switch, since the canvas and the folding numbers ran on different curves,
+and in 3D it ran past the fold. The whole Dashboard fits a 1280 × 720
+window with no scroll; check that after changing its spacing. They show only
 there: the 3D skyline stands alone, with no numbers under it or in its corners. `streak-model.ts`
 is its pure maths (grid, levels, stats, camera), `streak-canvas.ts` the
 canvas engine (no React: the section mounts it once and it re-reads a ref
@@ -519,12 +561,23 @@ validated as ordinal in `globals.css`, and `--color-border-subtle` for an
 empty day, so a token edit restyles it. The current streak runs to the
 viewer's today (yesterday while today is open), so `today` comes from
 `useSyncExternalStore`: UTC on the server, the browser's own after hydration.
-It ignores `?range=`, since a streak is every day. Its fixture is
-`appliedDays()` in `data.ts`, seeded and walked from a fixed epoch so a date
-keeps its count; the tracker swaps in one `{ date: appliedOn, count: 1 }` per
-sent application.
+It ignores `?range=`, since a streak is every day. It is live (KAN-342):
+`getAppliedTimes()` in `data.ts` hands it each sent application's
+`appliedOn` instant, and the streak counts each on its UTC day until
+hydration, then on the viewer's own (`localDay`), by the same
+`useSyncExternalStore` swap as `today`. A failed tracker read draws the
+empty year with a line saying the applications aren't loading.
 
-## Applications
+## Applications (the Tracker)
+
+**Its name on screen is the Tracker** (KAN-342): "Tracker" in the sidebar
+and the browser tab, "Application Tracker" as its heading (the marketing
+site's name for the feature), and "Back to Tracker" on an application's
+page. It was "Applications", the word the Dashboard also used for a count,
+so the page and the number read as one thing. The URL, the folder and the
+code keep `applications`: moving the folder would collide with every open
+branch that edits the page. Say "the Tracker" in copy; a stage is one of
+Saved, Applied, Interviewing and Offer (`GLOSSARY.md`).
 
 /applications is the tracker: a list (the default) and a grid over
 `applications/data.ts`, every choice in the URL; a row or card opens the

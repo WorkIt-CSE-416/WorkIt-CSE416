@@ -64,7 +64,7 @@ const GROUPS: SidebarNavGroup[] = [
       { href: "/dashboard", label: "Dashboard", Icon: SquaresFourIcon },
       { href: "/jobs", label: "Jobs", Icon: BriefcaseIcon },
       { href: "/auto-apply", label: "Auto Apply", Icon: LightningRoundedIcon },
-      { href: "/applications", label: "Applications", Icon: ListChecksIcon },
+      { href: "/applications", label: "Tracker", Icon: ListChecksIcon },
       // Hidden for now (KAN-261): src/proxy.ts sends /calendar to the
       // Dashboard. Uncomment this and its import to bring it back.
       // { href: "/calendar", label: "Calendar", Icon: CalendarDotsIcon },
