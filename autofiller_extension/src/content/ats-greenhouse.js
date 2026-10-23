@@ -239,72 +239,109 @@ window.WIA = window.WIA || {};
   ];
 
   /**
-   * How many education blocks the page currently has. Scoped to the real
-   * combobox input specifically (`input[role=combobox]`) — a selector that
-   * only matched `[id^="school--"]` was also catching each block's
-   * `id="school--N-label"` label element, silently double-counting every
-   * block and making this think the page already had enough before it ever
-   * clicked anything.
+   * Greenhouse's own DOM ids for one employment/experience block — found
+   * live on Coinbase's posting (2026-10-22), which (unlike every other
+   * posting checked before it) does expose a structured experience
+   * section, contradicting this file's own earlier assumption that none
+   * did. Same shape as `EDUCATION_FIELDS`, but a single dash
+   * (`company-name-0`, not `company-name--0`) and "title"/"company-name"
+   * instead of "school"/"degree" — confirmed different, kept as the DOM's
+   * own spelling exactly like education's note above does. No field for
+   * location or a "currently working here" toggle exists on this posting;
+   * an entry still working (`end_kind` "present") just leaves both end
+   * fields blank, same as education's open-ended entries.
    */
-  function blockCount() {
-    return document.querySelectorAll('input[role="combobox"][id^="school--"]').length;
+  const EXPERIENCE_FIELDS = [
+    { base: "company-name", bankField: "organization" },
+    { base: "title", bankField: "title" },
+    { base: "start-date-month", bankField: "start_month", transform: monthName },
+    { base: "start-date-year", bankField: "start_month", transform: yearOf },
+    { base: "end-date-month", bankField: "end_month", transform: monthName },
+    { base: "end-date-year", bankField: "end_month", transform: yearOf },
+  ];
+
+  // Shared by education and experience, parameterized on the one real
+  // difference between them: the id separator ("school--0" vs
+  // "company-name-0") and which field actually anchors one block ("school"
+  // vs "company-name" — the field every block has exactly once, used to
+  // count blocks and to find the last one for button disambiguation).
+  const BLOCK_GROUPS = {
+    education: { sep: "--", anchorBase: "school", fields: EDUCATION_FIELDS },
+    experience: { sep: "-", anchorBase: "company-name", fields: EXPERIENCE_FIELDS },
+  };
+
+  /**
+   * How many blocks of `group` the page currently has. Scoped to the real
+   * `<input>` specifically — a selector that only matched the id prefix
+   * was also catching each block's own `id="<anchor>--N-label"` element,
+   * silently double-counting every block and making this think the page
+   * already had enough before it ever clicked anything.
+   * @param {keyof typeof BLOCK_GROUPS} group
+   */
+  function blockCount(group) {
+    const { sep, anchorBase } = BLOCK_GROUPS[group];
+    return document.querySelectorAll(`input[id^="${anchorBase}${sep}"]`).length;
   }
 
   /**
-   * Greenhouse's "Add another" control for education. Not matched by
+   * Greenhouse's "Add another" control for `group`. Not matched by
    * wording — the button's own text is just "Add another", with no
-   * "education" in it anywhere — and not matched by a nearby heading
+   * section name in it anywhere — and not matched by a nearby heading
    * either, since Greenhouse's section caption isn't a real heading
    * element (see this file's top comment). Scoped instead by Greenhouse's
    * own class name, disambiguated (when more than one repeatable section
-   * exists on the page) by document-order proximity to the last known
-   * education block.
+   * exists on the page, e.g. Education and Experience on the same
+   * posting) by document-order proximity to the last known block of this
+   * same group.
+   * @param {keyof typeof BLOCK_GROUPS} group
    * @returns {HTMLElement | null}
    */
-  function findEducationAddButton() {
+  function findAddButton(group) {
+    const { sep, anchorBase } = BLOCK_GROUPS[group];
     const buttons = Array.from(document.querySelectorAll("button.add-another-button"));
     if (buttons.length <= 1) return buttons[0] ?? null; // nothing to disambiguate
 
-    const lastBlock = document.getElementById(`school--${blockCount() - 1}`);
+    const lastBlock = document.getElementById(`${anchorBase}${sep}${blockCount(group) - 1}`);
     if (!lastBlock) return buttons[0];
     return buttons.find((b) => lastBlock.compareDocumentPosition(b) & Node.DOCUMENT_POSITION_FOLLOWING) ?? buttons[0];
   }
 
   /**
-   * Clicks "Add another" until the page has `neededCount` education
-   * blocks, or reports why it couldn't — same shape as content-script.js's
+   * Clicks "Add another" until the page has `neededCount` blocks of
+   * `group`, or reports why it couldn't — same shape as content-script.js's
    * own ensureRepeatedBlocks, Greenhouse-specific only in how it counts
    * blocks and finds the button.
+   * @param {keyof typeof BLOCK_GROUPS} group
    * @param {number} neededCount
    * @param {{ status: typeof window.WIA.status, dom: typeof window.WIA.dom }} engine
    */
-  async function ensureEducationBlocks(neededCount, { status, dom }) {
+  async function ensureBlocks(group, neededCount, { status, dom }) {
     if (neededCount === 0) return;
 
-    let current = blockCount();
-    if (current === 0) return; // this posting doesn't collect education at all — nothing to expand, nothing wrong
+    let current = blockCount(group);
+    if (current === 0) return; // this posting doesn't collect this section at all — nothing to expand, nothing wrong
 
     const maxClicks = neededCount + 2; // headroom for a default block already present — not unbounded retries on a stuck page
     for (let clicks = 0; current < neededCount && clicks < maxClicks; clicks++) {
-      const button = findEducationAddButton();
+      const button = findAddButton(group);
       if (!button) {
-        status.register("_add-education", "Add another education entry", false);
+        status.register(`_add-${group}`, `Add another ${group} entry`, false);
         status.setStatus(
-          "_add-education",
+          `_add-${group}`,
           "failed",
-          `Couldn't find Greenhouse's "Add another" button for education — only the first ${current} entr${current === 1 ? "y" : "ies"} will be filled`,
+          `Couldn't find Greenhouse's "Add another" button for ${group} — only the first ${current} entr${current === 1 ? "y" : "ies"} will be filled`,
         );
         return;
       }
 
       button.click();
-      const grew = await dom.waitUntil(() => blockCount() > current, 2000);
+      const grew = await dom.waitUntil(() => blockCount(group) > current, 2000);
       if (!grew) {
-        status.register("_add-education", "Add another education entry", false);
-        status.setStatus("_add-education", "failed", 'Clicked "Add another" but no new education block appeared');
+        status.register(`_add-${group}`, `Add another ${group} entry`, false);
+        status.setStatus(`_add-${group}`, "failed", `Clicked "Add another" but no new ${group} block appeared`);
         return;
       }
-      current = blockCount();
+      current = blockCount(group);
     }
   }
 
@@ -316,32 +353,26 @@ window.WIA = window.WIA || {};
    * Institute for AI's Robotics Research Internship,
    * .../thealleninstitute/jobs/8293641) filling end to end right now.
    * Delete an entry here once that posting's gone, or once the field it
-   * covers gets a real WorkIt data source: "candidate-location" has no
-   * profile field anywhere (no part of WorkIt tracks a student's city),
-   * and the other is this posting's own one-off custom question. The
-   * relocation question used to be a third entry here, but it generalized
-   * cleanly enough (field-map.js's "willing_to_relocate" rule) that it's
-   * now handled by the generic engine instead, for every posting, not
-   * just this one.
+   * covers gets a real WorkIt data source. Two entries have already moved
+   * out of this map once they generalized: "willing to relocate" into
+   * field-map.js's `willing_to_relocate` rule, and "candidate-location"
+   * into `profile.location` (KAN-312: a real My Profile field now exists,
+   * so the `identity` array in `run()` below fills it directly — no
+   * posting-specific guess needed any more). What's left here is this
+   * posting's own one-off custom question, which nothing generalizes.
    *
-   * A "Which location(s) would you want to be considered for?" field is
-   * never answered with a made-up city here, the way `candidate-location`
-   * above is — this posting's own override already states a real one, so
-   * when a sibling field like that exists, `value` should be the real
-   * office names this posting's own dropdown/multi-select offers, ordered
-   * nearest the override's `candidate-location` first: `lib-fill.js`'s
-   * `fillField` already tries an array of candidates in order and keeps
-   * the first one the field actually accepts, the exact mechanism
-   * `field-map.js`'s `referral_source` rule uses for the same reason — no
-   * new fill logic needed, only the right list of real city names for
-   * that one posting. No posting checked so far has asked this question
-   * alongside a hardcoded location, so there's no live example yet; add
-   * one here, in this shape, the day one does.
+   * A "Which location(s) would you want to be considered for?" field,
+   * if one ever needs an override, should hold the real office names
+   * this posting's own dropdown/multi-select offers, ordered nearest
+   * `profile.location` first: `lib-fill.js`'s `fillField` already tries
+   * an array of candidates in order and keeps the first one the field
+   * actually accepts, the exact mechanism `field-map.js`'s
+   * `referral_source` rule uses for the same reason — no new fill logic
+   * needed, only the right list of real city names for that one posting.
    * @type {Record<number, Record<string, { label: string, value: string | string[] }>>}
    */
   const POSTING_OVERRIDES = {
     8293641: {
-      "candidate-location": { label: "Location (City)", value: "Seattle, WA" },
       question_69947152: { label: "Certify information is true", value: "I agree" },
     },
   };
@@ -362,10 +393,10 @@ window.WIA = window.WIA || {};
    * content-script.js's generic pass can skip them rather than
    * re-classifying (and risking a different outcome for) the same field.
    * @param {import("../shared/types.js").AutofillProfile} profile
-   * @param {{ status: typeof window.WIA.status, fill: typeof window.WIA.fill, dom: typeof window.WIA.dom, fieldMap: typeof window.WIA.fieldMap }} engine
+   * @param {{ status: typeof window.WIA.status, fill: typeof window.WIA.fill, dom: typeof window.WIA.dom, fieldMap: typeof window.WIA.fieldMap, pauseIfHidden: () => Promise<void> }} engine
    * @returns {Promise<Set<string>>}
    */
-  async function run(profile, { status, fill, dom, fieldMap }) {
+  async function run(profile, { status, fill, dom, fieldMap, pauseIfHidden }) {
     const handled = new Set();
 
     const [firstName, ...rest] = (profile.full_name || "").trim().split(/\s+/);
@@ -378,9 +409,16 @@ window.WIA = window.WIA || {};
       { id: "email", label: "Email", value: profile.email },
       { id: "country", label: "Country", value: phone.country },
       { id: "phone", label: "Phone", value: phone.local },
+      // Greenhouse's "Location (City)" combobox, stable id confirmed live
+      // on several postings (Braze, GoFundMe, the Allen Institute for AI).
+      // Real profile data (KAN-312) in place of this posting's own
+      // hardcoded guess, which POSTING_OVERRIDES used before this field
+      // existed.
+      { id: "candidate-location", label: "Location (City)", value: profile.location },
     ];
 
     for (const { id, label, value } of identity) {
+      await pauseIfHidden();
       const field = document.getElementById(id);
       if (!field) continue;
       handled.add(id);
@@ -418,40 +456,63 @@ window.WIA = window.WIA || {};
       }
     }
 
-    const education = (profile.bank?.entries ?? []).filter((e) => e.section === "education");
-    await ensureEducationBlocks(education.length, { status, dom });
+    /**
+     * Fills every block of `group` from `entries`, by Greenhouse's own
+     * stable ids — shared by education and experience, since both are
+     * the same shape once `BLOCK_GROUPS`/`ensureBlocks` have already
+     * handled which separator and which "Add another" belongs to which.
+     * @param {keyof typeof BLOCK_GROUPS} group
+     * @param {import("../shared/types.js").BankEntry[]} entries
+     */
+    async function fillBlocks(group, entries) {
+      const { sep, fields } = BLOCK_GROUPS[group];
+      await ensureBlocks(group, entries.length, { status, dom });
 
-    for (let i = 0; i < education.length; i++) {
-      if (!document.getElementById(`school--${i}`)) break; // no more blocks than this — ensureEducationBlocks already reported why, if it tried and failed
+      for (let i = 0; i < entries.length; i++) {
+        if (!document.getElementById(`${BLOCK_GROUPS[group].anchorBase}${sep}${i}`)) break; // no more blocks than this — ensureBlocks already reported why, if it tried and failed
 
-      for (const { base, bankField, transform } of EDUCATION_FIELDS) {
-        const id = `${base}--${i}`;
-        const field = document.getElementById(id);
-        if (!field) continue;
-        handled.add(id);
+        for (const { base, bankField, transform } of fields) {
+          await pauseIfHidden();
+          const id = `${base}${sep}${i}`;
+          const field = document.getElementById(id);
+          if (!field) continue;
+          handled.add(id);
 
-        const raw = education[i][bankField] ?? null;
-        const value = raw && transform ? transform(raw) : raw;
-        const required = fieldMap.isRequired(field);
-        // Keyed on `base`, not `bankField`: start-month and start-year both
-        // read `start_month` (same for end-month/end-year), and a shared
-        // key here would make the second status.register silently
-        // overwrite the first field's row.
-        const key = `education[${i}].${base}`;
-        status.register(key, dom.findLabelText(field) || id, required);
+          const raw = entries[i][bankField] ?? null;
+          const value = raw && transform ? transform(raw) : raw;
+          const required = fieldMap.isRequired(field);
+          // Keyed on `base`, not `bankField`: start-month and start-year both
+          // read `start_month` (same for end-month/end-year), and a shared
+          // key here would make the second status.register silently
+          // overwrite the first field's row.
+          const key = `${group}[${i}].${base}`;
+          status.register(key, dom.findLabelText(field) || id, required);
 
-        if (!value) {
-          status.setStatus(key, required ? "failed" : "skipped", required ? "No WorkIt profile data for this field" : undefined);
-          continue;
+          if (!value) {
+            status.setStatus(key, required ? "failed" : "skipped", required ? "No WorkIt profile data for this field" : undefined);
+            continue;
+          }
+          const result = await fill.fillField(field, value);
+          status.setStatus(key, result.ok ? "filled" : "failed", result.ok ? undefined : result.reason);
         }
-        const result = await fill.fillField(field, value);
-        status.setStatus(key, result.ok ? "filled" : "failed", result.ok ? undefined : result.reason);
       }
     }
+
+    const education = (profile.bank?.entries ?? []).filter((e) => e.section === "education");
+    await fillBlocks("education", education);
+
+    // Experience: found live on Coinbase's posting, which — unlike every
+    // other posting checked before it — exposes a structured employment
+    // section with Greenhouse's own stable ids, not left for the generic
+    // engine's label-matching (content-script.js skips that entirely on
+    // Greenhouse, same reasoning as education's own top-of-file comment).
+    const experience = (profile.bank?.entries ?? []).filter((e) => e.section === "experience");
+    await fillBlocks("experience", experience);
 
     const overrides = POSTING_OVERRIDES[currentPostingId()];
     if (overrides) {
       for (const [id, { label, value }] of Object.entries(overrides)) {
+        await pauseIfHidden();
         const field = document.getElementById(id);
         if (!field) continue;
         handled.add(id);

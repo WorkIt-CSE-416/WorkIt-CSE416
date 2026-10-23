@@ -54,9 +54,74 @@ window.WIA = window.WIA || {};
   }
 
   /**
+   * A number out of `value`, or null when it isn't one — the gate for
+   * trying range-matching at all, so a plain string value (a name, a
+   * country) never goes anywhere near `parseRange`.
+   * @param {string} value
+   * @returns {number | null}
+   */
+  function numericValue(value) {
+    const n = Number(value.trim());
+    return Number.isFinite(n) ? n : null;
+  }
+
+  /**
+   * The numeric range an option's own text describes, or null when it
+   * doesn't look like one — a real option's wording decides this, never a
+   * fixed per-field table, which is what makes this reusable for any
+   * company's own bucket wording rather than one hardcoded set (unlike
+   * `normalizeDegree`/`DEGREE_FAMILIES` in ats-greenhouse.js, which can
+   * afford a fixed table because Greenhouse's own 10 degree options are
+   * the same on every posting — a GPA/years-of-experience/salary dropdown
+   * has no such universal set, so this reads whatever the live option
+   * actually says instead). Handles "3.5 - 4.0", "3.50-3.99", "3.0+",
+   * "Below 3.0", "3.0 and above"; a bare number with no range wording
+   * ("3.8" itself, a year, a street number) returns null on purpose —
+   * that's not a range, so it must never swallow an exact/substring match
+   * this function's own caller already tried first.
+   * @param {string} text
+   * @returns {{ min: number, max: number } | null}
+   */
+  function parseRange(text) {
+    const normalized = text.toLowerCase();
+    const numbers = (normalized.match(/\d+(?:\.\d+)?/g) || []).map(Number);
+    if (numbers.length >= 2) return { min: numbers[0], max: numbers[1] };
+    if (numbers.length === 1) {
+      const [n] = numbers;
+      if (/below|under|less than/.test(normalized)) return { min: -Infinity, max: n };
+      if (/\+|above|higher|or more|at least|or greater/.test(normalized)) return { min: n, max: Infinity };
+    }
+    return null;
+  }
+
+  /**
+   * The first option (in whatever order the field already has them)
+   * whose own text describes a range `value` falls inside, or null when
+   * `value` isn't numeric or nothing matches.
+   * @param {Element[]} options
+   * @param {string} value
+   * @param {(option: Element) => string | null | undefined} getText
+   * @returns {Element | null}
+   */
+  function matchByRange(options, value, getText) {
+    const n = numericValue(value);
+    if (n === null) return null;
+    return (
+      options.find((o) => {
+        const range = parseRange(getText(o) ?? "");
+        return range != null && n >= range.min && n <= range.max;
+      }) ?? null
+    );
+  }
+
+  /**
    * Native <select>. Tries an exact value match first (some ATSs use
    * machine-readable option values, e.g. ISO country codes), then a
-   * case-insensitive match on the visible option text.
+   * case-insensitive match on the visible option text, then — for a
+   * numeric value only — whichever option's own text describes a range
+   * the value falls inside ("3.5 - 4.0" for a bank GPA of 3.8), so a
+   * company's own fixed-bucket dropdown doesn't need a hardcoded table of
+   * its exact wording the way Greenhouse's Degree field does.
    * @param {HTMLSelectElement} field
    * @param {string} value
    * @returns {{ ok: true } | { ok: false, reason: string }}
@@ -68,7 +133,8 @@ window.WIA = window.WIA || {};
     const match =
       options.find((o) => o.value === value) ??
       options.find((o) => o.textContent?.trim().toLowerCase() === target) ??
-      options.find((o) => o.textContent?.trim().toLowerCase().includes(target));
+      options.find((o) => o.textContent?.trim().toLowerCase().includes(target)) ??
+      matchByRange(options, value, (o) => o.textContent);
 
     if (!match) {
       // THE FIX for JobRight's "SUNY Korea → No results found" bug: a
@@ -134,6 +200,18 @@ window.WIA = window.WIA || {};
     field.focus();
     nativeInputValueSetter.call(field, "");
     field.dispatchEvent(new Event("input", { bubbles: true }));
+    // Found live on two different Greenhouse postings (2026-10-22): the
+    // EEOC gender/Hispanic-Latino fields intermittently never opened at
+    // all (aria-expanded stuck "false", no listbox, "No options
+    // appeared"), while the fields right next to them (race, veteran
+    // status) worked every time. The first keystroke below used to fire
+    // in the same tick as focus/clear, with no settle time — react-select
+    // sometimes hadn't finished attaching its own listeners yet and missed
+    // it. A 50ms pause before the first character (confirmed live:
+    // without it, failed repeatedly on the same field; with it, opened
+    // every time) fixes it without slowing every other keystroke, which
+    // already has its own pause below.
+    await pause(50);
 
     for (const ch of value) {
       const next = field.value + ch;
@@ -152,12 +230,53 @@ window.WIA = window.WIA || {};
   }
 
   /**
+   * Finds the listbox this combobox field controls and returns its current
+   * options — the same lookup `fillCombobox` needs whether it just typed
+   * into the field or, for a numeric value, opened it without typing.
+   * @param {Element} field
+   * @returns {Element[]}
+   */
+  function comboboxOptions(field) {
+    const listboxId = field.getAttribute("aria-controls");
+    const listbox = listboxId
+      ? document.getElementById(listboxId)
+      : field.closest("[role='combobox'], div")?.querySelector("[role='listbox']") ??
+        document.querySelector("[role='listbox']");
+    if (!listbox) return [];
+    return Array.from(listbox.querySelectorAll("[role='option'], li"));
+  }
+
+  /**
+   * Opens the combobox's listbox without typing a search term — an
+   * ArrowDown is how react-select's own keyboard navigation opens its
+   * menu, independent of the per-character "input" events typing relies
+   * on to trigger filtering. Needed for a numeric range value: typing the
+   * bare number itself ("3.8") into the search box would filter away every
+   * option actually worded as a range ("3.5 - 4.0" doesn't contain "3.8"),
+   * leaving nothing for matchByRange to even look at.
+   * @param {HTMLInputElement} field
+   */
+  function openComboboxUnfiltered(field) {
+    field.focus();
+    field.dispatchEvent(new KeyboardEvent("keydown", { key: "ArrowDown", bubbles: true }));
+  }
+
+  /**
    * Custom dropdown/combobox widgets (role="combobox", often paired with a
    * role="listbox" that only exists in the DOM while open) — the pattern
    * every vendor in the architecture research uses: type into the field to
    * trigger its own filtering, then click the option that matches, because
    * these widgets don't expose a settable .value the way a native <select>
    * does.
+   *
+   * A numeric value tries a second way first: open the menu without typing
+   * (`openComboboxUnfiltered`) and range-match its default option list
+   * (`matchByRange`, same helper `fillSelect` uses) — the GPA-as-dropdown
+   * shape `fillSelect` handles natively, reached here because Greenhouse
+   * renders most of its own dropdowns as this widget instead. Falls
+   * through to the normal typed-search path below when that finds
+   * nothing, so a numeric value that isn't actually range-worded options
+   * (a year, a street number) still gets the original behavior.
    *
    * BEST EFFORT, clearly labeled as such: the listbox-finding heuristic
    * (aria-controls, then a nearby [role=listbox]) won't cover every
@@ -169,6 +288,17 @@ window.WIA = window.WIA || {};
    * @returns {Promise<{ ok: true } | { ok: false, reason: string }>}
    */
   async function fillCombobox(field, value) {
+    if (field instanceof HTMLInputElement && numericValue(value) !== null) {
+      openComboboxUnfiltered(field);
+      const defaultOptions = await waitForOptions(() => comboboxOptions(field));
+      const rangeMatch = matchByRange(defaultOptions, value, (o) => o.textContent);
+      if (rangeMatch) {
+        rangeMatch.dispatchEvent(new MouseEvent("mousedown", { bubbles: true }));
+        rangeMatch.dispatchEvent(new MouseEvent("click", { bubbles: true }));
+        return { ok: true };
+      }
+    }
+
     if (field instanceof HTMLInputElement) {
       await typeIntoCombobox(field, value);
     } else {
@@ -176,17 +306,7 @@ window.WIA = window.WIA || {};
       if (!textResult.ok) return textResult;
     }
 
-    const listboxId = field.getAttribute("aria-controls");
-    const findOptions = () => {
-      const listbox = listboxId
-        ? document.getElementById(listboxId)
-        : field.closest("[role='combobox'], div")?.querySelector("[role='listbox']") ??
-          document.querySelector("[role='listbox']");
-      if (!listbox) return [];
-      return Array.from(listbox.querySelectorAll("[role='option'], li"));
-    };
-
-    const options = await waitForOptions(findOptions);
+    const options = await waitForOptions(() => comboboxOptions(field));
     if (options.length === 0) {
       return { ok: false, reason: `No options appeared for "${value}"` };
     }

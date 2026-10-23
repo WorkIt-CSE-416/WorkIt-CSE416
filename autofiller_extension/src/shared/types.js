@@ -94,6 +94,8 @@
  * @property {string} full_name
  * @property {string | null} phone_number
  * @property {string | null} headline
+ * @property {string | null} location  The applicant's own city (KAN-312),
+ *   free text ("Seattle, WA") — never a job posting's location.
  * @property {string | null} linkedin_url
  * @property {string | null} portfolio_url
  * @property {string | null} github_url

@@ -264,6 +264,9 @@ export default function ProfilePage() {
           {(!applicantProfile || applicantProfile.headline) && (
             <p className="text-body text-ink-meta">{applicantProfile?.headline ?? "\u00A0"}</p>
           )}
+          {(!applicantProfile || applicantProfile.location) && (
+            <p className="text-body text-ink-meta">{applicantProfile?.location ?? "\u00A0"}</p>
+          )}
 
           {avatarError && (
             <p role="alert" className="text-meta text-danger mt-2">
@@ -682,7 +685,7 @@ function toDraft<F extends keyof ApplicantProfile>(
 
 // --- Edit Profile Dialog ---------------------------------------------------
 
-const PROFILE_FIELDS = ["full_name", "headline"] as const;
+const PROFILE_FIELDS = ["full_name", "headline", "location"] as const;
 type ProfileField = (typeof PROFILE_FIELDS)[number];
 
 /** The name and headline. Contact & Links has its own edit mode. */
@@ -727,7 +730,7 @@ function EditProfileDialog({
       <DialogContent>
         <DialogHeader>
           <DialogTitle className="text-subtitle font-semibold">Edit Profile</DialogTitle>
-          <DialogDescription>Your name and the line under it.</DialogDescription>
+          <DialogDescription>Your name, the line under it, and your city.</DialogDescription>
         </DialogHeader>
 
         <form onSubmit={handleSubmit} className="flex flex-col gap-4">
@@ -735,6 +738,7 @@ function EditProfileDialog({
             [
               ["full_name", "Full Name"],
               ["headline", "Headline"],
+              ["location", "Location"],
             ] as const
           ).map(([id, label]) => (
             <div key={id} className="flex flex-col gap-1">
@@ -746,6 +750,7 @@ function EditProfileDialog({
                 value={draft[id]}
                 onChange={(e) => setDraft((d) => ({ ...d, [id]: e.target.value }))}
                 required={id === "full_name"}
+                placeholder={id === "location" ? "City, State" : undefined}
                 className={cn(FIELD_CONTROL, "px-3.5 py-2.5")}
               />
             </div>

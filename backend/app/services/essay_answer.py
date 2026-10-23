@@ -123,6 +123,13 @@ async def generate(llm: LLM, identity: Identity, request: EssayAnswerRequest, ba
     if not text:
         return None
     grounding, skills = bank_context(bank)
-    if invented(text, grounding, skills) or placeholders_in(text):
+    # The company/role prompt() tells the model about (bank_context has no
+    # way to know either) is not an invented fact just because it's not in
+    # the bank — "Why do you want to work at Acme?" naturally echoes "Acme"
+    # back, and without this the truth rule flagged that exact, correct
+    # grounding as invention: every "why this company" answer failed with
+    # a 422 regardless of how well it actually used the bank.
+    known = "\n".join(p for p in (grounding, request.company_name, request.job_title) if p)
+    if invented(text, known, skills) or placeholders_in(text):
         return None
     return text

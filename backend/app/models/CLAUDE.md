@@ -997,7 +997,11 @@ Real, not forgotten. Do not treat their absence as a decision already made.
   tables must keep having none — their id is the `auth.users` id.
 - `autofill_answers` (above) holds only onboarding's nine questions. The
   rest that forms repeat (availability, relocation) have no key yet.
-- `applicant_profiles.location` and `company_profiles.industry` are absent.
+- `company_profiles.industry` is absent. `applicant_profiles.location`
+  (KAN-312, `589ce7faebe4`) closed the applicant half of this note: free
+  text, never resolved against `countries`/`states`, since the autofiller
+  and a resume header both just want to show/type a city, not filter on
+  it — unlike `job_locations`/`applicant_locations` above, which are.
 - `company_profiles.contact_email` is unique, which forbids two companies sharing
   an HR inbox — plausible for subsidiaries. Probably wrong; confirm it is
   intended.

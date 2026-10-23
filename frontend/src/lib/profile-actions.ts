@@ -12,6 +12,8 @@ export type ApplicantProfile = {
   full_name: string;
   phone_number: string | null;
   headline: string | null;
+  /** The applicant's own city ("Seattle, WA"), never a job posting's. */
+  location: string | null;
   linkedin_url: string | null;
   portfolio_url: string | null;
   github_url: string | null;

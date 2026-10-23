@@ -41,6 +41,13 @@ class Applicant_Profile(Profile):
     # the other.
     default_built_resume_id: Mapped[uuid.UUID | None] = mapped_column(ForeignKey("built_resumes.id", ondelete="SET NULL", use_alter=True), index=True, nullable=True)
     headline: Mapped[str | None] = mapped_column(String(50))
+    # The applicant's own city (KAN-312) — never a job posting's location
+    # (job_locations/applicant_locations are search-preference data, not
+    # this). Free text ("Seattle, WA"), not resolved against the
+    # countries/states tables: a resume header and an ATS "Location (City)"
+    # field both just want to show/type it, never filter on it. Read by the
+    # autofiller as real data in place of a posting-specific guess.
+    location: Mapped[str | None] = mapped_column(String(100))
     # The email employers see (KAN-262): resume headers and the autofiller.
     # NULL means the sign-in `email`, which the seeker cannot change here.
     contact_email: Mapped[str | None] = mapped_column(String(100))

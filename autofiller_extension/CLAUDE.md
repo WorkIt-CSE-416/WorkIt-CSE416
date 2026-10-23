@@ -277,6 +277,49 @@ Vercel pair and its manifest entries at the cutover. **A new
 until each installed user approves the new hosts**, so add hosts in
 batches, not one at a time.
 
+## The cached profile is keyed by account, not by one fixed name
+
+`background/api.js`'s `getAutofillProfile` caches `fetchAutofillProfile`'s
+result in `chrome.storage.local` for `CACHE_TTL_MS` (10 minutes), and the
+cache key folds in the session's own account id — read straight out of the
+access token's `sub` claim (`accountIdFromToken`, a local parse with no
+signature check: a caching-key choice, not an auth decision, since every
+real request still carries the token to the backend, which verifies it for
+real). **Found live (2026-10-22), not hypothetical**: before this, the key
+was one fixed string, and the only identity check `getAutofillProfile` ran
+verified a session merely *existed* (added for the sign-out case — a
+student who signs out of WorkIt shouldn't keep autofilling from a cached,
+signed-out identity), never *whose* session it was. Signing out and into a
+different account within the 10-minute window silently kept autofilling
+with the *first* account's cached bank and profile — a different account
+is now a plain cache miss instead, the root-cause fix rather than a second
+staleness check layered on the existing one. A token that fails to decode
+falls back to the one shared key, same behavior as before this fix.
+
+## A backgrounded tab pauses honestly instead of failing silently
+
+The runner above already ran into hidden tabs throttling
+`requestAnimationFrame` to never fire, fixed by moving every wait onto
+`MutationObserver` (`lib-dom.js`'s `waitUntil`, `lib-fill.js`'s
+`waitForOptions`) — but CLAUDE.md's own notes on that fix also record that
+dropdowns specifically still needed real visibility/focus even after the
+polling fix landed, which is why the runner additionally force-reactivates
+its own tab before filling.
+
+The user-triggered flow (the popup's "Autofill This Page", on the
+student's own already-active tab) can't borrow that exact fix: forcibly
+refocusing a tab the student just switched away from on purpose would be
+worse, not better. `content-script.js`'s `pauseIfHidden` (called from the
+main fill loop, the essay-generation loop, and `ats-greenhouse.js`'s own
+identity/education/override loops via a `pauseIfHidden` passed into
+`run()`) checks `document.hidden` before each field and, if the tab has
+gone background mid-fill, shows the overlay's "Paused — switch back to
+this tab to resume" banner (`overlay.setPaused`) and waits on a
+`visibilitychange` (`lib-dom.js`'s `waitUntilVisible`) rather than
+attempting the next fill throttled and failing it with a generic timeout
+reason that never explains why. Resumes on its own once the student
+switches back — nothing here ever grabs focus itself.
+
 ## No backend changes, and why that's safe (almost always)
 
 `src/background/api.js` mostly calls endpoints that already exist for the
@@ -357,6 +400,37 @@ written to match real hiring-system wording.
   themselves. This is the same honesty rule every other field in this
   engine follows (`lib-fill.js`'s explicit `{ ok: false, reason }`,
   below).
+- **A company's own "decline to answer" wording isn't WorkIt's.** Found
+  live (2026-10-22, the Allen Institute's posting): WorkIt's stored
+  wording for a declined answer ("I Don't Wish to Answer",
+  `frontend/src/lib/autofill-answers.ts`'s own text) shares no substring
+  with that posting's real option, "Decline To Self Identify" — the same
+  class of mismatch `normalizeDegree` already exists to solve for Degree,
+  just for an EEOC opt-out value instead. Every `declined` entry in
+  `GENDER_LABELS`/`VETERAN_LABELS`/`DISABILITY_LABELS`/
+  `HISPANIC_LATINO_LABELS`/`RACE_LABELS` is now an ordered candidate list
+  (`DECLINE_SYNONYMS`), tried in turn by `lib-fill.js`'s `fillField` — the
+  same mechanism `referral_source` already uses, reused rather than
+  rebuilt. The original, already-confirmed-working wording stays first in
+  each list; promote another real company's phrasing into
+  `DECLINE_SYNONYMS` the day one doesn't match either.
+
+## A combobox's first keystroke needs a moment to land
+
+Found live on two different Greenhouse postings (2026-10-22), each on the
+same two fields (gender, Hispanic/Latino): `aria-expanded` stayed `"false"`
+and no listbox ever appeared, intermittently — the field right next to
+each one (race, veteran status) opened every time, on the same page, with
+the same code. `typeIntoCombobox` used to fire the first keystroke in the
+same tick as `field.focus()`/clearing the value, with no settle time at
+all (the existing per-character `pause(20)` only runs *between*
+characters, never before the first one). react-select hadn't always
+finished attaching its own listeners by then and missed it. Confirmed by
+hand, repeatably: the exact same sequence with a 50ms pause inserted right
+after focus/clear and before the first character opened the menu every
+time; without it, the same field failed repeatedly. One `pause(50)` added
+there — slows nothing else, since every later keystroke already has its
+own pause.
 
 ## Greenhouse's phone country code
 
@@ -544,6 +618,121 @@ rather than patched after the fact:
   both required and empty or mis-filled. An empty optional field is
   `"skipped"` — present in the overlay, not alarming.
 
+## Synonym matching requires a word boundary, not a bare substring
+
+Found live on Coinbase's Greenhouse posting (2026-10-22), testing against
+real postings before starting Lever/Ashby: `field-map.js`'s `matchLabel`
+used to check `normalized.includes(synonym)` directly. "city" (the
+`location` rule) matched inside "...in any **capa­city**?" — a "have you
+worked here before" question — and "institution" (the education rule)
+matched inside "...an **institution­al** client..." — a referral-conflict
+question. Each then tried filling "Seattle, WA" / "Stony Brook University"
+into a field that was never about location or school, and failed loudly
+("No options appeared") only because nothing on the real dropdown matched
+— a label one `a`/`al` away from a false positive would have filled
+silently wrong instead. `matchesSynonym` now requires a non-letter (or
+string edge) on both sides of the match. **This broke `hispanic_latino`'s
+deliberate reliance on `"ethnic"` matching inside `"ethnicity"` as a
+substring** (the old comment said so outright) — fixed by listing
+`"ethnicity"` as its own explicit synonym instead of leaning on an
+accidental extension. Any other synonym relying on the same trick would
+need the same treatment; none were found live, but it's the thing to check
+first if a previously-matching label stops matching after this change.
+
+**A whole-word match can still be the wrong field**, found the same
+session: Coinbase's "Are you a current government official... (e.g., ...
+a government owned/controlled **company**...)?" contains "company" as a
+genuine, boundary-safe whole word — `matchesSynonym` correctly says yes,
+and it's still the wrong answer, since this is a conflict-of-interest
+Yes/No question, not the per-entry "Company Name" field `repeatedFieldTemplates`
+means. The fix isn't another boundary rule; it's recognizing that a real
+*repeated sub-field* label is always short in practice ("Company name",
+"School", never a sentence), so `matchLabel` now skips the
+`repeatedFieldTemplates` pass entirely once `normalized.length > 40` —
+comfortably above every genuine example seen, comfortably below every
+false one (shortest so far: 66 characters). Scoped to repeated templates
+only, deliberately: `simpleFieldRules`' own Yes/No compliance questions
+(sponsorship, work authorization, citizenship) are legitimately long
+sentences and must keep matching at any length.
+
+## A rule can match the wrong field entirely, not just the right one wrong
+
+Confirmed live on Olsson's posting (2026-10-22), testing after the fixes
+above: its sponsorship question — "Would employment at Olsson now or any
+time in the future require you to obtain sponsorship for an immigration
+case (... sometimes called "sponsorship" for an employment-based **visa
+status**)?" — matched none of `needs_sponsorship`'s four specific phrases
+("require you to obtain sponsorship" isn't "require sponsorship"; the
+parenthetical's own "visa status" isn't "visa sponsorship"), so it fell
+through to `work_authorization_status`'s "visa status" synonym instead
+and answered **"U.S. Citizen" to a sponsorship question** — a wrong fill,
+not a missed one, and the kind this file's other fixes don't catch:
+`matchesSynonym`'s boundary check and the 40-character length guard both
+assume the risk is a false match on an *unrelated* field; this was two
+*related* EEOC-style rules competing for the same label, and the more
+specific one (`needs_sponsorship`, checked first in the array) simply
+didn't have broad enough synonyms to win. Fixed by adding plain
+"sponsorship" to `needs_sponsorship`'s list — distinctive enough a word
+that, unlike "city" or "company", it isn't at real risk of catching an
+unrelated question; every real sponsorship question seen so far contains
+it however the rest of the sentence is worded. The lesson for the next
+one: when two rules could plausibly both match one label, order and
+synonym breadth both matter — check live wording against the *narrower,
+more specific* rule's synonyms first, not just whether something matched
+at all.
+
+**A fourth posting (GoFundMe, same day) found one more plain missing
+synonym, not a new bug class**: "Where are you located?" — a free-text
+field asking the exact same thing "Location (City)" does, in different
+words — matched none of the `location` rule's three synonyms. Added
+"where are you located" to the list; `profile.location` was already the
+right value, nothing else needed changing. Promoting a synonym here, same
+as every other rule in this file, is the common case; the sponsorship/
+Coinbase findings above are the rarer kind.
+
+## A required field nothing recognizes is still a visible gap
+
+Companion finding, same Coinbase test: a required custom compliance
+question no rule claims (and that isn't a `<textarea>` essay candidate)
+used to fall through `content-script.js`'s main loop with **no overlay
+entry at all** — not filled, not failed, not tracked. That's worse than
+showing it as failed: `requiredTotal` itself only counts registered
+fields, so the overlay's own percentage could read "12/12 required fields
+filled, 100%" while a real required question sat blank on the page,
+exactly the kind of dishonest rollup `lib-status.js`'s own doc comment
+says this tracker exists to rule out. Fixed by registering any
+**required** unmatched, non-essay field as `"failed"` with the same "No
+WorkIt profile data for this field" reason a matched-but-empty rule
+already uses. An **optional** unmatched field stays untracked on
+purpose — nothing blocks Submit over it, and tracking every such field on
+an unfamiliar ATS would clutter the overlay with noise no student asked
+for; that's a deliberate asymmetry, not an oversight.
+
+## Not every assumption from one posting generalizes — Experience blocks
+
+A third Coinbase finding corrected something this file itself asserted:
+`content-script.js` used to justify skipping the generic engine's
+repeated-block handling on Greenhouse entirely with "none of the
+Greenhouse postings looked at expose a structured, generically-
+discoverable experience/employment section at all." Coinbase's posting
+does — a real `company-name-0`/`title-0`/`start-date-month-0`/
+`start-date-year-0`/`end-date-month-0`/`end-date-year-0` block, Greenhouse's
+own stable ids, the same shape as education's `school--0`/`degree--0`/...
+but with a single dash instead of a double one and its own field names
+("title" not "job title", "company-name" not "company"). Handling it the
+same way education already was (by exact id, never generic label-matching)
+was the obvious fix, so `ats-greenhouse.js`'s `blockCount`/`findAddButton`/
+`ensureBlocks`/the per-block fill loop are now parameterized over
+`BLOCK_GROUPS` (`{ sep, anchorBase, fields }` per group) instead of
+duplicated per section — adding a third repeated Greenhouse section later
+means one more `BLOCK_GROUPS` entry, not a third copy of four functions.
+`run()`'s `fillBlocks(group, entries)` is the one shared fill loop both
+education and experience call. The lesson, not just the fix: a comment
+asserting "no posting does X" from a handful of checked postings is a
+snapshot, not a proof — the next ATS-hardening test is exactly how this
+one got caught, and the right response was generalizing the existing
+by-id mechanism, not bolting on a second, experience-specific one.
+
 ## A rule can offer an ordered list of candidates, not just one value
 
 "How did you hear about this job?" (confirmed live on Braze's posting, a
@@ -597,17 +786,53 @@ is covered by the same mechanism.
 `ats-greenhouse.js`'s `POSTING_OVERRIDES`, keyed by Greenhouse's own job id
 (the number at the end of `.../jobs/<id>` — stable per posting, confirmed
 live), fills one specific posting's fields that have no honest general
-answer: a field with no WorkIt data source at all (Ai2's "Location (City)",
-since no part of WorkIt tracks a student's city — not even their own
-profile), or that posting's own one-off custom question wording a synonym
-rule would be too narrow to justify adding generally. **Promote an entry
-out of here the moment it generalizes** — "willing to relocate" started as
-an override here and moved to a real `field-map.js` rule once it was clear
-most postings phrase that question close enough to match one synonym list;
-Ai2's own override for it was deleted in the same change. Delete an entry
-outright once its posting is gone or done with, rather than leaving it to
-accumulate — this map is for "get one specific application unblocked right
-now," not a growing per-company config.
+answer: today, just that posting's own one-off custom question wording a
+synonym rule would be too narrow to justify adding generally. **Promote an
+entry out of here the moment it generalizes** — "willing to relocate"
+started as an override here and moved to a real `field-map.js` rule once
+it was clear most postings phrase that question close enough to match one
+synonym list; "candidate-location" moved out the same way (KAN-312): WorkIt
+now has a real `profile.location` field (My Profile's Location control),
+so the Greenhouse adapter's `identity` array fills it directly like every
+other identity field, and Ai2's hardcoded `"Seattle, WA"` override was
+deleted in the same change. Delete an entry outright once its posting is
+gone or done with, rather than leaving it to accumulate — this map is for
+"get one specific application unblocked right now," not a growing
+per-company config.
+
+## A numeric value can match a dropdown bucket it's never typed as
+
+GPA is a number ("3.8"), but some companies collect it as a fixed-bucket
+dropdown ("3.5 - 4.0", "Below 3.0") instead of free text — and unlike
+Degree, there's no universal set of bucket wordings across companies to
+hardcode a family table for (`ats-greenhouse.js`'s `DEGREE_FAMILIES` can
+afford one because Greenhouse's own 10 degree options are the same on
+every posting). `lib-fill.js`'s `parseRange`/`matchByRange` instead read
+whatever the live option's own text says, at fill time: a number with two
+digits in the option text is a `[min, max]` range, one digit plus
+"below"/"under" is `[-Infinity, n]`, one digit plus "+"/"above"/"or more"
+is `[n, Infinity]`. `fillSelect` tries this as a fourth tier, after the
+existing exact/substring tiers fail — free of charge for any field already
+using that function.
+
+A combobox needs one extra step first: Greenhouse's react-select widgets
+only open their listbox in response to real typed input (`typeIntoCombobox`'s
+own doc comment), so typing the bare number itself ("3.8") would filter
+away every option worded as a range before `matchByRange` ever saw them
+("3.5 - 4.0" doesn't contain "3.8"). For a numeric value, `fillCombobox`
+tries `openComboboxUnfiltered` first — an ArrowDown keydown, which opens
+react-select's menu through its keyboard-navigation path instead of its
+typed-search path — and range-matches that default option list before
+falling through to the normal typed-search behavior if nothing matched
+(so a numeric value that isn't actually a range dropdown, a year or a
+street number, still gets the original behavior unchanged).
+
+No `field-map.js` change was needed for GPA itself: its rule already sends
+the bank's plain `String(gpa)`, and this is entirely a fill-layer concern.
+`field_of_study` (also mentioned as a candidate for this) didn't need the
+same treatment — Greenhouse's major dropdowns matched the bank's typed
+text well enough through the existing substring tier already; promote it
+here too the day a real posting's wording doesn't.
 
 ## Repeated sections: clicking "Add" and filling every entry, not just the first
 

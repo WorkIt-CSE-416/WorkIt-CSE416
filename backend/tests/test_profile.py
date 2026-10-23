@@ -100,6 +100,20 @@ def test_the_email_employers_see_falls_back_to_the_sign_in_email():
     assert _profile(contact_email="jobs@example.com").email_for_employers == "jobs@example.com"
 
 
+def test_a_blank_location_clears_it():
+    body = ApplicantProfileUpdate(location="")
+    assert body.location is None
+    assert "location" in body.model_fields_set
+
+
+def test_patch_saves_the_location(client):
+    http, session = client
+    res = http.patch(URL, json={"location": "Seattle, WA"})
+    assert res.status_code == 200
+    assert res.json()["location"] == "Seattle, WA"
+    assert session.commits == 1
+
+
 def test_patch_saves_the_contact_email_and_the_links(client):
     http, session = client
     res = http.patch(

@@ -55,21 +55,34 @@ window.WIA = window.WIA || {};
     top_secret: "Top Secret",
     ts_sci: "Top Secret / SCI",
   };
+  // A company's own "decline to answer" option is worded however it
+  // likes — found live (2026-10-22, the Allen Institute's posting):
+  // WorkIt's stored "I Don't Wish to Answer" (frontend/src/lib/
+  // autofill-answers.ts's own wording) has no substring in common with
+  // this posting's actual option, "Decline To Self Identify". Same shape
+  // as `normalizeDegree`'s problem (the bank's wording vs. the ATS's own
+  // fixed option text), but for an EEOC opt-out value instead of a
+  // degree — so it gets the same fix `referral_source` already uses:
+  // an ordered candidate list, tried in turn by `lib-fill.js`'s
+  // `fillField`, first confirmed-live match wins. Appended to every
+  // `declined` entry below rather than only here, since all five
+  // self-identification questions share this exact risk.
+  const DECLINE_SYNONYMS = ["Decline To Self Identify", "Prefer not to answer"];
   const GENDER_LABELS = {
     male: "Male",
     female: "Female",
     non_binary: "Non-Binary",
-    declined: "I Don't Wish to Answer",
+    declined: ["I Don't Wish to Answer", ...DECLINE_SYNONYMS],
   };
   const VETERAN_LABELS = {
     protected_veteran: "I identify as one or more of the classifications of protected veteran",
     not_protected_veteran: "I am not a protected veteran",
-    declined: "I don't wish to answer",
+    declined: ["I don't wish to answer", ...DECLINE_SYNONYMS],
   };
   const DISABILITY_LABELS = {
     yes: "Yes, I have a disability (or previously had a disability)",
     no: "No, I do not have a disability and have not had one in the past",
-    declined: "I do not want to answer",
+    declined: ["I do not want to answer", ...DECLINE_SYNONYMS],
   };
   // The EEO self-identification's two race/ethnicity questions, kept apart
   // the way Greenhouse, Lever and Workday actually ask them (KAN-299):
@@ -81,7 +94,7 @@ window.WIA = window.WIA || {};
   const HISPANIC_LATINO_LABELS = {
     yes: "Yes",
     no: "No",
-    declined: "I Don't Wish to Answer",
+    declined: ["I Don't Wish to Answer", ...DECLINE_SYNONYMS],
   };
   const RACE_LABELS = {
     american_indian_alaska_native: "American Indian or Alaska Native",
@@ -90,13 +103,15 @@ window.WIA = window.WIA || {};
     native_hawaiian_pacific_islander: "Native Hawaiian or Other Pacific Islander",
     white: "White",
     two_or_more: "Two or More Races",
-    declined: "I Don't Wish to Answer",
+    declined: ["I Don't Wish to Answer", ...DECLINE_SYNONYMS],
   };
 
   /**
    * @param {Record<string, string> | undefined} answers profile.answers
    * @param {string} key
-   * @param {Record<string, string>} labels
+   * @param {Record<string, string | string[]>} labels A `declined`-style
+   *   entry may be an ordered candidate list instead of one string — see
+   *   `DECLINE_SYNONYMS`.
    */
   function answerLabel(answers, key, labels) {
     const value = answers?.[key];
@@ -135,6 +150,16 @@ window.WIA = window.WIA || {};
       // field conventions for KAN-164, but it's an ATS-agnostic bug, not a
       // Greenhouse-specific one.
       { key: "headline", synonyms: ["headline", "professional headline", "current role"], value: profile.headline },
+      // Real profile data (KAN-312) in place of the Greenhouse-specific
+      // posting override this used to need, since no part of WorkIt
+      // tracked a student's own city until now. "city" alone is
+      // intentionally broad — nothing else in this list claims that word,
+      // and WorkIt collects no street address for it to collide with.
+      // "where are you located" confirmed live on GoFundMe's posting
+      // (2026-10-22): a plain free-text field asking the same real
+      // question as "Location (City)" in different words, matching none
+      // of the other three synonyms.
+      { key: "location", synonyms: ["location (city)", "current location", "city", "where are you located"], value: profile.location },
       // Confirmed live on a real Greenhouse posting's "U.S. Standard Work
       // Authorization" section, both a Yes/No/"I don't wish to answer"
       // dropdown. Deliberately "authorized to work"/"eligible to work",
@@ -147,8 +172,24 @@ window.WIA = window.WIA || {};
         value: answerLabel(profile.answers, "work_authorized_us", YES_NO_LABELS),
       },
       {
+        // Confirmed live on Olsson's posting (2026-10-22): "Would
+        // employment at Olsson now or any time in the future require you
+        // to obtain sponsorship for an immigration case (... sometimes
+        // called "sponsorship" for an employment-based **visa status**)?"
+        // matches none of the four specific phrases below ("require you
+        // to obtain sponsorship" isn't "require sponsorship"; the
+        // parenthetical's own "visa status" isn't "visa sponsorship") —
+        // and since this rule is checked before `work_authorization_status`
+        // below, the label fell through to THAT rule's "visa status"
+        // synonym instead and answered "U.S. Citizen" to a sponsorship
+        // question. Plain "sponsorship" added as a catch-all: distinctive
+        // enough a word that it isn't at real risk of matching an
+        // unrelated question the way a common word like "city" was
+        // (matchesSynonym's own fix, above in this file's history) —
+        // every real sponsorship question seen so far contains it, worded
+        // however the rest of the sentence goes.
         key: "needs_sponsorship",
-        synonyms: ["require sponsorship", "need sponsorship", "visa sponsorship", "sponsorship for employment"],
+        synonyms: ["require sponsorship", "need sponsorship", "visa sponsorship", "sponsorship for employment", "sponsorship"],
         value: answerLabel(profile.answers, "needs_sponsorship", YES_NO_LABELS),
       },
       // The remaining seven are built the same principled way but, unlike
@@ -198,14 +239,18 @@ window.WIA = window.WIA || {};
         value: answerLabel(profile.answers, "race", RACE_LABELS),
       },
       {
-        // "ethnic" alone also matches "ethnicity" (a substring of it), and
-        // additionally covers "Indicate Ethnic group" — The Trade Desk's
-        // own wording for this exact question, confirmed live: a separate
+        // "ethnic" covers "Indicate Ethnic group" — The Trade Desk's own
+        // wording for this exact question, confirmed live: a separate
         // dropdown from "Indicate your Race:" above, which is the EEO's
         // own split (KAN-299) — Hispanic or Latino is never a race
-        // category, it is its own yes/no/decline question.
+        // category, it is its own yes/no/decline question. "ethnicity" is
+        // listed explicitly, not left to "ethnic" matching inside it as a
+        // substring: matchesSynonym (below) requires a word boundary on
+        // both sides now, which a plain "ethnic" no longer crosses into
+        // "ethnicity" by accident — the same boundary check that stops
+        // "city" wrongly matching inside "capacity" elsewhere.
         key: "hispanic_latino",
-        synonyms: ["hispanic", "latino", "ethnic"],
+        synonyms: ["hispanic", "latino", "ethnic", "ethnicity"],
         value: answerLabel(profile.answers, "hispanic_latino", HISPANIC_LATINO_LABELS),
       },
       {
@@ -287,6 +332,29 @@ window.WIA = window.WIA || {};
   }
 
   /**
+   * Whether `synonym` appears in `normalized` as a whole word/phrase, not
+   * embedded inside a longer unrelated word on either side. Found live on
+   * Coinbase's Greenhouse posting (2026-10-22): a plain `.includes()` let
+   * "city" match inside "...in any **capa-city**?" (a "have you worked
+   * here before" question) and "institution" match inside "...an
+   * **institution-al** client..." (a referral-conflict question) — each
+   * sent "Seattle, WA" / "Stony Brook University" at a field that was
+   * never about location or school at all. Neither side needs to be a
+   * strict word boundary in the regex sense (a label can start or end
+   * mid-punctuation), only "not a letter" — `(?<![a-z])`/`(?![a-z])`
+   * catches both false matches above (each has a letter directly against
+   * the synonym on the side that made it wrong) while still matching a
+   * synonym followed by punctuation, digits, or the label's own end.
+   * @param {string} normalized Already lower-cased label text.
+   * @param {string} synonym Already lower-cased.
+   * @returns {boolean}
+   */
+  function matchesSynonym(normalized, synonym) {
+    const escaped = synonym.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+    return new RegExp(`(?<![a-z])${escaped}(?![a-z])`).test(normalized);
+  }
+
+  /**
    * Returns a match whenever the label is about something WorkIt tracks,
    * even when `value` comes back null/empty — content-script.js is the
    * one that decides what an empty value means (skipped if optional,
@@ -307,13 +375,31 @@ window.WIA = window.WIA || {};
     const normalized = labelText.toLowerCase();
 
     for (const rule of simpleFieldRules(profile)) {
-      if (rule.synonyms.some((synonym) => normalized.includes(synonym))) {
+      if (rule.synonyms.some((synonym) => matchesSynonym(normalized, synonym))) {
         return { key: rule.key, value: rule.value };
       }
     }
 
+    // A repeated sub-field's own label is always short in practice — real
+    // examples seen live are "Company name", "School", "Degree", "Title",
+    // never a sentence. Long compliance paragraphs are not: found live on
+    // Coinbase's posting (2026-10-22), a government-conflict-of-interest
+    // question mentioning "a government owned/controlled **company**" (a
+    // true whole-word match, not the matchesSynonym boundary bug above)
+    // tried filling "Acme Corp" into what was really a Yes/No question.
+    // 40 is comfortably above every genuine label seen and comfortably
+    // below every false one (shortest false positive so far: 66 chars) —
+    // same "a real label isn't a paragraph" reasoning lib-dom.js's own
+    // heading-length guard already uses (`visibleText(el).length < 60`
+    // in `nearestToSectionHeading`), just a tighter number for a shorter
+    // kind of label. Scoped to repeated templates only: `simpleFieldRules`
+    // keeps matching full sentences on purpose — a real sponsorship/
+    // citizenship question ("Will you now, or in the future, require visa
+    // sponsorship for employment at Ai2?") is legitimately that long.
+    if (normalized.length > 40) return null;
+
     for (const template of repeatedFieldTemplates(profile)) {
-      if (!template.synonyms.some((synonym) => normalized.includes(synonym))) continue;
+      if (!template.synonyms.some((synonym) => matchesSynonym(normalized, synonym))) continue;
 
       const templateKey = `${template.group}.${template.field}`;
       const occurrence = occurrences.get(templateKey) ?? 0;
