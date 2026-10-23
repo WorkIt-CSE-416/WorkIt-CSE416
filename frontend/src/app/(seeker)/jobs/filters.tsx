@@ -118,7 +118,10 @@ type Glyph = ComponentType<{ className?: string }>;
 function FacetLabel({ Icon, label, active }: { Icon: Glyph; label: string; active: boolean }) {
   return (
     <span className="flex min-w-0 items-center gap-1.5">
-      <Icon className={cn("size-4 shrink-0", active ? "text-brand" : "text-ink-meta")} />
+      <Icon
+        aria-hidden
+        className={cn("size-4 shrink-0", active ? "text-brand" : "text-ink-meta")}
+      />
       <span className="truncate">{label}</span>
     </span>
   );
@@ -186,7 +189,7 @@ function FacetPopup({ options, multiple }: { options: readonly Option[]; multipl
       {options.map((option) => (
         <Item key={option.value} value={option.value} className="font-medium">
           <span className="flex items-center gap-2">
-            {option.Icon && <option.Icon className="text-ink-meta size-4 shrink-0" />}
+            {option.Icon && <option.Icon aria-hidden className="text-ink-meta size-4 shrink-0" />}
             {option.label}
           </span>
         </Item>

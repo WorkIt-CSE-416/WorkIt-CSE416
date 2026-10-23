@@ -1,4 +1,4 @@
-import { CloudOff } from "lucide-react";
+import { CloudSlashIcon } from "@phosphor-icons/react/ssr";
 import type { Metadata } from "next";
 import { connection } from "next/server";
 
@@ -48,7 +48,7 @@ export default async function BankPage({ searchParams }: PageProps<"/bank">) {
         <BankScreen initial={data} autoImport={autoImport} resumeParam={resumeParam} />
       ) : (
         <EmptyState
-          Icon={CloudOff}
+          Icon={CloudSlashIcon}
           title="Your Bank Isn't Loading Right Now"
           className="mt-4"
           /* A plain link, not <Link>: a full reload is what re-runs the fetch. */

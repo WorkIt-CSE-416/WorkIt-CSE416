@@ -2,7 +2,8 @@
 
 import * as React from "react";
 import { AnimatePresence, motion } from "motion/react";
-import { Calendar, FileCheck2 } from "lucide-react";
+import { CalendarBlankIcon } from "@phosphor-icons/react/ssr";
+import { FileCheckIcon } from "@/components/custom-icons";
 
 import { cn } from "@/lib/cn";
 
@@ -39,7 +40,7 @@ export function FollowedCard({
   const at = stages.find((s) => s.id === stage)!;
   const { next, footer } = followedStages[stage];
   const StageIcon = at.icon;
-  const FooterIcon = stage === "saved" ? FileCheck2 : at.footerIcon;
+  const FooterIcon = stage === "saved" ? FileCheckIcon : at.footerIcon;
   // The new words come in as the old ones finish going: `popLayout` runs
   // both at once, and without the delay two lines of different length
   // showed through each other at every landing.
@@ -93,7 +94,7 @@ export function FollowedCard({
       </div>
 
       <div className="bg-surface mt-3 flex gap-2.5 rounded-xl p-3 ring-1 ring-slate-900/5 ring-inset">
-        <Calendar className="text-ink-meta mt-0.5 size-3.5 shrink-0" />
+        <CalendarBlankIcon aria-hidden className="text-ink-meta mt-0.5 size-3.5 shrink-0" />
         <AnimatePresence mode="popLayout" initial={false}>
           <motion.div key={stage} {...swap}>
             <p className="text-xs font-semibold text-pretty">Next: {next.label}</p>
@@ -103,7 +104,7 @@ export function FollowedCard({
       </div>
 
       <div className="text-ink-muted mt-3 flex items-center gap-2 border-t border-slate-900/5 pt-3 text-[11px]">
-        <FooterIcon className="size-3.5 shrink-0" />
+        <FooterIcon aria-hidden className="size-3.5 shrink-0" />
         <AnimatePresence mode="popLayout" initial={false}>
           <motion.span key={stage} {...swap}>
             {footer}

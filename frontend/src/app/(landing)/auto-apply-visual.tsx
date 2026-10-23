@@ -9,7 +9,14 @@ import {
   useReducedMotion,
   useTransform,
 } from "motion/react";
-import { Check, ChevronDown, FileText, Lock, MousePointer2, Paperclip } from "lucide-react";
+import {
+  CaretDownIcon,
+  CheckIcon,
+  CursorIcon,
+  FileTextIcon,
+  LockIcon,
+  PaperclipIcon,
+} from "@phosphor-icons/react/ssr";
 
 import { SparkleIcon } from "@/components/icons";
 import { cn } from "@/lib/cn";
@@ -271,7 +278,7 @@ function Application({
     >
       <WindowBar>
         <span className="text-ink-meta flex h-6 min-w-0 flex-1 items-center gap-1.5 rounded-md bg-white px-2 text-[10.5px] ring-1 ring-slate-900/5">
-          <Lock className="size-3 shrink-0" aria-hidden="true" />
+          <LockIcon className="size-3 shrink-0" aria-hidden="true" />
           <span className="truncate">{url}</span>
         </span>
         <ExtensionChip active={active} />
@@ -327,7 +334,7 @@ function Application({
           >
             {sent ? (
               <>
-                <Check className="size-4" strokeWidth={3} aria-hidden="true" />
+                <CheckIcon className="size-4" weight="bold" aria-hidden="true" />
                 Application submitted
               </>
             ) : (
@@ -360,7 +367,12 @@ function Application({
                 scale: { duration: 0.25 },
               }}
             >
-              <MousePointer2 className="size-5 fill-white drop-shadow" />
+              {/* A white pointer with a dark edge: Phosphor fills a glyph by its weight, so
+                  the fill and the outline are two glyphs stacked. */}
+              <span className="grid drop-shadow *:col-start-1 *:row-start-1">
+                <CursorIcon aria-hidden weight="fill" className="size-5 text-white" />
+                <CursorIcon aria-hidden className="size-5" />
+              </span>
             </motion.span>
           )}
         </AnimatePresence>
@@ -375,7 +387,7 @@ function Application({
               transition={{ type: "spring", stiffness: 380, damping: 28 }}
             >
               <span className="bg-positive grid size-7 shrink-0 place-items-center rounded-full text-white">
-                <Check className="size-4" strokeWidth={3} aria-hidden="true" />
+                <CheckIcon className="size-4" weight="bold" aria-hidden="true" />
               </span>
               <span className="min-w-0">
                 <span className="block text-[12.5px] font-semibold">
@@ -412,7 +424,7 @@ function ExtensionChip({ active }: { active: number }) {
       )}
     >
       {sent ? (
-        <Check className="size-3" strokeWidth={3} aria-hidden="true" />
+        <CheckIcon className="size-3" weight="bold" aria-hidden="true" />
       ) : (
         <SparkleIcon className="size-3" aria-hidden="true" />
       )}
@@ -477,7 +489,7 @@ function Field({
               animate={{ scale: 1 }}
               transition={{ type: "spring", stiffness: 500, damping: 22 }}
             >
-              <Check className="size-2.5" strokeWidth={3.5} aria-hidden="true" />
+              <CheckIcon className="size-2.5" weight="bold" aria-hidden="true" />
             </motion.span>
           )}
         </AnimatePresence>
@@ -516,7 +528,7 @@ function FieldValue({
         ) : (
           <span className="text-ink-meta truncate">Select...</span>
         )}
-        <ChevronDown
+        <CaretDownIcon
           className="absolute right-2 size-3.5 text-slate-400 transition-opacity data-[on=true]:opacity-0"
           data-on={on}
           aria-hidden="true"
@@ -529,7 +541,7 @@ function FieldValue({
     if (!on) {
       return (
         <span className="text-ink-meta flex items-center gap-1.5">
-          <Paperclip className="size-3.5" aria-hidden="true" />
+          <PaperclipIcon className="size-3.5" aria-hidden="true" />
           Attach, or drop a file here
         </span>
       );
@@ -547,7 +559,7 @@ function FieldValue({
             damping: 24,
           }}
         >
-          <FileText className="text-danger size-3.5 shrink-0" aria-hidden="true" />
+          <FileTextIcon className="text-danger size-3.5 shrink-0" aria-hidden="true" />
           <span className="truncate">{field.value}</span>
         </motion.span>
         <motion.span
@@ -703,7 +715,7 @@ function MiniApplication({
           )}
           style={after(MINI_VALUES.length + 1)}
         >
-          <Check className="size-6" strokeWidth={3} aria-hidden="true" />
+          <CheckIcon className="size-6" weight="bold" aria-hidden="true" />
           Filled
         </div>
       </div>
@@ -747,7 +759,7 @@ function SentCount({ level }: { level: number }) {
           transition={{ duration: 0.35, ease: GLIDE }}
         >
           <span className="bg-positive grid size-6 place-items-center rounded-full text-white">
-            <Check className="size-3.5" strokeWidth={3} aria-hidden="true" />
+            <CheckIcon className="size-3.5" weight="bold" aria-hidden="true" />
           </span>
           <span className="tabular-nums">
             <motion.span>{text}</motion.span>

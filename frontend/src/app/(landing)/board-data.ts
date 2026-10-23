@@ -6,17 +6,17 @@
  * new-grad title, the only roles the scraper keeps, like the hero's cards;
  * the logo is the company's favicon. The dates and scores are made up.
  */
+import type { Icon as PhosphorIcon } from "@phosphor-icons/react";
 import {
-  Bookmark,
-  Calendar,
-  CalendarCheck,
-  Clock,
-  Handshake,
-  MessagesSquare,
-  Send,
-  Users,
-  type LucideIcon,
-} from "lucide-react";
+  BookmarkSimpleIcon,
+  CalendarBlankIcon,
+  CalendarCheckIcon,
+  ChatsIcon,
+  ClockIcon,
+  HandshakeIcon,
+  PaperPlaneTiltIcon,
+  UsersIcon,
+} from "@phosphor-icons/react/ssr";
 
 export interface TrackedJob {
   title: string;
@@ -39,9 +39,9 @@ export interface Stage {
   cardLabel: string;
   chipClass: string;
   /** Status icon shown in the stage chips (legend and cards). */
-  icon: LucideIcon;
+  icon: PhosphorIcon;
   iconClass: string;
-  footerIcon: LucideIcon;
+  footerIcon: PhosphorIcon;
   /** The stage's colour on the timeline (stage-timeline.tsx): its node and its stretch of track. */
   color: string;
   /** Text on a tint of `color`, at AA contrast. */
@@ -62,9 +62,9 @@ export const stages: Stage[] = [
     description: "Bookmark roles worth a closer look.",
     cardLabel: "Saved",
     chipClass: "bg-slate-100 text-slate-700",
-    icon: Bookmark,
+    icon: BookmarkSimpleIcon,
     iconClass: "text-slate-600",
-    footerIcon: Clock,
+    footerIcon: ClockIcon,
     color: "#64748b",
     ink: "#475569",
     tally: { count: 24, unit: "roles" },
@@ -111,9 +111,9 @@ export const stages: Stage[] = [
     description: "Know when you applied and which resume you sent.",
     cardLabel: "Applied",
     chipClass: "bg-landing-brand-100 text-landing-brand-800",
-    icon: Send,
+    icon: PaperPlaneTiltIcon,
     iconClass: "text-landing-brand-600",
-    footerIcon: CalendarCheck,
+    footerIcon: CalendarCheckIcon,
     color: "var(--color-brand)",
     ink: "var(--color-brand-ink)",
     tally: { count: 12, unit: "sent" },
@@ -159,9 +159,9 @@ export const stages: Stage[] = [
     soon: true,
     cardLabel: "Interview",
     chipClass: "bg-amber-100 text-amber-800",
-    icon: MessagesSquare,
+    icon: ChatsIcon,
     iconClass: "text-amber-700",
-    footerIcon: Users,
+    footerIcon: UsersIcon,
     color: "var(--color-warning-fill)",
     ink: "var(--color-warning)",
     tally: { count: 4, unit: "in play" },
@@ -207,9 +207,9 @@ export const stages: Stage[] = [
     soon: true,
     cardLabel: "Job Offer",
     chipClass: "bg-emerald-100 text-emerald-800",
-    icon: Handshake,
+    icon: HandshakeIcon,
     iconClass: "text-emerald-700",
-    footerIcon: Calendar,
+    footerIcon: CalendarBlankIcon,
     color: "var(--color-positive)",
     ink: "var(--color-positive-ink)",
     tally: { count: 1, unit: "signed" },

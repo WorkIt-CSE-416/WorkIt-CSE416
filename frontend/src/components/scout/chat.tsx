@@ -1,6 +1,6 @@
 "use client";
 
-import { ArrowUp, Mic } from "lucide-react";
+import { ArrowUpIcon, MicrophoneIcon } from "@phosphor-icons/react/ssr";
 import { useState, type ReactNode } from "react";
 
 import { SparkleIcon } from "@/components/icons";
@@ -160,7 +160,7 @@ export function Composer({
                   className="ring-brand/40 absolute inset-0 animate-pulse rounded-full ring-4"
                 />
               )}
-              <Mic className="size-4" />
+              <MicrophoneIcon aria-hidden className="size-4" />
             </IconButton>
           )}
           <IconButton
@@ -173,7 +173,7 @@ export function Composer({
             aria-disabled={blocked}
             className="size-8 border-0 aria-disabled:cursor-default aria-disabled:opacity-40"
           >
-            <ArrowUp className="size-4" />
+            <ArrowUpIcon aria-hidden className="size-4" />
           </IconButton>
         </div>
       </div>

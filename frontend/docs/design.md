@@ -140,22 +140,48 @@ a half per size, `<LogoLockup>` is the seeker shell's pair. The figure is
 violet and the word ink everywhere, the shells included (2026-10-20, KAN-300;
 the shells drew it all in ink before). There are no logo
 image files; `public/workit-icon.svg` is the favicon's source (`npm run
-favicon`). `components/icons.tsx` holds glyphs used by more than one route, as
-thin wrappers over Lucide at its default stroke (the brand marks stay drawn);
-every per-route `icons.tsx` is the same kind of wrapper. Draw no new glyph by
-hand while Lucide has one. A glyph it lacks (RoleIcon's person in a suit,
-KAN-252) is drawn on Lucide's 24-unit grid with `createLucideIcon`, never as
-a bare `<svg>`, so it takes the same stroke and sizing. `components/hero-arcs.tsx`
-is the corner arcs on the company Dashboard's violet hero.
+favicon`). Every glyph is **Phosphor's** (`@phosphor-icons/react`, KAN-350), at
+its regular weight. It replaced Lucide, which reads as the default set of
+every shadcn app and AI builder; the user reviewed each swap side by side
+before the change. `components/icons.tsx` holds glyphs used by more than one
+route, as thin wrappers over Phosphor (the brand marks stay drawn); every
+per-route `icons.tsx` is the same kind of wrapper.
+
+- **Import from `@phosphor-icons/react/ssr`**, never the main entry, whose
+  icons read a React context that a server component cannot; the lint
+  refuses it. Types (`Icon`) may come from the main entry. Use the `*Icon`
+  names (`CheckIcon`); the bare names are deprecated.
+- **Sizes stay classes** (`size-4`): Phosphor's own default is 1em. Inside a
+  Button, Chip or shadcn menu an icon with no size class takes the parent's.
+- **Weight carries state.** Regular everywhere; `weight="fill"` for a
+  selected or filled state (a saved bookmark, the starred resume) and
+  `weight="bold"` where Lucide's stroke was raised for a small check or
+  cross. Never a `fill` prop or a `fill-*` or `stroke-*` class: a Phosphor
+  glyph is filled shapes, so either one paints all of it. A white pointer
+  with a dark edge (the landing tour) is two glyphs stacked.
+- **Pass `aria-hidden`** on a decorative icon: Phosphor does not add it, as
+  Lucide did.
+- Draw no new glyph by hand while Phosphor has one. A glyph it lacks is drawn
+  in `components/custom-icons.tsx` on a 24-unit grid with Phosphor's props
+  and all its weights, never as a bare `<svg>`: Auto Apply's rounded bolt
+  (`LightningRoundedIcon`), the Role filter's person in a suit and tie
+  (`UserTieIcon`, KAN-252), a checked clipboard and file, a chat with a plus,
+  a scan with a magnifier and a folder with a branch.
+- Meanings stay apart: the Offer stage is `Medal` and Veteran
+  `MedalMilitary`; Company is `Building` and On-Site `BuildingOffice`;
+  `CalendarBlank`, not `Calendar`, which prints a date.
+
+`components/hero-arcs.tsx` is the corner arcs on the company Dashboard's
+violet hero.
 
 **Scout and every AI action share one mark** (KAN-257): `SparkleIcon`,
-Lucide's Sparkles, on the top bar's launcher, Ask Scout, Fill With Scout,
+Phosphor's sparkle, on the top bar's launcher, Ask Scout, Fill With Scout,
 Tailor My Resume and Read It Again with AI, and inside Scout's
 mark (`components/scout/chat.tsx`), the gradient tile beside every
 assistant line and in Scout's panel header. The bar and the panel drew a
 filled sparkle by hand while the chat and the AI buttons drew Lucide's, so
-the assistant wore two marks. An ESLint rule refuses `Sparkles` imported
-from lucide-react anywhere but `icons.tsx`.
+the assistant wore two marks. An ESLint rule refuses Phosphor's
+`SparkleIcon` imported anywhere but `icons.tsx`.
 
 ## Colour
 
@@ -259,7 +285,7 @@ the shadcn docs composes without edits and still looks like WorkIt.
 Every variant at a size is one box (sm 36px, default 42px, lg 48px), a
 text-only one included, and the Button sizes its glyphs to keep it so: an
 icon with no `size-*` class is 16px (14px at `inline`, `xs` and
-`section`). Lucide's own 24px stretched about 30 sm buttons to 38px, so the
+`section`). Lucide's own 24px once stretched about 30 sm buttons to 38px, so the
 bank's My Resumes button stood taller than Fill With Scout beside it
 (KAN-249); give an icon a size only when it must differ. `shadcn/button.tsx` is a re-export pointing back at it, and an
 ESLint rule keeps app code on the canonical path, as it does for `badge`

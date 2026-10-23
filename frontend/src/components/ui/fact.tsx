@@ -32,7 +32,7 @@ export function Fact({
 }) {
   return (
     <span className={cn("text-note text-ink flex min-w-0 items-center gap-1.5", className)}>
-      <Icon className="text-ink-meta size-3.5 shrink-0" />
+      <Icon aria-hidden className="text-ink-meta size-3.5 shrink-0" />
       <span title={title} className="truncate">
         {children}
       </span>

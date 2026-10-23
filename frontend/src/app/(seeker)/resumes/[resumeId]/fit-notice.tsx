@@ -1,6 +1,6 @@
 "use client";
 
-import { Scissors, TriangleAlert, X } from "lucide-react";
+import { ScissorsIcon, WarningIcon, XIcon } from "@phosphor-icons/react/ssr";
 
 import { Button } from "@/components/ui/button";
 import { IconButton } from "@/components/ui/icon-button";
@@ -31,7 +31,7 @@ export function FitNotice({
   return (
     <div className="bg-warning-tint text-warning rounded-control inline-flex items-center">
       <span className="text-label flex items-center gap-1.5 pr-2 pl-3 font-medium">
-        <TriangleAlert aria-hidden className="size-4 shrink-0" />
+        <WarningIcon aria-hidden className="size-4 shrink-0" />
         {label}
       </span>
       <span aria-hidden className="bg-warning/25 h-5 w-px" />
@@ -43,7 +43,7 @@ export function FitNotice({
         aria-label={fitLabel === "Fit to One Page" ? undefined : "Fit to One Page"}
         className="text-warning hover:text-warning hover:bg-warning/10"
       >
-        <Scissors /> {fitLabel}
+        <ScissorsIcon aria-hidden /> {fitLabel}
       </Button>
     </div>
   );
@@ -85,7 +85,7 @@ export function FitToast({
       )}
     >
       <span className="bg-warning-tint text-warning flex size-9 shrink-0 items-center justify-center rounded-full">
-        <TriangleAlert aria-hidden className="size-4.5" />
+        <WarningIcon aria-hidden className="size-4.5" />
       </span>
       <div className="min-w-0 flex-1">
         <p className="text-body text-ink font-semibold">Over One Page</p>
@@ -93,11 +93,11 @@ export function FitToast({
           {over} Fit to One Page hides the least useful lines until it fits.
         </p>
         <Button size="sm" className="mt-3" onClick={onFit} disabled={disabled}>
-          <Scissors /> Fit to One Page
+          <ScissorsIcon aria-hidden /> Fit to One Page
         </Button>
       </div>
       <IconButton label="Dismiss" onClick={onClose}>
-        <X className="size-4" />
+        <XIcon aria-hidden className="size-4" />
       </IconButton>
     </div>
   );

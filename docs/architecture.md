@@ -139,7 +139,7 @@ Next.js 16 (App Router, Turbopack) · React 19 · TypeScript · Tailwind v4.
 | Charts | `recharts` | Company dashboard stat tiles/trends |
 | Class merging | `clsx` + `tailwind-merge` (via `cn()`) | `src/lib/cn.ts` — every dynamic className goes through this |
 | Dates | `date-fns`, `react-day-picker` | Composer/calendar UI |
-| Icons | `lucide-react` | Vendored shadcn components only |
+| Icons | `@phosphor-icons/react` | Every glyph, imported from its `/ssr` entry; wrappers in `src/components/icons.tsx` |
 | Server-only guard | `server-only` | Marks `src/lib/auth.ts` as never bundled to the client |
 | Auth session | `@supabase/ssr`, `@supabase/supabase-js` | `src/lib/supabase/server.ts`, `src/proxy.ts` — sign-in, cookies, refresh |
 

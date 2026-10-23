@@ -1,6 +1,6 @@
 "use client";
 
-import { CircleHelp, Settings } from "lucide-react";
+import { GearIcon, QuestionIcon } from "@phosphor-icons/react/ssr";
 import { useState } from "react";
 
 import { AccountMenu, type AccountMenuItem } from "@/components/account-menu";
@@ -193,8 +193,8 @@ export function ResumeUploadSpecimen() {
 }
 
 const ACCOUNT_ROWS: AccountMenuItem[] = [
-  { href: "/settings", label: "Settings", icon: <Settings aria-hidden className="size-4" /> },
-  { href: "/help", label: "Help", icon: <CircleHelp aria-hidden className="size-4" /> },
+  { href: "/settings", label: "Settings", icon: <GearIcon aria-hidden className="size-4" /> },
+  { href: "/help", label: "Help", icon: <QuestionIcon aria-hidden className="size-4" /> },
 ];
 
 /** Signing out from the kit would end a real session, so its row does nothing. */

@@ -31,11 +31,10 @@ import { cn } from "@/lib/cn";
  * each shell's call; see company/company-sidebar.tsx and
  * (seeker)/seeker-sidebar.tsx.
  *
- * THE ICONS ARE LUCIDE'S, shadcn's own set (components.json's iconLibrary).
- * Lucide's are the ones people know from every other dashboard, drawn on one
- * grid by one hand. The panel was the first place they were used; the shared
- * glyphs in components/icons.tsx have since moved to Lucide too, at its
- * default stroke, so a nav row and a card's glyph weigh the same.
+ * THE ICONS ARE PHOSPHOR'S (KAN-350), the set every glyph in the app
+ * draws, at its regular weight, so a nav row and a card's glyph weigh the
+ * same. They were Lucide's, shadcn's own set, until the team found it read
+ * as every AI-built dashboard's (components/icons.tsx).
  *
  * WHY IT IS OFFSET RATHER THAN FULL-HEIGHT: shadcn's Sidebar positions itself
  * `fixed inset-y-0 h-svh`, which assumes it owns the left edge of the viewport
@@ -198,7 +197,7 @@ function Highlight({
 
 type NavRowBase = {
   label: string;
-  /** A Lucide icon — see "THE ICONS ARE LUCIDE'S" above. */
+  /** A Phosphor icon — see "THE ICONS ARE PHOSPHOR'S" above. */
   Icon: ComponentType<{ className?: string }>;
 };
 
@@ -512,7 +511,7 @@ function NavRow({
           {...focusProps}
           className={cn(size, ROW, "cursor-pointer")}
         >
-          <Icon className="size-4" />
+          <Icon aria-hidden className="size-4" />
           <span>{label}</span>
         </SidebarMenuButton>
       </SidebarMenuItem>
@@ -530,7 +529,7 @@ function NavRow({
         {...focusProps}
         className={cn(size, ROW, current && CURRENT_ITEM)}
       >
-        <Icon className="size-4" />
+        <Icon aria-hidden className="size-4" />
         <span>{label}</span>
       </SidebarMenuButton>
     </SidebarMenuItem>

@@ -1,6 +1,6 @@
 "use client";
 
-import { Plus, X } from "lucide-react";
+import { PlusIcon, XIcon } from "@phosphor-icons/react/ssr";
 import { useId, useState, type FormEvent } from "react";
 
 import { Button } from "@/components/ui/button";
@@ -335,7 +335,7 @@ export function EntryEditor({
                 className="mt-1.25 size-8"
                 onClick={() => set({ bullets: draft.bullets.filter((_, j) => j !== i) })}
               >
-                <X className="size-4" />
+                <XIcon aria-hidden className="size-4" />
               </IconButton>
             </div>
           ))}
@@ -348,7 +348,7 @@ export function EntryEditor({
                 "text-ink-meta hover:border-brand hover:text-brand flex min-w-0 flex-1 items-center gap-2 border-dashed px-3.5 py-2.5 text-left transition-colors",
               )}
             >
-              <Plus aria-hidden className="size-4 shrink-0" /> Add Bullet Point
+              <PlusIcon aria-hidden className="size-4 shrink-0" /> Add Bullet Point
             </button>
             {/* Keeps the box as wide as the bullets above, beside their × */}
             {draft.bullets.length > 0 && <span aria-hidden className="size-8 shrink-0" />}

@@ -1,6 +1,6 @@
 "use client";
 
-import { Phone } from "lucide-react";
+import { PhoneIcon } from "@phosphor-icons/react/ssr";
 import { useRouter } from "next/navigation";
 import {
   useEffect,
@@ -506,7 +506,7 @@ function ContactSection({
       field: "phone_number",
       label: "Phone",
       editLabel: "Phone",
-      Icon: Phone,
+      Icon: PhoneIcon,
       text: phone,
       href: phone ? `tel:${phone.replace(/[^\d+]/g, "")}` : null,
       type: "tel",
@@ -558,7 +558,7 @@ function ContactSection({
               return (
                 <div key={field} className="min-w-0">
                   <label htmlFor={`edit-${field}`} className={FIELD_HEADING}>
-                    <Icon className="text-brand size-5 shrink-0" />
+                    <Icon aria-hidden className="text-brand size-5 shrink-0" />
                     {editLabel}
                   </label>
                   <div className="mt-1.5 pl-7">
@@ -625,7 +625,7 @@ function ContactSection({
           {items.map(({ field, label, Icon, text, href, external, note }) => (
             <div key={field} className="min-w-0">
               <dt className={FIELD_HEADING}>
-                <Icon className="text-brand size-5 shrink-0" />
+                <Icon aria-hidden className="text-brand size-5 shrink-0" />
                 {label}
               </dt>
               <dd className="text-body text-ink-muted mt-1.5 min-w-0 pl-7">

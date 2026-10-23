@@ -545,7 +545,7 @@ function Field({
       className="border-border-subtle border-t py-8 first:border-t-0 first:pt-0"
     >
       <h2 id={id} className="text-title text-ink mb-4 flex items-center gap-2.5 font-semibold">
-        <Icon className="text-ink-meta size-5 shrink-0" />
+        <Icon aria-hidden className="text-ink-meta size-5 shrink-0" />
         {label}
         {required ? (
           <span className="text-danger" aria-label="required">

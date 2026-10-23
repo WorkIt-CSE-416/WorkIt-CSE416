@@ -104,7 +104,7 @@ export function Headline({ stats }: { stats: Record<RangeKey, DashboardStat[]> }
                   brand ? "text-brand bg-white" : "text-ink border-border-subtle border",
                 )}
               >
-                <Icon className="size-4" />
+                <Icon aria-hidden className="size-4" />
               </span>
             </div>
 

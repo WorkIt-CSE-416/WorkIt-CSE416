@@ -1,6 +1,6 @@
 "use client";
 
-import { Check, X } from "lucide-react";
+import { CheckIcon, XIcon } from "@phosphor-icons/react/ssr";
 import { useCallback, useState } from "react";
 
 import { SparkleIcon } from "@/components/icons";
@@ -249,7 +249,7 @@ export function TailorScreen({
 
       <div className="flex flex-wrap items-center gap-3">
         <Button onClick={done} disabled={saving}>
-          <Check /> {saving ? "Saving…" : "Done"}
+          <CheckIcon aria-hidden /> {saving ? "Saving…" : "Done"}
         </Button>
         <ButtonLink href={`/jobs/${encodeURIComponent(jobId)}`} variant="secondary">
           Leave Without Saving
@@ -454,7 +454,7 @@ function ChangeRow({
             aria-pressed={decision === "accepted"}
             onClick={() => onDecide("accepted")}
           >
-            <Check /> Accept
+            <CheckIcon aria-hidden /> Accept
           </Button>
           <Button
             size="sm"
@@ -462,7 +462,7 @@ function ChangeRow({
             aria-pressed={decision === "rejected"}
             onClick={() => onDecide("rejected")}
           >
-            <X /> Reject
+            <XIcon aria-hidden /> Reject
           </Button>
         </div>
       </div>

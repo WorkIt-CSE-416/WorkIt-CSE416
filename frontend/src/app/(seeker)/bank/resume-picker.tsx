@@ -1,6 +1,6 @@
 "use client";
 
-import { Star } from "lucide-react";
+import { StarIcon } from "@phosphor-icons/react/ssr";
 
 import {
   Select,
@@ -84,7 +84,11 @@ export function ResumePicker({
                     <span className="flex min-w-0 items-center gap-1.5">
                       {r.primary && (
                         <>
-                          <Star aria-hidden className="text-brand size-3.5 shrink-0 fill-current" />
+                          <StarIcon
+                            aria-hidden
+                            className="text-brand size-3.5 shrink-0"
+                            weight="fill"
+                          />
                           <span className="sr-only">Primary resume:</span>
                         </>
                       )}

@@ -1,4 +1,4 @@
-import { CloudOff } from "lucide-react";
+import { CloudSlashIcon } from "@phosphor-icons/react/ssr";
 import type { Metadata } from "next";
 import { redirect } from "next/navigation";
 
@@ -111,7 +111,7 @@ export default async function ApplicationsPage({ searchParams }: PageProps<"/app
           shown.length === 0 &&
           (error != null ? (
             <EmptyState
-              Icon={CloudOff}
+              Icon={CloudSlashIcon}
               title="Applications Aren't Loading"
               className="mt-4"
               detail={process.env.NODE_ENV === "development" ? error : undefined}

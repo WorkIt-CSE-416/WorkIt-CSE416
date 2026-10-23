@@ -1,6 +1,6 @@
 "use client";
 
-import { FileText } from "lucide-react";
+import { FileTextIcon } from "@phosphor-icons/react/ssr";
 import Link from "next/link";
 import { useEffect, useState, type ReactNode } from "react";
 
@@ -168,7 +168,7 @@ export function ResumeList({ resumes }: { resumes: Resumes }) {
           // None, or nothing loaded: said in grey, so a failed load is not
           // read as "none".
           <div className="flex items-center gap-3 px-4 py-3">
-            <FileText aria-hidden className="text-ink-faint size-5 shrink-0" />
+            <FileTextIcon aria-hidden className="text-ink-faint size-5 shrink-0" />
             <div className="min-w-0 flex-1">
               <p className="text-label text-ink-muted truncate">
                 {someFailed ? "Your resumes didn't load" : "No resumes yet"}

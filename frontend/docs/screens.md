@@ -108,7 +108,7 @@ facet lists (GET /jobs/facets) are fetched once per visit and cached five minute
 jobs/listings.ts), not refetched per change. Each facet button wears the glyph
 the job card draws for its fact (Date Posted a clock, since the card's calendar
 is the start date; Role, which the card doesn't print, a person in a suit and
-tie, drawn for it since Lucide has none, KAN-252), and inside a popup only
+tie, drawn for it since no icon set has one, KAN-252), and inside a popup only
 Workplace's options carry glyphs, the card's own three, as their chips do in
 the panel, where Experience Level's do too (levelIcon: the mortarboard, a
 check badge; KAN-252, asked for 2026-10-17). Options are medium weight, as the
