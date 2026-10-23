@@ -134,7 +134,7 @@ def on_resume(bank: Bank, choices: Choices) -> Bank:
         for e in bank.entries
         if _shown(choices.entries, e.row.id)
     ]
-    return Bank(entries=entries, skills=bank.skills, skill_links=bank.skill_links)
+    return Bank(entries=entries, skills=bank.skills)
 
 
 def prompt(
@@ -235,7 +235,7 @@ async def upload_source(session: AsyncSession, applicant_id: uuid.UUID, resume_i
     drafts, skills = bank_import.read(resume.raw_text)
     if not drafts and not skills:
         raise NothingRead
-    await merge_import(session, applicant_id, drafts, skills)
+    await merge_import(session, applicant_id, resume.id, drafts, skills)
     entry_ids = set()
     for draft in drafts:
         found = await find_duplicate(session, applicant_id, draft.section, draft.title, draft.organization)
