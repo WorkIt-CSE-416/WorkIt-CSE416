@@ -79,8 +79,11 @@ the KAN-296 cutover.
   leave them to CI; `dev`, `build` and the rest work natively.
 - **OAuth needs each origin allow-listed in Supabase** (Authentication → URL
   Configuration → Redirect URLs): production, a wildcard for previews and
-  `http://localhost:3000`, each with `/auth/callback`. `oauth-actions.ts`
-  builds `redirectTo` from `x-forwarded-host` on Vercel, whose proxy sets it,
+  `http://localhost:3000`, each with `/auth/callback`. Settings' links and
+  confirm emails add `?next=/settings/...` to it; if Supabase sends those to
+  its Site URL instead (untested on 2026-10-23), add a `**` wildcard entry
+  for each origin's callback. `lib/request-origin.ts` (OAuth sign-in, linking, Change Email)
+  builds the origin from `x-forwarded-host` on Vercel, whose proxy sets it,
   and from `Host` elsewhere: on Cloudflare `x-forwarded-host` is whatever the
   browser sent. It assumes https for any host
   but localhost when `x-forwarded-proto` is missing; Supabase silently falls
@@ -1228,8 +1231,8 @@ are in `docs/auth.md`.
   (intake's draft entry, KAN-213, and its skipped sections, KAN-214), and
   so does a per-browser view preference that should leave with the student
   (the Applications list's column layout, KAN-282): one key prefix, cleared by Sign Out in
-  `account-menu.tsx` and on the login page, which an expired session also
-  reaches. A draft stored under any other key outlives sign-out.
+  `account-menu.tsx` and in Settings, by Delete Account, and on the login
+  page, which an expired session also reaches. A draft stored under any other key outlives sign-out.
 - **To test a page behind sign-in, use the shared test account**:
   `TEST_ACCOUNT_EMAIL` / `TEST_ACCOUNT_PASSWORD` in the root `.env`. It is a
   normal applicant with test data only, on the one shared Supabase project, so
@@ -1243,8 +1246,8 @@ are in `docs/auth.md`.
 
 - **Screens**: before changing how a screen behaves (Jobs page and filters, job
   posting page and card, seeker Dashboard, Applications, Calendar, My Profile,
-  Resumes & Experiences, Scout's panel, applicant onboarding, company
-  screens), read its section in `docs/screens.md`.
+  Resumes & Experiences, Scout's panel, applicant onboarding, Settings,
+  company screens), read its section in `docs/screens.md`.
 - **Design**: before changing a shell, a page's layout or widths, a colour
   (stage or match), a segmented control or a `ui/` component, read
   `docs/design.md`.

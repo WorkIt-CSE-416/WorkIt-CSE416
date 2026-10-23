@@ -1,7 +1,11 @@
 """GET and PATCH for the applicant's own profile fields.
 
 PATCH updates only the fields present in the body (`model_fields_set`), so a
-field left out keeps its value.
+field left out keeps its value. The name keeps its four columns in step
+(app/services/names.py): parts sent (Settings' Personal Details) are merged
+with the stored ones and joined into full_name; a full_name sent alone (the
+resume editor's header) is split into parts. Both a first and a last name
+are required, as at signup, and the joined name fits full_name's 50.
 """
 
 import uuid
@@ -14,6 +18,9 @@ from app.deps import assert_applicant_owns, get_current_account
 from app.models.profiles import Applicant_Profile
 from app.schemas.auth import AuthenticatedAccount
 from app.schemas.profile import ApplicantProfileResponse, ApplicantProfileUpdate
+from app.services.names import join_name, name_columns, split_name
+
+NAME_PARTS = ("first_name", "middle_name", "last_name")
 
 router = APIRouter()
 
@@ -49,8 +56,28 @@ async def update_profile(
     if profile is None:
         raise HTTPException(404, "Profile not found")
 
-    for field in body.model_fields_set:
+    sent = body.model_fields_set
+    for field in sent - {"full_name", *NAME_PARTS}:
         setattr(profile, field, getattr(body, field))
+
+    if sent & set(NAME_PARTS):
+        stored = (
+            (profile.first_name, profile.middle_name, profile.last_name)
+            if profile.first_name
+            else split_name(profile.full_name)
+        )
+        first, middle, last = (
+            getattr(body, part) if part in sent else value for part, value in zip(NAME_PARTS, stored)
+        )
+        if not first or not last:
+            raise HTTPException(422, "Enter a first and a last name.")
+        if len(join_name(first, middle, last)) > 50:
+            raise HTTPException(422, "Your name is too long: 50 characters at most in all.")
+        for column, value in name_columns("", first, middle, last).items():
+            setattr(profile, column, value)
+    elif "full_name" in sent and body.full_name:
+        for column, value in name_columns(body.full_name).items():
+            setattr(profile, column, value)
 
     try:
         await session.commit()

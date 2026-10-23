@@ -841,6 +841,14 @@ removed at cutover, not before. Until then a change must work on both.
   that writes it.** The model maps the column, so every upload's INSERT
   names it: deployed first, every upload answers 500. It only adds a
   nullable column and an index, so applying it early is safe.
+- **Apply `0457dddf041a` (name parts, KAN-326) before the deploy that maps
+  them**. The model selects `first_name`,
+  `middle_name` and `last_name` with every account row, so deployed first,
+  every signed-in request fails, `get_current_account` included. It only
+  adds nullable columns and fills them from `full_name`, so applying it
+  early is safe. A branch with these models cannot run against the shared
+  database until it is applied, so merge the migration to `main` in its own
+  PR first, then apply it, then test the branch.
 - **Apply `a7d3e5c1b942` (`autofill_answers`, KAN-283) before the deploy
   that reads it.** It sits on KAN-262's `9d3f6b1e4a72`
   (`applicant_profiles.contact_email`), which sits on `c785e96ac011`. It
@@ -923,7 +931,10 @@ why each rule exists.
   unsupported on purpose: it can mint tokens.
 - **Access decisions read the profile row and `app_metadata`**, never
   `user_metadata`, which the user can edit. `company_id` and onboarding state
-  come from the row, never the token.
+  come from the row, never the token. The one value copied the other way is
+  the sign-in email: `get_current_account` writes the token's onto the row
+  when they differ (Settings' Change Email, KAN-326), and keeps the old copy
+  if another row holds the new address. Tests: `tests/test_sign_in_email.py`.
 - **Derive identity from the verified token**, never from a client-supplied
   `company_id`, `profile_id` or role. Company-scoped endpoints check for an
   active membership; role checks are Python guards.
@@ -935,12 +946,25 @@ why each rule exists.
   Next, so every endpoint checks for itself.
 - **"Allow new users to sign up" stays ON** in the Supabase dashboard, or
   first-time OAuth sign-in fails with `signup_disabled` (`../docs/auth.md`).
+- **Deleting an account is `DELETE /auth/me`** (KAN-326, Settings' Delete
+  Account): every file under `<applicant_id>/` in each bucket of
+  `ACCOUNT_BUCKETS` (`routers/auth.py`), sub-folders included (the
+  pre-KAN-267 `sent/`), then the auth user, whose foreign keys cascade to
+  every row. Files go first because Storage has no cascade. **A new bucket
+  keyed by the account joins `ACCOUNT_BUCKETS`**, or deleted accounts leave
+  its files behind. Every foreign key to `applicant_profiles` or
+  `auth.users` must cascade or set null, or Supabase refuses the delete
+  ("Database error deleting user"). Company accounts get a 403 until a
+  company owner's delete is designed. Tests: `tests/test_delete_account.py`.
 
 Still open:
 
-- Email verification and password reset: supported by Supabase, not wired up.
-- Deleting an account cascades its rows but not its Storage objects
-  (`Resume/<id>/`, `Avatar/<id>/`).
+- Email verification and a forgotten-password reset: supported by Supabase,
+  not wired up. A signed-in seeker changes their password in Settings
+  (`frontend/src/lib/account-actions.ts`).
+- Deleting an account from the Supabase dashboard cascades its rows but
+  leaves its Storage files; `DELETE /auth/me` removes both.
+- A company account cannot be deleted (403).
 - Joining an existing company: no endpoint; the form's Join tab is a
   placeholder.
 - Every signup `IntegrityError` answers "An account with this email already

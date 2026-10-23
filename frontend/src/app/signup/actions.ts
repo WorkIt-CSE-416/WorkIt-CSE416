@@ -79,6 +79,11 @@ export async function createAccount(
     body: JSON.stringify({
       accountType,
       name,
+      // The parts too (KAN-326), so the API stores the name as typed
+      // rather than splitting `name` again.
+      firstName: firstName.trim(),
+      middleName: middleName.trim() || null,
+      lastName: lastName.trim(),
       email,
       password,
 

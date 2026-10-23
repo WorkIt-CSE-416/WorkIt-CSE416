@@ -123,4 +123,47 @@ and did not originate here.
   default: deleting a user in the dashboard deletes their profile, and a
   profile cannot exist without an auth user.
 - **`email` on the profile tables is a copy** for display and queries.
-  Nothing changes an email yet; whatever does must update both.
+  Supabase's is the real one. Settings' Change Email changes Supabase's,
+  and the API copies it onto the row on the account's next request
+  (`get_current_account` in `backend/app/deps.py`).
+
+## Settings: sign-in, password and account deletion (KAN-326)
+
+Every action is in `frontend/src/lib/account-actions.ts`.
+
+- **Change Password checks the current password first**, by signing in with
+  it, then calls `updateUser()`. A session left open on a shared computer
+  then cannot change the password and lock its owner out. The fresh sign-in
+  also meets Supabase's "recent sign-in" rule for a password change if that
+  setting is turned on. The server decides whether to ask, from the
+  account's identities (`getSignInProviders`, Supabase's identity list),
+  never from what the form sends.
+- **Set Password** is the same action for an account with no `email`
+  identity (Google or LinkedIn only): there is no current password to
+  check. Setting one does not add an `email` identity, so the row keeps
+  reading "Not set" and the form keeps not asking for a current password.
+  That is the gap: an open Google-only session can set a password. **Still
+  open:** tell a set password apart (Supabase exposes no flag for it).
+- **Change Email** calls `updateUser({ email })` with a redirect back to
+  Settings. Supabase emails a confirm link (`mailer_autoconfirm` is off on
+  the project), and with "Secure email change" on a second link goes to the
+  old address; the change applies once the links are opened. The callback
+  turns the first of the two (it carries a `message` and no `code`) into a
+  notice that the other is still to open.
+- **Connect and Disconnect Google or LinkedIn** are `linkIdentity()` and
+  `unlinkIdentity()`. **Linking needs "Manual linking" on in the Supabase
+  dashboard** (Authentication, Sign In / Up); off, Supabase refuses with
+  `manual_linking_disabled` and the row says linking is turned off.
+  Disconnect is refused for the account's last identity, so nobody unlinks
+  their only way back in.
+- **The callback's `?next=`** (`frontend/src/app/auth/callback/route.ts`)
+  brings a link or a confirm email back to Settings instead of the
+  account's home. Only a path under `/settings/` is followed, so the
+  parameter cannot send anyone off the site.
+- **Delete Account is `DELETE /auth/me`**: Storage files first, then the auth
+  user through the admin API, whose cascade removes every row. Both steps
+  can run again, so a retry finishes a failed delete. The route depends on
+  `get_verified_identity`, so a retry whose first try did delete the
+  account gets a 204, not a 401. Supabase ends the user's sessions with the
+  user; the Next action then clears the cookies with a local sign-out (a
+  global one would fail on the revoked session).

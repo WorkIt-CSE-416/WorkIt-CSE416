@@ -1,5 +1,5 @@
 import { SECTIONS } from "../data";
-import { DialogSpecimen, DropdownSpecimen } from "../interactive";
+import { DialogSpecimen, DropdownSpecimen, SwitchSpecimen } from "../interactive";
 import { KitPage, Row } from "../specimen";
 
 export const metadata = { title: SECTIONS.vendored.title };
@@ -16,6 +16,9 @@ export default function VendoredPage() {
         </Row>
         <Row name="<DropdownMenu>" role="Roving focus, typeahead, arrow-key navigation">
           <DropdownSpecimen />
+        </Row>
+        <Row name="<Switch>" role="An on/off setting (Settings' Notifications)">
+          <SwitchSpecimen />
         </Row>
       </div>
     </KitPage>

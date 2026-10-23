@@ -10,6 +10,16 @@ afterward. /oauth/status tells the Next server whether that's the case for
 the identity it just got a session for, and /oauth/account-type is where the
 user's choice (Applicant or Company) fills them in — the OAuth equivalent of
 this file's own signup().
+
+DELETE /auth/me deletes an applicant's account (KAN-326): its Storage files,
+then the auth user, whose foreign keys cascade to every row the account
+owns. Both steps are safe to run again, so a retry after a failure finishes
+the job. It depends on get_verified_identity, not get_current_account, so a
+retry whose first try did delete the account (its answer lost) gets a 204,
+not a 401 for the missing profile row.
+
+Company accounts get a 403: a company owner's delete would decide the fate
+of the company and its other members, which nothing has designed yet.
 """
 
 import asyncio
@@ -34,10 +44,19 @@ from app.schemas.auth import (
     SignupRequest,
     VerifiedIdentity,
 )
+from app.services.names import name_columns
 
 logger = logging.getLogger(__name__)
 
 router = APIRouter(prefix="/auth", tags=["auth"])
+
+# Every bucket that keeps an applicant's files under `<applicant_id>/`.
+# A new bucket keyed by the account joins this list, or a deleted account
+# leaves its files behind.
+ACCOUNT_BUCKETS = ("Resume", "Avatar")
+# Storage lists a folder a page at a time. Before KAN-267 every download
+# kept a PDF in `<applicant_id>/sent/`, so one account can hold hundreds.
+_PAGE = 1000
 
 # A function, not a shared instance: see _not_authenticated in app/deps.py.
 def _email_taken() -> HTTPException:
@@ -112,12 +131,13 @@ async def signup(
 
     user_id = uuid.UUID(created.user.id)
     company_id= None 
+    names = name_columns(body.full_name, body.first_name, body.middle_name, body.last_name)
     try:
         if account_type is AccountType.APPLICANT:
             profile = Applicant_Profile(
                 id=user_id,
                 email=body.email,
-                full_name=body.full_name,
+                **names,
             )
         else:   
             new_company = _create_company(body.company)
@@ -130,7 +150,7 @@ async def signup(
                 id=user_id,
                 company_id=company_id,
                 email=body.email,
-                full_name=body.full_name,
+                **names,
                 role=company_role.owner,
                 status=profile_status.active,
             )
@@ -227,11 +247,11 @@ async def complete_oauth_account_type(
     # Best-effort — the identity provider's claimed name, trimmed to what the
     # profile column allows, falling back to the email's local part on an
     # OAuth app that never sent a name at all.
-    full_name = (identity.full_name or identity.email.split("@")[0])[:50]
+    names = name_columns((identity.full_name or identity.email.split("@")[0])[:50])
     company_id = None
     try:
         if body.account_type is AccountType.APPLICANT:
-            profile = Applicant_Profile(id=identity.id, email=identity.email, full_name=full_name)
+            profile = Applicant_Profile(id=identity.id, email=identity.email, **names)
         else:
             new_company = _create_company(body.company)
             company_id = new_company.id
@@ -242,7 +262,7 @@ async def complete_oauth_account_type(
                 id=identity.id,
                 company_id=company_id,
                 email=identity.email,
-                full_name=full_name,
+                **names,
                 role=company_role.owner,
                 status=profile_status.active,
             )
@@ -277,3 +297,63 @@ async def complete_oauth_account_type(
         onboarding_completed=False,
         company_id=company_id,
     )
+
+
+def _delete_failed() -> HTTPException:
+    return HTTPException(status.HTTP_502_BAD_GATEWAY, "Couldn't delete the account. Please try again.")
+
+
+async def _files_under(bucket, folder: str) -> list[str]:
+    '''every file path in the folder and its sub-folders'''
+    paths: list[str] = []
+    offset = 0
+    while True:
+        page = await asyncio.to_thread(bucket.list, folder, {"limit": _PAGE, "offset": offset})
+        for item in page:
+            path = f"{folder}/{item['name']}"
+            # A sub-folder lists with no id (the pre-KAN-267 `sent/`).
+            paths += [path] if item.get("id") else await _files_under(bucket, path)
+        if len(page) < _PAGE:
+            return paths
+        offset += _PAGE
+
+
+async def _remove_account_files(account_id: uuid.UUID) -> None:
+    '''removes every file under the account's folder in each bucket.
+    Listed rather than read off the rows, so a file no row names any more
+    (a failed cleanup's leftover) goes too'''
+    for name in ACCOUNT_BUCKETS:
+        bucket = get_supabase().storage.from_(name)
+        paths = await _files_under(bucket, str(account_id))
+        for start in range(0, len(paths), _PAGE):
+            await asyncio.to_thread(bucket.remove, paths[start : start + _PAGE])
+
+
+@router.delete("/me", status_code=status.HTTP_204_NO_CONTENT)
+async def delete_account(identity: VerifiedIdentity = Depends(get_verified_identity)) -> None:
+    '''
+    Deletes the signed-in applicant's account for good: its files, then
+    the auth user, which takes the profile row and everything under it
+    by cascade. Files go first because Storage has no cascade: once the
+    rows are gone, nothing would remove them. Supabase ends the user's
+    sessions with the auth user; the Next server clears its cookies after
+    a 204.
+    '''
+    if identity.account_type is AccountType.COMPANY:
+        raise HTTPException(status.HTTP_403_FORBIDDEN, "Company accounts can't be deleted yet.")
+
+    try:
+        await _remove_account_files(identity.id)
+    except Exception as exc:
+        logger.exception("Couldn't remove the Storage files of account %s", identity.id)
+        raise _delete_failed() from exc
+
+    try:
+        await asyncio.to_thread(get_supabase().auth.admin.delete_user, str(identity.id))
+    except AuthError as exc:
+        # Gone already: a retry after the delete went through but its answer
+        # was lost.
+        if exc.code == "user_not_found":
+            return
+        logger.error("Supabase Auth rejected deleting %s: %s (%s)", identity.id, exc.message, exc.code)
+        raise _delete_failed() from exc
