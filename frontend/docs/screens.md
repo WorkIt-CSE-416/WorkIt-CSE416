@@ -507,14 +507,16 @@ drew a red change whenever employers posted less. Interviews is a dash,
 "Not tracked yet": the API stores no interviewing stage, and a 0 would say
 the seeker had none. Saved counts the seeker's live saved jobs (KAN-261)
 and ignores the range. Applications and Saved show a dash when the tracker
-can't be read. **Every tile links, and none reacts to hover**: a click
-anywhere on a tile opens the page that lists what it counts (the
-Applications list filtered to applied, interviewing or saved; the Jobs page
-in Best Match order, filtered to the week or 30 days posted). The lists
-take no date window, so Applications' list can hold more than its number.
-The tiles used to lift under the pointer, and only two linked; the user
-wanted them all to link and none to move. A keyboard focus still rings the
-tile. Its range is `?range=`, moved in place: the
+can't be read. **Every tile links**: a click anywhere on a tile opens the
+page that lists what it counts (the Applications list filtered to applied,
+interviewing or saved; the Jobs page in Best Match order, filtered to the
+week or 30 days posted). The lists take no date window, so Applications'
+list can hold more than its number. Under the pointer a tile lifts 2px onto
+`--shadow-lift`, its ring fills violet (white on the violet tile), and its
+glyph slides out as an arrow slides in, so it reads as clickable; a press
+settles it, and reduced motion keeps only the colour. A lift alone, which
+only two linked tiles once had, was too slight to say so. A keyboard focus
+rings the tile. Its range is `?range=`, moved in place: the
 headline (`dashboard/headline.tsx`) is handed every range's figures and reads
 `?range=` itself (`useRange` in `range-switch.tsx`), so a new range counts
 its numbers with the switch's thumb instead of after the server draws the

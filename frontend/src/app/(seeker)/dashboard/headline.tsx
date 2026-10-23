@@ -7,6 +7,7 @@ import {
   BookmarkIcon,
   BriefcaseIcon,
   CalendarIcon,
+  ArrowRightIcon,
   SparkleIcon,
   TrendIcon,
 } from "@/components/icons";
@@ -38,12 +39,13 @@ const STAT_ICONS: Record<StatKey, ComponentType<{ className?: string }>> = {
  * Applications is filled violet, the row's one solid colour, and the other
  * three are white. Each wears its glyph in a ring at the top right.
  *
- * EVERY TILE IS A LINK, AND NONE REACTS TO HOVER (KAN-342): a click
- * anywhere on a tile opens the page that lists what it counts (the
- * Applications list filtered to its stage, or the Jobs page in Best Match
- * order), its label the link stretched over it. The tiles used to lift
- * under the pointer, and only two linked; the user wanted them all to link
- * and none to move. A keyboard focus still rings the tile.
+ * EVERY TILE IS A LINK (KAN-342): a click anywhere on a tile opens the page
+ * that lists what it counts (the Applications list filtered to its stage,
+ * or the Jobs page in Best Match order), its label the link stretched over
+ * it. Under the pointer a tile lifts 2px onto --shadow-lift, its ring fills
+ * violet (white on the violet tile), and its glyph slides out as an arrow
+ * slides in, so the tile reads as clickable; a press settles it. A lift
+ * alone was too slight to say so. A keyboard focus rings the tile.
  *
  * Its own tile rather than components/stat-tile.tsx, which the company
  * Dashboard keeps: this one sets the figure large at medium weight
@@ -70,7 +72,14 @@ export function Headline({ stats }: { stats: Record<RangeKey, DashboardStat[]> }
             key={stat.key}
             as="div"
             tone={brand ? "brand" : "plain"}
-            className="has-[a:focus-visible]:ring-brand-ring @container/stat flex flex-col has-[a:focus-visible]:ring-2"
+            className={cn(
+              "group/stat @container/stat flex flex-col",
+              // Lifts 2px onto --shadow-lift under the pointer and settles
+              // on the press, as a whole-target card does (docs/motion.md).
+              "ease-glide hover:shadow-lift transition-[translate,scale,box-shadow] duration-200 hover:-translate-y-0.5 active:translate-y-0 active:scale-[0.99] active:duration-150",
+              "motion-reduce:transition-none motion-reduce:hover:translate-y-0",
+              "has-[a:focus-visible]:ring-brand-ring has-[a:focus-visible]:ring-2",
+            )}
           >
             {/* The label centred on its 36px ring, and the row 36px tall
                 even where the ring is hidden, so a figure sits at the same
@@ -93,11 +102,18 @@ export function Headline({ stats }: { stats: Record<RangeKey, DashboardStat[]> }
                   // Only where the tile has room beside its label: in the
                   // narrowest four-column layout a long label wrapped and
                   // dropped its figure below the other three.
-                  "hidden size-9 shrink-0 items-center justify-center rounded-full @[10.5rem]/stat:flex",
-                  brand ? "text-brand bg-white" : "text-ink border-border-subtle border",
+                  "relative hidden size-9 shrink-0 items-center justify-center overflow-hidden rounded-full @[10.5rem]/stat:flex",
+                  "ease-glide transition-colors duration-200",
+                  brand
+                    ? "text-brand bg-white"
+                    : "text-ink border-border-subtle group-hover/stat:border-brand group-hover/stat:bg-brand group-hover/stat:text-on-brand border",
                 )}
               >
-                <Icon className="size-4" />
+                {/* Under the pointer the glyph slides out to the right and
+                    an arrow slides in after it: the tile says where it
+                    goes. Clipped by the ring. */}
+                <Icon className="ease-glide size-4 transition-[translate,opacity] duration-200 group-hover/stat:translate-x-5 group-hover/stat:opacity-0 motion-reduce:transition-none" />
+                <ArrowRightIcon className="ease-glide absolute size-4 -translate-x-5 opacity-0 transition-[translate,opacity] duration-200 group-hover/stat:translate-x-0 group-hover/stat:opacity-100 motion-reduce:transition-none" />
               </span>
             </div>
 
