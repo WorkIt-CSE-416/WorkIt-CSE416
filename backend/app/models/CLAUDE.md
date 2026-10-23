@@ -274,11 +274,19 @@ change here must keep:
 - **Bullet positions are 0..n-1 within an entry.** The service renumbers on
   every move and delete; there is no unique constraint on them, because a
   reorder would then have to dodge its own rows mid-update.
-- **`bank_skill_links` joins a skill to an entry of the same applicant**
-  (KAN-216), keyed by the pair, cascading from either side. The table has
-  no applicant column, so it cannot check that both sides share an owner:
-  `services/bank.py`'s `link_skill` does, and a link written any other way
-  can join two students' rows.
+- **A skill is one list per applicant, never tied to an entry.** KAN-216's
+  `bank_skill_links` (a skill to the entries that showed it, meant as
+  proof for Tailor) was removed in `9e4b2d7a5c18`: no upload wrote a link,
+  and nothing but the bank screen read one. Do not add it back without a
+  reader that needs it.
+- **`bank_entry_sources` and `bank_skill_sources` say which uploads hold an
+  item** (KAN-343, `../../../docs/bank_by_resume.md`): many-to-many, since
+  import merges and one entry comes from several uploads; a `resume_id`
+  column would lose all but one. No applicant column, so the table
+  cannot check that both sides share an owner: only `merge_import` writes
+  them, and a row written any other way can join two students' rows. Both sides cascade: deleting an upload drops
+  its sources and leaves its entries (ADR 0003). Built resumes need no
+  source rows: their shown choice rows already say what they hold.
 
 ## Built resumes
 

@@ -208,9 +208,7 @@ Find files with a directory listing; these are the rules for where code goes.
   entries).
 - **The experience bank is written only through `services/bank.py`.** It
   holds the ownership scoping, the duplicate check and the clearing of the
-  bank embedding on every entry, bullet or skill change (a skill link is
-  not one: the embedding text never says which skill goes with which
-  entry); a route or script
+  bank embedding on every entry, bullet or skill change; a route or script
   that writes `bank_*` rows itself leaves the recommender on a stale
   embedding. Schema rationale: `../docs/resume.md`, "The experience bank".
 - **The recommender and Scout read the bank, never an uploaded resume**
@@ -253,6 +251,18 @@ Find files with a directory listing; these are the rules for where code goes.
   fill only as a set, when the bank entry has none: a merge never pairs one
   resume's start with another's end. A fill that clashes with a kept field
   (a GPA above the bank's scale) is dropped, and the bullets still go in.
+- **An import records its sources** (KAN-343, `../docs/bank_by_resume.md`):
+  `merge_import` takes the upload's `resume_id` and writes a
+  `bank_entry_sources` / `bank_skill_sources` row for **every** entry and
+  skill the reading found, merged or unchanged, since a merge that adds
+  nothing still means the file holds it. Upload flushes the `Resume` row
+  first (the rows point at it); Import Updated Resume clears the row's old
+  sources first (`clear_sources`), so an entry the new file dropped leaves
+  that resume's view and stays in the bank; Import Again only adds. Sources
+  never clear the embedding. `GET /bank` sends each item's `resume_ids`
+  (uploads from sources, built resumes from their shown choice rows,
+  `load_holdings`) and `resumes`; other `bank_response` callers (Scout)
+  send none. Tests: `tests/test_bank_import.py`, "sources".
 - **Import Again** is `POST /applicants/{id}/bank/import`: the same read and
   merge on a stored upload, from intake's Use One I Uploaded and the Jobs
   page's empty-bank card. It re-reads `raw_text`, so a resume uploaded
@@ -525,37 +535,54 @@ Find files with a directory listing; these are the rules for where code goes.
   by the hash, an invalid or failed reply counts nothing, the cap).
 - **Tailor** (KAN-217) is `routers/tailor.py` over `services/tailor.py`.
   A run (`POST .../tailor`) proposes changes and saves nothing but the
-  count; Done (`POST .../tailor/done`) saves the accepted ones on the
+  count and an uploaded source's reading, merged into the bank; Done (`POST .../tailor/done`) saves the accepted ones on the
   posting's one tailored resume, approved wordings as bullet variants for
   the posting. Rules, each with a test in `tests/test_tailor.py`:
+  - **The student picks the source** (KAN-318): run and Done each take
+    exactly one of `built_resume_id` or `uploaded_resume_id` (422
+    otherwise; 404 for one not the applicant's). A built resume gives its
+    choices. An upload is read again and merged into the bank
+    (`tailor.upload_source`, Import Again's merge, so Done's second read
+    adds nothing and the upload's sources are recorded, KAN-343), and its source is built in memory, never saved: the
+    bank entries its reading names (`find_duplicate`) and its skills show,
+    every other entry and skill waits hidden. It used to
+    start from the newest base resume by `created_at`, which ignored the
+    star and the student's edits, and to generate one when there was
+    none. An upload the parser reads nothing from answers 409. Done
+    writes the posting's one tailored resume from whichever source it is
+    sent, so a new source replaces what it showed.
   - **The truth rule is one pure function**, `services/truth_rule.py`'s
     `invented` (tested directly, `tests/test_truth_rule.py`): a wording
     with a number or tool in neither its original bullet nor the bank's
     skills is dropped from the proposals and refused (422) at Done, since
     the browser can send any text. Change what counts as a tool there and
     nowhere else.
-  - **A missing keyword that is nowhere in the bank is a question**
-    ("Have you used X?"), never words. Yes adds the skill through the
-    bank's own routes and shows it, with no AI call.
+  - **A run tailors only what the picked resume shows** (KAN-318,
+    `tailor.on_resume`): its shown entries and their shown bullets are
+    all that is ranked, sent to the model, reworded, reordered and
+    matched. It never proposes an entry or bullet the resume hides, so a
+    pick keeps its focus and length. "Bring back" (`show_entry`) is gone,
+    and the API refuses it at Done (422). Skills are the exception: every
+    bank skill stays in, so a hidden one that adds a keyword is still
+    proposed, and the truth rule still reads them all. Before this, the
+    whole bank went to the model, and the hidden bullets took places among
+    the best 40 although a reword of one was always dropped.
+  - **A missing keyword that neither the resume's entries nor any bank
+    skill hold is a question** ("Have you used X?"), never words. A hidden
+    entry's words do not count, since the run never brings it back. Yes
+    adds the skill through the bank's own routes and shows it, with no AI
+    call.
   - **The model sees handles (b1, e1), never ids**, and no links: an
     entry's link field is left out and the seam removes identity data.
     Postgres text search (`ts_rank`, the posting's words OR'd) ranks the
-    bullets: the best 40 go to the model, and the rank proposes each
-    entry's bullet order. A posting with no description is read by its
+    resume's bullets: the best 40 go to the model, and the rank proposes
+    each entry's bullet order. A posting with no description is read by its
     title, with `weak_match`.
-  - **An entry brought back is never a copy of one shown** (`bank.py`'s
-    `copy_key`: section, title and organization ignoring case, and the
-    same months, which Generate and intake's bank match also use), and it takes its date-order place among its
-    section's shown entries (`_bring_back`), not the end. A change names
-    its entry with the organization ("Software Intern, Acme"). An import
-    saved "as new" left a second Software Engineer Intern at Clever Devices
-    off a resume; Tailor offered "Bring back: Software Engineer Intern",
-    showed the job twice below an older one, and ran to 2 pages
-    (2026-10-14).
+  - **A change names its entry with the organization** ("Software Intern,
+    Acme"), since two jobs can share a title.
   - **One run is one `TAILOR` use**, counted after the model answers and
     the proposals are built; a keyword extraction inside the run is not a
-    second use. A run with no base resume generates one first (saved with
-    the count). **Lifted for now (KAN-319):** the route's `uses_left`
+    second use. **Lifted for now (KAN-319):** the route's `uses_left`
     check and `count_use` are commented out, it answers `uses_left` as the
     cap, the Tailor screen hides its "runs left today" and "Each run uses
     one of today's 2 Tailor runs" lines, and the three
@@ -797,6 +824,19 @@ removed at cutover, not before. Until then a change must work on both.
   `sent_resumes.snapshot_id`, so deployed first, every Apply and auto apply
   resume answers 500. It only adds a table, a nullable column and a CHECK
   the existing rows meet, so applying it early is safe.
+- **Apply `7c2e9a4b1f63` (`bank_entry_sources`, `bank_skill_sources`,
+  KAN-343) before the deploy that writes them.** The models map both
+  tables, so deployed first, every upload, Import Again and `GET /bank`
+  answers 500. It only adds two tables, so applying it early is safe.
+- **`9e4b2d7a5c18` (drops `bank_skill_links`, KAN-216's skill links) goes
+  on only AFTER the deploy that stopped reading it.** The code before it
+  queries the table on every bank load, so applying it first makes the
+  Experiences page, Generate, Tailor and Scout answer 500. The order:
+  `uv run alembic upgrade 7c2e9a4b1f63`, merge and deploy, then `uv run
+  alembic upgrade head`. Skill links were removed because nothing used
+  them: an upload never wrote one, and Tailor, the resume view, Generate,
+  Scout, the recommender and the embedding all ignored them. A skill is
+  one list per student.
 - **Apply `d642d93fcfbc` (`resumes.text_hash`, KAN-267) before the deploy
   that writes it.** The model maps the column, so every upload's INSERT
   names it: deployed first, every upload answers 500. It only adds a

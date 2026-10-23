@@ -1184,6 +1184,15 @@ are in `docs/auth.md`.
   AI" (KAN-222) runs only on a click, never on its own, and shows only
   while `uses_left` is above 0; a failed reading writes nothing and says
   why.
+- **The Experiences view shows one resume at a time** (KAN-343,
+  `../docs/bank_by_resume.md`): a dropdown of every uploaded, base and
+  tailored resume, opening on `?resume=`, else the starred resume, else the
+  newest. The rules (which items a pick shows, the opening pick, the "Also
+  used in" line) live in `(seeker)/bank/holdings.ts` and read only the
+  API's `resume_ids`; never work out a resume's items in a component.
+  Intake always gets the whole bank. A
+  new entry or skill saved under a resume pick is on no resume yet, so the
+  page says where it went instead of letting it vanish.
 - **Applicant server actions call the API through `applicantCall`**
   (`lib/applicant-call.ts`, server-only): the session, the Bearer token,
   GET/DELETE/fetch, and a `Result<T>` (`data`, `error`, `status`) that never

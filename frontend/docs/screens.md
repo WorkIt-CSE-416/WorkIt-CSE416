@@ -739,7 +739,9 @@ URL (`?tab=job` for the second):
   within a second, in no fixed order, and sorted by the millisecond the
   timeline once read Sent, Saved, Applied at one minute. A resume sent
   within two minutes of applying is now the Applied step's "Resume sent",
-  and a save that close is left out; steps further apart keep their own dot,
+  and a save within five seconds is left out (the same click writes both at
+  one time; a two-minute window once hid a save made a minute before
+  applying); steps further apart keep their own dot,
   and a tie sorts Saved, Sent, Applied. A closed posting
   says so in its card only, with no badge beside the stage. The cards
   replaced day counts that did not help: save to apply read 0 for every
@@ -1341,13 +1343,9 @@ in Docs (suggested answers in the chat, not a banner).
   add, for the next skill, and closes after an edit; the skill being edited
   takes the brand outline. A form always open under the list made Skills the
   only card that never looked finished.
-- **Skill links live in the entry editor** (KAN-216, `skill-links.tsx`):
-  "Skills Used Here" shows one toggle per bank skill, pressed when linked.
-  The editor only edits the list; on save the screen sends the link and
-  unlink calls after the entry's own save (for a new entry, after it is
-  created). Once the entry has saved, a failed later step closes the editor
-  and says "Some changes did not save", because a retry would repeat the
-  steps that worked. Intake omits `skills`, so no links show.
+- **The entry editor has no skills field.** KAN-216's "Skills Used Here"
+  toggles (skill links) were removed: a skill is one list per student,
+  edited on the Skills card only.
 - **Intake** (`intake.tsx`, KAN-213), in the look of the intake prototype's
   variant G: a lavender chat with Scout's gradient mark and a chapter line
   per section. On the bank page it is in Scout's panel, in the three bands
@@ -1436,6 +1434,17 @@ in Docs (suggested answers in the chat, not a banner).
   "Your Tailored Resume" once the student has one for that posting.
 - **The run waits for a click.** Each run spends one of today's 2 Tailor
   runs, so loading the page never starts one.
+- **Tailor My Resume opens Pick a Resume to Tailor** (KAN-318): the
+  posting's resumes as "Did You Apply?" lists them (Generated Resumes and
+  Uploaded Resumes, one radio group), starting on the resume tailored to
+  this job, else the default, and an upload with the same limit, replace
+  step and duplicate rule. Both dialogs share `jobs/resume-picker.tsx`,
+  so a rule changed there changes both. The dialog's Tailor My Resume
+  closes it and runs; "Tailoring…" and errors show on the card. A pick
+  other than this job's tailored resume warns that Done replaces it. An
+  upload is read into the bank and tailored as its own entries; nothing
+  new appears under Generated Resumes. A run changes only what the picked
+  resume shows: it never proposes an entry or bullet that resume hides.
 - **The keyword match** shows "12 of 18" before, and again with what the
   student has accepted, required keywords first. The second count adds
   each accepted change's `keywords` and each Yes in the browser, with no
@@ -1443,12 +1452,12 @@ in Docs (suggested answers in the chat, not a banner).
   description shows the "weak match" notice.
 - **Every change has Accept and Reject**, plus Accept All; a new wording
   shows beside the old one. Nothing saves until Done; Leave Without Saving
-  goes back to the posting. "Bring back" and "Reorder bullets" name the
-  entry with its organization ("Software Intern, Acme"), since two jobs can
-  share a title; the API never offers a copy of an entry already shown.
-- **"Have you used X?"** lists missing keywords that are nowhere in the
-  bank. Yes adds the skill to the bank (it is saved at once, being true),
-  shows it on the tailored resume, and offers to link it to an entry.
+  goes back to the posting. "Reorder bullets" names the entry with its
+  organization ("Software Intern, Acme"), since two jobs can share a title.
+- **"Have you used X?"** lists missing keywords that neither the picked
+  resume's entries nor any bank skill hold. Yes adds the skill to the bank
+  (it is saved at once, being true) and shows it on the tailored resume. It
+  no longer asks where the skill was used: skill links were removed.
 - An empty bank (409) shows a link to the bank page, where intake starts.
 
 ## Resumes (`/resumes`)
