@@ -318,7 +318,7 @@ type StatBlock = { label: string; value: string; unit: string; sub: string };
  * on one line over it, as a headline tile sets its label and ring, and its
  * unit beside it. The Dashboard draws every date in a pill
  * (docs/screens.md). The pill sat under the figure until the section had
- * to fit a 1280 x 720 window; it wraps under the label where the well is
+ * to fit a 1280 x 720 window with the page; it wraps under the label where the well is
  * narrow. They were open text in ink-muted under the figure, which
  * read as loose lines rather than four readings of one chart. A block with
  * nothing to date says so in the pill ("None yet", "Apply today"), so the

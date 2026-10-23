@@ -1,4 +1,5 @@
 import type { Metadata } from "next";
+import { Suspense } from "react";
 
 import { cn } from "@/lib/cn";
 import { getCurrentAccount } from "@/lib/session";
@@ -9,6 +10,7 @@ import { getAppliedTimes, getHeadline } from "./data";
 import { Headline } from "./headline";
 import { RangeSwitch } from "./range-switch";
 import { Streak } from "./streak";
+import { TopMatches, TopMatchesSkeleton } from "./top-matches";
 
 export const metadata: Metadata = {
   title: "Dashboard",
@@ -26,10 +28,13 @@ export const metadata: Metadata = {
  * <UpNext> from getUpNext(), and <Waiting>, again, and restore that grid
  * from git.
  *
- * NO LIST OF JOBS (KAN-342). New Matches, a list of the newest postings,
- * sat under the numbers. It went when Good Matches replaced New Roles: that
- * tile opens the Jobs page in Best Match order, which lists the same jobs
- * better, so the Dashboard keeps no second, shorter copy of the feed.
+ * TOP MATCHES UNDER THE NUMBERS (KAN-342, ./top-matches.tsx): the
+ * seeker's three best-scoring jobs as the Jobs page's own cards, stacked,
+ * with no score floor. New Matches, the
+ * newest postings in posting order, sat there until Good Matches replaced
+ * New Roles; the user asked for a list back, ordered by fit, since a new
+ * seeker can have only weak matches and still needs their best ones. It
+ * streams in its own <Suspense>, so the numbers never wait on scoring.
  */
 
 /**
@@ -49,6 +54,7 @@ export const metadata: Metadata = {
  * and Activity runs the full width under them:
  *
  *   Good Matches (violet)   Saved   Applied   Interviewing
+ *   Top Matches, three feed cards stacked, See More Matches at its right
  *   Activity, the full width
  *
  * Next Up, Up Next and Waiting are archived for now (the note above says
@@ -131,6 +137,10 @@ export default async function DashboardPage() {
       <div className="mt-5 grid grid-cols-2 gap-4 @4xl/main:grid-cols-4">
         <Headline stats={stats} />
       </div>
+
+      <Suspense fallback={<TopMatchesSkeleton className="mt-4" />}>
+        <TopMatches className="mt-4" />
+      </Suspense>
 
       <Streak applied={applied} className="mt-4" />
     </div>

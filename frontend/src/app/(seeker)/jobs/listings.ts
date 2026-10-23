@@ -170,6 +170,25 @@ export async function getRecommendedPage(query: string, offset: number): Promise
   }
 }
 
+/**
+ * The seeker's `count` best-scoring open jobs, best first: the Dashboard's Top
+ * Matches (KAN-342), from the same scores as Best Match. No score floor, so a
+ * new seeker whose bank only gives weak matches still sees their best ones.
+ * "empty" when there is nothing to score against (the API's 404 for an empty
+ * bank, or 403 for a company account); null when the API can't say.
+ */
+export async function getTopMatches(count: number): Promise<JobListing[] | "empty" | null> {
+  try {
+    const { id, token } = await getApplicantSession();
+    const res = await apiGet(`/jobs/recommended/${id}?limit=${count}`, token);
+    if (res.status === 404 || res.status === 403) return "empty";
+    if (!res.ok) return null;
+    return (await res.json()) as JobListing[];
+  } catch {
+    return null;
+  }
+}
+
 /** The most GET /jobs/recommended returns at once. */
 const RECOMMENDED_MAX = 500;
 

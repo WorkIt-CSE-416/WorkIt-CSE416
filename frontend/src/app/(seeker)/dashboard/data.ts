@@ -65,11 +65,11 @@ const GOOD_MATCHES_NOTE: Record<RangeKey, string> = {
  *
  * THE TRACKER'S TILES ARE NAMED FOR ITS STAGES, the Status filter each one
  * opens: Saved, Applied, Interviewing. Applied was "Applications", the same
- * word as the page it opened (now the Tracker), and Interviewing was
+ * word as the page it opened (now the Applications Tracker), and Interviewing was
  * "Interviews".
  *
  * THE ORDER IS THE SEARCH, LEFT TO RIGHT: find a job, save it, apply, hear
- * back, the order of the Tracker's stages and the landing page's
+ * back, the order of the Applications Tracker's stages and the landing page's
  * route. The left half is what is left to do and the right half how it is
  * going, which holds in the 2 x 2 grid on a phone too. Interviewing, a dash
  * until the tracker stores it, sits last as the outcome rather than as a gap
@@ -89,8 +89,9 @@ const GOOD_MATCHES_NOTE: Record<RangeKey, string> = {
  * whenever employers posted less. It shows no change: the score fades with
  * a posting's age, so last week's postings would always count fewer. With
  * an empty experience bank there is nothing to score, so the tile asks for
- * the bank instead. The Dashboard lists no jobs of its own: the tile opens
- * the Jobs page in Best Match order, where those jobs come first.
+ * the bank instead. The tile opens the Jobs page in Best Match order, where
+ * those jobs come first; Top Matches under the numbers (./top-matches.tsx)
+ * shows the best three whatever their score.
  *
  * Applied counts the tracker's applications sent in the range, against
  * the same length of days before it. Saved is the seeker's live saved jobs
