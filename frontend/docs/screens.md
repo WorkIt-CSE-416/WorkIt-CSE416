@@ -436,8 +436,8 @@ how to bring them back. The notes below still describe them.
 the seeker's twelve best-scoring open jobs, best first, from the Best Match
 scores (`getTopMatches`, `GET /jobs/recommended?limit=12`), with no score
 floor. A new seeker's thin experience bank can score every job a Weak
-Match, and their best weak ones are still where to start; the Good Matches
-number above counts only 65 and up. Each is a flat row in one tile: a well
+Match, and their best weak ones are still where to start; the Strong Match
+number above counts only 80 and up. Each is a flat row in one tile: a well
 with the logo, the title (its link to the job posting page), the company,
 the match ring, when it was posted, and Apply Now (the same dialog as
 everywhere, KAN-290). See More Matches, a secondary button at the heading's
@@ -451,7 +451,7 @@ were tried here first and were too tall for a glance: three filled the
 screen. With an empty bank it asks for the bank. It streams in its own
 `<Suspense>` with a skeleton in the same frame, so the numbers never wait on
 scoring. It replaced New Matches, the newest postings in posting order in
-the same scrolling frame, which went when Good Matches replaced New Roles
+the same scrolling frame, which went when Strong Match replaced New Roles
 and came back ordered by fit at the user's ask. The notes below that name
 New Matches describe the archived three-column layout.
 
@@ -467,7 +467,7 @@ alone is capped at `max-w-dashboard` (1440px) rather than `max-w-app`.
 From `@4xl/main` (896px, not `@5xl`'s 1024: a 13-inch laptop at 100% zoom
 gives the page about 1010px and fell back to two columns of oversized
 tiles) the four numbers run across the top in a grid of their own
-(Good Matches filled violet, the only solid tile), and the tiles under them sit in
+(Strong Match filled violet, the only solid tile), and the tiles under them sit in
 thirds. Left to right is apply, then manage: New Matches two thirds wide
 beside Next Up (a white reminder tile, its title in violet over one filled
 button) over Up Next, then Activity two thirds wide beside Waiting (three
@@ -508,7 +508,7 @@ All the Agenda; Waiting's Follow Up opens the Applications list filtered to
 Applied. That is a placeholder: it helps nobody contact anyone, and KAN-174
 (still open) plans the real flow, a list of only what has waited two weeks,
 a Scout-drafted note, a recruiter search, then marking an application
-followed up or closed once the tracker has a backend. The headline numbers are Good Matches, Saved, Applied and Interviewing
+followed up or closed once the tracker has a backend. The headline numbers are Strong Match, Saved, Applied and Interviewing
 (`getHeadline` in `dashboard/data.ts`), all live (KAN-342). **The Tracker's
 tiles are named for its stages**, the Status filter each one opens: Applied
 was "Applications", the same word as the page it opened, and Interviewing
@@ -518,14 +518,17 @@ so the left half is what is left to do and the right half how it is going
 (in the 2 x 2 grid on a phone too). Interviewing, a dash until the tracker
 stores it, sits last as the outcome, not as a gap in the middle. The order
 was Applications, New Roles, Interviews, Saved, which read out of sequence.
-**Good Matches wears the violet fill**, where the next application starts,
+**Strong Match wears the violet fill**, where the next application starts,
 so the eye lands on the head of the search. Applied wore it until the
 reorder; the user moved it, since a seeker comes to find what to apply to
 next. A violet 0 is the cost on a week with no good matches. Applied
 counts the tracker's applications sent in the range, against the same
-length of days before it. Good Matches counts the job postings from the
-range that score Good Match (65) or better for this seeker, from the Best
-Match scores (`getGoodMatchDates`, one `GET /jobs/recommended` call with
+length of days before it. Strong Match counts the job postings from the
+range that score Strong Match (80) or better for this seeker (it was Good
+Matches, counting from 65, until the user renamed it; the threshold moved
+with the name, so a 70% job never sits under a label its own Good Match
+badge contradicts), from the Best
+Match scores (`getMatchDates`, one `GET /jobs/recommended` call with
 `min_match` over the longest range, counted per range in `data.ts`). It
 shows no change, since a score fades with a posting's age and last week's
 postings would always count fewer; with an empty experience bank it says

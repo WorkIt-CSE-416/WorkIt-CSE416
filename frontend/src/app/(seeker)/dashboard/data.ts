@@ -1,5 +1,5 @@
 import { getApplications, getNow, getTracker } from "../applications/data";
-import { getGoodMatchDates } from "../jobs/listings";
+import { getMatchDates } from "../jobs/listings";
 import { upcomingEvents, type EventKind, type TrackerEvent } from "../tracker";
 import { rangeDays, type RangeKey } from "./range";
 
@@ -23,7 +23,7 @@ const DAY_MS = 86_400_000;
 
 /* Headline numbers ------------------------------------------------------- */
 
-export type StatKey = "goodMatches" | "saved" | "applied" | "interviewing";
+export type StatKey = "strongMatch" | "saved" | "applied" | "interviewing";
 
 export type DashboardStat = {
   key: StatKey;
@@ -39,27 +39,30 @@ export type DashboardStat = {
   href: string;
 };
 
-/** The lowest score Good Matches counts: Good Match and up in @/lib/match. */
-const GOOD_MATCH = 65;
+/** The lowest score Strong Match counts: the Strong Match band and up in
+ *  @/lib/match. It counted from 65, Good Match, while the tile was named
+ *  Strong Match; renamed Strong Match, it counts that band, so a 70% job
+ *  never sits under a label its own badge contradicts. */
+const STRONG_MATCH = 80;
 
-/** Where the Jobs page shows what Good Matches counts, best first. Its Date
+/** Where the Jobs page shows what Strong Match counts, best first. Its Date
  *  Posted filter offers a week and a month but no season, so Season opens
  *  the whole Best Match list. */
-const GOOD_MATCHES_HREF: Record<RangeKey, string> = {
+const STRONG_MATCH_HREF: Record<RangeKey, string> = {
   week: "/jobs?sort=match&posted_within=7",
   month: "/jobs?sort=match&posted_within=30",
   season: "/jobs?sort=match",
 };
 
-/** Under Good Matches in place of a change. */
-const GOOD_MATCHES_NOTE: Record<RangeKey, string> = {
+/** Under Strong Match in place of a change. */
+const STRONG_MATCH_NOTE: Record<RangeKey, string> = {
   week: "Posted this week",
   month: "Posted in 30 days",
   season: "Posted since Aug 4",
 };
 
 /**
- * The four headline numbers for every range, in tile order: Good Matches,
+ * The four headline numbers for every range, in tile order: Strong Match,
  * Saved, Applied, Interviewing. Each tile links to the page that lists
  * what it counts (KAN-342).
  *
@@ -82,8 +85,8 @@ const GOOD_MATCHES_NOTE: Record<RangeKey, string> = {
  * user moved it, since a seeker comes to the Dashboard to find what to apply
  * to next. A violet 0 is the cost on a week with no good matches.
  *
- * Good Matches is the job postings from the range that score Good Match or
- * better for this seeker (GOOD_MATCH), from the Best Match scores
+ * Strong Match is the job postings from the range that score Strong Match or
+ * better for this seeker (STRONG_MATCH), from the Best Match scores
  * (GET /jobs/recommended). It replaced New Roles, a count of every posting
  * in the feed, which said nothing about the seeker and drew a red change
  * whenever employers posted less. It shows no change: the score fades with
@@ -106,11 +109,11 @@ export async function getHeadline(): Promise<Record<RangeKey, DashboardStat[]>> 
   const now = getNow();
   const seasonDays = rangeDays("season", now);
   const [matched, tracker] = await Promise.all([
-    getGoodMatchDates(Math.max(30, seasonDays), GOOD_MATCH),
+    getMatchDates(Math.max(30, seasonDays), STRONG_MATCH),
     getTracker(),
   ]);
   /** Good matches posted in the last `days` days; null without scores. */
-  const goodMatches = (days: number) =>
+  const strongMatch = (days: number) =>
     Array.isArray(matched)
       ? matched.filter((at) => now.getTime() - Date.parse(at) < days * DAY_MS).length
       : null;
@@ -132,13 +135,13 @@ export async function getHeadline(): Promise<Record<RangeKey, DashboardStat[]>> 
 
   const tiles = (range: RangeKey): DashboardStat[] => [
     {
-      key: "goodMatches",
-      label: "Good Matches",
-      value: goodMatches(rangeDays(range, now)),
+      key: "strongMatch",
+      label: "Strong Match",
+      value: strongMatch(rangeDays(range, now)),
       previous: null,
       ...(matched === "empty"
         ? { note: "Add your experience first", href: "/bank" }
-        : { note: matched ? GOOD_MATCHES_NOTE[range] : undefined, href: GOOD_MATCHES_HREF[range] }),
+        : { note: matched ? STRONG_MATCH_NOTE[range] : undefined, href: STRONG_MATCH_HREF[range] }),
     },
     {
       key: "saved",

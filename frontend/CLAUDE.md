@@ -997,8 +997,8 @@ the KAN-296 cutover.
   dated events stay empty until the API stores them (the Dashboard's
   Interviews number is a dash, KAN-342); a failed read shows an error, never
   stand-in cards. The Dashboard's four numbers are all live and all links
-  (KAN-342); its Good Matches reads the Best Match scores
-  (`getGoodMatchDates`), and Top Matches under them lists the twelve
+  (KAN-342); its Strong Match reads the Best Match scores
+  (`getMatchDates`), and Top Matches under them lists the twelve
   best-scoring jobs as flat rows that scroll inside a tile, with no score
   floor (`getTopMatches`). A job's application
   stage (`saved`, `queued`...) reaches its Save and Auto Apply buttons from

@@ -23,7 +23,7 @@ import { SectionCard } from "./section-card";
 /** Each tile's glyph, by what it counts: the data is plain, so the icons stay
  *  on this side of the server boundary. */
 const STAT_ICONS: Record<StatKey, ComponentType<{ className?: string }>> = {
-  goodMatches: MatchIcon,
+  strongMatch: MatchIcon,
   saved: BookmarkIcon,
   applied: BriefcaseIcon,
   interviewing: CalendarIcon,
@@ -36,7 +36,7 @@ const STAT_ICONS: Record<StatKey, ComponentType<{ className?: string }>> = {
  * value at once (AnimatedNumber) rather than after the server has drawn the
  * page again.
  *
- * Good Matches is filled violet, the row's one solid colour, and the other
+ * Strong Match is filled violet, the row's one solid colour, and the other
  * three are white (./data.ts says why that tile). Each wears its glyph in a ring at the top right.
  *
  * EVERY TILE IS A LINK (KAN-342): a click anywhere on a tile opens the page
@@ -60,7 +60,7 @@ export function Headline({ stats }: { stats: Record<RangeKey, DashboardStat[]> }
     <>
       {stats[range].map((stat) => {
         const Icon = STAT_ICONS[stat.key];
-        const brand = stat.key === "goodMatches";
+        const brand = stat.key === "strongMatch";
         const change =
           stat.value !== null && stat.previous !== null && period
             ? stat.value - stat.previous

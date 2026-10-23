@@ -98,6 +98,10 @@ _Avoid_: column, step (the Applications Tracker's Status filter picks stages)
 One job posting a student is following in the Applications Tracker, at one stage.
 _Avoid_: Applications (as the page's name)
 
-**Good Match**:
-A job posting that scores 65 or more for a student, the Good Match band and above.
-_Avoid_: new role, recommendation, top job
+**Strong Match**:
+A job posting that scores 80 or more for a student, the Strong Match band and above. The Dashboard's first number counts them.
+_Avoid_: good match (for that number), new role, recommendation
+
+**Top Match**:
+One of a student's highest-scoring open jobs, whatever its band. The Dashboard lists them under its numbers.
+_Avoid_: recommendation, best job
