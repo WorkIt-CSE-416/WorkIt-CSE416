@@ -2,6 +2,7 @@
 
 import { useEffect, useLayoutEffect, useMemo, useRef, useState, useSyncExternalStore } from "react";
 
+import { Badge } from "@/components/ui/badge";
 import { SegmentedToggle } from "@/components/ui/segmented-control";
 import { cn } from "@/lib/cn";
 
@@ -67,6 +68,11 @@ const DAY = new Intl.DateTimeFormat("en-US", {
 const DAY_YEAR = new Intl.DateTimeFormat("en-US", {
   month: "short",
   day: "numeric",
+  year: "numeric",
+  timeZone: "UTC",
+});
+const MONTH_YEAR = new Intl.DateTimeFormat("en-US", {
+  month: "short",
   year: "numeric",
   timeZone: "UTC",
 });
@@ -188,27 +194,25 @@ export function Streak({
       label: "Past Year",
       value: NUMBER.format(stats.total),
       unit: applications(stats.total),
-      sub: span(stats.first, stats.last, true),
+      sub: stats.first ? `Since ${MONTH_YEAR.format(dayMs(stats.first))}` : "None yet",
     },
     {
       label: "Busiest Day",
       value: NUMBER.format(stats.busiest.count),
       unit: applications(stats.busiest.count),
-      sub: stats.busiest.date ? DAY.format(dayMs(stats.busiest.date)) : "—",
+      sub: stats.busiest.date ? DAY.format(dayMs(stats.busiest.date)) : "None yet",
     },
     {
       label: "Longest Streak",
       value: NUMBER.format(stats.longest.days),
       unit: daysWord(stats.longest.days),
-      sub: span(stats.longest.start, stats.longest.end),
+      sub: stats.longest.days ? span(stats.longest.start, stats.longest.end) : "None yet",
     },
     {
       label: "Current Streak",
       value: NUMBER.format(stats.current.days),
       unit: daysWord(stats.current.days),
-      sub: stats.current.days
-        ? span(stats.current.start, stats.current.end)
-        : "Apply today to start one",
+      sub: stats.current.days ? span(stats.current.start, stats.current.end) : "Apply today",
     },
   ];
 
@@ -287,7 +291,7 @@ export function Streak({
         }}
       >
         <div className="min-h-0 overflow-hidden">
-          <div className="grid grid-cols-2 gap-x-6 gap-y-5 pt-5 @2xl/streak:grid-cols-4">
+          <div className="grid grid-cols-2 gap-3 pt-5 @2xl/streak:grid-cols-4">
             {blocks.map((block) => (
               <Stat key={block.label} {...block} />
             ))}
@@ -304,20 +308,26 @@ export function Streak({
 
 type StatBlock = { label: string; value: string; unit: string; sub: string };
 
-/** One number in the row under the heat map: its label over it, its unit
- *  beside it, and its dates under it. */
+/**
+ * One number in the row under the heat map, in a recessed well
+ * (--color-well) like the match rail's: its label over it, its unit beside
+ * it, and its dates in a pill under it, as the Dashboard draws every date
+ * (docs/screens.md). They were open text in ink-muted under the figure, which
+ * read as loose lines rather than four readings of one chart. A block with
+ * nothing to date says so in the pill ("None yet", "Apply today"), so the
+ * four keep one shape.
+ */
 function Stat({ label, value, unit, sub }: StatBlock) {
   return (
-    <div className="min-w-0">
+    <div className="bg-well rounded-card flex min-w-0 flex-col items-start gap-2 p-4">
       <p className="text-note text-ink-meta">{label}</p>
-      <p className="mt-1 flex items-baseline gap-1.5">
+      <p className="flex items-baseline gap-1.5">
         <span className="text-display text-ink">{value}</span>
         <span className="text-body text-ink-muted">{unit}</span>
       </p>
-      {/* Its dates in --color-ink-muted, not meta grey, which read too faint
-          under a 28px figure in Plus Jakarta Sans; two lines on a phone
-          rather than "Oct 5, 2025 – Oct 10, 20…". */}
-      <p className="text-note text-ink-muted mt-0.5 line-clamp-2">{sub}</p>
+      <Badge variant="tag" pill>
+        {sub}
+      </Badge>
     </div>
   );
 }

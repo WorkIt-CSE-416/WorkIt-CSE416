@@ -537,6 +537,10 @@ a weekly pace chart: the past year of applications per day as a heat map that
 folds into a 3D skyline, adapted from 21st.dev's Contribution Skyline. Its
 heading is Activity; its files and tokens say streak. It opens on the 2D heat
 map, and its four numbers (Past Year, Busiest Day, the two streaks) show only
+there, each in a grey well (`--color-well`) with its dates in a tag pill, as
+the Dashboard draws every date; as open text in ink-muted under each figure
+they read as loose lines (KAN-342). A number with nothing to date says so in
+its pill ("None yet", "Apply today"), so the four keep one shape. They show only
 there: the 3D skyline stands alone, with no numbers under it or in its corners. `streak-model.ts`
 is its pure maths (grid, levels, stats, camera), `streak-canvas.ts` the
 canvas engine (no React: the section mounts it once and it re-reads a ref
