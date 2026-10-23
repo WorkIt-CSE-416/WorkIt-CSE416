@@ -303,6 +303,13 @@ npx shadcn@latest docs select            # usage examples and API
 npx shadcn@latest search "date picker"   # find it when you don't know the name
 ```
 
+**Check `package.json` after every `add`.** `shadcn add switch` (2026-10-22)
+read the `utils` alias `@/lib/cn` as an npm package named `cn`, installed
+it, and wrote `import { cn } from "cn"` into the new file. Its dry run listed
+"Dependencies (1) + cn" as the only sign. Undo the `package.json` and
+lockfile change, point the import at `@/lib/cn` as every other vendored file
+has, and run `npm ci`.
+
 `--dry-run` is the habit worth forming. It prints a `+N new, ~N overwrite`
 summary, and **if it says anything would be overwritten, stop and ask** — that
 means a name collision with something we wrote.

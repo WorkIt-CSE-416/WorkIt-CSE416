@@ -162,8 +162,8 @@ export default function PrivacyPage() {
           application answers and tracked applications in WorkIt at any time.
         </li>
         <li>
-          WorkIt has no button to delete your account yet. Deleting an account deletes its profile
-          and everything linked to it. To ask us to delete your account, contact{" "}
+          You can delete your account in Settings. Deleting it deletes its profile, its files and
+          everything linked to it, for good. For other privacy requests, contact{" "}
           <TeamToDecide>contact email for privacy requests</TeamToDecide>.
         </li>
         <li>
