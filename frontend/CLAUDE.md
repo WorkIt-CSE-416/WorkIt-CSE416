@@ -1208,6 +1208,19 @@ are in `docs/auth.md`.
   Intake always gets the whole bank. A
   new entry or skill saved under a resume pick is on no resume yet, so the
   page says where it went instead of letting it vanish.
+- **`draftOf` strips `resume_ids` before an edit goes back out** (found
+  2026-10-23, live on gamma): `BankEntry.resume_ids` (KAN-343, above) rides
+  along with every other field an entry has, so `without(entry, "id",
+  "bullets")` alone left it in the PATCH body `changesOf` builds —
+  `EntryUpdate`'s schema has `extra="forbid"` and never declared
+  `resume_ids` on purpose (it's response-only), so every edit of an entry
+  that any resume held 422'd "Extra inputs are not permitted" and nothing
+  saved. **Still open: deleting an existing entry also fails** ("Something
+  went wrong," a 500) — the model's cascades (`bank_entry_sources`,
+  `built_resume_entries` → `bank_entries`, all `ondelete="CASCADE"`) look
+  right by inspection, so the cause wasn't pinned down from reading the
+  code alone; creating a new entry is unaffected either way
+  (`emptyDraft()` starts clean, never touches `resume_ids`).
 - **Applicant server actions call the API through `applicantCall`**
   (`lib/applicant-call.ts`, server-only): the session, the Bearer token,
   GET/DELETE/fetch, and a `Result<T>` (`data`, `error`, `status`) that never
