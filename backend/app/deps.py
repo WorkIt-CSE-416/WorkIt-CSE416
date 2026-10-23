@@ -12,26 +12,34 @@ sets it at signup); user_metadata is writable by the user and is never read.
 
 Everything else — email, name, onboarding state, company_id — comes from the
 profile row, one lookup per request. That keeps the token free of anything
-that could go stale between refreshes.
+that could go stale between refreshes. The one exception runs the other way:
+when the token's email differs from the row's, the sign-in email changed
+(Settings' Change Email, KAN-326), and get_current_account copies the
+token's onto the row.
 
 A separate module rather than living in app/routers/auth.py: every future
 router (jobs, applications, ...) will depend on this, and importing it
 shouldn't also import auth's route registrations.
 """
 
+import logging
 import uuid
 
 import jwt
 from fastapi import Depends, HTTPException, status
 from fastapi.security import HTTPAuthorizationCredentials, HTTPBearer
 from sqlalchemy import select
+from sqlalchemy.exc import IntegrityError
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.db import get_session
 from app.models.dto import profile_status
 from app.models.profiles import Applicant_Profile, Company_Membership
+from app.queries.accounts import copy_sign_in_email
 from app.schemas.auth import AccountType, AuthenticatedAccount, VerifiedIdentity
 from app.security import decode_access_token
+
+logger = logging.getLogger(__name__)
 
 
 # One message: whether the header is missing, the token is malformed, it's
@@ -104,6 +112,22 @@ async def get_current_account(
     account = await load_account(db, account_id, account_type)
     if account is None:
         raise _not_authenticated()
+
+    # A confirmed email change reaches the token first: Supabase Auth owns
+    # the sign-in email, and the row only keeps a copy. Copied here, on the
+    # account's next request from any device, rather than by a callback
+    # that only the browser that opened the confirm link would run.
+    email = claims.get("email")
+    if isinstance(email, str) and email.lower() != account.email.lower():
+        try:
+            await copy_sign_in_email(db, account_id, account_type, email.lower())
+            await db.commit()
+            account = account.model_copy(update={"email": email.lower()})
+        except IntegrityError:
+            # Another row holds the address. Supabase allows one account
+            # per email, so this is a leftover row; keep the old copy.
+            await db.rollback()
+            logger.warning("Couldn't copy the new sign-in email of account %s", account_id)
 
     return account
 

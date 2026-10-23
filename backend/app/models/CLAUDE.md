@@ -784,6 +784,20 @@ Application Questions shows and edits them (KAN-269).
 - **Its migration is `a7d3e5c1b942`** (RLS on). It must be on the database
   before the API that maps it deploys.
 
+## Names: parts and one line (KAN-326)
+
+Both account tables keep `first_name`, `middle_name` and `last_name`, which
+signup and Settings ask for, and `full_name`, the line every other reader
+prints (the bar, resume headers, the Chrome autofiller). **`full_name` is
+always the parts joined**, through `app/services/names.py`: every writer
+sets the four together with `name_columns`. A writer with only a line (an
+OAuth sign-in, the resume editor's header sending `full_name`) has it split:
+the first word, the words between, the last word. The parts are nullable: a
+one-word name has no last name, and a row written by code that predates
+them has `full_name` alone, which `ApplicantProfileResponse` answers split.
+A first and a last name are required on every PATCH that sends parts, as at
+signup, and the joined line must fit `full_name`'s 50.
+
 ## job_postings holds company-posted and scraped jobs
 
 One table, two kinds of row (`b40588efa7b7`), told apart by `company_id`:
@@ -968,8 +982,11 @@ What that means for the account tables:
   foreign key. `alembic/env.py`'s filters keep autogenerate from ever creating
   or dropping it. Do not add columns to it or query through it.
 - **`email` is a copy** of `auth.users.email`, kept for display and joins.
-  Supabase signs in with its own copy. Nothing changes an email yet; whatever
-  first does must update both.
+  Supabase signs in with its own copy. Settings' Change Email (KAN-326)
+  changes Supabase's; `get_current_account` (`app/deps.py`) copies it onto
+  the row on the account's next request, when the token's email differs.
+  Copied there, not by the confirm link's callback, which runs only in the
+  browser that opens the link.
 - **`contact_email` is the email employers see** (KAN-262,
   `applicant_profiles` only): resume headers and the autofiller print it.
   NULL means the sign-in `email`, so read it through the model's
