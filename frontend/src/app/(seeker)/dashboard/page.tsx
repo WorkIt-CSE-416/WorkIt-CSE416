@@ -48,7 +48,7 @@ export const metadata: Metadata = {
  * From @4xl/main the numbers run four across the top in their own grid,
  * and Activity runs the full width under them:
  *
- *   Good Matches (violet)   Saved   Applications   Interviews
+ *   Good Matches (violet)   Saved   Applied   Interviewing
  *   Activity, the full width
  *
  * Next Up, Up Next and Waiting are archived for now (the note above says
@@ -87,8 +87,8 @@ export const metadata: Metadata = {
  * Next and Waiting are about now.
  *
  * Nothing shown is a fixture (KAN-342): Good Matches is the seeker's Best
- * Match scores, and Applications, Saved and Activity the live tracker.
- * Interviews is a dash, "Not tracked yet", until the tracker stores stages
+ * Match scores, and Saved, Applied and Activity the live tracker.
+ * Interviewing is a dash, "Not tracked yet", until the tracker stores stages
  * past applied (./data.ts).
  *
  * The grid breaks on @container/main, the page's own width, since the panel

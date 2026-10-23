@@ -492,18 +492,20 @@ All the Agenda; Waiting's Follow Up opens the Applications list filtered to
 Applied. That is a placeholder: it helps nobody contact anyone, and KAN-174
 (still open) plans the real flow, a list of only what has waited two weeks,
 a Scout-drafted note, a recruiter search, then marking an application
-followed up or closed once the tracker has a backend. The headline numbers are Good Matches, Saved, Applications and Interviews
-(`getHeadline` in `dashboard/data.ts`), all live (KAN-342). **The order is
-the search, left to right**: find, save, apply, hear back, as the
-Applications page's stages and the landing page's route run, so the left
-half is what is left to do and the right half how it is going (in the 2 x 2
-grid on a phone too). Interviews, a dash until the tracker stores it, sits
-last as the outcome, not as a gap in the middle. The order was
-Applications, New Roles, Interviews, Saved, which read out of sequence.
+followed up or closed once the tracker has a backend. The headline numbers are Good Matches, Saved, Applied and Interviewing
+(`getHeadline` in `dashboard/data.ts`), all live (KAN-342). **The Tracker's
+tiles are named for its stages**, the Status filter each one opens: Applied
+was "Applications", the same word as the page it opened, and Interviewing
+was "Interviews". **The order is the search, left to right**: find, save,
+apply, hear back, as the Tracker's stages and the landing page's route run,
+so the left half is what is left to do and the right half how it is going
+(in the 2 x 2 grid on a phone too). Interviewing, a dash until the tracker
+stores it, sits last as the outcome, not as a gap in the middle. The order
+was Applications, New Roles, Interviews, Saved, which read out of sequence.
 **Good Matches wears the violet fill**, where the next application starts,
-so the eye lands on the head of the search. Applications wore it until the
+so the eye lands on the head of the search. Applied wore it until the
 reorder; the user moved it, since a seeker comes to find what to apply to
-next. A violet 0 is the cost on a week with no good matches. Applications
+next. A violet 0 is the cost on a week with no good matches. Applied
 counts the tracker's applications sent in the range, against the same
 length of days before it. Good Matches counts the job postings from the
 range that score Good Match (65) or better for this seeker, from the Best
@@ -513,14 +515,14 @@ shows no change, since a score fades with a posting's age and last week's
 postings would always count fewer; with an empty experience bank it says
 "Add your experience first" and opens the bank. It replaced New Roles, a
 count of every posting in the feed, which said nothing about the seeker and
-drew a red change whenever employers posted less. Interviews is a dash,
+drew a red change whenever employers posted less. Interviewing is a dash,
 "Not tracked yet": the API stores no interviewing stage, and a 0 would say
 the seeker had none. Saved counts the seeker's live saved jobs (KAN-261)
-and ignores the range. Applications and Saved show a dash when the tracker
+and ignores the range. Applied and Saved show a dash when the tracker
 can't be read. **Every tile links**: a click anywhere on a tile opens the
-page that lists what it counts (the Applications list filtered to applied,
+page that lists what it counts (the Tracker filtered to applied,
 interviewing or saved; the Jobs page in Best Match order, filtered to the
-week or 30 days posted). The lists take no date window, so Applications'
+week or 30 days posted). The lists take no date window, so the Applied
 list can hold more than its number. Under the pointer a tile lifts 2px onto
 `--shadow-lift`, its ring fills violet (white on the violet tile), and its
 glyph slides out as an arrow slides in, so it reads as clickable; a press
@@ -558,7 +560,16 @@ hydration, then on the viewer's own (`localDay`), by the same
 `useSyncExternalStore` swap as `today`. A failed tracker read draws the
 empty year with a line saying the applications aren't loading.
 
-## Applications
+## Applications (the Tracker)
+
+**Its name on screen is the Tracker** (KAN-342): "Tracker" in the sidebar
+and the browser tab, "Application Tracker" as its heading (the marketing
+site's name for the feature), and "Back to Tracker" on an application's
+page. It was "Applications", the word the Dashboard also used for a count,
+so the page and the number read as one thing. The URL, the folder and the
+code keep `applications`: moving the folder would collide with every open
+branch that edits the page. Say "the Tracker" in copy; a stage is one of
+Saved, Applied, Interviewing and Offer (`GLOSSARY.md`).
 
 /applications is the tracker: a list (the default) and a grid over
 `applications/data.ts`, every choice in the URL; a row or card opens the

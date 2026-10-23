@@ -7,8 +7,8 @@ import { rangeDays, type RangeKey } from "./range";
  * The seeker Dashboard's data: the headline numbers per window, the year of
  * applications behind Activity's streak, what is waiting, and Up Next. Good
  * Matches (in `getHeadline`) reads the seeker's Best Match scores;
- * Applications, Saved and Activity read the live tracker (KAN-261,
- * KAN-342). Interviews and Waiting have no source yet: the tracker stores
+ * Applied, Saved and Activity read the live tracker (KAN-261,
+ * KAN-342). Interviewing and Waiting have no source yet: the tracker stores
  * no stage past applied.
  *
  * UP NEXT IS DERIVED FROM THE TRACKER (../applications/data.ts), not written
@@ -23,7 +23,7 @@ const DAY_MS = 86_400_000;
 
 /* Headline numbers ------------------------------------------------------- */
 
-export type StatKey = "applications" | "goodMatches" | "interviews" | "saved";
+export type StatKey = "goodMatches" | "saved" | "applied" | "interviewing";
 
 export type DashboardStat = {
   key: StatKey;
@@ -60,19 +60,24 @@ const GOOD_MATCHES_NOTE: Record<RangeKey, string> = {
 
 /**
  * The four headline numbers for every range, in tile order: Good Matches,
- * Saved, Applications, Interviews. Each tile links to the page that lists
+ * Saved, Applied, Interviewing. Each tile links to the page that lists
  * what it counts (KAN-342).
  *
+ * THE TRACKER'S TILES ARE NAMED FOR ITS STAGES, the Status filter each one
+ * opens: Saved, Applied, Interviewing. Applied was "Applications", the same
+ * word as the page it opened (now the Tracker), and Interviewing was
+ * "Interviews".
+ *
  * THE ORDER IS THE SEARCH, LEFT TO RIGHT: find a job, save it, apply, hear
- * back, the order of the Applications page's stages and the landing page's
+ * back, the order of the Tracker's stages and the landing page's
  * route. The left half is what is left to do and the right half how it is
- * going, which holds in the 2 x 2 grid on a phone too. Interviews, a dash
+ * going, which holds in the 2 x 2 grid on a phone too. Interviewing, a dash
  * until the tracker stores it, sits last as the outcome rather than as a gap
  * in the middle. The order was Applications, New Roles, Interviews, Saved,
  * which read sent, then find, then outcome, then shortlist.
  *
  * GOOD MATCHES WEARS THE VIOLET FILL, where the next application starts: the
- * eye lands on the head of the search and reads on from there. Applications
+ * eye lands on the head of the search and reads on from there. Applied
  * wore it until the reorder, as the number the seeker wholly controls; the
  * user moved it, since a seeker comes to the Dashboard to find what to apply
  * to next. A violet 0 is the cost on a week with no good matches.
@@ -87,12 +92,12 @@ const GOOD_MATCHES_NOTE: Record<RangeKey, string> = {
  * the bank instead. The Dashboard lists no jobs of its own: the tile opens
  * the Jobs page in Best Match order, where those jobs come first.
  *
- * Applications counts the tracker's applications sent in the range, against
+ * Applied counts the tracker's applications sent in the range, against
  * the same length of days before it. Saved is the seeker's live saved jobs
  * not yet applied to (KAN-261), the same in every range. Both are a dash
  * when the tracker can't be read.
  *
- * Interviews is always a dash for now: the API stores no interviewing stage,
+ * Interviewing is always a dash for now: the API stores no interviewing stage,
  * and a 0 would say the seeker had none. Count `stage === "interviewing"`
  * here once getTracked asks for that stage.
  */
@@ -143,15 +148,15 @@ export async function getHeadline(): Promise<Record<RangeKey, DashboardStat[]>> 
       href: "/applications?stage=saved",
     },
     {
-      key: "applications",
-      label: "Applications",
+      key: "applied",
+      label: "Applied",
       value: applications[range][0],
       previous: applications[range][1],
       href: "/applications?stage=applied",
     },
     {
-      key: "interviews",
-      label: "Interviews",
+      key: "interviewing",
+      label: "Interviewing",
       value: null,
       previous: null,
       note: "Not tracked yet",

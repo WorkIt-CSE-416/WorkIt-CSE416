@@ -976,7 +976,10 @@ the KAN-296 cutover.
   `import "server-only"` (`(seeker)/jobs/listings.ts` is the first). A live
   fetch in a page calls `await connection()` so `next build` does not prerender
   it with no API running.
-- **The application tracker is live and has no fixture** (KAN-261): saved
+- **The application tracker is live and has no fixture** (KAN-261), and
+  its page shows as the Tracker (KAN-342: "Tracker" in the sidebar,
+  "Application Tracker" as its heading) while its URL and code keep
+  `applications` (`docs/screens.md`, Applications). Saved
   and applied jobs come from the API (`(seeker)/applications/tracked.ts`,
   cached per request by `getTracker` in `data.ts`), each with the Jobs
   page's own match score (`?scored=true`, KAN-256) and the sent resume the

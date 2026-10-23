@@ -23,10 +23,10 @@ import { SectionCard } from "./section-card";
 /** Each tile's glyph, by what it counts: the data is plain, so the icons stay
  *  on this side of the server boundary. */
 const STAT_ICONS: Record<StatKey, ComponentType<{ className?: string }>> = {
-  applications: BriefcaseIcon,
   goodMatches: MatchIcon,
-  interviews: CalendarIcon,
   saved: BookmarkIcon,
+  applied: BriefcaseIcon,
+  interviewing: CalendarIcon,
 };
 
 /**
