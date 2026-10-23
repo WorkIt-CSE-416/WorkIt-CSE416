@@ -327,9 +327,10 @@ each card, Load More's too. A stale one is harmless: a click answers the real
 stage. Back returns to the list the seeker came from: the feed, filters and all, or
 the Auto Apply page (`RememberFeed` on /jobs, /search and /auto-apply keeps
 the last one visited in sessionStorage), or the Resumes page when a
-tailored resume's posting link opened it (`rememberReturnTo`, KAN-268, set
-on the click rather than the visit, so a job opened from elsewhere after a
-look at /resumes does not go Back there). When the seeker came straight from
+tailored resume's posting link opened it, or the Dashboard when a Top
+Matches row opened it (`rememberReturnTo`, KAN-268 and KAN-342, set on the
+click rather than the visit, so a job opened from elsewhere after a look at
+/resumes or the Dashboard does not go Back there). When the seeker came straight from
 that list (`cameFrom`, (seeker)/scroll-memory.tsx), Back goes back in history
 as the browser's Back does: the router redraws the list it kept at once.
 Following the link instead is a fresh visit, which fetches the feed again and,
@@ -439,14 +440,18 @@ floor. A new seeker's thin experience bank can score every job a Weak
 Match, and their best weak ones are still where to start; the Strong Matches
 number above counts only 80 and up. Each is a flat row in one tile: a well
 with the logo, the title (its link to the job posting page), the company,
-the match ring, when it was posted, and Apply Now (the same dialog as
-everywhere, KAN-290). See More Matches, a secondary button at the heading's
+the match ring, when it was posted, then the feed card's steps toward
+applying: Save, Tailor My Resume and Apply Now (the same dialog as
+everywhere, KAN-290). Below `@xl/main` those take their own line and Tailor
+reads "Tailor", since the full words broke onto two lines each. The title's
+link (`top-match-link.tsx`) makes the job page's Back return to the
+Dashboard. See More Matches, a secondary button at the heading's
 right, opens Best Match. From `@4xl/main` the list scrolls inside the tile at
 `h-80`, about four and a half rows, with a quiet bar along the tile's edge
 and a fade at its foot; below it the list shows five rows and does not
 scroll (a box that scrolls inside a scrolling page traps the swipe), and
-below `@xl/main` Apply Now takes its own full-width line, since beside the
-text it squeezed the title to two words a line. The Jobs page's own cards
+below `@xl/main` the buttons take their own full-width line, since beside
+the text they squeezed the title to two words a line. The Jobs page's own cards
 were tried here first and were too tall for a glance: three filled the
 screen. With an empty bank it asks for the bank. It streams in its own
 `<Suspense>` with a skeleton in the same frame, so the numbers never wait on

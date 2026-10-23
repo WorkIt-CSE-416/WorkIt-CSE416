@@ -1,17 +1,18 @@
-import Link from "next/link";
-
 import { CompanyLogo } from "@/components/company-logo";
-import { ArrowRightIcon } from "@/components/icons";
+import { ArrowRightIcon, SparkleIcon } from "@/components/icons";
 import { MatchBadge } from "@/components/match-badge";
 import { Badge } from "@/components/ui/badge";
 import { ButtonLink } from "@/components/ui/button";
 import { TextLink } from "@/components/ui/text-link";
 import { cn } from "@/lib/cn";
 
+import { getApplicationStages } from "../auto-apply/applications";
 import { ApplyButton } from "../jobs/apply-button";
 import { formatPosted } from "../jobs/format";
-import { getTopMatches, isApplicant } from "../jobs/listings";
+import { getTailoredJobIds, getTopMatches, isApplicant } from "../jobs/listings";
+import { SaveJobButton } from "../jobs/save-job-button";
 import { SectionCard } from "./section-card";
+import { TopMatchLink } from "./top-match-link";
 
 /**
  * Top Matches, under the headline numbers (KAN-342): the seeker's best-scoring
@@ -24,8 +25,10 @@ import { SectionCard } from "./section-card";
  * FLAT ROWS, NOT THE FEED'S CARDS. The Jobs page's cards were tried here and
  * were too tall for a glance: three of them filled the screen. A row is a
  * well with the logo, the title (its link to the job posting page), the
- * company, the match ring and when it was posted, and Apply Now, which opens
- * the same dialog as everywhere else (KAN-290).
+ * company, the match ring and when it was posted, then the feed card's steps
+ * toward applying: Save, Tailor My Resume, and Apply Now, which opens the
+ * same dialog as everywhere else (KAN-290). The title's link makes the job
+ * page's Back return here (./top-match-link.tsx).
  *
  * THE LIST SCROLLS INSIDE ITS TILE from @4xl/main, at a fixed height
  * (`h-80`, about four and a half rows, so the cut row says there is more),
@@ -66,7 +69,14 @@ const LIST = cn(
 );
 
 export async function TopMatches({ className }: { className?: string }) {
-  const [top, canMarkApplied] = await Promise.all([getTopMatches(SHOWN), isApplicant()]);
+  // The seeker's stages and tailored resumes beside the scores, for each
+  // row's Save and Tailor buttons, as the Jobs page reads them.
+  const [top, canMarkApplied, stages, tailored] = await Promise.all([
+    getTopMatches(SHOWN),
+    isApplicant(),
+    getApplicationStages(),
+    getTailoredJobIds(),
+  ]);
 
   return (
     <SectionCard aria-labelledby="top-matches" className={className}>
@@ -107,12 +117,12 @@ export async function TopMatches({ className }: { className?: string }) {
                     className="text-note rounded-control size-10 shrink-0"
                   />
                   <div className="min-w-0 flex-1">
-                    <Link
+                    <TopMatchLink
                       href={`/jobs/${encodeURIComponent(job.id)}`}
                       className="text-label text-ink hover:text-brand focus-visible:ring-brand-ring block rounded-xs transition-colors duration-150 focus-visible:ring-2 focus-visible:outline-none @max-4xl/main:line-clamp-2 @4xl/main:truncate"
                     >
                       {job.title}
-                    </Link>
+                    </TopMatchLink>
                     <div className="mt-1 flex min-w-0 flex-wrap items-center gap-x-2 gap-y-1">
                       <span className="text-note text-ink-meta min-w-0 truncate">
                         {job.company}
@@ -126,15 +136,38 @@ export async function TopMatches({ className }: { className?: string }) {
                     </div>
                   </div>
                 </div>
-                {/* Its own full-width line below @xl/main: beside the text on
-                    a phone it squeezed the title to two words a line. */}
-                <ApplyButton
-                  jobId={job.id}
-                  title={job.title}
-                  applyUrl={job.apply_url}
-                  canMarkApplied={canMarkApplied}
-                  className="shrink-0 @max-xl/main:w-full"
-                />
+                {/* The feed card's steps toward applying, in its order: Save,
+                    Tailor, Apply Now. Their own full-width line below
+                    @xl/main: beside the text on a phone they squeezed the
+                    title to two words a line. */}
+                <div className="flex shrink-0 items-center gap-2 @max-xl/main:w-full">
+                  <SaveJobButton jobId={job.id} title={job.title} stage={stages[job.id] ?? null} />
+                  <ButtonLink
+                    href={`/jobs/${encodeURIComponent(job.id)}/tailor`}
+                    variant="secondary"
+                    size="sm"
+                    className="whitespace-nowrap @max-xl/main:flex-1"
+                  >
+                    <SparkleIcon className="size-4" />
+                    {/* The feed card's words, shortened on a phone, where
+                        "Tailor My Resume" and "Apply Now" each broke onto two
+                        lines beside each other. */}
+                    <span className="@max-xl/main:hidden">
+                      {tailored.includes(job.id) ? "Your Tailored Resume" : "Tailor My Resume"}
+                    </span>
+                    <span className="@xl/main:hidden">
+                      {tailored.includes(job.id) ? "Tailored" : "Tailor"}
+                    </span>
+                  </ButtonLink>
+                  <ApplyButton
+                    jobId={job.id}
+                    title={job.title}
+                    applyUrl={job.apply_url}
+                    canMarkApplied={canMarkApplied}
+                    applied={stages[job.id] === "applied"}
+                    className="whitespace-nowrap @max-xl/main:flex-1"
+                  />
+                </div>
               </li>
             ))}
           </ul>
