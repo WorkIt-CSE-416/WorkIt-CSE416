@@ -8,7 +8,7 @@ import {
   BriefcaseIcon,
   CalendarIcon,
   ArrowRightIcon,
-  SparkleIcon,
+  MatchIcon,
   TrendIcon,
 } from "@/components/icons";
 import { AnimatedNumber } from "@/components/ui/animated-number";
@@ -24,7 +24,7 @@ import { SectionCard } from "./section-card";
  *  on this side of the server boundary. */
 const STAT_ICONS: Record<StatKey, ComponentType<{ className?: string }>> = {
   applications: BriefcaseIcon,
-  goodMatches: SparkleIcon,
+  goodMatches: MatchIcon,
   interviews: CalendarIcon,
   saved: BookmarkIcon,
 };
