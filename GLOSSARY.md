@@ -83,3 +83,25 @@ _Avoid_: guardrail, hallucination check
 **Identity data**:
 The parts of a student's data that name or reach them: name, email, phone, street address and links. WorkIt never sends it to a model; school, employers and dates are not identity data.
 _Avoid_: personal info, PII, contact details (for the whole set)
+
+## Applying
+
+**Fill engine**:
+The one copy of every job system's form filler and of the answer rules, shared with Lisul's Apply and kept in its own private repo. The extension fills only the job systems it covers, and never submits.
+_Avoid_: autofiller library, field map, filler (for the whole engine)
+
+**Question set**:
+Every question one job posting's application form asks, each with its kind, whether it is required and its options.
+_Avoid_: form fields, field list, questions (for the whole set)
+
+**Plan**:
+What the fill engine decides for one question set from a student's data: each question's answer, the questions that need a written answer, the missing facts and the handoffs.
+_Avoid_: mapping, field matches, autofill result
+
+**Handoff**:
+A question the student must answer themselves whatever WorkIt knows, with the reason: one aimed at AI agents, one on a form that bans AI-written text, a video.
+_Avoid_: skipped field, manual field, error
+
+**Missing fact**:
+A question the student's data doesn't answer, left for the student to fill in.
+_Avoid_: unknown field, blank, unanswered
