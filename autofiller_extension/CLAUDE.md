@@ -58,27 +58,27 @@ builds it: `dist/engine.js` is committed in the engine repo.
   world, where `chrome.runtime` is. `src/shared/content-scripts.js`'s
   `injectFill` loads both, engine first, for the popup and the runner
   alike. The content script reaches the engine through the background,
-  which runs `engine.js`'s `runEngine` in the page's MAIN world with
+  which runs `engine.js`'s `runEngine` (the engine's own dispatcher,
+  `FillEngine.call`) in the page's MAIN world with
   `chrome.scripting.executeScript` (`fill/plan`, `fill/unit`, both answered
-  by `engine.js`'s `handleFill`).
-- **Plan, then fill a unit at a time.** `fill/plan` reads the job's
-  Question set as Apply reads it (`engine.js`'s `READERS`): fetched from the
-  job system's public API and parsed by the engine (Greenhouse's Job Board
-  API, plus the posting page as served for its education block; Lever's
-  `/apply` page; Ashby's `ApiJobPosting` query, else the form on the page;
-  Rippling's and Workable's job APIs), or read off the open form by the
-  engine (Eightfold, whose questions API answers only the page's own
-  session; Workday, a step at a time). It then asks the engine's `plan` for
-  answers from the WorkIt profile (`engineProfile`) and `POLICIES`.
+  by `engine.js`'s `handleFill`). The background also imports the bundle
+  itself, for what needs no page: reading the job and planning.
+- **The engine reads the job.** `fill/plan` gets the job's Question set,
+  company, role and text from the engine (`jobOf`, `questionSet`,
+  `jobNames`, `jobDescription`, `textOf`), which asks each job system's
+  public API with the background's `fetchText`: the same URLs and queries
+  Apply asks. Eightfold's and Workday's questions are read off the open form
+  by the engine (`readQuestions`), and Ashby's form too when its query
+  fails. It then asks the engine's `plan` for answers from the WorkIt
+  profile (`engineProfile`) and `POLICIES`. No job system's URLs, queries,
+  parsing or company names live here: change them in the engine repo.
   `fill/unit` fills the planned answers in the units `fillUnits` cuts:
   mostly one field per engine call, so the overlay shows each field's
   result (filled, failed with the engine's reason, skipped when the form
   never showed it) and one bad field doesn't stop the rest. Files go first
   (the résumé parse of Lever, Rippling, Eightfold and Workable types over
   the form), except on Greenhouse, last. Workable is one call (its fill
-  adds entries first and blanks every text box it isn't given). No parsing
-  lives here: a job system whose Question set needs parsing gets a parser
-  in the engine (`parseQuestions`).
+  adds entries first and blanks every text box it isn't given).
 - **More questions mean a new plan.** A fill that brings on questions
   (Eightfold's follow-ups, Workday's new panels) answers `more`; the
   content script plans again with them (`extra`) and fills what is new.

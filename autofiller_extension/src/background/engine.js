@@ -1,92 +1,29 @@
 // The extension's side of the Fill engine (the fill-engine submodule, KAN-329):
-// which job systems it covers, the WorkIt profile mapped to the engine's
-// profile, the Question set fetched and planned, and the planned answers
-// filled a field (or a group of fields) at a time. The engine itself runs in
-// the application's page (the page's MAIN world, ENGINE_FILES); this module
-// reaches it through `call`, which the background makes with
-// chrome.scripting.executeScript and the test with Playwright's
-// page.evaluate, both running `runEngine` in the page.
+// the WorkIt profile mapped to the engine's profile, and the two fill
+// messages. Everything about a job is the engine's: which job systems it
+// covers (`jobOf`), the job's Question set, names and text, read from the job
+// system's public APIs with the background's fetch, and the Plan. The fill
+// is done in the application's page (the page's MAIN world,
+// ENGINE_FILES), which this module reaches through `call`: the background
+// makes it with chrome.scripting.executeScript and the test with
+// Playwright's page.evaluate, both running `runEngine` in the page.
 //
-// No chrome.* API is used at import time, so the extension's test imports
-// this file as it is.
+// The background holds its own copy of the engine for what needs no page
+// (reading a job, planning). No chrome.* API is used at import time, so the
+// extension's test imports this file as it is.
+import "../../fill-engine/dist/engine.js";
 
-// The job systems' public APIs a Question set or a posting's text is read from (no sign-in).
-const GREENHOUSE_API = "https://boards-api.greenhouse.io/v1/boards";
-const GREENHOUSE_EDUCATION = "https://boards.greenhouse.io/v1/boards";
-const LEVER_API = "https://api.lever.co/v0/postings";
-const ASHBY_GRAPHQL = "https://jobs.ashbyhq.com/api/non-user-graphql";
-const RIPPLING_API = "https://ats.rippling.com/api/v1/board";
-const WORKABLE_API = "https://apply.workable.com/api";
-// The query Ashby's own hosted page reads a posting's form with (undocumented, no login), as Apply asks it.
-const ASHBY_POSTING = [
-  "query ApiJobPosting($organizationHostedJobsPageName: String!, $jobPostingId: String!) {",
-  " jobPosting(organizationHostedJobsPageName: $organizationHostedJobsPageName, jobPostingId: $jobPostingId) {",
-  " id title descriptionHtml shouldAskForTextingConsent shouldAskForWhatsAppConsent legalEntityNameForTextingConsent",
-  " applicationForm { sections { fieldEntries { ... on FormFieldEntry { id isRequired descriptionHtml field } } } }",
-  " surveyForms { sections { fieldEntries { ... on FormFieldEntry { id isRequired descriptionHtml field } } } } } }",
-].join("");
-const ASHBY_ORGANIZATION = [
-  "query ApiOrganizationFromHostedJobsPageName($organizationHostedJobsPageName: String!) {",
-  " organization: organizationFromHostedJobsPageName(organizationHostedJobsPageName: $organizationHostedJobsPageName) { name } }",
-].join("");
-// Eightfold careers sites whose company their host doesn't name.
-const EIGHTFOLD_COMPANIES = { "explore.jobs.netflix.net": "Netflix" };
+/** The engine's own copy here, for what needs no page. */
+const engine = globalThis.FillEngine;
 
 /**
  * The job system and job an application page belongs to, when the engine
- * covers it; null on any other page, which the extension leaves alone.
- * `form` is the link of the job's application form, and `onForm` whether this
- * page is it: a Lever, Ashby, Rippling, Workable or Eightfold posting shows
- * the job on one page and its form on another. A Greenhouse posting holds its
- * form; Workday's form comes after its own Apply button and sign-in.
+ * covers it; null on any other page, which the extension leaves alone (the
+ * engine's `jobOf`: its `form`, and whether this page is it).
  * @param {string} url
- * @returns {{ site: string, form: string, onForm: boolean, [id: string]: string | boolean } | null}
  */
 export function jobOf(url) {
-  let parsed;
-  try {
-    parsed = new URL(url);
-  } catch {
-    return null;
-  }
-  const { hostname: host, pathname: path, origin } = parsed;
-  const query = (name) => parsed.searchParams.get(name);
-  const at = (form, onForm, ids) => ({ ...ids, form, onForm });
-  let m;
-  if (/(^|\.)greenhouse\.io$/.test(host)) {
-    // Its hosted form (job-boards. or boards.) and its embedded form (`embed/job_app?for=<board>&token=<job>`).
-    if ((m = /^\/([\w-]+)\/jobs\/(\d+)/.exec(path))) return at(url, true, { site: "greenhouse", board: m[1], job: m[2] });
-    if (path.startsWith("/embed/job_app") && query("for") && /^\d+$/.test(query("token") ?? "")) {
-      return at(url, true, { site: "greenhouse", board: query("for"), job: query("token") });
-    }
-    return null;
-  }
-  if (/(^|\.)lever\.co$/.test(host) && (m = /^\/([^/]+)\/([0-9a-f-]{36})(\/apply)?\/?$/.exec(path))) {
-    return at(`${origin}/${m[1]}/${m[2]}/apply`, Boolean(m[3]), { site: "lever", company: m[1], job: m[2] });
-  }
-  if (host === "jobs.ashbyhq.com" && (m = /^\/([^/]+)\/([0-9a-f-]{36})(\/application)?\/?$/.exec(path))) {
-    return at(`${origin}/${m[1]}/${m[2]}/application`, Boolean(m[3]), { site: "ashby", board: m[1], job: m[2] });
-  }
-  if (host === "ats.rippling.com" && (m = /^(\/(?:[a-z]{2}-[A-Z]{2}\/)?([^/]+)\/jobs\/([0-9a-f-]{36}))(\/apply)?\/?$/.exec(path))) {
-    return at(`${origin}${m[1]}/apply?step=application`, Boolean(m[4]), { site: "rippling", board: m[2], job: m[3] });
-  }
-  if (host === "apply.workable.com" && (m = /^\/([^/]+)\/j\/([0-9A-Z]+)(\/apply)?\/?$/.exec(path))) {
-    return at(`${origin}/${m[1]}/j/${m[2]}/apply`, Boolean(m[3]), { site: "workable", account: m[1], shortcode: m[2] });
-  }
-  if (/(^|\.)eightfold\.ai$/.test(host) || host in EIGHTFOLD_COMPANIES) {
-    const pid = /^\/careers\/job\/(\d+)/.exec(path)?.[1] ?? query("pid");
-    if (pid && /^\d+$/.test(pid)) return at(`${origin}/careers/apply?pid=${pid}`, path.startsWith("/careers/apply"), { site: "eightfold", pid });
-    return null;
-  }
-  if (/(^|\.)(myworkdayjobs|myworkdaysite)\.com$/.test(host)) return at(url, true, { site: "workday", tenant: workdayTenant(parsed) });
-  return null;
-}
-
-/** The Workday tenant an application belongs to, which the engine keeps its nested prompts for: the host, or the tenant's path on myworkdaysite.com. */
-function workdayTenant({ hostname, pathname }) {
-  if (!hostname.endsWith("myworkdaysite.com")) return hostname;
-  const path = pathname.split("/").filter(Boolean);
-  return `${hostname}/${path.includes("recruiting") ? path[path.indexOf("recruiting") + 1] : path[0]}`;
+  return engine.jobOf(url);
 }
 
 /** The link to open for an application: its form, where the engine covers the job system. */
@@ -95,21 +32,14 @@ export function formUrl(url) {
 }
 
 /**
- * Runs in the application's page, so it reads nothing outside itself: calls
- * `FillEngine[name](...args)` (a dotted name reaches a nested one) and
- * returns `{ value }`, or `{ error: { name, message } }`, since an error
- * thrown in the page loses its name on the way back.
+ * Runs in the application's page, so it reads nothing outside itself: the
+ * engine's own dispatcher, `FillEngine.call`, which answers `{ value }` or
+ * `{ error: { name, message } }` (an error thrown in the page would lose its name).
  * @param {{ name: string, args: unknown[] }} request
  */
 export async function runEngine({ name, args }) {
-  try {
-    if (typeof globalThis.FillEngine === "undefined") throw new Error("The fill engine is not loaded in this page");
-    const path = name.split(".");
-    const owner = path.slice(0, -1).reduce((scope, key) => scope[key], globalThis.FillEngine);
-    return { value: await owner[path.at(-1)](...args) };
-  } catch (error) {
-    return { error: { name: error?.name ?? "Error", message: String(error?.message ?? error) } };
-  }
+  if (typeof globalThis.FillEngine === "undefined") return { error: { name: "Error", message: "The fill engine is not loaded in this page" } };
+  return globalThis.FillEngine.call(name, args);
 }
 
 /**
@@ -166,17 +96,6 @@ const VETERAN = { protected_veteran: true, not_protected_veteran: "I am not a pr
 const YES_NO_DECLINE = { yes: true, no: false, declined: "decline" };
 const YES_NO = { yes: true, no: false };
 
-/** A free-text degree ("B.S.", "Bachelor of Science") in the words the engine's rules match a form's options with. */
-function degreeWords(degree) {
-  if (!degree) return undefined;
-  const d = degree.toLowerCase().replace(/\./g, "");
-  if (/bachelor|^b ?(s|a|eng|sc)\b/.test(d)) return "Bachelor's Degree";
-  if (/master|^m ?(s|a|eng|sc|ba)\b/.test(d)) return "Master's Degree";
-  if (/doctor|^phd\b/.test(d)) return "Doctorate";
-  if (/associate|^a ?(s|a)\b/.test(d)) return "Associate's Degree";
-  return degree;
-}
-
 /** Bank entries of one section, the latest first (one still going comes first). */
 function latest(entries, section) {
   const ends = (e) => (e.end_kind === "present" ? "9999" : (e.end_month ?? ""));
@@ -208,7 +127,7 @@ export function engineProfile(profile) {
     education: school
       ? present({
           school: school.title,
-          degree: degreeWords(school.degree),
+          degree: school.degree ? engine.degreeLevel(school.degree) : null,
           majors: school.field_of_study ? [school.field_of_study] : null,
           gpa_cumulative: school.gpa,
           gpa_scale: school.gpa_scale,
@@ -248,30 +167,6 @@ function withFiles(answers, profile) {
   );
 }
 
-/** The text of HTML the Job Board API sends escaped ("&lt;p&gt;"), a line per block, as the page shows it. */
-function postingText(html) {
-  return unescapeHtml(unescapeHtml(html ?? "").replace(/<[^>]+>/g, "\n"));
-}
-
-function unescapeHtml(text) {
-  const named = { lt: "<", gt: ">", amp: "&", quot: '"', apos: "'", nbsp: " " };
-  return (text ?? "").replace(/&(#\d+|#x[0-9a-f]+|[a-z]+);/gi, (whole, ref) => {
-    if (ref[0] !== "#") return named[ref.toLowerCase()] ?? whole;
-    return String.fromCodePoint(ref[1].toLowerCase() === "x" ? parseInt(ref.slice(2), 16) : parseInt(ref.slice(1), 10));
-  });
-}
-
-/** One of Greenhouse's education lists (degrees or disciplines), read page by page. */
-async function educationList(fetchText, board, kind) {
-  const items = [];
-  for (let page = 1; page < 50; page++) {
-    const listed = JSON.parse(await fetchText(`${GREENHOUSE_EDUCATION}/${board}/education/${kind}?page=${page}`));
-    items.push(...listed.items.map((item) => item.text));
-    if (!listed.items.length || items.length >= listed.meta.total_count) break;
-  }
-  return items;
-}
-
 /** What `read` gives back, or `fallback` when it fails: for what only names the job (company, title, its text), never the questions. */
 async function optional(read, fallback) {
   try {
@@ -281,125 +176,37 @@ async function optional(read, fallback) {
   }
 }
 
-const json = (text) => JSON.parse(text);
-const oneLine = (text) => (text ?? "").replace(/\s+/g, " ").trim();
-const post = (body) => ({ method: "POST", body: JSON.stringify(body) });
+/** `fetchText` asking each URL (and POST body) once: a job's questions, names and text often come from one answer. */
+function once(fetchText) {
+  const asked = new Map();
+  return (url, init) => {
+    const key = `${url}\n${init?.body ?? ""}`;
+    if (!asked.has(key)) asked.set(key, fetchText(url, init));
+    return asked.get(key);
+  };
+}
 
 /**
- * Each job system's Question set and posting, read as Apply reads them: from
- * the job system's public API where it has one (the engine parses what was
- * fetched), else from the open form (Eightfold's questions API answers only
- * the page's own session; Workday shows its questions a step at a time, once
- * the student has signed in). Each gives `{ questions, posting, text }`
- * (text: the posting's own words, which the plan reads for AI bans and pay);
- * Workday's also the step it is on and the engine's state.
+ * The job's Question set as Apply reads it: fetched from the job system's
+ * public API and read by the engine, else off the open form by the engine
+ * (Eightfold's questions API answers only the page's own session; Workday
+ * shows its questions a step at a time, once the student has signed in;
+ * Ashby's query is undocumented, so on any failure its form is read).
+ * Workday's also gives the step it is on and the engine's state.
  */
-const READERS = {
-  async greenhouse({ job, url, call, fetchText }) {
-    const source = await fetchText(`${GREENHOUSE_API}/${job.board}/jobs/${job.job}?questions=true`);
-    const answer = json(source);
-    let questions = await call("parseQuestions", "greenhouse", source);
-    if (["education_required", "education_optional"].includes(answer.education)) {
-      const degrees = await educationList(fetchText, job.board, "degrees");
-      const disciplines = await educationList(fetchText, job.board, "disciplines");
-      // The page as served: once Greenhouse's app starts, the page no longer holds its education_config.
-      const page = await fetchText(url);
-      questions = [...questions, ...(await call("greenhouseQuestions.education", page, degrees, disciplines))];
-    }
-    const posting = { id: String(answer.id ?? job.job), company: answer.company_name ?? "", title: answer.title ?? "" };
-    return { questions, posting, text: postingText(answer.content) };
-  },
-
-  async lever({ job, call, fetchText }) {
-    const html = await fetchText(job.form);
-    const [company, title] = (/<title>([\s\S]*?)<\/title>/.exec(html)?.[1] ?? "").split(" - ").map((part) => oneLine(unescapeHtml(part)));
-    const text = await optional(async () => {
-      const posting = json(await fetchText(`${LEVER_API}/${job.company}/${job.job}`));
-      const lists = (posting.lists ?? []).map((list) => `<h3>${list.text ?? ""}</h3>${list.content ?? ""}`).join("");
-      return postingText(`${posting.description ?? ""}${lists}${posting.additional ?? ""}`);
-    }, "");
-    return { questions: await call("parseQuestions", "lever", html), posting: { id: job.job, company: company ?? "", title: title ?? "" }, text };
-  },
-
-  async ashby({ job, call, fetchText }) {
-    const variables = { organizationHostedJobsPageName: job.board, jobPostingId: job.job };
-    let questions;
-    let posting = {};
-    try {
-      const source = await fetchText(`${ASHBY_GRAPHQL}?op=ApiJobPosting`, post({ operationName: "ApiJobPosting", variables, query: ASHBY_POSTING }));
-      questions = await call("parseQuestions", "ashby", source);
-      posting = json(source).data.jobPosting;
-    } catch {
-      // The query is undocumented: on any failure, the questions as the form on the page shows them.
-      questions = await call("readQuestions", "ashby");
-    }
-    const company = await optional(async () => {
-      const answer = await fetchText(`${ASHBY_GRAPHQL}?op=ApiOrganizationFromHostedJobsPageName`, post({
-        operationName: "ApiOrganizationFromHostedJobsPageName", variables: { organizationHostedJobsPageName: job.board }, query: ASHBY_ORGANIZATION,
-      }));
-      return json(answer).data.organization.name;
-    }, "");
-    return { questions, posting: { id: job.job, company, title: posting.title ?? "" }, text: postingText(posting.descriptionHtml) };
-  },
-
-  async rippling({ job, call, fetchText }) {
-    const source = await fetchText(`${RIPPLING_API}/${job.board}/jobs/${job.job}`);
-    const answer = json(source);
-    const description = answer.description ?? {};
-    return {
-      questions: await call("parseQuestions", "rippling", source),
-      posting: { id: job.job, company: oneLine(answer.companyName), title: oneLine(answer.name) },
-      text: postingText([description.company, description.role].filter(Boolean).join("\n")),
-    };
-  },
-
-  async workable({ job, call, fetchText }) {
-    const source = await fetchText(`${WORKABLE_API}/v1/jobs/${job.shortcode}/form`);
-    const posting = await optional(async () => json(await fetchText(`${WORKABLE_API}/v2/accounts/${job.account}/jobs/${job.shortcode}`)), {});
-    const account = await optional(async () => json(await fetchText(`${WORKABLE_API}/v1/accounts/${job.account}`)), {});
-    return {
-      questions: await call("parseQuestions", "workable", source),
-      posting: { id: job.shortcode, company: account.name ?? "", title: posting.title ?? "" },
-      text: postingText(["description", "requirements", "benefits"].map((part) => posting[part] ?? "").join("\n")),
-    };
-  },
-
-  async eightfold({ job, url, call, fetchText }) {
-    const { host } = new URL(url);
-    const posting = await optional(async () => json(await fetchText(`https://${host}/api/apply/v2/jobs/${job.pid}`)), {});
-    const company = EIGHTFOLD_COMPANIES[host] ?? host.split(".")[0].replace(/-/g, " ").replace(/\b\w/g, (c) => c.toUpperCase());
-    return {
-      questions: await call("readQuestions", "eightfold"),
-      posting: { id: job.pid, company, title: oneLine(posting.name) },
-      text: postingText(posting.job_description),
-    };
-  },
-
-  async workday({ job, url, call, fetchText, state }) {
+async function readQuestions({ job, url, call, fetchText, state }) {
+  if (job.site === "workday") {
     const shown = await call("readQuestions", "workday", state ?? { tenant: job.tenant, trees: {} });
-    const posting = await optional(async () => json(await fetchText(workdayJobApi(url))), {});
-    const info = posting.jobPostingInfo ?? {};
-    return {
-      questions: shown.questions,
-      // Workday names a legal entity, not the company ("02 CACI, INC.-FEDERAL", live): its leading code is dropped.
-      posting: { id: info.jobReqId ?? "", company: oneLine(posting.hiringOrganization?.name).replace(/^\d+\s+/, ""), title: oneLine(info.title) },
-      text: postingText(info.jobDescription),
-      step: { name: shown.step, sections: shown.sections, sends: shown.sends, review: shown.review, wentWrong: Boolean(shown.wentWrong) },
-      state: shown.state,
-    };
-  },
-};
-
-/** The JSON a Workday job page loads (Workday's CXS API, public): `<tenant>.wdN.myworkdayjobs.com/[<locale>/]<site>/job/...`, or `myworkdaysite.com/recruiting/<tenant>/<site>/job/...`. */
-function workdayJobApi(url) {
-  const { origin, hostname, pathname } = new URL(url);
-  const path = pathname.split("/").filter(Boolean);
-  const job = path.indexOf("job");
-  if (job < 0) throw new Error("not a Workday job's page");
-  const board = path.includes("recruiting") ? path.slice(path.indexOf("recruiting") + 1, job) : [hostname.split(".")[0], path[job - 1]];
-  const rest = path.slice(job);
-  const apply = rest.findIndex((part) => part.startsWith("apply"));
-  return `${origin}/wday/cxs/${[...board, ...(apply < 0 ? rest : rest.slice(0, apply))].join("/")}`;
+    const step = { name: shown.step, sections: shown.sections, sends: shown.sends, review: shown.review, wentWrong: Boolean(shown.wentWrong) };
+    return { questions: shown.questions, step, state: shown.state };
+  }
+  if (job.site === "eightfold") return { questions: await call("readQuestions", "eightfold") };
+  try {
+    return { questions: await engine.questionSet(url, fetchText) };
+  } catch (error) {
+    if (job.site !== "ashby") throw error;
+    return { questions: await call("readQuestions", "ashby") };
+  }
 }
 
 /**
@@ -407,9 +214,10 @@ function workdayJobApi(url) {
  * (with `extra`, the questions earlier fills brought on), and the engine's
  * Plan for the WorkIt profile, with file answers holding their bytes, cut
  * into the units it is filled in (`fillUnits`) and the rows the overlay lists
- * besides (`planRows`). On a page the engine doesn't cover, `{ covered: false }`
- * and nothing is fetched; on a job's page that isn't its form, `openForm`.
- * On Workday it is the step shown, with `step` and the engine's `state`.
+ * besides (`planRows`). On a page
+ * the engine doesn't cover, `{ covered: false }` and nothing is fetched; on a
+ * job's page that isn't its form, `openForm`. On Workday it is the step
+ * shown, with `step` and the engine's `state`.
  * @param {{
  *   url: string, profile: import("../shared/types.js").AutofillProfile, today: string,
  *   call: (name: string, ...args: unknown[]) => Promise<any>,
@@ -422,13 +230,16 @@ export async function planFill({ url, profile, today, call, fetchText, extra = [
   if (!job) return { covered: false };
   const { site } = job;
   if (!job.onForm) return { covered: true, site, openForm: job.form };
-  const read = await READERS[site]({ job, url, call, fetchText, state });
+  const fetchOnce = once(fetchText);
+  const read = await readQuestions({ job, url, call, fetchText: fetchOnce, state });
   const known = new Set(read.questions.map((q) => q.name));
   const questions = [...read.questions, ...extra.filter((q) => !known.has(q.name))];
-  const posting = { ...read.posting, url };
+  const names = await optional(() => engine.jobNames(url, fetchOnce), { company: "", title: "" });
+  const text = engine.textOf(await optional(() => engine.jobDescription(url, fetchOnce), ""));
+  const posting = { id: String(job.job ?? job.shortcode ?? job.pid ?? url), ...names, url };
   const plan = questions.length
-    ? await call("plan", questions, engineProfile(profile), POLICIES, {}, { posting, today, postingText: read.text, employerText: read.text })
-    : { answers: {}, essays: [], drafts: [], missing: [], handoffs: [] };
+    ? engine.plan(questions, engineProfile(profile), POLICIES, {}, { posting, today, postingText: text, employerText: text })
+    : { answers: {}, essays: [], drafts: [], missing: [], handoffs: [], accepted: {} };
   const answers = withFiles(plan.answers, profile);
   const prepared = { covered: true, site, posting, questions, plan, answers, applicantId: profile.id, step: read.step, state: read.state };
   return { ...prepared, units: fillUnits(prepared), rows: planRows(prepared) };
