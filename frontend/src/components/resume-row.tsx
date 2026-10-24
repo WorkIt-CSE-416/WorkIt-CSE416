@@ -1,6 +1,7 @@
 "use client";
 
 import { FileArrowDownIcon, StarIcon } from "@phosphor-icons/react/ssr";
+import Link from "next/link";
 
 import { LocalDate } from "@/app/(seeker)/local-time";
 import { PdfIcon, PencilIcon, TrashIcon } from "@/components/icons";
@@ -56,9 +57,11 @@ export function PrimaryStar({
 /**
  * One uploaded resume, with its primary, Rename, Download and delete
  * actions. The whole card is one target, as a built resume's is
- * (KAN-268): the name's button stretches over it (`after:inset-0`) and
- * previews the file, the icons sit above that, and the card lifts under
- * the pointer (`docs/motion.md`). An eye button previewed it until then.
+ * (KAN-268): the name's link stretches over it (`after:inset-0`) and
+ * opens the upload's own page (`href`, /resumes/uploaded/[id], KAN-366),
+ * the icons sit above that, and the card lifts under the pointer
+ * (`docs/motion.md`). It opened the file's Storage link in a new tab
+ * until KAN-366, and an eye button did that before KAN-268.
  * It shows no status badge (KAN-268): "Ready" on every row told the
  * student nothing, and a reading that found nothing already says so in
  * the note under the dropzone.
@@ -69,13 +72,14 @@ export function PrimaryStar({
  * newer version is a delete and an upload, which leaves the bank the same.
  *
  * The Resumes view passes every action. A screen that only shows a resume passes
- * onPreview alone: the primary's star still marks it, but there is no star
+ * href alone: the primary's star still marks it, but there is no star
  * to click, no rename, no download and no delete.
  */
 type ResumeRowProps = {
   resume: ResumeItem;
   deleting?: boolean;
-  onPreview: () => void;
+  /** The upload's page, which the whole card opens. */
+  href: string;
   onMakePrimary?: () => void;
   onRename?: () => void;
   onDownload?: () => void;
@@ -85,15 +89,13 @@ type ResumeRowProps = {
 export function ResumeRow({
   resume,
   deleting = false,
-  onPreview,
+  href,
   onMakePrimary,
   onRename,
   onDownload,
   onDelete,
 }: ResumeRowProps) {
   const name = resume.original_filename ?? "Resume";
-  // A browser shows a PDF itself; a DOCX it can only download.
-  const action = resume.storage_path.endsWith(".pdf") ? "Preview" : "Download";
 
   return (
     <div
@@ -105,14 +107,12 @@ export function ResumeRow({
     >
       <PdfIcon className="size-5 shrink-0" />
       <div className="min-w-0 flex-1">
-        <button
-          type="button"
-          aria-label={`${action} ${name}`}
-          onClick={onPreview}
-          className="text-label text-ink after:rounded-control focus-visible:after:ring-brand-ring block w-full cursor-pointer truncate text-left after:absolute after:inset-0 focus-visible:outline-none focus-visible:after:ring-2"
+        <Link
+          href={href}
+          className="text-label text-ink after:rounded-control focus-visible:after:ring-brand-ring block truncate after:absolute after:inset-0 focus-visible:outline-none focus-visible:after:ring-2"
         >
           {name}
-        </button>
+        </Link>
         {/* The upload's local day, swapped in after hydration: the server
             renders the list too, in UTC (#418 on /resumes, 2026-10-22). */}
         <p className="text-note text-ink-meta">
