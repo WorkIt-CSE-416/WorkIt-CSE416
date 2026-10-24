@@ -661,7 +661,11 @@ Find files with a directory listing; these are the rules for where code goes.
   `routers/bank.py`, KAN-343 added a use of it, each passed alone, and the
   merged `main` raised NameError on every Add under a resume pick
   (2026-10-24). Merge `main` into the branch and run `uv run ruff check .`
-  first; F821 catches it.
+  first; F821 catches it. The same goes the other way: two fixes for that
+  bug merged ten seconds apart, one restoring the import and one moving
+  the query out (`queries/bank.py`'s `owned_upload_id`), and `main` then
+  failed lint on the unused import (F401). Check `main` once more right
+  before pressing Merge.
 - **The app starts with no credentials.** `/health` works without the root
   `.env`; only `/health/db` and routes that read real data need it. That lets
   someone work on one half without the other, and makes a failure point at one
