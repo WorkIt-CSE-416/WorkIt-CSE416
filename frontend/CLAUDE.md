@@ -1233,13 +1233,33 @@ are in `docs/auth.md`.
   a second copy of an upload's facts to edit. Two editors of the same facts
   drift apart, and built resumes read the bank. Every screen that reports an
   import says it with `lib/import-summary.ts`, from the `bank` of an upload
-  or an Import Updated Resume, or Import Again's response. An upload's row
-  on the Resumes view offers Import Updated Resume (a newer file for that
-  row), never a re-read of the stored file, which only ever read the same
-  text. "Read It With
+  or a replace (the resume picker's, at the limit), or Import Again's
+  response. A newer version of an upload is a delete and an upload: the
+  Resumes view's row offered Import Updated Resume until KAN-362, and never
+  a re-read of the stored file, which only ever read the same text. "Read It With
   AI" (KAN-222) runs only on a click, never on its own, and shows only
   while `uses_left` is above 0; a failed reading writes nothing and says
   why.
+- **The Resumes view is one list of every resume** (KAN-362,
+  `(seeker)/resumes/built-resumes.tsx`): uploaded, generated and tailored,
+  newest first, each as its card (`components/resume-row.tsx`'s box, star
+  and icons: star, Rename, Download, Delete), in one card that scrolls
+  inside itself at `max-h-scroll-box` (`resume-list.tsx`). **It is laid
+  out as the Applications Tracker is**, so keep the two alike: the search
+  on its own row, then the Type filter (`FieldFacet`, the Applications
+  list's dropdown, in `?type=`) with Upload Resume and Generate Resume at
+  the right, both above the list, and `EmptyState` in the list's place
+  when no card shows. Upload Resume and Generate Resume never sit in the
+  shared header. A card says what it is in its own line ("Uploaded …",
+  "Last edited … · For <posting>"), so the list needs no Type or date
+  column: two table versions came first in KAN-362, one with Type and
+  Last Edited columns and sort headings, one with each row's icons in a
+  `⋯` menu, and the user found the columns useless beside the cards and
+  the menu hid the actions students use. Three views behind pills, then
+  tabs, came before that: each split one list though every card acts
+  alike, and a student had to look in three places for their latest
+  resume. The resume picker still splits Generated (base and tailored)
+  from Uploaded; whether it takes a Type filter too is open.
 - **The Experiences view shows one resume at a time** (KAN-343, ADR 0005,
   `../docs/bank_by_resume.md`): a Showing bar names the pick, and its
   Change Resume opens the shared resume table (KAN-361,

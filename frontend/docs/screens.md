@@ -271,7 +271,7 @@ a signed-in applicant who has not marked the job the same click opens
 Pick a Resume would have picked (tailored, else the default). Yes, I
 Applied stays off, under "Loading your resumes…", until that list is in:
 before it, the pick is only a guess. **Sent a Different Resume?** under the
-lists is the Resumes page's own dropzone (`ResumeUpload`) and upload
+lists is the dropzone the Resumes page had until KAN-362 (`ResumeUpload`) and upload
 (`uploadResume`, which reads it into Experiences as any upload does): the
 new resume is picked once the list reloads, and a duplicate picks the one
 it matched, saying "Duplicate Resume found: <name>". **At the 5-upload
@@ -1287,8 +1287,8 @@ experience bank). Both draw one header (`resumes/header.tsx`; it stays
 beside the Resumes view though `/bank` imports it too, since the two routes
 are one page's views, not two consumers), laid out as the Dashboard's is: the view's own title and line on the left ("Resumes",
 "Experiences"), and at the top right, level with the foot of that block, a
-segmented switcher between the two views and then the view's primary
-action, Generate Resume or Fill With Scout; on a narrow page the controls
+segmented switcher between the two views, then on Experiences its
+primary action, Fill With Scout; on a narrow page the controls
 wrap under the title. A shared "Resumes & Experiences" title on both views
 said less about where the student was. The views stay two routes, so every link to either still
 lands (the Jobs page's `/bank?import=1` included), and the switcher is plain
@@ -1640,27 +1640,50 @@ in Docs (suggested answers in the chat, not a banner).
 ## Resumes (`/resumes`)
 
 `(seeker)/resumes` (KAN-249), the other view of Resumes & Experiences: the
-resumes the bank makes and the uploads, in cards, Your Uploaded Resumes, then
-Generated Resumes, then Tailored Resumes when there is one, under the shared header with Generate Resume (it was the
-base resumes' card's own Generate). They sat in one "Your Resumes" card at the foot of the bank page
+resumes the bank makes and the uploads, under the shared header. **One
+list holds every resume** (KAN-362, `built-resumes.tsx`), newest first
+(an upload by its day, a built resume by its last edit), laid out as the
+Applications Tracker is: the search (names and postings) on its own row,
+then the **Type** filter (Uploaded, Generated, Tailored; the Applications
+list's dropdown, `FieldFacet`) with Upload Resume and Generate Resume at
+the right, then the list (below). Each resume is its card, with its own
+line saying what it is ("Uploaded Oct 21", "Last edited Oct 21 · For
+<posting>") and its star, Rename, Download and Delete. With no resume at
+all the list's place holds "No Resumes Yet"; filters that hide every
+card show "No Matching Resumes" with Clear Filters (`EmptyState`, as the
+Applications page's). The type is the URL's (`?type=uploaded,tailored`),
+moved in place and replacing the entry, so a reload or a shared link
+keeps it and a tick is not a step of Back; the search's words are the
+page's own. A Generate clears a Type filter that would hide its new
+resume. It took six shapes in KAN-362: three cards stacked one under
+another (Your Uploaded Resumes, Generated Resumes, Tailored Resumes),
+which a student with many resumes scrolled past; one card behind a pill
+switcher, under the header's own; underline tabs with counts; and the
+two tables under The list. The views split one list in three though
+every card acts alike once Import Updated Resume left the upload's card,
+and a student looking for their latest resume looked in three places.
+Generate Resume sat in the header, on every view though only generated
+resumes come from it, and the upload dropzone sat in a track beside the
+uploads. The resume picker (Job posting page) still splits Generated
+(base and tailored) from Uploaded. They sat in one "Your Resumes" card at the foot of the bank page
 until KAN-249; the spec's "the resumes page" now means this view. The
 editor lives under it (`/resumes/[resumeId]`), so the sidebar keeps the row
 lit there and the phone editor's back arrow lands here. The page needs
 the built list and the uploaded list: if either fails it
 shows "Your Resumes Aren't Loading Right Now" and a Try Again link.
 
-- **Your Uploaded Resumes** (`your-resumes.tsx`; "Your Resumes" until
-  KAN-268), the uploads, newest first, under
-  an "n of 5" badge of uploads alone (the API's limit; generated resumes
-  counted toward it until KAN-268), with the upload dropzone in a narrow track beside the
-  list from @4xl (under the heading, before the rows, below it). It held
+- **Uploaded** (Upload Resume and the upload's row are
+  `upload-resume.tsx`; the Your Uploaded Resumes card until KAN-362,
+  "Your Resumes" until KAN-268). Only uploads count toward the API's
+  limit of 5 (generated resumes counted until KAN-268): an upload past it
+  says so; an "n of 5" badge showed it until KAN-362. Upload Resume opens the
+  file picker (PDF or DOCX, under 5 MB, the dropzone's checks through
+  `resumeFileError` in `components/resume-upload.tsx`). The dropzone went
+  in KAN-362, and with it drag and drop onto the page. It held
   base resumes alone until 2026-10-18, when My Profile's Resume card moved
   in; both kinds then shared it until KAN-268, and a student could not
-  tell which resumes they had generated. With no upload it holds the grey
-  empty box: "No uploaded resumes yet".
-- **Generated Resumes** (in `built-resumes.tsx`), the base resumes
-  (KAN-207), always shown, with the same grey empty box ("No generated
-  resumes yet") until Generate makes one. It was "Base Resumes", saying
+  tell which resumes they had generated.
+- **Generated**, the base resumes (KAN-207). It was "Base Resumes", saying
   "Made from every entry in your bank" until KAN-258: students see
   "Experiences", never "bank".
   **Every change to either list reloads both** (`reload` in
@@ -1684,11 +1707,9 @@ shows "Your Resumes Aren't Loading Right Now" and a Try Again link.
   parsed content. **A file whose text the student already uploaded is
   refused** (KAN-267): nothing is kept, whenever and however the file was
   exported again, and Generate's pop-up opens, "Duplicate Resume found:
-  <name>" with OK (`resumes/duplicate-resume-dialog.tsx`). Import Updated
-  Resume refuses the text of another upload the same way (its dialog
-  closes and the pop-up opens), but takes its own row's text in a new file.
+  <name>" with OK (`resumes/duplicate-resume-dialog.tsx`).
   Intake and onboarding uploads show the message as their error line. **The upload fills the experience bank** (ADR 0003): a
-  note under the dropzone says what went in ("Added 6 entries and 2 skills
+  note under the filter row says what went in ("Added 6 entries and 2 skills
   from resume.pdf", or "WorkIt couldn't find any entries in …"), links to
   Experiences, and offers **Read It With AI** while the student has an AI
   reading left. Before KAN-240 an upload showed nothing, and its facts
@@ -1704,23 +1725,27 @@ shows "Your Resumes Aren't Loading Right Now" and a Try Again link.
   a generated resume's; `renameResume`, and the API keeps the file's
   extension on the name), **Download** (the stored file through
   `getResumeFileUrl(id, true)`, which makes even a PDF download; an upload
-  keeps no sent resume, since its file never changes), **Import Updated
-  Resume** and Delete, which asks
-  first in the line under the row, as a base resume's does. Import Updated
-  Resume names the row after its new file again. Import Updated
-  Resume opens `resumes/update-resume-dialog.tsx`: a dropzone for a newer
-  version of that file, which replaces it on the same row (`replaceResume`;
-  the row keeps its primary star and moves to the top with today's date)
-  and merges its reading into the bank. The dialog then says what went in,
-  with Read It With AI while a reading is left, and Done. It replaced
-  Import Again on the row (2026-10-18): the stored file never changes, so
-  re-reading it only said "already in your bank". The star, Rename, Import
-  Updated Resume and the delete are optional props, so a screen that only shows a
-  resume leaves them out. The `ResumeUpload` component
+  keeps no sent resume, since its file never changes) and Delete, which
+  asks first in the line under the row, as a base resume's does. **A newer
+  version of a file is a delete and an upload.** The row had **Import
+  Updated Resume** from 2026-10-18 until KAN-362, a dialog that swapped a
+  newer file onto the same row (`replaceResume`) and replaced the upload's
+  entries; KAN-362 took it off the row to keep the row to four icons. The bank ends
+  the same: deleting an upload deletes its entries and skills, and the new
+  upload brings its own (ADR 0005). Only the primary star does not carry
+  over. The resume picker's replace at the 5-upload limit (Job posting
+  page) still uses `replaceResume`. The `ResumeUpload` component
   (`src/components/resume-upload.tsx`) is a pure dropzone + file preview —
   it knows nothing about upload logic or limits.
-- **Tailored Resumes** (KAN-258), after Generated Resumes, only while
-  the student has one: each is made for one job posting with Tailor
+- **The list** (`resumes/resume-list.tsx`) is one card that scrolls
+  inside itself at one height (`max-h-scroll-box`, about five cards), as
+  Top Matches and the resume picker do, so the search and the buttons
+  stay in view however many resumes a student keeps. Two table versions
+  came first in KAN-362: one with Type and Last Edited columns and sort
+  headings, then one with each row's icons in a `⋯` menu. The columns
+  said what each card's line already says, and the menu hid the actions a
+  student uses, so the cards came back.
+- **Tailored** (KAN-258): each is made for one job posting with Tailor
   (KAN-217). They sat in Base Resumes with a Tailored tag until KAN-258,
   under a name they do not have. A tailored resume takes the star like any
   other since KAN-268 (the API refused it before); Apply and auto apply
@@ -2043,7 +2068,7 @@ signed-in line at the foot is the one 12px exception. `text-subtitle`, the answe
 own, so each answer sets its weight; without it the typed salary and search
 text came out semibold.
 
-**The resume step (KAN-275)** is the Resumes view's dropzone
+**The resume step (KAN-275)** is the dropzone the Resumes view had until KAN-362
 (`components/resume-upload.tsx`), inside the wizard so it keeps Scout's
 panel, the step rail and the footer's Back. Picking a file only holds it,
 with a Remove; Continue is disabled until one is picked, and Skip is the way

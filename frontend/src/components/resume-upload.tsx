@@ -10,6 +10,20 @@ import { cn } from "@/lib/cn";
 const ALLOWED_EXTENSIONS = [".pdf", ".docx"];
 const MAX_SIZE = 5 * 1024 * 1024;
 
+/** The file picker's filter, for a picker with no dropzone (the Resumes
+ *  page's Upload Resume, KAN-362). */
+export const RESUME_ACCEPT = ALLOWED_EXTENSIONS.join(",");
+
+/** Why a picked file cannot be a resume, or null: the dropzone's checks,
+ *  shared with Upload Resume so both say the same. */
+export function resumeFileError(file: File): string | null {
+  if (!ALLOWED_EXTENSIONS.some((ext) => file.name.toLowerCase().endsWith(ext))) {
+    return "Only PDF and DOCX files are accepted.";
+  }
+  if (file.size > MAX_SIZE) return "File must be under 5 MB.";
+  return null;
+}
+
 type ResumeUploadProps = {
   file: File | null;
   onFileChange: (file: File) => void;
@@ -31,24 +45,13 @@ export function ResumeUpload({ file, onFileChange, onRemove, busy = false }: Res
   const [fileError, setFileError] = useState<string | null>(null);
   const [dragging, setDragging] = useState(false);
 
-  function isAllowed(file: File): boolean {
-    return ALLOWED_EXTENSIONS.some((ext) => file.name.toLowerCase().endsWith(ext));
-  }
-
   // An error stays until the next valid file replaces it: one that clears
   // itself after a few seconds is gone before a slow reader reaches it.
   function handleFile(next: File) {
     if (busy) return;
-    if (!isAllowed(next)) {
-      setFileError("Only PDF and DOCX files are accepted.");
-      return;
-    }
-    if (next.size > MAX_SIZE) {
-      setFileError("File must be under 5 MB.");
-      return;
-    }
-    setFileError(null);
-    onFileChange(next);
+    const error = resumeFileError(next);
+    setFileError(error);
+    if (!error) onFileChange(next);
   }
 
   function handleSelect(event: ChangeEvent<HTMLInputElement>) {
@@ -106,7 +109,7 @@ export function ResumeUpload({ file, onFileChange, onRemove, busy = false }: Res
           Browse Files
         </Button>
       </div>
-      <input ref={inputRef} type="file" accept=".pdf,.docx" onChange={handleSelect} hidden />
+      <input ref={inputRef} type="file" accept={RESUME_ACCEPT} onChange={handleSelect} hidden />
 
       {fileError && (
         <p role="alert" className="text-meta text-danger mt-2">
