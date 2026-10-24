@@ -1218,9 +1218,14 @@ are in `docs/auth.md`.
   while `uses_left` is above 0; a failed reading writes nothing and says
   why.
 - **The Experiences view shows one resume at a time** (KAN-343, ADR 0005,
-  `../docs/bank_by_resume.md`): a dropdown of every uploaded, base and
-  tailored resume, then Not From an Upload while anything no upload owns
-  exists, opening on `?resume=`, else the starred resume, else the newest. The rules (which items a pick shows, the opening pick, the "Also
+  `../docs/bank_by_resume.md`): a Showing bar names the pick, and its
+  Change Resume opens the shared resume table (KAN-361,
+  `(seeker)/bank/resume-bar.tsx` over `(seeker)/jobs/resume-picker.tsx`'s
+  `ResumeLists`), with Not From an Upload as a link under the bar while
+  anything no upload owns exists, opening on `?resume=`, else the starred
+  resume, else the newest. A pick applies on Show Resume, never on a row
+  click, so the arrow keys can move it. The dropdown it replaced had no
+  search and cut long names short. The rules (which items a pick shows, the opening pick, the "Also
   used in" line) live in `(seeker)/bank/holdings.ts` and read only the
   API's `resume_ids`; never work out a resume's items in a component.
   Intake always gets the whole bank. Add sends the pick (`createEntry`,

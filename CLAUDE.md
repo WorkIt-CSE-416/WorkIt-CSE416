@@ -163,8 +163,10 @@ with the failure it prevents.
 - `docs/bank_by_resume.md` — KAN-343's design, built, as revised by ADR
   0005: each upload owns its own entries and skills (no merge, no
   duplicate check across resumes; an import replaces what the upload
-  owned), and the Experiences view's dropdown lists only resumes, showing
-  what the picked one owns or shows. Add saves into the picked resume.
+  owned), and the Experiences view's Showing bar picks one resume from
+  the shared resume table (KAN-361), showing what the picked one owns or
+  shows, with Not From an Upload as a link of its own. Add saves into the
+  picked resume.
   Read it before changing import, the bank's API shape or the Experiences
   view.
 - `docs/search.md` — how the Jobs page's search reads a query.
