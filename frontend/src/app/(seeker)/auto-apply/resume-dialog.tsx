@@ -12,24 +12,22 @@ import {
   DialogTitle,
 } from "@/components/shadcn/dialog";
 import { Button } from "@/components/ui/button";
-import { TextLink } from "@/components/ui/text-link";
 
 import { firstChoice, loadChoices, ResumeLists, type Choice } from "../jobs/resume-picker";
 import { chooseResume } from "./actions";
 
 /**
  * Up Next's resume picker (KAN-359): which resume one queued job goes out
- * with. The Apply dialog's own radio lists (../jobs/resume-picker.tsx:
- * Generated Resumes beside Uploaded Resumes, loadChoices for this job), so
- * a job's resume is picked the same way wherever it is picked. It opens on
- * the resume the row shows (`current`, as "built:<id>" or "uploaded:<id>"),
+ * with. The Apply dialog's own resume table (../jobs/resume-picker.tsx:
+ * Generated or Uploaded, a search, loadChoices for this job), so a job's
+ * resume is picked the same way wherever it is picked. It opens on the
+ * resume the row shows (`current`, as "built:<id>" or "uploaded:<id>"),
  * else the list's first pick. Save sends the pick (chooseResume), which the
  * API keeps as the application's sent resume, and redraws the page.
  *
- * Under the lists, two ways to a resume that isn't there yet: Tailor for
- * This Job (the job's Tailor page, where the student reviews each change:
- * a run never tailors on its own, architecture.md) and Build a New Resume
- * (Resumes & Experiences).
+ * It picks from the resumes there are, and links nowhere else: a Tailor
+ * for This Job and a Build a New Resume link under the lists were taken out
+ * (KAN-360), since the job row and the header's Manage Resumes reach both.
  */
 export function ResumeDialog({
   jobId,
@@ -104,12 +102,6 @@ export function ResumeDialog({
             onPick={setPicked}
           />
         )}
-        <p className="text-note text-ink-meta flex flex-wrap gap-x-4 gap-y-1">
-          <TextLink href={`/jobs/${encodeURIComponent(jobId)}/tailor`}>
-            Tailor for This Job
-          </TextLink>
-          <TextLink href="/resumes">Build a New Resume</TextLink>
-        </p>
         {error && <p className="text-meta text-danger">{error}</p>}
         <DialogFooter>
           <Button variant="secondary" onClick={() => onOpenChange(false)}>

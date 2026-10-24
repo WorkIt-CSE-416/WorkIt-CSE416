@@ -1010,6 +1010,10 @@ the KAN-296 cutover.
   resume picker stores a job's resume as the sent resume its application
   names; the extension does not read it yet (`docs/screens.md`, Auto
   Apply).
+  Every resume dialog (Did You Apply?, Tailor's Pick a Resume, Up Next's
+  Choose a Resume) picks through one table, `ResumeLists` in
+  `jobs/resume-picker.tsx` (KAN-360): change it there, never per dialog
+  (`docs/screens.md`, Job posting page).
   `docs/screens.md`, Applications, has the rest.
 - **A "Back" link to a dynamic page goes back in history when it can.** Next
   keeps no dynamic page for a link visit (`staleTimes.dynamic` is 0), but

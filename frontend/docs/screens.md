@@ -342,22 +342,30 @@ would change a moment after the page loads.
 When a signed-in applicant leaves for the employer's posting from Apply Now's
 dialog, by Open the Posting or Apply Without a Resume, the dialog stays open
 behind the new tab and asks "Did You Apply?". **It shows the resume they
-applied with** (KAN-267), in three sections and a button that share one choice, each
-titled as a field is (`text-label`, ink): **Generated Resumes** (built and
-tailored), **Uploaded Resumes**, **Sent a Different Resume?** (the upload,
-below), then a full-width **No Resume** button, not a section: pressed
-(the brand fill, `aria-pressed`), it is the pick and every radio above
-clears; a radio pick unpresses it. An empty section says so in one line.
-The dialog is wide (`sm:max-w-3xl`, not the default `sm:max-w-sm`), with
-Generated and Uploaded side by side from `md` up, so it fits a full-screen
-window without a scrollbar: at the default width it was a narrow column
-taller than the window. It still scrolls inside itself on a short window.
-Each section's fieldset is `min-w-0` and a long name wraps, never
-truncates: a fieldset is as wide as its content by default, so a long name
-once ran over the other column, and two resumes tailored for one company
-differ only at the end of their names. A row shows the resume's name alone: a grey
-kind line under each ("Built resume", "Uploaded file") only repeated its
-section's title, and went on the user's ask. It lists the resumes Pick a
+applied with** (KAN-267): the resume table (below), **Sent a Different
+Resume?** (the upload, below), then a full-width **No Resume** button, not
+a section: pressed (the brand fill, `aria-pressed`), it is the pick and
+every radio above clears; a radio pick unpresses it. The dialog is wide
+(`sm:max-w-3xl`, not the default `sm:max-w-sm`) and scrolls inside itself
+on a short window.
+**The resume table** (`ResumeLists` in `jobs/resume-picker.tsx`, KAN-360)
+is the one picker in all three resume dialogs: this one, Tailor's Pick a
+Resume to Tailor and Auto Apply's Choose a Resume. A switcher shows
+**Generated** (base and tailored resumes) or **Uploaded**, a search filters
+by name and by the posting a resume was tailored for, and one table
+scrolls under its own sticky head. Generated's columns are Resume, Type
+(Base or Tailored), Tailored For ("This Job" for this posting) and Last
+Edited; Uploaded's are Resume and Uploaded. The default resume carries
+the Resumes page's filled star and "Primary" (`PrimaryStar`): a badge's
+tint vanished on the picked row's. Each row starts with a radio; a click
+anywhere on the row picks it, and the arrow keys move the pick (one
+radio group). It opens on the view that holds the pick and follows a
+pick made outside it (an upload picks the new file, under Uploaded); the
+view and the search only filter, so the pick survives a switch. Names
+wrap, never truncate: two resumes tailored for one company differ only
+at the end of their names. Below `sm` the Tailored For column hides and
+its words sit under the name. Two lists side by side came first, and the
+user found them ugly once a student had a few tailored resumes. It lists the resumes Pick a
 Resume lists plus No Resume, starting on the one picked at Apply, or No
 Resume after Apply Without a Resume. The student can change it, since they
 may have attached another file on the employer's page. Yes, I Applied keeps
@@ -928,9 +936,10 @@ user removed: each queued job now shows and changes its own resume.
   and the cross. No sorting, since the order is the run's.
 - **The Resume cell is a button** (a bordered pill with a pencil): it
   opens the row's resume picker (`auto-apply/resume-dialog.tsx`), the
-  Apply dialog's own radio lists (`jobs/resume-picker.tsx`, Generated
-  beside Uploaded), opened on the row's resume, with Tailor for This Job
-  and Build a New Resume under them. Use This Resume calls `chooseResume`
+  Apply dialog's own resume table (`jobs/resume-picker.tsx`, Job posting
+  page), opened on the row's resume. It links nowhere else: Tailor for
+  This Job and Build a New Resume links under it went (KAN-360), since
+  the job and Manage Resumes reach both. Use This Resume calls `chooseResume`
   (`PUT .../applications/{job_id}/resume`), which the API keeps as a sent
   resume the application names; the run's resume step then sends that
   resume, from its current content. The cell shows that pick
@@ -1545,15 +1554,15 @@ in Docs (suggested answers in the chat, not a banner).
 - **The run waits for a click.** Each run spends one of today's 2 Tailor
   runs, so loading the page never starts one.
 - **Tailor My Resume opens Pick a Resume to Tailor** (KAN-318): the
-  posting's resumes as "Did You Apply?" lists them (Generated Resumes and
-  Uploaded Resumes, one radio group), starting on the resume tailored to
+  posting's resumes in "Did You Apply?"'s resume table (Generated or
+  Uploaded, a search, one radio group), starting on the resume tailored to
   this job, else the default, and an upload with the same limit, replace
-  step and duplicate rule. Both dialogs share `jobs/resume-picker.tsx`,
-  so a rule changed there changes both. The dialog's Tailor My Resume
+  step and duplicate rule. The three resume dialogs share
+  `jobs/resume-picker.tsx`, so a rule changed there changes all three. The dialog's Tailor My Resume
   closes it and runs; "Tailoring…" and errors show on the card. A pick
   other than this job's tailored resume warns that Done replaces it. An
   upload is read into the bank and tailored as its own entries; nothing
-  new appears under Generated Resumes. A run changes only what the picked
+  new appears under Generated. A run changes only what the picked
   resume shows: it never proposes an entry or bullet that resume hides.
 - **The keyword match** shows "12 of 18" before, and again with what the
   student has accepted, required keywords first. The second count adds
