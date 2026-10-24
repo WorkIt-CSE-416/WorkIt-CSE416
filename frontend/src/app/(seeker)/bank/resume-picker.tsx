@@ -114,11 +114,13 @@ export function ResumePicker({
               </SelectGroup>
             );
           })}
+          {/* In a group of its own, so it takes the groups' padding and
+              lines up with the resumes above it. */}
           {none && (
-            <>
+            <SelectGroup>
               <SelectSeparator />
               <SelectItem value={NONE}>Not From an Upload</SelectItem>
-            </>
+            </SelectGroup>
           )}
         </SelectContent>
       </Select>
