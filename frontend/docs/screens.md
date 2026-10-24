@@ -185,6 +185,31 @@ filters lifted into them and was cut off. The id is
 the row's UUID, and `getJobListing` reads `GET /jobs/{id}`, whose 404 (closed, a company's own, no such job) is the page's not-found.
 The page is capped at 70rem (1120px), a little wider than the other reading
 pages' `max-w-app`, which left its facts and checklist cramped (KAN-279).
+**A rail of jobs sits on its left** (KAN-297, after Cooper's job board): the
+roles the seeker last saw on /jobs or /search, in that list's order, the open
+one marked, each a link to its own page. Each rail card has the logo, title,
+company, when it was posted and its match, then the feed card's six facts in
+the feed card's own grid (`JobFactGrid` in `components/job-posting-card.tsx`,
+fed by `listingFacts`), two columns in a narrow rail and three from 448px of
+card: asked for 2026-10-22, when a card showed only the company and place.
+It lives in `jobs/layout.tsx`
+(`jobs/jobs-rail.tsx`), above the job's segment, so it stays mounted and
+scrolled where it was while the seeker opens one job after another; Tailor
+and /jobs itself draw no rail. `FeedList` writes the list as it shows it
+(`jobs/shown-list.ts`, sessionStorage `workit:shown-list`) with its own
+query and order, and the rail's Load More continues it with the same
+actions. A list over 30 minutes old is fetched again, and a job opened with
+no list (a shared link) shows the newest roles. The rail shows from
+`@4xl/main`; below that the page is as it was. Beside it the job's page
+stops at 60rem, not 70rem, and the rail takes the room past that, from 18rem
+to 40rem: 288px at a 1280px window, where the page keeps 683px. **Closing
+the menu widens only the rail**: on job pages the frame spans the whole page
+panel, taking back the --panel-gain the shell leaves around a page, and the
+rail grows by the gain, so the job's page keeps its place and width in both
+states (asked for 2026-10-22: with the menu closed, half the gain stood
+empty left of the rail). It scrolls on its own, held to the page panel's
+height by the shell's chrome (6.375rem); change that with the shell's
+padding or bar height.
 It is the mock's `JobDetailHeader` with the card's own facts
 (`listingFacts` in `listing-card.tsx`) and the employer's 40px logo and
 16px name, then one
