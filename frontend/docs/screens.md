@@ -327,9 +327,10 @@ each card, Load More's too. A stale one is harmless: a click answers the real
 stage. Back returns to the list the seeker came from: the feed, filters and all, or
 the Auto Apply page (`RememberFeed` on /jobs, /search and /auto-apply keeps
 the last one visited in sessionStorage), or the Resumes page when a
-tailored resume's posting link opened it (`rememberReturnTo`, KAN-268, set
-on the click rather than the visit, so a job opened from elsewhere after a
-look at /resumes does not go Back there). When the seeker came straight from
+tailored resume's posting link opened it, or the Dashboard when a Top
+Matches row opened it (`rememberReturnTo`, KAN-268 and KAN-342, set on the
+click rather than the visit, so a job opened from elsewhere after a look at
+/resumes or the Dashboard does not go Back there). When the seeker came straight from
 that list (`cameFrom`, (seeker)/scroll-memory.tsx), Back goes back in history
 as the browser's Back does: the router redraws the list it kept at once.
 Following the link instead is a fresh visit, which fetches the feed again and,
@@ -432,12 +433,43 @@ The archived tiles' code stays (`next-up-hero.tsx`, `up-next.tsx`,
 `getUpNext`, `waiting.tsx`, `WAITING`); a note in `dashboard/page.tsx` says
 how to bring them back. The notes below still describe them.
 
-**The Dashboard lists no jobs** (KAN-342). New Matches, a list of the
-newest postings with Apply buttons, sat under the numbers until Good
-Matches replaced New Roles: that tile opens the Jobs page in Best Match
-order, which lists the same jobs better, so the Dashboard keeps no second,
-shorter copy of the feed. The notes below that name New Matches describe
-the archived three-column layout.
+**Top Matches sits under the numbers** (KAN-342, `dashboard/top-matches.tsx`):
+the seeker's twelve best-scoring open jobs, best first, from the Best Match
+scores (`getTopMatches`, `GET /jobs/recommended?limit=12`), with no score
+floor. A new seeker's thin experience bank can score every job a Weak
+Match, and their best weak ones are still where to start; the Strong Matches
+number above counts only 80 and up. Each is a flat row in one tile: a well
+with the logo, the title (its link to the job posting page), the company,
+the match ring, when it was posted, then Save and Apply Now (the same
+dialog as everywhere, KAN-290). Tailor My Resume sat between them and was
+taken out at the user's ask: the list is for choosing what to apply to. The
+title's link (`top-match-link.tsx`) makes the job page's Back return to the
+Dashboard. **Auto Apply**, at the heading's right beside See More Matches,
+turns the list into a picker (`top-matches-list.tsx`) of the seeker's best
+matches that auto apply can fill (the same scores with `?auto_apply=true`,
+read beside the top list): the top list may hold none, since auto apply
+fills Greenhouse alone for now. Each row gets a checkbox in front, the whole
+row toggles it, and its buttons step aside; a row that already has a stage
+(queued, applied) is dimmed with it. "Add N to Queue" queues each pick
+through `queueJob`, the job's own Auto Apply button's call, then asks the
+extension to open the oldest queued job (`openNextApplication`), and a toast
+says how many went in, with View Queue. The seeker picks every job, so auto
+apply still never queues a saved job on its own. The button is off when no
+match can be auto applied to. The checkbox takes `border-ink-meta`, as
+CheckRowBox does: the vendored hairline drew the empty box at 1.19:1. See More Matches, a secondary button at the heading's
+right, opens Best Match. From `@4xl/main` the list scrolls inside the tile at
+`h-80`, about four and a half rows, with a quiet bar along the tile's edge
+and a fade at its foot; below it the list shows five rows and does not
+scroll (a box that scrolls inside a scrolling page traps the swipe), and
+below `@xl/main` Save and Apply Now take their own full-width line, since
+beside the text they squeezed the title to two words a line. The Jobs page's own cards
+were tried here first and were too tall for a glance: three filled the
+screen. With an empty bank it asks for the bank. It streams in its own
+`<Suspense>` with a skeleton in the same frame, so the numbers never wait on
+scoring. It replaced New Matches, the newest postings in posting order in
+the same scrolling frame, which went when Strong Matches replaced New Roles
+and came back ordered by fit at the user's ask. The notes below that name
+New Matches describe the archived three-column layout.
 
 **The seeker Dashboard is a bento of tiles** (KAN-173), modelled on a
 reference the user picked: white tiles with no outline on the white page
@@ -451,7 +483,7 @@ alone is capped at `max-w-dashboard` (1440px) rather than `max-w-app`.
 From `@4xl/main` (896px, not `@5xl`'s 1024: a 13-inch laptop at 100% zoom
 gives the page about 1010px and fell back to two columns of oversized
 tiles) the four numbers run across the top in a grid of their own
-(Good Matches filled violet, the only solid tile), and the tiles under them sit in
+(Strong Matches filled violet, the only solid tile), and the tiles under them sit in
 thirds. Left to right is apply, then manage: New Matches two thirds wide
 beside Next Up (a white reminder tile, its title in violet over one filled
 button) over Up Next, then Activity two thirds wide beside Waiting (three
@@ -492,24 +524,27 @@ All the Agenda; Waiting's Follow Up opens the Applications list filtered to
 Applied. That is a placeholder: it helps nobody contact anyone, and KAN-174
 (still open) plans the real flow, a list of only what has waited two weeks,
 a Scout-drafted note, a recruiter search, then marking an application
-followed up or closed once the tracker has a backend. The headline numbers are Good Matches, Saved, Applied and Interviewing
+followed up or closed once the tracker has a backend. The headline numbers are Strong Matches, Saved, Applied and Interviewing
 (`getHeadline` in `dashboard/data.ts`), all live (KAN-342). **The Tracker's
 tiles are named for its stages**, the Status filter each one opens: Applied
 was "Applications", the same word as the page it opened, and Interviewing
 was "Interviews". **The order is the search, left to right**: find, save,
-apply, hear back, as the Tracker's stages and the landing page's route run,
+apply, hear back, as the Applications Tracker's stages and the landing page's route run,
 so the left half is what is left to do and the right half how it is going
 (in the 2 x 2 grid on a phone too). Interviewing, a dash until the tracker
 stores it, sits last as the outcome, not as a gap in the middle. The order
 was Applications, New Roles, Interviews, Saved, which read out of sequence.
-**Good Matches wears the violet fill**, where the next application starts,
+**Strong Matches wears the violet fill**, where the next application starts,
 so the eye lands on the head of the search. Applied wore it until the
 reorder; the user moved it, since a seeker comes to find what to apply to
 next. A violet 0 is the cost on a week with no good matches. Applied
 counts the tracker's applications sent in the range, against the same
-length of days before it. Good Matches counts the job postings from the
-range that score Good Match (65) or better for this seeker, from the Best
-Match scores (`getGoodMatchDates`, one `GET /jobs/recommended` call with
+length of days before it. Strong Matches counts the job postings from the
+range that score Strong Match (80) or better for this seeker (it was Good
+Matches, counting from 65, until the user renamed it; the threshold moved
+with the name, so a 70% job never sits under a label its own Good Match
+badge contradicts), from the Best
+Match scores (`getMatchDates`, one `GET /jobs/recommended` call with
 `min_match` over the longest range, counted per range in `data.ts`). It
 shows no change, since a score fades with a posting's age and last week's
 postings would always count fewer; with an empty experience bank it says
@@ -520,7 +555,7 @@ drew a red change whenever employers posted less. Interviewing is a dash,
 the seeker had none. Saved counts the seeker's live saved jobs (KAN-261)
 and ignores the range. Applied and Saved show a dash when the tracker
 can't be read. **Every tile links**: a click anywhere on a tile opens the
-page that lists what it counts (the Tracker filtered to applied,
+page that lists what it counts (the Applications Tracker filtered to applied,
 interviewing or saved; the Jobs page in Best Match order, filtered to the
 week or 30 days posted). The lists take no date window, so the Applied
 list can hold more than its number. Under the pointer a tile lifts 2px onto
@@ -542,15 +577,16 @@ map, and its four numbers (Past Year, Busiest Day, the two streaks) show only
 there, each in a grey well (`--color-well`) with its dates in a tag pill, as
 the Dashboard draws every date; as open text in ink-muted under each figure
 they read as loose lines (KAN-342). A number with nothing to date says so in
-its pill ("None yet", "Apply today"), so the four keep one shape; each
-well's pill sits on its label's line and wraps under it where the well is
-narrow. **The section is one height in both views** (KAN-342): the 3D
+its pill ("None yet", "Apply today"), so the four keep one shape. Label,
+figure and pill each take a line of their own: with the pill on the
+label's line, "Apply today" wrapped under "Current Streak" alone and that
+well stood taller than the other three. **The section is one height in both views** (KAN-342): the 3D
 skyline takes the room the heat map and its numbers share, growing over the
 numbers as they fade (`--streak-h2` and the room in `streak-canvas.ts`).
 With a 3D height of its own the section swelled and shrank through each
 switch, since the canvas and the folding numbers ran on different curves,
-and in 3D it ran past the fold. The whole Dashboard fits a 1280 × 720
-window with no scroll; check that after changing its spacing. They show only
+and in 3D it ran past the fold. The page scrolls: at 1280 × 720 the numbers
+and the top of Top Matches show above the fold, and Activity follows it. Before Top Matches came back the whole page fit with no scroll. They show only
 there: the 3D skyline stands alone, with no numbers under it or in its corners. `streak-model.ts`
 is its pure maths (grid, levels, stats, camera), `streak-canvas.ts` the
 canvas engine (no React: the section mounts it once and it re-reads a ref
@@ -568,16 +604,19 @@ hydration, then on the viewer's own (`localDay`), by the same
 `useSyncExternalStore` swap as `today`. A failed tracker read draws the
 empty year with a line saying the applications aren't loading.
 
-## Applications (the Tracker)
+## Applications (the Applications Tracker)
 
-**Its name on screen is the Tracker** (KAN-342): "Tracker" in the sidebar
-and the browser tab, "Application Tracker" as its heading (the marketing
-site's name for the feature), and "Back to Tracker" on an application's
-page. It was "Applications", the word the Dashboard also used for a count,
-so the page and the number read as one thing. The URL, the folder and the
-code keep `applications`: moving the folder would collide with every open
-branch that edits the page. Say "the Tracker" in copy; a stage is one of
-Saved, Applied, Interviewing and Offer (`GLOSSARY.md`).
+**Its name on screen is the Applications Tracker** (KAN-342): in the
+sidebar, the browser tab and its heading, and "Back to Applications
+Tracker" on an application's page. It was "Applications", the word the
+Dashboard also used for a count, so the page and the number read as one
+thing; then "Tracker" in the sidebar with "Application Tracker" as its
+heading, until the user named it Applications Tracker everywhere. The
+marketing site still calls the feature "Application Tracker". The URL, the
+folder and the code keep `applications`: moving the folder would collide
+with every open branch that edits the page. Say "the Applications Tracker"
+in copy; a stage is one of Saved, Applied, Interviewing and Offer
+(`GLOSSARY.md`).
 
 /applications is the tracker: a list (the default) and a grid over
 `applications/data.ts`, every choice in the URL; a row or card opens the

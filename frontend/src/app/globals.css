@@ -465,7 +465,7 @@
   /* Board type -----------------------------------------------------------
    * A step above --text-title, which the board still uses for its column
    * headings — so the page name and the column names cannot be confused. */
-  --text-heading: 1.625rem; /* 26px — "Application Tracker" */
+  --text-heading: 1.625rem; /* 26px — "Applications Tracker" */
   --text-heading--line-height: 2rem;
   --text-heading--font-weight: 700;
   --text-heading--letter-spacing: -0.02em;
