@@ -10,25 +10,14 @@ import { formatCount } from "@/lib/format-count";
 
 import { SEEKER_GUTTER } from "../gutter";
 import { RememberFeed } from "../jobs/[jobId]/page-actions";
-import { FeedHeader } from "../jobs/feed-header";
 import { FeedTransition, PendingFeed } from "../jobs/feed-transition";
-import { JobFilters } from "../jobs/filters";
 import { getApplicationStages } from "../auto-apply/applications";
 import { FeedList } from "../jobs/feed-list";
 import { ListingsError, ListingsSkeleton } from "../jobs/listing-card";
-import {
-  feedQuery,
-  filterEntries,
-  isFiltered,
-  readFilters,
-  readQuery,
-  type FeedFilters,
-} from "../jobs/filter-query";
+import { feedQuery, NO_FILTERS, readQuery } from "../jobs/filter-query";
 import {
   getJobCount,
-  getJobFacets,
   getJobListings,
-  getJobLocations,
   getTailoredJobIds,
   isApplicant,
   type FeedPage,
@@ -45,25 +34,24 @@ export const metadata: Metadata = {
  * API reads it with the role resolver (KAN-155), so "swe intern stripe" is
  * software engineer internships at Stripe or that mention it, a typo
  * corrected, newest first (backend/app/routers/jobs.py). It draws them with the
- * feed's own list and card (../jobs/feed-list) under the feed's own filters,
- * so a role looks and acts the same whichever way it was found. The API does
- * the matching, across every job: it used to happen here, inside the 50 the
- * feed had sent, so the 51st newest role could never be found (KAN-171). A
- * page holds the first 50 matches, and Load More adds the rest.
+ * feed's own list and card (../jobs/feed-list), so a role looks and acts the
+ * same whichever way it was found. The API does the matching, across every
+ * job: it used to happen here, inside the 50 the feed had sent, so the 51st
+ * newest role could never be found (KAN-171). A page holds the first 50
+ * matches, and Load More adds the rest.
  *
- * It replaced KAN-43's mockup: a results column and a detail pane over two
- * fixtures. A scraped role has no description for a pane to show, and on a
- * phone the pane was hidden, which left a result nothing could open. Apply
- * Now on each card opens the employer's posting, as it does on /jobs.
+ * FILTERS ARE NOT APPLIED ON SEARCH (KAN-308). A search always starts with
+ * a clean slate: any filters the seeker had on /jobs are not carried here,
+ * and the filter row is not shown. The search query alone decides what
+ * matches. To narrow by location, job type or other facets, the seeker goes
+ * back to /jobs and uses the filters there.
  *
- * The heading and the filters paint at once; the count and the list stream in
- * behind placeholders in their own shape. The count is every match, not the
- * page shown, so it comes from GET /jobs/count beside the list's own request,
- * under the same filters and words. Each boundary is keyed by the query, so a
- * new search shows its placeholders straight away instead of holding the old
- * results on screen until the new ones arrive.
- *
- * The filters are the feed's own (../jobs/filter-query), sent with the words.
+ * The heading paints at once; the count and the list stream in behind
+ * placeholders in their own shape. The count is every match, not the page
+ * shown, so it comes from GET /jobs/count beside the list's own request.
+ * Each boundary is keyed by the query, so a new search shows its
+ * placeholders straight away instead of holding the old results on screen
+ * until the new ones arrive.
  */
 
 /** "128 Roles" beside the heading, every match. Nothing when there is
@@ -96,15 +84,7 @@ function ResultCountSkeleton() {
 }
 
 /** The matching roles, or the state that stands in for them. */
-async function Results({
-  results,
-  query,
-  filters,
-}: {
-  results: Promise<FeedPage>;
-  query: string;
-  filters: FeedFilters;
-}) {
+async function Results({ results, query }: { results: Promise<FeedPage>; query: string }) {
   // The seeker's applications and tailored resumes, for the cards' Auto Apply
   // and Tailor buttons, and whether Apply Now may ask "Did You Apply?" (as
   // /jobs).
@@ -116,7 +96,7 @@ async function Results({
   ]);
 
   if (error != null) {
-    const retry = new URLSearchParams([["q", query], ...filterEntries(filters)]);
+    const retry = new URLSearchParams([["q", query]]);
     return <ListingsError error={error} retryHref={`/search?${retry}`} />;
   }
 
@@ -124,7 +104,7 @@ async function Results({
     return (
       <EmptyState
         Icon={SearchIcon}
-        title={`No Roles Match “${query}”`}
+        title={`No Roles Match "${query}"`}
         className="mt-4"
         action={
           <ButtonLink href="/jobs" variant="secondary" size="sm">
@@ -132,9 +112,7 @@ async function Results({
           </ButtonLink>
         }
       >
-        {isFiltered(filters)
-          ? "Try a different title or company name, loosen a filter, or browse every role in the feed."
-          : "Try a different title or company name, or browse every role in the feed."}
+        Try a different title or company name, or browse every role in the feed.
       </EmptyState>
     );
   }
@@ -147,7 +125,7 @@ async function Results({
       <FeedList
         initial={jobs}
         more={more}
-        query={feedQuery(filters, query)}
+        query={feedQuery(NO_FILTERS, query)}
         stages={stages}
         tailored={tailored}
         canMarkApplied={canMarkApplied}
@@ -159,7 +137,6 @@ async function Results({
 export default async function SearchPage({ searchParams }: PageProps<"/search">) {
   const params = await searchParams;
   const query = readQuery(params);
-  const filters = readFilters(params);
 
   /* The heading and subtitle every state shares, at /jobs's sizes. */
   const subtitle = (
@@ -192,56 +169,29 @@ export default async function SearchPage({ searchParams }: PageProps<"/search">)
     );
   }
 
-  const results = getJobListings(filters, query);
-  const count = getJobCount(filters, query);
-  // Keys the boundaries below: a new query or a new set of filters shows the
-  // placeholders straight away.
-  const key = feedQuery(filters, query);
+  // Filters are always cleared on search (KAN-308).
+  const results = getJobListings(NO_FILTERS, query);
+  const count = getJobCount(NO_FILTERS, query);
+  const key = feedQuery(NO_FILTERS, query);
 
   return (
     <div className={cn("max-w-app mx-auto w-full flex-1 py-6", SEEKER_GUTTER)}>
       {/* So a job's page can come back to these results. */}
       <RememberFeed />
-      {/* One transition for a filter change, so the results dim the moment
-          the row starts it (../jobs/feed-transition). */}
       <FeedTransition>
-        {/* The heading and filters stay put while the results scroll, as on
-            /jobs. */}
-        <FeedHeader
-          heading={
-            <>
-              {/* The heading runs inline, so the count follows its last word however
-                  far a long query wraps it. As the end of a flex row it was pushed to
-                  the far edge whenever the heading wrapped, where it read as
-                  belonging to nothing.
-
-                  The count's slot is a fixed width (88px holds "9,999 Roles": it
-                  counts every match now, not the page shown), held
-                  whether it shows the placeholder, a count or nothing at all, so a
-                  long query wraps at the same word before and after the results land
-                  and nothing below moves. It is centred on the heading's x-height
-                  (align-middle, against the wrapper's own text-heading) rather than
-                  sitting on the baseline, where the pill hung below the heading's
-                  letters. The count is a live region, so a screen reader hears how
-                  many roles a search found once they land. */}
-              <div className="text-heading break-words">
-                <h1 className="text-heading text-ink inline">Results for “{query}”</h1>
-                <span role="status" className="ml-3 inline-flex w-22 align-middle">
-                  <Suspense key={key} fallback={<ResultCountSkeleton />}>
-                    <ResultCount count={count} />
-                  </Suspense>
-                </span>
-              </div>
-              {subtitle}
-            </>
-          }
-        >
-          <JobFilters locations={getJobLocations()} facets={getJobFacets()} filters={filters} />
-        </FeedHeader>
+        <div className="text-heading break-words">
+          <h1 className="text-heading text-ink inline">Results for &ldquo;{query}&rdquo;</h1>
+          <span role="status" className="ml-3 inline-flex w-22 align-middle">
+            <Suspense key={key} fallback={<ResultCountSkeleton />}>
+              <ResultCount count={count} />
+            </Suspense>
+          </span>
+        </div>
+        {subtitle}
 
         <PendingFeed>
           <Suspense key={key} fallback={<ListingsSkeleton />}>
-            <Results results={results} query={query} filters={filters} />
+            <Results results={results} query={query} />
           </Suspense>
         </PendingFeed>
       </FeedTransition>
