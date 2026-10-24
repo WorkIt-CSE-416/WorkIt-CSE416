@@ -455,7 +455,7 @@ class Holdings:
 
 async def load_holdings(session: AsyncSession, applicant_id: uuid.UUID) -> Holdings:
     """Every resume of the applicant, and which entries and skills each
-    holds, for the Experiences view's dropdown."""
+    holds, for the Experiences view's resume table."""
     defaults = (
         await session.execute(
             select(Applicant_Profile.default_resume_id, Applicant_Profile.default_built_resume_id)
@@ -466,7 +466,7 @@ async def load_holdings(session: AsyncSession, applicant_id: uuid.UUID) -> Holdi
     resumes = [
         BankResume(
             id=r.id, kind="uploaded", name=r.original_filename or "Uploaded resume", primary=r.id in starred,
-            created_at=r.created_at,
+            created_at=r.created_at, edited_at=r.created_at,
         )
         for r in await session.execute(
             select(Resume.id, Resume.original_filename, Resume.created_at)
@@ -475,7 +475,10 @@ async def load_holdings(session: AsyncSession, applicant_id: uuid.UUID) -> Holdi
         )
     ]
     for r in await session.execute(
-        select(Built_Resume.id, Built_Resume.name, Built_Resume.created_at, Job_Post.title, Job_Post.company_name)
+        select(
+            Built_Resume.id, Built_Resume.name, Built_Resume.created_at, Built_Resume.updated_at,
+            Job_Post.title, Job_Post.company_name,
+        )
         .outerjoin(Job_Post, Job_Post.id == Built_Resume.job_posting_id)
         .where(Built_Resume.applicant_id == applicant_id)
         # Base resumes (no posting) first, then tailored, each newest first.
@@ -484,7 +487,7 @@ async def load_holdings(session: AsyncSession, applicant_id: uuid.UUID) -> Holdi
         posting = None if r.title is None else f"{r.title} at {r.company_name}" if r.company_name else r.title
         resumes.append(BankResume(
             id=r.id, kind="base" if r.title is None else "tailored", name=r.name, posting=posting,
-            primary=r.id in starred, created_at=r.created_at,
+            primary=r.id in starred, created_at=r.created_at, edited_at=r.updated_at,
         ))
 
     order = {r.id: i for i, r in enumerate(resumes)}

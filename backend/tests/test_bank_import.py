@@ -533,6 +533,8 @@ async def test_each_upload_owns_what_it_read_and_shares_nothing(student, upload)
     assert [(r["id"], r["kind"], r["name"], r["primary"]) for r in saved["resumes"]] == [
         (b, "uploaded", "resume-b.pdf", False), (a, "uploaded", "resume.pdf", True),
     ]
+    # An upload's table date is its upload time (KAN-361).
+    assert all(r["edited_at"] == r["created_at"] for r in saved["resumes"])
     held = _held(saved)
     # The internship and MATLAB are on both uploads: one row each, per upload.
     assert [ids for name, ids in held if name == "Mechanical Engineering Intern"] in ([[a], [b]], [[b], [a]])

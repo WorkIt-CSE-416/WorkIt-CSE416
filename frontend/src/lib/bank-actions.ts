@@ -57,6 +57,9 @@ export type BankResume = {
   posting: string | null;
   primary: boolean;
   created_at: string;
+  /** The resume table's date (KAN-361): a built resume's last edit, an
+   *  upload's upload time. */
+  edited_at: string;
 };
 /** Entries in section order, ongoing first and then newest. `resumes`:
  *  uploads, then base, then tailored resumes, each newest first. */

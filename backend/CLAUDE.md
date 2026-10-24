@@ -656,7 +656,15 @@ Find files with a directory listing; these are the rules for where code goes.
   lazy loading fails in async code with `MissingGreenlet`: load relationships
   explicitly with `selectinload()`.
 - **Comments explain why.** A non-obvious setting gets a sentence on what
-  breaks without it.
+  breaks without it. Moving code to another layer moves its comments with
+  it: KAN-260's move out of the routers dropped about twenty, put back in
+  a follow-up.
+- **A PR that removes imports is checked against today's main before it
+  merges.** CI runs on the PR's own head: KAN-260 dropped `select` from
+  `routers/bank.py`, KAN-343 added a use of it, each passed alone, and the
+  merged `main` raised NameError on every Add under a resume pick
+  (2026-10-24). Merge `main` into the branch and run `uv run ruff check .`
+  first; F821 catches it.
 - **The app starts with no credentials.** `/health` works without the root
   `.env`; only `/health/db` and routes that read real data need it. That lets
   someone work on one half without the other, and makes a failure point at one
