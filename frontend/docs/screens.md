@@ -918,7 +918,7 @@ the page's own; a return visit starts idle, so Start queues another batch.
 
 **Jobs lead the page** (KAN-359): the heading with **Manage Resumes** (a
 secondary button to Resumes & Experiences) beside Start Auto Apply, then
-**Up Next** and **History**. It opened with a "Resume List" table of every
+**Up Next**, and nothing else for now. It opened with a "Resume List" table of every
 resume until KAN-359, then a line naming the default resume, which the
 user removed: each queued job now shows and changes its own resume.
 
@@ -954,10 +954,15 @@ user removed: each queued job now shows and changes its own resume.
   is no "auto apply all saved jobs": the seeker picks each one. It was a
   Ready to Queue section under Up Next, which the user found redundant
   beside the saved jobs, and before that the Tracker's Saved view.
-- **History**: Live Activity's table for everything past the queue (needs
-  you, applied, skipped), with the Status filter offering only those.
+- **History is archived for now** (its code kept, `auto-apply/live-activity.tsx`
+  and the table's "history" variant): an applied job is on the
+  Applications Tracker already, so the table only repeated it, and a
+  skipped one needs nothing. **Needs-you jobs moved into Up Next**
+  (Couldn't Finish, "Finish it on the job's page"): they wait on the
+  seeker, and the Tracker doesn't list them. `auto-apply/page.tsx` says how
+  to bring History back.
 
-**Up Next and History are live: the seeker's applications from the API**
+**Up Next is live: the seeker's applications from the API**
 (`auto-apply/applications.ts`, `GET /applicants/{id}/applications`, with
 `scored=true` for the Match column, as the Applications page reads it). By
 default in queue order: the oldest queued first, the job the extension

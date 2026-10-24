@@ -2,7 +2,6 @@ import { CloudSlashIcon } from "@phosphor-icons/react/ssr";
 import type { Metadata } from "next";
 
 import { EmptyState } from "@/components/ui/empty-state";
-import { SectionHeading } from "@/components/ui/section-heading";
 import { listBuiltResumes } from "@/lib/built-resume-actions";
 import { cn } from "@/lib/cn";
 import { listResumes } from "@/lib/resume-actions";
@@ -12,7 +11,6 @@ import { RememberFeed } from "../jobs/[jobId]/page-actions";
 import { activityOf } from "./activity-list";
 import { getApplications, getRunApplications } from "./applications";
 import { AutoApplyPanel } from "./auto-apply-panel";
-import { LiveActivity } from "./live-activity";
 import type { SavedJob } from "./add-jobs-dialog";
 import { UpNext } from "./up-next";
 
@@ -31,9 +29,17 @@ export const metadata: Metadata = {
  *
  *   Up Next    the queue in the order the extension takes it, each job
  *              with the resume it will go out with, which a click on it
- *              changes, and Add Jobs to queue saved ones (./up-next.tsx)
- *   History    what happened: needs you, applied, skipped, filtered by
- *              status and sorted from the URL (./live-activity.tsx)
+ *              changes, and Add Jobs to queue saved ones (./up-next.tsx).
+ *              Needs-you jobs stay in it, since they wait on the seeker.
+ *
+ * HISTORY IS ARCHIVED FOR NOW (KAN-359), its code kept: an applied job is
+ * on the Applications Tracker already, so the table only repeated it, and
+ * a skipped one needs nothing. A needs-you job does need the seeker and the
+ * Tracker doesn't list it, so it moved to Up Next rather than going. To
+ * bring History back, render <LiveActivity items={history} /> (where
+ * `history` is the items that are neither queued nor needs you) in a
+ * section after Up Next; ./live-activity.tsx and the table's "history"
+ * variant (./activity-list.tsx) are as they were.
  *
  * It opened with a Resume List of every resume until KAN-359; the page is
  * about which jobs go out, so jobs lead it.
@@ -93,8 +99,8 @@ export default async function AutoApplyPage() {
         return { ...activityOf(application), resume: resume.name, resumeKey: resume.key };
       })
     : [];
-  const queue = items.filter((item) => item.status === "queued");
-  const history = items.filter((item) => item.status !== "queued");
+  // Up Next: queued jobs and needs-you ones, which wait on the seeker too.
+  const queue = items.filter((item) => item.status === "queued" || item.status === "failed");
 
   const savedJobs: SavedJob[] = (saved.applications ?? []).map(({ job, match }) => ({
     id: job.id,
@@ -120,16 +126,7 @@ export default async function AutoApplyPage() {
             We couldn&apos;t reach your applications. Refresh the page in a few minutes.
           </EmptyState>
         ) : (
-          <>
-            <UpNext items={queue} saved={savedJobs} />
-
-            {history.length > 0 && (
-              <section aria-labelledby="history" className="mt-10">
-                <SectionHeading id="history">History</SectionHeading>
-                <LiveActivity items={history} />
-              </section>
-            )}
-          </>
+          <UpNext items={queue} saved={savedJobs} />
         )}
       </AutoApplyPanel>
     </div>

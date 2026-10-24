@@ -15,7 +15,9 @@ import { ResumeDialog } from "./resume-dialog";
 
 /**
  * Up Next (KAN-359): the queue, in the order the extension takes it (oldest
- * first), with Add Jobs at the heading's right.
+ * first), with Add Jobs at the heading's right. Needs-you jobs (Couldn't
+ * Finish) stay in it too: they wait on the seeker, and with History
+ * archived (./page.tsx) no other table lists them.
  *
  * Live Activity's table in its "queue" variant (./activity-list.tsx): Role,
  * Status, Resume, Match, Date Added and the cross, with no sorting, since
