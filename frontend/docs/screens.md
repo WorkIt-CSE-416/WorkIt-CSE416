@@ -169,6 +169,20 @@ the text by typing does not leave: the field's cross is told apart by its
 input event having no inputType (search/query-field.tsx), so backspacing to
 type a new search stays on the results.
 
+**A search's own filters show as chips** (KAN-308). The API reads some of a
+search's words as filters: "remote" is the Remote work style, "intern" the
+internships, "new grad" Entry Level / New Grad, "summer 2027" or "2027" a
+start term (`docs/search.md`). They narrow the results as the row does, but
+the row never showed them, so "remote" with Hybrid ticked found nothing and
+nothing on the page said why. Above the results, "Your search also filters
+by" lists each as a pressed chip in the row's words (search/search-facts.tsx,
+GET /jobs/search-facts). Its cross is a link to the same search without the
+words that set it, the row's filters kept; when those words were the whole
+search, it goes to /jobs under the same filters. Chips, not ticks in the
+row: a fact also matches a title that says it ("Remote", "Summer 2027"), a
+little more than the row's filter does. They arrive with the results, not
+with the heading, so they never push a list already on screen.
+
 Every seeker page goes back to where it was scrolled on a return: the browser's
 Back or Forward, or a job page's "Back" (restoreScrollOn). (seeker)/scroll-memory.tsx
 keeps each address's position, since the shell scrolls its <main> and not the
