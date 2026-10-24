@@ -1,7 +1,7 @@
 "use client";
 
 import { PencilSimpleIcon, PlusIcon, TrashIcon, XIcon } from "@phosphor-icons/react/ssr";
-import { useEffect, useRef, useState, type FormEvent, type ReactNode } from "react";
+import { useEffect, useMemo, useRef, useState, type FormEvent, type ReactNode } from "react";
 
 import { setScoutOpen, useScout } from "@/components/scout/scout-store";
 import { ScoutTakeover } from "@/components/scout/scout-takeover";
@@ -28,7 +28,7 @@ import {
 import { DeleteConfirm } from "../resumes/delete-confirm";
 import { EntryEditor } from "./entry-editor";
 import { editSteps } from "./entry-save";
-import { holderOf, openingPick, shows, usedIn, type Pick } from "./holdings";
+import { holderOf, NONE, openingPick, shows, uploadIds, usedIn, type Pick } from "./holdings";
 import { Intake, type IntakeFocus } from "./intake";
 import {
   draftOf,
@@ -60,9 +60,11 @@ import { ResumePicker } from "./resume-picker";
  * entries and skills at a time: it opens on the URL's `?resume=`, else the
  * starred resume, else the newest. An upload's entries are its own (ADR
  * 0005); a built resume's are the ones it shows, which an entry's "Also used
- * in" line names. Add saves into the picked resume, so the new item stays in
- * view. A student with no resume sees the whole bank and no dropdown.
- * Intake always sees the whole bank.
+ * in" line names. Not From an Upload shows what no upload owns, so nothing
+ * in the bank is out of reach. Add saves into the picked resume (or into no
+ * upload, under Not From an Upload), so the new item stays in view. A
+ * student with no resume sees the whole bank and no dropdown. Intake always
+ * sees the whole bank.
  */
 
 type Editing = { kind: "new"; section: Section } | { kind: "edit"; entry: BankEntry } | null;
@@ -74,7 +76,7 @@ export function BankScreen({
 }: {
   initial: Bank;
   autoImport?: boolean;
-  /** The URL's `?resume=`: a resume id. */
+  /** The URL's `?resume=`: a resume id or "none". */
   resumeParam?: string;
 }) {
   const [bank, setBank] = useState(initial);
@@ -92,11 +94,16 @@ export function BankScreen({
   const scoutOpen = useScout().open;
   const marked = scoutOpen ? focus : null;
 
+  const uploads = useMemo(() => uploadIds(bank.resumes), [bank.resumes]);
   // A resume deleted since the pick reads as the page's opening pick.
-  const current = bank.resumes.some((r) => r.id === pick)
-    ? pick
-    : openingPick(bank.resumes, undefined);
+  const current =
+    (pick === NONE && bank.resumes.length > 0) || bank.resumes.some((r) => r.id === pick)
+      ? pick
+      : openingPick(bank.resumes, undefined);
   const picked = bank.resumes.find((r) => r.id === current) ?? null;
+  const anyUnowned =
+    bank.entries.some((e) => shows(NONE, e, uploads)) ||
+    bank.skills.some((s) => shows(NONE, s, uploads));
   const ownsNothing =
     picked?.kind === "uploaded" &&
     !bank.entries.some((e) => e.resume_ids.includes(picked.id)) &&
@@ -114,11 +121,11 @@ export function BankScreen({
   }, [pick]);
 
   // Scout works on the whole bank: an entry it visits that the pick hides
-  // switches the page to a resume that holds it, so the mark and the scroll
-  // land. One no resume holds stays hidden, and the pick stays.
+  // switches the page to a resume that holds it, or to Not From an Upload,
+  // so the mark and the scroll land.
   const markedEntryRow = bank.entries.find((e) => e.id === marked?.entryId);
   const holder =
-    markedEntryRow && !shows(current, markedEntryRow)
+    markedEntryRow && !shows(current, markedEntryRow, uploads)
       ? holderOf(markedEntryRow, bank.resumes)
       : null;
   // Set during render, as React's "adjusting state when a prop changes"
@@ -233,7 +240,12 @@ export function BankScreen({
         />
       </ScoutTakeover>
       {bank.resumes.length > 0 && (
-        <ResumePicker resumes={bank.resumes} value={current} onChange={setPick} />
+        <ResumePicker
+          resumes={bank.resumes}
+          value={current}
+          showNone={anyUnowned}
+          onChange={setPick}
+        />
       )}
       {pageError && (
         <p role="alert" className="text-note text-danger">
@@ -242,7 +254,9 @@ export function BankScreen({
       )}
       {picked && ownsNothing && <LinkUpload resumeId={picked.id} reload={reload} />}
       {SECTIONS.map((section) => {
-        const entries = bank.entries.filter((e) => e.section === section.id && shows(current, e));
+        const entries = bank.entries.filter(
+          (e) => e.section === section.id && shows(current, e, uploads),
+        );
         const adding = editing?.kind === "new" && editing.section === section.id;
         const here = marked?.section === section.id ? marked : null;
         return (
@@ -320,7 +334,7 @@ export function BankScreen({
       })}
 
       <SkillsCard
-        skills={bank.skills.filter((s) => shows(current, s))}
+        skills={bank.skills.filter((s) => shows(current, s, uploads))}
         resumeId={picked?.id}
         reload={reload}
       />

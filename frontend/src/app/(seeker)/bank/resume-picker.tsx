@@ -16,7 +16,7 @@ import { FIELD_CONTROL, FIELD_LABEL } from "@/components/ui/text-field";
 import type { BankResume } from "@/lib/bank-actions";
 import { cn } from "@/lib/cn";
 
-import type { Pick } from "./holdings";
+import { NONE, type Pick } from "./holdings";
 
 const GROUPS: { label: string; kinds: BankResume["kind"][] }[] = [
   { label: "Uploaded", kinds: ["uploaded"] },
@@ -30,20 +30,27 @@ function label(resume: BankResume): string {
 /**
  * The Experiences view's resume dropdown (KAN-343): every uploaded and built
  * resume, grouped, in the API's order, the starred one marked as on the
- * Resumes view. Resumes only: All Experiences and Not From an Upload went
- * with ADR 0005. Drawn as <SelectField>'s trigger is, with its label beside
- * it.
+ * Resumes view, then Not From an Upload while anything no upload owns
+ * exists (or it is the pick). All Experiences went with ADR 0005. Drawn as
+ * <SelectField>'s trigger is, with its label beside it.
  */
 export function ResumePicker({
   resumes,
   value,
+  showNone,
   onChange,
 }: {
   resumes: BankResume[];
   value: Pick;
+  /** Whether any entry or skill is owned by no upload. */
+  showNone: boolean;
   onChange: (pick: Pick) => void;
 }) {
-  const items = resumes.map((r) => ({ value: r.id, label: label(r) }));
+  const none = showNone || value === NONE;
+  const items = [
+    ...resumes.map((r) => ({ value: r.id, label: label(r) })),
+    ...(none ? [{ value: NONE, label: "Not From an Upload" }] : []),
+  ];
   // A group with no resume is left out.
   const groups = GROUPS.map(({ label: heading, kinds }) => ({
     heading,
@@ -94,6 +101,12 @@ export function ResumePicker({
               </SelectGroup>
             );
           })}
+          {none && (
+            <>
+              <SelectSeparator />
+              <SelectItem value={NONE}>Not From an Upload</SelectItem>
+            </>
+          )}
         </SelectContent>
       </Select>
     </div>
