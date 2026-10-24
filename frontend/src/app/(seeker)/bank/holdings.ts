@@ -3,7 +3,7 @@ import type { BankResume } from "@/lib/bank-actions";
 /**
  * Which resume the Experiences view shows (KAN-343, docs/bank_by_resume.md):
  * a resume's id, NONE (Not From an Upload: what no upload owns), or ALL
- * (the whole bank) for a student with no resume, who gets no dropdown. An
+ * (the whole bank) for a student with no resume, who gets no Showing bar. An
  * item's `resume_ids` say which resumes hold it: the upload that owns it
  * (ADR 0005) and the built resumes that show it. The API fills them, so the
  * rules here only read them.
@@ -17,7 +17,7 @@ type Held = { resume_ids: string[] };
 /** The pick the page opens on: the URL's `resume` when the bank still
  *  lists it (or "none" while there is a resume), else the starred resume,
  *  else the newest resume of any kind, else the whole bank (no resumes, no
- *  dropdown). The old "all" pick names no resume, so it opens the same way. */
+ *  Showing bar). The old "all" pick names no resume, so it opens the same way. */
 export function openingPick(resumes: BankResume[], param: string | undefined): Pick {
   if (param === NONE && resumes.length > 0) return NONE;
   if (param && resumes.some((r) => r.id === param)) return param;

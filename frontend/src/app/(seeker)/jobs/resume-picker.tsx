@@ -21,7 +21,9 @@ import { LocalDate } from "../local-time";
  * a Resume (../auto-apply/resume-dialog.tsx) share: one job posting's
  * resume list and an upload with the Resumes page's rules (KAN-267), so
  * the three dialogs never drift apart on the limit, the replace step or a
- * duplicate.
+ * duplicate. The Experiences view's Choose a Resume to Show
+ * (../bank/resume-bar.tsx, KAN-361) shows its table too, with no job
+ * posting: it builds its own `Choice` rows from the bank's resumes.
  */
 
 /** One resume the student can pick: a built resume (a base resume, or one
@@ -183,7 +185,7 @@ export function ResumeLists({
                 </th>
                 {built && (
                   <>
-                    <th scope="col" className={cn(TH, "w-24")}>
+                    <th scope="col" className={cn(TH, "hidden w-24 sm:table-cell")}>
                       Type
                     </th>
                     <th scope="col" className={cn(TH, "hidden w-48 sm:table-cell")}>
@@ -231,17 +233,20 @@ export function ResumeLists({
                         Primary
                       </span>
                     )}
-                    {/* Below sm the Tailored For column hides; its words
-                        sit under the name instead. */}
-                    {built && c.tailoredFor && (
+                    {/* Below sm the Type and Tailored For columns hide; their
+                        words sit under the name instead. With Type shown, the
+                        name kept about 60px on a phone and broke mid-word
+                        (KAN-361). */}
+                    {built && (
                       <span className="text-ink-meta mt-0.5 block break-words sm:hidden">
-                        {c.forThisJob ? <ThisJob /> : c.tailoredFor}
+                        {c.type}
+                        {c.tailoredFor && <> · {c.forThisJob ? <ThisJob /> : c.tailoredFor}</>}
                       </span>
                     )}
                   </td>
                   {built && (
                     <>
-                      <td className={TD}>{c.type}</td>
+                      <td className={cn(TD, "hidden sm:table-cell")}>{c.type}</td>
                       <td className={cn(TD, "hidden sm:table-cell")}>
                         {c.forThisJob ? <ThisJob /> : <Cell>{c.tailoredFor}</Cell>}
                       </td>

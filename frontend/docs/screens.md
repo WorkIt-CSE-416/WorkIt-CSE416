@@ -374,8 +374,10 @@ every radio above clears; a radio pick unpresses it. The dialog is wide
 (`sm:max-w-3xl`, not the default `sm:max-w-sm`) and scrolls inside itself
 on a short window.
 **The resume table** (`ResumeLists` in `jobs/resume-picker.tsx`, KAN-360)
-is the one picker in all three resume dialogs: this one, Tailor's Pick a
-Resume to Tailor and Auto Apply's Choose a Resume. A switcher shows
+is the one picker in all four resume dialogs: this one, Tailor's Pick a
+Resume to Tailor, Auto Apply's Choose a Resume and the Experiences view's
+Choose a Resume to Show (KAN-361, which builds its rows from the bank's
+resumes, with no posting). A switcher shows
 **Generated** (base and tailored resumes) or **Uploaded**, a search filters
 by name and by the posting a resume was tailored for, and one table
 scrolls under its own sticky head. Generated's columns are Resume, Type
@@ -388,8 +390,10 @@ radio group). It opens on the view that holds the pick and follows a
 pick made outside it (an upload picks the new file, under Uploaded); the
 view and the search only filter, so the pick survives a switch. Names
 wrap, never truncate: two resumes tailored for one company differ only
-at the end of their names. Below `sm` the Tailored For column hides and
-its words sit under the name. Two lists side by side came first, and the
+at the end of their names. Below `sm` the Type and Tailored For columns
+hide and their words sit under the name ("Tailored · Backend Intern at
+Initech"): with Type still shown, the name kept about 60px on a phone and
+broke mid-word (KAN-361). Two lists side by side came first, and the
 user found them ugly once a student had a few tailored resumes. It lists the resumes Pick a
 Resume lists plus No Resume, starting on the one picked at Apply, or No
 Resume after Apply Without a Resume. The student can change it, since they
