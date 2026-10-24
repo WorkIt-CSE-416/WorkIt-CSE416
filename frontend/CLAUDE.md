@@ -970,6 +970,20 @@ the KAN-296 cutover.
   `components/hover-sidebar.tsx`). A hover opens shadcn's provider over the
   page, so anything sized by the panel's width reads `useSidebarPin().pinned`,
   never shadcn's `state`, or it moves on every hover (`docs/design.md`).
+- **The seeker layout has a `@modal` slot** (KAN-364): a route opened as a
+  modal over the current page through an intercepting route, Settings
+  for now (`(seeker)/@modal/(.)settings`). A soft navigation to its address
+  opens the modal there; a hard load reaches the route's own layout, which
+  for Settings draws the same modal over the Dashboard, so Settings is a
+  modal on every way in (`docs/screens.md`, Settings). The slot's
+  `default.tsx` and `[...catchAll]/page.tsx` both render nothing: without
+  the catch-all, a link out of the modal to another seeker page would leave
+  the modal open over it, since a slot keeps what it last matched. The
+  catch-all makes every path a page to the lint's
+  `@next/next/no-html-link-for-pages`, so it flags every internal
+  `<a href>`: use `<Link>`, or, where a full reload is the point (the
+  Experiences view's Try Again), disable the rule on that line with the
+  reason.
 - **Pages render a `<div>`**, not a `<main>`: shadcn's `SidebarInset` already is
   the `<main>`. Seeker pages size off `@container/main`, never the window
   (`docs/design.md`).
