@@ -1257,8 +1257,9 @@ are in `docs/auth.md`.
   inside itself at `max-h-scroll-box` (`resume-list.tsx`). **It is laid
   out as the Applications Tracker is**, so keep the two alike: the search
   on its own row, then the Type filter (`FieldFacet`, the Applications
-  list's dropdown, in `?type=`) with Upload Resume and Generate Resume at
-  the right, both above the list, and `EmptyState` in the list's place
+  list's dropdown, in `?type=`) and the Sort dropdown (Last Edited, the
+  default; Oldest First; Name, A to Z; in `?sort=`, KAN-366) with Upload
+  Resume and Generate Resume at the right, both above the list, and `EmptyState` in the list's place
   when no card shows. Upload Resume and Generate Resume never sit in the
   shared header. A card says what it is in its own line ("Uploaded …",
   "Last edited … · For <posting>"), so the list needs no Type or date

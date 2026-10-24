@@ -1641,19 +1641,25 @@ in Docs (suggested answers in the chat, not a banner).
 
 `(seeker)/resumes` (KAN-249), the other view of Resumes & Experiences: the
 resumes the bank makes and the uploads, under the shared header. **One
-list holds every resume** (KAN-362, `built-resumes.tsx`), newest first
-(an upload by its day, a built resume by its last edit), laid out as the
+list holds every resume** (KAN-362, `built-resumes.tsx`), laid out as the
 Applications Tracker is: the search (names and postings) on its own row,
 then the **Type** filter (Uploaded, Generated, Tailored; the Applications
-list's dropdown, `FieldFacet`) with Upload Resume and Generate Resume at
-the right, then the list (below). Each resume is its card, with its own
+list's dropdown, `FieldFacet`) and the **Sort** dropdown with Upload
+Resume and Generate Resume at the right, then the list (below). Sort
+(KAN-366) is one pick of three: Last Edited, newest first and the
+default; Oldest First; Name (A to Z). An upload dates from its upload, a
+built resume from its last edit. It is drawn as the Type filter is, but
+never takes the filter's brand tint, since an order is always in force;
+it is a dropdown, not the Jobs page's Sort By pills, because the header
+already holds the Resumes or Experiences pills. Each resume is its card, with its own
 line saying what it is ("Uploaded Oct 21", "Last edited Oct 21 · For
 <posting>") and its star, Rename, Download and Delete. With no resume at
 all the list's place holds "No Resumes Yet"; filters that hide every
 card show "No Matching Resumes" with Clear Filters (`EmptyState`, as the
-Applications page's). The type is the URL's (`?type=uploaded,tailored`),
-moved in place and replacing the entry, so a reload or a shared link
-keeps it and a tick is not a step of Back; the search's words are the
+Applications page's). The type and the order are the URL's (`?type=uploaded,tailored`,
+`?sort=oldest` or `name`; Last Edited has none), moved in place and
+replacing the entry, so a reload or a shared link keeps them and a tick
+is not a step of Back; Clear Filters keeps the order; the search's words are the
 page's own. A Generate clears a Type filter that would hide its new
 resume. It took six shapes in KAN-362: three cards stacked one under
 another (Your Uploaded Resumes, Generated Resumes, Tailored Resumes),
