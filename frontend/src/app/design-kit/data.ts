@@ -346,6 +346,14 @@ export const WIDTHS: { token: string; cls: string; role: string }[] = [
   },
 ];
 
+export const HEIGHTS: { token: string; cls: string; role: string }[] = [
+  {
+    token: "--spacing-scroll-box",
+    cls: "h-scroll-box",
+    role: "A list or table that scrolls inside a dialog or a tile",
+  },
+];
+
 export const SHADOWS: { token: string; cls: string; role: string }[] = [
   { token: "--shadow-card", cls: "shadow-card", role: "Login card — 20px falloff" },
   { token: "--shadow-panel", cls: "shadow-panel", role: "App cards — a 1px halo" },

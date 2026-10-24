@@ -111,23 +111,23 @@ created_at).
 
 ## The Experiences view
 
-- **The dropdown lists resumes only**, grouped Uploaded and Built. **All
-  Experiences and Not From an Upload are removed.** The options carry no
-  counts.
+- **The dropdown lists the resumes**, grouped Uploaded and Built, **then
+  Not From an Upload** while anything no upload owns exists. **All
+  Experiences is removed.** The options carry no counts.
 - **The page opens on the primary resume**, else the newest of any kind.
   A `?resume=` that names no listed resume (a deleted one, or the old
-  `all` and `none`) opens the same way. With no resume at all, there is no
+  `all`) opens the same way; `none` opens Not From an Upload. With no resume at all, there is no
   dropdown and the page shows the whole bank.
-- **Unowned entries** show only under a built resume that shows them.
-  - **Tailor's "Have you used X?"** needs nothing more: Yes adds the skill
-    and an accepted "show skill" change, and Done shows it on the tailored
-    resume, so it appears under that resume. A Yes with no Done leaves
-    the skill in the bank and on no resume, as today.
-  - **Intake's entries** and the multi-source entries the migration left
-    unowned show nowhere until a built resume shows them. Accepted for
-    now: they still reach Generate and every reader.
-- **Add** saves into the picked resume (above, "Writes") and stays in
-  view, so the "Saved to your bank. It's under All Experiences…" notice
+- **Unowned entries** show under Not From an Upload, and under any built
+  resume that shows them.
+  - **Intake's entries**, a Tailor "Have you used X?" skill with no Done,
+    and the multi-source entries the migration left unowned land there.
+    Removing that pick (2026-10-23) left them under no pick: on
+    2026-10-24 the shared database held 96 such entries and 242 skills
+    for 8 students, which every reader still used and no student could
+    see, edit or delete. The pick came back for that.
+- **Add** saves into the picked resume (above, "Writes"), or into no
+  upload under Not From an Upload, and stays in view, so the "Saved to your bank. It's under All Experiences…" notice
   goes.
 - **"Also used in" names built resumes only.** An upload's entry is never
   on another upload, but a built resume may show it, and an edit changes
@@ -142,7 +142,7 @@ created_at).
   so the confirm names the uploads that lose them too.
 - **Scout's walk** (intake marking an entry) switched to All Experiences
   when the pick hid the entry. With that option gone, it switches to a
-  resume that holds the entry, or leaves the pick alone when none does.
+  resume that holds the entry, else to Not From an Upload.
 
 ## What changes from the first design
 
@@ -151,7 +151,7 @@ created_at).
 | `merge_import`'s merge (`find_duplicate`, `_merge_entry`) | an upload never merges |
 | `bank_entry_sources`, `bank_skill_sources`, `_add_sources`, `clear_sources` | the owner column replaces them |
 | Import Again "only adds" | it replaces the upload's entries |
-| All Experiences and Not From an Upload | the view shows one resume at a time |
+| All Experiences | the view shows one resume at a time; Not From an Upload stays for what no upload owns |
 | ADR 0003's merge rule and "delete leaves the bank" | ADR 0005 |
 
 Stays: Generate, Tailor's ranking, Scout, the recommender, intake and the
@@ -188,8 +188,9 @@ summary (`lib/import-summary.ts`) loses "filled in", since nothing merges.
    Add under an upload owns the entry, under a built resume shows it
    there; the skill index allows one name per upload; a Tailor run on an
    upload leaves its entries as they were.
-5. **Frontend**: drop All Experiences and Not From an Upload from
-   `holdings.ts` and `resume-picker.tsx`; Add sends the pick; "Also used
+5. **Frontend**: drop All Experiences from `holdings.ts` and
+   `resume-picker.tsx` (Not From an Upload was dropped too, then brought
+   back on 2026-10-24); Add sends the pick; "Also used
    in" from built resumes; the Scout switch; the import summary.
 6. **Migration 2**, after the deploy: drop the link tables.
 7. **Docs**: `backend/CLAUDE.md` and `frontend/CLAUDE.md` lose the merge

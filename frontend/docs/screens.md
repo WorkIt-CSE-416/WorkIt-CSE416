@@ -342,22 +342,30 @@ would change a moment after the page loads.
 When a signed-in applicant leaves for the employer's posting from Apply Now's
 dialog, by Open the Posting or Apply Without a Resume, the dialog stays open
 behind the new tab and asks "Did You Apply?". **It shows the resume they
-applied with** (KAN-267), in three sections and a button that share one choice, each
-titled as a field is (`text-label`, ink): **Generated Resumes** (built and
-tailored), **Uploaded Resumes**, **Sent a Different Resume?** (the upload,
-below), then a full-width **No Resume** button, not a section: pressed
-(the brand fill, `aria-pressed`), it is the pick and every radio above
-clears; a radio pick unpresses it. An empty section says so in one line.
-The dialog is wide (`sm:max-w-3xl`, not the default `sm:max-w-sm`), with
-Generated and Uploaded side by side from `md` up, so it fits a full-screen
-window without a scrollbar: at the default width it was a narrow column
-taller than the window. It still scrolls inside itself on a short window.
-Each section's fieldset is `min-w-0` and a long name wraps, never
-truncates: a fieldset is as wide as its content by default, so a long name
-once ran over the other column, and two resumes tailored for one company
-differ only at the end of their names. A row shows the resume's name alone: a grey
-kind line under each ("Built resume", "Uploaded file") only repeated its
-section's title, and went on the user's ask. It lists the resumes Pick a
+applied with** (KAN-267): the resume table (below), **Sent a Different
+Resume?** (the upload, below), then a full-width **No Resume** button, not
+a section: pressed (the brand fill, `aria-pressed`), it is the pick and
+every radio above clears; a radio pick unpresses it. The dialog is wide
+(`sm:max-w-3xl`, not the default `sm:max-w-sm`) and scrolls inside itself
+on a short window.
+**The resume table** (`ResumeLists` in `jobs/resume-picker.tsx`, KAN-360)
+is the one picker in all three resume dialogs: this one, Tailor's Pick a
+Resume to Tailor and Auto Apply's Choose a Resume. A switcher shows
+**Generated** (base and tailored resumes) or **Uploaded**, a search filters
+by name and by the posting a resume was tailored for, and one table
+scrolls under its own sticky head. Generated's columns are Resume, Type
+(Base or Tailored), Tailored For ("This Job" for this posting) and Last
+Edited; Uploaded's are Resume and Uploaded. The default resume carries
+the Resumes page's filled star and "Primary" (`PrimaryStar`): a badge's
+tint vanished on the picked row's. Each row starts with a radio; a click
+anywhere on the row picks it, and the arrow keys move the pick (one
+radio group). It opens on the view that holds the pick and follows a
+pick made outside it (an upload picks the new file, under Uploaded); the
+view and the search only filter, so the pick survives a switch. Names
+wrap, never truncate: two resumes tailored for one company differ only
+at the end of their names. Below `sm` the Tailored For column hides and
+its words sit under the name. Two lists side by side came first, and the
+user found them ugly once a student had a few tailored resumes. It lists the resumes Pick a
 Resume lists plus No Resume, starting on the one picked at Apply, or No
 Resume after Apply Without a Resume. The student can change it, since they
 may have attached another file on the employer's page. Yes, I Applied keeps
@@ -458,7 +466,8 @@ apply still never queues a saved job on its own. The button is off when no
 match can be auto applied to. The checkbox takes `border-ink-meta`, as
 CheckRowBox does: the vendored hairline drew the empty box at 1.19:1. See More Matches, a secondary button at the heading's
 right, opens Best Match. From `@4xl/main` the list scrolls inside the tile at
-`h-80`, about four and a half rows, with a quiet bar along the tile's edge
+`h-scroll-box` (320px, the token every scroll box in a dialog or tile
+shares), about four and a half rows, with a quiet bar along the tile's edge
 and a fade at its foot; below it the list shows five rows and does not
 scroll (a box that scrolls inside a scrolling page traps the swipe), and
 below `@xl/main` Save and Apply Now take their own full-width line, since
@@ -883,6 +892,7 @@ into is `auto-apply/architecture.md` at the repo root. KAN-285 redrew it:
 the run button moved into the header, and both lists became tables in the
 Applications list's frame (one white card, 12px grey headings, rules between
 rows), Live Activity with a Status filter and sorting kept in the URL.
+KAN-359 put jobs first: Up Next, Ready to Queue and History, below.
 
 **The run button is in the page's header, at the top right** (`auto-apply/
 auto-apply-panel.tsx`). It is sm (36px), a header action's size, and as
@@ -909,42 +919,60 @@ on that job stays as it is, so Start never wipes a form in progress. A tab
 the extension opens, it also fills, with the student taken to it
 (KAN-305). Pause and Resume only move
 the state. It is off until
-the Resume List has a resume (the panel holds both lists' read,
-`useResumes`, for that), and while a batch is queueing. It never waits on
+the seeker has a resume (`hasResume`, read on the server with both resume
+lists), and while a batch is queueing. It never waits on
 the tab's page load: the note says how many jobs it queued at once and adds
 the tab's result when it lands. The state (`idle`, `running`, `paused`) is
 the page's own; a return visit starts idle, so Start queues another batch.
 
-**"Resume List" is live** (`auto-apply/resume-list.tsx`). It lists every
-resume the seeker has, not one: auto apply picks a resume per application
-(the one tailored to that job posting, else the default resume, `POST
-.../applications/{job_id}/resume`; `auto-apply/architecture.md`, "The
-resume"), and a note under the heading says so. The default is one resume,
-built or uploaded (starring one clears the other), so one row at most says
-Default. It is a table: Resume (the file glyph, the name and Default
-beside it; frozen from 672px of page up), Type (Built, Tailored or
-Uploaded, as tags), Used For (a tailored resume's job, "Role at Company",
-and "Job posting closed" under it once its posting has gone; "Any job" for
-the rest) and Updated (a built resume's last edit, an upload's day), every
-column but Resume centred. It has
-no filters or sorting: a seeker has a handful of resumes. Built resumes
-(`listBuiltResumes()`) come first, then uploaded ones (`listResumes()`),
-each list's default first. **A row opens on a click anywhere**, with no
-button of its own: a built resume's goes to the resume editor, as on
-Resumes (`components/clickable-row.tsx`, its name the link); it never
-downloads here: downloads live in the editor. An uploaded
-one's previews a PDF in a new tab or downloads a DOCX (`previewResume`,
-called from the click, since the tab must open inside it; its name is the
-button a keyboard reaches). Open and Preview buttons and an amber "None is
-your default yet" line were dropped on the user's ask (2026-10-20). Manage goes to
-Resumes (`/resumes`), where uploads live too, and the empty state names
-it. Both lists load on every visit; a list that fails keeps what loaded
-and says the rest didn't.
-It replaced "Applying with Resume", which showed the primary uploaded resume
-alone because matching read it then; matching reads the experience bank now
-(KAN-212).
+**Jobs lead the page** (KAN-359): the heading with **Manage Resumes** (a
+secondary button to Resumes & Experiences) beside Start Auto Apply, then
+**Up Next**, and nothing else for now. It opened with a "Resume List" table of every
+resume until KAN-359, then a line naming the default resume, which the
+user removed: each queued job now shows and changes its own resume.
 
-**Live Activity is live: the seeker's applications from the API**
+- **Up Next** (`auto-apply/up-next.tsx`): the queue, oldest first, the
+  order the extension takes it, in Live Activity's table with its "queue"
+  columns (`QUEUE_COLUMNS`): Role, Status, **Resume**, Match, Date Added
+  and the cross. No sorting, since the order is the run's.
+- **The Resume cell is a button** (a bordered pill with a pencil): it
+  opens the row's resume picker (`auto-apply/resume-dialog.tsx`), the
+  Apply dialog's own resume table (`jobs/resume-picker.tsx`, Job posting
+  page), opened on the row's resume. It links nowhere else: Tailor for
+  This Job and Build a New Resume links under it went (KAN-360), since
+  the job and Manage Resumes reach both. Use This Resume calls `chooseResume`
+  (`PUT .../applications/{job_id}/resume`), which the API keeps as a sent
+  resume the application names; the run's resume step then sends that
+  resume, from its current content. The cell shows that pick
+  (`sent_resume`), else the run's rule, `pick_resume`, worked out in
+  `auto-apply/page.tsx` (`ruleFor`): the built resume tailored to that job
+  posting, else the default, else none. Keep `ruleFor` in step with
+  `pick_resume`. **Still open: the extension does not ask the API which
+  resume to attach**: it attaches the default resume itself
+  (`resolveResumeFile`, `autofiller_extension/src/background/api.js`), so
+  a pick reaches the form only once the extension calls `POST
+  .../applications/{job_id}/resume` for the job it fills.
+- **Add Jobs**, at Up Next's right, opens the seeker's saved jobs in a
+  dialog (`auto-apply/add-jobs-dialog.tsx`). **The one place a seeker
+  queues several jobs at once**: the Jobs page and the Dashboard keep one
+  click per job, and the Applications Tracker is the record. A row's
+  checkbox, or a click on the row but its title, picks it; Select All picks
+  every job auto apply can fill. One it can't fill (not Greenhouse, for
+  now) can't be picked and says why. "Add N to Queue" queues each pick
+  through `queueJob` in the list's order, asks the extension to open the
+  oldest queued job, toasts how many went in, and redraws the page. There
+  is no "auto apply all saved jobs": the seeker picks each one. It was a
+  Ready to Queue section under Up Next, which the user found redundant
+  beside the saved jobs, and before that the Tracker's Saved view.
+- **History is archived for now** (its code kept, `auto-apply/live-activity.tsx`
+  and the table's "history" variant): an applied job is on the
+  Applications Tracker already, so the table only repeated it, and a
+  skipped one needs nothing. **Needs-you jobs moved into Up Next**
+  (Couldn't Finish, "Finish it on the job's page"): they wait on the
+  seeker, and the Tracker doesn't list them. `auto-apply/page.tsx` says how
+  to bring History back.
+
+**Up Next is live: the seeker's applications from the API**
 (`auto-apply/applications.ts`, `GET /applicants/{id}/applications`, with
 `scored=true` for the Match column, as the Applications page reads it). By
 default in queue order: the oldest queued first, the job the extension
@@ -1537,15 +1565,15 @@ in Docs (suggested answers in the chat, not a banner).
 - **The run waits for a click.** Each run spends one of today's 2 Tailor
   runs, so loading the page never starts one.
 - **Tailor My Resume opens Pick a Resume to Tailor** (KAN-318): the
-  posting's resumes as "Did You Apply?" lists them (Generated Resumes and
-  Uploaded Resumes, one radio group), starting on the resume tailored to
+  posting's resumes in "Did You Apply?"'s resume table (Generated or
+  Uploaded, a search, one radio group), starting on the resume tailored to
   this job, else the default, and an upload with the same limit, replace
-  step and duplicate rule. Both dialogs share `jobs/resume-picker.tsx`,
-  so a rule changed there changes both. The dialog's Tailor My Resume
+  step and duplicate rule. The three resume dialogs share
+  `jobs/resume-picker.tsx`, so a rule changed there changes all three. The dialog's Tailor My Resume
   closes it and runs; "Tailoring…" and errors show on the card. A pick
   other than this job's tailored resume warns that Done replaces it. An
   upload is read into the bank and tailored as its own entries; nothing
-  new appears under Generated Resumes. A run changes only what the picked
+  new appears under Generated. A run changes only what the picked
   resume shows: it never proposes an entry or bullet that resume hides.
 - **The keyword match** shows "12 of 18" before, and again with what the
   student has accepted, required keywords first. The second count adds

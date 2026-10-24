@@ -202,12 +202,16 @@ def sent_row(**kwargs):
     return SimpleNamespace(**{**row, **kwargs})
 
 
-def fake_pick(monkeypatch, choice):
+def fake_pick(monkeypatch, choice, chosen=None):
     """Fakes pick_resume, and link_resume after it (the application names
-    the sent resume, KAN-267). Answers the links made."""
+    the sent resume, KAN-267). Answers the links made. `chosen` is the
+    student's own pick (chosen_resume, KAN-359): none unless given."""
     async def pick_resume(db, applicant_id, job_id):
         return choice
+    async def chosen_resume(db, applicant_id, job_id):
+        return chosen
     monkeypatch.setattr(pipeline, "pick_resume", pick_resume)
+    monkeypatch.setattr(pipeline, "chosen_resume", chosen_resume)
     links = AsyncMock()
     monkeypatch.setattr(pipeline, "link_resume", links)
     return links
@@ -439,3 +443,18 @@ def test_list_applications_with_an_empty_bank_has_no_scores(monkeypatch):
     (app,) = asyncio.run(pipeline.list_applications(None, APPLICANT, score_for=ACCOUNT))
 
     assert app.match is None
+
+
+def test_prepare_resume_sends_the_students_own_pick_before_the_rules(monkeypatch):
+    fake_stage(monkeypatch, application_stage.queued)
+    rule, own = uuid.uuid4(), uuid.uuid4()
+    fake_pick(monkeypatch, ResumeChoice(built_resume_id=rule), chosen=ResumeChoice(uploaded_resume_id=own))
+    row = sent_row(built_resume_id=None, uploaded_resume_id=own, content_hash=None)
+    fake_send(monkeypatch, "send_built", raises=AssertionError("the rule's pick, not the student's"))
+    calls = fake_send(monkeypatch, "send_uploaded", Sent(row, created=False))
+
+    resume = asyncio.run(pipeline.prepare_resume(FakeDB(), FakeStorage(), APPLICANT, JOB))
+
+    ((args, kwargs),) = calls
+    assert args[1:] == (APPLICANT, own) and kwargs == {"job_posting_id": JOB}
+    assert resume.uploaded_resume_id == own
