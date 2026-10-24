@@ -22,3 +22,13 @@ async def resume_to_import(
     )
     resume = default_id and await session.scalar(mine.where(Resume.id == default_id))
     return resume or await session.scalar(mine.order_by(Resume.created_at.desc()).limit(1))
+
+
+async def owned_upload_id(
+    session: AsyncSession, applicant_id: uuid.UUID, resume_id: uuid.UUID
+) -> uuid.UUID | None:
+    """`resume_id` when it is one of the applicant's uploads, else None (a
+    built resume, or another applicant's): Add's target under a resume pick."""
+    return await session.scalar(
+        select(Resume.id).where(Resume.id == resume_id, Resume.applicant_id == applicant_id)
+    )
