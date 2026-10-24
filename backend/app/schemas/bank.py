@@ -173,6 +173,12 @@ class SkillUpdate(BaseModel):
     group: Name | None = None
 
 
+class DeleteMany(BaseModel):
+    """Clear All's body (KAN-352): the entries or skills a section shows."""
+
+    ids: list[UUID] = Field(min_length=1, max_length=500)
+
+
 class SkillResponse(BaseModel):
     model_config = ConfigDict(from_attributes=True)
 

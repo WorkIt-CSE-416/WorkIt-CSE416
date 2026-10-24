@@ -288,7 +288,8 @@ Show  [ ★ Resume #2 (16)  ▾ ]
   it always has. Built resumes never need it.
 - **Delete Entry** says nothing new: deleting an entry deletes it from the
   bank, for every resume, as today. The confirm keeps its built-resume
-  count.
+  count. **Clear All** (KAN-352) follows the same rule for every item a
+  card shows, and its confirm says the items leave the whole bank.
 
 The Resumes view (`/resumes`) is unchanged, except that each resume's row
 can link to its view: "View Experiences" → `/bank?resume=<id>` (open

@@ -1354,6 +1354,15 @@ in Docs (suggested answers in the chat, not a banner).
   Entries come back from the API ongoing first, then newest; the screen
   never sorts. After every change it reads the whole bank again, so the
   order shown is always the API's.
+- **Clear All empties a card** (KAN-352): beside Add on each section card
+  and on Skills, shown only while the card lists something. It deletes
+  what the card shows in one call (`POST .../bank/entries/delete` or
+  `.../skills/delete`, all or none), after a confirm (`bank/clear-all.tsx`)
+  that names the count and the built resumes that show them
+  (`builtShowing` in `holdings.ts`, from the bank's `resume_ids`). Under a
+  resume pick it deletes those items from the whole bank, as Delete Entry
+  does, and the confirm says so. It never deletes what the pick hides: a
+  button on a card acts on what the card shows.
 - **An entry's dates sit under its title below `@xl/main`**, beside the
   edit and delete buttons above it. Beside them on a phone, the dates never
   shrank and left the title a column a few letters wide ("Universi / ty").

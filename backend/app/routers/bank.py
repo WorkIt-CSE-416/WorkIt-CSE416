@@ -16,6 +16,9 @@ POST   /applicants/{id}/bank/entries             EntryCreate -> 201 EntryRespons
        saves it anyway ("Save as new").
 PATCH  /applicants/{id}/bank/entries/{entry_id}  EntryUpdate -> EntryResponse
 DELETE /applicants/{id}/bank/entries/{entry_id}  -> 204 (its bullets too)
+POST   /applicants/{id}/bank/entries/delete      DeleteMany -> 204
+       Clear All (KAN-352): the entries a section shows, all or none. One
+       id that is not the applicant's answers 404 and deletes nothing.
 GET    /applicants/{id}/bank/entries/{entry_id}/resumes -> {"built_resumes": n}
        how many built resumes show the entry, for the delete confirm (story 18)
 POST   /applicants/{id}/bank/entries/{entry_id}/bullets  BulletCreate -> 201 BulletResponse (appended)
@@ -24,6 +27,7 @@ DELETE /applicants/{id}/bank/bullets/{bullet_id} -> 204
 POST   /applicants/{id}/bank/skills              SkillCreate -> 201 SkillResponse (409 if the name exists)
 PATCH  /applicants/{id}/bank/skills/{skill_id}   SkillUpdate -> SkillResponse (409 if the name exists)
 DELETE /applicants/{id}/bank/skills/{skill_id}   -> 204
+POST   /applicants/{id}/bank/skills/delete       DeleteMany -> 204, as entries/delete
 POST   /applicants/{id}/bank/import              ImportRequest -> ImportResponse
        Import Again (ADR 0003): reads one uploaded resume (resume_id, else
        the default resume, else the newest) with the heuristic parser and
@@ -72,6 +76,7 @@ from app.schemas.bank import (
     BulletCreate,
     BulletResponse,
     BulletUpdate,
+    DeleteMany,
     DuplicateEntry,
     EntryCreate,
     EntryResponse,
@@ -179,6 +184,17 @@ async def delete_entry(
     return Response(status_code=204)
 
 
+@router.post("/entries/delete", status_code=204)
+async def delete_entries(
+    body: DeleteMany,
+    applicant_id: uuid.UUID = Depends(owned_applicant),
+    session: AsyncSession = Depends(get_session),
+) -> Response:
+    async with _writing(session):
+        await service.delete_entries(session, applicant_id, body.ids)
+    return Response(status_code=204)
+
+
 @router.get("/entries/{entry_id}/resumes")
 async def entry_resumes(
     entry_id: uuid.UUID,
@@ -262,6 +278,17 @@ async def delete_skill(
 ) -> Response:
     async with _writing(session):
         await service.delete_skill(session, applicant_id, skill_id)
+    return Response(status_code=204)
+
+
+@router.post("/skills/delete", status_code=204)
+async def delete_skills(
+    body: DeleteMany,
+    applicant_id: uuid.UUID = Depends(owned_applicant),
+    session: AsyncSession = Depends(get_session),
+) -> Response:
+    async with _writing(session):
+        await service.delete_skills(session, applicant_id, body.ids)
     return Response(status_code=204)
 
 

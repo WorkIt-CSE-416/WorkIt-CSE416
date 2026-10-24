@@ -13,19 +13,23 @@ import { TextField } from "@/components/ui/text-field";
 import {
   addSkill,
   createEntry,
+  deleteEntries,
   deleteEntry,
   deleteSkill,
+  deleteSkills,
   entryResumeCount,
   getBank,
   importResume,
   updateSkill,
   type Bank,
   type BankEntry,
+  type BankResume,
   type Section,
   type Skill,
 } from "@/lib/bank-actions";
 
 import { DeleteConfirm } from "../resumes/delete-confirm";
+import { ClearAll } from "./clear-all";
 import { EntryEditor } from "./entry-editor";
 import { editSteps } from "./entry-save";
 import { ALL, NONE, openingPick, shows, uploadIds, usedIn, type Pick } from "./holdings";
@@ -84,6 +88,8 @@ export function BankScreen({
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [duplicate, setDuplicate] = useState<BankEntry | null>(null);
+  // The section whose Clear All confirm is open (KAN-352).
+  const [clearing, setClearing] = useState<Section | null>(null);
   // An error that outlives the editor: a bullet that failed after the
   // entry's fields saved, or a failed read-back.
   const [pageError, setPageError] = useState<string | null>(null);
@@ -291,15 +297,39 @@ export function BankScreen({
               <h2 id={`bank-${section.id}`} className="text-subtitle text-ink">
                 {section.label}
               </h2>
-              {!adding && (
-                <Button
-                  variant="section"
-                  onClick={() => open({ kind: "new", section: section.id })}
-                >
-                  <PlusIcon aria-hidden /> Add
-                </Button>
-              )}
+              <div className="flex items-baseline gap-4">
+                {entries.length > 0 && !adding && clearing !== section.id && (
+                  <Button variant="section" onClick={() => setClearing(section.id)}>
+                    <TrashIcon aria-hidden /> Clear All
+                  </Button>
+                )}
+                {!adding && (
+                  <Button
+                    variant="section"
+                    onClick={() => open({ kind: "new", section: section.id })}
+                  >
+                    <PlusIcon aria-hidden /> Add
+                  </Button>
+                )}
+              </div>
             </div>
+
+            {clearing === section.id && entries.length > 0 && (
+              <ClearAll
+                items={entries}
+                resumes={bank.resumes}
+                noun={[`${section.label} entry`, `${section.label} entries`]}
+                bullets
+                filtered={current !== ALL}
+                remove={deleteEntries}
+                onCleared={async () => {
+                  setClearing(null);
+                  const reloadError = await reload();
+                  if (reloadError) setPageError(reloadError);
+                }}
+                onKeep={() => setClearing(null)}
+              />
+            )}
 
             {entries.length === 0 && !adding && (
               <p className="text-body text-ink-meta mt-2">
@@ -354,6 +384,8 @@ export function BankScreen({
       <SkillsCard
         skills={bank.skills.filter((s) => shows(current, s, uploads))}
         pickName={picked?.name ?? null}
+        resumes={bank.resumes}
+        filtered={current !== ALL}
         reload={reload}
       />
     </div>
@@ -552,11 +584,16 @@ function EntryView({
 function SkillsCard({
   skills,
   pickName,
+  resumes,
+  filtered,
   reload,
 }: {
   skills: Skill[];
   /** The picked resume's name: a skill added here is not on it. */
   pickName: string | null;
+  /** For Clear All's confirm. */
+  resumes: BankResume[];
+  filtered: boolean;
   reload: () => Promise<string | null>;
 }) {
   const [note, setNote] = useState<string | null>(null);
@@ -566,6 +603,7 @@ function SkillsCard({
   const [editingId, setEditingId] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
+  const [clearing, setClearing] = useState(false);
   const nameField = useRef<HTMLInputElement>(null);
   const formOpen = adding || editingId !== null;
 
@@ -623,18 +661,41 @@ function SkillsCard({
         <h2 id="bank-skills" className="text-subtitle text-ink">
           Skills
         </h2>
-        {!formOpen && (
-          <Button
-            variant="section"
-            onClick={() => {
-              setError(null);
-              setAdding(true);
-            }}
-          >
-            <PlusIcon aria-hidden /> Add
-          </Button>
-        )}
+        <div className="flex items-baseline gap-4">
+          {skills.length > 0 && !formOpen && !clearing && (
+            <Button variant="section" onClick={() => setClearing(true)}>
+              <TrashIcon aria-hidden /> Clear All
+            </Button>
+          )}
+          {!formOpen && (
+            <Button
+              variant="section"
+              onClick={() => {
+                setError(null);
+                setAdding(true);
+              }}
+            >
+              <PlusIcon aria-hidden /> Add
+            </Button>
+          )}
+        </div>
       </div>
+      {clearing && skills.length > 0 && (
+        <ClearAll
+          items={skills}
+          resumes={resumes}
+          noun={["skill", "skills"]}
+          filtered={filtered}
+          remove={deleteSkills}
+          onCleared={async () => {
+            setClearing(false);
+            setNote(null);
+            const reloadError = await reload();
+            if (reloadError) setError(reloadError);
+          }}
+          onKeep={() => setClearing(false)}
+        />
+      )}
       {skills.length === 0 && !formOpen && (
         <p className="text-body text-ink-meta mt-2">Nothing here yet.</p>
       )}

@@ -1210,7 +1210,9 @@ are in `docs/auth.md`.
   API's `resume_ids`; never work out a resume's items in a component.
   Intake always gets the whole bank. A
   new entry or skill saved under a resume pick is on no resume yet, so the
-  page says where it went instead of letting it vanish.
+  page says where it went instead of letting it vanish. Clear All
+  (KAN-352) deletes what a card shows, from the whole bank, as Delete
+  Entry does (`docs/screens.md`, Resumes & Experiences).
 - **Applicant server actions call the API through `applicantCall`**
   (`lib/applicant-call.ts`, server-only): the session, the Bearer token,
   GET/DELETE/fetch, and a `Result<T>` (`data`, `error`, `status`) that never

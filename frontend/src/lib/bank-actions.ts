@@ -121,6 +121,11 @@ export async function deleteEntry(entryId: string): Promise<Result<null>> {
   return call<null>(`/entries/${id(entryId)}`, { method: "DELETE" });
 }
 
+/** Clear All (KAN-352): every entry given, or none when one is not yours. */
+export async function deleteEntries(entryIds: string[]): Promise<Result<null>> {
+  return call<null>("/entries/delete", { method: "POST", body: JSON.stringify({ ids: entryIds }) });
+}
+
 export async function addBullet(entryId: string, text: string): Promise<Result<Bullet>> {
   return call<Bullet>(`/entries/${id(entryId)}/bullets`, {
     method: "POST",
@@ -159,6 +164,11 @@ export async function updateSkill(
 
 export async function deleteSkill(skillId: string): Promise<Result<null>> {
   return call<null>(`/skills/${id(skillId)}`, { method: "DELETE" });
+}
+
+/** Clear All for the Skills card, as `deleteEntries`. */
+export async function deleteSkills(skillIds: string[]): Promise<Result<null>> {
+  return call<null>("/skills/delete", { method: "POST", body: JSON.stringify({ ids: skillIds }) });
 }
 
 /** What one import wrote into the bank (ADR 0003): an upload's own reading,

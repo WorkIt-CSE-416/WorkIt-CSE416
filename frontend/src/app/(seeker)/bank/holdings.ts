@@ -60,3 +60,10 @@ export function usedIn(pick: Pick, item: Held, resumes: BankResume[]): string | 
   const others = held.filter((id) => id !== pick);
   return others.length ? `Also used in ${names(others.map((id) => name.get(id)!))}` : null;
 }
+
+/** How many built resumes show any of the items: what Clear All's confirm
+ *  names (KAN-352), as Delete Entry's names its entry's count. */
+export function builtShowing(items: Held[], resumes: BankResume[]): number {
+  const built = new Set(resumes.filter((r) => r.kind !== "uploaded").map((r) => r.id));
+  return new Set(items.flatMap((i) => i.resume_ids.filter((id) => built.has(id)))).size;
+}
