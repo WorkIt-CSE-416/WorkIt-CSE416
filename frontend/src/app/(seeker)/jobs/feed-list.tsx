@@ -92,6 +92,27 @@ export function FeedList({
   const list = useRef<HTMLUListElement>(null);
   const tailoredIds = new Set(tailored);
 
+  // A return from cache skips the rise animation: the cards appear instantly.
+  const cached = useRef(readKept());
+  const fromCache = cached.current?.query === query;
+
+  // Every mount writes the full state to the cache so a return visit finds
+  // the server's latest first page merged with any kept Load More pages.
+  useEffect(() => {
+    keep({
+      path: window.location.pathname,
+      query,
+      jobs: [...first, ...loaded],
+      offset,
+      more,
+      stages,
+      tailored,
+      canMarkApplied,
+      source,
+    });
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- first mount only
+  }, []);
+
   // The roles as shown, for the rail beside a job's page (./shown-list).
   // Keyed by their ids: `first` and `loaded` are new arrays every render.
   const shownIds = [...first, ...loaded].map((job) => job.id).join();
@@ -114,10 +135,14 @@ export function FeedList({
     keep({
       path: window.location.pathname,
       query,
-      jobs: (mine?.jobs ?? []).filter((other) => other.id !== job.id),
+      jobs: [...first, ...loaded].filter((other) => other.id !== job.id),
       offset: offset - 1,
       more,
       at: mine?.at,
+      stages,
+      tailored,
+      canMarkApplied,
+      source,
     });
     setSaid(`${job.title} marked applied.`);
     setFocusId((shown[at + 1] ?? shown[at - 1])?.id ?? null);
@@ -135,7 +160,7 @@ export function FeedList({
       }
       const { fresh } = page;
       setError(null);
-      keep({ path, query, jobs: [...loaded, ...fresh], offset: page.offset, more: page.more });
+      keep({ path, query, jobs: [...initial, ...loaded, ...fresh], offset: page.offset, more: page.more, stages, tailored, canMarkApplied, source });
       setSaid(
         fresh.length === 0
           ? "No more roles."
@@ -151,11 +176,12 @@ export function FeedList({
         {first.map((job, i) => (
           // The cards rise in as the feed arrives, 50ms apart and capped at
           // the sixth, about a screenful, so the list never makes anyone wait.
+          // On a return from cache the cards appear instantly.
           <li
             key={job.id}
             data-job-id={job.id}
-            style={{ animationDelay: `${Math.min(i, 6) * 50}ms` }}
-            className="animate-rise"
+            style={fromCache ? undefined : { animationDelay: `${Math.min(i, 6) * 50}ms` }}
+            className={fromCache ? undefined : "animate-rise"}
           >
             <ListingCard
               job={job}
@@ -168,11 +194,12 @@ export function FeedList({
         ))}
         {loaded.map((job, i) => (
           // A loaded page rises in the same way, counted within its own page.
+          // On a return from cache the cards appear instantly.
           <li
             key={job.id}
             data-job-id={job.id}
-            style={{ animationDelay: `${Math.min(i % PAGE_SIZE, 6) * 50}ms` }}
-            className="animate-rise"
+            style={fromCache ? undefined : { animationDelay: `${Math.min(i % PAGE_SIZE, 6) * 50}ms` }}
+            className={fromCache ? undefined : "animate-rise"}
           >
             <ListingCard
               job={job}

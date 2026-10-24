@@ -14,7 +14,8 @@
  * every seeker page and shouldn't carry the job card along.
  */
 
-import { LIST_FRESH_FOR } from "./list-pages";
+import type { ApplicationStage } from "../auto-apply/actions";
+import { LIST_FRESH_FOR, type ListSource } from "./list-pages";
 import type { JobListing } from "./listings";
 import { sessionStore } from "./session-store";
 
@@ -23,10 +24,15 @@ type Kept = {
    *  there drops it: leaving for another page is not a fresh visit to it. */
   path: string;
   query: string;
+  /** All jobs: initial server page merged with Load More pages. */
   jobs: JobListing[];
   offset: number;
   more: boolean;
   at: number;
+  stages: Record<string, ApplicationStage>;
+  tailored: string[];
+  canMarkApplied: boolean;
+  source: ListSource;
 };
 
 /** The kept pages, mirrored to sessionStorage so they survive a reload too
