@@ -271,7 +271,7 @@ a signed-in applicant who has not marked the job the same click opens
 Pick a Resume would have picked (tailored, else the default). Yes, I
 Applied stays off, under "Loading your resumes…", until that list is in:
 before it, the pick is only a guess. **Sent a Different Resume?** under the
-lists is the Resumes page's own dropzone (`ResumeUpload`) and upload
+lists is the dropzone the Resumes page had until KAN-362 (`ResumeUpload`) and upload
 (`uploadResume`, which reads it into Experiences as any upload does): the
 new resume is picked once the list reloads, and a duplicate picks the one
 it matched, saying "Duplicate Resume found: <name>". **At the 5-upload
@@ -1288,8 +1288,8 @@ experience bank). Both draw one header (`resumes/header.tsx`; it stays
 beside the Resumes view though `/bank` imports it too, since the two routes
 are one page's views, not two consumers), laid out as the Dashboard's is: the view's own title and line on the left ("Resumes",
 "Experiences"), and at the top right, level with the foot of that block, a
-segmented switcher between the two views and then the view's primary
-action, Generate Resume or Fill With Scout; on a narrow page the controls
+segmented switcher between the two views, then on Experiences its
+primary action, Fill With Scout; on a narrow page the controls
 wrap under the title. A shared "Resumes & Experiences" title on both views
 said less about where the student was. The views stay two routes, so every link to either still
 lands (the Jobs page's `/bank?import=1` included), and the switcher is plain
@@ -1659,27 +1659,50 @@ in Docs (suggested answers in the chat, not a banner).
 ## Resumes (`/resumes`)
 
 `(seeker)/resumes` (KAN-249), the other view of Resumes & Experiences: the
-resumes the bank makes and the uploads, in cards, Your Uploaded Resumes, then
-Generated Resumes, then Tailored Resumes when there is one, under the shared header with Generate Resume (it was the
-base resumes' card's own Generate). They sat in one "Your Resumes" card at the foot of the bank page
+resumes the bank makes and the uploads, under the shared header. **One
+list holds every resume** (KAN-362, `built-resumes.tsx`), newest first
+(an upload by its day, a built resume by its last edit), laid out as the
+Applications Tracker is: the search (names and postings) on its own row,
+then the **Type** filter (Uploaded, Generated, Tailored; the Applications
+list's dropdown, `FieldFacet`) with Upload Resume and Generate Resume at
+the right, then the list (below). Each resume is its card, with its own
+line saying what it is ("Uploaded Oct 21", "Last edited Oct 21 · For
+<posting>") and its star, Rename, Download and Delete. With no resume at
+all the list's place holds "No Resumes Yet"; filters that hide every
+card show "No Matching Resumes" with Clear Filters (`EmptyState`, as the
+Applications page's). The type is the URL's (`?type=uploaded,tailored`),
+moved in place and replacing the entry, so a reload or a shared link
+keeps it and a tick is not a step of Back; the search's words are the
+page's own. A Generate clears a Type filter that would hide its new
+resume. It took six shapes in KAN-362: three cards stacked one under
+another (Your Uploaded Resumes, Generated Resumes, Tailored Resumes),
+which a student with many resumes scrolled past; one card behind a pill
+switcher, under the header's own; underline tabs with counts; and the
+two tables under The list. The views split one list in three though
+every card acts alike once Import Updated Resume left the upload's card,
+and a student looking for their latest resume looked in three places.
+Generate Resume sat in the header, on every view though only generated
+resumes come from it, and the upload dropzone sat in a track beside the
+uploads. The resume picker (Job posting page) still splits Generated
+(base and tailored) from Uploaded. They sat in one "Your Resumes" card at the foot of the bank page
 until KAN-249; the spec's "the resumes page" now means this view. The
 editor lives under it (`/resumes/[resumeId]`), so the sidebar keeps the row
 lit there and the phone editor's back arrow lands here. The page needs
 the built list and the uploaded list: if either fails it
 shows "Your Resumes Aren't Loading Right Now" and a Try Again link.
 
-- **Your Uploaded Resumes** (`your-resumes.tsx`; "Your Resumes" until
-  KAN-268), the uploads, newest first, under
-  an "n of 5" badge of uploads alone (the API's limit; generated resumes
-  counted toward it until KAN-268), with the upload dropzone in a narrow track beside the
-  list from @4xl (under the heading, before the rows, below it). It held
+- **Uploaded** (Upload Resume and the upload's row are
+  `upload-resume.tsx`; the Your Uploaded Resumes card until KAN-362,
+  "Your Resumes" until KAN-268). Only uploads count toward the API's
+  limit of 5 (generated resumes counted until KAN-268): an upload past it
+  says so; an "n of 5" badge showed it until KAN-362. Upload Resume opens the
+  file picker (PDF or DOCX, under 5 MB, the dropzone's checks through
+  `resumeFileError` in `components/resume-upload.tsx`). The dropzone went
+  in KAN-362, and with it drag and drop onto the page. It held
   base resumes alone until 2026-10-18, when My Profile's Resume card moved
   in; both kinds then shared it until KAN-268, and a student could not
-  tell which resumes they had generated. With no upload it holds the grey
-  empty box: "No uploaded resumes yet".
-- **Generated Resumes** (in `built-resumes.tsx`), the base resumes
-  (KAN-207), always shown, with the same grey empty box ("No generated
-  resumes yet") until Generate makes one. It was "Base Resumes", saying
+  tell which resumes they had generated.
+- **Generated**, the base resumes (KAN-207). It was "Base Resumes", saying
   "Made from every entry in your bank" until KAN-258: students see
   "Experiences", never "bank".
   **Every change to either list reloads both** (`reload` in
@@ -1703,11 +1726,9 @@ shows "Your Resumes Aren't Loading Right Now" and a Try Again link.
   parsed content. **A file whose text the student already uploaded is
   refused** (KAN-267): nothing is kept, whenever and however the file was
   exported again, and Generate's pop-up opens, "Duplicate Resume found:
-  <name>" with OK (`resumes/duplicate-resume-dialog.tsx`). Import Updated
-  Resume refuses the text of another upload the same way (its dialog
-  closes and the pop-up opens), but takes its own row's text in a new file.
+  <name>" with OK (`resumes/duplicate-resume-dialog.tsx`).
   Intake and onboarding uploads show the message as their error line. **The upload fills the experience bank** (ADR 0003): a
-  note under the dropzone says what went in ("Added 6 entries and 2 skills
+  note under the filter row says what went in ("Added 6 entries and 2 skills
   from resume.pdf", or "WorkIt couldn't find any entries in …"), links to
   Experiences, and offers **Read It With AI** while the student has an AI
   reading left. Before KAN-240 an upload showed nothing, and its facts
@@ -1723,23 +1744,27 @@ shows "Your Resumes Aren't Loading Right Now" and a Try Again link.
   a generated resume's; `renameResume`, and the API keeps the file's
   extension on the name), **Download** (the stored file through
   `getResumeFileUrl(id, true)`, which makes even a PDF download; an upload
-  keeps no sent resume, since its file never changes), **Import Updated
-  Resume** and Delete, which asks
-  first in the line under the row, as a base resume's does. Import Updated
-  Resume names the row after its new file again. Import Updated
-  Resume opens `resumes/update-resume-dialog.tsx`: a dropzone for a newer
-  version of that file, which replaces it on the same row (`replaceResume`;
-  the row keeps its primary star and moves to the top with today's date)
-  and merges its reading into the bank. The dialog then says what went in,
-  with Read It With AI while a reading is left, and Done. It replaced
-  Import Again on the row (2026-10-18): the stored file never changes, so
-  re-reading it only said "already in your bank". The star, Rename, Import
-  Updated Resume and the delete are optional props, so a screen that only shows a
-  resume leaves them out. The `ResumeUpload` component
+  keeps no sent resume, since its file never changes) and Delete, which
+  asks first in the line under the row, as a base resume's does. **A newer
+  version of a file is a delete and an upload.** The row had **Import
+  Updated Resume** from 2026-10-18 until KAN-362, a dialog that swapped a
+  newer file onto the same row (`replaceResume`) and replaced the upload's
+  entries; KAN-362 took it off the row to keep the row to four icons. The bank ends
+  the same: deleting an upload deletes its entries and skills, and the new
+  upload brings its own (ADR 0005). Only the primary star does not carry
+  over. The resume picker's replace at the 5-upload limit (Job posting
+  page) still uses `replaceResume`. The `ResumeUpload` component
   (`src/components/resume-upload.tsx`) is a pure dropzone + file preview —
   it knows nothing about upload logic or limits.
-- **Tailored Resumes** (KAN-258), after Generated Resumes, only while
-  the student has one: each is made for one job posting with Tailor
+- **The list** (`resumes/resume-list.tsx`) is one card that scrolls
+  inside itself at one height (`max-h-scroll-box`, about five cards), as
+  Top Matches and the resume picker do, so the search and the buttons
+  stay in view however many resumes a student keeps. Two table versions
+  came first in KAN-362: one with Type and Last Edited columns and sort
+  headings, then one with each row's icons in a `⋯` menu. The columns
+  said what each card's line already says, and the menu hid the actions a
+  student uses, so the cards came back.
+- **Tailored** (KAN-258): each is made for one job posting with Tailor
   (KAN-217). They sat in Base Resumes with a Tailored tag until KAN-258,
   under a name they do not have. A tailored resume takes the star like any
   other since KAN-268 (the API refused it before); Apply and auto apply
@@ -2066,7 +2091,7 @@ signed-in line at the foot is the one 12px exception. `text-subtitle`, the answe
 own, so each answer sets its weight; without it the typed salary and search
 text came out semibold.
 
-**The resume step (KAN-275)** is the Resumes view's dropzone
+**The resume step (KAN-275)** is the dropzone the Resumes view had until KAN-362
 (`components/resume-upload.tsx`), inside the wizard so it keeps Scout's
 panel, the step rail and the footer's Back. Picking a file only holds it,
 with a Remove; Continue is disabled until one is picked, and Skip is the way
@@ -2101,17 +2126,51 @@ be given.
 
 ## Settings (`/settings`)
 
-KAN-326. Opened from the account menu (the bar's photo). Four sections, each
-its own route under one layout (`(seeker)/settings/layout.tsx`), so a link
-opens one and each page loads only its own data; bare `/settings` opens
-Personal Details. The section nav (`settings-nav.tsx`) is a column beside
-the section from `@3xl/main` and a row that scrolls sideways above it below
-that, scrolling the current section into view: a segmented control's equal
-widths do not fit "Sign-In & Security" and three other labels at 375px.
-Each section is cards in a column of at most `max-w-2xl`. **A setting most
-visits leave alone is a row with a button, and its form opens in a dialog**
-(the user's call, 2026-10-23): three empty password fields on the page read
-as something to fill in.
+KAN-326. **Settings is always a modal** (KAN-364): four sections, each
+with its own address, `/settings/<section>`; bare `/settings` opens
+Personal Details. **From the account menu (the bar's photo) it opens over
+the current page** (`(seeker)/@modal/(.)settings`, an intercepting route),
+and closing goes back to that page. **A hard load or a reload of a
+Settings address opens it over the Dashboard** (`(seeker)/settings/layout.tsx`
+draws the Dashboard page under it), and closing goes to the Dashboard. A
+full Settings page came first; the user asked for the modal on every way
+in. Escape, the close button and a click outside all close.
+
+**Every section is drawn when the modal opens and stays mounted**
+(`settings/sections.tsx`), hidden when not shown, so switching is instant
+and an unsaved edit in one section survives a visit to another. The nav
+(`settings-nav.tsx`) switches in place and moves the address with
+`history.replaceState`, which Next's router follows (`usePathname`): no
+navigation, and one history entry for the whole modal, so one Back leaves
+it. Each item is still a real link, so a modified click opens the section
+in a new tab. Each section's `page.tsx` draws nothing; it is the address
+and the tab title only. A section's content is its `section.tsx`, and a
+section that needs the query reads it in the browser, since a layout gets
+none (`security/notice.tsx`). The title and the nav stay fixed and only the
+section scrolls. The nav is a column beside the section from sm and a row
+that scrolls sideways above it on a phone, scrolling the current section
+into view: a segmented control's equal widths do not fit "Sign-In &
+Security" and three other labels at 375px. The section area is its own
+`@container/main`, so the sections' container queries (the name fields'
+three columns) read the modal's width. Each section is cards in a column.
+
+**Unsaved edits are guarded** (`settings/unsaved-changes.tsx`): a form with
+unsaved changes (Personal Details' names and headline, Job Preferences)
+reports them, and closing the modal asks "Discard Your Changes?" (Keep
+Editing, Discard Changes); closing the tab or reloading gets the browser's
+own warning. Switching sections needs no question, since nothing unmounts.
+A history Back is not caught: the browser gives a page no way to hold it.
+The question is a dialog nested in the modal, which Base UI does not dim.
+**Save and Discard sit in a bar pinned to the foot of what scrolls**, so
+Job Preferences' Save is in view however far down the student is; at the
+end of seven fields it sat below the fold. The modal's scroller carries no
+padding of its own for the same reason: a sticky bar stops at the
+scroller's padding edge, and with 24px there the fields showed through
+under it.
+
+**A setting most visits leave alone is a row with a button, and its form
+opens in a dialog** (the user's call, 2026-10-23): three empty password
+fields on the page read as something to fill in.
 
 - **Personal Details** (`/settings/personal`): the photo (Change Photo,
   Remove Photo; it saves on pick, shows the file at once and rolls back if
@@ -2120,13 +2179,9 @@ as something to fill in.
   what changed; the API joins the parts into the full name every other
   screen prints (`backend/app/models/CLAUDE.md`, Names). These are edited
   here only; My Profile shows them and links here. Saving
-  refreshes the route so the bar's name and photo follow. **Delete Account**
-  sits at the foot in a red-edged card of its own: a red button opens a
-  dialog that stays locked until the student types their sign-in email (one
-  click on a red button is too easy to make by mistake); on success the
-  action signs out and opens the landing page, on failure the dialog stays
-  open with the error.
-- **Sign-In & Security** (`/settings/security`), three cards of rows:
+  refreshes the route so the bar's name and photo follow.
+- **Sign-In & Security** (`/settings/security`), three cards of rows, then
+  Delete Account:
   Sign-In (Email with Change, Password with Change Password or, for a
   Google- or LinkedIn-only account, Set Password; each opens a dialog),
   Sign-In Methods (Google and LinkedIn, each Connected with Disconnect, or
@@ -2138,6 +2193,12 @@ as something to fill in.
   come back through the auth callback with a notice at the top
   (`?notice=email`, `email-pending`, `linked`). The rules and the
   dashboard setting Connect needs are in `../../docs/auth.md`, Settings.
+  **Delete Account** sits at the foot in a red-edged card of its own, where
+  students look for it (it sat under Personal Details until KAN-364): a
+  red button opens a dialog that stays locked until the student types
+  their sign-in email (one click on a red button is too easy to make by
+  mistake); on success the action signs out and opens the landing page, on
+  failure the dialog stays open with the error.
 - **Notifications** (`/settings/notifications`): the design only. A row
   per alert the bell promises (New Matches, Employer Replies), each with a
   switch, disabled and marked Coming Soon: nothing stores or sends

@@ -75,7 +75,7 @@ never changes another's, and an import runs no duplicate check.
 | Action | Route | What it does to the bank |
 |---|---|---|
 | **Upload** | `POST /applicants/{id}/resumes` | Inserts every entry and skill the reading found, owned by the new row. Flush the `Resume` row first (the entries point at it). |
-| **Import Updated Resume** | `PUT /applicants/{id}/resumes/{resume_id}` | **Replaces** the upload's entries and skills: delete what it owns, insert the new reading. No warning. |
+| **Import Updated Resume** (the resume picker's replace at the limit; off the Resumes page's rows since KAN-362) | `PUT /applicants/{id}/resumes/{resume_id}` | **Replaces** the upload's entries and skills: delete what it owns, insert the new reading. No warning. |
 | **Import Again / Read It With AI** | `POST /applicants/{id}/bank/import` | **Replaces**, as Import Updated Resume does. |
 | **Delete an upload** | `DELETE /applicants/{id}/resumes/{resume_id}` | Deletes its entries and skills (cascade). The confirm is unchanged. |
 | **Add an entry or skill** | the bank's create routes | Under an upload pick: owned by that upload. Under a built resume pick: unowned, and shown on that built resume (a shown choice row at the end of its section), so it stays in view. |

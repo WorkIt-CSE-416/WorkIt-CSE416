@@ -970,6 +970,20 @@ the KAN-296 cutover.
   `components/hover-sidebar.tsx`). A hover opens shadcn's provider over the
   page, so anything sized by the panel's width reads `useSidebarPin().pinned`,
   never shadcn's `state`, or it moves on every hover (`docs/design.md`).
+- **The seeker layout has a `@modal` slot** (KAN-364): a route opened as a
+  modal over the current page through an intercepting route, Settings
+  for now (`(seeker)/@modal/(.)settings`). A soft navigation to its address
+  opens the modal there; a hard load reaches the route's own layout, which
+  for Settings draws the same modal over the Dashboard, so Settings is a
+  modal on every way in (`docs/screens.md`, Settings). The slot's
+  `default.tsx` and `[...catchAll]/page.tsx` both render nothing: without
+  the catch-all, a link out of the modal to another seeker page would leave
+  the modal open over it, since a slot keeps what it last matched. The
+  catch-all makes every path a page to the lint's
+  `@next/next/no-html-link-for-pages`, so it flags every internal
+  `<a href>`: use `<Link>`, or, where a full reload is the point (the
+  Experiences view's Try Again), disable the rule on that line with the
+  reason.
 - **Pages render a `<div>`**, not a `<main>`: shadcn's `SidebarInset` already is
   the `<main>`. Seeker pages size off `@container/main`, never the window
   (`docs/design.md`).
@@ -1254,13 +1268,33 @@ are in `docs/auth.md`.
   a second copy of an upload's facts to edit. Two editors of the same facts
   drift apart, and built resumes read the bank. Every screen that reports an
   import says it with `lib/import-summary.ts`, from the `bank` of an upload
-  or an Import Updated Resume, or Import Again's response. An upload's row
-  on the Resumes view offers Import Updated Resume (a newer file for that
-  row), never a re-read of the stored file, which only ever read the same
-  text. "Read It With
+  or a replace (the resume picker's, at the limit), or Import Again's
+  response. A newer version of an upload is a delete and an upload: the
+  Resumes view's row offered Import Updated Resume until KAN-362, and never
+  a re-read of the stored file, which only ever read the same text. "Read It With
   AI" (KAN-222) runs only on a click, never on its own, and shows only
   while `uses_left` is above 0; a failed reading writes nothing and says
   why.
+- **The Resumes view is one list of every resume** (KAN-362,
+  `(seeker)/resumes/built-resumes.tsx`): uploaded, generated and tailored,
+  newest first, each as its card (`components/resume-row.tsx`'s box, star
+  and icons: star, Rename, Download, Delete), in one card that scrolls
+  inside itself at `max-h-scroll-box` (`resume-list.tsx`). **It is laid
+  out as the Applications Tracker is**, so keep the two alike: the search
+  on its own row, then the Type filter (`FieldFacet`, the Applications
+  list's dropdown, in `?type=`) with Upload Resume and Generate Resume at
+  the right, both above the list, and `EmptyState` in the list's place
+  when no card shows. Upload Resume and Generate Resume never sit in the
+  shared header. A card says what it is in its own line ("Uploaded …",
+  "Last edited … · For <posting>"), so the list needs no Type or date
+  column: two table versions came first in KAN-362, one with Type and
+  Last Edited columns and sort headings, one with each row's icons in a
+  `⋯` menu, and the user found the columns useless beside the cards and
+  the menu hid the actions students use. Three views behind pills, then
+  tabs, came before that: each split one list though every card acts
+  alike, and a student had to look in three places for their latest
+  resume. The resume picker still splits Generated (base and tailored)
+  from Uploaded; whether it takes a Type filter too is open.
 - **The Experiences view shows one resume at a time** (KAN-343, ADR 0005,
   `../docs/bank_by_resume.md`): a Showing card names the pick, drawn as
   the Resumes page draws a resume (KAN-363), and its Change Resume opens
