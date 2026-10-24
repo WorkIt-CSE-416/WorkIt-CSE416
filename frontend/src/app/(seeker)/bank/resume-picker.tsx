@@ -16,7 +16,7 @@ import { FIELD_CONTROL, FIELD_LABEL } from "@/components/ui/text-field";
 import type { BankResume } from "@/lib/bank-actions";
 import { cn } from "@/lib/cn";
 
-import { ALL, NONE, type Pick } from "./holdings";
+import { NONE, type Pick } from "./holdings";
 
 const GROUPS: { label: string; kinds: BankResume["kind"][] }[] = [
   { label: "Uploaded", kinds: ["uploaded"] },
@@ -28,29 +28,34 @@ function label(resume: BankResume): string {
 }
 
 /**
- * The Experiences view's resume dropdown (KAN-343): All Experiences, every
- * uploaded and built resume (grouped, in the API's order, the starred one
- * marked as on the Resumes view), then Not From an Upload when something no
- * upload holds exists. Each option carries how many entries and skills it
- * shows. Drawn as <SelectField>'s trigger is, with its label beside it.
+ * The Experiences view's resume dropdown (KAN-343): every uploaded and built
+ * resume, grouped, in the API's order, the starred one marked as on the
+ * Resumes view, then Not From an Upload while anything no upload owns
+ * exists (or it is the pick). All Experiences went with ADR 0005. Drawn as
+ * <SelectField>'s trigger is, with its label beside it.
  */
 export function ResumePicker({
   resumes,
   value,
-  counts,
+  showNone,
   onChange,
 }: {
   resumes: BankResume[];
   value: Pick;
-  counts: (pick: Pick) => number;
+  /** Whether any entry or skill is owned by no upload. */
+  showNone: boolean;
   onChange: (pick: Pick) => void;
 }) {
+  const none = showNone || value === NONE;
   const items = [
-    { value: ALL, label: `All Experiences (${counts(ALL)})` },
-    ...resumes.map((r) => ({ value: r.id, label: `${label(r)} (${counts(r.id)})` })),
-    { value: NONE, label: `Not From an Upload (${counts(NONE)})` },
+    ...resumes.map((r) => ({ value: r.id, label: label(r) })),
+    ...(none ? [{ value: NONE, label: "Not From an Upload" }] : []),
   ];
-  const showNone = counts(NONE) > 0;
+  // A group with no resume is left out.
+  const groups = GROUPS.map(({ label: heading, kinds }) => ({
+    heading,
+    members: resumes.filter((r) => kinds.includes(r.kind)),
+  })).filter((g) => g.members.length > 0);
 
   return (
     <div className="flex flex-wrap items-center gap-3">
@@ -71,13 +76,10 @@ export function ResumePicker({
           <SelectValue />
         </SelectTrigger>
         <SelectContent>
-          <SelectItem value={ALL}>{items[0].label}</SelectItem>
-          {GROUPS.map(({ label: heading, kinds }) => {
-            const members = resumes.filter((r) => kinds.includes(r.kind));
-            if (members.length === 0) return null;
+          {groups.map(({ heading, members }, i) => {
             return (
               <SelectGroup key={heading}>
-                <SelectSeparator />
+                {i > 0 && <SelectSeparator />}
                 <SelectLabel>{heading}</SelectLabel>
                 {members.map((r) => (
                   <SelectItem key={r.id} value={r.id}>
@@ -93,17 +95,16 @@ export function ResumePicker({
                         </>
                       )}
                       <span className="truncate">{label(r)}</span>
-                      <span className="text-ink-meta shrink-0">({counts(r.id)})</span>
                     </span>
                   </SelectItem>
                 ))}
               </SelectGroup>
             );
           })}
-          {showNone && (
+          {none && (
             <>
               <SelectSeparator />
-              <SelectItem value={NONE}>{items[items.length - 1].label}</SelectItem>
+              <SelectItem value={NONE}>Not From an Upload</SelectItem>
             </>
           )}
         </SelectContent>

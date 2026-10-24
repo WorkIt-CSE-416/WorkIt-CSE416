@@ -312,7 +312,7 @@ function PickResume({
   }
 
   const choice = choices?.find((c) => c.key === picked);
-  const tailored = choices?.find((c) => c.kind === "Tailored to this job");
+  const tailored = choices?.find((c) => c.forThisJob);
 
   return (
     <>
@@ -320,7 +320,7 @@ function PickResume({
         <SparkleIcon /> {running ? "Tailoring…" : "Tailor My Resume"}
       </Button>
       <Dialog open={open} onOpenChange={setOpen}>
-        {/* As wide as "Did You Apply?", for the same two lists side by side. */}
+        {/* As wide as "Did You Apply?", for the same resume table. */}
         <DialogContent className="max-h-[90vh] overflow-y-auto sm:max-w-3xl">
           <DialogHeader>
             <DialogTitle className="text-subtitle font-semibold">

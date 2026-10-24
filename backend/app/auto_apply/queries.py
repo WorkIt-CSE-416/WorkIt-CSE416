@@ -222,6 +222,36 @@ class ResumeChoice:
     uploaded_resume_id: uuid.UUID | None = None
 
 
+async def chosen_resume(
+    db: AsyncSession, applicant_id: uuid.UUID, job_id: uuid.UUID
+) -> ResumeChoice | None:
+    """
+    The resume the student chose for this application on the Auto Apply
+    page's Up Next (KAN-359), read from the sent resume the application
+    names: the built or uploaded resume it was sent from. None when the
+    application names none, or its source has since been deleted (the sent
+    resume's pointer is then null): pick_resume decides instead. A link an
+    earlier run made reads the same way, which is that run's own pick.
+    """
+    row = (
+        await db.execute(
+            select(Sent_Resume.built_resume_id, Sent_Resume.uploaded_resume_id)
+            .join(Job_Application, Job_Application.sent_resume_id == Sent_Resume.id)
+            .where(
+                Job_Application.applicant_id == applicant_id,
+                Job_Application.job_id == job_id,
+            )
+        )
+    ).first()
+    if row is None:
+        return None
+    if row.built_resume_id is not None:
+        return ResumeChoice(built_resume_id=row.built_resume_id)
+    if row.uploaded_resume_id is not None:
+        return ResumeChoice(uploaded_resume_id=row.uploaded_resume_id)
+    return None
+
+
 async def pick_resume(
     db: AsyncSession, applicant_id: uuid.UUID, job_id: uuid.UUID
 ) -> ResumeChoice | None:

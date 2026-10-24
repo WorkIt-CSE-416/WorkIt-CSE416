@@ -10,14 +10,14 @@ place:
   embedding (`clear_embedding`), so the next recommendations request remakes
   it. A later bullet-variant change must not call it: variants never reach
   the embedding.
+- An entry or skill belongs to the upload whose import wrote it, or to
+  none when the student made it (`resume_id`, ADR 0005,
+  docs/bank_by_resume.md). Uploads never share one: an import
+  (`import_upload`) replaces its upload's entries and skills and never
+  looks at another resume's.
 - The duplicate check (`find_duplicate`) matches section, title and
-  organization, ignoring case. Intake uses it to flag a draft; import
-  (`merge_import`) merges into the entry it finds.
-- A source (KAN-343, docs/bank_by_resume.md) says an upload's import found
-  an entry or skill. Only `merge_import` writes one, for everything the
-  reading found, merged or not; Import Updated Resume clears the old ones
-  first (`clear_sources`). Sources do not clear the embedding: its text
-  never names a resume.
+  organization, ignoring case, among one owner's entries only: Add's
+  "Save as new" warning.
 - Functions flush but never commit: the caller owns the transaction, so an
   import can save many entries in one.
 
@@ -29,7 +29,6 @@ import uuid
 from collections.abc import Mapping, Sequence
 from dataclasses import dataclass
 
-from pydantic import ValidationError
 from sqlalchemy import delete, func, select
 from sqlalchemy.dialects.postgresql import insert
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -37,9 +36,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from app.models.bank import (
     Bank_Bullet,
     Bank_Entry,
-    Bank_Entry_Source,
     Bank_Skill,
-    Bank_Skill_Source,
     Experience_Bank,
 )
 from app.models.built_resume import Built_Resume, Built_Resume_Entry, Built_Resume_Skill
@@ -180,13 +177,17 @@ async def find_duplicate(
     section: bank_section,
     title: str,
     organization: str | None,
+    resume_id: uuid.UUID | None = None,
 ) -> Entry | None:
-    """The bank entry with this section, title and organization, ignoring
-    case and surrounding spaces (no organization matches no organization)."""
+    """The entry of owner `resume_id` (None: the student's own) with this
+    section, title and organization, ignoring case and surrounding spaces (no
+    organization matches no organization). Another upload's entries never
+    match (ADR 0005)."""
     row = await session.scalar(
         select(Bank_Entry)
         .where(
             Bank_Entry.applicant_id == applicant_id,
+            Bank_Entry.resume_id.is_not_distinct_from(resume_id),
             Bank_Entry.section == section,
             func.lower(func.trim(Bank_Entry.title)) == title.strip().lower(),
             func.lower(func.trim(func.coalesce(Bank_Entry.organization, "")))
@@ -204,16 +205,21 @@ async def create_entry(
     fields: EntryFields,
     bullets: Sequence[str] = (),
     *,
+    resume_id: uuid.UUID | None = None,
     allow_duplicate: bool = False,
 ) -> Entry:
-    """Save a new entry and its bullets. Raises DuplicateEntryError when it
-    matches an existing entry, unless the student chose "Save as new"."""
+    """Save a new entry and its bullets, owned by the upload `resume_id` (the
+    caller has checked it is the applicant's) or by none. Raises
+    DuplicateEntryError when it matches an entry of the same owner, unless
+    the student chose "Save as new"."""
     if not allow_duplicate:
-        existing = await find_duplicate(session, applicant_id, fields.section, fields.title, fields.organization)
+        existing = await find_duplicate(
+            session, applicant_id, fields.section, fields.title, fields.organization, resume_id)
         if existing is not None:
             raise DuplicateEntryError(existing)
 
-    row = Bank_Entry(id=uuid.uuid4(), applicant_id=applicant_id, **fields.model_dump(include=set(EntryFields.model_fields)))
+    row = Bank_Entry(id=uuid.uuid4(), applicant_id=applicant_id, resume_id=resume_id,
+                     **fields.model_dump(include=set(EntryFields.model_fields)))
     session.add(row)
     # No relationship() orders the inserts (models/CLAUDE.md), so the entry
     # goes in before its bullets.
@@ -313,20 +319,30 @@ async def delete_bullet(session: AsyncSession, applicant_id: uuid.UUID, bullet_i
 
 
 async def _skill_name_taken(
-    session: AsyncSession, applicant_id: uuid.UUID, name: str, other_than: uuid.UUID | None = None
+    session: AsyncSession, applicant_id: uuid.UUID, resume_id: uuid.UUID | None, name: str,
+    other_than: uuid.UUID | None = None,
 ) -> bool:
+    """Whether owner `resume_id` already has a skill of this name, ignoring
+    case: the same name may stand once per upload and once among the
+    student's own."""
     stmt = select(Bank_Skill.id).where(
-        Bank_Skill.applicant_id == applicant_id, func.lower(Bank_Skill.name) == name.lower()
+        Bank_Skill.applicant_id == applicant_id,
+        Bank_Skill.resume_id.is_not_distinct_from(resume_id),
+        func.lower(Bank_Skill.name) == name.lower(),
     )
     if other_than is not None:
         stmt = stmt.where(Bank_Skill.id != other_than)
     return await session.scalar(stmt.limit(1)) is not None
 
 
-async def add_skill(session: AsyncSession, applicant_id: uuid.UUID, name: str, group: str | None = None) -> Bank_Skill:
-    if await _skill_name_taken(session, applicant_id, name):
+async def add_skill(
+    session: AsyncSession, applicant_id: uuid.UUID, name: str, group: str | None = None,
+    *, resume_id: uuid.UUID | None = None,
+) -> Bank_Skill:
+    """Save a skill, owned as `create_entry`'s entry is."""
+    if await _skill_name_taken(session, applicant_id, resume_id, name):
         raise DuplicateSkillError
-    skill = Bank_Skill(id=uuid.uuid4(), applicant_id=applicant_id, name=name, group=group)
+    skill = Bank_Skill(id=uuid.uuid4(), applicant_id=applicant_id, resume_id=resume_id, name=name, group=group)
     session.add(skill)
     await clear_embedding(session, applicant_id)
     await session.flush()
@@ -349,7 +365,7 @@ async def update_skill(
     skill = await _owned_skill(session, applicant_id, skill_id)
     name = changes.get("name")
     if name is not None:
-        if await _skill_name_taken(session, applicant_id, str(name), other_than=skill.id):
+        if await _skill_name_taken(session, applicant_id, skill.resume_id, str(name), other_than=skill.id):
             raise DuplicateSkillError
         skill.name = str(name)
     if "group" in changes:
@@ -366,129 +382,48 @@ async def delete_skill(session: AsyncSession, applicant_id: uuid.UUID, skill_id:
 
 
 @dataclass
-class Merged:
-    """What `merge_import` changed in the bank."""
+class Imported:
+    """What `import_upload` wrote."""
 
     entries_added: int = 0
-    entries_updated: int = 0
     skills_added: int = 0
 
 
-# An import fills these only when the bank entry has none of them, so a merge
-# never pairs one resume's start with another resume's end.
-_DATES = ("start_month", "end_month", "end_kind")
-# EntryCreate's cap on bullets, kept when a merge appends to an entry.
-_MAX_BULLETS = 30
-
-
-def _blank(value: object) -> bool:
-    return value is None or value == []
-
-
-def _same_words(text: str) -> str:
-    return " ".join(text.split()).lower()
-
-
-async def _merge_entry(session: AsyncSession, applicant_id: uuid.UUID, existing: Entry, draft: EntryCreate) -> bool:
-    """Give a bank entry the fields it has empty and the bullets it lacks
-    (ignoring case and spacing). A field the bank holds keeps its value: the
-    student may have fixed it. True when anything changed."""
-    row = existing.row
-    changes = {
-        name: getattr(draft, name)
-        for name in EntryFields.model_fields
-        if name not in _DATES and _blank(getattr(row, name)) and not _blank(getattr(draft, name))
-    }
-    if all(getattr(row, name) is None for name in _DATES) and any(getattr(draft, name) for name in _DATES):
-        changes.update({name: getattr(draft, name) for name in _DATES})
-    changed = False
-    if changes:
-        try:
-            await update_entry(session, applicant_id, row.id, changes)
-            changed = True
-        except ValidationError:
-            # The filled fields clash with the kept ones (a GPA above the
-            # bank's scale): the entry stays as it was, the bullets still go in.
-            pass
-    have = {_same_words(b.text) for b in existing.bullets}
-    room = _MAX_BULLETS - len(existing.bullets)
-    for text in draft.bullets:
-        if room <= 0:
-            break
-        if _same_words(text) in have:
-            continue
-        have.add(_same_words(text))
-        await add_bullet(session, applicant_id, row.id, text)
-        room -= 1
-        changed = True
-    return changed
-
-
-async def merge_import(
+async def import_upload(
     session: AsyncSession,
     applicant_id: uuid.UUID,
     resume_id: uuid.UUID,
     entries: Sequence[EntryCreate],
     skills: Sequence[tuple[str, str | None]],
-) -> Merged:
-    """Write an import of the applicant's upload `resume_id` into the bank
-    (ADR 0003). An entry the bank lacks is added; one that `find_duplicate`
-    matches is merged, never copied, so several resumes add up to one bank.
-    A skill is added when the bank has none of that name, ignoring case.
-    Every entry and skill the reading found gets the upload as a source
-    (KAN-343), even one the merge left unchanged: it is still on that
-    resume. The caller has flushed the resume row and checked its owner."""
-    merged = Merged()
-    entry_ids: list[uuid.UUID] = []
-    for draft in entries:
-        existing = await find_duplicate(session, applicant_id, draft.section, draft.title, draft.organization)
-        if existing is None:
-            existing = await create_entry(session, applicant_id, draft, draft.bullets, allow_duplicate=True)
-            merged.entries_added += 1
-        elif await _merge_entry(session, applicant_id, existing, draft):
-            merged.entries_updated += 1
-        entry_ids.append(existing.row.id)
-    taken = {
-        name.lower(): skill_id
-        for skill_id, name in await session.execute(
-            select(Bank_Skill.id, Bank_Skill.name).where(Bank_Skill.applicant_id == applicant_id)
+) -> Imported:
+    """Write a reading of the applicant's upload `resume_id` into the bank as
+    that upload's own entries and skills (ADR 0005). What the upload owned
+    before goes first, with the student's edits to it and its places on
+    built resumes, so Import Again and Import Updated Resume replace rather
+    than copy. No other resume's entries are looked at. A skill the reading
+    lists twice, ignoring case, is written once. The caller has flushed the
+    resume row and checked its owner."""
+    for table in (Bank_Entry, Bank_Skill):
+        await session.execute(
+            delete(table).where(table.applicant_id == applicant_id, table.resume_id == resume_id)
         )
-    }
-    skill_ids: list[uuid.UUID] = []
+    for draft in entries:
+        await create_entry(session, applicant_id, draft, draft.bullets, resume_id=resume_id, allow_duplicate=True)
+    names: set[str] = set()
     for name, group in skills:
-        if name.lower() not in taken:
-            taken[name.lower()] = (await add_skill(session, applicant_id, name, group)).id
-            merged.skills_added += 1
-        skill_ids.append(taken[name.lower()])
-    await _add_sources(session, Bank_Entry_Source, Bank_Entry_Source.entry_id, entry_ids, resume_id)
-    await _add_sources(session, Bank_Skill_Source, Bank_Skill_Source.skill_id, skill_ids, resume_id)
-    return merged
-
-
-async def _add_sources(session: AsyncSession, table, item_column, item_ids: list[uuid.UUID], resume_id: uuid.UUID) -> None:
-    """One source row per item; a row already there stays (a second import
-    of the same resume adds nothing)."""
-    if not item_ids:
-        return
-    rows = [{item_column.key: item_id, "resume_id": resume_id} for item_id in dict.fromkeys(item_ids)]
-    await session.execute(insert(table).values(rows).on_conflict_do_nothing())
+        if name.lower() not in names:
+            names.add(name.lower())
+            await add_skill(session, applicant_id, name, group, resume_id=resume_id)
+    await clear_embedding(session, applicant_id)
     await session.flush()
-
-
-async def clear_sources(session: AsyncSession, resume_id: uuid.UUID) -> None:
-    """Drop every source of one upload, before Import Updated Resume merges
-    the new file: an entry the new version dropped leaves that resume's
-    view, and stays in the bank. The caller has checked the owner."""
-    await session.execute(delete(Bank_Entry_Source).where(Bank_Entry_Source.resume_id == resume_id))
-    await session.execute(delete(Bank_Skill_Source).where(Bank_Skill_Source.resume_id == resume_id))
-    await session.flush()
+    return Imported(entries_added=len(entries), skills_added=len(names))
 
 
 @dataclass
 class Holdings:
     """Which resumes hold each entry and skill (KAN-343): an upload holds
-    what its import found (the sources), a built resume what it shows (its
-    choice rows with `shown`). `resumes` is in dropdown order, and each id
+    what it owns (ADR 0005), a built resume what it shows (its choice rows
+    with `shown`). `resumes` is in dropdown order, and each id
     list follows it. An item no resume holds is absent."""
 
     resumes: list[BankResume]
@@ -541,11 +476,9 @@ async def load_holdings(session: AsyncSession, applicant_id: uuid.UUID) -> Holdi
             ids.sort(key=order.__getitem__)
         return out
 
-    def uploads(table, item_column):
-        return (
-            select(item_column, table.resume_id)
-            .join(Resume, Resume.id == table.resume_id)
-            .where(Resume.applicant_id == applicant_id)
+    def uploads(table):
+        return select(table.id, table.resume_id).where(
+            table.applicant_id == applicant_id, table.resume_id.is_not(None)
         )
 
     def built(table, item_column):
@@ -558,11 +491,11 @@ async def load_holdings(session: AsyncSession, applicant_id: uuid.UUID) -> Holdi
     return Holdings(
         resumes=resumes,
         entries=await held(
-            uploads(Bank_Entry_Source, Bank_Entry_Source.entry_id),
+            uploads(Bank_Entry),
             built(Built_Resume_Entry, Built_Resume_Entry.entry_id),
         ),
         skills=await held(
-            uploads(Bank_Skill_Source, Bank_Skill_Source.skill_id),
+            uploads(Bank_Skill),
             built(Built_Resume_Skill, Built_Resume_Skill.skill_id),
         ),
     )

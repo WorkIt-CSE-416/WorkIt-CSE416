@@ -277,7 +277,7 @@ export const TYPE_SCALE: { token: string; cls: string; role: string }[] = [
   { token: "--text-body", cls: "text-body", role: "Body copy, inputs" },
   { token: "--text-subtitle", cls: "text-subtitle", role: "Work-history job titles" },
   { token: "--text-title", cls: "text-title", role: "Card and column headings" },
-  { token: "--text-heading", cls: "text-heading", role: "Page name — Application Tracker" },
+  { token: "--text-heading", cls: "text-heading", role: "Page name — Applications Tracker" },
   { token: "--text-display", cls: "text-display", role: "Company Dashboard headline figures" },
   {
     token: "--text-figure",
@@ -343,6 +343,14 @@ export const WIDTHS: { token: string; cls: string; role: string }[] = [
     token: "--container-dashboard",
     cls: "max-w-dashboard",
     role: "The seeker Dashboard's wider grid",
+  },
+];
+
+export const HEIGHTS: { token: string; cls: string; role: string }[] = [
+  {
+    token: "--spacing-scroll-box",
+    cls: "h-scroll-box",
+    role: "A list or table that scrolls inside a dialog or a tile",
   },
 ];
 
