@@ -1262,6 +1262,16 @@ are in `docs/auth.md`.
   no student could see, edit or delete, so it came back (2026-10-24).
   Clear All (KAN-352) deletes what a card shows, from the whole bank, as
   Delete Entry does (`docs/screens.md`, Resumes & Experiences).
+- **The Experiences view has a section nav** (KAN-349,
+  `(seeker)/bank/section-nav.tsx`): one sticky row of links to the seven
+  section cards, each with its count under the current pick, the one in
+  view lit. It is one row at every width, scrolling sideways where it does
+  not fit, so its height never changes; every section card's `scroll-mt-16`
+  is room for it, and a card added to the page needs that margin and an
+  `id` of `section-<id>` too, or a jump to it (and Scout's scroll) lands
+  under the row. A click keeps its link lit until the student scrolls on:
+  lit by the scroll alone, a click on Certifications ended with Skills lit,
+  since a short last card never reaches the top.
 - **Applicant server actions call the API through `applicantCall`**
   (`lib/applicant-call.ts`, server-only): the session, the Bearer token,
   GET/DELETE/fetch, and a `Result<T>` (`data`, `error`, `status`) that never

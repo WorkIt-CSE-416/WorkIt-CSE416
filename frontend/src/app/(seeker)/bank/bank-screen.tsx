@@ -44,6 +44,7 @@ import {
   type EntryDraft,
 } from "./sections";
 import { ResumeBar } from "./resume-bar";
+import { SectionNav } from "./section-nav";
 
 /**
  * The bank page's live screen: one card per section, each entry with its
@@ -255,6 +256,21 @@ export function BankScreen({
         </p>
       )}
       {picked && ownsNothing && <LinkUpload resumeId={picked.id} reload={reload} />}
+      <SectionNav
+        sections={[
+          ...SECTIONS.map((s) => ({
+            id: s.id,
+            label: s.label,
+            count: bank.entries.filter((e) => e.section === s.id && shows(current, e, uploads))
+              .length,
+          })),
+          {
+            id: "skills",
+            label: "Skills",
+            count: bank.skills.filter((s) => shows(current, s, uploads)).length,
+          },
+        ]}
+      />
       {SECTIONS.map((section) => {
         const entries = bank.entries.filter(
           (e) => e.section === section.id && shows(current, e, uploads),
@@ -268,8 +284,9 @@ export function BankScreen({
             id={`section-${section.id}`}
             aria-labelledby={`bank-${section.id}`}
             selected={here !== null}
-            // 16px of room above the heading when Scout scrolls it to the top.
-            className="scroll-mt-4 transition-colors duration-200"
+            // Room for the section nav and 16px above the heading when Scout
+            // or the nav scrolls it to the top.
+            className="scroll-mt-16 transition-colors duration-200"
           >
             <div className="flex items-baseline justify-between gap-3">
               <h2 id={`bank-${section.id}`} className="text-subtitle text-ink">
@@ -626,7 +643,7 @@ function SkillsCard({
   }
 
   return (
-    <Card as="section" aria-labelledby="bank-skills">
+    <Card as="section" id="section-skills" aria-labelledby="bank-skills" className="scroll-mt-16">
       <div className="flex items-baseline justify-between gap-3">
         <h2 id="bank-skills" className="text-subtitle text-ink">
           Skills

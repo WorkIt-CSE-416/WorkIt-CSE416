@@ -124,6 +124,9 @@ created_at, and `edited_at` for the resume table's date, KAN-361).
   - It replaced a dropdown (2026-10-24) that put uploads, built resumes and
     Not From an Upload in one flat list, with no search, long names cut
     short, and one more line for every tailored resume.
+- **The section nav** (KAN-349) sits under the Showing bar: a sticky row
+  of links to the seven section cards, each with its count under the
+  pick, the card in view lit. A click glides to that card.
 - **The page opens on the primary resume**, else the newest of any kind.
   A `?resume=` that names no listed resume (a deleted one, or the old
   `all`) opens the same way; `none` opens Not From an Upload. With no

@@ -1306,7 +1306,11 @@ kept, once (`GLOSSARY.md`), and the only place they are edited: the
 Resumes view keeps the uploads, and its upload note links here.
 
 **Layout, top to bottom**: the shared header (above) with Fill With Scout,
-then the section cards and Skills. The page is the filled-out bank itself.
+the Showing bar, the section nav, then the section cards and Skills.
+The section nav (KAN-349) is a row of links, one per card with its count
+under the current pick, held at the top of the page while the cards scroll
+under it: a click glides to that card, and the card in view is lit, so a
+long bank is one click from end to end. The page is the filled-out bank itself.
 The resumes it makes moved out in KAN-249 (Resumes, below). At the foot of
 the bank, as settled on 2026-10-13, a student editing entries scrolled past
 every section to reach a resume, and the page read as two pages in one.
