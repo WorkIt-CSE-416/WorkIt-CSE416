@@ -11,7 +11,7 @@ import type { ComponentType, ReactNode } from "react";
 
 import { ClickableRow } from "@/components/clickable-row";
 import { CompanyLogo } from "@/components/company-logo";
-import { ClockIcon, SortIcon, SparkleIcon } from "@/components/icons";
+import { ClockIcon, PencilIcon, SortIcon, SparkleIcon } from "@/components/icons";
 import { MatchBadge } from "@/components/match-badge";
 import { Reflow } from "@/components/reflow";
 import {
@@ -64,9 +64,13 @@ export type ActivityItem = {
   appliedAt: string | null;
   /** The job posting's own page; the whole row opens it. None once closed. */
   href?: string;
-  /** The resume a queued job will go out with (./page.tsx, resumeFor), or
-   *  null when it would go with none; Up Next shows it. */
+  /** The resume a queued job will go out with (./page.tsx): the student's
+   *  pick, else the rule's; null when it would go with none. Up Next shows
+   *  it. */
   resume?: string | null;
+  /** That resume as the picker keys it, "built:<id>" or "uploaded:<id>", so
+   *  Up Next's resume picker (./resume-dialog.tsx) opens on it. */
+  resumeKey?: string | null;
 };
 
 /** Each stored stage's status, and the line it needs under its badge. */
@@ -315,12 +319,15 @@ export function ActivityTable({
   sort,
   onSort,
   variant = "history",
+  onResume,
 }: {
   items: ActivityItem[];
   sort: Sort;
   onSort: (sort: Sort) => void;
   /** "queue": Up Next's columns (QUEUE_COLUMNS); "history": the rest. */
   variant?: "queue" | "history";
+  /** Up Next's resume cell is a button that opens this row's resume picker. */
+  onResume?: (item: ActivityItem) => void;
 }) {
   const columns = variant === "queue" ? QUEUE_COLUMNS : COLUMNS;
   return (
@@ -367,7 +374,7 @@ export function ActivityTable({
         <TableBody>
           {items.map((item, i) => (
             <Reflow key={item.id}>
-              <Row item={item} index={i} variant={variant} />
+              <Row item={item} index={i} variant={variant} onResume={onResume} />
             </Reflow>
           ))}
         </TableBody>
@@ -380,10 +387,12 @@ function Row({
   item,
   index,
   variant,
+  onResume,
 }: {
   item: ActivityItem;
   index: number;
   variant: "queue" | "history";
+  onResume?: (item: ActivityItem) => void;
 }) {
   const status = STATUS[item.status];
   const cells: ReactNode = (
@@ -441,8 +450,22 @@ function Row({
       </TableCell>
 
       {variant === "queue" && (
-        <TableCell className={cn(TD, CENTER, "overflow-hidden")}>
-          {item.resume ? (
+        <TableCell className={cn(TD, CENTER, "overflow-hidden py-0")}>
+          {onResume ? (
+            // A button, so the row's own click (it opens the job) leaves it
+            // alone (components/clickable-row.tsx).
+            <button
+              type="button"
+              onClick={() => onResume(item)}
+              title={item.resume ? `${item.resume}: change resume` : "Choose a resume"}
+              className="text-note hover:text-brand hover:border-brand-ring focus-visible:ring-brand-ring border-border-subtle inline-flex max-w-full items-center gap-1.5 rounded-full border px-2.5 py-1 transition-colors duration-150 focus-visible:ring-2 focus-visible:outline-none"
+            >
+              <span className={cn("truncate", item.resume ? "text-ink" : "text-ink-meta")}>
+                {item.resume ?? "Choose a resume"}
+              </span>
+              <PencilIcon aria-hidden className="text-ink-meta size-3.5 shrink-0" />
+            </button>
+          ) : item.resume ? (
             <span className="block truncate" title={item.resume}>
               {item.resume}
             </span>

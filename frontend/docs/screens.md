@@ -916,38 +916,44 @@ the tab's page load: the note says how many jobs it queued at once and adds
 the tab's result when it lands. The state (`idle`, `running`, `paused`) is
 the page's own; a return visit starts idle, so Start queues another batch.
 
-**Jobs lead the page** (KAN-359): under the heading, a one-line resume note,
-then **Up Next**, **Ready to Queue** and **History**. It opened with a
-"Resume List" table of every resume until KAN-359; the page is about which
-jobs go out, so the table went, and resumes are chosen and starred on
-Resumes & Experiences, which the note's Manage Resumes link opens.
+**Jobs lead the page** (KAN-359): the heading with **Manage Resumes** (a
+secondary button to Resumes & Experiences) beside Start Auto Apply, then
+**Up Next** and **History**. It opened with a "Resume List" table of every
+resume until KAN-359, then a line naming the default resume, which the
+user removed: each queued job now shows and changes its own resume.
 
-- **The resume note** (`auto-apply-panel.tsx`): "Each job goes out with
-  the resume tailored to it, else your default, {name}", or asks for a
-  default or a first resume.
 - **Up Next** (`auto-apply/up-next.tsx`): the queue, oldest first, the
   order the extension takes it, in Live Activity's table with its "queue"
-  columns (`QUEUE_COLUMNS`): Role, Status, **Resume** (the one the job
-  will go out with), Match, Date Added and the cross. No sorting, since the
-  order is the run's. The resume is worked out on the server
-  (`resumeFor` in `auto-apply/page.tsx`) by the run's own rule,
-  `pick_resume`: the built resume tailored to that job posting, else the
-  default, else none. It is for display: the run picks again when it fills
-  the form. Keep the two in step.
-- **Ready to Queue** (`auto-apply/ready-to-queue.tsx`): the seeker's saved
-  jobs, scored. **The one place a seeker queues several jobs at once**:
-  the Jobs page and the Dashboard keep one click per job, and the
-  Applications Tracker is the record. A row's checkbox, or a click on the
-  row but its title, picks it; Select All picks every job auto apply can
-  fill. A job it can't fill (not Greenhouse, for now) can't be picked and
-  says why, and the header line says so when none can. While anything is
-  picked, a bar floats at the page's foot (`selection-bar.tsx`): "{n}
-  Selected", Clear, and Auto Apply Selected, which queues each pick
+  columns (`QUEUE_COLUMNS`): Role, Status, **Resume**, Match, Date Added
+  and the cross. No sorting, since the order is the run's.
+- **The Resume cell is a button** (a bordered pill with a pencil): it
+  opens the row's resume picker (`auto-apply/resume-dialog.tsx`), the
+  Apply dialog's own radio lists (`jobs/resume-picker.tsx`, Generated
+  beside Uploaded), opened on the row's resume, with Tailor for This Job
+  and Build a New Resume under them. Use This Resume calls `chooseResume`
+  (`PUT .../applications/{job_id}/resume`), which the API keeps as a sent
+  resume the application names; the run's resume step then sends that
+  resume, from its current content. The cell shows that pick
+  (`sent_resume`), else the run's rule, `pick_resume`, worked out in
+  `auto-apply/page.tsx` (`ruleFor`): the built resume tailored to that job
+  posting, else the default, else none. Keep `ruleFor` in step with
+  `pick_resume`. **Still open: the extension does not ask the API which
+  resume to attach**: it attaches the default resume itself
+  (`resolveResumeFile`, `autofiller_extension/src/background/api.js`), so
+  a pick reaches the form only once the extension calls `POST
+  .../applications/{job_id}/resume` for the job it fills.
+- **Add Jobs**, at Up Next's right, opens the seeker's saved jobs in a
+  dialog (`auto-apply/add-jobs-dialog.tsx`). **The one place a seeker
+  queues several jobs at once**: the Jobs page and the Dashboard keep one
+  click per job, and the Applications Tracker is the record. A row's
+  checkbox, or a click on the row but its title, picks it; Select All picks
+  every job auto apply can fill. One it can't fill (not Greenhouse, for
+  now) can't be picked and says why. "Add N to Queue" queues each pick
   through `queueJob` in the list's order, asks the extension to open the
-  oldest queued job, toasts how many went in, and redraws the page, so the
-  picks move to Up Next. There is no "auto apply all saved jobs": the
-  seeker picks each one. It sat in the Tracker's Saved view first and moved
-  here, where the seeker's intent is "apply for me".
+  oldest queued job, toasts how many went in, and redraws the page. There
+  is no "auto apply all saved jobs": the seeker picks each one. It was a
+  Ready to Queue section under Up Next, which the user found redundant
+  beside the saved jobs, and before that the Tracker's Saved view.
 - **History**: Live Activity's table for everything past the queue (needs
   you, applied, skipped), with the Status filter offering only those.
 

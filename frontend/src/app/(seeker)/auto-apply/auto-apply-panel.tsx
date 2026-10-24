@@ -5,9 +5,9 @@ import { LightningRoundedIcon } from "@/components/custom-icons";
 import { useRouter } from "next/navigation";
 import { useRef, useState, useTransition, type ReactNode } from "react";
 
-import { Button } from "@/components/ui/button";
+import { FileIcon } from "@/components/icons";
+import { Button, ButtonLink } from "@/components/ui/button";
 import { openNextApplication } from "@/lib/autofill-extension";
-import { TextLink } from "@/components/ui/text-link";
 import { cn } from "@/lib/cn";
 
 import { startBatch } from "./actions";
@@ -29,16 +29,18 @@ const RUN_BUTTON: Record<
 };
 
 /**
- * The Auto Apply page's heading, its run button and the resume note under
- * it. `children` is the page's three sections, Up Next, Ready to Queue and
- * History, drawn on the server (./page.tsx) and passed through, since this
- * half is a client component.
+ * The Auto Apply page's heading with its two actions, Manage Resumes and the
+ * run button. `children` is the page's sections, Up Next and History, drawn
+ * on the server (./page.tsx) and passed through, since this half is a
+ * client component.
  *
- * THE RESUME NOTE replaced the Resume List table (KAN-359), which opened the
- * page with every resume the seeker has: the page is about which jobs go
- * out, so jobs lead it, and each queued job shows its own resume in Up
- * Next. The note names the default resume and links to Resumes &
- * Experiences, where resumes are chosen and starred.
+ * MANAGE RESUMES (KAN-359) took the place of the Resume List table, which
+ * opened the page with every resume the seeker has, and then of a line
+ * naming the default resume, which the user removed: the page is about
+ * which jobs go out, each queued job shows and changes its own resume in Up
+ * Next, and resumes are built and starred on Resumes & Experiences, which
+ * the button opens. It is the bordered secondary beside the brand-filled
+ * run button, the one action that starts work.
  *
  * THE RUN BUTTON SITS IN THE PAGE'S HEADER (KAN-285), at the top right. It
  * is sm (36px), a header action's size (docs/design.md), and as wide as its
@@ -66,13 +68,10 @@ const RUN_BUTTON: Record<
  */
 export function AutoApplyPanel({
   hasResume,
-  defaultResume,
   children,
 }: {
   /** The seeker has at least one resume: Start is off without one. */
   hasResume: boolean;
-  /** The default resume's name, or null when none is starred. */
-  defaultResume: string | null;
   children: ReactNode;
 }) {
   const router = useRouter();
@@ -134,16 +133,22 @@ export function AutoApplyPanel({
           </p>
         </div>
 
-        <Button
-          variant={button.variant}
-          size="sm"
-          disabled={!hasResume || pending}
-          onClick={toggle}
-          className="w-full shrink-0 @2xl/main:w-44"
-        >
-          <button.Icon aria-hidden />
-          {button.label}
-        </Button>
+        <div className="flex shrink-0 flex-col gap-2 @md/main:flex-row">
+          <ButtonLink href="/resumes" variant="secondary" size="sm">
+            <FileIcon className="size-4" />
+            Manage Resumes
+          </ButtonLink>
+          <Button
+            variant={button.variant}
+            size="sm"
+            disabled={!hasResume || pending}
+            onClick={toggle}
+            className="@2xl/main:w-44"
+          >
+            <button.Icon aria-hidden />
+            {button.label}
+          </Button>
+        </div>
       </div>
 
       {note && (
@@ -157,20 +162,6 @@ export function AutoApplyPanel({
           {note.text}
         </p>
       )}
-
-      <p className="text-body text-ink-meta mt-3">
-        {defaultResume ? (
-          <>
-            Each job goes out with the resume tailored to it, else your default,{" "}
-            <span className="text-ink font-medium">{defaultResume}</span>.{" "}
-          </>
-        ) : hasResume ? (
-          "Each job goes out with the resume tailored to it. Star a default resume for the rest. "
-        ) : (
-          "Add a resume to start auto applying. "
-        )}
-        <TextLink href="/resumes">Manage Resumes</TextLink>
-      </p>
 
       {children}
     </>
