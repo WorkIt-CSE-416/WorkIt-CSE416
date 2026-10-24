@@ -1,4 +1,4 @@
-import { RADII, SECTIONS, SHADOWS, WIDTHS } from "../data";
+import { HEIGHTS, RADII, SECTIONS, SHADOWS, WIDTHS } from "../data";
 import { TokenValue } from "../palette";
 import { Group, KitPage, Row } from "../specimen";
 
@@ -33,6 +33,17 @@ export default function ShapePage() {
           <Row key={token} name={token} role={role}>
             <div className="flex w-full flex-col gap-1.5">
               <span className={`bg-brand-tint block h-2 w-full rounded-full ${cls}`} />
+              <TokenValue token={token} />
+            </div>
+          </Row>
+        ))}
+      </Group>
+
+      <Group title="Heights" note="Each bar is its token's height.">
+        {HEIGHTS.map(({ token, cls, role }) => (
+          <Row key={token} name={token} role={role}>
+            <div className="flex items-end gap-3">
+              <span className={`bg-brand-tint block w-6 rounded-full ${cls}`} />
               <TokenValue token={token} />
             </div>
           </Row>
