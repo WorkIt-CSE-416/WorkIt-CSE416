@@ -5,18 +5,24 @@ company, taken from the verified token, never from the request.
 """
 
 import datetime
-import logging
 import uuid
 
 from fastapi import APIRouter, Depends, HTTPException, Query, status
-from sqlalchemy import delete, select
-from sqlalchemy.exc import IntegrityError
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.db import get_session
 from app.deps import get_company_member
 from app.models.dto import job_post_status
-from app.models.jobs import Job_Location, Job_Post
+from app.models.jobs import Job_Post
+from app.queries.company_jobs import (
+    UnsupportedLocation,
+    commit_job,
+    list_company_jobs,
+    locations,
+    own_job,
+    posting,
+    set_location,
+)
 from app.schemas.auth import AuthenticatedAccount
 from app.schemas.company_jobs import (
     JobPosting,
@@ -26,13 +32,7 @@ from app.schemas.company_jobs import (
     JobStatusChange,
 )
 
-logger = logging.getLogger(__name__)
-
 router = APIRouter(prefix="/company/jobs", tags=["company jobs"])
-
-# The foreign keys a job's location is checked against. Anything else that
-# fails on commit is a bug of ours, not an unsupported location.
-_LOCATION_CONSTRAINTS = {"job_locations_country_fkey", "job_locations_state_country_fkey"}
 
 # In the form's body but not columns of the job: they become its one
 # job_locations row. A company job has one place; several are for scraped jobs.
@@ -48,90 +48,29 @@ _NEXT_STATUSES: dict[job_post_status, set[job_post_status]] = {
 }
 
 
-# A function, not a shared instance: see _not_authenticated in app/deps.py.
 def _job_not_found() -> HTTPException:
     return HTTPException(status.HTTP_404_NOT_FOUND, "Job not found.")
 
 
-async def _commit(db: AsyncSession, job: Job_Post) -> None:
-    '''
-    commit a new or changed job and reload what the database filled in
-    '''
-    try:
-        await db.commit()
-    except IntegrityError as exc:
-        await db.rollback()
-        # The schema already enforces salary and state/country agreement, so
-        # a location foreign key failing means a country or state code that
-        # isn't seeded. asyncpg's own error, which names the constraint, is
-        # the cause of the DBAPI error SQLAlchemy wraps.
-        constraint = getattr(exc.orig.__cause__, "constraint_name", None)
-        if constraint not in _LOCATION_CONSTRAINTS:
-            raise
-        logger.info("Job write rejected: %s", exc.orig)
-        raise HTTPException(
-            status.HTTP_422_UNPROCESSABLE_CONTENT,
-            "That location isn't supported yet.",
-        ) from exc
-
-    # created_at and updated_at come from the database, so they aren't on the
-    # object yet; reading them lazily would raise MissingGreenlet in async.
-    await db.refresh(job)
-
-
-async def _own_job(
+async def _own_job_or_404(
     db: AsyncSession, job_id: uuid.UUID, account: AuthenticatedAccount, *, lock: bool = False
 ) -> Job_Post:
-    '''
-    the job, if it belongs to the caller's company. Another company's job is a
-    404 rather than a 403, so ids can't be probed for existence. `lock` holds
-    the row until commit, for a write that first checks what it read.
-    '''
-    job = await db.get(Job_Post, job_id, with_for_update=lock)
-    if job is None or job.company_id != account.company_id:
+    """Query layer returns None; router maps to 404."""
+    job = await own_job(db, job_id, account, lock=lock)
+    if job is None:
         raise _job_not_found()
     return job
 
 
-async def _set_location(
-    db: AsyncSession, job_id: uuid.UUID, country: str | None, state: str | None
-) -> None:
-    '''
-    replace the job's place with the form's. Run after the job is flushed:
-    with no relationship() on the models, the unit of work won't insert the
-    job before a row pointing at it (models/CLAUDE.md)
-    '''
-    await db.execute(delete(Job_Location).where(Job_Location.job_id == job_id))
-    if country is not None:
-        db.add(Job_Location(job_id=job_id, country=country, state=state))
-
-
-async def _locations(db: AsyncSession, job_ids: list[uuid.UUID]) -> dict[uuid.UUID, Job_Location]:
-    '''
-    each job's place, for the responses. One per company job, as
-    _set_location writes it
-    '''
-    rows = await db.execute(select(Job_Location).where(Job_Location.job_id.in_(job_ids)))
-    return {loc.job_id: loc for loc in rows.scalars()}
-
-
-async def _posting(db: AsyncSession, job: Job_Post) -> JobPosting:
-    '''
-    the job as the API returns it, with its place filled in
-    '''
-    loc = (await _locations(db, [job.id])).get(job.id)
-    posting = JobPosting.model_validate(job)
-    if loc is None:
-        return posting
-    return posting.model_copy(update={"location_country": loc.country, "location_state": loc.state})
+async def _commit(db: AsyncSession, job: Job_Post) -> None:
+    """Commit through the query layer; map its error to HTTP."""
+    try:
+        await commit_job(db, job)
+    except UnsupportedLocation as exc:
+        raise HTTPException(status.HTTP_422_UNPROCESSABLE_CONTENT, str(exc)) from exc
 
 
 def _reject_past_close(closes_at: datetime.datetime | None) -> None:
-    '''
-    the date picker blocks past days, but a direct call or a form left open
-    past its own closing date could otherwise put a job live that has
-    already closed
-    '''
     if closes_at is not None and closes_at < datetime.datetime.now(datetime.UTC):
         raise HTTPException(
             status.HTTP_422_UNPROCESSABLE_CONTENT,
@@ -157,9 +96,9 @@ async def create_job(
     )
     db.add(job)
     await db.flush()
-    await _set_location(db, job.id, body.location_country, body.location_state)
+    await set_location(db, job.id, body.location_country, body.location_state)
     await _commit(db, job)
-    return await _posting(db, job)
+    return await posting(db, job)
 
 
 @router.get("", response_model=list[JobPostingSummary])
@@ -174,17 +113,8 @@ async def list_jobs(
     table never shows a description, so it isn't sent. A page shorter than
     `limit` is the last one.
     '''
-    rows = await db.execute(
-        select(Job_Post)
-        .where(Job_Post.company_id == account.company_id)
-        # id breaks ties, so two jobs created in one transaction can't swap
-        # places between pages and be skipped or shown twice.
-        .order_by(Job_Post.created_at.desc(), Job_Post.id)
-        .limit(limit)
-        .offset(offset)
-    )
-    jobs = list(rows.scalars())
-    locs = await _locations(db, [job.id for job in jobs])
+    jobs = await list_company_jobs(db, account.company_id, limit, offset)
+    locs = await locations(db, [job.id for job in jobs])
     summaries = []
     for job in jobs:
         summary = JobPostingSummary.model_validate(job)
@@ -203,7 +133,7 @@ async def get_job(
     '''
     one of the caller's company's jobs
     '''
-    return await _posting(db, await _own_job(db, job_id, account))
+    return await posting(db, await _own_job_or_404(db, job_id, account))
 
 
 @router.put("/{job_id}", response_model=JobPosting)
@@ -217,16 +147,8 @@ async def update_job(
     replace a job's details with the composer's full form. PUT, not PATCH: the
     form always sends every field, and the salary rules need all of them at
     once to check.
-
-    Only a draft's status changes here (to published, when Publish is
-    pressed). A live job keeps its status, paused included, because pausing,
-    resuming and closing go through the status route; a closed job can't be
-    edited at all. A form loaded before someone else's save is refused (409),
-    never merged.
     '''
-    # Locked, or two saves could both pass the updated_at check below before
-    # either commits.
-    job = await _own_job(db, job_id, account, lock=True)
+    job = await _own_job_or_404(db, job_id, account, lock=True)
 
     if body.updated_at != job.updated_at:
         raise HTTPException(
@@ -238,9 +160,6 @@ async def update_job(
     if job.status != job_post_status.draft and body.status == job_post_status.draft:
         raise HTTPException(status.HTTP_409_CONFLICT, "A live job can't go back to being a draft.")
 
-    # Checked only when the date matters now: a draft going live, or a live
-    # job's date being moved. Fixing a typo on a live job whose closing date
-    # has lapsed doesn't make anyone pick a new date first.
     goes_live = job.status == job_post_status.draft and body.status != job_post_status.draft
     date_moved = job.status != job_post_status.draft and body.closes_at != job.closes_at
     if goes_live or date_moved:
@@ -249,9 +168,9 @@ async def update_job(
     keep = {"updated_at"} if job.status == job_post_status.draft else {"updated_at", "status"}
     for field, value in body.model_dump(exclude=keep | _LOCATION_FIELDS).items():
         setattr(job, field, value)
-    await _set_location(db, job.id, body.location_country, body.location_state)
+    await set_location(db, job.id, body.location_country, body.location_state)
     await _commit(db, job)
-    return await _posting(db, job)
+    return await posting(db, job)
 
 
 @router.post("/{job_id}/status", response_model=JobPosting)
@@ -262,13 +181,9 @@ async def change_job_status(
     db: AsyncSession = Depends(get_session),
 ) -> JobPosting:
     '''
-    pause, resume or close a job. Only the moves in _NEXT_STATUSES are
-    allowed; anything else is a 409. A caller holding the form sends the
-    updatedAt it loaded, and is refused (409) if the job changed since.
+    pause, resume or close a job
     '''
-    # Locked, or two moves could both pass the check below against the same
-    # old status, and the later commit could undo a close.
-    job = await _own_job(db, job_id, account, lock=True)
+    job = await _own_job_or_404(db, job_id, account, lock=True)
 
     if body.updated_at is not None and body.updated_at != job.updated_at:
         raise HTTPException(
@@ -284,10 +199,9 @@ async def change_job_status(
 
     job.status = body.status
     if body.status == job_post_status.closed:
-        # Applications stop now, so a later closing date would be a lie.
         now = datetime.datetime.now(datetime.UTC)
         if job.closes_at is None or job.closes_at > now:
             job.closes_at = now
 
     await _commit(db, job)
-    return await _posting(db, job)
+    return await posting(db, job)
