@@ -1021,6 +1021,19 @@ the KAN-296 cutover.
   its link re-ran the whole feed fetch and Best Match scoring, so the list
   seemed slow to load; `BackToJobs` now calls `router.back()` when
   `cameFrom()` is its target (`docs/screens.md`, Job posting page).
+- **A job posting's page has a rail of jobs beside it** (KAN-297), drawn by
+  `(seeker)/jobs/layout.tsx` so it survives job-to-job navigation. It reads
+  the list `FeedList` last showed (`jobs/shown-list.ts`); a new list screen
+  whose cards open job pages writes it the same way, or the rail shows the
+  last /jobs or /search list (`docs/screens.md`, Job posting page). Every
+  reader that pages a list of roles goes through `nextPage`
+  (`jobs/list-pages.ts`), which picks the action for the list's order and
+  counts the offset; the feed and the rail each had a copy until the
+  KAN-297 review. A list kept for the session builds on `sessionStore`
+  (`jobs/session-store.ts`), as the feed's Load More pages and the rail's
+  list do, and ages by `LIST_FRESH_FOR`. The rail checks its list's age on
+  every job opened, not once: checked on mount only, it sat on its skeleton
+  for good once the list passed half an hour, since it stays mounted.
 - **Promote to `src/components` on the second consumer**, not in anticipation;
   anything used by one route stays beside it (the per-route `icons.tsx`).
 - **`src/components/ui` is hand-written and is what screens import.**
@@ -1218,9 +1231,14 @@ are in `docs/auth.md`.
   while `uses_left` is above 0; a failed reading writes nothing and says
   why.
 - **The Experiences view shows one resume at a time** (KAN-343, ADR 0005,
-  `../docs/bank_by_resume.md`): a dropdown of every uploaded, base and
-  tailored resume, then Not From an Upload while anything no upload owns
-  exists, opening on `?resume=`, else the starred resume, else the newest. The rules (which items a pick shows, the opening pick, the "Also
+  `../docs/bank_by_resume.md`): a Showing bar names the pick, and its
+  Change Resume opens the shared resume table (KAN-361,
+  `(seeker)/bank/resume-bar.tsx` over `(seeker)/jobs/resume-picker.tsx`'s
+  `ResumeLists`), with Not From an Upload as a link under the bar while
+  anything no upload owns exists, opening on `?resume=`, else the starred
+  resume, else the newest. A pick applies on Show Resume, never on a row
+  click, so the arrow keys can move it. The dropdown it replaced had no
+  search and cut long names short. The rules (which items a pick shows, the opening pick, the "Also
   used in" line) live in `(seeker)/bank/holdings.ts` and read only the
   API's `resume_ids`; never work out a resume's items in a component.
   Intake always gets the whole bank. Add sends the pick (`createEntry`,

@@ -17,8 +17,8 @@ that is accepted.
 ## Goal
 
 A student with three uploads and two built resumes should see one resume's
-facts at a time. The Experiences view's **resume dropdown** lists every
-uploaded, base and tailored resume and shows only what the picked one
+facts at a time. The Experiences view's **Showing bar** picks one
+uploaded, base or tailored resume and shows only what the picked one
 holds. Each upload's entries are its own, so an edit on one upload's view
 never changes another's, and an import runs no duplicate check.
 
@@ -99,8 +99,8 @@ never changes another's, and an import runs no duplicate check.
 ## The API
 
 `GET /applicants/{id}/bank` keeps its shape: `resume_ids` on each entry and
-skill, and `resumes` for the dropdown (kind, name, posting, primary,
-created_at).
+skill, and `resumes` for the Showing bar (kind, name, posting, primary,
+created_at, and `edited_at` for the resume table's date, KAN-361).
 
 - **`resume_ids`** is the owning upload (at most one), then the built
   resumes that show the item. `load_holdings` reads the owner from the
@@ -111,13 +111,27 @@ created_at).
 
 ## The Experiences view
 
-- **The dropdown lists the resumes**, grouped Uploaded and Built, **then
-  Not From an Upload** while anything no upload owns exists. **All
-  Experiences is removed.** The options carry no counts.
+- **The Showing bar names the pick** (KAN-361): the resume's name, its
+  type or the posting it was tailored for, the Primary star, and **Change
+  Resume**. Change Resume opens **Choose a Resume to Show**, the resume
+  table Auto Apply, Tailor and Did You Apply? share (KAN-360): Generated
+  or Uploaded, a search, names that wrap. A click or the arrow keys move
+  the pick, and **Show Resume** applies it; Cancel leaves the page as it
+  was. **Not From an Upload (N)** is a link under the bar while anything
+  no upload owns exists: it is no resume, so it stays out of the table.
+  **All Experiences is removed.** The table carries no counts; the section
+  nav shows them for the pick.
+  - It replaced a dropdown (2026-10-24) that put uploads, built resumes and
+    Not From an Upload in one flat list, with no search, long names cut
+    short, and one more line for every tailored resume.
+- **The section nav** (KAN-349) sits under the Showing bar: a sticky row
+  of links to the seven section cards, each with its count under the
+  pick, the card in view lit. A click glides to that card.
 - **The page opens on the primary resume**, else the newest of any kind.
   A `?resume=` that names no listed resume (a deleted one, or the old
-  `all`) opens the same way; `none` opens Not From an Upload. With no resume at all, there is no
-  dropdown and the page shows the whole bank.
+  `all`) opens the same way; `none` opens Not From an Upload. With no
+  resume at all, there is no Showing bar and the page shows the whole
+  bank.
 - **Unowned entries** show under Not From an Upload, and under any built
   resume that shows them.
   - **Intake's entries**, a Tailor "Have you used X?" skill with no Done,

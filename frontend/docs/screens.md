@@ -185,6 +185,31 @@ filters lifted into them and was cut off. The id is
 the row's UUID, and `getJobListing` reads `GET /jobs/{id}`, whose 404 (closed, a company's own, no such job) is the page's not-found.
 The page is capped at 70rem (1120px), a little wider than the other reading
 pages' `max-w-app`, which left its facts and checklist cramped (KAN-279).
+**A rail of jobs sits on its left** (KAN-297, after Cooper's job board): the
+roles the seeker last saw on /jobs or /search, in that list's order, the open
+one marked, each a link to its own page. Each rail card has the logo, title,
+company, when it was posted and its match, then the feed card's six facts in
+the feed card's own grid (`JobFactGrid` in `components/job-posting-card.tsx`,
+fed by `listingFacts`), two columns in a narrow rail and three from 448px of
+card: asked for 2026-10-22, when a card showed only the company and place.
+It lives in `jobs/layout.tsx`
+(`jobs/jobs-rail.tsx`), above the job's segment, so it stays mounted and
+scrolled where it was while the seeker opens one job after another; Tailor
+and /jobs itself draw no rail. `FeedList` writes the list as it shows it
+(`jobs/shown-list.ts`, sessionStorage `workit:shown-list`) with its own
+query and order, and the rail's Load More continues it with the same
+actions. A list over 30 minutes old is fetched again, and a job opened with
+no list (a shared link) shows the newest roles. The rail shows from
+`@4xl/main`; below that the page is as it was. Beside it the job's page
+stops at 60rem, not 70rem, and the rail takes the room past that, from 18rem
+to 40rem: 288px at a 1280px window, where the page keeps 683px. **Closing
+the menu widens only the rail**: on job pages the frame spans the whole page
+panel, taking back the --panel-gain the shell leaves around a page, and the
+rail grows by the gain, so the job's page keeps its place and width in both
+states (asked for 2026-10-22: with the menu closed, half the gain stood
+empty left of the rail). It scrolls on its own, held to the page panel's
+height by the shell's chrome (6.375rem); change that with the shell's
+padding or bar height.
 It is the mock's `JobDetailHeader` with the card's own facts
 (`listingFacts` in `listing-card.tsx`) and the employer's 40px logo and
 16px name, then one
@@ -349,8 +374,10 @@ every radio above clears; a radio pick unpresses it. The dialog is wide
 (`sm:max-w-3xl`, not the default `sm:max-w-sm`) and scrolls inside itself
 on a short window.
 **The resume table** (`ResumeLists` in `jobs/resume-picker.tsx`, KAN-360)
-is the one picker in all three resume dialogs: this one, Tailor's Pick a
-Resume to Tailor and Auto Apply's Choose a Resume. A switcher shows
+is the one picker in all four resume dialogs: this one, Tailor's Pick a
+Resume to Tailor, Auto Apply's Choose a Resume and the Experiences view's
+Choose a Resume to Show (KAN-361, which builds its rows from the bank's
+resumes, with no posting). A switcher shows
 **Generated** (base and tailored resumes) or **Uploaded**, a search filters
 by name and by the posting a resume was tailored for, and one table
 scrolls under its own sticky head. Generated's columns are Resume, Type
@@ -363,8 +390,10 @@ radio group). It opens on the view that holds the pick and follows a
 pick made outside it (an upload picks the new file, under Uploaded); the
 view and the search only filter, so the pick survives a switch. Names
 wrap, never truncate: two resumes tailored for one company differ only
-at the end of their names. Below `sm` the Tailored For column hides and
-its words sit under the name. Two lists side by side came first, and the
+at the end of their names. Below `sm` the Type and Tailored For columns
+hide and their words sit under the name ("Tailored · Backend Intern at
+Initech"): with Type still shown, the name kept about 60px on a phone and
+broke mid-word (KAN-361). Two lists side by side came first, and the
 user found them ugly once a student had a few tailored resumes. It lists the resumes Pick a
 Resume lists plus No Resume, starting on the one picked at Apply, or No
 Resume after Apply Without a Resume. The student can change it, since they
@@ -1263,7 +1292,7 @@ kept, once (`GLOSSARY.md`), and the only place they are edited: the
 Resumes view keeps the uploads, and its upload note links here.
 
 **Layout, top to bottom**: the shared header (above) with Fill With Scout,
-the resume dropdown, the section nav, then the section cards and Skills.
+the Showing bar, the section nav, then the section cards and Skills.
 The section nav (KAN-349) is a row of links, one per card with its count
 under the current pick, held at the top of the page while the cards scroll
 under it: a click glides to that card, and the card in view is lit, so a

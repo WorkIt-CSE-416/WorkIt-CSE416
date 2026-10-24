@@ -39,7 +39,7 @@ import {
   SECTIONS,
   type EntryDraft,
 } from "./sections";
-import { ResumePicker } from "./resume-picker";
+import { ResumeBar } from "./resume-bar";
 import { SectionNav } from "./section-nav";
 
 /**
@@ -57,15 +57,16 @@ import { SectionNav } from "./section-nav";
  * no card of its own: the title's Fill With Scout and each section's Add
  * already say where to start.
  *
- * The resume dropdown (KAN-343, docs/bank_by_resume.md) shows one resume's
- * entries and skills at a time: it opens on the URL's `?resume=`, else the
+ * The Showing bar (KAN-343, KAN-361, docs/bank_by_resume.md) shows one
+ * resume's entries and skills at a time, picked from the shared resume
+ * table (`resume-bar.tsx`): it opens on the URL's `?resume=`, else the
  * starred resume, else the newest. An upload's entries are its own (ADR
  * 0005); a built resume's are the ones it shows, which an entry's "Also used
  * in" line names. Not From an Upload shows what no upload owns, so nothing
  * in the bank is out of reach. Add saves into the picked resume (or into no
  * upload, under Not From an Upload), so the new item stays in view. A
- * student with no resume sees the whole bank and no dropdown. Intake always
- * sees the whole bank.
+ * student with no resume sees the whole bank and no bar. Intake always sees
+ * the whole bank.
  */
 
 type Editing = { kind: "new"; section: Section } | { kind: "edit"; entry: BankEntry } | null;
@@ -102,9 +103,9 @@ export function BankScreen({
       ? pick
       : openingPick(bank.resumes, undefined);
   const picked = bank.resumes.find((r) => r.id === current) ?? null;
-  const anyUnowned =
-    bank.entries.some((e) => shows(NONE, e, uploads)) ||
-    bank.skills.some((s) => shows(NONE, s, uploads));
+  const unowned =
+    bank.entries.filter((e) => shows(NONE, e, uploads)).length +
+    bank.skills.filter((s) => shows(NONE, s, uploads)).length;
   const ownsNothing =
     picked?.kind === "uploaded" &&
     !bank.entries.some((e) => e.resume_ids.includes(picked.id)) &&
@@ -241,12 +242,7 @@ export function BankScreen({
         />
       </ScoutTakeover>
       {bank.resumes.length > 0 && (
-        <ResumePicker
-          resumes={bank.resumes}
-          value={current}
-          showNone={anyUnowned}
-          onChange={setPick}
-        />
+        <ResumeBar resumes={bank.resumes} value={current} unowned={unowned} onChange={setPick} />
       )}
       {pageError && (
         <p role="alert" className="text-note text-danger">
