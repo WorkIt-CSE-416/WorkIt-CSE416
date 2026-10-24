@@ -10,10 +10,11 @@ import { cn } from "@/lib/cn";
 import { RememberFeed } from "./[jobId]/page-actions";
 import { BankPrompt } from "./bank-prompt";
 import { FeedHeader } from "./feed-header";
+import { FeedFallback } from "./feed-fallback";
 import { FeedList } from "./feed-list";
 import { FeedTransition, PendingFeed } from "./feed-transition";
 import { JobFilters } from "./filters";
-import { ListingsError, ListingsSkeleton } from "./listing-card";
+import { ListingsError } from "./listing-card";
 import {
   filterEntries,
   filtersQuery,
@@ -258,9 +259,18 @@ export default async function JobsPage({ searchParams }: PageProps<"/jobs">) {
 
         {/* Keyed by the order and filters, so a new pick shows the skeleton
             straight away instead of holding the old list until the narrowed
-            one arrives. */}
+            one arrives. The fallback renders cached cards when the cache
+            matches this query, or the skeleton on a miss. */}
         <PendingFeed>
-          <Suspense key={`${sort}${filtersQuery(filters)}`} fallback={<ListingsSkeleton />}>
+          <Suspense
+            key={`${sort}${filtersQuery(filters)}`}
+            fallback={
+              <FeedFallback
+                query={sort === "match" ? sortHref("match", filters).slice("/jobs".length) : filtersQuery(filters)}
+                altQuery={sort === "match" ? filtersQuery(filters) : undefined}
+              />
+            }
+          >
             <Feed filters={filters} sort={sort} />
           </Suspense>
         </PendingFeed>

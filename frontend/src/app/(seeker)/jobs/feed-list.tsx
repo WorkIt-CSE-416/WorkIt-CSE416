@@ -73,6 +73,10 @@ export function FeedList({
   // pages, if this list has any, as it hydrates.
   const stored = useSyncExternalStore(subscribe, readKept, () => null);
   const mine = stored?.query === query ? stored : null;
+  // Whether the cache held data for this query at mount time: skip the rise
+  // animation so a return to the feed feels instant.
+  const cached = useRef(readKept());
+  const fromCache = cached.current?.query === query;
   // First-page roles marked applied here, gone until the server's next draw
   // leaves them out itself.
   const [applied, setApplied] = useState<ReadonlySet<string>>(new Set());
@@ -91,6 +95,23 @@ export function FeedList({
   const list = useRef<HTMLUListElement>(null);
   const tailoredIds = new Set(tailored);
 
+  // Write the full feed state to cache on mount so a return finds it.
+  useEffect(() => {
+    const initialIds = new Set(initial.map((j) => j.id));
+    keep({
+      path: window.location.pathname,
+      query,
+      jobs: [...initial, ...(mine?.jobs ?? []).filter((j) => !initialIds.has(j.id))],
+      offset: mine?.offset ?? initial.length,
+      more: mine ? mine.more : initialMore,
+      stages,
+      tailored,
+      canMarkApplied,
+      source,
+    });
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- first mount only
+  }, []);
+
   useEffect(() => {
     if (!focusId) return;
     list.current
@@ -102,13 +123,18 @@ export function FeedList({
     const shown = [...first, ...loaded];
     const at = shown.findIndex((other) => other.id === job.id);
     setApplied((ids) => new Set(ids).add(job.id));
+    const allJobs = [...initial, ...loaded].filter((other) => other.id !== job.id);
     keep({
       path: window.location.pathname,
       query,
-      jobs: (mine?.jobs ?? []).filter((other) => other.id !== job.id),
+      jobs: allJobs,
       offset: offset - 1,
       more,
       at: mine?.at,
+      stages: { ...stages, [job.id]: "applied" },
+      tailored,
+      canMarkApplied,
+      source,
     });
     setSaid(`${job.title} marked applied.`);
     setFocusId((shown[at + 1] ?? shown[at - 1])?.id ?? null);
@@ -133,9 +159,13 @@ export function FeedList({
       keep({
         path,
         query,
-        jobs: [...loaded, ...fresh],
+        jobs: [...initial, ...loaded, ...fresh],
         offset: offset + page.jobs.length,
         more: page.more,
+        stages,
+        tailored,
+        canMarkApplied,
+        source,
       });
       setSaid(
         fresh.length === 0
@@ -152,11 +182,12 @@ export function FeedList({
         {first.map((job, i) => (
           // The cards rise in as the feed arrives, 50ms apart and capped at
           // the sixth, about a screenful, so the list never makes anyone wait.
+          // On a cache hit (a return to the feed) the animation is skipped.
           <li
             key={job.id}
             data-job-id={job.id}
-            style={{ animationDelay: `${Math.min(i, 6) * 50}ms` }}
-            className="animate-rise"
+            style={fromCache ? undefined : { animationDelay: `${Math.min(i, 6) * 50}ms` }}
+            className={fromCache ? undefined : "animate-rise"}
           >
             <ListingCard
               job={job}
@@ -169,11 +200,12 @@ export function FeedList({
         ))}
         {loaded.map((job, i) => (
           // A loaded page rises in the same way, counted within its own page.
+          // Restored-from-cache pages skip animation, as the first page does.
           <li
             key={job.id}
             data-job-id={job.id}
-            style={{ animationDelay: `${Math.min(i % PAGE_SIZE, 6) * 50}ms` }}
-            className="animate-rise"
+            style={fromCache ? undefined : { animationDelay: `${Math.min(i % PAGE_SIZE, 6) * 50}ms` }}
+            className={fromCache ? undefined : "animate-rise"}
           >
             <ListingCard
               job={job}
