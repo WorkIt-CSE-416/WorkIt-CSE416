@@ -1,7 +1,7 @@
 "use client";
 
-import { Pencil, Plus, Trash2, X } from "lucide-react";
-import { useEffect, useRef, useState, type FormEvent, type ReactNode } from "react";
+import { PencilSimpleIcon, PlusIcon, TrashIcon, XIcon } from "@phosphor-icons/react/ssr";
+import { useEffect, useMemo, useRef, useState, type FormEvent, type ReactNode } from "react";
 
 import { setScoutOpen, useScout } from "@/components/scout/scout-store";
 import { ScoutTakeover } from "@/components/scout/scout-takeover";
@@ -17,8 +17,7 @@ import {
   deleteSkill,
   entryResumeCount,
   getBank,
-  linkSkill,
-  unlinkSkill,
+  importResume,
   updateSkill,
   type Bank,
   type BankEntry,
@@ -28,7 +27,8 @@ import {
 
 import { DeleteConfirm } from "../resumes/delete-confirm";
 import { EntryEditor } from "./entry-editor";
-import { editSteps, type SaveStep } from "./entry-save";
+import { editSteps } from "./entry-save";
+import { ALL, NONE, openingPick, shows, uploadIds, usedIn, type Pick } from "./holdings";
 import { Intake, type IntakeFocus } from "./intake";
 import {
   draftOf,
@@ -39,7 +39,7 @@ import {
   SECTIONS,
   type EntryDraft,
 } from "./sections";
-import { linkChanges } from "./skill-links";
+import { ResumePicker } from "./resume-picker";
 
 /**
  * The bank page's live screen: one card per section, each entry with its
@@ -55,6 +55,12 @@ import { linkChanges } from "./skill-links";
  * ?import=1 so a reload or Back does not open it again. An empty bank gets
  * no card of its own: the title's Fill With Scout and each section's Add
  * already say where to start.
+ *
+ * The resume dropdown (KAN-343, docs/bank_by_resume.md) shows one resume's
+ * entries and skills at a time: it opens on the URL's `?resume=`, else the
+ * starred resume, else the newest. The rest of the bank stays one pick away
+ * (All Experiences), and every edit is still to the one bank, which a shared
+ * entry's "Also used in" line says. Intake always sees the whole bank.
  */
 
 type Editing = { kind: "new"; section: Section } | { kind: "edit"; entry: BankEntry } | null;
@@ -62,11 +68,18 @@ type Editing = { kind: "new"; section: Section } | { kind: "edit"; entry: BankEn
 export function BankScreen({
   initial,
   autoImport = false,
+  resumeParam,
 }: {
   initial: Bank;
   autoImport?: boolean;
+  /** The URL's `?resume=`: a resume id, "all" or "none". */
+  resumeParam?: string;
 }) {
   const [bank, setBank] = useState(initial);
+  const [pick, setPick] = useState<Pick>(() => openingPick(initial.resumes, resumeParam));
+  // What Add under a resume pick says after it switches to All Experiences.
+  const [notice, setNotice] = useState<string | null>(null);
+  const [scrollTo, setScrollTo] = useState<string | null>(null);
   const [editing, setEditing] = useState<Editing>(null);
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -79,6 +92,42 @@ export function BankScreen({
   const [focus, setFocus] = useState<IntakeFocus | null>(null);
   const scoutOpen = useScout().open;
   const marked = scoutOpen ? focus : null;
+
+  const uploads = useMemo(() => uploadIds(bank.resumes), [bank.resumes]);
+  // A resume deleted since the pick reads as the page's opening pick.
+  const current =
+    pick === ALL || pick === NONE || bank.resumes.some((r) => r.id === pick)
+      ? pick
+      : openingPick(bank.resumes, undefined);
+  const picked = bank.resumes.find((r) => r.id === current) ?? null;
+  const counts = (p: Pick) =>
+    bank.entries.filter((e) => shows(p, e, uploads)).length +
+    bank.skills.filter((s) => shows(p, s, uploads)).length;
+
+  function choose(next: Pick) {
+    setPick(next);
+    setNotice(null);
+  }
+
+  // The pick goes in the URL, so a reload or a shared link keeps it; the
+  // opening pick is left out, so arriving rewrites nothing.
+  const urlPick = useRef(pick);
+  useEffect(() => {
+    if (pick === urlPick.current) return;
+    urlPick.current = pick;
+    const url = new URL(window.location.href);
+    url.searchParams.set("resume", pick);
+    window.history.replaceState(null, "", `${url.pathname}${url.search}`);
+  }, [pick]);
+
+  // Scout works on the whole bank: an entry it visits that the pick hides
+  // switches the page to All Experiences, so the mark and the scroll land.
+  const markedHidden = bank.entries.some(
+    (e) => e.id === marked?.entryId && !shows(current, e, uploads),
+  );
+  // Set during render, as React's "adjusting state when a prop changes"
+  // does: the next render has the pick at All, so this runs once.
+  if (markedHidden) setPick(ALL);
 
   // Scout moving to another section (a step chip, or a save or Skip moving
   // on) brings that section's top into view, its heading first (KAN-257).
@@ -103,10 +152,18 @@ export function BankScreen({
     target?.scrollIntoView({ block: moved ? "start" : "nearest", behavior });
   }, [markedSection, markedEntry]);
 
+  // An entry saved under a resume pick, shown once the page is on All.
+  useEffect(() => {
+    if (scrollTo) document.getElementById(`entry-${scrollTo}`)?.scrollIntoView({ block: "center" });
+  }, [scrollTo]);
+
   useEffect(() => {
     if (!autoImport) return;
     setScoutOpen(true);
-    window.history.replaceState(null, "", "/bank");
+    // Drop ?import=1 only, keeping a ?resume= pick.
+    const url = new URL(window.location.href);
+    url.searchParams.delete("import");
+    window.history.replaceState(null, "", `${url.pathname}${url.search}`);
   }, [autoImport]);
 
   async function reload(): Promise<string | null> {
@@ -122,26 +179,37 @@ export function BankScreen({
     setPageError(null);
   }
 
-  /** The skill ids linked to an entry, from the skills' `entry_ids`. */
-  const linkedTo = (entryId: string) =>
-    bank.skills.filter((s) => s.entry_ids.includes(entryId)).map((s) => s.id);
-
-  async function save(draft: EntryDraft, skillIds: string[], allowDuplicate = false) {
+  async function save(draft: EntryDraft, allowDuplicate = false) {
     setSaving(true);
     setError(null);
+    added.current = null;
     const failed =
       editing?.kind === "edit"
-        ? await saveEdit(editing.entry, draft, skillIds)
-        : await saveNew(draft, skillIds, allowDuplicate);
+        ? await saveEdit(editing.entry, draft)
+        : await saveNew(draft, allowDuplicate);
     setSaving(false);
     if (failed === "duplicate" || failed === "closed") return;
     if (failed) return setError(failed);
     open(null);
     const reloadError = await reload();
     if (reloadError) setPageError(reloadError);
+    // A new entry has no source and is on no built resume yet, so a resume
+    // pick would hide it the moment it saves.
+    if (added.current && picked) {
+      setPick(ALL);
+      setScrollTo(added.current);
+      setNotice(
+        picked.kind === "uploaded"
+          ? `Saved to your bank. It's under All Experiences, since it isn't from ${picked.name}.`
+          : `Saved to your bank. It isn't on ${picked.name} yet: add it from that resume's editor.`,
+      );
+    }
   }
 
-  async function saveNew(draft: EntryDraft, skillIds: string[], allowDuplicate: boolean) {
+  // The id of the entry the last Add saved.
+  const added = useRef<string | null>(null);
+
+  async function saveNew(draft: EntryDraft, allowDuplicate: boolean) {
     const { bullets, ...fields } = draft;
     const res = await createEntry(
       fields,
@@ -153,39 +221,13 @@ export function BankScreen({
       return "duplicate" as const;
     }
     if (!res.entry) return res.error;
-    const entryId = res.entry.id;
-    // The entry is saved: a failed link closes the editor (a retry would
-    // make the entry twice) and says so on the page.
-    return runAfterSave(skillIds.map((skillId) => () => linkSkill(skillId, entryId)));
-  }
-
-  /** Steps that run once the entry itself has saved. On a failure the
-   *  editor closes on the bank as it now is, since retrying from it would
-   *  repeat the steps that worked. */
-  async function runAfterSave(steps: (() => Promise<{ error: string | null }>)[]) {
-    for (const step of steps) {
-      const { error } = await step();
-      if (!error) continue;
-      open(null);
-      await reload();
-      setPageError(`Some changes did not save: ${error}`);
-      return "closed" as const;
-    }
+    added.current = res.entry.id;
     return null;
   }
 
-  /** The fields and bullets as `editSteps` gives them, with the skill links
-   *  and unlinks after the fields. */
-  async function saveEdit(entry: BankEntry, draft: EntryDraft, skillIds: string[]) {
-    const { link, unlink } = linkChanges(linkedTo(entry.id), skillIds);
-    const [fields, ...bulletSteps] = editSteps(entry, draft);
-    const steps: SaveStep[] = [
-      fields,
-      ...link.map((skillId) => () => linkSkill(skillId, entry.id)),
-      ...unlink.map((skillId) => () => unlinkSkill(skillId, entry.id)),
-      ...bulletSteps,
-    ];
-    for (const [i, step] of steps.entries()) {
+  /** The fields, then the bullets, as `editSteps` gives them. */
+  async function saveEdit(entry: BankEntry, draft: EntryDraft) {
+    for (const [i, step] of editSteps(entry, draft).entries()) {
       const { error } = await step();
       if (!error) continue;
       if (i === 0) return error; // Nothing saved yet: the editor stays open to fix it.
@@ -213,13 +255,26 @@ export function BankScreen({
           onFocus={setFocus}
         />
       </ScoutTakeover>
+      {bank.resumes.length > 0 && (
+        <ResumePicker resumes={bank.resumes} value={current} counts={counts} onChange={choose} />
+      )}
+      {notice && (
+        <p role="status" className="text-note text-ink-muted">
+          {notice}
+        </p>
+      )}
       {pageError && (
         <p role="alert" className="text-note text-danger">
           {pageError}
         </p>
       )}
+      {picked?.kind === "uploaded" && counts(picked.id) === 0 && (
+        <LinkUpload resumeId={picked.id} reload={reload} />
+      )}
       {SECTIONS.map((section) => {
-        const entries = bank.entries.filter((e) => e.section === section.id);
+        const entries = bank.entries.filter(
+          (e) => e.section === section.id && shows(current, e, uploads),
+        );
         const adding = editing?.kind === "new" && editing.section === section.id;
         const here = marked?.section === section.id ? marked : null;
         return (
@@ -241,13 +296,15 @@ export function BankScreen({
                   variant="section"
                   onClick={() => open({ kind: "new", section: section.id })}
                 >
-                  <Plus /> Add
+                  <PlusIcon aria-hidden /> Add
                 </Button>
               )}
             </div>
 
             {entries.length === 0 && !adding && (
-              <p className="text-body text-ink-meta mt-2">Nothing here yet.</p>
+              <p className="text-body text-ink-meta mt-2">
+                {picked ? "Nothing from this resume." : "Nothing here yet."}
+              </p>
             )}
 
             <ul role="list" className="divide-border-subtle mt-2 flex flex-col divide-y">
@@ -260,9 +317,7 @@ export function BankScreen({
                   {editing?.kind === "edit" && editing.entry.id === entry.id ? (
                     <EntryEditor
                       initial={draftOf(entry)}
-                      skills={bank.skills}
-                      linkedSkillIds={linkedTo(entry.id)}
-                      onSave={(draft, skillIds) => save(draft, skillIds)}
+                      onSave={(draft) => save(draft)}
                       onCancel={() => open(null)}
                       saving={saving}
                       error={error}
@@ -270,6 +325,7 @@ export function BankScreen({
                   ) : (
                     <EntryView
                       entry={entry}
+                      usedIn={usedIn(current, entry, bank.resumes)}
                       onEdit={() => open({ kind: "edit", entry })}
                       onDeleted={reload}
                     />
@@ -282,13 +338,12 @@ export function BankScreen({
               <div className="mt-2">
                 <EntryEditor
                   initial={emptyDraft(section.id)}
-                  skills={bank.skills}
-                  onSave={(draft, skillIds) => save(draft, skillIds)}
+                  onSave={(draft) => save(draft)}
                   onCancel={() => open(null)}
                   saving={saving}
                   error={error}
                   duplicate={duplicate}
-                  onSaveAsNew={(draft, skillIds) => save(draft, skillIds, true)}
+                  onSaveAsNew={(draft) => save(draft, true)}
                 />
               </div>
             )}
@@ -296,8 +351,53 @@ export function BankScreen({
         );
       })}
 
-      <SkillsCard skills={bank.skills} reload={reload} />
+      <SkillsCard
+        skills={bank.skills.filter((s) => shows(current, s, uploads))}
+        pickName={picked?.name ?? null}
+        reload={reload}
+      />
     </div>
+  );
+}
+
+/**
+ * An upload from before KAN-343 has no sources: nothing recorded what its
+ * import found, and only the parser can tell. Import Again reads it once
+ * more, merging as it always has, and links what it finds.
+ */
+function LinkUpload({
+  resumeId,
+  reload,
+}: {
+  resumeId: string;
+  reload: () => Promise<string | null>;
+}) {
+  const [busy, setBusy] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+
+  async function link() {
+    setBusy(true);
+    setError(null);
+    const res = await importResume({ resumeId });
+    const reloadError = res.error ?? (await reload());
+    setBusy(false);
+    if (reloadError) setError(reloadError);
+  }
+
+  return (
+    <Card className="flex flex-wrap items-center justify-between gap-3">
+      <p className="text-body text-ink-muted">
+        WorkIt hasn&apos;t linked this resume&apos;s entries yet.
+      </p>
+      <Button variant="secondary" onClick={link} disabled={busy}>
+        Import Again
+      </Button>
+      {error && (
+        <p role="alert" className="text-note text-danger w-full">
+          {error}
+        </p>
+      )}
+    </Card>
   );
 }
 
@@ -347,10 +447,13 @@ function ScoutMarked({
 
 function EntryView({
   entry,
+  usedIn,
   onEdit,
   onDeleted,
 }: {
   entry: BankEntry;
+  /** "Also used in …": the other resumes an edit here changes too. */
+  usedIn: string | null;
   onEdit: () => void;
   onDeleted: () => Promise<string | null>;
 }) {
@@ -385,6 +488,7 @@ function EntryView({
               never shrink and left the title a few letters wide on a phone. */}
           {dates && <p className="text-note text-ink-meta @xl/main:hidden">{dates}</p>}
           {place && <p className="text-note text-ink-muted break-words">{place}</p>}
+          {usedIn && <p className="text-note text-ink-meta break-words">{usedIn}</p>}
           {details.map((line) => (
             <p key={line} className="text-note text-ink-meta break-words">
               {line}
@@ -394,10 +498,10 @@ function EntryView({
         <div className="flex shrink-0 items-center gap-3">
           {dates && <span className="text-note text-ink-meta hidden @xl/main:inline">{dates}</span>}
           <IconButton label="Edit Entry" tooltip="Edit this entry" onClick={onEdit}>
-            <Pencil className="size-4" />
+            <PencilSimpleIcon aria-hidden className="size-4" />
           </IconButton>
           <IconButton label="Delete Entry" tooltip="Delete this entry" onClick={confirm}>
-            <Trash2 className="size-4" />
+            <TrashIcon aria-hidden className="size-4" />
           </IconButton>
         </div>
       </div>
@@ -445,7 +549,17 @@ function EntryView({
  * that never looked finished. The form stays open after an add, for the next
  * skill, and closes after an edit.
  */
-function SkillsCard({ skills, reload }: { skills: Skill[]; reload: () => Promise<string | null> }) {
+function SkillsCard({
+  skills,
+  pickName,
+  reload,
+}: {
+  skills: Skill[];
+  /** The picked resume's name: a skill added here is not on it. */
+  pickName: string | null;
+  reload: () => Promise<string | null>;
+}) {
+  const [note, setNote] = useState<string | null>(null);
   const [name, setName] = useState("");
   const [group, setGroup] = useState("");
   const [adding, setAdding] = useState(false);
@@ -478,9 +592,14 @@ function SkillsCard({ skills, reload }: { skills: Skill[]; reload: () => Promise
     setBusy(false);
     if (res.error) return setError(res.error);
     setError(null);
+    setNote(null);
     if (editingId) {
       close();
     } else {
+      if (pickName)
+        setNote(
+          `Added to your bank. ${pickName} doesn't hold it, so it shows under All Experiences.`,
+        );
       // Ready for the next one, in the same group.
       setName("");
       nameField.current?.focus();
@@ -512,7 +631,7 @@ function SkillsCard({ skills, reload }: { skills: Skill[]; reload: () => Promise
               setAdding(true);
             }}
           >
-            <Plus /> Add
+            <PlusIcon aria-hidden /> Add
           </Button>
         )}
       </div>
@@ -548,14 +667,14 @@ function SkillsCard({ skills, reload }: { skills: Skill[]; reload: () => Promise
                         setGroup(skill.group ?? "");
                       }}
                     >
-                      <Pencil className="size-3" />
+                      <PencilSimpleIcon aria-hidden className="size-3" />
                     </IconButton>
                     <IconButton
                       label={`Remove ${skill.name}`}
                       tooltip="Remove this skill"
                       onClick={() => remove(skill)}
                     >
-                      <X className="size-3" />
+                      <XIcon aria-hidden className="size-3" />
                     </IconButton>
                   </span>
                 ))}
@@ -598,6 +717,11 @@ function SkillsCard({ skills, reload }: { skills: Skill[]; reload: () => Promise
             </Button>
           </div>
         </form>
+      )}
+      {note && (
+        <p role="status" className="text-note text-ink-muted mt-2">
+          {note}
+        </p>
       )}
       {error && (
         <p role="alert" className="text-note text-danger mt-2">

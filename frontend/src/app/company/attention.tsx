@@ -168,7 +168,7 @@ export function NeedsAttention({ items }: { items: Attention[] }) {
                     fill,
                   )}
                 >
-                  <Icon className="size-4" />
+                  <Icon aria-hidden className="size-4" />
                 </span>
 
                 <div className="min-w-0 flex-1">

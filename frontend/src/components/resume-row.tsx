@@ -1,6 +1,6 @@
 "use client";
 
-import { FileDown, Import, Star } from "lucide-react";
+import { ArrowSquareInIcon, FileArrowDownIcon, StarIcon } from "@phosphor-icons/react/ssr";
 
 import { LocalDate } from "@/app/(seeker)/local-time";
 import { PdfIcon, PencilIcon, TrashIcon } from "@/components/icons";
@@ -36,7 +36,7 @@ export function PrimaryStar({
   if (primary)
     return (
       <span title="Primary resume" className="text-brand flex size-8 items-center justify-center">
-        <Star aria-hidden className="size-4 fill-current" />
+        <StarIcon aria-hidden className="size-4" weight="fill" />
         <span className="sr-only">Primary resume</span>
       </span>
     );
@@ -48,7 +48,7 @@ export function PrimaryStar({
       className={ROW_ACTION}
       onClick={onMakePrimary}
     >
-      <Star aria-hidden className="size-4" />
+      <StarIcon aria-hidden className="size-4" />
     </IconButton>
   );
 }
@@ -149,7 +149,7 @@ export function ResumeRow({
             className={ROW_ACTION}
             onClick={onDownload}
           >
-            <FileDown aria-hidden className="size-4" />
+            <FileArrowDownIcon aria-hidden className="size-4" />
           </IconButton>
         )}
         {onUpdate && (
@@ -159,7 +159,7 @@ export function ResumeRow({
             className={ROW_ACTION}
             onClick={onUpdate}
           >
-            <Import aria-hidden className="size-4" />
+            <ArrowSquareInIcon aria-hidden className="size-4" />
           </IconButton>
         )}
         {onDelete && (

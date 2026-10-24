@@ -1,6 +1,12 @@
 "use client";
 
-import { ArrowDown, ArrowUp, EyeOff, MousePointerClick, Undo2 } from "lucide-react";
+import {
+  ArrowDownIcon,
+  ArrowUUpLeftIcon,
+  ArrowUpIcon,
+  CursorClickIcon,
+  EyeSlashIcon,
+} from "@phosphor-icons/react/ssr";
 import localFont from "next/font/local";
 import { useCallback, useEffect, useRef, useState } from "react";
 
@@ -660,7 +666,7 @@ function Bar({
           {/* The way in, first and in ink with a brand glyph: as a grey note
               after the page count it read as fine print (KAN-258). */}
           <span className="text-label text-ink flex items-center gap-1.5 font-medium">
-            <MousePointerClick aria-hidden className="text-brand size-4 shrink-0" />
+            <CursorClickIcon aria-hidden className="text-brand size-4 shrink-0" />
             Click a line to edit it.
           </span>
           {/* The page count only when it is a problem, joined to its fix. A
@@ -675,7 +681,7 @@ function Bar({
           )}
           {fitUndo && (
             <Button variant="secondary" size="sm" onClick={onUndoFit} disabled={saving}>
-              <Undo2 /> Undo
+              <ArrowUUpLeftIcon aria-hidden /> Undo
             </Button>
           )}
         </>
@@ -727,7 +733,7 @@ function LineActions({
         disabled={!up}
         onClick={() => up && onApply(up)}
       >
-        <ArrowUp />
+        <ArrowUpIcon aria-hidden />
       </Button>
       <Button
         variant="secondary"
@@ -736,7 +742,7 @@ function LineActions({
         disabled={!down}
         onClick={() => down && onApply(down)}
       >
-        <ArrowDown />
+        <ArrowDownIcon aria-hidden />
       </Button>
     </>
   );
@@ -770,7 +776,7 @@ function LineActions({
         size="sm"
         onClick={() => onHide({ skills: [{ skill_id: line.skill.id, shown: false }] })}
       >
-        <EyeOff /> Hide
+        <EyeSlashIcon aria-hidden /> Hide
       </Button>
     );
   }
@@ -787,7 +793,7 @@ function LineActions({
           size="sm"
           onClick={() => onHide({ bullets: [{ bullet_id: id, shown: false }] })}
         >
-          <EyeOff /> Hide
+          <EyeSlashIcon aria-hidden /> Hide
         </Button>
         {moves}
         {versions.length > 0 &&
@@ -821,7 +827,7 @@ function LineActions({
         size="sm"
         onClick={() => onHide({ entries: [{ entry_id: entry.id, shown: false }] })}
       >
-        <EyeOff /> Hide Entry
+        <EyeSlashIcon aria-hidden /> Hide Entry
       </Button>
       {moves}
       {entry.section === "education" && choice && (

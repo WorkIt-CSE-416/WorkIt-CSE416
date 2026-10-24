@@ -1,4 +1,5 @@
-import { CloudOff, Zap } from "lucide-react";
+import { CloudSlashIcon } from "@phosphor-icons/react/ssr";
+import { LightningRoundedIcon } from "@/components/custom-icons";
 import type { Metadata } from "next";
 
 import { EmptyState } from "@/components/ui/empty-state";
@@ -50,7 +51,7 @@ export default async function AutoApplyPage() {
       <AutoApplyPanel>
         {error != null ? (
           <EmptyState
-            Icon={CloudOff}
+            Icon={CloudSlashIcon}
             title="Live Activity Isn't Loading"
             className="mt-3"
             detail={process.env.NODE_ENV === "development" ? error : undefined}
@@ -58,7 +59,7 @@ export default async function AutoApplyPage() {
             We couldn&apos;t reach your applications. Refresh the page in a few minutes.
           </EmptyState>
         ) : applications.length === 0 ? (
-          <EmptyState Icon={Zap} title="Nothing Queued Yet" className="mt-3">
+          <EmptyState Icon={LightningRoundedIcon} title="Nothing Queued Yet" className="mt-3">
             Start Auto Apply to queue your best matches, or click Auto Apply on any job.
           </EmptyState>
         ) : (

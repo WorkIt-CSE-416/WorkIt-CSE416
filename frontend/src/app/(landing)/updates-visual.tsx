@@ -2,18 +2,18 @@
 
 import * as React from "react";
 import { AnimatePresence, motion, useReducedMotion } from "motion/react";
+import type { Icon as PhosphorIcon } from "@phosphor-icons/react";
 import {
-  CalendarCheck,
-  Check,
-  Eye,
-  FileText,
-  Handshake,
-  MessageCircle,
-  MessagesSquare,
-  Send,
-  Video,
-  type LucideIcon,
-} from "lucide-react";
+  CalendarCheckIcon,
+  ChatCircleIcon,
+  ChatsIcon,
+  CheckIcon,
+  EyeIcon,
+  FileTextIcon,
+  HandshakeIcon,
+  PaperPlaneTiltIcon,
+  VideoCameraIcon,
+} from "@phosphor-icons/react/ssr";
 
 import { cn } from "@/lib/cn";
 
@@ -52,32 +52,32 @@ const LAND_MS = 1100;
 const STAGE_H = 368;
 
 /** The notification for each scene. */
-const NOTICE: Record<Scene, { icon: LucideIcon; text: string; color: string }> = {
-  viewed: { icon: Eye, text: "viewed your application", color: "var(--color-match-good)" },
-  message: { icon: MessageCircle, text: "sent you a message", color: "var(--color-brand)" },
+const NOTICE: Record<Scene, { icon: PhosphorIcon; text: string; color: string }> = {
+  viewed: { icon: EyeIcon, text: "viewed your application", color: "var(--color-match-good)" },
+  message: { icon: ChatCircleIcon, text: "sent you a message", color: "var(--color-brand)" },
   interview: {
-    icon: CalendarCheck,
+    icon: CalendarCheckIcon,
     text: "scheduled your interview",
     color: "var(--color-warning-fill)",
   },
-  offer: { icon: Handshake, text: "sent you an offer", color: "var(--color-positive)" },
+  offer: { icon: HandshakeIcon, text: "sent you an offer", color: "var(--color-positive)" },
 };
 
 /** The application's track: the board's stage icons and colours, plus
  * Viewed in the stop's pink. `ink` is the colour as text on its tint (the
  * amber and green fills are too pale to read). `at` is the scene that
  * reaches it. */
-const STEPS: { label: string; icon: LucideIcon; color: string; ink: string; at: number }[] = [
+const STEPS: { label: string; icon: PhosphorIcon; color: string; ink: string; at: number }[] = [
   {
     label: "Applied",
-    icon: Send,
+    icon: PaperPlaneTiltIcon,
     color: "var(--color-brand)",
     ink: "var(--color-brand-ink)",
     at: -1,
   },
   {
     label: "Viewed",
-    icon: Eye,
+    icon: EyeIcon,
     color: "var(--color-match-good)",
     // The pink a step darker as text: on its own tint it was 4.1:1.
     ink: "var(--color-match-strong)",
@@ -85,14 +85,14 @@ const STEPS: { label: string; icon: LucideIcon; color: string; ink: string; at: 
   },
   {
     label: "Interview",
-    icon: MessagesSquare,
+    icon: ChatsIcon,
     color: "var(--color-warning-fill)",
     ink: "var(--color-warning)",
     at: 2,
   },
   {
     label: "Offer",
-    icon: Handshake,
+    icon: HandshakeIcon,
     color: "var(--color-positive)",
     ink: "var(--color-positive-ink)",
     at: 3,
@@ -299,7 +299,7 @@ function ViewedUpdate() {
           className="tour-scan via-match-good/25 pointer-events-none absolute inset-x-0 top-0 h-8 bg-linear-to-b from-transparent to-transparent"
         />
         <span className="bg-match-good absolute -top-2 -right-2 grid size-7 place-items-center rounded-full text-white shadow-md">
-          <Eye className="size-3.5" aria-hidden="true" />
+          <EyeIcon className="size-3.5" aria-hidden="true" />
         </span>
       </div>
       {/* The notification's own words: "Your resume was opened … by the
@@ -310,7 +310,7 @@ function ViewedUpdate() {
           {updatesFeature.application.company} viewed your application
         </p>
         <p className="text-ink-meta mt-1 flex items-center gap-1.5 text-[12px]">
-          <FileText className="text-danger size-3.5 shrink-0" aria-hidden="true" />
+          <FileTextIcon className="text-danger size-3.5 shrink-0" aria-hidden="true" />
           Alex_Morgan_{updatesFeature.application.company}.pdf
         </p>
         <p className="text-ink-meta mt-3 text-[12px] leading-snug">
@@ -407,7 +407,7 @@ function MessageUpdate() {
               transition={{ type: "spring", stiffness: 420, damping: 28 }}
             >
               {replies[0]}
-              <Check className="size-3.5 opacity-80" aria-hidden="true" />
+              <CheckIcon className="size-3.5 opacity-80" aria-hidden="true" />
             </motion.span>
           )}
         </AnimatePresence>
@@ -468,7 +468,7 @@ function InterviewUpdate() {
           Thu, Oct {week[day].date} · {time}
         </p>
         <p className="text-ink-meta mt-0.5 flex items-center gap-1.5 text-[12px]">
-          <Video className="size-3.5 shrink-0" aria-hidden="true" />
+          <VideoCameraIcon className="size-3.5 shrink-0" aria-hidden="true" />
           Video call with the hiring team
         </p>
         <motion.p
@@ -478,7 +478,7 @@ function InterviewUpdate() {
           transition={{ delay: 0.8, duration: 0.3 }}
         >
           <span className="bg-positive grid size-4 place-items-center rounded-full text-white">
-            <Check className="size-2.5" strokeWidth={3.5} aria-hidden="true" />
+            <CheckIcon className="size-2.5" weight="bold" aria-hidden="true" />
           </span>
           On your calendar
         </motion.p>
@@ -505,7 +505,7 @@ function OfferUpdate() {
           animate={{ scale: 1, rotate: 0 }}
           transition={{ type: "spring", stiffness: 380, damping: 16 }}
         >
-          <Handshake className="size-8" aria-hidden="true" />
+          <HandshakeIcon className="size-8" aria-hidden="true" />
         </motion.span>
         <Burst color="var(--color-positive)" />
       </span>

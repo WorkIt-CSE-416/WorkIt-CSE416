@@ -179,7 +179,7 @@ function Scene({
         {/* The label sits on the card's top edge, like a tab, rather than
             over it, so the scene spends its height on the screen. */}
         <span className="bg-panel text-body text-ink shadow-card absolute top-0 left-5 z-10 flex items-center gap-2 rounded-full px-3 py-1.5 font-medium">
-          <Icon className="text-brand size-4" />
+          <Icon aria-hidden className="text-brand size-4" />
           {label}
         </span>
         <div className="bg-panel shadow-tile rounded-card -rotate-2 p-4 pt-6">
@@ -206,7 +206,7 @@ function Toast({ Icon, title, body }: Notice) {
       <div className="relative rounded-2xl p-px" style={{ background: RIM }}>
         <div className="bg-panel/90 flex items-start gap-3 rounded-[calc(1rem-1px)] p-3.5 backdrop-blur-xl">
           <span className="bg-brand-tint text-brand flex size-9 shrink-0 items-center justify-center rounded-full">
-            <Icon className="size-4.5" />
+            <Icon aria-hidden className="size-4.5" />
           </span>
           <div className="min-w-0">
             <p className="text-body text-ink font-semibold">{title}</p>

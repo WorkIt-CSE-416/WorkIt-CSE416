@@ -79,8 +79,11 @@ the KAN-296 cutover.
   leave them to CI; `dev`, `build` and the rest work natively.
 - **OAuth needs each origin allow-listed in Supabase** (Authentication → URL
   Configuration → Redirect URLs): production, a wildcard for previews and
-  `http://localhost:3000`, each with `/auth/callback`. `oauth-actions.ts`
-  builds `redirectTo` from `x-forwarded-host` on Vercel, whose proxy sets it,
+  `http://localhost:3000`, each with `/auth/callback`. Settings' links and
+  confirm emails add `?next=/settings/...` to it; if Supabase sends those to
+  its Site URL instead (untested on 2026-10-23), add a `**` wildcard entry
+  for each origin's callback. `lib/request-origin.ts` (OAuth sign-in, linking, Change Email)
+  builds the origin from `x-forwarded-host` on Vercel, whose proxy sets it,
   and from `Host` elsewhere: on Cloudflare `x-forwarded-host` is whatever the
   browser sent. It assumes https for any host
   but localhost when `x-forwarded-proto` is missing; Supabase silently falls
@@ -976,7 +979,10 @@ the KAN-296 cutover.
   `import "server-only"` (`(seeker)/jobs/listings.ts` is the first). A live
   fetch in a page calls `await connection()` so `next build` does not prerender
   it with no API running.
-- **The application tracker is live and has no fixture** (KAN-261): saved
+- **The application tracker is live and has no fixture** (KAN-261), and
+  its page shows as the Tracker (KAN-342: "Tracker" in the sidebar,
+  "Application Tracker" as its heading) while its URL and code keep
+  `applications` (`docs/screens.md`, Applications). Saved
   and applied jobs come from the API (`(seeker)/applications/tracked.ts`,
   cached per request by `getTracker` in `data.ts`), each with the Jobs
   page's own match score (`?scored=true`, KAN-256) and the sent resume the
@@ -988,8 +994,11 @@ the KAN-296 cutover.
   stretched link, and a dialog opened from one stops its own clicks, since
   React passes them up through the portal. A row or card opens the application's own page,
   `/applications/[jobId]` (KAN-256), not a side panel. Interviewing, Offer and
-  dated events stay empty until the API stores them; a failed read shows an
-  error, never stand-in cards. A job's application
+  dated events stay empty until the API stores them (the Dashboard's
+  Interviews number is a dash, KAN-342); a failed read shows an error, never
+  stand-in cards. The Dashboard's four numbers are all live and all links
+  (KAN-342); its Good Matches reads the Best Match scores
+  (`getGoodMatchDates`), and it lists no jobs of its own. A job's application
   stage (`saved`, `queued`...) reaches its Save and Auto Apply buttons from
   one read per page. Auto Apply never picks a saved job for a batch; only
   the job's own Auto Apply click queues it.
@@ -1020,9 +1029,18 @@ the KAN-296 cutover.
   `shadcn/button.tsx` re-exports it and an ESLint rule keeps app code on the
   canonical path (likewise `badge` and `card`). A control's styling belongs in
   its component, not at the call site.
+- **Icons are Phosphor's, from `@phosphor-icons/react/ssr`** (KAN-350),
+  through the wrappers in `components/icons.tsx` or a route's own
+  `icons.tsx`. Lucide is gone (it read as every AI app's default) and the
+  lint refuses `lucide-react`, and Phosphor's main entry too: its icons read
+  a React context, so a server component that imported one would fail.
+  Phosphor adds no `aria-hidden` and fills by `weight`, never by a `fill`
+  class, which paints the whole glyph. A glyph Phosphor lacks goes in
+  `components/custom-icons.tsx` with all its weights (`docs/design.md`,
+  Brand and icons).
 - **One mark for Scout and AI, `SparkleIcon`** (`components/icons.tsx`,
   KAN-257): every Scout or AI control, and Scout's mark in the chat and
-  the panel header, draws it. An ESLint rule refuses Lucide's `Sparkles`
+  the panel header, draws it. An ESLint rule refuses Phosphor's sparkle
   imported anywhere else; a hand-drawn sparkle beside Lucide's had given
   the assistant two marks (`docs/design.md`, Brand and icons).
 - **A button is a rounded rectangle; a pill is a chip** (`ui/chip.tsx`, KAN-251).
@@ -1186,6 +1204,15 @@ are in `docs/auth.md`.
   AI" (KAN-222) runs only on a click, never on its own, and shows only
   while `uses_left` is above 0; a failed reading writes nothing and says
   why.
+- **The Experiences view shows one resume at a time** (KAN-343,
+  `../docs/bank_by_resume.md`): a dropdown of every uploaded, base and
+  tailored resume, opening on `?resume=`, else the starred resume, else the
+  newest. The rules (which items a pick shows, the opening pick, the "Also
+  used in" line) live in `(seeker)/bank/holdings.ts` and read only the
+  API's `resume_ids`; never work out a resume's items in a component.
+  Intake always gets the whole bank. A
+  new entry or skill saved under a resume pick is on no resume yet, so the
+  page says where it went instead of letting it vanish.
 - **Applicant server actions call the API through `applicantCall`**
   (`lib/applicant-call.ts`, server-only): the session, the Bearer token,
   GET/DELETE/fetch, and a `Result<T>` (`data`, `error`, `status`) that never
@@ -1210,8 +1237,8 @@ are in `docs/auth.md`.
   posting page): Apply Now opens the employer's page and asks "Did You
   Apply?", whose Yes keeps the pick through `applyWithResume`. It went through
   `applyWithResume` (KAN-220) at Apply wherever it
-  sits: the job posting page, the feed cards on /jobs and /search, and the
-  Dashboard's New Matches (KAN-290). It keeps its sent resume: the student
+  sits: the job posting page and the feed cards on /jobs and /search
+  (KAN-290). It keeps its sent resume: the student
   is told WorkIt kept a copy, so it is never deleted behind their back.
   **Resume files download on Resumes & Experiences only** (KAN-267): the
   editor's Download and an upload's row (`lib/save-file.ts`). The Apply
@@ -1224,8 +1251,8 @@ are in `docs/auth.md`.
   (intake's draft entry, KAN-213, and its skipped sections, KAN-214), and
   so does a per-browser view preference that should leave with the student
   (the Applications list's column layout, KAN-282): one key prefix, cleared by Sign Out in
-  `account-menu.tsx` and on the login page, which an expired session also
-  reaches. A draft stored under any other key outlives sign-out.
+  `account-menu.tsx` and in Settings, by Delete Account, and on the login
+  page, which an expired session also reaches. A draft stored under any other key outlives sign-out.
 - **To test a page behind sign-in, use the shared test account**:
   `TEST_ACCOUNT_EMAIL` / `TEST_ACCOUNT_PASSWORD` in the root `.env`. It is a
   normal applicant with test data only, on the one shared Supabase project, so
@@ -1239,8 +1266,8 @@ are in `docs/auth.md`.
 
 - **Screens**: before changing how a screen behaves (Jobs page and filters, job
   posting page and card, seeker Dashboard, Applications, Calendar, My Profile,
-  Resumes & Experiences, Scout's panel, applicant onboarding, company
-  screens), read its section in `docs/screens.md`.
+  Resumes & Experiences, Scout's panel, applicant onboarding, Settings,
+  company screens), read its section in `docs/screens.md`.
 - **Design**: before changing a shell, a page's layout or widths, a colour
   (stage or match), a segmented control or a `ui/` component, read
   `docs/design.md`.

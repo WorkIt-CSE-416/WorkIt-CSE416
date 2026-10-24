@@ -1,6 +1,6 @@
 "use client";
 
-import { FileDown } from "lucide-react";
+import { FileArrowDownIcon } from "@phosphor-icons/react/ssr";
 import Link from "next/link";
 import { useState, type FormEvent } from "react";
 
@@ -145,7 +145,7 @@ export function BuiltResumeRow({
               disabled={download.busy !== null}
               onClick={() => download.pick("pdf")}
             >
-              <FileDown aria-hidden className="size-4" />
+              <FileArrowDownIcon aria-hidden className="size-4" />
             </IconButton>
             <IconButton
               label={`Delete ${resume.name}`}

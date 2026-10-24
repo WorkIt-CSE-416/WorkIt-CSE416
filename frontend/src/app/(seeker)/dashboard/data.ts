@@ -1,29 +1,29 @@
 import { getApplications, getNow, getTracker } from "../applications/data";
-import { countJobsPostedWithin } from "../jobs/listings";
+import { getGoodMatchDates } from "../jobs/listings";
 import { upcomingEvents, type EventKind, type TrackerEvent } from "../tracker";
 import { rangeDays, type RangeKey } from "./range";
-import type { AppliedDay } from "./streak-model";
 
 /**
  * The seeker Dashboard's data: the headline numbers per window, the year of
- * applications behind Activity's streak, what is waiting, and Up Next. Most
- * of it is still fixtures, standing in for tracker stages no route stores
- * yet. New Roles (in `getHeadline`) reads the live job feed here, and Saved
- * the live tracker (KAN-261); New Matches and the profile strength card read
- * the live API too, beside the components that fetch them.
+ * applications behind Activity's streak, what is waiting, and Up Next. Good
+ * Matches (in `getHeadline`) reads the seeker's Best Match scores;
+ * Applied, Saved and Activity read the live tracker (KAN-261,
+ * KAN-342). Interviewing and Waiting have no source yet: the tracker stores
+ * no stage past applied.
  *
  * UP NEXT IS DERIVED FROM THE TRACKER (../applications/data.ts), not written
  * again here, so the Dashboard and the board name the same companies and the
  * same dates. The tracker stores no dated events yet (interviews,
  * deadlines), so Up Next is empty and Next Up says the seeker is caught up.
- * The numbers below that are still fixtures (Applications, Interviews,
- * Waiting, Activity) become reads of the tracker once it stores those
- * stages.
+ * Waiting's buckets below are still a fixture, archived with the tile
+ * (page.tsx), until the tracker stores replies.
  */
+
+const DAY_MS = 86_400_000;
 
 /* Headline numbers ------------------------------------------------------- */
 
-export type StatKey = "applications" | "newRoles" | "interviews" | "saved";
+export type StatKey = "goodMatches" | "saved" | "applied" | "interviewing";
 
 export type DashboardStat = {
   key: StatKey;
@@ -35,80 +35,109 @@ export type DashboardStat = {
   suffix?: string;
   /** Under the figure in place of a change, over the range's own note. */
   note?: string;
-  /** Where the tile leads: only for a figure its destination agrees with. */
-  href?: string;
+  /** Where the tile leads: every tile is a link (KAN-342). */
+  href: string;
 };
 
-/** Applications sent and interviews held, per window, with the window before
- *  it: a fixture until the tracker can count them per window. */
-const APPLICATIONS: Record<RangeKey, [number, number | null]> = {
-  week: [5, 7],
-  month: [18, 12],
-  season: [42, null],
-};
-const INTERVIEWS: Record<RangeKey, [number, number | null]> = {
-  week: [1, 1],
-  month: [3, 1],
-  season: [5, null],
+/** The lowest score Good Matches counts: Good Match and up in @/lib/match. */
+const GOOD_MATCH = 65;
+
+/** Where the Jobs page shows what Good Matches counts, best first. Its Date
+ *  Posted filter offers a week and a month but no season, so Season opens
+ *  the whole Best Match list. */
+const GOOD_MATCHES_HREF: Record<RangeKey, string> = {
+  week: "/jobs?sort=match&posted_within=7",
+  month: "/jobs?sort=match&posted_within=30",
+  season: "/jobs?sort=match",
 };
 
-/** Where the Jobs page shows what New Roles counts. Its Date Posted filter
- *  offers a week and a month but no season, so Season opens the whole feed. */
-const NEW_ROLES_HREF: Record<RangeKey, string> = {
-  week: "/jobs?posted_within=7",
-  month: "/jobs?posted_within=30",
-  season: "/jobs",
+/** Under Good Matches in place of a change. */
+const GOOD_MATCHES_NOTE: Record<RangeKey, string> = {
+  week: "Posted this week",
+  month: "Posted in 30 days",
+  season: "Posted since Aug 4",
 };
 
 /**
- * The four headline numbers for every range, in tile order: Applications,
- * New Roles, Interviews, Saved. New Roles and Saved replaced Response Rate and
- * Offers, which for a student sit near zero all season and only discouraged;
- * the two new ones are things a seeker can act on.
+ * The four headline numbers for every range, in tile order: Good Matches,
+ * Saved, Applied, Interviewing. Each tile links to the page that lists
+ * what it counts (KAN-342).
  *
- * New Roles is the live feed: what was posted in the range (GET /jobs/count),
- * against the window before it (twice the range, less the range). Saved is the
- * seeker's live saved jobs not yet applied to (KAN-261), the same in every
- * range, and a dash when they can't be read. Applications and Interviews stay
- * fixtures until the tracker stores those stages.
+ * THE TRACKER'S TILES ARE NAMED FOR ITS STAGES, the Status filter each one
+ * opens: Saved, Applied, Interviewing. Applied was "Applications", the same
+ * word as the page it opened (now the Tracker), and Interviewing was
+ * "Interviews".
+ *
+ * THE ORDER IS THE SEARCH, LEFT TO RIGHT: find a job, save it, apply, hear
+ * back, the order of the Tracker's stages and the landing page's
+ * route. The left half is what is left to do and the right half how it is
+ * going, which holds in the 2 x 2 grid on a phone too. Interviewing, a dash
+ * until the tracker stores it, sits last as the outcome rather than as a gap
+ * in the middle. The order was Applications, New Roles, Interviews, Saved,
+ * which read sent, then find, then outcome, then shortlist.
+ *
+ * GOOD MATCHES WEARS THE VIOLET FILL, where the next application starts: the
+ * eye lands on the head of the search and reads on from there. Applied
+ * wore it until the reorder, as the number the seeker wholly controls; the
+ * user moved it, since a seeker comes to the Dashboard to find what to apply
+ * to next. A violet 0 is the cost on a week with no good matches.
+ *
+ * Good Matches is the job postings from the range that score Good Match or
+ * better for this seeker (GOOD_MATCH), from the Best Match scores
+ * (GET /jobs/recommended). It replaced New Roles, a count of every posting
+ * in the feed, which said nothing about the seeker and drew a red change
+ * whenever employers posted less. It shows no change: the score fades with
+ * a posting's age, so last week's postings would always count fewer. With
+ * an empty experience bank there is nothing to score, so the tile asks for
+ * the bank instead. The Dashboard lists no jobs of its own: the tile opens
+ * the Jobs page in Best Match order, where those jobs come first.
+ *
+ * Applied counts the tracker's applications sent in the range, against
+ * the same length of days before it. Saved is the seeker's live saved jobs
+ * not yet applied to (KAN-261), the same in every range. Both are a dash
+ * when the tracker can't be read.
+ *
+ * Interviewing is always a dash for now: the API stores no interviewing stage,
+ * and a 0 would say the seeker had none. Count `stage === "interviewing"`
+ * here once getTracked asks for that stage.
  */
 export async function getHeadline(): Promise<Record<RangeKey, DashboardStat[]>> {
   const now = getNow();
-  const [[week, twoWeeks, month, twoMonths, season], tracker] = await Promise.all([
-    Promise.all([7, 14, 30, 60, rangeDays("season", now)].map(countJobsPostedWithin)),
+  const seasonDays = rangeDays("season", now);
+  const [matched, tracker] = await Promise.all([
+    getGoodMatchDates(Math.max(30, seasonDays), GOOD_MATCH),
     getTracker(),
   ]);
-  const before = (range: number | null, both: number | null) =>
-    range != null && both != null ? both - range : null;
-  const newRoles: Record<RangeKey, [number | null, number | null]> = {
-    week: [week, before(week, twoWeeks)],
-    month: [month, before(month, twoMonths)],
-    season: [season, null],
+  /** Good matches posted in the last `days` days; null without scores. */
+  const goodMatches = (days: number) =>
+    Array.isArray(matched)
+      ? matched.filter((at) => now.getTime() - Date.parse(at) < days * DAY_MS).length
+      : null;
+  const apps = tracker.applications;
+  const saved = apps && apps.filter((app) => app.stage === "saved").length;
+  /** Applications sent between `to` and `from` days ago; null on a failed read. */
+  const sent = (from: number, to = 0) =>
+    apps &&
+    apps.filter((app) => {
+      if (!app.appliedOn) return false;
+      const ago = (now.getTime() - Date.parse(app.appliedOn)) / DAY_MS;
+      return ago >= to && ago < from;
+    }).length;
+  const applications: Record<RangeKey, [number | null, number | null]> = {
+    week: [sent(7), sent(14, 7)],
+    month: [sent(30), sent(60, 30)],
+    season: [sent(seasonDays), null],
   };
-  const saved =
-    tracker.error != null
-      ? null
-      : tracker.applications.filter((app) => app.stage === "saved").length;
 
   const tiles = (range: RangeKey): DashboardStat[] => [
     {
-      key: "applications",
-      label: "Applications",
-      value: APPLICATIONS[range][0],
-      previous: APPLICATIONS[range][1],
-    },
-    {
-      key: "newRoles",
-      label: "New Roles",
-      value: newRoles[range][0],
-      previous: newRoles[range][1],
-      href: NEW_ROLES_HREF[range],
-    },
-    {
-      key: "interviews",
-      label: "Interviews",
-      value: INTERVIEWS[range][0],
-      previous: INTERVIEWS[range][1],
+      key: "goodMatches",
+      label: "Good Matches",
+      value: goodMatches(rangeDays(range, now)),
+      previous: null,
+      ...(matched === "empty"
+        ? { note: "Add your experience first", href: "/bank" }
+        : { note: matched ? GOOD_MATCHES_NOTE[range] : undefined, href: GOOD_MATCHES_HREF[range] }),
     },
     {
       key: "saved",
@@ -118,6 +147,21 @@ export async function getHeadline(): Promise<Record<RangeKey, DashboardStat[]>> 
       note: "Not applied to yet",
       href: "/applications?stage=saved",
     },
+    {
+      key: "applied",
+      label: "Applied",
+      value: applications[range][0],
+      previous: applications[range][1],
+      href: "/applications?stage=applied",
+    },
+    {
+      key: "interviewing",
+      label: "Interviewing",
+      value: null,
+      previous: null,
+      note: "Not tracked yet",
+      href: "/applications?stage=interviewing",
+    },
   ];
 
   return { week: tiles("week"), month: tiles("month"), season: tiles("season") };
@@ -125,60 +169,15 @@ export async function getHeadline(): Promise<Record<RangeKey, DashboardStat[]>> 
 
 /* Activity --------------------------------------------------------------- */
 
-/** How busy each month is, January first: fall recruiting (Aug–Nov) and the
- *  spring push (Jan–Feb) are the seasons, and summer goes to the internship. */
-const SEASON = [0.5, 0.55, 0.4, 0.3, 0.15, 0.1, 0.15, 0.55, 0.7, 0.75, 0.6, 0.25];
-/** Where the fixture's history starts. Every day draws its numbers in order
- *  from here, so a date keeps its count as the year slides forward. */
-const EPOCH = Date.UTC(2025, 0, 1);
-const DAY_MS = 86_400_000;
-/** The longest year the streak's grid shows: 52 weeks back to a Sunday. */
-const SHOWN_DAYS = 371;
-
-/** mulberry32: small, fast, and the same numbers on every server. */
-function seeded(seed: number) {
-  let a = seed >>> 0;
-  return () => {
-    a = (a + 0x6d2b79f5) >>> 0;
-    let t = a;
-    t = Math.imul(t ^ (t >>> 15), t | 1);
-    t ^= t + Math.imul(t ^ (t >>> 7), t | 61);
-    return ((t ^ (t >>> 14)) >>> 0) / 4294967296;
-  };
-}
-
 /**
- * The past year of applications for Activity's streak, one entry per day that
- * sent any, ending today in UTC (the streak itself ends on the viewer's today).
- * Seeded and walked from a fixed epoch, so every render agrees and a date never
- * changes its count. A day that sent something makes the next one likelier, so
- * habits run in streaks; weekends are quieter, and the odd marathon day lands.
- * Scaled to a student's pace: about 50 since the season started in August,
- * near the 42 the headline numbers above were written with, though the two
- * fixtures do not reconcile day by day.
- *
- * The tracker replaces it with one `{ date: appliedOn, count: 1 }` per sent
- * application; the streak adds a day's entries up itself.
+ * When each application in the tracker was sent, for Activity's streak: one
+ * instant per sent application, or null when the tracker can't be read. The
+ * streak turns each into the viewer's own day in the browser
+ * (./streak.tsx), since the server's UTC day is a day off for the Americas.
  */
-export function appliedDays(): AppliedDay[] {
-  const end = Math.floor(Date.now() / DAY_MS) * DAY_MS;
-  const random = seeded(2026);
-  const days: AppliedDay[] = [];
-  let applied = false;
-  for (let ms = EPOCH; ms <= end; ms += DAY_MS) {
-    const day = new Date(ms);
-    const weekend = day.getUTCDay() === 0 || day.getUTCDay() === 6;
-    const season = SEASON[day.getUTCMonth()];
-    const chance: number = season * (applied ? 1.25 : 0.6) * (weekend ? 0.45 : 1);
-    applied = random() < Math.min(0.92, chance);
-    if (!applied) continue;
-    const count =
-      1 + Math.floor(-Math.log(1 - random()) * season * 1.5) + (random() < 0.015 ? 4 : 0);
-    if (ms > end - SHOWN_DAYS * DAY_MS) {
-      days.push({ date: day.toISOString().slice(0, 10), count });
-    }
-  }
-  return days;
+export async function getAppliedTimes(): Promise<string[] | null> {
+  const { applications } = await getTracker();
+  return applications && applications.flatMap((app) => (app.appliedOn ? [app.appliedOn] : []));
 }
 
 /* Waiting --------------------------------------------------------------- */
@@ -186,8 +185,8 @@ export function appliedDays(): AppliedDay[] {
 export type WaitBucket = { label: string; count: number; tone: "fresh" | "due" | "stale" };
 
 /** Applications with no reply yet, by how long they have waited, as of today
- *  rather than per window: they add up to the season's 42 sent less the 12
- *  that heard back. Past two weeks is when a follow-up is worth sending.
+ *  rather than per window. A fixture, archived with its tile (page.tsx).
+ *  Past two weeks is when a follow-up is worth sending.
  *
  *  One bucket per verdict, three in all. It was four, with under a week and
  *  one to two weeks as separate buckets, and the Dashboard drew them as two

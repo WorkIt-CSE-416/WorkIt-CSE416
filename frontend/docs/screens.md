@@ -108,7 +108,7 @@ facet lists (GET /jobs/facets) are fetched once per visit and cached five minute
 jobs/listings.ts), not refetched per change. Each facet button wears the glyph
 the job card draws for its fact (Date Posted a clock, since the card's calendar
 is the start date; Role, which the card doesn't print, a person in a suit and
-tie, drawn for it since Lucide has none, KAN-252), and inside a popup only
+tie, drawn for it since no icon set has one, KAN-252), and inside a popup only
 Workplace's options carry glyphs, the card's own three, as their chips do in
 the panel, where Experience Level's do too (levelIcon: the mortarboard, a
 check badge; KAN-252, asked for 2026-10-17). Options are medium weight, as the
@@ -279,7 +279,7 @@ Resumes & Experiences only, so Open in Resumes goes to a built resume's
 editor (its Download) or, for an upload, the Resumes view. It had a
 Download Resume button until then. Apply Without a Resume leaves for the employer's posting at once.
 **Every Apply Now opens this dialog** (KAN-290): the page's, the feed card's
-on /jobs and /search, and New Matches' Apply on the Dashboard. WorkIt cannot
+on /jobs and /search. WorkIt cannot
 see the employer's site, so the dialog is its one chance to learn which
 resume went and whether the student applied; a card's Apply Now once linked
 straight to the employer and recorded neither. A card's button has no
@@ -404,8 +404,7 @@ applied leaves its list at once, in the browser (`FeedList`, KAN-290
 review), with focus on the next role's title: a refresh redraws only the
 server's first page, so a job from a Load More page stayed listed. The kept
 Load More offset drops by one with it, as the API's later pages move up one,
-so the next Load More skips nothing. New Matches refreshes the route, which
-drops the row.
+so the next Load More skips nothing.
 A live card's location is the import's `location_label` where it has one
 ("San Francisco, CA" for "SF": the resolver's city, backend
 models/CLAUDE.md), else the board's text tidied (`placesOf` and
@@ -450,16 +449,20 @@ too, with nothing for a screen reader. A live fetch in a page calls
 /dashboard is the seeker's home: sign-in lands there.
 
 **Next Up, Up Next and Waiting are archived for now** (KAN-261), and the
-header's Find Jobs button is gone (the sidebar's Jobs row and New Matches'
-Newest Jobs lead there; it read "All Jobs" until KAN-288 retired that view). The tracker stores no dated events yet, so Next Up and
+header's Find Jobs button is gone (the sidebar's Jobs row and the Good
+Matches tile lead there). The tracker stores no dated events yet, so Next Up and
 Up Next only said "nothing scheduled", and Waiting's buckets were a fixture.
-Under the numbers, New Matches runs the full width with Activity under it.
-From `@4xl/main` New Matches has a fixed height (`h-96`, set in the page's
-`PLACE`) and its list scrolls inside it: the tile is built to take its
-height from a neighbour, so alone on a row it would collapse.
+Under the numbers, Activity runs the full width.
 The archived tiles' code stays (`next-up-hero.tsx`, `up-next.tsx`,
-`getUpNext`, `waiting.tsx`, `WAITING`); `PLACE` in `dashboard/page.tsx` says
+`getUpNext`, `waiting.tsx`, `WAITING`); a note in `dashboard/page.tsx` says
 how to bring them back. The notes below still describe them.
+
+**The Dashboard lists no jobs** (KAN-342). New Matches, a list of the
+newest postings with Apply buttons, sat under the numbers until Good
+Matches replaced New Roles: that tile opens the Jobs page in Best Match
+order, which lists the same jobs better, so the Dashboard keeps no second,
+shorter copy of the feed. The notes below that name New Matches describe
+the archived three-column layout.
 
 **The seeker Dashboard is a bento of tiles** (KAN-173), modelled on a
 reference the user picked: white tiles with no outline on the white page
@@ -472,8 +475,8 @@ were pills, `shape="pill"`, until KAN-251 made every pill a chip). It
 alone is capped at `max-w-dashboard` (1440px) rather than `max-w-app`.
 From `@4xl/main` (896px, not `@5xl`'s 1024: a 13-inch laptop at 100% zoom
 gives the page about 1010px and fell back to two columns of oversized
-tiles) the four numbers run across the top in a grid of their own (the
-first filled violet, the only solid tile), and the tiles under them sit in
+tiles) the four numbers run across the top in a grid of their own
+(Good Matches filled violet, the only solid tile), and the tiles under them sit in
 thirds. Left to right is apply, then manage: New Matches two thirds wide
 beside Next Up (a white reminder tile, its title in violet over one filled
 button) over Up Next, then Activity two thirds wide beside Waiting (three
@@ -501,10 +504,10 @@ its edge on the tile's edge: New Matches reaches into the tile's right
 padding (`-mr-5`) and pads its rows back in (`pr-5`), so the bar runs down
 the tile's side instead of beside the Apply buttons. There is no
 pipeline section: its
-funnel only restated the headline numbers. Fixtures are in
-`(seeker)/dashboard/data.ts` until the tracker stores stages past applied,
-except Saved, which counts the live saved jobs, and Next Up and Up Next,
-which take the tracker's upcoming events (`getUpNext`). The tracker stores
+funnel only restated the headline numbers. Everything the page shows is
+live (KAN-342); the one fixture left in `(seeker)/dashboard/data.ts` is the
+archived Waiting tile's buckets. Next Up and Up Next take the tracker's
+upcoming events (`getUpNext`). The tracker stores
 no dated events yet, so Next Up reads "You're All Caught Up" with Browse
 Jobs, and Up Next "Nothing else scheduled." Next
 Up's View Details button opens that application's own page (its old
@@ -514,16 +517,43 @@ All the Agenda; Waiting's Follow Up opens the Applications list filtered to
 Applied. That is a placeholder: it helps nobody contact anyone, and KAN-174
 (still open) plans the real flow, a list of only what has waited two weeks,
 a Scout-drafted note, a recruiter search, then marking an application
-followed up or closed once the tracker has a backend. The headline numbers are Applications, New Roles, Interviews and Saved
-(`getHeadline` in `dashboard/data.ts`); New Roles and Saved replaced
-Response Rate and Offers, which for a student sit near zero all season. New
-Roles is the live feed, `GET /jobs/count?posted_within=` for the range and
-the window before it, cached five minutes; Saved counts the seeker's live
-saved jobs (KAN-261), ignores the range, and shows a dash when they can't be
-read. Only those two tiles link (to the Jobs page filtered by date posted,
-and to the saved applications), since their figures are what their
-destinations show; Applications and Interviews are a separate fixture from
-the tracker, so a link would open a list that disagrees with its number. Its range is `?range=`, moved in place: the
+followed up or closed once the tracker has a backend. The headline numbers are Good Matches, Saved, Applied and Interviewing
+(`getHeadline` in `dashboard/data.ts`), all live (KAN-342). **The Tracker's
+tiles are named for its stages**, the Status filter each one opens: Applied
+was "Applications", the same word as the page it opened, and Interviewing
+was "Interviews". **The order is the search, left to right**: find, save,
+apply, hear back, as the Tracker's stages and the landing page's route run,
+so the left half is what is left to do and the right half how it is going
+(in the 2 x 2 grid on a phone too). Interviewing, a dash until the tracker
+stores it, sits last as the outcome, not as a gap in the middle. The order
+was Applications, New Roles, Interviews, Saved, which read out of sequence.
+**Good Matches wears the violet fill**, where the next application starts,
+so the eye lands on the head of the search. Applied wore it until the
+reorder; the user moved it, since a seeker comes to find what to apply to
+next. A violet 0 is the cost on a week with no good matches. Applied
+counts the tracker's applications sent in the range, against the same
+length of days before it. Good Matches counts the job postings from the
+range that score Good Match (65) or better for this seeker, from the Best
+Match scores (`getGoodMatchDates`, one `GET /jobs/recommended` call with
+`min_match` over the longest range, counted per range in `data.ts`). It
+shows no change, since a score fades with a posting's age and last week's
+postings would always count fewer; with an empty experience bank it says
+"Add your experience first" and opens the bank. It replaced New Roles, a
+count of every posting in the feed, which said nothing about the seeker and
+drew a red change whenever employers posted less. Interviewing is a dash,
+"Not tracked yet": the API stores no interviewing stage, and a 0 would say
+the seeker had none. Saved counts the seeker's live saved jobs (KAN-261)
+and ignores the range. Applied and Saved show a dash when the tracker
+can't be read. **Every tile links**: a click anywhere on a tile opens the
+page that lists what it counts (the Tracker filtered to applied,
+interviewing or saved; the Jobs page in Best Match order, filtered to the
+week or 30 days posted). The lists take no date window, so the Applied
+list can hold more than its number. Under the pointer a tile lifts 2px onto
+`--shadow-lift`, its ring fills violet (white on the violet tile), and its
+glyph slides out as an arrow slides in, so it reads as clickable; a press
+settles it, and reduced motion keeps only the colour. A lift alone, which
+only two linked tiles once had, was too slight to say so. A keyboard focus
+rings the tile. Its range is `?range=`, moved in place: the
 headline (`dashboard/headline.tsx`) is handed every range's figures and reads
 `?range=` itself (`useRange` in `range-switch.tsx`), so a new range counts
 its numbers with the switch's thumb instead of after the server draws the
@@ -534,6 +564,18 @@ a weekly pace chart: the past year of applications per day as a heat map that
 folds into a 3D skyline, adapted from 21st.dev's Contribution Skyline. Its
 heading is Activity; its files and tokens say streak. It opens on the 2D heat
 map, and its four numbers (Past Year, Busiest Day, the two streaks) show only
+there, each in a grey well (`--color-well`) with its dates in a tag pill, as
+the Dashboard draws every date; as open text in ink-muted under each figure
+they read as loose lines (KAN-342). A number with nothing to date says so in
+its pill ("None yet", "Apply today"), so the four keep one shape; each
+well's pill sits on its label's line and wraps under it where the well is
+narrow. **The section is one height in both views** (KAN-342): the 3D
+skyline takes the room the heat map and its numbers share, growing over the
+numbers as they fade (`--streak-h2` and the room in `streak-canvas.ts`).
+With a 3D height of its own the section swelled and shrank through each
+switch, since the canvas and the folding numbers ran on different curves,
+and in 3D it ran past the fold. The whole Dashboard fits a 1280 × 720
+window with no scroll; check that after changing its spacing. They show only
 there: the 3D skyline stands alone, with no numbers under it or in its corners. `streak-model.ts`
 is its pure maths (grid, levels, stats, camera), `streak-canvas.ts` the
 canvas engine (no React: the section mounts it once and it re-reads a ref
@@ -544,12 +586,23 @@ validated as ordinal in `globals.css`, and `--color-border-subtle` for an
 empty day, so a token edit restyles it. The current streak runs to the
 viewer's today (yesterday while today is open), so `today` comes from
 `useSyncExternalStore`: UTC on the server, the browser's own after hydration.
-It ignores `?range=`, since a streak is every day. Its fixture is
-`appliedDays()` in `data.ts`, seeded and walked from a fixed epoch so a date
-keeps its count; the tracker swaps in one `{ date: appliedOn, count: 1 }` per
-sent application.
+It ignores `?range=`, since a streak is every day. It is live (KAN-342):
+`getAppliedTimes()` in `data.ts` hands it each sent application's
+`appliedOn` instant, and the streak counts each on its UTC day until
+hydration, then on the viewer's own (`localDay`), by the same
+`useSyncExternalStore` swap as `today`. A failed tracker read draws the
+empty year with a line saying the applications aren't loading.
 
-## Applications
+## Applications (the Tracker)
+
+**Its name on screen is the Tracker** (KAN-342): "Tracker" in the sidebar
+and the browser tab, "Application Tracker" as its heading (the marketing
+site's name for the feature), and "Back to Tracker" on an application's
+page. It was "Applications", the word the Dashboard also used for a count,
+so the page and the number read as one thing. The URL, the folder and the
+code keep `applications`: moving the folder would collide with every open
+branch that edits the page. Say "the Tracker" in copy; a stage is one of
+Saved, Applied, Interviewing and Offer (`GLOSSARY.md`).
 
 /applications is the tracker: a list (the default) and a grid over
 `applications/data.ts`, every choice in the URL; a row or card opens the
@@ -764,7 +817,9 @@ URL (`?tab=job` for the second):
   within a second, in no fixed order, and sorted by the millisecond the
   timeline once read Sent, Saved, Applied at one minute. A resume sent
   within two minutes of applying is now the Applied step's "Resume sent",
-  and a save that close is left out; steps further apart keep their own dot,
+  and a save within five seconds is left out (the same click writes both at
+  one time; a two-minute window once hid a save made a minute before
+  applying); steps further apart keep their own dot,
   and a tie sorts Saved, Sent, Applied. A closed posting
   says so in its card only, with no badge beside the stage. The cards
   replaced day counts that did not help: save to apply read 0 for every
@@ -1008,7 +1063,9 @@ link into the Calendar from anywhere else goes through `DayLink` in
 
 **My Profile holds the photo and the identity fields**, the Application
 Questions, and a "Resumes & Experiences" section that links to both views of
-that page.
+that page. The photo, name and headline are shown here and edited in
+Settings' Personal Details (KAN-326): the identity band's Edit is a link
+there.
 
 **Contact & Links (KAN-262)** is an open section between the identity band
 and Resumes & Experiences. It lists all six fields under visible labels, two
@@ -1028,8 +1085,11 @@ under the heading's text.
   under the name (a seeker with no links saw no sign they could add any,
   and nothing said which email it was), then an Add button on each empty
   field (it offered an edit while the section was not being edited).
-- **These fields are edited here only.** The identity band's Edit opens a
-  dialog with Full Name and Headline alone, so no value has two editors.
+- **These fields are edited here only**, and the photo, name and headline
+  in Settings only, so no value has two editors. The identity band's Edit
+  opened a Full Name and Headline dialog, and a pencil on the photo changed
+  it, until KAN-326 moved both to Settings' Personal Details. (The resume
+  editor's header still writes the name, phone and links back.)
 - **Example text only where it cannot pass for a saved value**
   (`you@example.com`, "Your phone number", `your-name`): the sign-in email
   as Contact Email's placeholder read as already filled in, and so did a
@@ -1361,13 +1421,9 @@ in Docs (suggested answers in the chat, not a banner).
   add, for the next skill, and closes after an edit; the skill being edited
   takes the brand outline. A form always open under the list made Skills the
   only card that never looked finished.
-- **Skill links live in the entry editor** (KAN-216, `skill-links.tsx`):
-  "Skills Used Here" shows one toggle per bank skill, pressed when linked.
-  The editor only edits the list; on save the screen sends the link and
-  unlink calls after the entry's own save (for a new entry, after it is
-  created). Once the entry has saved, a failed later step closes the editor
-  and says "Some changes did not save", because a retry would repeat the
-  steps that worked. Intake omits `skills`, so no links show.
+- **The entry editor has no skills field.** KAN-216's "Skills Used Here"
+  toggles (skill links) were removed: a skill is one list per student,
+  edited on the Skills card only.
 - **Intake** (`intake.tsx`, KAN-213), in the look of the intake prototype's
   variant G: a lavender chat with Scout's gradient mark and a chapter line
   per section. On the bank page it is in Scout's panel, in the three bands
@@ -1456,6 +1512,17 @@ in Docs (suggested answers in the chat, not a banner).
   "Your Tailored Resume" once the student has one for that posting.
 - **The run waits for a click.** Each run spends one of today's 2 Tailor
   runs, so loading the page never starts one.
+- **Tailor My Resume opens Pick a Resume to Tailor** (KAN-318): the
+  posting's resumes as "Did You Apply?" lists them (Generated Resumes and
+  Uploaded Resumes, one radio group), starting on the resume tailored to
+  this job, else the default, and an upload with the same limit, replace
+  step and duplicate rule. Both dialogs share `jobs/resume-picker.tsx`,
+  so a rule changed there changes both. The dialog's Tailor My Resume
+  closes it and runs; "Tailoring…" and errors show on the card. A pick
+  other than this job's tailored resume warns that Done replaces it. An
+  upload is read into the bank and tailored as its own entries; nothing
+  new appears under Generated Resumes. A run changes only what the picked
+  resume shows: it never proposes an entry or bullet that resume hides.
 - **The keyword match** shows "12 of 18" before, and again with what the
   student has accepted, required keywords first. The second count adds
   each accepted change's `keywords` and each Yes in the browser, with no
@@ -1463,12 +1530,12 @@ in Docs (suggested answers in the chat, not a banner).
   description shows the "weak match" notice.
 - **Every change has Accept and Reject**, plus Accept All; a new wording
   shows beside the old one. Nothing saves until Done; Leave Without Saving
-  goes back to the posting. "Bring back" and "Reorder bullets" name the
-  entry with its organization ("Software Intern, Acme"), since two jobs can
-  share a title; the API never offers a copy of an entry already shown.
-- **"Have you used X?"** lists missing keywords that are nowhere in the
-  bank. Yes adds the skill to the bank (it is saved at once, being true),
-  shows it on the tailored resume, and offers to link it to an entry.
+  goes back to the posting. "Reorder bullets" names the entry with its
+  organization ("Software Intern, Acme"), since two jobs can share a title.
+- **"Have you used X?"** lists missing keywords that neither the picked
+  resume's entries nor any bank skill hold. Yes adds the skill to the bank
+  (it is saved at once, being true) and shows it on the tailored resume. It
+  no longer asks where the skill was used: skill links were removed.
 - An empty bank (409) shows a link to the bank page, where intake starts.
 
 ## Resumes (`/resumes`)
@@ -1893,7 +1960,9 @@ bank first (`PATCH /applicants/{id}/autofill-answers`, only the changed ones,
 KAN-283), then step 1's as the seeker's preferences (`PUT
 /applicants/{id}/preferences`, KAN-231, which also marks onboarding
 complete). The bank goes first because a finished seeker is never sent back
-here, and no other screen asks those questions yet.
+here, and only My Profile's Application Questions asks those questions
+again. Step 1's fields are `role-step.tsx`, which Settings' Job Preferences
+draws too, so the wizard and Settings ask the same questions.
 Continue then uploads the file through `uploadResume`, and the API reads it
 into the experience bank as it reads any upload (ADR 0003). Both open /jobs,
 whose Best Match order scores the saved filters' jobs against the bank. The
@@ -1907,6 +1976,63 @@ edits. `?step=2` opens the wizard on its second step, Profile; intake's "Back to
 Pay & Visa" linked there until KAN-275, and nothing does now. Without saved
 answers `?step=2` opens on the first step, which holds the answers that must
 be given.
+
+## Settings (`/settings`)
+
+KAN-326. Opened from the account menu (the bar's photo). Four sections, each
+its own route under one layout (`(seeker)/settings/layout.tsx`), so a link
+opens one and each page loads only its own data; bare `/settings` opens
+Personal Details. The section nav (`settings-nav.tsx`) is a column beside
+the section from `@3xl/main` and a row that scrolls sideways above it below
+that, scrolling the current section into view: a segmented control's equal
+widths do not fit "Sign-In & Security" and three other labels at 375px.
+Each section is cards in a column of at most `max-w-2xl`. **A setting most
+visits leave alone is a row with a button, and its form opens in a dialog**
+(the user's call, 2026-10-23): three empty password fields on the page read
+as something to fill in.
+
+- **Personal Details** (`/settings/personal`): the photo (Change Photo,
+  Remove Photo; it saves on pick, shows the file at once and rolls back if
+  the upload fails), First Name, Middle Name (optional) and Last Name, as
+  signup asks them, and Headline, with Save and Discard. Save sends only
+  what changed; the API joins the parts into the full name every other
+  screen prints (`backend/app/models/CLAUDE.md`, Names). These are edited
+  here only; My Profile shows them and links here. Saving
+  refreshes the route so the bar's name and photo follow. **Delete Account**
+  sits at the foot in a red-edged card of its own: a red button opens a
+  dialog that stays locked until the student types their sign-in email (one
+  click on a red button is too easy to make by mistake); on success the
+  action signs out and opens the landing page, on failure the dialog stays
+  open with the error.
+- **Sign-In & Security** (`/settings/security`), three cards of rows:
+  Sign-In (Email with Change, Password with Change Password or, for a
+  Google- or LinkedIn-only account, Set Password; each opens a dialog),
+  Sign-In Methods (Google and LinkedIn, each Connected with Disconnect, or
+  Connect; no Disconnect on the last method), and Sign Out, which does what
+  the menu's does (local drafts first, then the session, on every device).
+  The methods come from Supabase's identity list (`getSignInProviders` in
+  `lib/session.ts`), so one linked a moment ago shows at once. Change Email
+  sends a confirm link and says where to look; the change and a link both
+  come back through the auth callback with a notice at the top
+  (`?notice=email`, `email-pending`, `linked`). The rules and the
+  dashboard setting Connect needs are in `../../docs/auth.md`, Settings.
+- **Notifications** (`/settings/notifications`): the design only. A row
+  per alert the bell promises (New Matches, Employer Replies), each with a
+  switch, disabled and marked Coming Soon: nothing stores or sends
+  notifications yet, and the notification work (KAN-298) wires each switch
+  to what it saves. Disabled, not live, because a switch that saves nothing
+  is what My Profile's Autofill switch was removed for. Keep the list in
+  step with the bell's line in `(seeker)/layout.tsx`.
+- **Job Preferences** (`/settings/preferences`): onboarding's own first
+  step (`RoleStep` in `onboarding/applicant/role-step.tsx`, `dense`: 18px
+  labels, tighter rows, h3 headings), on the saved preferences, with Save
+  and Discard; Save needs the role, job type and workplace onboarding
+  requires, and saves as onboarding does (PUT, a picked state narrowing its
+  country). The pickers' options come from `role-options.ts`, which
+  onboarding reads too, so the two offer the same roles, places and start
+  dates. No other screen edits saved preferences.
+
+The company side's `/company/settings` is still a placeholder.
 
 ## Company screens
 

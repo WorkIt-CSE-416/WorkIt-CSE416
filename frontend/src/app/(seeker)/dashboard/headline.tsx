@@ -7,7 +7,8 @@ import {
   BookmarkIcon,
   BriefcaseIcon,
   CalendarIcon,
-  SparkleIcon,
+  ArrowRightIcon,
+  MatchIcon,
   TrendIcon,
 } from "@/components/icons";
 import { AnimatedNumber } from "@/components/ui/animated-number";
@@ -22,10 +23,10 @@ import { SectionCard } from "./section-card";
 /** Each tile's glyph, by what it counts: the data is plain, so the icons stay
  *  on this side of the server boundary. */
 const STAT_ICONS: Record<StatKey, ComponentType<{ className?: string }>> = {
-  applications: BriefcaseIcon,
-  newRoles: SparkleIcon,
-  interviews: CalendarIcon,
+  goodMatches: MatchIcon,
   saved: BookmarkIcon,
+  applied: BriefcaseIcon,
+  interviewing: CalendarIcon,
 };
 
 /**
@@ -35,14 +36,16 @@ const STAT_ICONS: Record<StatKey, ComponentType<{ className?: string }>> = {
  * value at once (AnimatedNumber) rather than after the server has drawn the
  * page again.
  *
- * Applications is filled violet, the row's one solid colour, and the other
- * three are white. Each wears its glyph in a ring at the top right.
+ * Good Matches is filled violet, the row's one solid colour, and the other
+ * three are white (./data.ts says why that tile). Each wears its glyph in a ring at the top right.
  *
- * ONLY NEW ROLES AND SAVED LINK: their figures are the ones their
- * destinations show, the Jobs page filtered by date posted and the saved
- * applications. Applications and Interviews are still a fixture, apart from
- * the tracker, so a link would open a list that disagrees with its number. A linked tile is one target, its label the link stretched
- * over it, and lifts under the pointer like the Applications grid's cards.
+ * EVERY TILE IS A LINK (KAN-342): a click anywhere on a tile opens the page
+ * that lists what it counts (the Applications list filtered to its stage,
+ * or the Jobs page in Best Match order), its label the link stretched over
+ * it. Under the pointer a tile lifts 2px onto --shadow-lift, its ring fills
+ * violet (white on the violet tile), and its glyph slides out as an arrow
+ * slides in, so the tile reads as clickable; a press settles it. A lift
+ * alone was too slight to say so. A keyboard focus rings the tile.
  *
  * Its own tile rather than components/stat-tile.tsx, which the company
  * Dashboard keeps: this one sets the figure large at medium weight
@@ -57,7 +60,7 @@ export function Headline({ stats }: { stats: Record<RangeKey, DashboardStat[]> }
     <>
       {stats[range].map((stat) => {
         const Icon = STAT_ICONS[stat.key];
-        const brand = stat.key === "applications";
+        const brand = stat.key === "goodMatches";
         const change =
           stat.value !== null && stat.previous !== null && period
             ? stat.value - stat.previous
@@ -70,41 +73,50 @@ export function Headline({ stats }: { stats: Record<RangeKey, DashboardStat[]> }
             as="div"
             tone={brand ? "brand" : "plain"}
             className={cn(
-              "@container/stat flex flex-col",
-              stat.href &&
-                "hover:shadow-lift ease-glide has-[a:focus-visible]:ring-brand-ring transition-[transform,box-shadow] duration-200 hover:-translate-y-0.5 active:translate-y-0 active:scale-[0.99] has-[a:focus-visible]:ring-2",
+              "group/stat @container/stat flex flex-col",
+              // Lifts 2px onto --shadow-lift under the pointer and settles
+              // on the press, as a whole-target card does (docs/motion.md).
+              "ease-glide hover:shadow-lift transition-[translate,scale,box-shadow] duration-200 hover:-translate-y-0.5 active:translate-y-0 active:scale-[0.99] active:duration-150",
+              "motion-reduce:transition-none motion-reduce:hover:translate-y-0",
+              "has-[a:focus-visible]:ring-brand-ring has-[a:focus-visible]:ring-2",
             )}
           >
             {/* The label centred on its 36px ring, and the row 36px tall
                 even where the ring is hidden, so a figure sits at the same
                 height in every tile. */}
             <div className="flex min-h-9 items-center justify-between gap-3">
-              {stat.href ? (
-                <Link
-                  href={stat.href}
-                  className={cn(
-                    labelClass,
-                    // The overlay sits over the figure too, which is layered (its
-                    // count animates), so a click anywhere on the tile lands.
-                    "after:absolute after:inset-0 after:z-10 focus-visible:outline-none",
-                  )}
-                >
-                  {stat.label}
-                </Link>
-              ) : (
-                <p className={labelClass}>{stat.label}</p>
-              )}
+              <Link
+                href={stat.href}
+                className={cn(
+                  labelClass,
+                  // The overlay sits over the figure too, which is layered (its
+                  // count animates), so a click anywhere on the tile lands.
+                  "after:absolute after:inset-0 after:z-10 focus-visible:outline-none",
+                )}
+              >
+                {stat.label}
+              </Link>
               <span
                 aria-hidden="true"
                 className={cn(
                   // Only where the tile has room beside its label: in the
                   // narrowest four-column layout a long label wrapped and
                   // dropped its figure below the other three.
-                  "hidden size-9 shrink-0 items-center justify-center rounded-full @[10.5rem]/stat:flex",
-                  brand ? "text-brand bg-white" : "text-ink border-border-subtle border",
+                  "relative hidden size-9 shrink-0 items-center justify-center overflow-hidden rounded-full @[10.5rem]/stat:flex",
+                  "ease-glide transition-colors duration-200",
+                  brand
+                    ? "text-brand bg-white"
+                    : "text-ink border-border-subtle group-hover/stat:border-brand group-hover/stat:bg-brand group-hover/stat:text-on-brand border",
                 )}
               >
-                <Icon className="size-4" />
+                {/* Under the pointer the glyph slides out to the right and
+                    an arrow slides in after it: the tile says where it
+                    goes. Clipped by the ring. */}
+                <Icon
+                  aria-hidden
+                  className="ease-glide size-4 transition-[translate,opacity] duration-200 group-hover/stat:translate-x-5 group-hover/stat:opacity-0 motion-reduce:transition-none"
+                />
+                <ArrowRightIcon className="ease-glide absolute size-4 -translate-x-5 opacity-0 transition-[translate,opacity] duration-200 group-hover/stat:translate-x-0 group-hover/stat:opacity-100 motion-reduce:transition-none" />
               </span>
             </div>
 

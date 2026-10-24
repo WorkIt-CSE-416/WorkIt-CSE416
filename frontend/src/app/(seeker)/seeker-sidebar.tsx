@@ -1,14 +1,14 @@
 "use client";
 
 import {
-  BriefcaseBusiness,
-  // CalendarDays, // the Calendar row, hidden for now (below)
-  CircleUserRound,
-  FileText,
-  LayoutDashboard,
-  ListChecks,
-  Zap,
-} from "lucide-react";
+  BriefcaseIcon,
+  // CalendarDotsIcon, // the Calendar row, hidden for now (below)
+  FileTextIcon,
+  ListChecksIcon,
+  SquaresFourIcon,
+  UserCircleIcon,
+} from "@phosphor-icons/react/ssr";
+import { LightningRoundedIcon } from "@/components/custom-icons";
 import type { ReactNode } from "react";
 
 import { AppSidebar, type SidebarNavGroup } from "@/components/app-sidebar";
@@ -40,7 +40,7 @@ import { AppSidebar, type SidebarNavGroup } from "@/components/app-sidebar";
  * ClipboardList: a framed page with lines, it read as FileText two rows down.
  *
  * Calendar sits after Applications, as the same applications read by date.
- * Its glyph is CalendarDays, not Calendar: the plain calendar is the
+ * Its glyph is CalendarDots, not CalendarBlank: the plain calendar is the
  * Interviewing stage's glyph (../stage-colors.ts), and a nav row wearing it
  * would read as a stage.
  *
@@ -61,15 +61,15 @@ const GROUPS: SidebarNavGroup[] = [
   {
     // No caption: with one group there is nothing to tell it apart from.
     items: [
-      { href: "/dashboard", label: "Dashboard", Icon: LayoutDashboard },
-      { href: "/jobs", label: "Jobs", Icon: BriefcaseBusiness },
-      { href: "/auto-apply", label: "Auto Apply", Icon: Zap },
-      { href: "/applications", label: "Applications", Icon: ListChecks },
+      { href: "/dashboard", label: "Dashboard", Icon: SquaresFourIcon },
+      { href: "/jobs", label: "Jobs", Icon: BriefcaseIcon },
+      { href: "/auto-apply", label: "Auto Apply", Icon: LightningRoundedIcon },
+      { href: "/applications", label: "Tracker", Icon: ListChecksIcon },
       // Hidden for now (KAN-261): src/proxy.ts sends /calendar to the
       // Dashboard. Uncomment this and its import to bring it back.
-      // { href: "/calendar", label: "Calendar", Icon: CalendarDays },
-      { href: "/resumes", also: ["/bank"], label: "Resumes & Experiences", Icon: FileText },
-      { href: "/profile", label: "My Profile", Icon: CircleUserRound },
+      // { href: "/calendar", label: "Calendar", Icon: CalendarDotsIcon },
+      { href: "/resumes", also: ["/bank"], label: "Resumes & Experiences", Icon: FileTextIcon },
+      { href: "/profile", label: "My Profile", Icon: UserCircleIcon },
     ],
   },
 ];

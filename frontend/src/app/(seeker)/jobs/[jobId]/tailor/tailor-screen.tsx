@@ -1,14 +1,23 @@
 "use client";
 
-import { Check, X } from "lucide-react";
-import { useState } from "react";
+import { CheckIcon, XIcon } from "@phosphor-icons/react/ssr";
+import { useCallback, useState } from "react";
 
 import { SparkleIcon } from "@/components/icons";
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
+} from "@/components/shadcn/dialog";
 import { Badge } from "@/components/ui/badge";
 import { Button, ButtonLink } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
-import { addSkill, getBank, linkSkill, type BankEntry } from "@/lib/bank-actions";
+import { addSkill } from "@/lib/bank-actions";
 import { cn } from "@/lib/cn";
+import type { ResumeItem } from "@/lib/resume-actions";
 import {
   finishTailor,
   runTailor,
@@ -16,11 +25,25 @@ import {
   type TailorChange,
   type TailorProposal,
   type TailorResult,
+  type TailorSource,
 } from "@/lib/tailor-actions";
 
+import {
+  firstChoice,
+  loadChoices,
+  ResumeLists,
+  UploadPick,
+  type Choice,
+} from "../../resume-picker";
+
 /**
- * The Tailor screen (KAN-217). Run spends one of today's Tailor runs and
- * proposes changes; the student accepts or rejects each, answers "Have you
+ * The Tailor screen (KAN-217). Tailor My Resume opens Pick a Resume to
+ * Tailor (KAN-318): the student picks a generated or uploaded resume, or
+ * uploads one with the Resumes page's rules (../../resume-picker), and the
+ * dialog's own Tailor My Resume runs from it. An upload is read into the
+ * bank again and tailored as the entries it holds; nothing new shows under
+ * Generated Resumes. Run spends one of today's Tailor runs and proposes
+ * changes; the student accepts or rejects each, answers "Have you
  * used X?" for missing keywords, and Done saves the accepted ones on the
  * posting's one tailored resume. Nothing is saved before Done, except a
  * skill added by answering Yes (it goes into the bank, which is the point).
@@ -51,10 +74,10 @@ export function TailorScreen({
   const [result, setResult] = useState<TailorResult | null>(null);
   const [error, setError] = useState<{ message: string; status: number | null } | null>(null);
 
-  async function run() {
+  async function run(source: TailorSource) {
     setRunning(true);
     setError(null);
-    const { data, error, status } = await runTailor(jobId);
+    const { data, error, status } = await runTailor(jobId, source);
     setRunning(false);
     if (!data) return setError({ message: error ?? "Tailor failed.", status });
     setProposal(data);
@@ -69,7 +92,7 @@ export function TailorScreen({
     setSaving(true);
     setError(null);
     const accepted = [...proposal.changes.filter((_, i) => decisions[i] === "accepted"), ...added];
-    const { data, error, status } = await finishTailor(jobId, proposal.source_resume_id, accepted);
+    const { data, error, status } = await finishTailor(proposal, accepted);
     setSaving(false);
     if (!data) return setError({ message: error ?? "Saving failed.", status });
     setResult(data);
@@ -106,13 +129,11 @@ export function TailorScreen({
         </p>
         {tailoredName && (
           <p className="text-note text-ink-meta mt-2">
-            You already have a tailored resume for this posting ({tailoredName}). A new run starts
-            from it.
+            You already have a tailored resume for this posting ({tailoredName}). Pick it to keep
+            building on it.
           </p>
         )}
-        <Button className="mt-3" onClick={run} disabled={running}>
-          <SparkleIcon /> {running ? "Tailoring…" : "Tailor My Resume"}
-        </Button>
+        <PickResume jobId={jobId} title={title} running={running} onRun={run} />
         {/* KAN-319: the Tailor limit is lifted for now, so the cost is hidden.
         <p className="text-note text-ink-meta mt-2">
           Each run uses one of today&apos;s 2 Tailor runs.
@@ -228,7 +249,7 @@ export function TailorScreen({
 
       <div className="flex flex-wrap items-center gap-3">
         <Button onClick={done} disabled={saving}>
-          <Check /> {saving ? "Saving…" : "Done"}
+          <CheckIcon aria-hidden /> {saving ? "Saving…" : "Done"}
         </Button>
         <ButtonLink href={`/jobs/${encodeURIComponent(jobId)}`} variant="secondary">
           Leave Without Saving
@@ -236,6 +257,125 @@ export function TailorScreen({
       </div>
       <TailorError error={error} />
     </div>
+  );
+}
+
+const toSource = (choice: Choice): TailorSource =>
+  "builtResumeId" in choice.source
+    ? { built_resume_id: choice.source.builtResumeId }
+    : { uploaded_resume_id: choice.source.uploadedResumeId };
+
+/**
+ * Tailor My Resume and its dialog, Pick a Resume to Tailor: the job
+ * posting's resumes as "Did You Apply?" lists them, starting on the one
+ * tailored to this job, else the default. Its Tailor My Resume closes the
+ * dialog and runs; the card shows "Tailoring…" and any error. Picking a
+ * source other than this job's tailored resume warns that Done replaces it.
+ */
+function PickResume({
+  jobId,
+  title,
+  running,
+  onRun,
+}: {
+  jobId: string;
+  title: string;
+  running: boolean;
+  onRun: (source: TailorSource) => void;
+}) {
+  const [open, setOpen] = useState(false);
+  const [choices, setChoices] = useState<Choice[] | null>(null);
+  const [uploads, setUploads] = useState<ResumeItem[]>([]);
+  const [picked, setPicked] = useState<string | null>(null);
+  const [error, setError] = useState<string | null>(null);
+  const [uploading, setUploading] = useState(false);
+  const onUploadBusy = useCallback((busy: boolean) => setUploading(busy), []);
+
+  /** Reads the list without blanking it, so an upload keeps its place. */
+  async function refresh(): Promise<Choice[]> {
+    const { choices, uploads, error } = await loadChoices(jobId);
+    setChoices(choices);
+    setUploads(uploads);
+    setError(error);
+    return choices;
+  }
+
+  async function openPicker() {
+    setOpen(true);
+    setChoices(null);
+    setPicked(firstChoice(await refresh())?.key ?? null);
+  }
+
+  async function uploaded(id: string) {
+    await refresh();
+    setPicked(`uploaded:${id}`);
+  }
+
+  const choice = choices?.find((c) => c.key === picked);
+  const tailored = choices?.find((c) => c.kind === "Tailored to this job");
+
+  return (
+    <>
+      <Button className="mt-3" onClick={openPicker} disabled={running}>
+        <SparkleIcon /> {running ? "Tailoring…" : "Tailor My Resume"}
+      </Button>
+      <Dialog open={open} onOpenChange={setOpen}>
+        {/* As wide as "Did You Apply?", for the same two lists side by side. */}
+        <DialogContent className="max-h-[90vh] overflow-y-auto sm:max-w-3xl">
+          <DialogHeader>
+            <DialogTitle className="text-subtitle font-semibold">
+              Pick a Resume to Tailor
+            </DialogTitle>
+            <DialogDescription>
+              WorkIt proposes changes to it for {title}. An uploaded resume is read into your
+              experience bank first.
+            </DialogDescription>
+          </DialogHeader>
+          {choices == null ? (
+            <p className="text-note text-ink-muted">Loading your resumes…</p>
+          ) : (
+            <>
+              <ResumeLists
+                name="tailor-from"
+                choices={choices}
+                emptyBuilt="None yet. Generate Resume on Resumes & Experiences makes one."
+                emptyUploaded="None yet. Upload one below."
+                picked={picked}
+                onPick={setPicked}
+              />
+              <UploadPick
+                label="Tailor a Different Resume?"
+                uploads={uploads}
+                onUploaded={uploaded}
+                onBusyChange={onUploadBusy}
+              />
+            </>
+          )}
+          {tailored && choice && choice.key !== tailored.key && (
+            <p className="text-note text-warning">
+              Done replaces your tailored resume for this posting ({tailored.label}) with this
+              one&apos;s changes.
+            </p>
+          )}
+          {error && <p className="text-meta text-danger">{error}</p>}
+          <DialogFooter>
+            <Button variant="secondary" onClick={() => setOpen(false)}>
+              Cancel
+            </Button>
+            <Button
+              onClick={() => {
+                if (!choice) return;
+                setOpen(false);
+                onRun(toSource(choice));
+              }}
+              disabled={choice == null || uploading}
+            >
+              <SparkleIcon /> Tailor My Resume
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+    </>
   );
 }
 
@@ -270,7 +410,6 @@ function KeywordList({ label, keywords }: { label: string; keywords: Keyword[] }
 
 const WHAT: Record<TailorChange["kind"], string> = {
   reword: "New wording",
-  show_entry: "Bring back",
   show_skill: "Show skill",
   order: "Reorder bullets",
 };
@@ -315,7 +454,7 @@ function ChangeRow({
             aria-pressed={decision === "accepted"}
             onClick={() => onDecide("accepted")}
           >
-            <Check /> Accept
+            <CheckIcon aria-hidden /> Accept
           </Button>
           <Button
             size="sm"
@@ -323,7 +462,7 @@ function ChangeRow({
             aria-pressed={decision === "rejected"}
             onClick={() => onDecide("rejected")}
           >
-            <X /> Reject
+            <XIcon aria-hidden /> Reject
           </Button>
         </div>
       </div>
@@ -332,8 +471,7 @@ function ChangeRow({
 }
 
 /** "Have you used X?" Yes adds X to the bank as a skill and shows it on
- *  the tailored resume (an accepted change), then offers to link it to the
- *  entry where it was used. No AI call. */
+ *  the tailored resume (an accepted change). No AI call. */
 function Question({
   keyword,
   answer,
@@ -345,9 +483,6 @@ function Question({
 }) {
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
-  const [skillId, setSkillId] = useState<string | null>(null);
-  const [entries, setEntries] = useState<BankEntry[]>([]);
-  const [linked, setLinked] = useState<string | null>(null);
 
   async function yes() {
     setBusy(true);
@@ -357,7 +492,6 @@ function Question({
       setBusy(false);
       return setError(error);
     }
-    setSkillId(data.id);
     onAnswer("yes", {
       kind: "show_skill",
       skill_id: data.id,
@@ -369,16 +503,7 @@ function Question({
       label: data.name,
       keywords: [keyword.keyword],
     });
-    const bank = await getBank();
-    setEntries(bank.data?.entries ?? []);
     setBusy(false);
-  }
-
-  async function link(entryId: string) {
-    if (!skillId || !entryId) return;
-    const { error } = await linkSkill(skillId, entryId);
-    if (error) return setError(error);
-    setLinked(entryId);
   }
 
   return (
@@ -405,24 +530,6 @@ function Question({
           </p>
         )}
       </div>
-      {answer === "yes" && entries.length > 0 && (
-        <label className="text-note text-ink-muted mt-2 flex flex-wrap items-center gap-2">
-          Where Did You Use It?
-          <select
-            className="border-border-subtle bg-surface text-body rounded-control border px-2 py-1"
-            value={linked ?? ""}
-            onChange={(e) => link(e.target.value)}
-          >
-            <option value="">Choose an Entry (Optional)</option>
-            {entries.map((e) => (
-              <option key={e.id} value={e.id}>
-                {e.title}
-                {e.organization ? `, ${e.organization}` : ""}
-              </option>
-            ))}
-          </select>
-        </label>
-      )}
       {error && (
         <p role="alert" className="text-note text-danger mt-1">
           {error}

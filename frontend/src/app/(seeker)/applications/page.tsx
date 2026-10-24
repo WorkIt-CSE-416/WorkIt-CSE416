@@ -1,4 +1,4 @@
-import { CloudOff } from "lucide-react";
+import { CloudSlashIcon } from "@phosphor-icons/react/ssr";
 import type { Metadata } from "next";
 import { redirect } from "next/navigation";
 
@@ -17,7 +17,7 @@ import { ViewPanes } from "./view-panes";
 import { ViewSwitcher } from "./view-switcher";
 
 export const metadata: Metadata = {
-  title: "Applications",
+  title: "Tracker",
   description: "Track and manage your career progress.",
 };
 
@@ -76,7 +76,7 @@ export default async function ApplicationsPage({ searchParams }: PageProps<"/app
           with the title rather than the subtitle. */}
       <div className="flex items-start justify-between gap-4">
         <div className="min-w-0">
-          <h1 className="text-heading text-ink">My Applications</h1>
+          <h1 className="text-heading text-ink">Application Tracker</h1>
           <p className="text-body text-ink-meta mt-1">Track and manage your career progress.</p>
         </div>
 
@@ -111,7 +111,7 @@ export default async function ApplicationsPage({ searchParams }: PageProps<"/app
           shown.length === 0 &&
           (error != null ? (
             <EmptyState
-              Icon={CloudOff}
+              Icon={CloudSlashIcon}
               title="Applications Aren't Loading"
               className="mt-4"
               detail={process.env.NODE_ENV === "development" ? error : undefined}

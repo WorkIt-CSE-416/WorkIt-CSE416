@@ -1,6 +1,6 @@
 "use client";
 
-import { Flag, Link2 } from "lucide-react";
+import { FlagIcon, LinkSimpleIcon } from "@phosphor-icons/react/ssr";
 import { usePathname, useRouter, useSearchParams } from "next/navigation";
 import { useEffect, useState, useSyncExternalStore } from "react";
 
@@ -175,11 +175,11 @@ export function MoreActions({ title }: { title: string }) {
                 .catch(() => setSaid("Couldn't copy the link"))
             }
           >
-            <Link2 className="text-ink-meta size-4" />
+            <LinkSimpleIcon aria-hidden className="text-ink-meta size-4" />
             Copy Link
           </DropdownMenuItem>
           <DropdownMenuItem>
-            <Flag className="text-ink-meta size-4" />
+            <FlagIcon aria-hidden className="text-ink-meta size-4" />
             Report
           </DropdownMenuItem>
         </DropdownMenuContent>

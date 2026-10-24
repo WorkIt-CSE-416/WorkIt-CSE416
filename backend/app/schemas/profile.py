@@ -3,8 +3,17 @@
 from urllib.parse import urlsplit
 from uuid import UUID
 
-from pydantic import BaseModel, ConfigDict, EmailStr, Field, field_validator
+from pydantic import (
+    BaseModel,
+    ConfigDict,
+    EmailStr,
+    Field,
+    field_validator,
+    model_validator,
+)
 from pydantic_core import PydanticCustomError
+
+from app.services.names import split_name
 
 
 class ApplicantProfileResponse(BaseModel):
@@ -15,12 +24,23 @@ class ApplicantProfileResponse(BaseModel):
     # NULL means the sign-in email (Applicant_Profile.email_for_employers).
     contact_email: str | None
     full_name: str
+    first_name: str | None
+    middle_name: str | None
+    last_name: str | None
     phone_number: str | None
     headline: str | None
     linkedin_url: str | None
     portfolio_url: str | None
     github_url: str | None
     other_url: str | None
+
+    @model_validator(mode="after")
+    def _parts_from_full_name(self) -> "ApplicantProfileResponse":
+        # A row written before the split (KAN-326), or by code that predates
+        # it, has full_name alone: answer it split, so every reader gets parts.
+        if self.first_name is None:
+            self.first_name, self.middle_name, self.last_name = split_name(self.full_name)
+        return self
 
 
 LINK_FIELDS = ("linkedin_url", "portfolio_url", "github_url", "other_url")
@@ -48,11 +68,19 @@ def web_link(value: str | None) -> str | None:
 class ApplicantProfileUpdate(BaseModel):
     """PATCH body. Only fields present in the JSON are applied;
     use model.model_fields_set to tell sent-as-null from omitted.
-    An empty string clears a field, the same as null."""
+    An empty string clears a field, the same as null.
+
+    The name comes as parts (Settings) or as one line (the resume editor's
+    header); routers/profiles.py keeps full_name and the parts in step. A
+    first or last name sent must not be blank: both are required, as at
+    signup. The middle name may be cleared."""
 
     model_config = ConfigDict(str_strip_whitespace=True)
 
     full_name: str | None = Field(None, min_length=1, max_length=50)
+    first_name: str | None = Field(None, min_length=1, max_length=50)
+    middle_name: str | None = Field(None, max_length=50)
+    last_name: str | None = Field(None, min_length=1, max_length=50)
     contact_email: EmailStr | None = Field(None, max_length=100)
     phone_number: str | None = Field(None, max_length=30)
     headline: str | None = Field(None, max_length=50)
@@ -61,7 +89,9 @@ class ApplicantProfileUpdate(BaseModel):
     github_url: str | None = Field(None, max_length=500)
     other_url: str | None = Field(None, max_length=500)
 
-    @field_validator("contact_email", "phone_number", "headline", *LINK_FIELDS, mode="before")
+    @field_validator(
+        "contact_email", "phone_number", "headline", "middle_name", *LINK_FIELDS, mode="before"
+    )
     @classmethod
     def _blank_is_none(cls, value: object) -> object:
         return None if isinstance(value, str) and not value.strip() else value

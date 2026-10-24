@@ -1,6 +1,6 @@
 "use client";
 
-import { X } from "lucide-react";
+import { XIcon } from "@phosphor-icons/react/ssr";
 import { useEffect, useRef, useState } from "react";
 
 import { Composer, Message, Typing, ScoutMark } from "@/components/scout/chat";
@@ -178,7 +178,7 @@ export function Assistant({
           <ScoutMark />
           <span className="text-label text-ink font-semibold">Scout</span>
           <IconButton label="Close" className="ml-auto" onClick={onClose}>
-            <X className="size-4" />
+            <XIcon aria-hidden className="size-4" />
           </IconButton>
         </div>
       )}

@@ -1,4 +1,4 @@
-import { CloudOff } from "lucide-react";
+import { CloudSlashIcon } from "@phosphor-icons/react/ssr";
 import type { Metadata } from "next";
 import { notFound } from "next/navigation";
 
@@ -83,7 +83,7 @@ export default async function ApplicationPage({
       <div className={cn(JOB_PAGE_WIDTH, SEEKER_GUTTER)}>
         <BackToApplications />
         <EmptyState
-          Icon={CloudOff}
+          Icon={CloudSlashIcon}
           title="This Application Isn't Loading"
           detail={process.env.NODE_ENV === "development" ? error : undefined}
         >
@@ -154,7 +154,7 @@ function BackToApplications({ className = "group/back mb-3" }: { className?: str
   return (
     <ButtonLink href="/applications" variant="secondary" size="sm" className={className}>
       <ArrowLeftIcon className="ease-glide size-3.5 transition-transform duration-200 group-hover/back:-translate-x-0.5" />
-      Back to Applications
+      Back to Tracker
     </ButtonLink>
   );
 }

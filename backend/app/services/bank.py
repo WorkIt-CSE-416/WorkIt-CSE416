@@ -13,9 +13,11 @@ place:
 - The duplicate check (`find_duplicate`) matches section, title and
   organization, ignoring case. Intake uses it to flag a draft; import
   (`merge_import`) merges into the entry it finds.
-- A skill link (KAN-216) joins a skill to an entry of the same applicant.
-  Adding or removing one does not clear the embedding: the embedding text
-  holds skills and entries, never which skill goes with which entry.
+- A source (KAN-343, docs/bank_by_resume.md) says an upload's import found
+  an entry or skill. Only `merge_import` writes one, for everything the
+  reading found, merged or not; Import Updated Resume clears the old ones
+  first (`clear_sources`). Sources do not clear the embedding: its text
+  never names a resume.
 - Functions flush but never commit: the caller owns the transaction, so an
   import can save many entries in one.
 
@@ -25,23 +27,29 @@ The session is handed in by the caller; this module opens no connection.
 import datetime
 import uuid
 from collections.abc import Mapping, Sequence
-from dataclasses import dataclass, field
+from dataclasses import dataclass
 
 from pydantic import ValidationError
-from sqlalchemy import func, select
+from sqlalchemy import delete, func, select
 from sqlalchemy.dialects.postgresql import insert
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.models.bank import (
     Bank_Bullet,
     Bank_Entry,
+    Bank_Entry_Source,
     Bank_Skill,
-    Bank_Skill_Link,
+    Bank_Skill_Source,
     Experience_Bank,
 )
+from app.models.built_resume import Built_Resume, Built_Resume_Entry, Built_Resume_Skill
 from app.models.dto import bank_section, entry_end_kind
+from app.models.jobs import Job_Post
+from app.models.profiles import Applicant_Profile
+from app.models.resume import Resume
 from app.schemas.bank import (
     BankResponse,
+    BankResume,
     BulletResponse,
     EntryCreate,
     EntryFields,
@@ -78,12 +86,10 @@ class Entry:
 class Bank:
     """A whole bank, ordered the way every screen and resume reads it:
     entries in section order, ongoing first and then newest; skills by
-    group, then name. `skill_links` maps a skill id to the ids of its
-    linked entries, in bank order; a skill with no links is absent."""
+    group, then name."""
 
     entries: list[Entry]
     skills: list[Bank_Skill]
-    skill_links: dict[uuid.UUID, list[uuid.UUID]] = field(default_factory=dict)
 
 
 _SECTION_ORDER = {section: i for i, section in enumerate(bank_section)}
@@ -151,17 +157,7 @@ async def load_bank(session: AsyncSession, applicant_id: uuid.UUID) -> Bank:
         .where(Bank_Skill.applicant_id == applicant_id)
         .order_by(Bank_Skill.group.asc().nulls_last(), func.lower(Bank_Skill.name))
     )
-    order = {r.id: i for i, r in enumerate(rows)}
-    links: dict[uuid.UUID, list[uuid.UUID]] = {}
-    for link in await session.scalars(
-        select(Bank_Skill_Link)
-        .join(Bank_Skill, Bank_Skill.id == Bank_Skill_Link.skill_id)
-        .where(Bank_Skill.applicant_id == applicant_id)
-    ):
-        links.setdefault(link.skill_id, []).append(link.entry_id)
-    for entry_ids in links.values():
-        entry_ids.sort(key=order.__getitem__)
-    return Bank(entries=[Entry(r, bullets[r.id]) for r in rows], skills=list(skills), skill_links=links)
+    return Bank(entries=[Entry(r, bullets[r.id]) for r in rows], skills=list(skills))
 
 
 async def _entry_row(session: AsyncSession, applicant_id: uuid.UUID, entry_id: uuid.UUID) -> Bank_Entry:
@@ -431,81 +427,167 @@ async def _merge_entry(session: AsyncSession, applicant_id: uuid.UUID, existing:
 async def merge_import(
     session: AsyncSession,
     applicant_id: uuid.UUID,
+    resume_id: uuid.UUID,
     entries: Sequence[EntryCreate],
     skills: Sequence[tuple[str, str | None]],
 ) -> Merged:
-    """Write an import into the bank (ADR 0003). An entry the bank lacks is
-    added; one that `find_duplicate` matches is merged, never copied, so
-    several resumes add up to one bank. A skill is added when the bank has
-    none of that name, ignoring case."""
+    """Write an import of the applicant's upload `resume_id` into the bank
+    (ADR 0003). An entry the bank lacks is added; one that `find_duplicate`
+    matches is merged, never copied, so several resumes add up to one bank.
+    A skill is added when the bank has none of that name, ignoring case.
+    Every entry and skill the reading found gets the upload as a source
+    (KAN-343), even one the merge left unchanged: it is still on that
+    resume. The caller has flushed the resume row and checked its owner."""
     merged = Merged()
+    entry_ids: list[uuid.UUID] = []
     for draft in entries:
         existing = await find_duplicate(session, applicant_id, draft.section, draft.title, draft.organization)
         if existing is None:
-            await create_entry(session, applicant_id, draft, draft.bullets, allow_duplicate=True)
+            existing = await create_entry(session, applicant_id, draft, draft.bullets, allow_duplicate=True)
             merged.entries_added += 1
         elif await _merge_entry(session, applicant_id, existing, draft):
             merged.entries_updated += 1
+        entry_ids.append(existing.row.id)
     taken = {
-        name.lower()
-        for name in await session.scalars(select(Bank_Skill.name).where(Bank_Skill.applicant_id == applicant_id))
+        name.lower(): skill_id
+        for skill_id, name in await session.execute(
+            select(Bank_Skill.id, Bank_Skill.name).where(Bank_Skill.applicant_id == applicant_id)
+        )
     }
+    skill_ids: list[uuid.UUID] = []
     for name, group in skills:
-        if name.lower() in taken:
-            continue
-        taken.add(name.lower())
-        await add_skill(session, applicant_id, name, group)
-        merged.skills_added += 1
+        if name.lower() not in taken:
+            taken[name.lower()] = (await add_skill(session, applicant_id, name, group)).id
+            merged.skills_added += 1
+        skill_ids.append(taken[name.lower()])
+    await _add_sources(session, Bank_Entry_Source, Bank_Entry_Source.entry_id, entry_ids, resume_id)
+    await _add_sources(session, Bank_Skill_Source, Bank_Skill_Source.skill_id, skill_ids, resume_id)
     return merged
 
 
-async def linked_entry_ids(session: AsyncSession, skill_id: uuid.UUID) -> list[uuid.UUID]:
-    """The ids of the entries a skill (already checked as owned) links to."""
-    entries = list(
-        await session.scalars(
-            select(Bank_Entry).join(Bank_Skill_Link, Bank_Skill_Link.entry_id == Bank_Entry.id)
-            .where(Bank_Skill_Link.skill_id == skill_id)
+async def _add_sources(session: AsyncSession, table, item_column, item_ids: list[uuid.UUID], resume_id: uuid.UUID) -> None:
+    """One source row per item; a row already there stays (a second import
+    of the same resume adds nothing)."""
+    if not item_ids:
+        return
+    rows = [{item_column.key: item_id, "resume_id": resume_id} for item_id in dict.fromkeys(item_ids)]
+    await session.execute(insert(table).values(rows).on_conflict_do_nothing())
+    await session.flush()
+
+
+async def clear_sources(session: AsyncSession, resume_id: uuid.UUID) -> None:
+    """Drop every source of one upload, before Import Updated Resume merges
+    the new file: an entry the new version dropped leaves that resume's
+    view, and stays in the bank. The caller has checked the owner."""
+    await session.execute(delete(Bank_Entry_Source).where(Bank_Entry_Source.resume_id == resume_id))
+    await session.execute(delete(Bank_Skill_Source).where(Bank_Skill_Source.resume_id == resume_id))
+    await session.flush()
+
+
+@dataclass
+class Holdings:
+    """Which resumes hold each entry and skill (KAN-343): an upload holds
+    what its import found (the sources), a built resume what it shows (its
+    choice rows with `shown`). `resumes` is in dropdown order, and each id
+    list follows it. An item no resume holds is absent."""
+
+    resumes: list[BankResume]
+    entries: dict[uuid.UUID, list[uuid.UUID]]
+    skills: dict[uuid.UUID, list[uuid.UUID]]
+
+
+async def load_holdings(session: AsyncSession, applicant_id: uuid.UUID) -> Holdings:
+    """Every resume of the applicant, and which entries and skills each
+    holds, for the Experiences view's dropdown."""
+    defaults = (
+        await session.execute(
+            select(Applicant_Profile.default_resume_id, Applicant_Profile.default_built_resume_id)
+            .where(Applicant_Profile.id == applicant_id)
         )
+    ).first()
+    starred = {d for d in (defaults or ()) if d is not None}
+    resumes = [
+        BankResume(
+            id=r.id, kind="uploaded", name=r.original_filename or "Uploaded resume", primary=r.id in starred,
+            created_at=r.created_at,
+        )
+        for r in await session.execute(
+            select(Resume.id, Resume.original_filename, Resume.created_at)
+            .where(Resume.applicant_id == applicant_id)
+            .order_by(Resume.created_at.desc(), Resume.id)
+        )
+    ]
+    for r in await session.execute(
+        select(Built_Resume.id, Built_Resume.name, Built_Resume.created_at, Job_Post.title, Job_Post.company_name)
+        .outerjoin(Job_Post, Job_Post.id == Built_Resume.job_posting_id)
+        .where(Built_Resume.applicant_id == applicant_id)
+        # Base resumes (no posting) first, then tailored, each newest first.
+        .order_by(Built_Resume.job_posting_id.is_not(None), Built_Resume.created_at.desc(), Built_Resume.id)
+    ):
+        posting = None if r.title is None else f"{r.title} at {r.company_name}" if r.company_name else r.title
+        resumes.append(BankResume(
+            id=r.id, kind="base" if r.title is None else "tailored", name=r.name, posting=posting,
+            primary=r.id in starred, created_at=r.created_at,
+        ))
+
+    order = {r.id: i for i, r in enumerate(resumes)}
+
+    async def held(*queries) -> dict[uuid.UUID, list[uuid.UUID]]:
+        out: dict[uuid.UUID, list[uuid.UUID]] = {}
+        for query in queries:
+            for item_id, resume_id in await session.execute(query):
+                out.setdefault(item_id, []).append(resume_id)
+        for ids in out.values():
+            ids.sort(key=order.__getitem__)
+        return out
+
+    def uploads(table, item_column):
+        return (
+            select(item_column, table.resume_id)
+            .join(Resume, Resume.id == table.resume_id)
+            .where(Resume.applicant_id == applicant_id)
+        )
+
+    def built(table, item_column):
+        return (
+            select(item_column, table.built_resume_id)
+            .join(Built_Resume, Built_Resume.id == table.built_resume_id)
+            .where(Built_Resume.applicant_id == applicant_id, table.shown)
+        )
+
+    return Holdings(
+        resumes=resumes,
+        entries=await held(
+            uploads(Bank_Entry_Source, Bank_Entry_Source.entry_id),
+            built(Built_Resume_Entry, Built_Resume_Entry.entry_id),
+        ),
+        skills=await held(
+            uploads(Bank_Skill_Source, Bank_Skill_Source.skill_id),
+            built(Built_Resume_Skill, Built_Resume_Skill.skill_id),
+        ),
     )
-    entries.sort(key=_newest_first)
-    return [e.id for e in entries]
 
 
-async def link_skill(session: AsyncSession, applicant_id: uuid.UUID, skill_id: uuid.UUID, entry_id: uuid.UUID) -> None:
-    """Link a skill to an entry; linking twice is a no-op. Raises NotFound
-    unless both belong to this applicant."""
-    await _owned_skill(session, applicant_id, skill_id)
-    await _entry_row(session, applicant_id, entry_id)
-    await session.execute(
-        insert(Bank_Skill_Link).values(skill_id=skill_id, entry_id=entry_id).on_conflict_do_nothing()
-    )
-    await session.flush()
-
-
-async def unlink_skill(session: AsyncSession, applicant_id: uuid.UUID, skill_id: uuid.UUID, entry_id: uuid.UUID) -> None:
-    """Remove a link. Raises NotFound when this applicant has no such link."""
-    await _owned_skill(session, applicant_id, skill_id)
-    link = await session.get(Bank_Skill_Link, (skill_id, entry_id))
-    if link is None:
-        raise NotFound
-    await session.delete(link)
-    await session.flush()
-
-
-def entry_response(entry: Entry) -> EntryResponse:
+def entry_response(entry: Entry, resume_ids: list[uuid.UUID] | None = None) -> EntryResponse:
     fields = {name: getattr(entry.row, name) for name in EntryFields.model_fields}
-    return EntryResponse.model_validate(
-        {**fields, "id": entry.row.id, "bullets": [BulletResponse.model_validate(b) for b in entry.bullets]}
-    )
+    return EntryResponse.model_validate({
+        **fields,
+        "id": entry.row.id,
+        "bullets": [BulletResponse.model_validate(b) for b in entry.bullets],
+        "resume_ids": resume_ids or [],
+    })
 
 
-def skill_response(skill: Bank_Skill, entry_ids: list[uuid.UUID]) -> SkillResponse:
-    return SkillResponse(id=skill.id, name=skill.name, group=skill.group, entry_ids=entry_ids)
+def skill_response(skill: Bank_Skill, resume_ids: list[uuid.UUID] | None = None) -> SkillResponse:
+    return SkillResponse(id=skill.id, name=skill.name, group=skill.group, resume_ids=resume_ids or [])
 
 
-def bank_response(bank: Bank) -> BankResponse:
-    """The whole bank as the API sends it; Scout's facts read this shape too."""
+def bank_response(bank: Bank, holdings: Holdings | None = None) -> BankResponse:
+    """The whole bank as the API sends it; Scout's facts read this shape too.
+    Without `holdings`, `resumes` and every `resume_ids` are empty."""
+    holdings = holdings or Holdings(resumes=[], entries={}, skills={})
     return BankResponse(
-        entries=[entry_response(e) for e in bank.entries],
-        skills=[skill_response(s, bank.skill_links.get(s.id, [])) for s in bank.skills],
+        entries=[entry_response(e, holdings.entries.get(e.row.id)) for e in bank.entries],
+        skills=[skill_response(s, holdings.skills.get(s.id)) for s in bank.skills],
+        resumes=holdings.resumes,
     )

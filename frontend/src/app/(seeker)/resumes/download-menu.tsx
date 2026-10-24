@@ -1,6 +1,6 @@
 "use client";
 
-import { FileDown } from "lucide-react";
+import { FileArrowDownIcon } from "@phosphor-icons/react/ssr";
 import { useState } from "react";
 
 import { ChevronDownIcon } from "@/components/icons";
@@ -85,7 +85,7 @@ export function DownloadMenu({ download }: { download: ResumeDownload }) {
         disabled={busy !== null}
         render={<Button variant="secondary" size="sm" />}
       >
-        <FileDown /> {busy ? BUSY[busy] : "Download"}
+        <FileArrowDownIcon aria-hidden /> {busy ? BUSY[busy] : "Download"}
         <ChevronDownIcon className="text-ink-meta" />
       </DropdownMenuTrigger>
       <DropdownMenuContent>

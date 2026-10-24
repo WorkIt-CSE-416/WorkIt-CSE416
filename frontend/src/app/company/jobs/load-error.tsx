@@ -1,4 +1,4 @@
-import { CloudOff } from "lucide-react";
+import { CloudSlashIcon } from "@phosphor-icons/react/ssr";
 
 import { LockIcon } from "@/components/icons";
 import { ButtonLink, buttonClasses } from "@/components/ui/button";
@@ -48,7 +48,7 @@ export function LoadError({
 
   return (
     <EmptyState
-      Icon={CloudOff}
+      Icon={CloudSlashIcon}
       title={title}
       action={
         <a href={retryHref} className={buttonClasses({ variant: "secondary", size: "sm" })}>

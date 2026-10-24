@@ -1,63 +1,65 @@
 import {
-  Accessibility,
-  ArrowLeft,
-  ArrowLeftRight,
-  ArrowRight,
-  Award,
-  Backpack,
-  BadgeCheck,
-  Banknote,
-  Bell,
-  Bookmark,
-  BriefcaseBusiness,
-  Building,
-  Building2,
-  Calendar,
-  Check,
-  ChevronDown,
-  ChevronsUpDown,
-  ChevronUp,
-  ClipboardCheck,
-  Clock,
-  ContactRound,
-  Ellipsis,
-  ExternalLink,
-  FileCheck2,
-  FileText,
-  Globe,
-  Gift,
-  GraduationCap,
-  House,
-  IdCard,
-  Info,
-  ListChecks,
-  ListFilter,
-  Lock,
-  LogOut,
-  Mail,
-  MapPin,
-  Medal,
-  Monitor,
-  Pencil,
-  Pin,
-  PinOff,
-  Plus,
-  Search,
-  Send,
-  Settings,
-  ShieldCheck,
-  Sparkles,
-  Star,
-  Trash2,
-  TrendingDown,
-  TrendingUp,
-  Upload,
-  User,
-  UserRound,
-  UsersRound,
-  X,
-  createLucideIcon,
-} from "lucide-react";
+  ArrowLeftIcon as ArrowLeft,
+  ArrowRightIcon as ArrowRight,
+  ArrowSquareOutIcon as ArrowSquareOut,
+  ArrowsLeftRightIcon as ArrowsLeftRight,
+  BackpackIcon as Backpack,
+  BellIcon as Bell,
+  BookmarkSimpleIcon as BookmarkSimple,
+  BriefcaseIcon as Briefcase,
+  BuildingIcon as Building,
+  BuildingOfficeIcon as BuildingOffice,
+  CalendarBlankIcon as CalendarBlank,
+  CaretDownIcon as CaretDown,
+  CaretUpDownIcon as CaretUpDown,
+  CaretUpIcon as CaretUp,
+  CheckIcon as Check,
+  ClockIcon as Clock,
+  DotsThreeIcon as DotsThree,
+  EnvelopeIcon as Envelope,
+  FileTextIcon as FileText,
+  FunnelSimpleIcon as FunnelSimple,
+  GearIcon as Gear,
+  GiftIcon as Gift,
+  GlobeIcon as Globe,
+  GraduationCapIcon as GraduationCap,
+  HouseIcon as House,
+  IdentificationBadgeIcon as IdentificationBadge,
+  IdentificationCardIcon as IdentificationCard,
+  InfoIcon as Info,
+  ListChecksIcon as ListChecks,
+  LockIcon as Lock,
+  MagnifyingGlassIcon as MagnifyingGlass,
+  MapPinIcon as MapPin,
+  MedalIcon as Medal,
+  MedalMilitaryIcon as MedalMilitary,
+  MoneyIcon as Money,
+  PaperPlaneTiltIcon as PaperPlaneTilt,
+  PencilSimpleIcon as PencilSimple,
+  PersonArmsSpreadIcon as PersonArmsSpread,
+  PlusIcon as Plus,
+  PushPinIcon as PushPin,
+  PushPinSlashIcon as PushPinSlash,
+  SealCheckIcon as SealCheck,
+  ShieldCheckIcon as ShieldCheck,
+  SignOutIcon as SignOut,
+  SparkleIcon as Sparkle,
+  StarIcon as Star,
+  TargetIcon as Target,
+  TrashIcon as Trash,
+  TrendDownIcon as TrendDown,
+  TrendUpIcon as TrendUp,
+  UploadSimpleIcon as UploadSimple,
+  UserCircleIcon as UserCircle,
+  UserIcon as User,
+  UsersThreeIcon as UsersThree,
+  XIcon as X,
+} from "@phosphor-icons/react/ssr";
+import {
+  ClipboardCheckIcon as ClipboardCheck,
+  FileCheckIcon as FileCheck,
+  UserTieIcon as UserTie,
+} from "@/components/custom-icons";
 
 import type { AutofillAnswers } from "@/lib/autofill-answers";
 
@@ -69,46 +71,49 @@ type IconProps = { className?: string };
  * Per-route icon sets stay beside their route; a glyph moves here the moment a
  * second route needs it.
  *
- * THEY ARE LUCIDE'S, the set the sidebar, its toggle and shadcn's own
- * components already draw. These used to be hand-drawn at a 1.4 stroke on 12-,
- * 14-, 16- and 18-unit grids, which put two icon families on every screen: a
- * Lucide toggle beside a house bell in the top bar, and strokes from 0.88px to
- * 2px on the Dashboard. Each export is now a thin wrapper that keeps its old
- * name and props, so no call site changed when the drawing did.
+ * THEY ARE PHOSPHOR'S (KAN-350), at its regular weight, imported from
+ * `@phosphor-icons/react/ssr` so a server component can draw them. They were
+ * Lucide's until KAN-350, and hand-drawn before that at a 1.4 stroke on four
+ * grids, which put two icon families on every screen. Each export is a thin
+ * wrapper that keeps its old name and props, so no call site changed when the
+ * drawing did. Lucide went because it reads as the default set of every
+ * shadcn app and AI builder.
  *
- * Lucide's default stroke is kept (no strokeWidth, no absoluteStrokeWidth), so
- * these weigh exactly what the sidebar's do at the same size. Lucide also marks
- * a glyph aria-hidden on its own; it is passed here anyway so the rule is
- * visible where the icons are defined.
+ * Phosphor marks no glyph aria-hidden on its own, so every wrapper passes it.
+ * A filled state takes Phosphor's `weight="fill"`, never a `fill` prop or a
+ * `fill-*` class: its glyphs are filled shapes, so either one paints the
+ * whole glyph.
  *
  * The three brand marks at the bottom (Google, LinkedIn, the PDF file) stay
- * drawn: they are logos, not glyphs, and Lucide does not have them. A glyph
- * Lucide lacks (RoleIcon's person in a suit) is drawn on its grid and built
- * with its `createLucideIcon`, never as a bare <svg>, so it keeps the family.
+ * drawn: they are logos, not glyphs. A glyph Phosphor lacks (RoleIcon's
+ * person in a suit, the checked clipboard and file) is drawn in
+ * ./custom-icons.tsx, which takes Phosphor's props and weights, never as a
+ * bare <svg> here.
  */
 
 /* Chrome ------------------------------------------------------------------ */
 
 /** Scout and every AI action, the one mark for both (KAN-257): the top bar's
- *  launcher, the panel's header, Scout's mark in the chat, Ask Scout, Tailor My Resume and Read It Again with AI. It was a filled
- *  sparkle drawn by hand in the bar and the panel, beside Lucide's outlined
- *  Sparkles in the chat and on every AI button, so the assistant wore two
- *  marks. Use this, never `Sparkles` from lucide-react directly. */
+ *  launcher, the panel's header, Scout's mark in the chat, Ask Scout, Tailor
+ *  My Resume and Read It Again with AI. It was a filled sparkle drawn by hand
+ *  in the bar and the panel, beside an outlined one in the chat and on every
+ *  AI button, so the assistant wore two marks. Use this, never Phosphor's
+ *  `SparkleIcon` directly. */
 export function SparkleIcon({ className }: IconProps) {
-  return <Sparkles aria-hidden className={className} />;
+  return <Sparkle aria-hidden className={className} />;
 }
 
 export function SearchIcon({ className }: IconProps) {
-  return <Search aria-hidden className={className} />;
+  return <MagnifyingGlass aria-hidden className={className} />;
 }
 
 export function FilterIcon({ className }: IconProps) {
-  return <ListFilter aria-hidden className={className} />;
+  return <FunnelSimple aria-hidden className={className} />;
 }
 
 /** A filter chip's trailing glyph while it is still a dropdown. */
 export function ChevronDownIcon({ className }: IconProps) {
-  return <ChevronDown aria-hidden className={className} />;
+  return <CaretDown aria-hidden className={className} />;
 }
 
 /** The same chip's trailing glyph once it has something to remove. */
@@ -127,22 +132,28 @@ export function ArrowRightIcon({ className }: IconProps) {
 
 /** Opens the overflow menu on a card or a column. */
 export function EllipsisIcon({ className }: IconProps) {
-  return <Ellipsis aria-hidden className={className} />;
+  return <DotsThree aria-hidden className={className} />;
+}
+
+/** A job posting that fits the seeker: the Dashboard's Good Matches. A
+ *  target, not SparkleIcon, which marks Scout and AI only (KAN-257). */
+export function MatchIcon({ className }: IconProps) {
+  return <Target aria-hidden className={className} />;
 }
 
 /** Filled is the saved state; the outline is the affordance to save. */
 export function BookmarkIcon({ className, filled = false }: IconProps & { filled?: boolean }) {
-  return <Bookmark aria-hidden fill={filled ? "currentColor" : "none"} className={className} />;
+  return <BookmarkSimple aria-hidden weight={filled ? "fill" : "regular"} className={className} />;
 }
 
 /** Edit: the profile pencils, seeker and company. */
 export function PencilIcon({ className }: IconProps) {
-  return <Pencil aria-hidden className={className} />;
+  return <PencilSimple aria-hidden className={className} />;
 }
 
 /** Delta direction on a stat tile. */
 export function TrendIcon({ className, down = false }: IconProps & { down?: boolean }) {
-  const Glyph = down ? TrendingDown : TrendingUp;
+  const Glyph = down ? TrendDown : TrendUp;
   return <Glyph aria-hidden className={className} />;
 }
 
@@ -162,7 +173,7 @@ export function ClockIcon({ className }: IconProps) {
 
 /** After a link that leaves WorkIt, such as Apply on an employer's own site. */
 export function ExternalLinkIcon({ className }: IconProps) {
-  return <ExternalLink aria-hidden className={className} />;
+  return <ArrowSquareOut aria-hidden className={className} />;
 }
 
 /* App shell ---------------------------------------------------------------- */
@@ -178,12 +189,12 @@ export function UserIcon({ className }: IconProps) {
 }
 
 export function GearIcon({ className }: IconProps) {
-  return <Settings aria-hidden className={className} />;
+  return <Gear aria-hidden className={className} />;
 }
 
 /** The account menu's Sign out row. */
 export function SignOutIcon({ className }: IconProps) {
-  return <LogOut aria-hidden className={className} />;
+  return <SignOut aria-hidden className={className} />;
 }
 
 /* Facts about a job, and the stages of a search ---------------------------
@@ -194,7 +205,7 @@ export function SignOutIcon({ className }: IconProps) {
  * date) CalendarIcon. */
 
 export function CoinIcon({ className }: IconProps) {
-  return <Banknote aria-hidden className={className} />;
+  return <Money aria-hidden className={className} />;
 }
 
 export function PinIcon({ className }: IconProps) {
@@ -202,17 +213,12 @@ export function PinIcon({ className }: IconProps) {
 }
 
 export function BriefcaseIcon({ className }: IconProps) {
-  return <BriefcaseBusiness aria-hidden className={className} />;
-}
-
-/** A company tile's glyph. A job's work style draws workStyleIcon() instead. */
-export function MonitorIcon({ className }: IconProps) {
-  return <Monitor aria-hidden className={className} />;
+  return <Briefcase aria-hidden className={className} />;
 }
 
 /** The Offer stage (see (seeker)/stage-colors.ts), not a job's level. */
 export function AwardIcon({ className }: IconProps) {
-  return <Award aria-hidden className={className} />;
+  return <Medal aria-hidden className={className} />;
 }
 
 /** Experience level: a mortarboard, which reads for "Internship" as well as
@@ -226,7 +232,7 @@ export function StudentIcon({ className }: IconProps) {
 }
 
 export function ExperiencedIcon({ className }: IconProps) {
-  return <BadgeCheck aria-hidden className={className} />;
+  return <SealCheck aria-hidden className={className} />;
 }
 
 /* Keyed as WORK_STYLE_ICON is, so the filter's "new_grad" and a label's
@@ -250,7 +256,7 @@ export function levelIcon(level: string | null) {
 }
 
 export function OnSiteIcon({ className }: IconProps) {
-  return <Building2 aria-hidden className={className} />;
+  return <BuildingOffice aria-hidden className={className} />;
 }
 
 export function RemoteIcon({ className }: IconProps) {
@@ -258,7 +264,7 @@ export function RemoteIcon({ className }: IconProps) {
 }
 
 export function HybridIcon({ className }: IconProps) {
-  return <ArrowLeftRight aria-hidden className={className} />;
+  return <ArrowsLeftRight aria-hidden className={className} />;
 }
 
 /* Keyed by the label with its case and punctuation stripped, because several
@@ -288,17 +294,6 @@ export function VisaIcon({ className }: IconProps) {
   return <Globe aria-hidden className={className} />;
 }
 
-/** Lucide has no person in a suit, so this one is drawn on its 24-unit grid
- *  and rendered by its own factory: the same stroke, caps and size as every
- *  glyph above, so it is still one family. Lucide's `User` with wider
- *  shoulders, a collar and a knotted tie. */
-const UserTie = createLucideIcon("user-tie", [
-  ["circle", { cx: "12", cy: "6", r: "3.5", key: "head" }],
-  ["path", { d: "M4 21v-1a6 6 0 0 1 6-6h4a6 6 0 0 1 6 6v1", key: "shoulders" }],
-  ["path", { d: "m10.5 14 1.5 2 1.5-2", key: "collar" }],
-  ["path", { d: "m12 16-1 3 1 2 1-2z", key: "tie" }],
-]);
-
 /** A role, the job a person does: someone in a suit and tie (KAN-252; it
  *  was shapes, which read as nothing). The Role filter's and onboarding's;
  *  the job card doesn't print the fact. */
@@ -316,10 +311,10 @@ export function BenefitsIcon({ className }: IconProps) {
 }
 
 export function ApplyIcon({ className }: IconProps) {
-  return <Send aria-hidden className={className} />;
+  return <PaperPlaneTilt aria-hidden className={className} />;
 }
 
-/** A plain building, not On-Site's Building2, so the two never read as one fact. */
+/** A plain building, not On-Site's BuildingOffice, so the two never read as one fact. */
 export function CompanyIcon({ className }: IconProps) {
   return <Building aria-hidden className={className} />;
 }
@@ -345,11 +340,11 @@ export function DetailsIcon({ className }: IconProps) {
 }
 
 export function CalendarIcon({ className }: IconProps) {
-  return <Calendar aria-hidden className={className} />;
+  return <CalendarBlank aria-hidden className={className} />;
 }
 
 export function MailIcon({ className }: IconProps) {
-  return <Mail aria-hidden className={className} />;
+  return <Envelope aria-hidden className={className} />;
 }
 
 /* Auth --------------------------------------------------------------------- */
@@ -361,7 +356,7 @@ export function LockIcon({ className }: IconProps) {
 /* Resume upload ------------------------------------------------------------ */
 
 export function UploadIcon({ className }: IconProps) {
-  return <Upload aria-hidden className={className} />;
+  return <UploadSimple aria-hidden className={className} />;
 }
 
 export function FileIcon({ className }: IconProps) {
@@ -369,7 +364,7 @@ export function FileIcon({ className }: IconProps) {
 }
 
 export function TrashIcon({ className }: IconProps) {
-  return <Trash2 aria-hidden className={className} />;
+  return <Trash aria-hidden className={className} />;
 }
 
 /* Brand marks ---------------------------------------------------------------
@@ -460,19 +455,18 @@ export function PdfIcon({ className }: IconProps) {
  * the state on its own, which is what keeps it readable where colour is not.
  */
 export function SortIcon({ className, direction }: IconProps & { direction?: "asc" | "desc" }) {
-  const Glyph =
-    direction === "asc" ? ChevronUp : direction === "desc" ? ChevronDown : ChevronsUpDown;
+  const Glyph = direction === "asc" ? CaretUp : direction === "desc" ? CaretDown : CaretUpDown;
   return <Glyph aria-hidden className={className} />;
 }
 
 /** Work authorization: a checked document. */
 export function AuthorizationIcon({ className }: IconProps) {
-  return <FileCheck2 aria-hidden className={className} />;
+  return <FileCheck aria-hidden className={className} />;
 }
 
 /** Citizenship and visa status: an ID card. */
 export function CitizenshipIcon({ className }: IconProps) {
-  return <IdCard aria-hidden className={className} />;
+  return <IdentificationCard aria-hidden className={className} />;
 }
 
 /** Security clearance: a checked shield. */
@@ -482,27 +476,27 @@ export function ClearanceIcon({ className }: IconProps) {
 
 /** Gender: a person. */
 export function GenderIcon({ className }: IconProps) {
-  return <UserRound aria-hidden className={className} />;
+  return <UserCircle aria-hidden className={className} />;
 }
 
 /** Hispanic or Latino: a contact card. */
 export function HispanicLatinoIcon({ className }: IconProps) {
-  return <ContactRound aria-hidden className={className} />;
+  return <IdentificationBadge aria-hidden className={className} />;
 }
 
 /** Race/Ethnicity: a group of people. */
 export function RaceIcon({ className }: IconProps) {
-  return <UsersRound aria-hidden className={className} />;
+  return <UsersThree aria-hidden className={className} />;
 }
 
 /** Veteran status: a medal. */
 export function VeteranIcon({ className }: IconProps) {
-  return <Medal aria-hidden className={className} />;
+  return <MedalMilitary aria-hidden className={className} />;
 }
 
 /** Disability: the accessibility figure. */
 export function DisabilityIcon({ className }: IconProps) {
-  return <Accessibility aria-hidden className={className} />;
+  return <PersonArmsSpread aria-hidden className={className} />;
 }
 
 const ANSWER_ICON: Record<keyof AutofillAnswers, typeof AuthorizationIcon> = {
@@ -528,6 +522,6 @@ export function answerIcon(key: keyof AutofillAnswers) {
 /** The sidebar's pin (KAN-300, components/hover-sidebar.tsx): a pin to pin
  *  the panel open, crossed out to unpin it. Not PinIcon, which is a place. */
 export function SidebarPinIcon({ pinned, className }: IconProps & { pinned: boolean }) {
-  const Glyph = pinned ? PinOff : Pin;
+  const Glyph = pinned ? PushPinSlash : PushPin;
   return <Glyph aria-hidden className={className} />;
 }

@@ -1,4 +1,4 @@
-import { CloudOff } from "lucide-react";
+import { CloudSlashIcon } from "@phosphor-icons/react/ssr";
 import type { Metadata } from "next";
 import { connection } from "next/server";
 
@@ -31,7 +31,10 @@ export const metadata: Metadata = {
 export default async function BankPage({ searchParams }: PageProps<"/bank">) {
   await connection();
   // The Jobs page's "Import Your Resume" (?import=1) starts the import here.
-  const autoImport = (await searchParams).import === "1";
+  const params = await searchParams;
+  const autoImport = params.import === "1";
+  // The resume dropdown's pick (KAN-343): a resume id, "all" or "none".
+  const resumeParam = typeof params.resume === "string" ? params.resume : undefined;
   const { data, error } = await getBank();
 
   return (
@@ -42,10 +45,10 @@ export default async function BankPage({ searchParams }: PageProps<"/bank">) {
       />
 
       {data ? (
-        <BankScreen initial={data} autoImport={autoImport} />
+        <BankScreen initial={data} autoImport={autoImport} resumeParam={resumeParam} />
       ) : (
         <EmptyState
-          Icon={CloudOff}
+          Icon={CloudSlashIcon}
           title="Your Bank Isn't Loading Right Now"
           className="mt-4"
           /* A plain link, not <Link>: a full reload is what re-runs the fetch. */

@@ -2,30 +2,17 @@ import type { Metadata } from "next";
 import { connection } from "next/server";
 import { redirect } from "next/navigation";
 
-import { seasonLabel } from "@/app/(seeker)/jobs/filter-query";
-import { getJobFacets, getJobLocations, getSavedFilters } from "@/app/(seeker)/jobs/listings";
+import { getSavedFilters } from "@/app/(seeker)/jobs/listings";
 import { getAutofillAnswers } from "@/lib/autofill-answers-actions";
 import { getCurrentAccount, getSessionUser } from "@/lib/session";
 
 import { OnboardingForm } from "./onboarding-form";
+import { getRoleOptions } from "./role-options";
 
 export const metadata: Metadata = {
   title: "Set Up Your Profile",
   description: "Tell us what you're looking for so we can match you with the right roles.",
 };
-
-/** The month each season starts, 0 for January. */
-const SEASON_START: Record<string, number> = { winter: 0, spring: 2, summer: 5, fall: 8 };
-
-/** Start Date offers only seasons still ahead (KAN-275): a bare year ("2027",
- *  postings that name no season) says nothing a student can plan by, and a
- *  season already under way (Fall 2026 in October) is too late to start. All
- *  Filters still offers both. A month is coarse enough that the server's UTC
- *  clock does not matter. */
-function upcoming({ value }: { value: string }) {
-  const [season, year] = value.split("-");
-  return year != null && new Date(Number(year), SEASON_START[season]) > new Date();
-}
 
 /**
  * /onboarding/applicant — where sign-in sends a seeker until they finish it.
@@ -44,9 +31,8 @@ function upcoming({ value }: { value: string }) {
  * since the first holds the answers that must be given and Continue on the
  * last saves without them.
  *
- * The Role and Location pickers offer what the Jobs page's filters offer, from
- * the same cached API calls (../../(seeker)/jobs/listings). Either comes back
- * empty when the API is down, and its picker then says nothing matches.
+ * The Role step's pickers offer what the Jobs page's filters offer
+ * (./role-options, shared with Settings' Job Preferences).
  */
 export default async function ApplicantOnboardingPage({
   searchParams,
@@ -57,9 +43,8 @@ export default async function ApplicantOnboardingPage({
   const account = await getCurrentAccount();
   if (account?.account_type === "company") redirect("/onboarding/company");
 
-  const [facets, locations, saved, savedAnswers, params] = await Promise.all([
-    getJobFacets(),
-    getJobLocations(),
+  const [options, saved, savedAnswers, params] = await Promise.all([
+    getRoleOptions(),
     getSavedFilters(),
     getAutofillAnswers(),
     searchParams,
@@ -67,18 +52,7 @@ export default async function ApplicantOnboardingPage({
 
   return (
     <OnboardingForm
-      roles={facets.role.map((r) => ({ value: r.value, label: r.label, count: r.jobs }))}
-      places={locations.map((p) => ({
-        value: p.code,
-        label: p.label,
-        count: p.jobs,
-        nested: p.code.includes("-"),
-      }))}
-      seasons={facets.start_term.filter(upcoming).map((t) => ({
-        value: t.value,
-        label: seasonLabel(t.value),
-        count: t.jobs,
-      }))}
+      {...options}
       initial={saved ?? undefined}
       initialAnswers={savedAnswers.answers}
       email={user.email}

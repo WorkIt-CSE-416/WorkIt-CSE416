@@ -46,8 +46,8 @@ import { cn } from "@/lib/cn";
  *
  * ICONS ARE SIZED HERE TOO. A glyph with no size class takes 16px (14px in
  * the `inline` and `xs` sizes, whose text is 12px, and in `section`, which
- * matches SectionLink's arrow). Lucide draws at 24px by
- * default, and an unsized one stretched an sm button to 38px: My Resumes
+ * matches SectionLink's arrow). Lucide, the set before Phosphor (KAN-350),
+ * drew at 24px by default, and an unsized one stretched an sm button to 38px: My Resumes
  * stood 6px taller than Fill With Scout beside it, and the same held for
  * about 30 buttons (Open, PDF, Word, Edit, Save Entry...). A call site that
  * sets its own `size-*` keeps it.
