@@ -48,6 +48,7 @@ _NEXT_STATUSES: dict[job_post_status, set[job_post_status]] = {
 }
 
 
+# A function, not a shared instance: see _not_authenticated in app/deps.py.
 def _job_not_found() -> HTTPException:
     return HTTPException(status.HTTP_404_NOT_FOUND, "Job not found.")
 
@@ -55,7 +56,9 @@ def _job_not_found() -> HTTPException:
 async def _own_job_or_404(
     db: AsyncSession, job_id: uuid.UUID, account: AuthenticatedAccount, *, lock: bool = False
 ) -> Job_Post:
-    """Query layer returns None; router maps to 404."""
+    """The job, if it belongs to the caller's company (own_job). Another
+    company's job is a 404 rather than a 403, so ids can't be probed for
+    existence."""
     job = await own_job(db, job_id, account, lock=lock)
     if job is None:
         raise _job_not_found()
@@ -71,6 +74,11 @@ async def _commit(db: AsyncSession, job: Job_Post) -> None:
 
 
 def _reject_past_close(closes_at: datetime.datetime | None) -> None:
+    '''
+    the date picker blocks past days, but a direct call or a form left open
+    past its own closing date could otherwise put a job live that has
+    already closed
+    '''
     if closes_at is not None and closes_at < datetime.datetime.now(datetime.UTC):
         raise HTTPException(
             status.HTTP_422_UNPROCESSABLE_CONTENT,
@@ -147,7 +155,15 @@ async def update_job(
     replace a job's details with the composer's full form. PUT, not PATCH: the
     form always sends every field, and the salary rules need all of them at
     once to check.
+
+    Only a draft's status changes here (to published, when Publish is
+    pressed). A live job keeps its status, paused included, because pausing,
+    resuming and closing go through the status route; a closed job can't be
+    edited at all. A form loaded before someone else's save is refused (409),
+    never merged.
     '''
+    # Locked, or two saves could both pass the updated_at check below before
+    # either commits.
     job = await _own_job_or_404(db, job_id, account, lock=True)
 
     if body.updated_at != job.updated_at:
@@ -160,6 +176,9 @@ async def update_job(
     if job.status != job_post_status.draft and body.status == job_post_status.draft:
         raise HTTPException(status.HTTP_409_CONFLICT, "A live job can't go back to being a draft.")
 
+    # Checked only when the date matters now: a draft going live, or a live
+    # job's date being moved. Fixing a typo on a live job whose closing date
+    # has lapsed doesn't make anyone pick a new date first.
     goes_live = job.status == job_post_status.draft and body.status != job_post_status.draft
     date_moved = job.status != job_post_status.draft and body.closes_at != job.closes_at
     if goes_live or date_moved:
@@ -181,8 +200,12 @@ async def change_job_status(
     db: AsyncSession = Depends(get_session),
 ) -> JobPosting:
     '''
-    pause, resume or close a job
+    pause, resume or close a job. Only the moves in _NEXT_STATUSES are
+    allowed; anything else is a 409. A caller holding the form sends the
+    updatedAt it loaded, and is refused (409) if the job changed since.
     '''
+    # Locked, or two moves could both pass the check below against the same
+    # old status, and the later commit could undo a close.
     job = await _own_job_or_404(db, job_id, account, lock=True)
 
     if body.updated_at is not None and body.updated_at != job.updated_at:
@@ -199,6 +222,7 @@ async def change_job_status(
 
     job.status = body.status
     if body.status == job_post_status.closed:
+        # Applications stop now, so a later closing date would be a lie.
         now = datetime.datetime.now(datetime.UTC)
         if job.closes_at is None or job.closes_at > now:
             job.closes_at = now

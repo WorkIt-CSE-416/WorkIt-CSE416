@@ -24,14 +24,17 @@ _PLACE_CODE = func.coalesce(Applicant_Location.state, Applicant_Location.country
 
 
 def picked_array(column, where):
-    """The applicant's picks from one child table as a text[], '{}' when none."""
+    """The applicant's picks from one child table as a text[], '{}' when none:
+    ARRAY(subquery), so the GET reads the row and both lists in one query."""
     return func.array(
         select(column).where(where).order_by(column).scalar_subquery(), type_=ARRAY(Text)
     )
 
 
 async def unknown_codes(session: AsyncSession, roles: list[str], places: list[str]) -> list[str]:
-    """The role slugs and place codes the database lacks, in the order given."""
+    """The role slugs and place codes the database lacks, in the order given.
+    Checked before writing, so the answer is a 422 that names them rather than
+    a 500 from a foreign key."""
     wanted = [Place.from_code(code) for code in places]
     found = set((await session.scalars(union_all(
         select(Job_Role.slug).where(Job_Role.slug.in_(roles)),
@@ -52,6 +55,7 @@ async def fetch_preferences(session: AsyncSession, applicant_id: uuid.UUID) -> J
             picked_array(_PLACE_CODE, Applicant_Location.applicant_id == applicant_id),
         ).where(Applicant_Preferences.applicant_id == applicant_id)
     )).one_or_none()
+    # A PUT writes the row with the picks, so no row means nothing is saved.
     if found is None:
         return None
     row, roles, places = found
@@ -72,7 +76,11 @@ async def fetch_preferences(session: AsyncSession, applicant_id: uuid.UUID) -> J
 async def save_preferences(
     session: AsyncSession, applicant_id: uuid.UUID, body: JobPreferences
 ) -> None:
-    """Write the preferences, roles, places and onboarding stamp in one transaction."""
+    """Write the preferences, roles, places and onboarding stamp in one
+    transaction: they land together or not at all. Two saves at once can
+    collide on applicant_job_roles' or applicant_locations' key between the
+    delete and the insert; the commit then raises IntegrityError, and the
+    route answers 409 so the later one is simply retried."""
     values = {
         "work_styles": [style.value for style in body.work_style],
         "levels": body.experience,
@@ -106,7 +114,7 @@ async def save_preferences(
             {"applicant_id": applicant_id, "country": p.country, "state": p.state}
             for p in map(Place.from_code, body.location)
         ])
-    # Stamped once: a later edit keeps the first date.
+    # Stamped once: a later edit of the preferences keeps the first date.
     await session.execute(
         update(Applicant_Profile)
         .where(
