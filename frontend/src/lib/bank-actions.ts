@@ -72,18 +72,23 @@ export async function getBank(): Promise<Result<Bank>> {
   return call<Bank>("");
 }
 
-/** Saves a new entry with its bullets. When it matches an entry already in
- *  the bank (same section, title and organization, ignoring case),
- *  `duplicate` is that entry and nothing is saved, unless `allowDuplicate`
- *  ("Save as New"). */
+/** Saves a new entry with its bullets, into `resumeId` when given (ADR
+ *  0005): an upload owns it, a built resume shows it. When it matches an
+ *  entry of the same owner (same section, title and organization, ignoring
+ *  case), `duplicate` is that entry and nothing is saved, unless
+ *  `allowDuplicate` ("Save as New"). */
 export async function createEntry(
   fields: EntryFields,
   bullets: string[],
   allowDuplicate = false,
+  resumeId?: string,
 ): Promise<{ entry: BankEntry | null; duplicate: BankEntry | null; error: string | null }> {
   try {
     const session = await getApplicantSession();
-    const query = allowDuplicate ? "?allow_duplicate=true" : "";
+    const params = new URLSearchParams();
+    if (allowDuplicate) params.set("allow_duplicate", "true");
+    if (resumeId) params.set("resume_id", resumeId);
+    const query = params.toString() ? `?${params}` : "";
     const res = await apiFetch(
       `/applicants/${id(session.id)}/bank/entries${query}`,
       { method: "POST", body: JSON.stringify({ ...fields, bullets }) },
@@ -143,8 +148,14 @@ export async function deleteBullet(bulletId: string): Promise<Result<null>> {
   return call<null>(`/bullets/${id(bulletId)}`, { method: "DELETE" });
 }
 
-export async function addSkill(name: string, group: string | null): Promise<Result<Skill>> {
-  return call<Skill>("/skills", { method: "POST", body: JSON.stringify({ name, group }) });
+/** Saves a skill, into `resumeId` when given, as `createEntry` does. */
+export async function addSkill(
+  name: string,
+  group: string | null,
+  resumeId?: string,
+): Promise<Result<Skill>> {
+  const query = resumeId ? `?resume_id=${id(resumeId)}` : "";
+  return call<Skill>(`/skills${query}`, { method: "POST", body: JSON.stringify({ name, group }) });
 }
 
 export async function updateSkill(
@@ -161,14 +172,12 @@ export async function deleteSkill(skillId: string): Promise<Result<null>> {
   return call<null>(`/skills/${id(skillId)}`, { method: "DELETE" });
 }
 
-/** What one import wrote into the bank (ADR 0003): an upload's own reading,
- *  or Import Again. `found` is what the reading found, written or not, so 0
- *  means it read nothing. */
+/** What one import wrote into the bank: an upload's own reading, or Import
+ *  Again, each replacing what the upload owned (ADR 0005). `found` is what
+ *  the reading found, so 0 means it read nothing. */
 export type ImportResult = {
   found: number;
   entries_added: number;
-  /** Entries the bank had that gained a field or a bullet. */
-  entries_updated: number;
   skills_added: number;
   /** Who read the resume: the heuristic parser, or the model (KAN-222). */
   read_by: "parser" | "model";
@@ -178,8 +187,7 @@ export type ImportResult = {
 export type ImportResponse = ImportResult & { resume_id: string; filename: string | null };
 
 /** Import Again: reads an uploaded resume (`resumeId`, else the default one,
- *  else the newest) and writes it into the bank, merging the entries it
- *  already has. With no uploaded resume, `error` says so. `readWithAi` reads
+ *  else the newest) into the bank, replacing the entries and skills it owns. With no uploaded resume, `error` says so. `readWithAi` reads
  *  it with the model ("Read It With AI"), only ever on the student's click;
  *  `error` says when the AI limit is spent or the model is down. */
 export async function importResume(

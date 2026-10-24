@@ -3,16 +3,16 @@ check the token's account owns `applicant_id` first. The rules live in
 `app/services/tailor.py`; the truth rule in `app/services/truth_rule.py`.
 
 Both bodies name the source the student picked in Tailor's dialog: exactly
-one of `built_resume_id` (its choices) or `uploaded_resume_id` (its stored
-text read and merged into the bank again, then shown as the entries and
-skills it holds, everything else hidden; built in memory, never saved).
+one of `built_resume_id` (its choices) or `uploaded_resume_id` (the entries
+and skills it owns, everything else hidden; built in memory, never saved;
+an upload that owns nothing is read into the bank first).
 422 for neither or both.
 
 POST /applicants/{id}/tailor       TailorRun {job_posting_id, source} -> TailorProposal
      One Tailor run: proposed changes from the picked source, which the
      proposal names again for Done. It tailors only the entries and
      bullets the source shows; it never proposes one it hides. Saves nothing but what reading an
-     uploaded source merged into the bank (nothing until Done).
+     uploaded source that owned nothing wrote into the bank (nothing until Done).
      Free while KAN-319 lifts the limit: no Tailor use is checked or
      counted, and uses_left is always the cap. Restoring the commented
      lines brings back one use per successful run (a keyword extraction
@@ -120,7 +120,7 @@ async def run(
     left = get_settings().ai_tailor_cap
 
     job = await _posting(session, body.job_posting_id)
-    # Before the bank loads: an uploaded source merges into it.
+    # Before the bank loads: an uploaded source that owns nothing is read into it.
     choices, _ = await _source(session, applicant_id, body)
     bank = await load_bank(session, applicant_id)
     if not bank.entries:
@@ -135,8 +135,10 @@ async def run(
         await session.commit()
 
     tailored = await built_resumes.tailored_for(session, applicant_id, job.id)
-    # Only what the picked resume shows: a run never adds an entry it hides.
+    # retrieve only the entries and skills 
     resume = tailor.on_resume(bank, choices)
+
+    # rank the best experiences, used to suggest better order next time 
     ranks = await tailor.rank_bullets(session, resume, tailor.posting_text(job, found))
 
     identity = await load_identity(session, account)
@@ -150,7 +152,7 @@ async def run(
     tailored_id = tailored.id if tailored else None
     # KAN-319: the Tailor limit is lifted for now.
     # await count_use(session, applicant_id, Feature.TAILOR)
-    # One commit: the count and what an uploaded source merged into the bank.
+    # One commit: the count and what reading an uploaded source wrote.
     await session.commit()
     return TailorProposal(
         job_posting_id=job.id,

@@ -5,8 +5,8 @@ rows take the caller's session, scope to the applicant, flush and never
 commit; the rest are pure.
 
 The source is the resume the student picked: a built resume's choices, or an
-uploaded resume read into the bank again and shown as the entries it holds
-(`upload_source`), built in memory and never saved. A run tailors only what
+uploaded resume shown as the entries and skills it owns (`upload_source`,
+ADR 0005), built in memory and never saved. A run tailors only what
 that resume shows (`on_resume`): its entries and their bullets, never an entry
 or bullet it hides. Skills are the exception: every bank skill stays in, so a
 hidden one can still be proposed and the truth rule reads them all.
@@ -45,9 +45,8 @@ from app.services.bank import (
     Bank,
     Entry,
     NotFound,
-    find_duplicate,
+    import_upload,
     load_bank,
-    merge_import,
 )
 from app.services.matching.embeddings import job_part
 from app.services.resume_view import (
@@ -100,6 +99,7 @@ async def rank_bullets(session: AsyncSession, bank: Bank, text: str) -> dict[uui
     ids = [b.id for e in bank.entries for b in e.bullets]
     if not ids:
         return {}
+    # reformat the input job posting string 
     query = cast(func.replace(cast(func.plainto_tsquery("english", text), Text), "&", "|"), TSQUERY)
     rows = await session.execute(
         select(Bank_Bullet.id, func.ts_rank(func.to_tsvector("english", Bank_Bullet.text), query))
@@ -208,40 +208,42 @@ class NothingRead(Exception):
     """The upload has no text, or the parser read no entry or skill from it."""
 
 
-def upload_choices(bank: Bank, entry_ids: set[uuid.UUID], skill_names: set[str]) -> Choices:
-    """A resume of the upload's entries (with every bullet the bank holds for
-    them) and skills, pure. Every other entry and skill waits hidden, as
-    Generate leaves a copy: a run leaves those entries out, and can still
-    propose a hidden skill. `skill_names` are lowercased."""
+def upload_choices(bank: Bank, resume_id: uuid.UUID) -> Choices:
+    """A resume of the entries (with all their bullets) and skills the upload
+    owns, pure. Every other entry and skill waits hidden, as Generate leaves a
+    copy: a run leaves those entries out, and can still propose a hidden
+    skill."""
     chosen = all_chosen(bank)
-    entries = {i: c if i in entry_ids else dataclasses.replace(c, shown=False) for i, c in chosen.entries.items()}
-    names = {s.id: s.name.lower() for s in bank.skills}
-    skills = {i: c if names[i] in skill_names else dataclasses.replace(c, shown=False)
-              for i, c in chosen.skills.items()}
+    owned = {e.row.id for e in bank.entries if e.row.resume_id == resume_id}
+    owned |= {s.id for s in bank.skills if s.resume_id == resume_id}
+    entries = {i: c if i in owned else dataclasses.replace(c, shown=False) for i, c in chosen.entries.items()}
+    skills = {i: c if i in owned else dataclasses.replace(c, shown=False) for i, c in chosen.skills.items()}
     return Choices(entries, chosen.bullets, skills)
 
 
 async def upload_source(session: AsyncSession, applicant_id: uuid.UUID, resume_id: uuid.UUID) -> Choices:
-    """An uploaded resume as a Tailor source. Its stored text is read and
-    merged into the bank (Import Again's merge, so a parser fix reaches it
-    and a second call adds nothing), then each entry it read is found in the
-    bank by section, title and organization. Run and Done both call it, so
-    Done rebuilds what the run proposed against. Flushes, never commits.
-    Raises NotFound for another applicant's upload, NothingRead when the
-    reading finds nothing."""
+    """An uploaded resume as a Tailor source: the entries and skills it owns
+    (ADR 0005). An upload that owns nothing (one from before ADR 0005, or
+    one whose entries the student deleted) is read into the bank first, as
+    Import Again reads it; one that owns something is never read again,
+    since a reading replaces what it owns and would drop it from the
+    tailored resume. Run and Done both call it, so Done rebuilds what the run
+    proposed against. Flushes, never commits. Raises NotFound for another
+    applicant's upload, NothingRead when it owns nothing and its reading
+    finds nothing."""
     resume = await session.scalar(select(Resume).where(Resume.id == resume_id, Resume.applicant_id == applicant_id))
     if resume is None:
         raise NotFound
-    drafts, skills = bank_import.read(resume.raw_text)
-    if not drafts and not skills:
-        raise NothingRead
-    await merge_import(session, applicant_id, resume.id, drafts, skills)
-    entry_ids = set()
-    for draft in drafts:
-        found = await find_duplicate(session, applicant_id, draft.section, draft.title, draft.organization)
-        if found is not None:
-            entry_ids.add(found.row.id)
-    return upload_choices(await load_bank(session, applicant_id), entry_ids, {name.lower() for name, _ in skills})
+    bank = await load_bank(session, applicant_id)
+    if not any(e.row.resume_id == resume.id for e in bank.entries) and not any(
+        s.resume_id == resume.id for s in bank.skills
+    ):
+        drafts, skills = bank_import.read(resume.raw_text)
+        if not drafts and not skills:
+            raise NothingRead
+        await import_upload(session, applicant_id, resume.id, drafts, skills)
+        bank = await load_bank(session, applicant_id)
+    return upload_choices(bank, resume.id)
 
 
 def match(bank: Bank, choices: Choices, keywords: Sequence[Keyword]) -> tuple[list[Keyword], list[Keyword]]:

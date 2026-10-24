@@ -3,8 +3,8 @@
 Upload (POST) extracts text from a PDF or DOCX into `raw_text`, always from
 the file (the client never sends parsed content), reads it with the
 heuristic parser and writes what it read into the experience bank with
-`services/bank.py`'s `merge_import`, in the same transaction as the row
-(ADR 0003). The response's `bank` says what it wrote (`ImportResult`); the
+`services/bank.py`'s `import_upload`, as entries and skills the upload owns
+(ADR 0005), in the same transaction as the row. The response's `bank` says what it wrote (`ImportResult`); the
 parser's reading is not kept anywhere else. The model never reads an upload
 by itself: the student asks for that through Import Again
 (`POST /applicants/{id}/bank/import`). `GET .../{resume_id}` returns one
@@ -23,10 +23,10 @@ old one, which is removed only when nothing uses it. **Replace and delete
 freeze first** (KAN-267, `sent_resumes.freeze_upload`): the sent resumes
 that point at the old file become a snapshot of its text, in the same
 commit, so the file is no longer in use and goes; one with no readable
-text keeps the file. It merges, so an entry
-the new version dropped stays in the bank, but it first clears the row's
-bank sources (KAN-343), so that entry leaves this resume's view on the
-Experiences page. It answers what upload answers.
+text keeps the file. It replaces the
+upload's entries and skills with the new reading (ADR 0005), so what the
+old file held goes, with the student's edits to it. It answers what upload
+answers.
 `PATCH .../{resume_id}` ({"name"}) renames it (KAN-268): the name is the
 row's `original_filename`, which every screen shows and a DOCX downloads
 under, so it keeps the stored file's extension. Import Updated Resume
@@ -314,10 +314,10 @@ async def upload_resume(
     # The row and what it adds to the bank commit together (ADR 0003).
     try:
         session.add(resume)
-        # The bank's source rows point at the resume, and no relationship()
+        # The bank's entries point at the resume, and no relationship()
         # orders the inserts (models/CLAUDE.md).
         await session.flush()
-        merged = await bank.merge_import(session, applicant_id, resume.id, entries, skills)
+        imported = await bank.import_upload(session, applicant_id, resume.id, entries, skills)
         left = await uses_left(session, applicant_id, Feature.PARSING)
         await built_resumes.default_if_only(session, applicant_id)
         default_id = await _default_id(session, applicant_id)
@@ -329,7 +329,7 @@ async def upload_resume(
         await _raise_if_raced(session, exc, applicant_id, digest)
         raise HTTPException(500, "Failed to save resume record")
 
-    return _imported(resume, resume.id == default_id, entries, skills, merged, left)
+    return _imported(resume, resume.id == default_id, entries, skills, imported, left)
 
 
 async def _raise_if_raced(
@@ -401,9 +401,8 @@ async def replace_resume(
     resume.created_at = datetime.now(UTC)
 
     try:
-        # A newer file: what the old one held leaves its view (KAN-343).
-        await bank.clear_sources(session, resume.id)
-        merged = await bank.merge_import(session, applicant_id, resume.id, entries, skills)
+        # A newer file: its reading replaces what the old one held (ADR 0005).
+        imported = await bank.import_upload(session, applicant_id, resume.id, entries, skills)
         left = await uses_left(session, applicant_id, Feature.PARSING)
         default_id = await _default_id(session, applicant_id)
         await session.commit()
@@ -416,7 +415,7 @@ async def replace_resume(
     if old_path and not await sent_resumes.file_in_use(session, old_path):
         await _remove_file(client, old_path, "Failed to remove replaced resume file from Storage")
 
-    return _imported(resume, resume.id == default_id, entries, skills, merged, left)
+    return _imported(resume, resume.id == default_id, entries, skills, imported, left)
 
 
 async def _remove_file(client, storage_path: str, message: str) -> None:
@@ -427,7 +426,7 @@ async def _remove_file(client, storage_path: str, message: str) -> None:
         logger.exception(message, extra={"storage_path": storage_path})
 
 
-def _imported(resume: Resume, is_default: bool, entries, skills, merged, left: int) -> dict:
+def _imported(resume: Resume, is_default: bool, entries, skills, imported, left: int) -> dict:
     """An uploaded file's row and what its reading wrote into the bank."""
     return {
         "id": str(resume.id),
@@ -440,9 +439,8 @@ def _imported(resume: Resume, is_default: bool, entries, skills, merged, left: i
         "created_at": resume.created_at.isoformat() if resume.created_at else None,
         "bank": ImportResult(
             found=len(entries) + len(skills),
-            entries_added=merged.entries_added,
-            entries_updated=merged.entries_updated,
-            skills_added=merged.skills_added,
+            entries_added=imported.entries_added,
+            skills_added=imported.skills_added,
             uses_left=left,
         ).model_dump(),
     }
