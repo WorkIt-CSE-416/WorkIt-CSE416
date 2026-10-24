@@ -234,7 +234,7 @@ class ImportRequest(BaseModel):
 
 
 class DraftEntry(EntryCreate):
-    """One entry as an import read it, before the merge writes it: the body
+    """One entry as an import read it, before the import writes it: the body
     POST /entries takes, with the GPA as a plain number."""
 
     gpa: float | None = None
@@ -242,15 +242,13 @@ class DraftEntry(EntryCreate):
 
 
 class ImportResult(BaseModel):
-    """What one import wrote into the bank (ADR 0003): the upload's own
-    reading, or an Import Again."""
+    """What one import wrote into the bank: the upload's own reading, or an
+    Import Again, each replacing what the upload owned (ADR 0005)."""
 
     # Entries and skills the reading found, written or not: 0 means it read
     # nothing, which "already in your bank" (nothing written) is not.
     found: int
     entries_added: int
-    # Entries the bank had already that gained a field or a bullet.
-    entries_updated: int
     skills_added: int
     # Who read the resume: the heuristic parser, or the model (KAN-222).
     read_by: Literal["parser", "model"] = "parser"

@@ -160,13 +160,13 @@ with the failure it prevents.
   rendered again on view; downloads keep nothing; uploads and Generate
   refuse duplicates. Read it before changing sent resumes, applications,
   resume upload or delete, Generate or the editor's Download.
-- `docs/bank_by_resume.md` — KAN-343's design, built: the Experiences
-  view gets a dropdown of every resume (uploaded, base, tailored) and shows
-  only what the picked one holds, opening on the primary resume, with
-  "Also used in" on shared entries. Uploads record what their import found
-  in link tables (a merged entry comes from several); built resumes use
-  their choice rows. Read it before changing import, the bank's API shape
-  or the Experiences view.
+- `docs/bank_by_resume.md` — KAN-343's design, built, as revised by ADR
+  0005: each upload owns its own entries and skills (no merge, no
+  duplicate check across resumes; an import replaces what the upload
+  owned), and the Experiences view's dropdown lists only resumes, showing
+  what the picked one owns or shows. Add saves into the picked resume.
+  Read it before changing import, the bank's API shape or the Experiences
+  view.
 - `docs/search.md` — how the Jobs page's search reads a query.
 - `docs/architecture.md` — how the halves fit together, for a reader new to
   the repo.

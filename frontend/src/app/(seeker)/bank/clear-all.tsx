@@ -5,22 +5,23 @@ import { useState } from "react";
 import type { BankResume } from "@/lib/bank-actions";
 
 import { DeleteConfirm } from "../resumes/delete-confirm";
-import { builtShowing } from "./holdings";
+import { builtShowing, uploadsOwning, type Pick } from "./holdings";
 
 /**
  * Clear All's confirm (KAN-352): deletes every entry or skill a section
  * shows, in one call, after the student says yes. It deletes from the bank,
- * as Delete Entry does, so an item shared with another resume leaves that
- * one too; under a resume pick the line says so. The built-resume count
- * reads the bank's `resume_ids` (`builtShowing`), so it needs no call of
- * its own, unlike Delete Entry's.
+ * as Delete Entry does: the items come off every built resume that shows
+ * them, and under a built resume's pick they leave the uploads that own
+ * them too (ADR 0005), which the line names. The counts read the bank's
+ * `resume_ids` (`holdings.ts`), so the confirm needs no call of its own,
+ * unlike Delete Entry's.
  */
 export function ClearAll({
   items,
   resumes,
   noun,
   bullets = false,
-  filtered,
+  pick,
   remove,
   onCleared,
   onKeep,
@@ -31,8 +32,7 @@ export function ClearAll({
   noun: [string, string];
   /** Entries carry bullets, which go with them. */
   bullets?: boolean;
-  /** The view hides part of the bank (a resume pick). */
-  filtered: boolean;
+  pick: Pick;
   remove: (ids: string[]) => Promise<{ error: string | null }>;
   onCleared: () => void;
   onKeep: () => void;
@@ -41,6 +41,7 @@ export function ClearAll({
   const [error, setError] = useState<string | null>(null);
   const one = items.length === 1;
   const showing = builtShowing(items, resumes);
+  const owners = uploadsOwning(pick, items, resumes);
   const them = one ? "it" : "them";
 
   async function clear() {
@@ -58,7 +59,7 @@ export function ClearAll({
         Delete {one ? "this" : items.length === 2 ? "both" : `all ${items.length}`}{" "}
         {noun[one ? 0 : 1]}
         {bullets && (one ? " and its bullets" : " and their bullets")}?{" "}
-        {filtered && `${one ? "It leaves" : "They leave"} your whole bank, not only this view. `}
+        {owners && `${one ? "It is" : "They are"} deleted from ${owners} too. `}
         {showing === 0
           ? `No built resume shows ${them}.`
           : `${one ? "It comes" : "They come"} off ${showing === 1 ? "the 1 built resume that shows" : `all ${showing} built resumes that show`} ${them}.`}
