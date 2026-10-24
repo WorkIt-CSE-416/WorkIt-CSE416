@@ -46,6 +46,7 @@ import {
   TableRow,
 } from "@/components/shadcn/table";
 import { ClickableRow } from "@/components/clickable-row";
+import { Checkbox } from "@/components/shadcn/checkbox";
 import { MatchBadge } from "@/components/match-badge";
 import { Reflow } from "@/components/reflow";
 import { useShallowPush } from "@/components/shallow-routing";
@@ -70,6 +71,7 @@ import {
   type ColumnLayout,
 } from "./column-layout";
 import { applicationHref, applicationsHref, type Sort } from "./query";
+import { SelectionBar } from "./selection-bar";
 import { useApplicationsQuery } from "./view-switcher";
 import { ViewResumeButton } from "./view-resume";
 
@@ -295,6 +297,11 @@ const FROZEN_CELL = "z-1 bg-panel @2xl/main:sticky @2xl/main:left-(--frozen-left
 const FROZEN_EDGE = "@2xl/main:shadow-[1px_0_0_var(--color-border-subtle)]";
 const FROZEN_HOVER = "group-hover/row:bg-hover transition-colors";
 
+/** The Saved view's checkbox column (Auto Apply Selected), frozen in front
+ *  of Role: Role's sticky place moves right by this much. */
+const PICK_WIDTH = 44;
+const PICK_CELL = "z-1 bg-panel px-0 text-center @2xl/main:sticky @2xl/main:left-0";
+
 /** How far one arrow key press resizes a column. */
 const KEY_STEP = 16;
 
@@ -303,6 +310,26 @@ export function ApplicationsList({ applications }: { applications: Application[]
   const push = useShallowPush();
   const layout = useColumnLayout();
   const [drag, setDrag] = useState<{ id: ColumnId; over: ColumnId | null } | null>(null);
+
+  // AUTO APPLY SELECTED (./selection-bar.tsx) is the Saved view's: with the
+  // Status filter on Saved alone, a checkbox column leads the table and a bar
+  // floats at the foot while anything is picked. A job auto apply can't
+  // fill (its hiring system isn't Greenhouse, for now) can't be picked, and
+  // its checkbox says why. Picks outside what the view shows don't count.
+  const picking = query.stages.length === 1 && query.stages[0] === "saved";
+  const [picked, setPicked] = useState<ReadonlySet<string>>(new Set());
+  const pickable = picking ? applications.filter((app) => app.autoApply) : [];
+  const pickedNow = pickable.filter((app) => picked.has(app.id)).map((app) => app.id);
+  const allPicked = pickable.length > 0 && pickedNow.length === pickable.length;
+
+  function toggle(id: string) {
+    setPicked((now) => {
+      const next = new Set(now);
+      if (next.has(id)) next.delete(id);
+      else next.add(id);
+      return next;
+    });
+  }
 
   const table = useTable({
     features: FEATURES,
@@ -331,7 +358,9 @@ export function ApplicationsList({ applications }: { applications: Application[]
   function frozenStyle(id: ColumnId) {
     const column = table.getColumn(id);
     return column?.getIsPinned()
-      ? ({ "--frozen-left": `${column.getStart("start")}px` } as CSSProperties)
+      ? ({
+          "--frozen-left": `${column.getStart("start") + (picking ? PICK_WIDTH : 0)}px`,
+        } as CSSProperties)
       : undefined;
   }
 
@@ -340,81 +369,139 @@ export function ApplicationsList({ applications }: { applications: Application[]
   }
 
   return (
-    <Card padding="none" className="mt-4 overflow-hidden">
-      <Table
-        className="table-fixed"
-        // At least as wide as the card; past that, as wide as its columns.
-        style={{ width: table.getTotalSize(), minWidth: "100%" }}
-      >
-        <TableHeader>
-          {table.getHeaderGroups().map((group) => (
-            <TableRow key={group.id} className="hover:bg-transparent">
-              {group.headers.map((header) => (
-                <HeadCell
-                  key={header.id}
-                  header={header}
-                  label={header.column.columnDef.header as string}
-                  sort={query.sort}
-                  onSort={(sort) => push(applicationsHref(query, { sort, app: null }))}
-                  drag={drag}
-                  onDrag={setDrag}
-                  onDrop={(id, target) => setColumnLayout(moveColumn(layout, id, target))}
-                  order={layout.order}
-                  className={cn(frozenClasses(header.column.id as ColumnId))}
-                  style={frozenStyle(header.column.id as ColumnId)}
-                />
-              ))}
-              {/* The rest of the card's width, so a resize never stretches
-                  the other columns. */}
-              <TableHead aria-hidden />
-            </TableRow>
-          ))}
-        </TableHeader>
-
-        <TableBody>
-          {table.getRowModel().rows.map((row, i) => (
-            // Fades in down the table on arrival (a row cannot rise: its
-            // transform does not reliably paint), 25ms apart, and glides to
-            // its new place when the sort or a filter moves it.
-            <Reflow key={row.id}>
-              <ClickableRow
-                href={applicationHref(row.id)}
-                className="hover:bg-hover animate-fade"
-                style={{ animationDelay: `${Math.min(i, 10) * 25}ms` }}
-              >
-                {row.getVisibleCells().map((cell) => {
-                  const id = cell.column.id as ColumnId;
-                  return (
-                    <TableCell
-                      key={cell.id}
-                      // A click in the resume cell around View Resume is a
-                      // near miss, not a wish to open the application:
-                      // ClickableRow leaves a prevented click alone.
-                      onClick={
-                        id === "resume" && row.original.sentResume
-                          ? (event) => event.preventDefault()
-                          : undefined
+    <>
+      <Card padding="none" className="mt-4 overflow-hidden">
+        <Table
+          className="table-fixed"
+          // At least as wide as the card; past that, as wide as its columns.
+          style={{ width: table.getTotalSize() + (picking ? PICK_WIDTH : 0), minWidth: "100%" }}
+        >
+          <TableHeader>
+            {table.getHeaderGroups().map((group) => (
+              <TableRow key={group.id} className="hover:bg-transparent">
+                {picking && (
+                  <TableHead className={PICK_CELL} style={{ width: PICK_WIDTH }}>
+                    <Checkbox
+                      className="border-ink-meta"
+                      checked={allPicked}
+                      indeterminate={pickedNow.length > 0 && !allPicked}
+                      disabled={pickable.length === 0}
+                      onCheckedChange={() =>
+                        setPicked(allPicked ? new Set() : new Set(pickable.map((app) => app.id)))
                       }
+                      aria-label={
+                        allPicked ? "Unselect All" : "Select All That Auto Apply Can Fill"
+                      }
+                    />
+                  </TableHead>
+                )}
+                {group.headers.map((header) => (
+                  <HeadCell
+                    key={header.id}
+                    header={header}
+                    label={header.column.columnDef.header as string}
+                    sort={query.sort}
+                    onSort={(sort) => push(applicationsHref(query, { sort, app: null }))}
+                    drag={drag}
+                    onDrag={setDrag}
+                    onDrop={(id, target) => setColumnLayout(moveColumn(layout, id, target))}
+                    order={layout.order}
+                    className={cn(frozenClasses(header.column.id as ColumnId))}
+                    style={frozenStyle(header.column.id as ColumnId)}
+                  />
+                ))}
+                {/* The rest of the card's width, so a resize never stretches
+                  the other columns. */}
+                <TableHead aria-hidden />
+              </TableRow>
+            ))}
+          </TableHeader>
+
+          <TableBody>
+            {table.getRowModel().rows.map((row, i) => (
+              // Fades in down the table on arrival (a row cannot rise: its
+              // transform does not reliably paint), 25ms apart, and glides to
+              // its new place when the sort or a filter moves it.
+              <Reflow key={row.id}>
+                <ClickableRow
+                  href={applicationHref(row.id)}
+                  className="hover:bg-hover animate-fade"
+                  style={{ animationDelay: `${Math.min(i, 10) * 25}ms` }}
+                >
+                  {picking && (
+                    // A click anywhere in the cell picks: the checkbox ignores
+                    // the pointer, the cell takes it, and ClickableRow leaves
+                    // a prevented click alone. The keyboard uses the box.
+                    <TableCell
+                      onClick={(event) => {
+                        event.preventDefault();
+                        if (row.original.autoApply) toggle(row.id);
+                      }}
                       className={cn(
-                        TD,
-                        "overflow-hidden",
-                        id === "role" && "py-3",
-                        frozenClasses(id),
-                        FROZEN.includes(id) && FROZEN_HOVER,
+                        PICK_CELL,
+                        FROZEN_HOVER,
+                        row.original.autoApply ? "cursor-default" : "cursor-not-allowed",
                       )}
-                      style={frozenStyle(id)}
                     >
-                      {CELL[id](row.original)}
+                      <span
+                        title={
+                          row.original.autoApply
+                            ? undefined
+                            : "Auto Apply can't fill this job's site yet."
+                        }
+                        className="inline-flex"
+                      >
+                        <Checkbox
+                          className="border-ink-meta pointer-events-none"
+                          checked={picked.has(row.id) && !!row.original.autoApply}
+                          disabled={!row.original.autoApply}
+                          onCheckedChange={() => toggle(row.id)}
+                          aria-label={
+                            row.original.autoApply
+                              ? `Select ${row.original.role} at ${row.original.company}`
+                              : `${row.original.role} at ${row.original.company}: Auto Apply can't fill this job's site yet`
+                          }
+                        />
+                      </span>
                     </TableCell>
-                  );
-                })}
-                <TableCell aria-hidden />
-              </ClickableRow>
-            </Reflow>
-          ))}
-        </TableBody>
-      </Table>
-    </Card>
+                  )}
+                  {row.getVisibleCells().map((cell) => {
+                    const id = cell.column.id as ColumnId;
+                    return (
+                      <TableCell
+                        key={cell.id}
+                        // A click in the resume cell around View Resume is a
+                        // near miss, not a wish to open the application:
+                        // ClickableRow leaves a prevented click alone.
+                        onClick={
+                          id === "resume" && row.original.sentResume
+                            ? (event) => event.preventDefault()
+                            : undefined
+                        }
+                        className={cn(
+                          TD,
+                          "overflow-hidden",
+                          id === "role" && "py-3",
+                          frozenClasses(id),
+                          FROZEN.includes(id) && FROZEN_HOVER,
+                        )}
+                        style={frozenStyle(id)}
+                      >
+                        {CELL[id](row.original)}
+                      </TableCell>
+                    );
+                  })}
+                  <TableCell aria-hidden />
+                </ClickableRow>
+              </Reflow>
+            ))}
+          </TableBody>
+        </Table>
+      </Card>
+      {pickedNow.length > 0 && (
+        <SelectionBar ids={pickedNow} onClear={() => setPicked(new Set())} />
+      )}
+    </>
   );
 }
 

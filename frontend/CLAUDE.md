@@ -1001,7 +1001,9 @@ the KAN-296 cutover.
   (`getGoodMatchDates`), and it lists no jobs of its own. A job's application
   stage (`saved`, `queued`...) reaches its Save and Auto Apply buttons from
   one read per page. Auto Apply never picks a saved job for a batch; only
-  the job's own Auto Apply click queues it.
+  the job's own Auto Apply click queues it, or the Saved view's Auto Apply
+  Selected (`applications/selection-bar.tsx`), where the seeker picks each
+  one. That view is the one place several jobs are queued at once.
   `docs/screens.md`, Applications, has the rest.
 - **A "Back" link to a dynamic page goes back in history when it can.** Next
   keeps no dynamic page for a link visit (`staleTimes.dynamic` is 0), but

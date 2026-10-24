@@ -666,6 +666,24 @@ no width cap and takes back the room a collapsed sidebar frees
 (`docs/design.md`, The two shells), so the table shows as many columns as
 the window allows before the scroll.
 
+**The Saved view queues several jobs at once** (`applications/list.tsx`,
+`selection-bar.tsx`). With the Status filter on Saved alone, a checkbox
+column leads the list, frozen in front of Role (Role's sticky place moves
+right by its 44px), with Select All in its heading. A click anywhere in the
+cell picks the row; the keyboard uses the box. A job auto apply can't fill
+(its hiring system isn't Greenhouse, for now: `autoApply`, the posting's
+`auto_apply` flag passed through `tracked.ts`) can't be picked, and its box
+says why on hover and to a screen reader. While anything is picked, a bar
+floats at the page's foot: "{n} Selected", Clear, and Auto Apply Selected,
+which queues each pick through `queueJob` in the list's order, asks the
+extension to open the oldest queued job (`openNextApplication`), and toasts
+how many went in with View Queue. The page draws again, and the queued jobs
+leave the view, since the tracker lists saved and applied jobs only. This
+is the one place a seeker queues several jobs: finding pages (the Jobs
+page, the Dashboard) keep one click per job, and the Auto Apply page runs
+the queue; picking belongs where the seeker reviews what they saved. There
+is no "auto apply all saved jobs": the seeker picks each one.
+
 **The list can be arranged like a Notion table** (KAN-282). It is a
 TanStack Table v9 (`applications/list.tsx`; `company/table.tsx` says why v8
 examples do not apply), a client component over the rows the server
