@@ -86,18 +86,22 @@ _Avoid_: personal info, PII, contact details (for the whole set)
 
 ## Tracking
 
-**Tracker**:
-The page that holds every job posting a student is following, from saved to offer. Its heading is Application Tracker.
-_Avoid_: Applications (for the page), My Applications, board
+**Applications Tracker**:
+The page that holds every job posting a student is following, from saved to offer.
+_Avoid_: Applications (alone, for the page), Tracker (alone), My Applications, board
 
 **Stage**:
-Where one application stands in the Tracker: Saved, Applied, Interviewing or Offer.
-_Avoid_: column, step (the Tracker's Status filter picks stages)
+Where one application stands in the Applications Tracker: Saved, Applied, Interviewing or Offer.
+_Avoid_: column, step (the Applications Tracker's Status filter picks stages)
 
 **Application**:
-One job posting a student is following in the Tracker, at one stage.
+One job posting a student is following in the Applications Tracker, at one stage.
 _Avoid_: Applications (as the page's name)
 
-**Good Match**:
-A job posting that scores 65 or more for a student, the Good Match band and above.
-_Avoid_: new role, recommendation, top job
+**Strong Match**:
+A job posting that scores 80 or more for a student, the Strong Match band and above. The Dashboard's first number, Strong Matches, counts them.
+_Avoid_: good match (for that number), new role, recommendation
+
+**Top Match**:
+One of a student's highest-scoring open jobs, whatever its band. The Dashboard lists them under its numbers.
+_Avoid_: recommendation, best job
