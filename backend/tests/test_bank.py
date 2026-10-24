@@ -376,3 +376,54 @@ async def test_the_bank_lists_sections_in_order_ongoing_first_then_newest(studen
         assert (await client.post(f"{bank}/entries", json=body)).status_code == 201
     titles = [e["title"] for e in (await client.get(bank)).json()["entries"]]
     assert titles == ["SBU", "Current job", "Recent job", "Past job", "New project", "Old project", "Prize"]
+
+
+async def test_clear_all_deletes_the_entries_sent_and_their_choice_rows(student, database):
+    client, bank = student
+    applicant_id = uuid.UUID(bank.split("/")[2])
+    ids = []
+    for title in ("WorkIt", "PennyWise", "Micromouse"):
+        res = await client.post(f"{bank}/entries", json={"section": "projects", "title": title, "bullets": ["Built it"]})
+        ids.append(res.json()["id"])
+    assert (await client.post(f"/applicants/{applicant_id}/built-resumes", json={"name": "General SWE"})).status_code == 201
+    await _mark_embedded(database, applicant_id)
+
+    assert (await client.post(f"{bank}/entries/delete", json={"ids": ids[:2]})).status_code == 204
+    assert [e["title"] for e in (await client.get(bank)).json()["entries"]] == ["Micromouse"]
+    assert not await _is_embedded(database, applicant_id)
+    async with database() as session:
+        shown = await session.scalar(text("SELECT count(*) FROM built_resume_entries"))
+        bullets = await session.scalar(text("SELECT count(*) FROM bank_bullets"))
+    assert (shown, bullets) == (1, 1)
+
+
+async def test_clear_all_deletes_nothing_when_one_id_is_not_mine(student, database):
+    client, bank = student
+    entry = (await client.post(f"{bank}/entries", json={"section": "awards", "title": "Prize"})).json()
+    skill = (await client.post(f"{bank}/skills", json={"name": "Python"})).json()
+    async with database() as session:
+        other = await _seed_applicant(session)
+    _sign_in(other)
+    theirs = f"/applicants/{other}/bank"
+    their_entry = (await client.post(f"{theirs}/entries", json={"section": "awards", "title": "Medal"})).json()
+    their_skill = (await client.post(f"{theirs}/skills", json={"name": "Go"})).json()
+
+    for path, mine, not_mine in (("entries", entry, their_entry), ("skills", skill, their_skill)):
+        res = await client.post(f"{theirs}/{path}/delete", json={"ids": [not_mine["id"], mine["id"]]})
+        assert res.status_code == 404
+        assert (await client.post(f"{theirs}/{path}/delete", json={"ids": [str(uuid.uuid4())]})).status_code == 404
+        assert len((await client.get(theirs)).json()[path]) == 1
+    assert (await client.post(f"{bank}/entries/delete", json={"ids": [entry["id"]]})).status_code == 403
+    assert (await client.post(f"{theirs}/entries/delete", json={"ids": []})).status_code == 422
+
+
+async def test_clear_all_removes_the_skills_sent(student, database):
+    client, bank = student
+    applicant_id = uuid.UUID(bank.split("/")[2])
+    ids = [(await client.post(f"{bank}/skills", json={"name": n})).json()["id"] for n in ("Python", "Go", "Rust")]
+    await _mark_embedded(database, applicant_id)
+
+    # The same id twice is one skill.
+    assert (await client.post(f"{bank}/skills/delete", json={"ids": [ids[0], ids[1], ids[1]]})).status_code == 204
+    assert [s["name"] for s in (await client.get(bank)).json()["skills"]] == ["Rust"]
+    assert not await _is_embedded(database, applicant_id)

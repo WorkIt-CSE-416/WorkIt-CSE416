@@ -67,3 +67,20 @@ export function usedIn(pick: Pick, item: Held, resumes: BankResume[]): string | 
   const others = item.resume_ids.filter((id) => id !== pick && built.has(id));
   return others.length ? `Also used in ${names(others.map((id) => built.get(id)!))}` : null;
 }
+
+/** How many built resumes show any of the items: what Clear All's confirm
+ *  names (KAN-352), as Delete Entry's names its entry's count. */
+export function builtShowing(items: Held[], resumes: BankResume[]): number {
+  const built = new Set(resumes.filter((r) => r.kind !== "uploaded").map((r) => r.id));
+  return new Set(items.flatMap((i) => i.resume_ids.filter((id) => built.has(id)))).size;
+}
+
+/** The uploads, other than the pick, that own any of the items: under a
+ *  built resume's pick, Clear All deletes them there too (ADR 0005). */
+export function uploadsOwning(pick: Pick, items: Held[], resumes: BankResume[]): string | null {
+  const uploads = new Map(resumes.filter((r) => r.kind === "uploaded").map((r) => [r.id, r.name]));
+  const owners = new Set(
+    items.flatMap((i) => i.resume_ids.filter((id) => id !== pick && uploads.has(id))),
+  );
+  return owners.size ? names([...owners].map((id) => uploads.get(id)!)) : null;
+}

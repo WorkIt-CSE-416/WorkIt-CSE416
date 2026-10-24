@@ -57,6 +57,11 @@ by that filter, as one with no location is by ?location=.
 word in the job's text (queries/jobs/search.py has the four parts;
 docs/search.md the design). A search orders nothing: results are newest
 first, as the feed is. Ranking is the recommendations' job, not search's.
+
+GET /jobs/search-facts?q= lists the facts a search's words name that the
+filter row also offers (an experience level, a work style, a start term),
+each with the search its words leave out: /search shows them beside the
+row, so a filter the words set is never invisible (KAN-308).
 """
 
 import datetime
@@ -93,11 +98,13 @@ from app.schemas.jobs import (
     PlaceCode,
     RoleSlug,
     ScoredJob,
+    SearchFact,
     SeasonKey,
 )
 from app.schemas.requirements import JobRequirement
 from app.services import postings, requirements
 from app.services.bank import load_bank
+from app.services.search_facts import without_words
 
 router = APIRouter(prefix="/jobs", tags=["jobs"])
 
@@ -202,6 +209,22 @@ async def count_jobs(
     """How many jobs GET /jobs would list for the same filters, uncapped: the
     All Filters panel's "Show 128 jobs"."""
     return JobCount(jobs=await fetch_count(db, filters))
+
+
+@router.get("/search-facts", response_model=list[SearchFact])
+async def search_facts(
+    q: str = Query(max_length=200),
+    db: AsyncSession = Depends(get_session),
+) -> list[SearchFact]:
+    """The filters a search's words set, in the order typed, each once: a
+    fact named twice ("remote remote") is one, and dropping it drops both."""
+    at: dict[tuple[str, str], list[int]] = {}
+    for fact in (await read_search(db, q)).facts:
+        at.setdefault((fact.facet, fact.value), []).extend(fact.at)
+    return [
+        SearchFact(facet=facet, value=value, without=without_words(q, places))
+        for (facet, value), places in at.items()
+    ]
 
 
 @router.get("/roles", response_model=list[JobRoleOption])

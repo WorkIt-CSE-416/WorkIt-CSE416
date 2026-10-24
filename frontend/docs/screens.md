@@ -169,6 +169,20 @@ the text by typing does not leave: the field's cross is told apart by its
 input event having no inputType (search/query-field.tsx), so backspacing to
 type a new search stays on the results.
 
+**A search's own filters show as chips** (KAN-308). The API reads some of a
+search's words as filters: "remote" is the Remote work style, "intern" the
+internships, "new grad" Entry Level / New Grad, "summer 2027" or "2027" a
+start term (`docs/search.md`). They narrow the results as the row does, but
+the row never showed them, so "remote" with Hybrid ticked found nothing and
+nothing on the page said why. Above the results, "Your search also filters
+by" lists each as a pressed chip in the row's words (search/search-facts.tsx,
+GET /jobs/search-facts). Its cross is a link to the same search without the
+words that set it, the row's filters kept; when those words were the whole
+search, it goes to /jobs under the same filters. Chips, not ticks in the
+row: a fact also matches a title that says it ("Remote", "Summer 2027"), a
+little more than the row's filter does. They arrive with the results, not
+with the heading, so they never push a list already on screen.
+
 Every seeker page goes back to where it was scrolled on a return: the browser's
 Back or Forward, or a job page's "Back" (restoreScrollOn). (seeker)/scroll-memory.tsx
 keeps each address's position, since the shell scrolls its <main> and not the
@@ -1415,6 +1429,16 @@ in Docs (suggested answers in the chat, not a banner).
   Entries come back from the API ongoing first, then newest; the screen
   never sorts. After every change it reads the whole bank again, so the
   order shown is always the API's.
+- **Clear All empties a card** (KAN-352): beside Add on each section card
+  and on Skills, shown only while the card lists something. It deletes
+  what the card shows in one call (`POST .../bank/entries/delete` or
+  `.../skills/delete`, all or none), after a confirm (`bank/clear-all.tsx`)
+  that names the count and the built resumes that show them
+  (`builtShowing` in `holdings.ts`, from the bank's `resume_ids`). It
+  deletes from the whole bank, as Delete Entry does: under a built
+  resume's pick the items belong to uploads (ADR 0005), so the confirm
+  names the uploads that lose them too (`uploadsOwning`). It never deletes
+  what the pick hides: a button on a card acts on what the card shows.
 - **An entry's dates sit under its title below `@xl/main`**, beside the
   edit and delete buttons above it. Beside them on a phone, the dates never
   shrank and left the title a column a few letters wide ("Universi / ty").
