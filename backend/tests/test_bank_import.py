@@ -530,8 +530,8 @@ async def test_each_upload_owns_what_it_read_and_shares_nothing(student, upload)
     b = (await upload(client, applicant_id, OTHER_TEXT, filename="resume-b.pdf")).json()["id"]
 
     saved = (await client.get(bank)).json()
-    assert [(r["id"], r["kind"], r["name"], r["primary"]) for r in saved["resumes"]] == [
-        (b, "uploaded", "resume-b.pdf", False), (a, "uploaded", "resume.pdf", True),
+    assert [(r["id"], r["kind"], r["name"], r["primary"], r["pdf"]) for r in saved["resumes"]] == [
+        (b, "uploaded", "resume-b.pdf", False, True), (a, "uploaded", "resume.pdf", True, True),
     ]
     # An upload's table date is its upload time (KAN-361).
     assert all(r["edited_at"] == r["created_at"] for r in saved["resumes"])

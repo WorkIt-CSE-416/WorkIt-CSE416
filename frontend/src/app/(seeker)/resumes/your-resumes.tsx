@@ -269,7 +269,7 @@ function UploadedRow({
   async function preview() {
     setError(null);
     // No await before this call: it opens the PDF's tab inside the click.
-    setError(await previewResume(resume));
+    setError(await previewResume(resume.id, resume.storage_path.endsWith(".pdf")));
   }
 
   async function download() {

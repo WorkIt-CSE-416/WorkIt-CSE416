@@ -30,6 +30,7 @@ import { forgetFeedPages } from "./jobs/feed-pages";
 
 const POSITIONS = "workit:scroll";
 const RESTORE = "workit:restore-scroll";
+const OPENERS = "workit:opened-from";
 const KEEP = 50;
 const SETTLE_MS = 3000;
 
@@ -82,6 +83,57 @@ export function cameFrom(): string | null {
   return previous;
 }
 
+/** Each page's path and the address it was last opened from, for the tab's
+ *  session, so a reload keeps it. A return (the browser's Back or Forward,
+ *  or a "back" link) records nothing: an application opened from the
+ *  Calendar, then a job page and Back, was opened from the Calendar still. */
+function openers(): Record<string, string> {
+  try {
+    return JSON.parse(sessionStorage.getItem(OPENERS) ?? "{}") as Record<string, string>;
+  } catch {
+    return {};
+  }
+}
+
+/** Kept as positions are: the last KEEP pages, the oldest let go. */
+function rememberOpener(pathname: string, from: string) {
+  try {
+    const all = openers();
+    delete all[pathname];
+    all[pathname] = from;
+    const keys = Object.keys(all);
+    for (const old of keys.slice(0, Math.max(0, keys.length - KEEP))) delete all[old];
+    sessionStorage.setItem(OPENERS, JSON.stringify(all));
+  } catch {
+    /* storage off: a Back link goes to its page's parent */
+  }
+}
+
+const pathOf = (address: string) => address.split("?")[0];
+
+const listeners = new Set<() => void>();
+
+/** For useSyncExternalStore: a new opener recorded. */
+export function subscribeOpener(listener: () => void) {
+  listeners.add(listener);
+  return () => {
+    listeners.delete(listener);
+  };
+}
+
+/**
+ * The address the page at `pathname` was opened from in this tab, or null
+ * when nothing opened it (a direct visit): what a Back link goes to
+ * (../back-link.tsx). While that page draws for the first time, ScrollMemory
+ * has not moved on yet, so the page still on record is its opener; after,
+ * the record says so. The two agree, so a Back link never flashes another
+ * page's name.
+ */
+export function openerOf(pathname: string): string | null {
+  if (current && pathOf(current) !== pathname) return current;
+  return openers()[pathname] ?? null;
+}
+
 export function ScrollMemory() {
   const pathname = usePathname();
   const query = useSearchParams().toString();
@@ -130,10 +182,6 @@ export function ScrollMemory() {
     // Checked against the last one, so Strict Mode's second run (development
     // only) doesn't record a page as reached from itself.
     const address = query ? `${pathname}?${query}` : pathname;
-    if (address !== current) {
-      previous = current;
-      current = address;
-    }
     const key = here();
     let asked = false;
     try {
@@ -143,6 +191,14 @@ export function ScrollMemory() {
       /* storage off */
     }
     const back = popped.current === key || asked;
+    if (address !== current) {
+      // A new page, reached forward: the one on screen before opened it. A
+      // query change on the same page (a tab, a filter) opens nothing.
+      if (!back && current && pathOf(current) !== pathname) rememberOpener(pathname, current);
+      previous = current;
+      current = address;
+      for (const listener of listeners) listener();
+    }
     popped.current = null;
     if (!back) forgetFeedPages(window.location.pathname);
     const wanted = back ? positions()[key] : undefined;

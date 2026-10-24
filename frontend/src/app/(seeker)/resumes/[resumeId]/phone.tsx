@@ -20,6 +20,8 @@ import type { Choices, ChoicesUpdate, RenderBox, RenderedPdf } from "@/lib/built
 import { cn } from "@/lib/cn";
 
 import { DownloadMenu, DownloadNotes, type ResumeDownload } from "../download-menu";
+import { useBack } from "../../back-link";
+import { EDITOR_PARENT } from "./back";
 import { FitNotice } from "./fit-notice";
 import { lineName, shortPageLabel, tray, type Line } from "./model";
 import { boxKey, kindLabel, PdfPages } from "./pdf-pages";
@@ -135,6 +137,7 @@ export function PhoneEditor({
   onUndoFit: () => void;
   onDrawn: () => void;
 }) {
+  const back = useBack(EDITOR_PARENT);
   const snapshot = useSyncExternalStore(subscribeViewport, viewportSnapshot, () => "0|0");
   const [height, top] = snapshot.split("|").map(Number);
   const [zoom, setZoom] = useState(false);
@@ -164,8 +167,9 @@ export function PhoneEditor({
       <header className="bg-brand-tint/95 border-brand-pale flex flex-col gap-2 border-b px-4 pt-3 pb-2 backdrop-blur">
         <div className="flex items-center gap-2">
           <Link
-            href="/resumes"
-            aria-label="Back to Resumes"
+            href={back.href}
+            aria-label={back.label}
+            onClick={back.onClick}
             className="text-ink -ml-2 flex size-11 items-center justify-center rounded-full"
           >
             <ArrowLeftIcon aria-hidden className="size-5" />

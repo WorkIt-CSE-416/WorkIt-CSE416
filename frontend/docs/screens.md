@@ -660,7 +660,8 @@ empty year with a line saying the applications aren't loading.
 
 **Its name on screen is the Applications Tracker** (KAN-342): in the
 sidebar, the browser tab and its heading, and "Back to Applications
-Tracker" on an application's page. It was "Applications", the word the
+Tracker" on an application's page when the tracker opened it (its Back
+names the page that did, KAN-363). It was "Applications", the word the
 Dashboard also used for a count, so the page and the number read as one
 thing; then "Tracker" in the sidebar with "Application Tracker" as its
 heading, until the user named it Applications Tracker everywhere. The
@@ -857,8 +858,8 @@ the header and the Job Description tab are the parts `/jobs/[jobId]` draws
 (`jobs/[jobId]/job-view.tsx`: `loadJobView`, `JobViewActions`,
 `JobViewHeader`, `JobViewBody`), so the two pages look the same and cannot
 drift apart. They share the job page's width too (`JOB_PAGE_WIDTH`, 1120px,
-KAN-279). Only Back differs (Back to Applications, `JobActionBar`'s
-`back` slot). No match rail, as on the job page: an earlier draft added the
+KAN-279). Only Back differs (to the page that opened it, else the
+tracker, `JobActionBar`'s `back` slot; `(seeker)/back-link.tsx`). No match rail, as on the job page: an earlier draft added the
 Jobs card's ring, which made the same job look different by how it was
 opened. Analytics and explanations go on the Your Application tab only.
 **The bar holds the tabs once there is nothing to do**: an applied job, or a
@@ -1306,7 +1307,11 @@ kept, once (`GLOSSARY.md`), and the only place they are edited: the
 Resumes view keeps the uploads, and its upload note links here.
 
 **Layout, top to bottom**: the shared header (above) with Fill With Scout,
-the Showing bar, the section nav, then the section cards and Skills.
+the Showing card (the picked resume, drawn as the Resumes page draws one,
+with Change Resume in it; a click on it opens the resume), the section
+nav, then the section cards and Skills. An entry's editor names the other
+built resumes a save changes too (KAN-363); a name in it shows that resume
+here.
 The section nav (KAN-349) is a row of links, one per card with its count
 under the current pick, held at the top of the page while the cards scroll
 under it: a click glides to that card, and the card in view is lit, so a
@@ -1408,7 +1413,7 @@ full form over the panel, with Back to Chat (Escape goes back too). The
 import card opens in the chat's place. A save
 reads the bank again, so the page behind updates at once. An empty bank
 gets no card of its own (removed in KAN-249): the title's Fill With Scout
-and each section's Add already say where to start, and the card only
+and each card's + already say where to start, and the card only
 repeated them. Any other page gets Scout's own
 chat back. Intake used to lead the page, with the card in a column beside
 the chat; onboarding still shows it that way.
@@ -1429,8 +1434,16 @@ in Docs (suggested answers in the chat, not a banner).
   Entries come back from the API ongoing first, then newest; the screen
   never sorts. After every change it reads the whole bank again, so the
   order shown is always the API's.
-- **Clear All empties a card** (KAN-352): beside Add on each section card
-  and on Skills, shown only while the card lists something. It deletes
+- **A card's heading is a + and a pencil** (KAN-363), as LinkedIn's
+  profile draws them: the + adds an entry (a skill on Skills), on every
+  card; the pencil, shown while the card lists something, opens that
+  card's edit mode, one card at a time. In edit mode each entry shows its
+  pencil (each skill its pencil and ×), and the heading's pencil gives way
+  to Clear All and Done. Outside it a card is its content alone. Each
+  heading held Clear All and Add as words, and every entry a pencil and a
+  trash, so a card read as a row of controls before what it holds.
+- **Clear All empties a card** (KAN-352): in the card's edit mode, on each
+  section card and on Skills. It deletes
   what the card shows in one call (`POST .../bank/entries/delete` or
   `.../skills/delete`, all or none), after a confirm (`bank/clear-all.tsx`)
   that names the count and the built resumes that show them
@@ -1439,8 +1452,14 @@ in Docs (suggested answers in the chat, not a banner).
   resume's pick the items belong to uploads (ADR 0005), so the confirm
   names the uploads that lose them too (`uploadsOwning`). It never deletes
   what the pick hides: a button on a card acts on what the card shows.
+- **An entry's row holds its dates, and its pencil in edit mode**
+  (KAN-363). Delete Entry sits at the foot of the editor the pencil opens
+  (`entry-editor.tsx`'s `onDelete`). A trash beside the pencil, under a
+  heading with Clear All and Add, put four controls in one corner, and a
+  student could not tell which acted on the section and which on the
+  entry.
 - **An entry's dates sit under its title below `@xl/main`**, beside the
-  edit and delete buttons above it. Beside them on a phone, the dates never
+  pencil above it. Beside them on a phone, the dates never
   shrank and left the title a column a few letters wide ("Universi / ty").
   An import draft does the same below `@sm` of its own width (each draft is
   a container, since Scout's panel is not).
@@ -1451,7 +1470,7 @@ in Docs (suggested answers in the chat, not a banner).
   them (Greenhouse, Lever, Ashby, Workday; settled 2026-10-14). It still saves; the warning says to add them before
   Generate.
 - **Deleting an entry confirms with how many built resumes show it**
-  (story 18): the trash button reads `GET .../entries/{id}/resumes` first,
+  (story 18): the editor's Delete Entry reads `GET .../entries/{id}/resumes` first,
   then asks. A resume that hides the entry is not counted.
 - **Bullets show their original wording only** (KAN-218). Wording typed on
   a resume in the editor is that resume's local variant and never shows
@@ -1783,9 +1802,13 @@ shows "Your Resumes Aren't Loading Right Now" and a Try Again link.
 view. KAN-209 proved the overlay; KAN-218 edits on it; KAN-219 adds the
 phone layout; KAN-221 adds the assistant. The page loads the render, the bank, the resume's choices and
 the profile (the header's fields), and shows the error state if any fails.
-A **Back** button above the title returns to the Resumes view, drawn as the
-job posting page's Back is; until KAN-258 the editor had no way back but
-the sidebar. The phone layout keeps its own back arrow.
+A **Back** button above the title returns to the page that opened the
+editor (KAN-363, `(seeker)/back-link.tsx`), such as Experiences, else the
+Resumes view (`[resumeId]/back.ts`), going back in history when that page
+is the one before. It is drawn as the job posting page's Back is; until
+KAN-258 the editor had no way back but the sidebar. The phone layout's
+back arrow goes the same way. Back went to Resumes from everywhere, so a
+student who opened a resume from Experiences landed on another view.
 
 - **The page is the PDF itself** (ADR 0002): the render response's PDF,
   drawn with pdf.js on one canvas per page, never an HTML copy. Each of the

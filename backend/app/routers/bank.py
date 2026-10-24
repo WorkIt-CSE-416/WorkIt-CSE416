@@ -51,7 +51,8 @@ POST   /applicants/{id}/bank/import              ImportRequest -> ImportResponse
 
 GET /bank also sends `resumes` (every uploaded, base and tailored resume,
 with `kind`, `name`, a tailored one's `posting`, the starred one's
-`primary` and `edited_at`, the resume table's date) and, on each entry
+`primary`, an upload's `pdf` (the Showing card opens a PDF in a tab,
+KAN-363) and `edited_at`, the resume table's date) and, on each entry
 and skill, `resume_ids`: the upload that owns it, if any, then the built
 resumes that show it (KAN-343, ADR 0005).
 """

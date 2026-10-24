@@ -56,6 +56,8 @@ export type BankResume = {
   name: string;
   posting: string | null;
   primary: boolean;
+  /** An upload whose file is a PDF: its preview opens a tab (KAN-363). */
+  pdf: boolean;
   created_at: string;
   /** The resume table's date (KAN-361): a built resume's last edit, an
    *  upload's upload time. */

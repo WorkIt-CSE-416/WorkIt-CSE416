@@ -199,6 +199,10 @@ class BankResume(BaseModel):
     posting: str | None = None
     # The resume the student starred, of either kind.
     primary: bool = False
+    # An upload whose file is a PDF (KAN-363). The Experiences view's card
+    # opens it in a new tab, which must open inside the click, before the
+    # signed URL comes back; a DOCX downloads instead and needs no tab.
+    pdf: bool = False
     # When it was uploaded or made: the page opens on the newest when none
     # is starred.
     created_at: datetime.datetime
