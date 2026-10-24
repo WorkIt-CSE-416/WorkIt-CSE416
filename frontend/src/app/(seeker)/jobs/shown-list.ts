@@ -5,26 +5,22 @@
  * Load More, a job marked applied); the rail reads it, and writes it too when
  * it loads more or has to fetch the list again.
  *
- * Kept for the tab's session, so a reload of a job's page keeps its rail.
- * `query` and `source` are the ones the list's own Load More uses, so the
- * rail asks the API for exactly the same list. Not ./feed-pages, which keeps
- * only the Load More pages and drops them on a fresh visit to the list.
+ * Kept for the tab's session (./session-store), so a reload of a job's page
+ * keeps its rail. `query` and `source` are the ones the list's own Load More
+ * uses, so the rail asks the API for exactly the same list (./list-pages).
+ * Not ./feed-pages, which keeps only the Load More pages and drops them on a
+ * fresh visit to the list: one record of the whole list there would bring
+ * back, on a return, roles that have since left the server's first page.
  */
 
+import { LIST_FRESH_FOR, type ListSource } from "./list-pages";
 import type { JobListing } from "./listings";
-
-/** How long the kept roles are trusted: roles close, so after this the rail
- *  fetches the list's first page again rather than show stale ones. The same
- *  age as ./feed-pages' kept pages. */
-const FRESH_FOR = 30 * 60 * 1000;
-
-const KEY = "workit:shown-list";
+import { sessionStore } from "./session-store";
 
 export type ShownList = {
   /** The list's own query (feedQuery, plus `sort=match` for Best Match). */
   query: string;
-  /** Which order drew it: the plain feed or Best Match's scored jobs. */
-  source: "feed" | "recommended";
+  source: ListSource;
   jobs: JobListing[];
   /** The next Load More's offset, and whether the API has more. */
   offset: number;
@@ -32,38 +28,16 @@ export type ShownList = {
   at: number;
 };
 
-/** Read once from sessionStorage, then held here so useSyncExternalStore
- *  gets the same object until the next write. */
-let shown: ShownList | null | undefined;
-const listeners = new Set<() => void>();
+const store = sessionStore<ShownList>("workit:shown-list");
 
-export function readShownList(): ShownList | null {
-  if (shown === undefined) {
-    try {
-      shown = JSON.parse(sessionStorage.getItem(KEY) ?? "null") as ShownList | null;
-    } catch {
-      shown = null;
-    }
-  }
-  return shown;
-}
+export const readShownList = store.read;
+export const subscribe = store.subscribe;
 
 /** Whether the kept roles are young enough to show as they are. */
 export function isFresh(list: ShownList): boolean {
-  return Date.now() - list.at < FRESH_FOR;
+  return Date.now() - list.at < LIST_FRESH_FOR;
 }
 
 export function rememberList(list: Omit<ShownList, "at">) {
-  shown = { ...list, at: Date.now() };
-  try {
-    sessionStorage.setItem(KEY, JSON.stringify(shown));
-  } catch {
-    /* storage off or full: kept in memory for this visit */
-  }
-  for (const listener of listeners) listener();
-}
-
-export function subscribe(listener: () => void) {
-  listeners.add(listener);
-  return () => listeners.delete(listener);
+  store.write({ ...list, at: Date.now() });
 }

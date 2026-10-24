@@ -4,11 +4,11 @@ import { useEffect, useRef, useState, useSyncExternalStore, useTransition } from
 
 import { Button } from "@/components/ui/button";
 
-import { loadMoreJobs, loadMoreRecommended } from "./actions";
 import { keep, readKept, subscribe } from "./feed-pages";
 import { PAGE_SIZE } from "./filter-query";
 import type { ApplicationStage } from "../auto-apply/actions";
 import { ListingCard } from "./listing-card";
+import { nextPage, type ListSource } from "./list-pages";
 import type { JobListing } from "./listings";
 import { rememberList } from "./shown-list";
 
@@ -68,7 +68,7 @@ export function FeedList({
   tailored: string[];
   /** An applicant account, which a card's Apply Now may ask "Did You Apply?". */
   canMarkApplied: boolean;
-  source?: "feed" | "recommended";
+  source?: ListSource;
 }) {
   // The server renders the first page alone; the browser adds the kept
   // pages, if this list has any, as it hydrates.
@@ -128,24 +128,14 @@ export function FeedList({
     // for a job posting by the time it answers (review, 2026-10-10).
     const path = window.location.pathname;
     start(async () => {
-      const page = await (source === "recommended" ? loadMoreRecommended : loadMoreJobs)(
-        query,
-        offset,
-      );
+      const page = await nextPage({ query, source, jobs: [...initial, ...loaded], offset });
       if (page.error != null) {
         setError("Couldn't load more roles. Try again in a moment.");
         return;
       }
-      const shown = new Set([...initial, ...loaded].map((job) => job.id));
-      const fresh = page.jobs.filter((job) => !shown.has(job.id));
+      const { fresh } = page;
       setError(null);
-      keep({
-        path,
-        query,
-        jobs: [...loaded, ...fresh],
-        offset: offset + page.jobs.length,
-        more: page.more,
-      });
+      keep({ path, query, jobs: [...loaded, ...fresh], offset: page.offset, more: page.more });
       setSaid(
         fresh.length === 0
           ? "No more roles."

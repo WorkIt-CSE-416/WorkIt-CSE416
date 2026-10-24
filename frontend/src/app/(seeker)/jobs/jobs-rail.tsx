@@ -18,8 +18,8 @@ import { Skeleton } from "@/components/shadcn/skeleton";
 import { Button } from "@/components/ui/button";
 import { cn } from "@/lib/cn";
 
-import { loadMoreJobs, loadMoreRecommended } from "./actions";
 import { formatPosted } from "./format";
+import { nextPage } from "./list-pages";
 import { listingFacts } from "./listing-card";
 import { isFresh, readShownList, rememberList, subscribe, type ShownList } from "./shown-list";
 
@@ -83,23 +83,24 @@ function JobsRail({ currentId }: { currentId: string }) {
   const showable = list && isFresh(list) ? list : null;
 
   // No list, or a stale one: ask for its first page again (the newest
-  // roles when there is none). Once, as the rail mounts.
+  // roles when there is none). Checked on every job opened, not once: the
+  // rail stays mounted while its list ages, and checked only on mount it
+  // sat on its skeleton for good once the list passed half an hour.
   useEffect(() => {
     const stored = readShownList();
     if (stored && isFresh(stored)) return;
     let live = true;
     const query = stored?.query ?? "";
     const source = stored?.source ?? "feed";
-    void (source === "recommended" ? loadMoreRecommended : loadMoreJobs)(query, 0).then((page) => {
+    void nextPage({ query, source, jobs: [], offset: 0 }).then((page) => {
       if (!live) return;
       if (page.error != null) setError("Couldn't load the jobs list.");
-      else
-        rememberList({ query, source, jobs: page.jobs, offset: page.jobs.length, more: page.more });
+      else rememberList({ query, source, jobs: page.fresh, offset: page.offset, more: page.more });
     });
     return () => {
       live = false;
     };
-  }, []);
+  }, [currentId]);
 
   // Brings the open job into the rail's view when it is out of it, by the
   // rail's own scroll: scrollIntoView would scroll the page panel too.
@@ -116,19 +117,17 @@ function JobsRail({ currentId }: { currentId: string }) {
 
   function loadMore(from: ShownList) {
     start(async () => {
-      const load = from.source === "recommended" ? loadMoreRecommended : loadMoreJobs;
-      const page = await load(from.query, from.offset);
+      const page = await nextPage(from);
       if (page.error != null) {
         setError("Couldn't load more roles. Try again in a moment.");
         return;
       }
       setError(null);
-      const shown = new Set(from.jobs.map((job) => job.id));
       rememberList({
         query: from.query,
         source: from.source,
-        jobs: [...from.jobs, ...page.jobs.filter((job) => !shown.has(job.id))],
-        offset: from.offset + page.jobs.length,
+        jobs: [...from.jobs, ...page.fresh],
+        offset: page.offset,
         more: page.more,
       });
     });

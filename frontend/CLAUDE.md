@@ -1013,7 +1013,15 @@ the KAN-296 cutover.
   `(seeker)/jobs/layout.tsx` so it survives job-to-job navigation. It reads
   the list `FeedList` last showed (`jobs/shown-list.ts`); a new list screen
   whose cards open job pages writes it the same way, or the rail shows the
-  last /jobs or /search list (`docs/screens.md`, Job posting page).
+  last /jobs or /search list (`docs/screens.md`, Job posting page). Every
+  reader that pages a list of roles goes through `nextPage`
+  (`jobs/list-pages.ts`), which picks the action for the list's order and
+  counts the offset; the feed and the rail each had a copy until the
+  KAN-297 review. A list kept for the session builds on `sessionStore`
+  (`jobs/session-store.ts`), as the feed's Load More pages and the rail's
+  list do, and ages by `LIST_FRESH_FOR`. The rail checks its list's age on
+  every job opened, not once: checked on mount only, it sat on its skeleton
+  for good once the list passed half an hour, since it stays mounted.
 - **Promote to `src/components` on the second consumer**, not in anticipation;
   anything used by one route stays beside it (the per-route `icons.tsx`).
 - **`src/components/ui` is hand-written and is what screens import.**
