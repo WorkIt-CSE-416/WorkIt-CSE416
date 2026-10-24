@@ -1201,17 +1201,19 @@ are in `docs/auth.md`.
   why.
 - **The Experiences view shows one resume at a time** (KAN-343, ADR 0005,
   `../docs/bank_by_resume.md`): a dropdown of every uploaded, base and
-  tailored resume and nothing else, opening on `?resume=`, else the starred
-  resume, else the newest. The rules (which items a pick shows, the opening pick, the "Also
+  tailored resume, then Not From an Upload while anything no upload owns
+  exists, opening on `?resume=`, else the starred resume, else the newest. The rules (which items a pick shows, the opening pick, the "Also
   used in" line) live in `(seeker)/bank/holdings.ts` and read only the
   API's `resume_ids`; never work out a resume's items in a component.
   Intake always gets the whole bank. Add sends the pick (`createEntry`,
   `addSkill`), so the new item belongs to that upload or shows on that
   built resume and stays in view. `resume_ids` names at most one upload,
-  so "Also used in" names built resumes only. All Experiences and Not From
-  an Upload were removed (2026-10-23): an item no resume holds (intake's,
-  or one that came from several uploads before ADR 0005) shows under no
-  pick, by the team's choice.
+  so "Also used in" names built resumes only. All Experiences was removed
+  (2026-10-23). **Every item must show under some pick**: Not From an
+  Upload holds what no upload owns (intake's, or one that came from
+  several uploads before ADR 0005). It was removed too at first, which
+  left 96 entries and 242 skills of 8 students that every reader used but
+  no student could see, edit or delete, so it came back (2026-10-24).
 - **Applicant server actions call the API through `applicantCall`**
   (`lib/applicant-call.ts`, server-only): the session, the Bearer token,
   GET/DELETE/fetch, and a `Result<T>` (`data`, `error`, `status`) that never
