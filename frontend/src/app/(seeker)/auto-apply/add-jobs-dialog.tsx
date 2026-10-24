@@ -150,7 +150,10 @@ export function AddJobsDialog({
                   : `${pickable.length} of ${jobs.length} saved jobs can be auto applied to`}
               </span>
             </div>
-            <ul className="divide-border-subtle divide-y">
+            {/* The list scrolls under Select All at the scroll-box height,
+                as the resume picker's table does; it grew the dialog to
+                90% of the window before. */}
+            <ul className="divide-border-subtle max-h-scroll-box divide-y overflow-y-auto">
               {jobs.map((job) => (
                 <li
                   key={job.id}

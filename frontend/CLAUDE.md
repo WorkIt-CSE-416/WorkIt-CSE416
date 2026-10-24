@@ -1098,6 +1098,12 @@ the KAN-296 cutover.
   share the Applications list's frame and its promoted pieces
   (`components/clickable-row.tsx`, `match-badge.tsx`, `reflow.tsx`,
   `field-facet.tsx`); a new seeker table starts from those, not a copy.
+- **How many rows a table or list shows depends on where it sits.** A
+  full-page table (the Applications list, Up Next) shows every row and the
+  page scrolls. A list or table inside a dialog or a tile scrolls inside
+  itself at one height, the `--spacing-scroll-box` token (`max-h-scroll-box`
+  or `h-scroll-box`, 320px): the resume picker, Add Jobs and Top Matches.
+  Each picked its own height before, and Add Jobs grew to 90% of the window.
 - **A filter whose rows the page already holds moves the URL in place**
   (`useShallowPush`, `docs/motion.md`): Live Activity's Status and sort
   (KAN-285). A tick passes `{ replace: true }`, so ticks are not steps of

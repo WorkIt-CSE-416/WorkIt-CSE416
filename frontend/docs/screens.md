@@ -466,7 +466,8 @@ apply still never queues a saved job on its own. The button is off when no
 match can be auto applied to. The checkbox takes `border-ink-meta`, as
 CheckRowBox does: the vendored hairline drew the empty box at 1.19:1. See More Matches, a secondary button at the heading's
 right, opens Best Match. From `@4xl/main` the list scrolls inside the tile at
-`h-80`, about four and a half rows, with a quiet bar along the tile's edge
+`h-scroll-box` (320px, the token every scroll box in a dialog or tile
+shares), about four and a half rows, with a quiet bar along the tile's edge
 and a fade at its foot; below it the list shows five rows and does not
 scroll (a box that scrolls inside a scrolling page traps the swipe), and
 below `@xl/main` Save and Apply Now take their own full-width line, since

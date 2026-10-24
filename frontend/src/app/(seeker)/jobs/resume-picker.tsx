@@ -171,7 +171,7 @@ export function ResumeLists({
       ) : (
         // Its own scroll, so the table's head stays in view and the
         // dialog's footer stays put under a long list.
-        <div className="border-border-subtle rounded-card max-h-80 overflow-y-auto border">
+        <div className="border-border-subtle rounded-card max-h-scroll-box overflow-y-auto border">
           <table className="w-full table-fixed border-collapse text-left">
             <thead className="bg-well sticky top-0 z-1">
               <tr>
