@@ -232,7 +232,7 @@ and "Still needed" takes `--color-warning`, as the bank's own warnings do.
 ## Type weights
 
 Four weights, each with one job, shown on `/design-kit/type` (Weights):
-400 to read (body copy, helper text, typed values), 500 for anything a
+450 to read (body copy, helper text, typed values), 500 for anything a
 student clicks or picks (buttons, chips, segmented controls, menu rows,
 select and filter options, field labels), 600 to name a block (card and
 dialog titles, a job's title, captions), 700 to name a page. A token that
@@ -242,7 +242,11 @@ weight and drew at 400, so the account menu read thinner than the Jobs
 page's filters; `globals.css` sets them to 500 by `data-slot`, in base so a
 row that asks for another weight still gets it (KAN-365). The filters' own
 option rows (`filter-controls.tsx`) set theirs and are left alone: a nested
-option is 400 under its medium parent.
+option is regular under its medium parent. Regular is 450, not 400
+(`--font-weight-normal`, KAN-365): Plus Jakarta Sans loads as a variable
+font, and its 400 read thin in small grey text such as a job card's facts
+and dates. `font-normal`, the body's default and `--text-hero` all read it,
+so never write a literal 400.
 
 ## Components
 

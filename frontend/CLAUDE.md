@@ -1073,7 +1073,8 @@ the KAN-296 cutover.
 - **Anything clicked or picked is medium (500)**: buttons, chips,
   segmented controls, filter options, and shadcn's menu, select and
   combobox rows, which `globals.css` sets by `data-slot` since they set no
-  weight of their own (KAN-365). The four weights and their jobs are in
+  weight of their own (KAN-365). Regular text is 450, not 400
+  (`--font-weight-normal`): the face's 400 read thin in small grey text. The four weights and their jobs are in
   `docs/design.md`, Type weights, and on `/design-kit/type`.
 - **One mark for Scout and AI, `SparkleIcon`** (`components/icons.tsx`,
   KAN-257): every Scout or AI control, and Scout's mark in the chat and

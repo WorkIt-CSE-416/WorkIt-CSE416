@@ -35,7 +35,7 @@ export default function TypePage() {
 
       <Group
         title="Weights"
-        note="Each weight has one job. A size whose token carries no weight (body, note) takes the one its job asks for, so a menu row at --text-body is still medium."
+        note="Each weight has one job. Regular is 450, not 400: Plus Jakarta Sans is a variable font, and its 400 read thin in small grey text. A size whose token carries no weight (body, note) takes the one its job asks for, so a menu row at --text-body is still medium."
       >
         {WEIGHTS.map(({ token, cls, role }) => (
           <Row key={token} name={token} role={role}>

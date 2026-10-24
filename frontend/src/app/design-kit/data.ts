@@ -311,7 +311,7 @@ export const TYPEFACES: { token: string; cls: string; role: string }[] = [
  */
 export const WEIGHTS: { token: string; cls: string; role: string }[] = [
   {
-    token: "400 · font-normal",
+    token: "450 · font-normal",
     cls: "font-normal",
     role: "Reading: body copy, helper text, typed values in inputs, descriptions",
   },

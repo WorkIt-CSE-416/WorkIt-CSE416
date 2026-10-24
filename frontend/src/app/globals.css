@@ -29,6 +29,12 @@
   /* Fonts — the faces themselves are loaded by next/font in app/layout.tsx. */
   --font-sans: var(--font-jakarta-sans);
   --font-mono: var(--font-geist-mono);
+  /* Regular is 450, not 400 (KAN-365). Plus Jakarta Sans's 400 is light, and
+   * small grey text at it (a job card's facts, dates, helper lines) read
+   * thin. next/font loads the face as a variable font, so any weight from
+   * 200 to 800 draws true. This sets `font-normal`, the body's default and
+   * --text-hero's weight; medium (500) stays a step above. */
+  --font-weight-normal: 450;
 
   /* Surfaces ------------------------------------------------------------
    * NEUTRALISED, the same way the app roles below were and for the same
@@ -258,7 +264,7 @@
    * one line on the screen, set large and regular with its key words bold. */
   --text-hero: 2.5rem; /* 40px */
   --text-hero--line-height: 3rem;
-  --text-hero--font-weight: 400;
+  --text-hero--font-weight: var(--font-weight-normal);
   --text-hero--letter-spacing: -0.02em;
 
   /* -------------------------------------------------------------------------
@@ -903,6 +909,7 @@ body {
   background: var(--color-canvas);
   color: var(--color-ink);
   font-family: var(--font-sans), system-ui, sans-serif;
+  font-weight: var(--font-weight-normal);
 }
 
 /* The canvas — the strip a rubber-band scroll exposes past the top or bottom of
