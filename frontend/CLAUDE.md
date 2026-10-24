@@ -1166,14 +1166,16 @@ the KAN-296 cutover.
   (`useShallowPush`, `docs/motion.md`): Live Activity's Status and sort
   (KAN-285). A tick passes `{ replace: true }`, so ticks are not steps of
   Back, as the Applications page's server-side picks replace the URL.
-- **pdf.js (`pdfjs-dist`, pinned exactly) loads on the resume editor
-  page only** (KAN-209), through `import("pdfjs-dist")` inside an effect in
+- **pdf.js (`pdfjs-dist`, pinned exactly) loads on the resume pages
+  only**: the editor (KAN-209) and an upload's page (KAN-366,
+  `(seeker)/resumes/uploaded/[id]`, which draws through the same
+  `PdfPages`), through `import("pdfjs-dist")` inside an effect in
   `(seeker)/resumes/[resumeId]/pdf-pages.tsx`: about 110 KB gzip plus a
   290 KB worker, which every other page would otherwise pay for, and its
   module touches browser globals, so a top-level import breaks the server
   render. The worker comes from `new URL("pdfjs-dist/build/pdf.worker.min.mjs",
   import.meta.url)`, which Turbopack emits as a static file. After a build,
-  only the editor route's client manifest names the pdf.js chunk.
+  only those two routes' client manifests name the pdf.js chunk.
   `npm install` on a Mac dropped two optional `@emnapi/*` entries from the
   lockfile when pdf.js was added; they were put back by hand. Check the
   lockfile diff for removals after adding any dependency. Adding Lenis
@@ -1282,8 +1284,9 @@ are in `docs/auth.md`.
   inside itself at `max-h-scroll-box` (`resume-list.tsx`). **It is laid
   out as the Applications Tracker is**, so keep the two alike: the search
   on its own row, then the Type filter (`FieldFacet`, the Applications
-  list's dropdown, in `?type=`) with Upload Resume and Generate Resume at
-  the right, both above the list, and `EmptyState` in the list's place
+  list's dropdown, in `?type=`) and the Sort dropdown (Last Edited, the
+  default; Oldest First; Name, A to Z; in `?sort=`, KAN-366) with Upload
+  Resume and Generate Resume at the right, both above the list, and `EmptyState` in the list's place
   when no card shows. Upload Resume and Generate Resume never sit in the
   shared header. A card says what it is in its own line ("Uploaded …",
   "Last edited … · For <posting>"), so the list needs no Type or date
@@ -1295,6 +1298,18 @@ are in `docs/auth.md`.
   alike, and a student had to look in three places for their latest
   resume. The resume picker still splits Generated (base and tailored)
   from Uploaded; whether it takes a Type filter too is open.
+- **Every resume opens a page of WorkIt's own** (KAN-366): a built resume
+  the editor (`(seeker)/resumes/[resumeId]`), an upload its view page
+  (`(seeker)/resumes/uploaded/[id]`, the static segment winning over
+  `[resumeId]`). The upload's page reads the PDF on the server
+  (`readResumePdf` in `lib/resume-actions.ts`, base64) and draws it with
+  the editor's `PdfPages` and no click targets; a DOCX gets a Download
+  card, since pdf.js cannot draw one. Its bar (the editor's look) holds
+  Make Primary, Rename, Delete and Download, calling what the upload's
+  card calls, and reads the name and star back with `router.refresh()`
+  rather than guessing them. An upload's card opened its Storage link in
+  a new tab until then (`lib/preview-resume.ts`, now gone), so an upload
+  left the app and a DOCX simply downloaded.
 - **The Experiences view shows one resume at a time** (KAN-343, ADR 0005,
   `../docs/bank_by_resume.md`): a Showing card names the pick, drawn as
   the Resumes page draws a resume (KAN-363), and its Change Resume opens
@@ -1313,8 +1328,7 @@ are in `docs/auth.md`.
   so the note in an entry's editor (KAN-363, "Saving also changes this
   entry on …") names built resumes only, each name a link that switches
   the pick to that resume. The entry's view names none. The Showing card opens its resume as a Resumes row does (the
-  editor, or the upload's file through `lib/preview-resume.ts`, which
-  takes the API's `pdf` to choose a tab before its first await); Rename,
+  editor, or the upload's own page, `/resumes/uploaded/[id]`); Rename,
   Download, Make Primary and Delete stay on the Resumes view, so the page
   never shows a resume deleted from under it. All Experiences was removed
   (2026-10-23). **Every item must show under some pick**: Not From an

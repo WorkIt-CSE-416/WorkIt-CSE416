@@ -100,9 +100,7 @@ never changes another's, and an import runs no duplicate check.
 
 `GET /applicants/{id}/bank` keeps its shape: `resume_ids` on each entry and
 skill, and `resumes` for the Showing card (kind, name, posting, primary,
-created_at, `edited_at` for the resume table's date, KAN-361, and an
-upload's `pdf`, KAN-363: a PDF preview opens a tab, which must open inside
-the click, before the file's URL comes back).
+created_at, and `edited_at` for the resume table's date, KAN-361).
 
 - **`resume_ids`** is the owning upload (at most one), then the built
   resumes that show the item. `load_holdings` reads the owner from the
@@ -162,9 +160,8 @@ the click, before the file's URL comes back).
   most entries on every base resume, so nearly every entry carried it,
   long before the student edited, when it matters.
 - **The Showing card opens its resume**, as a Resumes row does: a built
-  resume in the editor, whose Back returns here, an
-  upload's file in a tab (a DOCX downloads). The
-  row's other actions stay on Resumes: the card says what the page shows,
+  resume in the editor, an upload on its own page (KAN-366), and the Back
+  of either returns here. The row's other actions stay on Resumes: the card says what the page shows,
   and a delete from it would leave the page on a resume that is gone.
 - **The old-upload prompt** ("This resume has no entries in your bank
   yet. [Import Again]") shows for an upload that owns nothing. Import

@@ -1660,19 +1660,25 @@ in Docs (suggested answers in the chat, not a banner).
 
 `(seeker)/resumes` (KAN-249), the other view of Resumes & Experiences: the
 resumes the bank makes and the uploads, under the shared header. **One
-list holds every resume** (KAN-362, `built-resumes.tsx`), newest first
-(an upload by its day, a built resume by its last edit), laid out as the
+list holds every resume** (KAN-362, `built-resumes.tsx`), laid out as the
 Applications Tracker is: the search (names and postings) on its own row,
 then the **Type** filter (Uploaded, Generated, Tailored; the Applications
-list's dropdown, `FieldFacet`) with Upload Resume and Generate Resume at
-the right, then the list (below). Each resume is its card, with its own
+list's dropdown, `FieldFacet`) and the **Sort** dropdown with Upload
+Resume and Generate Resume at the right, then the list (below). Sort
+(KAN-366) is one pick of three: Last Edited, newest first and the
+default; Oldest First; Name (A to Z). An upload dates from its upload, a
+built resume from its last edit. It is drawn as the Type filter is, but
+never takes the filter's brand tint, since an order is always in force;
+it is a dropdown, not the Jobs page's Sort By pills, because the header
+already holds the Resumes or Experiences pills. Each resume is its card, with its own
 line saying what it is ("Uploaded Oct 21", "Last edited Oct 21 · For
 <posting>") and its star, Rename, Download and Delete. With no resume at
 all the list's place holds "No Resumes Yet"; filters that hide every
 card show "No Matching Resumes" with Clear Filters (`EmptyState`, as the
-Applications page's). The type is the URL's (`?type=uploaded,tailored`),
-moved in place and replacing the entry, so a reload or a shared link
-keeps it and a tick is not a step of Back; the search's words are the
+Applications page's). The type and the order are the URL's (`?type=uploaded,tailored`,
+`?sort=oldest` or `name`; Last Edited has none), moved in place and
+replacing the entry, so a reload or a shared link keeps them and a tick
+is not a step of Back; Clear Filters keeps the order; the search's words are the
 page's own. A Generate clears a Type filter that would hide its new
 resume. It took six shapes in KAN-362: three cards stacked one under
 another (Your Uploaded Resumes, Generated Resumes, Tailored Resumes),
@@ -1733,13 +1739,11 @@ shows "Your Resumes Aren't Loading Right Now" and a Try Again link.
   Experiences, and offers **Read It With AI** while the student has an AI
   reading left. Before KAN-240 an upload showed nothing, and its facts
   reached the bank only if the student found the import inside intake;
-  most never did. **A click anywhere on an upload's row previews it**
-  (`src/components/resume-row.tsx`, KAN-268), as a generated resume's row
-  opens the editor: a short-lived signed link from `getResumeFileUrl`,
-  opened by `src/lib/preview-resume.ts`. A PDF opens in a new tab, opened
-  inside the click so it is not blocked as a popup (if it is blocked
-  anyway, the page says so rather than leaving it); a DOCX downloads. An
-  eye button did this until KAN-268. The row's icons are a star that makes
+  most never did. **A click anywhere on an upload's card opens its own
+  page** (`src/components/resume-row.tsx`'s link, KAN-366; Uploaded
+  resume page, below), as a generated resume's card opens the editor.
+  Until KAN-366 it opened a short-lived signed Storage link in a new tab
+  (a DOCX downloaded), and an eye button did that before KAN-268. The row's icons are a star that makes
   it primary (`setPrimaryResume`), **Rename** (the pencil, the same form as
   a generated resume's; `renameResume`, and the API keeps the file's
   extension on the name), **Download** (the stored file through
@@ -1820,6 +1824,25 @@ shows "Your Resumes Aren't Loading Right Now" and a Try Again link.
   resumes are still kept on every Apply (a download keeps nothing since
   KAN-267), and a job posting's page still says "You sent <name> on
   <date>"; no screen lists them all or deletes one now.
+
+## Uploaded resume page (`/resumes/uploaded/[id]`)
+
+KAN-366: an upload's own page, opened from its card on the Resumes view,
+so every resume opens inside WorkIt (a built one opens the editor, next).
+Back (to the page that opened it, such as Experiences, else `/resumes`;
+`(seeker)/back-link.tsx`), the file's name as the heading, then a sticky bar in
+the editor's look: "Uploaded Oct 21" and "★ Primary" on the primary, then
+Make Primary (while it is not), Rename, Delete and **Download**, the
+page's main action, filled. Under it the PDF, drawn page by page with the
+editor's pdf.js preview (`PdfPages`, no click targets: an upload is read
+here, its facts are edited in Experiences). The server reads the file
+(`readResumePdf`), so the browser never opens the Storage link. A DOCX
+cannot be drawn, so its place holds "This File Can't Be Shown Here" and
+Download. Rename turns the heading into the cards' Rename form; Delete
+asks under the bar, as on a card, and then returns to the Resumes view.
+An id the student has no upload by is a 404; a list or file that fails
+to load shows "This Resume Isn't Loading Right Now" with Try Again. On a
+phone the bar's buttons wrap and the pages take the width.
 
 ## Resume editor
 

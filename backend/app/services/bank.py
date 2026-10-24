@@ -466,10 +466,10 @@ async def load_holdings(session: AsyncSession, applicant_id: uuid.UUID) -> Holdi
     resumes = [
         BankResume(
             id=r.id, kind="uploaded", name=r.original_filename or "Uploaded resume", primary=r.id in starred,
-            pdf=(r.storage_path or "").endswith(".pdf"), created_at=r.created_at, edited_at=r.created_at,
+            created_at=r.created_at, edited_at=r.created_at,
         )
         for r in await session.execute(
-            select(Resume.id, Resume.original_filename, Resume.storage_path, Resume.created_at)
+            select(Resume.id, Resume.original_filename, Resume.created_at)
             .where(Resume.applicant_id == applicant_id)
             .order_by(Resume.created_at.desc(), Resume.id)
         )

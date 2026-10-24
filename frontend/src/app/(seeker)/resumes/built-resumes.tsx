@@ -1,10 +1,17 @@
 "use client";
 
-import { FileTextIcon, TagIcon } from "@phosphor-icons/react/ssr";
+import { ArrowsDownUpIcon, FileTextIcon, TagIcon } from "@phosphor-icons/react/ssr";
 import { useState } from "react";
 
-import { FieldFacet, type FacetOption } from "@/components/field-facet";
-import { SearchIcon } from "@/components/icons";
+import { FacetLabel, facetClasses, FieldFacet, type FacetOption } from "@/components/field-facet";
+import { ChevronDownIcon, SearchIcon } from "@/components/icons";
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuRadioGroup,
+  DropdownMenuRadioItem,
+  DropdownMenuTrigger,
+} from "@/components/shadcn/dropdown-menu";
 import { useShallowParams, useShallowPush } from "@/components/shallow-routing";
 import { Button } from "@/components/ui/button";
 import { EmptyState } from "@/components/ui/empty-state";
@@ -34,15 +41,38 @@ function parseTypes(raw: string | null): ResumeType[] {
   return TYPES.map((t) => t.value).filter((v) => picked.includes(v)) as ResumeType[];
 }
 
+/** The list's orders, in `?sort=`: Last Edited (newest first, the
+ *  default, with no `?sort=`), Oldest First, and Name (A to Z). An upload
+ *  dates from its upload, a built resume from its last edit. */
+type Sort = "edited" | "oldest" | "name";
+
+const SORTS: { value: Sort; label: string }[] = [
+  { value: "edited", label: "Last Edited" },
+  { value: "oldest", label: "Oldest First" },
+  { value: "name", label: "Name (A to Z)" },
+];
+
+function parseSort(raw: string | null): Sort {
+  return raw === "oldest" || raw === "name" ? raw : "edited";
+}
+
 /** One resume of either kind, as the list orders and filters it. */
 type Row =
-  | { key: string; type: "uploaded"; at: string; text: string; upload: ResumeItem }
-  | { key: string; type: "generated" | "tailored"; at: string; text: string; built: BuiltResume };
+  | { key: string; type: "uploaded"; name: string; at: string; text: string; upload: ResumeItem }
+  | {
+      key: string;
+      type: "generated" | "tailored";
+      name: string;
+      at: string;
+      text: string;
+      built: BuiltResume;
+    };
 
 /**
  * The Resumes view of Resumes & Experiences: its header, then one list of
  * every resume the student has (KAN-362), uploaded, generated (the base
- * resumes, KAN-207) and tailored (KAN-217), newest first, each as its
+ * resumes, KAN-207) and tailored (KAN-217), in the order the Sort dropdown
+ * picks (`SortMenu`, KAN-366; newest first by default), each as its
  * card with its star, Rename, Download and Delete, in a card that scrolls
  * inside itself (./resume-list.tsx). Every card acts alike, so one list
  * holds them all; each says what it is in its own line ("Uploaded …",
@@ -51,11 +81,12 @@ type Row =
  * It is laid out as the Applications Tracker is (../applications/page.tsx
  * and filter-bar.tsx), so the two read as one app: a search over the
  * names and the postings on its own row, then the Type filter
- * (`FieldFacet`, the Applications list's dropdown) with Upload Resume
+ * (`FieldFacet`, the Applications list's dropdown) and Sort, with Upload Resume
  * (./upload-resume.tsx) and Generate Resume at the right, then the list,
- * or an `EmptyState` in its place. The type is the URL's (`?type=`),
- * moved in place and replacing the entry (`useShallowPush`), so a reload
- * or a shared link keeps it and a tick is not a step of Back. The
+ * or an `EmptyState` in its place. The type and the order are the URL's
+ * (`?type=`, `?sort=`), moved in place and replacing the entry
+ * (`useShallowPush`), so a reload or a shared link keeps them and a tick
+ * is not a step of Back. The
  * search's words are the page's own.
  *
  * It went through five shapes in KAN-362 first: three cards stacked one
@@ -93,11 +124,20 @@ export function BuiltResumes({
   const params = useShallowParams();
   const push = useShallowPush();
   const types = parseTypes(params.get("type"));
+  const sort = parseSort(params.get("sort"));
 
-  function setTypes(next: ResumeType[]) {
-    const href = next.length > 0 ? `/resumes?type=${next.join(",")}` : "/resumes";
-    push(href, undefined, { replace: true });
+  // The type and the sort ride in the URL together, each left out at its
+  // default, replacing the entry so a tick is not a step of Back.
+  function move(next: { types?: ResumeType[]; sort?: Sort }) {
+    const search = new URLSearchParams();
+    const t = next.types ?? types;
+    const o = next.sort ?? sort;
+    if (t.length > 0) search.set("type", t.join(","));
+    if (o !== "edited") search.set("sort", o);
+    const qs = search.toString();
+    push(qs ? `/resumes?${qs}` : "/resumes", undefined, { replace: true });
   }
+  const setTypes = (next: ResumeType[]) => move({ types: next });
 
   // Both lists, every time: one primary star spans them.
   async function reload() {
@@ -124,6 +164,7 @@ export function BuiltResumes({
     ...uploaded.map((r) => ({
       key: `uploaded:${r.id}`,
       type: "uploaded" as const,
+      name: r.original_filename ?? "Resume",
       at: r.created_at ?? "",
       text: r.original_filename ?? "Resume",
       upload: r,
@@ -131,6 +172,7 @@ export function BuiltResumes({
     ...resumes.map((r) => ({
       key: `built:${r.id}`,
       type: r.job_posting_id ? ("tailored" as const) : ("generated" as const),
+      name: r.name,
       at: r.edited_at,
       text: `${r.name} ${r.posting_title ?? ""} ${r.posting_company ?? ""}`,
       built: r,
@@ -140,9 +182,11 @@ export function BuiltResumes({
   const shown = rows
     .filter((row) => types.length === 0 || types.includes(row.type))
     .filter((row) => matches(row.text, words))
-    // Newest first: an upload by the day it came, a built resume by its
-    // last edit.
-    .sort((a, b) => Date.parse(b.at || "0") - Date.parse(a.at || "0"));
+    .sort((a, b) =>
+      sort === "name"
+        ? a.name.localeCompare(b.name, undefined, { sensitivity: "base", numeric: true })
+        : (Date.parse(b.at || "0") - Date.parse(a.at || "0")) * (sort === "oldest" ? -1 : 1),
+    );
 
   const filtered = types.length > 0 || words.length > 0;
 
@@ -170,6 +214,7 @@ export function BuiltResumes({
             onChange={(values) => setTypes(values as ResumeType[])}
             className="min-w-36"
           />
+          <SortMenu value={sort} onChange={(next) => move({ sort: next })} />
           <div className="ml-auto flex items-center gap-2">
             {upload.button}
             <Button size="sm" onClick={generate} disabled={generating}>
@@ -228,5 +273,37 @@ export function BuiltResumes({
       )}
       <DuplicateResumeDialog message={duplicate} onClose={() => setDuplicate(null)} />
     </>
+  );
+}
+
+/**
+ * The list's order, beside the Type filter (KAN-366): one pick of three,
+ * drawn as the filter's dropdown is (`facetClasses`), its button naming the
+ * order in force. It never takes the filter's brand tint, which marks a
+ * filter holding a pick: an order is always in force. A dropdown, not
+ * the Jobs page's Sort By pills: the header already holds the Resumes or
+ * Experiences pills, and two pill rows read as one kind of choice.
+ */
+function SortMenu({ value, onChange }: { value: Sort; onChange: (next: Sort) => void }) {
+  const current = SORTS.find((s) => s.value === value) ?? SORTS[0];
+  return (
+    <DropdownMenu>
+      <DropdownMenuTrigger
+        aria-label={`Sort by ${current.label}`}
+        className={facetClasses(false, "min-w-36")}
+      >
+        <FacetLabel Icon={ArrowsDownUpIcon} label={current.label} active={false} count={0} />
+        <ChevronDownIcon className="text-muted-foreground size-4" />
+      </DropdownMenuTrigger>
+      <DropdownMenuContent align="start" className="w-max min-w-(--anchor-width)">
+        <DropdownMenuRadioGroup value={value} onValueChange={(next) => onChange(next as Sort)}>
+          {SORTS.map((option) => (
+            <DropdownMenuRadioItem key={option.value} value={option.value}>
+              {option.label}
+            </DropdownMenuRadioItem>
+          ))}
+        </DropdownMenuRadioGroup>
+      </DropdownMenuContent>
+    </DropdownMenu>
   );
 }

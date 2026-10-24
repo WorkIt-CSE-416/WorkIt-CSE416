@@ -9,7 +9,6 @@ import { RESUME_ACCEPT, resumeFileError } from "@/components/resume-upload";
 import { Button } from "@/components/ui/button";
 import { importResume, type ImportResponse } from "@/lib/bank-actions";
 import { importSummary } from "@/lib/import-summary";
-import { previewResume } from "@/lib/preview-resume";
 import { MAX_UPLOADS } from "@/lib/resume-limits";
 import { openDownload } from "@/lib/save-file";
 import {
@@ -212,12 +211,6 @@ export function UploadedRow({
     setRenaming(false);
   }
 
-  async function preview() {
-    setError(null);
-    // No await before this call: it opens the PDF's tab inside the click.
-    setError(await previewResume(resume.id, resume.storage_path.endsWith(".pdf")));
-  }
-
   async function download() {
     setError(null);
     const { url, error } = await getResumeFileUrl(resume.id, true);
@@ -256,7 +249,7 @@ export function UploadedRow({
         <ResumeRow
           resume={resume}
           deleting={deleting}
-          onPreview={preview}
+          href={`/resumes/uploaded/${encodeURIComponent(resume.id)}`}
           onMakePrimary={makePrimary}
           onRename={() => setRenaming(true)}
           onDownload={download}

@@ -19,7 +19,6 @@ import { Card } from "@/components/ui/card";
 import { FIELD_LABEL } from "@/components/ui/text-field";
 import type { BankResume } from "@/lib/bank-actions";
 import { cn } from "@/lib/cn";
-import { previewResume } from "@/lib/preview-resume";
 
 import { ResumeLists, type Choice } from "../jobs/resume-picker";
 import { NONE, type Pick } from "./holdings";
@@ -56,8 +55,8 @@ const keyOf = (r: BankResume) => `${r.kind === "uploaded" ? "uploaded" : "built"
  * a card that names the pick, drawn as the Resumes page draws a resume
  * (`components/resume-row.tsx`: the file mark, the name, the meta line, the
  * primary star), with Change Resume inside it. The whole card opens the
- * resume, as a row there does: a built resume in the editor, an upload's
- * file in a tab (a DOCX downloads). The rest of a row's actions (Rename,
+ * resume, as a row there does: a built resume in the editor, an upload on
+ * its own page (KAN-366). The rest of a row's actions (Rename,
  * Download, the star's Make Primary, Delete) stay on the Resumes view: this
  * card says what the page shows, and a delete from it would leave the page
  * on a resume that is gone. Change Resume opens the
@@ -84,15 +83,8 @@ export function ResumeBar({
   onChange: (pick: Pick) => void;
 }) {
   const [choosing, setChoosing] = useState(false);
-  const [error, setError] = useState<string | null>(null);
   const picked = resumes.find((r) => r.id === value) ?? null;
   const name = picked?.name ?? "Not From an Upload";
-
-  async function preview(resume: BankResume) {
-    setError(null);
-    // No await before this call: it opens the PDF's tab inside the click.
-    setError(await previewResume(resume.id, resume.pdf));
-  }
 
   return (
     <div className="flex flex-col gap-1.5">
@@ -115,19 +107,13 @@ export function ResumeBar({
         <div className="min-w-0 flex-1 basis-40">
           {!picked ? (
             <p className="text-label text-ink truncate">{name}</p>
-          ) : picked.kind === "uploaded" ? (
-            <button
-              type="button"
-              aria-label={`${picked.pdf ? "Preview" : "Download"} ${name}`}
-              title={name}
-              onClick={() => preview(picked)}
-              className={NAME}
-            >
-              {name}
-            </button>
           ) : (
             <Link
-              href={`/resumes/${encodeURIComponent(picked.id)}`}
+              href={
+                picked.kind === "uploaded"
+                  ? `/resumes/uploaded/${encodeURIComponent(picked.id)}`
+                  : `/resumes/${encodeURIComponent(picked.id)}`
+              }
               aria-label={`Open ${name}`}
               title={name}
               className={NAME}
@@ -157,11 +143,6 @@ export function ResumeBar({
           Change Resume
         </Button>
       </Card>
-      {error && (
-        <p role="alert" className="text-note text-danger">
-          {error}
-        </p>
-      )}
       {choosing && (
         <ChooseResume
           resumes={resumes}
