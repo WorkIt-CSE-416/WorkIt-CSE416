@@ -22,10 +22,9 @@ import { replaceResume, type ResumeItem } from "@/lib/resume-actions";
  * Import Updated Resume, from an uploaded resume's row on the Resumes view. The stored file
  * never changes, so the student brings the newer version: it replaces the
  * row's file (same row, same primary star) and the API reads it into the
- * experience bank, merging what the bank has (ADR 0003). The dialog then
- * says what went in, the way an upload's note does, with Read It With AI
- * while a reading is left. A merge never removes an entry, so one the new
- * version dropped stays in Experiences until the student deletes it.
+ * experience bank in place of what the old file held (ADR 0005), edits
+ * included. The dialog then says what went in, the way an upload's note
+ * does, with Read It With AI while a reading is left.
  *
  * The page mounts it only while open, so each opening starts at the
  * dropzone. It cannot close mid-upload: the result would have nowhere to show.

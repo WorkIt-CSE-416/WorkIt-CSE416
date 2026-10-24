@@ -24,7 +24,7 @@ class TailorReading(BaseModel):
 
 class TailorSource(BaseModel):
     """The resume the student picked to tailor: exactly one of a built
-    resume (its choices) or an uploaded resume (its entries in the bank,
+    resume (its choices) or an uploaded resume (the entries it owns,
     built in memory and never saved; `services/tailor.py`'s
     `upload_choices`). Run and Done both name it, so Done rebuilds what the
     run proposed against."""
@@ -69,7 +69,7 @@ class TailorChange(BaseModel):
 
 class TailorProposal(BaseModel):
     """A run's proposals; nothing is saved until Done, except what reading
-    an uploaded source merged into the bank. `built_resume_id` or
+    an uploaded source that owned nothing wrote into the bank. `built_resume_id` or
     `uploaded_resume_id` is the source the run was given, for Done to send
     back. `matched`/`missing` is the source resume's keyword match ("12 of 18"); `questions` are the
     missing keywords that are nowhere in the bank, to ask "Have you used
