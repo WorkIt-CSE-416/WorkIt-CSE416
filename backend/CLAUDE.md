@@ -215,6 +215,9 @@ Find files with a directory listing; these are the rules for where code goes.
   bank embedding on every entry, bullet or skill change; a route or script
   that writes `bank_*` rows itself leaves the recommender on a stale
   embedding. Schema rationale: `../docs/resume.md`, "The experience bank".
+  Clear All (KAN-352) is `delete_entries` / `delete_skills`: all or none,
+  a 404 when any id is not the applicant's, and the same cascades as one
+  delete (bullets, built resumes' choice rows), in one statement.
 - **The recommender and Scout read the bank, never an uploaded resume**
   (KAN-212). `GET /jobs/recommended` scores against the bank and its
   embedding (`app/services/matching/CLAUDE.md`); Scout's facts come from

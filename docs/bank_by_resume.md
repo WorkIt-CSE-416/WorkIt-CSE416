@@ -148,6 +148,9 @@ created_at, and `edited_at` for the resume table's date, KAN-361).
   Again writes that upload's own entries.
 - **Delete Entry** deletes that one row. Its confirm still counts the
   built resumes that show it.
+- **Clear All** (KAN-352) deletes every row a card shows, as Delete Entry
+  does each one. Under a built resume's pick those rows belong to uploads,
+  so the confirm names the uploads that lose them too.
 - **Scout's walk** (intake marking an entry) switched to All Experiences
   when the pick hid the entry. With that option gone, it switches to a
   resume that holds the entry, else to Not From an Upload.

@@ -1260,6 +1260,8 @@ are in `docs/auth.md`.
   several uploads before ADR 0005). It was removed too at first, which
   left 96 entries and 242 skills of 8 students that every reader used but
   no student could see, edit or delete, so it came back (2026-10-24).
+  Clear All (KAN-352) deletes what a card shows, from the whole bank, as
+  Delete Entry does (`docs/screens.md`, Resumes & Experiences).
 - **Applicant server actions call the API through `applicantCall`**
   (`lib/applicant-call.ts`, server-only): the session, the Bearer token,
   GET/DELETE/fetch, and a `Result<T>` (`data`, `error`, `status`) that never
