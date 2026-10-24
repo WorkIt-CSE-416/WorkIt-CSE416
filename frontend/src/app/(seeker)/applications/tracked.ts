@@ -107,7 +107,6 @@ function toApplication(
     stage,
     status: open ? undefined : "Posting Closed",
     open,
-    autoApply: job.auto_apply,
     location: placeOf(job),
     workModel: job.work_style ? formatWorkStyle(job.work_style) : null,
     track: job.job_type ? formatJobType(job.job_type) : null,

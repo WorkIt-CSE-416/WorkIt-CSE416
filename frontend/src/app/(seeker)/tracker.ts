@@ -74,9 +74,6 @@ export type Application = {
    *  file's kind ("pdf", or "docx" for an uploaded Word file). */
   sentResume?: { id: string; name: string; format: string } | null;
   stage: StageKey;
-  /** Its posting is on a hiring system auto apply can fill (Greenhouse for
-   *  now): the Saved view's Auto Apply Selected can pick it. */
-  autoApply?: boolean;
   /** Where it stands within its stage, in the employer's words: "Round 3". */
   status?: string;
   /** 0-100, the Jobs page's score, read in the bands in @/lib/match. Null

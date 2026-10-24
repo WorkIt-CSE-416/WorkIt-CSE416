@@ -12,23 +12,19 @@ import { queueJob } from "../auto-apply/actions";
 import { openedNote } from "../auto-apply/opened-note";
 
 /**
- * The Saved view's selection bar (./list.tsx): how many saved jobs are
- * picked, Clear, and **Auto Apply Selected**, floating at the foot of the
- * page while anything is picked, so it stays in reach however far the list
- * scrolls.
+ * Ready to Queue's selection bar (./ready-to-queue.tsx): how many saved jobs
+ * are picked, Clear, and **Auto Apply Selected**, floating at the foot of
+ * the page while anything is picked, so it stays in reach however far the
+ * list scrolls.
  *
  * Auto Apply Selected queues each pick through the same call as a job's own
  * Auto Apply button (queueJob), one at a time in the list's order, so the
  * queue keeps that order; a saved row becomes a queued one (the API moves
  * it, and to the queue's end). Then, as that button does, it asks the
  * extension to open the oldest queued job in its background tab
- * (openNextApplication). A toast says how many went in, with View Queue to
- * the Auto Apply page, and the page draws again: a queued job leaves the
- * Saved view, since the tracker lists saved and applied jobs only.
+ * (openNextApplication). A toast says how many went in, and the page draws
+ * again: the queued jobs move from Ready to Queue to Up Next.
  *
- * THE ONE PLACE A SEEKER QUEUES SEVERAL JOBS AT ONCE. Finding pages (the
- * Jobs page, the Dashboard) keep one click per job, and the Auto Apply page
- * runs the queue: picking belongs where the seeker reviews what they saved.
  * The seeker picks every job, so auto apply still never queues a saved job
  * on its own (frontend/CLAUDE.md).
  */
@@ -63,10 +59,6 @@ export function SelectionBar({ ids, onClear }: { ids: string[]; onClear: () => v
             : `${queued} ${queued === 1 ? "job is" : "jobs are"} queued for Auto Apply.${
                 failed > 0 ? ` ${failed} couldn't be queued.` : ""
               }`,
-        action:
-          queued > 0
-            ? { label: "View Queue", onClick: () => router.push("/auto-apply") }
-            : undefined,
       });
     });
   }

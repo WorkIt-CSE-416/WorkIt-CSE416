@@ -6,13 +6,12 @@ import { useRouter } from "next/navigation";
 import { useRef, useState, useTransition, type ReactNode } from "react";
 
 import { Button } from "@/components/ui/button";
-import { SectionHeading } from "@/components/ui/section-heading";
 import { openNextApplication } from "@/lib/autofill-extension";
+import { TextLink } from "@/components/ui/text-link";
 import { cn } from "@/lib/cn";
 
 import { startBatch } from "./actions";
 import { openedNote } from "./opened-note";
-import { ResumeList, useResumes } from "./resume-list";
 
 /** Whether auto apply is on: never started, running, or paused after a run. */
 export type RunState = "idle" | "running" | "paused";
@@ -30,9 +29,16 @@ const RUN_BUTTON: Record<
 };
 
 /**
- * The Auto Apply page under its heading, and the one piece of state its parts
- * share. `children` is Live Activity, drawn on the server (./page.tsx) and
- * passed through, since this half is a client component.
+ * The Auto Apply page's heading, its run button and the resume note under
+ * it. `children` is the page's three sections, Up Next, Ready to Queue and
+ * History, drawn on the server (./page.tsx) and passed through, since this
+ * half is a client component.
+ *
+ * THE RESUME NOTE replaced the Resume List table (KAN-359), which opened the
+ * page with every resume the seeker has: the page is about which jobs go
+ * out, so jobs lead it, and each queued job shows its own resume in Up
+ * Next. The note names the default resume and links to Resumes &
+ * Experiences, where resumes are chosen and starred.
  *
  * THE RUN BUTTON SITS IN THE PAGE'S HEADER (KAN-285), at the top right. It
  * is sm (36px), a header action's size (docs/design.md), and as wide as its
@@ -43,8 +49,7 @@ const RUN_BUTTON: Record<
  * other primary buttons, and a Not Started / Live / Paused word beside it
  * only repeated the label, so both went (asked for 2026-10-20). On a
  * phone it drops under the title at full width. It is off until there is a
- * resume (the Resume List's, read here by useResumes), and while a batch is
- * queueing. The note on what happened sits under the header.
+ * resume (`hasResume`, read on the server), and while a batch is queueing. The note on what happened sits under the header.
  *
  * START QUEUES A BATCH, THEN OPENS THE FIRST APPLICATION. From idle, the
  * button asks the API for the seeker's best matches (./actions, startBatch:
@@ -59,9 +64,18 @@ const RUN_BUTTON: Record<
  * (`auto-apply/architecture.md`, "The run"). The state is the page's own,
  * so a return visit starts idle, and Start queues another batch.
  */
-export function AutoApplyPanel({ children }: { children: ReactNode }) {
+export function AutoApplyPanel({
+  hasResume,
+  defaultResume,
+  children,
+}: {
+  /** The seeker has at least one resume: Start is off without one. */
+  hasResume: boolean;
+  /** The default resume's name, or null when none is starred. */
+  defaultResume: string | null;
+  children: ReactNode;
+}) {
   const router = useRouter();
-  const resumes = useResumes();
   const [run, setRun] = useState<RunState>("idle");
   const [note, setNote] = useState<{ text: string; error: boolean } | null>(null);
   const [pending, start] = useTransition();
@@ -109,7 +123,6 @@ export function AutoApplyPanel({ children }: { children: ReactNode }) {
   }
 
   const button = RUN_BUTTON[run];
-  const resumeCount = resumes.built.length + resumes.uploaded.length;
 
   return (
     <>
@@ -124,7 +137,7 @@ export function AutoApplyPanel({ children }: { children: ReactNode }) {
         <Button
           variant={button.variant}
           size="sm"
-          disabled={resumeCount === 0 || pending}
+          disabled={!hasResume || pending}
           onClick={toggle}
           className="w-full shrink-0 @2xl/main:w-44"
         >
@@ -145,12 +158,21 @@ export function AutoApplyPanel({ children }: { children: ReactNode }) {
         </p>
       )}
 
-      <ResumeList resumes={resumes} />
+      <p className="text-body text-ink-meta mt-3">
+        {defaultResume ? (
+          <>
+            Each job goes out with the resume tailored to it, else your default,{" "}
+            <span className="text-ink font-medium">{defaultResume}</span>.{" "}
+          </>
+        ) : hasResume ? (
+          "Each job goes out with the resume tailored to it. Star a default resume for the rest. "
+        ) : (
+          "Add a resume to start auto applying. "
+        )}
+        <TextLink href="/resumes">Manage Resumes</TextLink>
+      </p>
 
-      <section aria-labelledby="live-activity" className="mt-10">
-        <SectionHeading id="live-activity">Live Activity</SectionHeading>
-        {children}
-      </section>
+      {children}
     </>
   );
 }

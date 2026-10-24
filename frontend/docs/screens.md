@@ -705,24 +705,6 @@ no width cap and takes back the room a collapsed sidebar frees
 (`docs/design.md`, The two shells), so the table shows as many columns as
 the window allows before the scroll.
 
-**The Saved view queues several jobs at once** (`applications/list.tsx`,
-`selection-bar.tsx`). With the Status filter on Saved alone, a checkbox
-column leads the list, frozen in front of Role (Role's sticky place moves
-right by its 44px), with Select All in its heading. A click anywhere in the
-cell picks the row; the keyboard uses the box. A job auto apply can't fill
-(its hiring system isn't Greenhouse, for now: `autoApply`, the posting's
-`auto_apply` flag passed through `tracked.ts`) can't be picked, and its box
-says why on hover and to a screen reader. While anything is picked, a bar
-floats at the page's foot: "{n} Selected", Clear, and Auto Apply Selected,
-which queues each pick through `queueJob` in the list's order, asks the
-extension to open the oldest queued job (`openNextApplication`), and toasts
-how many went in with View Queue. The page draws again, and the queued jobs
-leave the view, since the tracker lists saved and applied jobs only. This
-is the one place a seeker queues several jobs: finding pages (the Jobs
-page, the Dashboard) keep one click per job, and the Auto Apply page runs
-the queue; picking belongs where the seeker reviews what they saved. There
-is no "auto apply all saved jobs": the seeker picks each one.
-
 **The list can be arranged like a Notion table** (KAN-282). It is a
 TanStack Table v9 (`applications/list.tsx`; `company/table.tsx` says why v8
 examples do not apply), a client component over the rows the server
@@ -901,6 +883,7 @@ into is `auto-apply/architecture.md` at the repo root. KAN-285 redrew it:
 the run button moved into the header, and both lists became tables in the
 Applications list's frame (one white card, 12px grey headings, rules between
 rows), Live Activity with a Status filter and sorting kept in the URL.
+KAN-359 put jobs first: Up Next, Ready to Queue and History, below.
 
 **The run button is in the page's header, at the top right** (`auto-apply/
 auto-apply-panel.tsx`). It is sm (36px), a header action's size, and as
@@ -927,42 +910,48 @@ on that job stays as it is, so Start never wipes a form in progress. A tab
 the extension opens, it also fills, with the student taken to it
 (KAN-305). Pause and Resume only move
 the state. It is off until
-the Resume List has a resume (the panel holds both lists' read,
-`useResumes`, for that), and while a batch is queueing. It never waits on
+the seeker has a resume (`hasResume`, read on the server with both resume
+lists), and while a batch is queueing. It never waits on
 the tab's page load: the note says how many jobs it queued at once and adds
 the tab's result when it lands. The state (`idle`, `running`, `paused`) is
 the page's own; a return visit starts idle, so Start queues another batch.
 
-**"Resume List" is live** (`auto-apply/resume-list.tsx`). It lists every
-resume the seeker has, not one: auto apply picks a resume per application
-(the one tailored to that job posting, else the default resume, `POST
-.../applications/{job_id}/resume`; `auto-apply/architecture.md`, "The
-resume"), and a note under the heading says so. The default is one resume,
-built or uploaded (starring one clears the other), so one row at most says
-Default. It is a table: Resume (the file glyph, the name and Default
-beside it; frozen from 672px of page up), Type (Built, Tailored or
-Uploaded, as tags), Used For (a tailored resume's job, "Role at Company",
-and "Job posting closed" under it once its posting has gone; "Any job" for
-the rest) and Updated (a built resume's last edit, an upload's day), every
-column but Resume centred. It has
-no filters or sorting: a seeker has a handful of resumes. Built resumes
-(`listBuiltResumes()`) come first, then uploaded ones (`listResumes()`),
-each list's default first. **A row opens on a click anywhere**, with no
-button of its own: a built resume's goes to the resume editor, as on
-Resumes (`components/clickable-row.tsx`, its name the link); it never
-downloads here: downloads live in the editor. An uploaded
-one's previews a PDF in a new tab or downloads a DOCX (`previewResume`,
-called from the click, since the tab must open inside it; its name is the
-button a keyboard reaches). Open and Preview buttons and an amber "None is
-your default yet" line were dropped on the user's ask (2026-10-20). Manage goes to
-Resumes (`/resumes`), where uploads live too, and the empty state names
-it. Both lists load on every visit; a list that fails keeps what loaded
-and says the rest didn't.
-It replaced "Applying with Resume", which showed the primary uploaded resume
-alone because matching read it then; matching reads the experience bank now
-(KAN-212).
+**Jobs lead the page** (KAN-359): under the heading, a one-line resume note,
+then **Up Next**, **Ready to Queue** and **History**. It opened with a
+"Resume List" table of every resume until KAN-359; the page is about which
+jobs go out, so the table went, and resumes are chosen and starred on
+Resumes & Experiences, which the note's Manage Resumes link opens.
 
-**Live Activity is live: the seeker's applications from the API**
+- **The resume note** (`auto-apply-panel.tsx`): "Each job goes out with
+  the resume tailored to it, else your default, {name}", or asks for a
+  default or a first resume.
+- **Up Next** (`auto-apply/up-next.tsx`): the queue, oldest first, the
+  order the extension takes it, in Live Activity's table with its "queue"
+  columns (`QUEUE_COLUMNS`): Role, Status, **Resume** (the one the job
+  will go out with), Match, Date Added and the cross. No sorting, since the
+  order is the run's. The resume is worked out on the server
+  (`resumeFor` in `auto-apply/page.tsx`) by the run's own rule,
+  `pick_resume`: the built resume tailored to that job posting, else the
+  default, else none. It is for display: the run picks again when it fills
+  the form. Keep the two in step.
+- **Ready to Queue** (`auto-apply/ready-to-queue.tsx`): the seeker's saved
+  jobs, scored. **The one place a seeker queues several jobs at once**:
+  the Jobs page and the Dashboard keep one click per job, and the
+  Applications Tracker is the record. A row's checkbox, or a click on the
+  row but its title, picks it; Select All picks every job auto apply can
+  fill. A job it can't fill (not Greenhouse, for now) can't be picked and
+  says why, and the header line says so when none can. While anything is
+  picked, a bar floats at the page's foot (`selection-bar.tsx`): "{n}
+  Selected", Clear, and Auto Apply Selected, which queues each pick
+  through `queueJob` in the list's order, asks the extension to open the
+  oldest queued job, toasts how many went in, and redraws the page, so the
+  picks move to Up Next. There is no "auto apply all saved jobs": the
+  seeker picks each one. It sat in the Tracker's Saved view first and moved
+  here, where the seeker's intent is "apply for me".
+- **History**: Live Activity's table for everything past the queue (needs
+  you, applied, skipped), with the Status filter offering only those.
+
+**Up Next and History are live: the seeker's applications from the API**
 (`auto-apply/applications.ts`, `GET /applicants/{id}/applications`, with
 `scored=true` for the Match column, as the Applications page reads it). By
 default in queue order: the oldest queued first, the job the extension

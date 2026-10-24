@@ -95,7 +95,7 @@ everything up to that click and nothing after it ("Decisions", below).
 | Privacy boundary | Identity fields (name, contact details, links) never reach a model: the seam removes them | `backend/app/services/identity.py`, `scout/` |
 | Form filling | Chrome extension, started from its popup. Fills text fields, dropdowns and repeated sections. Never submits | `autofiller_extension/` |
 | Webapp ↔ extension link | `externally_connectable`, one-shot messages: `run/open` (open the next queued application), `run/status` and `run/show` (Working in Browser) | `frontend/src/lib/autofill-extension.ts`, `autofiller_extension/src/background/runner.js` |
-| Auto Apply page | "Resume List" (every resume the student has, with the pick rule under it), Start Auto Apply, and Live Activity from the API | `frontend/src/app/(seeker)/auto-apply/`, `frontend/docs/screens.md` |
+| Auto Apply page | Start Auto Apply, a note naming the default resume, then Up Next (the queue, each job with the resume it will get), Ready to Queue (saved jobs to pick for the queue) and History, from the API | `frontend/src/app/(seeker)/auto-apply/`, `frontend/docs/screens.md` |
 | Applications screen | Saved and Applied columns live from `GET .../applications?stage=saved&stage=applied&scored=true` (KAN-261), each card with the Jobs page's score (KAN-256); Interviewing and Offer empty until the API stores those stages | `frontend/src/app/(seeker)/applications/` |
 
 **Built since:** the queue (`job_applications.stage`), its routes, and the
@@ -657,7 +657,7 @@ made one with Tailor.
 This is Apply's order (11.1), so a job posting gets the same resume from
 the Apply button and from auto apply. Apply then falls back to the first
 resume in its list; the run does not guess, so a student with resumes but no
-default gets none, and the Resume List says to star one. The run never
+default gets none, and the Auto Apply page's resume note says to star one. The run never
 generates a base resume: that is slow, and the student never asked for
 it.
 
@@ -927,7 +927,7 @@ gap.
 | Who clicks Submit | **The student**, on every application. Each costs one review and one click; no wrong application goes out unseen | The extension: reverses the rule in `autofiller_extension/CLAUDE.md`; CAPTCHAs and bot detection make it fail often; hiring systems' terms prohibit it; a wrong answer reaches an employer under the student's name and cannot be undone |
 | How the queue fills | **WorkIt queues a batch of matches** at Start | The student picks each one: slower. Fully automatic: ruled out by the row above |
 | Where tailoring runs | **Never in the run.** The student tailors with Tailor, one job posting at a time | In the run, per application: 2 Tailor runs a day, and nobody reviews the changes. A scheduled batch: tailors matches nobody looks at |
-| What the Auto Apply page shows | **Resume List**: every resume the student has, with the pick rule under it | One primary resume: no application is sure to get it, and matching does not read it |
+| What the Auto Apply page shows | **Jobs first** (KAN-359): Up Next, each queued job with the resume the rule gives it, then Ready to Queue and History | A Resume List of every resume (until KAN-359): the page is about which jobs go out, and each job's own resume says more than the list did. One primary resume: no application is sure to get it |
 | Which resume the run attaches | **Tailored, else the default resume** (Apply's order), kept as a sent resume | A new `job_applications.resume_id`: a second record of what the sent resume already says |
 | Which job postings auto apply takes | **Only hiring systems the extension fills** (Greenhouse for now, "The batch") | Every one, failing the rest to `needs_you`: the queue filled with jobs the run could only fail |
 | Where the run happens | **The student's Chrome** ("Where the run happens") | Our servers |
