@@ -440,18 +440,29 @@ floor. A new seeker's thin experience bank can score every job a Weak
 Match, and their best weak ones are still where to start; the Strong Matches
 number above counts only 80 and up. Each is a flat row in one tile: a well
 with the logo, the title (its link to the job posting page), the company,
-the match ring, when it was posted, then the feed card's steps toward
-applying: Save, Tailor My Resume and Apply Now (the same dialog as
-everywhere, KAN-290). Below `@xl/main` those take their own line and Tailor
-reads "Tailor", since the full words broke onto two lines each. The title's
-link (`top-match-link.tsx`) makes the job page's Back return to the
-Dashboard. See More Matches, a secondary button at the heading's
+the match ring, when it was posted, then Save and Apply Now (the same
+dialog as everywhere, KAN-290). Tailor My Resume sat between them and was
+taken out at the user's ask: the list is for choosing what to apply to. The
+title's link (`top-match-link.tsx`) makes the job page's Back return to the
+Dashboard. **Auto Apply**, at the heading's right beside See More Matches,
+turns the list into a picker (`top-matches-list.tsx`) of the seeker's best
+matches that auto apply can fill (the same scores with `?auto_apply=true`,
+read beside the top list): the top list may hold none, since auto apply
+fills Greenhouse alone for now. Each row gets a checkbox in front, the whole
+row toggles it, and its buttons step aside; a row that already has a stage
+(queued, applied) is dimmed with it. "Add N to Queue" queues each pick
+through `queueJob`, the job's own Auto Apply button's call, then asks the
+extension to open the oldest queued job (`openNextApplication`), and a toast
+says how many went in, with View Queue. The seeker picks every job, so auto
+apply still never queues a saved job on its own. The button is off when no
+match can be auto applied to. The checkbox takes `border-ink-meta`, as
+CheckRowBox does: the vendored hairline drew the empty box at 1.19:1. See More Matches, a secondary button at the heading's
 right, opens Best Match. From `@4xl/main` the list scrolls inside the tile at
 `h-80`, about four and a half rows, with a quiet bar along the tile's edge
 and a fade at its foot; below it the list shows five rows and does not
 scroll (a box that scrolls inside a scrolling page traps the swipe), and
-below `@xl/main` the buttons take their own full-width line, since beside
-the text they squeezed the title to two words a line. The Jobs page's own cards
+below `@xl/main` Save and Apply Now take their own full-width line, since
+beside the text they squeezed the title to two words a line. The Jobs page's own cards
 were tried here first and were too tall for a glance: three filled the
 screen. With an empty bank it asks for the bank. It streams in its own
 `<Suspense>` with a skeleton in the same frame, so the numbers never wait on

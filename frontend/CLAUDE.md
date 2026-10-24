@@ -1000,7 +1000,8 @@ the KAN-296 cutover.
   (KAN-342); its Strong Matches reads the Best Match scores
   (`getMatchDates`), and Top Matches under them lists the twelve
   best-scoring jobs as flat rows that scroll inside a tile, with no score
-  floor (`getTopMatches`). A job's application
+  floor (`getTopMatches`); its Auto Apply button picks jobs for the queue
+  from the best matches auto apply can fill, each one chosen by the seeker. A job's application
   stage (`saved`, `queued`...) reaches its Save and Auto Apply buttons from
   one read per page. Auto Apply never picks a saved job for a batch; only
   the job's own Auto Apply click queues it.

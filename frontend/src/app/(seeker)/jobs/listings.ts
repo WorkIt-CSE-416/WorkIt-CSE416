@@ -177,10 +177,16 @@ export async function getRecommendedPage(query: string, offset: number): Promise
  * "empty" when there is nothing to score against (the API's 404 for an empty
  * bank, or 403 for a company account); null when the API can't say.
  */
-export async function getTopMatches(count: number): Promise<JobListing[] | "empty" | null> {
+export async function getTopMatches(
+  count: number,
+  { autoApplyOnly = false }: { autoApplyOnly?: boolean } = {},
+): Promise<JobListing[] | "empty" | null> {
   try {
     const { id, token } = await getApplicantSession();
-    const res = await apiGet(`/jobs/recommended/${id}?limit=${count}`, token);
+    const params = new URLSearchParams({ limit: String(count) });
+    // Only the job postings auto apply can fill: Top Matches' picking mode.
+    if (autoApplyOnly) params.set("auto_apply", "true");
+    const res = await apiGet(`/jobs/recommended/${id}?${params}`, token);
     if (res.status === 404 || res.status === 403) return "empty";
     if (!res.ok) return null;
     return (await res.json()) as JobListing[];
