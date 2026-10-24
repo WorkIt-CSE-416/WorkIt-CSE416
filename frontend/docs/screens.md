@@ -2078,17 +2078,51 @@ be given.
 
 ## Settings (`/settings`)
 
-KAN-326. Opened from the account menu (the bar's photo). Four sections, each
-its own route under one layout (`(seeker)/settings/layout.tsx`), so a link
-opens one and each page loads only its own data; bare `/settings` opens
-Personal Details. The section nav (`settings-nav.tsx`) is a column beside
-the section from `@3xl/main` and a row that scrolls sideways above it below
-that, scrolling the current section into view: a segmented control's equal
-widths do not fit "Sign-In & Security" and three other labels at 375px.
-Each section is cards in a column of at most `max-w-2xl`. **A setting most
-visits leave alone is a row with a button, and its form opens in a dialog**
-(the user's call, 2026-10-23): three empty password fields on the page read
-as something to fill in.
+KAN-326. **Settings is always a modal** (KAN-364): four sections, each
+with its own address, `/settings/<section>`; bare `/settings` opens
+Personal Details. **From the account menu (the bar's photo) it opens over
+the current page** (`(seeker)/@modal/(.)settings`, an intercepting route),
+and closing goes back to that page. **A hard load or a reload of a
+Settings address opens it over the Dashboard** (`(seeker)/settings/layout.tsx`
+draws the Dashboard page under it), and closing goes to the Dashboard. A
+full Settings page came first; the user asked for the modal on every way
+in. Escape, the close button and a click outside all close.
+
+**Every section is drawn when the modal opens and stays mounted**
+(`settings/sections.tsx`), hidden when not shown, so switching is instant
+and an unsaved edit in one section survives a visit to another. The nav
+(`settings-nav.tsx`) switches in place and moves the address with
+`history.replaceState`, which Next's router follows (`usePathname`): no
+navigation, and one history entry for the whole modal, so one Back leaves
+it. Each item is still a real link, so a modified click opens the section
+in a new tab. Each section's `page.tsx` draws nothing; it is the address
+and the tab title only. A section's content is its `section.tsx`, and a
+section that needs the query reads it in the browser, since a layout gets
+none (`security/notice.tsx`). The title and the nav stay fixed and only the
+section scrolls. The nav is a column beside the section from sm and a row
+that scrolls sideways above it on a phone, scrolling the current section
+into view: a segmented control's equal widths do not fit "Sign-In &
+Security" and three other labels at 375px. The section area is its own
+`@container/main`, so the sections' container queries (the name fields'
+three columns) read the modal's width. Each section is cards in a column.
+
+**Unsaved edits are guarded** (`settings/unsaved-changes.tsx`): a form with
+unsaved changes (Personal Details' names and headline, Job Preferences)
+reports them, and closing the modal asks "Discard Your Changes?" (Keep
+Editing, Discard Changes); closing the tab or reloading gets the browser's
+own warning. Switching sections needs no question, since nothing unmounts.
+A history Back is not caught: the browser gives a page no way to hold it.
+The question is a dialog nested in the modal, which Base UI does not dim.
+**Save and Discard sit in a bar pinned to the foot of what scrolls**, so
+Job Preferences' Save is in view however far down the student is; at the
+end of seven fields it sat below the fold. The modal's scroller carries no
+padding of its own for the same reason: a sticky bar stops at the
+scroller's padding edge, and with 24px there the fields showed through
+under it.
+
+**A setting most visits leave alone is a row with a button, and its form
+opens in a dialog** (the user's call, 2026-10-23): three empty password
+fields on the page read as something to fill in.
 
 - **Personal Details** (`/settings/personal`): the photo (Change Photo,
   Remove Photo; it saves on pick, shows the file at once and rolls back if
@@ -2097,13 +2131,9 @@ as something to fill in.
   what changed; the API joins the parts into the full name every other
   screen prints (`backend/app/models/CLAUDE.md`, Names). These are edited
   here only; My Profile shows them and links here. Saving
-  refreshes the route so the bar's name and photo follow. **Delete Account**
-  sits at the foot in a red-edged card of its own: a red button opens a
-  dialog that stays locked until the student types their sign-in email (one
-  click on a red button is too easy to make by mistake); on success the
-  action signs out and opens the landing page, on failure the dialog stays
-  open with the error.
-- **Sign-In & Security** (`/settings/security`), three cards of rows:
+  refreshes the route so the bar's name and photo follow.
+- **Sign-In & Security** (`/settings/security`), three cards of rows, then
+  Delete Account:
   Sign-In (Email with Change, Password with Change Password or, for a
   Google- or LinkedIn-only account, Set Password; each opens a dialog),
   Sign-In Methods (Google and LinkedIn, each Connected with Disconnect, or
@@ -2115,6 +2145,12 @@ as something to fill in.
   come back through the auth callback with a notice at the top
   (`?notice=email`, `email-pending`, `linked`). The rules and the
   dashboard setting Connect needs are in `../../docs/auth.md`, Settings.
+  **Delete Account** sits at the foot in a red-edged card of its own, where
+  students look for it (it sat under Personal Details until KAN-364): a
+  red button opens a dialog that stays locked until the student types
+  their sign-in email (one click on a red button is too easy to make by
+  mistake); on success the action signs out and opens the landing page, on
+  failure the dialog stays open with the error.
 - **Notifications** (`/settings/notifications`): the design only. A row
   per alert the bell promises (New Matches, Employer Replies), each with a
   switch, disabled and marked Coming Soon: nothing stores or sends

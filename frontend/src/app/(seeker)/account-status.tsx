@@ -44,7 +44,11 @@ import { getCurrentAccount, getSessionUser } from "@/lib/session";
  *  group. Elements, not components, since they cross into the client menu
  *  (see `icon` in @/components/account-menu). */
 const MENU_ITEMS: AccountMenuItem[] = [
-  { href: "/settings", label: "Settings", icon: <GearIcon aria-hidden className="size-4" /> },
+  {
+    href: "/settings/personal",
+    label: "Settings",
+    icon: <GearIcon aria-hidden className="size-4" />,
+  },
   { href: "/help", label: "Help", icon: <QuestionIcon aria-hidden className="size-4" /> },
 ];
 

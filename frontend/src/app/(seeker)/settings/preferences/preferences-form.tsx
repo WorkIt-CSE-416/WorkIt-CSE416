@@ -9,11 +9,14 @@ import type { PickOption } from "@/components/filter-controls";
 import { Button } from "@/components/ui/button";
 import { useToast } from "@/components/ui/toast";
 
+import { useUnsavedChanges } from "../unsaved-changes";
+
 /**
  * The saved job preferences, edited in place with onboarding's own Role step
  * (`dense`), and saved the way onboarding saves them (PUT, a picked state
  * narrowing its country). Save is on only when something changed and the
  * three answers onboarding requires (role, job type, workplace) are given.
+ * Unsaved edits hold a leave guard (../unsaved-changes).
  * The visa filter, which the Jobs page sets and onboarding no longer asks,
  * rides along unchanged.
  */
@@ -37,6 +40,7 @@ export function PreferencesForm({
   const changed = JSON.stringify(answers) !== JSON.stringify(saved);
   const complete =
     answers.roles.length > 0 && answers.jobTypes.length > 0 && answers.workStyles.length > 0;
+  useUnsavedChanges(changed);
 
   async function save() {
     setError(null);
@@ -69,7 +73,10 @@ export function PreferencesForm({
         seasons={seasons}
       />
 
-      <div className="border-border-subtle flex flex-col gap-3 border-t pt-5">
+      {/* Pinned to the foot of what scrolls (the modal's section, or the
+          page), so Save is in view however far down the student is: at the
+          end of seven fields it sat below the fold (KAN-364). */}
+      <div className="bg-panel border-border-subtle sticky bottom-0 z-10 flex flex-col gap-3 border-t py-4">
         {error && (
           <p role="alert" className="text-meta text-danger">
             {error}

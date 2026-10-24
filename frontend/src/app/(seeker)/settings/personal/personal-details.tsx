@@ -13,6 +13,8 @@ import { AVATAR_MIME_TYPES, avatarFileError } from "@/lib/avatar-rules";
 import { cn } from "@/lib/cn";
 import { updateProfile, type ApplicantProfile } from "@/lib/profile-actions";
 
+import { useUnsavedChanges } from "../unsaved-changes";
+
 /** applicant_profiles' column widths, which the API also checks. The parts
  *  joined must fit full_name's 50 too; the API says so if they don't. */
 const NAME_MAX = 50;
@@ -66,6 +68,7 @@ export function PersonalDetails({
   const changedNames = NAME_FIELDS.filter(({ key }) => names[key].trim() !== savedNames[key]);
   const headlineChanged = (headline.trim() || null) !== (saved.headline || null);
   const changed = changedNames.length > 0 || headlineChanged;
+  useUnsavedChanges(changed);
 
   async function pickPhoto(event: ChangeEvent<HTMLInputElement>) {
     const file = event.target.files?.[0];
@@ -223,29 +226,31 @@ export function PersonalDetails({
           </p>
         </div>
 
-        {error && (
-          <p role="alert" className="text-meta text-danger">
-            {error}
-          </p>
-        )}
-
-        <div className="flex gap-3">
-          <Button type="submit" disabled={!changed || saving}>
-            {saving ? "Saving…" : "Save"}
-          </Button>
-          {changed && !saving && (
-            <Button
-              type="button"
-              variant="secondary"
-              onClick={() => {
-                setNames(namesOf(saved));
-                setHeadline(saved.headline ?? "");
-                setError(null);
-              }}
-            >
-              Discard
-            </Button>
+        {/* Pinned to the foot of what scrolls, as Job Preferences' is. */}
+        <div className="bg-panel border-border-subtle sticky bottom-0 z-10 flex flex-col gap-3 border-t py-4">
+          {error && (
+            <p role="alert" className="text-meta text-danger">
+              {error}
+            </p>
           )}
+          <div className="flex gap-3">
+            <Button type="submit" disabled={!changed || saving}>
+              {saving ? "Saving…" : "Save"}
+            </Button>
+            {changed && !saving && (
+              <Button
+                type="button"
+                variant="secondary"
+                onClick={() => {
+                  setNames(namesOf(saved));
+                  setHeadline(saved.headline ?? "");
+                  setError(null);
+                }}
+              >
+                Discard
+              </Button>
+            )}
+          </div>
         </div>
       </form>
     </div>
