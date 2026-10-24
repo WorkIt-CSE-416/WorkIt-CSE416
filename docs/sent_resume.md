@@ -129,7 +129,7 @@ What the text hash calls a duplicate:
 |---|---|
 | The same file picked again | Yes |
 | The same resume exported again, at any time | Yes |
-| The same words in a new layout or font | Yes. Import Updated Resume replaces the old one instead |
+| The same words in a new layout or font | Yes. Delete the old one and upload the new (or the picker's replace at the limit) |
 | Any change to the words, even one letter | No |
 | The same resume as PDF once and DOCX once | Usually not: the two formats go through different extractors, which can give different text |
 

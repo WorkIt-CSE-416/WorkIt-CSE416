@@ -1,0 +1,283 @@
+"use client";
+
+import Link from "next/link";
+import { useRef, useState, type ChangeEvent } from "react";
+
+import { PdfIcon, SparkleIcon, UploadIcon } from "@/components/icons";
+import { RESUME_ROW, ResumeRow } from "@/components/resume-row";
+import { RESUME_ACCEPT, resumeFileError } from "@/components/resume-upload";
+import { Button } from "@/components/ui/button";
+import { importResume, type ImportResponse } from "@/lib/bank-actions";
+import { importSummary } from "@/lib/import-summary";
+import { previewResume } from "@/lib/preview-resume";
+import { MAX_UPLOADS } from "@/lib/resume-limits";
+import { openDownload } from "@/lib/save-file";
+import {
+  deleteResume,
+  getResumeFileUrl,
+  renameResume,
+  setPrimaryResume,
+  uploadResume,
+  type ResumeItem,
+} from "@/lib/resume-actions";
+
+import { RenameForm } from "./built-resume-row";
+import { DeleteConfirm } from "./delete-confirm";
+
+// The API's limit, on uploads alone (lib/resume-limits.ts), so the count
+// here matches the API's 409.
+const MAX_RESUMES = MAX_UPLOADS;
+
+/**
+ * Upload Resume on the Resumes page (KAN-362): its button and file picker
+ * for the filter row (./built-resumes.tsx), the file in flight for
+ * the list's first card, and what the upload says back for the line under
+ * the filter row. Only uploads count toward the limit of 5 (KAN-268); an
+ * upload past it says so. It was the Your Uploaded Resumes card until
+ * KAN-362 ("Your Resumes" until KAN-268, My Profile's Resume card until
+ * 2026-10-18), with a dropzone in a track beside its list and an "n of 5"
+ * badge; drag and drop onto the page went with the dropzone.
+ *
+ * The picked file uploads at once, with the dropzone's checks
+ * (`resumeFileError`); the API reads it into the experience bank (ADR
+ * 0003), and the note says what went in, with Read It With AI while the
+ * student has an AI reading left. The model never reads a resume unasked.
+ * A file whose text the student already uploaded keeps nothing and opens
+ * the duplicate pop-up (`onDuplicate`, ./duplicate-resume-dialog.tsx,
+ * KAN-267), the one Generate opens. A newer version of a file is a delete
+ * and an upload: a row's Import Updated Resume did that in one step until
+ * KAN-362; the bank ends the same either way (ADR 0005: a delete takes the
+ * upload's entries with it, a replace swapped them).
+ *
+ * Every change calls `reload`, which reads both lists again: one star
+ * spans every resume, and the API makes a student's only resume the
+ * primary, so a local guess at the stars would drift from the API's.
+ */
+export function useResumeUpload({
+  uploaded,
+  reload,
+  onDuplicate,
+}: {
+  uploaded: ResumeItem[];
+  reload: () => Promise<void>;
+  onDuplicate: (message: string | null) => void;
+}) {
+  // The name of the file in flight, or null.
+  const [uploading, setUploading] = useState<string | null>(null);
+  const [uploadError, setUploadError] = useState<string | null>(null);
+  // What the last upload wrote into the experience bank.
+  const [imported, setImported] = useState<ImportResponse | null>(null);
+  const [importingId, setImportingId] = useState<string | null>(null);
+  const inputRef = useRef<HTMLInputElement>(null);
+
+  async function handleFile(file: File) {
+    if (uploading !== null) return;
+    if (uploaded.length >= MAX_RESUMES) {
+      setUploadError(`You can upload up to ${MAX_RESUMES} resumes. Delete one to upload another.`);
+      return;
+    }
+    setUploadError(null);
+    setImported(null);
+    setUploading(file.name);
+    const fd = new FormData();
+    fd.append("file", file);
+    try {
+      const { resume, error, duplicateOf } = await uploadResume(fd);
+      if (duplicateOf) return onDuplicate(error);
+      if (error) return setUploadError(error);
+      if (resume?.bank) {
+        setImported({ ...resume.bank, resume_id: resume.id, filename: resume.original_filename });
+      }
+      await reload();
+    } catch {
+      setUploadError("Could not upload the resume. Refresh the page and try again.");
+    } finally {
+      setUploading(null);
+    }
+  }
+
+  // Read It With AI on the last upload: only ever on a click.
+  async function handleReadWithAi(resumeId: string) {
+    if (importingId) return;
+    setUploadError(null);
+    setImportingId(resumeId);
+    try {
+      const { data, error } = await importResume({ resumeId, readWithAi: true });
+      if (data) setImported(data);
+      else setUploadError(error);
+    } catch {
+      setUploadError("Could not import the resume. Refresh the page and try again.");
+    } finally {
+      setImportingId(null);
+    }
+  }
+
+  function handleSelect(event: ChangeEvent<HTMLInputElement>) {
+    const file = event.target.files?.[0];
+    event.target.value = "";
+    if (!file) return;
+    const error = resumeFileError(file);
+    if (error) return setUploadError(error);
+    void handleFile(file);
+  }
+
+  // The note names a file; once that upload is deleted it goes.
+  const shownImport =
+    imported && uploaded.some((resume) => resume.id === imported.resume_id) ? imported : null;
+
+  const button = (
+    <>
+      <Button
+        variant="secondary"
+        size="sm"
+        disabled={uploading !== null}
+        onClick={() => inputRef.current?.click()}
+      >
+        <UploadIcon className="size-4" /> {uploading ? "Uploading…" : "Upload Resume"}
+      </Button>
+      <input ref={inputRef} type="file" accept={RESUME_ACCEPT} onChange={handleSelect} hidden />
+    </>
+  );
+
+  const notes = (uploadError || shownImport) && (
+    <>
+      {uploadError && (
+        <p role="alert" className="text-note text-danger">
+          {uploadError}
+        </p>
+      )}
+      {shownImport && (
+        <div className="flex flex-wrap items-center gap-x-3 gap-y-2">
+          <p className="text-note text-ink-muted min-w-0 flex-1" aria-live="polite">
+            {importSummary(shownImport, shownImport.filename)}{" "}
+            <Link href="/bank" className="text-brand hover:text-brand-hover underline">
+              Open Experiences
+            </Link>
+          </p>
+          {shownImport.uses_left > 0 && (
+            <Button
+              variant="secondary"
+              size="sm"
+              disabled={importingId !== null}
+              onClick={() => handleReadWithAi(shownImport.resume_id)}
+            >
+              <SparkleIcon /> {importingId ? "Reading…" : "Read It With AI"}
+            </Button>
+          )}
+        </div>
+      )}
+    </>
+  );
+
+  // The file in flight, as the list's first card.
+  const pending = uploading !== null && (
+    <li className={RESUME_ROW}>
+      <PdfIcon className="size-5 shrink-0" />
+      <div className="min-w-0 flex-1">
+        <p className="text-label text-ink truncate">{uploading}</p>
+        <p className="text-note text-ink-meta">Uploading…</p>
+      </div>
+    </li>
+  );
+
+  return { button, notes, pending, uploading: uploading !== null };
+}
+
+/** One uploaded resume: the shared row, or Rename's form in its place,
+ *  its errors, and Delete's confirm under it, as a generated resume's row
+ *  has (./built-resume-row.tsx). */
+export function UploadedRow({
+  resume,
+  reload,
+}: {
+  resume: ResumeItem;
+  reload: () => Promise<void>;
+}) {
+  const [renaming, setRenaming] = useState(false);
+  const [saving, setSaving] = useState(false);
+  const [confirming, setConfirming] = useState(false);
+  const [deleting, setDeleting] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+  const name = resume.original_filename ?? "Resume";
+
+  // The form stays open until the list has the new name, so the old one
+  // never flashes back.
+  async function rename(next: string) {
+    setSaving(true);
+    setError(null);
+    const { error } = await renameResume(resume.id, next);
+    if (!error) await reload();
+    setSaving(false);
+    if (error) return setError(error);
+    setRenaming(false);
+  }
+
+  async function preview() {
+    setError(null);
+    // No await before this call: it opens the PDF's tab inside the click.
+    setError(await previewResume(resume));
+  }
+
+  async function download() {
+    setError(null);
+    const { url, error } = await getResumeFileUrl(resume.id, true);
+    if (url) openDownload(url);
+    else setError(error ?? "Could not download the resume.");
+  }
+
+  async function makePrimary() {
+    setError(null);
+    const { error } = await setPrimaryResume(resume.id);
+    if (error) return setError(error);
+    await reload();
+  }
+
+  // Delete stays disabled until the reload drops the row.
+  async function remove() {
+    setDeleting(true);
+    setError(null);
+    const { error } = await deleteResume(resume.id);
+    if (!error) return reload();
+    setDeleting(false);
+    setError(error);
+  }
+
+  return (
+    <li>
+      {renaming ? (
+        <RenameForm
+          id={resume.id}
+          name={name}
+          saving={saving}
+          onSave={rename}
+          onCancel={() => setRenaming(false)}
+        />
+      ) : (
+        <ResumeRow
+          resume={resume}
+          deleting={deleting}
+          onPreview={preview}
+          onMakePrimary={makePrimary}
+          onRename={() => setRenaming(true)}
+          onDownload={download}
+          onDelete={() => setConfirming(true)}
+        />
+      )}
+      {confirming && (
+        <DeleteConfirm
+          label="Delete Resume"
+          busy={deleting}
+          onDelete={remove}
+          onKeep={() => setConfirming(false)}
+        >
+          Delete this resume? Files you already sent are kept.
+        </DeleteConfirm>
+      )}
+      {error && (
+        <p role="alert" className="text-note text-danger mt-2">
+          {error}
+        </p>
+      )}
+    </li>
+  );
+}
