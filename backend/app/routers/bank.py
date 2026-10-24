@@ -67,6 +67,7 @@ from workit_scout.llm import LLM, ScoutUnavailable
 from app.db import get_session
 from app.deps import get_current_account, owned_applicant
 from app.models.resume import Resume
+from app.queries.bank import owned_upload_id
 from app.routers.scout import get_llm
 from app.schemas.auth import AuthenticatedAccount
 from app.schemas.bank import (
@@ -139,9 +140,7 @@ async def _target(
     NotFound for a resume that is not the applicant's."""
     if resume_id is None:
         return None, None
-    upload = await session.scalar(
-        select(Resume.id).where(Resume.id == resume_id, Resume.applicant_id == applicant_id)
-    )
+    upload = await owned_upload_id(session, applicant_id, resume_id)
     if upload is not None:
         return upload, None
     await built_resumes.get_resume(session, applicant_id, resume_id)
