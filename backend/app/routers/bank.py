@@ -61,14 +61,12 @@ from fastapi import APIRouter, Depends, HTTPException, Response
 from fastapi.exceptions import RequestValidationError
 from fastapi.responses import JSONResponse
 from pydantic import ValidationError
-from sqlalchemy import select
 from sqlalchemy.exc import SQLAlchemyError
 from sqlalchemy.ext.asyncio import AsyncSession
 from workit_scout.llm import LLM, ScoutUnavailable
 
 from app.db import get_session
 from app.deps import get_current_account, owned_applicant
-from app.models.profiles import Applicant_Profile
 from app.models.resume import Resume
 from app.routers.scout import get_llm
 from app.schemas.auth import AuthenticatedAccount
@@ -301,15 +299,8 @@ async def delete_skill(
 
 
 async def _resume_to_import(session: AsyncSession, applicant_id: uuid.UUID, resume_id: uuid.UUID | None) -> Resume:
-    mine = select(Resume).where(Resume.applicant_id == applicant_id)
-    if resume_id is not None:
-        resume = await session.scalar(mine.where(Resume.id == resume_id))
-    else:
-        default_id = await session.scalar(
-            select(Applicant_Profile.default_resume_id).where(Applicant_Profile.id == applicant_id)
-        )
-        resume = default_id and await session.scalar(mine.where(Resume.id == default_id))
-        resume = resume or await session.scalar(mine.order_by(Resume.created_at.desc()).limit(1))
+    from app.queries.bank import resume_to_import
+    resume = await resume_to_import(session, applicant_id, resume_id)
     if resume is None:
         raise HTTPException(404, "Upload a resume to import it")
     return resume

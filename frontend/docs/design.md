@@ -36,7 +36,9 @@ own 200ms linear, so the page holds its width through the animation; keep
 the two durations equal. A layout that splits into columns uses
 `@3xl/main:` and friends, a card that rearranges itself (the job card) is
 its own `@container`, and both see the same width whether the panel is open
-or not. **One page takes the freed room back: Applications** (KAN-256). Its
+or not. **Two pages take the freed room back: Applications** (KAN-256)
+and a job posting's page, whose rail of jobs grows by the gain while the job
+keeps its width (KAN-297, `docs/screens.md`, Job posting page). Applications'
 list is a table that scrolls sideways, so more width only shows more
 columns. The page has no width cap and a negative margin of half
 `--panel-gain` on each side, which widens it with the panel's own easing
