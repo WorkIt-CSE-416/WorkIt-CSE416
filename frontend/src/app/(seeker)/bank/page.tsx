@@ -33,7 +33,7 @@ export default async function BankPage({ searchParams }: PageProps<"/bank">) {
   // The Jobs page's "Import Your Resume" (?import=1) starts the import here.
   const params = await searchParams;
   const autoImport = params.import === "1";
-  // The Showing bar's pick (KAN-343, KAN-361): a resume id or "none".
+  // The Showing card's pick (KAN-343, KAN-361): a resume id or "none".
   const resumeParam = typeof params.resume === "string" ? params.resume : undefined;
   const { data, error } = await getBank();
 

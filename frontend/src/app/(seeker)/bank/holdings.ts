@@ -3,7 +3,7 @@ import type { BankResume } from "@/lib/bank-actions";
 /**
  * Which resume the Experiences view shows (KAN-343, docs/bank_by_resume.md):
  * a resume's id, NONE (Not From an Upload: what no upload owns), or ALL
- * (the whole bank) for a student with no resume, who gets no Showing bar. An
+ * (the whole bank) for a student with no resume, who gets no Showing card. An
  * item's `resume_ids` say which resumes hold it: the upload that owns it
  * (ADR 0005) and the built resumes that show it. The API fills them, so the
  * rules here only read them.
@@ -17,7 +17,7 @@ type Held = { resume_ids: string[] };
 /** The pick the page opens on: the URL's `resume` when the bank still
  *  lists it (or "none" while there is a resume), else the starred resume,
  *  else the newest resume of any kind, else the whole bank (no resumes, no
- *  Showing bar). The old "all" pick names no resume, so it opens the same way. */
+ *  Showing card). The old "all" pick names no resume, so it opens the same way. */
 export function openingPick(resumes: BankResume[], param: string | undefined): Pick {
   if (param === NONE && resumes.length > 0) return NONE;
   if (param && resumes.some((r) => r.id === param)) return param;
@@ -57,15 +57,21 @@ function names(list: string[]): string {
 }
 
 /**
- * The line under an entry's title: the built resumes, other than the pick,
- * that show it, since an edit here changes it there too. An upload's entry
- * is never on another upload (ADR 0005), so uploads are never named.
- * Under Not From an Upload every built resume that shows it is "other".
+ * The built resumes, other than the pick, that show an entry: the note in
+ * its editor (KAN-363), since a save there changes it on them too, and
+ * each name in it shows that resume. An upload's entry is never on another
+ * upload (ADR 0005), so uploads are never named. Under Not From an Upload
+ * every built resume that shows it is "other".
  */
-export function usedIn(pick: Pick, item: Held, resumes: BankResume[]): string | null {
+export function usedIn(
+  pick: Pick,
+  item: Held,
+  resumes: BankResume[],
+): { id: string; name: string }[] {
   const built = new Map(resumes.filter((r) => r.kind !== "uploaded").map((r) => [r.id, r.name]));
-  const others = item.resume_ids.filter((id) => id !== pick && built.has(id));
-  return others.length ? `Also used in ${names(others.map((id) => built.get(id)!))}` : null;
+  return item.resume_ids
+    .filter((id) => id !== pick && built.has(id))
+    .map((id) => ({ id, name: built.get(id)! }));
 }
 
 /** How many built resumes show any of the items: what Clear All's confirm

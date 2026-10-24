@@ -1045,6 +1045,19 @@ the KAN-296 cutover.
   its link re-ran the whole feed fetch and Best Match scoring, so the list
   seemed slow to load; `BackToJobs` now calls `router.back()` when
   `cameFrom()` is its target (`docs/screens.md`, Job posting page).
+- **Every other seeker Back goes to the page that opened it**
+  (`(seeker)/back-link.tsx`, KAN-363): `BackLink`, or `useBack` for a
+  control drawn its own way (the editor's phone arrow), given the page's
+  parent for a direct visit. The scroll memory records each page's opener
+  (`openerOf`, sessionStorage, the last 50 pages) on every forward arrival
+  and never on a return, so a detour and the browser's Back keep it. A
+  new Back control uses them, never a fixed `href`; a new seeker page a
+  Back can name joins `PAGES` there. Each Back named its parent until
+  then: an application opened from the Calendar went to the tracker, a
+  resume opened from Experiences to Resumes. Not the job page
+  (`BackToJobs` skips the rail's job-to-job clicks to the list), a 404's
+  or placeholder's way out (no page to go back to), or a step form's
+  Back (the step before).
 - **A job posting's page has a rail of jobs beside it** (KAN-297), drawn by
   `(seeker)/jobs/layout.tsx` so it survives job-to-job navigation. It reads
   the list `FeedList` last showed (`jobs/shown-list.ts`); a new list screen
@@ -1298,12 +1311,13 @@ are in `docs/auth.md`.
   a new tab until then (`lib/preview-resume.ts`, now gone), so an upload
   left the app and a DOCX simply downloaded.
 - **The Experiences view shows one resume at a time** (KAN-343, ADR 0005,
-  `../docs/bank_by_resume.md`): a Showing bar names the pick, and its
-  Change Resume opens the shared resume table (KAN-361,
-  `(seeker)/bank/resume-bar.tsx` over `(seeker)/jobs/resume-picker.tsx`'s
-  `ResumeLists`), with Not From an Upload as a link under the bar while
-  anything no upload owns exists, opening on `?resume=`, else the starred
-  resume, else the newest. A pick applies on Show Resume, never on a row
+  `../docs/bank_by_resume.md`): a Showing card names the pick, drawn as
+  the Resumes page draws a resume (KAN-363), and its Change Resume opens
+  the shared resume table (KAN-361, `(seeker)/bank/resume-bar.tsx` over
+  `(seeker)/jobs/resume-picker.tsx`'s `ResumeLists`), with Not From an
+  Upload as a row under the table, in its radio group, while anything no
+  upload owns exists or while it is the pick. The page opens on
+  `?resume=`, else the starred resume, else the newest. A pick applies on Show Resume, never on a row
   click, so the arrow keys can move it. The dropdown it replaced had no
   search and cut long names short. The rules (which items a pick shows, the opening pick, the "Also
   used in" line) live in `(seeker)/bank/holdings.ts` and read only the
@@ -1311,14 +1325,25 @@ are in `docs/auth.md`.
   Intake always gets the whole bank. Add sends the pick (`createEntry`,
   `addSkill`), so the new item belongs to that upload or shows on that
   built resume and stays in view. `resume_ids` names at most one upload,
-  so "Also used in" names built resumes only. All Experiences was removed
+  so the note in an entry's editor (KAN-363, "Saving also changes this
+  entry on …") names built resumes only, each name a link that switches
+  the pick to that resume. The entry's view names none. The Showing card opens its resume as a Resumes row does (the
+  editor, or the upload's own page, `/resumes/uploaded/[id]`); Rename,
+  Download, Make Primary and Delete stay on the Resumes view, so the page
+  never shows a resume deleted from under it. All Experiences was removed
   (2026-10-23). **Every item must show under some pick**: Not From an
   Upload holds what no upload owns (intake's, or one that came from
   several uploads before ADR 0005). It was removed too at first, which
   left 96 entries and 242 skills of 8 students that every reader used but
   no student could see, edit or delete, so it came back (2026-10-24).
   Clear All (KAN-352) deletes what a card shows, from the whole bank, as
-  Delete Entry does (`docs/screens.md`, Resumes & Experiences).
+  Delete Entry does (`docs/screens.md`, Resumes & Experiences). **Every
+  card's heading is LinkedIn's** (KAN-363, `SectionActions` in
+  `bank-screen.tsx`): a + that adds, on all seven cards, and a pencil
+  (hidden while the card is empty) that opens the card's edit mode, one
+  card at a time. Only in edit mode do entries show their pencil, skills
+  their pencil and ×, and the heading Clear All and Done. Delete Entry is
+  at the foot of the editor an entry's pencil opens.
 - **The Experiences view has a section nav** (KAN-349,
   `(seeker)/bank/section-nav.tsx`): one sticky row of links to the seven
   section cards, each with its count under the current pick, the one in

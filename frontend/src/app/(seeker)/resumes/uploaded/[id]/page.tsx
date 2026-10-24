@@ -3,12 +3,12 @@ import type { Metadata } from "next";
 import { notFound } from "next/navigation";
 import { connection } from "next/server";
 
-import { ArrowLeftIcon } from "@/components/icons";
-import { buttonClasses, ButtonLink } from "@/components/ui/button";
+import { buttonClasses } from "@/components/ui/button";
 import { EmptyState } from "@/components/ui/empty-state";
 import { cn } from "@/lib/cn";
 import { listResumes, readResumePdf } from "@/lib/resume-actions";
 
+import { BackLink } from "../../../back-link";
 import { SEEKER_GUTTER } from "../../../gutter";
 import { UploadedViewer } from "./viewer";
 
@@ -16,7 +16,8 @@ export const metadata: Metadata = { title: "Resume" };
 
 /**
  * /resumes/uploaded/[id], an uploaded resume's own page (KAN-366), opened
- * from its card on the Resumes view. A built resume opens the editor
+ * from its card on the Resumes view or the Experiences view's Showing card,
+ * its Back returning to whichever opened it. A built resume opens the editor
  * (../../[resumeId]); an upload opened a short-lived Storage link in a new
  * tab until then, and a DOCX simply downloaded, so the three kinds of
  * resume acted three ways and an upload left the app. The static
@@ -41,17 +42,8 @@ export default async function UploadedResumePage({ params }: PageProps<"/resumes
 
   return (
     <div className={cn("max-w-app mx-auto w-full flex-1 py-6", SEEKER_GUTTER)}>
-      {/* Back to the list, drawn as the editor's Back is. */}
-      <ButtonLink
-        href="/resumes"
-        aria-label="Back to Resumes"
-        variant="secondary"
-        size="sm"
-        className="group/back mb-3"
-      >
-        <ArrowLeftIcon className="ease-glide size-3.5 transition-transform duration-200 group-hover/back:-translate-x-0.5" />
-        Back
-      </ButtonLink>
+      {/* Back to the page that opened it, else the list (../../../back-link.tsx). */}
+      <BackLink parent={{ href: "/resumes", name: "Resumes" }} />
       {resume && !error ? (
         <UploadedViewer resume={resume} pdf={file.data} />
       ) : (

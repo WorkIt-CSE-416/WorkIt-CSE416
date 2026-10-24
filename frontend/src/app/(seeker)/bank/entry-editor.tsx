@@ -1,7 +1,7 @@
 "use client";
 
-import { PlusIcon, XIcon } from "@phosphor-icons/react/ssr";
-import { useId, useState, type FormEvent } from "react";
+import { PlusIcon, TrashIcon, XIcon } from "@phosphor-icons/react/ssr";
+import { useId, useState, type FormEvent, type ReactNode } from "react";
 
 import { Button } from "@/components/ui/button";
 import { IconButton } from "@/components/ui/icon-button";
@@ -55,6 +55,8 @@ export function EntryEditor({
   duplicate,
   onSaveAsNew,
   onChange,
+  onDelete,
+  note,
   cancelLabel = "Cancel",
 }: {
   initial: EntryDraft;
@@ -71,6 +73,14 @@ export function EntryEditor({
   /** Every edit, as the whole draft: intake sends the card's edits back to
    *  the model with each turn. */
   onChange?: (draft: EntryDraft) => void;
+  /** An entry already in the bank: Delete Entry at the foot's left, which
+   *  the caller confirms (KAN-363). A row showed its own trash beside the
+   *  pencil, under a section heading that already held Clear All and Add,
+   *  so four controls in one corner did not say which acted on what. */
+  onDelete?: () => void;
+  /** A line over the foot's buttons: the bank's names the other resumes a
+   *  save changes too (KAN-363). */
+  note?: ReactNode;
   cancelLabel?: string;
 }) {
   const [draft, setDraft] = useState(initial);
@@ -363,13 +373,25 @@ export function EntryEditor({
           Save it as a new entry anyway?
         </div>
       )}
+      {note}
       {error && (
         <p role="alert" className="text-note text-danger">
           {error}
         </p>
       )}
 
-      <div className="flex justify-end gap-2">
+      <div className="flex items-center justify-end gap-2">
+        {onDelete && (
+          <Button
+            type="button"
+            variant="section"
+            className="mr-auto"
+            onClick={onDelete}
+            disabled={saving}
+          >
+            <TrashIcon aria-hidden /> Delete Entry
+          </Button>
+        )}
         <Button type="button" variant="secondary" onClick={onCancel} disabled={saving}>
           {cancelLabel}
         </Button>
