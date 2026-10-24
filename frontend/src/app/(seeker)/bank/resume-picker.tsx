@@ -51,6 +51,7 @@ export function ResumePicker({
     { value: NONE, label: `Not From an Upload (${counts(NONE)})` },
   ];
   const showNone = counts(NONE) > 0;
+  const labelOf = (pick: Pick) => items.find((item) => item.value === pick)?.label;
 
   return (
     <div className="flex flex-wrap items-center gap-3">
@@ -59,18 +60,26 @@ export function ResumePicker({
       </label>
       <Select items={items} value={value} onValueChange={(next) => next && onChange(next)}>
         {/* The height override is written twice, as in <SelectField>, so
-            cn() drops the stock trigger's pinned 32px. */}
+            cn() drops the stock trigger's pinned 32px. A long resume name
+            ends in an ellipsis (KAN-351), with the whole of it on hover:
+            the stock value is a flex box, which never draws one, so the
+            label goes in a span of its own. */}
         <SelectTrigger
           id="bank-resume"
           aria-labelledby="bank-resume-label"
+          title={labelOf(value)}
           className={cn(
             FIELD_CONTROL,
-            "h-auto w-auto max-w-full min-w-56 py-2 pr-3 pl-3.5 data-[size=default]:h-auto",
+            "h-auto w-auto max-w-full min-w-56 py-2 pr-3 pl-3.5 data-[size=default]:h-auto sm:max-w-md",
           )}
         >
-          <SelectValue />
+          <SelectValue>
+            {(pick: Pick) => <span className="truncate">{labelOf(pick)}</span>}
+          </SelectValue>
         </SelectTrigger>
-        <SelectContent>
+        {/* The list is as wide as its longest name allows, never narrower
+            than the trigger nor wider than the screen or 28rem. */}
+        <SelectContent className="w-auto max-w-[min(var(--available-width),28rem)] min-w-(--anchor-width)">
           <SelectItem value={ALL}>{items[0].label}</SelectItem>
           {GROUPS.map(({ label: heading, kinds }) => {
             const members = resumes.filter((r) => kinds.includes(r.kind));
@@ -80,7 +89,9 @@ export function ResumePicker({
                 <SelectSeparator />
                 <SelectLabel>{heading}</SelectLabel>
                 {members.map((r) => (
-                  <SelectItem key={r.id} value={r.id}>
+                  // The stock item text never shrinks; here it may, so the
+                  // name inside it can truncate.
+                  <SelectItem key={r.id} value={r.id} className="*:first:min-w-0 *:first:shrink">
                     <span className="flex min-w-0 items-center gap-1.5">
                       {r.primary && (
                         <>
@@ -92,7 +103,9 @@ export function ResumePicker({
                           <span className="sr-only">Primary resume:</span>
                         </>
                       )}
-                      <span className="truncate">{label(r)}</span>
+                      <span className="truncate" title={label(r)}>
+                        {label(r)}
+                      </span>
                       <span className="text-ink-meta shrink-0">({counts(r.id)})</span>
                     </span>
                   </SelectItem>

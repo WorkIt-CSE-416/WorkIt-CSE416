@@ -1210,7 +1210,12 @@ are in `docs/auth.md`.
   API's `resume_ids`; never work out a resume's items in a component.
   Intake always gets the whole bank. A
   new entry or skill saved under a resume pick is on no resume yet, so the
-  page says where it went instead of letting it vanish.
+  page says where it went instead of letting it vanish. A long resume name
+  ends in an ellipsis in the dropdown's trigger and list, with the whole
+  name on hover (KAN-351). shadcn's Select draws neither on its own: its
+  value is a flex box, which never draws an ellipsis, and its item text
+  never shrinks, so the name was cut off mid-letter. Put the label in a
+  `truncate` span and let the item text shrink (`resume-picker.tsx`).
 - **Applicant server actions call the API through `applicantCall`**
   (`lib/applicant-call.ts`, server-only): the session, the Bearer token,
   GET/DELETE/fetch, and a `Result<T>` (`data`, `error`, `status`) that never
