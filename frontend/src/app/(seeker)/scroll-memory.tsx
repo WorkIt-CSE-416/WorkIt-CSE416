@@ -3,7 +3,6 @@
 import { usePathname, useSearchParams } from "next/navigation";
 import { useEffect, useLayoutEffect, useRef } from "react";
 
-import { forgetFeedPages } from "./jobs/feed-pages";
 
 /**
  * Puts a seeker page back where it was scrolled when the seeker comes back to
@@ -20,9 +19,9 @@ import { forgetFeedPages } from "./jobs/feed-pages";
  * Restoring waits for the page to be tall enough, since a page's content
  * streams in behind its placeholders after it arrives, and gives up after
  * SETTLE_MS or as soon as the seeker scrolls, clicks or types themselves.
- * The feed's own Load More pages come back with it on a return
- * (jobs/feed-pages.ts), so the place it returns to exists; on any other
- * arrival they are dropped here, so the list starts at its first page.
+ * The feed's cached state comes back with it on a return
+ * (jobs/feed-pages.ts), so the place it returns to exists; the cache's
+ * 30-min TTL and query match handle staleness.
  *
  * Rendered once, in the seeker layout; draws nothing. sessionStorage can be
  * off (a private window): then nothing is remembered and nothing breaks.
@@ -124,8 +123,7 @@ export function ScrollMemory() {
     };
   }, []);
 
-  // A layout effect: a fresh arrival drops the feed's kept pages before the
-  // page is drawn, so they never flash.
+  // A layout effect so scroll restore runs before paint.
   useLayoutEffect(() => {
     // Checked against the last one, so Strict Mode's second run (development
     // only) doesn't record a page as reached from itself.
@@ -144,7 +142,6 @@ export function ScrollMemory() {
     }
     const back = popped.current === key || asked;
     popped.current = null;
-    if (!back) forgetFeedPages(window.location.pathname);
     const wanted = back ? positions()[key] : undefined;
     const main = document.getElementById("content");
     const content = main?.firstElementChild;
