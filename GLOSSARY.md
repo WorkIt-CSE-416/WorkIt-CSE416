@@ -45,7 +45,7 @@ A file the student brought in. It is read-only, can be applied with as it is, an
 _Avoid_: original resume, parsed resume
 
 **Import**:
-To read an uploaded resume and write its entries and skills into the experience bank, merging an entry the bank already has instead of copying it. Upload imports once; Import Again reads a stored upload again (ADR 0003).
+To read an uploaded resume and write its entries and skills into the experience bank as that upload's own, replacing what it owned before; it never merges into another resume's entries (ADR 0005). Upload imports once; Import Again reads a stored upload again (ADR 0003).
 _Avoid_: parse, sync, auto-fill
 
 **Sent resume**:
