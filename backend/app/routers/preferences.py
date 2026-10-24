@@ -63,6 +63,9 @@ async def put_preferences(
     try:
         await save_preferences(session, applicant_id, body)
     except IntegrityError:
+        # Two saves at once can collide on applicant_job_roles' or
+        # applicant_locations' key between the delete and the insert; the
+        # later one is simply retried.
         await session.rollback()
         raise HTTPException(409, "Your preferences changed while saving. Try again.")
     except Exception:

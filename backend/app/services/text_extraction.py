@@ -27,11 +27,13 @@ def extract_pdf_text(data: bytes) -> str | None:
     """Extract text from PDF, picking between pypdf's two extraction modes.
 
     Layout mode rebuilds lines from glyph positions, so PDFs that place each
-    word as its own text object don't come out one word per line. But it reads
-    straight across the page, so a two-column resume gets both columns merged.
-    Plain mode follows content-stream order, which for those is column by
-    column. Take plain when it exposes more section headers and isn't
-    fragmented.
+    word as its own text object (e.g. Google Docs exports) don't come out one
+    word per line. But it reads straight across the page, so a two-column
+    resume gets both columns merged into each line and its section headers
+    buried mid-line. Plain mode follows content-stream order, which for those
+    is column by column. Take plain when it exposes more section headers and
+    isn't fragmented — one word per line puts body words like "experience"
+    on lines of their own, where they count as headers.
     """
     from pypdf import PdfReader
     try:
@@ -57,6 +59,10 @@ def _join_pages(pages, mode: str) -> str:
 
 def _tidy_lines(text: str) -> str:
     text = text.replace("\x00", "")  # Postgres text/jsonb rejects NUL bytes
+    # PDF layout mode pads columns with runs of spaces, and Word separates
+    # them with tabs. Turn each gap into two spaces rather than one, because
+    # the parser uses that gap to tell a right-aligned location apart from
+    # the title before it.
     lines = (re.sub(r"[ \t]{2,}|\t", "  ", line).strip() for line in text.splitlines())
     return "\n".join(lines).strip()
 
@@ -72,16 +78,19 @@ def extract_docx_text(data: bytes) -> str | None:
 
 
 def _docx_lines(container):
-    """Paragraph and table text in document order."""
+    """Paragraph and table text in document order. Resume templates often lay
+    out headers with tables, which `Document.paragraphs` skips entirely."""
     from docx.table import Table
     for block in container.iter_inner_content():
         if not isinstance(block, Table):
             yield _docx_paragraph_text(block)
             continue
         for row in block.rows:
+            # Merged cells appear once per grid column they span
             cells = list({id(c._tc): c for c in row.cells}.values())
             texts = [c.text.strip() for c in cells]
             if all("\n" not in t for t in texts):
+                # Single-line cells read as one row: "Company | Dates"
                 yield "  ".join(t for t in texts if t)
             else:
                 for cell in cells:
@@ -89,6 +98,9 @@ def _docx_lines(container):
 
 
 def _docx_paragraph_text(paragraph) -> str:
+    # Word stores list bullets as numbering properties, not characters, so
+    # `text` has none — restore one so the parser can tell bullets apart from
+    # entry headers. Numbering comes from the paragraph or its style.
     ppr = paragraph._p.pPr
     is_list = (ppr is not None and ppr.numPr is not None) or (
         paragraph.style is not None and paragraph.style.name.startswith("List"))
@@ -96,7 +108,8 @@ def _docx_paragraph_text(paragraph) -> str:
 
 
 def is_docx(data: bytes) -> bool:
-    """DOCX is a ZIP containing [Content_Types].xml with a Word content type."""
+    """DOCX is a ZIP containing [Content_Types].xml with a Word content type.
+    Tightens the check around file type"""
     try:
         with zipfile.ZipFile(BytesIO(data)) as z:
             if "[Content_Types].xml" not in z.namelist():
@@ -118,6 +131,7 @@ class UploadRejected(Exception):
 async def read_upload(file) -> tuple[bytes, str, str]:
     """Size and type checks for an upload. Returns the bytes,
     extension and MIME type. Raises UploadRejected on failure."""
+    # check size metadata
     if file.size is not None and file.size > MAX_SIZE:
         raise UploadRejected("File must be under 5 MB", 413)
 
@@ -126,6 +140,7 @@ async def read_upload(file) -> tuple[bytes, str, str]:
     if len(contents) > MAX_SIZE:
         raise UploadRejected("File must be under 5 MB", 413)
 
+    # validate magic bytes — content_type is client-supplied and untrustworthy
     if contents.startswith(PDF_MAGIC):
         return contents, ".pdf", "application/pdf"
     if contents.startswith(DOCX_MAGIC) and is_docx(contents):

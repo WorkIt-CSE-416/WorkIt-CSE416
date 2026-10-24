@@ -13,7 +13,8 @@ from app.schemas.company_jobs import JobPosting
 
 logger = logging.getLogger(__name__)
 
-# The foreign keys a job's location is checked against.
+# The foreign keys a job's location is checked against. Anything else that
+# fails on commit is a bug of ours, not an unsupported location.
 _LOCATION_CONSTRAINTS = {"job_locations_country_fkey", "job_locations_state_country_fkey"}
 
 
@@ -21,7 +22,9 @@ async def own_job(
     db: AsyncSession, job_id: uuid.UUID, account: AuthenticatedAccount, *, lock: bool = False
 ) -> Job_Post | None:
     """The job, if it belongs to the caller's company. Returns None when it
-    doesn't exist or belongs to another company."""
+    doesn't exist or belongs to another company: the route answers both with
+    a 404 rather than a 403, so ids can't be probed for existence. `lock`
+    holds the row until commit, for a write that first checks what it read."""
     job = await db.get(Job_Post, job_id, with_for_update=lock)
     if job is None or job.company_id != account.company_id:
         return None
@@ -31,14 +34,17 @@ async def own_job(
 async def set_location(
     db: AsyncSession, job_id: uuid.UUID, country: str | None, state: str | None
 ) -> None:
-    """Replace the job's place with the form's. Run after the job is flushed."""
+    """Replace the job's place with the form's. Run after the job is flushed:
+    with no relationship() on the models, the unit of work won't insert the
+    job before a row pointing at it (models/CLAUDE.md)."""
     await db.execute(delete(Job_Location).where(Job_Location.job_id == job_id))
     if country is not None:
         db.add(Job_Location(job_id=job_id, country=country, state=state))
 
 
 async def locations(db: AsyncSession, job_ids: list[uuid.UUID]) -> dict[uuid.UUID, Job_Location]:
-    """Each job's place, one per company job."""
+    """Each job's place, for the responses. One per company job, as
+    set_location writes it."""
     rows = await db.execute(select(Job_Location).where(Job_Location.job_id.in_(job_ids)))
     return {loc.job_id: loc for loc in rows.scalars()}
 
@@ -79,9 +85,16 @@ async def commit_job(db: AsyncSession, job: Job_Post) -> None:
         await db.commit()
     except IntegrityError as exc:
         await db.rollback()
+        # The schema already enforces salary and state/country agreement, so
+        # a location foreign key failing means a country or state code that
+        # isn't seeded. asyncpg's own error, which names the constraint, is
+        # the cause of the DBAPI error SQLAlchemy wraps.
         constraint = getattr(exc.orig.__cause__, "constraint_name", None)
         if constraint not in _LOCATION_CONSTRAINTS:
             raise
         logger.info("Job write rejected: %s", exc.orig)
         raise UnsupportedLocation("That location isn't supported yet.") from exc
+
+    # created_at and updated_at come from the database, so they aren't on the
+    # object yet; reading them lazily would raise MissingGreenlet in async.
     await db.refresh(job)
