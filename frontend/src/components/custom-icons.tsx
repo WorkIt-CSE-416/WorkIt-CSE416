@@ -7,9 +7,12 @@ import { forwardRef, useId, type ReactNode } from "react";
  * Each one is a drop-in Phosphor icon: it takes Phosphor's props (`weight`,
  * `size`, `color`, `mirrored`, `alt`) and types as its `Icon`, so a list of
  * icons can mix these with Phosphor's own. They keep Lucide's rounded 24-unit
- * drawings, the ones the app wore before the switch, at Phosphor's stroke:
- * 16 on its 256 grid is 1.5 here, and thin, light and bold scale the same way
- * (8, 12 and 24). Duotone fills the body at 20% under the strokes, as
+ * drawings, the ones the app wore before the switch, at the weight the app
+ * draws Phosphor's: its 16 on a 256 grid plus the 5 that globals.css adds
+ * round every Phosphor glyph (KAN-365) is about 2 here, and thin, light and
+ * bold scale the same way (8, 12 and 24, each plus 5). Change STROKE with
+ * that rule, or these drift from the icons beside them. Duotone fills the
+ * body at 20% under the strokes, as
  * Phosphor's do; fill paints the body solid and cuts the inner details out of
  * it, with a gap round any detail that sits outside the body.
  *
@@ -33,10 +36,10 @@ type Glyph = {
 };
 
 const STROKE: Record<Exclude<IconWeight, "fill" | "duotone">, number> = {
-  thin: 0.75,
-  light: 1.125,
-  regular: 1.5,
-  bold: 2.25,
+  thin: 1.25,
+  light: 1.625,
+  regular: 2,
+  bold: 2.75,
 };
 
 function customIcon(name: string, glyph: Glyph): Icon {
@@ -70,7 +73,7 @@ function customIcon(name: string, glyph: Glyph): Icon {
         viewBox="0 0 24 24"
         fill="none"
         stroke={color}
-        strokeWidth={weight === "fill" || weight === "duotone" ? 1.5 : STROKE[weight]}
+        strokeWidth={weight === "fill" || weight === "duotone" ? STROKE.regular : STROKE[weight]}
         strokeLinecap="round"
         strokeLinejoin="round"
         transform={mirrored ? "scale(-1, 1)" : undefined}
@@ -84,8 +87,8 @@ function customIcon(name: string, glyph: Glyph): Icon {
               <mask id={mask} maskUnits="userSpaceOnUse" x="0" y="0" width="24" height="24">
                 <rect width="24" height="24" fill="#fff" stroke="none" />
                 <g fill="none" stroke="#000">
-                  <g strokeWidth={1.5}>{glyph.holes}</g>
-                  <g strokeWidth={4.5}>{glyph.marks}</g>
+                  <g strokeWidth={STROKE.regular}>{glyph.holes}</g>
+                  <g strokeWidth={STROKE.regular * 3}>{glyph.marks}</g>
                 </g>
               </mask>
             </defs>
