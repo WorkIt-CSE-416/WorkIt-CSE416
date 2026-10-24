@@ -1004,7 +1004,12 @@ the KAN-296 cutover.
   from the best matches auto apply can fill, each one chosen by the seeker. A job's application
   stage (`saved`, `queued`...) reaches its Save and Auto Apply buttons from
   one read per page. Auto Apply never picks a saved job for a batch; only
-  the job's own Auto Apply click queues it.
+  the job's own Auto Apply click queues it, or the Auto Apply page's Add
+  Jobs, where the seeker picks each one (`auto-apply/add-jobs-dialog.tsx`).
+  That dialog is the one place several jobs are queued at once. Up Next's
+  resume picker stores a job's resume as the sent resume its application
+  names; the extension does not read it yet (`docs/screens.md`, Auto
+  Apply).
   `docs/screens.md`, Applications, has the rest.
 - **A "Back" link to a dynamic page goes back in history when it can.** Next
   keeps no dynamic page for a link visit (`staleTimes.dynamic` is 0), but

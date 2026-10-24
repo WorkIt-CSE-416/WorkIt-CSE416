@@ -192,7 +192,11 @@ Find files with a directory listing; these are the rules for where code goes.
   resume step (`prepare_resume`) keeps the file through
   `services/sent_resumes.py`, never Storage or the renderer itself, so a
   resume auto apply sends is a sent resume under Apply's rules (the repeat
-  hash, the file kept while a row uses it). **Which job postings it takes is
+  hash, the file kept while a row uses it). **A student's own pick of a queued
+  job's resume** (`choose_resume`, `PUT .../applications/{job_id}/resume`,
+  KAN-359) is kept the same way, as the sent resume the application names,
+  and `prepare_resume` sends it in place of `pick_resume`'s (`chosen_resume`):
+  no column of its own. Tests: `tests/test_auto_apply_resume.py`. **Which job postings it takes is
   one list, `app/auto_apply/hosts.py`** (Greenhouse for now): the matches
   and `queue_applications` require its SQL form (`AUTO_APPLY_SUPPORTED` in
   `queries/jobs/filters.py`) and `JobListing.auto_apply` its Python form,
