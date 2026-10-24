@@ -101,6 +101,12 @@
 
   /* Layout --------------------------------------------------------------- */
   --container-auth: 22.5rem; /* 360px: the auth card, 310px of content inside p-6 and a 1px border */
+  /* 320px: every list or table that scrolls inside a dialog or a tile (the
+   * resume picker, Add Jobs, Top Matches), as `max-h-scroll-box` or
+   * `h-scroll-box`, so those boxes stop at one height. Each picked its own
+   * until KAN-360: Add Jobs grew to 90% of the window. A full-page table
+   * never takes it; the page scrolls. */
+  --spacing-scroll-box: 20rem;
 
   /* -------------------------------------------------------------------------
    * App shell — added for the KAN-43 profile mockup

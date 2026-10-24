@@ -11,7 +11,7 @@ import type { ComponentType, ReactNode } from "react";
 
 import { ClickableRow } from "@/components/clickable-row";
 import { CompanyLogo } from "@/components/company-logo";
-import { ClockIcon, SortIcon, SparkleIcon } from "@/components/icons";
+import { ClockIcon, PencilIcon, SortIcon, SparkleIcon } from "@/components/icons";
 import { MatchBadge } from "@/components/match-badge";
 import { Reflow } from "@/components/reflow";
 import {
@@ -64,6 +64,13 @@ export type ActivityItem = {
   appliedAt: string | null;
   /** The job posting's own page; the whole row opens it. None once closed. */
   href?: string;
+  /** The resume a queued job will go out with (./page.tsx): the student's
+   *  pick, else the rule's; null when it would go with none. Up Next shows
+   *  it. */
+  resume?: string | null;
+  /** That resume as the picker keys it, "built:<id>" or "uploaded:<id>", so
+   *  Up Next's resume picker (./resume-dialog.tsx) opens on it. */
+  resumeKey?: string | null;
 };
 
 /** Each stored stage's status, and the line it needs under its badge. */
@@ -262,6 +269,18 @@ const COLUMNS: { id: string; label: string; sort?: Sort; hint?: string; width?: 
   { id: "action", label: "Actions", width: "w-16" },
 ];
 
+/** Up Next's columns (variant "queue"): the resume each job will go out
+ *  with in place of Date Applied, which a queued job never has, and no
+ *  sorting, since the queue's order is the order the extension takes. */
+const QUEUE_COLUMNS: typeof COLUMNS = [
+  { id: "role", label: "Role" },
+  { id: "status", label: "Status", width: "w-48" },
+  { id: "resume", label: "Resume", width: "w-56" },
+  { id: "match", label: "Match", width: "w-26" },
+  { id: "added", label: "Date Added", width: "w-30" },
+  { id: "action", label: "Actions", width: "w-16" },
+];
+
 const TH = "px-4 text-note text-ink-meta font-medium";
 const TD = "px-4 py-3 text-note text-ink";
 /** Every column but Role is centred, heading and cell (asked for
@@ -299,17 +318,24 @@ export function ActivityTable({
   items,
   sort,
   onSort,
+  variant = "history",
+  onResume,
 }: {
   items: ActivityItem[];
   sort: Sort;
   onSort: (sort: Sort) => void;
+  /** "queue": Up Next's columns (QUEUE_COLUMNS); "history": the rest. */
+  variant?: "queue" | "history";
+  /** Up Next's resume cell is a button that opens this row's resume picker. */
+  onResume?: (item: ActivityItem) => void;
 }) {
+  const columns = variant === "queue" ? QUEUE_COLUMNS : COLUMNS;
   return (
     <Card padding="none" className="mt-3 overflow-hidden">
       <Table className="min-w-[54rem] table-fixed">
         <TableHeader>
           <TableRow className="hover:bg-transparent">
-            {COLUMNS.map((column) => {
+            {columns.map((column) => {
               const active = column.sort != null && column.sort === sort;
               const direction = column.sort && SORT_DESC[column.sort] ? "desc" : "asc";
               return (
@@ -328,11 +354,13 @@ export function ActivityTable({
                       direction={direction}
                       onClick={() => onSort(column.sort!)}
                     />
-                  ) : (
+                  ) : column.id === "action" ? (
                     // Actions is named for a screen reader only: the column
                     // holds one icon button with its own tooltip, and the
                     // word would not fit its 64px.
                     <span className="sr-only">{column.label}</span>
+                  ) : (
+                    column.label
                   )}
                 </TableHead>
               );
@@ -346,7 +374,7 @@ export function ActivityTable({
         <TableBody>
           {items.map((item, i) => (
             <Reflow key={item.id}>
-              <Row item={item} index={i} />
+              <Row item={item} index={i} variant={variant} onResume={onResume} />
             </Reflow>
           ))}
         </TableBody>
@@ -355,7 +383,17 @@ export function ActivityTable({
   );
 }
 
-function Row({ item, index }: { item: ActivityItem; index: number }) {
+function Row({
+  item,
+  index,
+  variant,
+  onResume,
+}: {
+  item: ActivityItem;
+  index: number;
+  variant: "queue" | "history";
+  onResume?: (item: ActivityItem) => void;
+}) {
   const status = STATUS[item.status];
   const cells: ReactNode = (
     <>
@@ -411,6 +449,32 @@ function Row({ item, index }: { item: ActivityItem; index: number }) {
         )}
       </TableCell>
 
+      {variant === "queue" && (
+        <TableCell className={cn(TD, CENTER, "overflow-hidden py-0")}>
+          {onResume ? (
+            // A button, so the row's own click (it opens the job) leaves it
+            // alone (components/clickable-row.tsx).
+            <button
+              type="button"
+              onClick={() => onResume(item)}
+              title={item.resume ? `${item.resume}: change resume` : "Choose a resume"}
+              className="text-note hover:text-brand hover:border-brand-ring focus-visible:ring-brand-ring border-border-subtle inline-flex max-w-full items-center gap-1.5 rounded-full border px-2.5 py-1 transition-colors duration-150 focus-visible:ring-2 focus-visible:outline-none"
+            >
+              <span className={cn("truncate", item.resume ? "text-ink" : "text-ink-meta")}>
+                {item.resume ?? "Choose a resume"}
+              </span>
+              <PencilIcon aria-hidden className="text-ink-meta size-3.5 shrink-0" />
+            </button>
+          ) : item.resume ? (
+            <span className="block truncate" title={item.resume}>
+              {item.resume}
+            </span>
+          ) : (
+            <span className="text-ink-meta">No resume</span>
+          )}
+        </TableCell>
+      )}
+
       <TableCell className={cn(TD, CENTER)}>
         {item.match != null ? (
           <MatchBadge score={item.match} />
@@ -423,9 +487,11 @@ function Row({ item, index }: { item: ActivityItem; index: number }) {
         <LocalDate at={item.addedAt} />
       </TableCell>
 
-      <TableCell className={cn(TD, CENTER, !item.appliedAt && "text-ink-meta")}>
-        {item.appliedAt ? <LocalDate at={item.appliedAt} /> : "Not yet"}
-      </TableCell>
+      {variant === "history" && (
+        <TableCell className={cn(TD, CENTER, !item.appliedAt && "text-ink-meta")}>
+          {item.appliedAt ? <LocalDate at={item.appliedAt} /> : "Not yet"}
+        </TableCell>
+      )}
 
       <TableCell className={cn(TD, CENTER, "py-0")}>
         {item.status === "queued" ? (

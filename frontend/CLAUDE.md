@@ -1004,7 +1004,16 @@ the KAN-296 cutover.
   from the best matches auto apply can fill, each one chosen by the seeker. A job's application
   stage (`saved`, `queued`...) reaches its Save and Auto Apply buttons from
   one read per page. Auto Apply never picks a saved job for a batch; only
-  the job's own Auto Apply click queues it.
+  the job's own Auto Apply click queues it, or the Auto Apply page's Add
+  Jobs, where the seeker picks each one (`auto-apply/add-jobs-dialog.tsx`).
+  That dialog is the one place several jobs are queued at once. Up Next's
+  resume picker stores a job's resume as the sent resume its application
+  names; the extension does not read it yet (`docs/screens.md`, Auto
+  Apply).
+  Every resume dialog (Did You Apply?, Tailor's Pick a Resume, Up Next's
+  Choose a Resume) picks through one table, `ResumeLists` in
+  `jobs/resume-picker.tsx` (KAN-360): change it there, never per dialog
+  (`docs/screens.md`, Job posting page).
   `docs/screens.md`, Applications, has the rest.
 - **A "Back" link to a dynamic page goes back in history when it can.** Next
   keeps no dynamic page for a link visit (`staleTimes.dynamic` is 0), but
@@ -1089,6 +1098,12 @@ the KAN-296 cutover.
   share the Applications list's frame and its promoted pieces
   (`components/clickable-row.tsx`, `match-badge.tsx`, `reflow.tsx`,
   `field-facet.tsx`); a new seeker table starts from those, not a copy.
+- **How many rows a table or list shows depends on where it sits.** A
+  full-page table (the Applications list, Up Next) shows every row and the
+  page scrolls. A list or table inside a dialog or a tile scrolls inside
+  itself at one height, the `--spacing-scroll-box` token (`max-h-scroll-box`
+  or `h-scroll-box`, 320px): the resume picker, Add Jobs and Top Matches.
+  Each picked its own height before, and Add Jobs grew to 90% of the window.
 - **A filter whose rows the page already holds moves the URL in place**
   (`useShallowPush`, `docs/motion.md`): Live Activity's Status and sort
   (KAN-285). A tick passes `{ replace: true }`, so ticks are not steps of
@@ -1202,15 +1217,21 @@ are in `docs/auth.md`.
   AI" (KAN-222) runs only on a click, never on its own, and shows only
   while `uses_left` is above 0; a failed reading writes nothing and says
   why.
-- **The Experiences view shows one resume at a time** (KAN-343,
+- **The Experiences view shows one resume at a time** (KAN-343, ADR 0005,
   `../docs/bank_by_resume.md`): a dropdown of every uploaded, base and
-  tailored resume, opening on `?resume=`, else the starred resume, else the
-  newest. The rules (which items a pick shows, the opening pick, the "Also
+  tailored resume, then Not From an Upload while anything no upload owns
+  exists, opening on `?resume=`, else the starred resume, else the newest. The rules (which items a pick shows, the opening pick, the "Also
   used in" line) live in `(seeker)/bank/holdings.ts` and read only the
   API's `resume_ids`; never work out a resume's items in a component.
-  Intake always gets the whole bank. A
-  new entry or skill saved under a resume pick is on no resume yet, so the
-  page says where it went instead of letting it vanish.
+  Intake always gets the whole bank. Add sends the pick (`createEntry`,
+  `addSkill`), so the new item belongs to that upload or shows on that
+  built resume and stays in view. `resume_ids` names at most one upload,
+  so "Also used in" names built resumes only. All Experiences was removed
+  (2026-10-23). **Every item must show under some pick**: Not From an
+  Upload holds what no upload owns (intake's, or one that came from
+  several uploads before ADR 0005). It was removed too at first, which
+  left 96 entries and 242 skills of 8 students that every reader used but
+  no student could see, edit or delete, so it came back (2026-10-24).
 - **The Experiences view has a section nav** (KAN-349,
   `(seeker)/bank/section-nav.tsx`): one sticky row of links to the seven
   section cards, each with its count under the current pick, the one in

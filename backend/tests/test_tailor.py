@@ -382,7 +382,7 @@ async def test_an_upload_is_read_into_the_bank_and_tailored_as_its_own_entries(s
     assert res.status_code == 200, res.text
     shown = await student.words(res.json()["resume"]["id"])
     assert "Initech" in shown and "Maze Robot" in shown and "Acme" not in shown
-    # Done read the upload again and added nothing; no base resume was saved.
+    # Done did not read the upload again (it owns entries now); no base resume was saved.
     assert len(await _entries(student)) == 3
     assert sorted(r["job_posting_id"] or "" for r in await student.resumes()) == ["", posting]
 
