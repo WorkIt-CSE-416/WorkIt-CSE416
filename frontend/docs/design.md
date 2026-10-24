@@ -153,6 +153,13 @@ per-route `icons.tsx` is the same kind of wrapper.
   icons read a React context that a server component cannot; the lint
   refuses it. Types (`Icon`) may come from the main entry. Use the `*Icon`
   names (`CheckIcon`); the bare names are deprecated.
+- **Every glyph is a touch heavier than Phosphor draws it** (KAN-365). Its
+  regular line is 1px at `size-4`, and after Lucide's 2px every icon read
+  thin, so one rule in `globals.css` (`svg[viewBox="0 0 256 256"]`, in
+  base) outlines each glyph's shape by 5 units: about a 2px line, with
+  Phosphor's shapes kept. Phosphor has no weight between regular and bold,
+  and bold read chunkier than Lucide had. `custom-icons.tsx` strokes its
+  glyphs to match (`STROKE`, 2 at regular); change the two together.
 - **Sizes stay classes** (`size-4`): Phosphor's own default is 1em. Inside a
   Button, Chip or shadcn menu an icon with no size class takes the parent's.
 - **Weight carries state.** Regular everywhere; `weight="fill"` for a
@@ -221,6 +228,21 @@ the done green;
 the draft's "Ready to save" is words, so it takes `--color-positive-ink`,
 and "Still needed" takes `--color-warning`, as the bank's own warnings do.
 `globals.css` has the numbers.
+
+## Type weights
+
+Four weights, each with one job, shown on `/design-kit/type` (Weights):
+400 to read (body copy, helper text, typed values), 500 for anything a
+student clicks or picks (buttons, chips, segmented controls, menu rows,
+select and filter options, field labels), 600 to name a block (card and
+dialog titles, a job's title, captions), 700 to name a page. A token that
+carries a weight already sets it; a size with none of its own (body, note)
+takes the weight of its job. shadcn's menu, select and combobox rows set no
+weight and drew at 400, so the account menu read thinner than the Jobs
+page's filters; `globals.css` sets them to 500 by `data-slot`, in base so a
+row that asks for another weight still gets it (KAN-365). The filters' own
+option rows (`filter-controls.tsx`) set theirs and are left alone: a nested
+option is 400 under its medium parent.
 
 ## Components
 

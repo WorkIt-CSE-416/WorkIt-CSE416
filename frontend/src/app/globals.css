@@ -1217,6 +1217,38 @@ body:has([data-skyline]) {
   ::file-selector-button {
     cursor: pointer;
   }
+
+  /* Phosphor's glyphs, a touch heavier (KAN-365). Its regular line is 16 on
+   * a 256 grid, 1px at size-4, and after the switch from Lucide (2 on 24)
+   * every icon read thin. Phosphor has no weight between regular and bold,
+   * so each glyph's filled shape gets a 5-unit outline in its own colour:
+   * about Lucide's 2px line, with Phosphor's shapes kept. Phosphor draws on
+   * a 256 grid and nothing else in the app does, which is what the selector
+   * reads. custom-icons.tsx strokes its own glyphs to match (STROKE); change
+   * the two together. In base, so a utility on one icon can still undo it. */
+  svg[viewBox="0 0 256 256"] {
+    stroke: currentColor;
+    stroke-width: 5;
+    stroke-linejoin: round;
+  }
+
+  /* A menu's, a select's or a combobox's rows are medium (500), as every
+   * control a student clicks or picks is: a button, a chip, a segmented
+   * control, the filters' options. shadcn's rows set no weight, so they drew
+   * at 400 and the account menu read thinner than the Jobs page's filters
+   * (KAN-365). In base, so a row that asks for another weight still gets it,
+   * and by data-slot rather than role, so the filters' own option rows keep
+   * the weights they set. */
+  :is(
+    [data-slot="dropdown-menu-item"],
+    [data-slot="dropdown-menu-checkbox-item"],
+    [data-slot="dropdown-menu-radio-item"],
+    [data-slot="dropdown-menu-sub-trigger"],
+    [data-slot="select-item"],
+    [data-slot="combobox-item"]
+  ) {
+    font-weight: 500;
+  }
 }
 
 /* The rows of a menu, a select or a combobox are choices you click, so they
