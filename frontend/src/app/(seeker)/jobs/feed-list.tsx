@@ -93,8 +93,8 @@ export function FeedList({
   const tailoredIds = new Set(tailored);
 
   // A return from cache skips the rise animation: the cards appear instantly.
-  const cached = useRef(readKept());
-  const fromCache = cached.current?.query === query;
+  // useState initializer captures the cache at mount; never updated.
+  const [fromCache] = useState(() => readKept()?.query === query);
 
   // Every mount writes the full state to the cache so a return visit finds
   // the server's latest first page merged with any kept Load More pages.
