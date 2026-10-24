@@ -12,7 +12,7 @@ import pytest
 from sqlalchemy import text
 
 from tests import test_built_resumes, test_sent_resumes
-from tests.test_built_resumes import _fill_bank, _generate, _no_text, _upload
+from tests.test_built_resumes import _another, _fill_bank, _generate, _no_text, _upload
 from tests.test_sent_resumes import FakeStorage, _seed_posting
 
 student = test_built_resumes.student
@@ -190,7 +190,7 @@ async def test_a_chosen_built_resume_goes_with_the_job(student, storage, renders
     client, me = student
     await _fill_bank(client, me)
     first = await _generate(client, me, "General SWE")
-    second = await _generate(client, me, "Backend focus")
+    second = await _another(client, me, "Backend focus")
     assert (await client.put(f"{me}/built-resumes/{first}/default")).status_code == 200
     job = await _queued(client, me, database)
 
