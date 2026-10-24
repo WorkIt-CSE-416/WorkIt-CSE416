@@ -1211,6 +1211,16 @@ are in `docs/auth.md`.
   Intake always gets the whole bank. A
   new entry or skill saved under a resume pick is on no resume yet, so the
   page says where it went instead of letting it vanish.
+- **The Experiences view has a section nav** (KAN-349,
+  `(seeker)/bank/section-nav.tsx`): one sticky row of links to the seven
+  section cards, each with its count under the current pick, the one in
+  view lit. It is one row at every width, scrolling sideways where it does
+  not fit, so its height never changes; every section card's `scroll-mt-16`
+  is room for it, and a card added to the page needs that margin and an
+  `id` of `section-<id>` too, or a jump to it (and Scout's scroll) lands
+  under the row. A click keeps its link lit until the student scrolls on:
+  lit by the scroll alone, a click on Certifications ended with Skills lit,
+  since a short last card never reaches the top.
 - **Applicant server actions call the API through `applicantCall`**
   (`lib/applicant-call.ts`, server-only): the session, the Bearer token,
   GET/DELETE/fetch, and a `Result<T>` (`data`, `error`, `status`) that never
