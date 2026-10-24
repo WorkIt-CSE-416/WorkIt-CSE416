@@ -31,7 +31,7 @@ is the recommendations' job, not search's.
 
 import time
 from collections.abc import Mapping, Sequence
-from dataclasses import dataclass, field
+from dataclasses import dataclass, field, replace
 
 from sqlalchemy import distinct, select
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -42,7 +42,7 @@ from app.models.jobs import Job_Post
 from app.queries.jobs.filters import LISTED
 from app.services.company_resolver import CompanyResolver
 from app.services.role_resolver import RoleResolver, raw_words
-from app.services.search_facts import query_facts
+from app.services.search_facts import FoundFact, query_facts
 from app.services.start_terms import season_of
 
 
@@ -58,6 +58,9 @@ class Search:
     season_phrases: tuple[str, ...] = ()
     remote_phrases: tuple[str, ...] = ()
     words: tuple[str, ...] = ()
+    # The level, work style and start facts, each at its words' places in
+    # raw_words(q), for /search to show them and let the seeker drop one.
+    facts: tuple[FoundFact, ...] = ()
 
 
 async def read_search(db: AsyncSession, q: str | None) -> Search:
@@ -91,6 +94,9 @@ async def read_search(db: AsyncSession, q: str | None) -> Search:
         season_phrases=facts.season_phrases,
         remote_phrases=facts.remote_phrases,
         words=fixed.rest,
+        facts=tuple(
+            replace(fact, at=tuple(named.kept[i] for i in fact.at)) for fact in facts.found
+        ),
     )
 
 

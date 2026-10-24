@@ -262,6 +262,27 @@ export async function getJobCount(filters: FeedFilters, q = ""): Promise<number 
   }
 }
 
+/** A filter a search's words set, as GET /jobs/search-facts reads it:
+ *  "remote" is the Remote work style, "intern" the internships, "summer 2027"
+ *  a start term. `without` is the search with those words taken out. */
+export type SearchFact = {
+  facet: "level" | "work_style" | "start_term";
+  value: string;
+  without: string;
+};
+
+/** The filters `q`'s own words set, for /search to show beside the row
+ *  (KAN-308). Empty when the API can't be reached: the results below report
+ *  the error themselves, and a missing chip hides nothing the list shows. */
+export async function getSearchFacts(q: string): Promise<SearchFact[]> {
+  try {
+    const res = await apiGet(`/jobs/search-facts?${new URLSearchParams([["q", q]])}`);
+    return res.ok ? ((await res.json()) as SearchFact[]) : [];
+  } catch {
+    return [];
+  }
+}
+
 /** How long the filter row's places and facet lists are reused before asking
  *  the API again. They change only when an import runs (every few hours), and each ask
  *  costs the API a database connection and six counting queries, which every

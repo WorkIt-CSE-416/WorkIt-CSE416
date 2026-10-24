@@ -1015,6 +1015,16 @@ the KAN-296 cutover.
   `jobs/resume-picker.tsx` (KAN-360): change it there, never per dialog
   (`docs/screens.md`, Job posting page).
   `docs/screens.md`, Applications, has the rest.
+- **/search keeps the filter row, and shows what its words filter by**
+  (KAN-308). A new search from the top bar sends only ?q, so it starts
+  with no filters; the row stays on /search to narrow the results. The
+  words "remote", "intern", "new grad" or "summer 2027" also narrow them,
+  as the API reads them (`docs/search.md`, the facts), so each shows as a
+  chip above the results (`search/search-facts.tsx`, from GET
+  /jobs/search-facts) whose cross searches again without its words. A
+  fact the API learns to read needs a label in `factLabel` there, or its
+  chip shows the raw key. A PR removed the row on 2026-10-24 to "clear the
+  filters" a search already cleared; the chips were the missing part.
 - **A "Back" link to a dynamic page goes back in history when it can.** Next
   keeps no dynamic page for a link visit (`staleTimes.dynamic` is 0), but
   reuses the one it holds on a history Back. A job page's Back that followed
