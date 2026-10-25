@@ -143,8 +143,68 @@ class WrittenAnswer(WrittenQuestion):
     answer: str | None
 
 
+class OwnAnswer(BaseModel):
+    """PUT .../applications/{job_id}/answers: the student's own words in a
+    batch tab's field for a question it needs written (KAN-379): the
+    field's `name`, the question's wording, and their answer."""
+
+    model_config = ConfigDict(extra="forbid")
+
+    name: str = Field(min_length=1, max_length=200)
+    label: str = Field(min_length=1, max_length=LABEL_MAX)
+    answer: str = Field(min_length=1, max_length=ANSWER_MAX)
+
+
+class SavedAnswer(BaseModel):
+    """An answer saved on another application, as the Fill engine's Answer
+    bank takes it (KAN-379): `own` when the words are the student's, false
+    for their Claude's."""
+
+    answer: str
+    own: bool
+
+
 class ApplicationStage(BaseModel):
     """Where one job's application stands after a write."""
 
     job_id: uuid.UUID
     stage: application_stage
+
+
+# --- Written Answers without Claude (routers/pasted_answers.py, KAN-385) ---
+
+
+class PostingQuestions(BaseModel):
+    """One open application's questions still unanswered, under its job
+    posting, as the Written Answers page lists them."""
+
+    job_id: uuid.UUID
+    company: str | None
+    title: str | None
+    questions: list[WrittenAnswer]
+
+
+class PastedAnswer(BaseModel):
+    """An answer the student pasted for one question, by its `name`."""
+
+    model_config = ConfigDict(extra="forbid")
+
+    name: str = Field(min_length=1, max_length=200)
+    answer: str = Field(max_length=ANSWER_MAX)
+
+
+class PastedAnswers(BaseModel):
+    """PUT .../applications/{job_id}/written-answers: the answers to save,
+    all or none."""
+
+    model_config = ConfigDict(extra="forbid")
+
+    answers: list[PastedAnswer] = Field(min_length=1, max_length=50)
+
+
+class SavedAnswers(BaseModel):
+    """How many answers were saved, and how many of the application's
+    questions are still unanswered."""
+
+    saved: int
+    left: int

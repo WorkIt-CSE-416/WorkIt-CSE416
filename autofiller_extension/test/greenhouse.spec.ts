@@ -26,7 +26,8 @@ test("fills a saved Greenhouse form from a WorkIt profile and submits nothing", 
     first_name: "Test",
     last_name: "Person",
     email: "test.person@example.com",
-    phone: "5550100199",
+    phone: "(555) 010-0199", // formatted for the US once its country is picked
+    country: "United States", // the picker beside Phone: Greenhouse won't send a number without it
     question_18871501008: "https://www.linkedin.com/in/test-person",
     question_18871502008: "Yes",
     question_18871503008: "No",
@@ -103,8 +104,25 @@ async function rowsFor(job: string) {
 test("an essay question waits for the student to ask for a written answer", async () => {
   const rows = await rowsFor(arcWithEssay("&lt;p&gt;Build boats.&lt;/p&gt;"));
 
-  expect(rows.written).toEqual([{ name: "question_1", label: "Why do you want to work at Arc?", required: true }]);
+  expect(rows.written).toEqual([{ name: "question_1", label: "Why do you want to work at Arc?", required: true, max_length: null }]);
   expect(rows.yours).toEqual([]);
+});
+
+test("an essay's limit is its field's own, as the engine reads it from the form", async ({ context }) => {
+  const page = await new FakeJobServer("greenhouse-arc").open(context);
+  // The essay's box on the form, with the limit the employer set.
+  await page.evaluate(() => {
+    const box = document.createElement("textarea");
+    box.id = "question_1";
+    box.maxLength = 600;
+    document.body.append(box);
+  });
+  const prepared = await planFill({
+    url: "https://job-boards.greenhouse.io/arcboatcompany/jobs/5442881008", profile: STUDENT, today: "2026-10-22",
+    call: engineCaller((request) => page.evaluate(runEngine, request)), fetchText: async () => arcWithEssay("&lt;p&gt;Build boats.&lt;/p&gt;"),
+  });
+
+  expect(planRows(prepared).written).toEqual([{ name: "question_1", label: "Why do you want to work at Arc?", required: true, max_length: 600 }]);
 });
 
 test("on a posting that bans AI-written answers, the essay is left for the student", async () => {
@@ -120,7 +138,7 @@ test("a one-line question the Plan leaves to a draft is the student's, not an es
   const details = { name: "details", label: "Have you completed at least one previous internship? Please provide details.", kind: "textarea", required: true, options: [] };
   const rows = planRows({ plan: { essays: [], drafts: [nickname, details], missing: [], handoffs: [] } });
 
-  expect(rows.written).toEqual([{ name: "details", label: details.label, required: true }]);
+  expect(rows.written).toEqual([{ name: "details", label: details.label, required: true, max_length: null }]);
   expect(rows.yours).toEqual([{ name: "nick", label: "Nick Name", required: false }]);
 });
 

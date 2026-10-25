@@ -30,12 +30,14 @@ from app.routers.connector import router as connector_router
 from app.routers.essay_answer import router as essay_answer_router
 from app.routers.intake import router as intake_router
 from app.routers.jobs import router as jobs_router
+from app.routers.pasted_answers import router as pasted_answers_router
 from app.routers.preferences import router as preferences_router
 from app.routers.profiles import router as profile_router
 from app.routers.resumes import router as resume_router
 from app.routers.scout import router as scout_router
 from app.routers.sent_resumes import router as sent_resumes_router
 from app.routers.tailor import router as tailor_router
+from app.routers.writing_samples import router as writing_samples_router
 
 logger = logging.getLogger(__name__)
 
@@ -71,6 +73,8 @@ app.include_router(preferences_router)
 app.include_router(autofill_answers_router)
 app.include_router(essay_answer_router)
 app.include_router(connector_router)
+app.include_router(writing_samples_router)
+app.include_router(pasted_answers_router)
 # The connector's MCP server and its OAuth endpoints (app/connector/server.py).
 app.router.routes.extend(CONNECTOR_ROUTES)
 

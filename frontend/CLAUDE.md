@@ -1032,6 +1032,12 @@ the KAN-296 cutover.
   resume picker stores a job's resume as the sent resume its application
   names; the extension does not read it yet (`docs/screens.md`, Auto
   Apply).
+  **Written Answers (`/auto-apply/answers`, KAN-385) saves through the
+  connector's own save** (`PUT .../written-answers`, which runs WorkIt's
+  answer checks): never give pasted text a save of its own, since it may
+  come from any AI, and never send it to the extension; the open tab fills
+  it on its own poll. A failed check is the warning amber under its box,
+  never the danger red (the student fixes it; nothing broke).
   Every resume dialog (Did You Apply?, Tailor's Pick a Resume, Up Next's
   Choose a Resume) picks through one table, `ResumeLists` in
   `jobs/resume-picker.tsx` (KAN-360): change it there, never per dialog

@@ -7,7 +7,7 @@ Claude saved an answer, which the open tab filled
 import datetime
 import uuid
 
-from sqlalchemy import DateTime, ForeignKeyConstraint, Integer, Text
+from sqlalchemy import DateTime, ForeignKeyConstraint, Integer, Text, text
 from sqlalchemy.orm import Mapped, mapped_column
 
 from app.db import BaseModel
@@ -36,6 +36,10 @@ class Written_Answer(BaseModel):
     # NULL until the student's Claude saves one
     answer: Mapped[str | None] = mapped_column(Text)
     answered_at: Mapped[datetime.datetime | None] = mapped_column(DateTime(timezone=True))
+    # the student's own words (KAN-379): an edit in the tab, or their answer
+    # before their Claude's. Their Claude's save never replaces it, and it is
+    # the answer later forms reuse for the same question
+    own: Mapped[bool] = mapped_column(server_default=text("false"))
 
     __table_args__ = (
         # The application's questions go with it: dequeued, or the account deleted.

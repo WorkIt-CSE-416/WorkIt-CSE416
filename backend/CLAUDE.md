@@ -211,7 +211,19 @@ Find files with a directory listing; these are the rules for where code goes.
   form needs written (`PUT .../questions`), the student's own Claude saves
   each answer through the connector, and the tab reads them back
   (`GET .../questions`) to fill them. Only a queued or needs_you application
-  takes questions. Tests: `tests/test_written_answers.py`.
+  takes questions. Tests: `tests/test_written_answers.py`. **A student
+  without Claude pastes answers through the same save** (KAN-385,
+  `routers/pasted_answers.py`): the Written Answers page lists every
+  unanswered question by posting (`pipeline.unanswered_questions`) and
+  saves through `pipeline.save_answers`, the connector's own step, so a
+  pasted answer passes the same checks and the tab fills it the same way.
+  Never give pasted text a save path of its own: it may come from any AI.
+  A refusal's `Refused.reasons` holds each answer's reasons by question
+  name, for the page to show under its box. Tests: `tests/test_pasted_answers.py`.
+  **A student's writing samples and style card** (KAN-384) are
+  `queries/writing.py`, behind `routers/writing_samples.py` (the student's
+  add, replace, remove) and the connector's tools (their Claude reads the
+  samples and saves the card). Tests: `tests/test_writing_samples.py`.
   **The connector is an MCP server inside this API** (`app/connector/`,
   KAN-377; `../auto-apply/architecture.md` 14.6): the official MCP SDK at
   `/mcp`, with WorkIt as its own OAuth server (`connector/oauth.py`; the
@@ -222,7 +234,8 @@ Find files with a directory listing; these are the rules for where code goes.
   signs in with the SDK's own client as Claude does). Its tokens reach
   `/mcp` only. **Its tools are layer 3** (`connector/tools.py`): the
   student comes from the token (`load_account`), each tool calls one
-  layer-2 step (`next_to_write`, `save_answers`), and a refusal is a
+  layer-2 step (`next_to_write`, `save_answers`; the style card's two tools,
+  `connector/style.py`, read and write `queries/writing.py`), and a refusal is a
   `ToolError` with the reason. **A chat is the `chat` value Claude passes
   back** (KAN-381): the server keeps no session, so the per-chat cap
   (`connector_chat_cap`) counts the job ids in that value, and a new chat
@@ -244,7 +257,25 @@ Find files with a directory listing; these are the rules for where code goes.
   `services/page_fetch.py`**, never a bare `httpx` call: the URL comes from
   outside, and the fetcher is what refuses internal addresses, other
   hosts, redirects off them and oversized pages. Tests swap
-  `briefs.fetch_page` for a fake; nothing in the suite reads the web. **Which job postings it takes is
+  `briefs.fetch_page` for a fake; nothing in the suite reads the web.
+  **Every saved answer passes the checks in code first**
+  (`app/auto_apply/checks.py`, KAN-380; pure, `tests/test_answer_checks.py`):
+  machine-made words, a run copied from the student's writing samples, a
+  number not in the bank, posting or question, another application's
+  company, a sentence over 30 words, a placeholder, and the form's own
+  limit (the Fill engine reads it from the live form; the tab sends it as
+  `max_length`). `save_answers` refuses the whole save with every failing
+  answer's reasons, so nothing failing reaches a tab. **An answer about one
+  company is offered on that company's forms only** (`checks.company_specific`,
+  read through `pipeline.answer_bank`: reuse saved answers through it, never
+  from `written_answers` directly). **The student's own words win**
+  (KAN-379): an edit in a tab (`PUT .../answers`) sets the row's `own`, which
+  their Claude's later save never overwrites and `answer_bank` offers first;
+  the extension plans every batch form with `GET .../answer-bank`, so a
+  saved question never reaches their Claude. Seam-2 tests:
+  `tests/test_connector_saved_answers.py`. Seam-2 tests:
+  `tests/test_connector_checks.py`. The writing samples are KAN-384's;
+  until then `pipeline.writing_samples` holds none. **Which job postings it takes is
   one list, `app/auto_apply/hosts.py`** (every hiring system the Fill engine fills, KAN-370): the matches
   and `queue_applications` require its SQL form (`AUTO_APPLY_SUPPORTED` in
   `queries/jobs/filters.py`) and `JobListing.auto_apply` its Python form,
@@ -957,6 +988,10 @@ removed at cutover, not before. Until then a change must work on both.
   changes two foreign keys (no column the code maps), so either order
   works. Before it, a hard-deleted posting still cascades to tailored
   resumes and their bullet variants.
+- **Apply `c3e5a7b9d146` (`writing_samples`, `style_cards`, KAN-384)
+  before the deploy that reads them.** It only adds tables, so applying it
+  early is safe; deployed first, the connector's get_next_application and
+  the writing-samples routes answer 500.
 - **Apply `f2b8d6c4a913` before deploying KAN-217.** It adds
   `bank_bullet_variants` and `built_resume_bullets.variant_id`, which the
   model maps, so Generate's inserts fail on a database without it.

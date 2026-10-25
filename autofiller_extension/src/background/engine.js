@@ -258,13 +258,13 @@ async function readQuestions({ job, url, call, fetchText, state }) {
  * job's page that isn't its form, `openForm`. On Workday it is the step
  * shown, with `step` and the engine's `state`.
  * @param {{
- *   url: string, profile: import("../shared/types.js").AutofillProfile, today: string,
+ *   url: string, profile: import("../shared/types.js").AutofillProfile, bank?: object, today: string,
  *   call: (name: string, ...args: unknown[]) => Promise<any>,
  *   fetchText: (url: string, init?: { method: string, body: string }) => Promise<string>,
  *   extra?: object[], state?: object,
  * }} options
  */
-export async function planFill({ url, profile, today, call, fetchText, extra = [], state }) {
+export async function planFill({ url, profile, bank = {}, today, call, fetchText, extra = [], state }) {
   const job = jobOf(url);
   if (!job) return { covered: false };
   const { site } = job;
@@ -272,17 +272,64 @@ export async function planFill({ url, profile, today, call, fetchText, extra = [
   const fetchOnce = once(fetchText);
   const read = await readQuestions({ job, url, call, fetchText: fetchOnce, state });
   const known = new Set(read.questions.map((q) => q.name));
-  const questions = [...read.questions, ...extra.filter((q) => !known.has(q.name))];
-  const names = await optional(() => engine.jobNames(url, fetchOnce), { company: "", title: "" });
-  const text = engine.textOf(await optional(() => engine.jobDescription(url, fetchOnce), ""));
-  const posting = { id: String(job.job ?? job.shortcode ?? job.pid ?? url), ...names, url };
-  const plan = questions.length
-    ? engine.plan(questions, engineProfile(profile), POLICIES, {}, { posting, today, postingText: text, employerText: text })
-    : { answers: {}, essays: [], drafts: [], missing: [], handoffs: [], accepted: {}, sources: {} };
+  // Each text field's own limit, as the form on the page sets it (KAN-380): a written answer is checked against it before it is saved.
+  const asked = [...read.questions, ...extra.filter((q) => !known.has(q.name))];
+  const questions = await optional(() => call("limits", asked), asked);
+  const { posting, plan } = await planQuestions({ job, url, questions, profile, bank, today, fetchText: fetchOnce });
   const answers = withFiles(plan.answers, profile);
   const prepared = { covered: true, site, posting, questions, plan, answers, applicantId: profile.id, step: read.step, state: read.state };
   return { ...prepared, rows: planRows(prepared) };
 }
+
+/**
+ * The engine's Plan for a job's questions, with the job's names and text
+ * read for it. `bank`: the saved answers this job's form may reuse
+ * (GET .../applications/{job}/answer-bank, KAN-379), the engine's Answer bank, which fills a question answered
+ * before, and says where it may be reused.
+ */
+async function planQuestions({ job, url, questions, profile, bank, today, fetchText }) {
+  const names = await optional(() => engine.jobNames(url, fetchText), { company: "", title: "" });
+  const text = engine.textOf(await optional(() => engine.jobDescription(url, fetchText), ""));
+  const posting = { id: String(job.job ?? job.shortcode ?? job.pid ?? url), ...names, url };
+  const plan = questions.length
+    ? engine.plan(questions, engineProfile(profile), POLICIES, bank ?? {}, { posting, today, postingText: text, employerText: text })
+    : { answers: {}, essays: [], drafts: [], missing: [], handoffs: [], accepted: {}, sources: {} };
+  return { posting, plan };
+}
+
+/**
+ * Write early (KAN-379): the questions a queued job's form needs written,
+ * read from its form's link (`formUrl`) with no tab open, and planned as its tab will plan
+ * them, so the student's Claude can write them before the tab opens. In the
+ * shape PUT .../applications/{job}/questions takes; the form's own length
+ * limit is unknown until the tab reads its fields, so `max_length` is null.
+ * Null when only the open form shows its questions (Workday, Eightfold, an
+ * Ashby form whose query failed), or the link is no form the engine covers.
+ * @param {{ url: string, profile: object, bank?: object, today: string, fetchText: Function }} options
+ * @returns {Promise<{ name: string, label: string, required: boolean, max_length: null }[] | null>}
+ */
+export async function questionsToWrite({ url, profile, bank = {}, today, fetchText }) {
+  const job = jobOf(url);
+  if (!job || job.practice || job.site === "workday" || job.site === "eightfold") return null;
+  const fetchOnce = once(fetchText);
+  let questions;
+  try {
+    questions = await engine.questionSet(url, fetchOnce);
+  } catch {
+    return null;
+  }
+  const { plan } = await planQuestions({ job, url, questions, profile, bank, today, fetchText: fetchOnce });
+  return planRows({ plan }).written.map((q) => ({
+    name: q.name.slice(0, WRITTEN_NAME_MAX),
+    label: q.label.slice(0, WRITTEN_LABEL_MAX),
+    required: Boolean(q.required),
+    max_length: null,
+  }));
+}
+
+// The connector's limits on a question (backend/app/schemas/applications.py), as content-script.js cuts them.
+const WRITTEN_NAME_MAX = 200;
+const WRITTEN_LABEL_MAX = 2000;
 
 /**
  * Fills `answers` on the page through the engine's `fillEach`, which fills
@@ -309,8 +356,9 @@ export async function fillPage({ call, site, questions, answers, accepted, state
 /**
  * What the overlay lists besides the planned answers, from the Plan:
  * - `written`: questions that need a written answer (the Plan's essays, and
- *   its drafts in a text area). Each waits for the student's one Generate
- *   click, then goes to the essay-answer route.
+ *   its drafts in a text area), each with `max_length`, its field's own limit
+ *   as the engine read it from the form (null when it sets none). Each waits
+ *   for the student's one Generate click, then goes to the essay-answer route.
  * - `yours`: questions WorkIt has no answer for (Missing facts, and drafts
  *   that are a choice or one line, which a written answer can't make).
  * - `notes`: what the Plan leaves to the student and why (an AI trap or ban,
@@ -318,7 +366,7 @@ export async function fillPage({ call, site, questions, answers, accepted, state
  * A form that bans AI-written text never has `written`: the Plan hands its
  * essays off instead, so nothing AI-written goes where it is banned.
  * @returns {{ written: Row[], yours: Row[], notes: string[] }}
- * @typedef {{ name: string, label: string, required: boolean }} Row
+ * @typedef {{ name: string, label: string, required: boolean, max_length?: number | null }} Row
  */
 export function planRows({ plan }) {
   const row = (q) => ({ name: q.name, label: q.label, required: q.required });
@@ -329,7 +377,7 @@ export function planRows({ plan }) {
   const notes = [...(plan.handoffs ?? [])];
   if (plan.not_eligible) notes.push(`You may not meet this requirement: ${plan.not_eligible}`);
   return {
-    written: [...plan.essays, ...drafts.filter(takesText)].map(row),
+    written: [...plan.essays, ...drafts.filter(takesText)].map((q) => ({ ...row(q), max_length: q.maxLength ?? null })),
     yours: [...plan.missing, ...drafts.filter((q) => !takesText(q))].map(row),
     notes,
   };
@@ -338,16 +386,18 @@ export function planRows({ plan }) {
 /**
  * The content script's fill messages, as the background answers them:
  * `fill/plan` (planFill, for the page at `url`), `fill/page` (fillPage) and
- * `fill/read` (what named fields show now, `{ shows: {[name]: value} }`).
+ * `fill/read` (what named fields show now, `{ shows: {[name]: value} }`) and
+ * `fill/required` (the questions the form requires now that show nothing,
+ * `{ empty: [name] }`).
  * On Workday, the nested prompts the engine read for a tenant are kept
  * (`trees`, chrome.storage in the extension) and given back on its next
  * call, as Apply keeps them: reading Workday's own How Did You Hear About
  * Us? takes seconds.
  * @param {{ type: string, [key: string]: any }} message
- * @param {{ url: string, profile: object, today: string, call: Function, fetchText: Function,
+ * @param {{ url: string, profile: object, bank?: object, today: string, call: Function, fetchText: Function,
  *   trees?: { load(): Promise<object>, save(saved: object): Promise<void> } }} context
  */
-export async function handleFill(message, { url, profile, today, call, fetchText, trees }) {
+export async function handleFill(message, { url, profile, bank, today, call, fetchText, trees }) {
   const withTrees = async (state) => (state && trees ? { ...state, trees: { ...state.trees, ...(await trees.load()) } } : state);
   const keep = async (state) => {
     if (state?.saved && trees && Object.keys(state.saved).length) await trees.save(state.saved);
@@ -357,12 +407,16 @@ export async function handleFill(message, { url, profile, today, call, fetchText
   if (message.type === "fill/plan") {
     let state = message.state;
     if (!state && trees && jobOf(url)?.site === "workday") state = { tenant: jobOf(url).tenant, trees: {} };
-    answer = await planFill({ url, profile, today, call, fetchText, extra: message.extra, state: await withTrees(state) });
+    answer = await planFill({ url, profile, bank, today, call, fetchText, extra: message.extra, state: await withTrees(state) });
   } else if (message.type === "fill/page") {
     answer = await fillPage({ call, ...message, state: await withTrees(message.state) });
   } else if (message.type === "fill/read") {
     // What each named field shows now (the engine's read-back), after the student changed the form.
     return { shows: await call("readback", message.site, message.questions, message.names, message.state) };
+  } else if (message.type === "fill/required") {
+    // The fields the form won't send without that show nothing, the planned and the unplanned alike
+    // (Greenhouse's phone country, required once Phone shows a number, is in no Question set as required).
+    return { empty: await call("emptyRequired", message.site, message.questions, message.state) };
   } else {
     throw new Error(`Unknown fill message: ${message.type}`);
   }
