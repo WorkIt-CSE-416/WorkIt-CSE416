@@ -9,7 +9,9 @@ app/auto_apply/briefs.py:
   the brief only if it beats the one kept. Answers what was kept, what was
   dropped and why, so Claude can fix and save again.
 
-How to research lives in the prompt (app/connector/tools.py), never here.
+How to research lives in the prompt (app/connector/prompt.py), never here.
+Both say openWorldHint=False, as every tool does (KAN-383): Claude does the
+web research itself; the save only checks pages inside WorkIt's own step.
 """
 
 from typing import Literal
@@ -94,7 +96,7 @@ def register(server: MCPServer, student) -> None:
             "every number in the fact is in its quote. The brief is kept only with at least min_facts "
             "checked facts and a higher score than the kept brief. Answers what was kept and dropped."
         ),
-        annotations=ToolAnnotations(readOnlyHint=False, destructiveHint=False, idempotentHint=True, openWorldHint=True),
+        annotations=ToolAnnotations(readOnlyHint=False, destructiveHint=False, idempotentHint=True, openWorldHint=False),
     )
     async def save_company_brief(company: str, facts: list[BriefFact]) -> BriefSaved:
         if len(facts) > 2 * briefs.MAX_FACTS:

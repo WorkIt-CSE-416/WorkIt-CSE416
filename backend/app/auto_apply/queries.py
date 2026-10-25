@@ -10,7 +10,7 @@ the resume rows, never writes them.
 """
 
 import uuid
-from collections.abc import Sequence
+from collections.abc import Collection, Sequence
 from dataclasses import dataclass
 
 from sqlalchemy import (
@@ -343,10 +343,13 @@ async def fetch_written(
     ]
 
 
-async def fetch_next_to_write(db: AsyncSession, applicant_id: uuid.UUID) -> tuple[uuid.UUID, str | None] | None:
+async def fetch_next_to_write(
+    db: AsyncSession, applicant_id: uuid.UUID, skip: Collection[uuid.UUID] = ()
+) -> tuple[uuid.UUID, str | None] | None:
     """The oldest open application (queued or needs_you, its job posting
-    open) with a question still unanswered: its job id and the posting's
-    description. None when nothing is left to write."""
+    open) with a question still unanswered, leaving out the jobs in `skip`:
+    its job id and the posting's description. None when nothing is left to
+    write."""
     unanswered = (
         select(Written_Answer.job_id)
         .where(
@@ -365,6 +368,7 @@ async def fetch_next_to_write(db: AsyncSession, applicant_id: uuid.UUID) -> tupl
                 Job_Application.stage.in_((application_stage.queued, application_stage.needs_you)),
                 LISTED,
                 unanswered,
+                Job_Application.job_id.not_in(skip),
             )
             .order_by(Job_Application.created_at, Job_Application.job_id)
             .limit(1)

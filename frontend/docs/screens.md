@@ -970,8 +970,20 @@ the tab's page load: the note says how many jobs it queued at once and adds
 the tab's result when it lands. The state (`idle`, `running`, `paused`) is
 the page's own; a return visit starts idle, so Start queues another batch.
 
+**Add to Claude** (KAN-383) is a secondary button with the sparkle, the AI
+mark, between Manage Resumes and Start. It opens Claude's Add Custom
+Connector dialog in a new tab with WorkIt's name and connector address
+(`<api>/mcp`) filled in, so the student checks and confirms and never pastes
+a URL (`src/lib/claude-connector.ts`, Anthropic's documented link). Claude
+then signs in to WorkIt through the consent page (`/connect/claude`), and
+the student's own Claude writes the batch's essay answers
+(`auto-apply/architecture.md`, 14.6). Once Anthropic lists WorkIt in its
+connector directory, `CLAUDE_CONNECTOR_LINK` points the button at the
+listing instead.
+
 **Jobs lead the page** (KAN-359): the heading with **Manage Resumes** (a
-secondary button to Resumes & Experiences) beside Start Auto Apply, then
+secondary button to Resumes & Experiences) and **Add to Claude** beside
+Start Auto Apply, then
 **Up Next**, and nothing else for now. It opened with a "Resume List" table of every
 resume until KAN-359, then a line naming the default resume, which the
 user removed: each queued job now shows and changes its own resume.
