@@ -102,6 +102,11 @@ class Settings(BaseSettings):
     # consent page (<web>/connect/claude). Production sets both.
     connector_api_url: str = "http://localhost:8000"
     connector_web_url: str = "http://localhost:3000"
+    # How many applications one chat writes before the connector asks the
+    # student for a new chat (KAN-381): a long chat's later answers get less
+    # of Claude's attention. Lower it if the blind read (KAN-386) finds a
+    # chat's last answers worse than its first.
+    connector_chat_cap: int = 5
 
     # The scraper's output, which app/scripts/import_jobs.py loads into the
     # database by default. Data — nothing from scraper/ is imported, so it

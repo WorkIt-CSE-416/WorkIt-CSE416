@@ -1065,12 +1065,26 @@ ids and plain data.
 
 | Name | Kind | Does |
 |---|---|---|
-| `get_next_application` | tool, `readOnlyHint` | The oldest open application (queued or needs_you, posting open) with a written question unanswered (`next_to_write`): its job id, company, title, the posting's description, its unanswered questions (`name`, `question`, `required`, `max_length`), and the student's experience bank and skills (`bank_context`, no links). Only that application's material. `job_id: null` when none is left |
+| `get_next_application` | tool, `readOnlyHint` | The oldest open application (queued or needs_you, posting open) with a written question unanswered (`next_to_write`): its job id, company, title, the posting's description, its unanswered questions (`name`, `question`, `required`, `max_length`), and the student's experience bank and skills (`bank_context`, no links). Only that application's material. `job_id: null` when none is left. Takes and answers a `chat` value (the job ids this chat was given, below); past `CONNECTOR_CHAT_CAP` it answers `start_new_chat: true`, a `message` for the student, and no application |
 | `save_answers` | tool, a write (not destructive) | `{job_id, answers: [{name, answer}]}` (`save_answers`): all or none; refuses a name the application doesn't ask, an empty answer, or one over the form's `max_length` (else 10,000), with the reason as a tool error for Claude to fix. Answers `{saved, left}` |
-| "Write my WorkIt answers" | prompt | The writing rules and the loop: next application, write, save, at most 5 per chat. **The rules live here only**; tool descriptions say what a tool does (Anthropic's review refuses descriptions that steer Claude) |
+| "Write my WorkIt answers" | prompt | The writing rules and the loop: next application, write, save, until the tool says to start a new chat. **The rules live here only**; tool descriptions say what a tool does (Anthropic's review refuses descriptions that steer Claude) |
 
-The rules are the tracer's short set; KAN-381 brings Apply's full ones, the
-per-chat cap and resuming after a usage limit; KAN-380 the checks in code
+**A chat and its cap (KAN-381).** The server is stateless and Claude
+sends nothing that names a chat, so the chat carries its own count: each
+`get_next_application` answers a `chat` value (the job ids this chat was
+given, comma-joined) and the chat passes it back. No value is a new chat.
+After `CONNECTOR_CHAT_CAP` applications (5; lower it if the blind read,
+KAN-386, finds a chat's last answers worse than its first) the tool says to
+start a new chat. A new chat starts at the oldest open application with a
+question unanswered, so a batch whose writing stopped at a Claude usage
+limit resumes there: answers save all or none per application, so a
+stopped application has nothing saved. A chat is never given the same
+application twice, so a question Claude left out (no fact for it) can't
+hold it. The value isn't signed: it guards only the student's own answer
+quality, and one that isn't valid starts a new chat.
+Tests: `tests/test_connector_chat.py`.
+
+KAN-380 adds the checks in code
 on save; KAN-379 writing as soon as a job is queued and reusing saved
 answers. **WorkIt calls no model on this path**: no tool or route of the
 connector makes a `workit_scout` `LLM` (tested), and batch tabs never call
