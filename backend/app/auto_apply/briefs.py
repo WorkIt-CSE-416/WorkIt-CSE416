@@ -12,6 +12,9 @@ WorkIt calls no model for it; everything here is checked in code.
   company's own domain or a NEWS site, its quote is on the page, and every
   number the fact states is in its quote. A date the page doesn't show
   (its year nowhere on the page) is dropped from the fact, not the fact.
+- **Own pages first.** A news site's fact stands in only when fewer than
+  MIN_OWN facts from the company's own site pass, and never one that
+  states a number: a reporter's number is the one most often wrong.
 - **A brief is scored in code** (`score`): categories covered, checked
   facts, facts from the last year. Fewer than MIN_FACTS checked facts are
   never saved, and a new brief replaces the kept one only if it scores
@@ -48,6 +51,7 @@ from app.services.page_fetch import fetch_text
 
 CATEGORIES = ("products", "launches", "engineering", "team")
 MIN_FACTS = 3
+MIN_OWN = 3  # own-site facts that leave the news sites' facts out
 MAX_FACTS = 15
 FRESH_DAYS = 30
 STRONG = 60  # of 100: under it a brief is weak and offered for research again
@@ -160,11 +164,15 @@ async def check(
     dropped: list[Dropped] = []
     waiting: list[dict] = []
     quotes: set[str] = set()
+    press: set[int] = set()  # ids of the waiting facts from a news site
     for fact in facts:
         url, quote = fact["url"].strip(), fact["quote"]
         host = (re.match(r"^https?://([^/:?#]+)", url) or [None, ""])[1]
+        own = bool(host) and own_domain(host, company, websites)
         if not host or not allowed(host):
             dropped.append(Dropped(url, "not the company's own site or a listed news site"))
+        elif not own and _numbers(fact["fact"]):
+            dropped.append(Dropped(url, "a news site's fact that states a number"))
         elif len(_plain(quote).split()) < QUOTE_WORDS:
             dropped.append(Dropped(url, f"the quote is under {QUOTE_WORDS} words"))
         elif not _numbers(fact["fact"]) <= _numbers(quote):
@@ -174,8 +182,11 @@ async def check(
         else:
             quotes.add(_plain(quote))
             waiting.append({**fact, "url": url})
+            if not own:
+                press.add(id(waiting[-1]))
 
     pages = await _read({f["url"] for f in waiting}, allowed)
+    fact_press: set[int] = set()  # indexes in `kept` of the news sites' facts
     for fact in waiting:
         page = pages.get(fact["url"])
         if page is None:
@@ -184,6 +195,8 @@ async def check(
             dropped.append(Dropped(fact["url"], "the quote is not on the page"))
         else:
             day = _month(fact.get("published"), today)
+            if id(fact) in press:
+                fact_press.add(len(kept))
             kept.append({
                 "category": fact["category"],
                 "fact": " ".join(fact["fact"].split()),
@@ -193,6 +206,10 @@ async def check(
                 "published": fact["published"].strip() if day and str(day.year) in page else None,
                 "team": (fact.get("team") or "").strip() or None,
             })
+    if len(kept) - len(fact_press) >= MIN_OWN:
+        dropped += [Dropped(kept[i]["url"], f"a news site's fact, and {MIN_OWN} facts from the company's own site passed")
+                    for i in sorted(fact_press)]
+        kept = [f for i, f in enumerate(kept) if i not in fact_press]
     return kept[:MAX_FACTS], dropped
 
 

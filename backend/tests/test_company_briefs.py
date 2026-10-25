@@ -34,7 +34,9 @@ PAGES = {
     "https://acme.com/rocket": f"Acme Rocket\nPublished {RECENT}\nAcme Rocket carries small satellites to low orbit for 40 customers.",
     "https://blog.acme.com/engines": f"{RECENT[:4]}\nOur engineers rebuilt the engine controller in Rust to cut restart time.",
     "https://acme.com/news/lander": f"{RECENT}\nToday we launched Acme Lander, which sets probes down on the Moon.",
-    "https://www.reuters.com/acme": f"{RECENT}\nAcme's flight software team writes the guidance code for every Acme vehicle.",
+    "https://acme.com/teams/flight": f"{RECENT}\nAcme's flight software team writes the guidance code for every Acme vehicle.",
+    "https://www.reuters.com/acme": f"{RECENT}\nAcme opened a second launch site on the coast this year, with 12 pads.",
+    "https://acme.com/teams/flight/autopilot": f"{RECENT}\nThe Flight Software team shipped Autopilot, which lands boosters without a pilot.",
     "https://evil.example/acme": "Acme Rocket carries small satellites to low orbit for 40 customers.",
 }
 
@@ -48,9 +50,16 @@ LANDER = {"category": "launches", "fact": "Acme launched Acme Lander, which sets
           "url": "https://acme.com/news/lander", "quote": "we launched Acme Lander, which sets probes down on the Moon",
           "published": RECENT}
 TEAM = {"category": "team", "fact": "The flight software team writes guidance code for every Acme vehicle.",
-        "url": "https://www.reuters.com/acme",
+        "url": "https://acme.com/teams/flight",
         "quote": "flight software team writes the guidance code for every Acme vehicle", "published": RECENT,
         "team": "Flight Software"}
+PRESS = {"category": "launches", "fact": "Acme opened a second launch site on the coast.",
+         "url": "https://www.reuters.com/acme", "quote": "Acme opened a second launch site on the coast",
+         "published": RECENT}
+AUTOPILOT = {"category": "launches", "fact": "The Flight Software team shipped Autopilot, which lands boosters.",
+             "url": "https://acme.com/teams/flight/autopilot",
+             "quote": "The Flight Software team shipped Autopilot, which lands boosters without a pilot",
+             "published": RECENT}
 
 
 @pytest.fixture
@@ -133,6 +142,21 @@ async def test_a_fact_off_its_page_or_off_the_allowed_sites_is_dropped(running, 
     brief = after.structured_content["company_brief"]
     assert [f["url"] for f in brief] == [ROCKET["url"], ENGINES["url"], TEAM["url"]]
     assert brief[2]["team"] == "Flight Software"
+
+
+async def test_a_news_fact_stands_in_only_without_enough_own_facts(web):
+    with_numbers = {**PRESS, "fact": "Acme opened a second launch site with 12 pads.",
+                    "quote": "a second launch site on the coast this year, with 12 pads"}
+
+    enough, enough_dropped = await briefs.check("Acme", [ROCKET, ENGINES, LANDER, PRESS], TODAY)
+    short, short_dropped = await briefs.check("Acme", [ROCKET, ENGINES, PRESS, with_numbers], TODAY)
+
+    # Three own-site facts passed: the news fact is left out.
+    assert [f["url"] for f in enough] == [ROCKET["url"], ENGINES["url"], LANDER["url"]]
+    assert [d.url for d in enough_dropped] == [PRESS["url"]]
+    # Two did: the news fact stands in, but never one that states a number.
+    assert [f["url"] for f in short] == [ROCKET["url"], ENGINES["url"], PRESS["url"]]
+    assert [d.reason for d in short_dropped] == ["a news site's fact that states a number"]
 
 
 async def test_a_brief_below_the_minimum_is_not_saved(running, applicant, database, web):
