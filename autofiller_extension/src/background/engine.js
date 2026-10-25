@@ -197,13 +197,18 @@ export function engineProfile(profile) {
 
 /** The engine profile from WorkIt's own fields alone. */
 function workitProfile(profile) {
+  // The profile's own name parts where it has them, so a middle name never joins the last name.
   const [first, ...rest] = (profile.full_name ?? "").trim().split(/\s+/);
+  const named = Boolean(profile.first_name && profile.last_name);
   const entries = profile.bank?.entries ?? [];
   const [school] = latest(entries, "education");
   const answers = profile.answers ?? {};
   return {
     identity: present({
-      legal_first_name: first || null, legal_last_name: rest.join(" ") || null, email: profile.email, phone: profile.phone_number,
+      legal_first_name: (named ? profile.first_name : first) || null,
+      legal_middle_name: named ? profile.middle_name || null : null,
+      legal_last_name: (named ? profile.last_name : rest.join(" ")) || null,
+      email: profile.email, phone: profile.phone_number,
       // Where the student lives, as they typed it (KAN-372), read by the engine; one it can't read is left out.
       current_location: home(profile.location),
     }),
