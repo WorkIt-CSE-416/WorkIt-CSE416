@@ -96,6 +96,30 @@ test("a fill that errors leaves its tab failed, not just needing the student, in
   expect(forms.submissions).toEqual([]);
 });
 
+test("a form the job system sends to its job search opens again, once", async () => {
+  // Lockheed's Eightfold (seen live): two of its forms opened at once in a new session, one went to the job search.
+  const form = "https://lockheedmartin.eightfold.ai/careers/apply?pid=1";
+  let asked = 0;
+  const eightfold: Handler = ({ url }) => {
+    if (url.host !== "lockheedmartin.eightfold.ai") return undefined;
+    const html = (body: string) => ({ headers: { "content-type": "text/html" }, body: `<!doctype html><title>Careers</title>${body}` });
+    if (url.pathname === "/careers/apply") {
+      asked += 1;
+      return html(asked === 1 ? "<script>location.replace('/careers?start=0&pid=1')</script>" : "<form><input name=first></form>");
+    }
+    return html("<form><input name=search placeholder='Search for job title'></form>");
+  };
+  const api = new FakeApi().queue({ id: "job-0", apply_url: "https://lockheedmartin.eightfold.ai/careers/job/1" });
+  loaded = await loadExtension([api.handler, webapp, eightfold]);
+  await signIn(loaded.context);
+  const webappPage = loaded.context.pages()[0] ?? (await loaded.context.newPage());
+  await webappPage.goto("http://localhost:3000/auto-apply");
+  await sendFromWebapp(webappPage, { type: "run/open" });
+  // The tab is back on the form (its fill then runs, as on any form).
+  await expect.poll(async () => (await tabs(loaded.worker)).some((t) => t.url === form), { timeout: 30_000 }).toBe(true);
+  expect(asked).toBe(2);
+});
+
 test("a tab moves to Needs you when a field empties, and back to Ready when it is answered", async () => {
   const forms = new SavedForms(["greenhouse-arc"]);
   const api = new FakeApi().queue({ id: "job-0", apply_url: forms.url("greenhouse-arc") });

@@ -477,7 +477,11 @@ waits for an opened tab's page and form (`waitForLoad`, `formShows`).
   system with no Filler) fills nothing and goes to Needs you. Ashby's
   application has no `<form>` element, so the wait also takes a field in
   Ashby's `[data-field-path]` boxes; without it every Ashby tab went to
-  Needs you with nothing filled (`test/ashby.extension.spec.ts`).
+  Needs you with nothing filled (`test/ashby.extension.spec.ts`). A tab the
+  job system moved off its form (the link no longer a form by `jobOf`) opens
+  the form again, once: Lockheed Martin's Eightfold sends one of two forms
+  opened at once in a new session to its job search, and the form shows the
+  second time (`test/batch.extension.spec.ts`).
 - **The overlay puts itself back when the page removes it.** Greenhouse's
   React app can drop nodes it didn't render, sometimes by replacing
   `<html>` itself. `overlay.js`'s `keepAttached` watches the whole document
