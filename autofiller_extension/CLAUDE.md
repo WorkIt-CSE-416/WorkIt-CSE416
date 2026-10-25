@@ -742,6 +742,18 @@ with why no existing endpoint was safe/usable from here. A third is batch
 apply's `PUT .../applications/{job_id}/fill` (KAN-370): the stage is the
 API's record of each tab, and no route set `needs_you` back to `queued`.
 
+**What a student brought from Apply lies under WorkIt's fields.** `GET
+/applicants/{id}/fill-profile` (KAN-369) is the Fill engine's own profile
+and policies the student imported from Apply
+(`backend/app/scripts/import_apply_profile.py`; `backend/app/models/CLAUDE.md`,
+"The Fill engine's profile"). `fetchAutofillProfile` keeps it as the
+profile's `fill` (best effort: without it, WorkIt's fields alone).
+`engine.js` `engineProfile` and `enginePolicies` lay what WorkIt builds over
+it, section by section (`layered`): a value WorkIt holds wins, one it lacks
+(null, empty) leaves the brought one, so a screener, a self-identification
+answer or a policy WorkIt has no field for still fills. Its answer bank
+arrives through `GET .../answer-bank` with the rest. `test/apply-profile.spec.ts`.
+
 **The email it fills is the profile's `contact_email`, else `/auth/me`'s
 sign-in email** (KAN-262). A seeker may apply with a different address than
 the one they sign in with, and My Profile is where they set it. Filling the

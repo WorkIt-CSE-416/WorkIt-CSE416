@@ -135,6 +135,33 @@ const VETERAN = { protected_veteran: true, not_protected_veteran: "I am not a pr
 const YES_NO_DECLINE = { yes: true, no: false, declined: "decline" };
 const YES_NO = { yes: true, no: false };
 
+/** Whether a fact is there: not null, empty text, an empty list or an empty section. */
+function holds(value) {
+  if (value === null || value === undefined || value === "") return false;
+  if (Array.isArray(value)) return value.length > 0;
+  if (typeof value === "object") return Object.values(value).some(holds);
+  return true;
+}
+
+/**
+ * `over` laid over `under`, section by section: a value `over` holds wins,
+ * one it lacks leaves `under`'s. Lists are values, never merged.
+ */
+export function layered(under, over) {
+  const out = { ...(under ?? {}) };
+  const sections = (v) => v && typeof v === "object" && !Array.isArray(v);
+  for (const [key, value] of Object.entries(over ?? {})) {
+    if (sections(value) && sections(out[key])) out[key] = layered(out[key], value);
+    else if (holds(value)) out[key] = value;
+  }
+  return out;
+}
+
+/** The student's policies: what they brought from Apply, with WorkIt's own (POLICIES) over them. */
+export function enginePolicies(profile) {
+  return layered(profile?.fill?.policies, POLICIES);
+}
+
 /** Bank entries of one section, the latest first (one still going comes first). */
 function latest(entries, section) {
   const ends = (e) => (e.end_kind === "present" ? "9999" : (e.end_month ?? ""));
@@ -158,10 +185,17 @@ function home(location) {
  * Only what WorkIt holds is given; a question about anything else stays the
  * student's (a Missing fact in the plan). The home is the profile's location
  * as the engine reads it (city and state). The school is the latest education
- * entry; the jobs are the experience entries, latest first.
+ * entry; the jobs are the experience entries, latest first. Under all of
+ * it lies the engine profile the student brought from Apply
+ * (`profile.fill`): WorkIt's own fields win where both hold a value.
  * @param {import("../shared/types.js").AutofillProfile} profile
  */
 export function engineProfile(profile) {
+  return layered(profile.fill?.profile, workitProfile(profile));
+}
+
+/** The engine profile from WorkIt's own fields alone. */
+function workitProfile(profile) {
   const [first, ...rest] = (profile.full_name ?? "").trim().split(/\s+/);
   const entries = profile.bank?.entries ?? [];
   const [school] = latest(entries, "education");
@@ -324,7 +358,7 @@ async function planQuestions({ job, url, questions, profile, bank, today, fetchT
   const text = engine.textOf(await optional(() => engine.jobDescription(url, fetchText), ""));
   const posting = { id: String(job.job ?? job.shortcode ?? job.pid ?? url), ...names, url };
   // `planFor`: the same Plan for another profile (the self-identification's probe, KAN-387).
-  const planFor = (someone) => engine.plan(questions, engineProfile(someone), POLICIES, bank ?? {}, { posting, today, postingText: text, employerText: text });
+  const planFor = (someone) => engine.plan(questions, engineProfile(someone), enginePolicies(someone), bank ?? {}, { posting, today, postingText: text, employerText: text });
   const plan = questions.length
     ? planFor(profile)
     : { answers: {}, essays: [], drafts: [], missing: [], handoffs: [], accepted: {}, sources: {} };

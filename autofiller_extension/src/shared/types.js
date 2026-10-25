@@ -106,6 +106,9 @@
  * @property {AutofillAnswers} answers  Never null — every key is simply
  *   null until the student answers it (KAN-283's onboarding Profile step,
  *   or My Profile).
+ * @property {{ profile: object, policies: object } | null} [fill]  The Fill
+ *   engine's own profile and policies the student brought from Apply
+ *   (GET .../fill-profile); engine.js lays WorkIt's own fields over them.
  * @property {{ filename: string, mimeType: string, base64: string } | null} resume
  *   Whichever resume My Profile calls the student's default (an upload or a
  *   built resume, backend/app/models/CLAUDE.md's "Built resumes"), already
