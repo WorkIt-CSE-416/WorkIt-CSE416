@@ -21,7 +21,9 @@ PUT  /applicants/{id}/applications/{job_id}/written-answers
 
 Not the student's own edit in a tab (KAN-379's PUT .../answers, kept
 unchecked as their own words): text pasted here may come from any AI, so it
-is checked as Claude's is.
+is checked as Claude's is, but for copying the student's own writing
+samples: the student pasted it, and may use their own words (that check
+stops their Claude parroting the samples). Saved not own, as Claude's.
 
 Applicant accounts only, and only their own id (assert_applicant_owns).
 """
@@ -63,7 +65,7 @@ async def save_pasted_answers(
     assert_applicant_owns(account, applicant_id)
     answers = {a.name: a.answer for a in body.answers}
     try:
-        left = await pipeline.save_answers(db, applicant_id, job_id, answers)
+        left = await pipeline.save_answers(db, applicant_id, job_id, answers, by="student")
     except pipeline.Refused as exc:
         raise HTTPException(
             status.HTTP_422_UNPROCESSABLE_CONTENT, {"message": str(exc), "reasons": exc.reasons}

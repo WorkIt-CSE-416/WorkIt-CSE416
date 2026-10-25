@@ -309,8 +309,9 @@ async def ask_questions(
     question the application has, with the answers saved so far. The tab
     sends the form's own limit, which a question read early lacked: each
     saved answer of their Claude's is checked again against it (and the
-    rest of checks.py), and one that fails is dropped, never filled, for
-    their Claude to write again. Only a queued or needs_you application:
+    rest of checks.py but the copy check, which its save ran: a sample the
+    student pasted themselves stays), and one that fails is dropped, never
+    filled, for their Claude to write again. Only a queued or needs_you application:
     NotFound / WrongStage otherwise.
     """
     await _open_application(db, applicant_id, job_id)
@@ -318,11 +319,11 @@ async def ask_questions(
     asked = {q.name for q in questions}
     answered = [q for q in await fetch_written(db, applicant_id, job_id) if q.answer and q.name in asked]
     if answered:
-        sources, employers, samples = await _check_material(db, applicant_id, job_id)
+        sources, employers, _ = await _check_material(db, applicant_id, job_id)
         await drop_written(db, applicant_id, job_id, [
             q.name for q in answered
             if checks.problems(q.answer, checks.Context(
-                sources=(*sources, q.label), samples=samples, employers=employers, limit=q.max_length,
+                sources=(*sources, q.label), employers=employers, limit=q.max_length,
             ))
         ])
     await db.commit()
@@ -394,7 +395,8 @@ async def next_to_write(
 
 
 async def save_answers(
-    db: AsyncSession, applicant_id: uuid.UUID, job_id: uuid.UUID, answers: dict[str, str]
+    db: AsyncSession, applicant_id: uuid.UUID, job_id: uuid.UUID, answers: dict[str, str],
+    *, by: Literal["claude", "student"] = "claude",
 ) -> int:
     """
     Saves the student's Claude's answers to one application's questions
@@ -406,8 +408,12 @@ async def save_answers(
     and each answer must pass every check in app/auto_apply/checks.py
     (KAN-380), the form's own limit among them: a failing one is refused
     with every reason, for Claude to fix, so it never reaches the tab.
-    Raises NotFound / WrongStage for an application that isn't open,
-    Refused otherwise.
+    `by` is who put the text there: "student" for a paste on the Written
+    Answers page, which skips only the copy check against the student's
+    own writing samples (it stops their Claude parroting them; the student
+    may use their own words), every other check kept, since the paste may
+    come from any AI. Raises NotFound / WrongStage for an application that
+    isn't open, Refused otherwise.
     """
     await _open_application(db, applicant_id, job_id)
     questions = {q.name: q for q in await fetch_written(db, applicant_id, job_id)}
@@ -422,6 +428,8 @@ async def save_answers(
         if not answer.strip():
             raise Refused(f"The answer to {name!r} is empty.", {name: ["The answer is empty."]})
     sources, employers, samples = await _check_material(db, applicant_id, job_id)
+    if by == "student":
+        samples = ()
     failing = {
         name: found
         for name, answer in answers.items()
@@ -488,7 +496,8 @@ async def answer_bank(db: AsyncSession, applicant_id: uuid.UUID, job_id: uuid.UU
     company (checks.company_specific) is offered only on that company's
     forms, never on another's (KAN-380), and one of their Claude's only if
     it passes this application's checks (checks.py: its posting's numbers,
-    the student's other applications' companies); the form's own length
+    the student's other applications' companies; not the copy check, which
+    its save ran, so a sample the student pasted is offered); the form's own length
     limit is the Fill engine's to check, on the page. The extension gives it to the
     engine's Plan as its Answer bank (`own`: the student's words), so a
     question answered before is filled without the student's Claude.
@@ -498,7 +507,7 @@ async def answer_bank(db: AsyncSession, applicant_id: uuid.UUID, job_id: uuid.UU
         raise NotFound("No application for that job.")
     company, _, _ = await fetch_posting_text(db, job_id)
     same = (company or "").strip().casefold()
-    sources, employers, samples = await _check_material(db, applicant_id, job_id)
+    sources, employers, _ = await _check_material(db, applicant_id, job_id)
     bank: dict[str, SavedAnswer] = {}
     seen: set[str] = set()
     for saved in await fetch_saved_answers(db, applicant_id, exclude=job_id):
@@ -506,7 +515,7 @@ async def answer_bank(db: AsyncSession, applicant_id: uuid.UUID, job_id: uuid.UU
         if checks.company_specific(saved.question, saved.answer, saved.company) and not (same and theirs == same):
             continue
         if not saved.own and checks.problems(saved.answer, checks.Context(
-            sources=(*sources, saved.question), samples=samples, employers=employers,
+            sources=(*sources, saved.question), employers=employers,
         )):
             continue
         if (wording := _wording(saved.question)) not in seen:
