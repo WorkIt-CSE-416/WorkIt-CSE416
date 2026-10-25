@@ -238,6 +238,13 @@ Find files with a directory listing; these are the rules for where code goes.
   for the same reason: the save ran it.
   A refusal's `Refused.reasons` holds each answer's reasons by question
   name, for the page to show under its box. Tests: `tests/test_pasted_answers.py`.
+  **An answer may name the brief fact it uses** (KAN-369): the connector's
+  `named_fact`, `save_answers(named=...)`, must fold-match one of the
+  company brief's facts or the save is refused; it is kept as
+  `written_answers.named_fact` (`{"fact", "url"}`), cleared with its answer
+  and by the student's own words, and the Written Answers page lists it
+  with the answer (`GET .../written-answers`, `pipeline.answered_questions`).
+  Tests: `tests/test_named_fact.py`.
   **A student's writing samples and style card** (KAN-384) are
   `queries/writing.py`, behind `routers/writing_samples.py` (the student's
   add, replace, remove) and the connector's tools (their Claude reads the

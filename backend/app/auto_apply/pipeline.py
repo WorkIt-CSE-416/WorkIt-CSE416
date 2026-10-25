@@ -39,6 +39,7 @@ from app.auto_apply.written import (  # noqa: F401 (re-exported: callers name th
     Refused,
     ToWrite,
     answer_bank,
+    answered_questions,
     ask_questions,
     next_to_write,
     read_first,
