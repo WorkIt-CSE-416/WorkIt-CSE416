@@ -143,7 +143,9 @@ uv run pytest
   `DIRECT_URL` to the test database before the app reads them (exported
   variables beat the root `.env`), and refuses a `TEST_DATABASE_URL` whose host
   is not localhost. The app's own `get_session` uses the test database, so do
-  not override it in these tests.
+  not override it in these tests. It also pins `CONNECTOR_API_URL` and
+  `CONNECTOR_WEB_URL` to the config defaults (`:8000`, `:3000`), so a `.env`
+  serving the connector on other ports doesn't break the connector tests.
 - **Without the container, database tests skip** with a message saying how to
   start it; the rest run. In CI (`CI` set) they fail instead, so a broken
   service never passes as green. CI's backend job runs the same image as a
