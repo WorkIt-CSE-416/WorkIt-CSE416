@@ -162,11 +162,12 @@ the KAN-296 cutover.
   fits (under 70), so it reads as the best fits, not as the mass
   copy-paste the statement warns about. **Its copy
   must match what auto apply does** (`auto-apply/architecture.md`,
-  `autofiller_extension/CLAUDE.md`): it fills one application at a time in
-  one background tab and never submits, so the page never says "at once",
-  "in parallel" or that WorkIt sends an application. The team first asked
-  for "49 in parallel"; that was reworded to a queue when the run was
-  checked. Change it if the run changes. Every window is drawn at the
+  `autofiller_extension/CLAUDE.md`): batch apply fills up to five
+  applications at once in background tabs, and never submits: the student
+  presses each employer's Submit, so the page never says WorkIt sends or
+  applies, and never more than five filling at a time. The team first
+  asked for "49 in parallel"; that was reworded to a queue when the run
+  was checked (then one tab at a time). Change it if the run changes. Every window is drawn at the
   stage's size and one transform scales the grid; the far windows are big
   type and bars, filled by CSS transitions, and a ring mounts only one
   step before the camera reaches it. A restart fades the old grid out

@@ -43,7 +43,7 @@ The job terms are the repo's own (root `CLAUDE.md`, Conventions).
 | **Sent resume** | The exact file a student applied with, kept in `sent_resumes` (KAN-208): what went to one job posting (Apply, KAN-220, or auto apply). A download keeps nothing (KAN-267) |
 | **Application** | One student's intent to apply to one job posting, from `queued` to `applied` and after |
 | **Batch** | The applications one click of Start Auto Apply queues: 10 by default |
-| **Run** | The extension working through the queue, one application at a time |
+| **Run** | The extension working through the queue: batch apply's tabs, at most five filling at once (8.4) |
 | **Autofill run** | One attempt by the extension to fill one application's form |
 | **MCP server** | A tool interface that an AI agent (Claude, ChatGPT) can call. Each tool has a name, a description and an input schema |
 

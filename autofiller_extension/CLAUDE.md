@@ -677,7 +677,16 @@ Vercel pair and its manifest entries at the cutover. **A new
 until each installed user approves the new hosts**, so add hosts in
 batches, not one at a time.
 
-## No backend changes, and why that's safe (almost always)
+## The backend routes it calls, and why each is safe
+
+Batch apply (KAN-369) added routes of its own, all in
+`backend/app/routers/auto_apply.py` and `routers/connector.py`, each
+checking the student owns the application: a tab's state (`PUT
+.../fill`), its written questions and saved answers (`PUT`/`GET
+.../questions`), the student's edits (`PUT .../answers`), the answer bank
+(`GET .../answer-bank`), the sent resume and finish (`PUT .../resume`,
+`POST .../finish`), and whether Claude is connected (`GET
+.../connector`). The rest are older:
 
 `src/background/api.js` mostly calls endpoints that already exist for the
 webapp: `GET /auth/me`, `GET /applicants/{id}/profile`, `GET
