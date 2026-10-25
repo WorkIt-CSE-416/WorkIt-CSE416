@@ -330,7 +330,10 @@ and each tab's state (`jobs`), and `run/show` switches to one (`jobId`).
   **An answer the student pastes on the webapp's Written Answers page
   (KAN-385) arrives the same way**: the API saves it through the
   connector's own save, and the tab's poll can't tell the two apart, so
-  the extension has no paste path of its own and must not grow one.
+  the extension has no paste path of its own and must not grow one. The
+  tab's "Waiting for your Claude" line ends in a link to that page, on the
+  webapp origin the student signed in on (`batch/answers-page`, a row's
+  `link` in lib-status.js), so a student without Claude knows where to go.
   Test: `test/paste.extension.spec.ts`, Lumen's practice form queued as a
   real application (its one written question is all that needs the
   student, so the filled answer moves the tab to Ready; Harvey's other
@@ -850,11 +853,25 @@ Saved Answer, Claude, AI, You, Guessed; the AI ones carry the sparkle) and
 highlights a guessed row in the warning tint. Where an answer comes from
 is the engine's to say: never work it out here.
 
-The overlay's colours are WorkIt's tokens, copied by hand into its shadow
-root's `:host` from `frontend/src/app/globals.css` (no build step can
-import them): change a value in both. No hex colour is written anywhere
-else in the overlay. The font is Plus Jakarta Sans where the student has
-it installed; the extension ships no font files.
+Both of the extension's surfaces, the popup and the overlay, follow
+WorkIt's design system (`frontend/docs/design.md`). **The tokens are
+defined once, in `src/shared/tokens.js`**: WorkIt's `--color-*`,
+`--radius-*`, `--shadow-lift` and type-scale values, copied by hand from
+`frontend/src/app/globals.css` (no build step can import its Tailwind
+`@theme`), in px where globals.css has rem, since the overlay sits on an
+employer's page whose root font size isn't WorkIt's. Change a value in
+both; `test/tokens.spec.ts` fails when they differ, and when the popup or
+the overlay writes a colour of its own (a hex, `rgb()` or `hsl()`). The
+popup loads `tokens.js` as a plain script (it puts the tokens on its
+`:root` before it paints); `content-scripts.js` injects it before
+`overlay.js`, which puts `window.WIA.tokens` in its shadow root's
+`:host`. The font is Plus Jakarta Sans, shipped in `fonts/` (OFL, its
+licence beside it) under the family name "WorkIt Jakarta Sans" so it never
+meets a page's own font of that name: the popup's `@font-face`, and for
+the overlay a `FontFace` made from the bytes the background reads
+(`overlay/font`), since `@font-face` does nothing in a shadow root and the
+extension's files aren't web-accessible to the page. Until it loads, the
+overlay uses the system font.
 
 ## Conventions
 

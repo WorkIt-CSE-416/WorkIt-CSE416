@@ -72,6 +72,10 @@
   const batch = Boolean(window.WIA.batch);
   const WRITE_IT = "Write this answer yourself.";
   const WAIT_FOR_CLAUDE = "Waiting for your Claude: run \"Write my WorkIt answers\" in Claude, or write it yourself.";
+  // The same, ending in a link to the webapp's Written Answers page (KAN-385), where a student without Claude pastes answers.
+  const WAIT_OR_PASTE = "Waiting for your Claude: run \"Write my WorkIt answers\" in Claude, write it yourself, or paste it in";
+  // That link ({ text, href }), asked of the background once; null when it couldn't say.
+  let answersPage;
   // How often a batch tab asks whether the student's Claude saved an answer (KAN-377).
   const ANSWER_POLL = 10_000;
   // The connector's limits on a question and an answer (backend/app/schemas/applications.py).
@@ -144,12 +148,17 @@
       for (const name of Object.keys(answers)) {
         if (isNew(name)) status.register(name, byName.get(name)?.label ?? name, byName.get(name)?.required ?? false, sources[name] ?? "guessed");
       }
+      if (batch && rows.written.length && answersPage === undefined) {
+        const page = await send({ type: "batch/answers-page" }).catch(() => null);
+        answersPage = page?.ok ? { text: "Written Answers", href: page.url } : null;
+      }
       for (const q of rows.written) {
         written.set(q.name, q);
         if (batch) {
           if (!isNew(q.name)) continue;
           status.register(q.name, q.label, q.required);
-          status.setStatus(q.name, "needs_generation", WAIT_FOR_CLAUDE);
+          if (answersPage) status.setStatus(q.name, "needs_generation", WAIT_OR_PASTE, undefined, undefined, answersPage);
+          else status.setStatus(q.name, "needs_generation", WAIT_FOR_CLAUDE);
           continue;
         }
         if (!isNew(q.name)) continue;
