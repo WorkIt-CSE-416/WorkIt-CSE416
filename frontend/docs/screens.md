@@ -981,6 +981,28 @@ the student's own Claude writes the batch's essay answers
 connector directory, `CLAUDE_CONNECTOR_LINK` points the button at the
 listing instead.
 
+**Written Answers** (`/auto-apply/answers`, KAN-385) is batch apply
+without Claude. The extension fills every factual field itself and leaves
+the written questions (why this company, a project you're proud of) to the
+student's own Claude through the connector. A student without Claude
+answers them here: every question the batch's open tabs need written and
+have no answer for (`GET .../written-questions`), one white card per job
+posting, oldest application first, each question with a box for their own
+draft or text pasted from any AI (`auto-apply/answers/answer-box.tsx`).
+**Check and Save** sends it through the connector's own save, so WorkIt's
+checks run on it as on Claude's (machine-made words, numbers the student's
+experience and the posting don't hold, another employer's name, the form's
+own limit...). A failing answer shows each reason in the warning amber
+under its box and is not saved, so it never reaches the form; a passing one
+says Saved, and the open tab fills it within about ten seconds and moves to
+Ready once nothing else needs the student. The count under a box is the
+form's own limit, amber past it. The list is read once as the page loads;
+a saved answer stays, marked Saved, until the next visit. Nothing left
+reads "Nothing Left to Write". **The Auto Apply page links to it** with a
+card over Up Next, "N Written Questions Waiting", while any open
+application has one, which says the student's Claude writes them once
+added and offers **Write Answers** (a secondary button with the pencil).
+
 **Jobs lead the page** (KAN-359): the heading with **Manage Resumes** (a
 secondary button to Resumes & Experiences) and **Add to Claude** beside
 Start Auto Apply, then
