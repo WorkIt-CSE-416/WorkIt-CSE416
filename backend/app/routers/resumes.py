@@ -9,6 +9,13 @@ parser's reading is not kept anywhere else. The model never reads an upload
 by itself: the student asks for that through Import Again
 (`POST /applicants/{id}/bank/import`). `GET .../{resume_id}` returns one
 resume as the list does.
+**The parse preview** (KAN-372, ADR 0006): `POST .../preview` takes a file
+as upload does and answers what the parser reads in it (`ResumePreview`),
+saving nothing: each entry and skill lists the other uploads' rows a
+confirm would replace, and `duplicate_of` names an upload with the same
+text. The student confirms by uploading the same file with
+`?replace=matching`, which also deletes those rows in the upload's
+transaction (`bank.import_upload`).
 **Duplicates** (KAN-267): an upload whose text matches one of the student's
 uploads (`text_hash`, which says what "matches" means) answers 409
 `{"detail": {"message": "Duplicate Resume found: <name>", "resume_id"}}`
@@ -55,6 +62,7 @@ import unicodedata
 import uuid
 from datetime import UTC, datetime
 from pathlib import PurePosixPath
+from typing import Literal
 
 from fastapi import APIRouter, Depends, HTTPException, Query, Response, UploadFile
 from sqlalchemy import select
@@ -67,7 +75,13 @@ from app.models.dto import ResumeStatus
 from app.models.profiles import Applicant_Profile
 from app.models.resume import Resume
 from app.schemas.auth import AuthenticatedAccount
-from app.schemas.bank import ImportResult
+from app.schemas.bank import (
+    ImportResult,
+    PreviewDuplicate,
+    PreviewEntry,
+    PreviewSkill,
+    ResumePreview,
+)
 from app.schemas.resume import ResumeRename
 from app.services import bank, bank_import, built_resumes, sent_resumes
 from app.services.text_extraction import UploadRejected
@@ -119,6 +133,34 @@ def _duplicate(resume: Resume) -> HTTPException:
     })
 
 
+@router.post("/applicants/{applicant_id}/resumes/preview", response_model=ResumePreview)
+async def preview_resume(
+    applicant_id: uuid.UUID,
+    file: UploadFile,
+    account: AuthenticatedAccount = Depends(get_current_account),
+    session: AsyncSession = Depends(get_session),
+):
+    """The parse preview (KAN-372, ADR 0006): the file read as an upload
+    reads it, with nothing saved: no Storage file, no row, no bank write. The
+    student confirms by uploading the same file with `?replace=matching`."""
+    assert_applicant_owns(account, applicant_id)
+    try:
+        contents, ext, _ = await _read_upload(file)
+    except UploadRejected as exc:
+        raise HTTPException(exc.status, str(exc)) from exc
+    raw_text = await _extract(contents, ext)
+    entries, skills = bank_import.read(raw_text)
+    same = await _duplicate_of(session, applicant_id, text_hash(raw_text))
+    matches = await bank.upload_matches(session, applicant_id, entries, skills)
+    return ResumePreview(
+        entries=[PreviewEntry(**e.model_dump(), replaces=ids) for e, ids in zip(entries, matches.entries)],
+        skills=[PreviewSkill(name=name, group=group, replaces=ids)
+                for (name, group), ids in zip(skills, matches.skills)],
+        duplicate_of=None if same is None else PreviewDuplicate(
+            resume_id=same.id, name=same.original_filename or "Uploaded resume"),
+    )
+
+
 # Depends grabs get_session before function runs and passes the session into function.
 # FastAPI handles the lifecycle
 
@@ -126,6 +168,9 @@ def _duplicate(resume: Resume) -> HTTPException:
 async def upload_resume(
     applicant_id: uuid.UUID,
     file: UploadFile,
+    # "matching": the upload confirms a parse preview, and replaces the
+    # entries and skills of other uploads its reading matches (ADR 0006).
+    replace: Literal["matching"] | None = Query(None),
     account: AuthenticatedAccount = Depends(get_current_account),
     session: AsyncSession = Depends(get_session)
 ):
@@ -186,7 +231,8 @@ async def upload_resume(
         # The bank's entries point at the resume, and no relationship()
         # orders the inserts (models/CLAUDE.md).
         await session.flush()
-        imported = await bank.import_upload(session, applicant_id, resume.id, entries, skills)
+        imported = await bank.import_upload(
+            session, applicant_id, resume.id, entries, skills, replace_matching=replace == "matching")
         left = await uses_left(session, applicant_id, Feature.PARSING)
         await built_resumes.default_if_only(session, applicant_id)
         default_id = await _default_id(session, applicant_id)
@@ -313,6 +359,8 @@ def _imported(resume: Resume, is_default: bool, entries, skills, imported, left:
             found=len(entries) + len(skills),
             entries_added=imported.entries_added,
             skills_added=imported.skills_added,
+            entries_replaced=imported.entries_replaced,
+            skills_replaced=imported.skills_replaced,
             uses_left=left,
         ).model_dump(),
     }

@@ -152,8 +152,11 @@ def upload(monkeypatch):
     bucket = _Bucket()
     monkeypatch.setattr("app.routers.resumes.get_supabase", lambda: bucket)
 
-    async def send(client, applicant_id, raw_text, *, replacing=None, filename="resume.pdf"):
-        """With `replacing`, Import Updated Resume on that resume's row."""
+    async def send(client, applicant_id, raw_text, *, replacing=None, filename="resume.pdf", preview=False,
+                   replace_matching=False):
+        """With `replacing`, Import Updated Resume on that resume's row; with
+        `preview`, the parse preview, which saves nothing; with
+        `replace_matching`, the upload that confirms a preview (KAN-372)."""
         async def extract(contents, ext):
             return raw_text
 
@@ -161,7 +164,10 @@ def upload(monkeypatch):
         files = {"file": (filename, b"%PDF-1.4 not really a pdf", "application/pdf")}
         if replacing:
             return await client.put(f"/applicants/{applicant_id}/resumes/{replacing}", files=files)
-        return await client.post(f"/applicants/{applicant_id}/resumes", files=files)
+        if preview:
+            return await client.post(f"/applicants/{applicant_id}/resumes/preview", files=files)
+        params = {"replace": "matching"} if replace_matching else None
+        return await client.post(f"/applicants/{applicant_id}/resumes", files=files, params=params)
 
     send.bucket = bucket
     return send
@@ -179,7 +185,8 @@ async def test_an_upload_writes_its_reading_into_the_bank(student, upload):
     assert "parsed_json" not in body
     assert body["status"] == "parsed"
     assert body["bank"] == {
-        "found": 8, "entries_added": 6, "skills_added": 2, "read_by": "parser", "uses_left": 1,
+        "found": 8, "entries_added": 6, "skills_added": 2, "entries_replaced": 0, "skills_replaced": 0,
+        "read_by": "parser", "uses_left": 1,
     }
 
     saved = (await client.get(bank)).json()
@@ -655,6 +662,105 @@ async def test_add_under_another_students_resume_is_not_found(student, database)
     res = await client.post(f"{bank}/entries", params={"resume_id": str(theirs)}, json={"section": "projects", "title": "X"})
     assert res.status_code == 404
     assert (await client.get(bank)).json()["entries"] == []
+
+
+# --- the parse preview and its confirm (KAN-372, ADR 0006) ---------------------------
+
+
+async def test_a_preview_shows_the_reading_and_saves_nothing(student, upload):
+    client, applicant_id, bank = student
+
+    res = await upload(client, applicant_id, RESUME_TEXT, preview=True)
+    assert res.status_code == 200
+    body = res.json()
+    assert [_summary(e) for e in body["entries"]] == [
+        ("education", "Riverside State University", None),
+        ("experience", "Mechanical Engineering Intern", "Harbor Robotics"),
+        ("projects", "Budget Buddy", None),
+        ("leadership", "Vice President", "Society of Women Engineers"),
+        ("awards", "Dean's List", "Riverside State University"),
+        ("certifications", "Certified SolidWorks Associate", None),
+    ]
+    assert body["entries"][1]["bullets"] == [
+        "Designed a sheet-metal bracket that cut assembly time by 20%",
+        "Ran tolerance stack-up analyses in SolidWorks",
+    ]
+    assert [(s["name"], s["group"]) for s in body["skills"]] == [("SolidWorks", "Tools"), ("MATLAB", "Tools")]
+    assert body["duplicate_of"] is None
+
+    # Nothing kept: no file, no resume row, no bank rows.
+    assert upload.bucket.files == {}
+    assert (await client.get(f"/applicants/{applicant_id}/resumes")).json() == []
+    saved = (await client.get(bank)).json()
+    assert (saved["entries"], saved["skills"]) == ([], [])
+
+
+async def test_a_preview_of_an_uploaded_resume_names_the_upload(student, upload):
+    client, applicant_id, _ = student
+    first = (await upload(client, applicant_id, RESUME_TEXT, filename="Sam 2026.pdf")).json()
+
+    body = (await upload(client, applicant_id, RESUME_TEXT, preview=True)).json()
+    assert body["duplicate_of"] == {"resume_id": first["id"], "name": "Sam 2026.pdf"}
+
+
+async def test_a_preview_marks_what_a_confirm_replaces_from_earlier_uploads_only(student, upload):
+    client, applicant_id, bank = student
+    old = (await upload(client, applicant_id, RESUME_TEXT)).json()["id"]
+    saved = (await client.get(bank)).json()
+    old_job = next(e["id"] for e in saved["entries"] if e["section"] == "experience")
+    old_matlab = next(s["id"] for s in saved["skills"] if s["name"] == "MATLAB")
+    # Typed by hand, the same job: never replaced.
+    await client.post(
+        f"{bank}/entries",
+        json={"section": "experience", "title": "mechanical engineering intern", "organization": "harbor robotics"},
+    )
+
+    body = (await upload(client, applicant_id, OTHER_TEXT, preview=True)).json()
+    assert [(e["title"], e["replaces"]) for e in body["entries"]] == [
+        ("Mechanical Engineering Intern", [old_job]), ("Solar Kart", []),
+    ]
+    assert [(s["name"], s["replaces"]) for s in body["skills"]] == [("MATLAB", [old_matlab]), ("Python", [])]
+    assert old in {r["id"] for r in saved["resumes"]}
+
+
+async def test_a_confirmed_preview_replaces_matching_entries_instead_of_adding_copies(student, upload):
+    client, applicant_id, bank = student
+    old = (await upload(client, applicant_id, RESUME_TEXT)).json()["id"]
+    await client.post(
+        f"{bank}/entries",
+        json={"section": "experience", "title": "mechanical engineering intern", "organization": "harbor robotics"},
+    )
+
+    res = await upload(client, applicant_id, OTHER_TEXT, filename="resume-b.pdf", replace_matching=True)
+    assert res.status_code == 200
+    new = res.json()["id"]
+    assert res.json()["bank"] == {
+        "found": 4, "entries_added": 2, "skills_added": 2, "entries_replaced": 1, "skills_replaced": 1,
+        "read_by": "parser", "uses_left": 1,
+    }
+
+    held = _held((await client.get(bank)).json())
+    # One internship and one MATLAB from the uploads, now the newer one's;
+    # the older upload keeps what the newer one does not list; the
+    # student's own entry stays.
+    assert [ids for name, ids in held if name == "Mechanical Engineering Intern"] == [[new]]
+    assert [ids for name, ids in held if name == "MATLAB"] == [[new]]
+    assert ("Budget Buddy", [old]) in held and ("SolidWorks", [old]) in held
+    assert ("mechanical engineering intern", []) in held
+
+    # A third version, confirmed the same way, still leaves one of each.
+    newer = OTHER_TEXT.replace("Built a solar go-kart", "Built and raced a solar go-kart")
+    assert (await upload(client, applicant_id, newer, filename="resume-c.pdf", replace_matching=True)).status_code == 200
+    held = _held((await client.get(bank)).json())
+    assert [name for name, _ in held].count("Solar Kart") == 1
+    assert [name for name, _ in held].count("MATLAB") == 1
+
+
+async def test_another_students_preview_is_refused(student, upload, database):
+    client, _, _ = student
+    async with database() as session:
+        other = await _seed_applicant(session)
+    assert (await upload(client, other, RESUME_TEXT, preview=True)).status_code == 403
 
 
 # --- reading with the model (KAN-222) ----------------------------------------------

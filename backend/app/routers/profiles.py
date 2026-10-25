@@ -1,4 +1,5 @@
-"""GET and PATCH for the applicant's own profile fields.
+"""GET and PATCH for the applicant's own profile fields, home location
+included (KAN-372).
 
 PATCH updates only the fields present in the body (`model_fields_set`), so a
 field left out keeps its value. The name keeps its four columns in step

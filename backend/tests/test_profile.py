@@ -155,3 +155,36 @@ def test_a_resume_header_prints_the_contact_email():
 def test_a_resume_header_says_us_citizen_from_the_citizenship_answer(answers, printed):
     session = FakeSession(_profile(), answers)
     assert asyncio.run(load_header_identity(session, APPLICANT)).us_citizen is printed
+
+
+# --- home location (KAN-372), on real Postgres --------------------------------
+
+
+@pytest.mark.anyio
+async def test_the_home_location_saves_reads_back_and_clears(database):
+    import httpx
+    from sqlalchemy import text
+
+    applicant_id = uuid.uuid4()
+    async with database() as s:
+        await s.execute(text("INSERT INTO auth.users (id) VALUES (:id)"), {"id": applicant_id})
+        await s.execute(
+            text("INSERT INTO applicant_profiles (id, email, full_name) VALUES (:id, :email, 'Sam Seeker')"),
+            {"id": applicant_id, "email": f"{applicant_id.hex[:8]}@example.com"},
+        )
+        await s.commit()
+    app.dependency_overrides[get_current_account] = lambda: AuthenticatedAccount(
+        id=applicant_id, email="sam@example.com", full_name="Sam Seeker",
+        account_type=AccountType.APPLICANT, onboarding_completed=False,
+    )
+    url = f"/applicants/{applicant_id}/profile"
+    try:
+        async with httpx.AsyncClient(transport=httpx.ASGITransport(app=app), base_url="http://test") as c:
+            assert (await c.get(url)).json()["location"] is None
+            res = await c.patch(url, json={"location": "  Stony Brook, NY "})
+            assert (res.status_code, res.json()["location"]) == (200, "Stony Brook, NY")
+            assert (await c.get(url)).json()["location"] == "Stony Brook, NY"
+            assert (await c.patch(url, json={"location": "x" * 101})).status_code == 422
+            assert (await c.patch(url, json={"location": ""})).json()["location"] is None
+    finally:
+        app.dependency_overrides.pop(get_current_account, None)

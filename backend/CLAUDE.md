@@ -275,6 +275,16 @@ Find files with a directory listing; these are the rules for where code goes.
   show it, `load_holdings`) and `resumes`; other `bank_response` callers
   (Scout) send none. Tests: `tests/test_bank_import.py`, "owners" and
   "Add under a resume pick".
+- **Onboarding reads a resume before saving it** (KAN-372, ADR 0006).
+  `POST .../resumes/preview` runs upload's read (`_extract`, then
+  `bank_import.read`) and writes nothing: no Storage file, no row, no bank
+  row. The student confirms with the normal upload plus `?replace=matching`,
+  which also deletes the other uploads' entries and skills the reading
+  matches (`bank.upload_matches`: section, title and organization, or a
+  skill's name, ignoring case; never an entry with no owner), so a newer
+  resume leaves one copy. The preview lists those rows beside each item.
+  Every other upload keeps ADR 0005's no-merge rule. Tests:
+  `tests/test_bank_import.py`, "the parse preview and its confirm".
 - **Import Again** is `POST /applicants/{id}/bank/import`: the same read on
   a stored upload, replacing what it owns, from intake's Use One I
   Uploaded, the Jobs page's empty-bank card and the Experiences view's

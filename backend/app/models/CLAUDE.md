@@ -19,8 +19,11 @@ company_profiles  1 ──o{  company_memberships    a complete HR-user account
                             (ON DELETE CASCADE)
 ```
 
-- `applicant_profiles` — identity plus the links and headline the autofiller
-  reuses.
+- `applicant_profiles` — identity plus the links, headline and home
+  `location` the autofiller reuses. `location` (KAN-372) is free text as
+  forms ask it ("Stony Brook, NY"), where the student lives; the places
+  they want jobs in are their preferences (`applicant_locations`), not
+  this.
 - `company_memberships` — identity plus the company it belongs to and its role.
   Many memberships point at one company.
 - `company_profiles` — the employer. One identity for future jobs, HR users and

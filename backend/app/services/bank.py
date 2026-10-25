@@ -18,6 +18,11 @@ place:
 - The duplicate check (`find_duplicate`) matches section, title and
   organization, ignoring case, among one owner's entries only: Add's
   "Save as new" warning.
+- One exception, which the student opts into: the upload that confirms a
+  parse preview (KAN-372, ADR 0006) replaces the entries and skills of the
+  student's other uploads that its reading matches (`upload_matches`), so a
+  newer resume does not pile copies on an older one. The student's own
+  entries are never matched.
 - Functions flush but never commit: the caller owns the transaction, so an
   import can save many entries in one.
 
@@ -409,6 +414,60 @@ class Imported:
 
     entries_added: int = 0
     skills_added: int = 0
+    entries_replaced: int = 0
+    skills_replaced: int = 0
+
+
+def _entry_key(section, title: str, organization: str | None) -> tuple:
+    # find_duplicate's match: section, title and organization, ignoring case
+    # and surrounding spaces.
+    return (str(section), title.strip().lower(), (organization or "").strip().lower())
+
+
+@dataclass
+class Matches:
+    """For each entry and skill of a reading, the ids of the rows of the
+    applicant's other uploads it matches."""
+
+    entries: list[list[uuid.UUID]]
+    skills: list[list[uuid.UUID]]
+
+
+async def upload_matches(
+    session: AsyncSession,
+    applicant_id: uuid.UUID,
+    entries: Sequence[EntryCreate],
+    skills: Sequence[tuple[str, str | None]],
+    *,
+    besides: uuid.UUID | None = None,
+) -> Matches:
+    """The rows a confirmed preview replaces (KAN-372, ADR 0006): entries
+    owned by another upload with the same section, title and organization,
+    ignoring case, and skills owned by another upload with the same name,
+    ignoring case. Rows the student made (no owner) and rows of `besides`
+    (the upload being written) never match."""
+    owned = (Bank_Entry.applicant_id == applicant_id, Bank_Entry.resume_id.is_not(None))
+    rows = (await session.execute(
+        select(Bank_Entry.id, Bank_Entry.section, Bank_Entry.title, Bank_Entry.organization, Bank_Entry.resume_id)
+        .where(*owned).order_by(Bank_Entry.created_at)
+    )).all()
+    by_key: dict[tuple, list[uuid.UUID]] = {}
+    for row in rows:
+        if row.resume_id != besides:
+            by_key.setdefault(_entry_key(row.section, row.title, row.organization), []).append(row.id)
+    skill_rows = (await session.execute(
+        select(Bank_Skill.id, Bank_Skill.name, Bank_Skill.resume_id)
+        .where(Bank_Skill.applicant_id == applicant_id, Bank_Skill.resume_id.is_not(None))
+        .order_by(Bank_Skill.created_at)
+    )).all()
+    by_name: dict[str, list[uuid.UUID]] = {}
+    for row in skill_rows:
+        if row.resume_id != besides:
+            by_name.setdefault(row.name.strip().lower(), []).append(row.id)
+    return Matches(
+        entries=[by_key.get(_entry_key(e.section, e.title, e.organization), []) for e in entries],
+        skills=[by_name.get(name.strip().lower(), []) for name, _ in skills],
+    )
 
 
 async def import_upload(
@@ -417,6 +476,8 @@ async def import_upload(
     resume_id: uuid.UUID,
     entries: Sequence[EntryCreate],
     skills: Sequence[tuple[str, str | None]],
+    *,
+    replace_matching: bool = False,
 ) -> Imported:
     """Write a reading of the applicant's upload `resume_id` into the bank as
     that upload's own entries and skills (ADR 0005). What the upload owned
@@ -424,11 +485,25 @@ async def import_upload(
     built resumes, so Import Again and Import Updated Resume replace rather
     than copy. No other resume's entries are looked at. A skill the reading
     lists twice, ignoring case, is written once. The caller has flushed the
-    resume row and checked its owner."""
+    resume row and checked its owner.
+
+    With `replace_matching` (a confirmed parse preview, ADR 0006), the rows
+    of the student's other uploads that the reading matches
+    (`upload_matches`) go too, with their places on built resumes, so the
+    newest upload holds the one copy."""
     for table in (Bank_Entry, Bank_Skill):
         await session.execute(
             delete(table).where(table.applicant_id == applicant_id, table.resume_id == resume_id)
         )
+    replaced_entries: set[uuid.UUID] = set()
+    replaced_skills: set[uuid.UUID] = set()
+    if replace_matching:
+        matches = await upload_matches(session, applicant_id, entries, skills, besides=resume_id)
+        replaced_entries = {i for ids in matches.entries for i in ids}
+        replaced_skills = {i for ids in matches.skills for i in ids}
+        for table, ids in ((Bank_Entry, replaced_entries), (Bank_Skill, replaced_skills)):
+            if ids:
+                await session.execute(delete(table).where(table.applicant_id == applicant_id, table.id.in_(ids)))
     for draft in entries:
         await create_entry(session, applicant_id, draft, draft.bullets, resume_id=resume_id, allow_duplicate=True)
     names: set[str] = set()
@@ -438,7 +513,12 @@ async def import_upload(
             await add_skill(session, applicant_id, name, group, resume_id=resume_id)
     await clear_embedding(session, applicant_id)
     await session.flush()
-    return Imported(entries_added=len(entries), skills_added=len(names))
+    return Imported(
+        entries_added=len(entries),
+        skills_added=len(names),
+        entries_replaced=len(replaced_entries),
+        skills_replaced=len(replaced_skills),
+    )
 
 
 @dataclass
