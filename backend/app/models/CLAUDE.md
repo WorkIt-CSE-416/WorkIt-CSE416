@@ -839,12 +839,14 @@ so WorkIt fills forms as completely as Apply does.
   list answer: the options ticked) skips the writing checks. Not
   `written_answers`: those rows belong to an application, and a brought
   answer has none.
-- **No `files`.** WorkIt's resume is its own; a transcript's path never
-  comes over (the student uploads a transcript on My Profile, a
-  `student_documents` row). The import's resume is a `resumes` row whose `storage_path` is
-  `local:<file name>` in `LOCAL_FILES_DIR` (services/local_files.py,
-  development only): served by `.../bytes` from that folder, never sent to
-  or removed from Storage.
+- **No `files` in `fill_profile`.** The files the profile names come over
+  as WorkIt's own rows instead, only with `LOCAL_FILES_DIR` set: the resume
+  (`files.resume_pdf`) as a `resumes` row, and the unofficial transcript
+  (`files.unofficial_transcript_pdf`) as the student's `transcript`
+  `student_documents` row, the one My Profile's upload writes. Each is
+  copied into `LOCAL_FILES_DIR` (services/local_files.py, development only)
+  and its `storage_path` is `local:<file name>`: served by `.../bytes` from
+  that folder, never sent to or removed from Storage.
 - **The student's writing comes too** (`scripts/import_apply_writing.py`),
   through the same writers as the student's own edits: `writing_samples`
   only from the Story bank's "own essays" and "own answers" sections (their

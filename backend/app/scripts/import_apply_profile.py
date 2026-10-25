@@ -9,8 +9,8 @@ fill as completely as Apply's (models/CLAUDE.md, "The Fill engine's profile").
 answer-bank.yaml, already in the Fill engine's own shapes (Apply runs the
 same engine). One run, in one transaction:
 
-1. `fill_profile`: the profile, but `files` (WorkIt's resume is its own, and
-   a transcript's path never comes over);
+1. `fill_profile`: the profile, but `files` (its resume and transcript come
+   as WorkIt's own rows, step 5);
 2. `fill_policies`: only the policies the engine reads (ENGINE_POLICIES);
    Apply's run settings (caps, limits, schedules) stay Apply's;
 3. `fill_answers`: every Answer bank entry, with the company it was first
