@@ -853,7 +853,8 @@ so WorkIt fills forms as completely as Apply does.
   through the same writers as the student's own edits: `writing_samples`
   only from the Story bank's "own essays" and "own answers" sections (their
   words, never a question or a note), packed into `MAX_SAMPLES` of
-  `SAMPLE_MAX`; Apply's voice.md as the `style_cards` row, saved after the
+  `SAMPLE_MAX`, replacing only the samples an import brought (`imported`)
+  and taking only the room the student's own leave; Apply's voice.md as the `style_cards` row, saved after the
   samples (a sample change deletes it); and Apply's company briefs as
   `company_briefs` rows only through `briefs.check` and the keep rule of
   `save_brief` (MIN_FACTS, a higher score). Apply keeps no quote, so the
@@ -1135,7 +1136,10 @@ Real, not forgotten. Do not treat their absence as a decision already made.
   student has now, with no hash or version to keep in step; the connector
   then asks their Claude for a new one. The copying check (KAN-380) reads
   the samples through `pipeline.writing_samples` (which calls
-  `queries.writing.sample_texts`), never the table.
+  `queries.writing.sample_texts`), never the table. `imported` marks a
+  sample the Apply import brought; the import replaces only those, so a
+  sample the student added or edited in WorkIt (false) is never deleted by
+  it.
 
 ## Company briefs — `company_briefs.py` (KAN-382)
 
