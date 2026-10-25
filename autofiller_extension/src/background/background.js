@@ -7,8 +7,14 @@
 // comment explains why) — just the cache.
 
 import { getSession } from "./auth.js";
-import { getAutofillProfile, generateEssayAnswer, ApiError, askQuestions, connectorAdded, me, saveAutofillAnswers, writingSamples, writtenAnswers } from "./api.js";
-import { batchStatus, batchTabIds, forgetTab, inBatch, jobInTab, markSubmitted, nextNeedsYou, practiceStatus, setTabState, setWriting, showBatchTab, startBatch, startPractice, submitPractice } from "./batch.js";
+import {
+  answerBank, getAutofillProfile, generateEssayAnswer, ApiError, askQuestions, connectorAdded, me, saveAutofillAnswers, saveOwnAnswer,
+  writingSamples, writtenAnswers,
+} from "./api.js";
+import {
+  batchStatus, batchTabIds, forgetTab, inBatch, jobInTab, markSubmitted, nextNeedsYou, practiceStatus, setTabState, setWriting, showBatchTab,
+  startBatch, startPractice, submitPractice, writeEarly,
+} from "./batch.js";
 import { engineCaller, handleFill, jobOf, practiceJob, runEngine, submittedPage } from "./engine.js";
 import { claimMoment } from "./moments.js";
 import { SELF_ID, checkedSelfId, unansweredSelfId } from "./self-id.js";
@@ -88,8 +94,12 @@ async function handleMessage(message, sender) {
     case "fill/required": {
       const profile = await getAutofillProfile();
       if (message.type === "fill/plan" && jobOf(sender.url)?.site === "workday") await rememberWorkdayTab(sender.tab.id);
+      // A batch tab plans with the answers its application may reuse (KAN-379), read fresh for each Plan:
+      // one saved a moment ago in another tab counts. Any other page has no application, so no bank.
+      const jobId = message.type === "fill/plan" ? await jobInTab(sender.tab.id) : null;
+      const bank = jobId ? await answerBank(profile.id, jobId).catch(() => ({})) : {};
       return handleFill(message, {
-        url: sender.url, profile, today: today(), call: engineIn(sender), fetchText, trees: workdayTrees,
+        url: sender.url, profile, bank, today: today(), call: engineIn(sender), fetchText, trees: workdayTrees,
       });
     }
 
@@ -126,6 +136,18 @@ async function handleMessage(message, sender) {
       if ((await writingSamples(id)).length) return { show: false };
       if (!(await claimMoment(id, "samples"))) return { show: false };
       return { show: true, url: `${session.web_origin}/profile#writing-samples` };
+    }
+
+    // The student's own words for one of a batch tab's questions that need
+    // writing (KAN-379): an edit to the answer filled there, or their answer
+    // before their Claude's. Kept as the application's answer and saved for
+    // later forms. The job is the batch's own for that tab, never the message's.
+    case "batch/own-answer": {
+      const jobId = await jobInTab(sender.tab.id);
+      if (!jobId) throw new Error("This tab isn't one of the batch's");
+      const { id } = await me();
+      await saveOwnAnswer(id, jobId, { name: message.name, label: message.label, answer: message.answer });
+      return {};
     }
 
     // A batch tab's "Next Thing That Needs You" (content-script.js): batch.js goes to it, across the tabs.
@@ -264,7 +286,12 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
 // Onboarding's practice batch (KAN-378) takes links, but only to WorkIt's own
 // practice forms on the asking page's site (batch.js, `startPractice`).
 const RUNNER_MESSAGES = {
-  "run/open": (message, sender) => startBatch(sender),
+  "run/open": async (message, sender) => {
+    const opened = await startBatch(sender);
+    // Not awaited: the webapp hears once the tabs open; the queue's other questions are read meanwhile (KAN-379).
+    if (opened.opened) writeEarly({ fetchText, today: today() }).catch((error) => console.warn("[batch] questions not read early:", error.message));
+    return opened;
+  },
   "run/status": () => batchStatus(),
   "run/show": (message) => showBatchTab(message),
   "practice/open": (message, sender) => startPractice(sender, message),

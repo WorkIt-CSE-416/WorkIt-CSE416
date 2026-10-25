@@ -257,6 +257,31 @@ and `run/show` switches to one (`jobId`).
   an answer can take that long to land. Tests:
   `test/connector.extension.spec.ts` (Ashby's Harvey form: no saved
   Greenhouse form has an essay the Plan sends to Claude).
+  **An answer the student pastes on the webapp's Written Answers page
+  (KAN-385) arrives the same way**: the API saves it through the
+  connector's own save, and the tab's poll can't tell the two apart, so
+  the extension has no paste path of its own and must not grow one.
+  Test: `test/paste.extension.spec.ts`, Lumen's practice form queued as a
+  real application (its one written question is all that needs the
+  student, so the filled answer moves the tab to Ready; Harvey's other
+  questions keep it in Needs you).
+- **Writing starts when jobs are queued, and a question is answered once**
+  (KAN-379). On `run/open`, once the tabs have opened, `batch.js`'s
+  `writeEarly` reads every queued job the batch hasn't opened with
+  `engine.js`'s `questionsToWrite` (the engine's `questionSet` from the
+  form's link, no tab; Workday and Eightfold wait for their tab, a job
+  board's link is passed over) and sends what is left to write
+  (`PUT .../questions`, `max_length` null until the tab reads the form's).
+  Each job once per browser session (`workit_written_early`). Every Plan of
+  a batch tab, and each early read, uses the job's answer bank
+  (`GET .../applications/{job}/answer-bank`) as the engine's Answer bank:
+  a question answered before fills as a Saved Answer and is never sent.
+  The student's own words in a written answer (or one the bank filled) are
+  read back by `watchEdits` and saved after a 2-second pause
+  (`batch/own-answer` → `PUT .../answers`); while WorkIt's own fill of one
+  runs (`fillingWritten`), no edit is read. Tests:
+  `test/write-early.spec.ts` (the read, no page) and
+  `test/write-early.extension.spec.ts`.
 - **A written question's limit comes from the Fill engine** (KAN-380).
   `planFill` passes the Question set through the engine's `limits`, which
   reads each text field's own `maxlength` on the page, and `planRows`

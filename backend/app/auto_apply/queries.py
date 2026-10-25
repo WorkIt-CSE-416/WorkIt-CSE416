@@ -377,11 +377,42 @@ async def fetch_next_to_write(
     return (row.job_id, row.description) if row else None
 
 
+async def fetch_unanswered(
+    db: AsyncSession, applicant_id: uuid.UUID
+) -> list[tuple[uuid.UUID, str | None, str | None, list[WrittenAnswer]]]:
+    """Every open application (queued or needs_you, its job posting open)
+    with a question still unanswered, oldest first: its job id, the
+    posting's company and title, and those questions in the form's order."""
+    rows = await db.execute(
+        select(Written_Answer, Job_Post.company_name, Job_Post.title)
+        .join(
+            Job_Application,
+            and_(Job_Application.applicant_id == Written_Answer.applicant_id, Job_Application.job_id == Written_Answer.job_id),
+        )
+        .join(Job_Post, Job_Post.id == Written_Answer.job_id)
+        .where(
+            Written_Answer.applicant_id == applicant_id,
+            Written_Answer.answer.is_(None),
+            Job_Application.stage.in_((application_stage.queued, application_stage.needs_you)),
+            LISTED,
+        )
+        .order_by(Job_Application.created_at, Job_Application.job_id, Written_Answer.position, Written_Answer.name)
+    )
+    found: dict[uuid.UUID, tuple[uuid.UUID, str | None, str | None, list[WrittenAnswer]]] = {}
+    for r, company, title in rows:
+        posting = found.setdefault(r.job_id, (r.job_id, company, title, []))
+        posting[3].append(
+            WrittenAnswer(name=r.name, label=r.label, required=r.required, max_length=r.max_length, answer=None)
+        )
+    return list(found.values())
+
+
 async def save_written(
     db: AsyncSession, applicant_id: uuid.UUID, job_id: uuid.UUID, answers: dict[str, str]
 ) -> None:
-    """Writes each answer onto its question's row. Flushes; the caller
-    commits, and has checked every name is the application's."""
+    """Writes each answer onto its question's row, but never over the
+    student's own (KAN-379). Flushes; the caller commits, and has checked
+    every name is the application's."""
     for name, answer in answers.items():
         await db.execute(
             update(Written_Answer)
@@ -389,9 +420,32 @@ async def save_written(
                 Written_Answer.applicant_id == applicant_id,
                 Written_Answer.job_id == job_id,
                 Written_Answer.name == name,
+                Written_Answer.own.is_(False),
             )
             .values(answer=answer, answered_at=func.now())
         )
+
+
+# Where a question the form never sent goes among the application's (an
+# edit to a field a saved answer filled): after every one the form sent.
+UNSENT = 10_000
+
+
+async def save_own_written(
+    db: AsyncSession, applicant_id: uuid.UUID, job_id: uuid.UUID, name: str, label: str, answer: str
+) -> None:
+    """The student's own answer to their application's question `name`
+    (KAN-379), over whatever was saved. A question the tab never sent (a
+    field a saved answer filled) is kept too, so later forms reuse it.
+    Flushes; the caller commits."""
+    row = insert(Written_Answer).values(
+        applicant_id=applicant_id, job_id=job_id, name=name, label=label, required=False, position=UNSENT,
+        answer=answer, answered_at=func.now(), own=True,
+    )
+    await db.execute(row.on_conflict_do_update(
+        index_elements=["applicant_id", "job_id", "name"],
+        set_={"answer": row.excluded.answer, "answered_at": row.excluded.answered_at, "own": True},
+    ))
 
 
 async def fetch_posting_text(db: AsyncSession, job_id: uuid.UUID) -> tuple[str | None, str | None, str | None]:
@@ -422,19 +476,22 @@ class SavedAnswer:
     question: str
     answer: str
     company: str | None
+    # the student's own words, not their Claude's (KAN-379)
+    own: bool = False
 
 
 async def fetch_saved_answers(
     db: AsyncSession, applicant_id: uuid.UUID, exclude: uuid.UUID | None = None
 ) -> list[SavedAnswer]:
     """Every answer the applicant has saved to an application's question,
-    newest first, but those of the job `exclude`."""
+    the student's own first (KAN-379), then newest first, but those of the
+    job `exclude`."""
     query = (
-        select(Written_Answer.label, Written_Answer.answer, Job_Post.company_name)
+        select(Written_Answer.label, Written_Answer.answer, Written_Answer.own, Job_Post.company_name)
         .join(Job_Post, Job_Post.id == Written_Answer.job_id)
         .where(Written_Answer.applicant_id == applicant_id, Written_Answer.answer.is_not(None))
-        .order_by(Written_Answer.answered_at.desc(), Written_Answer.job_id, Written_Answer.name)
+        .order_by(Written_Answer.own.desc(), Written_Answer.answered_at.desc(), Written_Answer.job_id, Written_Answer.name)
     )
     if exclude is not None:
         query = query.where(Written_Answer.job_id != exclude)
-    return [SavedAnswer(question=r.label, answer=r.answer, company=r.company_name) for r in await db.execute(query)]
+    return [SavedAnswer(question=r.label, answer=r.answer, company=r.company_name, own=r.own) for r in await db.execute(query)]

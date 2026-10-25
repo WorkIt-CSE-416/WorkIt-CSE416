@@ -444,6 +444,41 @@ export async function writtenAnswers(applicantId, jobId) {
 }
 
 /**
+ * GET .../applications?stage=queued — the student's queued applications,
+ * newest first, each with its job posting's listing (`job.form_url`, else
+ * `job.apply_url`, is its form), for reading their questions early (KAN-379).
+ * @param {string} applicantId
+ */
+export async function queuedApplications(applicantId) {
+  return apiFetch(`/applicants/${applicantId}/applications?stage=queued`);
+}
+
+/**
+ * GET .../applications/{job_id}/answer-bank — the answers saved on the
+ * student's other applications that this one's form may reuse,
+ * `{[question wording]: {answer, own}}`: the Fill engine's Answer bank for
+ * its Plan (KAN-379). Never an answer about another company.
+ * @param {string} applicantId
+ * @param {string} jobId
+ * @returns {Promise<Record<string, { answer: string, own: boolean }>>}
+ */
+export async function answerBank(applicantId, jobId) {
+  return apiFetch(`/applicants/${applicantId}/applications/${jobId}/answer-bank`);
+}
+
+/**
+ * PUT .../applications/{job_id}/answers — the student's own words for one of
+ * a batch tab's questions that need writing (KAN-379): kept as the
+ * application's answer, and saved for every later form that asks it.
+ * @param {string} applicantId
+ * @param {string} jobId
+ * @param {{ name: string, label: string, answer: string }} answer
+ */
+export async function saveOwnAnswer(applicantId, jobId, answer) {
+  return apiFetch(`/applicants/${applicantId}/applications/${jobId}/answers`, { method: "PUT", body: JSON.stringify(answer) });
+}
+
+/**
  * PUT .../applications/{job_id}/resume — keeps the resume an application
  * went out with as its sent resume (the route's `built_resume_id` or
  * `uploaded_resume_id`, from the profile's resume file).

@@ -210,7 +210,15 @@ Find files with a directory listing; these are the rules for where code goes.
   form needs written (`PUT .../questions`), the student's own Claude saves
   each answer through the connector, and the tab reads them back
   (`GET .../questions`) to fill them. Only a queued or needs_you application
-  takes questions. Tests: `tests/test_written_answers.py`.
+  takes questions. Tests: `tests/test_written_answers.py`. **A student
+  without Claude pastes answers through the same save** (KAN-385,
+  `routers/pasted_answers.py`): the Written Answers page lists every
+  unanswered question by posting (`pipeline.unanswered_questions`) and
+  saves through `pipeline.save_answers`, the connector's own step, so a
+  pasted answer passes the same checks and the tab fills it the same way.
+  Never give pasted text a save path of its own: it may come from any AI.
+  A refusal's `Refused.reasons` holds each answer's reasons by question
+  name, for the page to show under its box. Tests: `tests/test_pasted_answers.py`.
   **A student's writing samples and style card** (KAN-384) are
   `queries/writing.py`, behind `routers/writing_samples.py` (the student's
   add, replace, remove) and the connector's tools (their Claude reads the
@@ -253,7 +261,12 @@ Find files with a directory listing; these are the rules for where code goes.
   answer's reasons, so nothing failing reaches a tab. **An answer about one
   company is offered on that company's forms only** (`checks.company_specific`,
   read through `pipeline.answer_bank`: reuse saved answers through it, never
-  from `written_answers` directly). Seam-2 tests:
+  from `written_answers` directly). **The student's own words win**
+  (KAN-379): an edit in a tab (`PUT .../answers`) sets the row's `own`, which
+  their Claude's later save never overwrites and `answer_bank` offers first;
+  the extension plans every batch form with `GET .../answer-bank`, so a
+  saved question never reaches their Claude. Seam-2 tests:
+  `tests/test_connector_saved_answers.py`. Seam-2 tests:
   `tests/test_connector_checks.py`. The writing samples are KAN-384's;
   until then `pipeline.writing_samples` holds none. **Which job postings it takes is
   one list, `app/auto_apply/hosts.py`** (every hiring system the Fill engine fills, KAN-370): the matches

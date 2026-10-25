@@ -25,7 +25,11 @@
 // once the fill ends and again whenever that changes (an answer filled too):
 // the engine reads back the fields the student edits, so emptying a required
 // field, or answering the last one, moves the tab between the Ready and
-// Needs you groups (background/batch.js).
+// Needs you groups (background/batch.js). The student's own words in a
+// written answer (an edit to the one filled, or theirs before their
+// Claude's) are saved for this application and every later form that asks
+// the same question (KAN-379, "batch/own-answer"); the Plan already fills a
+// question answered before from those saved answers.
 //
 // A batch tab also watches for the student's own submit (KAN-374): the
 // engine, in the page, reads the job system's answer to it ("batch/watch").
@@ -56,9 +60,14 @@
   const WAIT_FOR_CLAUDE = "Waiting for your Claude: run \"Write my WorkIt answers\" in Claude, or write it yourself.";
   // How often a batch tab asks whether the student's Claude saved an answer (KAN-377).
   const ANSWER_POLL = 10_000;
-  // The connector's limits on a question (backend/app/schemas/applications.py).
+  // The connector's limits on a question and an answer (backend/app/schemas/applications.py).
   const LABEL_MAX = 2000;
   const FIELD_NAME_MAX = 200;
+  const ANSWER_MAX = 10_000;
+  // How long the student's typing in a written answer pauses before their words are saved (KAN-379).
+  const OWN_PAUSE = 2_000;
+  // How many fills of a written answer are under way: their typing is WorkIt's, not the student's.
+  let fillingWritten = 0;
 
   status.reset();
   // Where the fill is, for whoever drives the page (the extension's test):
@@ -171,7 +180,9 @@
 
   /** Fills one answer that needed writing, through the engine, and shows how it went. `source`: who wrote it. */
   async function fillWritten(prepared, name, value, source = "ai") {
-    const answer = await send({ type: "fill/page", site: prepared.site, questions: prepared.questions, answers: { [name]: value }, state: prepared.state });
+    fillingWritten += 1;
+    const answer = await send({ type: "fill/page", site: prepared.site, questions: prepared.questions, answers: { [name]: value }, state: prepared.state })
+      .finally(() => (fillingWritten -= 1));
     const result = answer.ok ? answer.results[name] ?? { status: "failed", reason: "The form changed before this was filled" } : { status: "failed", reason: answer.error };
     status.setStatus(name, result.status, result.reason, result.shows, source);
   }
@@ -459,19 +470,30 @@
    * the student); a required one now empty has failed, as has one the form
    * now requires (flagEmptyRequired). report() then moves
    * the tab between the groups.
+   *
+   * The written answers are read back too (the questions that needed
+   * writing, and those a saved answer filled): the student's own words in
+   * one are saved (keepOwn), for this application and every later form
+   * that asks it (KAN-379). WorkIt's own fill of one is never taken for theirs.
    */
   function watchEdits(prepared) {
     const byName = new Map(prepared.questions.map((q) => [q.name, q]));
+    const inWords = (q) => q.kind === "text" || q.kind === "textarea";
+    const written = new Set([...prepared.written.map((q) => q.name), ...(prepared.plan.banked ?? []).filter(inWords).map((q) => q.name)]);
     let timer;
     const check = async () => {
-      const rows = status.summary().fields.filter((r) => byName.has(r.key) && (r.required || r.status === "failed"));
+      if (fillingWritten) return;
+      const rows = status.summary().fields.filter((r) => byName.has(r.key) && (r.required || r.status === "failed" || written.has(r.key)));
       if (!rows.length) return flagEmptyRequired(prepared);
       const answer = await send({ type: "fill/read", site: prepared.site, questions: prepared.questions, names: rows.map((r) => r.key), state: prepared.state });
-      if (!answer.ok) return;
+      if (!answer.ok || fillingWritten) return;
       for (const row of rows) {
         const shown = answer.shows[row.key];
         if (!isEmpty(shown)) {
-          if (row.status !== "filled" || JSON.stringify(shown) !== JSON.stringify(row.shows)) status.setStatus(row.key, "filled", row.status === "filled" ? row.reason : "You answered this", shown, "student");
+          if (row.status !== "filled" || JSON.stringify(shown) !== JSON.stringify(row.shows)) {
+            status.setStatus(row.key, "filled", row.status === "filled" ? row.reason : "You answered this", shown, "student");
+            if (written.has(row.key) && typeof shown === "string") keepOwn(byName.get(row.key), shown);
+          }
         } else if (row.required && row.status === "filled") status.setStatus(row.key, "failed", "This is empty now. Answer it yourself.");
       }
       await flagEmptyRequired(prepared);
@@ -482,6 +504,23 @@
     };
     document.addEventListener("input", edited, true);
     document.addEventListener("change", edited, true);
+  }
+
+  const ownTimers = new Map();
+  /**
+   * Saves the student's own words for a written question once their typing
+   * pauses (KAN-379): the background keeps them as this application's
+   * answer, so their Claude isn't asked for it, and for later forms. Batch
+   * tabs only: only they have an application at WorkIt.
+   */
+  function keepOwn(question, answer) {
+    if (!batch || !answer.trim() || answer.length > ANSWER_MAX) return;
+    clearTimeout(ownTimers.get(question.name));
+    ownTimers.set(question.name, setTimeout(() => {
+      ownTimers.delete(question.name);
+      send({ type: "batch/own-answer", name: question.name.slice(0, FIELD_NAME_MAX), label: question.label.slice(0, LABEL_MAX), answer })
+        .catch(() => {});
+    }, OWN_PAUSE));
   }
 
   /** Workday's step shown ("" before the application starts, or while it redraws). */

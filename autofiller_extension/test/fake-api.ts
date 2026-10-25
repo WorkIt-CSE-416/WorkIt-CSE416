@@ -23,6 +23,12 @@ export class FakeApi {
   private postings = new Map<string, Posting>();
   /** Each job's questions that need writing, as the tab sent them, with the saved answers. */
   readonly written = new Map<string, Written[]>();
+  /** The answer bank every job's form may reuse (GET .../answer-bank, KAN-379), by question wording. */
+  readonly bank: Record<string, { answer: string; own: boolean }> = {};
+  /** The student's own answers the tabs saved (PUT .../answers, KAN-379), in order. */
+  readonly own: { jobId: string; name: string; label: string; answer: string }[] = [];
+  /** In order: "next:<job>" when GET .../applications/next hands a job out (its tab opens), "questions:<job>" when its questions arrive. */
+  readonly events: string[] = [];
 
   /** The connector's save (backend/app/connector/tools.py): the student's Claude answered one question. */
   saveAnswer(jobId: string, name: string, answer: string): void {
@@ -90,7 +96,20 @@ export class FakeApi {
     if (route === "/applications/next" && method === "GET") {
       const skip = new Set(url.searchParams.getAll("skip"));
       const next = [...this.stages].find(([id, stage]) => stage === "queued" && !skip.has(id));
+      if (next) this.events.push(`next:${next[0]}`);
       return { json: next ? this.application(next[0]) : null };
+    }
+    // The queued applications, newest first, as GET .../applications?stage=queued answers them.
+    if (route === "/applications" && method === "GET" && url.searchParams.get("stage") === "queued") {
+      return { json: [...this.stages].filter(([, stage]) => stage === "queued").map(([id]) => this.application(id)).reverse() };
+    }
+    const bank = /^\/applications\/([^/]+)\/answer-bank$/.exec(route);
+    if (bank && method === "GET" && this.stages.has(bank[1])) return { json: this.bank };
+    const own = /^\/applications\/([^/]+)\/answers$/.exec(route);
+    if (own && method === "PUT" && this.stages.has(own[1])) {
+      const { name, label, answer } = JSON.parse(body.toString());
+      this.own.push({ jobId: own[1], name, label, answer });
+      return { json: { answer, own: true } };
     }
     const fill = /^\/applications\/([^/]+)\/fill$/.exec(route);
     if (fill && method === "PUT") {
@@ -106,6 +125,7 @@ export class FakeApi {
     if (questions && this.stages.has(questions[1])) {
       const saved = this.written.get(questions[1]) ?? [];
       if (method === "PUT") {
+        this.events.push(`questions:${questions[1]}`);
         for (const q of JSON.parse(body.toString()).questions) {
           const known = saved.find((s) => s.name === q.name);
           if (known) Object.assign(known, q);

@@ -29,12 +29,14 @@ from app.auto_apply.queries import (
     fetch_posting_text,
     fetch_saved_answers,
     fetch_stage,
+    fetch_unanswered,
     fetch_written,
     link_resume,
     pick_resume,
     put_questions,
     queue_applications,
     remove_queued,
+    save_own_written,
     save_written,
     set_stage,
 )
@@ -45,6 +47,9 @@ from app.queries.jobs.filters import JobFilters
 from app.routers.jobs import EmptyBank, fetch_recommended
 from app.schemas.applications import (
     Application,
+    OwnAnswer,
+    PostingQuestions,
+    SavedAnswer,
     WrittenAnswer,
     WrittenQuestion,
 )
@@ -319,9 +324,27 @@ async def written_answers(
     return await fetch_written(db, applicant_id, job_id)
 
 
+async def unanswered_questions(db: AsyncSession, applicant_id: uuid.UUID) -> list[PostingQuestions]:
+    """
+    Every question the student's open applications need written and have
+    no answer for, under its job posting, oldest application first: the
+    Written Answers page (KAN-385), for a student without Claude. Each
+    answer pasted there is saved through save_answers, as the connector's.
+    """
+    return [
+        PostingQuestions(job_id=job_id, company=company, title=title, questions=questions)
+        for job_id, company, title, questions in await fetch_unanswered(db, applicant_id)
+    ]
+
+
 class Refused(Exception):
-    """A save the connector refuses whole, with the reason for the student's
-    Claude to fix it by. Nothing was saved."""
+    """A save refused whole, with the reason for the student's Claude (or
+    the student, on the Written Answers page) to fix it by. Nothing was
+    saved. `reasons`: each refused answer's reasons, by question name."""
+
+    def __init__(self, message: str, reasons: dict[str, list[str]] | None = None) -> None:
+        super().__init__(message)
+        self.reasons = reasons or {}
 
 
 @dataclasses.dataclass(frozen=True)
@@ -360,8 +383,11 @@ async def save_answers(
 ) -> int:
     """
     Saves the student's Claude's answers to one application's questions
-    (KAN-377), all or none, and answers how many of its questions are
-    still unanswered. Each name must be one of the application's questions,
+    (KAN-377), or the ones the student pasted on the Written Answers page
+    (KAN-385): one save and one set of checks for both, so a pasted answer
+    reaches the tab exactly as Claude's does. All or none, and answers how
+    many of its questions are still unanswered. Each name must be one of
+    the application's questions,
     and each answer must pass every check in app/auto_apply/checks.py
     (KAN-380), the form's own limit among them: a failing one is refused
     with every reason, for Claude to fix, so it never reaches the tab.
@@ -374,9 +400,12 @@ async def save_answers(
         raise Refused("No answers to save.")
     for name, answer in answers.items():
         if name not in questions:
-            raise Refused(f"The application has no question named {name!r}. Use the names get_next_application gave.")
+            raise Refused(
+                f"The application has no question named {name!r}. Use the names get_next_application gave.",
+                {name: ["The application has no such question."]},
+            )
         if not answer.strip():
-            raise Refused(f"The answer to {name!r} is empty.")
+            raise Refused(f"The answer to {name!r} is empty.", {name: ["The answer is empty."]})
     sources, employers, samples = await _check_material(db, applicant_id, job_id)
     failing = {
         name: found
@@ -389,7 +418,7 @@ async def save_answers(
     if failing:
         raise Refused("Nothing was saved. Fix these answers and save them all again:\n" + "\n".join(
             f"- {name!r}: {' '.join(found)}" for name, found in failing.items()
-        ))
+        ), failing)
     await save_written(db, applicant_id, job_id, {name: answer.strip() for name, answer in answers.items()})
     await db.commit()
     return sum(1 for name, q in questions.items() if q.answer is None and name not in answers)
@@ -435,22 +464,61 @@ async def writing_samples(db: AsyncSession, applicant_id: uuid.UUID) -> list[str
     return list(await writing.sample_texts(db, applicant_id))
 
 
-async def answer_bank(db: AsyncSession, applicant_id: uuid.UUID, job_id: uuid.UUID) -> dict[str, str]:
+async def answer_bank(db: AsyncSession, applicant_id: uuid.UUID, job_id: uuid.UUID) -> dict[str, SavedAnswer]:
     """
     The answers the student has saved on other applications that may be
-    offered on this one's form, by question wording, the newest for each
-    wording. An answer about one company (checks.company_specific) is
-    offered only on that company's forms, never on another's (KAN-380).
+    offered on this one's form, by question wording: for each wording the
+    student's own (KAN-379), else the newest. A wording counts once in any
+    case or spacing, as the Fill engine matches it. An answer about one
+    company (checks.company_specific) is offered only on that company's
+    forms, never on another's (KAN-380). The extension gives it to the
+    engine's Plan as its Answer bank (`own`: the student's words), so a
+    question answered before is filled without the student's Claude.
+    Raises NotFound with no application for the job.
     """
+    if await fetch_stage(db, applicant_id, job_id) is None:
+        raise NotFound("No application for that job.")
     company, _, _ = await fetch_posting_text(db, job_id)
     same = (company or "").strip().casefold()
-    bank: dict[str, str] = {}
+    bank: dict[str, SavedAnswer] = {}
+    seen: set[str] = set()
     for saved in await fetch_saved_answers(db, applicant_id, exclude=job_id):
         theirs = (saved.company or "").strip().casefold()
         if checks.company_specific(saved.question, saved.answer, saved.company) and not (same and theirs == same):
             continue
-        bank.setdefault(saved.question, saved.answer)
+        if (wording := _wording(saved.question)) not in seen:
+            seen.add(wording)
+            bank[saved.question] = SavedAnswer(answer=saved.answer, own=saved.own)
     return bank
+
+
+def _wording(question: str) -> str:
+    """A question's wording as the Fill engine's Answer bank matches it
+    (fit.ts, `norm`): case, spacing, curly quotes and a required field's
+    asterisk don't count."""
+    text = question.lower().replace("\u2019", "'").replace("\u201c", '"').replace("\u201d", '"')
+    return " ".join(text.split()).strip(" *")
+
+
+async def save_own_answer(
+    db: AsyncSession, applicant_id: uuid.UUID, job_id: uuid.UUID, own: OwnAnswer
+) -> None:
+    """
+    The student's own words for a written question in a batch tab (KAN-379):
+    an edit to the answer filled there, or their answer before their
+    Claude's. It replaces the application's answer, so their Claude is not
+    asked for it and its later save never replaces it, and answer_bank
+    offers it first on later forms. Not checked as their Claude's answers
+    are (checks.py): the words are the student's. Raises NotFound with no
+    application, Refused for an empty answer.
+    """
+    if await fetch_stage(db, applicant_id, job_id) is None:
+        raise NotFound("No application for that job.")
+    answer = own.answer.strip()
+    if not answer:
+        raise Refused("The answer is empty.")
+    await save_own_written(db, applicant_id, job_id, own.name, own.label.strip(), answer)
+    await db.commit()
 
 
 async def finish_application(
