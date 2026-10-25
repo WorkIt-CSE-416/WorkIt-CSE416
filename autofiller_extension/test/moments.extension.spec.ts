@@ -136,6 +136,12 @@ test("a student who already added the connector never sees the add-Claude step",
 
 const ANSWER = "I want to build legal tools that lawyers trust, and my internship taught me how to ship them.";
 
+/** The student's Claude answers every question a job's form sent (its why-us, and its one-off choices with an option). */
+function answerAll(api: FakeApi, job: string) {
+  for (const q of api.written.get(job)! as Array<{ name: string; options?: string[] }>)
+    api.saveAnswer(job, q.name, q.options?.length ? q.options[0] : ANSWER);
+}
+
 test("once the first batch's written answers land, the student is asked for writing samples, with Skip", async () => {
   test.setTimeout(180_000);
   const forms = new SavedForms([HARVEY]);
@@ -147,13 +153,13 @@ test("once the first batch's written answers land, the student is asked for writ
   const asks = async () => (await tabs[0].locator(".samples").count()) + (await tabs[1].locator(".samples").count());
 
   // One tab's answer lands: the batch is still being written, so nothing is asked yet.
-  api.saveAnswer("job-0", api.written.get("job-0")![0].name, ANSWER);
+  answerAll(api, "job-0");
   await expect.poll(async () => (await Promise.all(tabs.map((t) => row(t, WHY).locator(".source").count()))).reduce((a, b) => a + b), { timeout: 20_000 }).toBe(1);
   await tabs[0].waitForTimeout(2_000);
   expect(await asks()).toBe(0);
 
   // The last one lands: one tab asks.
-  api.saveAnswer("job-1", api.written.get("job-1")![0].name, ANSWER);
+  answerAll(api, "job-1");
   await expect.poll(asks, { timeout: 20_000 }).toBe(1);
   await tabs[0].waitForTimeout(2_000);
   expect(await asks()).toBe(1);
@@ -174,7 +180,7 @@ test("a student who has writing samples is never asked for them", async () => {
   await expect.poll(() => api.written.size, { timeout: 60_000 }).toBe(1);
   const tab = await tabOf(forms.url(HARVEY));
 
-  api.saveAnswer("job-0", api.written.get("job-0")![0].name, ANSWER);
+  answerAll(api, "job-0");
   await expect(row(tab, WHY).locator(".source")).toHaveText("Claude", { timeout: 20_000 });
   await expect.poll(() => api.calls.some((c) => c.endsWith("/writing-samples")), { timeout: 10_000 }).toBe(true);
   await tab.waitForTimeout(2_000);
