@@ -6,6 +6,7 @@
 import { expect, test } from "@playwright/test";
 import { FakeApi } from "./fake-api";
 import { SavedWorkable } from "./fake-job-systems";
+import { CONTENT_SCRIPT_FILES, ENGINE_FILES } from "../src/shared/content-scripts.js";
 import { loadExtension, sendFromWebapp, signIn, webapp, type Handler, type Loaded } from "./loaded-extension";
 
 let loaded: Loaded;
@@ -38,5 +39,25 @@ test("a Workable form opened with a restored draft is filled from empty, not ref
     .toBe("Person");
   const page = (await tab())!;
   await expect(page.locator("[data-ui=experience] li")).toHaveCount(0);
+  expect(form.server.submissions).toEqual([]);
+});
+
+test("the student's own Autofill on a Workable form with a restored draft forgets it and fills from empty", async () => {
+  test.setTimeout(90_000);
+  const form = new SavedWorkable("workable-perryhomes");
+  loaded = await loadExtension([new FakeApi().handler, webapp, withDraft(form)]);
+  await signIn(loaded.context);
+  await (await loaded.context.newPage()).goto(form.url);
+  // Autofill This Page (popup.js's injectFill), outside any batch.
+  await loaded.worker.evaluate(async ([engine, scripts, url]) => {
+    const [{ id }] = await chrome.tabs.query({ url: `${url}*` });
+    await chrome.scripting.executeScript({ target: { tabId: id! }, world: "MAIN", files: engine });
+    void chrome.scripting.executeScript({ target: { tabId: id! }, files: scripts });
+  }, [ENGINE_FILES, CONTENT_SCRIPT_FILES, form.url] as const);
+
+  const tab = async () => loaded.context.pages().find((p) => p.url().startsWith(form.url));
+  await expect.poll(async () => (await tab())?.evaluate(() => (document.querySelector("#lastname") as HTMLInputElement | null)?.value).catch(() => null), { timeout: 60_000 })
+    .toBe("Person");
+  await expect((await tab())!.locator("[data-ui=experience] li")).toHaveCount(0);
   expect(form.server.submissions).toEqual([]);
 });

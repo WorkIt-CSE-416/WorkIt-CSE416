@@ -80,7 +80,12 @@ export function waitForLoad(tabId) {
  */
 export async function forgetWorkableDraft(tabId) {
   await chrome.scripting.executeScript({ target: { tabId }, world: "MAIN", files: ENGINE_FILES });
-  await chrome.scripting.executeScript({ target: { tabId }, world: "MAIN", func: () => globalThis.FillEngine.forgetDrafts("workable") });
+  await chrome.scripting.executeScript({ target: { tabId }, world: "MAIN", func: () => {
+    // Workable may save the form again before the page goes (its draft of what it restored): forgotten then too.
+    const forget = () => globalThis.FillEngine.forgetDrafts("workable");
+    forget();
+    addEventListener("pagehide", forget);
+  } });
   const loaded = new Promise((resolve) => {
     const onUpdated = (id, info) => {
       if (id !== tabId || info.status !== "complete") return;
@@ -91,4 +96,43 @@ export async function forgetWorkableDraft(tabId) {
   });
   await chrome.tabs.reload(tabId);
   await loaded;
+}
+
+// Tabs whose Workable draft the student's own Autofill just forgot: their next fill fills as the form shows.
+const freshened = new Set();
+
+/**
+ * The student's own Autofill (outside a batch, whose tabs forget the draft as
+ * they open) on a Workable form that shows entries in one of its repeating
+ * sections: a draft Workable restored (an earlier visit or fill), whose
+ * entries the engine refuses to add to ("the form already has entries") and
+ * would otherwise be sent with the application. Forgets the draft and
+ * reloads the tab, as Apply does before every Workable fill; the caller then
+ * fills it again. Only a page's first Plan looks, and only once per Autofill: the fill after
+ * the reload goes ahead even if Workable restored the draft again.
+ * @param {number} tabId
+ * @param {{ site?: string, questions?: { name: string, label: string }[] }} prepared the fill's Plan
+ * @returns {Promise<boolean>} whether the tab was reloaded
+ */
+export async function forgetShownWorkableDraft(tabId, prepared) {
+  if (prepared?.site !== "workable") return false;
+  const again = freshened.delete(tabId);
+  const sections = (prepared.questions ?? []).filter((q) => q.label.endsWith("(entries)")).map((q) => q.name);
+  // Only a page's first Plan looks: later ones (a fill's own entries showing) never reload it.
+  const [{ result }] = await chrome.scripting.executeScript({
+    target: { tabId },
+    func: async (names, timeoutMs) => {
+      if (window.__workitDraftLooked) return false;
+      window.__workitDraftLooked = true;
+      // The restored entries show once Workable's app has mounted, which shows the form's Submit.
+      const end = Date.now() + timeoutMs;
+      while (!document.querySelector("button[data-ui=apply-button]") && Date.now() < end) await new Promise((wait) => setTimeout(wait, 200));
+      return names.some((name) => document.querySelector(`[data-ui="${CSS.escape(name)}"] li`));
+    },
+    args: [sections, LOAD_TIMEOUT_MS],
+  });
+  if (!result || again) return false;
+  freshened.add(tabId);
+  await forgetWorkableDraft(tabId);
+  return true;
 }
