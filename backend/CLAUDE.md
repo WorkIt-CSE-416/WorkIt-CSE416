@@ -223,7 +223,7 @@ Find files with a directory listing; these are the rules for where code goes.
   student comes from the token (`load_account`), each tool calls one
   layer-2 step (`next_to_write`, `save_answers`), and a refusal is a
   `ToolError` with the reason. **Writing rules go in the MCP prompt, never
-  in a tool's description**, and nothing on this path calls a model. **Which job postings it takes is
+  in a tool's description**, and nothing on this path calls a model. **Every tool takes a title and explicit annotations** (KAN-383, Anthropic's directory refuses a tool without them): `readOnlyHint=True` on a read, so Claude runs it without asking; only `save_*` tools write, each saying `destructiveHint`; `openWorldHint=False` on all. A test lists the tools and checks each one, so a new tool without them fails. **Which job postings it takes is
   one list, `app/auto_apply/hosts.py`** (every hiring system the Fill engine fills, KAN-370): the matches
   and `queue_applications` require its SQL form (`AUTO_APPLY_SUPPORTED` in
   `queries/jobs/filters.py`) and `JobListing.auto_apply` its Python form,
