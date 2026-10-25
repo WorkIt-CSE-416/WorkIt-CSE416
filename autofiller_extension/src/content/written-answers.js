@@ -21,6 +21,8 @@ window.WIA = window.WIA || {};
   const WAIT_OR_PASTE = "Waiting for your Claude: run \"Write my WorkIt answers\" in Claude, write it yourself, or paste it in";
   // How often a batch tab asks whether the student's Claude saved an answer (KAN-377).
   const ANSWER_POLL = 10_000;
+  // How many polls a tab waits for the pre-submit review's verdict (KAN-369): 30 minutes, then it stops asking.
+  const REVIEW_POLLS = 180;
   // The connector's limits on a question and an answer (backend/app/schemas/applications.py).
   const LABEL_MAX = 2000;
   const FIELD_NAME_MAX = 200;
@@ -108,8 +110,7 @@ window.WIA = window.WIA || {};
      * each new one through the engine, until none is left; the tab's group
      * follows (report()). A question the student answered first keeps their
      * answer. It then asks on until the student's Claude's pre-submit review
-     * has read every answer (KAN-369), and puts each flag it gives on the
-     * row of the answer it read, while the field still shows that answer.
+     * has read every answer (KAN-369, awaitReview).
      */
     async function awaitClaude(prepared) {
       const waiting = new Set(prepared.written.map((q) => q.name));
@@ -146,14 +147,57 @@ window.WIA = window.WIA || {};
           offerSamples(byClaude);
         }
         if (answered) {
-          for (const { name, answer, reviewed, flag } of rows) {
-            const row = status.summary().fields.find((r) => r.key === name);
-            if (reviewed && row?.status === "filled" && row.shows === answer) status.flag(name, flag ?? undefined);
-          }
-          if (reply.ok && rows.every((q) => !q.answer || q.reviewed)) return;
+          awaitReview(reply);
+          return;
         }
         await sleep(ANSWER_POLL);
         reply = await send({ type: "batch/answers" }).catch((error) => ({ ok: false, error: error.message }));
+      }
+    }
+
+    // The answers whose review verdict this tab has seen: an edit of one waits for its new verdict.
+    const reviewedNames = new Set();
+    // Whether a review poll is under way, how many polls it has left, and whether an edit came after its last answers.
+    let reviewing = false;
+    let pollsLeft = 0;
+    let stale = false;
+
+    /**
+     * Asks every ANSWER_POLL ms (from `reply`, the answers just read, if any)
+     * until the student's Claude's pre-submit review has read every answer
+     * (KAN-369), and puts each flag it gives on the row of the answer it
+     * read, while the field still shows that answer. Not for a student with
+     * no connector added, whose answers no Claude reviews, and at most
+     * REVIEW_POLLS polls. Called again after the student's edit of a
+     * reviewed answer, it waits for that edit's verdict.
+     */
+    async function awaitReview(reply = null) {
+      pollsLeft = REVIEW_POLLS;
+      stale = reply === null;
+      if (reviewing) return;
+      reviewing = true;
+      try {
+        for (;;) {
+          const rows = reply?.ok ? reply.questions : [];
+          for (const { name, answer, reviewed, flag } of rows) {
+            if (!reviewed) continue;
+            reviewedNames.add(name);
+            const row = status.summary().fields.find((r) => r.key === name);
+            if (row?.status === "filled" && row.shows === answer) status.flag(name, flag ?? undefined);
+          }
+          if (reply?.ok && !stale && rows.every((q) => !q.answer || q.reviewed)) return;
+          if (pollsLeft <= 0) return;
+          if (pollsLeft === REVIEW_POLLS) {
+            const added = await send({ type: "connector/added" }).catch(() => null);
+            if (!added?.ok || !added.added) return;
+          }
+          pollsLeft -= 1;
+          if (reply) await sleep(ANSWER_POLL);
+          stale = false;
+          reply = await send({ type: "batch/answers" }).catch((error) => ({ ok: false, error: error.message }));
+        }
+      } finally {
+        reviewing = false;
       }
     }
 
@@ -228,6 +272,7 @@ window.WIA = window.WIA || {};
         ownTimers.delete(question.name);
         const saved = await send({ type: "batch/own-answer", name: question.name.slice(0, FIELD_NAME_MAX), label: question.label.slice(0, LABEL_MAX), answer, own })
           .catch((error) => ({ ok: false, error: error.message }));
+        if (saved?.ok && reviewedNames.has(question.name)) awaitReview();
         if (!saved?.ok && !own) status.setStatus(question.name, "failed", `WorkIt didn't keep your edit: ${saved?.error ?? "no answer"}`, answer, workitFilled.get(question.name)?.source);
       }, OWN_PAUSE));
     }
