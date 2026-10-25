@@ -122,6 +122,10 @@ test("the bank's skills (languages first) and earlier schools reach the engine; 
   expect(profile.experience_facts.skills).toEqual(["Java", "Python", "React", "Git", "Figma"]);
   expect(profile.education.school).toBe("Example State University");
   expect(profile.education.past_schools).toEqual([{ school: "Example High School", degree: "High School Diploma", end: "2024-06" }]);
+  // Still in a bachelor's: an undergraduate, which the degrees-completed and highest-education rules ask.
+  expect(profile.education.degree_level_now).toBe("Undergraduate");
+  const finished = { ...STUDENT.bank.entries[0], end_kind: "month" };
+  expect(engineProfile({ ...STUDENT, bank: { entries: [finished], skills: [] } }).education.degree_level_now).toBeUndefined();
   // STUDENT's bank has no skills and one school: what the student brought from Apply stays.
   const brought = engineProfile({ ...STUDENT, fill: { profile: { experience_facts: { skills: ["Rust"] }, education: { past_schools: [{ school: "Old School" }] } } } });
   expect(brought.experience_facts.skills).toEqual(["Rust"]);

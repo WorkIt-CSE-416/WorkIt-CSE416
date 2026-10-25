@@ -193,6 +193,14 @@ function skillNames(skills) {
   return [...skills.filter(language), ...skills.filter((s) => !language(s))].map((s) => s.name);
 }
 
+/** "Undergraduate" or "Graduate" for a degree the student is still in (the engine's degree_level_now); null once finished. */
+function levelNow(school) {
+  if (!school.degree || school.end_kind === "month") return null;
+  const level = engine.degreeLevel(school.degree);
+  if (level === "Bachelor's Degree" || level === "Associate's Degree") return "Undergraduate";
+  return level === "Master's Degree" || level === "Doctorate" ? "Graduate" : null;
+}
+
 /** The profile's free-text home ("Stony Brook, NY") as the engine's city, state and country; null when it reads none. */
 function home(location) {
   const place = location ? engine.homePlace(location) : {};
@@ -239,6 +247,7 @@ function workitProfile(profile) {
       ? present({
           school: school.title,
           degree: school.degree ? engine.degreeLevel(school.degree) : null,
+          degree_level_now: levelNow(school),
           // As written ("B.S."): the kind a list of kinds (BA, BS) picks by.
           degree_type: school.degree,
           majors: school.field_of_study ? [school.field_of_study] : null,

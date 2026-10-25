@@ -1094,7 +1094,8 @@ openness covers:
 - **One school, and no phone country.** The adapter gives the engine the
   latest education entry as the school; the earlier ones go only as
   `education.past_schools` (school, degree, end), which the high-school and
-  "degrees completed" rules read. The bank's skills go as
+  "degrees completed" rules read, with `degree_level_now` (Undergraduate or
+  Graduate) while the latest degree is unfinished. The bank's skills go as
   `experience_facts.skills`, a "Languages" group first. WorkIt holds no place
   the student lives, so Greenhouse's Country picker beside Phone is left for
   the student.
