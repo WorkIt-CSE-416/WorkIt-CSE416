@@ -214,7 +214,8 @@ message's function from the module that owns it. Beside it:
 `batch-store.js` keeps the batch in `chrome.storage.local` and runs every
 change one at a time (`serially`), so every module reading or changing the
 batch goes through it. `write-early.js` sends the queued jobs' written
-questions before their tabs open (`writeEarly`).
+questions before their tabs open (`writeEarly`), and `next-needs-you.js`
+walks the tabs for Next Thing That Needs You (`nextNeedsYou`).
 
 - **The URLs always come from the API, never the message.** `run/open`
   carries no body: a page on an allowed origin that could hand the worker
@@ -397,7 +398,7 @@ questions before their tabs open (`writeEarly`).
   API refuses a saved answer over it.
   Tests: `test/greenhouse.spec.ts`.
 - **"Next Thing That Needs You" walks the batch** (KAN-375). Each batch
-  tab's panel has the button. `batch.js`'s `nextNeedsYou` asks every batch
+  tab's panel has the button. `next-needs-you.js`'s `nextNeedsYou` asks every batch
   tab, in the order the tabs opened, which of its rows need the student
   (`batch/flags`: the rows that send a tab to Needs you, in page order,
   notes last), goes to the first one after the last it went to (cursor in

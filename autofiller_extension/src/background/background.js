@@ -12,11 +12,12 @@ import {
   writingSamples, writtenAnswers,
 } from "./api.js";
 import {
-  batchStatus, batchTabIds, forgetTab, inBatch, jobInTab, markSubmitted, nextNeedsYou, practiceStatus, resumeBatch, setTabState, setWriting,
+  batchStatus, batchTabIds, forgetTab, inBatch, jobInTab, markSubmitted, practiceStatus, resumeBatch, setTabState, setWriting,
   showBatchTab, skipTab, startBatch, startPractice, submitPractice,
 } from "./batch.js";
 import { engineCaller, handleFill, jobOf, practiceJob, runEngine, submittedPage } from "./engine.js";
 import { claimMoment } from "./moments.js";
+import { nextNeedsYou } from "./next-needs-you.js";
 import { SELF_ID, checkedSelfId, unansweredSelfId } from "./self-id.js";
 import { injectFill } from "../shared/content-scripts.js";
 import { workdayLogin } from "./workday-logins.js";
