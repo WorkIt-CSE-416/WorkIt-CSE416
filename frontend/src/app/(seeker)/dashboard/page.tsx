@@ -10,7 +10,7 @@ import { getAppliedTimes, getHeadline } from "./data";
 import { Headline } from "./headline";
 import { RangeSwitch } from "./range-switch";
 import { Streak } from "./streak";
-import { TopMatches, TopMatchesSkeleton } from "./top-matches";
+import { loadTopMatches, TopMatches, TopMatchesSkeleton } from "./top-matches";
 
 export const metadata: Metadata = {
   title: "Dashboard",
@@ -34,7 +34,9 @@ export const metadata: Metadata = {
  * newest postings in posting order, sat there until Strong Matches replaced
  * New Roles; the user asked for a list back, ordered by fit, since a new
  * seeker can have only weak matches and still needs their best ones. It
- * streams in its own <Suspense>, so the numbers never wait on scoring.
+ * streams in its own <Suspense>, so the numbers never wait on its scoring,
+ * and its reads start with the page (loadTopMatches), so it never waits on
+ * the numbers' reads either.
  */
 
 /**
@@ -102,6 +104,11 @@ export const metadata: Metadata = {
  * @md/upnext, keyed to its own tile.
  */
 export default async function DashboardPage() {
+  // Top Matches' reads start first, before this page awaits anything, so its
+  // two scoring calls run beside the Strong Matches one instead of after it
+  // (./top-matches.tsx, loadTopMatches, says why it never rejects).
+  const topMatches = loadTopMatches();
+
   // The numbers and Activity read the API; asked for alongside the account,
   // not after. getTracker caches the one tracker read both make.
   const [account, stats, applied] = await Promise.all([
@@ -139,7 +146,7 @@ export default async function DashboardPage() {
       </div>
 
       <Suspense fallback={<TopMatchesSkeleton className="mt-4" />}>
-        <TopMatches className="mt-4" />
+        <TopMatches data={topMatches} className="mt-4" />
       </Suspense>
 
       <Streak applied={applied} className="mt-4" />

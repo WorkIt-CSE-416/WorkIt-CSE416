@@ -24,20 +24,51 @@ import { TopMatchesList, type TopMatchRow } from "./top-matches-list";
  *
  * Its own <Suspense> in the page, since scoring takes a moment and the
  * numbers above should not wait; TopMatchesSkeleton holds its shape.
+ *
+ * THE READS START WITH THE PAGE, NOT WHEN THIS RENDERS. The page calls
+ * loadTopMatches() before it awaits anything and hands the promise down. A
+ * Suspense boundary only streams what is inside it; it does not start it
+ * sooner. Started here, the two scoring calls waited for the page's own
+ * reads (the Strong Matches count is a full scoring pass) and only then
+ * began, so Top Matches came one whole scoring call late.
  */
 const SHOWN = 12;
 
-export async function TopMatches({ className }: { className?: string }) {
+/**
+ * Top Matches' four reads, started at once: the twelve best, the twelve best
+ * that auto apply can fill, whether the viewer is an applicant, and the
+ * seeker's stages. The page calls it before its own awaits.
+ *
+ * NONE OF THE FOUR MAY THROW. Each answers null, "empty", false or {} when
+ * the API fails, so this promise never rejects. That matters because it is
+ * started before the page awaits anything else: were the page to throw
+ * first, nothing would ever await it, and a rejection here would be an
+ * unhandled one. A new read added here must keep that.
+ */
+export function loadTopMatches() {
   // The seeker's stages beside the scores, for each row's Save button and
   // for which rows Auto Apply can still pick, as the Jobs page reads them.
   // The best matches auto apply can fill come alongside, for picking mode:
   // the top list may hold none of them (Greenhouse only, for now).
-  const [top, autoTop, canMarkApplied, stages] = await Promise.all([
+  return Promise.all([
     getTopMatches(SHOWN),
     getTopMatches(SHOWN, { autoApplyOnly: true }),
     isApplicant(),
     getApplicationStages(),
   ]);
+}
+
+export type TopMatchesData = ReturnType<typeof loadTopMatches>;
+
+export async function TopMatches({
+  data,
+  className,
+}: {
+  /** loadTopMatches(), started by the page. */
+  data: TopMatchesData;
+  className?: string;
+}) {
+  const [top, autoTop, canMarkApplied, stages] = await data;
 
   if (top === "empty" || top === null || top.length === 0) {
     return (
