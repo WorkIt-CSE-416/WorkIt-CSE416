@@ -22,8 +22,10 @@ from app.auto_apply.queries import (
     fetch_applications,
     fetch_next_application,
     fetch_stage,
+    fetch_written,
     link_resume,
     pick_resume,
+    put_questions,
     queue_applications,
     remove_queued,
     set_stage,
@@ -32,7 +34,7 @@ from app.auto_apply.rules import pick_batch
 from app.models.dto import application_stage
 from app.queries.jobs.filters import JobFilters
 from app.routers.jobs import EmptyBank, fetch_recommended
-from app.schemas.applications import Application
+from app.schemas.applications import Application, WrittenAnswer, WrittenQuestion
 from app.schemas.auth import AuthenticatedAccount
 from app.schemas.jobs import ScoredJob
 from app.schemas.sent_resume import SentResumeDownload, SentResumeResponse
@@ -264,6 +266,41 @@ async def record_fill(
     await set_stage(db, applicant_id, job_id, new)
     await db.commit()
     return new
+
+
+async def _open_application(db: AsyncSession, applicant_id: uuid.UUID, job_id: uuid.UUID) -> None:
+    """Raises NotFound with no application, WrongStage once it is past
+    the form (skipped or applied)."""
+    stage = await fetch_stage(db, applicant_id, job_id)
+    if stage is None:
+        raise NotFound("No application for that job. Queue it first.")
+    if stage not in FINISHABLE:
+        raise WrongStage(f"That application is {stage}, so its form is no longer open.")
+
+
+async def ask_questions(
+    db: AsyncSession, applicant_id: uuid.UUID, job_id: uuid.UUID, questions: Sequence[WrittenQuestion]
+) -> list[WrittenAnswer]:
+    """
+    Keeps the questions a batch tab's form needs written (KAN-377), for the
+    student's Claude to answer through the connector, and answers every
+    question the application has, with the answers saved so far. Only a
+    queued or needs_you application: NotFound / WrongStage otherwise.
+    """
+    await _open_application(db, applicant_id, job_id)
+    await put_questions(db, applicant_id, job_id, questions)
+    await db.commit()
+    return await fetch_written(db, applicant_id, job_id)
+
+
+async def written_answers(
+    db: AsyncSession, applicant_id: uuid.UUID, job_id: uuid.UUID
+) -> list[WrittenAnswer]:
+    """An application's questions that need writing, with the answers saved
+    so far (the open tab fills each new one). NotFound with no application."""
+    if await fetch_stage(db, applicant_id, job_id) is None:
+        raise NotFound("No application for that job.")
+    return await fetch_written(db, applicant_id, job_id)
 
 
 async def finish_application(

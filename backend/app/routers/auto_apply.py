@@ -57,6 +57,17 @@ PUT  /applicants/{id}/applications/{job_id}/fill  {"state": "needs_you"}
      anything is unfilled, ready (the stage goes back to queued) once
      everything is. Answers the stage. 404 with no application, 409 when it
      isn't queued or needs_you.
+PUT  /applicants/{id}/applications/{job_id}/questions  {"questions": [...]}
+     The questions a batch apply tab's form needs written (KAN-377), each
+     {"name", "label", "required", "max_length"} (at most 50), kept for the
+     student's own Claude to answer through the connector (app/connector/).
+     A question asked again keeps its saved answer. Answers every question
+     the application has, as GET below. 404 with no application, 409 when
+     it isn't queued or needs_you.
+GET  /applicants/{id}/applications/{job_id}/questions
+     Those questions in the form's order, each with `answer`: the one the
+     student's Claude saved, or null. The open tab fills each new answer.
+     404 with no application.
 POST /applicants/{id}/applications/{job_id}/finish  {"outcome": "submitted"}
      How a fill ended: submitted → applied, skipped → skipped, failed →
      needs_you. 404 with no application, 409 when it isn't queued or
@@ -86,6 +97,8 @@ from app.schemas.applications import (
     FillRequest,
     FinishRequest,
     QueueRequest,
+    WrittenAnswer,
+    WrittenQuestions,
 )
 from app.schemas.auth import AuthenticatedAccount
 from app.schemas.jobs import ScoredJob
@@ -272,6 +285,39 @@ async def finish_application(
     except pipeline.WrongStage as exc:
         raise HTTPException(status.HTTP_409_CONFLICT, str(exc)) from exc
     return ApplicationStage(job_id=job_id, stage=stage)
+
+
+@router.put("/applications/{job_id}/questions", response_model=list[WrittenAnswer])
+async def ask_questions(
+    applicant_id: uuid.UUID,
+    job_id: uuid.UUID,
+    body: WrittenQuestions,
+    account: AuthenticatedAccount = Depends(get_current_account),
+    db: AsyncSession = Depends(get_session),
+) -> list[WrittenAnswer]:
+    """Keeps the questions a batch tab's form needs written, for the connector."""
+    assert_applicant_owns(account, applicant_id)
+    try:
+        return await pipeline.ask_questions(db, applicant_id, job_id, body.questions)
+    except pipeline.NotFound as exc:
+        raise HTTPException(status.HTTP_404_NOT_FOUND, str(exc)) from exc
+    except pipeline.WrongStage as exc:
+        raise HTTPException(status.HTTP_409_CONFLICT, str(exc)) from exc
+
+
+@router.get("/applications/{job_id}/questions", response_model=list[WrittenAnswer])
+async def written_answers(
+    applicant_id: uuid.UUID,
+    job_id: uuid.UUID,
+    account: AuthenticatedAccount = Depends(get_current_account),
+    db: AsyncSession = Depends(get_session),
+) -> list[WrittenAnswer]:
+    """An application's questions that need writing, with the answers saved so far."""
+    assert_applicant_owns(account, applicant_id)
+    try:
+        return await pipeline.written_answers(db, applicant_id, job_id)
+    except pipeline.NotFound as exc:
+        raise HTTPException(status.HTTP_404_NOT_FOUND, str(exc)) from exc
 
 
 @router.put("/applications/{job_id}/fill", response_model=ApplicationStage)

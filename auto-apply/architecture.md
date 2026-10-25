@@ -836,6 +836,18 @@ write it, a key at a time. Still to do: the extension fills forms from it,
 and start date and the other repeated questions get keys. Without it, every
 form stops at those questions, and the fill rate stays low.
 
+### `written_answers` (built, KAN-377)
+
+One row per question an application's form needs written, primary key
+`(applicant_id, job_id, name)`, deleted with its application (CASCADE).
+`name` is the form field's name in the Fill engine's Question set, so the
+open tab knows where an answer goes; `label`, `required`, `max_length` (the
+form's own limit) and `position` (the form's order) come from the tab;
+`answer` and `answered_at` from the connector's save (14.6). A row per
+question, not JSONB on the application: the connector's "oldest application
+with a question left" is one SQL query, and saving one answer rewrites no
+other.
+
 ### `api_keys` and `usage` (for MCP)
 
 See "MCP access and billing". `api_keys`: account id, a **hash** of the key
@@ -858,6 +870,8 @@ function. Every route checks that the caller owns the applicant, like
 | GET | `/applicants/{id}/applications/next` | `next_application` | What the runner fills next, or `null`. `?skip=` repeats: the jobs batch apply already has open in its tabs (KAN-370). **Built** |
 | GET | `/applicants/{id}/applications/{job_id}` | `get_application` | One application, as the list has it; 404 without one. Registered after `/next`. **Built** |
 | PUT | `/applicants/{id}/applications/{job_id}/fill` | `record_fill` | How a batch tab's fill left the form (KAN-370, 8.4): `{"state": "needs_you"}` moves it to `needs_you`, `{"state": "ready"}` back to `queued`. 404 with no application, 409 when not queued or needs_you. **Built** |
+| PUT | `/applicants/{id}/applications/{job_id}/questions` | `ask_questions` | The questions a batch tab's form needs written (KAN-377, 14.6), kept for the connector; a question asked again keeps its answer. 404 with no application, 409 when not queued or needs_you. **Built** |
+| GET | `/applicants/{id}/applications/{job_id}/questions` | `written_answers` | Those questions with the answers the student's Claude saved (`answer`, null until then); the open tab fills each new one. **Built** |
 | POST | `/applicants/{id}/applications/{job_id}/finish` | `finish_application` | `{"outcome": "submitted" \| "skipped" \| "failed"}`; 409 when not queued or needs_you. **Built**; takes the autofill run's report once `autofill_runs` exists |
 | POST | `/applicants/{id}/applications/{job_id}/resume` | `prepare_resume` | Picks the resume and keeps it as a sent resume for the job posting. Answers the sent resume and a 5-minute link, or `null` with no resume. 404 with no application or a closed job posting, 409 when not queued or needs_you, 503 when the PDF cannot be made, 502 when Storage refuses the file. **Built** |
 

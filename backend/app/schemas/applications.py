@@ -110,6 +110,39 @@ class FillRequest(BaseModel):
     state: Literal["ready", "needs_you"]
 
 
+# The longest question label and answer kept: Workable's cover letter takes
+# 200000 characters, but no essay question a student writes is near this.
+LABEL_MAX = 2000
+ANSWER_MAX = 10000
+
+
+class WrittenQuestion(BaseModel):
+    """One question a batch tab's form needs written (KAN-377): the form
+    field's `name` the answer fills, its label, and the form's own limit."""
+
+    model_config = ConfigDict(extra="forbid")
+
+    name: str = Field(min_length=1, max_length=200)
+    label: str = Field(min_length=1, max_length=LABEL_MAX)
+    required: bool
+    max_length: int | None = Field(default=None, ge=1)
+
+
+class WrittenQuestions(BaseModel):
+    """PUT .../applications/{job_id}/questions: the tab's questions that
+    need writing. At most 50: no form asks more."""
+
+    model_config = ConfigDict(extra="forbid")
+
+    questions: list[WrittenQuestion] = Field(max_length=50)
+
+
+class WrittenAnswer(WrittenQuestion):
+    """A question and the answer saved for it, or null while none is."""
+
+    answer: str | None
+
+
 class ApplicationStage(BaseModel):
     """Where one job's application stands after a write."""
 

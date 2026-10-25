@@ -36,9 +36,10 @@ from app.models.jobs import Job_Post
 from app.models.profiles import Applicant_Profile
 from app.models.resume import Resume
 from app.models.sent_resume import Sent_Resume
+from app.models.written_answers import Written_Answer
 from app.queries.jobs.filters import AUTO_APPLY_SUPPORTED, LISTED
 from app.queries.jobs.listings import LISTING_COLUMNS, to_listing
-from app.schemas.applications import Application
+from app.schemas.applications import Application, WrittenAnswer, WrittenQuestion
 from app.schemas.sent_resume import SentResumeResponse
 
 
@@ -292,3 +293,46 @@ async def pick_resume(
     if default.uploaded_id is not None:
         return ResumeChoice(uploaded_resume_id=default.uploaded_id)
     return None
+
+
+async def put_questions(
+    db: AsyncSession, applicant_id: uuid.UUID, job_id: uuid.UUID, questions: Sequence[WrittenQuestion]
+) -> None:
+    """Keeps the questions an application's form needs written (KAN-377),
+    in the form's order. A question asked again keeps the answer saved for
+    it; one the form no longer sends stays, with its answer. Flushes; the
+    caller commits."""
+    if not questions:
+        return
+    rows = [
+        {"applicant_id": applicant_id, "job_id": job_id, "position": n, **q.model_dump()}
+        for n, q in enumerate(questions)
+    ]
+    insert_rows = insert(Written_Answer).values(rows)
+    await db.execute(
+        insert_rows.on_conflict_do_update(
+            index_elements=["applicant_id", "job_id", "name"],
+            set_={
+                "label": insert_rows.excluded.label,
+                "required": insert_rows.excluded.required,
+                "max_length": insert_rows.excluded.max_length,
+                "position": insert_rows.excluded.position,
+            },
+        )
+    )
+
+
+async def fetch_written(
+    db: AsyncSession, applicant_id: uuid.UUID, job_id: uuid.UUID
+) -> list[WrittenAnswer]:
+    """An application's questions that need writing, in the form's order,
+    each with its saved answer or None."""
+    rows = await db.scalars(
+        select(Written_Answer)
+        .where(Written_Answer.applicant_id == applicant_id, Written_Answer.job_id == job_id)
+        .order_by(Written_Answer.position, Written_Answer.name)
+    )
+    return [
+        WrittenAnswer(name=r.name, label=r.label, required=r.required, max_length=r.max_length, answer=r.answer)
+        for r in rows
+    ]

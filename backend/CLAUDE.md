@@ -204,7 +204,12 @@ Find files with a directory listing; these are the rules for where code goes.
   `next_application`'s `skip` passes over the jobs the extension already
   has open. A new stage value would be an `ALTER TYPE` and a coordinated
   deploy; add one only when a state must outlive its tab.
-  Tests: `tests/test_batch_apply.py`. **Which job postings it takes is
+  Tests: `tests/test_batch_apply.py`. **A batch tab's essay questions are
+  rows in `written_answers`** (KAN-377): the tab sends the questions its
+  form needs written (`PUT .../questions`), the student's own Claude saves
+  each answer through the connector, and the tab reads them back
+  (`GET .../questions`) to fill them. Only a queued or needs_you application
+  takes questions. Tests: `tests/test_written_answers.py`. **Which job postings it takes is
   one list, `app/auto_apply/hosts.py`** (every hiring system the Fill engine fills, KAN-370): the matches
   and `queue_applications` require its SQL form (`AUTO_APPLY_SUPPORTED` in
   `queries/jobs/filters.py`) and `JobListing.auto_apply` its Python form,
