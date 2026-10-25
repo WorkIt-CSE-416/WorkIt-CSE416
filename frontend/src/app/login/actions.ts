@@ -5,6 +5,21 @@ import { redirect } from "next/navigation";
 import { apiFetch, extractErrorMessage, homePath, type AuthenticatedAccount } from "@/lib/auth";
 import { createSupabaseServerClient } from "@/lib/supabase/server";
 
+const TURNSTILE_SECRET = process.env.TURNSTILE_SECRET_KEY;
+const TURNSTILE_VERIFY_URL = "https://challenges.cloudflare.com/turnstile/v0/siteverify";
+
+async function verifyTurnstile(token: string | null): Promise<boolean> {
+  if (!TURNSTILE_SECRET) return true; // skip in local dev
+  if (!token) return false;
+  const resp = await fetch(TURNSTILE_VERIFY_URL, {
+    method: "POST",
+    headers: { "Content-Type": "application/x-www-form-urlencoded" },
+    body: new URLSearchParams({ secret: TURNSTILE_SECRET, response: token }),
+  });
+  const data = await resp.json();
+  return data.success === true;
+}
+
 // `email` round-trips the submitted value back into the form on failure.
 // React resets a useActionState-bound form's uncontrolled fields once the
 // action completes, wrong password included, so without this the email a
@@ -22,6 +37,11 @@ export async function signIn(_prevState: LoginState, formData: FormData): Promis
   const email = formData.get("email");
   const emailValue = typeof email === "string" ? email : "";
   const password = formData.get("password");
+
+  const turnstileToken = formData.get("cf-turnstile-response");
+  if (!(await verifyTurnstile(typeof turnstileToken === "string" ? turnstileToken : null))) {
+    return { error: "CAPTCHA verification failed. Please try again.", email: emailValue };
+  }
 
   const supabase = await createSupabaseServerClient();
 

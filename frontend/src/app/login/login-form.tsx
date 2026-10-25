@@ -4,8 +4,10 @@ import { WarningCircleIcon } from "@phosphor-icons/react/ssr";
 import { useActionState, useEffect } from "react";
 
 import { ArrowRightIcon, LockIcon, MailIcon } from "@/components/icons";
+import { Turnstile } from "@/components/turnstile";
 import { Button } from "@/components/ui/button";
 import { TextField } from "@/components/ui/text-field";
+import { TextLink } from "@/components/ui/text-link";
 import { clearLocalDrafts } from "@/lib/local-drafts";
 
 import { signIn, type LoginState } from "./actions";
@@ -43,20 +45,25 @@ export function LoginForm({ formId }: { formId: string }) {
           aria-describedby={describedBy}
         />
 
-        {/* No "Forgot password?" in the label row until a reset flow exists:
-            the link opened a bare 404 for the people already stuck. */}
-        <TextField
-          id="password"
-          name="password"
-          type="password"
-          label="Password"
-          icon={LockIcon}
-          autoComplete="current-password"
-          required
-          aria-invalid={invalid}
-          aria-describedby={describedBy}
-        />
+        <div className="flex flex-col gap-1">
+          <TextField
+            id="password"
+            name="password"
+            type="password"
+            label="Password"
+            icon={LockIcon}
+            autoComplete="current-password"
+            required
+            aria-invalid={invalid}
+            aria-describedby={describedBy}
+          />
+          <p className="text-meta text-right">
+            <TextLink href="/login/reset-password">Forgot Password?</TextLink>
+          </p>
+        </div>
       </div>
+
+      <Turnstile form={formId} />
 
       {state.error && (
         <p
