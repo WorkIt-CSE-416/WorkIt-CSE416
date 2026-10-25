@@ -9,7 +9,7 @@
 import { expect, test, type Page, type Worker } from "@playwright/test";
 import { FakeApi } from "./fake-api";
 import { SavedForms } from "./fake-job-systems";
-import { loadExtension, sendFromWebapp, signIn, webapp, type Loaded } from "./loaded-extension";
+import { loadExtension, sendFromWebapp, signIn, webapp, type Handler, type Loaded } from "./loaded-extension";
 
 const ARC = "greenhouse-arc";
 const RESUME_ID = "00000000-0000-0000-0000-0000000000r1"; // fake-api.ts's default upload
@@ -27,8 +27,9 @@ function groupOf(worker: Worker, url: string): Promise<string | undefined> {
 }
 
 /** Starts a batch of Arc's saved form, waits for its tab to be filled and Ready, and switches to it, as the student does to review it. */
-async function readyArc(forms: SavedForms, api: FakeApi): Promise<Page> {
+async function readyArc(forms: SavedForms, api: FakeApi, pageScript?: () => void): Promise<Page> {
   loaded = await loadExtension([api.handler, webapp, forms.handler]);
+  if (pageScript) await loaded.context.addInitScript(pageScript);
   await signIn(loaded.context);
   const webappPage = loaded.context.pages()[0] ?? (await loaded.context.newPage());
   await webappPage.goto("http://localhost:3000/auto-apply");
@@ -84,35 +85,76 @@ test("a refused submit leaves the application unapplied, and the tab says why", 
   expect(api.calls.filter((c) => c.endsWith("/finish"))).toEqual([]);
 });
 
-test("the job system's page for a sent application marks it applied too", async () => {
-  // Lever's form is a plain HTML post, with no answer for a page to read: its thanks page is the signal.
-  // Greenhouse's confirmation page stands in for it here (only Greenhouse and Ashby forms are saved).
+test("the job system's page for a sent application alone doesn't mark it applied", async () => {
+  // A page script can move the tab to the confirmation page itself: with no submit request the job
+  // system took (submit-proof.js), it is only a hint.
   const forms = new SavedForms([ARC]);
   const api = new FakeApi().queue({ id: "job-0", apply_url: forms.url(ARC) });
   const form = await readyArc(forms, api);
 
   await form.goto("https://job-boards.greenhouse.io/arcboatcompany/jobs/5442881008/confirmation");
-
-  await expect.poll(() => api.stages.get("job-0"), { timeout: 15_000 }).toBe("applied");
-  expect(forms.submissions).toEqual([]);
-});
-
-test("a page script can't mark the application applied", async () => {
-  const forms = new SavedForms([ARC]);
-  const api = new FakeApi().queue({ id: "job-0", apply_url: forms.url(ARC) });
-  const form = await readyArc(forms, api);
-
-  // A script on the employer's page sends the Fill engine's submit event itself, by its plain name
-  // and by any name it can guess, as if the job system had answered OK.
-  await form.evaluate(() => {
-    for (const name of ["fillengine:submit", "fillengine:submit:undefined", "fillengine:submit:"])
-      document.dispatchEvent(new CustomEvent(name, { detail: JSON.stringify({ submitted: true }) }));
-  });
-  await form.waitForTimeout(1_000);
+  await form.waitForTimeout(2_000);
 
   expect(api.stages.get("job-0")).not.toBe("applied");
   expect(api.calls.filter((c) => c.endsWith("/finish"))).toEqual([]);
-  await expect.poll(() => groupOf(loaded.worker, forms.url(ARC))).toBe("Ready");
+});
+
+test("a page script that hooked the Fill engine can't mark the application applied; the job system's answer does", async () => {
+  // A script on the employer's page, run before the engine, wraps the engine as it loads and keeps the
+  // key watchSubmit is given, then sends the engine's submit event itself, as if the job system had
+  // answered OK. Only the job system's own answer to the student's submit, which the extension's
+  // service worker sees, marks the application applied.
+  const forms = new SavedForms([ARC]);
+  const api = new FakeApi().queue({ id: "job-0", apply_url: forms.url(ARC) });
+  const form = await readyArc(forms, api, () => {
+    let engine: any;
+    Object.defineProperty(globalThis, "FillEngine", {
+      configurable: true,
+      get: () => engine,
+      set(value) {
+        const call = value.call.bind(value);
+        engine = { ...value, call: (name: string, args: unknown[]) => ((name === "watchSubmit" && ((globalThis as any).stolenKey = args[1])), call(name, args)) };
+      },
+    });
+  });
+  const key = await form.waitForFunction(() => (globalThis as any).stolenKey).then((k) => k.jsonValue());
+
+  await form.evaluate((key) => document.dispatchEvent(new CustomEvent(`fillengine:submit:${key}`, { detail: JSON.stringify({ submitted: true }) })), key);
+  await form.waitForTimeout(2_000);
+
+  expect(api.stages.get("job-0")).not.toBe("applied");
+  expect(api.calls.filter((c) => c.endsWith("/finish"))).toEqual([]);
+  expect(await groupOf(loaded.worker, forms.url(ARC))).toBe("Ready");
+
+  await submit(form);
+
+  await expect.poll(() => api.stages.get("job-0"), { timeout: 15_000 }).toBe("applied");
+  expect(forms.submissions).toHaveLength(1); // the student's own
+});
+
+test("on a job system with no known submit request, its page's notice of a sent application marks it applied", async () => {
+  // Eightfold's submit request isn't known (submit-proof.js), so its thanks notice in the page is what marks it.
+  const form = "https://lockheedmartin.eightfold.ai/careers/apply?pid=1";
+  const eightfold: Handler = ({ url }) =>
+    url.host === "lockheedmartin.eightfold.ai"
+      ? { headers: { "content-type": "text/html" }, body: "<!doctype html><title>Careers</title><form><label>First name <input name=first></label></form>" }
+      : undefined;
+  const api = new FakeApi().queue({ id: "job-0", apply_url: "https://lockheedmartin.eightfold.ai/careers/job/1" });
+  loaded = await loadExtension([api.handler, webapp, eightfold]);
+  await signIn(loaded.context);
+  const webappPage = loaded.context.pages()[0] ?? (await loaded.context.newPage());
+  await webappPage.goto("http://localhost:3000/auto-apply");
+  await sendFromWebapp(webappPage, { type: "run/open" });
+  await expect.poll(() => loaded.context.pages().some((p) => p.url() === form), { timeout: 30_000 }).toBe(true);
+  const page = loaded.context.pages().find((p) => p.url() === form)!;
+  // The engine watches the page for the student's submit.
+  await page.waitForFunction(() => (window as any).__fillEngineSubmitWatch, undefined, { timeout: 30_000 });
+  expect(api.stages.get("job-0")).not.toBe("applied");
+
+  // The student submits; Eightfold shows its thanks.
+  await page.evaluate(() => document.body.insertAdjacentHTML("beforeend", "<p>Thank you for applying!</p>"));
+
+  await expect.poll(() => api.stages.get("job-0"), { timeout: 15_000 }).toBe("applied");
 });
 
 test("reading the student's edits back leaves their focus where they put it", async () => {

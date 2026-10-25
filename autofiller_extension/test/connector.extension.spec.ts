@@ -91,3 +91,28 @@ test("the student's own answer is kept when their Claude's arrives later", async
 
   await expect(box(form, name)).toHaveValue("My own words.");
 });
+
+test("a follow-up its parent's answer from Claude doesn't call for stops waiting", async () => {
+  test.setTimeout(120_000);
+  // Amplify's "Are you currently working with Amplify?" goes to the student's Claude, so at plan time
+  // its optional "If a contingent worker, which agency..." can't be ruled out: it waits too (decision 223).
+  const AMPLIFY = "ashby-amplify";
+  const PARENT = "Are you currently working with Amplify Education, Inc.?";
+  const FOLLOW_UP = "If a contingent worker, which agency are you employed with?";
+  const forms = new SavedForms([AMPLIFY]);
+  const api = new FakeApi().queue({ id: "job-0", apply_url: forms.url(AMPLIFY) });
+  await start(api, forms);
+  await expect.poll(() => api.written.get("job-0")?.map((q) => q.label), { timeout: 60_000 }).toEqual(expect.arrayContaining([PARENT, FOLLOW_UP]));
+  // The extension opens the saved link without its "?embed=true".
+  const form = loaded.context.pages().find((p) => p.url().startsWith(forms.url(AMPLIFY).split("?")[0]))!;
+  await expect(row(form, FOLLOW_UP)).toContainText("Waiting for your Claude");
+
+  const parent = api.written.get("job-0")!.find((q) => q.label === PARENT)!;
+  api.saveAnswer("job-0", parent.name, "No");
+
+  // Within one poll the parent is filled, and the follow-up it rules out no longer waits, left blank.
+  await expect(row(form, PARENT).locator(".source")).toHaveText("Claude", { timeout: 20_000 });
+  await expect(row(form, FOLLOW_UP)).not.toContainText("Waiting for your Claude");
+  await expect(row(form, FOLLOW_UP)).toContainText("Not needed");
+  expect(forms.submissions).toEqual([]);
+});

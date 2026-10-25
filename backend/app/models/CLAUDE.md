@@ -342,6 +342,18 @@ change here must keep:
   Rows from before `d642d93fcfbc` are NULL, not backfilled. The rule and
   its normalization: `../../CLAUDE.md`, "A duplicate resume is refused".
 
+## Student documents — `documents.py` (KAN-369)
+
+- **One file per student and kind** (`student_documents`, PK
+  `(applicant_id, kind)`); the only kind is `transcript` (CHECK). A new
+  kind widens the CHECK in a migration and the router's `Kind`.
+- The file is in the `Resume` bucket under the student's folder
+  (`<applicant_id>/documents/<uuid><ext>`), so Delete Account removes it
+  with the resumes. `storage_path` may be `local:<file name>`
+  (services/local_files.py, development only), served from LOCAL_FILES_DIR.
+- Nothing reads its text and no sent copy is kept: a replace or delete
+  removes the old file at once. Written only by `routers/documents.py`.
+
 ## Sent resumes
 
 `sent_resume.py` (KAN-208): the exact file a student applied with (a
@@ -807,24 +819,42 @@ so WorkIt fills forms as completely as Apply does.
   table already has RLS on): `fill_profile` (the engine's Profile shape,
   nested sections: identity, education, screeners, voluntary_self_id...),
   `fill_policies` (the engine's Policies, only the keys it reads) and
-  `fill_answers` (`{question: {answer, own, company}}`, the Answer bank).
+  `fill_answers` (`{question: {answer, own, choice, company}}`, the Answer bank).
 - **WorkIt's own fields win.** `GET .../fill-profile` serves the profile and
   policies; the extension lays what it builds from WorkIt's fields
   (`engineProfile`, `POLICIES`) over them, key by key, and a value WorkIt
   lacks (null, empty) leaves the stored one. So the import also writes
   WorkIt's own fields (name, contact email, phone, links, location, the
   education entry) from the same identity, and they agree.
-- **`fill_answers` are the student's own** (`own: true`). The answer bank
-  (`pipeline.answer_bank`) offers them after the student's own words on
-  applications and before their Claude's, under the same company rule: one
-  about a company only on that company's forms. Not `written_answers`: those
-  rows belong to an application, and a brought answer has none. A choice's
-  answer may be a list (the options ticked).
+- **Only Apply's `source: lisul` entries are the student's own** (`own:
+  true`), as Apply itself treats them (`apply/answer_bank.py`, `LISUL`). A
+  Claude draft (`source: claude`) comes as their Claude's even when
+  `reviewed`: Apply still calls it a draft. The answer bank
+  (`pipeline.answer_bank`) offers the student's own words on applications,
+  then their brought own words, then their Claude's on applications, then
+  the brought drafts, under the same company rule: one about a company only
+  on that company's forms. A draft passes the same checks as their Claude's
+  saved answers and never fills a form that bans AI text (the engine skips
+  an answer that is not `own` there). `choice` (an entry with options, or a
+  list answer: the options ticked) skips the writing checks. Not
+  `written_answers`: those rows belong to an application, and a brought
+  answer has none.
 - **No `files`.** WorkIt's resume is its own; a transcript's path never
-  comes over. The import's resume is a `resumes` row whose `storage_path` is
+  comes over (the student uploads a transcript on My Profile, a
+  `student_documents` row). The import's resume is a `resumes` row whose `storage_path` is
   `local:<file name>` in `LOCAL_FILES_DIR` (services/local_files.py,
   development only): served by `.../bytes` from that folder, never sent to
   or removed from Storage.
+- **The student's writing comes too** (`scripts/import_apply_writing.py`),
+  through the same writers as the student's own edits: `writing_samples`
+  only from the Story bank's "own essays" and "own answers" sections (their
+  words, never a question or a note), packed into `MAX_SAMPLES` of
+  `SAMPLE_MAX`; Apply's voice.md as the `style_cards` row, saved after the
+  samples (a sample change deletes it); and Apply's company briefs as
+  `company_briefs` rows only through `briefs.check` and the keep rule of
+  `save_brief` (MIN_FACTS, a higher score). Apply keeps no quote, so the
+  import takes the page's sentence that names the fact's product and holds
+  its numbers; a fact with none is dropped.
 - **Sensitive**: it holds self-identification. Only the owner reads it, and
   it never goes to a model. The import refuses a database not on this
   computer.

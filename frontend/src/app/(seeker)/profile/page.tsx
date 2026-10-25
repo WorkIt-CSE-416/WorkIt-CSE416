@@ -22,6 +22,7 @@ import { getAutofillAnswers } from "@/lib/autofill-answers-actions";
 import { ApplicationQuestions } from "./application-questions";
 import { FIELD_GRID, FIELD_HEADING } from "./field-styles";
 import { SectionAction } from "./section-action";
+import { Transcript } from "./transcript";
 import { WritingSamples } from "./writing-samples";
 import { getProfile, updateProfile, type ApplicantProfile } from "@/lib/profile-actions";
 import { linkText, safeHref, siteName, webLink } from "@/lib/profile-links";
@@ -190,6 +191,8 @@ export default function ProfilePage() {
       {answers && <ApplicationQuestions answers={answers} onSaved={setAnswers} />}
 
       <WritingSamples />
+
+      <Transcript />
 
       <section aria-labelledby="resumes" className="mt-6">
         <SectionHeading id="resumes">Resumes &amp; Experiences</SectionHeading>

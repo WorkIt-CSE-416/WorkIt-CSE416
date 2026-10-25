@@ -22,7 +22,7 @@ from app.routers import resumes as resumes_router
 from app.routers.resumes import text_hash
 from app.routers.scout import get_llm
 from app.schemas.auth import AccountType, AuthenticatedAccount
-from app.services.bank_import import read
+from app.services.bank_import import read, skill_pairs
 
 pytestmark = pytest.mark.anyio
 
@@ -933,6 +933,42 @@ def test_the_reading_keeps_the_gpa_scale_and_project_tools():
         "Lakeview University", "Bachelor of Science", "Computer Science", 3.62, 4.0,
     )
     assert skills == [("C++", "Languages"), ("Python", "Languages"), ("CMake", None)]
+
+
+def test_a_titles_tool_list_after_a_bar_is_split_off_and_never_glued_onto_a_skill():
+    # Pure, no database: "Role| C++, Go  City, ST" under a "Company  Dates" line
+    # keeps only the role; the tools join the skills, ungrouped, after the
+    # skills section's own. A project's "Name | Group| C++, Go" takes the
+    # last bar's list, so the group never becomes part of a skill.
+    entries, skills = read(
+        "Experience\n"
+        "Northwind Signals  Jun 2098 – Aug 2098\n"
+        "Software Engineer Intern, Telemetry| C++, Go, gRPC  Springfield, IL\n"
+        "• Built a thing.\n"
+        "Bluebird Labs  Jan 2099 – Present\n"
+        "Software Engineer (Part-Time)| Ruby, Rails  Remote\n"
+        "• Built another thing.\n"
+        "Projects\n"
+        "Line Robot  | Robotics Club| C/C++, Arduino  Aug 2097 – Present\n"
+        "• Built a robot.\n"
+        "Skills\nLanguages: C++, Go\n"
+    )
+    jobs = [(e.title, e.organization, e.location) for e in entries if e.section.value == "experience"]
+    assert jobs == [
+        ("Software Engineer Intern, Telemetry", "Northwind Signals", "Springfield, IL"),
+        ("Software Engineer (Part-Time)", "Bluebird Labs", "Remote"),
+    ]
+    assert [e.title for e in entries if e.section.value == "projects"] == ["Line Robot | Robotics Club"]
+    assert skills == [
+        ("C++", "Languages"), ("Go", "Languages"),
+        ("gRPC", None), ("Ruby", None), ("Rails", None), ("C/C++", None), ("Arduino", None),
+    ]
+
+
+def test_a_reading_never_keeps_a_qualification_or_a_glued_name_as_a_skill():
+    pairs = [("Rust", "Languages"), ("Robotics Club| C++", None), ("Computer Science degree", None),
+             ("AI tools", None), ("3+ years of Java", None), ("Docker", "Tools")]
+    assert skill_pairs(pairs) == [("Rust", "Languages"), ("Docker", "Tools")]
 
 
 def test_a_model_reading_with_null_lists_still_counts():

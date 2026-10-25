@@ -13,15 +13,22 @@ same engine). One run, in one transaction:
    a transcript's path never comes over);
 2. `fill_policies`: only the policies the engine reads (ENGINE_POLICIES);
    Apply's run settings (caps, limits, schedules) stay Apply's;
-3. `fill_answers`: every Answer bank entry, as the student's own words, with
-   the company it was first asked at (the answer bank keeps a company's
-   answers to that company's forms);
+3. `fill_answers`: every Answer bank entry, with the company it was first
+   asked at (the answer bank keeps a company's answers to that company's
+   forms). As in Apply, only an entry with `source: lisul` is the student's
+   own words; Claude's drafts (`source: claude`, reviewed or not) come as
+   their Claude's, so they pass Claude's checks and a form that bans AI text
+   never takes them. A choice's entry (its options, or a list) is `choice`;
 4. WorkIt's own fields from the profile's identity: name, contact email,
    phone, links, home location, and the education entry (the student's own,
    matched by school);
 5. the resume the profile names, copied into LOCAL_FILES_DIR and made the
    default upload as `local:<file name>` (services/local_files.py): nothing
-   goes to Storage. Without LOCAL_FILES_DIR it is left out.
+   goes to Storage. Without LOCAL_FILES_DIR it is left out. The unofficial
+   transcript it names comes the same way, as the student's transcript document;
+6-8. the student's own writing from story-bank.md as writing samples, voice.md
+   as their style card, and company-briefs/ through WorkIt's own page check
+   (scripts/import_apply_writing.py). The briefs' pages are read from the web.
 
 Running it again on the same files changes nothing; an edited file's facts
 replace the old ones. It refuses a database that is not on this computer:
@@ -47,11 +54,13 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.config import get_settings
 from app.db import get_sessionmaker
+from app.models.documents import Student_Document
 from app.models.dto import bank_section, entry_end_kind
 from app.models.profiles import Applicant_Profile
 from app.models.resume import Resume
 from app.schemas.bank import EntryFields
 from app.schemas.profile import ApplicantProfileUpdate
+from app.scripts import import_apply_writing
 from app.services import bank, local_files
 from app.services.names import join_name
 
@@ -76,7 +85,11 @@ class Report:
     fields: list[str] = field(default_factory=list)
     education: str | None = None  # "created" | "updated"
     resume: str | None = None  # the file name, or None when left out
+    transcript: str | None = None  # the file name, or None when left out
     notes: list[str] = field(default_factory=list)
+    samples: int = 0  # writing samples, from story-bank.md
+    style_card: bool = False
+    briefs: list[dict] = field(default_factory=list)  # per section: company, team, kept, dropped, saved, listed
 
 
 def _read(path: Path) -> dict:
@@ -105,8 +118,12 @@ def _answers(entries: dict) -> dict:
         answer = entry["answer"]
         answer = [str(a) for a in answer] if isinstance(answer, list) else str(answer)
         first = entry.get("first_seen") if isinstance(entry.get("first_seen"), dict) else {}
+        # Apply's own rule (answer_bank.py, LISUL): only an answer the student
+        # gave is theirs. A Claude draft stays Claude's even once reviewed.
         brought[str(entry.get("question") or filed).strip()] = {
-            "answer": answer, "own": True, "company": (str(first.get("company") or "").strip() or None),
+            "answer": answer, "own": entry.get("source") == "lisul",
+            "choice": isinstance(answer, list) or bool(entry.get("options")),
+            "company": (str(first.get("company") or "").strip() or None),
         }
     return brought
 
@@ -206,8 +223,34 @@ async def _set_resume(
     report.resume = source.name
 
 
+async def _set_transcript(
+    session: AsyncSession, profile: Applicant_Profile, apply_dir: Path, facts: dict, report: Report,
+) -> None:
+    """The unofficial transcript the profile names, copied into LOCAL_FILES_DIR like the resume
+    and kept as the student's transcript document; never sent to Storage."""
+    named = (facts.get("files") or {}).get("unofficial_transcript_pdf")
+    if not named:
+        return
+    source = (apply_dir / str(named)).resolve()
+    folder = get_settings().local_files_dir
+    if folder is None:
+        report.notes.append("transcript left out: set LOCAL_FILES_DIR to attach it from this computer")
+        return
+    if not source.is_file():
+        report.notes.append("transcript left out: the file the profile names is missing")
+        return
+    folder.mkdir(parents=True, exist_ok=True)
+    shutil.copyfile(source, folder / source.name)
+    document = await session.get(Student_Document, (profile.id, "transcript"))
+    if document is None:
+        document = Student_Document(applicant_id=profile.id, kind="transcript")
+        session.add(document)
+    document.original_filename, document.storage_path = source.name, local_files.local_path(source.name)
+    report.transcript = source.name
+
+
 async def import_apply(session: AsyncSession, applicant_id: uuid.UUID, apply_dir: Path) -> Report:
-    """Steps 1-5 of the module docstring in the caller's session; flushes, never commits."""
+    """Steps 1-8 of the module docstring in the caller's session; flushes, never commits."""
     profile = await session.get(Applicant_Profile, applicant_id)
     if profile is None:
         raise ImportRefused(f"No applicant {applicant_id}.")
@@ -227,8 +270,18 @@ async def import_apply(session: AsyncSession, applicant_id: uuid.UUID, apply_dir
     await _set_fields(profile, facts, report)
     await _set_education(session, applicant_id, facts, report)
     await _set_resume(session, profile, apply_dir, facts, report)
+    await _set_transcript(session, profile, apply_dir, facts, report)
+    await _set_writing(session, applicant_id, apply_dir, report)
     await session.flush()
     return report
+
+
+async def _set_writing(session: AsyncSession, applicant_id: uuid.UUID, apply_dir: Path, report: Report) -> None:
+    report.samples = await import_apply_writing.set_samples(session, applicant_id, apply_dir)
+    left_out = await import_apply_writing.set_style_card(session, applicant_id, apply_dir)
+    report.style_card = left_out is None and (apply_dir / import_apply_writing.VOICE).is_file()
+    report.notes += [left_out] if left_out else []
+    report.briefs = await import_apply_writing.set_briefs(session, apply_dir)
 
 
 def _local(url: str) -> bool:
@@ -263,6 +316,13 @@ def main(argv: list[str] | None = None) -> int:
     print(f"  WorkIt fields set: {', '.join(report.fields) or 'none'}")
     print(f"  education entry: {report.education or 'none'}")
     print(f"  resume: {report.resume or 'left out'}")
+    print(f"  transcript: {report.transcript or 'left out'}")
+    print(f"  writing samples: {report.samples}")
+    print(f"  style card: {'saved' if report.style_card else 'none'}")
+    for b in report.briefs:
+        name = b["company"] + (f" / team {b['team']}" if b["team"] else "")
+        print(f"  brief {name}: {b['kept']} facts passed, {b['dropped']} dropped, {'kept' if b['saved'] else 'not kept'}"
+              + ("" if b["listed"] else " (no WorkIt posting or company goes by this name)"))
     for note in report.notes:
         print(f"  note: {note}")
     return 0

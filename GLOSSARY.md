@@ -48,6 +48,10 @@ _Avoid_: original resume, parsed resume
 To read an uploaded resume and write its entries and skills into the experience bank as that upload's own, replacing what it owned before; it never merges into another resume's entries (ADR 0005). Upload imports once, after a parse preview in onboarding, where it replaces the other uploads' matching entries (ADR 0006); Import Again reads a stored upload again (ADR 0003).
 _Avoid_: parse, sync, auto-fill
 
+**Transcript**:
+The student's unofficial transcript, a file kept beside their resumes for the forms that ask for one. A student has at most one; a new upload replaces it. WorkIt never reads its text.
+_Avoid_: document, academic record
+
 **Sent resume**:
 The exact document a student applied with, kept unchanged from that moment. A download is not one: it keeps nothing.
 _Avoid_: snapshot, submitted copy

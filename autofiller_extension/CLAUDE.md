@@ -115,7 +115,7 @@ builds it: `dist/engine.js` is committed in the engine repo.
   form's link and fills nothing; batch apply opens the form itself
   (`formUrl`).
 - **The profile adapter gives only what WorkIt holds.** Name, email,
-  phone, home, links, the default resume, the latest school and the jobs from the
+  phone, home, links, the default resume, the transcript, the latest school and the jobs from the
   bank, and the nine autofill answers, in the words the engine's rules
   read. The home is the profile's free-text location (KAN-372) as the
   engine's `homePlace` reads it: a city with a US state ("Stony Brook, NY")
@@ -125,7 +125,9 @@ builds it: `dist/engine.js` is committed in the engine repo.
   start dates) stays the student's: the Plan lists it as a Missing fact and
   the overlay says "WorkIt has no answer for this". `POLICIES` holds no
   student's choice; "How did you hear?" is WorkIt, or the form's "Job
-  Board". The engine's own rules decide everything else; change a rule in
+  Board". `us_roles_only` is on, since WorkIt lists US roles only: a
+  question about working abroad ("the right to work in the UK?") is No, and
+  a role abroad a Screener. The engine's own rules decide everything else; change a rule in
   the engine repo, not here.
 - **Only job systems the engine covers are filled.** `engine.js`'s `jobOf`
   names them (Greenhouse, Lever, Ashby, Rippling, Workable, Eightfold and
@@ -296,9 +298,23 @@ waits for an opened tab's page and form (`waitForLoad`, `formShows`).
   on Create Account a new 20-character password, saved before it is typed,
   in both boxes. Rules: **passwords live only in `chrome.storage.local`
   (`workday_logins`)**, never in an API call, a webapp message or a log;
-  **one per tenant, never shared**; **the extension never presses Create
-  Account, Sign In or the terms box**, and never opens the verification
-  email: the student does. A box the student typed in is left alone. The
+  **one per tenant, never shared**; the extension never opens the
+  verification email: the student does. A box the student typed in is left
+  alone. **Pressing for the student (KAN-369)**, as Jobright and Simplify
+  do (resume-2027 `research/workday-accounts.md`): the panel asks once
+  ("Let WorkIt Sign You In to Workday", `askWorkdayAccounts`), and Sign Me
+  In stores `workday_accounts_for_me` (`workday/allow`). From then on, at
+  every company, `workday.js` presses "Sign in with email", switches to
+  Create Account when nothing is saved there (to Sign In when the saved
+  login has signed in, `signedIn`, set by the first `fill/plan` on the
+  tenant), ticks the terms box and names its words in the panel, and
+  presses Create Account (only with a password made on that page) or Sign
+  In, once the boxes hold the login and the page has settled. **Each
+  button at most once a page**: Workday's message after a press is shown
+  (a verification email: open it, come back and press Sign In; a refused
+  sign-in: never tried again, since Workday locks accounts), and a refused
+  Create Account drops its new password (`workday/forget`). Without the
+  student's yes, nothing is pressed. The
   panel says "Sign in to continue" and the tab sits in Needs you until a
   step shows; then the fill goes on, in the page or (the tab is
   remembered by `workday/login`) on the page signing in loads. A tenant's
@@ -367,12 +383,26 @@ waits for an opened tab's page and form (`waitForLoad`, `formShows`).
   (`status.flag`; warning tint and the reason) only while the field still
   shows the answer the review read, and the row needs the student (Needs
   you, Next Thing walks to it) until their edit (any `setStatus` clears
-  it). A batch whose answers no Claude reviews (pasted ones) polls while
-  the tab is open. Test: `test/paste.extension.spec.ts`.
+  it). A student with no connector added (`connector/added` →
+  `GET .../connector`) has no Claude to review, so the tab stops asking;
+  otherwise it stops after 180 polls (30 minutes). The student's edit of an
+  answer whose verdict the tab showed, once saved (`batch/own-answer`),
+  starts the poll again until the edit's verdict lands (their own words
+  count as reviewed at once). Tests: `test/paste.extension.spec.ts`.
   A hidden tab's timers slow to about once a minute after five minutes, so
   an answer can take that long to land. Tests:
   `test/connector.extension.spec.ts` (Ashby's Harvey form: no saved
   Greenhouse form has an essay the Plan sends to Claude).
+  **A follow-up is decided again once its parent is answered**: a parent
+  question sent to Claude ("Are you currently working with Amplify?")
+  has no answer at plan time, so its follow-up ("If a contingent worker,
+  which agency...?") waits too. Each poll while rows wait, the tab asks
+  `fill/moot` (the engine's `notCalledFor` over what the form now shows,
+  Claude's and the student's answers alike) and a follow-up the answer
+  doesn't call for stops waiting: skipped "Not needed", or filled N/A
+  (Guessed) where the form asks for it. Its question stays at WorkIt; an
+  answer Claude saves for it later is not filled. Test:
+  `test/connector.extension.spec.ts` (Ashby's Amplify form).
   **An answer the student pastes on the webapp's Written Answers page
   (KAN-385) arrives the same way**: the API saves it through the
   connector's own save, and the tab's poll can't tell the two apart, so
@@ -395,6 +425,9 @@ waits for an opened tab's page and form (`waitForLoad`, `formShows`).
   a batch tab, and each early read, uses the job's answer bank
   (`GET .../applications/{job}/answer-bank`) as the engine's Answer bank:
   a question answered before fills as a Saved Answer and is never sent.
+  A Plan outside a batch (no application) uses the student's saved answers
+  too, `GET .../answer-bank?company=` with the company the engine read off
+  the page (`planQuestions` takes the bank as a function of it).
   The student's words in a written answer (or one the bank filled) are
   read back by `watchEdits` and saved after a 2-second pause
   (`batch/own-answer` → `PUT .../answers`); while WorkIt's own fill of one
@@ -519,9 +552,27 @@ waits for an opened tab's page and form (`waitForLoad`, `formShows`).
   before its fill, listens for the engine's `fillengine:submit:<key>`
   event (its detail is JSON: an object detail reaches the isolated world as
   null), and on a sent application says
-  `batch/submitted`. The key is why a page script, which shares the
-  engine's world, can't mark a tab submitted: it doesn't know the event's
-  name. `markSubmitted` (batch.js) then keeps the resume the
+  `batch/submitted`. The key keeps out a page script that merely guesses
+  the event's name, but not one written to hook the engine before it runs
+  (it shares the engine's world), nor one that moves the tab to a thanks
+  page itself. So the page's signals are only hints: **on a job system
+  with a known submit request, the application is marked applied only on
+  the job system's own answer to it**, which the service worker sees with `chrome.webRequest`
+  (`src/background/submit-proof.js`, observing only, no body;
+  `SUBMIT_REQUESTS` is the one table of each job system's submit request).
+  Greenhouse's OK answer marks it alone; Ashby (it answers 200 to a
+  refusal), Lever (its post redirects to the thanks page) and Workable
+  also need the page's hint after the answer, within 5 minutes. A job
+  system with no `SUBMIT_REQUESTS` row (Workday, Eightfold, Rippling: no
+  submit request of theirs is recorded) is marked from the page's hint
+  alone (its confirmation notice), weaker but no worse than before the
+  proof; a page script there can fake it. Add a row only from a recorded
+  submit request. `webRequest` shows no install warning (Chrome's permissions
+  list gives none; the hosts are already in `host_permissions`, which it
+  also needs, for the request and its initiator), so adding it doesn't
+  disable the extension on update; `debugger` would read bodies but warns.
+  Limit: a page script that hooks the engine can still pair a fake hint
+  with a real Ashby refusal (a 200). `markSubmitted` (batch.js) then keeps the resume the
   fill attached as the sent resume (`PUT .../resume` with the profile
   resume's `uploaded_resume_id` or `built_resume_id`; one that fails is
   logged, never blocks), marks it applied (`POST .../finish
@@ -866,6 +917,22 @@ real file input is directly targetable underneath both.
 - **The engine attaches it**, from `{ file, type, base64 }`, through a
   `DataTransfer` and the events a file picker fires, and waits for
   Greenhouse's uploader to show the file.
+
+## Attaching the student's transcript (KAN-369)
+
+Some forms ask for an unofficial transcript (Verkada requires one). The
+student keeps one on My Profile (`backend/app/routers/documents.py`).
+`resolveTranscriptFile` fetches it with the resume, at profile-fetch time:
+`GET /applicants/{id}/documents`, then `GET .../documents/transcript/bytes`
+(from this API's own origin, as the resume's `.../bytes` and for the same
+reason), onto `AutofillProfile.transcript`. `engineProfile` gives its name
+as `files.unofficial_transcript_pdf`, the engine's name for it (rules.ts
+plans it for a "transcript" upload, never a graduate transcript), and
+`withFiles` gives the planned file its bytes. A transcript named as the
+resume is gets a `Transcript_` prefix, since a planned file is matched to
+its bytes by name. Best effort, like the resume: no transcript, or a failed
+fetch, is `transcript: null`, and the Plan lists a required transcript as
+a Missing fact. Test: `test/transcript.extension.spec.ts`.
 
 ## Essay-question generation: the one opt-in, model-backed feature
 
