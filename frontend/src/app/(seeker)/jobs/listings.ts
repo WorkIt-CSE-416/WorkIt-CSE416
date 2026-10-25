@@ -360,7 +360,11 @@ export async function getJobListing(
   // API's other named routes answer 200 with something that isn't one.
   if (!UUID.test(id)) return { job: null, error: null };
   try {
-    const res = await apiGet(`/jobs/${encodeURIComponent(id)}`);
+    // Kept for a minute: it carries no token, so its answer is the same for
+    // everyone, and since the job page has a loading.tsx a prefetch of each
+    // job link in view runs its generateMetadata, which reads this (KAN-368).
+    // Uncached, one Jobs page of 50 cards cost about 100 API calls.
+    const res = await apiGet(`/jobs/${encodeURIComponent(id)}`, undefined, { revalidate: 60 });
     if (res.status === 404) return { job: null, error: null };
     if (!res.ok) return { job: null, error: await extractErrorMessage(res) };
     return { job: (await res.json()) as JobListing, error: null };

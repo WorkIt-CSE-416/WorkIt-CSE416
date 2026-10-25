@@ -27,7 +27,15 @@ import { ViewSwitcher } from "./view-switcher";
  */
 export default function ApplicationsLoading() {
   return (
-    <div className={cn("-mx-[calc(var(--panel-gain)/2)] flex-1 py-6", SEEKER_GUTTER)}>
+    // The page's own wrapper classes (./page.tsx): --panel-gain does not
+    // inherit, so a reader without them reads 0px, and the skeleton stood
+    // narrower than the page with the panel unpinned.
+    <div
+      className={cn(
+        "-mx-[calc(var(--panel-gain)/2)] flex-1 py-6 transition-[--panel-gain] duration-200 ease-linear md:in-data-[pinned=false]:[--panel-gain:calc(var(--sidebar-width)_-_var(--sidebar-width-icon))]",
+        SEEKER_GUTTER,
+      )}
+    >
       <div className="flex items-start justify-between gap-4">
         <div className="min-w-0">
           <h1 className="text-heading text-ink">Applications Tracker</h1>
