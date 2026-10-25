@@ -96,3 +96,21 @@ test("the job system's page for a sent application marks it applied too", async 
   await expect.poll(() => api.stages.get("job-0"), { timeout: 15_000 }).toBe("applied");
   expect(forms.submissions).toEqual([]);
 });
+
+test("a page script can't mark the application applied", async () => {
+  const forms = new SavedForms([ARC]);
+  const api = new FakeApi().queue({ id: "job-0", apply_url: forms.url(ARC) });
+  const form = await readyArc(forms, api);
+
+  // A script on the employer's page sends the Fill engine's submit event itself, by its plain name
+  // and by any name it can guess, as if the job system had answered OK.
+  await form.evaluate(() => {
+    for (const name of ["fillengine:submit", "fillengine:submit:undefined", "fillengine:submit:"])
+      document.dispatchEvent(new CustomEvent(name, { detail: JSON.stringify({ submitted: true }) }));
+  });
+  await form.waitForTimeout(1_000);
+
+  expect(api.stages.get("job-0")).not.toBe("applied");
+  expect(api.calls.filter((c) => c.endsWith("/finish"))).toEqual([]);
+  await expect.poll(() => groupOf(loaded.worker, forms.url(ARC))).toBe("Ready");
+});

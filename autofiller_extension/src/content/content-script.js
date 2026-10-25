@@ -92,8 +92,11 @@
   // The panel's options: a batch tab's panel has Skip.
   const panel = batch ? { onSkip: () => send({ type: "batch/skip" }).catch(() => {}) } : undefined;
   const sleep = (ms) => new Promise((done) => setTimeout(done, ms));
-  // The Fill engine's event for the student's submit (its SUBMIT_EVENT); its detail is the result as JSON.
-  const SUBMIT_EVENT = "fillengine:submit";
+  // The Fill engine's event for the student's submit (its SUBMIT_EVENT, then this tab's key); its
+  // detail is the result as JSON. The key is made here, in the isolated world the page can't read, so
+  // a page script can't send an event this tab believes (it doesn't know the name).
+  const SUBMIT_KEY = crypto.randomUUID();
+  const SUBMIT_EVENT = `fillengine:submit:${SUBMIT_KEY}`;
 
   /** A row that is the overlay's message, not a field. */
   function note(key, label, reason, failed = false) {
@@ -451,7 +454,7 @@
       if (answer?.ok) note("_submit", "Application sent", "WorkIt marked it Applied.");
       else note("_submit", "Application sent, but WorkIt didn't mark it Applied", `Mark it Applied on WorkIt's Applications page. (${answer?.error ?? "No answer"})`, true);
     });
-    send({ type: "batch/watch" }).catch(() => {});
+    send({ type: "batch/watch", key: SUBMIT_KEY }).catch(() => {});
   }
   if (batch) watchSubmit();
 

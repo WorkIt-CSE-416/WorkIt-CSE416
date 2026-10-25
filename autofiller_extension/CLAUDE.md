@@ -447,10 +447,13 @@ and `run/show` switches to one (`jobId`).
   background, `submittedPage` is the page shown once an application is sent
   (Greenhouse's confirmation; Lever's thanks, its only signal, since its
   form is a plain HTML post). A batch tab's content script asks for the
-  watch (`batch/watch`) before its fill, listens for the engine's
-  `fillengine:submit` event (its detail is JSON: an object detail reaches
-  the isolated world as null), and on a sent application says
-  `batch/submitted`. `markSubmitted` (batch.js) then keeps the resume the
+  watch (`batch/watch`, with a random key it makes in the isolated world)
+  before its fill, listens for the engine's `fillengine:submit:<key>`
+  event (its detail is JSON: an object detail reaches the isolated world as
+  null), and on a sent application says
+  `batch/submitted`. The key is why a page script, which shares the
+  engine's world, can't mark a tab submitted: it doesn't know the event's
+  name. `markSubmitted` (batch.js) then keeps the resume the
   fill attached as the sent resume (`PUT .../resume` with the profile
   resume's `uploaded_resume_id` or `built_resume_id`; one that fails is
   logged, never blocks), marks it applied (`POST .../finish

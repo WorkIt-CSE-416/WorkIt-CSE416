@@ -173,12 +173,14 @@ async function handleMessage(message, sender) {
     // A batch tab's page watches for the student's own submit (KAN-374):
     // the engine, in the page, reads the job system's answer to it and its
     // notices, and tells the content script, which says "batch/submitted"
-    // when the application was sent. The extension never submits.
+    // when the application was sent. The event is named with the content
+    // script's own key, so a page script can't send it. The extension never
+    // submits.
     case "batch/watch": {
       const job = jobOf(sender.url);
       // A practice form's submit is its thanks page's (submitPractice below), never an application's.
       const site = job && !job.practice ? job.site : null;
-      if (site && (await inBatch(sender.tab.id))) await engineIn(sender)("watchSubmit", site);
+      if (site && (await inBatch(sender.tab.id))) await engineIn(sender)("watchSubmit", site, message.key);
       return { watching: Boolean(site) };
     }
 
