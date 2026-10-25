@@ -1106,6 +1106,13 @@ Real, not forgotten. Do not treat their absence as a decision already made.
   fact's quote was found on its page; `saved_at` is NULL while no brief has
   been kept, and `attempted_at` holds back a company whose last research
   wasn't kept. Deny-all RLS like every table.
+- **A team's brief is a row too** (KAN-369): `team` is '' for the
+  company's brief, else the team's folded name (`briefs.team_key`), and
+  is part of the primary key, so every posting naming that team reads one
+  brief. `posting_teams` holds the team each job posting names (as the
+  posting writes it, '' for none), written once by the first student's
+  Claude and shared by every student applying to that posting; it goes
+  with the posting (ON DELETE CASCADE). Migration `d2f4a6c8e013`.
 
 ## Out of scope
 

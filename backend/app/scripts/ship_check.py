@@ -147,7 +147,7 @@ def stub(folder: Path, chat: int) -> Iterator[tools.MCPServer]:
     async def nothing(*args):
         return None
 
-    async def no_brief(db, company):
+    async def no_brief(db, company, job_id=None):
         return []
 
     async def check_material(db, applicant_id, job_id):

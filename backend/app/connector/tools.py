@@ -167,7 +167,7 @@ def register(server: MCPServer) -> None:
         async with get_sessionmaker()() as db:
             student = await account.current_student(db)
             found = await pipeline.next_to_write(db, student.id, skip=handed)
-            brief = await briefs.brief_for(db, found.application.job.company) if found else []
+            brief = await briefs.brief_for(db, found.application.job.company, found.application.job.id) if found else []
             research = found is not None and any((q.kind or "text") == "text" for q in found.questions) \
                 and await briefs.needs_research(db, found.application.job.company)
             card, card_needed = await writing.card_state(db, student.id)
