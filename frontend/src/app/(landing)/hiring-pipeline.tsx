@@ -550,6 +550,10 @@ function Flow({
   );
 }
 
+/** A pixel of slack where a place is compared with a coupling it starts
+ * on (Posting). */
+const EPS = 1;
+
 /**
  * One place on the conveyor. Each lap it is given the next hiring system
  * in turn and that system's next posting; it shows from that system's
@@ -586,8 +590,11 @@ function Posting({
   // began past its coupling, so it stayed hidden (`fresh`) for a whole
   // lap: one posting rode an empty pipe for about seven seconds after the
   // pipe formed, which read as a long delay (KAN-368). A place with no
-  // coupling ahead keeps its turn; it shows from its next lap.
-  const firstLap = layout.couplings.findIndex((c) => c >= layout.pipeLeft + travel(0));
+  // coupling ahead keeps its turn; it shows from its next lap. Both tests
+  // allow a pixel (`EPS`): the first place starts exactly at the last
+  // coupling, and rounding put it a hair past on some frames and not on
+  // others, so that posting flickered all the way down the pipe.
+  const firstLap = layout.couplings.findIndex((c) => c >= layout.pipeLeft + travel(0) - EPS);
   const systemOn = (lap: number) =>
     lap === 0 && firstLap >= 0 ? firstLap : (((lap * places + place) % n) + n) % n;
   const postingOn = (lap: number) => {
@@ -604,7 +611,7 @@ function Posting({
     // Shown only once it has come out of its coupling since the flow began,
     // so the pipe fills from the couplings: shown from the start, three
     // postings appeared at once in the middle of the pipe.
-    const fresh = x - from <= SPEED * t;
+    const fresh = x - from <= SPEED * t + EPS;
     // Where the pill's left edge is when its right edge meets WorkIt's
     // mark: it never goes further, so it never slides under the mark.
     const end = layout.outletX - MARK / 2 - MARK_GAP - PILL_W;

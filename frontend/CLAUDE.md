@@ -840,7 +840,11 @@ the KAN-296 cutover.
   (KAN-368): started at the pipe's end with the systems in turn, only one
   posting could come out, behind the coins, and the first one cleared
   them 7.1 s after the scroll's cue (now 1.5 to 1.9 s, then one about
-  every 2.7 s). The flow's clock runs as soon as the pipe has formed
+  every 2.7 s). Where a place is compared with the coupling it starts
+  on, the test allows a pixel (`EPS`): the first place starts exactly on
+  the last coupling, and rounding put it a hair past on some frames and not
+  on others, so the first posting flickered on and off all the way down
+  the pipe. The flow's clock runs as soon as the pipe has formed
   (`PIPE_IN`'s end), in view and in a visible tab. The pipe starts just behind the first coupling, whose coin
   hides its end: an open-end ellipse there, and later the bare rounded
   end, read as a stray circle. WorkIt's mark is plain glass on the grey,
