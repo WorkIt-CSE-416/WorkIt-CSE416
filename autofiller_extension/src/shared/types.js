@@ -92,6 +92,10 @@
  * @property {string} email  The profile's contact email, else the sign-in
  *   email: the one employers see (KAN-262).
  * @property {string} full_name
+ * @property {string | null} [first_name]  The profile's own name parts
+ *   (KAN-326); the fill splits full_name only when they are missing.
+ * @property {string | null} [middle_name]
+ * @property {string | null} [last_name]
  * @property {string | null} phone_number
  * @property {string | null} headline
  * @property {string | null} location  Where the student lives, as they typed

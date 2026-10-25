@@ -27,7 +27,8 @@ async def test_a_tab_sends_its_questions_and_reads_them_back_unanswered(student,
 
     assert res.status_code == 200, res.text
     back = (await client.get(f"{me}/applications/{job}/questions")).json()
-    assert back == [{**WHY, "answer": None}, {**PROUD, "answer": None}]
+    written = {"kind": None, "options": None, "answer": None}
+    assert back == [{**WHY, **written}, {**PROUD, **written}]
 
 
 async def test_questions_need_an_open_application(student, database):

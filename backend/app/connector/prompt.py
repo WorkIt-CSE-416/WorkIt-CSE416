@@ -22,6 +22,9 @@ get_writing_samples and saves it; with neither, it writes plainly. The card
 describes how the student writes, never facts, so the rules on sources
 still hold, and the rules win where the card disagrees.
 
+One-off choices nothing else fills (KAN-369) come with their options:
+Claude picks among them, under the same sources, and WorkIt refuses an
+answer that isn't one of them.
 The prompt speaks as the student to their own Claude ("me", "my").
 """
 
@@ -86,10 +89,10 @@ from what I did.
 its company_brief. Never \
 say I did, read, used or visited anything of theirs that my experience \
 doesn't state: never "I read your post" or "I use your product".
-- When a question asks for something my sources don't hold (my preference \
-of team, location or kind of work, a reference, whether I have used their \
-product, my plans after graduating, an opinion only I can give), leave that \
-question out and tell me what it needs. When part of a question can be \
+- When a question asks for something my sources don't hold (in words, my \
+preference of team, location or kind of work; a reference, whether I have \
+used their product, my plans after graduating, an opinion only I can give), \
+leave that question out and tell me what it needs. When part of a question can be \
 answered from true facts, write that part and leave the unknown out. An \
 open question such as "Anything else?", optional or not, always has a true \
 fact to give: answer it.
@@ -102,6 +105,22 @@ what you don't know: the employer reads only my answer, as if I wrote it.
 - Date my work as my experience does ("in summer 2026"), never by words \
 that count from today ("last summer", "this year", "recently"): the answer \
 is read weeks later.
+
+Choices
+- A question whose kind is "choice" or "choices" is answered by picking, \
+not writing, and skips the four steps below: answer with one of its \
+options copied word for word ("choice"), or, for "choices", every option \
+that holds for me, each word for word, joined by "; ", within any limit \
+the question states ("up to 3").
+- Pick only what my sources support, and of those the one that serves my \
+application best; never one they contradict. A question about which team, \
+area or kind of work interests me takes the options nearest the work my \
+experience shows. A question that asks where I stand on a range (how open \
+I am to something, an expectation) takes a middle option, never an \
+extreme.
+- When the options ask for a fact my sources don't hold (a date, a score, \
+an ID, whether I have done something they don't mention), leave that \
+question out and tell me what it needs, as for a written one.
 
 Step 1: draft
 Choose for each question the true story of mine that shows the most: the \

@@ -305,8 +305,8 @@ async def test_the_next_application_is_read_only_and_holds_only_that_application
     assert (got["company"], got["title"]) == ("Acme", "Intern")
     assert got["posting"] == "Acme builds rockets. You will write flight software."
     assert got["questions"] == [
-        {"name": "question_7", "question": WHY["label"], "required": True, "max_length": 600},
-        {"name": "question_8", "question": PROUD["label"], "required": False, "max_length": None},
+        {"name": "question_7", "question": WHY["label"], "required": True, "max_length": 600, "kind": "text", "options": None},
+        {"name": "question_8", "question": PROUD["label"], "required": False, "max_length": None, "kind": "text", "options": None},
     ]
     # The student's experience bank, to write from.
     assert "Software Intern, Acme" in got["experience"]
@@ -420,3 +420,33 @@ async def test_every_tool_carries_the_annotations_anthropics_directory_asks_for(
         if writes:
             assert hints.destructive_hint is not None, f"{tool.name} doesn't say if it destroys data"
         assert hints.open_world_hint is False, f"{tool.name} reaches past WorkIt"
+
+
+# --- Choice questions (one-off questions nothing else fills) ---
+
+SIZE = {"name": "question_9", "label": "Which team size do you prefer?", "required": True, "max_length": None,
+        "kind": "choice", "options": ["Small", "Large"]}
+AREAS = {"name": "question_10", "label": "Which areas interest you?", "required": False, "max_length": None,
+         "kind": "choices", "options": ["Backend", "Frontend", "Data"]}
+
+
+async def test_a_choice_question_reaches_claude_with_its_options_and_takes_only_them(running, applicant, database):
+    me, (job,) = await _student_queues(database, applicant, 1)
+    await _tab_asks(me, job, SIZE, AREAS)
+
+    async with claude(applicant) as client:
+        got = (await client.call_tool("get_next_application", {})).structured_content
+        not_offered = await client.call_tool("save_answers", {"job_id": job, "answers": [
+            {"name": "question_9", "answer": "Medium"}, {"name": "question_10", "answer": "Backend"}]})
+        one_of_two = await client.call_tool("save_answers", {"job_id": job, "answers": [
+            {"name": "question_9", "answer": "small"}, {"name": "question_10", "answer": "Backend; Mobile"}]})
+        saved = await client.call_tool("save_answers", {"job_id": job, "answers": [
+            {"name": "question_9", "answer": " small "}, {"name": "question_10", "answer": "data; Backend"}]})
+
+    assert [(q["kind"], q["options"]) for q in got["questions"]] == [
+        ("choice", ["Small", "Large"]), ("choices", ["Backend", "Frontend", "Data"])]
+    assert not_offered.is_error and "Medium" in not_offered.content[0].text
+    assert one_of_two.is_error and "Mobile" in one_of_two.content[0].text
+    assert saved.is_error is False, saved.content
+    # Kept in the form's own wording, as the tab fills it.
+    assert [q["answer"] for q in await _tab_asks(me, job)] == ["Small", "Data; Backend"]

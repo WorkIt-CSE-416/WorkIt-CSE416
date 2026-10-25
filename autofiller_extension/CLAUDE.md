@@ -346,7 +346,11 @@ waits for an opened tab's page and form (`waitForLoad`, `formShows`).
   `test/submit.extension.spec.ts` ("leaves their focus where they put it").
 - **A batch tab's essays come from the student's own Claude** (KAN-377;
   `auto-apply/architecture.md` 14.6). The essay route is never batch
-  apply's. The tab sends the questions its Plan needs written
+  apply's. The tab sends the questions its Plan needs written, and every
+  one-off draft but a file (KAN-369): a choice whose options were read goes
+  with `kind` "choice"/"choices" and its `options`, which the connector
+  shows Claude and takes only, and a "choices" answer joins its options
+  with "; " as the engine reads one
   (`batch/questions` → `PUT .../applications/{job}/questions`), shows each
   as waiting for the student's Claude, and asks for the saved answers every
   10 seconds (`batch/answers` → `GET .../questions`) until none is left,
@@ -869,10 +873,11 @@ the overlay lists each as "needs_generation" (`lib-status.js`).
 - **AI traps and bans stay the student's.** A form or posting that bans
   AI-written answers, or a posting that speaks to AI agents, makes the Plan
   hand those questions off instead: they never reach the essay route, and
-  the overlay lists the Plan's reason under "Left for you". A draft that is
-  a choice (a dropdown) or one line ("Nick Name") is the student's too: a
-  written answer can't pick an option, and the essay route writes
-  sentences.
+  the overlay lists the Plan's reason under "Left for you". Outside a batch
+  tab, a draft that is a choice (a dropdown) or one line ("Nick Name") is
+  the student's: the essay route writes sentences and can't pick an option
+  (`planRows`' `generate` is false for them). In a batch tab the student's
+  Claude answers them (below).
 - **Generation is sequential** (`written-answers.js`'s `onGenerate`), one
   `essay/generate` per question: each is its own counted AI use, and the
   overlay shows each row as it lands. The answer is then filled through the

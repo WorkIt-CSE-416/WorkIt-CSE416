@@ -41,9 +41,15 @@ test("an answer the student's Claude saves fills into its open tab", async () =>
   const api = new FakeApi().queue({ id: "job-0", apply_url: forms.url(HARVEY) });
   await start(api, forms);
 
-  // The tab sends its one written question, and waits for the student's Claude.
+  // The tab sends its written question, and its one-off questions nothing else fills (KAN-369):
+  // a choice with its options, and a short one. It waits for the student's Claude.
   await expect.poll(() => api.written.get("job-0"), { timeout: 60_000 }).toEqual([
     { name: expect.any(String), label: WHY, required: true, max_length: null, answer: null },
+    {
+      name: expect.any(String), label: "What type of work are you most interested in? Select 2.", required: true, max_length: null,
+      kind: "choices", options: expect.arrayContaining(["Backend (SF, TOR)", "Open to Anything"]), answer: null,
+    },
+    { name: expect.any(String), label: "What are some AI specific technologies you are comfortable with?", required: true, max_length: null, answer: null },
   ]);
   const form = loaded.context.pages().find((p) => p.url().startsWith(forms.url(HARVEY)))!;
   await expect(row(form, WHY)).toContainText("Waiting for your Claude");
@@ -71,7 +77,7 @@ test("the student's own answer is kept when their Claude's arrives later", async
   const forms = new SavedForms([HARVEY]);
   const api = new FakeApi().queue({ id: "job-0", apply_url: forms.url(HARVEY) });
   await start(api, forms);
-  await expect.poll(() => api.written.get("job-0")?.length, { timeout: 60_000 }).toBe(1);
+  await expect.poll(() => api.written.get("job-0")?.length, { timeout: 60_000 }).toBe(3);
   const name = api.written.get("job-0")![0].name;
   const form = loaded.context.pages().find((p) => p.url().startsWith(forms.url(HARVEY)))!;
 
