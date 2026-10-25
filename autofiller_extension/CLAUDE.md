@@ -504,7 +504,8 @@ the overlay lists each as "needs_generation" (`lib-status.js`).
   experience bank, checked against the truth rule, never given identity
   data. The question, company and role count as given, so an answer may
   name them (before that, every live answer was refused: "Cloudflare" and
-  the pronoun "I" read as invented tools). A 429/503/422 becomes the row's "failed" reason verbatim; there is
+  the pronoun "I" read as invented tools). A 429/503/422 becomes the row's "failed" reason verbatim (a 422
+  that lists errors, as their messages: `api.js`'s `errorMessage`); there is
   no retry.
 - **Nothing is persisted.** The question and the generated answer are
   never saved.

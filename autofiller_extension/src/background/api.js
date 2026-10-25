@@ -82,9 +82,22 @@ async function apiRequest(path, init = {}) {
 
   if (!response.ok) {
     const body = await response.json().catch(() => ({}));
-    throw new ApiError(response.status, body.detail ?? `Request failed (${response.status})`);
+    throw new ApiError(response.status, errorMessage(response.status, body));
   }
   return response;
+}
+
+/**
+ * An error answer's words: the route's own `detail`, or for a body FastAPI
+ * refused (a 422 with a list of errors) each error's `msg`, never "[object Object]".
+ * @param {number} status
+ * @param {{ detail?: string | { msg?: string }[] }} body
+ */
+export function errorMessage(status, body) {
+  const { detail } = body ?? {};
+  if (typeof detail === "string" && detail) return detail;
+  if (Array.isArray(detail) && detail.length) return detail.map((e) => e?.msg ?? String(e)).join("; ");
+  return `Request failed (${status})`;
 }
 
 /**
