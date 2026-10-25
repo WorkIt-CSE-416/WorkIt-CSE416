@@ -30,6 +30,12 @@ window.WIA = window.WIA || {};
   const SPARKLE =
     '<svg viewBox="0 0 256 256" aria-hidden="true"><path fill="currentColor" d="M208,144a15.78,15.78,0,0,1-10.42,14.94L146,178l-19,51.62a15.92,15.92,0,0,1-29.88,0L78,178l-51.62-19a15.92,15.92,0,0,1,0-29.88L78,110l19-51.62a15.92,15.92,0,0,1,29.88,0L146,110l51.62,19A15.78,15.78,0,0,1,208,144ZM152,48h16V64a8,8,0,0,0,16,0V48h16a8,8,0,0,0,0-16H184V16a8,8,0,0,0-16,0V32H152a8,8,0,0,0,0,16Zm88,32h-8V72a8,8,0,0,0-16,0v8h-8a8,8,0,0,0,0,16h8v8a8,8,0,0,0,16,0V96h8a8,8,0,0,0,0-16Z"/></svg>';
 
+  // What the student sends their Claude to start writing: the connector prompt's title
+  // (backend/app/connector/prompt.py TITLE). Write with Claude copies it and opens a new
+  // claude.ai chat with it in the box, not sent; nothing of the student's goes in the link.
+  const CLAUDE_TRIGGER = "Write my WorkIt answers";
+  const CLAUDE_START_URL = `https://claude.ai/new?q=${encodeURIComponent(CLAUDE_TRIGGER)}`;
+
   // tokens.js's --font-sans names the shipped font this way.
   const FONT_FAMILY = "WorkIt Jakarta Sans";
 
@@ -135,6 +141,16 @@ window.WIA = window.WIA || {};
       .reason.flag { color: var(--color-warning); }
       .reason a { color: var(--color-brand-ink); font-weight: 500; text-decoration: underline; }
       .reason a:focus-visible { outline: 2px solid var(--color-brand); outline-offset: 2px; }
+      .start { display: flex; flex-wrap: wrap; align-items: center; gap: 4px 8px; margin-top: 4px; }
+      .start a {
+        all: unset; cursor: pointer; display: inline-flex; align-items: center; gap: 4px;
+        font-size: var(--text-note); font-weight: 500; padding: 4px 8px; border-radius: var(--radius-control);
+        background: var(--color-panel); color: var(--color-ink); border: 1px solid var(--color-border-subtle);
+      }
+      .start a:hover { background: var(--color-hover); }
+      .start a:focus-visible { outline: 2px solid var(--color-brand); outline-offset: 2px; }
+      .start svg { width: 12px; height: 12px; color: var(--color-brand); }
+      .start .hint { font-size: var(--text-meta); color: var(--color-ink-meta); }
       .empty { padding: 16px 12px; color: var(--color-ink-meta); }
     `;
     return style;
@@ -176,6 +192,7 @@ window.WIA = window.WIA || {};
       }
       text.appendChild(reason);
     }
+    if (field.status === "needs_generation" && field.claude) text.appendChild(startClaude());
     if (field.flag) {
       el.dataset.flagged = "";
       const reason = document.createElement("div");
@@ -185,6 +202,35 @@ window.WIA = window.WIA || {};
     }
     el.append(dot, text);
     return el;
+  }
+
+  /**
+   * Write with Claude (a row waiting for the student's Claude): opens a new
+   * claude.ai chat with the trigger in its box, and copies the trigger too,
+   * since claude.ai's prefill (`?q=`) is undocumented: if it stops working,
+   * the student pastes.
+   */
+  function startClaude() {
+    const start = document.createElement("div");
+    start.className = "start";
+    const open = Object.assign(document.createElement("a"), { href: CLAUDE_START_URL, target: "_blank", rel: "noreferrer" });
+    open.innerHTML = SPARKLE;
+    open.append("Write with Claude");
+    open.addEventListener("click", () => copy(CLAUDE_TRIGGER));
+    const hint = Object.assign(document.createElement("span"), { className: "hint", textContent: "Press Enter in Claude (or paste)" });
+    start.append(open, hint);
+    return start;
+  }
+
+  /** Copies `text`; a page whose clipboard is refused (no permission) gets the older copy command. */
+  function copy(text) {
+    navigator.clipboard.writeText(text).catch(() => {
+      const box = Object.assign(document.createElement("textarea"), { value: text });
+      root.appendChild(box);
+      box.select();
+      document.execCommand("copy");
+      box.remove();
+    });
   }
 
   function render(summary) {
@@ -291,15 +337,15 @@ window.WIA = window.WIA || {};
    * student's Claude: Add to Claude opens `url` (the webapp's
    * /connect/claude/add, which goes on to Claude's Add Custom Connector
    * dialog) in a new tab; then the student asks their Claude to write,
-   * and allows its save tool for good ("Always allow"), else Claude asks
-   * before every save.
+   * and allows each of WorkIt's tools for good ("Always allow"), else Claude
+   * asks before every save.
    * @param {{ url: string }} options
    */
   function offerClaude({ url }) {
     const card = momentCard("add-claude", `
       <h2>Let Your Claude Write These</h2>
-      <p>This form has a question to write. Add WorkIt to your Claude once, then ask it to "Write my WorkIt answers": each answer fills in here, for you to check.</p>
-      <p>The first time Claude asks to use WorkIt's Save answers, choose "Always allow", so it doesn't stop to ask at every answer.</p>
+      <p>This form has a question to write. Add WorkIt to your Claude once, then ask it to "${CLAUDE_TRIGGER}": each answer fills in here, for you to check.</p>
+      <p>When Claude first asks to use each of WorkIt's tools, choose "Always allow", so it doesn't stop to ask at every answer.</p>
       <div class="actions">
         <a data-primary data-add target="_blank" rel="noreferrer">${SPARKLE}Add to Claude</a>
         <button type="button" data-secondary data-dismiss>Not Now</button>
@@ -471,5 +517,5 @@ window.WIA = window.WIA || {};
     root = null;
   }
 
-  window.WIA.overlay = { mount, unmount, promptForEssays, offerNext, setCurrent, askSelfId, offerClaude, askSamples, askWorkdayAccounts };
+  window.WIA.overlay = { mount, unmount, promptForEssays, offerNext, setCurrent, askSelfId, offerClaude, askSamples, askWorkdayAccounts, CLAUDE_TRIGGER };
 })();

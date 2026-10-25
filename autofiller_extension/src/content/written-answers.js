@@ -16,9 +16,11 @@ window.WIA = window.WIA || {};
   const MIN_LENGTH = 50;
   const MAX_LENGTH = 5000; // a box that takes more (Workable's cover letter: 200000) asks for this much
   const WRITE_IT = "Write this answer yourself.";
-  const WAIT_FOR_CLAUDE = "Waiting for your Claude: run \"Write my WorkIt answers\" in Claude, or write it yourself.";
+  const TRIGGER = window.WIA.overlay.CLAUDE_TRIGGER;
+  // Each row waiting for the student's Claude also has the overlay's Write with Claude.
+  const WAIT_FOR_CLAUDE = `Waiting for your Claude: run "${TRIGGER}" in Claude, or write it yourself.`;
   // The same, ending in a link to the webapp's Written Answers page (KAN-385), where a student without Claude pastes answers.
-  const WAIT_OR_PASTE = "Waiting for your Claude: run \"Write my WorkIt answers\" in Claude, write it yourself, or paste it in";
+  const WAIT_OR_PASTE = `Waiting for your Claude: run "${TRIGGER}" in Claude, write it yourself, or paste it in`;
   const NOT_NEEDED = "Not needed: your answer to the question before it doesn't call for it.";
   // How often a batch tab asks whether the student's Claude saved an answer (KAN-377).
   const ANSWER_POLL = 10_000;
@@ -59,8 +61,8 @@ window.WIA = window.WIA || {};
         if (batch) {
           if (!isNew(q.name)) continue;
           status.register(q.name, q.label, q.required);
-          if (answersPage) status.setStatus(q.name, "needs_generation", WAIT_OR_PASTE, undefined, undefined, answersPage);
-          else status.setStatus(q.name, "needs_generation", WAIT_FOR_CLAUDE);
+          if (answersPage) status.setStatus(q.name, "needs_generation", WAIT_OR_PASTE, undefined, undefined, answersPage, true);
+          else status.setStatus(q.name, "needs_generation", WAIT_FOR_CLAUDE, undefined, undefined, undefined, true);
           continue;
         }
         if (!isNew(q.name)) continue;
