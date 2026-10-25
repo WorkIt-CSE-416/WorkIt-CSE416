@@ -209,7 +209,7 @@ async def test_the_fill_profile_is_only_its_owner_s(running, applicant):
     assert res.status_code == 403
 
 
-async def test_brought_answers_are_the_student_s_own_on_later_forms_and_keep_to_their_company(
+async def test_brought_answers_reach_later_forms_and_keep_to_their_company(
     running, applicant, database, apply_dir, local_files,
 ):
     from tests.test_connector import _student_queues
@@ -223,7 +223,7 @@ async def test_brought_answers_are_the_student_s_own_on_later_forms_and_keep_to_
 
     assert bank == {
         "What is your favorite programming language?": {
-            "answer": "Python, for how quickly an idea becomes a working program.", "own": True,
+            "answer": "Python, for how quickly an idea becomes a working program.", "own": False,
         },
         "Which of these tools have you used?": {"answer": ["Git", "Docker"], "own": True},
     }
@@ -231,6 +231,55 @@ async def test_brought_answers_are_the_student_s_own_on_later_forms_and_keep_to_
     await _company(database, job, "Initech")
     bank = (await _get(applicant, f"/applications/{job}/answer-bank")).json()
     assert bank["Why do you want to work at Initech?"]["own"] is True
+
+
+DRAFTS = """\
+'what drew you to logistics?':
+  question: What drew you to logistics?
+  answer: Watching a warehouse route its trucks.
+  source: claude
+  reviewed: false
+'what do you build on weekends?':
+  question: What do you build on weekends?
+  answer: Small robots that sort marbles by colour.
+  source: claude
+  reviewed: true
+'which shifts can you work?':
+  question: Which shifts can you work?
+  answer: [Mornings, Evenings]
+  options: [Mornings, Evenings, Nights]
+  source: claude
+  reviewed: false
+'what is your dream project?':
+  question: What is your dream project?
+  answer: A tram timetable that rewrites itself when a line closes.
+  source: lisul
+  reviewed: true
+"""
+
+
+async def test_only_the_student_s_answers_come_as_their_own_and_their_claude_s_drafts_stay_its(
+    running, applicant, database, apply_dir, local_files,
+):
+    from tests.test_connector import _student_queues
+    from tests.test_connector_checks import _company
+
+    (apply_dir / "answer-bank.yaml").write_text(DRAFTS)
+    await _import(database, applicant, apply_dir)
+    await _import(database, applicant, apply_dir)
+    _, (job,) = await _student_queues(database, applicant, 1)
+    await _company(database, job, "Hooli")
+
+    bank = (await _get(applicant, f"/applications/{job}/answer-bank")).json()
+
+    # As in Apply, only source lisul is the student's: a draft they marked
+    # reviewed is still their Claude's, so a form that bans AI text never takes it.
+    assert bank == {
+        "What is your dream project?": {"answer": "A tram timetable that rewrites itself when a line closes.", "own": True},
+        "What drew you to logistics?": {"answer": "Watching a warehouse route its trucks.", "own": False},
+        "What do you build on weekends?": {"answer": "Small robots that sort marbles by colour.", "own": False},
+        "Which shifts can you work?": {"answer": ["Mornings", "Evenings"], "own": False},
+    }
 
 
 async def test_the_student_s_own_words_on_an_application_win_over_a_brought_answer(

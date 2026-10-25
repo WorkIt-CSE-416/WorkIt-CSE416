@@ -398,10 +398,12 @@ async def answer_bank(
     bank: dict[str, SavedAnswer] = {}
     seen: set[str] = set()
     written = await fetch_saved_answers(db, applicant_id, exclude=job_id)
-    # Their own words on applications first, then the answers they brought
-    # (`fill_answers`, all their own), then their Claude's.
+    # Their own words on applications first, then their own words brought
+    # from Apply (`fill_answers`), then their Claude's: on applications, then brought.
+    brought = await fetch_brought_answers(db, applicant_id)
     saved_answers = [
-        *(s for s in written if s.own), *await fetch_brought_answers(db, applicant_id), *(s for s in written if not s.own),
+        *(s for s in written if s.own), *(s for s in brought if s.own),
+        *(s for s in written if not s.own), *(s for s in brought if not s.own),
     ]
     for saved in saved_answers:
         theirs = (saved.company or "").strip().casefold()

@@ -125,7 +125,9 @@ builds it: `dist/engine.js` is committed in the engine repo.
   start dates) stays the student's: the Plan lists it as a Missing fact and
   the overlay says "WorkIt has no answer for this". `POLICIES` holds no
   student's choice; "How did you hear?" is WorkIt, or the form's "Job
-  Board". The engine's own rules decide everything else; change a rule in
+  Board". `us_roles_only` is on, since WorkIt lists US roles only: a
+  question about working abroad ("the right to work in the UK?") is No, and
+  a role abroad a Screener. The engine's own rules decide everything else; change a rule in
   the engine repo, not here.
 - **Only job systems the engine covers are filled.** `engine.js`'s `jobOf`
   names them (Greenhouse, Lever, Ashby, Rippling, Workable, Eightfold and

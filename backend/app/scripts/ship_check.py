@@ -144,7 +144,7 @@ def stub(folder: Path, chat: int) -> Iterator[tools.MCPServer]:
     async def student(db):
         return SimpleNamespace(id=uuid.UUID(int=0))
 
-    async def nothing(*args):
+    async def nothing(*args, **kwargs):
         return None
 
     async def no_brief(db, company, job_id=None):

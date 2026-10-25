@@ -638,10 +638,12 @@ async def fetch_saved_answers(
 
 async def fetch_brought_answers(db: AsyncSession, applicant_id: uuid.UUID) -> list[SavedAnswer]:
     """The answers the student brought from Apply (`fill_answers`, in the
-    order they were filed), each their own. An entry with no answer is left out."""
+    order they were filed): their own words (`own`) or their Claude's drafts,
+    and `choice` for options picked. An entry with no answer is left out."""
     answers = await db.scalar(select(Applicant_Profile.fill_answers).where(Applicant_Profile.id == applicant_id))
     return [
-        SavedAnswer(question=question, answer=entry["answer"], company=entry.get("company"), own=bool(entry.get("own", True)))
+        SavedAnswer(question=question, answer=entry["answer"], company=entry.get("company"), own=bool(entry.get("own", True)),
+                    choice=bool(entry.get("choice")) or isinstance(entry["answer"], list))
         for question, entry in (answers or {}).items()
         if isinstance(entry, dict) and entry.get("answer") not in (None, "", [])
     ]
