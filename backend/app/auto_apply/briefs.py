@@ -77,7 +77,7 @@ NEWS = (
 
 # Company-name endings left out of its key: "Acme, Inc." is "acme".
 _ENDINGS = {"inc", "incorporated", "llc", "ltd", "limited", "corp", "corporation", "co", "company",
-            "plc", "gmbh", "lp", "llp", "ag"}
+            "plc", "gmbh", "lp", "llp", "ag", "cic"}
 # Country endings where the name sits one label further left (acme.co.uk).
 _TWO_LEVEL = {"co.uk", "org.uk", "ac.uk", "com.au", "co.jp", "co.in", "com.br", "co.nz", "com.sg",
               "co.kr", "com.cn", "com.mx", "co.za", "com.hk", "com.tw"}
@@ -89,7 +89,8 @@ fetch_page = fetch_text
 
 
 def company_key(name: str) -> str:
-    words = re.findall(r"[a-z0-9]+", unicodedata.normalize("NFKD", name).casefold())
+    # Dots go first, so an ending written with them ("C.I.C.", "L.L.C.") is one word.
+    words = re.findall(r"[a-z0-9]+", unicodedata.normalize("NFKD", name).casefold().replace(".", ""))
     while len(words) > 1 and words[-1] in _ENDINGS:
         words.pop()
     return "".join(words)

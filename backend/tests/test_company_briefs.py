@@ -390,3 +390,10 @@ def test_the_companys_own_domain_is_named_for_it(host, own):
 ])
 def test_a_domain_whose_ending_completes_the_name_is_the_companys(host, own):
     assert briefs.own_domain(host, "Shield AI") is own
+
+
+@pytest.mark.parametrize("company", ["CommonAI C.I.C.", "CommonAI CIC", "CommonAI"])
+def test_a_legal_ending_written_with_dots_is_dropped(company):
+    # A UK community interest company: "C.I.C." is its legal form, not its name.
+    assert briefs.company_key(company) == "commonai"
+    assert briefs.own_domain("www.commonai.org", company)
