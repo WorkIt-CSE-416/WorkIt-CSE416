@@ -76,6 +76,33 @@ test("fills a saved Ashby form from a WorkIt profile and submits nothing", async
   expect(skydio.submissions).toEqual([]);
 });
 
+test("a required field the Question set lacks needs the student until it shows an answer", async ({ context }) => {
+  // Ashby's page can ask a required field its own job API doesn't list: the fill never plans it,
+  // so the tab must not be Ready with it empty, and the student is told which field it is.
+  const harvey = new FakeJobServer("ashby-harvey");
+  const page = await harvey.open(context);
+  const PREFERRED = "385365ed-cae7-44ee-982a-feacd6f3c539"; // Preferred First Name
+  const posting = JSON.parse(readFileSync(join(FORMS, "ashby-harvey", "questions.json"), "utf8"));
+  for (const section of posting.data.jobPosting.applicationForm.sections)
+    section.fieldEntries = section.fieldEntries.filter((e: any) => e.field.path !== PREFERRED);
+  await bridge(page, async (url) => {
+    if (url.endsWith("?op=ApiJobPosting")) return JSON.stringify(posting);
+    throw new Error(`${url} answered 404`);
+  });
+  await page.evaluate(() => void ((window as any).WIA = { batch: true })); // a batch tab watches the student's edits
+
+  await inject(page);
+  const { rows } = await settled(page);
+
+  expect(rows.find((r) => r.key === PREFERRED)).toMatchObject({
+    label: "Preferred First Name", required: true, status: "failed", reason: "The form needs this before it sends. Answer it yourself.",
+  });
+  await page.locator(`[data-field-path="${PREFERRED}"] input`).fill("Tess");
+  await expect.poll(() => page.evaluate((key) => (window as any).WIA.status.summary().fields.find((r: any) => r.key === key), PREFERRED))
+    .toMatchObject({ status: "filled", shows: "Tess", source: "student" });
+  expect(harvey.submissions).toEqual([]);
+});
+
 test("fills a saved Rippling form from a WorkIt profile and submits nothing", async ({ context }) => {
   const rippling = new FakeRippling("rippling-rippling");
   const page = await rippling.open(context);

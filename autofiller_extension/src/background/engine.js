@@ -420,7 +420,8 @@ export function planRows({ plan }) {
  * `fill/plan` (planFill, for the page at `url`), `fill/page` (fillPage) and
  * `fill/read` (what named fields show now, `{ shows: {[name]: value} }`) and
  * `fill/required` (the questions the form requires now that show nothing,
- * `{ empty: [name] }`).
+ * `{ empty: [name], unasked: [Question] }`, `unasked` being the required
+ * fields the Question set lacks, which `empty` covers too).
  * On Workday, the nested prompts the engine read for a tenant are kept
  * (`trees`, chrome.storage in the extension) and given back on its next
  * call, as Apply keeps them: reading Workday's own How Did You Hear About
@@ -447,8 +448,11 @@ export async function handleFill(message, { url, profile, bank, today, call, fet
     return { shows: await call("readback", message.site, message.questions, message.names, message.state) };
   } else if (message.type === "fill/required") {
     // The fields the form won't send without that show nothing, the planned and the unplanned alike
-    // (Greenhouse's phone country, required once Phone shows a number, is in no Question set as required).
-    return { empty: await call("emptyRequired", message.site, message.questions, message.state) };
+    // (Greenhouse's phone country, required once Phone shows a number, is in no Question set as required),
+    // and the required fields the Question set lacks altogether (Ashby, Eightfold), given back as
+    // `unasked` questions so the tab reads them again after each edit.
+    const unasked = message.site === "workday" ? [] : await call("unaskedQuestions", message.site, message.questions);
+    return { empty: await call("emptyRequired", message.site, [...message.questions, ...unasked], message.state), unasked };
   } else {
     throw new Error(`Unknown fill message: ${message.type}`);
   }

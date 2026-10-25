@@ -313,8 +313,11 @@ and each tab's state (`jobs`), and `run/show` switches to one (`jobId`).
   required one with no row yet, and one the form requires only once
   another is answered, which no Question set marks required (Greenhouse's
   phone country once Phone shows a number: its submit answers "Select a
-  country", seen on Arc's form). Each becomes a failed, required row, so
-  the tab needs the student until it shows an answer.
+  country", seen on Arc's form), and a required field the Question set
+  lacks altogether, which only the page shows (Ashby, Eightfold: the
+  engine's `unaskedQuestions`). Each becomes a failed, required row named
+  by the field's label, so the tab needs the student until it shows an
+  answer; an unasked one joins the tab's questions, so edits read it back.
 - **A batch tab's essays come from the student's own Claude** (KAN-377;
   `auto-apply/architecture.md` 14.6). The essay route is never batch
   apply's. The tab sends the questions its Plan needs written

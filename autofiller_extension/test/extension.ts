@@ -65,7 +65,8 @@ export async function bridge(page: Page, fetchText: Fetch, profile = STUDENT, es
 export async function inject(page: Page): Promise<void> {
   await page.evaluate(() => {
     const w = window as any;
-    w.chrome = { ...(w.chrome ?? {}), runtime: { sendMessage: (message: unknown) => w.__workitSend(message) } };
+    // No background sends this page a message (a batch tab listens for some).
+    w.chrome = { ...(w.chrome ?? {}), runtime: { sendMessage: (message: unknown) => w.__workitSend(message), onMessage: { addListener() {} } } };
   });
   // Evaluated, not added as script tags, so a page's CSP can't block them (Chrome's injection isn't blocked either).
   for (const file of [...ENGINE_FILES, ...CONTENT_SCRIPT_FILES]) await page.evaluate(`${readFileSync(join(EXTENSION, file), "utf8")}\n;undefined`);
