@@ -1037,7 +1037,11 @@ Real, not forgotten. Do not treat their absence as a decision already made.
 
 - **`written_answers` is a row per question, keyed by the application**
   (`(applicant_id, job_id)` to `job_applications`, CASCADE). `name` is the
-  form field's name, so the open tab knows where the answer goes.
+  form field's name, so the open tab knows where the answer goes. `own`
+  (KAN-379) marks the student's own words (an edit in the tab): their
+  Claude's save never overwrites it, and `pipeline.answer_bank` offers it
+  first on later forms. An edit to a field the tab never sent (one a saved
+  answer filled) adds a row of its own, `required` false, placed last.
 - **`connector_clients`, `connector_requests` and `connector_tokens` belong
   to `app/connector/oauth.py`**, the one writer. Tokens and codes are kept
   as sha256 only; a row's `grant_id` ties an access token to its refresh
