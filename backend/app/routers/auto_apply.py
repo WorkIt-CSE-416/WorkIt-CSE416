@@ -70,13 +70,15 @@ GET  /applicants/{id}/applications/{job_id}/questions
      Those questions in the form's order, each with `answer`: the one the
      student's Claude saved, or null. The open tab fills each new answer.
      404 with no application.
-PUT  /applicants/{id}/applications/{job_id}/answers  {"name", "label", "answer"}
-     The student's own words for one of the tab's questions that need
-     writing (KAN-379): an edit to the answer filled there, or their answer
-     before their Claude's. It replaces the application's answer (their
+PUT  /applicants/{id}/applications/{job_id}/answers  {"name", "label", "answer", "own"}
+     The student's words for one of the tab's questions that need writing
+     (KAN-379). `own`: written into a field WorkIt didn't fill, or
+     replacing what it filled; it replaces the application's answer (their
      Claude is not asked for it, and its later save never replaces it), and
-     later forms reuse it first. Answers {"answer", "own": true}. 404 with
-     no application.
+     later forms reuse it first. Not own: an edit of an answer WorkIt filled,
+     kept as that answer's and checked as their Claude's (422 with the
+     reasons when it fails). Answers {"answer", "own"}. 404 with no
+     application.
 GET  /applicants/{id}/applications/{job_id}/answer-bank
      The answers saved on the student's other applications that this one's
      form may reuse, {question wording: {"answer", "own"}} (pipeline.answer_bank:
@@ -314,13 +316,13 @@ async def save_own_answer(
     account: AuthenticatedAccount = Depends(get_current_account),
     db: AsyncSession = Depends(get_session),
 ) -> SavedAnswer:
-    """The student's own answer to a question their batch tab needs written."""
+    """The student's answer to a question their batch tab needs written."""
     assert_applicant_owns(account, applicant_id)
     try:
         await pipeline.save_own_answer(db, applicant_id, job_id, body)
     except pipeline.Refused as exc:
         raise HTTPException(status.HTTP_422_UNPROCESSABLE_CONTENT, str(exc)) from exc
-    return SavedAnswer(answer=body.answer.strip(), own=True)
+    return SavedAnswer(answer=body.answer.strip(), own=body.own)
 
 
 @router.get("/applications/{job_id}/answer-bank", response_model=dict[str, SavedAnswer])

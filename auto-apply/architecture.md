@@ -935,7 +935,7 @@ function. Every route checks that the caller owns the applicant, like
 | PUT | `/applicants/{id}/applications/{job_id}/fill` | `record_fill` | How a batch tab's fill left the form (KAN-370, 8.4): `{"state": "needs_you"}` moves it to `needs_you`, `{"state": "ready"}` back to `queued`. 404 with no application, 409 when not queued or needs_you. **Built** |
 | PUT | `/applicants/{id}/applications/{job_id}/questions` | `ask_questions` | The questions a batch tab's form needs written (KAN-377, 14.6), kept for the connector; a question asked again keeps its answer. 404 with no application, 409 when not queued or needs_you. **Built** |
 | GET | `/applicants/{id}/applications/{job_id}/questions` | `written_answers` | Those questions with the answers the student's Claude saved (`answer`, null until then); the open tab fills each new one. **Built** |
-| PUT | `/applicants/{id}/applications/{job_id}/answers` | `save_own_answer` | The student's own words for one written question in its tab (KAN-379, `{name, label, answer}`): replaces the application's answer and marks it `own`. 404 with no application. **Built** |
+| PUT | `/applicants/{id}/applications/{job_id}/answers` | `save_own_answer` | The student's words for one written question in its tab (KAN-379, `{name, label, answer, own}`): replaces the application's answer. `own` true (a field WorkIt didn't fill, or what it filled replaced) marks it `own`; false (an edit of an answer WorkIt filled) keeps it not own and runs the connector's checks (422 with reasons). 404 with no application. **Built** |
 | GET | `/applicants/{id}/applications/{job_id}/answer-bank` | `answer_bank` | The answers saved on the student's other applications this form may reuse, `{wording: {answer, own}}`: the Fill engine's Answer bank for its Plan (KAN-379; never one about another company, KAN-380). 404 with no application. **Built** |
 | GET | `/applicants/{id}/written-questions` | `unanswered_questions` | Every open application's unanswered written questions, by job posting, oldest first: the Written Answers page for a student without Claude (KAN-385). **Built** |
 | PUT | `/applicants/{id}/applications/{job_id}/written-answers` | `save_answers` | Answers the student pasted there, `{"answers": [{"name", "answer"}]}`, all or none, through the connector's own save and checks; the open tab fills them as it fills Claude's. 422 with `{"message", "reasons": {name: [...]}}` when one fails. **Built** |
@@ -1171,7 +1171,10 @@ tab opens. Every batch tab plans with the same bank, so a question answered
 before (by their Claude, or by them) is filled as a Saved Answer and never
 reaches their Claude; an application with nothing left is never offered.
 The student's own words in a written answer (`PUT .../answers`) are kept
-as `own` and win on every later form. **WorkIt calls no model on this path**: no tool or route of the
+as `own` and win on every later form. Own means written into a field
+WorkIt didn't fill, or replacing what it filled: an edit of their Claude's
+(or a saved) answer stays not own, is checked as their Claude's save is,
+and is never filled on a form that bans AI text. **WorkIt calls no model on this path**: no tool or route of the
 connector makes a `workit_scout` `LLM` (tested), and batch tabs never call
 the essay-answer route.
 

@@ -504,20 +504,32 @@ async def save_own_answer(
     db: AsyncSession, applicant_id: uuid.UUID, job_id: uuid.UUID, own: OwnAnswer
 ) -> None:
     """
-    The student's own words for a written question in a batch tab (KAN-379):
-    an edit to the answer filled there, or their answer before their
-    Claude's. It replaces the application's answer, so their Claude is not
-    asked for it and its later save never replaces it, and answer_bank
-    offers it first on later forms. Not checked as their Claude's answers
-    are (checks.py): the words are the student's. Raises NotFound with no
-    application, Refused for an empty answer.
+    The student's words for a written question in a batch tab (KAN-379).
+    Their own (`own.own`: written into a field WorkIt didn't fill, or
+    replacing what it filled) replace the application's answer unchecked,
+    so their Claude is not asked for it and its later save never replaces
+    it, and answer_bank offers it first on later forms, even on a form
+    that bans AI text. An edit of an answer WorkIt filled (their Claude's,
+    or a saved one) stays that answer's: checked as their Claude's save is
+    (checks.py, the form's limit among them) and kept as not their own.
+    Raises NotFound with no application, Refused for an empty answer or a
+    failing edit (with its reasons).
     """
     if await fetch_stage(db, applicant_id, job_id) is None:
         raise NotFound("No application for that job.")
     answer = own.answer.strip()
     if not answer:
         raise Refused("The answer is empty.")
-    await save_own_written(db, applicant_id, job_id, own.name, own.label.strip(), answer)
+    if not own.own:
+        asked = {q.name: q for q in await fetch_written(db, applicant_id, job_id)}.get(own.name)
+        sources, employers, samples = await _check_material(db, applicant_id, job_id)
+        found = checks.problems(answer, checks.Context(
+            sources=(*sources, own.label), samples=samples, employers=employers,
+            limit=asked.max_length if asked else None,
+        ))
+        if found:
+            raise Refused(f"Not saved: {' '.join(found)}", {own.name: found})
+    await save_own_written(db, applicant_id, job_id, own.name, own.label.strip(), answer, own.own)
     await db.commit()
 
 

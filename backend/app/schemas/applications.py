@@ -144,15 +144,19 @@ class WrittenAnswer(WrittenQuestion):
 
 
 class OwnAnswer(BaseModel):
-    """PUT .../applications/{job_id}/answers: the student's own words in a
-    batch tab's field for a question it needs written (KAN-379): the
-    field's `name`, the question's wording, and their answer."""
+    """PUT .../applications/{job_id}/answers: the student's words in a batch
+    tab's field for a question it needs written (KAN-379): the field's
+    `name`, the question's wording, their answer, and whether it is `own`:
+    true when they wrote into a field WorkIt didn't fill, or replaced what
+    it filled; false for an edit of an answer WorkIt filled (their Claude's,
+    or a saved one), which stays that answer's, checked as their Claude's."""
 
     model_config = ConfigDict(extra="forbid")
 
     name: str = Field(min_length=1, max_length=200)
     label: str = Field(min_length=1, max_length=LABEL_MAX)
     answer: str = Field(min_length=1, max_length=ANSWER_MAX)
+    own: bool
 
 
 class SavedAnswer(BaseModel):

@@ -432,19 +432,21 @@ UNSENT = 10_000
 
 
 async def save_own_written(
-    db: AsyncSession, applicant_id: uuid.UUID, job_id: uuid.UUID, name: str, label: str, answer: str
+    db: AsyncSession, applicant_id: uuid.UUID, job_id: uuid.UUID, name: str, label: str, answer: str,
+    own: bool = True,
 ) -> None:
-    """The student's own answer to their application's question `name`
-    (KAN-379), over whatever was saved. A question the tab never sent (a
-    field a saved answer filled) is kept too, so later forms reuse it.
-    Flushes; the caller commits."""
+    """The student's answer to their application's question `name`
+    (KAN-379), over whatever was saved: `own` for their own words, false for
+    their edit of an answer WorkIt filled (still that answer's). A question
+    the tab never sent (a field a saved answer filled) is kept too, so later
+    forms reuse it. Flushes; the caller commits."""
     row = insert(Written_Answer).values(
         applicant_id=applicant_id, job_id=job_id, name=name, label=label, required=False, position=UNSENT,
-        answer=answer, answered_at=func.now(), own=True,
+        answer=answer, answered_at=func.now(), own=own,
     )
     await db.execute(row.on_conflict_do_update(
         index_elements=["applicant_id", "job_id", "name"],
-        set_={"answer": row.excluded.answer, "answered_at": row.excluded.answered_at, "own": True},
+        set_={"answer": row.excluded.answer, "answered_at": row.excluded.answered_at, "own": own},
     ))
 
 

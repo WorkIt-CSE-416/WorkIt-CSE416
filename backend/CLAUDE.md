@@ -276,8 +276,11 @@ Find files with a directory listing; these are the rules for where code goes.
   company is offered on that company's forms only** (`checks.company_specific`,
   read through `pipeline.answer_bank`: reuse saved answers through it, never
   from `written_answers` directly). **The student's own words win**
-  (KAN-379): an edit in a tab (`PUT .../answers`) sets the row's `own`, which
-  their Claude's later save never overwrites and `answer_bank` offers first;
+  (KAN-379): the student's words in a tab (`PUT .../answers`, `own` true:
+  written into a field WorkIt didn't fill, or replacing what it filled) set
+  the row's `own`, which their Claude's later save never overwrites and
+  `answer_bank` offers first; an edit of an answer WorkIt filled (`own`
+  false) stays not own and passes the same checks as their Claude's save;
   the extension plans every batch form with `GET .../answer-bank`, so a
   saved question never reaches their Claude. Seam-2 tests:
   `tests/test_connector_saved_answers.py`. Seam-2 tests:

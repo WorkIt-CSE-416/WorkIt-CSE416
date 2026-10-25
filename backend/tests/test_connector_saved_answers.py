@@ -60,15 +60,20 @@ async def _bank(me: str, job: str) -> dict:
     return res.json()
 
 
-async def _student_answers(me: str, job: str, question: dict, answer: str) -> None:
-    """The student's own words in a batch tab's field (the extension's call on their edit)."""
+async def _student_answers(me: str, job: str, question: dict, answer: str, own: bool = True) -> None:
+    """The student's words in a batch tab's field (the extension's call on their edit): `own` when
+    they wrote into a field WorkIt didn't fill, or replaced what it filled; false for an edit of it."""
+    res = await _student_edits(me, job, question, answer, own)
+    assert res.status_code == 200, res.text
+
+
+async def _student_edits(me: str, job: str, question: dict, answer: str, own: bool):
     _signed_in_as(uuid.UUID(me.rsplit("/", 1)[1]))
     async with _api() as extension:
-        res = await extension.put(
+        return await extension.put(
             f"{me}/applications/{job}/answers",
-            json={"name": question["name"], "label": question["label"], "answer": answer},
+            json={"name": question["name"], "label": question["label"], "answer": answer, "own": own},
         )
-    assert res.status_code == 200, res.text
 
 
 async def _save(applicant, job: str, name: str, answer: str) -> None:
@@ -180,12 +185,33 @@ async def test_an_edit_is_kept_only_for_the_students_own_application(running, ap
     other, theirs = await _another_students_application(database)
     _signed_in_as(applicant)
     async with _api() as extension:
-        not_mine = await extension.put(f"{other}/applications/{theirs}/answers", json={"name": "q", "label": "Why?", "answer": "x"})
-        no_application = await extension.put(f"{me}/applications/{uuid.uuid4()}/answers", json={"name": "q", "label": "Why?", "answer": "x"})
-        blank = await extension.put(f"{me}/applications/{job}/answers", json={"name": "q", "label": "Why?", "answer": "  "})
+        not_mine = await extension.put(f"{other}/applications/{theirs}/answers", json={"name": "q", "label": "Why?", "answer": "x", "own": True})
+        no_application = await extension.put(f"{me}/applications/{uuid.uuid4()}/answers", json={"name": "q", "label": "Why?", "answer": "x", "own": True})
+        blank = await extension.put(f"{me}/applications/{job}/answers", json={"name": "q", "label": "Why?", "answer": "  ", "own": True})
         no_bank = await extension.get(f"{me}/applications/{uuid.uuid4()}/answer-bank")
 
     assert not_mine.status_code == 403
     assert no_application.status_code == 404
     assert blank.status_code == 422
     assert no_bank.status_code == 404
+
+
+async def test_an_edit_of_claudes_answer_stays_claudes_and_is_checked(running, applicant, database):
+    """The student touched up the answer their Claude wrote: the words are still mostly Claude's, so
+    they are kept as Claude's (never offered as the student's own, e.g. on a form that bans AI text)
+    and pass the same checks as Claude's save."""
+    me, (first, second, third) = await _student_queues(database, applicant, 3)
+    await _company(database, second, "Globex")
+    limited = {**PROUD, "max_length": 120}
+    await _tab_asks(me, first, limited)
+    await _save(applicant, first, "question_8", ROBOT)
+
+    edited = ROBOT.replace("two friends", "two close friends")
+    await _student_answers(me, first, limited, edited, own=False)
+    too_long = await _student_edits(me, first, limited, edited + " It also won the judges' prize for its design.", own=False)
+    names_globex = await _student_edits(me, first, limited, edited.replace("regional contest", "Globex contest"), own=False)
+
+    assert (await _tab_asks(me, first))[0]["answer"] == edited
+    assert (await _bank(me, third))[PROUD["label"]] == {"answer": edited, "own": False}
+    assert too_long.status_code == 422 and "120" in too_long.text
+    assert names_globex.status_code == 422 and "Globex" in names_globex.text
