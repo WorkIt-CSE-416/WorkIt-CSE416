@@ -14,15 +14,15 @@ export const metadata: Metadata = {
  * Anthropic's connector directory asks for: what the connector does, how
  * to add it, its tools and prompt, and how to remove it. Every line is a
  * claim about backend/app/connector/ (auto-apply/architecture.md, 14.6);
- * change the two together. The same readable column as /privacy.
+ * change the two together. The same readable column as /privacy, in the
+ * type tokens (docs/design.md): heading for the page, subtitle for each
+ * section, body for the text.
  */
 export default function McpDocsPage() {
   return (
     <main id="main" className="flex-1">
-      <article className="text-ink-muted [&_a]:text-brand [&_code]:text-ink [&_h2]:text-ink [&_strong]:text-ink mx-auto w-full max-w-3xl px-6 pt-12 pb-20 text-base leading-7 sm:px-10 [&_a]:underline [&_h2]:mt-10 [&_h2]:text-xl [&_h2]:font-semibold [&_li]:mt-2 [&_ol]:mt-4 [&_ol]:list-decimal [&_ol]:pl-6 [&_p]:mt-4 [&_ul]:mt-4 [&_ul]:list-disc [&_ul]:pl-6">
-        <h1 className="text-ink text-4xl font-semibold tracking-tight">
-          WorkIt Connector for Claude
-        </h1>
+      <article className="text-ink-muted text-body [&_a]:text-brand [&_code]:text-ink [&_h2]:text-ink [&_h2]:text-subtitle [&_strong]:text-ink mx-auto w-full max-w-3xl px-6 pt-12 pb-20 sm:px-10 [&_a]:underline [&_h2]:mt-10 [&_li]:mt-2 [&_ol]:mt-4 [&_ol]:list-decimal [&_ol]:pl-6 [&_p]:mt-4 [&_ul]:mt-4 [&_ul]:list-disc [&_ul]:pl-6">
+        <h1 className="text-heading text-ink">WorkIt Connector for Claude</h1>
         <p>
           WorkIt fills your job applications in Chrome. The connector lets your own Claude write the
           answers to their written questions, such as &quot;Why do you want to work here?&quot;.
