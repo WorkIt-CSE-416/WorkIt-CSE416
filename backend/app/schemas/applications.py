@@ -143,6 +143,27 @@ class WrittenAnswer(WrittenQuestion):
     answer: str | None
 
 
+class OwnAnswer(BaseModel):
+    """PUT .../applications/{job_id}/answers: the student's own words in a
+    batch tab's field for a question it needs written (KAN-379): the
+    field's `name`, the question's wording, and their answer."""
+
+    model_config = ConfigDict(extra="forbid")
+
+    name: str = Field(min_length=1, max_length=200)
+    label: str = Field(min_length=1, max_length=LABEL_MAX)
+    answer: str = Field(min_length=1, max_length=ANSWER_MAX)
+
+
+class SavedAnswer(BaseModel):
+    """An answer saved on another application, as the Fill engine's Answer
+    bank takes it (KAN-379): `own` when the words are the student's, false
+    for their Claude's."""
+
+    answer: str
+    own: bool
+
+
 class ApplicationStage(BaseModel):
     """Where one job's application stands after a write."""
 

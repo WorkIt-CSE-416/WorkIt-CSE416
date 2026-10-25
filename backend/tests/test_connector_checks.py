@@ -98,5 +98,5 @@ async def test_an_answer_about_one_company_is_never_offered_on_anothers_form(run
         on_globex = await pipeline.answer_bank(db, applicant, globex)
         on_acme = await pipeline.answer_bank(db, applicant, acme_again)
 
-    assert on_globex == {proud["label"]: general}
-    assert on_acme == {WHY["label"]: CLEAN, proud["label"]: general}
+    assert {q: a.answer for q, a in on_globex.items()} == {proud["label"]: general}
+    assert {q: a.answer for q, a in on_acme.items()} == {WHY["label"]: CLEAN, proud["label"]: general}

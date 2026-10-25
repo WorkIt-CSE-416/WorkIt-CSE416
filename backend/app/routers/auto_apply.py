@@ -70,6 +70,20 @@ GET  /applicants/{id}/applications/{job_id}/questions
      Those questions in the form's order, each with `answer`: the one the
      student's Claude saved, or null. The open tab fills each new answer.
      404 with no application.
+PUT  /applicants/{id}/applications/{job_id}/answers  {"name", "label", "answer"}
+     The student's own words for one of the tab's questions that need
+     writing (KAN-379): an edit to the answer filled there, or their answer
+     before their Claude's. It replaces the application's answer (their
+     Claude is not asked for it, and its later save never replaces it), and
+     later forms reuse it first. Answers {"answer", "own": true}. 404 with
+     no application.
+GET  /applicants/{id}/applications/{job_id}/answer-bank
+     The answers saved on the student's other applications that this one's
+     form may reuse, {question wording: {"answer", "own"}} (pipeline.answer_bank:
+     never one about another company): the Fill engine's Answer bank for
+     the form, so a question answered once is filled again without the
+     student's Claude. `own` marks the student's own words. 404 with no
+     application.
 POST /applicants/{id}/applications/{job_id}/finish  {"outcome": "submitted"}
      How a fill ended: submitted → applied, skipped → skipped, failed →
      needs_you. 404 with no application, 409 when it isn't queued or
@@ -98,7 +112,9 @@ from app.schemas.applications import (
     ChooseResume,
     FillRequest,
     FinishRequest,
+    OwnAnswer,
     QueueRequest,
+    SavedAnswer,
     WrittenAnswer,
     WrittenQuestions,
 )
@@ -318,6 +334,40 @@ async def written_answers(
     assert_applicant_owns(account, applicant_id)
     try:
         return await pipeline.written_answers(db, applicant_id, job_id)
+    except pipeline.NotFound as exc:
+        raise HTTPException(status.HTTP_404_NOT_FOUND, str(exc)) from exc
+
+
+@router.put("/applications/{job_id}/answers", response_model=SavedAnswer)
+async def save_own_answer(
+    applicant_id: uuid.UUID,
+    job_id: uuid.UUID,
+    body: OwnAnswer,
+    account: AuthenticatedAccount = Depends(get_current_account),
+    db: AsyncSession = Depends(get_session),
+) -> SavedAnswer:
+    """The student's own answer to a question their batch tab needs written."""
+    assert_applicant_owns(account, applicant_id)
+    try:
+        await pipeline.save_own_answer(db, applicant_id, job_id, body)
+    except pipeline.NotFound as exc:
+        raise HTTPException(status.HTTP_404_NOT_FOUND, str(exc)) from exc
+    except pipeline.Refused as exc:
+        raise HTTPException(status.HTTP_422_UNPROCESSABLE_CONTENT, str(exc)) from exc
+    return SavedAnswer(answer=body.answer.strip(), own=True)
+
+
+@router.get("/applications/{job_id}/answer-bank", response_model=dict[str, SavedAnswer])
+async def answer_bank(
+    applicant_id: uuid.UUID,
+    job_id: uuid.UUID,
+    account: AuthenticatedAccount = Depends(get_current_account),
+    db: AsyncSession = Depends(get_session),
+) -> dict[str, SavedAnswer]:
+    """The saved answers this application's form may reuse, by question wording."""
+    assert_applicant_owns(account, applicant_id)
+    try:
+        return await pipeline.answer_bank(db, applicant_id, job_id)
     except pipeline.NotFound as exc:
         raise HTTPException(status.HTTP_404_NOT_FOUND, str(exc)) from exc
 
