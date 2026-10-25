@@ -5,7 +5,10 @@ pastes an answer to each, driven through the API the page calls, against
 this run's throwaway test database. A pasted answer goes through the same
 save and checks as the connector's (pipeline.save_answers, checks.py), so a
 failing one is refused with its reasons and never reaches the tab, and a
-passing one is what the tab reads and fills.
+passing one is what the tab reads and fills. The one check a paste skips
+is copying the student's own writing samples: the student put the text
+there themselves, and that check exists to stop their Claude parroting
+the samples.
 """
 
 import pytest
@@ -18,6 +21,7 @@ from tests.test_connector import (  # noqa: F401  (fixtures)
     _student_queues,
     _tab_asks,
     applicant,
+    claude,
     running,
 )
 from tests.test_connector_checks import CHECKS, CLEAN, SAMPLE, WHY, _company
@@ -64,9 +68,13 @@ async def test_the_page_lists_every_unanswered_question_by_posting(running, appl
     ]
 
 
-@pytest.mark.parametrize("check", CHECKS)
+# Every check but copying the student's own samples, which a paste skips (below).
+PASTE_CHECKS = {name: check for name, check in CHECKS.items() if name != "copied from a writing sample"}
+
+
+@pytest.mark.parametrize("check", PASTE_CHECKS)
 async def test_a_pasted_answer_that_fails_a_check_is_refused_with_its_reason(running, applicant, database, monkeypatch, check):  # noqa: F811
-    failing, reason = CHECKS[check]
+    failing, reason = PASTE_CHECKS[check]
 
     async def samples(db, applicant_id):
         return [SAMPLE]
@@ -130,3 +138,30 @@ async def test_only_the_student_reads_or_pastes_their_answers(running, applicant
     assert (await _paste(me, job, question_7=CLEAN)).status_code == 403
     async with _api() as webapp:
         assert (await webapp.get(f"{me}/written-questions")).status_code == 403
+
+
+async def test_the_student_may_paste_their_own_writing_sample_but_their_claude_may_not(running, applicant, database):  # noqa: F811
+    """The 5-word copy check stops the student's Claude parroting their
+    samples; a sample the student pastes in themselves is their choice. It
+    is saved, stays through the tab's re-check (PUT .../questions with the
+    form's limit) and is offered on their next form, while their Claude
+    saving the same words is still refused."""
+    me, (job, claudes, later) = await _student_queues(database, applicant, 3)
+    async with _api() as webapp:
+        added = await webapp.post(f"{me}/writing-samples", json={"text": SAMPLE})
+    assert added.status_code == 201, added.text
+    for each in (job, claudes, later):
+        await _tab_asks(me, each, PROUD)
+
+    pasted = await _paste(me, job, question_8=SAMPLE)
+    async with claude(applicant) as client:
+        parroted = await client.call_tool("save_answers", {"job_id": claudes, "answers": [
+            {"name": "question_8", "answer": SAMPLE}]})
+
+    assert pasted.status_code == 200, pasted.text
+    assert [q["answer"] for q in await _tab_asks(me, job, PROUD)] == [SAMPLE]
+    assert parroted.is_error and "writing samples" in parroted.content[0].text
+    assert (await _tab_asks(me, claudes))[0]["answer"] is None
+    async with database() as db:
+        bank = await pipeline.answer_bank(db, applicant, later)
+    assert {q: a.answer for q, a in bank.items()} == {PROUD["label"]: SAMPLE}

@@ -94,6 +94,8 @@
  * @property {string} full_name
  * @property {string | null} phone_number
  * @property {string | null} headline
+ * @property {string | null} location  Where the student lives, as they typed
+ *   it on the Profile step or My Profile ("Stony Brook, NY"; KAN-372).
  * @property {string | null} linkedin_url
  * @property {string | null} portfolio_url
  * @property {string | null} github_url
@@ -141,6 +143,8 @@
  *   e.g. "No matching option for \"SUNY Korea\""
  * @property {string | string[]} [shows]  What a filled field shows now, as the engine read it back
  * @property {Source} [source]  Where the value came from, shown beside it (overlay.js)
+ * @property {{ text: string, href: string }} [link]  A link ending the reason (a batch tab's
+ *   wait for Claude links the webapp's Written Answers page)
  */
 
 /**

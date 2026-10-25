@@ -30,6 +30,9 @@ window.WIA = window.WIA || {};
   const SPARKLE =
     '<svg viewBox="0 0 256 256" aria-hidden="true"><path fill="currentColor" d="M208,144a15.78,15.78,0,0,1-10.42,14.94L146,178l-19,51.62a15.92,15.92,0,0,1-29.88,0L78,178l-51.62-19a15.92,15.92,0,0,1,0-29.88L78,110l19-51.62a15.92,15.92,0,0,1,29.88,0L146,110l51.62,19A15.78,15.78,0,0,1,208,144ZM152,48h16V64a8,8,0,0,0,16,0V48h16a8,8,0,0,0,0-16H184V16a8,8,0,0,0-16,0V32H152a8,8,0,0,0,0,16Zm88,32h-8V72a8,8,0,0,0-16,0v8h-8a8,8,0,0,0,0,16h8v8a8,8,0,0,0,16,0V96h8a8,8,0,0,0,0-16Z"/></svg>';
 
+  // tokens.js's --font-sans names the shipped font this way.
+  const FONT_FAMILY = "WorkIt Jakarta Sans";
+
   let host = null;
   let root = null;
   // The row "Next Thing That Needs You" last went to.
@@ -40,27 +43,12 @@ window.WIA = window.WIA || {};
   function styles() {
     const style = document.createElement("style");
     style.textContent = `
-      /* WorkIt's design tokens, copied from frontend/src/app/globals.css (the extension has no
-         build step to import them): change a value there and here together. */
-      :host {
-        all: initial;
-        --color-brand: #6d3fd8; --color-brand-hover: #5b30c0; --color-brand-tint: #efeaff; --color-brand-ink: #5b30c0;
-        --color-on-brand: #ffffff;
-        --color-ink: #121a28; --color-ink-muted: #3b3e46; --color-ink-meta: #596980; --color-ink-subtle: #94969d;
-        --color-panel: #ffffff; --color-well: #f7f7f7; --color-border: #e3e9f0; --color-border-subtle: #e8ebf5;
-        --color-border-control: #8a8f9a;
-        --color-positive: #17b076; --color-positive-ink: #107a52; --color-positive-tint: #e3f7f0;
-        --color-warning: #8a5a00; --color-warning-tint: #fdf0d9; --color-warning-strong: #d97706;
-        --color-danger: #c02a3d; --color-danger-tint: #fce9eb;
-        --color-advanced: #2f5fd6; --color-advanced-tint: #e3ebff;
-        --radius-control: 8px; --radius-card: 10px;
-        --shadow-lift: 0 2px 4px rgb(18 26 40 / 0.04), 0 10px 24px rgb(18 26 40 / 0.08);
-      }
+      ${window.WIA.tokens}
+      :host { all: initial; }
       .panel {
         position: fixed; bottom: 16px; right: 16px; z-index: 2147483647;
         width: 300px; max-height: 70vh; display: flex; flex-direction: column;
-        /* Plus Jakarta Sans where the student has it; the extension ships no font files. */
-        font: 450 13px/1.4 "Plus Jakarta Sans", system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
+        font: var(--font-weight-normal) var(--text-label) / var(--text-label--line-height) var(--font-sans);
         background: var(--color-panel); color: var(--color-ink); border-radius: var(--radius-card);
         border: 1px solid var(--color-border); box-shadow: var(--shadow-lift); overflow: hidden;
       }
@@ -69,52 +57,56 @@ window.WIA = window.WIA || {};
         padding: 10px 12px; background: var(--color-brand); color: var(--color-on-brand); font-weight: 600;
       }
       .header button {
-        all: unset; cursor: pointer; font-size: 14px; padding: 2px 6px; border-radius: var(--radius-control);
+        all: unset; cursor: pointer; font-size: var(--text-body); padding: 2px 6px; border-radius: var(--radius-control);
       }
       .header button:hover { background: var(--color-brand-hover); }
+      .header button:focus-visible { outline: 2px solid var(--color-on-brand); outline-offset: 1px; }
       .header .actions { display: flex; gap: 4px; }
-      .header button[data-skip] { font-size: 12px; font-weight: 600; border: 1px solid currentColor; padding: 2px 8px; }
-      .summary { padding: 8px 12px; font-size: 12px; color: var(--color-ink-meta); border-bottom: 1px solid var(--color-border); }
+      .header button[data-skip] { font-size: var(--text-note); font-weight: 500; border: 1px solid currentColor; padding: 2px 8px; }
+      .summary { padding: 8px 12px; font-size: var(--text-note); color: var(--color-ink-meta); border-bottom: 1px solid var(--color-border); }
       .next { display: flex; align-items: center; gap: 8px; padding: 8px 12px; border-bottom: 1px solid var(--color-border); }
       .next[hidden] { display: none; }
       .next button {
-        all: unset; cursor: pointer; font-size: 12px; font-weight: 500; padding: 6px 10px;
+        all: unset; cursor: pointer; font-size: var(--text-note); font-weight: 500; padding: 6px 10px;
         border-radius: var(--radius-control); background: var(--color-brand); color: var(--color-on-brand);
       }
       .next button:hover { background: var(--color-brand-hover); }
       .next button:focus-visible { outline: 2px solid var(--color-brand); outline-offset: 2px; }
-      .next .said { font-size: 12px; color: var(--color-ink-meta); }
+      .next .said { font-size: var(--text-note); color: var(--color-ink-meta); }
       .essay-banner {
         padding: 10px 12px; background: var(--color-advanced-tint); border-bottom: 1px solid var(--color-border);
-        font-size: 12px; color: var(--color-ink);
+        font-size: var(--text-note); color: var(--color-ink);
       }
       .essay-banner p { margin: 0 0 8px; }
       .essay-banner .row { padding: 0; gap: 8px; }
       .essay-banner button {
-        all: unset; cursor: pointer; font-size: 12px; font-weight: 600;
-        padding: 5px 10px; border-radius: var(--radius-control);
+        all: unset; cursor: pointer; font-size: var(--text-note); font-weight: 500;
+        display: inline-flex; align-items: center; gap: 4px; padding: 5px 10px; border-radius: var(--radius-control);
       }
       .essay-banner button[data-generate] { background: var(--color-advanced); color: var(--color-on-brand); }
-      .essay-banner button[data-dismiss] { background: var(--color-panel); color: var(--color-ink); }
+      .essay-banner button[data-dismiss] { background: var(--color-panel); color: var(--color-ink); border: 1px solid var(--color-border-subtle); }
+      .essay-banner button[data-generate] svg { width: 12px; height: 12px; }
+      .essay-banner button:focus-visible { outline: 2px solid var(--color-brand); outline-offset: 2px; }
       /* A moment's card (KAN-387): something onboarding left for the form that first needs it. */
       .moment { padding: 10px 12px; background: var(--color-brand-tint); border-bottom: 1px solid var(--color-border); }
       .moment[hidden] { display: none; }
-      .moment h2 { margin: 0 0 4px; font-size: 13px; font-weight: 600; color: var(--color-ink); }
-      .moment p { margin: 0 0 8px; font-size: 12px; color: var(--color-ink-muted); }
-      .moment label { display: block; margin: 0 0 8px; font-size: 12px; font-weight: 500; color: var(--color-ink); }
+      .moment h2 { margin: 0 0 4px; font-size: var(--text-label); font-weight: 600; color: var(--color-ink); }
+      .moment p { margin: 0 0 8px; font-size: var(--text-note); color: var(--color-ink-muted); }
+      .moment label { display: block; margin: 0 0 8px; font-size: var(--text-note); font-weight: 500; color: var(--color-ink); }
       .moment select {
-        display: block; width: 100%; margin-top: 3px; padding: 5px 6px; font: inherit; font-size: 12px;
+        display: block; width: 100%; margin-top: 3px; padding: 5px 6px; font: inherit; font-size: var(--text-note);
         color: var(--color-ink); background: var(--color-panel);
         border: 1px solid var(--color-border-control); border-radius: var(--radius-control);
       }
       .moment .actions { display: flex; gap: 8px; margin-top: 4px; }
       .moment button, .moment a {
-        all: unset; cursor: pointer; font-size: 12px; font-weight: 500; padding: 6px 10px; border-radius: var(--radius-control);
+        all: unset; cursor: pointer; font-size: var(--text-note); font-weight: 500; padding: 6px 10px; border-radius: var(--radius-control);
       }
       .moment [data-primary] { background: var(--color-brand); color: var(--color-on-brand); display: inline-flex; align-items: center; gap: 4px; }
       .moment [data-primary]:hover { background: var(--color-brand-hover); }
       .moment [data-primary] svg { width: 12px; height: 12px; }
-      .moment [data-secondary] { background: var(--color-panel); color: var(--color-ink); border: 1px solid var(--color-border); }
+      .moment [data-secondary] { background: var(--color-panel); color: var(--color-ink); border: 1px solid var(--color-border-subtle); }
+      .moment [data-secondary]:hover { background: var(--color-hover); }
       .moment button:focus-visible, .moment a:focus-visible, .moment select:focus-visible { outline: 2px solid var(--color-brand); outline-offset: 2px; }
       .moment .error { color: var(--color-danger); }
       .list { overflow-y: auto; padding: 4px 0; }
@@ -129,15 +121,17 @@ window.WIA = window.WIA || {};
       .label { font-weight: 500; }
       .source {
         display: inline-flex; align-items: center; gap: 3px; margin-top: 2px;
-        font-size: 11px; font-weight: 600; padding: 1px 6px; border-radius: 999px;
+        font-size: var(--text-meta); font-weight: 600; padding: 1px 6px; border-radius: 9999px;
         background: var(--color-well); color: var(--color-ink-meta);
       }
       .source svg { width: 11px; height: 11px; }
       .source[data-source="guessed"] { background: var(--color-panel); color: var(--color-warning); border: 1px solid var(--color-warning-strong); }
       .source[data-source="student"] { background: var(--color-positive-tint); color: var(--color-positive-ink); }
       .source[data-source="claude"], .source[data-source="ai"] { background: var(--color-brand-tint); color: var(--color-brand-ink); }
-      .reason { color: var(--color-danger); font-size: 12px; margin-top: 2px; }
+      .reason { color: var(--color-danger); font-size: var(--text-note); margin-top: 2px; }
       .reason.note { color: var(--color-ink-meta); }
+      .reason a { color: var(--color-brand-ink); font-weight: 500; text-decoration: underline; }
+      .reason a:focus-visible { outline: 2px solid var(--color-brand); outline-offset: 2px; }
       .empty { padding: 16px 12px; color: var(--color-ink-meta); }
     `;
     return style;
@@ -173,6 +167,10 @@ window.WIA = window.WIA || {};
       const reason = document.createElement("div");
       reason.className = field.status === "failed" ? "reason" : "reason note";
       reason.textContent = field.reason;
+      if (field.link) {
+        const link = Object.assign(document.createElement("a"), { href: field.link.href, textContent: field.link.text, target: "_blank", rel: "noreferrer" });
+        reason.append(" ", link, ".");
+      }
       text.appendChild(reason);
     }
     el.append(dot, text);
@@ -210,7 +208,7 @@ window.WIA = window.WIA || {};
     banner.innerHTML = `
       <p>${count} essay question${count === 1 ? "" : "s"} found — generate answer${count === 1 ? "" : "s"} with AI from your experience bank?</p>
       <div class="row">
-        <button type="button" data-generate>Generate</button>
+        <button type="button" data-generate>${SPARKLE}Generate</button>
         <button type="button" data-dismiss>Not Now</button>
       </div>
     `;
@@ -354,6 +352,23 @@ window.WIA = window.WIA || {};
   }
 
   /**
+   * Adds Plus Jakarta Sans (fonts/, as "WorkIt Jakarta Sans") to the page's
+   * fonts, once, for the panel: @font-face inside a shadow root does nothing,
+   * and a font the page fetches from the extension's URL would need the
+   * extension's files open to every site and pass the page's font-src. So
+   * the background reads the file and the bytes come here. Until it loads
+   * (or if it can't), the panel uses the system font.
+   */
+  async function loadFont() {
+    if ([...document.fonts].some((face) => face.family.replace(/"/g, "") === FONT_FAMILY)) return;
+    const answer = await chrome.runtime.sendMessage({ type: "overlay/font" }).catch(() => null);
+    if (!answer?.ok || !answer.data) return;
+    const bytes = Uint8Array.from(atob(answer.data), (c) => c.charCodeAt(0));
+    const face = new FontFace(FONT_FAMILY, bytes, { weight: "200 800" });
+    document.fonts.add(await face.load());
+  }
+
+  /**
    * Puts the panel on the page. `onSkip`: a batch tab's Skip (the job leaves
    * the batch, and its tab closes), shown as a button in the header.
    * @param {{ onSkip?: () => void }} [options]
@@ -391,6 +406,7 @@ window.WIA = window.WIA || {};
 
     document.documentElement.appendChild(host);
     keepAttached();
+    loadFont().catch(() => {});
     unsubscribe = window.WIA.status.subscribe(render);
     render(window.WIA.status.summary());
   }

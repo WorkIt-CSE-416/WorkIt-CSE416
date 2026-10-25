@@ -146,11 +146,18 @@ function present(object) {
   return Object.fromEntries(Object.entries(object).filter(([, v]) => v !== null && v !== undefined));
 }
 
+/** The profile's free-text home ("Stony Brook, NY") as the engine's city, state and country; null when it reads none. */
+function home(location) {
+  const place = location ? engine.homePlace(location) : {};
+  return Object.keys(place).length ? place : null;
+}
+
 /**
  * The WorkIt profile (background/api.js's AutofillProfile) as the engine's
  * profile: facts as nested sections, named as the engine's rules read them.
  * Only what WorkIt holds is given; a question about anything else stays the
- * student's (a Missing fact in the plan). The school is the latest education
+ * student's (a Missing fact in the plan). The home is the profile's location
+ * as the engine reads it (city and state). The school is the latest education
  * entry; the jobs are the experience entries, latest first.
  * @param {import("../shared/types.js").AutofillProfile} profile
  */
@@ -160,7 +167,11 @@ export function engineProfile(profile) {
   const [school] = latest(entries, "education");
   const answers = profile.answers ?? {};
   return {
-    identity: present({ legal_first_name: first || null, legal_last_name: rest.join(" ") || null, email: profile.email, phone: profile.phone_number }),
+    identity: present({
+      legal_first_name: first || null, legal_last_name: rest.join(" ") || null, email: profile.email, phone: profile.phone_number,
+      // Where the student lives, as they typed it (KAN-372), read by the engine; one it can't read is left out.
+      current_location: home(profile.location),
+    }),
     links: present({ linkedin_url: profile.linkedin_url, github_url: profile.github_url, portfolio_url: profile.portfolio_url ?? profile.other_url }),
     files: present({ resume_pdf: profile.resume?.filename }),
     education: school
@@ -409,7 +420,8 @@ export function planRows({ plan }) {
  * `fill/plan` (planFill, for the page at `url`), `fill/page` (fillPage) and
  * `fill/read` (what named fields show now, `{ shows: {[name]: value} }`) and
  * `fill/required` (the questions the form requires now that show nothing,
- * `{ empty: [name] }`).
+ * `{ empty: [name], unasked: [Question] }`, `unasked` being the required
+ * fields the Question set lacks, which `empty` covers too).
  * On Workday, the nested prompts the engine read for a tenant are kept
  * (`trees`, chrome.storage in the extension) and given back on its next
  * call, as Apply keeps them: reading Workday's own How Did You Hear About
@@ -436,8 +448,11 @@ export async function handleFill(message, { url, profile, bank, today, call, fet
     return { shows: await call("readback", message.site, message.questions, message.names, message.state) };
   } else if (message.type === "fill/required") {
     // The fields the form won't send without that show nothing, the planned and the unplanned alike
-    // (Greenhouse's phone country, required once Phone shows a number, is in no Question set as required).
-    return { empty: await call("emptyRequired", message.site, message.questions, message.state) };
+    // (Greenhouse's phone country, required once Phone shows a number, is in no Question set as required),
+    // and the required fields the Question set lacks altogether (Ashby, Eightfold), given back as
+    // `unasked` questions so the tab reads them again after each edit.
+    const unasked = message.site === "workday" ? [] : await call("unaskedQuestions", message.site, message.questions);
+    return { empty: await call("emptyRequired", message.site, [...message.questions, ...unasked], message.state), unasked };
   } else {
     throw new Error(`Unknown fill message: ${message.type}`);
   }
