@@ -348,10 +348,10 @@ async function readQuestions({ job, url, call, fetchText, state }) {
  *   url: string, profile: import("../shared/types.js").AutofillProfile, bank?: object, today: string,
  *   call: (name: string, ...args: unknown[]) => Promise<any>,
  *   fetchText: (url: string, init?: { method: string, body: string }) => Promise<string>,
- *   extra?: object[], state?: object,
- * }} options
+ *   extra?: object[], state?: object, jobType?: string | null,
+ * }} options `jobType`: the queued job's job_type (a batch tab's), which picks the start date the engine answers.
  */
-export async function planFill({ url, profile, bank = {}, today, call, fetchText, extra = [], state }) {
+export async function planFill({ url, profile, bank = {}, today, call, fetchText, extra = [], state, jobType = null }) {
   const job = jobOf(url);
   if (!job) return { covered: false };
   const { site } = job;
@@ -362,7 +362,7 @@ export async function planFill({ url, profile, bank = {}, today, call, fetchText
   // Each text field's own limit, as the form on the page sets it (KAN-380): a written answer is checked against it before it is saved.
   const asked = [...read.questions, ...extra.filter((q) => !known.has(q.name))];
   const questions = await optional(() => call("limits", asked), asked);
-  const { posting, plan, planFor } = await planQuestions({ job, url, questions, profile, bank, today, fetchText: fetchOnce });
+  const { posting, plan, planFor } = await planQuestions({ job, url, questions, profile, bank, today, fetchText: fetchOnce, jobType });
   const answers = withFiles(plan.answers, profile);
   const prepared = { covered: true, site, posting, questions, plan, answers, applicantId: profile.id, step: read.step, state: read.state };
   return { ...prepared, rows: planRows(prepared), selfId: selfIdAsked(questions, profile, plan, planFor) };
@@ -393,10 +393,11 @@ function selfIdAsked(questions, profile, plan, planFor) {
  * before, and says where it may be reused; or a function of the page's company that answers them (a form
  * outside a batch, GET .../answer-bank?company=).
  */
-async function planQuestions({ job, url, questions, profile, bank, today, fetchText }) {
+async function planQuestions({ job, url, questions, profile, bank, today, fetchText, jobType = null }) {
   const names = await optional(() => engine.jobNames(url, fetchText), { company: "", title: "" });
   const text = engine.textOf(await optional(() => engine.jobDescription(url, fetchText), ""));
-  const posting = { id: String(job.job ?? job.shortcode ?? job.pid ?? url), ...names, url };
+  // job_type: WorkIt's own for the job (full_time, internship, ...), unknown outside a batch.
+  const posting = { id: String(job.job ?? job.shortcode ?? job.pid ?? url), ...names, url, job_type: jobType };
   if (typeof bank === "function") bank = questions.length ? await bank(names.company) : {};
   // `planFor`: the same Plan for another profile (the self-identification's probe, KAN-387).
   const planFor = (someone) => engine.plan(questions, engineProfile(someone), enginePolicies(someone), bank ?? {}, { posting, today, postingText: text, employerText: text });
@@ -414,10 +415,10 @@ async function planQuestions({ job, url, questions, profile, bank, today, fetchT
  * limit is unknown until the tab reads its fields, so `max_length` is null.
  * Null when only the open form shows its questions (Workday, Eightfold, an
  * Ashby form whose query failed), or the link is no form the engine covers.
- * @param {{ url: string, profile: object, bank?: object, today: string, fetchText: Function }} options
+ * @param {{ url: string, profile: object, bank?: object, today: string, fetchText: Function, jobType?: string | null }} options
  * @returns {Promise<{ name: string, label: string, required: boolean, max_length: null }[] | null>}
  */
-export async function questionsToWrite({ url, profile, bank = {}, today, fetchText }) {
+export async function questionsToWrite({ url, profile, bank = {}, today, fetchText, jobType = null }) {
   const job = jobOf(url);
   if (!job || job.practice || job.site === "workday" || job.site === "eightfold") return null;
   const fetchOnce = once(fetchText);
@@ -427,7 +428,7 @@ export async function questionsToWrite({ url, profile, bank = {}, today, fetchTe
   } catch {
     return null;
   }
-  const { plan } = await planQuestions({ job, url, questions, profile, bank, today, fetchText: fetchOnce });
+  const { plan } = await planQuestions({ job, url, questions, profile, bank, today, fetchText: fetchOnce, jobType });
   return planRows({ plan }).written.map((q) => ({
     name: q.name.slice(0, WRITTEN_NAME_MAX),
     label: q.label.slice(0, WRITTEN_LABEL_MAX),
@@ -536,9 +537,9 @@ function choice(q) {
  * Us? takes seconds.
  * @param {{ type: string, [key: string]: any }} message
  * @param {{ url: string, profile: object, bank?: object, today: string, call: Function, fetchText: Function,
- *   trees?: { load(): Promise<object>, save(saved: object): Promise<void> } }} context
+ *   trees?: { load(): Promise<object>, save(saved: object): Promise<void> }, jobType?: string | null }} context
  */
-export async function handleFill(message, { url, profile, bank, today, call, fetchText, trees }) {
+export async function handleFill(message, { url, profile, bank, today, call, fetchText, trees, jobType = null }) {
   const withTrees = async (state) => (state && trees ? { ...state, trees: { ...state.trees, ...(await trees.load()) } } : state);
   const keep = async (state) => {
     if (state?.saved && trees && Object.keys(state.saved).length) await trees.save(state.saved);
@@ -548,7 +549,7 @@ export async function handleFill(message, { url, profile, bank, today, call, fet
   if (message.type === "fill/plan") {
     let state = message.state;
     if (!state && trees && jobOf(url)?.site === "workday") state = { tenant: jobOf(url).tenant, trees: {} };
-    answer = await planFill({ url, profile, bank, today, call, fetchText, extra: message.extra, state: await withTrees(state) });
+    answer = await planFill({ url, profile, bank, today, call, fetchText, extra: message.extra, state: await withTrees(state), jobType });
   } else if (message.type === "fill/page") {
     answer = await fillPage({ call, ...message, answers: asUploads(message.answers, message.questions, profile), state: await withTrees(message.state) });
   } else if (message.type === "fill/read") {

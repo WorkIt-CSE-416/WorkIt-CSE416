@@ -14,9 +14,9 @@ const BATCH_KEY = "workit_batch";
  * @typedef {"filling" | "ready" | "needs_you" | "failed" | "applied"} TabState
  * @typedef {{
  *   windowId: number,
- *   tabs: Record<string, { jobId: string, url: string, state: TabState }>,
+ *   tabs: Record<string, { jobId: string, url: string, jobType?: string | null, state: TabState }>,
  *   opened: string[],
- *   held?: { jobId: string, url: string }[],
+ *   held?: { jobId: string, url: string, jobType?: string | null }[],
  *   groups: { ready?: number, needs_you?: number },
  *   practice?: { jobs: { jobId: string, url: string }[], submitted: string[] },
  *   writing?: string[], wroteWithClaude?: boolean,

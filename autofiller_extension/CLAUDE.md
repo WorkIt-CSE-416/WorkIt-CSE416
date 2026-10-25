@@ -428,6 +428,12 @@ waits for an opened tab's page and form (`waitForLoad`, `formShows`).
   A Plan outside a batch (no application) uses the student's saved answers
   too, `GET .../answer-bank?company=` with the company the engine read off
   the page (`planQuestions` takes the bank as a function of it).
+  Each Plan of a batch tab, and each early read, also gives the engine the
+  job's `job_type` (the queued application's, kept on the batch's record of
+  the tab, `jobTypeInTab`) as the Posting's `job_type`: a full-time role's
+  start date ("Date available") is the day the student graduates, an
+  internship's its earliest start. Outside a batch it is unknown, and the
+  internship's start stands.
   The student's words in a written answer (or one the bank filled) are
   read back by `watchEdits` and saved after a 2-second pause
   (`batch/own-answer` → `PUT .../answers`); while WorkIt's own fill of one

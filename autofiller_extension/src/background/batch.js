@@ -162,7 +162,7 @@ async function resume(batch, windowId) {
   }
   if (!(await chrome.windows.get(batch.windowId).catch(() => null)) && windowId !== undefined) batch.windowId = windowId;
   await save(batch);
-  for (const tab of reopen) await openTab(batch, tab.jobId, tab.url);
+  for (const tab of reopen) await openTab(batch, tab.jobId, tab.url, tab.jobType);
 }
 
 /**
@@ -179,9 +179,9 @@ async function topUp(batch, applicantId) {
   batch.held ??= [];
   while (filling() < WINDOW) {
     if (!batch.practice && batch.held.length && !workdayOpen(batch)) {
-      const { jobId, url } = batch.held.shift();
+      const { jobId, url, jobType } = batch.held.shift();
       batch.opened.push(jobId);
-      await openTab(batch, jobId, url);
+      await openTab(batch, jobId, url, jobType);
       continue;
     }
     const application = batch.practice
@@ -189,6 +189,7 @@ async function topUp(batch, applicantId) {
       : await nextApplication(applicantId, [...batch.opened, ...batch.held.map((h) => h.jobId)]);
     if (!application) break;
     const jobId = application.job.id;
+    const jobType = application.job.job_type ?? null;
     // The employer's form the API names (a job board's posting is taken only through it, KAN-376).
     const link = application.job.form_url ?? application.job.apply_url;
     if (jobBoard(link)) {
@@ -200,11 +201,11 @@ async function topUp(batch, applicantId) {
     // The form, not the job's page, where the two differ (a Lever posting's form is at .../apply).
     const url = formUrl(link);
     if (isWorkday(url) && workdayOpen(batch)) {
-      batch.held.push({ jobId, url });
+      batch.held.push({ jobId, url, jobType });
       continue;
     }
     batch.opened.push(jobId);
-    await openTab(batch, jobId, url);
+    await openTab(batch, jobId, url, jobType);
   }
   await save(batch);
 }
@@ -223,13 +224,14 @@ function workdayOpen(batch) {
  * @param {Batch} batch
  * @param {string} jobId
  * @param {string} url
+ * @param {string | null} [jobType] the job's job_type (full_time, internship, ...), for its Plan's start date
  */
-async function openTab(batch, jobId, url) {
+async function openTab(batch, jobId, url, jobType = null) {
   const tab = await chrome.tabs.create({ url, active: false, windowId: batch.windowId });
   // Memory Saver must never throw away a form the student hasn't reviewed.
   await chrome.tabs.update(tab.id, { autoDiscardable: false });
   batch.windowId = tab.windowId;
-  batch.tabs[tab.id] = { jobId, url, state: "filling" };
+  batch.tabs[tab.id] = { jobId, url, jobType, state: "filling" };
   await save(batch);
   startFill(tab.id, url);
 }
@@ -410,6 +412,12 @@ export function skipTab(tabId) {
 export async function jobInTab(tabId) {
   const batch = await load();
   return batch?.practice ? null : batch?.tabs[tabId]?.jobId ?? null;
+}
+
+/** A batch tab's job_type (full_time, internship, ...), null outside a batch or when the job has none. */
+export async function jobTypeInTab(tabId) {
+  const batch = await load();
+  return batch?.practice ? null : batch?.tabs[tabId]?.jobType ?? null;
 }
 
 /**
