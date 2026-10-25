@@ -230,6 +230,13 @@ async function handleMessage(message, sender) {
       return { show: true, url: `${session.web_origin}/connect/claude/add` };
     }
 
+    // Whether the student's Claude holds a sign-in to the connector (KAN-369):
+    // without one, no Claude reviews a batch tab's answers, so it stops asking.
+    case "connector/added": {
+      const { id } = await me();
+      return { added: await connectorAdded(id) };
+    }
+
     // The panel's font (overlay.js's loadFont), as base64: the page can't
     // load the extension's own files, which aren't web-accessible.
     case "overlay/font": {

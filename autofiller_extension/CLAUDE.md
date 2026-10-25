@@ -369,8 +369,12 @@ waits for an opened tab's page and form (`waitForLoad`, `formShows`).
   (`status.flag`; warning tint and the reason) only while the field still
   shows the answer the review read, and the row needs the student (Needs
   you, Next Thing walks to it) until their edit (any `setStatus` clears
-  it). A batch whose answers no Claude reviews (pasted ones) polls while
-  the tab is open. Test: `test/paste.extension.spec.ts`.
+  it). A student with no connector added (`connector/added` →
+  `GET .../connector`) has no Claude to review, so the tab stops asking;
+  otherwise it stops after 180 polls (30 minutes). The student's edit of an
+  answer whose verdict the tab showed, once saved (`batch/own-answer`),
+  starts the poll again until the edit's verdict lands (their own words
+  count as reviewed at once). Tests: `test/paste.extension.spec.ts`.
   A hidden tab's timers slow to about once a minute after five minutes, so
   an answer can take that long to land. Tests:
   `test/connector.extension.spec.ts` (Ashby's Harvey form: no saved
