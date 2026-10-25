@@ -457,12 +457,11 @@ yet; the column below is the plan for that warning.
   the runner then injects the engine's files and answers at once. The
   answer says that the fill started, not what it filled; the overlay shows
   that.
-- **Take the student to the tab for the fill.** A hidden tab filled its
-  text fields but not most dropdowns (below). So once the form is ready,
-  the runner makes the run's tab active, and the student stays on it to
-  review the form. Switching back to the WorkIt tab after the fill was
-  tried and dropped: it did not help. This reverses "fill in a hidden tab"
-  (10.4) for the fill; the tab still opens and loads hidden.
+- **Take the student to the tab for the fill** (replaced by 8.4). A hidden
+  tab filled its text fields but not most dropdowns with the pre-engine
+  filler. So once the form was ready, the runner made the run's tab active.
+  The Fill engine fills hidden tabs as well as shown ones, so batch apply
+  never shows a tab (8.4).
 - **Host permission for Greenhouse.** `activeTab` covers only a tab the
   student opened the popup on, never one the runner opened. So
   `manifest.json` adds `https://*.greenhouse.io/*` to `host_permissions`:
@@ -503,6 +502,63 @@ the student leaves early still finishes its text fields.
 | `frontend/src/lib/autofill-extension.ts` | `fill` and `reason` in `OpenApplicationResult` |
 | `frontend/src/app/(seeker)/auto-apply/` | Later, with the warning: `opened-note.ts` says a failed fill; the job card shows `not_installed` and a failed fill |
 | `frontend/docs/screens.md` | Auto Apply: what a click does now |
+
+### 8.4 Batch apply: five tabs at once (KAN-370)
+
+**Built.** Replaces 8.3's one tab, one application at a time
+(`autofiller_extension/src/background/batch.js`). `run/open` starts the
+batch, or tops it up: the extension opens the queued applications in
+background tabs in the student's window, at most **five filling at once**,
+and the next queued one opens as soon as one finishes. Each finished tab
+goes into one of two tab groups:
+
+| Group (Chrome colour) | When |
+|---|---|
+| Ready (green) | Every field the form needs shows an answer |
+| Needs you (orange) | A field failed, a required one is unanswered, the Plan left the student a note, a Workday step waits, or the job system has no Filler (nothing filled) |
+
+A tab moves between the groups when that changes: the content script reads
+back, through the engine, every required or failed field the student
+edits. The student reviews each tab and presses the employer's Submit.
+
+**Tab states and the stage column.** The API keeps the queue, its order and
+each application's stage; the extension keeps only which tab shows which
+job (`chrome.storage.session`).
+
+| Tab state | `job_applications.stage` | Written by |
+|---|---|---|
+| queued, filling | `queued` | `POST .../applications`, a batch |
+| ready | `queued` (it waits for the student's submit) | `PUT .../fill {"state": "ready"}` |
+| needs_you | `needs_you` | `PUT .../fill {"state": "needs_you"}` |
+| submitted, skipped, failed | `applied`, `skipped`, `needs_you` | `POST .../finish` (KAN-373, KAN-374) |
+
+The next tab's job is `GET .../applications/next?skip=...`, past every job
+the batch opened. No migration: no state needs to outlive its tab yet.
+
+**The tabs fill hidden.** Checked 2026-10-25 with Chromium started directly
+(Playwright keeps every page it drives visible): five saved Greenhouse forms,
+and five live ones (filled only), filled in hidden tabs at once gave the same
+fields as each filled in turn while shown. 8.3's hidden-tab failure was the
+pre-engine filler's: it gave a dropdown 3 seconds while a hidden tab ran its
+timers about once a second. Focus is not needed: react-select opens on the
+engine's press though a page without focus fires no focus event.
+
+**The panel waits for the fill.** The overlay mounted before Greenhouse's
+React app took over the document (hydration) made React draw the form again,
+dropping what was typed: with five tabs starting at once, the first box
+filled read back empty in 1 to 10 forms of 50; in none once the panel went
+on after the fill.
+
+| Message | Direction | Body |
+|---|---|---|
+| `run/open` | webapp → extension | `{}`; answers `{ opened, jobId, jobIds, url, fill: "started" \| "kept" }` or why not |
+| `run/status` | webapp → extension | `{}`; answers `{ jobId, jobIds }` |
+| `run/show` | webapp → extension | `{ jobId }`; switches to that job's tab |
+| `batch/state` | content script → background | `{ state: "ready" \| "needs_you" }` |
+| `fill/read` | content script → background | `{ site, questions, names }`; answers what each field shows |
+
+Next: Workday one slot at a time, Skip and resuming a batch (KAN-373),
+submit detection (KAN-374).
 
 ## 9. Messages
 
@@ -585,21 +641,20 @@ events. Two measures:
 Chrome slows timers in hidden tabs and stops page redraws. Some dropdowns wait
 for a redraw. The run's tab is hidden all the same:
 
-- The runner opens **one background tab** for the run (`chrome.tabs.create`
-  with `active: false`), beside the WorkIt tab, and reuses it. The student
-  stays on the page they were on.
+- Batch apply opens **a background tab per application**
+  (`chrome.tabs.create` with `active: false`) in the WorkIt tab's window,
+  five filling at once (8.4). The student stays on the page they were on.
 - **Never a new window.** The first build opened one with `focused: false`
   to keep the tab visible. From a full-screen window on macOS, the new
   window got its own Space and macOS switched the student to it. No Chrome
   API prevents this, and a minimized window is hidden too.
 - The tab is set `autoDiscardable: false`, so Memory Saver never throws
   away a half-filled form.
-- The tab opens and loads hidden, but **the student is taken to it for the
-  fill** and stays there (8.3): filled hidden, most Greenhouse dropdowns
-  stayed empty. The fill still waits on DOM changes
-  (`MutationObserver`), never on redraws, so a fill cut short still
-  completes.
-- Only one application fills at a time.
+- The tabs open, load and **fill hidden**, five at a time (8.4); the
+  student is never taken to one. 8.3's runner showed its tab for the fill
+  because the pre-engine filler left dropdowns empty in a hidden tab; the
+  Fill engine does not. The fill waits on DOM changes
+  (`MutationObserver`) and timers, never on redraws.
 
 ---
 

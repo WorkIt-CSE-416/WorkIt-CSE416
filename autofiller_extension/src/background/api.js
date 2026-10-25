@@ -394,12 +394,25 @@ export async function getAutofillProfile({ force = false } = {}) {
 
 /**
  * GET .../applications/next — the oldest queued application whose job
- * posting is open (its `job.apply_url` is the page to open), or null when
- * the queue is empty.
+ * posting is open (its `job.apply_url` is the page to open), past the jobs
+ * in `skip` (those batch apply has opened), or null when none is left.
  * @param {string} applicantId
+ * @param {string[]} [skip]
  */
-export async function nextApplication(applicantId) {
-  return apiFetch(`/applicants/${applicantId}/applications/next`);
+export async function nextApplication(applicantId, skip = []) {
+  const query = new URLSearchParams(skip.map((id) => ["skip", id])).toString();
+  return apiFetch(`/applicants/${applicantId}/applications/next${query ? `?${query}` : ""}`);
+}
+
+/**
+ * PUT .../applications/{job_id}/fill — how a batch tab's fill left the form:
+ * "needs_you" moves the application to needs_you, "ready" back to queued.
+ * @param {string} applicantId
+ * @param {string} jobId
+ * @param {"ready" | "needs_you"} state
+ */
+export async function recordFill(applicantId, jobId, state) {
+  return apiFetch(`/applicants/${applicantId}/applications/${jobId}/fill`, { method: "PUT", body: JSON.stringify({ state }) });
 }
 
 /**

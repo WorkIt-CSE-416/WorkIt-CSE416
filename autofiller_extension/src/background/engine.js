@@ -296,8 +296,9 @@ export function planRows({ plan }) {
 }
 
 /**
- * The content script's two fill messages, as the background answers them:
- * `fill/plan` (planFill, for the page at `url`) and `fill/page` (fillPage).
+ * The content script's fill messages, as the background answers them:
+ * `fill/plan` (planFill, for the page at `url`), `fill/page` (fillPage) and
+ * `fill/read` (what named fields show now, `{ shows: {[name]: value} }`).
  * On Workday, the nested prompts the engine read for a tenant are kept
  * (`trees`, chrome.storage in the extension) and given back on its next
  * call, as Apply keeps them: reading Workday's own How Did You Hear About
@@ -319,6 +320,9 @@ export async function handleFill(message, { url, profile, today, call, fetchText
     answer = await planFill({ url, profile, today, call, fetchText, extra: message.extra, state: await withTrees(state) });
   } else if (message.type === "fill/page") {
     answer = await fillPage({ call, ...message, state: await withTrees(message.state) });
+  } else if (message.type === "fill/read") {
+    // What each named field shows now (the engine's read-back), after the student changed the form.
+    return { shows: await call("readback", message.site, message.questions, message.names, message.state) };
   } else {
     throw new Error(`Unknown fill message: ${message.type}`);
   }

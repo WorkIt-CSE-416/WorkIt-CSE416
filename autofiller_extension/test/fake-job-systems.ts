@@ -13,8 +13,8 @@ import type { Handler, Reply, Request } from "./loaded-extension";
 const UPLOADS = "https://uploads.fake-storage.test";
 const CORS = { "access-control-allow-origin": "*", "access-control-allow-headers": "*", "access-control-allow-methods": "POST" };
 
-/** A page the Fill engine has no Filler for. */
-export const UNCOVERED_FORM = "https://careers.example.com/jobs/1/apply";
+/** A company's own application page, on a site the Fill engine has no Filler for. */
+export const uncoveredForm = (n: number) => `https://careers.example.com/jobs/${n}/apply`;
 
 export class SavedForms {
   private servers: { name: string; url: string; server: FakeJobServer }[];
@@ -37,7 +37,7 @@ export class SavedForms {
   readonly handler: Handler = async (request) => {
     const { url, method } = request;
     if (url.origin === UPLOADS) return { status: method === "OPTIONS" ? 204 : 201, headers: CORS };
-    if (url.href === UNCOVERED_FORM) {
+    if (url.host === "careers.example.com") {
       return { headers: { "content-type": "text/html" }, body: "<!doctype html><title>Apply</title><form><label>First name <input name=first></label></form>" };
     }
     if (url.host === "boards-api.greenhouse.io") return this.jobBoardApi(url);

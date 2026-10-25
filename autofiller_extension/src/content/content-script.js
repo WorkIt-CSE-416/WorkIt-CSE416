@@ -16,6 +16,14 @@
 // student checks it and presses Save and Continue, and the next step is
 // filled when it shows. On a job system the engine doesn't cover, nothing
 // is filled and the overlay says so.
+//
+// In one of batch apply's tabs (KAN-370; `window.WIA.batch`, set by
+// injectFill), the fill writes no essays (the student's own Claude will, by
+// the connector) and tells the background whether the tab is ready or needs
+// the student ("batch/state"), once the fill ends and again whenever that
+// changes: the engine reads back the fields the student edits, so emptying
+// a required field, or answering the last one, moves the tab between the
+// Ready and Needs you groups (background/batch.js).
 (async function () {
   "use strict";
 
@@ -33,8 +41,11 @@
   // Workday's name of the step shown, and how long to let an answer bring up a follow-up before reading the step again.
   const WORKDAY_STEP = "[data-automation-id=progressBarActiveStep]";
   const FOLLOW_UP_WAIT = 300;
+  // How long the student's typing pauses before the fields they changed are read back.
+  const EDIT_PAUSE = 400;
+  const batch = Boolean(window.WIA.batch);
+  const WRITE_IT = "Write this answer yourself.";
 
-  overlay.mount();
   status.reset();
   // Where the fill is, for whoever drives the page (the extension's test):
   // "filling", "filled", "step" (a Workday step filled, waiting for Save and Continue), "last" or "stopped".
@@ -87,6 +98,12 @@
 
       for (const name of Object.keys(answers)) if (isNew(name)) status.register(name, byName.get(name)?.label ?? name, byName.get(name)?.required ?? false);
       for (const q of rows.written) {
+        if (batch) {
+          if (!isNew(q.name)) continue;
+          status.register(q.name, q.label, q.required);
+          status.setStatus(q.name, q.required ? "failed" : "skipped", WRITE_IT);
+          continue;
+        }
         written.set(q.name, q);
         if (!isNew(q.name)) continue;
         status.register(q.name, q.label, q.required);
@@ -172,6 +189,63 @@
     });
   }
 
+  /**
+   * Whether this batch tab is "ready" (every field it needs shows an answer)
+   * or "needs_you": the fill stopped (no Filler for this job system, an
+   * error), a Workday step waits for the student, a field failed, a required
+   * one is unanswered, or the Plan left something to the student (a note).
+   */
+  function tabState() {
+    const phase = window.WIA.phase;
+    if (phase !== "filled") return "needs_you";
+    const rows = status.summary().fields;
+    const open = rows.some((r) => r.key.startsWith("_") || r.status === "failed" || (r.required && r.status !== "filled"));
+    return open ? "needs_you" : "ready";
+  }
+
+  let reported = null;
+  /** Tells the background this batch tab's state, when it changed. */
+  function report() {
+    if (!batch || window.WIA.phase === "filling") return;
+    const state = tabState();
+    if (state === reported) return;
+    reported = state;
+    send({ type: "batch/state", state }).catch(() => {});
+  }
+  status.subscribe(report);
+
+  const isEmpty = (shown) => shown === undefined || shown === null || shown === "" || (Array.isArray(shown) && shown.length === 0);
+
+  /**
+   * After the fill, reads back (through the engine) the fields the tab's
+   * state rests on whenever the student edits the form: every required
+   * field and every failed one. One that now shows an answer is filled (by
+   * the student); a required one now empty has failed. report() then moves
+   * the tab between the groups.
+   */
+  function watchEdits(prepared) {
+    const byName = new Map(prepared.questions.map((q) => [q.name, q]));
+    let timer;
+    const check = async () => {
+      const rows = status.summary().fields.filter((r) => byName.has(r.key) && (r.required || r.status === "failed"));
+      if (!rows.length) return;
+      const answer = await send({ type: "fill/read", site: prepared.site, questions: prepared.questions, names: rows.map((r) => r.key), state: prepared.state });
+      if (!answer.ok) return;
+      for (const row of rows) {
+        const shown = answer.shows[row.key];
+        if (!isEmpty(shown)) {
+          if (row.status !== "filled" || JSON.stringify(shown) !== JSON.stringify(row.shows)) status.setStatus(row.key, "filled", row.status === "filled" ? row.reason : "You answered this", shown);
+        } else if (row.required && row.status === "filled") status.setStatus(row.key, "failed", "This is empty now. Answer it yourself.");
+      }
+    };
+    const edited = () => {
+      clearTimeout(timer);
+      timer = setTimeout(check, EDIT_PAUSE);
+    };
+    document.addEventListener("input", edited, true);
+    document.addEventListener("change", edited, true);
+  }
+
   /** Workday's step shown ("" before the application starts, or while it redraws). */
   function workdayStep() {
     const lines = (document.querySelector(WORKDAY_STEP)?.innerText ?? "").split("\n").map((l) => l.trim()).filter(Boolean);
@@ -195,15 +269,31 @@
 
   const isWorkday = /(^|\.)(myworkdayjobs|myworkdaysite)\.com$/.test(location.hostname);
   if (!isWorkday) {
+    // THE PANEL GOES ON THE PAGE ONCE THE FILL IS DONE, not before. Greenhouse's
+    // React app takes over the whole document as it starts up (hydration);
+    // a node it didn't render, the panel's, made it draw the form again,
+    // which dropped what was already typed: with five batch tabs starting at
+    // once, the first box filled read back empty in 1 to 10 forms of 50. With
+    // the panel mounted after the fill: 0 in 50 (KAN-370). The engine waits
+    // for the form's start-up before it types, so by now it is over.
     const prepared = await fillShown();
+    overlay.mount();
     window.WIA.phase = prepared ? "filled" : "stopped";
     window.WIA.running = false;
+    report();
     if (prepared) offerEssays(prepared);
+    if (prepared && batch) watchEdits(prepared);
     return;
   }
 
-  // Workday: each step as it shows, until the step whose button sends.
-  if (!workdayStep()) note("_step", "Waiting for the application", "Sign in and start the application. WorkIt fills each step as it shows.");
+  // Workday: each step as it shows, until the step whose button sends. Its
+  // pages aren't hydrated, and the panel tells the student to sign in first.
+  overlay.mount();
+  if (!workdayStep()) {
+    note("_step", "Waiting for the application", "Sign in and start the application. WorkIt fills each step as it shows.");
+    window.WIA.phase = "step";
+    report();
+  }
   let step = await stepAfter("");
   for (;;) {
     status.reset();
@@ -212,6 +302,7 @@
     if (!prepared) {
       window.WIA.phase = "stopped";
       window.WIA.running = false;
+      report();
       return;
     }
     const last = prepared.step.review || prepared.step.sends;
@@ -220,6 +311,7 @@
       : "Check this step, then press Save and Continue. WorkIt fills the next step when it shows.");
     offerEssays(prepared);
     window.WIA.phase = last ? "last" : "step";
+    report();
     if (last) return;
     step = await stepAfter(step);
   }

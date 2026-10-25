@@ -15,10 +15,22 @@ export const ENGINE_FILES = ["fill-engine/dist/engine.js"];
 export const CONTENT_SCRIPT_FILES = ["src/content/lib-status.js", "src/content/overlay.js", "src/content/content-script.js"];
 
 /**
- * Loads the engine into the tab, then starts the fill there.
+ * Loads the engine into the tab, then starts the fill there. With `batch`,
+ * the fill is one of batch apply's tabs (background/batch.js): it writes no
+ * essays and reports whether the tab is ready or needs the student
+ * (content-script.js). Resolves once the fill has started, not when it ends
+ * (the content script's own promise would hold this until then).
  * @param {number} tabId
+ * @param {{ batch?: boolean }} [options]
  */
-export async function injectFill(tabId) {
+export async function injectFill(tabId, { batch = false } = {}) {
   await chrome.scripting.executeScript({ target: { tabId }, world: "MAIN", files: ENGINE_FILES });
-  await chrome.scripting.executeScript({ target: { tabId }, files: CONTENT_SCRIPT_FILES });
+  await chrome.scripting.executeScript({
+    target: { tabId },
+    func: (batch) => {
+      window.WIA = { ...window.WIA, batch };
+    },
+    args: [batch],
+  });
+  void chrome.scripting.executeScript({ target: { tabId }, files: CONTENT_SCRIPT_FILES }).catch((error) => console.warn("[fill] the fill stopped:", error));
 }

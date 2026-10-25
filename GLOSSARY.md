@@ -106,6 +106,14 @@ _Avoid_: skipped field, manual field, error
 A question the student's data doesn't answer, left for the student to fill in.
 _Avoid_: unknown field, blank, unanswered
 
+**Batch apply**:
+The extension filling the student's queued Applications in background tabs, at most five at once, the next opening as one finishes. It never submits.
+_Avoid_: runner, run tab
+
+**Ready** / **Needs you**:
+The two tab groups a batch tab sits in once filled: Ready when every field the form needs shows an answer, Needs you when anything is left for the student. A tab moves between them as that changes.
+_Avoid_: done, failed, review
+
 ## Tracking
 
 **Applications Tracker**:

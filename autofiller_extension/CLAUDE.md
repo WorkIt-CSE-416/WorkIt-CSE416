@@ -56,7 +56,7 @@ builds it: `dist/engine.js` is committed in the engine repo.
   Ashby wraps the page's `fetch`, neither of which an extension's isolated
   world can see. The overlay and `content-script.js` run in the isolated
   world, where `chrome.runtime` is. `src/shared/content-scripts.js`'s
-  `injectFill` loads both, engine first, for the popup and the runner
+  `injectFill` loads both, engine first, for the popup and batch apply
   alike. The content script reaches the engine through the background,
   which runs `engine.js`'s `runEngine` (the engine's own dispatcher,
   `FillEngine.call`) in the page's MAIN world with
@@ -98,7 +98,7 @@ builds it: `dist/engine.js` is committed in the engine repo.
 - **A job's page is not always its form.** A Lever, Ashby, Rippling,
   Workable or Eightfold posting shows the job on one page and the form on
   another (`jobOf`'s `form`). On the job's page the overlay names the
-  form's link and fills nothing; the runner opens the form itself
+  form's link and fills nothing; batch apply opens the form itself
   (`formUrl`).
 - **The profile adapter gives only what WorkIt holds.** Name, email,
   phone, links, the default resume, the latest school and the jobs from the
@@ -138,8 +138,8 @@ here:
   and solves it the same way.
 - **The webapp's role is a thin, optional bridge** (`frontend/src/lib/
   autofill-extension.ts`), using Chrome's `externally_connectable` to ask
-  the runner to open (and fill) the next queued application, which job its
-  tab shows, and to switch to that tab — nothing more. The job cards' "Autofill ready"
+  batch apply to open (and fill) the queued applications, which jobs its
+  tabs show, and to switch to one of them — nothing more. The job cards' "Autofill ready"
   badge, the bridge's one use of `ping`, was removed (KAN-278); the
   background script still answers `ping`, with no webapp caller. The extension's core function
   never depends on this bridge: it works from its own popup on whatever
@@ -174,47 +174,89 @@ Submit button themselves, on the ATS's own page, after reviewing what got
 filled. `activeTab` also means no broad host-permission prompt for
 arbitrary websites at install time.
 
-**The one other trigger is the student's own Auto Apply click** (KAN-305):
-the runner fills the application tab it opened for that click (below). It
+**The one other trigger is the student's own Auto Apply click** (KAN-305,
+KAN-370): batch apply fills the tabs it opened for that click (below). It
 is still a click, never a page load, and it still never submits. It is why
-`host_permissions` lists `https://*.greenhouse.io/*`: `activeTab` never
-covers a tab the runner opened.
+`host_permissions` lists each hiring system's host: `activeTab` never
+covers a tab the extension opened.
 
-## The auto-apply runner (KAN-223, KAN-305): opens and fills the next queued application
+## Batch apply (KAN-370): five tabs at once, in Ready and Needs you groups
 
-`src/background/runner.js` is the runner's first step
-(`auto-apply/architecture.md`, "The run" and "The first fill"). The Auto
-Apply page's Start, and a job card's Auto Apply once it queues the job,
-send `run/open` over `externally_connectable`; the runner reads the oldest
-queued application from `GET .../applications/next`, opens its
-`job.apply_url`, and starts the fill there. Submitted/Skip and `POST
-.../finish` are the next steps; until then the application stays
-`queued`. Two more messages serve the webapp's "Working in
-Browser": `run/status` answers which job posting the run's tab shows
-(null once the student closes it), and `run/show` switches to that tab.
+`src/background/batch.js` replaced KAN-305's one-tab runner
+(`auto-apply/architecture.md`, "Batch apply"). The Auto Apply page's Start,
+and a job card's Auto Apply once it queues the job, send `run/open` over
+`externally_connectable`; the batch opens the queued applications, each in
+its own background tab in the window that asked, **at most `WINDOW` (5)
+filling at once**, and opens the next one as soon as one finishes. A
+finished tab goes into the **"Ready"** tab group (green: every field it
+needs shows an answer) or **"Needs you"** (orange: anything unfilled, a
+note the Plan left the student, a Workday step, or a job system with no
+Filler), and moves between them when that changes. The student reviews
+each tab and presses the employer's own Submit; nothing here submits.
+`run/status` answers which job postings the batch's tabs show (`jobIds`),
+and `run/show` switches to one (`jobId`).
 
-- **The URL always comes from the API, never the message.** `run/open`
+- **The URLs always come from the API, never the message.** `run/open`
   carries no body: a page on an allowed origin that could hand the worker
-  a URL could make it open any site.
-- **One background tab for the run, beside the WorkIt tab that asked.**
-  `chrome.tabs.create({ active: false })` in the sender's window the first
-  time, then `chrome.tabs.update` on the same tab; its id lives in
-  `chrome.storage.session`, since Chrome stops the worker after ~30
-  seconds idle and clears its variables. A closed tab is created again.
-  **Never a new window**: a window opened with `focused: false` from a
+  a URL could make it open any site. `run/show`'s `jobId` only picks among
+  the batch's own tabs.
+- **The API keeps the queue, its order and each application's stage.**
+  The next tab's job is `GET .../applications/next?skip=...`, skipping every
+  job this batch opened; a tab's state is `PUT .../applications/{job}/fill`
+  (`needs_you`, or `ready`, which moves the stage back to `queued`: the
+  application waits for the student's submit). Tab states map onto the
+  stage column: queued, filling and ready are `queued`; needs_you is
+  `needs_you`; submitted, skipped and failed are `applied`, `skipped` and
+  `needs_you` (`.../finish`, KAN-373/374).
+- **What only the browser knows lives in `chrome.storage.session`**
+  (`workit_batch`: each tab's job and state, the jobs opened, the two
+  group ids). Chrome stops this worker after ~30 seconds idle and clears
+  its variables; every change is driven by an event (a content script's
+  `batch/state`, a closed tab, `run/open`), so a restarted worker carries
+  on. Changes run one at a time (`serially`): two tabs finishing together
+  would otherwise both open the same next job.
+- **The content script says when a tab is ready.** In a batch tab
+  (`injectFill(tabId, { batch: true })` sets `window.WIA.batch`),
+  `content-script.js` sends `batch/state` once the fill ends, then watches
+  the student's edits: the engine reads back (`fill/read`) every required
+  or failed field, so emptying one moves the tab to Needs you and answering
+  the last one moves it to Ready. A batch tab writes no essays (the essay
+  route is not batch apply's; the student's own Claude will write them,
+  KAN-377): they are left to the student.
+- **The tabs fill hidden; the student is never taken to one.** KAN-305's
+  runner showed its tab before the fill, because hidden fills by the
+  pre-engine filler left most dropdowns empty. The Fill engine does not
+  need that: five saved Greenhouse forms, and five live ones (filled only,
+  never submitted), filled in hidden tabs at once gave the same fields as
+  each filled in turn while shown (2026-10-25). Focus was ruled out: in a
+  page without focus, `focus()` fires no focus event, and react-select still
+  opens on the engine's press. The old filler waited 3 seconds for a
+  dropdown's options while a hidden tab ran its timers about once a second;
+  the engine waits 10 and never on a redraw.
+- **The panel goes on the page after the fill** (`content-script.js`), on
+  every job system but Workday. Mounted first, it is a node Greenhouse's
+  React app didn't render as it took over the document (hydration), so
+  React drew the form again and dropped what was typed: with five tabs
+  starting at once, the first box filled read back empty in 1 to 10 forms
+  of 50, and in none of 50 once the panel waited. Anything else this
+  extension adds to a page waits for the fill the same way.
+- **A batch tab is never discarded.** It is set `autoDiscardable: false`,
+  so Memory Saver can't throw away a half-filled form the student hasn't
+  looked at.
+- **Never a new window.** A window opened with `focused: false` from a
   full-screen window on macOS got its own Space, and macOS switched the
-  student to it; no Chrome API stops that. The tab is hidden until the
-  student opens it, so Chrome slows its timers and stops its redraws,
-  which some dropdowns wait on: the fill step must work in a hidden tab
-  (`auto-apply/architecture.md`, "Hidden tabs run slowly").
-- **The run's tab is never discarded.** It is set
-  `autoDiscardable: false`, so Memory Saver can't throw away a
-  half-filled form in a tab the student has not looked at yet.
+  student to it; no Chrome API stops that. The tabs open in the window
+  that asked.
+- **Tab groups need the `tabGroups` permission**, which shipped with batch
+  apply: a permission added in a later release disables the extension
+  until the student accepts it. Chrome's group colours are a fixed list,
+  so Ready and Needs you take the ones nearest WorkIt's positive and
+  warning colours. A group the student closed or emptied is made again.
 - **Opening needs no permission; filling needs the host.**
   `chrome.tabs.create`, `chrome.tabs.update` (`autoDiscardable` too),
   `chrome.windows.update` and a tab's load `status` need none (only url,
   title and favicon need `tabs`). Injecting the fill does: `activeTab`
-  doesn't cover a tab the runner opened, so `host_permissions` lists each
+  doesn't cover a tab the batch opened, so `host_permissions` lists each
   hiring system auto apply takes, the same hosts as
   `backend/app/auto_apply/hosts.py` (all seven job systems the engine
   fills, KAN-370). A host added there
@@ -226,62 +268,43 @@ Browser": `run/status` answers which job posting the run's tab shows
   engine's `EIGHTFOLD_COMPANIES`) is listed by its host: without it, the
   job's names and text failed to fetch. `test/manifest.spec.ts` checks one
   link of each.
-- **The fill is the popup's fill.** Both call `injectFill`
-  (`src/shared/content-scripts.js`); `content-script.js` runs on
-  injection, so injecting is starting. The resume is the profile's default
-  (`resolveResumeFile`), not yet `prepare_resume`'s, so a tailored resume
-  is not attached and no sent resume is kept.
-- **Wait for the form, not for the fill.** The runner first injects `waitForForm`, which watches
-  the DOM (never `requestAnimationFrame`: a hidden tab runs none) for up
-  to 10 seconds. Then it injects the engine and answers `run/open`
-  without awaiting the fill.
-- **The student is taken to the run's tab for the fill, and stays there.**
-  Filled hidden, the text fields filled but most dropdowns did not, even
-  with the waits below fixed: Chrome treats a hidden page differently (no
-  redraws, timers about once a second, no focus), and react-select's menus
-  need some of that. So `startFill` makes the run's tab active once the
-  form is ready, and the dropdowns fill (confirmed live). Switching back
-  to the WorkIt tab after the fill was built and dropped: it didn't help,
-  since the student reviews this form next anyway.
-- **The overlay puts itself back when the page removes it.** Once the
-  runner showed the tab and filled at once, the fields filled but the
-  panel never appeared: the fill landed as Greenhouse's React app took
-  over the document (hydration), which drops nodes it didn't render.
-  `overlay.js`'s `keepAttached` watches the whole document and appends the
-  same host again, to whichever `<html>` exists. Anything else this
-  extension adds to a page needs the same guard.
-- **`run/open` never reloads or refills the application already open.**
-  When the run's tab shows the next application's job posting, it is left
-  as it is (`fill: "kept"`): a second click (another card, Start again)
-  would otherwise throw away what the student typed, and a second fill
-  would mount a second overlay. A student who reloads the tab by hand
-  fills it from the popup. The saved job id is what's compared, not
-  the URL, which the form's own steps change.
-- **`run/open` answers once the fill has started** (the page's `status:
-  "complete"`, 30 seconds at most, then the form, 10 seconds at most), with
-  `fill: "started" | "kept" | "failed"` (`reason`: `no_form`,
-  `not_allowed`, or the error's message), or with why nothing opened:
-  `queue_empty`, `signed_out`, or an error such as a closed tab. No answer
-  at all means no extension, or one turned off: that is the webapp's
-  "is the extension active?" check. The webapp shows no failed fill yet.
-
+- **Wait for the page, then the form, then fill.** `startFill` waits for
+  the tab's `complete` status (30 seconds at most), injects `waitForForm`,
+  which watches the DOM (never `requestAnimationFrame`: a hidden tab runs
+  none) for up to 10 seconds, then injects the fill. A page that never
+  loads, shows no form, or is on a host the extension may not touch (a job
+  system with no Filler) fills nothing and goes to Needs you.
+- **The overlay puts itself back when the page removes it.** Greenhouse's
+  React app can drop nodes it didn't render, sometimes by replacing
+  `<html>` itself. `overlay.js`'s `keepAttached` watches the whole document
+  and appends the same host again, to whichever `<html>` exists.
+- **`run/open` never reloads or refills a tab already open.** A second
+  click (another card, Start again) tops up the window from the queue and
+  leaves the open tabs alone (`fill: "kept"` when nothing new opened). A
+  student who reloads a tab by hand fills it from the popup.
 - **Nothing here waits on a redraw.** The first runner fill (before the
   Fill engine) filled the name fields, then reported "No options appeared"
   on every dropdown: its waits polled with `requestAnimationFrame`, which a
   hidden tab never runs. A new wait in `src/` watches the DOM
-  (`MutationObserver`) with a `setTimeout` limit. The engine polls with
-  `setTimeout`, which a hidden tab slows to about once a second, one more
-  reason the run's tab is shown before the fill. The test browser tool
-  can't check hidden-tab timing: Chrome keeps a tab it drives visible and
-  focused, so test with the real runner.
+  (`MutationObserver`) with a `setTimeout` limit.
+- **Tests** (`test/batch.extension.spec.ts`): the unpacked extension loaded
+  into Chromium (`test/loaded-extension.ts`) runs a batch of seven saved
+  forms and asserts the window and the groups. Playwright's routing never
+  sees the service worker's requests or the first load of a tab the
+  extension opens, so the harness sends every host name to fakes in the
+  test process (`--host-resolver-rules`): the API (`test/fake-api.ts`) and
+  the engine's saved forms (`test/fake-job-systems.ts`). Nothing reaches a
+  real WorkIt API, even one running on this machine. Headless Chromium
+  never hides a background tab and Playwright keeps every page it drives
+  active, so neither can check hidden-tab timing: that was checked with
+  Chromium started directly, its tabs never attached.
 
-The runner opens a job's form, not its page (`formUrl`: a Lever
+A batch tab opens a job's form, not its page (`formUrl`: a Lever
 `apply_url` opens the posting, and the form is at `.../apply`). Still
-open: why a hidden tab's dropdowns stay empty is not pinned
-down (focus is the likeliest); if found, the fill could stay hidden. With
-the student's Chrome window behind another app, macOS may still count the
-shown tab as hidden. A tab closed within a second or two
-of opening should be reported as that, not as the student's Skip.
+open: Workday takes one slot at a time, a closed tab counts as Skip, and
+the batch resumes after the browser closes (KAN-373); submit detection
+(KAN-374). With the student's Chrome window behind another app, macOS may
+slow every tab further; not yet measured.
 
 ## Auth: inherits the webapp's session, has no sign-in of its own
 
@@ -376,11 +399,13 @@ webapp: `GET /auth/me`, `GET /applicants/{id}/profile`, `GET
 /applicants/{id}/bank`, `GET /applicants/{id}/preferences`, `GET
 /applicants/{id}/autofill-answers`, `GET /applicants/{id}/resumes`, `GET
 /applicants/{id}/built-resumes` (plus `.../built-resumes/{id}/render`), and
-the runner's `GET /applicants/{id}/applications/next`. All were already
+batch apply's `GET /applicants/{id}/applications/next`. All were already
 reachable with a Bearer token before the extension called them. Two routes
-exist only for this extension — essay-answer generation and `GET
+existed only for this extension — essay-answer generation and `GET
 .../resumes/{resume_id}/bytes` — each explained in its own section below,
-with why no existing endpoint was safe/usable from here.
+with why no existing endpoint was safe/usable from here. A third is batch
+apply's `PUT .../applications/{job_id}/fill` (KAN-370): the stage is the
+API's record of each tab, and no route set `needs_you` back to `queued`.
 
 **The email it fills is the profile's `contact_email`, else `/auth/me`'s
 sign-in email** (KAN-262). A seeker may apply with a different address than
@@ -529,7 +554,7 @@ reason in red and a skipped row's in gray.
   attach to `window.WIA` instead of using `import`/`export`. The load order
   that makes this work lives in exactly one place —
   `src/shared/content-scripts.js` (`ENGINE_FILES` in the MAIN world, then
-  `CONTENT_SCRIPT_FILES`), which the popup and the runner both use through
+  `CONTENT_SCRIPT_FILES`), which the popup and batch apply both use through
   `injectFill` — and a new content file is added there by hand.
 - **`src/background/engine.js` uses no `chrome.*` API at import time**, so
   the test imports it as it is. Keep `chrome.*` calls in `background.js`.

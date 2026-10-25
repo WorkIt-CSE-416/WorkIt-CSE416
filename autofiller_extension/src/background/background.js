@@ -8,7 +8,7 @@
 
 import { getSession } from "./auth.js";
 import { getAutofillProfile, generateEssayAnswer, ApiError } from "./api.js";
-import { openNextApplication, runStatus, showRunTab } from "./runner.js";
+import { batchStatus, forgetTab, inBatch, setTabState, showBatchTab, startBatch } from "./batch.js";
 import { engineCaller, handleFill, jobOf, runEngine } from "./engine.js";
 import { injectFill } from "../shared/content-scripts.js";
 
@@ -80,12 +80,20 @@ async function handleMessage(message, sender) {
     // engine (fill/page). A Workday tab is remembered, so its
     // fill starts again when a step loads as a new page.
     case "fill/plan":
-    case "fill/page": {
+    case "fill/page":
+    case "fill/read": {
       const profile = await getAutofillProfile();
       if (message.type === "fill/plan" && jobOf(sender.url)?.site === "workday") await rememberWorkdayTab(sender.tab.id);
       return handleFill(message, {
         url: sender.url, profile, today: today(), call: engineIn(sender), fetchText, trees: workdayTrees,
       });
+    }
+
+    // A batch apply tab's fill says whether the tab is ready or needs the
+    // student (content-script.js); batch.js moves it to that group.
+    case "batch/state": {
+      if (message.state !== "ready" && message.state !== "needs_you") throw new Error(`Unknown tab state: ${message.state}`);
+      return setTabState(sender.tab.id, message.state);
     }
 
     default:
@@ -116,10 +124,11 @@ chrome.tabs.onUpdated.addListener(async (tabId, change, tab) => {
     await chrome.storage.session.set({ [WORKDAY_TABS_KEY]: tabs.filter((id) => id !== tabId) });
     return;
   }
-  injectFill(tabId).catch((error) => console.warn("[fill] Workday's next page wasn't filled:", error));
+  injectFill(tabId, { batch: await inBatch(tabId) }).catch((error) => console.warn("[fill] Workday's next page wasn't filled:", error));
 });
 
 chrome.tabs.onRemoved.addListener(async (tabId) => {
+  await forgetTab(tabId);
   const tabs = await workdayTabs();
   if (tabs.includes(tabId)) await chrome.storage.session.set({ [WORKDAY_TABS_KEY]: tabs.filter((id) => id !== tabId) });
 });
@@ -143,15 +152,15 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
 // nothing more. It never receives the profile or the session; there's no
 // reason the page needs either, and handing them over would make a
 // compromised or malicious page on an allowed origin able to read a
-// signed-in user's resume data just by asking. `run/open` takes no URL for
-// the same reason: the runner reads it from the API (runner.js); it gets
-// the sender only to open the run's tab beside the page that asked. The
-// other two only say which job posting the run's tab shows, and switch to
-// it.
+// signed-in user's resume data just by asking. `run/open` (start or top up
+// the batch, batch.js) takes no URL for the same reason: the links come
+// from the API; it gets the sender only to open the tabs in the window that
+// asked. The other two only say which job postings the batch's tabs show,
+// and switch to one of them (`jobId` picks among the batch's own tabs only).
 const RUNNER_MESSAGES = {
-  "run/open": openNextApplication,
-  "run/status": runStatus,
-  "run/show": showRunTab,
+  "run/open": (message, sender) => startBatch(sender),
+  "run/status": () => batchStatus(),
+  "run/show": (message) => showBatchTab(message),
 };
 
 chrome.runtime.onMessageExternal.addListener((message, sender, sendResponse) => {
@@ -164,7 +173,7 @@ chrome.runtime.onMessageExternal.addListener((message, sender, sendResponse) => 
 
   // Own keys only, so a type such as "toString" never reaches a built-in.
   if (Object.hasOwn(RUNNER_MESSAGES, message?.type)) {
-    RUNNER_MESSAGES[message.type](sender)
+    RUNNER_MESSAGES[message.type](message, sender)
       .then((result) => sendResponse({ ok: true, ...result }))
       .catch((error) => sendResponse({ ok: false, error: error.message }));
     return true;
