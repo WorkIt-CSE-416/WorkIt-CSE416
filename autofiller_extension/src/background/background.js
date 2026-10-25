@@ -222,6 +222,15 @@ async function handleMessage(message, sender) {
       return { show: true, url: `${session.web_origin}/connect/claude/add` };
     }
 
+    // The panel's font (overlay.js's loadFont), as base64: the page can't
+    // load the extension's own files, which aren't web-accessible.
+    case "overlay/font": {
+      const bytes = new Uint8Array(await (await fetch(chrome.runtime.getURL("fonts/PlusJakartaSans-latin.woff2"))).arrayBuffer());
+      let binary = "";
+      for (let i = 0; i < bytes.length; i += 0x8000) binary += String.fromCharCode(...bytes.subarray(i, i + 0x8000));
+      return { data: btoa(binary) };
+    }
+
     // A batch tab's questions waiting for the student's Claude point at the
     // webapp's Written Answers page (KAN-385), on the origin they signed in on,
     // where a student without Claude pastes or writes the answers.
