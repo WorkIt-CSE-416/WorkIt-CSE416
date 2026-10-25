@@ -21,7 +21,9 @@ same engine). One run, in one transaction:
    matched by school);
 5. the resume the profile names, copied into LOCAL_FILES_DIR and made the
    default upload as `local:<file name>` (services/local_files.py): nothing
-   goes to Storage. Without LOCAL_FILES_DIR it is left out.
+   goes to Storage. Without LOCAL_FILES_DIR it is left out;
+6-7. the student's own writing from story-bank.md as writing samples, and
+   voice.md as their style card (scripts/import_apply_writing.py).
 
 Running it again on the same files changes nothing; an edited file's facts
 replace the old ones. It refuses a database that is not on this computer:
@@ -52,6 +54,7 @@ from app.models.profiles import Applicant_Profile
 from app.models.resume import Resume
 from app.schemas.bank import EntryFields
 from app.schemas.profile import ApplicantProfileUpdate
+from app.scripts import import_apply_writing
 from app.services import bank, local_files
 from app.services.names import join_name
 
@@ -77,6 +80,8 @@ class Report:
     education: str | None = None  # "created" | "updated"
     resume: str | None = None  # the file name, or None when left out
     notes: list[str] = field(default_factory=list)
+    samples: int = 0  # writing samples, from story-bank.md
+    style_card: bool = False
 
 
 def _read(path: Path) -> dict:
@@ -207,7 +212,7 @@ async def _set_resume(
 
 
 async def import_apply(session: AsyncSession, applicant_id: uuid.UUID, apply_dir: Path) -> Report:
-    """Steps 1-5 of the module docstring in the caller's session; flushes, never commits."""
+    """Steps 1-7 of the module docstring in the caller's session; flushes, never commits."""
     profile = await session.get(Applicant_Profile, applicant_id)
     if profile is None:
         raise ImportRefused(f"No applicant {applicant_id}.")
@@ -227,8 +232,16 @@ async def import_apply(session: AsyncSession, applicant_id: uuid.UUID, apply_dir
     await _set_fields(profile, facts, report)
     await _set_education(session, applicant_id, facts, report)
     await _set_resume(session, profile, apply_dir, facts, report)
+    await _set_writing(session, applicant_id, apply_dir, report)
     await session.flush()
     return report
+
+
+async def _set_writing(session: AsyncSession, applicant_id: uuid.UUID, apply_dir: Path, report: Report) -> None:
+    report.samples = await import_apply_writing.set_samples(session, applicant_id, apply_dir)
+    left_out = await import_apply_writing.set_style_card(session, applicant_id, apply_dir)
+    report.style_card = left_out is None and (apply_dir / import_apply_writing.VOICE).is_file()
+    report.notes += [left_out] if left_out else []
 
 
 def _local(url: str) -> bool:
@@ -263,6 +276,8 @@ def main(argv: list[str] | None = None) -> int:
     print(f"  WorkIt fields set: {', '.join(report.fields) or 'none'}")
     print(f"  education entry: {report.education or 'none'}")
     print(f"  resume: {report.resume or 'left out'}")
+    print(f"  writing samples: {report.samples}")
+    print(f"  style card: {'saved' if report.style_card else 'none'}")
     for note in report.notes:
         print(f"  note: {note}")
     return 0
