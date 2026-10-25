@@ -63,7 +63,7 @@ gave it and the claims the check listed.
 3. Call save_answers with that job_id and the edited answers, each under \
 its question's name. Give each written answer its review: the rating its \
 last review round gave and the claims the check listed, quoted as the \
-draft had them ([] when it listed none). A choice takes no review. If it \
+check found them ([] when it listed none). A choice takes no review. If it \
 refuses one, fix what it says and save again.
 4. Tell me in one line which company you wrote for, and name any question \
 you left out and the fact it needs from me. If save_answers named any \
