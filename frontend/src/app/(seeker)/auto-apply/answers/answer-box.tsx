@@ -3,6 +3,7 @@
 import { CheckCircleIcon, WarningCircleIcon } from "@phosphor-icons/react/ssr";
 import { useId, useRef, useState, useTransition, type FormEvent } from "react";
 
+import { Checkbox } from "@/components/shadcn/checkbox";
 import { Button } from "@/components/ui/button";
 import { FIELD_CONTROL, FIELD_LABEL, RequiredMark } from "@/components/ui/text-field";
 import { cn } from "@/lib/cn";
@@ -29,6 +30,11 @@ const JOIN = "; ";
 export function AnswerBox({ jobId, question }: { jobId: string; question: WrittenQuestion }) {
   const id = useId();
   const [text, setText] = useState("");
+  // A one-off choice's picks, in the options' order. Kept as a list, never
+  // split back out of the joined answer: an option can itself hold JOIN.
+  const [picked, setPicked] = useState<string[]>([]);
+  const options = question.kind ? question.options : null;
+  const answer = options ? picked.join(JOIN) : text;
   const [reasons, setReasons] = useState<string[] | null>(null);
   const [saved, setSaved] = useState(false);
   const [pending, start] = useTransition();
@@ -37,11 +43,11 @@ export function AnswerBox({ jobId, question }: { jobId: string; question: Writte
 
   function submit(event: FormEvent) {
     event.preventDefault();
-    if (saving.current || !text.trim()) return;
+    if (saving.current || !answer.trim()) return;
     saving.current = true;
     start(async () => {
       try {
-        const result = await saveWrittenAnswer(jobId, question.name, text);
+        const result = await saveWrittenAnswer(jobId, question.name, answer);
         if (result.saved) {
           setSaved(true);
           setReasons(null);
@@ -55,56 +61,83 @@ export function AnswerBox({ jobId, question }: { jobId: string; question: Writte
   }
 
   const limit = question.max_length;
-  const over = limit != null && text.trim().length > limit;
+  const over = limit != null && answer.trim().length > limit;
+
+  function pick(option: string) {
+    setPicked((now) =>
+      question.kind === "choice"
+        ? [option]
+        : (options ?? []).filter((o) => (o === option) !== now.includes(o)),
+    );
+    setReasons(null);
+  }
+
+  const optionRow =
+    "hover:bg-hover has-checked:border-brand has-data-checked:border-brand border-border rounded-control text-body text-ink flex cursor-pointer items-center gap-3 border px-3 py-2";
 
   return (
     <form onSubmit={submit} className="flex flex-col gap-2">
-      <label htmlFor={`${id}-answer`} className={FIELD_LABEL}>
-        {question.label}
-        {question.required && <RequiredMark />}
-      </label>
-      {question.kind && question.options ? (
-        <fieldset id={`${id}-answer`} className="flex flex-col gap-1.5" disabled={saved}>
-          {question.options.map((option) => {
-            const picked = text.split(JOIN).includes(option);
-            return (
-              <label key={option} className="text-body flex items-center gap-2">
+      {options ? (
+        // The question names the group: a <label> can't point at a fieldset.
+        <fieldset
+          className="flex min-w-0 flex-col gap-1.5"
+          disabled={saved}
+          aria-describedby={reasons ? `${id}-reasons` : undefined}
+        >
+          <legend className={cn(FIELD_LABEL, "mb-0.5")}>
+            {question.label}
+            {question.required && <RequiredMark />}
+          </legend>
+          {options.map((option) =>
+            question.kind === "choice" ? (
+              <label key={option} className={optionRow}>
                 <input
-                  type={question.kind === "choice" ? "radio" : "checkbox"}
+                  type="radio"
                   name={`${id}-option`}
-                  checked={picked}
-                  onChange={() => {
-                    const rest = text ? text.split(JOIN).filter((o) => o !== option) : [];
-                    setText(
-                      question.kind === "choice"
-                        ? option
-                        : (picked ? rest : [...rest, option]).join(JOIN),
-                    );
-                    setReasons(null);
-                  }}
+                  checked={picked.includes(option)}
+                  onChange={() => pick(option)}
+                  className="accent-brand shrink-0"
                 />
-                {option}
+                <span className="min-w-0 break-words">{option}</span>
               </label>
-            );
-          })}
+            ) : (
+              <label key={option} className={optionRow}>
+                {/* The Checkbox's root is a <span>: the fieldset's disabled
+                    doesn't reach it. */}
+                <Checkbox
+                  className="border-ink-meta"
+                  checked={picked.includes(option)}
+                  disabled={saved}
+                  onCheckedChange={() => pick(option)}
+                />
+                <span className="min-w-0 break-words">{option}</span>
+              </label>
+            ),
+          )}
         </fieldset>
       ) : (
-        <textarea
-          id={`${id}-answer`}
-          rows={4}
-          placeholder="Write your answer, or paste one from any AI"
-          className={cn(
-            FIELD_CONTROL,
-            "block field-sizing-content min-h-28 resize-none px-3.5 py-2.5",
-          )}
-          value={text}
-          readOnly={saved}
-          aria-describedby={reasons ? `${id}-reasons` : undefined}
-          onChange={(e) => {
-            setText(e.target.value);
-            setReasons(null);
-          }}
-        />
+        <>
+          <label htmlFor={`${id}-answer`} className={FIELD_LABEL}>
+            {question.label}
+            {question.required && <RequiredMark />}
+          </label>
+          <textarea
+            id={`${id}-answer`}
+            rows={4}
+            placeholder="Write your answer, or paste one from any AI"
+            className={cn(
+              FIELD_CONTROL,
+              "block field-sizing-content min-h-28 resize-none px-3.5 py-2.5",
+            )}
+            value={text}
+            readOnly={saved}
+            aria-describedby={reasons ? `${id}-reasons` : undefined}
+            onChange={(e) => {
+              setText(e.target.value);
+              setReasons(null);
+            }}
+          />
+        </>
       )}
 
       <div className="flex flex-wrap items-center justify-between gap-3">
@@ -114,13 +147,13 @@ export function AnswerBox({ jobId, question }: { jobId: string; question: Writte
             Saved. It fills into the job&apos;s open tab within a few seconds.
           </p>
         ) : (
-          <Button type="submit" size="sm" disabled={pending || !text.trim()}>
+          <Button type="submit" size="sm" disabled={pending || !answer.trim()}>
             Check and Save
           </Button>
         )}
         {limit != null && (
           <span className={cn("text-note", over ? "text-warning" : "text-ink-meta")}>
-            {text.trim().length} / {limit}
+            {answer.trim().length} / {limit}
           </span>
         )}
       </div>

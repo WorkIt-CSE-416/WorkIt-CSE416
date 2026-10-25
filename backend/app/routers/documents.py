@@ -14,12 +14,12 @@ the file from this API's own origin, for the Chrome autofiller to attach
 (as `resumes.py`'s `.../bytes`). `DELETE .../documents/{kind}` removes the
 row and its file (204). A row whose `storage_path` is `local:<name>`
 (services/local_files.py, development only) is served from
-LOCAL_FILES_DIR and never sent to or removed from Storage.
+LOCAL_FILES_DIR and never sent to or removed from Storage
+(services/stored_files.py).
 """
 import asyncio
 import logging
 import uuid
-from pathlib import PurePosixPath
 from typing import Literal
 
 from fastapi import APIRouter, Depends, HTTPException, Response, UploadFile
@@ -29,9 +29,9 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from app.db import get_session, get_supabase
 from app.deps import assert_applicant_owns, get_current_account
 from app.models.documents import Student_Document
-from app.routers.resumes import BUCKET, RESUME_MIME_TYPES
 from app.schemas.auth import AuthenticatedAccount
-from app.services import local_files
+from app.services import stored_files
+from app.services.stored_files import BUCKET
 from app.services.text_extraction import UploadRejected
 from app.services.text_extraction import read_upload as _read_upload
 
@@ -54,13 +54,7 @@ async def _get(session: AsyncSession, applicant_id: uuid.UUID, kind: str) -> Stu
 
 
 async def _remove_file(storage_path: str) -> None:
-    # Best effort: a file left behind is orphaned, but no data is lost.
-    if local_files.is_local(storage_path):
-        return
-    try:
-        await asyncio.to_thread(get_supabase().storage.from_(BUCKET).remove, [storage_path])
-    except Exception:
-        logger.exception("Failed to remove a document file from Storage", extra={"storage_path": storage_path})
+    await stored_files.remove(get_supabase, storage_path, "Failed to remove a document file from Storage")
 
 
 @router.get("/applicants/{applicant_id}/documents")
@@ -128,21 +122,17 @@ async def get_document_bytes(
     doc = await _get(session, applicant_id, kind)
     if doc is None:
         raise HTTPException(404, "Document not found")
-    if local_files.is_local(doc.storage_path):
-        data = local_files.read(doc.storage_path)
-        if data is None:
-            raise HTTPException(404, "Document not found")
-    else:
-        try:
-            data = await asyncio.to_thread(get_supabase().storage.from_(BUCKET).download, doc.storage_path)
-        except Exception:
-            logger.exception("Failed to download a document", extra={"storage_path": doc.storage_path})
-            raise HTTPException(502, "Could not open the document")
-    ext = PurePosixPath(doc.storage_path).suffix.lower()
+    try:
+        data = await stored_files.read(get_supabase, doc.storage_path)
+    except Exception:
+        logger.exception("Failed to download a document", extra={"storage_path": doc.storage_path})
+        raise HTTPException(502, "Could not open the document")
+    if data is None:
+        raise HTTPException(404, "Document not found")
     return Response(
         data,
-        media_type=RESUME_MIME_TYPES.get(ext, "application/octet-stream"),
-        headers={"Content-Disposition": f'attachment; filename="{doc.original_filename}"'},
+        media_type=stored_files.media_type(doc.storage_path),
+        headers={"Content-Disposition": stored_files.attachment(doc.original_filename)},
     )
 
 
