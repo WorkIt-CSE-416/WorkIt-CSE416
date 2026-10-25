@@ -148,3 +148,42 @@ class ApplicationStage(BaseModel):
 
     job_id: uuid.UUID
     stage: application_stage
+
+
+# --- Written Answers without Claude (routers/pasted_answers.py, KAN-385) ---
+
+
+class PostingQuestions(BaseModel):
+    """One open application's questions still unanswered, under its job
+    posting, as the Written Answers page lists them."""
+
+    job_id: uuid.UUID
+    company: str | None
+    title: str | None
+    questions: list[WrittenAnswer]
+
+
+class PastedAnswer(BaseModel):
+    """An answer the student pasted for one question, by its `name`."""
+
+    model_config = ConfigDict(extra="forbid")
+
+    name: str = Field(min_length=1, max_length=200)
+    answer: str = Field(max_length=ANSWER_MAX)
+
+
+class PastedAnswers(BaseModel):
+    """PUT .../applications/{job_id}/written-answers: the answers to save,
+    all or none."""
+
+    model_config = ConfigDict(extra="forbid")
+
+    answers: list[PastedAnswer] = Field(min_length=1, max_length=50)
+
+
+class SavedAnswers(BaseModel):
+    """How many answers were saved, and how many of the application's
+    questions are still unanswered."""
+
+    saved: int
+    left: int

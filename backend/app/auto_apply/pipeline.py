@@ -29,6 +29,7 @@ from app.auto_apply.queries import (
     fetch_posting_text,
     fetch_saved_answers,
     fetch_stage,
+    fetch_unanswered,
     fetch_written,
     link_resume,
     pick_resume,
@@ -45,6 +46,7 @@ from app.queries.jobs.filters import JobFilters
 from app.routers.jobs import EmptyBank, fetch_recommended
 from app.schemas.applications import (
     Application,
+    PostingQuestions,
     WrittenAnswer,
     WrittenQuestion,
 )
@@ -319,9 +321,27 @@ async def written_answers(
     return await fetch_written(db, applicant_id, job_id)
 
 
+async def unanswered_questions(db: AsyncSession, applicant_id: uuid.UUID) -> list[PostingQuestions]:
+    """
+    Every question the student's open applications need written and have
+    no answer for, under its job posting, oldest application first: the
+    Written Answers page (KAN-385), for a student without Claude. Each
+    answer pasted there is saved through save_answers, as the connector's.
+    """
+    return [
+        PostingQuestions(job_id=job_id, company=company, title=title, questions=questions)
+        for job_id, company, title, questions in await fetch_unanswered(db, applicant_id)
+    ]
+
+
 class Refused(Exception):
-    """A save the connector refuses whole, with the reason for the student's
-    Claude to fix it by. Nothing was saved."""
+    """A save refused whole, with the reason for the student's Claude (or
+    the student, on the Written Answers page) to fix it by. Nothing was
+    saved. `reasons`: each refused answer's reasons, by question name."""
+
+    def __init__(self, message: str, reasons: dict[str, list[str]] | None = None) -> None:
+        super().__init__(message)
+        self.reasons = reasons or {}
 
 
 @dataclasses.dataclass(frozen=True)
@@ -360,7 +380,10 @@ async def save_answers(
 ) -> int:
     """
     Saves the student's Claude's answers to one application's questions
-    (KAN-377), all or none, and answers how many of its questions are
+    (KAN-377), or the ones the student pasted on the Written Answers page
+    (KAN-385): one save and one set of checks for both, so a pasted answer
+    reaches the tab exactly as Claude's does. All or none, and answers how
+    many of its questions are
     still unanswered. Each name must be one of the application's questions,
     and each answer must pass every check in app/auto_apply/checks.py
     (KAN-380), the form's own limit among them: a failing one is refused
@@ -374,9 +397,12 @@ async def save_answers(
         raise Refused("No answers to save.")
     for name, answer in answers.items():
         if name not in questions:
-            raise Refused(f"The application has no question named {name!r}. Use the names get_next_application gave.")
+            raise Refused(
+                f"The application has no question named {name!r}. Use the names get_next_application gave.",
+                {name: ["The application has no such question."]},
+            )
         if not answer.strip():
-            raise Refused(f"The answer to {name!r} is empty.")
+            raise Refused(f"The answer to {name!r} is empty.", {name: ["The answer is empty."]})
     sources, employers, samples = await _check_material(db, applicant_id, job_id)
     failing = {
         name: found
@@ -389,7 +415,7 @@ async def save_answers(
     if failing:
         raise Refused("Nothing was saved. Fix these answers and save them all again:\n" + "\n".join(
             f"- {name!r}: {' '.join(found)}" for name, found in failing.items()
-        ))
+        ), failing)
     await save_written(db, applicant_id, job_id, {name: answer.strip() for name, answer in answers.items()})
     await db.commit()
     return sum(1 for name, q in questions.items() if q.answer is None and name not in answers)

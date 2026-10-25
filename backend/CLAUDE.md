@@ -210,7 +210,15 @@ Find files with a directory listing; these are the rules for where code goes.
   form needs written (`PUT .../questions`), the student's own Claude saves
   each answer through the connector, and the tab reads them back
   (`GET .../questions`) to fill them. Only a queued or needs_you application
-  takes questions. Tests: `tests/test_written_answers.py`.
+  takes questions. Tests: `tests/test_written_answers.py`. **A student
+  without Claude pastes answers through the same save** (KAN-385,
+  `routers/pasted_answers.py`): the Written Answers page lists every
+  unanswered question by posting (`pipeline.unanswered_questions`) and
+  saves through `pipeline.save_answers`, the connector's own step, so a
+  pasted answer passes the same checks and the tab fills it the same way.
+  Never give pasted text a save path of its own: it may come from any AI.
+  A refusal's `Refused.reasons` holds each answer's reasons by question
+  name, for the page to show under its box. Tests: `tests/test_pasted_answers.py`.
   **A student's writing samples and style card** (KAN-384) are
   `queries/writing.py`, behind `routers/writing_samples.py` (the student's
   add, replace, remove) and the connector's tools (their Claude reads the

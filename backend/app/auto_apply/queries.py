@@ -377,6 +377,36 @@ async def fetch_next_to_write(
     return (row.job_id, row.description) if row else None
 
 
+async def fetch_unanswered(
+    db: AsyncSession, applicant_id: uuid.UUID
+) -> list[tuple[uuid.UUID, str | None, str | None, list[WrittenAnswer]]]:
+    """Every open application (queued or needs_you, its job posting open)
+    with a question still unanswered, oldest first: its job id, the
+    posting's company and title, and those questions in the form's order."""
+    rows = await db.execute(
+        select(Written_Answer, Job_Post.company_name, Job_Post.title)
+        .join(
+            Job_Application,
+            and_(Job_Application.applicant_id == Written_Answer.applicant_id, Job_Application.job_id == Written_Answer.job_id),
+        )
+        .join(Job_Post, Job_Post.id == Written_Answer.job_id)
+        .where(
+            Written_Answer.applicant_id == applicant_id,
+            Written_Answer.answer.is_(None),
+            Job_Application.stage.in_((application_stage.queued, application_stage.needs_you)),
+            LISTED,
+        )
+        .order_by(Job_Application.created_at, Job_Application.job_id, Written_Answer.position, Written_Answer.name)
+    )
+    found: dict[uuid.UUID, tuple[uuid.UUID, str | None, str | None, list[WrittenAnswer]]] = {}
+    for r, company, title in rows:
+        posting = found.setdefault(r.job_id, (r.job_id, company, title, []))
+        posting[3].append(
+            WrittenAnswer(name=r.name, label=r.label, required=r.required, max_length=r.max_length, answer=None)
+        )
+    return list(found.values())
+
+
 async def save_written(
     db: AsyncSession, applicant_id: uuid.UUID, job_id: uuid.UUID, answers: dict[str, str]
 ) -> None:
