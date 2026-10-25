@@ -26,6 +26,16 @@ export function jobOf(url) {
   return engine.jobOf(url);
 }
 
+/**
+ * Whether `url` is a page a job system shows only once an application is
+ * sent (Greenhouse's confirmation, Lever's thanks): the student's submit
+ * went through (the engine's `submittedPage`).
+ * @param {string} url
+ */
+export function submittedPage(url) {
+  return engine.submittedPage(url);
+}
+
 /** The link to open for an application: its form, where the engine covers the job system. */
 export function formUrl(url) {
   return jobOf(url)?.form ?? url;

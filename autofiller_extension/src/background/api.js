@@ -255,7 +255,9 @@ const RESUME_MIME_TYPES = {
  * way, reads the same to the rest of the extension — "nothing to attach" —
  * rather than failing the whole profile load over one optional field.
  * @param {string} applicantId
- * @returns {Promise<{ filename: string, mimeType: string, base64: string } | null>}
+ * Each file names the resume it came from (`uploaded_resume_id` or
+ * `built_resume_id`), so a sent application can say which one went out.
+ * @returns {Promise<{ filename: string, mimeType: string, base64: string, uploaded_resume_id?: string, built_resume_id?: string } | null>}
  */
 async function resolveResumeFile(applicantId) {
   try {
@@ -268,6 +270,7 @@ async function resolveResumeFile(applicantId) {
         filename: defaultUpload.original_filename || `resume.${ext}`,
         mimeType: RESUME_MIME_TYPES[ext] ?? "application/octet-stream",
         base64: arrayBufferToBase64(buffer),
+        uploaded_resume_id: defaultUpload.id,
       };
     }
 
@@ -279,6 +282,7 @@ async function resolveResumeFile(applicantId) {
         filename: `${defaultBuilt.name || "Resume"}.pdf`,
         mimeType: "application/pdf",
         base64: rendered.pdf,
+        built_resume_id: defaultBuilt.id,
       };
     }
 
@@ -413,6 +417,29 @@ export async function nextApplication(applicantId, skip = []) {
  */
 export async function recordFill(applicantId, jobId, state) {
   return apiFetch(`/applicants/${applicantId}/applications/${jobId}/fill`, { method: "PUT", body: JSON.stringify({ state }) });
+}
+
+/**
+ * PUT .../applications/{job_id}/resume — keeps the resume an application
+ * went out with as its sent resume (the route's `built_resume_id` or
+ * `uploaded_resume_id`, from the profile's resume file).
+ * @param {string} applicantId
+ * @param {string} jobId
+ * @param {{ uploaded_resume_id: string } | { built_resume_id: string }} resume
+ */
+export async function recordSentResume(applicantId, jobId, resume) {
+  return apiFetch(`/applicants/${applicantId}/applications/${jobId}/resume`, { method: "PUT", body: JSON.stringify(resume) });
+}
+
+/**
+ * POST .../applications/{job_id}/finish — how an application ended:
+ * "submitted" marks it applied.
+ * @param {string} applicantId
+ * @param {string} jobId
+ * @param {"submitted" | "skipped" | "failed"} outcome
+ */
+export async function finishApplication(applicantId, jobId, outcome) {
+  return apiFetch(`/applicants/${applicantId}/applications/${jobId}/finish`, { method: "POST", body: JSON.stringify({ outcome }) });
 }
 
 /**

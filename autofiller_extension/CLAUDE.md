@@ -287,6 +287,29 @@ and `run/show` switches to one (`jobId`).
   on every dropdown: its waits polled with `requestAnimationFrame`, which a
   hidden tab never runs. A new wait in `src/` watches the DOM
   (`MutationObserver`) with a `setTimeout` limit.
+- **The student's submit marks the application applied (KAN-374).** The
+  extension never clicks, presses or sends a form's Submit; it only reads
+  the job system's answer once the student has. Each signal is the Fill
+  engine's (`src/submit.ts` in the engine, tested there on recorded
+  answers): in the page, `watchSubmit` wraps the page's `fetch` and reads
+  the submit's answer (Greenhouse: an OK answer; Ashby: every form result a
+  success, no block message) and watches for a success or failure notice
+  that newly shows (Ashby, Workable, Eightfold, Rippling, Workday); in the
+  background, `submittedPage` is the page shown once an application is sent
+  (Greenhouse's confirmation; Lever's thanks, its only signal, since its
+  form is a plain HTML post). A batch tab's content script asks for the
+  watch (`batch/watch`) before its fill, listens for the engine's
+  `fillengine:submit` event (its detail is JSON: an object detail reaches
+  the isolated world as null), and on a sent application says
+  `batch/submitted`. `markSubmitted` (batch.js) then keeps the resume the
+  fill attached as the sent resume (`PUT .../resume` with the profile
+  resume's `uploaded_resume_id` or `built_resume_id`; one that fails is
+  logged, never blocks), marks it applied (`POST .../finish
+  {"outcome": "submitted"}`), and takes the tab out of its group. Once
+  only: the answer and the confirmation page may both say so, and a tab
+  marked applied ignores later `batch/state`. A refused submit is a failed
+  row with the job system's words ("Greenhouse refused it: ..."), which
+  moves the tab to Needs you; the application stays unapplied.
 - **Tests** (`test/batch.extension.spec.ts`): the unpacked extension loaded
   into Chromium (`test/loaded-extension.ts`) runs a batch of seven saved
   forms and asserts the window and the groups. Playwright's routing never
@@ -294,7 +317,12 @@ and `run/show` switches to one (`jobId`).
   extension opens, so the harness sends every host name to fakes in the
   test process (`--host-resolver-rules`): the API (`test/fake-api.ts`) and
   the engine's saved forms (`test/fake-job-systems.ts`). Nothing reaches a
-  real WorkIt API, even one running on this machine. Headless Chromium
+  real WorkIt API, even one running on this machine.
+  `test/submit.extension.spec.ts` has the student press a saved
+  Greenhouse form's Submit (from the keyboard, the tab brought to the
+  front: a hidden tab runs no animation frames, which Playwright's clicks
+  wait for), with the fake submit endpoint answering OK or refusing.
+  Headless Chromium
   never hides a background tab and Playwright keeps every page it drives
   active, so neither can check hidden-tab timing: that was checked with
   Chromium started directly, its tabs never attached.
@@ -302,8 +330,8 @@ and `run/show` switches to one (`jobId`).
 A batch tab opens a job's form, not its page (`formUrl`: a Lever
 `apply_url` opens the posting, and the form is at `.../apply`). Still
 open: Workday takes one slot at a time, a closed tab counts as Skip, and
-the batch resumes after the browser closes (KAN-373); submit detection
-(KAN-374). With the student's Chrome window behind another app, macOS may
+the batch resumes after the browser closes (KAN-373). A submit refused by
+Lever (a plain post) shows only on Lever's page, not in the panel. With the student's Chrome window behind another app, macOS may
 slow every tab further; not yet measured.
 
 ## Auth: inherits the webapp's session, has no sign-in of its own

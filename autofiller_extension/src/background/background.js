@@ -8,8 +8,8 @@
 
 import { getSession } from "./auth.js";
 import { getAutofillProfile, generateEssayAnswer, ApiError } from "./api.js";
-import { batchStatus, forgetTab, inBatch, setTabState, showBatchTab, startBatch } from "./batch.js";
-import { engineCaller, handleFill, jobOf, runEngine } from "./engine.js";
+import { batchStatus, forgetTab, inBatch, markSubmitted, setTabState, showBatchTab, startBatch } from "./batch.js";
+import { engineCaller, handleFill, jobOf, runEngine, submittedPage } from "./engine.js";
 import { injectFill } from "../shared/content-scripts.js";
 
 /**
@@ -96,6 +96,19 @@ async function handleMessage(message, sender) {
       return setTabState(sender.tab.id, message.state);
     }
 
+    // A batch tab's page watches for the student's own submit (KAN-374):
+    // the engine, in the page, reads the job system's answer to it and its
+    // notices, and tells the content script, which says "batch/submitted"
+    // when the application was sent. The extension never submits.
+    case "batch/watch": {
+      const site = jobOf(sender.url)?.site;
+      if (site && (await inBatch(sender.tab.id))) await engineIn(sender)("watchSubmit", site);
+      return { watching: Boolean(site) };
+    }
+
+    case "batch/submitted":
+      return markSubmitted(sender.tab.id);
+
     default:
       throw new Error(`Unknown message type: ${message.type}`);
   }
@@ -115,6 +128,15 @@ async function rememberWorkdayTab(tabId) {
   const tabs = await workdayTabs();
   if (!tabs.includes(tabId)) await chrome.storage.session.set({ [WORKDAY_TABS_KEY]: [...tabs, tabId] });
 }
+
+// A batch tab that moves to a job system's page for a sent application
+// (Greenhouse's confirmation, Lever's thanks) was submitted by the student.
+// Lever's form is a plain HTML post, so this is its only signal. Host
+// permissions show the tab's link, with no `tabs` permission.
+chrome.tabs.onUpdated.addListener((tabId, change) => {
+  if (!change.url || !submittedPage(change.url)) return;
+  markSubmitted(tabId).catch((error) => console.warn("[batch] the application wasn't marked applied:", error.message));
+});
 
 chrome.tabs.onUpdated.addListener(async (tabId, change, tab) => {
   if (change.status !== "complete") return;

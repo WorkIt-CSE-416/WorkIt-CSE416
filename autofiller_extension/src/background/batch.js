@@ -5,7 +5,11 @@
 // (every field it needs shows an answer) or "Needs you", and moves between
 // them as the content script reports a change (content-script.js,
 // "batch/state"). The extension never submits: the student reviews each tab
-// and presses the employer's own Submit.
+// and presses the employer's own Submit. Once the job system says that
+// submit sent the application (the Fill engine's signal: its answer to the
+// submit, its notice, or its confirmation page; KAN-374), the application
+// is marked applied, with the resume the fill attached kept as its sent
+// resume, and the tab leaves its group (markSubmitted).
 //
 // The queue, its order and each application's stage stay the API's: the
 // next one is GET .../applications/next, skipping the jobs this batch has
@@ -23,7 +27,7 @@
 // shown (checked 2026-10-25, Chromium 1248). So no tab is ever made active,
 // and the student stays on the page they were on.
 
-import { ApiError, me, nextApplication, recordFill } from "./api.js";
+import { ApiError, finishApplication, getAutofillProfile, me, nextApplication, recordFill, recordSentResume } from "./api.js";
 import { formUrl } from "./engine.js";
 import { injectFill } from "../shared/content-scripts.js";
 
@@ -40,7 +44,7 @@ const LOAD_TIMEOUT_MS = 30_000;
 const FORM_TIMEOUT_MS = 10_000;
 
 /**
- * @typedef {"filling" | "ready" | "needs_you"} TabState
+ * @typedef {"filling" | "ready" | "needs_you" | "applied"} TabState
  * @typedef {{
  *   windowId: number,
  *   tabs: Record<string, { jobId: string, url: string, state: TabState }>,
@@ -170,7 +174,8 @@ export function setTabState(tabId, state) {
   return serially(async () => {
     const batch = await load();
     const tab = batch?.tabs[tabId];
-    if (!tab || tab.state === state) return { batch: Boolean(tab) };
+    // A sent application's form may still change (the page clears it); its tab stays out of the groups.
+    if (!tab || tab.state === state || tab.state === "applied") return { batch: Boolean(tab) };
     const wasFilling = tab.state === "filling";
     tab.state = state;
     await save(batch);
@@ -183,6 +188,35 @@ export function setTabState(tabId, state) {
       console.warn("[batch] the application's stage wasn't saved:", error.message);
     }
     if (wasFilling && account) await topUp(batch, account.id);
+    return { batch: true };
+  });
+}
+
+/**
+ * The student's submit sent a batch tab's application (the Fill engine said
+ * so; background.js): it is marked applied, with the resume the fill
+ * attached (the profile's) kept as its sent resume, and the tab leaves its
+ * group, which holds only what still waits for the student. Once only:
+ * the page's answer and its confirmation page may both say so. A resume that
+ * isn't recorded doesn't stop the mark; a mark the API refuses throws, for
+ * the tab to show. Tabs outside the batch are ignored.
+ * @param {number} tabId
+ */
+export function markSubmitted(tabId) {
+  return serially(async () => {
+    const batch = await load();
+    const tab = batch?.tabs[tabId];
+    if (!tab || tab.state === "applied") return { batch: Boolean(tab) };
+    const account = await me();
+    const resume = (await getAutofillProfile().catch(() => null))?.resume;
+    const sent = resume?.uploaded_resume_id ? { uploaded_resume_id: resume.uploaded_resume_id } : resume?.built_resume_id ? { built_resume_id: resume.built_resume_id } : null;
+    if (sent) await recordSentResume(account.id, tab.jobId, sent).catch((error) => console.warn("[batch] the sent resume wasn't recorded:", error.message));
+    await finishApplication(account.id, tab.jobId, "submitted");
+    const wasFilling = tab.state === "filling";
+    tab.state = "applied";
+    await save(batch);
+    await chrome.tabs.ungroup(tabId).catch(() => {});
+    if (wasFilling) await topUp(batch, account.id);
     return { batch: true };
   });
 }
