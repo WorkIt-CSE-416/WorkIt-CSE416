@@ -113,6 +113,18 @@ creates the profile row; on failure it resets `account_type` to `None` rather
 than deleting the auth user, since that user's Google/LinkedIn session is real
 and did not originate here.
 
+## Claude's sign-in to WorkIt (the connector, KAN-377)
+
+Here WorkIt is the OAuth **server**: a student's Claude signs in to WorkIt
+to reach the connector at `<api>/mcp`. The API serves the OAuth endpoints
+(`backend/app/connector/oauth.py`; `auto-apply/architecture.md` 14.6), and
+the student approves on the webapp's `/connect/claude` with their normal
+Supabase session. Signed out, the page sends them to `/login?next=...`,
+and a password sign-in comes back to it; `next` is honoured for that page
+only, so the link can't send anyone elsewhere. A Google or LinkedIn
+sign-in started there lands on the account's home instead (not carried
+through `/auth/callback` yet); the student opens Claude's link again.
+
 ## Identity
 
 - **One email, one account.** A person cannot have both an applicant and a

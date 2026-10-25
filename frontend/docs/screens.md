@@ -2164,6 +2164,19 @@ Pay & Visa" linked there until KAN-275, and nothing does now. Without saved
 answers `?step=2` opens on the first step, which holds the answers that must
 be given.
 
+## Connect Claude (`/connect/claude`, KAN-377)
+
+The connector's consent page: Claude's sign-in to WorkIt opens it with
+`?request=<id>` (`docs/auth.md`, "Claude's sign-in to WorkIt"). The auth
+screens' card over the skyline, outside both shells. It names the client
+("Claude wants to use your WorkIt account"), says in two lines what it may
+do (read the next application's questions, posting and experience; save
+answers that fill into open tabs), that it writes on the student's own
+Claude plan and that WorkIt never submits, then **Allow** (primary) and
+**Deny** (secondary). Either sends the browser back to Claude. A sign-in
+that is over, or a company account, shows the API's message instead of the
+buttons. Signed out, the page goes to `/login?next=...` first.
+
 ## Settings (`/settings`)
 
 KAN-326. **Settings is always a modal** (KAN-364): four sections, each

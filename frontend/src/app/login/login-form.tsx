@@ -17,7 +17,7 @@ const INITIAL_STATE: LoginState = { error: null, email: "" };
  * as signup/signup-form.tsx: useActionState requires a Client Component,
  * and AccountTypeSwitcher targets this form by id from outside it.
  */
-export function LoginForm({ formId }: { formId: string }) {
+export function LoginForm({ formId, next }: { formId: string; next?: string }) {
   const [state, formAction, pending] = useActionState(signIn, INITIAL_STATE);
   // Sign-out and an expired session both land here: no draft outlives them.
   useEffect(clearLocalDrafts, []);
@@ -29,6 +29,7 @@ export function LoginForm({ formId }: { formId: string }) {
 
   return (
     <form id={formId} action={formAction} className="mt-5 flex flex-col">
+      {next && <input type="hidden" name="next" value={next} />}
       <div className="flex flex-col gap-2.5">
         <TextField
           id="email"
