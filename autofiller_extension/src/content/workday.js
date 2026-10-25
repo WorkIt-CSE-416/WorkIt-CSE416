@@ -68,6 +68,16 @@ window.WIA = window.WIA || {};
     button.click();
   }
 
+  /**
+   * The words of Workday's messages the student can see on the sign-in
+   * (errorMessage, alertMessage). A hidden one is not Workday's answer:
+   * Workday keeps some on the form with text in them.
+   */
+  function alerts() {
+    return [...document.querySelectorAll(ALERT)].filter((a) => a.checkVisibility())
+      .map((a) => a.innerText.trim()).filter(Boolean).join(" ");
+  }
+
   /** Whether the terms box shows ticked, as a checkbox or as Workday's own (aria-checked). */
   function ticks(box) {
     return box.checked || box.getAttribute("aria-checked") === "true";
@@ -159,6 +169,8 @@ window.WIA = window.WIA || {};
     const switched = new Set();
     let withEmail = false;
     let alerted = "";
+    // The messages that showed when each view's button was pressed: Workday's answer is a different one.
+    const before = {};
     let ticked = "";
     let untickable = false;
     async function fillSignIn() {
@@ -222,15 +234,18 @@ window.WIA = window.WIA || {};
      * Create Account (a password made on this page only, so a refused one
      * was never an account; only once the terms box shows ticked) or Sign In
      * (never with a login Workday refused) once the boxes hold the login and
-     * the page has settled, and reads Workday's answer if it stays on the page.
+     * the page has settled, and reads Workday's answer if it stays on the page:
+   * a message the student can see that wasn't there at the press (one left
+   * from the student's own try, or a hidden one, isn't an answer: read as
+   * one, it dropped the password of an account just made).
      * Answers true when it told the student something (the usual note is
      * then skipped).
      */
     async function forMe(form, view) {
       const create = view === "create";
-      const alert = [...document.querySelectorAll(ALERT)].map((a) => a.innerText.trim()).filter(Boolean).join(" ");
+      const alert = alerts();
       if (pressed.has(view)) {
-        if (!alert || alert === alerted) return Boolean(alerted);
+        if (!alert || alert === alerted || alert === before[view]) return Boolean(alerted);
         alerted = alert;
         if (create && !VERIFY.test(alert)) await chrome.runtime.sendMessage({ type: "workday/forget" });
         if (!create && !VERIFY.test(alert)) {
@@ -279,6 +294,7 @@ window.WIA = window.WIA || {};
         }
       }
       pressed.add(view);
+      before[view] = alerts();
       press(button);
       ticked = terms;
       onView(create
