@@ -160,7 +160,17 @@ export function FeedList({
       }
       const { fresh } = page;
       setError(null);
-      keep({ path, query, jobs: [...initial, ...loaded, ...fresh], offset: page.offset, more: page.more, stages, tailored, canMarkApplied, source });
+      keep({
+        path,
+        query,
+        jobs: [...initial, ...loaded, ...fresh],
+        offset: page.offset,
+        more: page.more,
+        stages,
+        tailored,
+        canMarkApplied,
+        source,
+      });
       setSaid(
         fresh.length === 0
           ? "No more roles."
@@ -198,7 +208,9 @@ export function FeedList({
           <li
             key={job.id}
             data-job-id={job.id}
-            style={fromCache ? undefined : { animationDelay: `${Math.min(i % PAGE_SIZE, 6) * 50}ms` }}
+            style={
+              fromCache ? undefined : { animationDelay: `${Math.min(i % PAGE_SIZE, 6) * 50}ms` }
+            }
             className={fromCache ? undefined : "animate-rise"}
           >
             <ListingCard

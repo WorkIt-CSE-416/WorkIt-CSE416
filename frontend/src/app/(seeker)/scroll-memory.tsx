@@ -3,7 +3,6 @@
 import { usePathname, useSearchParams } from "next/navigation";
 import { useEffect, useLayoutEffect, useRef } from "react";
 
-
 /**
  * Puts a seeker page back where it was scrolled when the seeker comes back to
  * it: by the browser's Back or Forward, or by a link that means "back"

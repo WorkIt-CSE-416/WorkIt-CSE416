@@ -53,4 +53,3 @@ export function readKept(): Kept | null {
 export function keep({ at = Date.now(), ...pages }: Omit<Kept, "at"> & { at?: number }) {
   store.write({ ...pages, at });
 }
-

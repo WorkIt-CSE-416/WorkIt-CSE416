@@ -266,7 +266,11 @@ export default async function JobsPage({ searchParams }: PageProps<"/jobs">) {
             key={`${sort}${filtersQuery(filters)}`}
             fallback={
               <FeedFallback
-                query={sort === "match" ? sortHref("match", filters).slice("/jobs".length) : filtersQuery(filters)}
+                query={
+                  sort === "match"
+                    ? sortHref("match", filters).slice("/jobs".length)
+                    : filtersQuery(filters)
+                }
                 altQuery={sort === "match" ? filtersQuery(filters) : undefined}
               />
             }
