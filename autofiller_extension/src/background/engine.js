@@ -272,7 +272,9 @@ export async function planFill({ url, profile, today, call, fetchText, extra = [
   const fetchOnce = once(fetchText);
   const read = await readQuestions({ job, url, call, fetchText: fetchOnce, state });
   const known = new Set(read.questions.map((q) => q.name));
-  const questions = [...read.questions, ...extra.filter((q) => !known.has(q.name))];
+  // Each text field's own limit, as the form on the page sets it (KAN-380): a written answer is checked against it before it is saved.
+  const asked = [...read.questions, ...extra.filter((q) => !known.has(q.name))];
+  const questions = await optional(() => call("limits", asked), asked);
   const names = await optional(() => engine.jobNames(url, fetchOnce), { company: "", title: "" });
   const text = engine.textOf(await optional(() => engine.jobDescription(url, fetchOnce), ""));
   const posting = { id: String(job.job ?? job.shortcode ?? job.pid ?? url), ...names, url };
@@ -309,8 +311,9 @@ export async function fillPage({ call, site, questions, answers, accepted, state
 /**
  * What the overlay lists besides the planned answers, from the Plan:
  * - `written`: questions that need a written answer (the Plan's essays, and
- *   its drafts in a text area). Each waits for the student's one Generate
- *   click, then goes to the essay-answer route.
+ *   its drafts in a text area), each with `max_length`, its field's own limit
+ *   as the engine read it from the form (null when it sets none). Each waits
+ *   for the student's one Generate click, then goes to the essay-answer route.
  * - `yours`: questions WorkIt has no answer for (Missing facts, and drafts
  *   that are a choice or one line, which a written answer can't make).
  * - `notes`: what the Plan leaves to the student and why (an AI trap or ban,
@@ -318,7 +321,7 @@ export async function fillPage({ call, site, questions, answers, accepted, state
  * A form that bans AI-written text never has `written`: the Plan hands its
  * essays off instead, so nothing AI-written goes where it is banned.
  * @returns {{ written: Row[], yours: Row[], notes: string[] }}
- * @typedef {{ name: string, label: string, required: boolean }} Row
+ * @typedef {{ name: string, label: string, required: boolean, max_length?: number | null }} Row
  */
 export function planRows({ plan }) {
   const row = (q) => ({ name: q.name, label: q.label, required: q.required });
@@ -329,7 +332,7 @@ export function planRows({ plan }) {
   const notes = [...(plan.handoffs ?? [])];
   if (plan.not_eligible) notes.push(`You may not meet this requirement: ${plan.not_eligible}`);
   return {
-    written: [...plan.essays, ...drafts.filter(takesText)].map(row),
+    written: [...plan.essays, ...drafts.filter(takesText)].map((q) => ({ ...row(q), max_length: q.maxLength ?? null })),
     yours: [...plan.missing, ...drafts.filter((q) => !takesText(q))].map(row),
     notes,
   };

@@ -249,6 +249,15 @@ and `run/show` switches to one (`jobId`).
   an answer can take that long to land. Tests:
   `test/connector.extension.spec.ts` (Ashby's Harvey form: no saved
   Greenhouse form has an essay the Plan sends to Claude).
+- **A written question's limit comes from the Fill engine** (KAN-380).
+  `planFill` passes the Question set through the engine's `limits`, which
+  reads each text field's own `maxlength` on the page, and `planRows`
+  gives each `written` row its `max_length` (null when the field sets
+  none). Both `batch/questions` and the essay route take it from the row;
+  never read a box's `maxLength` in the content script (a field's element
+  is named differently on each hiring system: the engine knows how). The
+  API refuses a saved answer over it.
+  Tests: `test/greenhouse.spec.ts`.
 - **"Next Thing That Needs You" walks the batch** (KAN-375). Each batch
   tab's panel has the button. `batch.js`'s `nextNeedsYou` asks every batch
   tab, in the order the tabs opened, which of its rows need the student
