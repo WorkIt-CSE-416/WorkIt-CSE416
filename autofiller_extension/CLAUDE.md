@@ -360,6 +360,15 @@ waits for an opened tab's page and form (`waitForLoad`, `formShows`).
   one Claude's answer fills is labelled Claude (KAN-375's sources). A
   practice batch's tabs (KAN-378) send nothing: a practice job has no
   application at WorkIt, so its essays stay the student's.
+  **The pre-submit review** (KAN-369): once every written answer is in,
+  the tab keeps polling `GET .../questions` until each answer is
+  `reviewed` by the student's Claude (`get_review_task`/`save_review`,
+  backend `app/auto_apply/review.py`). A `flag` goes on its row
+  (`status.flag`; warning tint and the reason) only while the field still
+  shows the answer the review read, and the row needs the student (Needs
+  you, Next Thing walks to it) until their edit (any `setStatus` clears
+  it). A batch whose answers no Claude reviews (pasted ones) polls while
+  the tab is open. Test: `test/paste.extension.spec.ts`.
   A hidden tab's timers slow to about once a minute after five minutes, so
   an answer can take that long to land. Tests:
   `test/connector.extension.spec.ts` (Ashby's Harvey form: no saved

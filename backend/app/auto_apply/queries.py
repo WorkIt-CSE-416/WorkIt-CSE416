@@ -420,6 +420,73 @@ async def fetch_unanswered(
     return list(found.values())
 
 
+def _read_by_review():
+    """The answer the application's saved review read for this row's
+    question, or NULL (no review, or none of that question)."""
+    return Job_Application.answer_review.op("->")("answers").op("->>")(Written_Answer.name)
+
+
+async def fetch_next_to_review(db: AsyncSession, applicant_id: uuid.UUID) -> tuple[uuid.UUID, str | None] | None:
+    """The oldest open application (queued or needs_you, its job posting
+    open) whose written questions are all answered and that has an answer
+    not the student's own that its saved review didn't read (none saved, or
+    the answer changed since): its job id and the posting's description."""
+    def rows(*where):
+        return (
+            select(Written_Answer.job_id)
+            .where(Written_Answer.applicant_id == applicant_id, Written_Answer.job_id == Job_Application.job_id, *where)
+            .exists()
+        )
+
+    row = (
+        await db.execute(
+            select(Job_Application.job_id, Job_Post.description)
+            .join(Job_Post, Job_Post.id == Job_Application.job_id)
+            .where(
+                Job_Application.applicant_id == applicant_id,
+                Job_Application.stage.in_((application_stage.queued, application_stage.needs_you)),
+                LISTED,
+                ~rows(Written_Answer.answer.is_(None)),
+                rows(Written_Answer.own.is_(False), _read_by_review().is_distinct_from(Written_Answer.answer)),
+            )
+            .order_by(Job_Application.created_at, Job_Application.job_id)
+            .limit(1)
+        )
+    ).first()
+    return (row.job_id, row.description) if row else None
+
+
+async def fetch_review(
+    db: AsyncSession, applicant_id: uuid.UUID, job_id: uuid.UUID
+) -> tuple[dict | None, list[tuple[WrittenAnswer, bool]]]:
+    """An application's saved review (None when none is) and its written
+    questions in the form's order, each with its answer and whether that
+    answer is the student's own."""
+    review = await db.scalar(
+        select(Job_Application.answer_review)
+        .where(Job_Application.applicant_id == applicant_id, Job_Application.job_id == job_id)
+    )
+    rows = await db.scalars(
+        select(Written_Answer)
+        .where(Written_Answer.applicant_id == applicant_id, Written_Answer.job_id == job_id)
+        .order_by(Written_Answer.position, Written_Answer.name)
+    )
+    return review, [
+        (WrittenAnswer(name=r.name, label=r.label, required=r.required, max_length=r.max_length, kind=r.kind,
+                       options=r.options, answer=r.answer), r.own)
+        for r in rows
+    ]
+
+
+async def set_answer_review(db: AsyncSession, applicant_id: uuid.UUID, job_id: uuid.UUID, review: dict) -> None:
+    """Replaces the application's saved review. Flushes; the caller commits."""
+    await db.execute(
+        update(Job_Application)
+        .where(Job_Application.applicant_id == applicant_id, Job_Application.job_id == job_id)
+        .values(answer_review=review)
+    )
+
+
 async def fetch_answered(
     db: AsyncSession, applicant_id: uuid.UUID
 ) -> list[tuple[uuid.UUID, str | None, str | None, list[Written_Answer]]]:

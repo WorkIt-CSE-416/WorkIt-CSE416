@@ -303,9 +303,10 @@ async def written_answers(
     account: AuthenticatedAccount = Depends(get_current_account),
     db: AsyncSession = Depends(get_session),
 ) -> list[WrittenAnswer]:
-    """An application's questions that need writing, with the answers saved so far."""
+    """An application's questions that need writing, with the answers saved so far and what the
+    student's Claude's pre-submit review found (KAN-369)."""
     assert_applicant_owns(account, applicant_id)
-    return await pipeline.written_answers(db, applicant_id, job_id)
+    return await pipeline.reviewed_answers(db, applicant_id, job_id)
 
 
 @router.put("/applications/{job_id}/answers", response_model=SavedAnswer)

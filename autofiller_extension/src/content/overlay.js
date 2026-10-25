@@ -130,6 +130,9 @@ window.WIA = window.WIA || {};
       .source[data-source="claude"], .source[data-source="ai"] { background: var(--color-brand-tint); color: var(--color-brand-ink); }
       .reason { color: var(--color-danger); font-size: var(--text-note); margin-top: 2px; }
       .reason.note { color: var(--color-ink-meta); }
+      /* An answer the student's Claude's pre-submit review flagged (KAN-369): theirs to read before they submit. */
+      .row[data-flagged] { background: var(--color-warning-tint); }
+      .reason.flag { color: var(--color-warning); }
       .reason a { color: var(--color-brand-ink); font-weight: 500; text-decoration: underline; }
       .reason a:focus-visible { outline: 2px solid var(--color-brand); outline-offset: 2px; }
       .empty { padding: 16px 12px; color: var(--color-ink-meta); }
@@ -171,6 +174,13 @@ window.WIA = window.WIA || {};
         const link = Object.assign(document.createElement("a"), { href: field.link.href, textContent: field.link.text, target: "_blank", rel: "noreferrer" });
         reason.append(" ", link, ".");
       }
+      text.appendChild(reason);
+    }
+    if (field.flag) {
+      el.dataset.flagged = "";
+      const reason = document.createElement("div");
+      reason.className = "reason flag";
+      reason.textContent = `Your Claude's check: ${field.flag} Read it before you submit, and edit it if it's wrong.`;
       text.appendChild(reason);
     }
     el.append(dot, text);

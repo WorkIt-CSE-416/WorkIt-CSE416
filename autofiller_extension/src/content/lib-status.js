@@ -64,7 +64,23 @@ window.WIA = window.WIA || {};
   function setStatus(key, status, reason, shows, source, link) {
     const existing = results.get(key);
     if (!existing) return;
-    results.set(key, { ...existing, status, reason, shows, link, ...(source ? { source } : {}) });
+    // A new status is a new state of the field: a review's flag on what it showed before no longer holds.
+    results.set(key, { ...existing, status, reason, shows, link, flag: undefined, ...(source ? { source } : {}) });
+    notify();
+  }
+
+  /**
+   * Marks a filled row with what the student's Claude's pre-submit review
+   * found wrong in its answer (KAN-369), or clears it (no `reason`). The
+   * row keeps its status and value; the flag lasts until its next setStatus
+   * (the student's edit).
+   * @param {string} key
+   * @param {string} [reason]
+   */
+  function flag(key, reason) {
+    const existing = results.get(key);
+    if (!existing || existing.flag === reason) return;
+    results.set(key, { ...existing, flag: reason });
     notify();
   }
 
@@ -103,5 +119,5 @@ window.WIA = window.WIA || {};
     };
   }
 
-  window.WIA.status = { register, setStatus, reset, summary, subscribe };
+  window.WIA.status = { register, setStatus, flag, reset, summary, subscribe };
 })();

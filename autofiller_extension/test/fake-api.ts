@@ -9,7 +9,11 @@ export type Stage = "queued" | "needs_you" | "skipped" | "applied";
 /** `form_url`: the employer's form the API names (KAN-376); its apply_url when left out, as for a hiring system's posting. */
 export type Posting = { id: string; apply_url: string; form_url?: string | null; title?: string; company?: string };
 /** A question a batch tab's form needs written, and the answer the student's Claude saved (KAN-377). */
-export type Written = { name: string; label: string; required: boolean; max_length: number | null; answer: string | null };
+export type Written = {
+  name: string; label: string; required: boolean; max_length: number | null; answer: string | null;
+  // The pre-submit review (backend/app/auto_apply/review.py): whether it read this answer, and why it flagged it.
+  reviewed?: boolean; flag?: string | null;
+};
 
 const RESUME_ID = "00000000-0000-0000-0000-0000000000r1";
 
@@ -38,6 +42,18 @@ export class FakeApi {
     const question = this.written.get(jobId)?.find((q) => q.name === name);
     if (!question) throw new Error(`Job ${jobId} has no question ${name}`);
     question.answer = answer;
+    // A new answer is one the review hasn't read (review.py's snapshot).
+    question.reviewed = false;
+    question.flag = null;
+  }
+
+  /** The connector's save_review: the student's Claude re-read the job's answers and found `flags` wrong (by name). */
+  saveReview(jobId: string, flags: Record<string, string>): void {
+    for (const q of this.written.get(jobId) ?? []) {
+      if (q.answer === null) continue;
+      q.reviewed = true;
+      q.flag = flags[q.name] ?? null;
+    }
   }
 
   /** The student's autofill answers (GET and PATCH .../autofill-answers), STUDENT's unless `profile` names others. */

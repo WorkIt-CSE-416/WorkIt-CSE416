@@ -107,7 +107,9 @@ window.WIA = window.WIA || {};
      * The tab then asks for the saved answers every ANSWER_POLL ms and fills
      * each new one through the engine, until none is left; the tab's group
      * follows (report()). A question the student answered first keeps their
-     * answer.
+     * answer. It then asks on until the student's Claude's pre-submit review
+     * has read every answer (KAN-369), and puts each flag it gives on the
+     * row of the answer it read, while the field still shows that answer.
      */
     async function awaitClaude(prepared) {
       const waiting = new Set(prepared.written.map((q) => q.name));
@@ -127,8 +129,10 @@ window.WIA = window.WIA || {};
       }
       offerClaude();
       let byClaude = false;
+      let answered = false;
       for (;;) {
-        for (const { name, answer } of reply.ok ? reply.questions : []) {
+        const rows = reply.ok ? reply.questions : [];
+        for (const { name, answer } of rows) {
           if (!answer || !waiting.has(name)) continue;
           waiting.delete(name);
           if (rowStatus(name) !== "filled") {
@@ -137,7 +141,17 @@ window.WIA = window.WIA || {};
           }
         }
         for (const name of waiting) if (rowStatus(name) === "filled") waiting.delete(name);
-        if (!waiting.size) return offerSamples(byClaude);
+        if (!waiting.size && !answered) {
+          answered = true;
+          offerSamples(byClaude);
+        }
+        if (answered) {
+          for (const { name, answer, reviewed, flag } of rows) {
+            const row = status.summary().fields.find((r) => r.key === name);
+            if (reviewed && row?.status === "filled" && row.shows === answer) status.flag(name, flag ?? undefined);
+          }
+          if (reply.ok && rows.every((q) => !q.answer || q.reviewed)) return;
+        }
         await sleep(ANSWER_POLL);
         reply = await send({ type: "batch/answers" }).catch((error) => ({ ok: false, error: error.message }));
       }

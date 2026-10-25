@@ -26,8 +26,8 @@ window.WIA = window.WIA || {};
     const SUBMIT_KEY = crypto.randomUUID();
     const SUBMIT_EVENT = `fillengine:submit:${SUBMIT_KEY}`;
 
-    /** Whether a row needs the student: a note the Plan left them, a failed field, or a required one unanswered. */
-    const needsYou = (r) => r.key.startsWith("_") || r.status === "failed" || (r.required && r.status !== "filled");
+    /** Whether a row needs the student: a note the Plan left them, a failed field, a required one unanswered, or an answer the review flagged. */
+    const needsYou = (r) => r.key.startsWith("_") || r.status === "failed" || (r.required && r.status !== "filled") || Boolean(r.flag);
 
     /**
      * Whether this batch tab is "ready" (every field it needs shows an answer),

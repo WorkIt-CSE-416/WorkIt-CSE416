@@ -61,3 +61,35 @@ test("a pasted answer fills into its open tab, which moves to Ready", async () =
   await expect.poll(() => groupOf(loaded.worker, LUMEN), { timeout: 15_000 }).toBe("Ready");
   await expect.poll(() => api.stages.get("job-0")).toBe("queued");
 });
+
+// The pre-submit review (KAN-369): the student's Claude re-reads a filled application's answers through the
+// connector (backend/app/auto_apply/review.py; tested in backend/tests/test_connector_review.py). An answer it
+// flags shows on its row as needing the student, with the reason, until the student edits it.
+test("an answer the review flags needs the student until they edit it", async () => {
+  test.setTimeout(120_000);
+  const api = new FakeApi().queue({ id: "job-0", apply_url: LUMEN });
+  loaded = await loadExtension([api.handler, webapp]);
+  await signIn(loaded.context);
+  const page = loaded.context.pages()[0] ?? (await loaded.context.newPage());
+  await page.goto(`${WEB}/auto-apply`);
+  await sendFromWebapp(page, { type: "run/open" });
+  await expect.poll(() => api.written.get("job-0")?.length, { timeout: 60_000 }).toBe(1);
+  const name = api.written.get("job-0")![0].name;
+  api.saveAnswer("job-0", name, ANSWER);
+  const form = loaded.context.pages().find((p) => p.url() === LUMEN)!;
+  await expect(form.locator(`[name='${name}']`)).toHaveValue(ANSWER, { timeout: 20_000 });
+  await expect.poll(() => groupOf(loaded.worker, LUMEN), { timeout: 15_000 }).toBe("Ready");
+
+  // The review flags it: within one poll its row says why, and the tab needs the student.
+  const flag = "It says clinics call patients; the experience doesn't say that.";
+  api.saveReview("job-0", { [name]: flag });
+  const row = form.locator(`#workit-autofiller-overlay-host [data-key="${name}"]`);
+  await expect(row.locator(".reason")).toHaveText(`Your Claude's check: ${flag} Read it before you submit, and edit it if it's wrong.`, { timeout: 20_000 });
+  await expect(row).toHaveAttribute("data-flagged", "");
+  await expect.poll(() => groupOf(loaded.worker, LUMEN), { timeout: 15_000 }).toBe("Needs you");
+
+  // The student edits it: the flag is gone, and nothing else needs them.
+  await form.locator(`[name='${name}']`).fill("I want to build data pipelines for clinics.");
+  await expect(row.locator(".reason")).toHaveCount(0, { timeout: 15_000 });
+  await expect.poll(() => groupOf(loaded.worker, LUMEN), { timeout: 15_000 }).toBe("Ready");
+});
