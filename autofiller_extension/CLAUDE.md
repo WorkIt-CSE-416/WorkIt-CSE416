@@ -307,7 +307,9 @@ waits for an opened tab's page and form (`waitForLoad`, `formShows`).
   every company, `workday.js` presses "Sign in with email", switches to
   Create Account when nothing is saved there (to Sign In when the saved
   login has signed in, `signedIn`, set by the first `fill/plan` on the
-  tenant), ticks the terms box and names its words in the panel, and
+  tenant, or made the account, `created`, set by `workday/created` when
+  Workday answers the extension's Create Account by asking to verify the
+  email, in an alert or the page's text), ticks the terms box and names its words in the panel, and
   presses Create Account (only with a password made on that page, and only
   once the box shows ticked, `checked` or `aria-checked`, a moment later;
   else it says to tick it and press Create Account, and keeps the

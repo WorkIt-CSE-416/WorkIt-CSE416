@@ -13,7 +13,9 @@
 // page's panel), the content script also ticks each company's terms box and
 // presses Create Account or Sign In itself, as Jobright and Simplify do
 // (workday.js). A tenant whose application has shown since is marked
-// `signedIn`: its account exists, so its Create Account is never pressed. A
+// `signedIn`: its account exists, so its Create Account is never pressed. So
+// is one whose Create Account the extension pressed and Workday answered by
+// asking to verify the email (`created`): its next page signs in. A
 // tenant whose Sign In Workday refused is marked `refused`: its Sign In is
 // never pressed again until the student signs in there.
 //
@@ -61,14 +63,16 @@ function changeLogins(change) {
  * @param {string} email the student's email
  * @param {{ create: boolean }} options
  * `made`: the password is new, made by this call. `signedIn`: it has signed
- * in here. `refused`: Workday refused a Sign In the extension pressed with
+ * in here. `created`: Workday made the account with it, pending the
+ * student's verification. `refused`: Workday refused a Sign In the extension pressed with
  * it. `forMe`: the student allowed the extension to press the buttons.
- * @returns {Promise<{ email: string, password: string | null, made: boolean, signedIn: boolean, refused: boolean, forMe: boolean }>}
+ * @returns {Promise<{ email: string, password: string | null, made: boolean, signedIn: boolean, created: boolean, refused: boolean, forMe: boolean }>}
  */
 export function workdayLogin(tenant, email, { create }) {
   return changeLogins((logins, forMe) => {
     const answer = (login, made) => ({
-      email: login.email, password: login.password, made, signedIn: Boolean(login.signedIn), refused: Boolean(login.refused), forMe,
+      email: login.email, password: login.password, made, signedIn: Boolean(login.signedIn), created: Boolean(login.created),
+      refused: Boolean(login.refused), forMe,
     });
     if (logins[tenant]) return { value: answer(logins[tenant], false) };
     if (!create) return { value: answer({ email, password: null }, false) };
@@ -98,6 +102,19 @@ export function markSignedIn(tenant) {
 }
 
 /**
+ * Workday answered the Create Account the extension pressed by asking the
+ * student to verify their email: the account was made with the saved
+ * password, so the tenant's next Create Account page switches to Sign In.
+ */
+export function markCreated(tenant) {
+  return changeLogins((logins) => {
+    if (!logins[tenant] || logins[tenant].created) return;
+    logins[tenant] = { ...logins[tenant], created: true };
+    return { save: true };
+  });
+}
+
+/**
  * Workday refused a Sign In the extension pressed with the saved login: it
  * is kept, but never pressed with again (each try counts toward Workday's
  * lockout), on any page, until the student signs in (markSignedIn).
@@ -113,11 +130,11 @@ export function markRefused(tenant) {
 /**
  * Workday refused the Create Account the extension pressed with a new
  * password: no account was made with it, so it is dropped. A login that has
- * signed in is kept.
+ * signed in, or made an account (`created`), is kept.
  */
 export function forgetLogin(tenant) {
   return changeLogins((logins) => {
-    if (!logins[tenant] || logins[tenant].signedIn) return;
+    if (!logins[tenant] || logins[tenant].signedIn || logins[tenant].created) return;
     delete logins[tenant];
     return { save: true };
   });

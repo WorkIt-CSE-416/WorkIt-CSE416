@@ -21,7 +21,7 @@ import { nextNeedsYou } from "./next-needs-you.js";
 import { SELF_ID, checkedSelfId, unansweredSelfId } from "./self-id.js";
 import { forgetSubmits, submitHinted, watchSubmitRequests } from "./submit-proof.js";
 import { injectFill } from "../shared/content-scripts.js";
-import { allowForMe, forgetLogin, markRefused, markSignedIn, sentSince, watchWorkdaySends, workdayLogin } from "./workday-logins.js";
+import { allowForMe, forgetLogin, markCreated, markRefused, markSignedIn, sentSince, watchWorkdaySends, workdayLogin } from "./workday-logins.js";
 import { writeEarly } from "./write-early.js";
 
 /**
@@ -146,6 +146,13 @@ async function handleMessage(message, sender) {
       const job = jobOf(sender.url);
       if (job?.site !== "workday") throw new Error("Not a Workday page");
       return forgetLogin(job.tenant);
+    }
+
+    // Workday asked to verify the email after a Create Account the extension pressed: the account was made.
+    case "workday/created": {
+      const job = jobOf(sender.url);
+      if (job?.site !== "workday") throw new Error("Not a Workday page");
+      return markCreated(job.tenant);
     }
 
     // Workday refused a Sign In the extension pressed: it is never pressed with that login again.

@@ -29,6 +29,8 @@ window.WIA = window.WIA || {};
   const WITH_EMAIL = "[data-automation-id=SignInWithEmailButton]";
   const ALERT = "[data-automation-id=errorMessage], [data-automation-id=alertMessage]";
   const VERIFY = /verif/i;
+  // Workday's page text, not only its alerts, may say a new account waits for verification (as Apply reads it).
+  const VERIFY_PAGE = /verification (email|link)|verify your (account|email)/i;
   const SIGNED_IN = "WorkIt fills each step once you're signed in.";
   const WONT_TRY = "WorkIt won't try again, so your account doesn't lock. Sign in yourself, or press Forgot Password.";
   // How long a press gets to send the form before Workday is taken to have dropped it, and the most presses.
@@ -184,6 +186,8 @@ window.WIA = window.WIA || {};
     let alerted = "";
     // The messages that showed when each view's button was pressed: Workday's answer is a different one.
     const before = {};
+    // Whether the page already spoke of verification at the Create Account press.
+    let verifyBefore = false;
     // Each view's presses: how many, and when the first was (a send since then means never again).
     const sends = {};
     let ticked = "";
@@ -260,18 +264,25 @@ window.WIA = window.WIA || {};
       const create = view === "create";
       const alert = alerts();
       if (pressed.has(view)) {
-        if (!alert || alert === alerted || alert === before[view]) return Boolean(alerted);
-        alerted = alert;
-        if (create && !VERIFY.test(alert)) await chrome.runtime.sendMessage({ type: "workday/forget" });
-        if (!create && !VERIFY.test(alert)) {
+        const shown = alert && alert !== before[view] ? alert
+          : create && !verifyBefore && document.body.innerText.match(VERIFY_PAGE)?.[0] || "";
+        if (!shown || shown === alerted) return Boolean(alerted);
+        alerted = shown;
+        // The account was made, pending the email's link: the next page signs in with it.
+        if (create && VERIFY.test(shown)) {
+          await chrome.runtime.sendMessage({ type: "workday/created" });
+          login.created = true;
+        }
+        if (create && !VERIFY.test(shown)) await chrome.runtime.sendMessage({ type: "workday/forget" });
+        if (!create && !VERIFY.test(shown)) {
           await chrome.runtime.sendMessage({ type: "workday/refused" });
           login.refused = true;
         }
-        onView((create && ticked ? `WorkIt ticked "${ticked}" for you. ` : "") + refusal(view, alert));
+        onView((create && ticked ? `WorkIt ticked "${ticked}" for you. ` : "") + refusal(view, shown));
         return true;
       }
-      // Nothing saved here: make the account. A login that signed in before: sign in with it.
-      const other = create ? login.signedIn : !login.password;
+      // Nothing saved here: make the account. A login that signed in before, or made the account: sign in with it.
+      const other = create ? login.signedIn || login.created : !login.password;
       if (other && !switched.has(view)) {
         const link = document.querySelector(SWITCH[view]);
         if (link) {
@@ -317,6 +328,7 @@ window.WIA = window.WIA || {};
       sends[view].count += 1;
       pressed.add(view);
       before[view] ??= alerts();
+      if (create && sends[view].count === 1) verifyBefore = VERIFY_PAGE.test(document.body.innerText);
       press(button);
       setTimeout(() => pressAgain(view), SEND_WAIT);
       ticked = terms;
