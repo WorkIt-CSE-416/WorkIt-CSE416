@@ -48,9 +48,9 @@ import {
  * posting's one tailored resume. Nothing is saved before Done, except a
  * skill added by answering Yes (it goes into the bank, which is the point).
  *
- * The keyword match ("12 of 18") is the API's for the starting resume; the
- * "after" count adds each accepted change's keywords and each Yes, with no
- * AI call. Done's response is the saved resume's own match.
+ * The keyword match ("12 of 18") is the API's for the starting resume; it
+ * does not move as changes are accepted. Done's response is the saved
+ * resume's own match.
  */
 
 type Decision = "accepted" | "rejected";
@@ -147,11 +147,6 @@ export function TailorScreen({
   const decide = (i: number, d: Decision) => setDecisions((all) => ({ ...all, [i]: d }));
   const acceptAll = () =>
     setDecisions(Object.fromEntries(proposal.changes.map((_, i) => [i, "accepted" as const])));
-  const gained = new Set([
-    ...proposal.changes.flatMap((c, i) => (decisions[i] === "accepted" ? c.keywords : [])),
-    ...added.flatMap((c) => c.keywords),
-  ]);
-  const after = proposal.missing.filter((k) => gained.has(k.keyword));
 
   return (
     <div className="mt-4 flex flex-col gap-4">
@@ -164,24 +159,11 @@ export function TailorScreen({
             Weak match: this posting has no description, so WorkIt read only its title.
           </p>
         )}
-        <div className="mt-2 flex flex-wrap gap-6">
-          <div>
-            <p className="text-note text-ink-meta">Before</p>
-            <MatchCount matched={proposal.matched} missing={proposal.missing} />
-          </div>
-          <div>
-            <p className="text-note text-ink-meta">With What You Accept</p>
-            <MatchCount
-              matched={[...proposal.matched, ...after]}
-              missing={proposal.missing.filter((k) => !gained.has(k.keyword))}
-            />
-          </div>
+        <div className="mt-2">
+          <MatchCount matched={proposal.matched} missing={proposal.missing} />
         </div>
-        <KeywordList label="Matched" keywords={[...proposal.matched, ...after]} />
-        <KeywordList
-          label="Missing"
-          keywords={proposal.missing.filter((k) => !gained.has(k.keyword))}
-        />
+        <KeywordList label="Matched" keywords={proposal.matched} />
+        <KeywordList label="Missing" keywords={proposal.missing} />
         {/* KAN-319: the Tailor limit is lifted for now, so the count is hidden.
         <p className="text-note text-ink-meta mt-2">
           {proposal.uses_left} Tailor {proposal.uses_left === 1 ? "run" : "runs"} left today.
@@ -443,9 +425,6 @@ function ChangeRow({
               </p>
             </div>
           )}
-          {change.keywords.length > 0 && (
-            <p className="text-note text-positive-ink mt-1">Adds {change.keywords.join(", ")}</p>
-          )}
         </div>
         <div className="flex shrink-0 gap-2">
           <Button
@@ -501,7 +480,6 @@ function Question({
       text: null,
       original: null,
       label: data.name,
-      keywords: [keyword.keyword],
     });
     setBusy(false);
   }

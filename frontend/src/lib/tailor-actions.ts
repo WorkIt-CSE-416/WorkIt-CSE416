@@ -21,8 +21,6 @@ export type TailorChange = {
   text: string | null;
   original: string | null;
   label: string | null;
-  /** The posting's keywords this change alone adds to the match. */
-  keywords: string[];
 };
 
 /** The resume the student picked to tailor: a built resume, or an upload
@@ -38,7 +36,7 @@ export type TailorProposal = {
   weak_match: boolean;
   matched: Keyword[];
   missing: Keyword[];
-  /** Missing keywords that are nowhere in the bank: "Have you used X?". */
+  /** Every missing keyword: "Have you used X?". A run proposes no skill. */
   questions: Keyword[];
   changes: TailorChange[];
   dropped: number;
