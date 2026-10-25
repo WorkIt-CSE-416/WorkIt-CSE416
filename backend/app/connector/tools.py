@@ -7,6 +7,9 @@ whole view of WorkIt (auto-apply/architecture.md, 14.6):
   questions, and the student's experience bank. A job id of null when
   nothing is left, or when this chat has had its share of applications
   (KAN-381, below).
+- `get_research_task` and `save_company_brief`: the shared company
+  briefs (KAN-382), in app/connector/briefs.py; get_next_application hands
+  the application's company brief with it.
 - `save_answers` (a write): saves answers to that application's
   questions, all or none; the open batch tab fills each one.
 - `get_writing_samples` and `save_style_card` (app/connector/style.py,
@@ -43,7 +46,7 @@ from mcp.server.mcpserver.exceptions import ToolError
 from mcp_types import ToolAnnotations
 from pydantic import BaseModel, Field
 
-from app.auto_apply import pipeline
+from app.auto_apply import briefs, pipeline
 from app.config import get_settings
 from app.connector.prompt import PROMPT, TITLE
 from app.db import get_sessionmaker
@@ -76,6 +79,11 @@ class NextApplication(BaseModel):
     questions: list[Question] = []
     experience: str = Field(default="", description="The student's experience bank: each entry and its bullets.")
     skills: list[str] = []
+    company_brief: list[dict] = Field(
+        default=[],
+        description="Facts about the company, each with its category, page url, the page's date and, for a team, "
+        "its name. Web text checked against its page; [] when WorkIt has no brief for the company.",
+    )
     style_card: str | None = Field(
         default=None, description="How the student writes, from their writing samples (KAN-384); null when none is saved."
     )
@@ -132,6 +140,7 @@ def register(server: MCPServer) -> None:
         async with get_sessionmaker()() as db:
             student = await _student(db)
             found = await pipeline.next_to_write(db, student.id, skip=handed)
+            brief = await briefs.brief_for(db, found.application.job.company) if found else []
             card, card_needed = await writing.card_state(db, student.id)
         if found is None:
             return NextApplication(job_id=None, chat=chat)
@@ -160,6 +169,7 @@ def register(server: MCPServer) -> None:
             ],
             experience=experience,
             skills=skills,
+            company_brief=brief,
             style_card=card,
             style_card_needed=card_needed,
         )

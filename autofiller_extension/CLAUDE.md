@@ -233,6 +233,14 @@ and `run/show` switches to one (`jobId`).
   the student's edits: the engine reads back (`fill/read`) every required
   or failed field, so emptying one moves the tab to Needs you and answering
   the last one moves it to Ready.
+- **Never Ready while the form would refuse the submit.** After the fill
+  and after each edit, the engine names every field the form requires now
+  that shows nothing (`fill/required`, the engine's `emptyRequired`): a
+  required one with no row yet, and one the form requires only once
+  another is answered, which no Question set marks required (Greenhouse's
+  phone country once Phone shows a number: its submit answers "Select a
+  country", seen on Arc's form). Each becomes a failed, required row, so
+  the tab needs the student until it shows an answer.
 - **A batch tab's essays come from the student's own Claude** (KAN-377;
   `auto-apply/architecture.md` 14.6). The essay route is never batch
   apply's. The tab sends the questions its Plan needs written

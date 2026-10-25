@@ -31,6 +31,9 @@ export class FakeApi {
     question.answer = answer;
   }
 
+  /** `profile`: the student's profile fields that differ from STUDENT's. */
+  constructor(private profile: Partial<typeof STUDENT> = {}) {}
+
   /** Queues the postings in this order, as Start Auto Apply or the job cards do. */
   queue(...postings: Posting[]): this {
     for (const posting of postings) {
@@ -52,7 +55,7 @@ export class FakeApi {
     if (!path.startsWith(`${me}/`)) return { status: 403, json: { detail: "Not yours" } };
     const route = path.slice(me.length);
     if (route === "/profile") {
-      const { phone_number, headline, linkedin_url, portfolio_url, github_url, other_url } = STUDENT;
+      const { phone_number, headline, linkedin_url, portfolio_url, github_url, other_url } = { ...STUDENT, ...this.profile };
       return { json: { contact_email: null, phone_number, headline, linkedin_url, portfolio_url, github_url, other_url } };
     }
     if (route === "/bank") return { json: STUDENT.bank };

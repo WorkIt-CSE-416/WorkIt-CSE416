@@ -1069,7 +1069,7 @@ ids and plain data.
 | `save_answers` | tool, a write (not destructive) | `{job_id, answers: [{name, answer}]}` (`save_answers`): all or none; refuses a name the application doesn't ask, an empty answer, or one over the form's `max_length` (else 10,000), with the reason as a tool error for Claude to fix. Answers `{saved, left}` |
 | `get_writing_samples` | tool, `readOnlyHint` | `app/connector/style.py` (KAN-384): the student's writing samples, word for word, and the style card saved from them, if any |
 | `save_style_card` | tool, a write (not destructive) | `{card}`: adds or replaces the student's style card; refuses one when the student has no samples, or an empty one or one over 4,000 characters |
-| "Write my WorkIt answers" | prompt | `app/connector/prompt.py`. The loop (next application, write, save, until the tool says to start a new chat) and the writing rules. **The rules live here only**; tool descriptions say what a tool does (Anthropic's review refuses descriptions that steer Claude) |
+| "Write my WorkIt answers" | prompt | `app/connector/prompt.py`. The loop (next application, research its company if `get_research_task` names it (KAN-382), write, save, until the tool says to start a new chat) and the writing rules. **The rules live here only**; tool descriptions say what a tool does (Anthropic's review refuses descriptions that steer Claude) |
 
 **The writing rules (KAN-381)** are Apply's pipeline, made general for any
 student: a draft by Apply's rules for plain, concrete answers and its
@@ -1128,6 +1128,41 @@ waiting, the tab asks for the saved answers every 10 seconds
 through the engine; the tab's group follows, so it moves to Ready once
 nothing else needs the student. A question the student answers by hand
 first keeps the student's answer.
+
+**Company briefs** (KAN-382; `app/auto_apply/briefs.py`, tools in
+`app/connector/briefs.py`). One brief per company, in `company_briefs`,
+shared by every student who applies there and built by the first one's
+Claude: WorkIt calls no model for it.
+
+| Name | Kind | Does |
+|---|---|---|
+| `get_research_task` | tool, `readOnlyHint` | The first company of the student's open applications with a written question left whose brief is missing, older than 30 days, or scores under 60 of 100: the company, the job, why, its score, the categories it lacks, and the news sites a fact may cite. `company: null` when none needs it. A research that was not kept holds the company back 3 days |
+| `save_company_brief` | tool, a write (not destructive) | `{company, facts: [{category, fact, url, quote, published, team}]}` for a company the student applies to (else a tool error). WorkIt reads each page through the safe fetcher (`app/services/page_fetch.py`) and keeps a fact only if its host is the company's own (a domain named for it, or its WorkIt profile's website) or a listed news site, its quote is on the page word for word (case, punctuation and spacing folded), and each number the fact states is in its quote; a date whose year the page doesn't show is dropped from the fact. Kept only with 3 or more checked facts and a higher score today than the kept brief. Answers `{saved, score, current_score, kept, dropped: [{url, reason}]}` |
+
+`get_next_application` hands the application's company brief as
+`company_brief` (category, fact, url, published, team), described as web
+text. **Score, in code:** 10 per category covered (products, launches,
+engineering, team), 4 per checked fact up to 10, 4 per fact whose page is
+under a year old up to 5; recency is counted on the day of the comparison,
+so a brief scores lower as it ages. **The fetcher** reads http(s) only, on
+the default port, the allowed hosts only (checked again on each of at most
+3 redirects), never a host that resolves to a non-public address, and
+connects to the address it checked (TLS still verified against the host
+name), with 10 seconds and 2 MB per page, text types only. Tests use a fake
+fetcher (`tests/test_company_briefs.py`); the fetcher's own refusals are in
+`tests/test_page_fetch.py`.
+
+**Adding it, and the directory** (KAN-383). Auto Apply's **Add to Claude**
+and `/docs/mcp` open Claude's Add Custom Connector dialog with WorkIt's name
+and `<api>/mcp` filled in (Anthropic's install link,
+`frontend/src/lib/claude-connector.ts`); the student checks and confirms.
+Anthropic's connector directory, which removes even that step and lets
+Claude suggest WorkIt in a chat, needs every tool to carry a title and a
+read-only or destructive hint (tested for every tool), no instructions in
+tool descriptions, public docs (`/docs/mcp`) and a privacy policy that
+covers the connector (`/privacy`). The submission is written out in
+`docs/connector-directory.md`; the team sends it after deploying. Once
+listed, `CLAUDE_CONNECTOR_LINK` points every Add to Claude at the listing.
 
 **Why not Supabase Auth's OAuth 2.1 server** (decided 2026-10-25, KAN-377):
 its docs call it beta and free "during the beta period", with no price after

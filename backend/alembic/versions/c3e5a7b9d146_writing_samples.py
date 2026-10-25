@@ -1,7 +1,7 @@
 """writing samples: a student's own writing and the style card built from it (KAN-384)
 
 Revision ID: c3e5a7b9d146
-Revises: b4d6f8a0c223
+Revises: c7e9a1b3d425
 Create Date: 2026-10-25 15:00:00.000000
 
 New tables, so it is safe to apply before or after the deploy.
@@ -14,7 +14,7 @@ import sqlalchemy as sa
 
 # revision identifiers, used by Alembic.
 revision: str = 'c3e5a7b9d146'
-down_revision: Union[str, Sequence[str], None] = 'b4d6f8a0c223'
+down_revision: Union[str, Sequence[str], None] = 'c7e9a1b3d425'
 branch_labels: Union[str, Sequence[str], None] = None
 depends_on: Union[str, Sequence[str], None] = None
 

@@ -1052,6 +1052,17 @@ Real, not forgotten. Do not treat their absence as a decision already made.
   then asks their Claude for a new one. The copying check (KAN-380) reads
   the samples through `queries.writing.sample_texts`, never the table.
 
+## Company briefs — `company_briefs.py` (KAN-382)
+
+- **One row per company, not per student**: every student applying there
+  reads the same brief. The key is the company's name folded
+  (`briefs.company_key`: "Acme, Inc." and "ACME" are `acme`), since
+  scraped postings carry a name and no company id.
+- `facts` is JSONB, written only by `app/auto_apply/briefs.py` after each
+  fact's quote was found on its page; `saved_at` is NULL while no brief has
+  been kept, and `attempted_at` holds back a company whose last research
+  wasn't kept. Deny-all RLS like every table.
+
 ## Out of scope
 
 These belong to later tickets and should not be added here:

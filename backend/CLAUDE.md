@@ -233,7 +233,14 @@ Find files with a directory listing; these are the rules for where code goes.
   (no value) resumes at the oldest unanswered application. **Writing rules go in the MCP prompt
   (`connector/prompt.py`), never in a tool's description**, name no
   student, and never list banned words (that primes a model; the save
-  checks them, KAN-380), and nothing on this path calls a model. **Which job postings it takes is
+  checks them, KAN-380), and nothing on this path calls a model. **Every tool takes a title and explicit annotations** (KAN-383, Anthropic's directory refuses a tool without them): `readOnlyHint=True` on a read, so Claude runs it without asking; only `save_*` tools write, each saying `destructiveHint`; `openWorldHint=False` on all. A test lists the tools and checks each one, so a new tool without them fails. **Company
+  briefs are shared by every student** (KAN-382, `auto_apply/briefs.py`,
+  tools in `connector/briefs.py`): a fact is kept only if WorkIt finds its
+  quote on its page, so **every page a brief cites is read through
+  `services/page_fetch.py`**, never a bare `httpx` call: the URL comes from
+  outside, and the fetcher is what refuses internal addresses, other
+  hosts, redirects off them and oversized pages. Tests swap
+  `briefs.fetch_page` for a fake; nothing in the suite reads the web. **Which job postings it takes is
   one list, `app/auto_apply/hosts.py`** (every hiring system the Fill engine fills, KAN-370): the matches
   and `queue_applications` require its SQL form (`AUTO_APPLY_SUPPORTED` in
   `queries/jobs/filters.py`) and `JobListing.auto_apply` its Python form,

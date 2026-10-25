@@ -77,11 +77,13 @@ async function handleMessage(message, sender) {
 
     // The content script's fill (content-script.js): the Plan for the page
     // it runs in (fill/plan), then the planned answers filled through the
-    // engine (fill/page). A Workday tab is remembered, so its
+    // engine (fill/page), what fields show (fill/read) and which required
+    // ones show nothing (fill/required). A Workday tab is remembered, so its
     // fill starts again when a step loads as a new page.
     case "fill/plan":
     case "fill/page":
-    case "fill/read": {
+    case "fill/read":
+    case "fill/required": {
       const profile = await getAutofillProfile();
       if (message.type === "fill/plan" && jobOf(sender.url)?.site === "workday") await rememberWorkdayTab(sender.tab.id);
       return handleFill(message, {

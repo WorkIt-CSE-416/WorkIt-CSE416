@@ -338,7 +338,9 @@ export function planRows({ plan }) {
 /**
  * The content script's fill messages, as the background answers them:
  * `fill/plan` (planFill, for the page at `url`), `fill/page` (fillPage) and
- * `fill/read` (what named fields show now, `{ shows: {[name]: value} }`).
+ * `fill/read` (what named fields show now, `{ shows: {[name]: value} }`) and
+ * `fill/required` (the questions the form requires now that show nothing,
+ * `{ empty: [name] }`).
  * On Workday, the nested prompts the engine read for a tenant are kept
  * (`trees`, chrome.storage in the extension) and given back on its next
  * call, as Apply keeps them: reading Workday's own How Did You Hear About
@@ -363,6 +365,10 @@ export async function handleFill(message, { url, profile, today, call, fetchText
   } else if (message.type === "fill/read") {
     // What each named field shows now (the engine's read-back), after the student changed the form.
     return { shows: await call("readback", message.site, message.questions, message.names, message.state) };
+  } else if (message.type === "fill/required") {
+    // The fields the form won't send without that show nothing, the planned and the unplanned alike
+    // (Greenhouse's phone country, required once Phone shows a number, is in no Question set as required).
+    return { empty: await call("emptyRequired", message.site, message.questions, message.state) };
   } else {
     throw new Error(`Unknown fill message: ${message.type}`);
   }
