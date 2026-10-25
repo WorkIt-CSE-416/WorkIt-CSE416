@@ -23,6 +23,13 @@
 // filled in its restored tab or opened again; a finished one whose tab is
 // gone leaves the batch (its stage is the API's). Then the queue goes on.
 //
+// WORKDAY TAKES ONE SLOT (KAN-373). A Workday application runs over many
+// pages, each waiting on the student (sign-in, then Save and Continue), so
+// at most one is in the batch at a time. A queued Workday job met while one
+// is open waits in `held` (left out of the queue reads) and opens as soon as
+// that one leaves the batch (closed, skipped, or no longer in a fill state,
+// e.g. submitted); the other job systems keep filling beside it.
+//
 // THE TABS FILL HIDDEN. KAN-305's runner showed its one tab for the fill,
 // after the pre-engine filler left most dropdowns empty in a hidden tab. The
 // Fill engine does not: five saved Greenhouse forms, and five live ones,
@@ -31,7 +38,7 @@
 // and the student stays on the page they were on.
 
 import { ApiError, finishApplication, me, nextApplication, recordFill } from "./api.js";
-import { formUrl } from "./engine.js";
+import { formUrl, jobOf } from "./engine.js";
 import { injectFill } from "../shared/content-scripts.js";
 
 /** At most this many tabs fill at once. */
@@ -52,6 +59,7 @@ const FORM_TIMEOUT_MS = 10_000;
  *   windowId: number,
  *   tabs: Record<string, { jobId: string, url: string, state: TabState }>,
  *   opened: string[],
+ *   held?: { jobId: string, url: string }[],
  *   groups: { ready?: number, needs_you?: number },
  * }} Batch
  */
@@ -192,15 +200,35 @@ async function topUp(batch, applicantId) {
   // The student closed the batch's window: it waits for resume(), never a window they didn't pick.
   if (!(await chrome.windows.get(batch.windowId).catch(() => null))) return;
   const filling = () => Object.values(batch.tabs).filter((t) => t.state === "filling").length;
+  batch.held ??= [];
   while (filling() < WINDOW) {
-    const application = await nextApplication(applicantId, batch.opened);
+    if (batch.held.length && !workdayOpen(batch)) {
+      const { jobId, url } = batch.held.shift();
+      batch.opened.push(jobId);
+      await openTab(batch, jobId, url);
+      continue;
+    }
+    const application = await nextApplication(applicantId, [...batch.opened, ...batch.held.map((h) => h.jobId)]);
     if (!application) break;
     const jobId = application.job.id;
     // The form, not the job's page, where the two differ (a Lever posting's form is at .../apply).
+    const url = formUrl(application.job.apply_url);
+    if (isWorkday(url) && workdayOpen(batch)) {
+      batch.held.push({ jobId, url });
+      continue;
+    }
     batch.opened.push(jobId);
-    await openTab(batch, jobId, formUrl(application.job.apply_url));
+    await openTab(batch, jobId, url);
   }
   await save(batch);
+}
+
+const isWorkday = (url) => jobOf(url)?.site === "workday";
+const FILL_STATES = ["filling", "ready", "needs_you"];
+
+/** Whether a Workday application holds the batch's one Workday slot. */
+function workdayOpen(batch) {
+  return Object.values(batch.tabs).some((t) => isWorkday(t.url) && FILL_STATES.includes(t.state));
 }
 
 /**
@@ -301,7 +329,8 @@ export function forgetTab(tabId, removeInfo = {}) {
     if (!tab) return;
     delete batch.tabs[tabId];
     await save(batch);
-    if (tab.state !== "filling") return;
+    // A Workday tab frees the Workday slot.
+    if (tab.state !== "filling" && !isWorkday(tab.url)) return;
     try {
       await topUp(batch, (await me()).id);
     } catch (error) {

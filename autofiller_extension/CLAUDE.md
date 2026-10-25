@@ -239,6 +239,15 @@ and `run/show` switches to one (`jobId`).
   so the student can press it again. **Closing a tab is not Skip**: a
   window closed, or Chrome quitting, closes every tab, and the student may
   close a tab only to come back to the job later; it just leaves the batch.
+- **One Workday application at a time (KAN-373).** A Workday application
+  runs over many pages, each waiting on the student (sign-in, then Save
+  and Continue), and Chrome throttles hidden tabs, so the batch holds one
+  Workday tab at most. A queued Workday job met while one is open waits in
+  the batch's `held` list (left out of the queue reads with the opened
+  ones) and opens as soon as the open one leaves the batch: closed,
+  skipped, or out of the fill states (filling, ready, needs_you), as a
+  submitted one will be (KAN-374). The other job systems fill beside it;
+  the slot doesn't count against the five filling.
 - **The content script says when a tab is ready.** In a batch tab
   (`injectFill(tabId, { batch: true })` sets `window.WIA.batch`),
   `content-script.js` sends `batch/state` once the fill ends, then watches
@@ -325,8 +334,7 @@ and `run/show` switches to one (`jobId`).
 
 A batch tab opens a job's form, not its page (`formUrl`: a Lever
 `apply_url` opens the posting, and the form is at `.../apply`). Still
-open: Workday takes one slot at a time (KAN-373); submit detection
-(KAN-374). With the student's Chrome window behind another app, macOS may
+open: submit detection (KAN-374). With the student's Chrome window behind another app, macOS may
 slow every tab further; not yet measured.
 
 ## Auth: inherits the webapp's session, has no sign-in of its own

@@ -8,7 +8,7 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { expect, test, type Page, type Worker } from "@playwright/test";
 import { FakeApi } from "./fake-api";
-import { SavedForms } from "./fake-job-systems";
+import { FakeWorkdays, SavedForms } from "./fake-job-systems";
 import { loadExtension, sendFromWebapp, signIn, webapp, type Handler, type Loaded } from "./loaded-extension";
 
 type Tab = { id: number; url?: string; group: string | null; autoDiscardable: boolean };
@@ -127,4 +127,36 @@ test("Skip marks the job skipped, closes its tab, and the batch goes on", async 
   expect(api.stages.get("job-0")).toBe("queued");
   expect(await loaded.worker.evaluate(async () => Object.values((await chrome.storage.local.get("workit_batch")).workit_batch.tabs).map((t: any) => t.jobId))).toEqual(["job-0"]);
   expect(forms.submissions).toEqual([]);
+});
+
+test("Workday applications fill one at a time while other job systems fill beside them", async () => {
+  test.setTimeout(150_000);
+  const forms = new SavedForms(["greenhouse-arc", "greenhouse-purestorage"]);
+  const workdays = new FakeWorkdays(["workday-caci", "workday-xcel"]);
+  const api = new FakeApi().queue(
+    { id: "wd-0", apply_url: workdays.url(0) },
+    { id: "gh-0", apply_url: forms.url("greenhouse-arc") },
+    { id: "wd-1", apply_url: workdays.url(1) },
+    { id: "gh-1", apply_url: forms.url("greenhouse-purestorage") },
+  );
+  loaded = await loadExtension([api.handler, webapp, workdays.handler, forms.handler]);
+  await signIn(loaded.context);
+  await sendFromWebapp(await openWebapp(), { type: "run/open" });
+  const urls = async () => (await tabs(loaded!.worker)).map((t) => t.url);
+  const groupOf = async (url: string) => (await tabs(loaded!.worker)).find((t) => t.url === url)?.group;
+
+  // The first Workday application and both Greenhouse forms fill; the second Workday one waits for its slot.
+  await expect.poll(() => groupOf(forms.url("greenhouse-purestorage")), { timeout: 60_000 }).toBe("Needs you");
+  await expect.poll(() => groupOf(forms.url("greenhouse-arc")), { timeout: 60_000 }).toBe("Ready");
+  await expect.poll(() => groupOf(workdays.url(0)), { timeout: 60_000 }).toBe("Needs you");
+  const first = loaded.context.pages().find((p) => p.url() === workdays.url(0))!;
+  await expect.poll(() => first.locator("[data-automation-id=formField-legalName--firstName] input").inputValue(), { timeout: 30_000 }).toBe("Test");
+  expect(await urls()).not.toContain(workdays.url(1));
+
+  // Once the first leaves the batch, the second takes the slot.
+  await skip(first);
+  await expect.poll(() => groupOf(workdays.url(1)), { timeout: 60_000 }).toBe("Needs you");
+  expect(await urls()).not.toContain(workdays.url(0));
+  expect(api.stages.get("wd-0")).toBe("skipped");
+  expect([...forms.submissions, ...workdays.submissions]).toEqual([]);
 });

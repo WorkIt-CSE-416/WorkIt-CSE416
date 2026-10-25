@@ -7,6 +7,7 @@
 import { readFileSync } from "node:fs";
 import { join } from "node:path";
 import { FakeJobServer, FORMS, boardAndJob, loadHar } from "../fill-engine/test/fake-job-server";
+import { FakeWorkday, type Step } from "../fill-engine/test/fake-workday";
 import type { Handler, Reply, Request } from "./loaded-extension";
 
 // Where Greenhouse's presigned uploads (the résumé) go: answered here, as the engine's fake upload store answers them.
@@ -59,7 +60,7 @@ export class SavedForms {
 }
 
 /** Asks one FakeJobServer for `request`, as its Playwright route handler would answer it. */
-async function replay(server: FakeJobServer, request: Request): Promise<Reply | undefined> {
+async function replay(server: FakeJobServer | FakeWorkday, request: Request): Promise<Reply | undefined> {
   let reply: Reply | undefined;
   const route = {
     request: () => ({
@@ -77,4 +78,39 @@ async function replay(server: FakeJobServer, request: Request): Promise<Reply | 
   // `handle` is the server's own route handler (TypeScript-private only).
   await (server as any).handle(route, UPLOADS);
   return reply;
+}
+
+/**
+ * Workday applications for the loaded extension: the Fill engine's FakeWorkday
+ * steps (fill-engine/test/fake-workday.ts), each on a saved Workday form's
+ * tenant host, answered from the fake network.
+ */
+export class FakeWorkdays {
+  private tenants: FakeWorkday[];
+
+  /** `names`: saved Workday forms (fill-engine/test/fixtures/forms), one tenant each. */
+  constructor(names: string[], steps: Step[] = [["My Information", [
+    { key: "legalName--firstName", label: "First Name", kind: "text", required: true },
+    { key: "legalName--lastName", label: "Last Name", kind: "text", required: true },
+  ]]]) {
+    this.tenants = names.map((name) => new FakeWorkday(name, { steps }));
+  }
+
+  /** The application's first step on the n-th tenant, as a posting's apply_url gives it. */
+  url(n: number): string {
+    return this.tenants[n].stepUrl(1);
+  }
+
+  /** Every submit any tenant received (the extension must never send one). */
+  get submissions(): unknown[] {
+    return this.tenants.flatMap((t) => t.submissions);
+  }
+
+  readonly handler: Handler = async (request) => {
+    for (const tenant of this.tenants) {
+      if (request.url.hostname !== tenant.host) continue;
+      return replay(tenant, request);
+    }
+    return undefined;
+  };
 }

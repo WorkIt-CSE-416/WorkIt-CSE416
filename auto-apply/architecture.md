@@ -544,6 +544,15 @@ its restored tab, or opens again; a finished job whose tab is gone leaves
 the batch. Then the queue goes on. A batch with no tab left has ended, and
 the next Start begins a new one.
 
+**Workday takes one slot.** At most one Workday application is in the batch
+at a time: its pages each wait on the student (sign-in, then Save and
+Continue). A queued Workday job met meanwhile waits and opens when that one
+leaves the batch (closed, skipped or submitted); other job systems keep
+filling beside it.
+
+**Skip** is on a batch tab's panel: the application goes to `skipped`, its
+tab closes, and the next queued one opens. Closing a tab is not Skip.
+
 **The tabs fill hidden.** Checked 2026-10-25 with Chromium started directly
 (Playwright keeps every page it drives visible): five saved Greenhouse forms,
 and five live ones (filled only), filled in hidden tabs at once gave the same
