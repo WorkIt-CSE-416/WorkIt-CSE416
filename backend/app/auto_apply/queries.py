@@ -39,7 +39,12 @@ from app.models.sent_resume import Sent_Resume
 from app.models.written_answers import Written_Answer
 from app.queries.jobs.filters import AUTO_APPLY_SUPPORTED, LISTED
 from app.queries.jobs.listings import LISTING_COLUMNS, to_listing
-from app.schemas.applications import Application, NamedFact, WrittenAnswer, WrittenQuestion
+from app.schemas.applications import (
+    Application,
+    NamedFact,
+    WrittenAnswer,
+    WrittenQuestion,
+)
 from app.schemas.sent_resume import SentResumeResponse
 
 

@@ -41,7 +41,12 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from app.auto_apply import pipeline
 from app.db import get_session
 from app.deps import assert_applicant_owns, get_current_account
-from app.schemas.applications import PastedAnswers, PostingAnswers, PostingQuestions, SavedAnswers
+from app.schemas.applications import (
+    PastedAnswers,
+    PostingAnswers,
+    PostingQuestions,
+    SavedAnswers,
+)
 from app.schemas.auth import AuthenticatedAccount
 
 router = APIRouter(prefix="/applicants/{applicant_id}", tags=["auto-apply"])
