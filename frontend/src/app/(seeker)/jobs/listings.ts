@@ -5,7 +5,7 @@ import { connection } from "next/server";
 import { apiGet } from "@/lib/api";
 import { extractErrorMessage } from "@/lib/auth";
 import { listBuiltResumes } from "@/lib/built-resume-actions";
-import { getAccessToken, getApplicantSession, getCurrentAccount } from "@/lib/session";
+import { getAccessToken, getApplicantSession, getSessionUser } from "@/lib/session";
 
 import type { ExperienceLevel, Highlight, JobType, WorkStyle } from "./data";
 import {
@@ -388,10 +388,17 @@ export async function getApplied(id: string): Promise<{ appliedAt: string | null
 /** Whether the viewer is an applicant, whom Apply Now's dialog may ask "Did
  *  You Apply?": the job page's rule (`getApplied` answers an applicant only)
  *  for a list of cards. A company account can open /jobs and /search too.
- *  Read from the account the shell already asked for (cached per render), so
- *  it costs no request. False when the API can't be read. */
+ *  Read from the verified token's account type (getSessionUser), so it costs
+ *  no request. It used to read /auth/me, on the belief that the shell had
+ *  already asked for the account in the same render; that holds only on a
+ *  hard load, since a soft navigation renders the page without the layout,
+ *  so every /jobs and /search visit from the sidebar paid one more API call
+ *  just for this. False when signed out. With the API down it is still true
+ *  for an applicant: the dialog then asks, and marking the job says it could
+ *  not reach the server, as any other action would. */
 export async function isApplicant(): Promise<boolean> {
-  return (await getCurrentAccount())?.account_type === "applicant";
+  const user = await getSessionUser().catch(() => null);
+  return user?.accountType === "applicant";
 }
 
 /** The job ids the seeker has a tailored resume for, so each card's Tailor
