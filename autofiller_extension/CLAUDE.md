@@ -499,7 +499,9 @@ the overlay lists each as "needs_generation" (`lib-status.js`).
 - **The model call is `POST /applicants/{id}/essay-answer`**
   (`backend/app/routers/essay_answer.py`): grounded in the whole
   experience bank, checked against the truth rule, never given identity
-  data. A 429/503/422 becomes the row's "failed" reason verbatim; there is
+  data. The question, company and role count as given, so an answer may
+  name them (before that, every live answer was refused: "Cloudflare" and
+  the pronoun "I" read as invented tools). A 429/503/422 becomes the row's "failed" reason verbatim; there is
   no retry.
 - **Nothing is persisted.** The question and the generated answer are
   never saved.
