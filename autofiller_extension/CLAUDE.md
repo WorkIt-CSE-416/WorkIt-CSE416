@@ -57,7 +57,13 @@ builds it: `dist/engine.js` is committed in the engine repo.
   world can see. The overlay and `content-script.js` run in the isolated
   world, where `chrome.runtime` is. `src/shared/content-scripts.js`'s
   `injectFill` loads both, engine first, for the popup and batch apply
-  alike. The content script reaches the engine through the background,
+  alike. The isolated world's files are classic scripts, not modules: each
+  sets its part of `window.WIA` and `content-script.js`, loaded last, runs
+  the fill with them, so `CONTENT_SCRIPT_FILES`' order matters. Beside the
+  status rows (`lib-status.js`) and the panel (`overlay.js`),
+  `workday.js` reads Workday's pages (the step shown, a settled step, the
+  sign-in it fills) as `window.WIA.workday`.
+  The content script reaches the engine through the background,
   which runs `engine.js`'s `runEngine` (the engine's own dispatcher,
   `FillEngine.call`) in the page's MAIN world with
   `chrome.scripting.executeScript` (`fill/plan`, `fill/page`, both answered
@@ -280,7 +286,7 @@ waits for an opened tab's page and form (`waitForLoad`, `formShows`).
   the slot doesn't count against the five filling.
 - **Workday sign-in (KAN-373).** On Workday's Create Account or Sign In
   form (`[data-automation-id=signInFormo]`; Workday's step bar calls it a
-  step, which `workdayStep()` ignores), `content-script.js` asks
+  step, which `workdayStep()` ignores), `workday.js` asks
   `workday/login` and types the student's email and the login
   `workday-logins.js` keeps for that company's tenant (`jobOf(url).tenant`):
   on Create Account a new 20-character password, saved before it is typed,
