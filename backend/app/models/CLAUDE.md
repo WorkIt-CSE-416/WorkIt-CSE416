@@ -870,15 +870,13 @@ produces no trigram and scans anyway. `title` had one too, dropped in
 searching company-posted jobs by employer needs a join or a copied name.
 
 **Job matching adds three columns (KAN-139):**
-- **`job_postings.embedding` and `resumes.embedding`** hold embedding vectors,
-  `vector(768)` from pgvector, sized by `dto.EMBEDDING_DIMENSIONS`.
-  **`resumes.embedding` is no longer mapped** (KAN-212 moved the embedding to
-  `experience_banks`): the column stays in the database until a contract
-  migration drops it, written and applied only after the code that stopped
-  mapping it is deployed, as with `824f0b2e3d84` below. Until then
-  `alembic revision --autogenerate` proposes `drop_column('resumes',
-  'embedding')`: delete that line from any migration that is not the drop
-  itself, or the drop ships before the deploy and old code's inserts fail.
+- **`job_postings.embedding`** holds an embedding vector, `vector(768)` from
+  pgvector, sized by `dto.EMBEDDING_DIMENSIONS`. **`resumes.embedding` is
+  gone**: KAN-212 moved the applicant's embedding to `experience_banks` and
+  stopped mapping it, and the contract migration `b9e2c4d6f8a1` dropped it
+  once that code was deployed (2026-10-25), as `824f0b2e3d84` did below.
+  Before the drop, autogenerate proposed `drop_column('resumes',
+  'embedding')` in every migration, and `alembic check` failed on it.
 - **`job_postings.fts`** is a generated `tsvector` of the title (weighted A)
   and description (weighted D), so anything that ranks with `ts_rank` puts a
   title match first (search itself doesn't rank: `@@` ignores weights), with

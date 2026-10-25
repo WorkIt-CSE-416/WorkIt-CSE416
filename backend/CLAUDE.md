@@ -871,6 +871,10 @@ removed at cutover, not before. Until then a change must work on both.
   KAN-343) before the deploy that writes them.** The models map both
   tables, so deployed first, every upload, Import Again and `GET /bank`
   answers 500. It only adds two tables, so applying it early is safe.
+- **`b9e2c4d6f8a1` drops `resumes.embedding`**, the contract half of
+  KAN-212: apply it only where the code that stopped mapping the column
+  (`d89a4ef`, on `main` since KAN-212) is deployed. Applied first, an older
+  deploy's upload INSERT names the column and fails.
 - **Apply `a3d7f1c9e2b4` (`bank_skills.built_resume_id`, resume-local
   skills) before the deploy that maps it.** Every skill insert names the
   column, so deployed first, uploads, Import Again and Add skill answer
