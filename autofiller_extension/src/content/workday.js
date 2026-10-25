@@ -4,9 +4,9 @@
 // (background/workday-logins.js). Once the student allows it (asked once, in
 // the panel), it also ticks the terms box and presses Create Account or Sign
 // In, as Jobright and Simplify do (KAN-369): each button at most once a page,
-// so a refused password is never tried again and the account doesn't lock.
-// It presses nothing else. Loaded before content-script.js
-// (shared/content-scripts.js), as window.WIA.workday.
+// and a Sign In Workday refused never again (`refused`, saved with the
+// login), so the account doesn't lock. It presses nothing else. Loaded
+// before content-script.js (shared/content-scripts.js), as window.WIA.workday.
 window.WIA = window.WIA || {};
 
 (function () {
@@ -29,6 +29,9 @@ window.WIA = window.WIA || {};
   const ALERT = "[data-automation-id=errorMessage], [data-automation-id=alertMessage]";
   const VERIFY = /verif/i;
   const SIGNED_IN = "WorkIt fills each step once you're signed in.";
+  const WONT_TRY = "WorkIt won't try again, so your account doesn't lock. Sign in yourself, or press Forgot Password.";
+  // How long a ticked box gets to show it is ticked before Create Account is pressed.
+  const TICK_SHOWS = 100;
   // How long a Workday step's page must stop changing before it is read, and the longest wait for that.
   const STEP_QUIET = 1000;
   const STEP_QUIET_MAX = 10_000;
@@ -65,6 +68,11 @@ window.WIA = window.WIA || {};
     button.click();
   }
 
+  /** Whether the terms box shows ticked, as a checkbox or as Workday's own (aria-checked). */
+  function ticks(box) {
+    return box.checked || box.getAttribute("aria-checked") === "true";
+  }
+
   /** The words of the terms box's label, as the student reads them on the page. */
   function termsWords(box) {
     const label = box.closest("label") ?? (box.id && document.querySelector(`label[for="${CSS.escape(box.id)}"]`))
@@ -73,13 +81,13 @@ window.WIA = window.WIA || {};
   }
 
   /** What to tell the student about the message Workday showed after a press. */
-  function refused(view, words) {
+  function refusal(view, words) {
     if (VERIFY.test(words)) {
       return "Workday sent you an email to confirm your account. Open the email from this company's Workday and click its link, then come back to this tab and press Sign In. " + SIGNED_IN;
     }
     return view === "create"
       ? `Workday didn't make the account: "${words}" If you have an account here already, press Sign In and sign in yourself. ${SIGNED_IN}`
-      : `Workday didn't take the sign-in WorkIt saved for this company: "${words}" WorkIt won't try again, so your account doesn't lock. Sign in yourself, or press Forgot Password. ${SIGNED_IN}`;
+      : `Workday didn't take the sign-in WorkIt saved for this company: "${words}" ${WONT_TRY} ${SIGNED_IN}`;
   }
 
   /**
@@ -131,10 +139,11 @@ window.WIA = window.WIA || {};
   function watchSignIn(onView, ask) {
     /**
      * Fills Workday's Create Account or Sign In form with the login the
-     * extension keeps for this company, and tells the student what is left:
-     * press the button (and, for a new account, open Workday's email). Never
-     * presses anything. Called on every change to the page and a few times
-     * after each fill, since Workday draws the form again as it switches
+     * extension keeps for this company (never a password Workday refused),
+     * and tells the student what is left: press the button (and, for a new
+     * account, open Workday's email). Once the student allows it, it presses
+     * the buttons itself (forMe). Called on every change to the page and a
+     * few times after each fill, since Workday draws the form again as it switches
      * views (Xcel Energy's, live: the boxes typed just before came back
      * empty) and may empty a box without changing the page; only empty boxes
      * are typed, so the student's typing is never replaced.
@@ -151,6 +160,7 @@ window.WIA = window.WIA || {};
     let withEmail = false;
     let alerted = "";
     let ticked = "";
+    let untickable = false;
     async function fillSignIn() {
       if (busy) return void (again = true);
       busy = true;
@@ -177,8 +187,8 @@ window.WIA = window.WIA || {};
           }
           if (login.ok) {
             typeInto("email", login.email);
-            if (login.password) typeInto("password", login.password);
-            if (login.password && create) typeInto("verifyPassword", login.password);
+            if (login.password && !login.refused) typeInto("password", login.password);
+            if (login.password && !login.refused && create) typeInto("verifyPassword", login.password);
           }
           if (login.ok && !login.forMe && !asked) {
             asked = true;
@@ -210,8 +220,9 @@ window.WIA = window.WIA || {};
     /**
      * Once allowed: switches to the view that fits the saved login, presses
      * Create Account (a password made on this page only, so a refused one
-     * was never an account) or Sign In once the boxes hold the login and the
-     * page has settled, and reads Workday's answer if it stays on the page.
+     * was never an account; only once the terms box shows ticked) or Sign In
+     * (never with a login Workday refused) once the boxes hold the login and
+     * the page has settled, and reads Workday's answer if it stays on the page.
      * Answers true when it told the student something (the usual note is
      * then skipped).
      */
@@ -222,7 +233,11 @@ window.WIA = window.WIA || {};
         if (!alert || alert === alerted) return Boolean(alerted);
         alerted = alert;
         if (create && !VERIFY.test(alert)) await chrome.runtime.sendMessage({ type: "workday/forget" });
-        onView((create && ticked ? `WorkIt ticked "${ticked}" for you. ` : "") + refused(view, alert));
+        if (!create && !VERIFY.test(alert)) {
+          await chrome.runtime.sendMessage({ type: "workday/refused" });
+          login.refused = true;
+        }
+        onView((create && ticked ? `WorkIt ticked "${ticked}" for you. ` : "") + refusal(view, alert));
         return true;
       }
       // Nothing saved here: make the account. A login that signed in before: sign in with it.
@@ -235,6 +250,12 @@ window.WIA = window.WIA || {};
           return true;
         }
       }
+      if (login.refused) {
+        if (noted !== "refused") onView(`Workday didn't take the sign-in WorkIt saved for this company. ${WONT_TRY} ${SIGNED_IN}`);
+        noted = "refused";
+        return true;
+      }
+      if (create && untickable) return true;
       if (!login.password || (create && !login.made)) return false;
       await quiet();
       const now = document.querySelector(SIGN_IN_FORM);
@@ -246,10 +267,19 @@ window.WIA = window.WIA || {};
       const button = document.querySelector(SUBMIT[view]);
       if (!button) return false;
       const box = create ? form.querySelector(TERMS_BOX) : null;
-      if (box && !box.checked && box.getAttribute("aria-checked") !== "true") press(box);
+      const terms = box ? termsWords(box) : "";
+      if (box && !ticks(box)) {
+        press(box);
+        await new Promise((resolve) => setTimeout(resolve, TICK_SHOWS));
+        if (!ticks(box)) {
+          // Not ticked: Create Account isn't pressed, and the password stays saved for the student's own press.
+          untickable = true;
+          onView(`WorkIt filled your email and a new password for this company's Workday, kept only in this browser, but couldn't tick ${terms ? `"${terms}"` : "the terms box"}. Tick it yourself, then press Create Account. ${SIGNED_IN}`);
+          return true;
+        }
+      }
       pressed.add(view);
       press(button);
-      const terms = box ? termsWords(box) : "";
       ticked = terms;
       onView(create
         ? `WorkIt made your account on this company's Workday${terms ? ` and ticked "${terms}" for you` : ""}. ${SIGNED_IN}`

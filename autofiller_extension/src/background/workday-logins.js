@@ -13,13 +13,36 @@
 // page's panel), the content script also ticks each company's terms box and
 // presses Create Account or Sign In itself, as Jobright and Simplify do
 // (workday.js). A tenant whose application has shown since is marked
-// `signedIn`: its account exists, so its Create Account is never pressed.
+// `signedIn`: its account exists, so its Create Account is never pressed. A
+// tenant whose Sign In Workday refused is marked `refused`: its Sign In is
+// never pressed again until the student signs in there.
 
 const LOGINS_KEY = "workday_logins";
 const FOR_ME_KEY = "workday_accounts_for_me";
 const PASSWORD_LENGTH = 20;
 // One of each kind at least, which every Workday password rule seen asks for.
 const KINDS = ["ABCDEFGHJKLMNPQRSTUVWXYZ", "abcdefghijkmnopqrstuvwxyz", "23456789", "!#$%&*+-=?@^_~"];
+
+// One change to the saved logins at a time: each reads and writes the whole
+// map, so two tenants' Create Account at once would otherwise each write over
+// the other's new password, after its account was made with it.
+let queue = Promise.resolve();
+function serially(change) {
+  const run = queue.then(change, change);
+  queue = run.catch(() => {});
+  return run;
+}
+
+/** Reads the saved logins, lets `change` edit them, and saves them when it answers true. */
+function changeLogins(change) {
+  return serially(async () => {
+    const stored = await chrome.storage.local.get([LOGINS_KEY, FOR_ME_KEY]);
+    const logins = stored[LOGINS_KEY] ?? {};
+    const answer = await change(logins, stored[FOR_ME_KEY] === true);
+    if (answer?.save) await chrome.storage.local.set({ [LOGINS_KEY]: logins });
+    return answer?.value;
+  });
+}
 
 /**
  * The login to fill on a tenant's Workday: the saved one, else, for Create
@@ -30,18 +53,21 @@ const KINDS = ["ABCDEFGHJKLMNPQRSTUVWXYZ", "abcdefghijkmnopqrstuvwxyz", "2345678
  * @param {string} tenant the engine's Workday tenant (jobOf(url).tenant)
  * @param {string} email the student's email
  * @param {{ create: boolean }} options
- * `forMe`: the student allowed the extension to press the buttons.
- * @returns {Promise<{ email: string, password: string | null, made: boolean, signedIn: boolean, forMe: boolean }>}
+ * `made`: the password is new, made by this call. `signedIn`: it has signed
+ * in here. `refused`: Workday refused a Sign In the extension pressed with
+ * it. `forMe`: the student allowed the extension to press the buttons.
+ * @returns {Promise<{ email: string, password: string | null, made: boolean, signedIn: boolean, refused: boolean, forMe: boolean }>}
  */
-export async function workdayLogin(tenant, email, { create }) {
-  const stored = await chrome.storage.local.get([LOGINS_KEY, FOR_ME_KEY]);
-  const logins = stored[LOGINS_KEY] ?? {};
-  const forMe = stored[FOR_ME_KEY] === true;
-  if (logins[tenant]) return { signedIn: false, ...logins[tenant], made: false, forMe };
-  if (!create) return { email, password: null, made: false, signedIn: false, forMe };
-  logins[tenant] = { email, password: newPassword() };
-  await chrome.storage.local.set({ [LOGINS_KEY]: logins });
-  return { ...logins[tenant], made: true, signedIn: false, forMe };
+export function workdayLogin(tenant, email, { create }) {
+  return changeLogins((logins, forMe) => {
+    const answer = (login, made) => ({
+      email: login.email, password: login.password, made, signedIn: Boolean(login.signedIn), refused: Boolean(login.refused), forMe,
+    });
+    if (logins[tenant]) return { value: answer(logins[tenant], false) };
+    if (!create) return { value: answer({ email, password: null }, false) };
+    logins[tenant] = { email, password: newPassword() };
+    return { value: answer(logins[tenant], true), save: true };
+  });
 }
 
 /** The student allowed the extension to make and sign in to their Workday accounts, at every company. */
@@ -49,12 +75,32 @@ export async function allowForMe() {
   await chrome.storage.local.set({ [FOR_ME_KEY]: true });
 }
 
-/** A tenant's application showed: the saved login signs in there. Nothing to mark without one. */
-export async function markSignedIn(tenant) {
-  const logins = (await chrome.storage.local.get(LOGINS_KEY))[LOGINS_KEY] ?? {};
-  if (!logins[tenant] || logins[tenant].signedIn) return;
-  logins[tenant] = { ...logins[tenant], signedIn: true };
-  await chrome.storage.local.set({ [LOGINS_KEY]: logins });
+/**
+ * A tenant's application showed: the saved login signs in there, and a
+ * refused Sign In no longer holds (the student signed in). Nothing to mark
+ * without one.
+ */
+export function markSignedIn(tenant) {
+  return changeLogins((logins) => {
+    const login = logins[tenant];
+    if (!login || (login.signedIn && !login.refused)) return;
+    const { refused: _, ...rest } = login;
+    logins[tenant] = { ...rest, signedIn: true };
+    return { save: true };
+  });
+}
+
+/**
+ * Workday refused a Sign In the extension pressed with the saved login: it
+ * is kept, but never pressed with again (each try counts toward Workday's
+ * lockout), on any page, until the student signs in (markSignedIn).
+ */
+export function markRefused(tenant) {
+  return changeLogins((logins) => {
+    if (!logins[tenant] || logins[tenant].refused) return;
+    logins[tenant] = { ...logins[tenant], refused: true };
+    return { save: true };
+  });
 }
 
 /**
@@ -62,11 +108,12 @@ export async function markSignedIn(tenant) {
  * password: no account was made with it, so it is dropped. A login that has
  * signed in is kept.
  */
-export async function forgetLogin(tenant) {
-  const logins = (await chrome.storage.local.get(LOGINS_KEY))[LOGINS_KEY] ?? {};
-  if (!logins[tenant] || logins[tenant].signedIn) return;
-  delete logins[tenant];
-  await chrome.storage.local.set({ [LOGINS_KEY]: logins });
+export function forgetLogin(tenant) {
+  return changeLogins((logins) => {
+    if (!logins[tenant] || logins[tenant].signedIn) return;
+    delete logins[tenant];
+    return { save: true };
+  });
 }
 
 /** A random password of PASSWORD_LENGTH characters, with one of each of KINDS at least. */
