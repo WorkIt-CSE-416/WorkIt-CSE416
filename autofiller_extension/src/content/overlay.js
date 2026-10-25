@@ -282,13 +282,16 @@ window.WIA = window.WIA || {};
    * The add-Claude step (KAN-387), on a batch's first question for the
    * student's Claude: Add to Claude opens `url` (the webapp's
    * /connect/claude/add, which goes on to Claude's Add Custom Connector
-   * dialog) in a new tab; then the student asks their Claude to write.
+   * dialog) in a new tab; then the student asks their Claude to write,
+   * and allows its save tool for good ("Always allow"), else Claude asks
+   * before every save.
    * @param {{ url: string }} options
    */
   function offerClaude({ url }) {
     const card = momentCard("add-claude", `
       <h2>Let Your Claude Write These</h2>
       <p>This form has a question to write. Add WorkIt to your Claude once, then ask it to "Write my WorkIt answers": each answer fills in here, for you to check.</p>
+      <p>The first time Claude asks to use WorkIt's Save answers, choose "Always allow", so it doesn't stop to ask at every answer.</p>
       <div class="actions">
         <a data-primary data-add target="_blank" rel="noreferrer">${SPARKLE}Add to Claude</a>
         <button type="button" data-secondary data-dismiss>Not Now</button>

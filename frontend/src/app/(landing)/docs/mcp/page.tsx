@@ -52,6 +52,11 @@ export default function McpDocsPage() {
             Click Connect. Claude sends you to WorkIt: sign in if asked, then click Allow.
           </li>
           <li>Claude lists WorkIt under its connectors. Turn it on in a chat if it is off.</li>
+          <li>
+            The first time Claude asks to use WorkIt&apos;s <strong>Save answers</strong>, choose{" "}
+            <strong>Always allow</strong>. Otherwise Claude stops to ask before every answer it
+            saves.
+          </li>
         </ol>
 
         <h2>Use It</h2>
@@ -78,7 +83,8 @@ export default function McpDocsPage() {
             <code>save_answers</code> (writes): saves answers to that application&apos;s questions,
             all or none, for the extension to fill. It refuses an answer to a question the
             application doesn&apos;t ask, an empty one, or one over the form&apos;s length limit.
-            Claude may ask you before each save; you can set it to always allow.
+            Claude asks you before it first saves: choose <strong>Always allow</strong>, or it
+            stops to ask at every answer.
           </li>
           <li>
             <strong>Write my WorkIt answers</strong> (prompt): how Claude writes the answers: only

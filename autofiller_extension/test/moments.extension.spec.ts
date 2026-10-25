@@ -110,6 +110,8 @@ test("a batch's first question for Claude shows the add-Claude step, once, with 
   const add = step.locator("a[data-add]");
   await expect(add).toHaveAttribute("href", "http://localhost:3000/connect/claude/add");
   await expect(add).toHaveAttribute("target", "_blank");
+  // Claude asks before each write tool call until the student allows it for good.
+  await expect(step).toContainText('choose "Always allow"');
   // The question still waits for Claude, and the step says what to do once it is added.
   await expect(row(tabs[0], WHY)).toContainText("Waiting for your Claude");
   await step.locator("button[data-dismiss]").click();

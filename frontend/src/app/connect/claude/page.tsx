@@ -92,6 +92,11 @@ export default async function ConnectClaudePage({
               </li>
             </ul>
             <p className="text-note text-ink-meta mt-4">
+              Back in Claude, when it first asks to use WorkIt&apos;s Save answers, choose{" "}
+              <span className="text-ink font-semibold">Always allow</span>, so it doesn&apos;t stop
+              to ask at every answer.
+            </p>
+            <p className="text-note text-ink-meta mt-2">
               Claude writes with your own Claude plan. WorkIt never submits an application: you
               review each one and submit it yourself.
             </p>
