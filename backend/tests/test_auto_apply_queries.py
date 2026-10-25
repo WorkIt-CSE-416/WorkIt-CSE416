@@ -57,7 +57,7 @@ def test_queue_inserts_only_listed_jobs_and_moves_only_saved_rows():
     assert "CAST(%(param_2)s AS application_stage)" in sql
     assert "job_postings.company_id IS NULL" in sql
     assert "job_postings.status = %(status_1)s" in sql
-    assert "job_postings.apply_url ~* %(apply_url_1)s" in sql  # Greenhouse only
+    assert "job_postings.apply_url ~* %(apply_url_1)s" in sql  # the hiring systems the extension fills (hosts.py)
     # Only a saved job moves to queued; any other stage keeps its row.
     assert "ON CONFLICT (applicant_id, job_id) DO UPDATE SET stage = " in sql
     assert "created_at = now()" in sql
