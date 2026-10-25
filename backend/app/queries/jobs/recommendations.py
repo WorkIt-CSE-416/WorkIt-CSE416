@@ -161,7 +161,7 @@ async def score_jobs(
 
         listing = to_listing(row)
         scored.append(ScoredJob(
-            **listing.model_dump(),
+            **listing.model_dump(exclude={"match", "highlights"}),
             match=breakdown.final_score,
             score_breakdown=breakdown,
             highlights=[Highlight(**h) for h in highlights],

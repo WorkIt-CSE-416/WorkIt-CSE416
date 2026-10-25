@@ -193,6 +193,28 @@ async def get_signed_in_applicant_id(
         return None
 
 
+async def get_signed_in_applicant(
+    credentials: HTTPAuthorizationCredentials | None = Depends(_bearer),
+    db: AsyncSession = Depends(get_session),
+) -> AuthenticatedAccount | None:
+    '''
+    Like get_signed_in_applicant_id but loads the full profile row, needed
+    when the caller must pass an AuthenticatedAccount (score_jobs reads
+    identity). Never 401s: a missing, bad or non-applicant token returns
+    None, so a public page still loads.
+    '''
+    if credentials is None:
+        return None
+    try:
+        claims = await decode_access_token(credentials.credentials)
+        if claims.get("app_metadata", {}).get("account_type") != AccountType.APPLICANT:
+            return None
+        account_id = uuid.UUID(claims["sub"])
+    except (jwt.InvalidTokenError, ValueError):
+        return None
+    return await load_account(db, account_id, AccountType.APPLICANT)
+
+
 def assert_applicant_owns(account: AuthenticatedAccount, applicant_id: uuid.UUID) -> None:
     """Shared ownership guard: the caller must be an applicant whose id matches
     the path. Used by resumes, avatars and profile endpoints."""
