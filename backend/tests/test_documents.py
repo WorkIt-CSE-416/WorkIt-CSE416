@@ -4,6 +4,8 @@ transcript, kept like an uploaded resume, for forms that ask for one. The
 API on real Postgres, with Storage patched at the router's `get_supabase`.
 """
 
+from urllib.parse import quote
+
 import pytest
 from sqlalchemy import text
 
@@ -81,3 +83,29 @@ async def test_a_local_transcript_comes_from_the_local_folder(student, storage, 
     assert (await client.delete(f"{me}/documents/transcript")).status_code == 204
     assert storage.removed == []
     assert (tmp_path / "transcript.pdf").exists()
+
+
+@pytest.mark.parametrize("name", ['Relevé de notes – Zoë.pdf', 'My "final" transcript.pdf'])
+async def test_any_file_name_downloads_under_that_name(student, storage, database, name):
+    """A name outside Latin-1, or with a quote, still downloads (RFC 6266):
+    `filename*` carries it whole, `filename` a plain-ASCII stand-in."""
+    client, me = student
+    # Written straight to the row: a multipart upload escapes a quote itself.
+    path = f"{me.removeprefix('/applicants/')}/documents/t.pdf"
+    storage.files[path] = PDF
+    async with database() as session:
+        await session.execute(
+            text("INSERT INTO student_documents (applicant_id, kind, original_filename, storage_path)"
+                 " VALUES (:id, 'transcript', :name, :path)"),
+            {"id": me.removeprefix("/applicants/"), "name": name, "path": path},
+        )
+        await session.commit()
+
+    got = await client.get(f"{me}/documents/transcript/bytes")
+
+    assert got.status_code == 200
+    disposition = got.headers["content-disposition"]
+    assert disposition.startswith("attachment; ")
+    assert f"filename*=UTF-8''{quote(name, safe='')}" in disposition
+    fallback = disposition.split('filename="')[1].split('"')[0]
+    assert fallback.isascii() and fallback.endswith(".pdf")
