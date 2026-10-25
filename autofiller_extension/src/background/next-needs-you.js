@@ -3,8 +3,8 @@
 
 import { liveBatch } from "./batch-store.js";
 
-// Where "Next Thing That Needs You" last went: { tabId, key, index }, index
-// being the key's place among its tab's flagged rows then.
+// Where "Next Thing That Needs You" last went: { tabId, place, key, rank }: the tab's place in the
+// order the batch opened, and the key's place among all its tab's rows then (`rank`, by `order`).
 const CURSOR_KEY = "workit_batch_next";
 
 /**
@@ -12,34 +12,37 @@ const CURSOR_KEY = "workit_batch_next";
  * goes to the first thing that needs the student after the last one it went
  * to, walking the batch's tabs in the order they opened and each tab's
  * flagged fields in page order (each tab's content script names them,
- * "batch/flags"). It switches to that tab and has it show the field
- * ("batch/focus"). A tab with no content script to answer (nothing was
- * filled there) is one thing, the page itself. Past the last one it answers
- * `done`, and the next press starts again from the first. Fields the student
- * fixed meanwhile are no longer flagged, so they are passed over.
+ * "batch/flags", with every row in page order). It switches to that tab and
+ * has it show the field ("batch/focus"). A tab with no content script to
+ * answer (nothing was filled there) is one thing, the page itself. Past the
+ * last one it answers `done`, and the next press starts again from the
+ * first. Fields the student fixed meanwhile are no longer flagged, so they
+ * are passed over; the walk goes on after the row it was on by that row's
+ * place on the page, which stays when it is answered (and after a closed
+ * tab by the tab's place in the batch).
  * @returns {Promise<{ done: true } | { done: false, tabId: number, key: string | null }>}
  */
 export async function nextNeedsYou() {
   const batch = await liveBatch();
   const order = Object.entries(batch?.tabs ?? {})
-    .sort(([, a], [, b]) => batch.opened.indexOf(a.jobId) - batch.opened.indexOf(b.jobId))
-    .map(([id, tab]) => ({ tabId: Number(id), state: tab.state }));
-  const things = [];
-  for (const [place, { tabId, state }] of order.entries()) {
-    const answer = await chrome.tabs.sendMessage(tabId, { type: "batch/flags" }).catch(() => null);
-    if (answer) answer.keys.forEach((key, index) => things.push({ place, tabId, key, index }));
-    else if (state === "needs_you" || state === "failed") things.push({ place, tabId, key: null, index: 0 });
-  }
+    .map(([id, tab]) => ({ tabId: Number(id), state: tab.state, place: batch.opened.indexOf(tab.jobId) }))
+    .sort((a, b) => a.place - b.place);
   const cursor = (await chrome.storage.session.get(CURSOR_KEY))[CURSOR_KEY];
-  const from = cursor ? order.findIndex((t) => t.tabId === cursor.tabId) : -1;
-  const stillThere = cursor && things.some((t) => t.tabId === cursor.tabId && t.key === cursor.key);
-  const next = !cursor || from < 0 ? things[0] : things.find((t) =>
-    t.place > from || (t.place === from && (stillThere ? t.index > things.find((c) => c.tabId === cursor.tabId && c.key === cursor.key).index : t.index >= cursor.index)));
+  let after = cursor?.rank ?? -1;
+  const things = [];
+  for (const { tabId, state, place } of order) {
+    const answer = await chrome.tabs.sendMessage(tabId, { type: "batch/flags" }).catch(() => null);
+    if (answer) {
+      if (cursor?.tabId === tabId && answer.order.includes(cursor.key)) after = answer.order.indexOf(cursor.key);
+      for (const key of answer.keys) things.push({ place, tabId, key, rank: answer.order.indexOf(key) });
+    } else if (state === "needs_you" || state === "failed") things.push({ place, tabId, key: null, rank: 0 });
+  }
+  const next = cursor ? things.find((t) => t.place > cursor.place || (t.place === cursor.place && t.rank > after)) : things[0];
   if (!next) {
     await chrome.storage.session.remove(CURSOR_KEY);
     return { done: true };
   }
-  await chrome.storage.session.set({ [CURSOR_KEY]: { tabId: next.tabId, key: next.key, index: next.index } });
+  await chrome.storage.session.set({ [CURSOR_KEY]: { tabId: next.tabId, place: next.place, key: next.key, rank: next.rank } });
   const tab = await chrome.tabs.update(next.tabId, { active: true });
   await chrome.windows.update(tab.windowId, { focused: true });
   if (next.key !== null) await chrome.tabs.sendMessage(next.tabId, { type: "batch/focus", key: next.key }).catch(() => {});

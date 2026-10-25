@@ -300,6 +300,32 @@ test("Next Thing That Needs You passes over filled fields whose names start with
   expect(forms.submissions).toEqual([]);
 });
 
+test("Next Thing That Needs You goes on from where it was when the student answers that field and the one before", async () => {
+  test.setTimeout(120_000);
+  const HARVEY = "ashby-harvey";
+  const forms = new SavedForms([HARVEY]);
+  await startBatch(forms, [HARVEY]);
+  // Harvey's first four flagged fields, in page order: its location, a choice, a short question, then a written one.
+  const [INTERNSHIPS, LAST, WHY] = ["7f6c3046-8557-4f77-869a-9e874d3ead38", "dfa930a1-8ce3-4246-a520-e2df415622c5", "e4d88906-fe42-43c1-bebc-05e24a4c967d"];
+  const form = () => page(forms.url(HARVEY));
+  const { walked } = await walkToEnd(forms.url(HARVEY), {
+    most: 4,
+    onStep: async (_url, key) => {
+      if (key !== LAST) return;
+      // On the second one, the student answers it and the first.
+      await form().locator(`[data-field-path="${INTERNSHIPS}"] input`).first().check();
+      await form().locator(`[data-field-path="${LAST}"] input`).fill("A rail signalling company");
+      for (const name of [INTERNSHIPS, LAST]) {
+        await expect(form().locator(`#workit-autofiller-overlay-host [data-key="${name}"] .source`)).toHaveText("You", { timeout: 10_000 });
+      }
+    },
+  });
+
+  // The next press goes to the written question after them, not past it.
+  expect(walked.map(([, key]) => key)).toEqual(["_systemfield_location", INTERNSHIPS, LAST, WHY]);
+  expect(forms.submissions).toEqual([]);
+});
+
 /** The text the phone's country picker beside Phone shows on Greenhouse's form (its dial code), "" when none is picked. */
 const phoneCountryShown = (form: Page) =>
   form.locator("#country").locator("xpath=ancestor::div[contains(@class, 'select__control')]").locator(".select__single-value").allInnerTexts();

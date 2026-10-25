@@ -65,11 +65,19 @@ window.WIA = window.WIA || {};
       );
     }
 
-    /** The keys of the rows that need the student, in the order their fields stand on the page (notes last). */
+    /**
+     * The walk's view of this tab: `order`, every row's key in the order its
+     * field stands on the page (notes and fields the page doesn't show last),
+     * and `keys`, those of them that need the student. The walk places a row
+     * it went to by `order`, so it goes on after it once the row is answered.
+     */
     function flagged() {
-      const rows = status.summary().fields.filter(needsYou).map((r) => ({ key: r.key, field: fieldOf(r.key) }));
+      const fields = status.summary().fields;
+      const rows = fields.map((r) => ({ key: r.key, field: fieldOf(r.key) }));
       const placed = rows.filter((r) => r.field).sort((a, b) => (a.field.compareDocumentPosition(b.field) & Node.DOCUMENT_POSITION_FOLLOWING ? -1 : 1));
-      return [...placed, ...rows.filter((r) => !r.field)].map((r) => r.key);
+      const order = [...placed, ...rows.filter((r) => !r.field)].map((r) => r.key);
+      const needing = new Set(fields.filter(needsYou).map((r) => r.key));
+      return { order, keys: order.filter((key) => needing.has(key)) };
     }
 
     /** Brings a flagged row's field into view and focuses it, and marks its row on the panel. */
@@ -93,7 +101,7 @@ window.WIA = window.WIA || {};
       if (window.WIA.walking) return;
       window.WIA.walking = true;
       chrome.runtime.onMessage.addListener((message, _sender, reply) => {
-        if (message?.type === "batch/flags") reply({ keys: window.WIA.phase === "filling" ? [] : flagged() });
+        if (message?.type === "batch/flags") reply(window.WIA.phase === "filling" ? { order: [], keys: [] } : flagged());
         else if (message?.type === "batch/focus") {
           show(message.key);
           reply({ shown: true });

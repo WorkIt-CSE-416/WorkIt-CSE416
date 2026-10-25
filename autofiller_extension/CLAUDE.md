@@ -474,7 +474,9 @@ waits for an opened tab's page and form (`waitForLoad`, `formShows`).
   notes last; a note is a row marked `note`, "todo" or "done" for news
   like "Application sent", never a key starting "_": Ashby keys its own
   fields `_systemfield_...`), goes to the first one after the last it went to (cursor in
-  `chrome.storage.session`, `workit_batch_next`), switches to its tab and
+  `chrome.storage.session`, `workit_batch_next`: the tab's place in the
+  batch and the row's place among all the tab's rows, `batch/flags`'s
+  `order`, so it goes on after a row the student just answered), switches to its tab and
   has the content script scroll to and focus the field and mark its row
   (`batch/focus`). Past the last one the panel says "Nothing else needs
   you." and the next press starts again. A field is found by the job
