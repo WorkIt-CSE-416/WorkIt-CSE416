@@ -220,6 +220,11 @@ Find files with a directory listing; these are the rules for where code goes.
   saves through `pipeline.save_answers`, the connector's own step, so a
   pasted answer passes the same checks and the tab fills it the same way.
   Never give pasted text a save path of its own: it may come from any AI.
+  The paste passes `by="student"`, which skips only the copy check against
+  the student's own writing samples (that check stops their Claude
+  parroting them; a student may paste their own words). Re-checks of a
+  saved answer (`ask_questions`, `answer_bank`) leave the copy check out
+  for the same reason: the save ran it.
   A refusal's `Refused.reasons` holds each answer's reasons by question
   name, for the page to show under its box. Tests: `tests/test_pasted_answers.py`.
   **A student's writing samples and style card** (KAN-384) are
