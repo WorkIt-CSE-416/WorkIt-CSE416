@@ -59,7 +59,8 @@ etc.) used to tell title from company when both are plain text.
 
 Matches `City, ST` at the end of a line, where ST is a US state/territory code
 from `US_STATES`. Two passes: first looks for a multi-space gap (PDF extraction
-preserves these), then falls back to a 1-2 word city regex.
+preserves these), then falls back to a 1-2 word city regex. "Remote" or "Hybrid" after a multi-space gap
+is the location too ("Engineer| Ruby, Rails  Remote").
 
 Known ceilings:
 - US-only (no international locations)
@@ -119,11 +120,22 @@ as `None` (null end date).
   line is a new project when it holds a "|" or opens a new sentence after a
   finished bullet. Jake's Resume from LaTeX lists projects this way; before
   this, three projects merged into one.
-- **A project's tools** follow a "|" as a comma list ("Robot | C++, Python")
-  or sit in parentheses with a comma; they go to `Project.technologies`, and
-  import adds those missing from the skills section as ungrouped skills. One
-  phrase after the bar is a subtitle and stays in the name ("WorkIt | Full
-  Stack Recruiting Platform").
+- **A project's tools** follow the last "|" as a comma list ("Robot | C++,
+  Python") or sit in parentheses with a comma; they go to
+  `Project.technologies`, and import adds those missing from the skills
+  section as ungrouped skills. One phrase after the bar is a subtitle and
+  stays in the name ("WorkIt | Full Stack Recruiting Platform"); with a
+  subtitle and a list ("Robot | Club| C++, Go") the name keeps both phrases
+  and only the list is tools (`_split_tools`). Before, the first bar split,
+  and "Club| C++" became a skill.
+- **A role's tools** work the same way: "Software Engineer Intern| C++, Go"
+  keeps only the role as the title, and the list goes to
+  `Experience.technologies` (jobs and leadership), then to ungrouped skills.
+  Before, the whole tail stayed in the title.
+- **Skills a reading keeps** (`bank_import.skill_pairs`, for the parser's and
+  the model's readings alike) leave out what is not a skill (`not_a_skill`):
+  a name still holding a "|", a qualification (degree, years, clearance), or
+  a vague phrase ending in "tools" or "skills" ("AI tools").
 - **A skills line that ends in a comma** continues on the next line, which
   keeps its group. Before this, a wrapped "Concepts:" list lost its group.
 

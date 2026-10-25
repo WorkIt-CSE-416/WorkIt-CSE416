@@ -202,6 +202,10 @@ def _extract_location(text: str) -> tuple[str | None, str]:
         location = ms.group(1).strip()
         remainder = text[:ms.start()].strip().rstrip("|–—-").strip()
         return location, remainder
+    # "Remote" after a PDF gap is the location too
+    ms = re.search(r'\s{2,}(Remote|Hybrid)\s*$', text, re.IGNORECASE)
+    if ms:
+        return ms.group(1), text[:ms.start()].strip().rstrip("|–—-").strip()
     # Pass 2: constrained end-of-line match (1-2 word city)
     m = LOCATION_RE.search(text)
     if m and m.group(2) in US_STATES:
@@ -227,6 +231,17 @@ def _has_date(line: str) -> bool:
 def _strip_dates(line: str) -> str:
     # also drops a "|" left dangling where the dates were ("Title | May 2024")
     return BARE_DATE_RE.sub("", DATE_RANGE_RE.sub("", line)).strip().rstrip(",|–—-").strip()
+
+
+def _split_tools(text: str) -> tuple[str, list[str]]:
+    """"Name | C++, Python": a list after the last bar is the tools, and the
+    name keeps what comes before it ("Robot | Club| C++, Go" keeps "Robot |
+    Club"). A single phrase there is a subtitle ("WorkIt | Recruiting
+    Platform") and stays in the name."""
+    head, bar, tools = text.rpartition("|")
+    if bar and "," in re.sub(r'\(.*?\)', '', tools) and not URL_RE.search(tools):
+        return head.strip(), [t.strip() for t in tools.split(",") if t.strip()]
+    return text, []
 
 
 def _split_title_company(text: str) -> tuple[str, str] | None:
@@ -480,6 +495,8 @@ def _parse_experience(text: str) -> list[Experience]:
                     title = company
             bullet_start = date_idx + 1
 
+        # "Role| C++, Python": the role is the title, the tools its skills
+        title, technologies = _split_tools(title)
         if not company:
             company = title
 
@@ -487,7 +504,7 @@ def _parse_experience(text: str) -> list[Experience]:
 
         results.append(Experience(
             company_name=company, title=title, location=location,
-            start_date=start, end_date=end, description=desc,
+            start_date=start, end_date=end, description=desc, technologies=technologies,
         ))
     return results
 
@@ -538,12 +555,7 @@ def _parse_projects(text: str) -> list[Project]:
         start, end = _parse_date_range(first)
         name = BARE_DATE_RE.sub("", DATE_RANGE_RE.sub("", first)).strip().rstrip(",").rstrip("–—-").strip()
         technologies: list[str] = []
-        # "Name | C++, Python": a list after the bar is the tools. A single phrase
-        # there is a subtitle ("WorkIt | Recruiting Platform") and stays in the name.
-        head, bar, tools = name.partition("|")
-        if bar and "," in re.sub(r'\(.*?\)', '', tools) and not URL_RE.search(tools):
-            name = head.strip()
-            technologies = [t.strip() for t in tools.split(",") if t.strip()]
+        name, technologies = _split_tools(name)
         # "Name (C++, Python)"
         paren = re.search(r'\s*\((.*?)\)\s*$', name)
         if paren:
