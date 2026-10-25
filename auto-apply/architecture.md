@@ -1096,7 +1096,7 @@ change to the samples deletes the card, so the next chat builds a new
 one. Without samples, Claude writes in a plain, neutral voice. The card
 holds no facts: the rules on sources hold, and the rules win where the
 card disagrees. The samples stay on WorkIt for the copying check
-(KAN-380, `queries.writing.sample_texts`). Tests:
+(KAN-380, `pipeline.writing_samples`). Tests:
 `tests/test_connector_style_card.py`, `tests/test_writing_samples.py`.
 
 **A chat and its cap (KAN-381).** The server is stateless and Claude

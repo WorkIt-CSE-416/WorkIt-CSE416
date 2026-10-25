@@ -1050,7 +1050,8 @@ Real, not forgotten. Do not treat their absence as a decision already made.
   (`queries/writing.py`), so a card always describes the samples the
   student has now, with no hash or version to keep in step; the connector
   then asks their Claude for a new one. The copying check (KAN-380) reads
-  the samples through `queries.writing.sample_texts`, never the table.
+  the samples through `pipeline.writing_samples` (which calls
+  `queries.writing.sample_texts`), never the table.
 
 ## Company briefs — `company_briefs.py` (KAN-382)
 

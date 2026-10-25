@@ -40,6 +40,7 @@ from app.auto_apply.queries import (
 )
 from app.auto_apply.rules import pick_batch
 from app.models.dto import application_stage
+from app.queries import writing
 from app.queries.jobs.filters import JobFilters
 from app.routers.jobs import EmptyBank, fetch_recommended
 from app.schemas.applications import (
@@ -429,9 +430,9 @@ def bank_sources(bank: Bank) -> list[str]:
 
 
 async def writing_samples(db: AsyncSession, applicant_id: uuid.UUID) -> list[str]:
-    """The student's own writing samples, which the copying check reads.
-    WorkIt keeps none yet: KAN-384 adds them, and this reads them."""
-    return []
+    """The student's own writing samples (KAN-384), which the copying check
+    reads: their text, oldest first, empty when they gave none."""
+    return list(await writing.sample_texts(db, applicant_id))
 
 
 async def answer_bank(db: AsyncSession, applicant_id: uuid.UUID, job_id: uuid.UUID) -> dict[str, str]:

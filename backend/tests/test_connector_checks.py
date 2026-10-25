@@ -49,7 +49,7 @@ async def test_each_check_refuses_a_failing_answer_and_passes_a_clean_one(runnin
     async def samples(db, applicant_id):
         return [SAMPLE]
 
-    monkeypatch.setattr(pipeline, "writing_samples", samples)  # KAN-384 keeps them; none are saved yet
+    monkeypatch.setattr(pipeline, "writing_samples", samples)  # stands in for the samples KAN-384 keeps
     me, (job, other) = await _student_queues(database, applicant, 2)
     await _company(database, other, "Globex")
     await _tab_asks(me, job, WHY)

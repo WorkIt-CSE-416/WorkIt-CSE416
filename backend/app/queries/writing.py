@@ -7,7 +7,8 @@ Any change to the samples deletes the style card in the same transaction,
 so a card is always built from the samples the student has now; the
 connector then asks their Claude for a new one (`card_state`).
 
-`sample_texts` is what the copying check (KAN-380) reads: the samples' text,
+`sample_texts` is what the copying check (KAN-380) reads, through
+`pipeline.writing_samples`: the samples' text,
 oldest first, empty when the student gave none.
 """
 

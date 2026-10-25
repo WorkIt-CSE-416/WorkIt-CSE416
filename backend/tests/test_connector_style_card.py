@@ -111,3 +111,17 @@ async def test_a_card_without_samples_or_out_of_bounds_is_refused(running, appli
 
     assert no_samples.is_error and empty.is_error and too_long.is_error
     assert nothing["style_card"] is None
+
+
+async def test_an_answer_copying_a_stored_sample_is_refused(running, applicant, database):
+    me, (job,) = await _student_queues(database, applicant, 1)
+    await _tab_asks(me, job, WHY)
+    await _gives_samples(applicant, ESSAY)
+    copying = "At Acme I rebuilt our club's sign-up sheet as a small web app."
+
+    async with claude(applicant) as client:
+        refused = await client.call_tool("save_answers", {"job_id": job, "answers": [{"name": "question_7", "answer": copying}]})
+
+    assert refused.is_error
+    assert "writing samples" in refused.content[0].text
+    assert (await _tab_asks(me, job))[0]["answer"] is None
