@@ -8,7 +8,7 @@
 
 import { getSession } from "./auth.js";
 import { getAutofillProfile, generateEssayAnswer, ApiError } from "./api.js";
-import { batchStatus, forgetTab, inBatch, setTabState, showBatchTab, startBatch } from "./batch.js";
+import { batchStatus, forgetTab, inBatch, nextNeedsYou, setTabState, showBatchTab, startBatch } from "./batch.js";
 import { engineCaller, handleFill, jobOf, runEngine } from "./engine.js";
 import { injectFill } from "../shared/content-scripts.js";
 
@@ -95,6 +95,10 @@ async function handleMessage(message, sender) {
       if (message.state !== "ready" && message.state !== "needs_you") throw new Error(`Unknown tab state: ${message.state}`);
       return setTabState(sender.tab.id, message.state);
     }
+
+    // A batch tab's "Next Thing That Needs You" (content-script.js): batch.js goes to it, across the tabs.
+    case "batch/next":
+      return nextNeedsYou();
 
     default:
       throw new Error(`Unknown message type: ${message.type}`);

@@ -227,6 +227,18 @@ and `run/show` switches to one (`jobId`).
   the last one moves it to Ready. A batch tab writes no essays (the essay
   route is not batch apply's; the student's own Claude will write them,
   KAN-377): they are left to the student.
+- **"Next Thing That Needs You" walks the batch** (KAN-375). Each batch
+  tab's panel has the button. `batch.js`'s `nextNeedsYou` asks every batch
+  tab, in the order the tabs opened, which of its rows need the student
+  (`batch/flags`: the rows that send a tab to Needs you, in page order,
+  notes last), goes to the first one after the last it went to (cursor in
+  `chrome.storage.session`, `workit_batch_next`), switches to its tab and
+  has the content script scroll to and focus the field and mark its row
+  (`batch/focus`). Past the last one the panel says "Nothing else needs
+  you." and the next press starts again. A field is found by the job
+  system's own field id (`content-script.js`'s `fieldOf`); a tab nothing
+  was filled in is one stop, the page itself. This is the only time the
+  extension switches tabs on its own, and only on the student's press.
 - **The tabs fill hidden; the student is never taken to one.** KAN-305's
   runner showed its tab before the fill, because hidden fills by the
   pre-engine filler left most dropdowns empty. The Fill engine does not

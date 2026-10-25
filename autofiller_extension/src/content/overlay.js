@@ -203,6 +203,33 @@ window.WIA = window.WIA || {};
     });
   }
 
+  /**
+   * Batch apply's "Next Thing That Needs You" (content-script.js): shows the
+   * button, which calls `onNext` and shows what it answers (a sentence for
+   * the student, or nothing when it went to a field).
+   * @param {() => Promise<string | null>} onNext
+   */
+  function offerNext(onNext) {
+    if (!root) return;
+    const bar = root.querySelector(".next");
+    const said = bar.querySelector("[data-said]");
+    bar.hidden = false;
+    bar.querySelector("[data-next]").onclick = async () => {
+      said.hidden = true;
+      const text = await onNext();
+      said.textContent = text ?? "";
+      said.hidden = !text;
+    };
+  }
+
+  /** Marks the row "Next Thing That Needs You" went to (null: none), and brings it into view. */
+  function setCurrent(key) {
+    current = key;
+    if (!root) return;
+    render(window.WIA.status.summary());
+    root.querySelector("[data-current]")?.scrollIntoView({ block: "nearest" });
+  }
+
   function mount() {
     if (host) return;
     host = document.createElement("div");
@@ -218,6 +245,10 @@ window.WIA = window.WIA || {};
         <button type="button" aria-label="Close" data-close>✕</button>
       </div>
       <div class="summary"></div>
+      <div class="next" hidden>
+        <button type="button" data-next>Next Thing That Needs You</button>
+        <span class="said" data-said hidden></span>
+      </div>
       <div class="essay-banner" hidden></div>
       <div class="list"></div>
     `;
@@ -257,5 +288,5 @@ window.WIA = window.WIA || {};
     root = null;
   }
 
-  window.WIA.overlay = { mount, unmount, promptForEssays };
+  window.WIA.overlay = { mount, unmount, promptForEssays, offerNext, setCurrent };
 })();

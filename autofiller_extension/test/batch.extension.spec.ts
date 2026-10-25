@@ -134,3 +134,62 @@ test("a field that silently rejects its answer is flagged, and its tab needs you
   await expect(row.locator(".reason")).toHaveText("meant 'Test', page shows ''");
   expect(forms.submissions).toEqual([]);
 });
+
+test("Next Thing That Needs You walks every flagged field across the tabs in batch order, then says none are left", async () => {
+  test.setTimeout(120_000);
+  const forms = new SavedForms(["greenhouse-arc", "greenhouse-anduril"]);
+  const api = new FakeApi().queue(
+    { id: "job-0", apply_url: forms.url("greenhouse-arc") },
+    { id: "job-1", apply_url: forms.url("greenhouse-anduril") },
+  );
+  loaded = await loadExtension([api.handler, webapp, withScript(forms, "greenhouse-arc", DROPS_FIRST_NAME)]);
+  await signIn(loaded.context);
+  const webappPage = loaded.context.pages()[0] ?? (await loaded.context.newPage());
+  await webappPage.goto("http://localhost:3000/auto-apply");
+  await sendFromWebapp(webappPage, { type: "run/open" });
+  const batchGroups = async () => (await tabs(loaded.worker)).filter((t) => t.url?.startsWith("https://")).map((t) => t.group?.title);
+  await expect.poll(batchGroups, { timeout: 90_000 }).toEqual(["Needs you", "Needs you"]);
+
+  const page = (url: string) => loaded.context.pages().find((p) => p.url() === url)!;
+  const panel = (url: string) => page(url).locator("#workit-autofiller-overlay-host");
+  const shownTab = async () => (await tabs(loaded.worker)).find((t) => t.active)!.url!;
+  // The student starts in the first tab and presses Next until nothing is left.
+  const currentIn = async (url: string) => {
+    const row = panel(url).locator("[data-current]");
+    return (await row.count()) ? row.getAttribute("data-key") : null;
+  };
+  let at = forms.url("greenhouse-arc");
+  const walked: [string, string][] = [];
+  let left = "";
+  for (let n = 0; n < 10 && !left; n++) {
+    await panel(at).getByRole("button", { name: "Next Thing That Needs You" }).click();
+    // Either it says nothing is left, or a tab shows a field it hasn't shown yet.
+    const after = async () => {
+      const said = panel(at).locator("[data-said]");
+      if (await said.isVisible()) return `said: ${await said.innerText()}`;
+      const url = await shownTab();
+      const key = await currentIn(url);
+      return key && JSON.stringify([url, key]) !== JSON.stringify(walked.at(-1)) ? JSON.stringify([url, key]) : "waiting";
+    };
+    await expect.poll(after).not.toBe("waiting");
+    const step = await after();
+    if (step.startsWith("said: ")) {
+      left = step.slice("said: ".length);
+      break;
+    }
+    const [url, key] = JSON.parse(step);
+    walked.push([url, key]);
+    at = url;
+    // The field itself is brought into view and focused.
+    expect(await page(at).evaluate(() => document.activeElement?.id)).toBe(key);
+  }
+
+  // Arc's one flagged field (its name box rejected the answer), then Anduril's, in batch order.
+  expect(walked).toEqual([
+    [forms.url("greenhouse-arc"), "first_name"],
+    [forms.url("greenhouse-anduril"), "question_13130330007"],
+    [forms.url("greenhouse-anduril"), "question_13130331007"],
+  ]);
+  expect(left).toBe("Nothing else needs you.");
+  expect(forms.submissions).toEqual([]);
+});

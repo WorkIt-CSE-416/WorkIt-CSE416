@@ -192,6 +192,9 @@
     });
   }
 
+  /** Whether a row needs the student: a note the Plan left them, a failed field, or a required one unanswered. */
+  const needsYou = (r) => r.key.startsWith("_") || r.status === "failed" || (r.required && r.status !== "filled");
+
   /**
    * Whether this batch tab is "ready" (every field it needs shows an answer)
    * or "needs_you": the fill stopped (no Filler for this job system, an
@@ -201,9 +204,63 @@
   function tabState() {
     const phase = window.WIA.phase;
     if (phase !== "filled") return "needs_you";
-    const rows = status.summary().fields;
-    const open = rows.some((r) => r.key.startsWith("_") || r.status === "failed" || (r.required && r.status !== "filled"));
-    return open ? "needs_you" : "ready";
+    return status.summary().fields.some(needsYou) ? "needs_you" : "ready";
+  }
+
+  /**
+   * The form's field for a question, by the job system's own field id: an
+   * element's id (Greenhouse, Lever's cards), its name (Lever), or the
+   * attribute Ashby, Workable or Rippling mark a field's box with. Null for
+   * a row that is not a field, or a field the page doesn't show.
+   */
+  function fieldOf(key) {
+    if (key.startsWith("_")) return null;
+    const name = CSS.escape(key);
+    return (
+      document.getElementById(key) ??
+      document.querySelector(`[name="${name}"], [data-field-path="${name}"], [data-ui="${name}"], [data-testid="${name}"]`)
+    );
+  }
+
+  /** The keys of the rows that need the student, in the order their fields stand on the page (notes last). */
+  function flagged() {
+    const rows = status.summary().fields.filter(needsYou).map((r) => ({ key: r.key, field: fieldOf(r.key) }));
+    const placed = rows.filter((r) => r.field).sort((a, b) => (a.field.compareDocumentPosition(b.field) & Node.DOCUMENT_POSITION_FOLLOWING ? -1 : 1));
+    return [...placed, ...rows.filter((r) => !r.field)].map((r) => r.key);
+  }
+
+  /** Brings a flagged row's field into view and focuses it, and marks its row on the panel. */
+  function show(key) {
+    const field = fieldOf(key);
+    if (field) {
+      field.scrollIntoView({ block: "center" });
+      const control = field.matches("input, select, textarea, button, [tabindex]") ? field : field.querySelector("input, select, textarea, button, [tabindex]");
+      control?.focus({ preventScroll: true });
+    }
+    overlay.setCurrent(key);
+  }
+
+  /**
+   * Batch apply's "Next Thing That Needs You" (background/batch.js walks the
+   * batch's tabs): this tab answers which of its rows need the student
+   * ("batch/flags") and shows one when it is next ("batch/focus"). Added
+   * once per page, though the fill may be injected again.
+   */
+  function answerTheWalk() {
+    if (window.WIA.walking) return;
+    window.WIA.walking = true;
+    chrome.runtime.onMessage.addListener((message, _sender, reply) => {
+      if (message?.type === "batch/flags") reply({ keys: window.WIA.phase === "filling" ? [] : flagged() });
+      else if (message?.type === "batch/focus") {
+        show(message.key);
+        reply({ shown: true });
+      }
+    });
+    overlay.offerNext(async () => {
+      const answer = await send({ type: "batch/next" }).catch(() => null);
+      if (!answer?.ok) return "WorkIt couldn't look through the batch. Try again.";
+      return answer.done ? "Nothing else needs you." : null;
+    });
   }
 
   let reported = null;
@@ -286,12 +343,14 @@
     report();
     if (prepared) offerEssays(prepared);
     if (prepared && batch) watchEdits(prepared);
+    if (batch) answerTheWalk();
     return;
   }
 
   // Workday: each step as it shows, until the step whose button sends. Its
   // pages aren't hydrated, and the panel tells the student to sign in first.
   overlay.mount();
+  if (batch) answerTheWalk();
   if (!workdayStep()) {
     note("_step", "Waiting for the application", "Sign in and start the application. WorkIt fills each step as it shows.");
     window.WIA.phase = "step";
