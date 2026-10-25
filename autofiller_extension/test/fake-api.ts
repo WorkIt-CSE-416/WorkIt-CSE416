@@ -128,6 +128,8 @@ export class FakeApi {
     }
     const bank = /^\/applications\/([^/]+)\/answer-bank$/.exec(route);
     if (bank && method === "GET" && this.stages.has(bank[1])) return { json: this.bank };
+    // A form outside a batch (no application) gets the same bank.
+    if (route === "/answer-bank" && method === "GET") return { json: this.bank };
     const own = /^\/applications\/([^/]+)\/answers$/.exec(route);
     if (own && method === "PUT" && this.stages.has(own[1])) {
       const { name, label, answer, own: isOwn } = JSON.parse(body.toString());

@@ -252,3 +252,25 @@ async def test_a_saved_answer_is_offered_on_another_form_only_if_it_passes_that_
 
     # The second posting doesn't: the answer would state a number nothing there supports.
     assert await _bank(me, second) == {}
+
+
+async def test_a_form_outside_a_batch_gets_the_saved_answers_under_the_company_rule(running, applicant, database):
+    """A fill outside a batch has no application, so no job: its bank is the
+    student's every saved answer, one about a company only on that company's page."""
+    me, (first,) = await _student_queues(database, applicant, 1)
+    await _company(database, first, "Acme")
+    await _tab_asks(me, first, PROUD, WHY)
+    await _student_answers(me, first, PROUD, "My own words about my robot.")
+    await _student_answers(me, first, WHY, "Acme builds the trains I rode as a kid.")
+
+    async def bank(query: str) -> dict:
+        _signed_in_as(applicant)
+        async with _api() as extension:
+            res = await extension.get(f"{me}/answer-bank{query}")
+        assert res.status_code == 200, res.text
+        return res.json()
+
+    mine = {PROUD["label"]: {"answer": "My own words about my robot.", "own": True}}
+    assert await bank("") == mine
+    assert await bank("?company=Globex") == mine
+    assert await bank("?company=acme") == {**mine, WHY["label"]: {"answer": "Acme builds the trains I rode as a kid.", "own": True}}

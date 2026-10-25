@@ -8,7 +8,7 @@
 
 import { getSession } from "./auth.js";
 import {
-  answerBank, getAutofillProfile, generateEssayAnswer, ApiError, askQuestions, connectorAdded, me, saveAutofillAnswers, saveOwnAnswer,
+  answerBank, anyFormAnswerBank, getAutofillProfile, generateEssayAnswer, ApiError, askQuestions, connectorAdded, me, saveAutofillAnswers, saveOwnAnswer,
   writingSamples, writtenAnswers,
 } from "./api.js";
 import {
@@ -97,10 +97,13 @@ async function handleMessage(message, sender) {
     case "fill/required": {
       const profile = await getAutofillProfile();
       if (message.type === "fill/plan" && jobOf(sender.url)?.site === "workday") await rememberWorkdayTab(sender.tab.id);
-      // A batch tab plans with the answers its application may reuse (KAN-379), read fresh for each Plan:
-      // one saved a moment ago in another tab counts. Any other page has no application, so no bank.
+      // A Plan uses the answers the student saved (KAN-379), read fresh for each Plan: one saved a
+      // moment ago in another tab counts. A batch tab's are its application's; any other page has no
+      // application, so it gets the bank for the page's company, once the engine has read it.
       const jobId = message.type === "fill/plan" ? await jobInTab(sender.tab.id) : null;
-      const bank = jobId ? await answerBank(profile.id, jobId).catch(() => ({})) : {};
+      const bank = message.type !== "fill/plan" ? {}
+        : jobId ? await answerBank(profile.id, jobId).catch(() => ({}))
+        : (company) => anyFormAnswerBank(profile.id, company).catch(() => ({}));
       return handleFill(message, {
         url: sender.url, profile, bank, today: today(), call: engineIn(sender), fetchText, trees: workdayTrees,
       });
