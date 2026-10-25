@@ -388,3 +388,24 @@ async def save_written(
             )
             .values(answer=answer, answered_at=func.now())
         )
+
+
+async def fetch_posting_text(db: AsyncSession, job_id: uuid.UUID) -> tuple[str | None, str | None, str | None]:
+    """One job posting's company, title and description, as saved."""
+    row = (
+        await db.execute(select(Job_Post.company_name, Job_Post.title, Job_Post.description).where(Job_Post.id == job_id))
+    ).first()
+    return (row.company_name, row.title, row.description) if row else (None, None, None)
+
+
+async def fetch_application_companies(db: AsyncSession, applicant_id: uuid.UUID) -> list[str]:
+    """The companies of every job posting the applicant has an application
+    for, at any stage, each once."""
+    rows = await db.scalars(
+        select(Job_Post.company_name)
+        .join(Job_Application, Job_Application.job_id == Job_Post.id)
+        .where(Job_Application.applicant_id == applicant_id, Job_Post.company_name.is_not(None))
+        .distinct()
+    )
+    return list(rows)
+

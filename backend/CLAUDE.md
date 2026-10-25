@@ -223,7 +223,17 @@ Find files with a directory listing; these are the rules for where code goes.
   student comes from the token (`load_account`), each tool calls one
   layer-2 step (`next_to_write`, `save_answers`), and a refusal is a
   `ToolError` with the reason. **Writing rules go in the MCP prompt, never
-  in a tool's description**, and nothing on this path calls a model. **Which job postings it takes is
+  in a tool's description**, and nothing on this path calls a model.
+  **Every saved answer passes the checks in code first**
+  (`app/auto_apply/checks.py`, KAN-380; pure, `tests/test_answer_checks.py`):
+  machine-made words, a run copied from the student's writing samples, a
+  number not in the bank, posting or question, another application's
+  company, a sentence over 30 words, a placeholder, and the form's own
+  limit (the Fill engine reads it from the live form; the tab sends it as
+  `max_length`). `save_answers` refuses the whole save with every failing
+  answer's reasons, so nothing failing reaches a tab. Seam-2 tests:
+  `tests/test_connector_checks.py`. The writing samples are KAN-384's;
+  until then `pipeline.writing_samples` holds none. **Which job postings it takes is
   one list, `app/auto_apply/hosts.py`** (every hiring system the Fill engine fills, KAN-370): the matches
   and `queue_applications` require its SQL form (`AUTO_APPLY_SUPPORTED` in
   `queries/jobs/filters.py`) and `JobListing.auto_apply` its Python form,

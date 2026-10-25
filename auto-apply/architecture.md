@@ -1066,12 +1066,13 @@ ids and plain data.
 | Name | Kind | Does |
 |---|---|---|
 | `get_next_application` | tool, `readOnlyHint` | The oldest open application (queued or needs_you, posting open) with a written question unanswered (`next_to_write`): its job id, company, title, the posting's description, its unanswered questions (`name`, `question`, `required`, `max_length`), and the student's experience bank and skills (`bank_context`, no links). Only that application's material. `job_id: null` when none is left |
-| `save_answers` | tool, a write (not destructive) | `{job_id, answers: [{name, answer}]}` (`save_answers`): all or none; refuses a name the application doesn't ask, an empty answer, or one over the form's `max_length` (else 10,000), with the reason as a tool error for Claude to fix. Answers `{saved, left}` |
+| `save_answers` | tool, a write (not destructive) | `{job_id, answers: [{name, answer}]}` (`save_answers`): all or none; refuses a name the application doesn't ask, an empty answer, or one that fails a check in code (`app/auto_apply/checks.py`, KAN-380: machine-made words, a run of 5 words copied from the student's writing samples, a number not in the bank, posting or question, another application's company, a sentence over 30 words, a placeholder, or over the form's `max_length`, else 10,000), with every failing answer's reasons as one tool error for Claude to fix. Answers `{saved, left}` |
 | "Write my WorkIt answers" | prompt | The writing rules and the loop: next application, write, save, at most 5 per chat. **The rules live here only**; tool descriptions say what a tool does (Anthropic's review refuses descriptions that steer Claude) |
 
 The rules are the tracer's short set; KAN-381 brings Apply's full ones, the
 per-chat cap and resuming after a usage limit; KAN-380 the checks in code
-on save; KAN-379 writing as soon as a job is queued and reusing saved
+on save (above), with `max_length` read from the live form by the Fill
+engine's `limits`; KAN-379 writing as soon as a job is queued and reusing saved
 answers. **WorkIt calls no model on this path**: no tool or route of the
 connector makes a `workit_scout` `LLM` (tested), and batch tabs never call
 the essay-answer route.

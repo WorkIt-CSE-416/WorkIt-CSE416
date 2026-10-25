@@ -134,7 +134,8 @@ def register(server: MCPServer) -> None:
         description=(
             "Saves answers to one WorkIt job application's written questions, all or none, and fills "
             "them into the application's open tab in the student's browser. Refuses an answer to a "
-            "question the application doesn't have, an empty one, or one over the question's max_length."
+            "question the application doesn't have, an empty one, or one that fails WorkIt's checks (over the question's "
+            "max_length among them), with every reason."
         ),
         annotations=ToolAnnotations(readOnlyHint=False, destructiveHint=False, idempotentHint=True, openWorldHint=False),
     )
