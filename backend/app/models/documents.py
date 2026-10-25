@@ -14,7 +14,8 @@ from app.db import BaseModel
 class Student_Document(BaseModel):
     '''
     `storage_path` is in the `Resume` bucket under the student's folder
-    (`<applicant_id>/documents/<uuid><ext>`), or `local:<file name>`
+    (`<applicant_id>/documents/<uuid><ext>`), or
+    `local:<applicant_id>/<file name>`
     (services/local_files.py, development only). A new file replaces the
     row's file; the old one is removed.
     '''

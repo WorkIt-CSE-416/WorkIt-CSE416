@@ -75,6 +75,24 @@ async def test_the_student_s_own_essays_and_answers_come_as_samples_and_nothing_
         assert not_own not in joined
 
 
+async def test_an_edited_story_bank_replaces_only_the_samples_the_import_brought(
+    running, applicant, database, apply_dir, local_files,
+):
+    base._signed_in_as(applicant)
+    async with base._api() as client:
+        mine = await client.post(f"/applicants/{applicant}/writing-samples", json={"text": "A cover letter I typed."})
+    assert mine.status_code == 201, mine.text
+    (apply_dir / "story-bank.md").write_text(STORY_BANK.replace("{long}", "A short essay."))
+    await _import(database, applicant, apply_dir)
+    (apply_dir / "story-bank.md").write_text(STORY_BANK.replace("{long}", "An edited essay."))
+
+    await _import(database, applicant, apply_dir)
+
+    joined = "\n".join(s["text"] for s in (await _get(applicant, "/writing-samples")).json()["samples"])
+    assert "A cover letter I typed." in joined
+    assert "An edited essay." in joined and "A short essay." not in joined
+
+
 VOICE = """\
 <!-- How Riley writes, measured from Riley's essays (made up). -->
 

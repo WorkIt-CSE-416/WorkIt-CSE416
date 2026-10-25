@@ -9,8 +9,8 @@ fill as completely as Apply's (models/CLAUDE.md, "The Fill engine's profile").
 answer-bank.yaml, already in the Fill engine's own shapes (Apply runs the
 same engine). One run, in one transaction:
 
-1. `fill_profile`: the profile, but `files` (WorkIt's resume is its own, and
-   a transcript's path never comes over);
+1. `fill_profile`: the profile, but `files` (its resume and transcript come
+   as WorkIt's own rows, step 5);
 2. `fill_policies`: only the policies the engine reads (ENGINE_POLICIES);
    Apply's run settings (caps, limits, schedules) stay Apply's;
 3. `fill_answers`: every Answer bank entry, with the company it was first
@@ -22,16 +22,21 @@ same engine). One run, in one transaction:
 4. WorkIt's own fields from the profile's identity: name, contact email,
    phone, links, home location, and the education entry (the student's own,
    matched by school);
-5. the resume the profile names, copied into LOCAL_FILES_DIR and made the
-   default upload as `local:<file name>` (services/local_files.py): nothing
+5. the resume the profile names, copied into the student's folder in
+   LOCAL_FILES_DIR and made the default upload as
+   `local:<applicant_id>/<file name>` (services/local_files.py): nothing
    goes to Storage. Without LOCAL_FILES_DIR it is left out. The unofficial
    transcript it names comes the same way, as the student's transcript document;
 6-8. the student's own writing from story-bank.md as writing samples, voice.md
    as their style card, and company-briefs/ through WorkIt's own page check
    (scripts/import_apply_writing.py). The briefs' pages are read from the web.
 
-Running it again on the same files changes nothing; an edited file's facts
-replace the old ones. It refuses a database that is not on this computer:
+Running it again on the same files changes nothing. An edited file's
+profile, policies, answers, fields, resume and transcript replace the old
+ones; its writing samples replace only the samples an import brought, and a
+company brief replaces the kept one only when it scores higher. A fact
+WorkIt's own checks refuse (a link that is not one) refuses the whole
+import, naming the field. It refuses a database that is not on this computer:
 the files hold a student's personal facts, which go to a local copy only.
 It prints counts and field names, never a value.
 """
@@ -49,6 +54,7 @@ from typing import Any
 from urllib.parse import urlsplit
 
 import yaml
+from pydantic import ValidationError
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
@@ -155,7 +161,11 @@ def _identity_fields(facts: dict) -> dict:
 
 
 async def _set_fields(profile: Applicant_Profile, facts: dict, report: Report) -> None:
-    update = ApplicantProfileUpdate(**{k: str(v) for k, v in _identity_fields(facts).items()})
+    try:
+        update = ApplicantProfileUpdate(**{k: str(v) for k, v in _identity_fields(facts).items()})
+    except ValidationError as exc:  # names the field and the rule, never the value
+        fields = ", ".join(f"{'.'.join(map(str, e['loc']))} ({e['msg']})" for e in exc.errors())
+        raise ImportRefused(f"WorkIt cannot take {PROFILE}'s {fields}; nothing was written.") from exc
     for name in sorted(update.model_fields_set):
         value = getattr(update, name)
         if name in ("first_name", "middle_name", "last_name"):
@@ -197,6 +207,15 @@ async def _set_education(session: AsyncSession, applicant_id: uuid.UUID, facts: 
         report.education = "updated"
 
 
+def _copy_local(applicant_id: uuid.UUID, source: Path) -> str:
+    """Copy a file into the student's own folder in LOCAL_FILES_DIR; its storage path."""
+    path = local_files.local_path(applicant_id, source.name)
+    target = local_files.file_for(path)
+    target.parent.mkdir(parents=True, exist_ok=True)
+    shutil.copyfile(source, target)
+    return path
+
+
 async def _set_resume(
     session: AsyncSession, profile: Applicant_Profile, apply_dir: Path, facts: dict, report: Report,
 ) -> None:
@@ -211,11 +230,14 @@ async def _set_resume(
     if not source.is_file():
         report.notes.append("resume left out: the file the profile names is missing")
         return
-    folder.mkdir(parents=True, exist_ok=True)
-    shutil.copyfile(source, folder / source.name)
-    path = local_files.local_path(source.name)
-    resume = await session.scalar(select(Resume).where(Resume.applicant_id == profile.id, Resume.storage_path == path))
-    if resume is None:
+    path = _copy_local(profile.id, source)
+    # an earlier import named the folder's own file (`local:<name>`): that row moves
+    older = local_files.PREFIX + source.name
+    resume = await session.scalar(select(Resume).where(
+        Resume.applicant_id == profile.id, Resume.storage_path.in_((path, older))).limit(1))
+    if resume is not None:
+        resume.storage_path = path
+    else:
         resume = Resume(id=uuid.uuid4(), applicant_id=profile.id, original_filename=source.name, storage_path=path)
         session.add(resume)
         await session.flush()
@@ -239,13 +261,12 @@ async def _set_transcript(
     if not source.is_file():
         report.notes.append("transcript left out: the file the profile names is missing")
         return
-    folder.mkdir(parents=True, exist_ok=True)
-    shutil.copyfile(source, folder / source.name)
+    path = _copy_local(profile.id, source)
     document = await session.get(Student_Document, (profile.id, "transcript"))
     if document is None:
         document = Student_Document(applicant_id=profile.id, kind="transcript")
         session.add(document)
-    document.original_filename, document.storage_path = source.name, local_files.local_path(source.name)
+    document.original_filename, document.storage_path = source.name, path
     report.transcript = source.name
 
 

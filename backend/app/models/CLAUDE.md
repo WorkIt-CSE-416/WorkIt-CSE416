@@ -349,8 +349,9 @@ change here must keep:
   kind widens the CHECK in a migration and the router's `Kind`.
 - The file is in the `Resume` bucket under the student's folder
   (`<applicant_id>/documents/<uuid><ext>`), so Delete Account removes it
-  with the resumes. `storage_path` may be `local:<file name>`
-  (services/local_files.py, development only), served from LOCAL_FILES_DIR.
+  with the resumes. `storage_path` may be `local:<applicant_id>/<file name>`
+  (services/local_files.py, development only), served from the student's
+  folder in LOCAL_FILES_DIR.
 - Nothing reads its text and no sent copy is kept: a replace or delete
   removes the old file at once. Written only by `routers/documents.py`.
 
@@ -839,17 +840,21 @@ so WorkIt fills forms as completely as Apply does.
   list answer: the options ticked) skips the writing checks. Not
   `written_answers`: those rows belong to an application, and a brought
   answer has none.
-- **No `files`.** WorkIt's resume is its own; a transcript's path never
-  comes over (the student uploads a transcript on My Profile, a
-  `student_documents` row). The import's resume is a `resumes` row whose `storage_path` is
-  `local:<file name>` in `LOCAL_FILES_DIR` (services/local_files.py,
-  development only): served by `.../bytes` from that folder, never sent to
-  or removed from Storage.
+- **No `files` in `fill_profile`.** The files the profile names come over
+  as WorkIt's own rows instead, only with `LOCAL_FILES_DIR` set: the resume
+  (`files.resume_pdf`) as a `resumes` row, and the unofficial transcript
+  (`files.unofficial_transcript_pdf`) as the student's `transcript`
+  `student_documents` row, the one My Profile's upload writes. Each is
+  copied into `LOCAL_FILES_DIR` (services/local_files.py, development only)
+  and its `storage_path` is `local:<applicant_id>/<file name>`, in the
+  student's own folder so two students' files of one name never overwrite
+  each other: served by `.../bytes` from there, never sent to or removed from Storage.
 - **The student's writing comes too** (`scripts/import_apply_writing.py`),
   through the same writers as the student's own edits: `writing_samples`
   only from the Story bank's "own essays" and "own answers" sections (their
   words, never a question or a note), packed into `MAX_SAMPLES` of
-  `SAMPLE_MAX`; Apply's voice.md as the `style_cards` row, saved after the
+  `SAMPLE_MAX`, replacing only the samples an import brought (`imported`)
+  and taking only the room the student's own leave; Apply's voice.md as the `style_cards` row, saved after the
   samples (a sample change deletes it); and Apply's company briefs as
   `company_briefs` rows only through `briefs.check` and the keep rule of
   `save_brief` (MIN_FACTS, a higher score). Apply keeps no quote, so the
@@ -1131,7 +1136,10 @@ Real, not forgotten. Do not treat their absence as a decision already made.
   student has now, with no hash or version to keep in step; the connector
   then asks their Claude for a new one. The copying check (KAN-380) reads
   the samples through `pipeline.writing_samples` (which calls
-  `queries.writing.sample_texts`), never the table.
+  `queries.writing.sample_texts`), never the table. `imported` marks a
+  sample the Apply import brought; the import replaces only those, so a
+  sample the student added or edited in WorkIt (false) is never deleted by
+  it.
 
 ## Company briefs — `company_briefs.py` (KAN-382)
 
