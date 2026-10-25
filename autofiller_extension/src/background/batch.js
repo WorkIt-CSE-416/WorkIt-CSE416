@@ -157,7 +157,7 @@ async function resume(batch, windowId) {
     batch.windowId = back.windowId;
     // A restored tab is discardable again.
     await chrome.tabs.update(back.id, { autoDiscardable: false });
-    if (tab.state === "filling") startFill(back.id);
+    if (tab.state === "filling") startFill(back.id, tab.url);
     else await moveToGroup(batch, back.id, tab.state);
   }
   if (!(await chrome.windows.get(batch.windowId).catch(() => null)) && windowId !== undefined) batch.windowId = windowId;
@@ -231,22 +231,32 @@ async function openTab(batch, jobId, url) {
   batch.windowId = tab.windowId;
   batch.tabs[tab.id] = { jobId, url, state: "filling" };
   await save(batch);
-  startFill(tab.id);
+  startFill(tab.id, url);
 }
 
 /**
  * Waits for the tab's page and its form, then injects the fill. A site the
  * extension may not touch (a job system with no Filler) fills nothing and
  * needs the student; a job system's page that never loads, shows no form or
- * takes no fill has failed.
+ * takes no fill has failed. A form the job system sent elsewhere opens again,
+ * once: Eightfold sends one of two forms opened at once in a new session to
+ * its job search (Lockheed Martin's, seen live), and the form shows when
+ * opened again.
  * @param {number} tabId
+ * @param {string} [url] the form the tab was opened on
+ * @param {boolean} [again] whether it was opened again already
  */
-async function startFill(tabId) {
+async function startFill(tabId, url, again = false) {
   try {
     await waitForLoad(tabId);
     // A Workday posting shows no form until the student presses Apply and signs in: its fill waits for them.
     const workday = isWorkday((await chrome.tabs.get(tabId)).url ?? "");
     const found = await formShows(tabId, workday ? 0 : FORM_TIMEOUT_MS);
+    const now = (await chrome.tabs.get(tabId)).url ?? "";
+    if (!again && url && jobOf(url)?.onForm && !jobOf(now)?.onForm) {
+      await chrome.tabs.update(tabId, { url });
+      return startFill(tabId, url, true);
+    }
     if (!found && !workday) throw new Error("no_form");
     await injectFill(tabId, { batch: true });
   } catch (error) {
