@@ -59,7 +59,7 @@ def build_server() -> MCPServer:
 
 server = build_server()
 tools.register(server)
-briefs.register(server, tools._student)
+briefs.register(server)
 style.register(server)
 
 

@@ -40,7 +40,6 @@ student's own answer quality, and a value that isn't one starts a new chat.
 
 import uuid
 
-from mcp.server.auth.middleware.auth_context import get_access_token
 from mcp.server.mcpserver import MCPServer
 from mcp.server.mcpserver.exceptions import ToolError
 from mcp_types import ToolAnnotations
@@ -48,12 +47,11 @@ from pydantic import BaseModel, Field
 
 from app.auto_apply import briefs, pipeline
 from app.config import get_settings
+from app.connector import account
 from app.connector.prompt import PROMPT, TITLE
 from app.db import get_sessionmaker
-from app.deps import load_account
 from app.queries import writing
 from app.schemas.applications import ANSWER_MAX
-from app.schemas.auth import AccountType, AuthenticatedAccount
 from app.services.essay_answer import bank_context
 
 
@@ -110,15 +108,6 @@ def _handed(chat: str) -> list[uuid.UUID]:
         return []
 
 
-async def _student(db) -> AuthenticatedAccount:
-    """The student the connector token was given for (app/connector/oauth.py)."""
-    token = get_access_token()
-    account = await load_account(db, uuid.UUID(token.subject), AccountType.APPLICANT) if token else None
-    if account is None:
-        raise ToolError("This WorkIt account is gone. Connect WorkIt again.")
-    return account
-
-
 def register(server: MCPServer) -> None:
     @server.tool(
         title="Get the next application",
@@ -138,7 +127,7 @@ def register(server: MCPServer) -> None:
     ) -> NextApplication:
         handed = _handed(chat)
         async with get_sessionmaker()() as db:
-            student = await _student(db)
+            student = await account.current_student(db)
             found = await pipeline.next_to_write(db, student.id, skip=handed)
             brief = await briefs.brief_for(db, found.application.job.company) if found else []
             card, card_needed = await writing.card_state(db, student.id)
@@ -190,7 +179,7 @@ def register(server: MCPServer) -> None:
         except ValueError as exc:
             raise ToolError("job_id is not one get_next_application gave.") from exc
         async with get_sessionmaker()() as db:
-            student = await _student(db)
+            student = await account.current_student(db)
             try:
                 left = await pipeline.save_answers(db, student.id, job, {a.name: a.answer for a in answers})
             except pipeline.NotFound as exc:

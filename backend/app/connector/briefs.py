@@ -22,6 +22,7 @@ from mcp_types import ToolAnnotations
 from pydantic import BaseModel, Field
 
 from app.auto_apply import briefs
+from app.connector import account
 from app.db import get_sessionmaker
 
 Category = Literal["products", "launches", "engineering", "team"]
@@ -65,8 +66,7 @@ class BriefSaved(BaseModel):
     dropped: list[DroppedFact]
 
 
-def register(server: MCPServer, student) -> None:
-    """`student(db)` finds the student from the connector token (tools._student)."""
+def register(server: MCPServer) -> None:
 
     @server.tool(
         title="Get a company to research",
@@ -79,7 +79,7 @@ def register(server: MCPServer, student) -> None:
     )
     async def get_research_task() -> ResearchTask:
         async with get_sessionmaker()() as db:
-            task = await briefs.research_task(db, (await student(db)).id)
+            task = await briefs.research_task(db, (await account.current_student(db)).id)
         if task is None:
             return ResearchTask(company=None)
         return ResearchTask(
@@ -102,7 +102,7 @@ def register(server: MCPServer, student) -> None:
         if len(facts) > 2 * briefs.MAX_FACTS:
             raise ToolError(f"At most {2 * briefs.MAX_FACTS} facts at once.")
         async with get_sessionmaker()() as db:
-            me = await student(db)
+            me = await account.current_student(db)
             try:
                 done = await briefs.save_brief(db, me.id, company, [f.model_dump() for f in facts])
             except briefs.NotApplying as exc:

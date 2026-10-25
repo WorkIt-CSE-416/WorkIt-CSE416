@@ -21,7 +21,7 @@ from mcp.server.mcpserver.exceptions import ToolError
 from mcp_types import ToolAnnotations
 from pydantic import BaseModel
 
-from app.connector.tools import _student
+from app.connector import account
 from app.db import get_sessionmaker
 from app.queries import writing
 from app.schemas.writing import CARD_MAX
@@ -47,7 +47,7 @@ def register(server: MCPServer) -> None:
     )
     async def get_writing_samples() -> WritingSamples:
         async with get_sessionmaker()() as db:
-            student = await _student(db)
+            student = await account.current_student(db)
             return WritingSamples(
                 samples=list(await writing.sample_texts(db, student.id)),
                 style_card=await writing.fetch_style_card(db, student.id),
@@ -68,7 +68,7 @@ def register(server: MCPServer) -> None:
         if len(card) > CARD_MAX:
             raise ToolError(f"The style card is {len(card)} characters; keep it under {CARD_MAX}.")
         async with get_sessionmaker()() as db:
-            student = await _student(db)
+            student = await account.current_student(db)
             if not await writing.sample_texts(db, student.id):
                 raise ToolError("The student has no writing samples on WorkIt, so there is nothing to build a card from.")
             await writing.save_style_card(db, student.id, card.strip())

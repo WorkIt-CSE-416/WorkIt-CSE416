@@ -55,8 +55,8 @@ from unittest import mock
 
 from app.auto_apply import briefs, checks, pipeline
 from app.config import get_settings
+from app.connector import account, style, tools
 from app.connector import briefs as brief_tools
-from app.connector import style, tools
 from app.connector.prompt import PROMPT
 from app.queries import writing
 from app.schemas.applications import WrittenAnswer
@@ -189,14 +189,13 @@ def stub(folder: Path, chat: int) -> Iterator[tools.MCPServer]:
             (tools, "get_sessionmaker", lambda: _Session),
             (brief_tools, "get_sessionmaker", lambda: _Session),
             (style, "get_sessionmaker", lambda: _Session),
-            (style, "_student", student),
-            (tools, "_student", student),
+            (account, "current_student", student),
             (tools, "bank_context", lambda bank: (data["experience"], data["skills"])),
         ]:
             patches.enter_context(mock.patch.object(module, name, value))
         server = tools.MCPServer("WorkIt")
         tools.register(server)
-        brief_tools.register(server, tools._student)
+        brief_tools.register(server)
         style.register(server)
         yield server
 
