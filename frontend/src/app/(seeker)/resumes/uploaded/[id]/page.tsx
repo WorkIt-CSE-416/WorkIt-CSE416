@@ -6,7 +6,7 @@ import { connection } from "next/server";
 import { buttonClasses } from "@/components/ui/button";
 import { EmptyState } from "@/components/ui/empty-state";
 import { cn } from "@/lib/cn";
-import { readUploadedResume } from "@/lib/resume-actions";
+import { readUploadedResume } from "@/lib/resume-queries";
 
 import { BackLink } from "../../../back-link";
 import { SEEKER_GUTTER } from "../../../gutter";
