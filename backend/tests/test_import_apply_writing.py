@@ -1,12 +1,15 @@
 """
 Bringing a student's Apply writing into WorkIt (scripts/import_apply_profile.py):
-their own essays and answers as writing samples, and Apply's style card as
-theirs. Against this run's throwaway test database; every value here is made up.
+their own essays and answers as writing samples, Apply's style card as
+theirs, and Apply's company briefs through WorkIt's own page check. Against
+this run's throwaway test database; every value here is made up.
 """
 
 import pytest
 
+from app.auto_apply import briefs
 from app.schemas.writing import MAX_SAMPLES, SAMPLE_MAX
+from app.services.page_fetch import Unreadable
 from tests import test_import_apply_profile as base
 
 pytestmark = pytest.mark.anyio
@@ -95,3 +98,55 @@ async def test_apply_s_style_card_is_the_student_s_card_beside_their_samples(
     assert body["samples"]
     assert body["style_card"] == "# Style card: Riley\n\n**Sentence length:** short, then one long one --> like this."
 
+
+BRIEF = """\
+# Initrode Labs
+Essays use each fact below as it is: edit or delete any of them.
+
+## Company
+Researched 2026-10-20
+
+- **Stapler Cloud** (2026-09): Stapler Cloud keeps 40 offices' staplers in sync. https://initrodelabs.example/blog/stapler
+- **Memo Search**: Memo Search finds any memo by what it says. https://initrodelabs.example/memo
+- **TPS Engine** (2026-08): TPS Engine files reports on its own. https://initrodelabs.example/tps
+- **Fax Bridge**: Fax Bridge sends faxes to email. https://initrodelabs.example/fax
+- **Ghost Product**: Ghost Product does what no page says. https://initrodelabs.example/memo
+- **Big Round** (2026-10, press: Daily Wire): Initrode raised 12 million dollars. https://techcrunch.com/initrode
+- **Elsewhere**: Elsewhere is on a site Initrode doesn't own. https://blogs.example.org/initrode
+
+## Team: ""
+- **Nothing**: a section for no team is left out. https://initrodelabs.example/memo
+"""
+
+PAGES = {
+    "https://initrodelabs.example/blog/stapler": "Stapler news. Today Stapler Cloud keeps staplers in 40 offices in sync across the world.",
+    "https://initrodelabs.example/memo": "Meet Memo Search: it finds any memo you wrote by what it says inside.",
+    "https://initrodelabs.example/tps": "Reports. TPS Engine files every TPS report on its own, with the new cover sheet. 2026",
+}
+
+
+async def test_company_briefs_come_only_with_facts_that_pass_workit_s_own_check(
+    running, applicant, database, apply_dir, local_files, monkeypatch,
+):
+    async def fetch(url: str, allowed) -> str:
+        if not allowed(url.split("/")[2]) or url not in PAGES:
+            raise Unreadable("404")
+        return PAGES[url]
+
+    monkeypatch.setattr(briefs, "fetch_page", fetch)
+    (apply_dir / "company-briefs").mkdir()
+    (apply_dir / "company-briefs" / "initrode-labs.md").write_text(BRIEF)
+
+    report = await _import(database, applicant, apply_dir)
+
+    async with database() as session:
+        kept = await briefs.brief_for(session, "Initrode Labs, Inc.")
+    assert {f["fact"] for f in kept} == {
+        "Stapler Cloud keeps 40 offices' staplers in sync.",
+        "Memo Search finds any memo by what it says.",
+        "TPS Engine files reports on its own.",
+    }
+    assert {f["published"] for f in kept} == {None, "2026-08"}  # a month counts only when its page shows the year
+    assert all(f["url"].startswith("https://initrodelabs.example/") for f in kept)
+    assert report.briefs == [{"company": "Initrode Labs", "team": None, "kept": 3, "dropped": 4, "saved": True,
+                             "listed": False}]

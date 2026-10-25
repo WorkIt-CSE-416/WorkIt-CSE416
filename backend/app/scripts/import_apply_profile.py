@@ -22,8 +22,9 @@ same engine). One run, in one transaction:
 5. the resume the profile names, copied into LOCAL_FILES_DIR and made the
    default upload as `local:<file name>` (services/local_files.py): nothing
    goes to Storage. Without LOCAL_FILES_DIR it is left out;
-6-7. the student's own writing from story-bank.md as writing samples, and
-   voice.md as their style card (scripts/import_apply_writing.py).
+6-8. the student's own writing from story-bank.md as writing samples, voice.md
+   as their style card, and company-briefs/ through WorkIt's own page check
+   (scripts/import_apply_writing.py). The briefs' pages are read from the web.
 
 Running it again on the same files changes nothing; an edited file's facts
 replace the old ones. It refuses a database that is not on this computer:
@@ -82,6 +83,7 @@ class Report:
     notes: list[str] = field(default_factory=list)
     samples: int = 0  # writing samples, from story-bank.md
     style_card: bool = False
+    briefs: list[dict] = field(default_factory=list)  # per section: company, team, kept, dropped, saved, listed
 
 
 def _read(path: Path) -> dict:
@@ -212,7 +214,7 @@ async def _set_resume(
 
 
 async def import_apply(session: AsyncSession, applicant_id: uuid.UUID, apply_dir: Path) -> Report:
-    """Steps 1-7 of the module docstring in the caller's session; flushes, never commits."""
+    """Steps 1-8 of the module docstring in the caller's session; flushes, never commits."""
     profile = await session.get(Applicant_Profile, applicant_id)
     if profile is None:
         raise ImportRefused(f"No applicant {applicant_id}.")
@@ -242,6 +244,7 @@ async def _set_writing(session: AsyncSession, applicant_id: uuid.UUID, apply_dir
     left_out = await import_apply_writing.set_style_card(session, applicant_id, apply_dir)
     report.style_card = left_out is None and (apply_dir / import_apply_writing.VOICE).is_file()
     report.notes += [left_out] if left_out else []
+    report.briefs = await import_apply_writing.set_briefs(session, apply_dir)
 
 
 def _local(url: str) -> bool:
@@ -278,6 +281,10 @@ def main(argv: list[str] | None = None) -> int:
     print(f"  resume: {report.resume or 'left out'}")
     print(f"  writing samples: {report.samples}")
     print(f"  style card: {'saved' if report.style_card else 'none'}")
+    for b in report.briefs:
+        name = b["company"] + (f" / team {b['team']}" if b["team"] else "")
+        print(f"  brief {name}: {b['kept']} facts passed, {b['dropped']} dropped, {'kept' if b['saved'] else 'not kept'}"
+              + ("" if b["listed"] else " (no WorkIt posting or company goes by this name)"))
     for note in report.notes:
         print(f"  note: {note}")
     return 0
