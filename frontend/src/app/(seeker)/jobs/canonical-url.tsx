@@ -12,10 +12,16 @@ import { useShallowPush } from "@/components/shallow-routing";
  *
  * WHY NOT redirect(). The page used to redirect there, which cost a second
  * server round trip on the sidebar's most used link: the first answer
- * carried only the redirect, so the page panel committed empty (and the
- * page-enter transition played on that blank panel), then the router asked
- * for the new address and drew the page with no animation at all. Now the
- * first answer is the page itself, and only the address moves.
+ * carried only the redirect, so the old page faded out to an empty panel,
+ * and the router then asked for the new address and drew the page with no
+ * page-enter at all. Now the first answer is the page itself, which rises
+ * in like any other section's, and only the address moves.
+ *
+ * The address moves when the page-enter has ended, not at once: the move is
+ * a transition, and React holds a transition's commit while a view
+ * transition runs (about 0.4s here). Nothing reads the bare address in that
+ * time but RememberFeed, which writes again when it changes, and the filter
+ * row, which already treats a bare /jobs as Best Match (./filters).
  *
  * WHY useShallowPush, not history.replaceState. <ShallowRouting> holds the
  * query the seeker pages show, and catches up with a bare history call only
@@ -35,6 +41,8 @@ export function CanonicalUrl({ href }: { href: string }) {
   // An effect event, so the move runs once for each address and not again
   // on every render of <ShallowRouting>, whose `push` is new each time.
   const settle = useEffectEvent(() => push(href, undefined, { replace: true }));
-  useEffect(() => settle(), [href]);
+  useEffect(() => {
+    settle();
+  }, [href]);
   return null;
 }
