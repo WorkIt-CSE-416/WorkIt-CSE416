@@ -128,12 +128,18 @@ export class FakeApi {
     }
     const bank = /^\/applications\/([^/]+)\/answer-bank$/.exec(route);
     if (bank && method === "GET" && this.stages.has(bank[1])) return { json: this.bank };
+    // A form outside a batch (no application) gets the same bank.
+    if (route === "/answer-bank" && method === "GET") return { json: this.bank };
     const own = /^\/applications\/([^/]+)\/answers$/.exec(route);
     if (own && method === "PUT" && this.stages.has(own[1])) {
       const { name, label, answer, own: isOwn } = JSON.parse(body.toString());
       if (typeof isOwn !== "boolean") return { status: 422, json: { detail: "own is required" } };
       if (!isOwn && this.refuseEdits) return { status: 422, json: { detail: `Not saved: ${this.refuseEdits.join(" ")}` } };
       this.own.push({ jobId: own[1], name, label, answer, own: isOwn });
+      // It is now the question's answer (queries.py's save_own_written): the student's own words count as reviewed,
+      // an edit of one WorkIt filled waits for the review again (review.py).
+      const question = this.written.get(own[1])?.find((q) => q.name === name);
+      if (question) Object.assign(question, { answer, reviewed: isOwn, flag: null });
       return { json: { answer, own: isOwn } };
     }
     const fill = /^\/applications\/([^/]+)\/fill$/.exec(route);

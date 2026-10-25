@@ -26,7 +26,19 @@ from app.utils.resume_parser import parse_resume
 _SHORT, _LONG, _NAME = 200, 500, 60
 _COURSEWORK_RE = re.compile(r"^(?:Relevant\s+)?(?:Coursework|Courses)\s*:?\s*", re.IGNORECASE)
 _GPA_LINE_RE = re.compile(r"^GPA\b", re.IGNORECASE)
+# Not a skill: a name still holding a "|" (a title's tail glued on), a
+# qualification (a degree, years of something, a clearance), or a vague
+# phrase ending in "tools" or "skills" ("AI tools").
+_NOT_A_SKILL_RE = re.compile(
+    r"\||\b(?:degree|bachelor'?s?|master'?s?|diploma|gpa|years?|citizen(?:ship)?|clearance)\b"
+    r"|\s(?:tools|skills|experience|knowledge)$",
+    re.IGNORECASE,
+)
 logger = logging.getLogger(__name__)
+
+
+def not_a_skill(name: str) -> bool:
+    return bool(_NOT_A_SKILL_RE.search(name.strip()))
 
 
 def _clip(value: str | None, limit: int = _SHORT) -> str | None:
@@ -134,20 +146,21 @@ def draft_entries(parsed: ParsedResume, today: datetime.date | None = None) -> l
 
 def parsed_skills(parsed: ParsedResume) -> list[tuple[str, str | None]]:
     """The parser's skills as (name, group) pairs, for `draft_skills`, then
-    the tools named beside each project ("Robot | C++, Python") that the
-    skills section left out, with no group."""
+    the tools named beside each role and project ("Intern| C++, Python",
+    "Robot | C++, Python") that the skills section left out, with no group."""
     pairs: list[tuple[str, str | None]] = [(s.skill_name, s.category) for s in parsed.skills]
-    return pairs + [(tool, None) for project in parsed.projects for tool in project.technologies]
+    beside = [*parsed.experience, *parsed.projects, *parsed.leadership]
+    return pairs + [(tool, None) for item in beside for tool in item.technologies]
 
 
 def skill_pairs(skills: list[tuple[str, str | None]]) -> list[tuple[str, str | None]]:
     """(name, group) pairs clipped to the field limits, one per name,
-    ignoring case."""
+    ignoring case, leaving out what is not a skill (`not_a_skill`)."""
     seen: set[str] = set()
     out: list[tuple[str, str | None]] = []
     for raw_name, group in skills:
         name = _clip(raw_name, _NAME)
-        if not name or name.lower() in seen:
+        if not name or name.lower() in seen or not_a_skill(name):
             continue
         seen.add(name.lower())
         out.append((name, _clip(group, _NAME)))

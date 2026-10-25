@@ -305,8 +305,8 @@ export function setTabState(tabId, state) {
 }
 
 /**
- * The student's submit sent a batch tab's application (the Fill engine said
- * so; background.js): it is marked applied, with the resume the fill
+ * The student's submit sent a batch tab's application (the job system took
+ * its submit request: submit-proof.js): it is marked applied, with the resume the fill
  * attached (the profile's) kept as its sent resume, and the tab leaves its
  * group, which holds only what still waits for the student. Once only:
  * the page's answer and its confirmation page may both say so. A resume that
