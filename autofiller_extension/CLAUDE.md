@@ -748,10 +748,12 @@ and policies the student imported from Apply
 (`backend/app/scripts/import_apply_profile.py`; `backend/app/models/CLAUDE.md`,
 "The Fill engine's profile"). `fetchAutofillProfile` keeps it as the
 profile's `fill` (best effort: without it, WorkIt's fields alone).
-`engine.js` `engineProfile` and `enginePolicies` lay what WorkIt builds over
-it, section by section (`layered`): a value WorkIt holds wins, one it lacks
-(null, empty) leaves the brought one, so a screener, a self-identification
-answer or a policy WorkIt has no field for still fills. Its answer bank
+`engine.js` `engineProfile` lays what WorkIt builds over it, section by
+section (`layered`): a value WorkIt holds wins, one it lacks (null, empty)
+leaves the brought one, so a screener or a self-identification answer WorkIt
+has no field for still fills. Policies go the other way (`enginePolicies`):
+the student's brought rules lie over WorkIt's `POLICIES`, since they say how
+that student applies (Apply's how-heard beats WorkIt's default). Its answer bank
 arrives through `GET .../answer-bank` with the rest. `test/apply-profile.spec.ts`.
 
 **The email it fills is the profile's `contact_email`, else `/auth/me`'s

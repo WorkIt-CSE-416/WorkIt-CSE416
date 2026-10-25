@@ -62,13 +62,13 @@ test("a brought screener answers what WorkIt can't", async () => {
   expect(withIt.labels[asked]).toBe("No");
 });
 
-test("brought policies reach the Plan under WorkIt's own", async () => {
+test("brought policies reach the Plan over WorkIt's own", async () => {
   const essays = async (profile: object) => (await planned("greenhouse-arc", profile)).prepared.plan.essays.map((q: any) => q.label);
 
   // cover_letter "always": the optional Cover Letter is written too.
   expect(await essays(STUDENT)).not.toContain("Cover Letter");
   expect(await essays(BROUGHT)).toContain("Cover Letter");
-  // WorkIt's own policy wins where both say.
-  expect(enginePolicies(BROUGHT).how_heard).toEqual({ prefer: ["job board", "other"], text: "WorkIt" });
+  // The student's brought policy wins where both say.
+  expect(enginePolicies(BROUGHT).how_heard).toEqual({ prefer: ["careers page"], text: "Careers page" });
   expect(enginePolicies(STUDENT).cover_letter).toBeUndefined();
 });

@@ -157,9 +157,10 @@ export function layered(under, over) {
   return out;
 }
 
-/** The student's policies: what they brought from Apply, with WorkIt's own (POLICIES) over them. */
+/** The student's policies: WorkIt's own (POLICIES), with what they brought from Apply over them (a
+ * student's own rules are how they apply, so Apply's how-heard beats WorkIt's default). */
 export function enginePolicies(profile) {
-  return layered(profile?.fill?.policies, POLICIES);
+  return layered(POLICIES, profile?.fill?.policies);
 }
 
 /** Bank entries of one section, the latest first (one still going comes first). */
