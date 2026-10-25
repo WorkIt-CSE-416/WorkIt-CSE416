@@ -217,3 +217,21 @@ test("Next Thing That Needs You walks every flagged field across the tabs in bat
   expect(left).toBe("Nothing else needs you.");
   expect(forms.submissions).toEqual([]);
 });
+
+/** The text the phone's country picker beside Phone shows on Greenhouse's form (its dial code), "" when none is picked. */
+const phoneCountryShown = (form: Page) =>
+  form.locator("#country").locator("xpath=ancestor::div[contains(@class, 'select__control')]").locator(".select__single-value").allInnerTexts();
+
+test("a US phone's country is picked beside Phone, so Arc's form is ready to send", async () => {
+  const forms = new SavedForms(["greenhouse-arc"]);
+  const api = new FakeApi().queue({ id: "job-0", apply_url: forms.url("greenhouse-arc") });
+  const { webappPage } = await start(api, forms);
+  await sendFromWebapp(webappPage, { type: "run/open" });
+  const groupOfArc = async () => (await tabs(loaded.worker)).find((t) => t.url === forms.url("greenhouse-arc"))?.group?.title;
+  await expect.poll(groupOfArc, { timeout: 60_000 }).toBe("Ready");
+
+  // Greenhouse refuses a submit with a number in Phone and no country beside it ("Select a country").
+  const form = loaded.context.pages().find((p) => p.url() === forms.url("greenhouse-arc"))!;
+  expect(await phoneCountryShown(form)).toEqual(["+1"]);
+  expect(forms.submissions).toEqual([]);
+});

@@ -26,7 +26,8 @@ test("fills a saved Greenhouse form from a WorkIt profile and submits nothing", 
     first_name: "Test",
     last_name: "Person",
     email: "test.person@example.com",
-    phone: "5550100199",
+    phone: "(555) 010-0199", // formatted for the US once its country is picked
+    country: "United States", // the picker beside Phone: Greenhouse won't send a number without it
     question_18871501008: "https://www.linkedin.com/in/test-person",
     question_18871502008: "Yes",
     question_18871503008: "No",
