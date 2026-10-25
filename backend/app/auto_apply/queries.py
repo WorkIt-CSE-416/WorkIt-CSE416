@@ -39,7 +39,7 @@ from app.models.sent_resume import Sent_Resume
 from app.models.written_answers import Written_Answer
 from app.queries.jobs.filters import AUTO_APPLY_SUPPORTED, LISTED
 from app.queries.jobs.listings import LISTING_COLUMNS, to_listing
-from app.schemas.applications import Application, WrittenAnswer, WrittenQuestion
+from app.schemas.applications import Application, NamedFact, WrittenAnswer, WrittenQuestion
 from app.schemas.sent_resume import SentResumeResponse
 
 
@@ -415,12 +415,42 @@ async def fetch_unanswered(
     return list(found.values())
 
 
+async def fetch_answered(
+    db: AsyncSession, applicant_id: uuid.UUID
+) -> list[tuple[uuid.UUID, str | None, str | None, list[Written_Answer]]]:
+    """Every application with a written question answered (one asked in
+    words, not a choice), at any stage, newest application first: its job
+    id, the posting's company and title, and those questions' rows in the
+    form's order."""
+    rows = await db.execute(
+        select(Written_Answer, Job_Post.company_name, Job_Post.title)
+        .join(
+            Job_Application,
+            and_(Job_Application.applicant_id == Written_Answer.applicant_id, Job_Application.job_id == Written_Answer.job_id),
+        )
+        .join(Job_Post, Job_Post.id == Written_Answer.job_id)
+        .where(
+            Written_Answer.applicant_id == applicant_id,
+            Written_Answer.answer.is_not(None),
+            Written_Answer.kind.is_(None),
+        )
+        .order_by(Job_Application.created_at.desc(), Job_Application.job_id, Written_Answer.position, Written_Answer.name)
+    )
+    found: dict[uuid.UUID, tuple[uuid.UUID, str | None, str | None, list[Written_Answer]]] = {}
+    for r, company, title in rows:
+        found.setdefault(r.job_id, (r.job_id, company, title, []))[3].append(r)
+    return list(found.values())
+
+
 async def save_written(
-    db: AsyncSession, applicant_id: uuid.UUID, job_id: uuid.UUID, answers: dict[str, str]
+    db: AsyncSession, applicant_id: uuid.UUID, job_id: uuid.UUID, answers: dict[str, str],
+    named: dict[str, NamedFact] | None = None,
 ) -> None:
-    """Writes each answer onto its question's row, but never over the
-    student's own (KAN-379). Flushes; the caller commits, and has checked
-    every name is the application's."""
+    """Writes each answer onto its question's row, with the brief fact it
+    names in `named` (none when absent), but never over the student's own
+    (KAN-379). Flushes; the caller commits, and has checked every name is
+    the application's."""
+    named = named or {}
     for name, answer in answers.items():
         await db.execute(
             update(Written_Answer)
@@ -430,7 +460,8 @@ async def save_written(
                 Written_Answer.name == name,
                 Written_Answer.own.is_(False),
             )
-            .values(answer=answer, answered_at=func.now())
+            .values(answer=answer, answered_at=func.now(),
+                    named_fact=named[name].model_dump() if name in named else None)
         )
 
 
@@ -447,7 +478,7 @@ async def drop_written(db: AsyncSession, applicant_id: uuid.UUID, job_id: uuid.U
                 Written_Answer.name.in_(list(names)),
                 Written_Answer.own.is_(False),
             )
-            .values(answer=None, answered_at=None)
+            .values(answer=None, answered_at=None, named_fact=None)
         )
 
 
@@ -471,7 +502,9 @@ async def save_own_written(
     )
     await db.execute(row.on_conflict_do_update(
         index_elements=["applicant_id", "job_id", "name"],
-        set_={"answer": row.excluded.answer, "answered_at": row.excluded.answered_at, "own": own},
+        # Their own words name no brief fact; an edit keeps the one it had.
+        set_={"answer": row.excluded.answer, "answered_at": row.excluded.answered_at, "own": own,
+              **({"named_fact": None} if own else {})},
     ))
 
 

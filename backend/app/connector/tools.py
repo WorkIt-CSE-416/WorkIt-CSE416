@@ -12,7 +12,9 @@ whole view of WorkIt (auto-apply/architecture.md, 14.6):
   briefs (KAN-382), in app/connector/briefs.py; get_next_application hands
   the application's company brief with it.
 - `save_answers` (a write): saves answers to that application's
-  questions, all or none; the open batch tab fills each one.
+  questions, all or none; the open batch tab fills each one. Each answer
+  may name the company brief fact it uses (`named_fact`), which must be one
+  of the brief's, for the Written Answers page to show with it.
 - `get_writing_samples` and `save_style_card` (app/connector/style.py,
   KAN-384): the student's writing samples, and the style card their Claude
   builds from them, which get_next_application then gives (`style_card`,
@@ -100,6 +102,9 @@ class NextApplication(BaseModel):
 class Answer(BaseModel):
     name: str = Field(description="The question's name, from get_next_application.")
     answer: str = Field(max_length=ANSWER_MAX)
+    named_fact: str | None = Field(default=None, max_length=400, description=(
+        "The company_brief fact the answer uses, copied as get_next_application gave it, so the student "
+        "can read up on it; leave it out when the answer uses none."))
 
 
 class Saved(BaseModel):
@@ -191,7 +196,10 @@ def register(server: MCPServer) -> None:
         async with get_sessionmaker()() as db:
             student = await account.current_student(db)
             try:
-                left = await pipeline.save_answers(db, student.id, job, {a.name: a.answer for a in answers})
+                left = await pipeline.save_answers(
+                    db, student.id, job, {a.name: a.answer for a in answers},
+                    named={a.name: a.named_fact for a in answers if a.named_fact},
+                )
             except pipeline.NotFound as exc:
                 raise ToolError("No such application. Use the job_id get_next_application gave.") from exc
             except (pipeline.WrongStage, pipeline.Refused) as exc:
