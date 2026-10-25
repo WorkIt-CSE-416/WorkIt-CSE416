@@ -63,3 +63,8 @@ def test_go_is_not_found_inside_another_word() -> None:
 
 def test_each_invented_fact_is_named_once() -> None:
     assert invented("Used Rust and Rust with 5 and 5 engineers", "Wrote code", []) == ["5", "Rust"]
+
+
+def test_the_pronoun_i_is_never_a_tool() -> None:
+    # A first-person essay answer (services/essay_answer.py) says "I" mid-sentence; no bullet does.
+    assert invented("Since then I wrote Python billing services, and I cut invoice errors 40%", ORIGINAL, SKILLS) == []
