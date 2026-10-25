@@ -807,19 +807,26 @@ so WorkIt fills forms as completely as Apply does.
   table already has RLS on): `fill_profile` (the engine's Profile shape,
   nested sections: identity, education, screeners, voluntary_self_id...),
   `fill_policies` (the engine's Policies, only the keys it reads) and
-  `fill_answers` (`{question: {answer, own, company}}`, the Answer bank).
+  `fill_answers` (`{question: {answer, own, choice, company}}`, the Answer bank).
 - **WorkIt's own fields win.** `GET .../fill-profile` serves the profile and
   policies; the extension lays what it builds from WorkIt's fields
   (`engineProfile`, `POLICIES`) over them, key by key, and a value WorkIt
   lacks (null, empty) leaves the stored one. So the import also writes
   WorkIt's own fields (name, contact email, phone, links, location, the
   education entry) from the same identity, and they agree.
-- **`fill_answers` are the student's own** (`own: true`). The answer bank
-  (`pipeline.answer_bank`) offers them after the student's own words on
-  applications and before their Claude's, under the same company rule: one
-  about a company only on that company's forms. Not `written_answers`: those
-  rows belong to an application, and a brought answer has none. A choice's
-  answer may be a list (the options ticked).
+- **Only Apply's `source: lisul` entries are the student's own** (`own:
+  true`), as Apply itself treats them (`apply/answer_bank.py`, `LISUL`). A
+  Claude draft (`source: claude`) comes as their Claude's even when
+  `reviewed`: Apply still calls it a draft. The answer bank
+  (`pipeline.answer_bank`) offers the student's own words on applications,
+  then their brought own words, then their Claude's on applications, then
+  the brought drafts, under the same company rule: one about a company only
+  on that company's forms. A draft passes the same checks as their Claude's
+  saved answers and never fills a form that bans AI text (the engine skips
+  an answer that is not `own` there). `choice` (an entry with options, or a
+  list answer: the options ticked) skips the writing checks. Not
+  `written_answers`: those rows belong to an application, and a brought
+  answer has none.
 - **No `files`.** WorkIt's resume is its own; a transcript's path never
   comes over. The import's resume is a `resumes` row whose `storage_path` is
   `local:<file name>` in `LOCAL_FILES_DIR` (services/local_files.py,
