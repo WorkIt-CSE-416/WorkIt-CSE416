@@ -191,6 +191,47 @@ const DROPS_FIRST_NAME = `window.addEventListener("input", (e) => {
   e.target.value = "";
 }, true);`;
 
+/**
+ * `forms`' handler, with a human check (Cloudflare's, seen live) where the saved form `name` should be: its page
+ * says "Verify you are human" until `pass()`; the page then loads the form.
+ */
+function humanCheckFirst(forms: SavedForms, name: string): { handler: Handler; pass: () => void } {
+  let passed = false;
+  const handler: Handler = (request) => {
+    if (passed || request.method !== "GET" || request.url.href !== forms.url(name)) return forms.handler(request);
+    return {
+      headers: { "content-type": "text/html" },
+      body: "<!doctype html><title>Just a moment...</title><h1>Verify you are human</h1><p>Complete the action below to continue.</p>",
+    };
+  };
+  return { handler, pass: () => { passed = true; } };
+}
+
+test("a human check before the form needs the student, and the form fills once they pass it", async () => {
+  const forms = new SavedForms(["greenhouse-arc"]);
+  const api = new FakeApi().queue({ id: "job-0", apply_url: forms.url("greenhouse-arc") });
+  const check = humanCheckFirst(forms, "greenhouse-arc");
+  loaded = await loadExtension([api.handler, webapp, check.handler]);
+  await signIn(loaded.context);
+  const webappPage = loaded.context.pages()[0] ?? (await loaded.context.newPage());
+  await webappPage.goto("http://localhost:3000/auto-apply");
+  await sendFromWebapp(webappPage, { type: "run/open" });
+
+  // The check needs the student, and the fill has not failed.
+  const state = async () => (await sendFromWebapp(webappPage, { type: "run/status" })).jobs[0]?.state;
+  await expect.poll(state, { timeout: 30_000 }).toBe("needs_you");
+  await expect.poll(() => api.stages.get("job-0")).toBe("needs_you");
+
+  // The student passes it, and the page loads the form: it fills, and Arc's form takes every answer.
+  check.pass();
+  const form = loaded.context.pages().find((p) => p.url() === forms.url("greenhouse-arc"))!;
+  await form.reload();
+  const groupOfArc = async () => (await tabs(loaded.worker)).find((t) => t.url === forms.url("greenhouse-arc"))?.group?.title;
+  await expect.poll(groupOfArc, { timeout: 60_000 }).toBe("Ready");
+  await expect(form.locator("#first_name")).toHaveValue("Test");
+  expect(forms.submissions).toEqual([]);
+});
+
 test("a field that silently rejects its answer is flagged, and its tab needs you", async () => {
   const forms = new SavedForms(["greenhouse-arc"]);
   const api = new FakeApi().queue({ id: "job-0", apply_url: forms.url("greenhouse-arc") });

@@ -239,6 +239,16 @@ questions before their tabs open (`writeEarly`); `next-needs-you.js`
 walks the tabs for Next Thing That Needs You (`nextNeedsYou`); `tab-load.js`
 waits for an opened tab's page and form (`waitForLoad`, `formShows`).
 
+- **A human check where the form should be needs the student.** A tab
+  whose form doesn't show within 10 s, on a page with a captcha
+  (Cloudflare's Turnstile, hCaptcha, reCAPTCHA: its frame, or words such
+  as "Verify you are human", `humanCheckShows`), goes to Needs you and
+  keeps waiting up to 5 minutes for the form (`formAfterHumanCheck`, also
+  across the new page a passed check loads); the fill runs once it shows.
+  The extension never solves a check. A form that never shows has failed,
+  as any other. Test: `test/batch.extension.spec.ts` ("a human check
+  before the form").
+
 - **The URLs always come from the API, never the message.** `run/open`
   carries no body: a page on an allowed origin that could hand the worker
   a URL could make it open any site. `run/show`'s `jobId` only picks among
@@ -997,8 +1007,13 @@ the overlay lists each as "needs_generation" (`lib-status.js`).
   (often brought from Apply). Its written words, Claude's or the essay
   route's, are made a PDF (`letter-pdf.js`: Helvetica, wrapped, no
   library) named for the student as their resume is
-  (`First_Last_Cover_Letter.pdf`) by `engine.js`'s `asUploads` before
-  `fill/page` fills it, so the row shows the file's name.
+  (`First_Last_Cover_Letter.pdf`, with the first and last name the
+  student goes by when the profile brought from Apply holds one, else the
+  legal ones) by `engine.js`'s `asUploads` before `fill/page` fills it, so
+  the row shows the file's name. The letter is headed as the resume is:
+  the name, larger, over a contact line (phone | email | LinkedIn |
+  GitHub, the links without `https://www.`), as Apply's letter is. No
+  date or "Re:" line: the student's Claude writes the whole letter.
 - **Company name and job title come from the job system's API** (the Job
   Board API's `company_name` and `title`), not the page's title.
 - **The model call is `POST /applicants/{id}/essay-answer`**

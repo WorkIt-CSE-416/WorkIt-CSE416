@@ -295,22 +295,37 @@ function withFiles(answers, profile) {
 /**
  * The answers with each written one to a file question (an upload: an
  * optional cover letter, written under the cover_letter policy) made a PDF of
- * its words, named for the student as their resume is
- * ("First_Last_Cover_Letter.pdf"), since the field takes only a file.
+ * its words under the student's name and contact line, named for the student
+ * as their resume is ("First_Last_Cover_Letter.pdf", the first name they go
+ * by), since the field takes only a file.
  */
 export function asUploads(answers, questions, profile) {
   const files = new Set((questions ?? []).filter((q) => q.kind === "file").map((q) => q.name));
-  const { identity = {} } = engineProfile(profile);
-  const who = [identity.legal_first_name, identity.legal_last_name].filter(Boolean).join("_").replace(/[^\p{L}\p{N}_-]+/gu, "_");
+  const { identity = {}, links = {} } = engineProfile(profile);
+  // The name the student goes by (one brought from Apply), else the legal one, as Apply names its letter.
+  const name = [identity.preferred_first_name || identity.legal_first_name, identity.preferred_last_name || identity.legal_last_name];
+  const who = name.filter(Boolean).join("_").replace(/[^\p{L}\p{N}_-]+/gu, "_");
+  // The letter's header, as the resume's: phone | email | LinkedIn | GitHub.
+  const contact = [phoneAsWritten(identity.phone), identity.email, bare(links.linkedin_url), bare(links.github_url)];
+  const header = { name: name.filter(Boolean).join(" "), contact: contact.filter(Boolean).join(" | ") };
   return Object.fromEntries(
     Object.entries(answers ?? {}).map(([name, value]) => {
       if (!files.has(name) || typeof value !== "string" || !value.trim()) return [name, value];
       const label = questions.find((q) => q.name === name).label;
       const what = /cover/i.test(label) ? "Cover_Letter" : "Answer";
-      return [name, { file: `${who ? `${who}_` : ""}${what}.pdf`, type: "application/pdf", base64: letterPdf(value) }];
+      return [name, { file: `${who ? `${who}_` : ""}${what}.pdf`, type: "application/pdf", base64: letterPdf(value, header) }];
     }),
   );
 }
+
+/** A US phone as a resume writes it, (555) 010-0199; any other as typed. */
+function phoneAsWritten(phone) {
+  const digits = String(phone ?? "").replace(/\D/g, "").replace(/^1(?=\d{10}$)/, "");
+  return digits.length === 10 ? `(${digits.slice(0, 3)}) ${digits.slice(3, 6)}-${digits.slice(6)}` : phone;
+}
+
+/** A link as a resume writes it: linkedin.com/in/someone. */
+const bare = (url) => url && String(url).replace(/^https?:\/\/(www\.)?/, "").replace(/\/+$/, "");
 
 /** What `read` gives back, or `fallback` when it fails: for what only names the job (company, title, its text), never the questions. */
 async function optional(read, fallback) {
