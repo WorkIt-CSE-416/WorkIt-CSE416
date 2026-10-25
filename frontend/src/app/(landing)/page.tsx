@@ -16,7 +16,7 @@ import { HiringSystemsSection } from "./hiring-pipeline";
 import { backdrop } from "./features/catalog";
 import { CONTAINER, PANEL, PANEL_INSET, SectionHeading } from "./layout-parts";
 import { ProductTour } from "./product-tour";
-import { SocialSignUpButton } from "./social-sign-up";
+import { EmailSignUpLink, SocialSignUpButton } from "./social-sign-up";
 import { Statement } from "./statement";
 import { Testimonial } from "./testimonial";
 
@@ -64,17 +64,23 @@ export default function LandingPage() {
             </p>
             <div
               data-hero-box
-              className="hero-rise mt-[34px] flex flex-col items-center justify-center gap-3 sm:flex-row"
+              className="hero-rise mt-[34px] flex flex-col flex-wrap items-center justify-center gap-3 sm:flex-row"
               style={{ "--rd": ".65s" } as CSSProperties}
             >
               <SocialSignUpButton provider="google" />
               <SocialSignUpButton provider="linkedin_oidc" />
+              <div className="w-full text-center sm:basis-full">
+                <EmailSignUpLink />
+              </div>
             </div>
           </div>
           {/* Below lg the city is scaled to the panel and sits under the
                 text; from lg up it is full size and its edge towers rise
                 beside the text. */}
-          <div aria-hidden="true" className="h-[40cqw] shrink-0 lg:h-[max(245px,17.6cqw)]" />
+          <div
+            aria-hidden="true"
+            className="h-[70cqw] shrink-0 sm:h-[40cqw] lg:h-[max(245px,17.6cqw)]"
+          />
         </div>
       </section>
 

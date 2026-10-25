@@ -271,6 +271,28 @@ async def delete_entry(session: AsyncSession, applicant_id: uuid.UUID, entry_id:
     await session.flush()
 
 
+async def _delete_many(session: AsyncSession, applicant_id: uuid.UUID, model, ids: Sequence[uuid.UUID]) -> None:
+    """Clear All (KAN-352): every row or none. One id that is not the
+    applicant's answers `NotFound` and deletes nothing. Bullets and built
+    resumes' choice rows go with them (ON DELETE CASCADE), as one delete
+    does."""
+    wanted = set(ids)
+    mine = (model.applicant_id == applicant_id, model.id.in_(wanted))
+    if await session.scalar(select(func.count()).select_from(model).where(*mine)) != len(wanted):
+        raise NotFound
+    await session.execute(delete(model).where(*mine))
+    await clear_embedding(session, applicant_id)
+    await session.flush()
+
+
+async def delete_entries(session: AsyncSession, applicant_id: uuid.UUID, entry_ids: Sequence[uuid.UUID]) -> None:
+    await _delete_many(session, applicant_id, Bank_Entry, entry_ids)
+
+
+async def delete_skills(session: AsyncSession, applicant_id: uuid.UUID, skill_ids: Sequence[uuid.UUID]) -> None:
+    await _delete_many(session, applicant_id, Bank_Skill, skill_ids)
+
+
 async def _owned_bullet(session: AsyncSession, applicant_id: uuid.UUID, bullet_id: uuid.UUID) -> Bank_Bullet:
     bullet = await session.scalar(
         select(Bank_Bullet)
@@ -460,7 +482,7 @@ class Holdings:
 
 async def load_holdings(session: AsyncSession, applicant_id: uuid.UUID) -> Holdings:
     """Every resume of the applicant, and which entries and skills each
-    holds, for the Experiences view's dropdown."""
+    holds, for the Experiences view's resume table."""
     defaults = (
         await session.execute(
             select(Applicant_Profile.default_resume_id, Applicant_Profile.default_built_resume_id)
@@ -471,7 +493,7 @@ async def load_holdings(session: AsyncSession, applicant_id: uuid.UUID) -> Holdi
     resumes = [
         BankResume(
             id=r.id, kind="uploaded", name=r.original_filename or "Uploaded resume", primary=r.id in starred,
-            created_at=r.created_at,
+            created_at=r.created_at, edited_at=r.created_at,
         )
         for r in await session.execute(
             select(Resume.id, Resume.original_filename, Resume.created_at)
@@ -480,7 +502,10 @@ async def load_holdings(session: AsyncSession, applicant_id: uuid.UUID) -> Holdi
         )
     ]
     for r in await session.execute(
-        select(Built_Resume.id, Built_Resume.name, Built_Resume.created_at, Job_Post.title, Job_Post.company_name)
+        select(
+            Built_Resume.id, Built_Resume.name, Built_Resume.created_at, Built_Resume.updated_at,
+            Job_Post.title, Job_Post.company_name,
+        )
         .outerjoin(Job_Post, Job_Post.id == Built_Resume.job_posting_id)
         .where(Built_Resume.applicant_id == applicant_id)
         # Base resumes (no posting) first, then tailored, each newest first.
@@ -489,7 +514,7 @@ async def load_holdings(session: AsyncSession, applicant_id: uuid.UUID) -> Holdi
         posting = None if r.title is None else f"{r.title} at {r.company_name}" if r.company_name else r.title
         resumes.append(BankResume(
             id=r.id, kind="base" if r.title is None else "tailored", name=r.name, posting=posting,
-            primary=r.id in starred, created_at=r.created_at,
+            primary=r.id in starred, created_at=r.created_at, edited_at=r.updated_at,
         ))
 
     order = {r.id: i for i, r in enumerate(resumes)}

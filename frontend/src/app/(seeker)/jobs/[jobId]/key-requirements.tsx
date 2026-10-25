@@ -4,7 +4,7 @@ import { apiGet } from "@/lib/api";
 
 import { KeyRequirementsVisibility } from "./key-requirements-visibility";
 
-type Requirement = {
+export type Requirement = {
   kind:
     | "graduation_window"
     | "degree"
@@ -36,20 +36,40 @@ const LABELS = {
   skills: "Key skills",
 };
 
-export async function KeyRequirementsCard({
-  jobId,
-  minYearsExperience,
-}: {
-  jobId: string;
-  minYearsExperience: number | null;
-}) {
-  let requirements: Requirement[] = [];
+/**
+ * What the posting asks for (GET /jobs/{id}/requirements): the API's
+ * rule-based reading of its description. The job page's loader starts it
+ * beside the posting's own read (./job-view.tsx, loadJobView); read here,
+ * once the card rendered, it only began after the other five reads had all
+ * answered, and the page waited for it on top of them (about 120-190 ms).
+ *
+ * NEVER REJECTS. The card is an optional summary: on any failure it answers
+ * an empty list, the card draws nothing and the full posting still shows.
+ * The loader's Promise.all relies on that, since one rejection there would
+ * fail the whole page.
+ */
+export async function getRequirements(jobId: string): Promise<Requirement[]> {
   try {
     const response = await apiGet(`/jobs/${encodeURIComponent(jobId)}/requirements`);
-    if (response.ok) requirements = (await response.json()) as Requirement[];
+    return response.ok ? ((await response.json()) as Requirement[]) : [];
   } catch {
     // The full posting remains available if this optional summary cannot load.
+    return [];
   }
+}
+
+/** The Key Requirements card, drawn from getRequirements' list. */
+export function KeyRequirementsCard({
+  requirements: read,
+  minYearsExperience,
+}: {
+  /** getRequirements(), read by the page's loader. */
+  requirements: Requirement[];
+  minYearsExperience: number | null;
+}) {
+  // A copy, since the stated years may be added to it below: the list is
+  // the loader's, and a render never changes what it was handed.
+  const requirements = [...read];
 
   if (
     minYearsExperience != null &&

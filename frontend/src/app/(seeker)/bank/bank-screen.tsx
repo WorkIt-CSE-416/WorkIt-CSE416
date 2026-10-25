@@ -1,7 +1,22 @@
 "use client";
 
-import { PencilSimpleIcon, PlusIcon, TrashIcon, XIcon } from "@phosphor-icons/react/ssr";
-import { useEffect, useRef, useState, type FormEvent, type ReactNode } from "react";
+import {
+  FileTextIcon,
+  PencilSimpleIcon,
+  PlusIcon,
+  TrashIcon,
+  XIcon,
+} from "@phosphor-icons/react/ssr";
+import {
+  Fragment,
+  useEffect,
+  useMemo,
+  useRef,
+  useState,
+  type FormEvent,
+  type MouseEvent,
+  type ReactNode,
+} from "react";
 
 import { setScoutOpen, useScout } from "@/components/scout/scout-store";
 import { ScoutTakeover } from "@/components/scout/scout-takeover";
@@ -13,22 +28,26 @@ import { TextField } from "@/components/ui/text-field";
 import {
   addSkill,
   createEntry,
+  deleteEntries,
   deleteEntry,
   deleteSkill,
+  deleteSkills,
   entryResumeCount,
   getBank,
   importResume,
   updateSkill,
   type Bank,
   type BankEntry,
+  type BankResume,
   type Section,
   type Skill,
 } from "@/lib/bank-actions";
 
 import { DeleteConfirm } from "../resumes/delete-confirm";
+import { ClearAll } from "./clear-all";
 import { EntryEditor } from "./entry-editor";
 import { editSteps } from "./entry-save";
-import { holderOf, openingPick, shows, usedIn, type Pick } from "./holdings";
+import { holderOf, NONE, openingPick, shows, uploadIds, usedIn, type Pick } from "./holdings";
 import { Intake, type IntakeFocus } from "./intake";
 import {
   draftOf,
@@ -39,7 +58,8 @@ import {
   SECTIONS,
   type EntryDraft,
 } from "./sections";
-import { ResumePicker } from "./resume-picker";
+import { ResumeBar } from "./resume-bar";
+import { SectionNav } from "./section-nav";
 
 /**
  * The bank page's live screen: one card per section, each entry with its
@@ -53,16 +73,19 @@ import { ResumePicker } from "./resume-picker";
  * bank itself. `autoImport` (the Jobs page's Import Your Resume) opens the
  * panel on arrival, since the student clicked to get there, and drops
  * ?import=1 so a reload or Back does not open it again. An empty bank gets
- * no card of its own: the title's Fill With Scout and each section's Add
+ * no card of its own: the title's Fill With Scout and each section's +
  * already say where to start.
  *
- * The resume dropdown (KAN-343, docs/bank_by_resume.md) shows one resume's
- * entries and skills at a time: it opens on the URL's `?resume=`, else the
+ * The Showing card (KAN-343, KAN-361, docs/bank_by_resume.md) shows one
+ * resume's entries and skills at a time, picked from the shared resume
+ * table (`resume-bar.tsx`): it opens on the URL's `?resume=`, else the
  * starred resume, else the newest. An upload's entries are its own (ADR
  * 0005); a built resume's are the ones it shows, which an entry's "Also used
- * in" line names. Add saves into the picked resume, so the new item stays in
- * view. A student with no resume sees the whole bank and no dropdown.
- * Intake always sees the whole bank.
+ * in" line names. Not From an Upload shows what no upload owns, so nothing
+ * in the bank is out of reach. Add saves into the picked resume (or into no
+ * upload, under Not From an Upload), so the new item stays in view. A
+ * student with no resume sees the whole bank and no card. Intake always sees
+ * the whole bank.
  */
 
 type Editing = { kind: "new"; section: Section } | { kind: "edit"; entry: BankEntry } | null;
@@ -74,7 +97,7 @@ export function BankScreen({
 }: {
   initial: Bank;
   autoImport?: boolean;
-  /** The URL's `?resume=`: a resume id. */
+  /** The URL's `?resume=`: a resume id or "none". */
   resumeParam?: string;
 }) {
   const [bank, setBank] = useState(initial);
@@ -83,6 +106,11 @@ export function BankScreen({
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [duplicate, setDuplicate] = useState<BankEntry | null>(null);
+  // The section whose Clear All confirm is open (KAN-352).
+  const [clearing, setClearing] = useState<Section | null>(null);
+  // The section in edit mode (KAN-363): its entries show their pencils and
+  // its heading holds Clear All. One at a time, as LinkedIn's details page.
+  const [editMode, setEditMode] = useState<Section | null>(null);
   // An error that outlives the editor: a bullet that failed after the
   // entry's fields saved, or a failed read-back.
   const [pageError, setPageError] = useState<string | null>(null);
@@ -92,11 +120,16 @@ export function BankScreen({
   const scoutOpen = useScout().open;
   const marked = scoutOpen ? focus : null;
 
+  const uploads = useMemo(() => uploadIds(bank.resumes), [bank.resumes]);
   // A resume deleted since the pick reads as the page's opening pick.
-  const current = bank.resumes.some((r) => r.id === pick)
-    ? pick
-    : openingPick(bank.resumes, undefined);
+  const current =
+    (pick === NONE && bank.resumes.length > 0) || bank.resumes.some((r) => r.id === pick)
+      ? pick
+      : openingPick(bank.resumes, undefined);
   const picked = bank.resumes.find((r) => r.id === current) ?? null;
+  const unowned =
+    bank.entries.filter((e) => shows(NONE, e, uploads)).length +
+    bank.skills.filter((s) => shows(NONE, s, uploads)).length;
   const ownsNothing =
     picked?.kind === "uploaded" &&
     !bank.entries.some((e) => e.resume_ids.includes(picked.id)) &&
@@ -114,11 +147,11 @@ export function BankScreen({
   }, [pick]);
 
   // Scout works on the whole bank: an entry it visits that the pick hides
-  // switches the page to a resume that holds it, so the mark and the scroll
-  // land. One no resume holds stays hidden, and the pick stays.
+  // switches the page to a resume that holds it, or to Not From an Upload,
+  // so the mark and the scroll land.
   const markedEntryRow = bank.entries.find((e) => e.id === marked?.entryId);
   const holder =
-    markedEntryRow && !shows(current, markedEntryRow)
+    markedEntryRow && !shows(current, markedEntryRow, uploads)
       ? holderOf(markedEntryRow, bank.resumes)
       : null;
   // Set during render, as React's "adjusting state when a prop changes"
@@ -161,6 +194,16 @@ export function BankScreen({
     const { data, error } = await getBank();
     if (data) setBank(data);
     return error;
+  }
+
+  // An "Also on" name shows that resume (KAN-363). The entry it sat on is
+  // on that resume too, so the page keeps it in view, not wherever the
+  // swap of every card's content left the scroll.
+  function showResume(id: string, entryId: string) {
+    setPick(id);
+    requestAnimationFrame(() =>
+      document.getElementById(`entry-${entryId}`)?.scrollIntoView({ block: "nearest" }),
+    );
   }
 
   function open(next: Editing) {
@@ -233,7 +276,7 @@ export function BankScreen({
         />
       </ScoutTakeover>
       {bank.resumes.length > 0 && (
-        <ResumePicker resumes={bank.resumes} value={current} onChange={setPick} />
+        <ResumeBar resumes={bank.resumes} value={current} unowned={unowned} onChange={setPick} />
       )}
       {pageError && (
         <p role="alert" className="text-note text-danger">
@@ -241,10 +284,29 @@ export function BankScreen({
         </p>
       )}
       {picked && ownsNothing && <LinkUpload resumeId={picked.id} reload={reload} />}
+      <SectionNav
+        sections={[
+          ...SECTIONS.map((s) => ({
+            id: s.id,
+            label: s.label,
+            count: bank.entries.filter((e) => e.section === s.id && shows(current, e, uploads))
+              .length,
+          })),
+          {
+            id: "skills",
+            label: "Skills",
+            count: bank.skills.filter((s) => shows(current, s, uploads)).length,
+          },
+        ]}
+      />
       {SECTIONS.map((section) => {
-        const entries = bank.entries.filter((e) => e.section === section.id && shows(current, e));
+        const entries = bank.entries.filter(
+          (e) => e.section === section.id && shows(current, e, uploads),
+        );
         const adding = editing?.kind === "new" && editing.section === section.id;
         const here = marked?.section === section.id ? marked : null;
+        // An empty card has nothing to edit, so its last delete ends the mode.
+        const editable = editMode === section.id && entries.length > 0;
         return (
           <Card
             as="section"
@@ -252,22 +314,50 @@ export function BankScreen({
             id={`section-${section.id}`}
             aria-labelledby={`bank-${section.id}`}
             selected={here !== null}
-            // 16px of room above the heading when Scout scrolls it to the top.
-            className="scroll-mt-4 transition-colors duration-200"
+            // Room for the section nav and 16px above the heading when Scout
+            // or the nav scrolls it to the top.
+            className="scroll-mt-16 transition-colors duration-200"
           >
-            <div className="flex items-baseline justify-between gap-3">
+            <div className="flex items-center justify-between gap-3">
               <h2 id={`bank-${section.id}`} className="text-subtitle text-ink">
                 {section.label}
               </h2>
               {!adding && (
-                <Button
-                  variant="section"
-                  onClick={() => open({ kind: "new", section: section.id })}
-                >
-                  <PlusIcon aria-hidden /> Add
-                </Button>
+                <SectionActions
+                  name={section.label}
+                  addLabel={`Add an Entry to ${section.label}`}
+                  addTooltip="Add an entry"
+                  hasItems={entries.length > 0}
+                  editable={editable}
+                  clearing={clearing === section.id}
+                  onAdd={() => open({ kind: "new", section: section.id })}
+                  onEdit={() => setEditMode(section.id)}
+                  onDone={() => {
+                    setEditMode(null);
+                    setClearing(null);
+                  }}
+                  onClear={() => setClearing(section.id)}
+                />
               )}
             </div>
+
+            {clearing === section.id && entries.length > 0 && (
+              <ClearAll
+                items={entries}
+                resumes={bank.resumes}
+                noun={[`${section.label} entry`, `${section.label} entries`]}
+                bullets
+                pick={current}
+                remove={deleteEntries}
+                onCleared={async () => {
+                  setClearing(null);
+                  setEditMode(null);
+                  const reloadError = await reload();
+                  if (reloadError) setPageError(reloadError);
+                }}
+                onKeep={() => setClearing(null)}
+              />
+            )}
 
             {entries.length === 0 && !adding && (
               <p className="text-body text-ink-meta mt-2">
@@ -283,19 +373,24 @@ export function BankScreen({
                   active={here?.entryId === entry.id}
                 >
                   {editing?.kind === "edit" && editing.entry.id === entry.id ? (
-                    <EntryEditor
-                      initial={draftOf(entry)}
-                      onSave={(draft) => save(draft)}
-                      onCancel={() => open(null)}
+                    <EditEntry
+                      entry={entry}
+                      usedIn={usedIn(current, entry, bank.resumes)}
+                      onShowResume={(id) => showResume(id, entry.id)}
                       saving={saving}
                       error={error}
+                      onSave={(draft) => save(draft)}
+                      onCancel={() => open(null)}
+                      onDeleted={async () => {
+                        open(null);
+                        const reloadError = await reload();
+                        if (reloadError) setPageError(reloadError);
+                      }}
                     />
                   ) : (
                     <EntryView
                       entry={entry}
-                      usedIn={usedIn(current, entry, bank.resumes)}
-                      onEdit={() => open({ kind: "edit", entry })}
-                      onDeleted={reload}
+                      onEdit={editable ? () => open({ kind: "edit", entry }) : undefined}
                     />
                   )}
                 </ScoutMarked>
@@ -320,8 +415,10 @@ export function BankScreen({
       })}
 
       <SkillsCard
-        skills={bank.skills.filter((s) => shows(current, s))}
+        skills={bank.skills.filter((s) => shows(current, s, uploads))}
         resumeId={picked?.id}
+        resumes={bank.resumes}
+        pick={current}
         reload={reload}
       />
     </div>
@@ -411,39 +508,176 @@ function ScoutMarked({
   );
 }
 
-function EntryView({
+/** A card heading's icon action: a 32px round target, as LinkedIn's. */
+const HEADING_ACTION = "hover:bg-hover size-8 rounded-full";
+
+/**
+ * A card's heading actions, as LinkedIn's profile draws them (KAN-363): a
+ * plus that adds, and a pencil that opens the card's edit mode, where each
+ * item shows its own pencil and the pencil gives way to Clear All and Done.
+ * An empty card shows the plus alone. Every card has the plus, Skills too.
+ *
+ * Until then each heading held Clear All and Add as words and every entry
+ * its own pencil, so a card read as a row of controls before its content.
+ * Clear All lives in edit mode because it is a bulk delete: LinkedIn's
+ * profile shows none, and in view mode it sat one slip from Add.
+ */
+function SectionActions({
+  name,
+  addLabel,
+  addTooltip,
+  hasItems,
+  editable,
+  clearing,
+  onAdd,
+  onEdit,
+  onDone,
+  onClear,
+}: {
+  /** The card's name, for the pencil's label. */
+  name: string;
+  addLabel: string;
+  addTooltip: string;
+  hasItems: boolean;
+  /** In edit mode. */
+  editable: boolean;
+  /** Clear All's confirm is open, so the button gives way to it. */
+  clearing: boolean;
+  onAdd: () => void;
+  onEdit: () => void;
+  onDone: () => void;
+  onClear: () => void;
+}) {
+  return (
+    <div className="flex items-center gap-3">
+      {editable && !clearing && (
+        <Button variant="section" onClick={onClear}>
+          <TrashIcon aria-hidden /> Clear All
+        </Button>
+      )}
+      <IconButton label={addLabel} tooltip={addTooltip} className={HEADING_ACTION} onClick={onAdd}>
+        <PlusIcon aria-hidden className="size-5" />
+      </IconButton>
+      {editable ? (
+        <Button variant="section" onClick={onDone}>
+          Done
+        </Button>
+      ) : (
+        hasItems && (
+          <IconButton
+            label={`Edit ${name}`}
+            tooltip="Edit this section"
+            className={HEADING_ACTION}
+            onClick={onEdit}
+          >
+            <PencilSimpleIcon aria-hidden className="size-5" />
+          </IconButton>
+        )
+      )}
+    </div>
+  );
+}
+
+/**
+ * An entry open in the editor, with Delete Entry at the editor's foot
+ * (KAN-363). It confirms with how many built resumes show the entry (story
+ * 18), read when Delete Entry is pressed. A delete closes the editor and
+ * reads the bank again (`onDeleted`). Over the buttons, a note names the
+ * other built resumes a save changes too (`AlsoChanges`).
+ */
+function EditEntry({
   entry,
   usedIn,
-  onEdit,
+  onShowResume,
+  saving,
+  error,
+  onSave,
+  onCancel,
   onDeleted,
 }: {
   entry: BankEntry;
-  /** "Also used in …": the built resumes an edit here changes too. */
-  usedIn: string | null;
-  onEdit: () => void;
-  onDeleted: () => Promise<string | null>;
+  /** The built resumes, other than the pick, that a save changes too. */
+  usedIn: { id: string; name: string }[];
+  /** Shows one of them in place of the pick. */
+  onShowResume: (id: string) => void;
+  saving: boolean;
+  error: string | null;
+  onSave: (draft: EntryDraft) => void;
+  onCancel: () => void;
+  onDeleted: () => Promise<void>;
 }) {
-  // The delete confirm, with how many built resumes show the entry (story 18).
   const [confirming, setConfirming] = useState<{ resumes: number } | null>(null);
-  const [error, setError] = useState<string | null>(null);
-  const dates = formatDates(entry);
-  const missing = missingFacts(entry);
-  const place = [entry.organization, entry.location].filter(Boolean).join(" · ");
-  const details = entryDetails(entry);
+  const [busy, setBusy] = useState(false);
+  const [deleteError, setDeleteError] = useState<string | null>(null);
 
   async function confirm() {
-    setError(null);
+    setDeleteError(null);
     const { data, error } = await entryResumeCount(entry.id);
-    if (data == null) return setError(error);
+    if (data == null) return setDeleteError(error);
     setConfirming({ resumes: data });
   }
 
   async function remove() {
+    setBusy(true);
     const res = await deleteEntry(entry.id);
-    if (res.error) return setError(res.error);
-    const reloadError = await onDeleted();
-    if (reloadError) setError(reloadError);
+    if (res.error) {
+      setBusy(false);
+      return setDeleteError(res.error);
+    }
+    await onDeleted();
   }
+
+  return (
+    <>
+      <EntryEditor
+        initial={draftOf(entry)}
+        onSave={onSave}
+        onCancel={onCancel}
+        saving={saving || busy}
+        error={error}
+        onDelete={confirm}
+        note={usedIn.length > 0 && <AlsoChanges resumes={usedIn} onShow={onShowResume} />}
+      />
+      {confirming && (
+        <DeleteConfirm
+          label="Delete Entry"
+          busy={busy}
+          onDelete={remove}
+          onKeep={() => setConfirming(null)}
+        >
+          Delete this entry and its bullets?{" "}
+          {confirming.resumes === 0
+            ? "No built resume shows it."
+            : confirming.resumes === 1
+              ? "It comes off the 1 built resume that shows it."
+              : `It comes off all ${confirming.resumes} built resumes that show it.`}
+        </DeleteConfirm>
+      )}
+      {deleteError && (
+        <p role="alert" className="text-note text-danger mt-1">
+          {deleteError}
+        </p>
+      )}
+    </>
+  );
+}
+
+/** An entry as the bank shows it: the title, its facts and bullets, the
+ *  dates, and in its section's edit mode one pencil (KAN-363). Delete Entry
+ *  is in the editor the pencil opens, with the other resumes a save
+ *  changes. */
+function EntryView({
+  entry,
+  onEdit,
+}: {
+  entry: BankEntry;
+  /** Set in the section's edit mode, which shows the pencil. */
+  onEdit?: () => void;
+}) {
+  const dates = formatDates(entry);
+  const missing = missingFacts(entry);
+  const place = [entry.organization, entry.location].filter(Boolean).join(" · ");
+  const details = entryDetails(entry);
 
   return (
     <div>
@@ -454,7 +688,6 @@ function EntryView({
               never shrink and left the title a few letters wide on a phone. */}
           {dates && <p className="text-note text-ink-meta @xl/main:hidden">{dates}</p>}
           {place && <p className="text-note text-ink-muted break-words">{place}</p>}
-          {usedIn && <p className="text-note text-ink-meta break-words">{usedIn}</p>}
           {details.map((line) => (
             <p key={line} className="text-note text-ink-meta break-words">
               {line}
@@ -463,12 +696,11 @@ function EntryView({
         </div>
         <div className="flex shrink-0 items-center gap-3">
           {dates && <span className="text-note text-ink-meta hidden @xl/main:inline">{dates}</span>}
-          <IconButton label="Edit Entry" tooltip="Edit this entry" onClick={onEdit}>
-            <PencilSimpleIcon aria-hidden className="size-4" />
-          </IconButton>
-          <IconButton label="Delete Entry" tooltip="Delete this entry" onClick={confirm}>
-            <TrashIcon aria-hidden className="size-4" />
-          </IconButton>
+          {onEdit && (
+            <IconButton label="Edit Entry" tooltip="Edit this entry" onClick={onEdit}>
+              <PencilSimpleIcon aria-hidden className="size-4" />
+            </IconButton>
+          )}
         </div>
       </div>
 
@@ -488,41 +720,93 @@ function EntryView({
           Generate a resume.
         </p>
       )}
-
-      {confirming && (
-        <DeleteConfirm label="Delete Entry" onDelete={remove} onKeep={() => setConfirming(null)}>
-          Delete this entry and its bullets?{" "}
-          {confirming.resumes === 0
-            ? "No built resume shows it."
-            : confirming.resumes === 1
-              ? "It comes off the 1 built resume that shows it."
-              : `It comes off all ${confirming.resumes} built resumes that show it.`}
-        </DeleteConfirm>
-      )}
-      {error && (
-        <p role="alert" className="text-note text-danger mt-1">
-          {error}
-        </p>
-      )}
     </div>
   );
 }
 
+/** How many resumes the editor's note names before "and N more". */
+const ALSO_SHOWN = 2;
+
 /**
- * The skills, one row per group. Drawn as the section cards are: Add at the
- * top right opens the form, so the card is a list until the student adds or
- * edits a skill; a form always open under the list made Skills the only card
- * that never looked finished. The form stays open after an add, for the next
- * skill, and closes after an edit.
+ * The editor's note on the other built resumes that show the entry
+ * (KAN-363): "Saving also changes this entry on [file] Resume #3 and [file]
+ * The Allen Institute…", with no full stop, which sat apart from a name cut
+ * short. Each name, with its document mark, is a link that
+ * shows that resume here (`?resume=`), as Change Resume would, and the
+ * editor stays open; a Cmd or Ctrl click opens it in a new tab. A long name
+ * cuts short, with the whole name in its tooltip.
+ *
+ * It sat in the entry's view first, as "Also used in …" under the title and
+ * then an "Also on" pill at its foot. Every entry Generate put on more than
+ * one resume carried it, and it said nothing of why it mattered until the
+ * student edited, which is when it shows now.
+ */
+function AlsoChanges({
+  resumes,
+  onShow,
+}: {
+  resumes: { id: string; name: string }[];
+  onShow: (id: string) => void;
+}) {
+  const rest = resumes.slice(ALSO_SHOWN);
+  const shown = resumes.slice(0, ALSO_SHOWN);
+
+  function show(event: MouseEvent, id: string) {
+    // A new tab, or a download, is the browser's to handle.
+    if (event.metaKey || event.ctrlKey || event.shiftKey || event.altKey) return;
+    event.preventDefault();
+    onShow(id);
+  }
+
+  return (
+    <p className="rounded-control bg-well text-note text-ink-muted px-3 py-2">
+      Saving also changes this entry on{" "}
+      {shown.map((r, i) => (
+        // Two resumes can share a name, but never an id.
+        <Fragment key={r.id}>
+          {i > 0 && (rest.length > 0 ? ", " : " and ")}
+          <a
+            href={`?resume=${encodeURIComponent(r.id)}`}
+            title={`Show ${r.name}`}
+            onClick={(e) => show(e, r.id)}
+            className="text-ink hover:text-brand focus-visible:ring-brand-ring inline-flex max-w-full items-baseline gap-1 rounded-xs align-bottom underline-offset-2 hover:underline focus-visible:ring-2 focus-visible:outline-none"
+          >
+            <FileTextIcon aria-hidden className="size-3.5 shrink-0 self-center" />
+            <span className="max-w-40 truncate @xl/main:max-w-72">{r.name}</span>
+          </a>
+        </Fragment>
+      ))}
+      {rest.length > 0 && (
+        <>
+          {" and "}
+          <span title={rest.map((r) => r.name).join(", ")}>{rest.length} more</span>
+        </>
+      )}
+    </p>
+  );
+}
+
+/**
+ * The skills, one row per group. Drawn as the section cards are: the plus at
+ * the top right opens the form, so the card is a list until the student adds
+ * or edits a skill; a form always open under the list made Skills the only
+ * card that never looked finished. The pencil opens edit mode, where each
+ * skill shows its pencil and × (KAN-363). The form stays open after an add,
+ * for the next skill, and closes after an edit.
  */
 function SkillsCard({
   skills,
   resumeId,
+  resumes,
+  pick,
   reload,
 }: {
   skills: Skill[];
   /** The picked resume: a skill added here goes into it. */
   resumeId: string | undefined;
+  /** For Clear All's confirm. */
+  resumes: BankResume[];
+  pick: Pick;
   reload: () => Promise<string | null>;
 }) {
   const [name, setName] = useState("");
@@ -531,8 +815,11 @@ function SkillsCard({
   const [editingId, setEditingId] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
+  const [clearing, setClearing] = useState(false);
+  const [editMode, setEditMode] = useState(false);
   const nameField = useRef<HTMLInputElement>(null);
   const formOpen = adding || editingId !== null;
+  const editable = editMode && skills.length > 0;
 
   const groups = new Map<string, Skill[]>();
   for (const skill of skills) {
@@ -578,23 +865,48 @@ function SkillsCard({
   }
 
   return (
-    <Card as="section" aria-labelledby="bank-skills">
-      <div className="flex items-baseline justify-between gap-3">
+    <Card as="section" id="section-skills" aria-labelledby="bank-skills" className="scroll-mt-16">
+      <div className="flex items-center justify-between gap-3">
         <h2 id="bank-skills" className="text-subtitle text-ink">
           Skills
         </h2>
         {!formOpen && (
-          <Button
-            variant="section"
-            onClick={() => {
+          <SectionActions
+            name="Skills"
+            addLabel="Add Skill"
+            addTooltip="Add a skill"
+            hasItems={skills.length > 0}
+            editable={editable}
+            clearing={clearing}
+            onAdd={() => {
               setError(null);
               setAdding(true);
             }}
-          >
-            <PlusIcon aria-hidden /> Add
-          </Button>
+            onEdit={() => setEditMode(true)}
+            onDone={() => {
+              setEditMode(false);
+              setClearing(false);
+            }}
+            onClear={() => setClearing(true)}
+          />
         )}
       </div>
+      {clearing && skills.length > 0 && (
+        <ClearAll
+          items={skills}
+          resumes={resumes}
+          noun={["skill", "skills"]}
+          pick={pick}
+          remove={deleteSkills}
+          onCleared={async () => {
+            setClearing(false);
+            setEditMode(false);
+            const reloadError = await reload();
+            if (reloadError) setError(reloadError);
+          }}
+          onKeep={() => setClearing(false)}
+        />
+      )}
       {skills.length === 0 && !formOpen && (
         <p className="text-body text-ink-meta mt-2">Nothing here yet.</p>
       )}
@@ -616,26 +928,30 @@ function SkillsCard({
                     )}
                   >
                     {skill.name}
-                    <IconButton
-                      label={`Edit ${skill.name}`}
-                      tooltip="Edit this skill"
-                      onClick={() => {
-                        setError(null);
-                        setAdding(false);
-                        setEditingId(skill.id);
-                        setName(skill.name);
-                        setGroup(skill.group ?? "");
-                      }}
-                    >
-                      <PencilSimpleIcon aria-hidden className="size-3" />
-                    </IconButton>
-                    <IconButton
-                      label={`Remove ${skill.name}`}
-                      tooltip="Remove this skill"
-                      onClick={() => remove(skill)}
-                    >
-                      <XIcon aria-hidden className="size-3" />
-                    </IconButton>
+                    {editable && (
+                      <>
+                        <IconButton
+                          label={`Edit ${skill.name}`}
+                          tooltip="Edit this skill"
+                          onClick={() => {
+                            setError(null);
+                            setAdding(false);
+                            setEditingId(skill.id);
+                            setName(skill.name);
+                            setGroup(skill.group ?? "");
+                          }}
+                        >
+                          <PencilSimpleIcon aria-hidden className="size-3" />
+                        </IconButton>
+                        <IconButton
+                          label={`Remove ${skill.name}`}
+                          tooltip="Remove this skill"
+                          onClick={() => remove(skill)}
+                        >
+                          <XIcon aria-hidden className="size-3" />
+                        </IconButton>
+                      </>
+                    )}
                   </span>
                 ))}
               </dd>

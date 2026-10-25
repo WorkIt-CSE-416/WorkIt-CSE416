@@ -14,7 +14,10 @@ import { useRunnerJob } from "@/lib/autofill-extension";
 import { ActivityTable, GROUPS, sortItems, STATUS, type ActivityItem } from "./activity-list";
 import { activityHref, parseActivityQuery, STATUS_FILTERS, type StatusFilter } from "./query";
 
-const STATUS_OPTIONS: FacetOption[] = STATUS_FILTERS.map((group) => ({
+/** History's statuses: queued and in-progress jobs are Up Next's (./up-next.tsx). */
+const STATUS_OPTIONS: FacetOption[] = STATUS_FILTERS.filter(
+  (group) => group !== "queued" && group !== "progress",
+).map((group) => ({
   value: group,
   label: GROUPS[group].label,
   Icon: GROUPS[group].Icon,
@@ -22,8 +25,10 @@ const STATUS_OPTIONS: FacetOption[] = STATUS_FILTERS.map((group) => ({
 }));
 
 /**
- * Live Activity (KAN-285): the Status filter and the table of applications
- * (./activity-list.tsx).
+ * History, once Live Activity (KAN-285): the Status filter and the table of
+ * the applications past the queue (./activity-list.tsx): needs you, applied
+ * and skipped. The queue itself is Up Next (./up-next.tsx) since KAN-359,
+ * so the filter offers only these statuses.
  *
  * It adds the one row the server cannot know: the queued job posting open
  * in the extension's run tab reads Working in Browser (useRunnerJob), in

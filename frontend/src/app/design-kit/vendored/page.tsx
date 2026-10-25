@@ -14,7 +14,10 @@ export default function VendoredPage() {
         >
           <DialogSpecimen />
         </Row>
-        <Row name="<DropdownMenu>" role="Roving focus, typeahead, arrow-key navigation">
+        <Row
+          name="<DropdownMenu>"
+          role="Roving focus, typeahead, arrow-key navigation; rows are medium, like every control"
+        >
           <DropdownSpecimen />
         </Row>
         <Row name="<Switch>" role="An on/off setting (Settings' Notifications)">

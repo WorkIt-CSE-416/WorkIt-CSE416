@@ -30,6 +30,8 @@ one owner per entry: each resume's facts read and edit on their own.
   replaced by the owner column, then dropped after the deploy.
 - A replace or an upload's delete deletes that upload's entries, the
   student's edits to them, and their places on built resumes. No warning.
-- The Experiences view shows one resume at a time: All Experiences and Not
-  From an Upload are removed, so an entry no upload owns shows only under
-  a built resume that shows it.
+- The Experiences view shows one resume at a time: All Experiences is
+  removed. Not From an Upload stays, so an entry no upload owns (the
+  student's own, or one the migration could not give one owner) can still
+  be seen, edited and deleted. Removed with All Experiences at first, it
+  left 96 entries of 8 students out of reach (2026-10-24).

@@ -24,7 +24,7 @@ export const SECTIONS = {
   type: {
     slug: "type",
     title: "Type",
-    note: "One typeface, Geist, with Geist Mono for code. Weight and letter-spacing are baked into each token, so a caption cannot be used without its tracking. Two sizes are both 11px: caption carries uppercase tracking and weight 600, meta carries neither. shadcn's stock sizes resolve to this scale too.",
+    note: "One typeface, Plus Jakarta Sans, with Geist Mono for code. Weight and letter-spacing are baked into each token, so a caption cannot be used without its tracking. Two sizes are both 11px: caption carries uppercase tracking and weight 600, meta carries neither. shadcn's stock sizes resolve to this scale too. Four weights, each with one job (Weights), and icons drawn to sit beside medium text (Icons).",
   },
   shape: {
     slug: "shape",
@@ -277,7 +277,7 @@ export const TYPE_SCALE: { token: string; cls: string; role: string }[] = [
   { token: "--text-body", cls: "text-body", role: "Body copy, inputs" },
   { token: "--text-subtitle", cls: "text-subtitle", role: "Work-history job titles" },
   { token: "--text-title", cls: "text-title", role: "Card and column headings" },
-  { token: "--text-heading", cls: "text-heading", role: "Page name — Application Tracker" },
+  { token: "--text-heading", cls: "text-heading", role: "Page name — Applications Tracker" },
   { token: "--text-display", cls: "text-display", role: "Company Dashboard headline figures" },
   {
     token: "--text-figure",
@@ -289,7 +289,7 @@ export const TYPE_SCALE: { token: string; cls: string; role: string }[] = [
 
 /** The faces themselves come from next/font in app/layout.tsx. */
 export const TYPEFACES: { token: string; cls: string; role: string }[] = [
-  { token: "--font-sans", cls: "font-sans", role: "Geist · every word in the app" },
+  { token: "--font-sans", cls: "font-sans", role: "Plus Jakarta Sans · every word in the app" },
   {
     token: "--font-mono",
     cls: "font-mono",
@@ -298,7 +298,37 @@ export const TYPEFACES: { token: string; cls: string; role: string }[] = [
   {
     token: "--font-heading",
     cls: "font-heading",
-    role: "→ --font-sans · shadcn's title face, so a dialog title is Geist too",
+    role: "→ --font-sans · shadcn's title face, so a dialog title is Plus Jakarta Sans too",
+  },
+];
+
+/**
+ * What each weight is for. A token that carries a weight (label, subtitle,
+ * title...) already sets it; these say which to reach for when a size has
+ * none of its own, as body and note do. The rule that matters most: anything
+ * a student clicks or picks is medium, so a menu row, a select option and a
+ * filter option weigh what the button and chip beside them weigh (KAN-365).
+ */
+export const WEIGHTS: { token: string; cls: string; role: string }[] = [
+  {
+    token: "450 · font-normal",
+    cls: "font-normal",
+    role: "Reading: body copy, helper text, typed values in inputs, descriptions",
+  },
+  {
+    token: "500 · font-medium",
+    cls: "font-medium",
+    role: "Anything clicked or picked: buttons, chips, segmented controls, menu rows, select and filter options, field labels (--text-label)",
+  },
+  {
+    token: "600 · font-semibold",
+    cls: "font-semibold",
+    role: "Names a block: card and dialog titles at --text-subtitle, a job's title, captions",
+  },
+  {
+    token: "700 · font-bold",
+    cls: "font-bold",
+    role: "Names a page: --text-title, --text-heading, --text-display",
   },
 ];
 
@@ -316,7 +346,7 @@ export const SHADCN_SIZES: { token: string; cls: string; role: string }[] = [
   {
     token: "text-sm → --text-body",
     cls: "text-sm",
-    role: "Menu rows, select options, dialog and popover body, table cells, sidebar rows",
+    role: "Menu rows and select options (medium, set in globals.css), dialog and popover body, table cells, sidebar rows",
   },
   {
     token: "text-base · stock 16px, unbound",
@@ -343,6 +373,14 @@ export const WIDTHS: { token: string; cls: string; role: string }[] = [
     token: "--container-dashboard",
     cls: "max-w-dashboard",
     role: "The seeker Dashboard's wider grid",
+  },
+];
+
+export const HEIGHTS: { token: string; cls: string; role: string }[] = [
+  {
+    token: "--spacing-scroll-box",
+    cls: "h-scroll-box",
+    role: "A list or table that scrolls inside a dialog or a tile",
   },
 ];
 

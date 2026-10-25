@@ -33,10 +33,19 @@ the page's right edge to its middle, wrapped the Calendar's view switch, and
 turned the Week into seven columns. The container is `--panel-gain`
 narrower than the `<main>`, a registered length that eases over the panel's
 own 200ms linear, so the page holds its width through the animation; keep
-the two durations equal. A layout that splits into columns uses
+the two durations equal. **`--panel-gain` does not inherit** (KAN-368): the
+inherited version restyled about 4,258 elements on every frame of a pin, so
+only 6 to 8 frames of 24 to 54 ms were drawn. Each reader (`[data-scout-page]`,
+the Applications wrapper, the job rail's frame and aside) carries its own
+`transition-[--panel-gain] duration-200 ease-linear` and the
+`md:in-data-[pinned=false]:[--panel-gain:calc(...)]` override
+(`CLAUDE.md`, the sidebar bullet has the exact classes); a new reader without
+them reads 0px and never moves. A layout that splits into columns uses
 `@3xl/main:` and friends, a card that rearranges itself (the job card) is
 its own `@container`, and both see the same width whether the panel is open
-or not. **One page takes the freed room back: Applications** (KAN-256). Its
+or not. **Two pages take the freed room back: Applications** (KAN-256)
+and a job posting's page, whose rail of jobs grows by the gain while the job
+keeps its width (KAN-297, `docs/screens.md`, Job posting page). Applications'
 list is a table that scrolls sideways, so more width only shows more
 columns. The page has no width cap and a negative margin of half
 `--panel-gain` on each side, which widens it with the panel's own easing
@@ -89,7 +98,8 @@ Below md the panel is shadcn's sheet, which has no hover, and works as
 before. `components/hover-sidebar.tsx` wraps shadcn's provider rather than
 editing the vendored one: it opens the provider when pinned or hovering.
 **Size anything by the pinned width with `useSidebarPin`, never shadcn's
-`state`**: a hover sets that to "expanded", and the company bar's corner
+`state`**; in CSS, key on the `data-pinned="true"|"false"` that
+`HoverSidebarProvider` writes on the wrapper, for the same reason (KAN-368): a hover sets that to "expanded", and the company bar's corner
 cell, sized by it, widened and pushed the bar on every hover. On the seeker
 shell a hovering panel runs the window's height and covers the bar's
 toggle, so the open panel carries its own pin at its header's right, beside
@@ -151,6 +161,13 @@ per-route `icons.tsx` is the same kind of wrapper.
   icons read a React context that a server component cannot; the lint
   refuses it. Types (`Icon`) may come from the main entry. Use the `*Icon`
   names (`CheckIcon`); the bare names are deprecated.
+- **Every glyph is a touch heavier than Phosphor draws it** (KAN-365). Its
+  regular line is 1px at `size-4`, and after Lucide's 2px every icon read
+  thin, so one rule in `globals.css` (`svg[viewBox="0 0 256 256"]`, in
+  base) outlines each glyph's shape by 5 units: about a 2px line, with
+  Phosphor's shapes kept. Phosphor has no weight between regular and bold,
+  and bold read chunkier than Lucide had. `custom-icons.tsx` strokes its
+  glyphs to match (`STROKE`, 2 at regular); change the two together.
 - **Sizes stay classes** (`size-4`): Phosphor's own default is 1em. Inside a
   Button, Chip or shadcn menu an icon with no size class takes the parent's.
 - **Weight carries state.** Regular everywhere; `weight="fill"` for a
@@ -219,6 +236,25 @@ the done green;
 the draft's "Ready to save" is words, so it takes `--color-positive-ink`,
 and "Still needed" takes `--color-warning`, as the bank's own warnings do.
 `globals.css` has the numbers.
+
+## Type weights
+
+Four weights, each with one job, shown on `/design-kit/type` (Weights):
+450 to read (body copy, helper text, typed values), 500 for anything a
+student clicks or picks (buttons, chips, segmented controls, menu rows,
+select and filter options, field labels), 600 to name a block (card and
+dialog titles, a job's title, captions), 700 to name a page. A token that
+carries a weight already sets it; a size with none of its own (body, note)
+takes the weight of its job. shadcn's menu, select and combobox rows set no
+weight and drew at 400, so the account menu read thinner than the Jobs
+page's filters; `globals.css` sets them to 500 by `data-slot`, in base so a
+row that asks for another weight still gets it (KAN-365). The filters' own
+option rows (`filter-controls.tsx`) set theirs and are left alone: a nested
+option is regular under its medium parent. Regular is 450, not 400
+(`--font-weight-normal`, KAN-365): Plus Jakarta Sans loads as a variable
+font, and its 400 read thin in small grey text such as a job card's facts
+and dates. `font-normal`, the body's default and `--text-hero` all read it,
+so never write a literal 400.
 
 ## Components
 

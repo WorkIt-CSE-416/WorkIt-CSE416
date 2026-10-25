@@ -26,7 +26,7 @@ from app.schemas.auth import AccountType, AuthenticatedAccount
 from app.schemas.jobs import FacetCount, JobFacets, JobListing, JobRoleOption
 from app.services.company_resolver import CompanyResolver
 from app.services.role_resolver import RoleResolver, raw_words
-from app.services.search_facts import query_facts
+from app.services.search_facts import FoundFact, query_facts, without_words
 from app.services.start_terms import season_is_over, season_of
 from tests.test_role_resolver import ROLES
 
@@ -311,6 +311,51 @@ def test_query_facts(q, levels, styles, seasons, left):
 def test_a_misspelt_season_is_matched_in_titles_as_spelt():
     # A title says "Summer 2027", so the title match takes the corrected words.
     assert list(query_facts(raw_words("summe 2027")).season_phrases) == ["summer 2027"]
+
+
+def test_each_fact_names_the_words_that_set_it():
+    # /search shows each fact and drops its words when the seeker removes it
+    # (KAN-308), so a two-word fact keeps both its places.
+    assert query_facts(raw_words("remote summe 2027 data intern")).found == (
+        FoundFact("work_style", "remote", (0,)),
+        FoundFact("start_term", "summer-2027", (1, 2)),
+        FoundFact("level", "student", (4,)),
+    )
+    assert query_facts(raw_words("new grad 2027")).found == (
+        FoundFact("level", "new_grad", (0, 1)),
+        FoundFact("start_term", "2027", (2,)),
+    )
+
+
+@pytest.mark.parametrize(("text", "at", "left"), [
+    # the rest stays as typed, punctuation and case included
+    ("Remote C++ intern", [0], "C++ intern"),
+    ("swe, Intern at Stripe", [1], "swe, at Stripe"),
+    ("summer 2027 SWE", [0, 1], "SWE"),
+    ("remote", [0], ""),
+    # a folded letter keeps its word's place: "ß" folds to two letters
+    ("Straße café remote", [2], "Straße café"),
+    ("Straße café remote", [1], "Straße remote"),
+])
+def test_without_words(text, at, left):
+    assert without_words(text, at) == left
+
+
+def test_route_lists_the_facts_a_search_set(no_database):
+    client = TestClient(app)
+    # "Jump Trading" is a company, two words before the facts: their places
+    # count from the search as typed, not from what the company left.
+    res = client.get("/jobs/search-facts", params={"q": "Jump Trading remote intern Remote 2027"})
+    assert res.status_code == 200
+    assert res.json() == [
+        # named twice, listed once, and its × drops both
+        {"facet": "work_style", "value": "remote", "without": "Jump Trading intern 2027"},
+        {"facet": "level", "value": "student", "without": "Jump Trading remote Remote 2027"},
+        {"facet": "start_term", "value": "2027", "without": "Jump Trading remote intern Remote"},
+    ]
+    # A search that names no fact sets none.
+    assert client.get("/jobs/search-facts", params={"q": "stripe"}).json() == []
+    assert client.get("/jobs/search-facts", params={"q": "x" * 201}).status_code == 422
 
 
 def test_a_search_s_roles_each_narrow_on_their_own():

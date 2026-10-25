@@ -46,21 +46,109 @@
  * wave's lower half. Placed as the decoration was, 0.16em under the
  * baseline (the line box's foot is 0.222em under it).
  */
-.slop-wave {
+/*
+ * "Slop" as AI slop (slop-word.tsx): a box one line tall and the word's
+ * width, its drawing let out below for the drips. `--reach` is how far a
+ * drip may run, a share of its full length: on a phone the headline wraps
+ * and "get" sits under "Slop", and from lg up the caption's chip does, so
+ * each gets only what clears it. A bulb rides its stem's end
+ * (`--len`, in SVG units, set per drip).
+ */
+.slop-goo {
+  --reach: 0.4;
   position: relative;
+  display: inline-block;
+  vertical-align: top;
+  width: 2.2em;
+  height: 1.08em;
 }
-
-.slop-wave::after {
-  --wave: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 8 4'%3E%3Cpath d='M0 2Q2 0 4 2T8 2' fill='none' stroke='black' stroke-width='1.3'/%3E%3C/svg%3E");
-  content: "";
+@media (width >= 40rem) {
+  .slop-goo {
+    --reach: 0.6;
+  }
+}
+@media (width >= 64rem) {
+  .slop-goo {
+    --reach: 0.7;
+  }
+}
+.slop-goo-art {
   position: absolute;
-  inset-inline: 0;
-  top: calc(100% - 0.062em);
-  height: 0.15em;
-  pointer-events: none;
-  background: var(--color-danger);
-  -webkit-mask: var(--wave) 0 0 / 0.3em 100% repeat-x;
-  mask: var(--wave) 0 0 / 0.3em 100% repeat-x;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  overflow: visible;
+}
+.slop-drip {
+  transform-box: fill-box;
+  transform-origin: 50% 0;
+  animation: slop-stretch 4s ease-in-out var(--d, 0s) infinite;
+}
+.slop-bulb {
+  animation: slop-fall 4s ease-in-out var(--d, 0s) infinite;
+}
+.slop-spark {
+  transform-box: fill-box;
+  transform-origin: 50% 50%;
+  animation: slop-twinkle 1.8s ease-in-out var(--d, 0s) infinite;
+}
+.slop-shine {
+  animation: slop-sheen 3.2s ease-in-out infinite;
+}
+@keyframes slop-stretch {
+  0%,
+  100% {
+    transform: scaleY(calc(0.35 * var(--reach)));
+  }
+  60% {
+    transform: scaleY(var(--reach));
+  }
+}
+@keyframes slop-fall {
+  0%,
+  100% {
+    transform: translateY(calc((0.35 * var(--reach) - 1) * var(--len) * 1px));
+  }
+  60% {
+    transform: translateY(calc((var(--reach) - 1) * var(--len) * 1px));
+  }
+}
+@keyframes slop-twinkle {
+  0%,
+  100% {
+    transform: scale(0.4);
+    opacity: 0.3;
+  }
+  50% {
+    transform: scale(1) rotate(45deg);
+    opacity: 1;
+  }
+}
+@keyframes slop-sheen {
+  0%,
+  100% {
+    transform: skewX(-20deg) translateX(-60px);
+  }
+  50% {
+    transform: skewX(-20deg) translateX(150px);
+  }
+}
+[data-paused] .slop-goo * {
+  animation-play-state: paused;
+}
+@media (prefers-reduced-motion: reduce) {
+  .slop-drip,
+  .slop-bulb,
+  .slop-spark,
+  .slop-shine {
+    animation: none;
+  }
+  .slop-drip {
+    transform: scaleY(var(--reach));
+  }
+  .slop-bulb {
+    transform: translateY(calc((var(--reach) - 1) * var(--len) * 1px));
+  }
 }
 
 .font-google {
@@ -147,7 +235,10 @@ html:has(.landing) {
  * the hero panel's bottom: at its 1600px design scale from lg up, so its
  * per-column height caps keep it clear of the text, cropped at the sides on
  * narrower panels; scaled to the panel's width below lg, where page.tsx's
- * spacer drops it under the text. Violet belongs to the wireframes alone.
+ * spacer drops it under the text. Below sm it is the phone build, twice the
+ * panel's width so only its middle half shows, at about 1.7 times the
+ * scale (KAN-368); the spacer grows with it. Violet belongs to the
+ * wireframes alone.
  */
 .hero-panel {
   background: linear-gradient(180deg, #ffffff 0%, #ffffff 55%, #f6f5f8 100%);
@@ -174,6 +265,12 @@ html:has(.landing) {
   pointer-events: none;
   mask-image: linear-gradient(90deg, transparent 0%, #000 9%, #000 91%, transparent 100%);
   animation: hero-city-in 1.2s ease-out both;
+}
+
+@media (width < 40rem) {
+  .hero-city {
+    width: 200cqw;
+  }
 }
 
 @media (width >= 64rem) {

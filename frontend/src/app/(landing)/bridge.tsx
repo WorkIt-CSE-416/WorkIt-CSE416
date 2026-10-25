@@ -3,6 +3,7 @@
 import * as React from "react";
 import { createPortal } from "react-dom";
 import {
+  AnimatePresence,
   motion,
   useInView,
   useMotionValue,
@@ -19,7 +20,7 @@ import { stages } from "./board-data";
 import { FaviconLogo } from "./favicon-logo";
 import { followedJob, matchingFeature } from "./feature-data";
 import { useMediaQuery } from "./hooks";
-import { useSceneTime, type Cue } from "./scene-time";
+import { useSceneTime, useScrollCue, type Cue } from "./scene-time";
 import { scoreTone } from "./score-tone";
 import { TOUR_TABS, type TourTab } from "./tour-tabs";
 
@@ -126,6 +127,7 @@ export function Bridge() {
   const isDesktop = useMediaQuery(DESKTOP_QUERY);
   const reduceMotion = useReducedMotion();
   if (isDesktop === true && !reduceMotion) return <PinnedBridge />;
+  if (isDesktop === false && !reduceMotion) return <ScrolledBridge />;
   return <StillBridge />;
 }
 
@@ -414,7 +416,254 @@ function Pill({
   );
 }
 
-/** Below lg, and with reduced motion: the same story, still. */
+// --- Below lg: the same story, cued by the scroll, not pinned ---
+
+/** The scroll's cues, in progress from the section's top meeting the
+ * screen's foot to the end of its short pin: the flood rises as the stage
+ * comes up, the fit three sort a third into the pin, the steps light near
+ * its end. Each phase then plays in time ("Scroll cues, time plays",
+ * frontend/CLAUDE.md), and scrolling back plays it back. */
+const PHONE_CUES: Cue[] = [
+  { at: 0.3, to: 0 },
+  { at: 0.7, to: 1 },
+  { at: 0.86, to: 2 },
+];
+/** The phase with the steps, the last. */
+const STEPS_PHASE = 2;
+/** The stage's height, and a card's widest width and its height, in px. */
+const LOOP_H = 330;
+const LOOP_CARD_W = 156;
+const LOOP_CARD_H = 60;
+/** How much the fit three grow as they sort, and once the steps are in. */
+const SORT_SCALE = 1.15;
+const STEPS_SCALE = 1.1;
+/**
+ * Eight postings strewn over the stage: the three that fit among five that
+ * do not, two to a band, each band's pair pushed apart by a share of the
+ * room the stage has spare (`slack`, 0 to 1), dropped by `dy` px, tilted a
+ * few degrees and a touch smaller or larger. Placed so no card covers
+ * another's text at any phone width: twelve cards in three columns, the
+ * fit ones wider, buried the postings under each other, and two even
+ * columns after that read as a table, not a flood.
+ */
+const SCATTER = [
+  { slack: 0.1, dy: 0, rot: -3, scale: 0.95 },
+  { slack: 0.7, dy: 18, rot: 2, scale: 1 },
+  { slack: 0.9, dy: 8, rot: 2.5, scale: 0.93 },
+  { slack: 0.05, dy: 30, rot: -2, scale: 0.97 },
+  { slack: 0.3, dy: 14, rot: -1.5, scale: 1 },
+  { slack: 1, dy: 22, rot: 3, scale: 0.92 },
+  { slack: 0.65, dy: 6, rot: 1.5, scale: 0.96 },
+  { slack: 0.25, dy: 26, rot: -2.5, scale: 0.94 },
+];
+/** The bands' pitch, in px. */
+const BAND = 74;
+const LOOP_POSTINGS = (() => {
+  const fit = POSTINGS.filter((p) => p.fit >= 0 && p.fit < 3).sort((a, b) => a.fit - b.fit);
+  const list = POSTINGS.filter((p) => p.fit < 0).slice(0, 5);
+  [1, 4, 6].forEach((at, k) => list.splice(at, 0, fit[k]));
+  return list.map((posting, i) => ({
+    ...posting,
+    fit: posting.fit >= 0 && posting.fit < 3 ? posting.fit : -1,
+    side: i % 2,
+    band: Math.floor(i / 2),
+    ...SCATTER[i],
+  }));
+})();
+
+/**
+ * Below lg, where the desktop's 260vh pin does not fit a phone: the same
+ * three phases on a short stage, cued by the scroll (`useScrollCue`) over
+ * a pin of a screen and a half. One line at a
+ * time over a short stage, as the pinned scene shows them; until KAN-368
+ * phones showed the three lines stacked over a still list, which read as
+ * three headlines in a row.
+ */
+function ScrolledBridge() {
+  const ref = React.useRef<HTMLElement>(null);
+  const stageRef = React.useRef<HTMLDivElement>(null);
+  const { scrollYProgress } = useScroll({ target: ref, offset: ["start end", "end end"] });
+  const phase = useScrollCue(scrollYProgress, PHONE_CUES);
+  const [width, setWidth] = React.useState(0);
+
+  React.useLayoutEffect(() => {
+    const stage = stageRef.current;
+    if (!stage) return;
+    const measure = () => setWidth(stage.offsetWidth);
+    measure();
+    const observer = new ResizeObserver(measure);
+    observer.observe(stage);
+    return () => observer.disconnect();
+  }, []);
+
+  const line = LINES[Math.max(0, phase)];
+  return (
+    // A short pin, a screen and a half, so the line and the stage stay in
+    // view, under the floating header, while the scroll cues each phase:
+    // unpinned, the 520px section left the screen before its last phase,
+    // and the steps came in with their line already under the header.
+    <section
+      ref={ref}
+      aria-label="From thousands of postings to the ones that fit"
+      className="h-[150svh] px-4 sm:px-6"
+    >
+      <div className="sticky top-20 pt-6 pb-6">
+        <div className="mx-auto max-w-xl text-center">
+          {/* One line at a time, in a slot two lines tall so nothing moves. */}
+          <div className="relative h-[4.5rem] sm:h-[5rem]">
+            <AnimatePresence mode="wait" initial={false}>
+              <motion.p
+                key={line.text}
+                className="text-ink absolute inset-x-0 bottom-0 text-2xl font-semibold tracking-[-0.02em] text-balance sm:text-3xl"
+                initial={{ opacity: 0, y: 10, filter: "blur(4px)" }}
+                animate={{
+                  opacity: 1,
+                  y: 0,
+                  filter: "blur(0px)",
+                  transitionEnd: { filter: "none" },
+                }}
+                exit={{ opacity: 0, y: -10 }}
+                transition={{ duration: 0.35, ease: [0.16, 1, 0.3, 1] }}
+              >
+                {line.text}
+              </motion.p>
+            </AnimatePresence>
+          </div>
+        </div>
+        <div
+          ref={stageRef}
+          aria-hidden="true"
+          className="relative mx-auto mt-6 max-w-sm"
+          style={{ height: LOOP_H }}
+        >
+          {width > 0 &&
+            LOOP_POSTINGS.map((posting, i) => (
+              <LoopCard
+                key={posting.company}
+                posting={posting}
+                index={i}
+                phase={phase}
+                width={width}
+              />
+            ))}
+          <div className="absolute inset-x-0 top-[232px] flex flex-wrap justify-center gap-2">
+            {TOUR_TABS.map((tab, i) => (
+              <motion.span
+                key={tab.id}
+                className="relative"
+                initial={false}
+                animate={phase >= STEPS_PHASE ? { opacity: 1, y: 0 } : { opacity: 0, y: 12 }}
+                transition={{ duration: 0.4, delay: phase >= STEPS_PHASE ? 0.25 + i * 0.12 : 0 }}
+              >
+                <Pill tab={tab} />
+                <motion.span
+                  aria-hidden="true"
+                  className="pointer-events-none absolute inset-0 rounded-full"
+                  style={{ boxShadow: `0 0 0 2px ${tab.glow}` }}
+                  initial={false}
+                  animate={{ opacity: phase >= STEPS_PHASE ? 1 : 0 }}
+                  transition={{ duration: 0.3, delay: phase >= STEPS_PHASE ? 0.9 + i * 0.45 : 0 }}
+                />
+              </motion.span>
+            ))}
+          </div>
+        </div>
+      </div>
+    </section>
+  );
+}
+
+/** A posting on the phone stage: hidden before the first cue, then strewn
+ * in the flood, then either sorted into the centred column, upright and a
+ * little larger (the three that fit), or faded away. Scaled from its top
+ * left corner, so a pose is its corner's place. */
+function LoopCard({
+  posting,
+  index,
+  phase,
+  width,
+}: {
+  posting: (typeof LOOP_POSTINGS)[number];
+  index: number;
+  phase: number;
+  width: number;
+}) {
+  const fit = posting.fit >= 0;
+  const w = Math.min(LOOP_CARD_W, (width - 12) / 2);
+  const slack = Math.max(0, width - 2 * w - 12);
+  const flood = {
+    x: posting.side === 0 ? posting.slack * slack * 0.5 : width - w - posting.slack * slack * 0.5,
+    y: posting.band * BAND + posting.dy,
+    rotate: posting.rot,
+    scale: posting.scale,
+    opacity: 1,
+  };
+  const s = phase >= STEPS_PHASE ? STEPS_SCALE : SORT_SCALE;
+  const sorted = {
+    x: (width - w * s) / 2,
+    y: (phase >= STEPS_PHASE ? 0 : 8) + posting.fit * (LOOP_CARD_H * s + 8),
+    rotate: 0,
+    scale: s,
+    opacity: 1,
+  };
+  const hidden = { ...flood, y: flood.y + 36, opacity: 0 };
+  const pose =
+    phase < 0
+      ? hidden
+      : phase === 0
+        ? flood
+        : fit
+          ? sorted
+          : { ...flood, opacity: 0, scale: posting.scale * 0.94 };
+  return (
+    <motion.div
+      className="absolute top-0 left-0 will-change-transform"
+      style={{
+        width: w,
+        height: LOOP_CARD_H,
+        originX: 0,
+        originY: 0,
+        zIndex: fit ? 10 - posting.fit : 1,
+      }}
+      initial={hidden}
+      animate={pose}
+      transition={{
+        duration: phase === 0 ? 0.7 : 0.6,
+        ease: [0.16, 1, 0.3, 1],
+        delay: phase === 0 ? index * 0.06 : fit ? posting.fit * 0.08 : 0,
+      }}
+    >
+      <div className="flex h-full items-center gap-1.5 rounded-xl bg-white px-1.5 shadow-[0_14px_30px_-18px_rgb(16_48_94/0.5)] ring-1 ring-slate-900/5">
+        <FaviconLogo domain={posting.domain} eager className="size-6 shrink-0 rounded-md" />
+        <span className="min-w-0 flex-1">
+          {/* Two lines for the title, so it is read whole, not cut short;
+              the score sits by the company, out of the title's way. */}
+          <span className="text-ink line-clamp-2 text-[12px] leading-[15px] font-semibold">
+            {posting.title}
+          </span>
+          <span className="flex items-center gap-1.5">
+            <span className="text-ink-muted truncate text-[11px]">{posting.company}</span>
+            {fit && (
+              <motion.span
+                className={cn(
+                  "shrink-0 rounded px-1 text-[10.5px] leading-4 font-bold ring-1 ring-inset",
+                  scoreTone(posting.score),
+                )}
+                initial={false}
+                animate={{ opacity: phase >= 1 ? 1 : 0 }}
+                transition={{ duration: 0.3, delay: phase >= 1 ? 0.5 + posting.fit * 0.1 : 0 }}
+              >
+                {posting.score}%
+              </motion.span>
+            )}
+          </span>
+        </span>
+      </div>
+    </motion.div>
+  );
+}
+
+/** With reduced motion: the same story, still. */
 function StillBridge() {
   const fit = POSTINGS.filter((posting) => posting.fit >= 0).sort((a, b) => a.fit - b.fit);
   return (

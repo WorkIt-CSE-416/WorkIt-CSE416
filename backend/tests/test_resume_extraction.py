@@ -3,7 +3,7 @@ from io import BytesIO
 
 from docx import Document
 
-from app.routers.resumes import _extract_docx_text
+from app.services.text_extraction import extract_docx_text as _extract_docx_text
 
 
 def _docx_bytes(doc) -> bytes:

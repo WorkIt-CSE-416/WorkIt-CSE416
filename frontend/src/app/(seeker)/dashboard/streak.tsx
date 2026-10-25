@@ -2,6 +2,7 @@
 
 import { useEffect, useLayoutEffect, useMemo, useRef, useState, useSyncExternalStore } from "react";
 
+import { Skeleton } from "@/components/shadcn/skeleton";
 import { Badge } from "@/components/ui/badge";
 import { SegmentedToggle } from "@/components/ui/segmented-control";
 import { cn } from "@/lib/cn";
@@ -314,29 +315,68 @@ type StatBlock = { label: string; value: string; unit: string; sub: string };
 
 /**
  * One number in the row under the heat map, in a recessed well
- * (--color-well) like the match rail's: its label and its dates in a pill
- * on one line over it, as a headline tile sets its label and ring, and its
- * unit beside it. The Dashboard draws every date in a pill
- * (docs/screens.md). The pill sat under the figure until the section had
- * to fit a 1280 x 720 window; it wraps under the label where the well is
- * narrow. They were open text in ink-muted under the figure, which
+ * (--color-well) like the match rail's: its label over it, its unit beside
+ * it, and its dates in a pill under it, each on a line of its own, so the
+ * four wells keep one shape whatever their words. The Dashboard draws every
+ * date in a pill (docs/screens.md). The pill sat on the label's line for a
+ * while, to save height, and wrapped under "Current Streak" alone, which
+ * made that well taller than its three siblings. They were open text in ink-muted under the figure, which
  * read as loose lines rather than four readings of one chart. A block with
  * nothing to date says so in the pill ("None yet", "Apply today"), so the
  * four keep one shape.
  */
 function Stat({ label, value, unit, sub }: StatBlock) {
   return (
-    <div className="bg-well rounded-card flex min-w-0 flex-col gap-1 px-4 py-3">
-      <div className="flex flex-wrap items-center justify-between gap-x-2 gap-y-1">
-        <p className="text-note text-ink-meta">{label}</p>
-        <Badge variant="tag" pill>
-          {sub}
-        </Badge>
-      </div>
+    <div className="bg-well rounded-card flex min-w-0 flex-col items-start gap-1.5 px-4 py-3">
+      <p className="text-note text-ink-meta">{label}</p>
       <p className="flex items-baseline gap-1.5">
         <span className="text-display text-ink">{value}</span>
         <span className="text-body text-ink-muted">{unit}</span>
       </p>
+      <Badge variant="tag" pill>
+        {sub}
+      </Badge>
     </div>
+  );
+}
+
+/**
+ * Activity while the tracker loads (the Dashboard streams it in its own
+ * <Suspense>, and its loading.tsx draws it too): the heading, the view
+ * switch's pill, the heat map's room at its default 150px (--streak-h2's
+ * fallback, which the canvas resets to the map's own height on mount) and
+ * the four wells, each with its label, figure and dates pill as bars of
+ * those lines' heights. The section is the page's last, so a map a few
+ * pixels taller than 150 moves nothing under it.
+ */
+export function StreakSkeleton({ className }: { className?: string }) {
+  return (
+    <SectionCard
+      aria-labelledby="streak"
+      aria-busy="true"
+      className={cn("@container/streak", className)}
+    >
+      <div className="flex flex-wrap items-center justify-between gap-3">
+        <h2 id="streak" className="text-subtitle text-ink font-medium">
+          Activity
+        </h2>
+        <Skeleton className="h-9 w-20 rounded-full" />
+      </div>
+      <div aria-hidden="true" className="mt-3">
+        <Skeleton className="h-[150px] w-full" />
+        <div className="grid grid-cols-2 gap-3 pt-3 @2xl/streak:grid-cols-4">
+          {Array.from({ length: 4 }, (_, i) => (
+            <div
+              key={i}
+              className="bg-well rounded-card flex flex-col items-start gap-1.5 px-4 py-3"
+            >
+              <Skeleton className="bg-panel h-4 w-20" />
+              <Skeleton className="bg-panel h-8 w-14" />
+              <Skeleton className="bg-panel h-5 w-24 rounded-full" />
+            </div>
+          ))}
+        </div>
+      </div>
+    </SectionCard>
   );
 }

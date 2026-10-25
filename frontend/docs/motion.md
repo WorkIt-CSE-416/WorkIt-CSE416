@@ -52,7 +52,14 @@ moving at `/design-kit/motion`. The rules:
   `nav-back` or `nav-forward` (`<ShallowLink transitionType>`, which does what
   `<Link transitionTypes>` does for a real navigation), so the span slides
   the way time went (`step-back`, `step-forward`). Every `<ViewTransition>` here sets
-  `default="none"`, so it animates only for the change it names.
+  `default="none"`, so it animates only for the change it names. **`page-enter`
+  plays on soft navigations only** (KAN-368): on a hard load the streamed page
+  appears without it, because the seeker layout's `display: contents` div
+  sits between the Suspense boundary and the `<ViewTransition>`, and React
+  plays an enter on a reveal only when no DOM node sits between them. Without
+  the div every streamed hard load rose in, where the page used to simply be
+  there. Do not remove it or move it outside the boundary. The Jobs page gets
+  the normal `page-enter` on a sidebar click, with no special case.
 - **A choice the page can already draw never waits on the server.** The
   Dashboard's range, the Applications layout and the Calendar's view and
   span move the query in place (`components/shallow-routing.tsx`): the
@@ -68,7 +75,18 @@ moving at `/design-kit/motion`. The rules:
   Applications filter) stays a real navigation. Auto Apply's Live Activity
   filter and sort move in place too, since the page holds every row; a
   filter tick passes `{ replace: true }` to the push, which swaps the
-  address bar's entry, so ten ticks are not ten steps of Back.
+  address bar's entry, so ten ticks are not ten steps of Back. **A shallow
+  push (`useShallowPush`) is itself a transition**, so React does not commit
+  it while a `<ViewTransition>` runs: one made just after a navigation lands
+  about 0.4 s later, after `page-enter` ends, and so does a Suspense reveal
+  (KAN-368). Code that writes the address after a navigation
+  (`jobs/canonical-url.tsx`) must accept that the bare address is current for
+  that long. Never "fix" the delay with a raw `history.replaceState`: it
+  bypasses `ShallowRouting`'s held query. The application tabs move this way
+  too (`docs/screens.md`). **Still open:** when a feed's data lands near the
+  end of `page-enter`, the reveal often comes about 300 ms after the stream
+  ended (React's retry throttle with the view-transition hold is the likely
+  cause, unconfirmed).
 - **"Transition was aborted because of invalid state. Document hidden"
   is harmless.** Chrome refuses a view transition in a hidden tab (a
   background tab, or the desktop app's Browser pane while it is not shown),

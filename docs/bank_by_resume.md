@@ -17,8 +17,8 @@ that is accepted.
 ## Goal
 
 A student with three uploads and two built resumes should see one resume's
-facts at a time. The Experiences view's **resume dropdown** lists every
-uploaded, base and tailored resume and shows only what the picked one
+facts at a time. The Experiences view's **Showing card** picks one
+uploaded, base or tailored resume and shows only what the picked one
 holds. Each upload's entries are its own, so an edit on one upload's view
 never changes another's, and an import runs no duplicate check.
 
@@ -75,7 +75,7 @@ never changes another's, and an import runs no duplicate check.
 | Action | Route | What it does to the bank |
 |---|---|---|
 | **Upload** | `POST /applicants/{id}/resumes` | Inserts every entry and skill the reading found, owned by the new row. Flush the `Resume` row first (the entries point at it). |
-| **Import Updated Resume** | `PUT /applicants/{id}/resumes/{resume_id}` | **Replaces** the upload's entries and skills: delete what it owns, insert the new reading. No warning. |
+| **Import Updated Resume** (the resume picker's replace at the limit; off the Resumes page's rows since KAN-362) | `PUT /applicants/{id}/resumes/{resume_id}` | **Replaces** the upload's entries and skills: delete what it owns, insert the new reading. No warning. |
 | **Import Again / Read It With AI** | `POST /applicants/{id}/bank/import` | **Replaces**, as Import Updated Resume does. |
 | **Delete an upload** | `DELETE /applicants/{id}/resumes/{resume_id}` | Deletes its entries and skills (cascade). The confirm is unchanged. |
 | **Add an entry or skill** | the bank's create routes | Under an upload pick: owned by that upload. Under a built resume pick: unowned, and shown on that built resume (a shown choice row at the end of its section), so it stays in view. |
@@ -99,8 +99,8 @@ never changes another's, and an import runs no duplicate check.
 ## The API
 
 `GET /applicants/{id}/bank` keeps its shape: `resume_ids` on each entry and
-skill, and `resumes` for the dropdown (kind, name, posting, primary,
-created_at).
+skill, and `resumes` for the Showing card (kind, name, posting, primary,
+created_at, and `edited_at` for the resume table's date, KAN-361).
 
 - **`resume_ids`** is the owning upload (at most one), then the built
   resumes that show the item. `load_holdings` reads the owner from the
@@ -111,35 +111,70 @@ created_at).
 
 ## The Experiences view
 
-- **The dropdown lists resumes only**, grouped Uploaded and Built. **All
-  Experiences and Not From an Upload are removed.** The options carry no
-  counts.
+- **The Showing card names the pick** (KAN-361, KAN-363): the resume's
+  name, its type or the posting it was tailored for, the Primary star, and
+  **Change Resume**, drawn as the Resumes page draws a resume. Change Resume opens **Choose a Resume to Show**, the resume
+  table Auto Apply, Tailor and Did You Apply? share (KAN-360): Generated
+  or Uploaded, a search, names that wrap. A click or the arrow keys move
+  the pick, and **Show Resume** applies it; Cancel leaves the page as it
+  was. **Not From an Upload** is a row under the table, with its count,
+  while anything no upload owns exists or while it is the pick: it is no
+  resume, so it stays out of the shared table, but it shares the dialog's
+  radio group.
+  **All Experiences is removed.** The table carries no counts; the section
+  nav shows them for the pick.
+  - It replaced a dropdown (2026-10-24) that put uploads, built resumes and
+    Not From an Upload in one flat list, with no search, long names cut
+    short, and one more line for every tailored resume.
+  - The bar it became (KAN-361) was loose text, with Change Resume at the
+    page's far edge and Not From an Upload as a link under it; it looked
+    like no resume anywhere else in the app (KAN-363, 2026-10-24).
+- **The section nav** (KAN-349) sits under the Showing card: a sticky row
+  of links to the seven section cards, each with its count under the
+  pick, the card in view lit. A click glides to that card.
 - **The page opens on the primary resume**, else the newest of any kind.
   A `?resume=` that names no listed resume (a deleted one, or the old
-  `all` and `none`) opens the same way. With no resume at all, there is no
-  dropdown and the page shows the whole bank.
-- **Unowned entries** show only under a built resume that shows them.
-  - **Tailor's "Have you used X?"** needs nothing more: Yes adds the skill
-    and an accepted "show skill" change, and Done shows it on the tailored
-    resume, so it appears under that resume. A Yes with no Done leaves
-    the skill in the bank and on no resume, as today.
-  - **Intake's entries** and the multi-source entries the migration left
-    unowned show nowhere until a built resume shows them. Accepted for
-    now: they still reach Generate and every reader.
-- **Add** saves into the picked resume (above, "Writes") and stays in
-  view, so the "Saved to your bank. It's under All Experiences…" notice
+  `all`) opens the same way; `none` opens Not From an Upload. With no
+  resume at all, there is no Showing card and the page shows the whole
+  bank.
+- **Unowned entries** show under Not From an Upload, and under any built
+  resume that shows them.
+  - **Intake's entries**, a Tailor "Have you used X?" skill with no Done,
+    and the multi-source entries the migration left unowned land there.
+    Removing that pick (2026-10-23) left them under no pick: on
+    2026-10-24 the shared database held 96 such entries and 242 skills
+    for 8 students, which every reader still used and no student could
+    see, edit or delete. The pick came back for that.
+- **Add** (each card's +) saves into the picked resume (above, "Writes"), or into no
+  upload under Not From an Upload, and stays in view, so the "Saved to your bank. It's under All Experiences…" notice
   goes.
-- **"Also used in" names built resumes only.** An upload's entry is never
-  on another upload, but a built resume may show it, and an edit changes
-  it there too.
+- **The editor names the other built resumes a save changes** (KAN-363):
+  "Saving also changes this entry on Resume #3 and The Allen Institute…"
+  (no full stop), over the editor's buttons, with two names at most and
+  then "and N more".
+  Each name, with a document mark, is a link that shows that resume on
+  this page (`?resume=`), as Change Resume would, with the editor still
+  open. An upload's entry is never on another upload, so uploads are never
+  named. The entry's view names none: it was an "Also used in …" line
+  under the title, then an "Also on" pill at its foot, and Generate puts
+  most entries on every base resume, so nearly every entry carried it,
+  long before the student edited, when it matters.
+- **The Showing card opens its resume**, as a Resumes row does: a built
+  resume in the editor, an upload on its own page (KAN-366), and the Back
+  of either returns here. The row's other actions stay on Resumes: the card says what the page shows,
+  and a delete from it would leave the page on a resume that is gone.
 - **The old-upload prompt** ("This resume has no entries in your bank
   yet. [Import Again]") shows for an upload that owns nothing. Import
   Again writes that upload's own entries.
-- **Delete Entry** deletes that one row. Its confirm still counts the
-  built resumes that show it.
+- **Delete Entry** deletes that one row, from the foot of the entry's
+  editor (KAN-363), which the entry's pencil opens in its card's edit
+  mode. Its confirm still counts the built resumes that show it.
+- **Clear All** (KAN-352), in a card's edit mode, deletes every row a card shows, as Delete Entry
+  does each one. Under a built resume's pick those rows belong to uploads,
+  so the confirm names the uploads that lose them too.
 - **Scout's walk** (intake marking an entry) switched to All Experiences
   when the pick hid the entry. With that option gone, it switches to a
-  resume that holds the entry, or leaves the pick alone when none does.
+  resume that holds the entry, else to Not From an Upload.
 
 ## What changes from the first design
 
@@ -148,7 +183,7 @@ created_at).
 | `merge_import`'s merge (`find_duplicate`, `_merge_entry`) | an upload never merges |
 | `bank_entry_sources`, `bank_skill_sources`, `_add_sources`, `clear_sources` | the owner column replaces them |
 | Import Again "only adds" | it replaces the upload's entries |
-| All Experiences and Not From an Upload | the view shows one resume at a time |
+| All Experiences | the view shows one resume at a time; Not From an Upload stays for what no upload owns |
 | ADR 0003's merge rule and "delete leaves the bank" | ADR 0005 |
 
 Stays: Generate, Tailor's ranking, Scout, the recommender, intake and the
@@ -185,8 +220,9 @@ summary (`lib/import-summary.ts`) loses "filled in", since nothing merges.
    Add under an upload owns the entry, under a built resume shows it
    there; the skill index allows one name per upload; a Tailor run on an
    upload leaves its entries as they were.
-5. **Frontend**: drop All Experiences and Not From an Upload from
-   `holdings.ts` and `resume-picker.tsx`; Add sends the pick; "Also used
+5. **Frontend**: drop All Experiences from `holdings.ts` and
+   `resume-picker.tsx` (Not From an Upload was dropped too, then brought
+   back on 2026-10-24); Add sends the pick; "Also used
    in" from built resumes; the Scout switch; the import summary.
 6. **Migration 2**, after the deploy: drop the link tables.
 7. **Docs**: `backend/CLAUDE.md` and `frontend/CLAUDE.md` lose the merge

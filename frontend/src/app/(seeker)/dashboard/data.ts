@@ -1,5 +1,5 @@
 import { getApplications, getNow, getTracker } from "../applications/data";
-import { getGoodMatchDates } from "../jobs/listings";
+import { getMatchDates } from "../jobs/listings";
 import { upcomingEvents, type EventKind, type TrackerEvent } from "../tracker";
 import { rangeDays, type RangeKey } from "./range";
 
@@ -23,7 +23,7 @@ const DAY_MS = 86_400_000;
 
 /* Headline numbers ------------------------------------------------------- */
 
-export type StatKey = "goodMatches" | "saved" | "applied" | "interviewing";
+export type StatKey = "strongMatches" | "saved" | "applied" | "interviewing";
 
 export type DashboardStat = {
   key: StatKey;
@@ -39,37 +39,40 @@ export type DashboardStat = {
   href: string;
 };
 
-/** The lowest score Good Matches counts: Good Match and up in @/lib/match. */
-const GOOD_MATCH = 65;
+/** The lowest score Strong Matches counts: the Strong Match band and up in
+ *  @/lib/match. It counted from 65, Good Match, while the tile was named
+ *  Strong Matches; renamed Strong Matches, it counts that band, so a 70% job
+ *  never sits under a label its own badge contradicts. */
+const STRONG_MATCH = 80;
 
-/** Where the Jobs page shows what Good Matches counts, best first. Its Date
+/** Where the Jobs page shows what Strong Matches counts, best first. Its Date
  *  Posted filter offers a week and a month but no season, so Season opens
  *  the whole Best Match list. */
-const GOOD_MATCHES_HREF: Record<RangeKey, string> = {
+const STRONG_MATCHES_HREF: Record<RangeKey, string> = {
   week: "/jobs?sort=match&posted_within=7",
   month: "/jobs?sort=match&posted_within=30",
   season: "/jobs?sort=match",
 };
 
-/** Under Good Matches in place of a change. */
-const GOOD_MATCHES_NOTE: Record<RangeKey, string> = {
+/** Under Strong Matches in place of a change. */
+const STRONG_MATCHES_NOTE: Record<RangeKey, string> = {
   week: "Posted this week",
   month: "Posted in 30 days",
   season: "Posted since Aug 4",
 };
 
 /**
- * The four headline numbers for every range, in tile order: Good Matches,
+ * The four headline numbers for every range, in tile order: Strong Matches,
  * Saved, Applied, Interviewing. Each tile links to the page that lists
  * what it counts (KAN-342).
  *
  * THE TRACKER'S TILES ARE NAMED FOR ITS STAGES, the Status filter each one
  * opens: Saved, Applied, Interviewing. Applied was "Applications", the same
- * word as the page it opened (now the Tracker), and Interviewing was
+ * word as the page it opened (now the Applications Tracker), and Interviewing was
  * "Interviews".
  *
  * THE ORDER IS THE SEARCH, LEFT TO RIGHT: find a job, save it, apply, hear
- * back, the order of the Tracker's stages and the landing page's
+ * back, the order of the Applications Tracker's stages and the landing page's
  * route. The left half is what is left to do and the right half how it is
  * going, which holds in the 2 x 2 grid on a phone too. Interviewing, a dash
  * until the tracker stores it, sits last as the outcome rather than as a gap
@@ -82,15 +85,16 @@ const GOOD_MATCHES_NOTE: Record<RangeKey, string> = {
  * user moved it, since a seeker comes to the Dashboard to find what to apply
  * to next. A violet 0 is the cost on a week with no good matches.
  *
- * Good Matches is the job postings from the range that score Good Match or
- * better for this seeker (GOOD_MATCH), from the Best Match scores
+ * Strong Matches is the job postings from the range that score Strong Match
+ * or better for this seeker (STRONG_MATCH), from the Best Match scores
  * (GET /jobs/recommended). It replaced New Roles, a count of every posting
  * in the feed, which said nothing about the seeker and drew a red change
  * whenever employers posted less. It shows no change: the score fades with
  * a posting's age, so last week's postings would always count fewer. With
  * an empty experience bank there is nothing to score, so the tile asks for
- * the bank instead. The Dashboard lists no jobs of its own: the tile opens
- * the Jobs page in Best Match order, where those jobs come first.
+ * the bank instead. The tile opens the Jobs page in Best Match order, where
+ * those jobs come first; Top Matches under the numbers (./top-matches.tsx)
+ * lists the best twelve whatever their score.
  *
  * Applied counts the tracker's applications sent in the range, against
  * the same length of days before it. Saved is the seeker's live saved jobs
@@ -105,11 +109,11 @@ export async function getHeadline(): Promise<Record<RangeKey, DashboardStat[]>> 
   const now = getNow();
   const seasonDays = rangeDays("season", now);
   const [matched, tracker] = await Promise.all([
-    getGoodMatchDates(Math.max(30, seasonDays), GOOD_MATCH),
+    getMatchDates(Math.max(30, seasonDays), STRONG_MATCH),
     getTracker(),
   ]);
   /** Good matches posted in the last `days` days; null without scores. */
-  const goodMatches = (days: number) =>
+  const strongMatches = (days: number) =>
     Array.isArray(matched)
       ? matched.filter((at) => now.getTime() - Date.parse(at) < days * DAY_MS).length
       : null;
@@ -131,13 +135,16 @@ export async function getHeadline(): Promise<Record<RangeKey, DashboardStat[]>> 
 
   const tiles = (range: RangeKey): DashboardStat[] => [
     {
-      key: "goodMatches",
-      label: "Good Matches",
-      value: goodMatches(rangeDays(range, now)),
+      key: "strongMatches",
+      label: "Strong Matches",
+      value: strongMatches(rangeDays(range, now)),
       previous: null,
       ...(matched === "empty"
         ? { note: "Add your experience first", href: "/bank" }
-        : { note: matched ? GOOD_MATCHES_NOTE[range] : undefined, href: GOOD_MATCHES_HREF[range] }),
+        : {
+            note: matched ? STRONG_MATCHES_NOTE[range] : undefined,
+            href: STRONG_MATCHES_HREF[range],
+          }),
     },
     {
       key: "saved",

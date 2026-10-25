@@ -120,6 +120,10 @@ export async function getResumeFileUrl(
   }
 }
 
+// An uploaded resume's view page reads through readUploadedResume in
+// ./resume-queries.ts, a server-only module: a render-only read exported
+// from here would be a public endpoint too.
+
 // The API reads the file itself and writes what it read into the experience
 // bank; the client never sends parsed content. A file whose text the student
 // has already uploaded is refused (KAN-267): `error` is "Duplicate Resume

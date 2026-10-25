@@ -74,10 +74,12 @@ seven sections, Leadership & Activities and Awards included.
 looks at another resume's entries, so the same job on two uploads is two
 rows. **Import Again** (intake's Use One I Uploaded, the Jobs page's
 empty-bank card) reads a stored upload again and **replaces** what it owns,
-so a parser fix reaches old uploads. **Import Updated Resume**, on each
-upload's row on the Resumes view, takes a newer version of that file: it
-replaces the file on the same row and the upload's entries with the new
-reading. Deleting an upload deletes its entries and skills. Until 2026-10-23
+so a parser fix reaches old uploads. **Import Updated Resume** (`PUT`, now only the resume picker's replace at
+the 5-upload limit; on each upload's row on the Resumes view until
+KAN-362) takes a newer version of that file: it replaces the file on the
+same row and the upload's entries with the new reading. On the Resumes
+view a newer version is a delete and an upload, which leaves the bank the
+same. Deleting an upload deletes its entries and skills. Until 2026-10-23
 an import merged into the entry the bank already had (ADR 0003).
 
 **Each import records what it found** (KAN-343, `bank_by_resume.md`): a

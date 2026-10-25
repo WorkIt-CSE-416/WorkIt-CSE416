@@ -19,7 +19,7 @@ export default function ApplicationNotFound() {
         action={
           <ButtonLink href="/applications" variant="secondary" size="sm">
             <ArrowLeftIcon className="size-3.5" />
-            Back to Tracker
+            Back to Applications Tracker
           </ButtonLink>
         }
       >

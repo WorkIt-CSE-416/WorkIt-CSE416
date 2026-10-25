@@ -20,8 +20,9 @@ export const metadata: Metadata = {
 /**
  * /resumes, the Resumes view of Resumes & Experiences (KAN-249; /bank is
  * the other view, behind the header's switcher): the base resumes the bank
- * makes (KAN-207) and the student's uploads, in one card with the upload
- * dropzone (My Profile's until 2026-10-18). The Sent list (KAN-208) sat
+ * makes (KAN-207), the tailored ones and the student's uploads (My
+ * Profile's until 2026-10-18), in one scrolling list with a Type filter
+ * (KAN-362, ./built-resumes.tsx). The Sent list (KAN-208) sat
  * under them until 2026-10-18. They sat at the foot of the Experience Bank until KAN-249; there, a
  * student editing entries scrolled past every section to reach a resume. Each resume opens
  * in the editor at /resumes/[resumeId], so the editor's way back lands here.

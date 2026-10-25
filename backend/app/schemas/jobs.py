@@ -175,6 +175,20 @@ class ScoredJob(JobListing):
     highlights: list[Highlight] = []
 
 
+class SearchFact(BaseModel):
+    """GET /jobs/search-facts: a filter a search's words set ("intern",
+    "remote", "summer 2027"), which /search shows so the seeker can see and
+    drop it (KAN-308, docs/search.md)."""
+
+    facet: Literal["level", "work_style", "start_term"]
+    # The filter's own key: "student", "new_grad", "remote", "summer-2027",
+    # or a bare year ("2027").
+    value: str
+    # The search as typed with this fact's words taken out: the ?q= its ×
+    # goes to. Empty when the words were the whole search.
+    without: str
+
+
 class JobCount(BaseModel):
     """GET /jobs/count: how many jobs the filters keep, not capped by a limit."""
 

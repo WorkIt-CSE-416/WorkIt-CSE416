@@ -20,6 +20,9 @@ POST   /applicants/{id}/bank/entries             EntryCreate -> 201 EntryRespons
        ?allow_duplicate=true saves it anyway ("Save as new").
 PATCH  /applicants/{id}/bank/entries/{entry_id}  EntryUpdate -> EntryResponse
 DELETE /applicants/{id}/bank/entries/{entry_id}  -> 204 (its bullets too)
+POST   /applicants/{id}/bank/entries/delete      DeleteMany -> 204
+       Clear All (KAN-352): the entries a section shows, all or none. One
+       id that is not the applicant's answers 404 and deletes nothing.
 GET    /applicants/{id}/bank/entries/{entry_id}/resumes -> {"built_resumes": n}
        how many built resumes show the entry, for the delete confirm (story 18)
 POST   /applicants/{id}/bank/entries/{entry_id}/bullets  BulletCreate -> 201 BulletResponse (appended)
@@ -29,6 +32,7 @@ POST   /applicants/{id}/bank/skills              SkillCreate -> 201 SkillRespons
        ?resume_id= as for entries; 409 if the owner has the name already
 PATCH  /applicants/{id}/bank/skills/{skill_id}   SkillUpdate -> SkillResponse (409 if the name exists)
 DELETE /applicants/{id}/bank/skills/{skill_id}   -> 204
+POST   /applicants/{id}/bank/skills/delete       DeleteMany -> 204, as entries/delete
 POST   /applicants/{id}/bank/import              ImportRequest -> ImportResponse
        Import Again: reads one uploaded resume (resume_id, else the default
        resume, else the newest) with the heuristic parser and writes it into
@@ -46,9 +50,10 @@ POST   /applicants/{id}/bank/import              ImportRequest -> ImportResponse
        is down or answers in the wrong shape, and then writes nothing.
 
 GET /bank also sends `resumes` (every uploaded, base and tailored resume,
-with `kind`, `name`, a tailored one's `posting` and the starred one's
-`primary`) and, on each entry and skill, `resume_ids`: the upload that owns
-it, if any, then the built resumes that show it (KAN-343, ADR 0005).
+with `kind`, `name`, a tailored one's `posting`, the starred one's
+`primary` and `edited_at`, the resume table's date) and, on each entry
+and skill, `resume_ids`: the upload that owns it, if any, then the built
+resumes that show it (KAN-343, ADR 0005).
 """
 
 import logging
@@ -60,15 +65,14 @@ from fastapi import APIRouter, Depends, HTTPException, Response
 from fastapi.exceptions import RequestValidationError
 from fastapi.responses import JSONResponse
 from pydantic import ValidationError
-from sqlalchemy import select
 from sqlalchemy.exc import SQLAlchemyError
 from sqlalchemy.ext.asyncio import AsyncSession
 from workit_scout.llm import LLM, ScoutUnavailable
 
 from app.db import get_session
 from app.deps import get_current_account, owned_applicant
-from app.models.profiles import Applicant_Profile
 from app.models.resume import Resume
+from app.queries.bank import owned_upload_id
 from app.routers.scout import get_llm
 from app.schemas.auth import AuthenticatedAccount
 from app.schemas.bank import (
@@ -76,6 +80,7 @@ from app.schemas.bank import (
     BulletCreate,
     BulletResponse,
     BulletUpdate,
+    DeleteMany,
     DuplicateEntry,
     EntryCreate,
     EntryResponse,
@@ -145,9 +150,7 @@ async def _target(
     NotFound for a resume that is not the applicant's."""
     if resume_id is None:
         return None, None
-    upload = await session.scalar(
-        select(Resume.id).where(Resume.id == resume_id, Resume.applicant_id == applicant_id)
-    )
+    upload = await owned_upload_id(session, applicant_id, resume_id)
     if upload is not None:
         return upload, None
     await built_resumes.get_resume(session, applicant_id, resume_id)
@@ -208,6 +211,17 @@ async def delete_entry(
 ) -> Response:
     async with _writing(session):
         await service.delete_entry(session, applicant_id, entry_id)
+    return Response(status_code=204)
+
+
+@router.post("/entries/delete", status_code=204)
+async def delete_entries(
+    body: DeleteMany,
+    applicant_id: uuid.UUID = Depends(owned_applicant),
+    session: AsyncSession = Depends(get_session),
+) -> Response:
+    async with _writing(session):
+        await service.delete_entries(session, applicant_id, body.ids)
     return Response(status_code=204)
 
 
@@ -303,16 +317,20 @@ async def delete_skill(
     return Response(status_code=204)
 
 
+@router.post("/skills/delete", status_code=204)
+async def delete_skills(
+    body: DeleteMany,
+    applicant_id: uuid.UUID = Depends(owned_applicant),
+    session: AsyncSession = Depends(get_session),
+) -> Response:
+    async with _writing(session):
+        await service.delete_skills(session, applicant_id, body.ids)
+    return Response(status_code=204)
+
+
 async def _resume_to_import(session: AsyncSession, applicant_id: uuid.UUID, resume_id: uuid.UUID | None) -> Resume:
-    mine = select(Resume).where(Resume.applicant_id == applicant_id)
-    if resume_id is not None:
-        resume = await session.scalar(mine.where(Resume.id == resume_id))
-    else:
-        default_id = await session.scalar(
-            select(Applicant_Profile.default_resume_id).where(Applicant_Profile.id == applicant_id)
-        )
-        resume = default_id and await session.scalar(mine.where(Resume.id == default_id))
-        resume = resume or await session.scalar(mine.order_by(Resume.created_at.desc()).limit(1))
+    from app.queries.bank import resume_to_import
+    resume = await resume_to_import(session, applicant_id, resume_id)
     if resume is None:
         raise HTTPException(404, "Upload a resume to import it")
     return resume

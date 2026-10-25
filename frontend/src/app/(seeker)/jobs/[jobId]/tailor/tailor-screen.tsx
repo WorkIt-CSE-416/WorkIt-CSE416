@@ -240,7 +240,7 @@ function PickResume({
         <SparkleIcon /> {running ? "Reading…" : label}
       </Button>
       <Dialog open={open} onOpenChange={setOpen}>
-        {/* As wide as "Did You Apply?", for the same two lists side by side. */}
+        {/* As wide as "Did You Apply?", for the same resume table. */}
         <DialogContent className="max-h-[90vh] overflow-y-auto sm:max-w-3xl">
           <DialogHeader>
             <DialogTitle className="text-subtitle font-semibold">

@@ -192,7 +192,11 @@ Find files with a directory listing; these are the rules for where code goes.
   resume step (`prepare_resume`) keeps the file through
   `services/sent_resumes.py`, never Storage or the renderer itself, so a
   resume auto apply sends is a sent resume under Apply's rules (the repeat
-  hash, the file kept while a row uses it). **Which job postings it takes is
+  hash, the file kept while a row uses it). **A student's own pick of a queued
+  job's resume** (`choose_resume`, `PUT .../applications/{job_id}/resume`,
+  KAN-359) is kept the same way, as the sent resume the application names,
+  and `prepare_resume` sends it in place of `pick_resume`'s (`chosen_resume`):
+  no column of its own. Tests: `tests/test_auto_apply_resume.py`. **Which job postings it takes is
   one list, `app/auto_apply/hosts.py`** (Greenhouse for now): the matches
   and `queue_applications` require its SQL form (`AUTO_APPLY_SUPPORTED` in
   `queries/jobs/filters.py`) and `JobListing.auto_apply` its Python form,
@@ -222,6 +226,9 @@ Find files with a directory listing; these are the rules for where code goes.
   bank embedding on every entry, bullet or skill change; a route or script
   that writes `bank_*` rows itself leaves the recommender on a stale
   embedding. Schema rationale: `../docs/resume.md`, "The experience bank".
+  Clear All (KAN-352) is `delete_entries` / `delete_skills`: all or none,
+  a 404 when any id is not the applicant's, and the same cascades as one
+  delete (bullets, built resumes' choice rows), in one statement.
 - **The recommender and Scout read the bank, never an uploaded resume**
   (KAN-212). `GET /jobs/recommended` scores against the bank and its
   embedding (`app/services/matching/CLAUDE.md`); Scout's facts come from
@@ -693,7 +700,19 @@ Find files with a directory listing; these are the rules for where code goes.
   lazy loading fails in async code with `MissingGreenlet`: load relationships
   explicitly with `selectinload()`.
 - **Comments explain why.** A non-obvious setting gets a sentence on what
-  breaks without it.
+  breaks without it. Moving code to another layer moves its comments with
+  it: KAN-260's move out of the routers dropped about twenty, put back in
+  a follow-up.
+- **A PR that removes imports is checked against today's main before it
+  merges.** CI runs on the PR's own head: KAN-260 dropped `select` from
+  `routers/bank.py`, KAN-343 added a use of it, each passed alone, and the
+  merged `main` raised NameError on every Add under a resume pick
+  (2026-10-24). Merge `main` into the branch and run `uv run ruff check .`
+  first; F821 catches it. The same goes the other way: two fixes for that
+  bug merged ten seconds apart, one restoring the import and one moving
+  the query out (`queries/bank.py`'s `owned_upload_id`), and `main` then
+  failed lint on the unused import (F401). Check `main` once more right
+  before pressing Merge.
 - **The app starts with no credentials.** `/health` works without the root
   `.env`; only `/health/db` and routes that read real data need it. That lets
   someone work on one half without the other, and makes a failure point at one

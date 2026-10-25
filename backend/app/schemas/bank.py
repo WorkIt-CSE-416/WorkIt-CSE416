@@ -173,6 +173,12 @@ class SkillUpdate(BaseModel):
     group: Name | None = None
 
 
+class DeleteMany(BaseModel):
+    """Clear All's body (KAN-352): the entries or skills a section shows."""
+
+    ids: list[UUID] = Field(min_length=1, max_length=500)
+
+
 class SkillResponse(BaseModel):
     model_config = ConfigDict(from_attributes=True)
 
@@ -184,7 +190,7 @@ class SkillResponse(BaseModel):
 
 
 class BankResume(BaseModel):
-    """One resume in the Experiences view's dropdown (KAN-343)."""
+    """One resume in the Experiences view's resume table (KAN-343, KAN-361)."""
 
     id: UUID
     kind: Literal["uploaded", "base", "tailored"]
@@ -196,6 +202,9 @@ class BankResume(BaseModel):
     # When it was uploaded or made: the page opens on the newest when none
     # is starred.
     created_at: datetime.datetime
+    # The table's date (KAN-361): a built resume's last edit, an upload's
+    # upload time (Import Updated Resume resets it).
+    edited_at: datetime.datetime
 
 
 class BankResponse(BaseModel):

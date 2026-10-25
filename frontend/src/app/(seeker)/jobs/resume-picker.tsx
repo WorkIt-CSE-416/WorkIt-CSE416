@@ -1,19 +1,29 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useEffect, useState, type ReactNode } from "react";
+
+import { StarIcon } from "@phosphor-icons/react/ssr";
 
 import { ResumeUpload } from "@/components/resume-upload";
 import { Button } from "@/components/ui/button";
+import { SearchField } from "@/components/ui/search-field";
+import { SegmentedToggle } from "@/components/ui/segmented-control";
+import { cn } from "@/lib/cn";
 import { listBuiltResumes } from "@/lib/built-resume-actions";
 import { listResumes, replaceResume, uploadResume, type ResumeItem } from "@/lib/resume-actions";
 import { MAX_UPLOADS } from "@/lib/resume-limits";
 
+import { LocalDate } from "../local-time";
+
 /**
- * The resume picker that "Did You Apply?" (./apply-button.tsx) and Tailor's
- * Pick a Resume (./[jobId]/tailor/tailor-screen.tsx) share: one job
- * posting's resume list and an upload with the Resumes page's rules
- * (KAN-267), so the two dialogs never drift apart on the limit, the
- * replace step or a duplicate.
+ * The resume picker that "Did You Apply?" (./apply-button.tsx), Tailor's
+ * Pick a Resume (./[jobId]/tailor/tailor-screen.tsx) and Up Next's Choose
+ * a Resume (../auto-apply/resume-dialog.tsx) share: one job posting's
+ * resume list and an upload with the Resumes page's rules (KAN-267), so
+ * the three dialogs never drift apart on the limit, the replace step or a
+ * duplicate. The Experiences view's Choose a Resume to Show
+ * (../bank/resume-bar.tsx, KAN-361) shows its table too, with no job
+ * posting: it builds its own `Choice` rows from the bank's resumes.
  */
 
 /** One resume the student can pick: a built resume (a base resume, or one
@@ -21,7 +31,14 @@ import { MAX_UPLOADS } from "@/lib/resume-limits";
 export type Choice = {
   key: string;
   label: string;
-  kind: string;
+  /** Base and Tailored are built resumes; the picker's Generated view. */
+  type: "Base" | "Tailored" | "Uploaded";
+  /** Tailored to the job posting this picker is for. */
+  forThisJob: boolean;
+  /** The posting a tailored resume was made for, "Title at Company". */
+  tailoredFor: string | null;
+  /** Last edited (built) or uploaded, for the table's date column. */
+  at: string | null;
   source: Source;
   isDefault: boolean;
 };
@@ -43,12 +60,12 @@ export async function loadChoices(
       .map((r) => ({
         key: `built:${r.id}`,
         label: r.name,
-        kind:
-          r.job_posting_id === jobId
-            ? "Tailored to this job"
-            : r.job_posting_id
-              ? "Tailored resume"
-              : "Built resume",
+        type: r.job_posting_id ? ("Tailored" as const) : ("Base" as const),
+        forThisJob: r.job_posting_id === jobId,
+        tailoredFor: r.job_posting_id
+          ? [r.posting_title, r.posting_company].filter(Boolean).join(" at ") || "A job posting"
+          : null,
+        at: r.edited_at,
         source: { builtResumeId: r.id },
         isDefault: r.is_default,
       })),
@@ -57,7 +74,10 @@ export async function loadChoices(
       .map((r) => ({
         key: `uploaded:${r.id}`,
         label: r.original_filename ?? "Uploaded resume",
-        kind: "Uploaded file",
+        type: "Uploaded" as const,
+        forThisJob: false,
+        tailoredFor: null,
+        at: r.created_at,
         source: { uploadedResumeId: r.id },
         isDefault: r.is_default,
       })),
@@ -68,14 +88,32 @@ export async function loadChoices(
 /** The pick a list starts on: the resume tailored to this job, else the
  *  default resume, else the first. */
 export function firstChoice(choices: Choice[]): Choice | undefined {
-  return (
-    choices.find((c) => c.kind === "Tailored to this job") ??
-    choices.find((c) => c.isDefault) ??
-    choices[0]
-  );
+  return choices.find((c) => c.forThisJob) ?? choices.find((c) => c.isDefault) ?? choices[0];
 }
 
-/** Generated Resumes and Uploaded Resumes side by side, one radio group. */
+type View = "built" | "uploaded";
+
+const VIEWS = [
+  { value: "built", label: "Generated" },
+  { value: "uploaded", label: "Uploaded" },
+];
+
+const viewOf = (key: string | null): View | null =>
+  key?.startsWith("built:") ? "built" : key?.startsWith("uploaded:") ? "uploaded" : null;
+
+/**
+ * The student's resumes as one table with a switcher (KAN-360): Generated
+ * (base and tailored resumes) or Uploaded, a search over the names and the
+ * postings they were tailored for, and one radio group, so a click on a
+ * row or the arrow keys move the pick. Two lists side by side, the shape
+ * before, ran long and read as a wall of boxes once a student had a few
+ * tailored resumes.
+ *
+ * It opens on the view that holds the pick, and follows the pick when the
+ * dialog changes it (an upload picks the new file, under Uploaded). The
+ * search and the view filter only what shows: the pick stays put, so
+ * switching views never drops it.
+ */
 export function ResumeLists({
   name,
   choices,
@@ -91,25 +129,162 @@ export function ResumeLists({
   picked: string | null;
   onPick: (key: string) => void;
 }) {
+  const [view, setView] = useState<View>(
+    viewOf(picked) ?? (choices.some((c) => c.type !== "Uploaded") ? "built" : "uploaded"),
+  );
+  // A pick made outside the table moves the view with it, worked out while
+  // rendering (React's way to adjust state to a prop), not in an effect.
+  const [seen, setSeen] = useState(picked);
+  if (picked !== seen) {
+    setSeen(picked);
+    const next = viewOf(picked);
+    if (next) setView(next);
+  }
+  const [query, setQuery] = useState("");
+
+  const inView = choices.filter((c) => (c.type === "Uploaded") === (view === "uploaded"));
+  const words = query.trim().toLowerCase().split(/\s+/).filter(Boolean);
+  const shown = inView.filter((c) => {
+    const text = `${c.label} ${c.tailoredFor ?? ""}`.toLowerCase();
+    return words.every((w) => text.includes(w));
+  });
+  const built = view === "built";
+
   return (
-    <div className="grid gap-4 md:grid-cols-2">
-      <ResumeChoices
-        legend="Generated Resumes"
-        name={name}
-        choices={choices.filter((c) => c.key.startsWith("built:"))}
-        empty={emptyBuilt}
-        picked={picked}
-        onPick={onPick}
-      />
-      <ResumeChoices
-        legend="Uploaded Resumes"
-        name={name}
-        choices={choices.filter((c) => c.key.startsWith("uploaded:"))}
-        empty={emptyUploaded}
-        picked={picked}
-        onPick={onPick}
-      />
+    <div className="flex min-w-0 flex-col gap-3">
+      <div className="flex flex-wrap items-center gap-3">
+        <SegmentedToggle
+          label="Resume Kind"
+          options={VIEWS}
+          value={view}
+          onValueChange={(v) => setView(v as View)}
+        />
+        <SearchField
+          id={`${name}-search`}
+          label="Search resumes"
+          placeholder={built ? "Search by name or job" : "Search by file name"}
+          value={query}
+          onChange={(e) => setQuery(e.target.value)}
+          className="min-w-48 flex-1"
+        />
+      </div>
+      {inView.length === 0 ? (
+        <p className="text-note text-ink-meta py-2">{built ? emptyBuilt : emptyUploaded}</p>
+      ) : (
+        // Its own scroll, so the table's head stays in view and the
+        // dialog's footer stays put under a long list.
+        <div className="border-border-subtle rounded-card max-h-scroll-box overflow-y-auto border">
+          <table className="w-full table-fixed border-collapse text-left">
+            <thead className="bg-well sticky top-0 z-1">
+              <tr>
+                <th scope="col" className={cn(TH, "w-10")}>
+                  <span className="sr-only">Pick</span>
+                </th>
+                <th scope="col" className={cn(TH, "pl-0")}>
+                  Resume
+                </th>
+                {built && (
+                  <>
+                    <th scope="col" className={cn(TH, "hidden w-24 sm:table-cell")}>
+                      Type
+                    </th>
+                    <th scope="col" className={cn(TH, "hidden w-48 sm:table-cell")}>
+                      Tailored For
+                    </th>
+                  </>
+                )}
+                <th scope="col" className={cn(TH, "w-28")}>
+                  {built ? "Last Edited" : "Uploaded"}
+                </th>
+              </tr>
+            </thead>
+            <tbody>
+              {shown.map((c) => (
+                <tr
+                  key={c.key}
+                  onClick={() => onPick(c.key)}
+                  className={cn(
+                    "border-border-subtle cursor-pointer border-t transition-colors duration-150",
+                    picked === c.key ? "bg-brand-tint" : "hover:bg-hover",
+                  )}
+                >
+                  <td className={cn(TD, "pr-0")}>
+                    <input
+                      type="radio"
+                      name={name}
+                      value={c.key}
+                      checked={picked === c.key}
+                      onChange={() => onPick(c.key)}
+                      aria-labelledby={`${name}-${c.key}`}
+                      className="accent-brand block"
+                    />
+                  </td>
+                  <td className={cn(TD, "pl-0")}>
+                    {/* It wraps, never truncates: two resumes tailored for
+                        one company differ only at the end of their names. */}
+                    <span id={`${name}-${c.key}`} className="text-ink break-words">
+                      {c.label}
+                    </span>
+                    {c.isDefault && (
+                      // The Resumes page's mark for the default resume
+                      // (PrimaryStar), with its name.
+                      <span className="text-brand text-meta ml-2 inline-flex items-center gap-1 align-middle whitespace-nowrap">
+                        <StarIcon aria-hidden weight="fill" className="size-3.5" />
+                        Primary
+                      </span>
+                    )}
+                    {/* Below sm the Type and Tailored For columns hide; their
+                        words sit under the name instead. With Type shown, the
+                        name kept about 60px on a phone and broke mid-word
+                        (KAN-361). */}
+                    {built && (
+                      <span className="text-ink-meta mt-0.5 block break-words sm:hidden">
+                        {c.type}
+                        {c.tailoredFor && <> · {c.forThisJob ? <ThisJob /> : c.tailoredFor}</>}
+                      </span>
+                    )}
+                  </td>
+                  {built && (
+                    <>
+                      <td className={cn(TD, "hidden sm:table-cell")}>{c.type}</td>
+                      <td className={cn(TD, "hidden sm:table-cell")}>
+                        {c.forThisJob ? <ThisJob /> : <Cell>{c.tailoredFor}</Cell>}
+                      </td>
+                    </>
+                  )}
+                  <td className={cn(TD, "text-ink-meta")}>
+                    {c.at ? <LocalDate at={c.at} /> : "Unknown"}
+                  </td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+          {shown.length === 0 && (
+            <p className="text-note text-ink-meta border-border-subtle border-t px-4 py-3">
+              No resumes match &ldquo;{query.trim()}&rdquo;.
+            </p>
+          )}
+        </div>
+      )}
     </div>
+  );
+}
+
+const TH = "px-3 py-2 text-note text-ink-meta font-medium";
+const TD = "px-3 py-2.5 text-note text-ink align-middle";
+
+/** The posting this picker is for, in place of its own title. Words, not
+ *  a badge: a badge's tint vanished on the picked row's. */
+function ThisJob() {
+  return <span className="text-brand font-medium">This Job</span>;
+}
+
+/** A cell's text, or None where there is none. */
+function Cell({ children }: { children: ReactNode }) {
+  return children ? (
+    <span className="line-clamp-2 break-words">{children}</span>
+  ) : (
+    <span className="text-ink-meta">None</span>
   );
 }
 
@@ -169,8 +344,8 @@ export function UploadPick({
     setWaiting(null);
     setNote(
       duplicateOf
-        ? `${error} It is picked under Uploaded Resumes.`
-        : `Uploaded ${file.name}. It is picked under Uploaded Resumes.`,
+        ? `${error} It is picked under Uploaded.`
+        : `Uploaded ${file.name}. It is picked under Uploaded.`,
     );
   }
 

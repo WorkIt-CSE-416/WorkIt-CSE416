@@ -11,6 +11,7 @@ import {
   MatchIcon,
   TrendIcon,
 } from "@/components/icons";
+import { Skeleton } from "@/components/shadcn/skeleton";
 import { AnimatedNumber } from "@/components/ui/animated-number";
 import { cn } from "@/lib/cn";
 import { formatCount } from "@/lib/format-count";
@@ -23,7 +24,7 @@ import { SectionCard } from "./section-card";
 /** Each tile's glyph, by what it counts: the data is plain, so the icons stay
  *  on this side of the server boundary. */
 const STAT_ICONS: Record<StatKey, ComponentType<{ className?: string }>> = {
-  goodMatches: MatchIcon,
+  strongMatches: MatchIcon,
   saved: BookmarkIcon,
   applied: BriefcaseIcon,
   interviewing: CalendarIcon,
@@ -36,7 +37,7 @@ const STAT_ICONS: Record<StatKey, ComponentType<{ className?: string }>> = {
  * value at once (AnimatedNumber) rather than after the server has drawn the
  * page again.
  *
- * Good Matches is filled violet, the row's one solid colour, and the other
+ * Strong Matches is filled violet, the row's one solid colour, and the other
  * three are white (./data.ts says why that tile). Each wears its glyph in a ring at the top right.
  *
  * EVERY TILE IS A LINK (KAN-342): a click anywhere on a tile opens the page
@@ -60,7 +61,7 @@ export function Headline({ stats }: { stats: Record<RangeKey, DashboardStat[]> }
     <>
       {stats[range].map((stat) => {
         const Icon = STAT_ICONS[stat.key];
-        const brand = stat.key === "goodMatches";
+        const brand = stat.key === "strongMatches";
         const change =
           stat.value !== null && stat.previous !== null && period
             ? stat.value - stat.previous
@@ -180,6 +181,50 @@ export function Headline({ stats }: { stats: Record<RangeKey, DashboardStat[]> }
                 </>
               )}
             </p>
+          </SectionCard>
+        );
+      })}
+    </>
+  );
+}
+
+/**
+ * The four numbers while they load (page.tsx streams them in their own
+ * <Suspense>, and ./loading.tsx draws the page with these): each tile in
+ * the real one's boxes, row for row, so the grid holds its height and
+ * nothing under it moves when the figures land. The label row's 36px, the
+ * figure's 12px of padding over its 40px line (--text-figure) and the
+ * note's 20px line each hold a bar in place of the words. Strong Matches
+ * keeps its violet, the one filled tile, so the row reads as itself while
+ * it waits. A fragment, as Headline is: each tile is a cell of the page's
+ * grid.
+ *
+ * A streamed tile mounts with its figure, and AnimatedNumber prints a first
+ * value as it is, so nothing counts up from 0 when the numbers arrive.
+ */
+export function HeadlineSkeleton() {
+  return (
+    <>
+      {Array.from({ length: 4 }, (_, i) => {
+        const brand = i === 0;
+        const bar = brand ? "bg-white/25" : undefined;
+        return (
+          <SectionCard
+            key={i}
+            as="div"
+            tone={brand ? "brand" : "plain"}
+            aria-hidden="true"
+            className="flex flex-col"
+          >
+            <div className="flex min-h-9 items-center">
+              <Skeleton className={cn("h-4 w-24", bar)} />
+            </div>
+            <div className="mt-auto pt-3">
+              <Skeleton className={cn("h-10 w-16", bar)} />
+            </div>
+            <div className="mt-2 flex h-5 items-center">
+              <Skeleton className={cn("h-3 w-28", bar)} />
+            </div>
           </SectionCard>
         );
       })}
