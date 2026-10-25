@@ -4,7 +4,9 @@
  * the backend's schemas/autofill_answers.py, field for field). Onboarding's
  * Profile step asks them first; My Profile's Application Questions shows and
  * edits them (KAN-269). Both read this one list, so a new question is one
- * entry here and one key in the API's schema. Server actions:
+ * entry here and one key in the API's schema. Onboarding leaves out the
+ * voluntary self-identification (SELF_ID_KEYS, KAN-387): the extension asks
+ * it the first time a form does. Server actions:
  * ./autofill-answers-actions.
  *
  * Each value is the API's option key, never the label: the label is the words
@@ -134,6 +136,18 @@ export const DISABILITY_OPTIONS: Options<"disability_status"> = [
   { value: "yes", label: "Yes, I have a disability (or previously had a disability)" },
   { value: "no", label: "No, I do not have a disability and have not had one in the past" },
   { value: "declined", label: "I do not want to answer" },
+];
+
+/** The voluntary self-identification (EEO) questions. Onboarding never asks
+ *  them (KAN-387): the extension asks the first time a form does, with the
+ *  same options (autofiller_extension/src/background/self-id.js copies them:
+ *  change both together), and saves them through the same PATCH. */
+export const SELF_ID_KEYS: (keyof AutofillAnswers)[] = [
+  "gender",
+  "hispanic_latino",
+  "race",
+  "veteran_status",
+  "disability_status",
 ];
 
 /** One of the Profile step's questions: its key in the bank, the heading

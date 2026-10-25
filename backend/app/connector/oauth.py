@@ -192,6 +192,16 @@ async def _give_tokens(
     )
 
 
+async def added(db: AsyncSession, applicant_id: uuid.UUID) -> bool:
+    """Whether a client the student approved can still reach /mcp: it holds
+    a refresh token that is neither expired nor revoked (revoking deletes it)."""
+    return await db.scalar(select(Connector_Token.token_hash).where(
+        Connector_Token.applicant_id == applicant_id,
+        Connector_Token.kind == "refresh",
+        Connector_Token.expires_at > _now(),
+    ).limit(1)) is not None
+
+
 # --- The consent page's side (routers/connector.py) ---
 
 

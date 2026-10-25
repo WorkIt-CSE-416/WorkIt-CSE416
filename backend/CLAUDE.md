@@ -232,7 +232,9 @@ Find files with a directory listing; these are the rules for where code goes.
   mount). It answers only inside the app's lifespan, so its tests run
   `app.router.lifespan_context(app)` (`tests/test_connector.py`, which
   signs in with the SDK's own client as Claude does). Its tokens reach
-  `/mcp` only. **Its tools are layer 3** (`connector/tools.py`): the
+  `/mcp` only. Whether a student added it is `GET
+  /applicants/{id}/connector` (`oauth.added`: a live refresh token; KAN-387,
+  for the extension's add-Claude step; `tests/test_connector_added.py`). **Its tools are layer 3** (`connector/tools.py`): the
   student comes from the token (`load_account`), each tool calls one
   layer-2 step (`next_to_write`, `save_answers`; the style card's two tools,
   `connector/style.py`, read and write `queries/writing.py`), and a refusal is a

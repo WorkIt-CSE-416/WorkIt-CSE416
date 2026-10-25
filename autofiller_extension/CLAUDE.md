@@ -457,6 +457,58 @@ fill and groups as a real one, and `practice/status` says where each is.
   Needs you; the student's Submit on each reaches `/thanks` with no data,
   and nothing reaches any host but WorkIt's site and API.
 
+## Onboarding's later moments (KAN-387): asked when first needed
+
+Onboarding stops at the practice batch; what it no longer asks up front is
+asked on the form that first needs it, in that tab's panel (`overlay.js`'s
+`.moment` cards). Each moment is shown once per student, in one tab:
+`moments.js`'s `claimMoment` keeps which were shown in `chrome.storage.local`
+(`workit_moments`, by applicant id), one claim at a time, so five tabs
+finishing together show it once. A student who passes it by answers it in
+My Profile instead.
+
+- **The self-identification, on the first form that asks it.** Onboarding
+  never asks gender, Hispanic or Latino, race, veteran or disability
+  (`frontend/src/lib/autofill-answers.ts`'s `SELF_ID_KEYS`). `planFill`
+  names this form's self-identification questions the student hasn't
+  answered (`selfId`): the engine plans again as if every missing one were
+  "declined", and the questions only that plan answers are theirs. Never a
+  list of labels here: which question is which stays the engine's. The tab
+  asks (`selfid/ask`); the one that claims it shows the student WorkIt's own
+  options (`self-id.js`, copied from the frontend's: change both together),
+  nothing preselected, each with Leave Blank. Save and Fill sends the picked
+  ones (`selfid/save`, each key and value checked), PATCHes the autofill
+  answers, refreshes the cached profile, and tells every other batch tab
+  (`selfid/saved`); each plans again and fills those questions. Until then
+  nothing is guessed: the fields stay as the Plan left them. Later forms
+  fill them from the profile and ask nothing. Not Now saves nothing.
+- **Adding Claude, at the batch's first question for it.** Once a batch
+  tab has sent its questions for the student's Claude (`batch/questions`),
+  it asks `moment/claude`: a student whose Claude already holds a sign-in
+  (`GET .../connector`, a live connector token) never sees the step, and
+  the first tab to claim it shows Add to Claude. That opens the webapp's
+  `/connect/claude/add`, which redirects to Claude's Add Custom Connector
+  dialog: the install link is built only in
+  `frontend/src/lib/claude-connector.ts`, from the API's address, which the
+  extension doesn't keep. A practice batch never shows it (its essays stay
+  the student's).
+- **Writing samples, once the first written batch is.** A batch tab that
+  sends its questions is `writing` (`batch.js`'s `setWriting`, kept in the
+  batch); once its last one shows an answer it says `batch/written`, and
+  whether Claude wrote any. When no batch tab still waits and Claude wrote
+  for this batch, the tab that finished last asks for samples (Add Samples
+  opens the webapp's `/profile#writing-samples`; Skip closes it), once, and
+  never for a student who has some (`GET .../writing-samples`). A batch the
+  student wrote all by hand doesn't ask: the samples are only for their
+  Claude's style card.
+- **Tests** (`test/moments.extension.spec.ts`): two saved Greenhouse forms
+  that both ask the self-identification, for a student with none saved: one
+  tab asks, the save reaches the API once, both forms fill, and a later form
+  fills without asking. Two Harvey tabs show the add-Claude step once, with
+  the webapp's link; with the connector added, neither shows it. In two
+  Harvey tabs, the samples ask waits for the second answer and shows once;
+  a student with samples is never asked.
+
 ## Auth: inherits the webapp's session, has no sign-in of its own
 
 `src/background/webapp-session.js` reads the signed-in session straight out
@@ -578,7 +630,8 @@ the nine answers hiring systems repeat on every form:
 `work_authorized_us`, `needs_sponsorship`, `work_authorization_status`,
 `security_clearance`, `gender`, `hispanic_latino`, `race`,
 `veteran_status`, `disability_status`. Onboarding's Profile step and My
-Profile write it; the extension only reads it, and `engine.js`'s
+Profile write it, and the extension writes only the self-identification a
+form first asks (KAN-387, above); otherwise it only reads it, and `engine.js`'s
 `engineProfile` turns each option key into the fact the engine's rules
 read (yes/no as true/false, "declined" as "decline", the rest in
 `frontend/src/lib/autofill-answers.ts`'s own words). The engine picks the

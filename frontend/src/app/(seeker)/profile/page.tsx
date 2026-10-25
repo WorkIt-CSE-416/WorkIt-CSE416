@@ -22,6 +22,7 @@ import { getAutofillAnswers } from "@/lib/autofill-answers-actions";
 import { ApplicationQuestions } from "./application-questions";
 import { FIELD_GRID, FIELD_HEADING } from "./field-styles";
 import { SectionAction } from "./section-action";
+import { WritingSamples } from "./writing-samples";
 import { getProfile, updateProfile, type ApplicantProfile } from "@/lib/profile-actions";
 import { linkText, safeHref, siteName, webLink } from "@/lib/profile-links";
 import { GitHubGlyph, LinkedInGlyph, OtherLinkGlyph, WebsiteGlyph } from "./icons";
@@ -54,6 +55,9 @@ import { useProfileCache } from "../profile-cache";
  *   Application     an open section: the answers onboarding asked
  *   Questions       (./application-questions, KAN-269), edited the same way
  *                   with a picker each; closed by a hairline
+ *   Writing         an open section: up to three samples of the student's
+ *   Samples         own writing for their Claude (./writing-samples,
+ *                   KAN-387), added in place; closed by a hairline
  *   Resumes &       an open section under a plain heading, linking to both
  *   Experiences     views of that page
  *
@@ -184,6 +188,8 @@ export default function ProfilePage() {
           profile: a failed read shows the notice above, never nine "Not
           answered" lines that would pass for the seeker's real answers. */}
       {answers && <ApplicationQuestions answers={answers} onSaved={setAnswers} />}
+
+      <WritingSamples />
 
       <section aria-labelledby="resumes" className="mt-6">
         <SectionHeading id="resumes">Resumes &amp; Experiences</SectionHeading>

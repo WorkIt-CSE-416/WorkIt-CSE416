@@ -62,7 +62,10 @@ const FORM_TIMEOUT_MS = 10_000;
  *   opened: string[],
  *   groups: { ready?: number, needs_you?: number },
  *   practice?: { jobs: { jobId: string, url: string }[], submitted: string[] },
+ *   writing?: string[], wroteWithClaude?: boolean,
  * }} Batch
+ * `writing`: the tabs (ids) still waiting for the student's Claude to write;
+ * `wroteWithClaude`: an answer it wrote has filled in (KAN-387, the samples ask).
  */
 
 // One change to the batch at a time: two tabs finishing together would
@@ -328,6 +331,32 @@ export function forgetTab(tabId) {
 export async function jobInTab(tabId) {
   const batch = await load();
   return batch?.practice ? null : batch?.tabs[tabId]?.jobId ?? null;
+}
+
+/**
+ * A batch tab's written questions are waiting for the student's Claude
+ * (`writing: true`, once sent), or are all answered (`writing: false`;
+ * `byClaude`: some of them by Claude). Answers whether this was the batch's
+ * last tab waiting, in a batch Claude wrote for: the moment to ask for
+ * writing samples (KAN-387). Tabs outside the batch answer false.
+ * @param {number} tabId
+ * @param {{ writing: boolean, byClaude?: boolean }} change
+ */
+export function setWriting(tabId, { writing, byClaude = false }) {
+  return serially(async () => {
+    const batch = await liveBatch();
+    if (!batch?.tabs[tabId]) return false;
+    const others = (batch.writing ?? []).filter((id) => id !== String(tabId) && batch.tabs[id]);
+    batch.writing = writing ? [...others, String(tabId)] : others;
+    batch.wroteWithClaude ||= byClaude;
+    await save(batch);
+    return !writing && !others.length && batch.wroteWithClaude;
+  });
+}
+
+/** The batch's open tabs, for news every tab acts on (the student's saved self-identification, KAN-387). */
+export async function batchTabIds() {
+  return Object.keys((await load())?.tabs ?? {}).map(Number);
 }
 
 /** Whether a tab is one of the batch's, for a fill injected again (Workday's next page). */
