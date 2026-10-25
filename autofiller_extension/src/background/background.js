@@ -20,7 +20,7 @@ import { claimMoment } from "./moments.js";
 import { nextNeedsYou } from "./next-needs-you.js";
 import { SELF_ID, checkedSelfId, unansweredSelfId } from "./self-id.js";
 import { injectFill } from "../shared/content-scripts.js";
-import { workdayLogin } from "./workday-logins.js";
+import { allowForMe, forgetLogin, markSignedIn, workdayLogin } from "./workday-logins.js";
 import { writeEarly } from "./write-early.js";
 
 /**
@@ -96,7 +96,11 @@ async function handleMessage(message, sender) {
     case "fill/read":
     case "fill/required": {
       const profile = await getAutofillProfile();
-      if (message.type === "fill/plan" && jobOf(sender.url)?.site === "workday") await rememberWorkdayTab(sender.tab.id);
+      if (message.type === "fill/plan" && jobOf(sender.url)?.site === "workday") {
+        await rememberWorkdayTab(sender.tab.id);
+        // An application step shows: the saved login (if any) signs in to this tenant.
+        await markSignedIn(jobOf(sender.url).tenant);
+      }
       // A batch tab plans with the answers its application may reuse (KAN-379), read fresh for each Plan:
       // one saved a moment ago in another tab counts. Any other page has no application, so no bank.
       const jobId = message.type === "fill/plan" ? await jobInTab(sender.tab.id) : null;
@@ -122,6 +126,18 @@ async function handleMessage(message, sender) {
       await rememberWorkdayTab(sender.tab.id);
       const profile = await getAutofillProfile();
       return workdayLogin(job.tenant, profile.email, { create: Boolean(message.create) });
+    }
+
+    // The student allowed, once, the extension to make and sign in to their
+    // Workday accounts (the panel's card, workday.js): at every company from now on.
+    case "workday/allow":
+      return allowForMe();
+
+    // Workday refused a Create Account the extension pressed: its new password made no account.
+    case "workday/forget": {
+      const job = jobOf(sender.url);
+      if (job?.site !== "workday") throw new Error("Not a Workday page");
+      return forgetLogin(job.tenant);
     }
 
     // The student pressed Skip on a batch tab's panel (content-script.js).

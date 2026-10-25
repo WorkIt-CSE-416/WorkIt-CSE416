@@ -1,8 +1,12 @@
 // Workday's pages, for the fill (content-script.js): which step shows, when
 // a step's page has settled, and its sign-in (KAN-373), which this fills
 // with the login the extension keeps for the company
-// (background/workday-logins.js). It never presses anything. Loaded before
-// content-script.js (shared/content-scripts.js), as window.WIA.workday.
+// (background/workday-logins.js). Once the student allows it (asked once, in
+// the panel), it also ticks the terms box and presses Create Account or Sign
+// In, as Jobright and Simplify do (KAN-369): each button at most once a page,
+// so a refused password is never tried again and the account doesn't lock.
+// It presses nothing else. Loaded before content-script.js
+// (shared/content-scripts.js), as window.WIA.workday.
 window.WIA = window.WIA || {};
 
 (function () {
@@ -14,6 +18,17 @@ window.WIA = window.WIA || {};
   const SIGN_IN_FORM = "[data-automation-id=signInFormo]";
   const SIGN_IN_STEP = /sign in|create account/i;
   const SIGN_IN_SETTLE = 300;
+  // Workday's sign-in parts the extension presses or reads, once allowed.
+  const TERMS_BOX = "[data-automation-id=createAccountCheckbox]";
+  const SUBMIT = {
+    create: '[data-automation-id=click_filter][aria-label="Create Account"], [data-automation-id=createAccountSubmitButton]',
+    signin: '[data-automation-id=click_filter][aria-label="Sign In"], [data-automation-id=signInSubmitButton]',
+  };
+  const SWITCH = { create: "[data-automation-id=signInLink]", signin: "[data-automation-id=createAccountLink]" };
+  const WITH_EMAIL = "[data-automation-id=SignInWithEmailButton]";
+  const ALERT = "[data-automation-id=errorMessage], [data-automation-id=alertMessage]";
+  const VERIFY = /verif/i;
+  const SIGNED_IN = "WorkIt fills each step once you're signed in.";
   // How long a Workday step's page must stop changing before it is read, and the longest wait for that.
   const STEP_QUIET = 1000;
   const STEP_QUIET_MAX = 10_000;
@@ -39,6 +54,32 @@ window.WIA = window.WIA || {};
     Object.getOwnPropertyDescriptor(HTMLInputElement.prototype, "value").set.call(box, value);
     box.dispatchEvent(new Event("input", { bubbles: true }));
     box.dispatchEvent(new Event("change", { bubbles: true }));
+  }
+
+  /** Presses `button` as a pointer would: Workday's React may wait for the pointer's events, not only the click. */
+  function press(button) {
+    for (const type of ["pointerdown", "mousedown", "pointerup", "mouseup"]) {
+      const Event = type.startsWith("pointer") ? PointerEvent : MouseEvent;
+      button.dispatchEvent(new Event(type, { bubbles: true, cancelable: true, button: 0 }));
+    }
+    button.click();
+  }
+
+  /** The words of the terms box's label, as the student reads them on the page. */
+  function termsWords(box) {
+    const label = box.closest("label") ?? (box.id && document.querySelector(`label[for="${CSS.escape(box.id)}"]`))
+      ?? box.closest("[data-automation-id^=formField]");
+    return (label?.innerText ?? "").replace(/\s+/g, " ").trim().slice(0, 300);
+  }
+
+  /** What to tell the student about the message Workday showed after a press. */
+  function refused(view, words) {
+    if (VERIFY.test(words)) {
+      return "Workday sent you an email to confirm your account. Open the email from this company's Workday and click its link, then come back to this tab and press Sign In. " + SIGNED_IN;
+    }
+    return view === "create"
+      ? `Workday didn't make the account: "${words}" If you have an account here already, press Sign In and sign in yourself. ${SIGNED_IN}`
+      : `Workday didn't take the sign-in WorkIt saved for this company: "${words}" WorkIt won't try again, so your account doesn't lock. Sign in yourself, or press Forgot Password. ${SIGNED_IN}`;
   }
 
   /**
@@ -84,9 +125,10 @@ window.WIA = window.WIA || {};
   /**
    * Fills Workday's sign-in whenever it shows, until the application's
    * first step does. `onView(reason)`: the sign-in's view changed (Create
-   * Account or Sign In), with what is left for the student.
+   * Account or Sign In), with what is left for the student. `ask(onAllow)`:
+   * shows the once-only ask to make and sign in to accounts for the student.
    */
-  function watchSignIn(onView) {
+  function watchSignIn(onView, ask) {
     /**
      * Fills Workday's Create Account or Sign In form with the login the
      * extension keeps for this company, and tells the student what is left:
@@ -102,6 +144,13 @@ window.WIA = window.WIA || {};
     let noted = null;
     let busy = false;
     let again = false;
+    let asked = false;
+    // What the extension did on this page, once allowed: each at most once.
+    const pressed = new Set();
+    const switched = new Set();
+    let withEmail = false;
+    let alerted = "";
+    let ticked = "";
     async function fillSignIn() {
       if (busy) return void (again = true);
       busy = true;
@@ -109,7 +158,16 @@ window.WIA = window.WIA || {};
         do {
           again = false;
           const form = document.querySelector(SIGN_IN_FORM);
-          if (!form || workdayStep()) return;
+          if (workdayStep()) return;
+          if (!form) {
+            // A sign-in with Google or Apple first: its "Sign in with email" shows the form.
+            const button = document.querySelector(WITH_EMAIL);
+            if (button && !withEmail && login?.forMe) {
+              withEmail = true;
+              press(button);
+            }
+            return;
+          }
           const create = Boolean(form.querySelector("[data-automation-id=verifyPassword]"));
           const view = create ? "create" : "signin";
           if (loginView !== view) {
@@ -122,6 +180,16 @@ window.WIA = window.WIA || {};
             if (login.password) typeInto("password", login.password);
             if (login.password && create) typeInto("verifyPassword", login.password);
           }
+          if (login.ok && !login.forMe && !asked) {
+            asked = true;
+            ask(async () => {
+              await chrome.runtime.sendMessage({ type: "workday/allow" });
+              login.forMe = true;
+              noted = null;
+              fillSignIn();
+            });
+          }
+          if (login.ok && login.forMe && await forMe(form, view)) continue;
           if (noted === view) continue;
           noted = view;
           onView(!login.ok
@@ -137,6 +205,58 @@ window.WIA = window.WIA || {};
       } finally {
         busy = false;
       }
+    }
+
+    /**
+     * Once allowed: switches to the view that fits the saved login, presses
+     * Create Account (a password made on this page only, so a refused one
+     * was never an account) or Sign In once the boxes hold the login and the
+     * page has settled, and reads Workday's answer if it stays on the page.
+     * Answers true when it told the student something (the usual note is
+     * then skipped).
+     */
+    async function forMe(form, view) {
+      const create = view === "create";
+      const alert = [...document.querySelectorAll(ALERT)].map((a) => a.innerText.trim()).filter(Boolean).join(" ");
+      if (pressed.has(view)) {
+        if (!alert || alert === alerted) return Boolean(alerted);
+        alerted = alert;
+        if (create && !VERIFY.test(alert)) await chrome.runtime.sendMessage({ type: "workday/forget" });
+        onView((create && ticked ? `WorkIt ticked "${ticked}" for you. ` : "") + refused(view, alert));
+        return true;
+      }
+      // Nothing saved here: make the account. A login that signed in before: sign in with it.
+      const other = create ? login.signedIn : !login.password;
+      if (other && !switched.has(view)) {
+        const link = document.querySelector(SWITCH[view]);
+        if (link) {
+          switched.add(view);
+          press(link);
+          return true;
+        }
+      }
+      if (!login.password || (create && !login.made)) return false;
+      await quiet();
+      const now = document.querySelector(SIGN_IN_FORM);
+      const holds = (id) => now?.querySelector(`[data-automation-id=${id}]`)?.value === (id === "email" ? login.email : login.password);
+      if (now !== form || !holds("email") || !holds("password") || (create && !holds("verifyPassword"))) {
+        again = true;
+        return true;
+      }
+      const button = document.querySelector(SUBMIT[view]);
+      if (!button) return false;
+      const box = create ? form.querySelector(TERMS_BOX) : null;
+      if (box && !box.checked && box.getAttribute("aria-checked") !== "true") press(box);
+      pressed.add(view);
+      press(button);
+      const terms = box ? termsWords(box) : "";
+      ticked = terms;
+      onView(create
+        ? `WorkIt made your account on this company's Workday${terms ? ` and ticked "${terms}" for you` : ""}. ${SIGNED_IN}`
+        : `WorkIt is signing you in to this company's Workday. ${SIGNED_IN}`);
+      noted = view;
+      [1000, 2500, 5000].forEach((ms) => setTimeout(fillSignIn, ms));
+      return true;
     }
 
     const observer = new MutationObserver(() => {

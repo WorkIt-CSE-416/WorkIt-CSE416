@@ -335,6 +335,30 @@ window.WIA = window.WIA || {};
   }
 
   /**
+   * The Workday accounts ask (KAN-369), on the first company's Workday
+   * Create Account or Sign In until the student answers: Sign Me In calls
+   * `onAllow` (the extension then presses Create Account or Sign In at every
+   * company, workday.js); Not Now closes it for this page.
+   * @param {{ onAllow: () => void }} options
+   */
+  function askWorkdayAccounts({ onAllow }) {
+    const card = momentCard("workday-accounts", `
+      <h2>Let WorkIt Sign You In to Workday</h2>
+      <p>Each company's Workday asks you to make an account. WorkIt can make it and sign you in, here and at every company from now on. It fills your email and a new password made for that company alone, kept only in this browser. It ticks the box that you agree to the company's terms and privacy notice, and presses Create Account or Sign In. Each time, the panel names the box it ticked.</p>
+      <div class="actions">
+        <button type="button" data-primary data-allow>Sign Me In</button>
+        <button type="button" data-secondary data-dismiss>Not Now</button>
+      </div>
+    `);
+    if (!card) return;
+    card.querySelector("[data-dismiss]").addEventListener("click", () => card.remove());
+    card.querySelector("[data-allow]").addEventListener("click", () => {
+      card.remove();
+      onAllow();
+    });
+  }
+
+  /**
    * Batch apply's "Next Thing That Needs You" (content-script.js): shows the
    * button, which calls `onNext` and shows what it answers (a sentence for
    * the student, or nothing when it went to a field).
@@ -447,5 +471,5 @@ window.WIA = window.WIA || {};
     root = null;
   }
 
-  window.WIA.overlay = { mount, unmount, promptForEssays, offerNext, setCurrent, askSelfId, offerClaude, askSamples };
+  window.WIA.overlay = { mount, unmount, promptForEssays, offerNext, setCurrent, askSelfId, offerClaude, askSamples, askWorkdayAccounts };
 })();
