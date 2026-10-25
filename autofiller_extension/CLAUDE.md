@@ -105,9 +105,13 @@ builds it: `dist/engine.js` is committed in the engine repo.
   form's link and fills nothing; batch apply opens the form itself
   (`formUrl`).
 - **The profile adapter gives only what WorkIt holds.** Name, email,
-  phone, links, the default resume, the latest school and the jobs from the
+  phone, home, links, the default resume, the latest school and the jobs from the
   bank, and the nine autofill answers, in the words the engine's rules
-  read. Anything else (pay, relocation, a phone country, consent boxes,
+  read. The home is the profile's free-text location (KAN-372) as the
+  engine's `homePlace` reads it: a city with a US state ("Stony Brook, NY")
+  or a city, region and country; anything less certain is left out, so the
+  form's location questions and phone country stay the student's. Never
+  parse the location here. Anything else (pay, relocation, a home address, consent boxes,
   start dates) stays the student's: the Plan lists it as a Missing fact and
   the overlay says "WorkIt has no answer for this". `POLICIES` holds no
   student's choice; "How did you hear?" is WorkIt, or the form's "Job

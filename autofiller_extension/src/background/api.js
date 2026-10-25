@@ -355,6 +355,7 @@ async function fetchAutofillProfile() {
     full_name: account.full_name,
     phone_number: profile.phone_number,
     headline: profile.headline,
+    location: profile.location ?? null,
     linkedin_url: profile.linkedin_url,
     portfolio_url: profile.portfolio_url,
     github_url: profile.github_url,
