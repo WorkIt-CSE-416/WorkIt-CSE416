@@ -334,7 +334,11 @@ the KAN-296 cutover.
   pin's end (a hand-off for the card's flight into the applications
   section), it still read as driven by the scroll, and the bars sat close
   over the gate's red chip, so the team had the bars, the pin and the
-  hand-off taken out on 2026-10-22. A beat lasts about four seconds (`RATE`), so the page, its
+  hand-off taken out on 2026-10-22. A dark panel that opened out to the
+  window's edges as it came up (a scroll-linked clip path) was tried on
+  2026-10-25, to set this section apart from the light ones round it; the
+  team found its background and transition odd, and it went back to the
+  light panel. A beat lasts about four seconds (`RATE`), so the page, its
   marks, its notes and its verdict hold together for over a second, the
   evidence its caption names: at three seconds they shared the screen for
   a quarter of one. The team found
@@ -402,7 +406,10 @@ the KAN-296 cutover.
   today: one list, each job's match score and the resume each
   application went out with. A board, a next step and a deadline per card,
   and a follow-up day are not built, so no line promises them, and
-  Interview and Job Offers say "Coming soon". Its eyebrow is the
+  Interview and Job Offers say "Coming soon". Its heading is centred over
+  the route, and the FAQ after it holds its heading on the left while the
+  questions pass on the right (lg up), so neighbouring sections open
+  differently (KAN-368). Its eyebrow is the
   feature's name, "Application tracker": "For applicants" said nothing
   once the whole site was for applicants. A tilted board of glass cards over
   blobs in the four stages' colours, with a stage list whose glass

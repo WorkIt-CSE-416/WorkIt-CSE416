@@ -122,12 +122,9 @@ export function Applications() {
 function Heading() {
   return (
     <FocusIn>
-      <SectionHeading
-        align="left"
-        eyebrow={copy.eyebrow}
-        title={copy.title}
-        subtitle={copy.subtitle}
-      />
+      {/* Centred over the route, which runs the container's width: the
+          sections before it open with a heading on the left (KAN-368). */}
+      <SectionHeading eyebrow={copy.eyebrow} title={copy.title} subtitle={copy.subtitle} />
     </FocusIn>
   );
 }

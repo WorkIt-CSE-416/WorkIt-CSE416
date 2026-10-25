@@ -41,14 +41,16 @@ export function SectionHeading({
   title,
   subtitle,
   align = "center",
+  className,
 }: {
   eyebrow?: string;
   title: string;
   subtitle?: string;
   align?: "center" | "left";
+  className?: string;
 }) {
   return (
-    <div className={cn("max-w-2xl", align === "center" && "mx-auto text-center")}>
+    <div className={cn("max-w-2xl", align === "center" && "mx-auto text-center", className)}>
       {eyebrow && <p className="text-landing-brand-700 text-sm font-semibold">{eyebrow}</p>}
       <h2 className="text-ink mt-2 text-3xl leading-tight font-semibold tracking-tight text-balance sm:text-4xl">
         {title}
