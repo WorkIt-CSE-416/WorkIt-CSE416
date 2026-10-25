@@ -262,7 +262,8 @@ export async function showBatchTab(message) {
  * @param {number} timeoutMs
  */
 function waitForForm(timeoutMs) {
-  const FIELD = "#first_name, form input:not([type=hidden]), form select, form textarea";
+  // Ashby's form has no <form> element: its fields sit in [data-field-path] boxes.
+  const FIELD = "#first_name, form input:not([type=hidden]), form select, form textarea, [data-field-path] input, [data-field-path] textarea";
   return new Promise((resolve) => {
     if (document.querySelector(FIELD)) return resolve(true);
     const observer = new MutationObserver(() => {

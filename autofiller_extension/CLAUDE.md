@@ -273,7 +273,10 @@ and `run/show` switches to one (`jobId`).
   which watches the DOM (never `requestAnimationFrame`: a hidden tab runs
   none) for up to 10 seconds, then injects the fill. A page that never
   loads, shows no form, or is on a host the extension may not touch (a job
-  system with no Filler) fills nothing and goes to Needs you.
+  system with no Filler) fills nothing and goes to Needs you. Ashby's
+  application has no `<form>` element, so the wait also takes a field in
+  Ashby's `[data-field-path]` boxes; without it every Ashby tab went to
+  Needs you with nothing filled (`test/ashby.extension.spec.ts`).
 - **The overlay puts itself back when the page removes it.** Greenhouse's
   React app can drop nodes it didn't render, sometimes by replacing
   `<html>` itself. `overlay.js`'s `keepAttached` watches the whole document
