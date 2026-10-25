@@ -408,6 +408,9 @@ async def answer_bank(
         said = "; ".join(saved.answer) if isinstance(saved.answer, list) else saved.answer
         if checks.company_specific(saved.question, said, saved.company) and not (same and theirs == same):
             continue
+        # Every answer keeps the other-employer rule; only their Claude's take the checks meant for its text.
+        if not saved.choice and any(checks.names(said, name) for name in employers):
+            continue
         if not saved.own and not saved.choice and checks.problems(saved.answer, checks.Context(
             sources=(*sources, saved.question), employers=employers,
         )):

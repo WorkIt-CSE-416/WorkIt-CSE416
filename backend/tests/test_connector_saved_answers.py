@@ -274,3 +274,22 @@ async def test_a_form_outside_a_batch_gets_the_saved_answers_under_the_company_r
     assert await bank("") == mine
     assert await bank("?company=Globex") == mine
     assert await bank("?company=acme") == {**mine, WHY["label"]: {"answer": "Acme builds the trains I rode as a kid.", "own": True}}
+
+
+async def test_the_students_own_words_skip_the_writing_checks_on_reuse_but_not_another_employers_name(
+    running, applicant, database
+):
+    """Checks meant for their Claude's text (machine-made words, long
+    sentences, numbers) don't refuse the student's own words on later forms;
+    naming the company of another of their applications still does."""
+    me, (first, second, third) = await _student_queues(database, applicant, 3)
+    for job, company in zip((first, second, third), ("Globex", "Hooli", "Initech")):
+        await _company(database, job, company)
+    await _tab_asks(me, first, PROUD, GOALS)
+    mine = ("I am passionate about robots — my team and I spent 40 nights building one that followed a line "
+            "around the gym floor faster than any other robot at the contest that spring and we placed second.")
+    await _student_answers(me, first, PROUD, mine)
+    await _student_answers(me, first, GOALS, "I want to ship software at Initech that riders use.")
+
+    assert await _bank(me, second) == {PROUD["label"]: {"answer": mine, "own": True}}
+    assert (await _bank(me, third))[GOALS["label"]]["own"] is True

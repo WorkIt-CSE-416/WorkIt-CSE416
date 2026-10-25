@@ -332,7 +332,9 @@ Find files with a directory listing; these are the rules for where code goes.
   (KAN-379): the student's words in a tab (`PUT .../answers`, `own` true:
   written into a field WorkIt didn't fill, or replacing what it filled) set
   the row's `own`, which their Claude's later save never overwrites and
-  `answer_bank` offers first; an edit of an answer WorkIt filled (`own`
+  `answer_bank` offers first, unchecked by the checks meant for their
+  Claude's text (only the company rule, no other application's company
+  named, and the form's limit on the page apply to them); an edit of an answer WorkIt filled (`own`
   false) stays not own and passes the same checks as their Claude's save;
   the extension plans every batch form with `GET .../answer-bank`, so a
   saved question never reaches their Claude, and every form outside a
