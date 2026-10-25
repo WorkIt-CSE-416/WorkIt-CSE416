@@ -127,7 +127,7 @@ What a company builds and has shipped lately (its products, recent launches, eng
 _Avoid_: company research, company profile, company notes
 
 **Written answer**:
-A batch tab's answer to a question its form needs written, such as "Why this company?". The student's Claude saves it through the connector, and the open tab fills it.
+A batch tab's answer to a question its form needs written, such as "Why this company?", or to a one-off choice no rule or saved answer fills, such as "Which teams interest you?", which comes with its options and takes only them. The student's Claude saves it through the connector, and the open tab fills it.
 _Avoid_: essay (for the saved answer), AI answer, generated answer
 
 **Saved answer**:

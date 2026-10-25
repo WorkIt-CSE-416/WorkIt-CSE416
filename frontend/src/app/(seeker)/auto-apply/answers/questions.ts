@@ -19,6 +19,10 @@ export type WrittenQuestion = {
   required: boolean;
   /** The form's own limit in characters, or null. */
   max_length: number | null;
+  /** A one-off choice (KAN-369): "choice" takes one of `options`, "choices" one or more. Null when written in words. */
+  kind: "choice" | "choices" | null;
+  /** The choice's options, as the form words them; null when written in words. */
+  options: string[] | null;
 };
 
 /** One open application's unanswered questions, oldest application first. */

@@ -7,7 +7,15 @@ Claude saved an answer, which the open tab filled
 import datetime
 import uuid
 
-from sqlalchemy import DateTime, ForeignKeyConstraint, Integer, Text, text
+from sqlalchemy import (
+    CheckConstraint,
+    DateTime,
+    ForeignKeyConstraint,
+    Integer,
+    Text,
+    text,
+)
+from sqlalchemy.dialects.postgresql import JSONB
 from sqlalchemy.orm import Mapped, mapped_column
 
 from app.db import BaseModel
@@ -33,7 +41,13 @@ class Written_Answer(BaseModel):
     position: Mapped[int] = mapped_column(Integer)
     # the form's own limit in characters, when it has one
     max_length: Mapped[int | None] = mapped_column(Integer)
-    # NULL until the student's Claude saves one
+    # a one-off choice nothing else fills (KAN-369): "choice" takes one of
+    # `options`, "choices" one or more; NULL for a question written in words
+    kind: Mapped[str | None] = mapped_column(Text)
+    # the choice's options as the form words them; NULL for a written question
+    options: Mapped[list[str] | None] = mapped_column(JSONB(none_as_null=True))
+    # NULL until the student's Claude saves one. A choice's answer is its
+    # option, or its options joined by "; ", in the form's own wording
     answer: Mapped[str | None] = mapped_column(Text)
     answered_at: Mapped[datetime.datetime | None] = mapped_column(DateTime(timezone=True))
     # the student's own words (KAN-379): an edit in the tab, or their answer
@@ -42,6 +56,10 @@ class Written_Answer(BaseModel):
     own: Mapped[bool] = mapped_column(server_default=text("false"))
 
     __table_args__ = (
+        CheckConstraint(
+            "(kind IS NULL AND options IS NULL) OR (kind IN ('choice', 'choices') AND jsonb_typeof(options) = 'array')",
+            name="written_answers_kind_options",
+        ),
         # The application's questions go with it: dequeued, or the account deleted.
         ForeignKeyConstraint(
             ["applicant_id", "job_id"], ["job_applications.applicant_id", "job_applications.job_id"],

@@ -21,7 +21,11 @@ import type { WrittenQuestion } from "./questions";
  *
  * The count under the box is the form's own limit, read from the live form;
  * past it the count turns amber, and the API refuses it with the reason.
+ * A one-off choice (KAN-369) shows its options to pick instead of a box.
  */
+/** How a "choices" answer joins its options, as the API takes one (backend/app/auto_apply/written.py). */
+const JOIN = "; ";
+
 export function AnswerBox({ jobId, question }: { jobId: string; question: WrittenQuestion }) {
   const id = useId();
   const [text, setText] = useState("");
@@ -59,22 +63,49 @@ export function AnswerBox({ jobId, question }: { jobId: string; question: Writte
         {question.label}
         {question.required && <RequiredMark />}
       </label>
-      <textarea
-        id={`${id}-answer`}
-        rows={4}
-        placeholder="Write your answer, or paste one from any AI"
-        className={cn(
-          FIELD_CONTROL,
-          "block field-sizing-content min-h-28 resize-none px-3.5 py-2.5",
-        )}
-        value={text}
-        readOnly={saved}
-        aria-describedby={reasons ? `${id}-reasons` : undefined}
-        onChange={(e) => {
-          setText(e.target.value);
-          setReasons(null);
-        }}
-      />
+      {question.kind && question.options ? (
+        <fieldset id={`${id}-answer`} className="flex flex-col gap-1.5" disabled={saved}>
+          {question.options.map((option) => {
+            const picked = text.split(JOIN).includes(option);
+            return (
+              <label key={option} className="text-body flex items-center gap-2">
+                <input
+                  type={question.kind === "choice" ? "radio" : "checkbox"}
+                  name={`${id}-option`}
+                  checked={picked}
+                  onChange={() => {
+                    const rest = text ? text.split(JOIN).filter((o) => o !== option) : [];
+                    setText(
+                      question.kind === "choice"
+                        ? option
+                        : (picked ? rest : [...rest, option]).join(JOIN),
+                    );
+                    setReasons(null);
+                  }}
+                />
+                {option}
+              </label>
+            );
+          })}
+        </fieldset>
+      ) : (
+        <textarea
+          id={`${id}-answer`}
+          rows={4}
+          placeholder="Write your answer, or paste one from any AI"
+          className={cn(
+            FIELD_CONTROL,
+            "block field-sizing-content min-h-28 resize-none px-3.5 py-2.5",
+          )}
+          value={text}
+          readOnly={saved}
+          aria-describedby={reasons ? `${id}-reasons` : undefined}
+          onChange={(e) => {
+            setText(e.target.value);
+            setReasons(null);
+          }}
+        />
+      )}
 
       <div className="flex flex-wrap items-center justify-between gap-3">
         {saved ? (

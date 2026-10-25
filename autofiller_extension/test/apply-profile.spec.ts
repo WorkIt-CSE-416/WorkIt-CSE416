@@ -72,3 +72,11 @@ test("brought policies reach the Plan over WorkIt's own", async () => {
   expect(enginePolicies(BROUGHT).how_heard).toEqual({ prefer: ["careers page"], text: "Careers page" });
   expect(enginePolicies(STUDENT).cover_letter).toBeUndefined();
 });
+
+test("a middle name stays out of the last name", async () => {
+  const named = { ...STUDENT, full_name: "Test Middle Person", first_name: "Test", middle_name: "Middle", last_name: "Person" };
+  const { labels } = await planned("greenhouse-arc", named);
+
+  expect(labels["First Name"]).toBe("Test");
+  expect(labels["Last Name"]).toBe("Person");
+});
