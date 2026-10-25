@@ -64,10 +64,6 @@ async def save_pasted_answers(
     answers = {a.name: a.answer for a in body.answers}
     try:
         left = await pipeline.save_answers(db, applicant_id, job_id, answers)
-    except pipeline.NotFound as exc:
-        raise HTTPException(status.HTTP_404_NOT_FOUND, str(exc)) from exc
-    except pipeline.WrongStage as exc:
-        raise HTTPException(status.HTTP_409_CONFLICT, str(exc)) from exc
     except pipeline.Refused as exc:
         raise HTTPException(
             status.HTTP_422_UNPROCESSABLE_CONTENT, {"message": str(exc), "reasons": exc.reasons}

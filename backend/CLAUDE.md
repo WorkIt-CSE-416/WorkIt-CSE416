@@ -189,7 +189,9 @@ Find files with a directory listing; these are the rules for where code goes.
 - **Auto apply** (`app/auto_apply/`): KAN-223's layers 1 and 2, in three
   files by kind: `rules.py` pure (no session), `queries.py` database, and
   `pipeline.py` the steps that call them. Unlike a service, its functions may
-  take a session; its routes still go in `app/routers/`. Read
+  take a session; its routes still go in `app/routers/`. Its `NotFound`
+  and `WrongStage` answer 404 and 409 from one handler each in
+  `app/main.py`: a route lets them through rather than catching them. Read
   `../auto-apply/architecture.md`, "The function layers", before adding one:
   a layer-2 step that skips a layer-1 check lets any caller skip it. Its
   resume step (`prepare_resume`) keeps the file through

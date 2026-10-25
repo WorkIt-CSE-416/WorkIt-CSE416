@@ -14,6 +14,7 @@ from fastapi.exceptions import RequestValidationError
 from fastapi.responses import JSONResponse
 from sqlalchemy import text
 
+from app.auto_apply import pipeline
 from app.connector.server import ROUTES as CONNECTOR_ROUTES
 from app.connector.server import connector
 from app.db import get_sessionmaker
@@ -79,6 +80,19 @@ app.include_router(writing_samples_router)
 app.include_router(pasted_answers_router)
 # The connector's MCP server and its OAuth endpoints (app/connector/server.py).
 app.router.routes.extend(CONNECTOR_ROUTES)
+
+
+@app.exception_handler(pipeline.NotFound)
+async def not_found(request: Request, exc: pipeline.NotFound) -> JSONResponse:
+    """Auto apply's steps (app/auto_apply/pipeline.py) raise NotFound for no
+    such posting or application, and WrongStage for a step called out of
+    order; every route answers them the same, so they are mapped here once."""
+    return JSONResponse(status_code=404, content={"detail": str(exc)})
+
+
+@app.exception_handler(pipeline.WrongStage)
+async def wrong_stage(request: Request, exc: pipeline.WrongStage) -> JSONResponse:
+    return JSONResponse(status_code=409, content={"detail": str(exc)})
 
 
 @app.exception_handler(RequestValidationError)

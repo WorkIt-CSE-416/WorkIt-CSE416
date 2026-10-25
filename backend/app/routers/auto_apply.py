@@ -168,10 +168,7 @@ async def queue_job(
 ) -> ApplicationStage:
     """Queues one job posting for auto apply."""
     assert_applicant_owns(account, applicant_id)
-    try:
-        stage = await pipeline.queue_job(db, applicant_id, body.job_id)
-    except pipeline.NotFound as exc:
-        raise HTTPException(status.HTTP_404_NOT_FOUND, str(exc)) from exc
+    stage = await pipeline.queue_job(db, applicant_id, body.job_id)
     return ApplicationStage(job_id=body.job_id, stage=stage)
 
 
@@ -214,10 +211,7 @@ async def get_application(
 ) -> Application:
     """The applicant's application for one job posting."""
     assert_applicant_owns(account, applicant_id)
-    try:
-        return await pipeline.get_application(db, applicant_id, job_id)
-    except pipeline.NotFound as exc:
-        raise HTTPException(status.HTTP_404_NOT_FOUND, str(exc)) from exc
+    return await pipeline.get_application(db, applicant_id, job_id)
 
 
 @router.delete("/applications/{job_id}", status_code=status.HTTP_204_NO_CONTENT)
@@ -229,12 +223,7 @@ async def dequeue_job(
 ) -> Response:
     """Takes one queued job posting out of the queue."""
     assert_applicant_owns(account, applicant_id)
-    try:
-        await pipeline.dequeue_job(db, applicant_id, job_id)
-    except pipeline.NotFound as exc:
-        raise HTTPException(status.HTTP_404_NOT_FOUND, str(exc)) from exc
-    except pipeline.WrongStage as exc:
-        raise HTTPException(status.HTTP_409_CONFLICT, str(exc)) from exc
+    await pipeline.dequeue_job(db, applicant_id, job_id)
     return Response(status_code=status.HTTP_204_NO_CONTENT)
 
 
@@ -249,10 +238,6 @@ async def prepare_resume(
     assert_applicant_owns(account, applicant_id)
     try:
         return await pipeline.prepare_resume(db, get_supabase().storage, applicant_id, job_id)
-    except pipeline.NotFound as exc:
-        raise HTTPException(status.HTTP_404_NOT_FOUND, str(exc)) from exc
-    except pipeline.WrongStage as exc:
-        raise HTTPException(status.HTTP_409_CONFLICT, str(exc)) from exc
     except TectonicUnavailable as exc:
         raise HTTPException(
             status.HTTP_503_SERVICE_UNAVAILABLE, "The resume's PDF could not be made. Try again."
@@ -276,10 +261,6 @@ async def choose_resume(
     )
     try:
         return await pipeline.choose_resume(db, applicant_id, job_id, choice)
-    except pipeline.NotFound as exc:
-        raise HTTPException(status.HTTP_404_NOT_FOUND, str(exc)) from exc
-    except pipeline.WrongStage as exc:
-        raise HTTPException(status.HTTP_409_CONFLICT, str(exc)) from exc
     except TectonicUnavailable as exc:
         raise HTTPException(
             status.HTTP_503_SERVICE_UNAVAILABLE, "The resume's PDF could not be made. Try again."
@@ -296,12 +277,7 @@ async def finish_application(
 ) -> ApplicationStage:
     """Records how one application's fill ended."""
     assert_applicant_owns(account, applicant_id)
-    try:
-        stage = await pipeline.finish_application(db, applicant_id, job_id, body.outcome)
-    except pipeline.NotFound as exc:
-        raise HTTPException(status.HTTP_404_NOT_FOUND, str(exc)) from exc
-    except pipeline.WrongStage as exc:
-        raise HTTPException(status.HTTP_409_CONFLICT, str(exc)) from exc
+    stage = await pipeline.finish_application(db, applicant_id, job_id, body.outcome)
     return ApplicationStage(job_id=job_id, stage=stage)
 
 
@@ -315,12 +291,7 @@ async def ask_questions(
 ) -> list[WrittenAnswer]:
     """Keeps the questions a batch tab's form needs written, for the connector."""
     assert_applicant_owns(account, applicant_id)
-    try:
-        return await pipeline.ask_questions(db, applicant_id, job_id, body.questions)
-    except pipeline.NotFound as exc:
-        raise HTTPException(status.HTTP_404_NOT_FOUND, str(exc)) from exc
-    except pipeline.WrongStage as exc:
-        raise HTTPException(status.HTTP_409_CONFLICT, str(exc)) from exc
+    return await pipeline.ask_questions(db, applicant_id, job_id, body.questions)
 
 
 @router.get("/applications/{job_id}/questions", response_model=list[WrittenAnswer])
@@ -332,10 +303,7 @@ async def written_answers(
 ) -> list[WrittenAnswer]:
     """An application's questions that need writing, with the answers saved so far."""
     assert_applicant_owns(account, applicant_id)
-    try:
-        return await pipeline.written_answers(db, applicant_id, job_id)
-    except pipeline.NotFound as exc:
-        raise HTTPException(status.HTTP_404_NOT_FOUND, str(exc)) from exc
+    return await pipeline.written_answers(db, applicant_id, job_id)
 
 
 @router.put("/applications/{job_id}/answers", response_model=SavedAnswer)
@@ -350,8 +318,6 @@ async def save_own_answer(
     assert_applicant_owns(account, applicant_id)
     try:
         await pipeline.save_own_answer(db, applicant_id, job_id, body)
-    except pipeline.NotFound as exc:
-        raise HTTPException(status.HTTP_404_NOT_FOUND, str(exc)) from exc
     except pipeline.Refused as exc:
         raise HTTPException(status.HTTP_422_UNPROCESSABLE_CONTENT, str(exc)) from exc
     return SavedAnswer(answer=body.answer.strip(), own=True)
@@ -366,10 +332,7 @@ async def answer_bank(
 ) -> dict[str, SavedAnswer]:
     """The saved answers this application's form may reuse, by question wording."""
     assert_applicant_owns(account, applicant_id)
-    try:
-        return await pipeline.answer_bank(db, applicant_id, job_id)
-    except pipeline.NotFound as exc:
-        raise HTTPException(status.HTTP_404_NOT_FOUND, str(exc)) from exc
+    return await pipeline.answer_bank(db, applicant_id, job_id)
 
 
 @router.put("/applications/{job_id}/fill", response_model=ApplicationStage)
@@ -382,10 +345,5 @@ async def record_fill(
 ) -> ApplicationStage:
     """Records how a batch tab's fill left one application's form."""
     assert_applicant_owns(account, applicant_id)
-    try:
-        stage = await pipeline.record_fill(db, applicant_id, job_id, body.state)
-    except pipeline.NotFound as exc:
-        raise HTTPException(status.HTTP_404_NOT_FOUND, str(exc)) from exc
-    except pipeline.WrongStage as exc:
-        raise HTTPException(status.HTTP_409_CONFLICT, str(exc)) from exc
+    stage = await pipeline.record_fill(db, applicant_id, job_id, body.state)
     return ApplicationStage(job_id=job_id, stage=stage)
