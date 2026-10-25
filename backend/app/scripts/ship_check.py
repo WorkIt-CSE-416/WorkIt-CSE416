@@ -180,6 +180,7 @@ def stub(folder: Path, chat: int) -> Iterator[tools.MCPServer]:
             (written, "load_bank", nothing),
             (briefs, "research_task", nothing),
             (briefs, "brief_for", no_brief),
+            (briefs, "needs_research", nothing),
             (written, "open_application", open_application),
             (written, "save_written", save_written),
             (written, "_check_material", check_material),

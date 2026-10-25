@@ -10,12 +10,12 @@ its transaction, as every layer-2 step does.
 
 import dataclasses
 import uuid
-from collections.abc import Collection, Sequence
+from collections.abc import Collection, Iterable, Sequence
 from typing import Literal
 
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from app.auto_apply import checks
+from app.auto_apply import briefs, checks
 from app.auto_apply.queries import (
     drop_written,
     fetch_application_companies,
@@ -239,17 +239,24 @@ async def _check_material(
     db: AsyncSession, applicant_id: uuid.UUID, job_id: uuid.UUID
 ) -> tuple[tuple[str, ...], tuple[str, ...], tuple[str, ...]]:
     """What an application's answers are checked against (checks.Context):
-    the texts their facts may come from (the student's bank, the posting),
-    the companies of the student's other applications that this posting and
-    bank don't name, and the student's writing samples."""
+    the texts their facts may come from (the student's bank, the posting,
+    the company's kept brief, whose facts were checked on their pages), the
+    companies of the student's other applications that this posting and the
+    places the student worked or studied don't name, and the student's
+    writing samples. A company named only in a skill or a bullet is still
+    another application's: a tool called "Notion" is no reason to name
+    Notion the employer on another company's form."""
     company, title, posting = await fetch_posting_text(db, job_id)
     bank = await load_bank(db, applicant_id)
     sources = (*bank_sources(bank), company or "", title or "", posting or "")
+    theirs = (*places(bank), company or "", title or "", posting or "")
     employers = tuple(
         name for name in await fetch_application_companies(db, applicant_id)
         if name.strip().casefold() != (company or "").strip().casefold()
-        and not any(checks.names(source, name) for source in sources)
+        and not any(checks.names(source, name) for source in theirs)
     )
+    # The brief only widens the number check: a name in it doesn't exempt another employer.
+    sources += tuple(str(f[k]) for f in await briefs.brief_for(db, company) for k in ("fact", "published") if f.get(k))
     return sources, employers, tuple(await writing_samples(db, applicant_id))
 
 
@@ -288,6 +295,15 @@ def bank_sources(bank: Bank) -> list[str]:
         texts += [b.text for b in entry.bullets]
     texts += [s.name for s in bank.skills]
     return texts
+
+
+def places(bank: Bank) -> list[str]:
+    """Where the student worked or studied: each entry's organization, and an
+    education entry's title (its school)."""
+    return [
+        name for entry in bank.entries
+        for name in (entry.row.organization, entry.row.title if entry.row.section == "education" else None) if name
+    ]
 
 
 async def writing_samples(db: AsyncSession, applicant_id: uuid.UUID) -> list[str]:
@@ -380,3 +396,15 @@ async def save_own_answer(
             raise Refused(f"Not saved: {' '.join(found)}", {own.name: found})
     await save_own_written(db, applicant_id, job_id, own.name, own.label.strip(), answer, own.own)
     await db.commit()
+
+
+async def read_first(db: AsyncSession, applicant_id: uuid.UUID, job_id: uuid.UUID, names: Iterable[str]) -> list[str]:
+    """Which of `names`, an application's saved written answers, the student
+    reads before pressing Submit (`checks.high_stakes`: about this company,
+    or about what isn't on their resume). Apply holds such an essay for its
+    student; WorkIt never submits, so it saves and fills it, and its Claude
+    names it to the student. A choice is never one."""
+    company, _, _ = await fetch_posting_text(db, job_id)
+    asked = set(names)
+    return [q.name for q in await fetch_written(db, applicant_id, job_id)
+            if q.name in asked and q.answer and not q.kind and checks.high_stakes(q.label, company)]

@@ -329,7 +329,7 @@ async def test_saved_answers_reach_the_tab_and_the_next_application_moves_on(run
         after = await client.call_tool("get_next_application", {})
 
     assert saved.is_error is False, saved.content
-    assert saved.structured_content == {"saved": 1, "left": 0}
+    assert saved.structured_content == {"saved": 1, "left": 0, "read_first": ["question_7"]}
     # The open tab reads it back, to fill it.
     assert (await _tab_asks(me, first))[0]["answer"] == answer
     assert after.structured_content["job_id"] == second
