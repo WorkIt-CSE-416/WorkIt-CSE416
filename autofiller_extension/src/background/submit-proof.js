@@ -42,8 +42,8 @@ export function submitSite(url) {
 
 // How long a submit's answer and the page's hint may be apart and still be one submit.
 const PAIRED_MS = 5 * 60_000;
-// How long a hint waits for an answer that proves the submit alone, which it may arrive just before
-// (Greenhouse's: the engine tells the page's answer as the page gets it).
+// How long a hint waits for the job system's answer, which it may arrive just before (the engine tells
+// the page's answer as the page gets it, which can be before this worker sees it: Greenhouse's, Ashby's).
 const WAIT_MS = 15_000;
 
 /** Per tab: when the job system took a submit (`answered`, `alone`) and when the page said "sent" (`hinted`). */
@@ -54,8 +54,9 @@ const pending = new Map();
 function proven(tabId) {
   const tab = seen.get(tabId);
   if (!tab?.answered || Date.now() - tab.answered > PAIRED_MS) return false;
-  // The page's notice of a sent application shows after the job system's answer, never before.
-  return tab.alone || (tab.hinted >= tab.answered && tab.hinted - tab.answered <= PAIRED_MS);
+  // The page's notice of a sent application shows after the job system's answer, or while this
+  // worker is still to see it: up to WAIT_MS before.
+  return tab.alone || (tab.hinted >= tab.answered - WAIT_MS && tab.hinted - tab.answered <= PAIRED_MS);
 }
 
 /**
