@@ -366,7 +366,7 @@
     const labels = new Map(prepared.questions.map((q) => [q.name, q.label]));
     for (const name of answer.empty) {
       const row = rows.get(name);
-      if (row?.required && row.status === "failed") continue;
+      if (row?.required && row.status !== "filled") continue; // already needs the student, with its own reason (a question waiting for Claude)
       status.register(name, row?.label ?? labels.get(name) ?? name, true, row?.source);
       status.setStatus(name, "failed", REQUIRED_EMPTY);
     }
