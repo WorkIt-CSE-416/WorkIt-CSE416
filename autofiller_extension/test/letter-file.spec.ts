@@ -46,3 +46,15 @@ test("the letter's file is named for the first name the student goes by", () => 
   expect(letterOf(goesBy).file).toBe("Tess_Person_Cover_Letter.pdf");
   expect(letterOf(STUDENT).file).toBe("Test_Person_Cover_Letter.pdf");
 });
+
+test("the letter's PDF opens with the student's name over their contact line", () => {
+  const pdf = Buffer.from(letterOf(STUDENT).base64, "base64").toString("latin1");
+
+  // The name, larger, then phone | email | LinkedIn | GitHub, the links without https://www.; then the letter.
+  const name = pdf.indexOf("(Test Person) Tj");
+  const contact = pdf.indexOf("(\\(555\\) 010-0199 | test.person@example.com | linkedin.com/in/test-person | github.com/test-person) Tj");
+  expect(name).toBeGreaterThan(-1);
+  expect(pdf.lastIndexOf("/F1 20 Tf", name)).toBeGreaterThan(-1);
+  expect(contact).toBeGreaterThan(name);
+  expect(pdf.indexOf("(Dear Example Recruiting Team:)")).toBeGreaterThan(contact);
+});

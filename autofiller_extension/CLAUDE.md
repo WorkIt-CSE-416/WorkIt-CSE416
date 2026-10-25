@@ -991,7 +991,10 @@ the overlay lists each as "needs_generation" (`lib-status.js`).
   (`First_Last_Cover_Letter.pdf`, with the first and last name the
   student goes by when the profile brought from Apply holds one, else the
   legal ones) by `engine.js`'s `asUploads` before `fill/page` fills it, so
-  the row shows the file's name.
+  the row shows the file's name. The letter is headed as the resume is:
+  the name, larger, over a contact line (phone | email | LinkedIn |
+  GitHub, the links without `https://www.`), as Apply's letter is. No
+  date or "Re:" line: the student's Claude writes the whole letter.
 - **Company name and job title come from the job system's API** (the Job
   Board API's `company_name` and `title`), not the page's title.
 - **The model call is `POST /applicants/{id}/essay-answer`**
