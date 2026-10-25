@@ -191,7 +191,12 @@ Find files with a directory listing; these are the rules for where code goes.
   the steps that call them, `pipeline.py`, which every caller imports.
   `stages.py` holds what every step checks first (the application exists,
   its form is open: `open_application`, `get_application`) and the errors
-  for it. Unlike a service, its functions may
+  for it. `written.py` holds the written-answer steps (the questions a tab
+  sends, the connector's and the Written Answers page's saves, each checked
+  by `checks.py`, and the answer bank); `pipeline.py` re-exports them, so
+  callers keep naming them `pipeline.save_answers` and so on, but a test
+  that fakes one of their layer-1 calls patches `written`. Unlike a
+  service, its functions may
   take a session; its routes still go in `app/routers/`. Its `NotFound`
   and `WrongStage` (`stages.py`, also `pipeline.NotFound`) answer 404 and
   409 from one handler each in

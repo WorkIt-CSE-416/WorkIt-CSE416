@@ -9,7 +9,7 @@ tab, and passes a clean one. The checks themselves: test_answer_checks.py.
 import pytest
 from sqlalchemy import text
 
-from app.auto_apply import pipeline
+from app.auto_apply import pipeline, written
 from tests.test_connector import (  # noqa: F401  (fixtures)
     _student_queues,
     _tab_asks,
@@ -49,7 +49,7 @@ async def test_each_check_refuses_a_failing_answer_and_passes_a_clean_one(runnin
     async def samples(db, applicant_id):
         return [SAMPLE]
 
-    monkeypatch.setattr(pipeline, "writing_samples", samples)  # stands in for the samples KAN-384 keeps
+    monkeypatch.setattr(written, "writing_samples", samples)  # stands in for the samples KAN-384 keeps
     me, (job, other) = await _student_queues(database, applicant, 2)
     await _company(database, other, "Globex")
     await _tab_asks(me, job, WHY)

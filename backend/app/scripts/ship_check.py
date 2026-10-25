@@ -53,7 +53,7 @@ from pathlib import Path
 from types import SimpleNamespace
 from unittest import mock
 
-from app.auto_apply import briefs, checks, pipeline
+from app.auto_apply import briefs, checks, pipeline, written
 from app.config import get_settings
 from app.connector import account, style, tools
 from app.connector import briefs as brief_tools
@@ -150,7 +150,7 @@ def stub(folder: Path, chat: int) -> Iterator[tools.MCPServer]:
         return []
 
     async def check_material(db, applicant_id, job_id):
-        # As pipeline._check_material: the facts' texts, other employers this
+        # As written._check_material: the facts' texts, other employers this
         # posting and bank don't name, and the samples.
         app = apps[named[job_id]]
         sources = (data["experience"], *data["skills"], app["company"], app["title"], app["posting"])
@@ -173,15 +173,15 @@ def stub(folder: Path, chat: int) -> Iterator[tools.MCPServer]:
 
     with contextlib.ExitStack() as patches:
         for module, name, value in [
-            (pipeline, "fetch_next_to_write", fetch_next_to_write),
-            (pipeline, "fetch_written", fetch_written),
-            (pipeline, "get_application", get_application),
-            (pipeline, "load_bank", nothing),
+            (written, "fetch_next_to_write", fetch_next_to_write),
+            (written, "fetch_written", fetch_written),
+            (written, "get_application", get_application),
+            (written, "load_bank", nothing),
             (briefs, "research_task", nothing),
             (briefs, "brief_for", no_brief),
-            (pipeline, "open_application", open_application),
-            (pipeline, "save_written", save_written),
-            (pipeline, "_check_material", check_material),
+            (written, "open_application", open_application),
+            (written, "save_written", save_written),
+            (written, "_check_material", check_material),
             (writing, "sample_texts", sample_texts),
             (writing, "fetch_style_card", style_card),
             (writing, "card_state", card_state),

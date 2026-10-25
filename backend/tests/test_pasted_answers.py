@@ -14,7 +14,7 @@ the samples.
 import pytest
 from sqlalchemy import text
 
-from app.auto_apply import pipeline
+from app.auto_apply import pipeline, written
 from tests.test_connector import (  # noqa: F401  (fixtures)
     _api,
     _signed_in_as,
@@ -79,7 +79,7 @@ async def test_a_pasted_answer_that_fails_a_check_is_refused_with_its_reason(run
     async def samples(db, applicant_id):
         return [SAMPLE]
 
-    monkeypatch.setattr(pipeline, "writing_samples", samples)
+    monkeypatch.setattr(written, "writing_samples", samples)
     me, (job, other) = await _student_queues(database, applicant, 2)
     await _company(database, other, "Globex")
     await _tab_asks(me, job, WHY)

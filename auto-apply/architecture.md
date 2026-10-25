@@ -238,6 +238,11 @@ backend/app/auto_apply/
                                     fetch_next_application, set_stage, remove_queued, pick_resume; later record_run
     pipeline.py     layer 2:        get_matches, start_batch, queue_job, dequeue_job, list_applications,
                                     get_application, next_application, finish_application, prepare_resume
+                                    (and re-exports the steps below, so callers name every step as pipeline's)
+    stages.py       layer 2:        the checks every step starts with (open_application, get_application),
+                                    NotFound, WrongStage
+    written.py      layer 2:        written answers: ask_questions, save_answers, save_own_answer, answer_bank,
+                                    next_to_write, unanswered_questions
 backend/app/routers/auto_apply.py   layer 3: the routes. Every router lives in app/routers/
 the MCP server                      layer 3, later: its own small program that calls the routes
 ```
