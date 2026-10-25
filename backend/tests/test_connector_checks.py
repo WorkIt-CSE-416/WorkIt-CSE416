@@ -33,6 +33,7 @@ CHECKS = {
     "a long sentence": ("At Acme I " + "made pages load fast and " * 7 + "I want that here.", "split it"),
     "a placeholder": ("At Acme I cut page load time by 30%, see [insert link].", "placeholders"),
     "over the form's own limit": ("At Acme I cut page load time by 30%. " * 9, "at most 300"),
+    "how it was written": ("My resume doesn't say why, but at Acme I cut page load time by 30%.", "how it was written"),
 }
 
 
