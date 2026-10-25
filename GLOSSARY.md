@@ -105,3 +105,9 @@ _Avoid_: good match (for that number), new role, recommendation
 **Top Match**:
 One of a student's highest-scoring open jobs, whatever its band. The Dashboard lists them under its numbers.
 _Avoid_: recommendation, best job
+
+## Jobs
+
+**Job Type**:
+What kind of job a job posting is: Full-Time, Part-Time, Contract or Internship. The Jobs page and the Applications Tracker both filter on it under this name.
+_Avoid_: Track, employment type, position type
