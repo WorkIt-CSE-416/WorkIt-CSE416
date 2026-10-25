@@ -232,7 +232,15 @@ and `run/show` switches to one (`jobId`).
   `content-script.js` sends `batch/state` once the fill ends, then watches
   the student's edits: the engine reads back (`fill/read`) every required
   or failed field, so emptying one moves the tab to Needs you and answering
-  the last one moves it to Ready. A batch tab writes no essays (the essay
+  the last one moves it to Ready.
+- **Never Ready while the form would refuse the submit.** After the fill
+  and after each edit, the engine names every field the form requires now
+  that shows nothing (`fill/required`, the engine's `emptyRequired`): a
+  required one with no row yet, and one the form requires only once
+  another is answered, which no Question set marks required (Greenhouse's
+  phone country once Phone shows a number: its submit answers "Select a
+  country", seen on Arc's form). Each becomes a failed, required row, so
+  the tab needs the student until it shows an answer. A batch tab writes no essays (the essay
   route is not batch apply's; the student's own Claude will write them,
   KAN-377): they are left to the student.
 - **"Next Thing That Needs You" walks the batch** (KAN-375). Each batch

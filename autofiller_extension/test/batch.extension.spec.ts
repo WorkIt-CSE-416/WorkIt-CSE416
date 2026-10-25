@@ -235,3 +235,29 @@ test("a US phone's country is picked beside Phone, so Arc's form is ready to sen
   expect(await phoneCountryShown(form)).toEqual(["+1"]);
   expect(forms.submissions).toEqual([]);
 });
+
+test("with a number in Phone and its country empty, the tab needs you until the country is picked", async () => {
+  // A number written without its country code that isn't a US one: WorkIt can't tell its country and leaves
+  // the picker to the student. Neither the Job Board API nor the page marks it required, but Greenhouse
+  // refuses the submit with a number in Phone and no country beside it ("Select a country").
+  const forms = new SavedForms(["greenhouse-arc"]);
+  const api = new FakeApi({ phone_number: "020 7946 0958" }).queue({ id: "job-0", apply_url: forms.url("greenhouse-arc") });
+  const { webappPage } = await start(api, forms);
+  await sendFromWebapp(webappPage, { type: "run/open" });
+  const groupOfArc = async () => (await tabs(loaded.worker)).find((t) => t.url === forms.url("greenhouse-arc"))?.group?.title;
+  await expect.poll(groupOfArc, { timeout: 60_000 }).toBe("Needs you");
+  await expect.poll(() => api.stages.get("job-0")).toBe("needs_you");
+
+  const form = loaded.context.pages().find((p) => p.url() === forms.url("greenhouse-arc"))!;
+  expect(await phoneCountryShown(form)).toEqual([]);
+  const row = form.locator('#workit-autofiller-overlay-host [data-key="country"]');
+  await expect(row.locator(".reason")).toHaveText("The form needs this before it sends. Answer it yourself.");
+
+  // The student picks it: the tab is ready.
+  await form.locator("#country").click();
+  await form.locator("#country").pressSequentially("United Kingdom");
+  await form.getByRole("option", { name: /^United Kingdom/ }).first().click();
+  await expect.poll(groupOfArc, { timeout: 15_000 }).toBe("Ready");
+  await expect.poll(() => api.stages.get("job-0")).toBe("queued");
+  expect(forms.submissions).toEqual([]);
+});

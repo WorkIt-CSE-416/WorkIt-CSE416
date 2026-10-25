@@ -298,13 +298,36 @@
   }
   if (batch) watchSubmit();
 
+  const REQUIRED_EMPTY = "The form needs this before it sends. Answer it yourself.";
+
+  /**
+   * Fails every field the form requires now that shows nothing, so a tab is
+   * never Ready while the job system would refuse its submit: a required
+   * field no row covers yet, and one the form requires only once another is
+   * answered (Greenhouse's phone country, once Phone shows a number). The
+   * engine reads the page; a row it names is made required.
+   */
+  async function flagEmptyRequired(prepared) {
+    const answer = await send({ type: "fill/required", site: prepared.site, questions: prepared.questions, state: prepared.state }).catch(() => null);
+    if (!answer?.ok) return;
+    const rows = new Map(status.summary().fields.map((r) => [r.key, r]));
+    const labels = new Map(prepared.questions.map((q) => [q.name, q.label]));
+    for (const name of answer.empty) {
+      const row = rows.get(name);
+      if (row?.required && row.status === "failed") continue;
+      status.register(name, row?.label ?? labels.get(name) ?? name, true, row?.source);
+      status.setStatus(name, "failed", REQUIRED_EMPTY);
+    }
+  }
+
   const isEmpty = (shown) => shown === undefined || shown === null || shown === "" || (Array.isArray(shown) && shown.length === 0);
 
   /**
    * After the fill, reads back (through the engine) the fields the tab's
    * state rests on whenever the student edits the form: every required
    * field and every failed one. One that now shows an answer is filled (by
-   * the student); a required one now empty has failed. report() then moves
+   * the student); a required one now empty has failed, as has one the form
+   * now requires (flagEmptyRequired). report() then moves
    * the tab between the groups.
    */
   function watchEdits(prepared) {
@@ -312,7 +335,7 @@
     let timer;
     const check = async () => {
       const rows = status.summary().fields.filter((r) => byName.has(r.key) && (r.required || r.status === "failed"));
-      if (!rows.length) return;
+      if (!rows.length) return flagEmptyRequired(prepared);
       const answer = await send({ type: "fill/read", site: prepared.site, questions: prepared.questions, names: rows.map((r) => r.key), state: prepared.state });
       if (!answer.ok) return;
       for (const row of rows) {
@@ -321,6 +344,7 @@
           if (row.status !== "filled" || JSON.stringify(shown) !== JSON.stringify(row.shows)) status.setStatus(row.key, "filled", row.status === "filled" ? row.reason : "You answered this", shown, "student");
         } else if (row.required && row.status === "filled") status.setStatus(row.key, "failed", "This is empty now. Answer it yourself.");
       }
+      await flagEmptyRequired(prepared);
     };
     const edited = () => {
       clearTimeout(timer);
@@ -361,6 +385,7 @@
     // the panel mounted after the fill: 0 in 50 (KAN-370). The engine waits
     // for the form's start-up before it types, so by now it is over.
     const prepared = await fillShown();
+    if (prepared) await flagEmptyRequired(prepared);
     overlay.mount();
     window.WIA.phase = prepared ? "filled" : "stopped";
     window.WIA.running = false;
