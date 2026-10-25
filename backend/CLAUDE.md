@@ -250,7 +250,9 @@ Find files with a directory listing; these are the rules for where code goes.
   name, for the page to show under its box. Tests: `tests/test_pasted_answers.py`.
   **An answer may name the brief fact it uses** (KAN-369): the connector's
   `named_fact`, `save_answers(named=...)`, must fold-match one of the
-  company brief's facts or the save is refused; it is kept as
+  company brief's facts, or those of the team brief the posting names
+  (the same `brief_for(company, job_id)` the connector hands out, which
+  also widens the number check), or the save is refused; it is kept as
   `written_answers.named_fact` (`{"fact", "url"}`), cleared with its answer
   and by the student's own words, and the Written Answers page lists it
   with the answer (`GET .../written-answers`, `pipeline.answered_questions`).

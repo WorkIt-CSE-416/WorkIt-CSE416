@@ -270,7 +270,7 @@ async def _named_facts(db: AsyncSession, job_id: uuid.UUID, named: dict[str, str
     if not named:
         return {}
     company, _, _ = await fetch_posting_text(db, job_id)
-    brief = {briefs._plain(f["fact"]): f for f in await briefs.brief_for(db, company)}
+    brief = {briefs._plain(f["fact"]): f for f in await briefs.brief_for(db, company, job_id)}
     found: dict[str, NamedFact] = {}
     for name, fact in named.items():
         match = brief.get(briefs._plain(fact))
@@ -289,10 +289,10 @@ async def _check_material(
 ) -> tuple[tuple[str, ...], tuple[str, ...], tuple[str, ...]]:
     """What an application's answers are checked against (checks.Context):
     the texts their facts may come from (the student's bank, the posting,
-    the company's kept brief, whose facts were checked on their pages), the
-    companies of the student's other applications that this posting and the
-    places the student worked or studied don't name, and the student's
-    writing samples. A company named only in a skill or a bullet is still
+    the company's kept brief and the posting's team brief, whose facts
+    were checked on their pages), the companies of the student's other
+    applications that this posting and the places the student worked or
+    studied don't name, and the student's writing samples. A company named only in a skill or a bullet is still
     another application's: a tool called "Notion" is no reason to name
     Notion the employer on another company's form. With no job (a form
     filled outside a batch), the form is one at `company`, with no posting."""
@@ -308,7 +308,7 @@ async def _check_material(
         and not any(checks.names(source, name) for source in theirs)
     )
     # The brief only widens the number check: a name in it doesn't exempt another employer.
-    sources += tuple(str(f[k]) for f in await briefs.brief_for(db, company) for k in ("fact", "published") if f.get(k))
+    sources += tuple(str(f[k]) for f in await briefs.brief_for(db, company, job_id) for k in ("fact", "published") if f.get(k))
     return sources, employers, tuple(await writing_samples(db, applicant_id))
 
 
