@@ -81,6 +81,8 @@ export async function formAfterHumanCheck(tabId) {
     } catch {
       await chrome.tabs.get(tabId);
       await waitForLoad(tabId).catch(() => {});
+      // A page that takes no script (an error page) throws at once: don't look again straight away.
+      await new Promise((done) => setTimeout(done, 1_000));
     }
   }
   return false;
