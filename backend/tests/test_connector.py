@@ -199,7 +199,8 @@ async def test_only_a_student_can_connect_claude(running, applicant):
         # The consent page names who is asking.
         _signed_in_as(applicant)
         shown = await api.get(f"/connector/requests/{request}")
-    assert shown.json() == {"client_name": "Claude"}
+    # Where the code goes, shown on the page (MCP authorization spec).
+    assert shown.json() == {"client_name": "Claude", "redirect_host": "claude.ai"}
 
 
 async def test_claude_refreshes_its_token_and_the_old_one_stops_working(running, applicant):

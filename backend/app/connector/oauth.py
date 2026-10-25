@@ -248,11 +248,13 @@ async def _pending(db: AsyncSession, request_id: uuid.UUID) -> Connector_Request
     return request
 
 
-async def client_name(db: AsyncSession, request_id: uuid.UUID) -> str:
-    """Who asks, for the consent page: the name the client registered."""
+async def asker(db: AsyncSession, request_id: uuid.UUID) -> tuple[str, str]:
+    """Who asks, for the consent page: the name the client registered, and
+    the host its code goes back to (the MCP spec asks the page to show it)."""
     request = await _pending(db, request_id)
     info = await db.scalar(select(Connector_Client.info).where(Connector_Client.client_id == request.client_id))
-    return (info or {}).get("client_name") or "An MCP client"
+    params = AuthorizationParams.model_validate(request.params)
+    return (info or {}).get("client_name") or "An MCP client", urlsplit(str(params.redirect_uri)).hostname or ""
 
 
 async def approve(db: AsyncSession, request_id: uuid.UUID, applicant_id: uuid.UUID) -> str:

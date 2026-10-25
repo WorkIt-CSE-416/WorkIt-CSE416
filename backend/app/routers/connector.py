@@ -5,7 +5,8 @@ to WorkIt (app/connector/oauth.py). `id` is the request id /authorize put in
 the page's link.
 
 GET  /connector/requests/{id}
-     Who asks: {"client_name": "Claude"}. 404 once the sign-in is answered
+     Who asks: {"client_name": "Claude", "redirect_host": "claude.ai"},
+     the host the code goes back to. 404 once the sign-in is answered
      or over (10 minutes).
 POST /connector/requests/{id}/approve
      The student's Allow: answers {"redirect_to": ...}, the client's
@@ -41,6 +42,7 @@ added_router = APIRouter(tags=["connector"])
 
 class ConsentRequest(BaseModel):
     client_name: str
+    redirect_host: str
 
 
 class Redirect(BaseModel):
@@ -61,7 +63,8 @@ async def consent_request(
 ) -> ConsentRequest:
     _student(account)
     try:
-        return ConsentRequest(client_name=await oauth.client_name(db, request_id))
+        name, host = await oauth.asker(db, request_id)
+        return ConsentRequest(client_name=name, redirect_host=host)
     except oauth.NotPending as exc:
         raise HTTPException(status.HTTP_404_NOT_FOUND, str(exc)) from exc
 
