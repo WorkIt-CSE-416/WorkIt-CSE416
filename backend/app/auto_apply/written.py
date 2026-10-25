@@ -201,14 +201,18 @@ async def _check_material(
     """What an application's answers are checked against (checks.Context):
     the texts their facts may come from (the student's bank, the posting),
     the companies of the student's other applications that this posting and
-    bank don't name, and the student's writing samples."""
+    the places the student worked or studied don't name, and the student's
+    writing samples. A company named only in a skill or a bullet is still
+    another application's: a tool called "Notion" is no reason to name
+    Notion the employer on another company's form."""
     company, title, posting = await fetch_posting_text(db, job_id)
     bank = await load_bank(db, applicant_id)
     sources = (*bank_sources(bank), company or "", title or "", posting or "")
+    theirs = (*places(bank), company or "", title or "", posting or "")
     employers = tuple(
         name for name in await fetch_application_companies(db, applicant_id)
         if name.strip().casefold() != (company or "").strip().casefold()
-        and not any(checks.names(source, name) for source in sources)
+        and not any(checks.names(source, name) for source in theirs)
     )
     return sources, employers, tuple(await writing_samples(db, applicant_id))
 
@@ -248,6 +252,15 @@ def bank_sources(bank: Bank) -> list[str]:
         texts += [b.text for b in entry.bullets]
     texts += [s.name for s in bank.skills]
     return texts
+
+
+def places(bank: Bank) -> list[str]:
+    """Where the student worked or studied: each entry's organization, and an
+    education entry's title (its school)."""
+    return [
+        name for entry in bank.entries
+        for name in (entry.row.organization, entry.row.title if entry.row.section == "education" else None) if name
+    ]
 
 
 async def writing_samples(db: AsyncSession, applicant_id: uuid.UUID) -> list[str]:

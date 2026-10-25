@@ -17,8 +17,9 @@ rules that were one student's own dropped.
   bank, the posting, or the question. A year counts like any number.
 - **Another employer's name**: a company the student has another
   application at, named in this answer (a draft written for one company
-  pasted into another's form). A company in the student's bank (where they
-  worked) or in this posting is theirs to name.
+  pasted into another's form). A company the student worked or studied at
+  (a bank entry's organization or school) or in this posting is theirs to
+  name; one named only in a skill or a bullet is not.
 - **A sentence over LONGEST words.**
 - **A placeholder** left for the student to fill ("[insert link]").
 - **Longer than the form takes**: the field's own limit, as the Fill
