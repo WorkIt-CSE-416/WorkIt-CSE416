@@ -1033,6 +1033,41 @@ Real, not forgotten. Do not treat their absence as a decision already made.
   Core writes but **not** changes made from psql or the Supabase dashboard. A
   database trigger would; autogenerate emits none.
 
+## The connector's tables (KAN-377)
+
+- **`written_answers` is a row per question, keyed by the application**
+  (`(applicant_id, job_id)` to `job_applications`, CASCADE). `name` is the
+  form field's name, so the open tab knows where the answer goes. `own`
+  (KAN-379) marks the student's own words (an edit in the tab): their
+  Claude's save never overwrites it, and `pipeline.answer_bank` offers it
+  first on later forms. An edit to a field the tab never sent (one a saved
+  answer filled) adds a row of its own, `required` false, placed last.
+- **`connector_clients`, `connector_requests` and `connector_tokens` belong
+  to `app/connector/oauth.py`**, the one writer. Tokens and codes are kept
+  as sha256 only; a row's `grant_id` ties an access token to its refresh
+  token, so revoking one revokes both. A token's student is
+  `applicant_id`, deleted with the account (CASCADE).
+- **`writing_samples` and `style_cards` are a student's own writing**
+  (KAN-384, `writing.py`): up to three samples (`MAX_SAMPLES`, checked in
+  code, not by the table) and at most one card per student. **Any change to
+  the samples deletes the card in the same transaction**
+  (`queries/writing.py`), so a card always describes the samples the
+  student has now, with no hash or version to keep in step; the connector
+  then asks their Claude for a new one. The copying check (KAN-380) reads
+  the samples through `pipeline.writing_samples` (which calls
+  `queries.writing.sample_texts`), never the table.
+
+## Company briefs — `company_briefs.py` (KAN-382)
+
+- **One row per company, not per student**: every student applying there
+  reads the same brief. The key is the company's name folded
+  (`briefs.company_key`: "Acme, Inc." and "ACME" are `acme`), since
+  scraped postings carry a name and no company id.
+- `facts` is JSONB, written only by `app/auto_apply/briefs.py` after each
+  fact's quote was found on its page; `saved_at` is NULL while no brief has
+  been kept, and `attempted_at` holds back a company whose last research
+  wasn't kept. Deny-all RLS like every table.
+
 ## Out of scope
 
 These belong to later tickets and should not be added here:

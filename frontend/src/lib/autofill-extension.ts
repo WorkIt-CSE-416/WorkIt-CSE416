@@ -17,7 +17,11 @@ const EXTENSION_ID = "cpklhdkoafegnndlafmiceehfloodjgi";
  * no extension at this id, are both just "no extension here", not errors a
  * caller needs to handle specially. Never throws.
  */
-function sendToExtension(message: { type: string; jobId?: string }): Promise<unknown> {
+function sendToExtension(message: {
+  type: string;
+  jobId?: string;
+  urls?: string[];
+}): Promise<unknown> {
   const runtime = (window as typeof window & { chrome?: { runtime?: { sendMessage?: unknown } } })
     .chrome?.runtime;
 
@@ -50,7 +54,8 @@ function sendToExtension(message: { type: string; jobId?: string }): Promise<unk
  * `externally_connectable`, the one, deliberately narrow channel a web page
  * gets: batch apply's three messages below (start or top up the batch,
  * which jobs its tabs show, switch to one of them;
- * autofiller_extension/src/background/batch.js). Never the profile itself;
+ * autofiller_extension/src/background/batch.js), onboarding's two for the
+ * practice batch, and `ping`. Never the profile itself;
  * see autofiller_extension/src/background/background.js's own comment on
  * why that line is drawn where it is. */
 
@@ -146,4 +151,54 @@ export function useBrowserJobs(): ReadonlySet<string> {
     () => browserJobs,
     () => NONE,
   );
+}
+
+/** What onboarding's install step reads (KAN-378): whether the extension is
+ *  here, whether it sees the student's session, and whether it is pinned to
+ *  the toolbar (null where Chrome can't say). */
+export type ExtensionState =
+  { installed: false } | { installed: true; signedIn: boolean; pinned: boolean | null };
+
+/** Asks the extension whether it is installed, signed in and pinned. Never throws. */
+export async function extensionState(): Promise<ExtensionState> {
+  const r = (await sendToExtension({ type: "ping" })) as
+    { ok: true; installed: true; signedIn: boolean; pinned?: boolean | null } | undefined;
+  if (!r?.ok) return { installed: false };
+  return { installed: true, signedIn: r.signedIn, pinned: r.pinned ?? null };
+}
+
+/** Where one practice job is (autofiller_extension/src/background/batch.js,
+ *  `practiceStatus`). */
+export type PracticeState = "waiting" | "filling" | "ready" | "needs_you" | "submitted" | "closed";
+
+export type PracticeStart =
+  | { opened: true; jobIds: string[] }
+  | { opened: false; reason: "not_installed" | "signed_out" | "batch_running" }
+  | { opened: false; reason: "error"; error: string };
+
+/**
+ * Starts onboarding's practice batch (KAN-378): the extension opens `urls`,
+ * WorkIt's own practice forms (lib/practice-form), as a batch's background
+ * tabs and sorts them into Ready and Needs you. It takes only practice forms
+ * on this page's own site. Never throws.
+ */
+export async function startPractice(urls: string[]): Promise<PracticeStart> {
+  const r = (await sendToExtension({ type: "practice/open", urls })) as
+    | ({ ok: true } & (
+        | { opened: true; jobIds: string[] }
+        | { opened: false; reason: "signed_out" | "batch_running" }
+      ))
+    | { ok: false; error: string }
+    | undefined;
+  if (r === undefined) return { opened: false, reason: "not_installed" };
+  if (!r.ok) return { opened: false, reason: "error", error: r.error };
+  return r.opened ? { opened: true, jobIds: r.jobIds } : { opened: false, reason: r.reason };
+}
+
+/** Each practice job's state, by job id; empty with no practice batch or no extension. */
+export async function practiceStatus(): Promise<Record<string, PracticeState>> {
+  const r = (await sendToExtension({ type: "practice/status" })) as
+    { ok: true; jobs: { jobId: string; state: PracticeState }[] } | { ok: false } | undefined;
+  if (!r?.ok) return {};
+  return Object.fromEntries(r.jobs.map((j) => [j.jobId, j.state]));
 }

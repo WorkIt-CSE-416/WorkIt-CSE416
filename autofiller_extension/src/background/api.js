@@ -255,7 +255,9 @@ const RESUME_MIME_TYPES = {
  * way, reads the same to the rest of the extension — "nothing to attach" —
  * rather than failing the whole profile load over one optional field.
  * @param {string} applicantId
- * @returns {Promise<{ filename: string, mimeType: string, base64: string } | null>}
+ * Each file names the resume it came from (`uploaded_resume_id` or
+ * `built_resume_id`), so a sent application can say which one went out.
+ * @returns {Promise<{ filename: string, mimeType: string, base64: string, uploaded_resume_id?: string, built_resume_id?: string } | null>}
  */
 async function resolveResumeFile(applicantId) {
   try {
@@ -268,6 +270,7 @@ async function resolveResumeFile(applicantId) {
         filename: defaultUpload.original_filename || `resume.${ext}`,
         mimeType: RESUME_MIME_TYPES[ext] ?? "application/octet-stream",
         base64: arrayBufferToBase64(buffer),
+        uploaded_resume_id: defaultUpload.id,
       };
     }
 
@@ -279,6 +282,7 @@ async function resolveResumeFile(applicantId) {
         filename: `${defaultBuilt.name || "Resume"}.pdf`,
         mimeType: "application/pdf",
         base64: rendered.pdf,
+        built_resume_id: defaultBuilt.id,
       };
     }
 
@@ -394,8 +398,9 @@ export async function getAutofillProfile({ force = false } = {}) {
 
 /**
  * GET .../applications/next — the oldest queued application whose job
- * posting is open (its `job.apply_url` is the page to open), past the jobs
- * in `skip` (those batch apply has opened), or null when none is left.
+ * posting is open (its `job.form_url`, else `job.apply_url`, is the page
+ * to open), past the jobs in `skip` (those batch apply has opened), or
+ * null when none is left.
  * @param {string} applicantId
  * @param {string[]} [skip]
  */
@@ -416,8 +421,78 @@ export async function recordFill(applicantId, jobId, state) {
 }
 
 /**
- * POST .../applications/{job_id}/finish — how an application's fill ended:
- * "skipped" (the student pressed Skip) moves it to skipped.
+ * PUT .../applications/{job_id}/questions — the questions a batch tab's form
+ * needs written (KAN-377), for the student's own Claude to answer through
+ * the connector. Answers every question the application has, with any
+ * answer saved so far.
+ * @param {string} applicantId
+ * @param {string} jobId
+ * @param {{ name: string, label: string, required: boolean, max_length: number | null }[]} questions
+ */
+export async function askQuestions(applicantId, jobId, questions) {
+  return apiFetch(`/applicants/${applicantId}/applications/${jobId}/questions`, { method: "PUT", body: JSON.stringify({ questions }) });
+}
+
+/**
+ * GET .../applications/{job_id}/questions — those questions, each with the
+ * `answer` the student's Claude saved, or null.
+ * @param {string} applicantId
+ * @param {string} jobId
+ */
+export async function writtenAnswers(applicantId, jobId) {
+  return apiFetch(`/applicants/${applicantId}/applications/${jobId}/questions`);
+}
+
+/**
+ * GET .../applications?stage=queued — the student's queued applications,
+ * newest first, each with its job posting's listing (`job.form_url`, else
+ * `job.apply_url`, is its form), for reading their questions early (KAN-379).
+ * @param {string} applicantId
+ */
+export async function queuedApplications(applicantId) {
+  return apiFetch(`/applicants/${applicantId}/applications?stage=queued`);
+}
+
+/**
+ * GET .../applications/{job_id}/answer-bank — the answers saved on the
+ * student's other applications that this one's form may reuse,
+ * `{[question wording]: {answer, own}}`: the Fill engine's Answer bank for
+ * its Plan (KAN-379). Never an answer about another company.
+ * @param {string} applicantId
+ * @param {string} jobId
+ * @returns {Promise<Record<string, { answer: string, own: boolean }>>}
+ */
+export async function answerBank(applicantId, jobId) {
+  return apiFetch(`/applicants/${applicantId}/applications/${jobId}/answer-bank`);
+}
+
+/**
+ * PUT .../applications/{job_id}/answers — the student's own words for one of
+ * a batch tab's questions that need writing (KAN-379): kept as the
+ * application's answer, and saved for every later form that asks it.
+ * @param {string} applicantId
+ * @param {string} jobId
+ * @param {{ name: string, label: string, answer: string }} answer
+ */
+export async function saveOwnAnswer(applicantId, jobId, answer) {
+  return apiFetch(`/applicants/${applicantId}/applications/${jobId}/answers`, { method: "PUT", body: JSON.stringify(answer) });
+}
+
+/**
+ * PUT .../applications/{job_id}/resume — keeps the resume an application
+ * went out with as its sent resume (the route's `built_resume_id` or
+ * `uploaded_resume_id`, from the profile's resume file).
+ * @param {string} applicantId
+ * @param {string} jobId
+ * @param {{ uploaded_resume_id: string } | { built_resume_id: string }} resume
+ */
+export async function recordSentResume(applicantId, jobId, resume) {
+  return apiFetch(`/applicants/${applicantId}/applications/${jobId}/resume`, { method: "PUT", body: JSON.stringify(resume) });
+}
+
+/**
+ * POST .../applications/{job_id}/finish — how an application ended:
+ * "submitted" marks it applied, "skipped" (the student pressed Skip) skipped.
  * @param {string} applicantId
  * @param {string} jobId
  * @param {"submitted" | "skipped" | "failed"} outcome

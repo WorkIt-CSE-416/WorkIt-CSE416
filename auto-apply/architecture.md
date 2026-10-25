@@ -197,7 +197,7 @@ Names are not final.
 |---|---|---|
 | 1 | `fetch_recommended(db, account, filters, min_match, limit)` | Scores and ranks job postings. **Built** |
 | 1, pure | `pick_batch(scored, size)` | Drops repeats of one company and title; takes the first `size`. **Built** |
-| 1, pure | `auto_apply_supported(apply_url)` (`hosts.py`) | Whether the host is a hiring system auto apply fills: every hiring system the Fill engine fills (KAN-370), never a job board. `AUTO_APPLY_SUPPORTED` in `queries/jobs/filters.py` is the same rule in SQL, required by the matches and `queue_applications`. **Built** |
+| 1, pure | `auto_apply_supported(apply_url)` (`hosts.py`) | Whether the host is a hiring system auto apply fills: every hiring system the Fill engine fills (KAN-370), never a job board. `FORM_URL` in `queries/jobs/filters.py` is the form auto apply opens: the apply_url on such a host, or the employer's form a job board's posting names (KAN-376). `AUTO_APPLY_SUPPORTED` (a form exists) is required by the matches and `queue_applications`. **Built** |
 | 1 | `queue_applications(db, applicant_id, job_ids)` | Saves the open ones with no application yet as `queued`; answers which. **Built** |
 | 1 | `fetch_stage(db, applicant_id, job_id)` | The application's stage, or `None`. **Built** |
 | 1 | `fetch_applications(db, applicant_id, stages)` | The applications, newest first, each with its job posting's listing and `open`. **Built** |
@@ -325,6 +325,14 @@ One click of **Start Auto Apply** queues a batch of 10 job postings.
    works. This reverses an earlier choice to queue every hiring system and
    let unfillable ones fail to `needs_you`: a student saw a Workday or
    Ashby job queued that the run could only fail.
+   **Job boards** (KAN-376): a job posting on LinkedIn, Indeed or another
+   job board (`JOB_BOARDS` in `hosts.py`) is never opened, since their
+   terms ban automated applications. When its text names the employer's
+   own form on a hiring system the extension fills, that form is the job's
+   `form_url` (`FORM_URL` in `queries/jobs/filters.py`) and the job is
+   queued; the extension opens `form_url`, never the job board. Otherwise
+   queueing it is a 404 whose detail says why. A company's own careers
+   page is never followed through its text.
 
 Why 10: the student checks each form before Submit, so 10 applications take
 about 10 to 30 minutes. A small batch also limits the harm of a bad fill.
@@ -383,7 +391,8 @@ goes on to the next one. Live Activity shows it under "Needs You".
 The extension cannot reliably tell that the student submitted: hiring
 systems show different confirmation pages. That is why the student clicks
 **Submitted**. Detecting each hiring system's confirmation page can come
-later, one hiring system at a time.
+later, one hiring system at a time. (Batch apply does detect it, from each
+hiring system's answer to the submit: 8.4, KAN-374.)
 
 Workday asks for an account on each company's site. The runner never
 creates one: it fills the sign-in form and the student presses the button
@@ -590,10 +599,25 @@ on after the fill.
 | `batch/state` | content script → background | `{ state: "ready" \| "needs_you" }` |
 | `workday/login` | content script → background | `{ create }`; answers `{ email, password, made }`, the login for the page's Workday tenant (a new password for Create Account when none is saved) |
 | `batch/skip` | content script → background | `{}`: the panel's Skip. The application goes to `skipped` (`POST .../finish`), its tab closes, the next one opens (KAN-373) |
+| `batch/watch` | content script → background | `{}`; the engine starts watching the page for the student's submit |
+| `batch/submitted` | content script → background | `{}`; the student's submit sent the application: mark it applied |
 | `fill/read` | content script → background | `{ site, questions, names }`; answers what each field shows |
+| `batch/questions` | content script → background | `{ questions: [{ name, label, required, max_length }] }`: the tab's questions that need writing, sent to the API for the student's Claude (KAN-377, 14.6); answers them with any saved answers |
+| `batch/answers` | content script → background | `{}`; answers the tab's questions with the answers saved so far |
+| `batch/own-answer` | content script → background | `{ name, label, answer }`: the student's own words in a written answer (KAN-379), kept as the application's answer and reused on later forms (`PUT .../answers`) |
 
-Next: Workday one slot at a time, Skip and resuming a batch (KAN-373),
-submit detection (KAN-374).
+**The student's submit marks it applied (KAN-374).** Built. Replaces 8.2's
+**Submitted** button: the extension still never submits, but reads each
+hiring system's own answer to the student's submit, through the Fill
+engine's signal for it (`submitResult` on the submit's response, read in the
+page; a success or failure notice; `submittedPage` for the confirmation page,
+Lever's only signal). On success the batch keeps the resume the fill attached
+as the application's sent resume (`PUT .../resume`), finishes it as
+`submitted` (`applied`), and takes the tab out of its group. A refused submit
+leaves the stage alone, shows the hiring system's words in the tab's panel,
+and moves the tab to Needs you.
+
+Next: Workday one slot at a time, Skip and resuming a batch (KAN-373).
 
 ## 9. Messages
 
@@ -871,6 +895,22 @@ write it, a key at a time. Still to do: the extension fills forms from it,
 and start date and the other repeated questions get keys. Without it, every
 form stops at those questions, and the fill rate stays low.
 
+### `written_answers` (built, KAN-377)
+
+One row per question an application's form needs written, primary key
+`(applicant_id, job_id, name)`, deleted with its application (CASCADE).
+`name` is the form field's name in the Fill engine's Question set, so the
+open tab knows where an answer goes; `label`, `required`, `max_length` (the
+form's own limit) and `position` (the form's order) come from the tab;
+`answer` and `answered_at` from the connector's save (14.6), or from the
+same save when the student pastes an answer on the Written Answers page
+(KAN-385), or from the student's own edit in the tab, which sets `own`
+(KAN-379): their Claude's save never overwrites it, and later forms reuse
+it first. A row per
+question, not JSONB on the application: the connector's "oldest application
+with a question left" is one SQL query, and saving one answer rewrites no
+other.
+
 ### `api_keys` and `usage` (for MCP)
 
 See "MCP access and billing". `api_keys`: account id, a **hash** of the key
@@ -893,6 +933,12 @@ function. Every route checks that the caller owns the applicant, like
 | GET | `/applicants/{id}/applications/next` | `next_application` | What the runner fills next, or `null`. `?skip=` repeats: the jobs batch apply already has open in its tabs (KAN-370). **Built** |
 | GET | `/applicants/{id}/applications/{job_id}` | `get_application` | One application, as the list has it; 404 without one. Registered after `/next`. **Built** |
 | PUT | `/applicants/{id}/applications/{job_id}/fill` | `record_fill` | How a batch tab's fill left the form (KAN-370, 8.4): `{"state": "needs_you"}` moves it to `needs_you`, `{"state": "ready"}` back to `queued`. 404 with no application, 409 when not queued or needs_you. **Built** |
+| PUT | `/applicants/{id}/applications/{job_id}/questions` | `ask_questions` | The questions a batch tab's form needs written (KAN-377, 14.6), kept for the connector; a question asked again keeps its answer. 404 with no application, 409 when not queued or needs_you. **Built** |
+| GET | `/applicants/{id}/applications/{job_id}/questions` | `written_answers` | Those questions with the answers the student's Claude saved (`answer`, null until then); the open tab fills each new one. **Built** |
+| PUT | `/applicants/{id}/applications/{job_id}/answers` | `save_own_answer` | The student's own words for one written question in its tab (KAN-379, `{name, label, answer}`): replaces the application's answer and marks it `own`. 404 with no application. **Built** |
+| GET | `/applicants/{id}/applications/{job_id}/answer-bank` | `answer_bank` | The answers saved on the student's other applications this form may reuse, `{wording: {answer, own}}`: the Fill engine's Answer bank for its Plan (KAN-379; never one about another company, KAN-380). 404 with no application. **Built** |
+| GET | `/applicants/{id}/written-questions` | `unanswered_questions` | Every open application's unanswered written questions, by job posting, oldest first: the Written Answers page for a student without Claude (KAN-385). **Built** |
+| PUT | `/applicants/{id}/applications/{job_id}/written-answers` | `save_answers` | Answers the student pasted there, `{"answers": [{"name", "answer"}]}`, all or none, through the connector's own save and checks; the open tab fills them as it fills Claude's. 422 with `{"message", "reasons": {name: [...]}}` when one fails. **Built** |
 | POST | `/applicants/{id}/applications/{job_id}/finish` | `finish_application` | `{"outcome": "submitted" \| "skipped" \| "failed"}`; 409 when not queued or needs_you. **Built**; takes the autofill run's report once `autofill_runs` exists |
 | POST | `/applicants/{id}/applications/{job_id}/resume` | `prepare_resume` | Picks the resume and keeps it as a sent resume for the job posting. Answers the sent resume and a 5-minute link, or `null` with no resume. 404 with no application or a closed job posting, 409 when not queued or needs_you, 503 when the PDF cannot be made, 502 when Storage refuses the file. **Built** |
 
@@ -930,7 +976,11 @@ becomes the parent of the layer-2 steps.** So:
    server lists makes the list easy to use. It does not make the order safe.
 6. **The MCP tools call the routes, not the Python functions.** The routes
    check ownership, and the MCP server may run where there is no database
-   access. Host it at WorkIt, so we control and update it.
+   access. Host it at WorkIt, so we control and update it. *Changed by
+   KAN-377 (14.6): the connector runs inside the API and its tools call
+   layer-2 functions, each checking that the token's student owns what it
+   names, as a route does. A second service calling the routes would need
+   its own deploy and a Supabase session to call them with.*
 
 **The extension cannot be an MCP tool.** The MCP server runs on our side and
 cannot reach the student's Chrome. A batch an agent starts waits in the
@@ -958,8 +1008,10 @@ To build:
   of an API key.
 
 The MCP standard also supports OAuth sign-in for a hosted MCP server: the
-user signs in, and pastes nothing. It is better for users and more work. Add
-it later if needed.
+user signs in, and pastes nothing. It is better for users and more work.
+*KAN-377 built OAuth instead (14.6): Anthropic's connector directory takes
+OAuth only, and a key pasted into Claude is one more thing a student can
+get wrong. No API keys.*
 
 ### 14.3 Billing: charge the action
 
@@ -1011,6 +1063,169 @@ That is prompt injection: AI apps watch for it, and it breaks trust.
    student clicks Submit" helps. Get a legal check before selling it.
 3. **Key safety.** Show a key once, store only its hash, let users revoke
    keys, and limit calls per key.
+
+### 14.6 The connector (KAN-377)
+
+**Built, as the batch apply design's AI route** (KAN-369): WorkIt pays for
+no model. The student adds WorkIt's remote MCP server to their own Claude
+and runs the prompt "Write my WorkIt answers"; their Claude reads one
+application at a time and saves its answers, and each answer fills into
+the batch tab that asked for it.
+
+**Where it runs.** Inside the API (`backend/app/connector/`), on the
+official MCP Python SDK (`MCPServer`, Streamable HTTP, stateless, JSON
+answers), at `<api>/mcp`. No second service. The SDK's session manager runs
+in the API's lifespan (`app/main.py`); Vercel runs FastAPI lifespans, and
+so does uvicorn in the container. `CONNECTOR_API_URL` and
+`CONNECTOR_WEB_URL` (`app/config.py`) say where the API and the webapp are
+reached from outside; production sets both.
+
+**Sign-in: WorkIt is its own OAuth 2.1 authorization server.** The SDK
+serves the endpoints at the API's root: `/.well-known/oauth-protected-resource/mcp`,
+`/.well-known/oauth-authorization-server`, `/register` (dynamic client
+registration, which Claude uses), `/authorize` (PKCE), `/token` and
+`/revoke`. `app/connector/oauth.py` is the provider behind them, on three
+tables (`connector_clients`, `connector_requests`, `connector_tokens`).
+
+1. Claude calls `/mcp` with no token, gets a 401 naming the resource
+   metadata, finds the authorization server, and registers itself.
+2. It sends the student's browser to `/authorize`, which keeps the
+   sign-in for 10 minutes and sends the browser to the webapp's consent
+   page, `/connect/claude?request=<id>`.
+3. The page, signed in with the student's normal Supabase session, shows
+   who asks and calls `POST /connector/requests/{id}/approve` (or `/deny`).
+   The API gives a code and answers the client's redirect URI; the page
+   sends the browser there.
+4. Claude trades the code at `/token` for an access token (1 hour) and a
+   refresh token (90 days). Each refresh rotates both.
+
+Tokens are random strings, not JWTs; only their sha256 is stored. A
+connector token reaches `/mcp` only, and a Supabase session token is not a
+connector token. Student accounts only.
+
+**Tools and the prompt** (`app/connector/tools.py`). Each tool finds the
+student from the token and calls one layer-2 step; inputs and outputs are
+ids and plain data.
+
+| Name | Kind | Does |
+|---|---|---|
+| `get_next_application` | tool, `readOnlyHint` | The oldest open application (queued or needs_you, posting open) with a written question unanswered (`next_to_write`): its job id, company, title, the posting's description, its unanswered questions (`name`, `question`, `required`, `max_length`), and the student's experience bank and skills (`bank_context`, no links). Only that application's material. `job_id: null` when none is left. Takes and answers a `chat` value (the job ids this chat was given, below); past `CONNECTOR_CHAT_CAP` it answers `start_new_chat: true`, a `message` for the student, and no application |
+| `save_answers` | tool, a write (not destructive) | `{job_id, answers: [{name, answer}]}` (`save_answers`): all or none; refuses a name the application doesn't ask, an empty answer, or one that fails a check in code (`app/auto_apply/checks.py`, KAN-380: machine-made words, a run of 5 words copied from the student's writing samples, a number not in the bank, posting or question, another application's company, a sentence over 30 words, a placeholder, or over the form's `max_length`, else 10,000), with every failing answer's reasons as one tool error for Claude to fix. Answers `{saved, left}` |
+| `get_writing_samples` | tool, `readOnlyHint` | `app/connector/style.py` (KAN-384): the student's writing samples, word for word, and the style card saved from them, if any |
+| `save_style_card` | tool, a write (not destructive) | `{card}`: adds or replaces the student's style card; refuses one when the student has no samples, or an empty one or one over 4,000 characters |
+| "Write my WorkIt answers" | prompt | `app/connector/prompt.py`. The loop (next application, research its company if `get_research_task` names it (KAN-382), write, save, until the tool says to start a new chat) and the writing rules. **The rules live here only**; tool descriptions say what a tool does (Anthropic's review refuses descriptions that steer Claude) |
+
+**The writing rules (KAN-381)** are Apply's pipeline, made general for any
+student: a draft by Apply's rules for plain, concrete answers and its
+shapes by question type (under 180 words, 220 for a two-part question,
+within the form's `max_length`); a review as a recruiter, a hiring manager
+and a founder would read it, rewritten until rated 8 of 10, at most two
+rounds; a check that lists every claim the sources don't support; and an
+edit of all of the application's answers together. Facts come only from
+the student's experience bank and the posting. Apply's own facts, examples
+and its owner's preferences are left out; a question the sources can't
+answer (a preference, a reference, something only the student knows) is
+left for the student, never guessed. Banned words stay out of the prompt,
+since naming a word primes a model; the save checks them in code (KAN-380, separate).
+
+**The style card (KAN-384).** A student keeps up to three writing samples
+on WorkIt (`/applicants/{id}/writing-samples`; add, replace, remove).
+`get_next_application` gives `style_card` when one is saved, and
+`style_card_needed: true` when samples have no card yet; the prompt then
+has Claude read them (`get_writing_samples`), build a card on how the
+student writes (sentence length, openings, explanations, transitions,
+punctuation, tone, endings, what they never do; examples of at most four
+words, no facts) and save it (`save_style_card`) before it writes. Any
+change to the samples deletes the card, so the next chat builds a new
+one. Without samples, Claude writes in a plain, neutral voice. The card
+holds no facts: the rules on sources hold, and the rules win where the
+card disagrees. The samples stay on WorkIt for the copying check
+(KAN-380, `pipeline.writing_samples`). Tests:
+`tests/test_connector_style_card.py`, `tests/test_writing_samples.py`.
+
+**A chat and its cap (KAN-381).** The server is stateless and Claude
+sends nothing that names a chat, so the chat carries its own count: each
+`get_next_application` answers a `chat` value (the job ids this chat was
+given, comma-joined) and the chat passes it back. No value is a new chat.
+After `CONNECTOR_CHAT_CAP` applications (5; lower it if the blind read,
+KAN-386, finds a chat's last answers worse than its first) the tool says to
+start a new chat. A new chat starts at the oldest open application with a
+question unanswered, so a batch whose writing stopped at a Claude usage
+limit resumes there: answers save all or none per application, so a
+stopped application has nothing saved. A chat is never given the same
+application twice, so a question Claude left out (no fact for it) can't
+hold it. The value isn't signed: it guards only the student's own answer
+quality, and one that isn't valid starts a new chat.
+Tests: `tests/test_connector_chat.py`.
+
+KAN-380 adds the checks in code on save (above), with `max_length` read
+from the live form by the Fill engine's `limits`, and `answer_bank`, which
+offers an answer about one company (`checks.company_specific`) on that
+company's forms only. **Write early, reuse, keep edits (KAN-379):** when
+jobs are queued (the webapp's `run/open`), the extension's `writeEarly`
+(`batch.js`) reads each queued job's Question set from its form's link with
+the Fill engine (no tab; Workday and Eightfold wait for theirs), plans it
+with the job's answer bank (`GET .../answer-bank`) and sends what is left
+to write (`PUT .../questions`), so the student's Claude writes before the
+tab opens. Every batch tab plans with the same bank, so a question answered
+before (by their Claude, or by them) is filled as a Saved Answer and never
+reaches their Claude; an application with nothing left is never offered.
+The student's own words in a written answer (`PUT .../answers`) are kept
+as `own` and win on every later form. **WorkIt calls no model on this path**: no tool or route of the
+connector makes a `workit_scout` `LLM` (tested), and batch tabs never call
+the essay-answer route.
+
+**How an answer reaches the tab.** A batch tab whose Plan has questions
+that need writing sends them (`PUT .../applications/{job_id}/questions`,
+13) and shows each as waiting for the student's Claude. While any is
+waiting, the tab asks for the saved answers every 10 seconds
+(`GET .../questions`, through the background) and fills each new one
+through the engine; the tab's group follows, so it moves to Ready once
+nothing else needs the student. A question the student answers by hand
+first keeps the student's answer.
+
+**Company briefs** (KAN-382; `app/auto_apply/briefs.py`, tools in
+`app/connector/briefs.py`). One brief per company, in `company_briefs`,
+shared by every student who applies there and built by the first one's
+Claude: WorkIt calls no model for it.
+
+| Name | Kind | Does |
+|---|---|---|
+| `get_research_task` | tool, `readOnlyHint` | The first company of the student's open applications with a written question left whose brief is missing, older than 30 days, or scores under 60 of 100: the company, the job, why, its score, the categories it lacks, and the news sites a fact may cite. `company: null` when none needs it. A research that was not kept holds the company back 3 days |
+| `save_company_brief` | tool, a write (not destructive) | `{company, facts: [{category, fact, url, quote, published, team}]}` for a company the student applies to (else a tool error). WorkIt reads each page through the safe fetcher (`app/services/page_fetch.py`) and keeps a fact only if its host is the company's own (a domain named for it, or its WorkIt profile's website) or a listed news site, its quote is on the page word for word (case, punctuation and spacing folded), and each number the fact states is in its quote; a date whose year the page doesn't show is dropped from the fact. Kept only with 3 or more checked facts and a higher score today than the kept brief. Answers `{saved, score, current_score, kept, dropped: [{url, reason}]}` |
+
+`get_next_application` hands the application's company brief as
+`company_brief` (category, fact, url, published, team), described as web
+text. **Score, in code:** 10 per category covered (products, launches,
+engineering, team), 4 per checked fact up to 10, 4 per fact whose page is
+under a year old up to 5; recency is counted on the day of the comparison,
+so a brief scores lower as it ages. **The fetcher** reads http(s) only, on
+the default port, the allowed hosts only (checked again on each of at most
+3 redirects), never a host that resolves to a non-public address, and
+connects to the address it checked (TLS still verified against the host
+name), with 10 seconds and 2 MB per page, text types only. Tests use a fake
+fetcher (`tests/test_company_briefs.py`); the fetcher's own refusals are in
+`tests/test_page_fetch.py`.
+
+**Adding it, and the directory** (KAN-383). Auto Apply's **Add to Claude**
+and `/docs/mcp` open Claude's Add Custom Connector dialog with WorkIt's name
+and `<api>/mcp` filled in (Anthropic's install link,
+`frontend/src/lib/claude-connector.ts`); the student checks and confirms.
+Anthropic's connector directory, which removes even that step and lets
+Claude suggest WorkIt in a chat, needs every tool to carry a title and a
+read-only or destructive hint (tested for every tool), no instructions in
+tool descriptions, public docs (`/docs/mcp`) and a privacy policy that
+covers the connector (`/privacy`). The submission is written out in
+`docs/connector-directory.md`; the team sends it after deploying. Once
+listed, `CLAUDE_CONNECTOR_LINK` points every Add to Claude at the listing.
+
+**Why not Supabase Auth's OAuth 2.1 server** (decided 2026-10-25, KAN-377):
+its docs call it beta and free "during the beta period", with no price after
+it (WorkIt's Supabase is on the Free plan); dynamic client registration is
+off until a dashboard setting turns it on on the shared project; its tokens
+are Supabase session JWTs, which every other route would also accept, where
+a connector token should reach the connector only; and no test could run it,
+since the tests' throwaway database has no Supabase Auth.
 
 ---
 

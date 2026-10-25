@@ -99,7 +99,15 @@ the KAN-296 cutover.
   company screens sit under a real `/company` prefix. A route group adds no URL
   segment, so two groups cannot both define `/profile` and both audiences need
   one; the prefix also makes the auth guard one path check. Auth screens
-  (`login/`, `signup/`) and `design-kit/` sit outside both shells.
+  (`login/`, `signup/`), the connector's consent page (`connect/claude/`,
+  KAN-377) and `design-kit/` sit outside both shells. `/login?next=` goes
+  back only to `/connect/claude` (`login/actions.ts`): never widen it to
+  any path, which would make the sign-in page an open redirect.
+  **Every way into the connector is one link**, `lib/claude-connector.ts`
+  (KAN-383): Claude's Add Custom Connector dialog filled in with WorkIt's
+  name and `<api>/mcp`, or the directory listing once
+  `CLAUDE_CONNECTOR_LINK` is set. Read it on the server and pass it down;
+  never write the claude.ai URL anywhere else.
 - **The business side is hidden until it ships** (KAN-239). `src/proxy.ts`
   redirects `/company` and `/onboarding/company` (and everything under them)
   to `/coming-soon`, "Waiting for Deployment", before its env check, so a
@@ -1024,6 +1032,12 @@ the KAN-296 cutover.
   resume picker stores a job's resume as the sent resume its application
   names; the extension does not read it yet (`docs/screens.md`, Auto
   Apply).
+  **Written Answers (`/auto-apply/answers`, KAN-385) saves through the
+  connector's own save** (`PUT .../written-answers`, which runs WorkIt's
+  answer checks): never give pasted text a save of its own, since it may
+  come from any AI, and never send it to the extension; the open tab fills
+  it on its own poll. A failed check is the warning amber under its box,
+  never the danger red (the student fixes it; nothing broke).
   Every resume dialog (Did You Apply?, Tailor's Pick a Resume, Up Next's
   Choose a Resume) picks through one table, `ResumeLists` in
   `jobs/resume-picker.tsx` (KAN-360): change it there, never per dialog
@@ -1379,6 +1393,12 @@ are in `docs/auth.md`.
   Profile step then saves the home `location` and the links through
   `updateProfile`, checked with `webLink` first, the same fields My Profile
   edits. Screen: `docs/screens.md`, Applicant onboarding.
+- **The practice forms (`lib/practice-form.ts`) import nothing** (KAN-378):
+  they are whole HTML pages, served by a route handler, and the extension's
+  end-to-end test imports the module to serve the same bytes, so it can't
+  reach `@/` or React. Their Submit must never send anything; keep it the
+  page script's `/thanks` navigation. They copy WorkIt's tokens by name:
+  change them with `globals.css`.
 - **A built resume's download keeps nothing** (KAN-267): the PDF through
   `renderResumePdf` (base64 and its `file_name`), the Word file and the
   PDF's LaTeX source through `downloadResumeFile(id, "docx" | "tex")`

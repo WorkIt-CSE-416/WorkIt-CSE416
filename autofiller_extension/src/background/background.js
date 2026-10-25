@@ -7,9 +7,12 @@
 // comment explains why) — just the cache.
 
 import { getSession } from "./auth.js";
-import { getAutofillProfile, generateEssayAnswer, ApiError } from "./api.js";
-import { batchStatus, forgetTab, inBatch, resumeBatch, setTabState, showBatchTab, skipTab, startBatch } from "./batch.js";
-import { engineCaller, handleFill, jobOf, runEngine } from "./engine.js";
+import { answerBank, getAutofillProfile, generateEssayAnswer, ApiError, askQuestions, me, saveOwnAnswer, writtenAnswers } from "./api.js";
+import {
+  batchStatus, forgetTab, inBatch, jobInTab, markSubmitted, nextNeedsYou, practiceStatus, resumeBatch, setTabState, showBatchTab, skipTab, startBatch,
+  startPractice, submitPractice, writeEarly,
+} from "./batch.js";
+import { engineCaller, handleFill, jobOf, practiceJob, runEngine, submittedPage } from "./engine.js";
 import { injectFill } from "../shared/content-scripts.js";
 import { workdayLogin } from "./workday-logins.js";
 
@@ -78,15 +81,21 @@ async function handleMessage(message, sender) {
 
     // The content script's fill (content-script.js): the Plan for the page
     // it runs in (fill/plan), then the planned answers filled through the
-    // engine (fill/page). A Workday tab is remembered, so its
+    // engine (fill/page), what fields show (fill/read) and which required
+    // ones show nothing (fill/required). A Workday tab is remembered, so its
     // fill starts again when a step loads as a new page.
     case "fill/plan":
     case "fill/page":
-    case "fill/read": {
+    case "fill/read":
+    case "fill/required": {
       const profile = await getAutofillProfile();
       if (message.type === "fill/plan" && jobOf(sender.url)?.site === "workday") await rememberWorkdayTab(sender.tab.id);
+      // A batch tab plans with the answers its application may reuse (KAN-379), read fresh for each Plan:
+      // one saved a moment ago in another tab counts. Any other page has no application, so no bank.
+      const jobId = message.type === "fill/plan" ? await jobInTab(sender.tab.id) : null;
+      const bank = jobId ? await answerBank(profile.id, jobId).catch(() => ({})) : {};
       return handleFill(message, {
-        url: sender.url, profile, today: today(), call: engineIn(sender), fetchText, trees: workdayTrees,
+        url: sender.url, profile, bank, today: today(), call: engineIn(sender), fetchText, trees: workdayTrees,
       });
     }
 
@@ -112,6 +121,52 @@ async function handleMessage(message, sender) {
     case "batch/skip":
       return skipTab(sender.tab.id);
 
+    // A batch tab's questions that need writing (KAN-377): sent to the API for
+    // the student's own Claude to answer through the connector
+    // (batch/questions), then the answers saved so far (batch/answers), which
+    // the tab fills. The job is the batch's own for that tab, never the message's.
+    case "batch/questions":
+    case "batch/answers": {
+      const jobId = await jobInTab(sender.tab.id);
+      if (!jobId) throw new Error("This tab isn't one of the batch's");
+      const { id } = await me();
+      const questions = message.type === "batch/questions"
+        ? await askQuestions(id, jobId, message.questions)
+        : await writtenAnswers(id, jobId);
+      return { questions };
+    }
+
+    // The student's own words for one of a batch tab's questions that need
+    // writing (KAN-379): an edit to the answer filled there, or their answer
+    // before their Claude's. Kept as the application's answer and saved for
+    // later forms. The job is the batch's own for that tab, never the message's.
+    case "batch/own-answer": {
+      const jobId = await jobInTab(sender.tab.id);
+      if (!jobId) throw new Error("This tab isn't one of the batch's");
+      const { id } = await me();
+      await saveOwnAnswer(id, jobId, { name: message.name, label: message.label, answer: message.answer });
+      return {};
+    }
+
+    // A batch tab's "Next Thing That Needs You" (content-script.js): batch.js goes to it, across the tabs.
+    case "batch/next":
+      return nextNeedsYou();
+
+    // A batch tab's page watches for the student's own submit (KAN-374):
+    // the engine, in the page, reads the job system's answer to it and its
+    // notices, and tells the content script, which says "batch/submitted"
+    // when the application was sent. The extension never submits.
+    case "batch/watch": {
+      const job = jobOf(sender.url);
+      // A practice form's submit is its thanks page's (submitPractice below), never an application's.
+      const site = job && !job.practice ? job.site : null;
+      if (site && (await inBatch(sender.tab.id))) await engineIn(sender)("watchSubmit", site);
+      return { watching: Boolean(site) };
+    }
+
+    case "batch/submitted":
+      return markSubmitted(sender.tab.id);
+
     default:
       throw new Error(`Unknown message type: ${message.type}`);
   }
@@ -132,6 +187,15 @@ async function rememberWorkdayTab(tabId) {
   if (!tabs.includes(tabId)) await chrome.storage.session.set({ [WORKDAY_TABS_KEY]: [...tabs, tabId] });
 }
 
+// A batch tab that moves to a job system's page for a sent application
+// (Greenhouse's confirmation, Lever's thanks) was submitted by the student.
+// Lever's form is a plain HTML post, so this is its only signal. Host
+// permissions show the tab's link, with no `tabs` permission.
+chrome.tabs.onUpdated.addListener((tabId, change) => {
+  if (!change.url || !submittedPage(change.url)) return;
+  markSubmitted(tabId).catch((error) => console.warn("[batch] the application wasn't marked applied:", error.message));
+});
+
 chrome.tabs.onUpdated.addListener(async (tabId, change, tab) => {
   if (change.status !== "complete") return;
   const tabs = await workdayTabs();
@@ -143,6 +207,15 @@ chrome.tabs.onUpdated.addListener(async (tabId, change, tab) => {
     return;
   }
   injectFill(tabId, { batch: await inBatch(tabId) }).catch((error) => console.warn("[fill] Workday's next page wasn't filled:", error));
+});
+
+// A practice form's Submit opens its /thanks page and sends nothing
+// (frontend/src/lib/practice-form.ts): reaching it is the practice job's
+// submit. `url` is given for WorkIt's own pages, which are in host_permissions.
+chrome.tabs.onUpdated.addListener((tabId, change) => {
+  if (change.url && practiceJob(change.url)?.page === "thanks") {
+    submitPractice(tabId).catch((error) => console.warn("[batch] the practice submit wasn't kept:", error));
+  }
 });
 
 chrome.tabs.onRemoved.addListener(async (tabId, removeInfo) => {
@@ -193,17 +266,35 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
 // from the API; it gets the sender only to open the tabs in the window that
 // asked. The other two only say which job postings the batch's tabs show,
 // and switch to one of them (`jobId` picks among the batch's own tabs only).
+// Onboarding's practice batch (KAN-378) takes links, but only to WorkIt's own
+// practice forms on the asking page's site (batch.js, `startPractice`).
 const RUNNER_MESSAGES = {
-  "run/open": (message, sender) => startBatch(sender),
+  "run/open": async (message, sender) => {
+    const opened = await startBatch(sender);
+    // Not awaited: the webapp hears once the tabs open; the queue's other questions are read meanwhile (KAN-379).
+    if (opened.opened) writeEarly({ fetchText, today: today() }).catch((error) => console.warn("[batch] questions not read early:", error.message));
+    return opened;
+  },
   "run/status": () => batchStatus(),
   "run/show": (message) => showBatchTab(message),
+  "practice/open": (message, sender) => startPractice(sender, message),
+  "practice/status": () => practiceStatus(),
 };
+
+/** Whether the student pinned the extension to the toolbar; null where Chrome can't say. */
+async function pinned() {
+  try {
+    return (await chrome.action.getUserSettings()).isOnToolbar;
+  } catch {
+    return null;
+  }
+}
 
 chrome.runtime.onMessageExternal.addListener((message, sender, sendResponse) => {
   if (message?.type === "ping") {
-    getSession()
-      .then((session) => sendResponse({ ok: true, installed: true, signedIn: Boolean(session) }))
-      .catch(() => sendResponse({ ok: true, installed: true, signedIn: false }));
+    // `pinned` for onboarding's install step (KAN-378), which asks the student to pin it.
+    Promise.all([getSession().catch(() => null), pinned()])
+      .then(([session, isPinned]) => sendResponse({ ok: true, installed: true, signedIn: Boolean(session), pinned: isPinned }));
     return true;
   }
 

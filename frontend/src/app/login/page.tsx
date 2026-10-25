@@ -30,11 +30,18 @@ const FORM_ID = "sign-in";
  * every time its height changed, and the control just clicked slid out from
  * under the pointer.
  */
-export default async function LoginPage() {
+export default async function LoginPage({
+  searchParams,
+}: {
+  searchParams: Promise<{ [key: string]: string | string[] | undefined }>;
+}) {
   // Request time, not build time: the session check needs the Supabase keys,
   // which CI's build has none of (the seeker layout's rule).
   await connection();
   await redirectIfSignedIn();
+  // The page to go back to after signing in: the connector's consent page
+  // (actions.ts allows only that one).
+  const { next } = await searchParams;
 
   return (
     <main className="flex flex-1 items-start justify-center p-6 lg:pt-[12vh]">
@@ -52,7 +59,7 @@ export default async function LoginPage() {
             reaches the submission through its hidden input's `form`. */}
         <AccountTypeSwitcher form={FORM_ID} />
 
-        <LoginForm formId={FORM_ID} />
+        <LoginForm formId={FORM_ID} next={typeof next === "string" ? next : undefined} />
 
         <AuthAlternatives />
 

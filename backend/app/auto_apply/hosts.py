@@ -42,3 +42,61 @@ _AUTO_APPLY_URL = re.compile(AUTO_APPLY_URL_PATTERN, re.IGNORECASE)
 def auto_apply_supported(apply_url: str) -> bool:
     """Whether auto apply takes the job posting at this apply_url."""
     return _AUTO_APPLY_URL.match(apply_url) is not None
+
+
+# Job boards (KAN-376): sites that list other employers' job postings. Their
+# terms ban automated applications, so auto apply never opens one; a posting
+# there is taken only through the employer's own form it names. Host, and the
+# board's name as a student knows it.
+JOB_BOARDS = {
+    "linkedin.com": "LinkedIn",
+    "lnkd.in": "LinkedIn",
+    "indeed.com": "Indeed",
+    "glassdoor.com": "Glassdoor",
+    "ziprecruiter.com": "ZipRecruiter",
+    "joinhandshake.com": "Handshake",
+    "wellfound.com": "Wellfound",
+    "simplyhired.com": "SimplyHired",
+    "monster.com": "Monster",
+    "dice.com": "Dice",
+    "builtin.com": "Built In",
+    "simplify.jobs": "Simplify",
+    "jobright.ai": "Jobright",
+}
+
+JOB_BOARD_URL_PATTERN = (
+    r"^https?://([a-z0-9-]+\.)*("
+    + "|".join(re.escape(host) for host in JOB_BOARDS)
+    + r")([/:?#]|$)"
+)
+_JOB_BOARD_URL = re.compile(JOB_BOARD_URL_PATTERN, re.IGNORECASE)
+
+
+# The first link in a job board posting's text to a hiring system auto apply
+# fills: the employer's own form, which the posting names ("Apply on our
+# site"). Its host must end there (not greenhouse.io.example.com), and a
+# sentence's closing stop or bracket is not part of it. Written for
+# Postgres's substring() (filters.py FORM_URL): only non-capturing groups, as
+# substring() answers the first group's match, and (?i) for its case.
+NAMED_FORM_PATTERN = (
+    r"(?i)https?://(?:[a-z0-9-]+\.)*(?:"
+    + "|".join(re.escape(host) for host in AUTO_APPLY_HOSTS)
+    + r")(?![a-z0-9.-])(?:[/:?#](?:[^ \t\r\n\"'<>]*[^ \t\r\n\"'<>.,;:!?)])?)?"
+)
+
+
+def job_board(url: str) -> str | None:
+    """The job board this link is on ("LinkedIn"), or None for any other link."""
+    found = _JOB_BOARD_URL.match(url)
+    return found and JOB_BOARDS[found.group(2).lower()]
+
+
+def refusal(apply_url: str) -> str:
+    """Why auto apply won't take the job posting at this apply_url, for the student."""
+    board = job_board(apply_url)
+    if board:
+        return (
+            f"{board} is a job board, and its terms ban automated applications. "
+            "Auto Apply fills only an employer's own application form, and this posting names none."
+        )
+    return "Auto Apply can't fill this job's hiring system yet."

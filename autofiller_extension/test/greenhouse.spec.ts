@@ -5,7 +5,7 @@ import { readFileSync } from "node:fs";
 import { join } from "node:path";
 import { runInNewContext } from "node:vm";
 import { expect, test } from "@playwright/test";
-import { FakeJobServer, FORMS } from "../fill-engine/test/fake-job-server";
+import { FakeJobServer, FORMS, loadHar } from "../fill-engine/test/fake-job-server";
 import { ENGINE_FILES } from "../src/shared/content-scripts.js";
 import { engineCaller, planFill, planRows, runEngine } from "../src/background/engine.js";
 import { STUDENT, bridge, failed, inject, settled, shown } from "./extension";
@@ -26,7 +26,8 @@ test("fills a saved Greenhouse form from a WorkIt profile and submits nothing", 
     first_name: "Test",
     last_name: "Person",
     email: "test.person@example.com",
-    phone: "5550100199",
+    phone: "(555) 010-0199", // formatted for the US once its country is picked
+    country: "United States", // the picker beside Phone: Greenhouse won't send a number without it
     question_18871501008: "https://www.linkedin.com/in/test-person",
     question_18871502008: "Yes",
     question_18871503008: "No",
@@ -38,6 +39,32 @@ test("fills a saved Greenhouse form from a WorkIt profile and submits nothing", 
   });
   expect(failed(rows)).toEqual({});
   expect(arc.submissions).toEqual([]);
+});
+
+test("each filled field says where its answer came from, and a guess is marked for checking", async ({ context }) => {
+  const pure = new FakeJobServer("greenhouse-purestorage");
+  const page = await pure.open(context);
+  const job = readFileSync(join(FORMS, "greenhouse-purestorage", "questions.json"), "utf8");
+  // The Job Board API's answer for the job, and the rest (the posting page, its education lists) from the saved form.
+  const saved = new Map(loadHar("greenhouse-purestorage").log.entries.map((e: any) => [e.request.url, e.response.content.text ?? ""]));
+  await bridge(page, async (url) => {
+    if (url.startsWith("https://boards-api.greenhouse.io/")) return job;
+    if (!saved.has(url)) throw new Error(`not saved: ${url}`);
+    return saved.get(url)!;
+  });
+
+  await inject(page);
+  const { rows } = await settled(page);
+  const source = Object.fromEntries(rows.filter((r) => r.status === "filled").map((r) => [r.label, r.source]));
+
+  expect(source).toMatchObject({ "First Name": "profile", Email: "profile", Phone: "profile", "Resume/CV": "profile" });
+  // "How did you hear?" is WorkIt's own default, not something the student said.
+  expect(source["How did you hear about this job?"]).toBe("guessed");
+  // The overlay labels each one, and marks the guess.
+  const panel = page.locator("#workit-autofiller-overlay-host");
+  await expect(panel.locator('[data-key="first_name"] [data-source]')).toHaveText("Profile");
+  await expect(panel.locator(`[data-key="${rows.find((r) => r.source === "guessed")!.key}"]`)).toHaveAttribute("data-guessed", "");
+  expect(pure.submissions).toEqual([]);
 });
 
 test("leaves a job system the engine doesn't cover alone", async () => {
@@ -77,8 +104,25 @@ async function rowsFor(job: string) {
 test("an essay question waits for the student to ask for a written answer", async () => {
   const rows = await rowsFor(arcWithEssay("&lt;p&gt;Build boats.&lt;/p&gt;"));
 
-  expect(rows.written).toEqual([{ name: "question_1", label: "Why do you want to work at Arc?", required: true }]);
+  expect(rows.written).toEqual([{ name: "question_1", label: "Why do you want to work at Arc?", required: true, max_length: null }]);
   expect(rows.yours).toEqual([]);
+});
+
+test("an essay's limit is its field's own, as the engine reads it from the form", async ({ context }) => {
+  const page = await new FakeJobServer("greenhouse-arc").open(context);
+  // The essay's box on the form, with the limit the employer set.
+  await page.evaluate(() => {
+    const box = document.createElement("textarea");
+    box.id = "question_1";
+    box.maxLength = 600;
+    document.body.append(box);
+  });
+  const prepared = await planFill({
+    url: "https://job-boards.greenhouse.io/arcboatcompany/jobs/5442881008", profile: STUDENT, today: "2026-10-22",
+    call: engineCaller((request) => page.evaluate(runEngine, request)), fetchText: async () => arcWithEssay("&lt;p&gt;Build boats.&lt;/p&gt;"),
+  });
+
+  expect(planRows(prepared).written).toEqual([{ name: "question_1", label: "Why do you want to work at Arc?", required: true, max_length: 600 }]);
 });
 
 test("on a posting that bans AI-written answers, the essay is left for the student", async () => {
@@ -94,7 +138,7 @@ test("a one-line question the Plan leaves to a draft is the student's, not an es
   const details = { name: "details", label: "Have you completed at least one previous internship? Please provide details.", kind: "textarea", required: true, options: [] };
   const rows = planRows({ plan: { essays: [], drafts: [nickname, details], missing: [], handoffs: [] } });
 
-  expect(rows.written).toEqual([{ name: "details", label: details.label, required: true }]);
+  expect(rows.written).toEqual([{ name: "details", label: details.label, required: true, max_length: null }]);
   expect(rows.yours).toEqual([{ name: "nick", label: "Nick Name", required: false }]);
 });
 

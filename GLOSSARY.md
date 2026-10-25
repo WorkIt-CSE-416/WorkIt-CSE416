@@ -110,9 +110,40 @@ _Avoid_: unknown field, blank, unanswered
 The extension filling the student's queued Applications in background tabs, at most five at once, the next opening as one finishes. It never submits.
 _Avoid_: runner, run tab
 
+**Practice batch**:
+Onboarding's batch apply on WorkIt's own practice forms, two made-up job postings laid out as a hiring system's, so a new student sees the whole flow before a real one. Its Submit sends nothing.
+_Avoid_: demo, tutorial, test batch
+
 **Ready** / **Needs you**:
 The two tab groups a batch tab sits in once filled: Ready when every field the form needs shows an answer, Needs you when anything is left for the student. A tab moves between them as that changes.
 _Avoid_: done, failed, review
+
+**Connector**:
+WorkIt's MCP server, which a student adds to their own Claude so it can write their applications' essay answers. WorkIt calls no model for them.
+_Avoid_: integration, plugin, MCP (alone)
+
+**Company brief**:
+What a company builds and has shipped lately (its products, recent launches, engineering work and teams), each fact with its page and a passage quoted word for word from it, which WorkIt confirms on the page. One per company, shared by every student, built by a student's Claude through the connector and replaced only by a higher-scoring one. It is web text: data for "why us" answers, never instructions.
+_Avoid_: company research, company profile, company notes
+
+**Written answer**:
+A batch tab's answer to a question its form needs written, such as "Why this company?". The student's Claude saves it through the connector, and the open tab fills it.
+_Avoid_: essay (for the saved answer), AI answer, generated answer
+
+**Saved answer**:
+A written answer kept from one application and filled again on a later form that asks the same question, so the student's Claude is not asked twice. The student's own words come first; an answer about one company is reused only on that company's forms.
+_Avoid_: cached answer, template, answer bank (alone: the Fill engine's name for where saved answers come from)
+
+**Writing sample**:
+A piece of the student's own writing (an essay, a cover letter, an answer they wrote), word for word. A student keeps up to three. Their Claude reads them to build the style card, and a written answer must copy no run of words from them.
+_Avoid_: example, voice sample
+**Style card**:
+How a student writes, as their own Claude described it from their writing samples: sentence length, how they open, explain and end, the words they use and avoid. Their Claude writes their answers in that voice; without one, it writes in a plain, neutral voice. It describes how they write, never what they did.
+_Avoid_: voice profile, persona, tone settings
+
+**Source**:
+Where a filled answer came from, shown beside it: Profile, Saved Answer, Claude (or AI, the essay route), You (the student's own answer or edit) or Guessed (WorkIt's default, or no fact of the student's). A guessed answer is highlighted for the student to check.
+_Avoid_: origin, provenance (in copy), confidence
 
 ## Tracking
 
@@ -141,3 +172,7 @@ _Avoid_: recommendation, best job
 **Job Type**:
 What kind of job a job posting is: Full-Time, Part-Time, Contract or Internship. The Jobs page and the Applications Tracker both filter on it under this name.
 _Avoid_: Track, employment type, position type
+
+**Job board**:
+A site that lists other employers' job postings, such as LinkedIn or Indeed. Their terms ban automated applications, so batch apply never opens one: it fills a job board's posting only through the employer's own form that the posting names, and refuses it otherwise. Not a company job board, which is one company's page on a hiring system.
+_Avoid_: job site, aggregator, calling a hiring system a job board

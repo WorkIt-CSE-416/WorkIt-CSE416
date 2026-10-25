@@ -130,6 +130,39 @@ export default function PrivacyPage() {
         click Submit yourself.
       </p>
 
+      <h2>The WorkIt Connector for Claude</h2>
+      <p>
+        You can add WorkIt to your own Claude account as a connector, so that your Claude writes the
+        answers to your applications&apos; written questions. Claude can connect only after you sign
+        in to WorkIt and click Allow. WorkIt then gives Claude a token that reaches the connector
+        and nothing else. We keep only a scrambled copy (a hash) of each token. A token lasts 1
+        hour, and Claude renews it while you use the connector; one unused for 90 days stops
+        working.
+      </p>
+      <ul>
+        <li>
+          <strong>What Claude can read:</strong> one application at a time: its company, job title,
+          job posting and the written questions it still has unanswered, and your experience bank
+          and skills. Claude never gets your contact details, your application answers (including
+          self-identification answers), your resume files or your other applications.
+        </li>
+        <li>
+          <strong>What Claude can save:</strong> answers to that application&apos;s written
+          questions. WorkIt keeps each answer with the application, and the extension fills it into
+          the application&apos;s open tab. You review it and submit the application yourself.
+        </li>
+        <li>
+          <strong>What WorkIt does not collect:</strong> your Claude conversations, your Claude
+          memory, chat history or files. WorkIt calls no AI model for the connector; Claude writes
+          with your own Claude plan, under Anthropic&apos;s terms and privacy policy.
+        </li>
+        <li>
+          <strong>Stopping it:</strong> remove WorkIt in Claude&apos;s connector settings to stop
+          Claude from using it. Deleting your WorkIt account deletes its connector tokens and saved
+          answers.
+        </li>
+      </ul>
+
       <h2>Who We Share Information With</h2>
       <ul>
         <li>
