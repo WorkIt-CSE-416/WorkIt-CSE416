@@ -564,6 +564,7 @@ on after the fill.
 | `run/status` | webapp → extension | `{}`; answers `{ jobId, jobIds }` |
 | `run/show` | webapp → extension | `{ jobId }`; switches to that job's tab |
 | `batch/state` | content script → background | `{ state: "ready" \| "needs_you" }` |
+| `batch/skip` | content script → background | `{}`: the panel's Skip. The application goes to `skipped` (`POST .../finish`), its tab closes, the next one opens (KAN-373) |
 | `fill/read` | content script → background | `{ site, questions, names }`; answers what each field shows |
 
 Next: Workday one slot at a time, Skip and resuming a batch (KAN-373),

@@ -39,6 +39,8 @@ window.WIA = window.WIA || {};
         all: unset; cursor: pointer; font-size: 14px; padding: 2px 6px; border-radius: 4px;
       }
       .header button:hover { background: rgba(255,255,255,0.15); }
+      .header .actions { display: flex; gap: 4px; }
+      .header button[data-skip] { font-size: 12px; font-weight: 600; border: 1px solid rgba(255,255,255,0.6); padding: 2px 8px; }
       .summary { padding: 8px 12px; font-size: 12px; color: #4b5563; border-bottom: 1px solid #eee; }
       .essay-banner {
         padding: 10px 12px; background: #eff6ff; border-bottom: 1px solid #dbeafe;
@@ -136,7 +138,12 @@ window.WIA = window.WIA || {};
     });
   }
 
-  function mount() {
+  /**
+   * Puts the panel on the page. `onSkip`: a batch tab's Skip (the job leaves
+   * the batch, and its tab closes), shown as a button in the header.
+   * @param {{ onSkip?: () => void }} [options]
+   */
+  function mount({ onSkip } = {}) {
     if (host) return;
     host = document.createElement("div");
     host.id = "workit-autofiller-overlay-host";
@@ -148,13 +155,17 @@ window.WIA = window.WIA || {};
     panel.innerHTML = `
       <div class="header">
         <span>WorkIt Autofiller</span>
-        <button type="button" aria-label="Close" data-close>✕</button>
+        <span class="actions">
+          ${onSkip ? '<button type="button" data-skip title="Leave this job out of the batch">Skip</button>' : ""}
+          <button type="button" aria-label="Close" data-close>✕</button>
+        </span>
       </div>
       <div class="summary"></div>
       <div class="essay-banner" hidden></div>
       <div class="list"></div>
     `;
     panel.querySelector("[data-close]").addEventListener("click", unmount);
+    panel.querySelector("[data-skip]")?.addEventListener("click", onSkip);
     shadow.appendChild(panel);
     root = shadow;
 

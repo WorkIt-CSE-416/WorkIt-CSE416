@@ -23,7 +23,8 @@
 // the student ("batch/state"), once the fill ends and again whenever that
 // changes: the engine reads back the fields the student edits, so emptying
 // a required field, or answering the last one, moves the tab between the
-// Ready and Needs you groups (background/batch.js).
+// Ready and Needs you groups (background/batch.js). Its panel has Skip
+// (KAN-373): the job is skipped, and its tab closes.
 (async function () {
   "use strict";
 
@@ -52,6 +53,8 @@
   window.WIA.phase = "filling";
 
   const send = (message) => chrome.runtime.sendMessage(message);
+  // The panel's options: a batch tab's panel has Skip.
+  const panel = batch ? { onSkip: () => send({ type: "batch/skip" }).catch(() => {}) } : undefined;
   const sleep = (ms) => new Promise((done) => setTimeout(done, ms));
 
   /** A row that is the overlay's message, not a field. */
@@ -277,7 +280,7 @@
     // the panel mounted after the fill: 0 in 50 (KAN-370). The engine waits
     // for the form's start-up before it types, so by now it is over.
     const prepared = await fillShown();
-    overlay.mount();
+    overlay.mount(panel);
     window.WIA.phase = prepared ? "filled" : "stopped";
     window.WIA.running = false;
     report();
@@ -288,7 +291,7 @@
 
   // Workday: each step as it shows, until the step whose button sends. Its
   // pages aren't hydrated, and the panel tells the student to sign in first.
-  overlay.mount();
+  overlay.mount(panel);
   if (!workdayStep()) {
     note("_step", "Waiting for the application", "Sign in and start the application. WorkIt fills each step as it shows.");
     window.WIA.phase = "step";

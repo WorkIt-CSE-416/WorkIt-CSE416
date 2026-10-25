@@ -30,7 +30,7 @@
 // shown (checked 2026-10-25, Chromium 1248). So no tab is ever made active,
 // and the student stays on the page they were on.
 
-import { ApiError, me, nextApplication, recordFill } from "./api.js";
+import { ApiError, finishApplication, me, nextApplication, recordFill } from "./api.js";
 import { formUrl } from "./engine.js";
 import { injectFill } from "../shared/content-scripts.js";
 
@@ -307,6 +307,28 @@ export function forgetTab(tabId, removeInfo = {}) {
     } catch (error) {
       console.warn("[batch] the next application didn't open:", error.message);
     }
+  });
+}
+
+/**
+ * The student pressed Skip in a batch tab (content-script.js): the
+ * application is skipped (POST .../finish), its tab closes and leaves the
+ * batch, and the batch goes on with the next queued one. A failed finish
+ * leaves the tab as it was, so the student can press Skip again.
+ * @param {number} tabId
+ */
+export function skipTab(tabId) {
+  return serially(async () => {
+    const batch = await load();
+    const tab = batch?.tabs[tabId];
+    if (!tab) return { batch: false };
+    const account = await me();
+    await finishApplication(account.id, tab.jobId, "skipped");
+    delete batch.tabs[tabId];
+    await save(batch);
+    await chrome.tabs.remove(tabId).catch(() => {});
+    await topUp(batch, account.id);
+    return { batch: true };
   });
 }
 

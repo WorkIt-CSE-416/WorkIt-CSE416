@@ -8,7 +8,7 @@
 
 import { getSession } from "./auth.js";
 import { getAutofillProfile, generateEssayAnswer, ApiError } from "./api.js";
-import { batchStatus, forgetTab, inBatch, resumeBatch, setTabState, showBatchTab, startBatch } from "./batch.js";
+import { batchStatus, forgetTab, inBatch, resumeBatch, setTabState, showBatchTab, skipTab, startBatch } from "./batch.js";
 import { engineCaller, handleFill, jobOf, runEngine } from "./engine.js";
 import { injectFill } from "../shared/content-scripts.js";
 
@@ -95,6 +95,10 @@ async function handleMessage(message, sender) {
       if (message.state !== "ready" && message.state !== "needs_you") throw new Error(`Unknown tab state: ${message.state}`);
       return setTabState(sender.tab.id, message.state);
     }
+
+    // The student pressed Skip on a batch tab's panel (content-script.js).
+    case "batch/skip":
+      return skipTab(sender.tab.id);
 
     default:
       throw new Error(`Unknown message type: ${message.type}`);

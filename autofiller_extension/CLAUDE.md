@@ -231,6 +231,14 @@ and `run/show` switches to one (`jobId`).
   window that is closing. A batch with no tab left has ended: the next
   `run/open` starts a new one, so a job the student closed unsubmitted
   comes back then. Chrome restores only tabs whose page had loaded.
+- **Skip is on the batch tab's panel (KAN-373).** The panel's header has a
+  Skip button in a batch tab only (`overlay.mount({ onSkip })`); it sends
+  `batch/skip`, and `skipTab` records the application as skipped
+  (`POST .../finish {"outcome": "skipped"}`), closes the tab, removes it
+  from the batch and tops the window up. If the API refuses, the tab stays,
+  so the student can press it again. **Closing a tab is not Skip**: a
+  window closed, or Chrome quitting, closes every tab, and the student may
+  close a tab only to come back to the job later; it just leaves the batch.
 - **The content script says when a tab is ready.** In a batch tab
   (`injectFill(tabId, { batch: true })` sets `window.WIA.batch`),
   `content-script.js` sends `batch/state` once the fill ends, then watches
@@ -317,8 +325,8 @@ and `run/show` switches to one (`jobId`).
 
 A batch tab opens a job's form, not its page (`formUrl`: a Lever
 `apply_url` opens the posting, and the form is at `.../apply`). Still
-open: Workday takes one slot at a time, and Skip (KAN-373); submit
-detection (KAN-374). With the student's Chrome window behind another app, macOS may
+open: Workday takes one slot at a time (KAN-373); submit detection
+(KAN-374). With the student's Chrome window behind another app, macOS may
 slow every tab further; not yet measured.
 
 ## Auth: inherits the webapp's session, has no sign-in of its own

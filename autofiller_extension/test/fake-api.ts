@@ -63,6 +63,16 @@ export class FakeApi {
       this.stages.set(fill[1], next);
       return { json: { job_id: fill[1], stage: next } };
     }
+    const finish = /^\/applications\/([^/]+)\/finish$/.exec(route);
+    if (finish && method === "POST") {
+      const stage = this.stages.get(finish[1]);
+      if (!stage) return { status: 404, json: { detail: "No application for that job." } };
+      if (stage !== "queued" && stage !== "needs_you") return { status: 409, json: { detail: `That application is ${stage}` } };
+      const outcome: string = JSON.parse(body.toString()).outcome;
+      const next: Stage = outcome === "submitted" ? "applied" : outcome === "skipped" ? "skipped" : "needs_you";
+      this.stages.set(finish[1], next);
+      return { json: { job_id: finish[1], stage: next } };
+    }
     return { status: 404, json: { detail: `The fake API has no ${method} ${route}` } };
   };
 

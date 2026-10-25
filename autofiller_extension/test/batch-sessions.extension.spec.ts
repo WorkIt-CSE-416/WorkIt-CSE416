@@ -96,3 +96,35 @@ test("a batch Chrome closed mid-way picks up where it stopped, without filling i
   });
   expect(forms.submissions).toEqual([]);
 });
+
+/** Presses the Skip button on the WorkIt panel in a batch tab's page, as the student does. */
+async function skip(page: Page): Promise<void> {
+  const button = page.locator("#workit-autofiller-overlay-host [data-skip]");
+  await button.waitFor({ timeout: 30_000 });
+  await button.click();
+}
+
+test("Skip marks the job skipped, closes its tab, and the batch goes on", async () => {
+  test.setTimeout(120_000);
+  const forms = new SavedForms(["greenhouse-arc", "greenhouse-purestorage"]);
+  const api = new FakeApi().queue(
+    { id: "job-0", apply_url: forms.url("greenhouse-arc") },
+    { id: "job-1", apply_url: forms.url("greenhouse-purestorage") },
+  );
+  loaded = await loadExtension([api.handler, webapp, forms.handler]);
+  await signIn(loaded.context);
+  await sendFromWebapp(await openWebapp(), { type: "run/open" });
+  const groupOf = async (url: string) => (await tabs(loaded!.worker)).find((t) => t.url === url)?.group;
+  await expect.poll(() => groupOf(forms.url("greenhouse-arc")), { timeout: 60_000 }).toBe("Ready");
+  await expect.poll(() => groupOf(forms.url("greenhouse-purestorage")), { timeout: 60_000 }).toBe("Needs you");
+
+  await skip(loaded.context.pages().find((p) => p.url() === forms.url("greenhouse-purestorage"))!);
+
+  await expect.poll(async () => (await tabs(loaded!.worker)).map((t) => t.url)).not.toContain(forms.url("greenhouse-purestorage"));
+  await expect.poll(() => api.stages.get("job-1")).toBe("skipped");
+  // The other tab is left as it was, and the batch carries on without the skipped job.
+  expect(await groupOf(forms.url("greenhouse-arc"))).toBe("Ready");
+  expect(api.stages.get("job-0")).toBe("queued");
+  expect(await loaded.worker.evaluate(async () => Object.values((await chrome.storage.local.get("workit_batch")).workit_batch.tabs).map((t: any) => t.jobId))).toEqual(["job-0"]);
+  expect(forms.submissions).toEqual([]);
+});

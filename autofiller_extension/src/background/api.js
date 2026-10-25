@@ -416,6 +416,17 @@ export async function recordFill(applicantId, jobId, state) {
 }
 
 /**
+ * POST .../applications/{job_id}/finish — how an application's fill ended:
+ * "skipped" (the student pressed Skip) moves it to skipped.
+ * @param {string} applicantId
+ * @param {string} jobId
+ * @param {"submitted" | "skipped" | "failed"} outcome
+ */
+export async function finishApplication(applicantId, jobId, outcome) {
+  return apiFetch(`/applicants/${applicantId}/applications/${jobId}/finish`, { method: "POST", body: JSON.stringify({ outcome }) });
+}
+
+/**
  * POST .../essay-answer — a drafted answer to one open-ended application
  * question, grounded in the applicant's experience bank. Never looked up
  * against a stored job posting: `question`/`companyName`/`jobTitle` are
