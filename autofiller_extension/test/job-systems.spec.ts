@@ -219,3 +219,26 @@ test("on a job's page that isn't its form, says where the form is and fills noth
     expect(formUrl(url)).toBe(form);
   }
 });
+
+test("asks the essay route for no more than it takes, though the form's box takes more", async ({ context }) => {
+  // Scout Clean Energy's Workable form (live, 2026-10-24): its cover letter box has maxlength 200000, the
+  // route takes at most 5000 (backend/app/schemas/essay_answer.py), and the 422 failed the row.
+  const scout = new FakeWorkable("workable-scout");
+  const page = await scout.open(context);
+  const asked: any[] = [];
+  await bridge(page, api(saved("workable-scout")), STUDENT, (message) => {
+    asked.push(message);
+    return "I would like to intern at Scout Clean Energy.";
+  });
+
+  await inject(page);
+  await settled(page);
+  await page.evaluate(() => (document.getElementById("workit-autofiller-overlay-host")!.shadowRoot!.querySelector("[data-generate]") as HTMLElement).click());
+  await page.waitForFunction(() => !(window as any).WIA.status.summary().fields.some((f: any) => f.status === "needs_generation"));
+
+  expect(asked.length).toBeGreaterThan(0);
+  for (const message of asked) expect(message.maxLength ?? 0).toBeLessThanOrEqual(5000);
+  const rows = await page.evaluate(() => (window as any).WIA.status.summary().fields);
+  expect(rows.find((r: any) => r.key === "cover_letter")).toMatchObject({ status: "filled", shows: "I would like to intern at Scout Clean Energy." });
+  expect(scout.submissions).toEqual([]);
+});

@@ -494,7 +494,9 @@ the overlay lists each as "needs_generation" (`lib-status.js`).
 - **Generation is sequential** (`content-script.js`'s `onGenerate`), one
   `essay/generate` per question: each is its own counted AI use, and the
   overlay shows each row as it lands. The answer is then filled through the
-  engine like any other.
+  engine like any other. The box's own `maxlength` goes with the question,
+  capped at the route's 5000: Workable's cover letter takes 200000, and the
+  route answered that with a 422.
 - **Company name and job title come from the job system's API** (the Job
   Board API's `company_name` and `title`), not the page's title.
 - **The model call is `POST /applicants/{id}/essay-answer`**

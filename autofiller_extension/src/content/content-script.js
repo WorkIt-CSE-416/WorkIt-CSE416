@@ -29,6 +29,7 @@
   const QUESTION_MAX = 500;
   const NAME_MAX = 200;
   const MIN_LENGTH = 50;
+  const MAX_LENGTH = 5000; // a box that takes more (Workable's cover letter: 200000) asks for this much
   // Workday's name of the step shown, and how long to let an answer bring up a follow-up before reading the step again.
   const WORKDAY_STEP = "[data-automation-id=progressBarActiveStep]";
   const FOLLOW_UP_WAIT = 300;
@@ -152,7 +153,7 @@
         // One at a time: each is its own counted AI use, and the overlay shows each row as it lands.
         for (const q of written) {
           const box = document.getElementById(q.name);
-          const maxLength = box && box.maxLength >= MIN_LENGTH ? box.maxLength : null;
+          const maxLength = box && box.maxLength >= MIN_LENGTH ? Math.min(box.maxLength, MAX_LENGTH) : null;
           const result = await send({
             type: "essay/generate",
             applicantId: prepared.applicantId,
