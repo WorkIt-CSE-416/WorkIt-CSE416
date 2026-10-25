@@ -223,6 +223,11 @@ export function forgetTab(tabId) {
   });
 }
 
+/** The job a batch tab shows, or null for a tab outside the batch (its written answers, KAN-377). */
+export async function jobInTab(tabId) {
+  return (await load())?.tabs[tabId]?.jobId ?? null;
+}
+
 /** Whether a tab is one of the batch's, for a fill injected again (Workday's next page). */
 export async function inBatch(tabId) {
   return Boolean((await load())?.tabs[tabId]);

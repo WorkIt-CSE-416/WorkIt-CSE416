@@ -77,7 +77,8 @@ window.WIA = window.WIA || {};
     // A row keyed "_..." is the overlay's own message (content-script.js's note), not a field.
     label.textContent = field.label + (field.required || field.key.startsWith("_") ? "" : " (optional)");
     text.appendChild(label);
-    if ((field.status === "failed" || field.status === "skipped") && field.reason) {
+    // needs_generation's reason says who writes it (a batch tab: the student's Claude, KAN-377).
+    if ((field.status === "failed" || field.status === "skipped" || field.status === "needs_generation") && field.reason) {
       const reason = document.createElement("div");
       reason.className = field.status === "failed" ? "reason" : "reason note";
       reason.textContent = field.reason;

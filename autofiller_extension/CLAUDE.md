@@ -220,9 +220,20 @@ and `run/show` switches to one (`jobId`).
   `content-script.js` sends `batch/state` once the fill ends, then watches
   the student's edits: the engine reads back (`fill/read`) every required
   or failed field, so emptying one moves the tab to Needs you and answering
-  the last one moves it to Ready. A batch tab writes no essays (the essay
-  route is not batch apply's; the student's own Claude will write them,
-  KAN-377): they are left to the student.
+  the last one moves it to Ready.
+- **A batch tab's essays come from the student's own Claude** (KAN-377;
+  `auto-apply/architecture.md` 14.6). The essay route is never batch
+  apply's. The tab sends the questions its Plan needs written
+  (`batch/questions` → `PUT .../applications/{job}/questions`), shows each
+  as waiting for the student's Claude, and asks for the saved answers every
+  10 seconds (`batch/answers` → `GET .../questions`) until none is left,
+  filling each through the engine; its group follows. The background takes
+  the job from the batch's own record of the tab (`jobInTab`), never from
+  the message. A question the student answered first keeps their answer.
+  A hidden tab's timers slow to about once a minute after five minutes, so
+  an answer can take that long to land. Tests:
+  `test/connector.extension.spec.ts` (Ashby's Harvey form: no saved
+  Greenhouse form has an essay the Plan sends to Claude).
 - **The tabs fill hidden; the student is never taken to one.** KAN-305's
   runner showed its tab before the fill, because hidden fills by the
   pre-engine filler left most dropdowns empty. The Fill engine does not

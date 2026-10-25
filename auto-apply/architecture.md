@@ -556,6 +556,8 @@ on after the fill.
 | `run/show` | webapp → extension | `{ jobId }`; switches to that job's tab |
 | `batch/state` | content script → background | `{ state: "ready" \| "needs_you" }` |
 | `fill/read` | content script → background | `{ site, questions, names }`; answers what each field shows |
+| `batch/questions` | content script → background | `{ questions: [{ name, label, required, max_length }] }`: the tab's questions that need writing, sent to the API for the student's Claude (KAN-377, 14.6); answers them with any saved answers |
+| `batch/answers` | content script → background | `{}`; answers the tab's questions with the answers saved so far |
 
 Next: Workday one slot at a time, Skip and resuming a batch (KAN-373),
 submit detection (KAN-374).
