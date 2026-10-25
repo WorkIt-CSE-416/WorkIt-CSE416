@@ -172,9 +172,12 @@ function withScript(forms: SavedForms, name: string, script: string): Handler {
   };
 }
 
-// The name box silently rejects what is typed in it: the form's own code never hears of it, and the box stays empty.
-const DROPS_FIRST_NAME = `window.addEventListener("input", (e) => {
-  if (e.target.id !== "first_name") return;
+// The name box silently rejects what is typed in it: the form's own code never hears of it, and the box stays empty
+// (until the test sends "workit-test-stop-dropping", the student's own typing).
+const DROPS_FIRST_NAME = `let dropping = true;
+window.addEventListener("workit-test-stop-dropping", () => (dropping = false));
+window.addEventListener("input", (e) => {
+  if (!dropping || e.target.id !== "first_name") return;
   e.stopImmediatePropagation();
   e.target.value = "";
 }, true);`;
@@ -263,11 +266,13 @@ test("Next Thing That Needs You walks every flagged field across the tabs in bat
     onStep: async (url, key) => expect(await page(url).evaluate(() => document.activeElement?.id)).toBe(key),
   });
 
-  // Arc's one flagged field (its name box rejected the answer), then Anduril's, in batch order.
+  // Arc's one flagged field (its name box rejected the answer), then Anduril's, in batch order,
+  // and Anduril's guess at how the student heard of it, once, for them to check.
   expect(walked).toEqual([
     [forms.url("greenhouse-arc"), "first_name"],
     [forms.url("greenhouse-anduril"), "question_13130330007"],
     [forms.url("greenhouse-anduril"), "question_13130331007"],
+    [forms.url("greenhouse-anduril"), "question_13130335007"],
   ]);
   expect(left).toBe("Nothing else needs you.");
   expect(forms.submissions).toEqual([]);
@@ -341,8 +346,8 @@ test("a required question the form doesn't show is left alone: Next Thing passes
   await expect(row.locator(".reason")).toHaveText("The form didn't show this question");
 
   const { walked, left } = await walkToEnd(forms.url(ANDURIL));
-  // Only the two questions WorkIt has no answer for.
-  expect(walked.map(([, key]) => key)).toEqual(["question_13130330007", "question_13130331007"]);
+  // Only the two questions WorkIt has no answer for, and its guess at how the student heard of Anduril.
+  expect(walked.map(([, key]) => key)).toEqual(["question_13130330007", "question_13130331007", "question_13130335007"]);
   expect(left).toBe("Nothing else needs you.");
   expect(forms.submissions).toEqual([]);
 });
@@ -360,7 +365,46 @@ test("a dropdown the student answers with the mouse alone no longer needs them: 
   await expect(row.locator(".source")).toHaveText("You", { timeout: 10_000 });
 
   const { walked } = await walkToEnd(forms.url(ANDURIL));
-  expect(walked.map(([, key]) => key)).toEqual(["question_13130331007"]);
+  expect(walked.map(([, key]) => key)).toEqual(["question_13130331007", "question_13130335007"]);
+  expect(forms.submissions).toEqual([]);
+});
+
+test("once only fine rows are left, Next Thing says none are left, across the tabs in batch order", async () => {
+  test.setTimeout(150_000);
+  const [ARC, ANDURIL] = ["greenhouse-arc", "greenhouse-anduril"];
+  const forms = new SavedForms([ARC, ANDURIL]);
+  await startBatch(forms, [ARC, ANDURIL], [withScript(forms, ARC, DROPS_FIRST_NAME)]);
+  const rowOf = (url: string, key: string) => page(url).locator(`#workit-autofiller-overlay-host [data-key="${key}"]`);
+  // How Anduril heard of the student is a guess: the walk shows it once, for the student to check.
+  const HEARD = "question_13130335007";
+  await expect(rowOf(forms.url(ANDURIL), HEARD).locator(".source")).toHaveText("Guessed");
+
+  // The student answers each field the walk shows them, Arc's first name and Anduril's two questions.
+  const answer = async (url: string, key: string) => {
+    const form = page(url);
+    if (key === "first_name") {
+      // Arc's box dropped WorkIt's typing (DROPS_FIRST_NAME); it takes the student's.
+      await form.evaluate(() => window.dispatchEvent(new Event("workit-test-stop-dropping")));
+      await form.locator("#first_name").fill("Sam");
+    } else if (key !== HEARD) {
+      await form.locator(`#${key}`).click();
+      await form.getByRole("option").first().click();
+    } else return;
+    await expect(rowOf(url, key).locator(".source")).toHaveText("You", { timeout: 10_000 });
+  };
+  const first = await walkToEnd(forms.url(ARC), { onStep: answer });
+  expect(first.walked.map(([url, key]) => [url === forms.url(ARC) ? "arc" : "anduril", key])).toEqual([
+    ["arc", "first_name"],
+    ["anduril", "question_13130330007"],
+    ["anduril", "question_13130331007"],
+    ["anduril", HEARD],
+  ]);
+  expect(first.left).toBe("Nothing else needs you.");
+
+  // Pressed again, it starts over and finds nothing: every row left is filled and fine, the guess seen.
+  const again = await walkToEnd(forms.url(ANDURIL));
+  expect(again.walked).toEqual([]);
+  expect(again.left).toBe("Nothing else needs you.");
   expect(forms.submissions).toEqual([]);
 });
 

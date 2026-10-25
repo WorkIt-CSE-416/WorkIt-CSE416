@@ -39,6 +39,12 @@ window.WIA = window.WIA || {};
     const waiting = (r) => r.status === "pending" || r.status === "needs_generation";
     const needsYou = (r) => (r.note ? r.note === "todo" : r.status === "failed" || (r.required && waiting(r)) || Boolean(r.flag));
 
+    // The guesses Next Thing That Needs You has shown the student, by key: once shown, a guess is theirs to
+    // have checked. Kept on the page, as the walk is (answerTheWalk).
+    const shownGuesses = (window.WIA.shownGuesses ??= new Set());
+    /** A filled answer WorkIt guessed (the panel's "Guessed") that the walk hasn't shown the student yet. */
+    const unchecked = (r) => !r.note && r.status === "filled" && r.source === "guessed" && !shownGuesses.has(r.key);
+
     /**
      * Whether this batch tab is "ready" (every field it needs shows an answer),
      * "failed" (the fill itself went wrong: an error note) or "needs_you": the
@@ -72,7 +78,9 @@ window.WIA = window.WIA || {};
     /**
      * The walk's view of this tab: `order`, every row's key in the order its
      * field stands on the page (notes and fields the page doesn't show last),
-     * and `keys`, those of them that need the student. The walk places a row
+     * and `keys`, those of them that need the student, and the guesses the
+     * walk hasn't shown them (a guess doesn't keep the tab from Ready:
+     * the walk shows it once, for the student to check). The walk places a row
      * it went to by `order`, so it goes on after it once the row is answered.
      */
     function flagged() {
@@ -80,12 +88,14 @@ window.WIA = window.WIA || {};
       const rows = fields.map((r) => ({ key: r.key, field: fieldOf(r.key) }));
       const placed = rows.filter((r) => r.field).sort((a, b) => (a.field.compareDocumentPosition(b.field) & Node.DOCUMENT_POSITION_FOLLOWING ? -1 : 1));
       const order = [...placed, ...rows.filter((r) => !r.field)].map((r) => r.key);
-      const needing = new Set(fields.filter(needsYou).map((r) => r.key));
+      const needing = new Set(fields.filter((r) => needsYou(r) || unchecked(r)).map((r) => r.key));
       return { order, keys: order.filter((key) => needing.has(key)) };
     }
 
-    /** Brings a flagged row's field into view and focuses it, and marks its row on the panel. */
+    /** Brings a flagged row's field into view and focuses it, and marks its row on the panel. A guess is then seen. */
     function show(key) {
+      const row = status.summary().fields.find((r) => r.key === key);
+      if (row && unchecked(row)) shownGuesses.add(key);
       const field = fieldOf(key);
       if (field) {
         field.scrollIntoView({ block: "center" });
