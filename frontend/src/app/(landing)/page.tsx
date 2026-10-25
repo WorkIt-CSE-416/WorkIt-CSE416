@@ -74,7 +74,10 @@ export default function LandingPage() {
           {/* Below lg the city is scaled to the panel and sits under the
                 text; from lg up it is full size and its edge towers rise
                 beside the text. */}
-          <div aria-hidden="true" className="h-[40cqw] shrink-0 lg:h-[max(245px,17.6cqw)]" />
+          <div
+            aria-hidden="true"
+            className="h-[70cqw] shrink-0 sm:h-[40cqw] lg:h-[max(245px,17.6cqw)]"
+          />
         </div>
       </section>
 

@@ -459,7 +459,14 @@ the KAN-296 cutover.
   (`soft`): cut flat at four stepped caps, the skyline stood in terraces
   with sharp corners near the middle; it keeps
   that scale from lg up (cropped at the sides) and shrinks to the panel's
-  width below lg, under the text. A change to the hero's text size or the
+  width below lg, under the text. **Below sm a phone gets its own build**
+  (`buildCity({ phone: true })`, KAN-368): twice the panel's width with
+  only the middle half shown, about 1.7 times the scale, so it builds that
+  half alone, with the skyline's shape across it, no text caps (on a phone
+  the city sits under the buttons) and the wireframes moved in from the
+  cropped sides; page.tsx's spacer grows to match (`h-[70cqw]`). Shrunk
+  whole to a 390px phone, the city was a 150px strip at 23% scale with
+  bare ground in the middle, which read as too small. A change to the hero's text size or the
   buttons' width means re-checking those caps (`ceiling` in
   `city-model.ts`): the buttons once ran wider than the caps assumed and
   towers rose behind them. Its job cards show only where they fit:

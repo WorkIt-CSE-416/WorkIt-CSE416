@@ -1,19 +1,26 @@
 "use client";
 
 import Image from "next/image";
-import { useEffect, useRef, useState, useSyncExternalStore, type CSSProperties } from "react";
+import { useEffect, useRef, useState, type CSSProperties } from "react";
 
 import { cn } from "@/lib/cn";
 
 import { buildCity, STRIP_HEIGHT, STRIP_TOP, STRIP_WIDTH, type City } from "./city-model";
+import { useMediaQuery } from "./hooks";
 import { scoreTone } from "./score-tone";
 
-// Built once per page load: the model is deterministic, so every render
-// draws the same city.
-let cached: City | null = null;
-const getCity = () => (cached ??= buildCity());
+// Below Tailwind's sm a phone gets its own, larger city (city-model.ts,
+// buildCity's `phone`, and the width in landing.css).
+const PHONE_QUERY = "(width < 40rem)";
 
-const noSubscribe = () => () => {};
+// Each build once per page load: the model is deterministic, so every
+// render draws the same city.
+const cached = new Map<boolean, City>();
+const getCity = (phone: boolean) => {
+  let city = cached.get(phone);
+  if (!city) cached.set(phone, (city = buildCity({ phone })));
+  return city;
+};
 
 const vars = (values: Record<string, string | number>) => values as CSSProperties;
 
@@ -86,11 +93,9 @@ function placeCards(root: HTMLElement, panel: HTMLElement) {
  * .hero-city rules in landing.css.
  */
 export function HeroCity() {
-  const mounted = useSyncExternalStore(
-    noSubscribe,
-    () => true,
-    () => false,
-  );
+  // Null on the server and until the first effect, so the city still draws
+  // only after hydration, and a phone never builds the wide one first.
+  const phone = useMediaQuery(PHONE_QUERY);
   const rootRef = useRef<HTMLDivElement>(null);
   const [placement, setPlacement] = useState<Record<string, number | null>>({});
 
@@ -116,10 +121,10 @@ export function HeroCity() {
       window.removeEventListener("resize", place);
       window.clearTimeout(settle);
     };
-  }, [mounted]);
+  }, [phone]);
 
-  if (!mounted) return null;
-  const city = getCity();
+  if (phone === null) return null;
+  const city = getCity(phone);
 
   return (
     <div ref={rootRef} className="hero-city" aria-hidden="true">

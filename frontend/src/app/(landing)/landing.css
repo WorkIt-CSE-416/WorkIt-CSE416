@@ -147,7 +147,10 @@ html:has(.landing) {
  * the hero panel's bottom: at its 1600px design scale from lg up, so its
  * per-column height caps keep it clear of the text, cropped at the sides on
  * narrower panels; scaled to the panel's width below lg, where page.tsx's
- * spacer drops it under the text. Violet belongs to the wireframes alone.
+ * spacer drops it under the text. Below sm it is the phone build, twice the
+ * panel's width so only its middle half shows, at about 1.7 times the
+ * scale (KAN-368); the spacer grows with it. Violet belongs to the
+ * wireframes alone.
  */
 .hero-panel {
   background: linear-gradient(180deg, #ffffff 0%, #ffffff 55%, #f6f5f8 100%);
@@ -174,6 +177,12 @@ html:has(.landing) {
   pointer-events: none;
   mask-image: linear-gradient(90deg, transparent 0%, #000 9%, #000 91%, transparent 100%);
   animation: hero-city-in 1.2s ease-out both;
+}
+
+@media (width < 40rem) {
+  .hero-city {
+    width: 200cqw;
+  }
 }
 
 @media (width >= 64rem) {
