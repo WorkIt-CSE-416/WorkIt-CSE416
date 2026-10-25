@@ -16,7 +16,9 @@ whole view of WorkIt (auto-apply/architecture.md, 14.6):
   `research_first` instead, as Apply builds the brief before its essays.
   One with only choices goes out (they need no company facts).
 - `save_answers` (a write): saves answers to that application's
-  questions, all or none; the open batch tab fills each one. Each answer
+  questions, all or none; the open batch tab fills each one. Each written
+  answer carries its review (the rating and the claims the claim check
+  cut, KAN-369), kept with it. Each answer
   may name the company brief fact it uses (`named_fact`), which must be one
   of the brief's, for the Written Answers page to show with it.
 - `get_writing_samples` and `save_style_card` (app/connector/style.py,
@@ -109,9 +111,20 @@ class NextApplication(BaseModel):
     )
 
 
+class Review(BaseModel):
+    rating: int = Field(ge=1, le=10, description="The last rating the review gave the answer, from 1 to 10.")
+    unsupported: list[str] = Field(
+        description="Each claim the claim check found the sources don't support, quoted, which the edit cut; "
+        "[] when it found none."
+    )
+
+
 class Answer(BaseModel):
     name: str = Field(description="The question's name, from get_next_application.")
     answer: str = Field(max_length=ANSWER_MAX)
+    review: Review | None = Field(
+        default=None, description='Required for a question of kind "text"; none for a choice.'
+    )
     named_fact: str | None = Field(default=None, max_length=400, description=(
         "The company_brief fact the answer uses, copied as get_next_application gave it, so the student "
         "can read up on it; leave it out when the answer uses none."))
@@ -201,7 +214,8 @@ def register(server: MCPServer) -> None:
             "Saves answers to one WorkIt job application's written questions, all or none, and fills "
             "them into the application's open tab in the student's browser. Refuses an answer to a "
             "question the application doesn't have, an empty one, or one that fails WorkIt's checks (over the question's "
-            "max_length among them), with every reason."
+            "max_length among them), with every reason. A written answer is saved with its review, and refused "
+            "without one, rated under 8, or still holding a claim it lists as unsupported."
         ),
         annotations=ToolAnnotations(readOnlyHint=False, destructiveHint=False, idempotentHint=True, openWorldHint=False),
     )
@@ -215,6 +229,7 @@ def register(server: MCPServer) -> None:
             try:
                 left = await pipeline.save_answers(
                     db, student.id, job, {a.name: a.answer for a in answers},
+                    reviews={a.name: pipeline.Review(a.review.rating, a.review.unsupported) for a in answers if a.review},
                     named={a.name: a.named_fact for a in answers if a.named_fact},
                 )
                 first = await pipeline.read_first(db, student.id, job, [a.name for a in answers])

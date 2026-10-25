@@ -40,16 +40,17 @@ async def test_a_chat_is_handed_its_applications_in_order_and_saves_their_place(
             assert (first["company"], first["experience"]) == ("Core", "Built a bus tracker.")
             assert first["questions"][0]["max_length"] == 200
             too_long = await client.call_tool(
-                "save_answers", {"job_id": first["job_id"], "answers": [{"name": "why", "answer": "x" * 201}]})
+                "save_answers", {"job_id": first["job_id"], "answers": [{"name": "why", "answer": "x" * 201, "review": {"rating": 8, "unsupported": []}}]})
             assert too_long.is_error
             await client.call_tool(
-                "save_answers", {"job_id": first["job_id"], "answers": [{"name": "why", "answer": "Buses."}]})
+                "save_answers", {"job_id": first["job_id"], "answers": [{"name": "why", "answer": "Buses.", "review": {"rating": 8, "unsupported": []}}]})
             second = (await client.call_tool("get_next_application", {"chat": first["chat"]})).structured_content
 
     assert second["company"] == "Bolt"
     assert first["style_card_needed"] is True
     saved = json.loads((folder / "connector" / "chat-2.json").read_text())
-    assert saved == [{"application": "core", "question": "why", "answer": "Buses.", "chat": 2, "position": 1}]
+    assert saved == [{"application": "core", "question": "why", "answer": "Buses.",
+                      "review": {"rating": 8, "unsupported": []}, "chat": 2, "position": 1}]
 
 
 def _answers(folder, ours: list[tuple[str, int, int]]) -> None:
@@ -102,7 +103,7 @@ async def test_a_style_card_built_in_one_chat_is_kept_for_the_next(folder):
             first = (await client.call_tool("get_next_application", {})).structured_content
             # The copying check reads the samples, as WorkIt's save does.
             copied = await client.call_tool("save_answers", {"job_id": first["job_id"], "answers": [
-                {"name": "why", "answer": "I like building robots that find their own way through a maze."}]})
+                {"name": "why", "answer": "I like building robots that find their own way through a maze.", "review": {"rating": 8, "unsupported": []}}]})
 
     assert (first["style_card"], first["style_card_needed"]) == ("Short plain sentences.", False)
     assert copied.is_error
