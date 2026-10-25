@@ -755,14 +755,17 @@ export function buildCity({ phone = false }: { phone?: boolean } = {}): City {
   };
   // On a phone the wireframes come in from the cropped sides to about half
   // their distance from the middle, on a column of the row's parity (a
-  // cell exists only where s + d is even).
+  // cell exists only where s + d is even). Only the left side's towers
+  // send up a job there: the sides take turns 2.7s apart, and on a phone a
+  // card from each side, both shown at once, overlapped in the middle. One
+  // side's cards are 5.4s apart, longer than a card shows.
   const towers = phone
     ? Object.fromEntries(
         Object.entries(special).map(([key, tower]) => {
           const [d, s] = key.split(",").map(Number);
           let near = Math.round(d * 0.55);
           if ((near + s) % 2 !== 0) near += Math.sign(d);
-          return [`${near},${s}`, tower];
+          return [`${near},${s}`, d > 0 ? { ...tower, job: undefined } : tower];
         }),
       )
     : special;

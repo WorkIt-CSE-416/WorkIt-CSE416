@@ -464,7 +464,10 @@ the KAN-296 cutover.
   only the middle half shown, about 1.7 times the scale, so it builds that
   half alone, with the skyline's shape across it, no text caps (on a phone
   the city sits under the buttons) and the wireframes moved in from the
-  cropped sides; page.tsx's spacer grows to match (`h-[70cqw]`). Shrunk
+  cropped sides, of which only the left side's send up a job card: with
+  both sides' cards, one from each side showed at once and they overlapped
+  in the middle in half of all frames. page.tsx's spacer grows to match
+  (`h-[70cqw]`). Shrunk
   whole to a 390px phone, the city was a 150px strip at 23% scale with
   bare ground in the middle, which read as too small. A change to the hero's text size or the
   buttons' width means re-checking those caps (`ceiling` in
