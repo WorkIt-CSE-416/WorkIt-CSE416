@@ -40,6 +40,7 @@ import contextlib
 import json
 import os
 import random
+import re
 import subprocess
 import sys
 import tempfile
@@ -216,7 +217,8 @@ def write(folder: Path, model: str) -> None:
         print(f"Chat {chat + 1}: writing {', '.join(chats[chat])} ...", flush=True)
         events = _chat(folder, chat, model)
         result = next((e for e in reversed(events) if e.get("type") == "result"), {})
-        broken = (folder / CONNECTOR / f"chat-{chat + 1}.jsonl").read_text().count("Error executing tool")
+        # A refused save reads "Error executing tool save_answers: <why>"; a crash has no reason.
+        broken = len(re.findall(r'Error executing tool \w+(?=["\\])', (folder / CONNECTOR / f"chat-{chat + 1}.jsonl").read_text()))
         if result.get("is_error") or result.get("subtype") != "success" or broken:
             # A tool that crashed (not a save it refused) means the chat didn't run as a student's would.
             answers.unlink(missing_ok=True)
