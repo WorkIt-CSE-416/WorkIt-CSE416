@@ -200,6 +200,13 @@ and `run/show` switches to one (`jobId`).
   carries no body: a page on an allowed origin that could hand the worker
   a URL could make it open any site. `run/show`'s `jobId` only picks among
   the batch's own tabs.
+- **Never a job board** (KAN-376; GLOSSARY.md, "Job board"). A tab opens
+  `job.form_url`, the employer's form the API names (a LinkedIn or Indeed
+  posting is queued only through the form its text names, and refused
+  otherwise), else `job.apply_url`. A link on a job board's host
+  (`src/background/job-boards.js`, the same hosts as `hosts.py`
+  `JOB_BOARDS`) is never opened, whatever the API answers: the batch
+  passes over it and leaves its stage alone.
 - **The API keeps the queue, its order and each application's stage.**
   The next tab's job is `GET .../applications/next?skip=...`, skipping every
   job this batch opened; a tab's state is `PUT .../applications/{job}/fill`

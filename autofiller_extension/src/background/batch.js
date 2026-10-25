@@ -25,6 +25,7 @@
 
 import { ApiError, me, nextApplication, recordFill } from "./api.js";
 import { formUrl } from "./engine.js";
+import { jobBoard } from "./job-boards.js";
 import { injectFill } from "../shared/content-scripts.js";
 
 /** At most this many tabs fill at once. */
@@ -126,8 +127,16 @@ async function topUp(batch, applicantId) {
     const application = await nextApplication(applicantId, batch.opened);
     if (!application) break;
     const jobId = application.job.id;
+    // The employer's form the API names (a job board's posting is taken only through it, KAN-376).
+    const link = application.job.form_url ?? application.job.apply_url;
+    if (jobBoard(link)) {
+      // Never a job board's page, whatever the API says: this batch passes it over.
+      console.warn(`[batch] not opened: ${jobBoard(link)} is a job board, and batch apply opens only an employer's own form`);
+      batch.opened.push(jobId);
+      continue;
+    }
     // The form, not the job's page, where the two differ (a Lever posting's form is at .../apply).
-    const url = formUrl(application.job.apply_url);
+    const url = formUrl(link);
     const tab = await chrome.tabs.create({ url, active: false, windowId: batch.windowId });
     // Memory Saver must never throw away a form the student hasn't reviewed.
     await chrome.tabs.update(tab.id, { autoDiscardable: false });

@@ -6,7 +6,8 @@ import { STUDENT } from "./extension";
 import type { Handler } from "./loaded-extension";
 
 export type Stage = "queued" | "needs_you" | "skipped" | "applied";
-export type Posting = { id: string; apply_url: string; title?: string; company?: string };
+/** `form_url`: the employer's form the API names (KAN-376); its apply_url when left out, as for a hiring system's posting. */
+export type Posting = { id: string; apply_url: string; form_url?: string | null; title?: string; company?: string };
 
 const RESUME_ID = "00000000-0000-0000-0000-0000000000r1";
 
@@ -70,7 +71,11 @@ export class FakeApi {
   private application(id: string) {
     const posting = this.postings.get(id)!;
     return {
-      job: { id, apply_url: posting.apply_url, title: posting.title ?? "Intern", company_name: posting.company ?? "Acme" },
+      job: {
+        id,
+        apply_url: posting.apply_url,
+        form_url: posting.form_url === undefined ? posting.apply_url : posting.form_url,
+        title: posting.title ?? "Intern", company_name: posting.company ?? "Acme" },
       stage: this.stages.get(id),
       open: true,
     };
