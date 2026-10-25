@@ -222,7 +222,11 @@ Browser": `run/status` answers which job posting the run's tab shows
   extension in `chrome://extensions`. The manifest also lists the six
   other job systems the extension fills (KAN-341), which auto apply
   doesn't take yet: the background fetches their job APIs, and injects
-  Workday's fill again on its next page.
+  Workday's fill again on its next page. An Eightfold board on a
+  company's own domain (Netflix's `explore.jobs.netflix.net`, the
+  engine's `EIGHTFOLD_COMPANIES`) is listed by its host: without it, the
+  job's names and text failed to fetch. `test/manifest.spec.ts` checks one
+  link of each.
 - **The fill is the popup's fill.** Both call `injectFill`
   (`src/shared/content-scripts.js`); `content-script.js` runs on
   injection, so injecting is starting. The resume is the profile's default
