@@ -311,6 +311,12 @@ and each tab's state (`jobs`), and `run/show` switches to one (`jobId`).
   phone country once Phone shows a number: its submit answers "Select a
   country", seen on Arc's form). Each becomes a failed, required row, so
   the tab needs the student until it shows an answer.
+  **These reads must only read**: they run while the student works in
+  the form and while WorkIt fills it. The engine once read Greenhouse's
+  phone country by opening its picker, which took the focus (an Enter
+  meant for Submit went to the picker) and closed any list open
+  elsewhere (the self-identification fill's, under load). Test:
+  `test/submit.extension.spec.ts` ("leaves their focus where they put it").
 - **A batch tab's essays come from the student's own Claude** (KAN-377;
   `auto-apply/architecture.md` 14.6). The essay route is never batch
   apply's. The tab sends the questions its Plan needs written
