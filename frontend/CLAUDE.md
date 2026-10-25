@@ -1165,7 +1165,22 @@ are in `docs/auth.md`.
   `revalidate`: Next would cache one applicant's list and serve it to all.
 - **Signup goes through `POST /auth/signup`**, not `supabase.auth.signUp()`,
   which can only write user-editable `user_metadata` and so cannot be trusted
-  with the account type.
+  with the account type. **Signup does not sign in** (KAN-293): it redirects
+  to `/signup/check-email`, and the user signs in after clicking the email
+  confirmation link that lands on `/auth/confirm`.
+- **Turnstile** (`components/turnstile.tsx`, KAN-293) is on the signup and
+  sign-in forms. It renders nothing when `NEXT_PUBLIC_TURNSTILE_SITE_KEY` is
+  unset (local dev). Signup sends the token to the API as `captchaToken`;
+  sign-in verifies it server-side in the Next action via `TURNSTILE_SECRET_KEY`.
+- **`/auth/confirm`** (KAN-293) handles email confirmation links from
+  Supabase. `type=signup` redirects to `/login`; `type=recovery` redirects to
+  `/login/new-password` with a session active.
+- **Password reset** (KAN-293): `/login/reset-password` sends a reset email
+  (always shows "Check your email"); the reset link lands on `/auth/confirm`,
+  which sets a session and redirects to `/login/new-password`;
+  `updateUser({ password })` sets the new password.
+- **Secure cookie flag** (KAN-293): `sessionCookieOptions` sets
+  `secure: process.env.NODE_ENV === "production"`.
 - **A key the API's Pydantic schema doesn't declare is dropped silently**, not
   rejected. A field added to a request body here does nothing until
   `backend/app/schemas/` declares it too.
