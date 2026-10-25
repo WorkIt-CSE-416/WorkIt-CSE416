@@ -581,8 +581,9 @@ saved login. The first sign-in page asks the student once whether WorkIt
 may make and sign in to their Workday accounts (KAN-369, as Jobright and
 Simplify do). After a yes, at every company it ticks the terms box (and
 names its words in the panel) and presses Create Account or Sign In itself,
-each at most once a page: a refused sign-in is never tried again, since
-Workday locks accounts. Without a yes, the student presses the button. The
+pressed again only when Workday dropped the press (the tab sent it
+nothing within 10 s, up to 3 presses; never once the form went out): a
+refused sign-in is never tried again, since Workday locks accounts. Without a yes, the student presses the button. The
 student always opens the verification email; the panel says so. The tab sits in Needs you
 with "Sign in to continue" until the application's first step shows, and the
 fill then goes on by itself (on a page signing in loads, too: the tab is

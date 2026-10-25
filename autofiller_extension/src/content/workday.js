@@ -3,9 +3,10 @@
 // with the login the extension keeps for the company
 // (background/workday-logins.js). Once the student allows it (asked once, in
 // the panel), it also ticks the terms box and presses Create Account or Sign
-// In, as Jobright and Simplify do (KAN-369): each button at most once a page,
-// and a Sign In Workday refused never again (`refused`, saved with the
-// login), so the account doesn't lock. It presses nothing else. Loaded
+// In, as Jobright and Simplify do (KAN-369): each button pressed again only
+// when Workday dropped the press (it sent nothing), at most 3 times, never
+// after the form went out, and a Sign In Workday refused never again
+// (`refused`, saved with the login), so the account doesn't lock. It presses nothing else. Loaded
 // before content-script.js (shared/content-scripts.js), as window.WIA.workday.
 window.WIA = window.WIA || {};
 
@@ -30,6 +31,9 @@ window.WIA = window.WIA || {};
   const VERIFY = /verif/i;
   const SIGNED_IN = "WorkIt fills each step once you're signed in.";
   const WONT_TRY = "WorkIt won't try again, so your account doesn't lock. Sign in yourself, or press Forgot Password.";
+  // How long a press gets to send the form before Workday is taken to have dropped it, and the most presses.
+  const SEND_WAIT = 10_000;
+  const SEND_PRESSES = 3;
   // How long a ticked box gets to show it is ticked before Create Account is pressed.
   const TICK_SHOWS = 100;
   // How long a Workday step's page must stop changing before it is read, and the longest wait for that.
@@ -76,6 +80,15 @@ window.WIA = window.WIA || {};
   function alerts() {
     return [...document.querySelectorAll(ALERT)].filter((a) => a.checkVisibility())
       .map((a) => a.innerText.trim()).filter(Boolean).join(" ");
+  }
+
+  /**
+   * Whether this tab sent Workday a Create Account or Sign In since `since`
+   * (the worker sees it, background/workday-logins.js). Only a clear "no"
+   * counts as not sent, so a lost answer never leads to a second press.
+   */
+  async function sentSince(since) {
+    return (await chrome.runtime.sendMessage({ type: "workday/sent", since }).catch(() => null))?.sent !== false;
   }
 
   /** Whether the terms box shows ticked, as a checkbox or as Workday's own (aria-checked). */
@@ -164,13 +177,15 @@ window.WIA = window.WIA || {};
     let busy = false;
     let again = false;
     let asked = false;
-    // What the extension did on this page, once allowed: each at most once.
+    // What the extension did on this page, once allowed: each at most once, but a press Workday dropped is made again (pressAgain).
     const pressed = new Set();
     const switched = new Set();
     let withEmail = false;
     let alerted = "";
     // The messages that showed when each view's button was pressed: Workday's answer is a different one.
     const before = {};
+    // Each view's presses: how many, and when the first was (a send since then means never again).
+    const sends = {};
     let ticked = "";
     let untickable = false;
     async function fillSignIn() {
@@ -293,9 +308,17 @@ window.WIA = window.WIA || {};
           return true;
         }
       }
+      // Pressed again (Workday dropped the press): not if the form went out meanwhile.
+      if (sends[view] && await sentSince(sends[view].since)) {
+        pressed.add(view);
+        return true;
+      }
+      sends[view] ??= { count: 0, since: Date.now() };
+      sends[view].count += 1;
       pressed.add(view);
-      before[view] = alerts();
+      before[view] ??= alerts();
       press(button);
+      setTimeout(() => pressAgain(view), SEND_WAIT);
       ticked = terms;
       onView(create
         ? `WorkIt made your account on this company's Workday${terms ? ` and ticked "${terms}" for you` : ""}. ${SIGNED_IN}`
@@ -303,6 +326,25 @@ window.WIA = window.WIA || {};
       noted = view;
       [1000, 2500, 5000].forEach((ms) => setTimeout(fillSignIn, ms));
       return true;
+    }
+
+    /**
+     * SEND_WAIT after a press: if the same view still shows with no answer
+     * and the tab sent Workday nothing, Workday dropped the press (Axiom's
+     * Create Account, live), so it is made again, up to SEND_PRESSES in all.
+     * Once the form went out it is never pressed again, however slow the
+     * answer: a second Create Account would find the account made.
+     */
+    async function pressAgain(view) {
+      const form = document.querySelector(SIGN_IN_FORM);
+      const shows = form && !workdayStep() && Boolean(form.querySelector("[data-automation-id=verifyPassword]")) === (view === "create");
+      if (!shows || alerts() !== before[view]) return;
+      if (await sentSince(sends[view].since)) return;
+      if (sends[view].count >= SEND_PRESSES) {
+        return onView(`Workday didn't take WorkIt's press of ${view === "create" ? "Create Account" : "Sign In"}. Press it yourself. ${SIGNED_IN}`);
+      }
+      pressed.delete(view);
+      fillSignIn();
     }
 
     const observer = new MutationObserver(() => {

@@ -195,3 +195,17 @@ test("a hidden message already on the form isn't Workday's answer: a slow Create
   const saved = await loaded!.worker.evaluate(async () => (await chrome.storage.local.get("workday_logins")).workday_logins ?? {});
   expect(saved["caci.wd1.myworkdayjobs.com"]?.password).toBe(workdays.signIns[0].password);
 });
+
+test("a press Workday drops is made again, and one that sent the form never is", async () => {
+  test.setTimeout(120_000);
+  const workdays = new FakeWorkdays(["workday-caci"]);
+  workdays.droppedPresses["caci.wd1.myworkdayjobs.com"] = 2;
+  const page = await start(workdays, { id: "wd-0", apply_url: workdays.signInUrl(0) });
+
+  const caci = await page(workdays.signInUrl(0));
+  await allow(caci);
+  await caci.waitForURL(workdays.url(0), { timeout: 60_000 });
+  expect(workdays.signIns.map((s) => s.view)).toEqual(["create"]);
+  const saved = await loaded!.worker.evaluate(async () => (await chrome.storage.local.get("workday_logins")).workday_logins ?? {});
+  expect(saved["caci.wd1.myworkdayjobs.com"]?.password).toBe(workdays.signIns[0].password);
+});

@@ -16,6 +16,13 @@
 // `signedIn`: its account exists, so its Create Account is never pressed. A
 // tenant whose Sign In Workday refused is marked `refused`: its Sign In is
 // never pressed again until the student signs in there.
+//
+// Workday may drop a press made right after typing, sending nothing (Axiom's
+// Create Account, live). So this worker watches, observing only (never
+// blocking or changing a request), for the form going out: a tab's non-GET
+// request to a Workday host outside its /wday/ API (watchWorkdaySends). A
+// press is made again only when none went (sentSince), never after one did:
+// a second Create Account would find the account made.
 
 const LOGINS_KEY = "workday_logins";
 const FOR_ME_KEY = "workday_accounts_for_me";
@@ -114,6 +121,29 @@ export function forgetLogin(tenant) {
     delete logins[tenant];
     return { save: true };
   });
+}
+
+// Where a tab's last sign-in send to a host is kept: in session storage, so a restarted worker still knows it.
+const SENT_KEY = (tabId, host) => `workday_sent_${tabId}_${host}`;
+
+/**
+ * Starts noting, per tab and Workday host, when the tab last sent that host
+ * a non-GET request outside /wday/ (a Create Account or Sign In going out).
+ * Observing only: it never blocks or changes a request.
+ */
+export function watchWorkdaySends() {
+  chrome.webRequest.onBeforeRequest.addListener((d) => {
+    if (d.method === "GET" || d.tabId < 0) return;
+    const { hostname, pathname } = new URL(d.url);
+    if (pathname.startsWith("/wday/")) return;
+    chrome.storage.session.set({ [SENT_KEY(d.tabId, hostname)]: d.timeStamp });
+  }, { urls: ["https://*.myworkdayjobs.com/*", "https://*.myworkdaysite.com/*"] });
+}
+
+/** Whether tab `tabId` sent Workday host `host` a sign-in form (watchWorkdaySends) at or after `since` (ms). */
+export async function sentSince(tabId, host, since) {
+  const key = SENT_KEY(tabId, host);
+  return ((await chrome.storage.session.get(key))[key] ?? 0) >= since;
 }
 
 /** A random password of PASSWORD_LENGTH characters, with one of each of KINDS at least. */

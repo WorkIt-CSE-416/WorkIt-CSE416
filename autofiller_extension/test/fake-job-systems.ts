@@ -143,6 +143,9 @@ export class FakeWorkdays {
   /** Tenant hosts whose sign-in form holds a hidden errorMessage with text in it, as Workday keeps an empty-looking one. */
   readonly hiddenAlerts = new Set<string>();
 
+  /** How many presses of Create Account or Sign In each tenant host's page drops, sending nothing (Axiom's, live). */
+  readonly droppedPresses: Record<string, number> = {};
+
   /** How long, in ms, each tenant host takes to answer a Create Account or Sign In it was sent. */
   readonly answerDelay: Record<string, number> = {};
 
@@ -158,7 +161,7 @@ export class FakeWorkdays {
         const apply = `<a data-automation-id="adventureButton" href="/__fake__/signin?view=create">Apply</a>`;
         return { headers: { "content-type": "text/html" }, body: `<!doctype html><title>Intern</title><h2>Software Engineering Intern</h2>${apply}` };
       }
-      if (request.url.pathname === "/__fake__/signin") return { headers: { "content-type": "text/html" }, body: signInPage(request.url.searchParams.get("view")!, this.stuckTerms.has(tenant.host), this.hiddenAlerts.has(tenant.host)) };
+      if (request.url.pathname === "/__fake__/signin") return { headers: { "content-type": "text/html" }, body: signInPage(request.url.searchParams.get("view")!, this.stuckTerms.has(tenant.host), this.hiddenAlerts.has(tenant.host), this.droppedPresses[tenant.host] ?? 0) };
       if (request.url.pathname === "/__fake__/account" && request.method === "POST") {
         const { agreed, ...sent } = JSON.parse(request.body.toString());
         this.signIns.push({ host: tenant.host, ...sent });
@@ -184,14 +187,16 @@ export class FakeWorkdays {
  * drawn again, its boxes empty, a moment after it changes title (Xcel
  * Energy's, live 2026-10-25). With `stuckTerms`, the terms box ignores a
  * script's click (event.isTrusted false) and stays unticked. With
- * `hiddenAlert`, the form holds a hidden errorMessage that has text.
+ * `hiddenAlert`, the form holds a hidden errorMessage that has text. The
+ * first `dropped` presses of its button send nothing and show nothing.
  */
-function signInPage(view: string, stuckTerms = false, hiddenAlert = false): string {
+function signInPage(view: string, stuckTerms = false, hiddenAlert = false, dropped = 0): string {
   return `<!doctype html><meta charset="utf-8"><title>Workday</title>
 <ol data-automation-id="progressBar"><li data-automation-id="progressBarActiveStep"><label>current step 1 of 3</label><label>Create Account/Sign In</label></li></ol>
 <div data-automation-id="signInContent"></div>
 <script>
 let view = ${JSON.stringify(view)};
+let dropped = ${dropped};
 const box = (id, label, type = "password") => '<label>' + label + '<input type="' + type + '" data-automation-id="' + id + '"></label>';
 function draw() {
   const create = view === "create";
@@ -213,6 +218,7 @@ document.addEventListener("click", async (event) => {
     return;
   }
   if (!event.target.closest("[data-automation-id=click_filter]")) return;
+  if (dropped > 0) return void dropped--;
   const value = (id) => document.querySelector("[data-automation-id=" + id + "]").value;
   const agreed = Boolean(document.querySelector("[data-automation-id=createAccountCheckbox]")?.checked);
   const answer = await (await fetch("/__fake__/account", { method: "POST", body: JSON.stringify({ view, email: value("email"), password: value("password"), agreed }) })).json();

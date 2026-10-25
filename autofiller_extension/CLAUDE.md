@@ -312,8 +312,13 @@ waits for an opened tab's page and form (`waitForLoad`, `formShows`).
   once the box shows ticked, `checked` or `aria-checked`, a moment later;
   else it says to tick it and press Create Account, and keeps the
   password) or Sign In, once the boxes hold the login and the page has
-  settled. **Each button at most once a page**: Workday's message after a
-  press is shown (a verification email: open it, come back and press Sign
+  settled. **Each button is pressed again only when Workday dropped the
+  press**: the worker watches (`watchWorkdaySends`, webRequest, observing
+  only) for the tab's non-GET request to the tenant's host outside /wday/;
+  with none 10 s after a press and the form still showing, it is pressed
+  again, at most 3 times, and never once one went out (`workday/sent`).
+  Workday's message after a press (a visible one that wasn't there at the
+  press) is shown (a verification email: open it, come back and press Sign
   In), and a refused Create Account drops its new password
   (`workday/forget`). **A refused Sign In is never pressed again, on any
   page** (Workday locks accounts): `workday/refused` saves `refused` on the
