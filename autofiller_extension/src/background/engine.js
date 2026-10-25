@@ -72,6 +72,26 @@ export function formUrl(url) {
 }
 
 /**
+ * The link a batch tab opens, and write-early reads, for an application:
+ * `formUrl`, then Greenhouse's embedded form where the job's board shows it
+ * on the company's own site (its hosted page sends the student there, the
+ * form in an iframe the fill never reaches) or where an embed link lacks its
+ * board (the engine's `greenhouseForm`; any other link, or a failed read, is
+ * `formUrl`'s).
+ * @param {string} url
+ * @param {(url: string) => Promise<string>} [fetchText] a GET (the engine asks Greenhouse only GETs)
+ */
+export async function formFor(url, fetchText = getText) {
+  return engine.greenhouseForm(formUrl(url), fetchText);
+}
+
+async function getText(url) {
+  const response = await fetch(url);
+  if (!response.ok) throw new Error(`${new URL(url).hostname} answered ${response.status}`);
+  return response.text();
+}
+
+/**
  * Runs in the application's page, so it reads nothing outside itself: the
  * engine's own dispatcher, `FillEngine.call`, which answers `{ value }` or
  * `{ error: { name, message } }` (an error thrown in the page would lose its name).

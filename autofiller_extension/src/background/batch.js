@@ -50,7 +50,7 @@
 // Starting a real batch ends a practice one.
 
 import { ApiError, finishApplication, getAutofillProfile, me, nextApplication, recordFill, recordSentResume } from "./api.js";
-import { formUrl, jobOf, practiceJob } from "./engine.js";
+import { formFor, jobOf, practiceJob } from "./engine.js";
 import { jobBoard } from "./job-boards.js";
 import { injectFill } from "../shared/content-scripts.js";
 import { liveBatch, load, save, serially } from "./batch-store.js";
@@ -199,7 +199,7 @@ async function topUp(batch, applicantId) {
       continue;
     }
     // The form, not the job's page, where the two differ (a Lever posting's form is at .../apply).
-    const url = formUrl(link);
+    const url = await formFor(link);
     if (isWorkday(url) && workdayOpen(batch)) {
       batch.held.push({ jobId, url, jobType });
       continue;
