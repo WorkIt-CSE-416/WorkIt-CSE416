@@ -7,12 +7,17 @@
 // comment explains why) — just the cache.
 
 import { getSession } from "./auth.js";
-import { answerBank, getAutofillProfile, generateEssayAnswer, ApiError, askQuestions, me, saveOwnAnswer, writtenAnswers } from "./api.js";
 import {
-  batchStatus, forgetTab, inBatch, jobInTab, markSubmitted, nextNeedsYou, practiceStatus, resumeBatch, setTabState, showBatchTab, skipTab, startBatch,
-  startPractice, submitPractice, writeEarly,
+  answerBank, getAutofillProfile, generateEssayAnswer, ApiError, askQuestions, connectorAdded, me, saveAutofillAnswers, saveOwnAnswer,
+  writingSamples, writtenAnswers,
+} from "./api.js";
+import {
+  batchStatus, batchTabIds, forgetTab, inBatch, jobInTab, markSubmitted, nextNeedsYou, practiceStatus, resumeBatch, setTabState, setWriting,
+  showBatchTab, skipTab, startBatch, startPractice, submitPractice, writeEarly,
 } from "./batch.js";
 import { engineCaller, handleFill, jobOf, practiceJob, runEngine, submittedPage } from "./engine.js";
+import { claimMoment } from "./moments.js";
+import { SELF_ID, checkedSelfId, unansweredSelfId } from "./self-id.js";
 import { injectFill } from "../shared/content-scripts.js";
 import { workdayLogin } from "./workday-logins.js";
 
@@ -133,7 +138,20 @@ async function handleMessage(message, sender) {
       const questions = message.type === "batch/questions"
         ? await askQuestions(id, jobId, message.questions)
         : await writtenAnswers(id, jobId);
+      if (message.type === "batch/questions") await setWriting(sender.tab.id, { writing: true });
       return { questions };
+    }
+
+    // A batch tab's written questions are all answered (KAN-387): once the
+    // batch's last one is, in a batch the student's Claude wrote for, the
+    // student is asked for writing samples, once, unless they have some.
+    case "batch/written": {
+      const last = await setWriting(sender.tab.id, { writing: false, byClaude: Boolean(message.byClaude) });
+      if (!last) return { show: false };
+      const [session, { id }] = await Promise.all([getSession(), me()]);
+      if ((await writingSamples(id)).length) return { show: false };
+      if (!(await claimMoment(id, "samples"))) return { show: false };
+      return { show: true, url: `${session.web_origin}/profile#writing-samples` };
     }
 
     // The student's own words for one of a batch tab's questions that need
@@ -166,6 +184,41 @@ async function handleMessage(message, sender) {
 
     case "batch/submitted":
       return markSubmitted(sender.tab.id);
+
+    // The first form that asks the self-identification (KAN-387): the tab
+    // whose Plan found it asks whether to ask the student (once, in one
+    // tab: moments.js), then saves their answers to the profile, and every
+    // other batch tab fills them too ("selfid/saved").
+    case "selfid/ask": {
+      const profile = await getAutofillProfile();
+      const keys = unansweredSelfId(profile.answers);
+      if (!keys.length || !(await claimMoment(profile.id, "self_id"))) return { ask: false };
+      return { ask: true, questions: SELF_ID.filter((q) => keys.includes(q.key)) };
+    }
+
+    case "selfid/save": {
+      const answers = checkedSelfId(message.answers);
+      const { id } = await me();
+      if (Object.keys(answers).length) await saveAutofillAnswers(id, answers);
+      // The cached profile must have them before any tab plans again.
+      await getAutofillProfile({ force: true });
+      for (const tabId of await batchTabIds()) {
+        if (tabId !== sender.tab?.id) chrome.tabs.sendMessage(tabId, { type: "selfid/saved" }).catch(() => {});
+      }
+      return {};
+    }
+
+    // A batch tab sent its first questions for the student's Claude
+    // (KAN-387): the add-Claude step, once, unless the connector is added.
+    // The link is the webapp's, which redirects to Claude's dialog (the
+    // install link is built there, from the API's address).
+    case "moment/claude": {
+      if (!(await jobInTab(sender.tab.id))) return { show: false };
+      const [session, { id }] = await Promise.all([getSession(), me()]);
+      if (await connectorAdded(id)) return { show: false };
+      if (!(await claimMoment(id, "claude"))) return { show: false };
+      return { show: true, url: `${session.web_origin}/connect/claude/add` };
+    }
 
     default:
       throw new Error(`Unknown message type: ${message.type}`);

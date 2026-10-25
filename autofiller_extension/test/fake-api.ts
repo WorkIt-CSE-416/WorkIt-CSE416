@@ -37,8 +37,21 @@ export class FakeApi {
     question.answer = answer;
   }
 
+  /** The student's autofill answers (GET and PATCH .../autofill-answers), STUDENT's unless `profile` names others. */
+  readonly answers: Record<string, string | null>;
+  /** Every PATCH .../autofill-answers body, in order. */
+  readonly answersSaved: Record<string, string | null>[] = [];
+
+  /** The student's writing samples (GET .../writing-samples). */
+  samples: { id: string; text: string }[] = [];
+
+  /** Whether the student's Claude has signed in to WorkIt's connector (GET .../connector). */
+  connectorAdded = false;
+
   /** `profile`: the student's profile fields that differ from STUDENT's. */
-  constructor(private profile: Partial<typeof STUDENT> = {}) {}
+  constructor(private profile: Partial<Omit<typeof STUDENT, "answers">> & { answers?: Record<string, string | null> } = {}) {
+    this.answers = { ...(profile.answers ?? STUDENT.answers) };
+  }
 
   /** Queues the postings in this order, as Start Auto Apply or the job cards do. */
   queue(...postings: Posting[]): this {
@@ -66,10 +79,19 @@ export class FakeApi {
     }
     if (route === "/bank") return { json: STUDENT.bank };
     if (route === "/preferences") return { json: { visa: null } };
-    if (route === "/autofill-answers") return { json: STUDENT.answers };
+    if (route === "/autofill-answers") {
+      if (method === "PATCH") {
+        const changed = JSON.parse(body.toString());
+        this.answersSaved.push(changed);
+        Object.assign(this.answers, changed);
+      }
+      return { json: this.answers };
+    }
     if (route === "/resumes") return { json: [{ id: RESUME_ID, is_default: true, original_filename: STUDENT.resume.filename }] };
     if (route === `/resumes/${RESUME_ID}/bytes`) return { headers: { "content-type": "application/pdf" }, body: Buffer.from(STUDENT.resume.base64, "base64") };
     if (route === "/built-resumes") return { json: [] };
+    if (route === "/connector") return { json: { added: this.connectorAdded } };
+    if (route === "/writing-samples" && method === "GET") return { json: { samples: this.samples, style_card: null } };
 
     if (route === "/applications/next" && method === "GET") {
       const skip = new Set(url.searchParams.getAll("skip"));

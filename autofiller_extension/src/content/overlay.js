@@ -48,6 +48,7 @@ window.WIA = window.WIA || {};
         --color-on-brand: #ffffff;
         --color-ink: #121a28; --color-ink-muted: #3b3e46; --color-ink-meta: #596980; --color-ink-subtle: #94969d;
         --color-panel: #ffffff; --color-well: #f7f7f7; --color-border: #e3e9f0; --color-border-subtle: #e8ebf5;
+        --color-border-control: #8a8f9a;
         --color-positive: #17b076; --color-positive-ink: #107a52; --color-positive-tint: #e3f7f0;
         --color-warning: #8a5a00; --color-warning-tint: #fdf0d9; --color-warning-strong: #d97706;
         --color-danger: #c02a3d; --color-danger-tint: #fce9eb;
@@ -95,6 +96,27 @@ window.WIA = window.WIA || {};
       }
       .essay-banner button[data-generate] { background: var(--color-advanced); color: var(--color-on-brand); }
       .essay-banner button[data-dismiss] { background: var(--color-panel); color: var(--color-ink); }
+      /* A moment's card (KAN-387): something onboarding left for the form that first needs it. */
+      .moment { padding: 10px 12px; background: var(--color-brand-tint); border-bottom: 1px solid var(--color-border); }
+      .moment[hidden] { display: none; }
+      .moment h2 { margin: 0 0 4px; font-size: 13px; font-weight: 600; color: var(--color-ink); }
+      .moment p { margin: 0 0 8px; font-size: 12px; color: var(--color-ink-muted); }
+      .moment label { display: block; margin: 0 0 8px; font-size: 12px; font-weight: 500; color: var(--color-ink); }
+      .moment select {
+        display: block; width: 100%; margin-top: 3px; padding: 5px 6px; font: inherit; font-size: 12px;
+        color: var(--color-ink); background: var(--color-panel);
+        border: 1px solid var(--color-border-control); border-radius: var(--radius-control);
+      }
+      .moment .actions { display: flex; gap: 8px; margin-top: 4px; }
+      .moment button, .moment a {
+        all: unset; cursor: pointer; font-size: 12px; font-weight: 500; padding: 6px 10px; border-radius: var(--radius-control);
+      }
+      .moment [data-primary] { background: var(--color-brand); color: var(--color-on-brand); display: inline-flex; align-items: center; gap: 4px; }
+      .moment [data-primary]:hover { background: var(--color-brand-hover); }
+      .moment [data-primary] svg { width: 12px; height: 12px; }
+      .moment [data-secondary] { background: var(--color-panel); color: var(--color-ink); border: 1px solid var(--color-border); }
+      .moment button:focus-visible, .moment a:focus-visible, .moment select:focus-visible { outline: 2px solid var(--color-brand); outline-offset: 2px; }
+      .moment .error { color: var(--color-danger); }
       .list { overflow-y: auto; padding: 4px 0; }
       .row {
         display: flex; align-items: flex-start; gap: 8px; padding: 6px 12px;
@@ -206,6 +228,101 @@ window.WIA = window.WIA || {};
     });
   }
 
+  /** A new moment card at the top of the panel's list (KAN-387); removed by its own buttons. */
+  function momentCard(className, html) {
+    if (!root) return null;
+    const card = document.createElement("section");
+    card.className = `moment ${className}`;
+    card.innerHTML = html;
+    root.querySelector(".moments").appendChild(card);
+    return card;
+  }
+
+  const escape = (text) => text.replace(/[&<>"]/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;" })[c]);
+
+  /**
+   * The self-identification, asked on the first form that asks it
+   * (KAN-387): one list per question, "Leave Blank" first. Save sends the
+   * answers picked to `onSave`, which answers an error to show, or null once
+   * saved; Not Now closes the card and saves nothing.
+   * @param {{ questions: { key: string, label: string, question: string, options: { value: string, label: string }[] }[],
+   *   onSave: (answers: Record<string, string>) => Promise<string | null> }} options
+   */
+  function askSelfId({ questions, onSave }) {
+    const card = momentCard("self-id", `
+      <h2>Equal-Opportunity Questions</h2>
+      <p>This form asks voluntary self-identification questions. Answer them once and WorkIt fills them on every form from now on. You can change them in My Profile.</p>
+      ${questions.map((q) => `
+        <label>${escape(q.label)}
+          <select name="${escape(q.key)}" title="${escape(q.question)}">
+            <option value="">Leave Blank</option>
+            ${q.options.map((o) => `<option value="${escape(o.value)}">${escape(o.label)}</option>`).join("")}
+          </select>
+        </label>`).join("")}
+      <p class="error" hidden></p>
+      <div class="actions">
+        <button type="button" data-primary data-save>Save and Fill</button>
+        <button type="button" data-secondary data-dismiss>Not Now</button>
+      </div>
+    `);
+    if (!card) return;
+    const error = card.querySelector(".error");
+    card.querySelector("[data-dismiss]").addEventListener("click", () => card.remove());
+    card.querySelector("[data-save]").addEventListener("click", async () => {
+      const answers = Object.fromEntries([...card.querySelectorAll("select")].filter((s) => s.value).map((s) => [s.name, s.value]));
+      error.hidden = true;
+      const failed = await onSave(answers);
+      if (!failed) return card.remove();
+      error.textContent = failed;
+      error.hidden = false;
+    });
+  }
+
+  /**
+   * The add-Claude step (KAN-387), on a batch's first question for the
+   * student's Claude: Add to Claude opens `url` (the webapp's
+   * /connect/claude/add, which goes on to Claude's Add Custom Connector
+   * dialog) in a new tab; then the student asks their Claude to write.
+   * @param {{ url: string }} options
+   */
+  function offerClaude({ url }) {
+    const card = momentCard("add-claude", `
+      <h2>Let Your Claude Write These</h2>
+      <p>This form has a question to write. Add WorkIt to your Claude once, then ask it to "Write my WorkIt answers": each answer fills in here, for you to check.</p>
+      <div class="actions">
+        <a data-primary data-add target="_blank" rel="noreferrer">${SPARKLE}Add to Claude</a>
+        <button type="button" data-secondary data-dismiss>Not Now</button>
+      </div>
+    `);
+    if (!card) return;
+    const add = card.querySelector("[data-add]");
+    add.href = url;
+    add.addEventListener("click", () => card.remove());
+    card.querySelector("[data-dismiss]").addEventListener("click", () => card.remove());
+  }
+
+  /**
+   * The writing samples ask (KAN-387), once the first batch's written answers
+   * landed: Add Samples opens `url` (My Profile's Writing Samples) in a new
+   * tab; Skip closes it. Either way it is not asked again.
+   * @param {{ url: string }} options
+   */
+  function askSamples({ url }) {
+    const card = momentCard("samples", `
+      <h2>Make Your Answers Sound Like You</h2>
+      <p>Your Claude wrote this batch's answers. Add two or three things you wrote yourself, such as a class essay or a cover letter, and it writes the next ones in your style. Optional.</p>
+      <div class="actions">
+        <a data-primary data-add target="_blank" rel="noreferrer">Add Samples</a>
+        <button type="button" data-secondary data-dismiss>Skip</button>
+      </div>
+    `);
+    if (!card) return;
+    const add = card.querySelector("[data-add]");
+    add.href = url;
+    add.addEventListener("click", () => card.remove());
+    card.querySelector("[data-dismiss]").addEventListener("click", () => card.remove());
+  }
+
   /**
    * Batch apply's "Next Thing That Needs You" (content-script.js): shows the
    * button, which calls `onNext` and shows what it answers (a sentence for
@@ -261,6 +378,7 @@ window.WIA = window.WIA || {};
         <span class="said" data-said hidden></span>
       </div>
       <div class="essay-banner" hidden></div>
+      <div class="moments"></div>
       <div class="list"></div>
     `;
     panel.querySelector("[data-close]").addEventListener("click", unmount);
@@ -300,5 +418,5 @@ window.WIA = window.WIA || {};
     root = null;
   }
 
-  window.WIA.overlay = { mount, unmount, promptForEssays, offerNext, setCurrent };
+  window.WIA.overlay = { mount, unmount, promptForEssays, offerNext, setCurrent, askSelfId, offerClaude, askSamples };
 })();

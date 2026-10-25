@@ -13,6 +13,7 @@
 // extension's test imports this file as it is.
 import "../../fill-engine/dist/engine.js";
 import { DEV_WEB_URL, PROD_SITES } from "../shared/config.js";
+import { unansweredSelfId } from "./self-id.js";
 
 /** The engine's own copy here, for what needs no page. */
 const engine = globalThis.FillEngine;
@@ -275,10 +276,28 @@ export async function planFill({ url, profile, bank = {}, today, call, fetchText
   // Each text field's own limit, as the form on the page sets it (KAN-380): a written answer is checked against it before it is saved.
   const asked = [...read.questions, ...extra.filter((q) => !known.has(q.name))];
   const questions = await optional(() => call("limits", asked), asked);
-  const { posting, plan } = await planQuestions({ job, url, questions, profile, bank, today, fetchText: fetchOnce });
+  const { posting, plan, planFor } = await planQuestions({ job, url, questions, profile, bank, today, fetchText: fetchOnce });
   const answers = withFiles(plan.answers, profile);
   const prepared = { covered: true, site, posting, questions, plan, answers, applicantId: profile.id, step: read.step, state: read.state };
-  return { ...prepared, rows: planRows(prepared) };
+  return { ...prepared, rows: planRows(prepared), selfId: selfIdAsked(questions, profile, plan, planFor) };
+}
+
+/**
+ * The self-identification questions this form asks that the student hasn't
+ * answered (KAN-387): onboarding no longer asks them, so the first form that
+ * does asks the student. Which questions are self-identification is the
+ * engine's to say, never a list of labels here: the Plan is made again as if
+ * the student had answered every missing one ("declined"), and the questions
+ * that only then get an answer are theirs. Null when there are none.
+ * @returns {{ keys: string[], names: string[] } | null}
+ */
+function selfIdAsked(questions, profile, plan, planFor) {
+  const keys = unansweredSelfId(profile.answers);
+  if (!keys.length || !questions.length) return null;
+  const answered = { ...profile.answers, ...Object.fromEntries(keys.map((key) => [key, "declined"])) };
+  const probe = planFor({ ...profile, answers: answered });
+  const names = Object.keys(probe.answers).filter((name) => !(name in plan.answers));
+  return names.length ? { keys, names } : null;
 }
 
 /**
@@ -291,10 +310,12 @@ async function planQuestions({ job, url, questions, profile, bank, today, fetchT
   const names = await optional(() => engine.jobNames(url, fetchText), { company: "", title: "" });
   const text = engine.textOf(await optional(() => engine.jobDescription(url, fetchText), ""));
   const posting = { id: String(job.job ?? job.shortcode ?? job.pid ?? url), ...names, url };
+  // `planFor`: the same Plan for another profile (the self-identification's probe, KAN-387).
+  const planFor = (someone) => engine.plan(questions, engineProfile(someone), POLICIES, bank ?? {}, { posting, today, postingText: text, employerText: text });
   const plan = questions.length
-    ? engine.plan(questions, engineProfile(profile), POLICIES, bank ?? {}, { posting, today, postingText: text, employerText: text })
+    ? planFor(profile)
     : { answers: {}, essays: [], drafts: [], missing: [], handoffs: [], accepted: {}, sources: {} };
-  return { posting, plan };
+  return { posting, plan, planFor };
 }
 
 /**

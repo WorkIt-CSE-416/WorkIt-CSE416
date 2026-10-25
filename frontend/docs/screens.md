@@ -1246,11 +1246,12 @@ headline line used to leave a gap between the name and the row below.
   field. The section never makes an href of a link that fails the check.
 
 **Application Questions (KAN-269)** is an open section between Contact &
-Links and Resumes & Experiences: the nine questions onboarding's Profile
-step asks (work authorization, sponsorship, citizenship and visa status,
-clearance, and the voluntary gender, Hispanic or Latino, race, veteran and
-disability self-identification), with the seeker's answers
-(`(seeker)/profile/application-questions.tsx`).
+Links and Resumes & Experiences: the nine questions most applications ask
+(work authorization, sponsorship, citizenship and visa status, clearance,
+which onboarding's Profile step asks, and the voluntary gender, Hispanic or
+Latino, race, veteran and disability self-identification, which the
+extension asks on the first form that does, KAN-387), with the seeker's
+answers (`(seeker)/profile/application-questions.tsx`).
 
 - **U.S. Citizen as the citizenship answer puts "U.S. Citizen" on every
   resume header** (PDF, Word and LaTeX), first on the contact line.
@@ -1277,6 +1278,24 @@ disability self-identification), with the seeker's answers
   shows the cached answers and refetches, and a refetch landing mid-edit
   made another tab's newer answers look changed, so Save wrote the cached
   ones back over them (review, 2026-10-20).
+
+**Writing Samples (KAN-384, KAN-387)** is an open section after
+Application Questions (`(seeker)/profile/writing-samples.tsx`): up to three
+pieces of the student's own writing (a class essay, a cover letter), from
+which their own Claude builds a style card through the connector, so the
+answers it writes read the way they write. Optional; WorkIt's own AI never
+reads them.
+
+- **Asked for once, after the first written batch.** The extension's panel
+  asks, with Add Samples and Skip, once the first batch's answers from the
+  student's Claude have all landed, and only when the student has none;
+  Add Samples opens `/profile#writing-samples`, which opens Add at once.
+- **Add, in place.** Add (the section's action, gone at three) opens a text
+  box with Cancel and Save; Escape cancels. The API refuses an empty one or
+  one over 10,000 characters, with its reason under the box.
+- **Each sample is its first three lines, with Remove.** A sample is
+  replaced by removing it and adding the new one: changing a sample drops
+  the style card either way, and Claude builds a new one next time.
 
 **Resumes moved
 out on 2026-10-18**: the Resume card (the uploads and their dropzone) became
@@ -2110,16 +2129,9 @@ aria-hidden, and it holds still under reduced motion.
 Work and Visa Sponsorship (yes or no), then Location and Links (KAN-372:
 where the student lives, typed as forms ask it, "Stony Brook, NY", and
 LinkedIn, GitHub and Portfolio or Website; `onboarding/applicant/contact-fields.tsx`),
-then Citizenship and Visa Status, Security
-Clearance, then the voluntary Gender, Hispanic or Latino, Race/Ethnicity,
-Veteran Status and Disability, in the order real forms ask them, each under the question as forms word it. The options
-are real forms' options (`lib/autofill-answers.ts`): gender's are the
-EEO Male, Female and decline plus Non-Binary, which many forms add;
-Hispanic or Latino (KAN-299) is Yes, No or decline, and Race/Ethnicity one
-EEO-1 category or decline, the EEO's own two questions, which every U.S.
-form keeps apart; veteran
-status's three are the U.S. protected veteran self-identification's, disability's
-three are Form CC-305's words. One answer each, as dots; pressing a picked
+then Citizenship and Visa Status and Security
+Clearance, each under the question as forms word it. The options
+are real forms' options (`lib/autofill-answers.ts`). One answer each, as dots; pressing a picked
 answer again clears it. They are not filters: Finish saves them to the
 answer bank (`PATCH /applicants/{id}/autofill-answers`, only the changed
 ones), and the location and links to the profile (`PATCH
@@ -2129,6 +2141,19 @@ is marked under its box and stops Finish before anything saves. The step was Pay
 KAN-283: pay moved to step 1, beside the job types that set its units, and
 the visa filter question left onboarding. A visa filter saved before is
 kept, and the Jobs page still sets it.
+
+**The voluntary self-identification is not asked here (KAN-387).** Gender,
+Hispanic or Latino, Race/Ethnicity, Veteran Status and Disability
+(`SELF_ID_KEYS`) wait for the first form that asks one: the extension's panel
+on that form asks them once, with the same options (gender's are the EEO
+Male, Female and decline plus Non-Binary; Hispanic or Latino and
+Race/Ethnicity are the EEO's own two questions, which every U.S. form keeps
+apart; veteran status's three are the U.S. protected veteran
+self-identification's, disability's three Form CC-305's words), saves them
+to the same answer bank, and fills them on that form and every later one.
+Asked at sign-up, they were five more questions before a student had seen a
+single form; asked on the form, the student sees why. My Profile's
+Application Questions still shows and edits all nine.
 
 **Step 1's answers are the Jobs page's filters.** Every question takes
 `FeedFilters` and the options in `jobs/filter-query.ts`, and Role, Location,

@@ -502,6 +502,33 @@ export async function finishApplication(applicantId, jobId, outcome) {
 }
 
 /**
+ * GET .../connector — whether the student's Claude holds a live sign-in to
+ * WorkIt's connector (`{ added }`, KAN-387).
+ * @param {string} applicantId
+ */
+export async function connectorAdded(applicantId) {
+  return (await apiFetch(`/applicants/${applicantId}/connector`)).added;
+}
+
+/**
+ * GET .../writing-samples — the student's writing samples (`samples`, KAN-384).
+ * @param {string} applicantId
+ */
+export async function writingSamples(applicantId) {
+  return (await apiFetch(`/applicants/${applicantId}/writing-samples`)).samples;
+}
+
+/**
+ * PATCH .../autofill-answers — saves the answers `changed` names and keeps
+ * the rest (the self-identification a form first asked, KAN-387).
+ * @param {string} applicantId
+ * @param {Record<string, string>} changed
+ */
+export async function saveAutofillAnswers(applicantId, changed) {
+  return apiFetch(`/applicants/${applicantId}/autofill-answers`, { method: "PATCH", body: JSON.stringify(changed) });
+}
+
+/**
  * POST .../essay-answer — a drafted answer to one open-ended application
  * question, grounded in the applicant's experience bank. Never looked up
  * against a stored job posting: `question`/`companyName`/`jobTitle` are
