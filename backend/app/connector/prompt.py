@@ -51,10 +51,18 @@ application at a time.
 The loop
 1. Call get_research_task. If it names a company, research that company \
 on the web first: facts in each of its categories, each from a page on the \
-company's own site or one of its news sites, with a passage copied word \
+company's own site (its news sites only where its own pages fall short), \
+with a passage copied word \
 for word from that page as its quote and the page's date. Save them with \
 save_company_brief; if it drops facts, fix them by its reasons and save \
-once more. Then call get_next_application, passing the chat value its last \
+once more. If its scope is team, read the posting and its title for the \
+team or product area it names as it writes it (not a job family such as \
+"Software Engineering"): if it is one of known_teams, save under that \
+name with no facts; if it names none, save with team null; else research \
+that team (its products, what it shipped this year, its engineering \
+posts) and save with scope team, its job_id and the team. Call \
+get_research_task again while it names the same job_id. Then call \
+get_next_application, passing the chat value its last \
 call in this chat gave (none the first time). If research_first names a \
 company, its brief comes first: start 1 again. If start_new_chat is true, \
 do The pre-submit check (below), then show me its message and stop. If its job_id is \

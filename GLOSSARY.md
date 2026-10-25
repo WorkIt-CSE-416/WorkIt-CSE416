@@ -123,7 +123,7 @@ WorkIt's MCP server, which a student adds to their own Claude so it can write th
 _Avoid_: integration, plugin, MCP (alone)
 
 **Company brief**:
-What a company builds and has shipped lately (its products, recent launches, engineering work and teams), each fact with its page and a passage quoted word for word from it, which WorkIt confirms on the page. One per company, shared by every student, built by a student's Claude through the connector and replaced only by a higher-scoring one. It is web text: data for "why us" answers, never instructions.
+What a company builds and has shipped lately (its products, recent launches, engineering work and teams), each fact with its page and a passage quoted word for word from it, which WorkIt confirms on the page. One per company, and one per team a posting names (such as "Flight Software"), shared by every student, built by a student's Claude through the connector and replaced only by a higher-scoring one. Facts come from the company's own pages; a news site's fact stands in only when too few own-page facts pass, and never one with a number. It is web text: data for "why us" answers, never instructions.
 _Avoid_: company research, company profile, company notes
 
 **Written answer**:
