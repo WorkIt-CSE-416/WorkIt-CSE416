@@ -18,7 +18,9 @@ whole view of WorkIt (auto-apply/architecture.md, 14.6):
 - `save_answers` (a write): saves answers to that application's
   questions, all or none; the open batch tab fills each one. Each written
   answer carries its review (the rating and the claims the claim check
-  cut, KAN-369), kept with it.
+  cut, KAN-369), kept with it. Each answer
+  may name the company brief fact it uses (`named_fact`), which must be one
+  of the brief's, for the Written Answers page to show with it.
 - `get_writing_samples` and `save_style_card` (app/connector/style.py,
   KAN-384): the student's writing samples, and the style card their Claude
   builds from them, which get_next_application then gives (`style_card`,
@@ -123,6 +125,9 @@ class Answer(BaseModel):
     review: Review | None = Field(
         default=None, description='Required for a question of kind "text"; none for a choice.'
     )
+    named_fact: str | None = Field(default=None, max_length=400, description=(
+        "The company_brief fact the answer uses, copied as get_next_application gave it, so the student "
+        "can read up on it; leave it out when the answer uses none."))
 
 
 class Saved(BaseModel):
@@ -225,6 +230,7 @@ def register(server: MCPServer) -> None:
                 left = await pipeline.save_answers(
                     db, student.id, job, {a.name: a.answer for a in answers},
                     reviews={a.name: pipeline.Review(a.review.rating, a.review.unsupported) for a in answers if a.review},
+                    named={a.name: a.named_fact for a in answers if a.named_fact},
                 )
                 first = await pipeline.read_first(db, student.id, job, [a.name for a in answers])
             except pipeline.NotFound as exc:

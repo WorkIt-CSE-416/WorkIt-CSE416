@@ -59,6 +59,10 @@ class Written_Answer(BaseModel):
     # "unsupported": the claims the claim check listed and the edit cut}.
     # NULL for a choice, a pasted answer or the student's own words
     review: Mapped[dict | None] = mapped_column(JSONB(none_as_null=True))
+    # the company brief fact the answer uses, {"fact", "url"} as the brief
+    # had it when saved, so the student can read up on it before an
+    # interview; NULL when it names none (KAN-369)
+    named_fact: Mapped[dict | None] = mapped_column(JSONB(none_as_null=True))
 
     __table_args__ = (
         CheckConstraint(
@@ -66,6 +70,7 @@ class Written_Answer(BaseModel):
             name="written_answers_kind_options",
         ),
         CheckConstraint("review IS NULL OR jsonb_typeof(review) = 'object'", name="written_answers_review_object"),
+        CheckConstraint("named_fact IS NULL OR jsonb_typeof(named_fact) = 'object'", name="written_answers_named_fact_object"),
         # The application's questions go with it: dequeued, or the account deleted.
         ForeignKeyConstraint(
             ["applicant_id", "job_id"], ["job_applications.applicant_id", "job_applications.job_id"],

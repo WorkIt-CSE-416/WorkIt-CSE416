@@ -3,12 +3,13 @@ import type { Metadata } from "next";
 
 import { Card } from "@/components/ui/card";
 import { EmptyState } from "@/components/ui/empty-state";
+import { TextLink } from "@/components/ui/text-link";
 import { cn } from "@/lib/cn";
 
 import { BackLink } from "../../back-link";
 import { SEEKER_GUTTER } from "../../gutter";
 import { AnswerBox } from "./answer-box";
-import { getWrittenQuestions } from "./questions";
+import { getAnsweredQuestions, getWrittenQuestions } from "./questions";
 
 export const metadata: Metadata = {
   title: "Written Answers",
@@ -31,12 +32,21 @@ export const metadata: Metadata = {
  * Claude's, and the open tab fills it on its next poll. Nothing here talks
  * to the extension.
  *
+ * YOUR ANSWERS. Below, every written question already answered, newest
+ * application first, with the company brief fact the answer names (its
+ * Named fact, KAN-369) linked to the page that states it, so the student
+ * can read up on it before an interview. Read only; a list that doesn't
+ * load is left out rather than shown as an error.
+ *
  * The list is read once, on the server, as the page loads; a saved answer
  * stays on the page marked Saved until the next visit, so the student sees
  * what they sent. A <div>, since SidebarInset is already the <main>.
  */
 export default async function WrittenAnswersPage() {
-  const { data: postings, error } = await getWrittenQuestions();
+  const [{ data: postings, error }, { data: answered }] = await Promise.all([
+    getWrittenQuestions(),
+    getAnsweredQuestions(),
+  ]);
 
   return (
     <div className={cn("max-w-app mx-auto w-full flex-1 py-6", SEEKER_GUTTER)}>
@@ -76,6 +86,46 @@ export default async function WrittenAnswersPage() {
             </Card>
           ))}
         </div>
+      )}
+
+      {answered && answered.length > 0 && (
+        <section aria-labelledby="your-answers" className="mt-10">
+          <h2 id="your-answers" className="text-title text-ink">
+            Your Answers
+          </h2>
+          <p className="text-body text-ink-meta mt-1 max-w-[68ch]">
+            What your applications were given, with the company fact each answer uses. Read up on it
+            before an interview.
+          </p>
+          <div className="mt-4 flex flex-col gap-5">
+            {answered.map((posting) => (
+              <Card as="article" padding="lg" key={posting.job_id}>
+                <h3 className="text-subtitle text-ink">{posting.title ?? "Untitled Job"}</h3>
+                {posting.company && <p className="text-body text-ink-meta">{posting.company}</p>}
+                <dl className="mt-4 flex flex-col gap-5">
+                  {posting.questions.map((question) => (
+                    <div key={question.name} className="flex flex-col gap-1.5">
+                      <dt className="text-body text-ink font-semibold">{question.label}</dt>
+                      <dd className="text-body text-ink whitespace-pre-wrap">{question.answer}</dd>
+                      {question.named_fact && (
+                        <dd className="text-note text-ink-meta">
+                          Named fact:{" "}
+                          <TextLink
+                            href={question.named_fact.url}
+                            target="_blank"
+                            rel="noopener noreferrer"
+                          >
+                            {question.named_fact.fact}
+                          </TextLink>
+                        </dd>
+                      )}
+                    </div>
+                  ))}
+                </dl>
+              </Card>
+            ))}
+          </div>
+        </section>
       )}
     </div>
   );

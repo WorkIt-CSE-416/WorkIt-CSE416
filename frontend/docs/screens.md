@@ -1002,6 +1002,13 @@ reads "Nothing Left to Write". **The Auto Apply page links to it** with a
 card over Up Next, "N Written Questions Waiting", while any open
 application has one, which says the student's Claude writes them once
 added and offers **Write Answers** (a secondary button with the pencil).
+**Your Answers**, below, lists every written question already answered
+(`GET .../written-answers`, KAN-369), one white card per job posting at any
+stage, newest application first: the question, the answer as sent and,
+when the student's Claude named one, its **Named fact**, the company brief
+fact the answer uses, linked to the page that states it, so the student can
+read up on it before an interview. Read only; it is left out when nothing
+is answered or the list doesn't load.
 
 **Jobs lead the page** (KAN-359): the heading with **Manage Resumes** (a
 secondary button to Resumes & Experiences) and **Add to Claude** beside

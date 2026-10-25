@@ -61,10 +61,11 @@ text in front of you, never what you meant it to say. Don't show me \
 drafts. For each written answer, keep the rating its last review round \
 gave it and the claims the check listed.
 3. Call save_answers with that job_id and the edited answers, each under \
-its question's name. Give each written answer its review: the rating its \
-last review round gave and the claims the check listed, quoted as the \
-check found them ([] when it listed none). A choice takes no review. If it \
-refuses one, fix what it says and save again.
+its question's name. With an answer that uses a company_brief fact, pass \
+that fact's sentence as its named_fact. Give each written answer its \
+review: the rating its last review round gave and the claims the check \
+listed, quoted as the check found them ([] when it listed none). A choice \
+takes no review. If it refuses one, fix what it says and save again.
 4. Tell me in one line which company you wrote for, and name any question \
 you left out and the fact it needs from me. If save_answers named any \
 answers in read_first, name those questions too, for me to read before I \

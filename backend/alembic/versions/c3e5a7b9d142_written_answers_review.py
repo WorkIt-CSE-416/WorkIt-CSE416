@@ -1,7 +1,7 @@
 """written answers: review, the passes Claude ran on its answer (KAN-369)
 
 Revision ID: c3e5a7b9d142
-Revises: a8c4e2f6b310
+Revises: d1f3b5a7c962
 Create Date: 2026-10-25 22:00:00.000000
 
 One nullable column, so it is safe to apply before or after the deploy:
@@ -17,7 +17,7 @@ from sqlalchemy.dialects import postgresql
 
 # revision identifiers, used by Alembic.
 revision: str = 'c3e5a7b9d142'
-down_revision: Union[str, Sequence[str], None] = 'a8c4e2f6b310'
+down_revision: Union[str, Sequence[str], None] = 'd1f3b5a7c962'
 branch_labels: Union[str, Sequence[str], None] = None
 depends_on: Union[str, Sequence[str], None] = None
 

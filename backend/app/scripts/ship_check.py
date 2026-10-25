@@ -132,7 +132,7 @@ def stub(folder: Path, chat: int) -> Iterator[tools.MCPServer]:
         if job_id not in named:
             raise pipeline.NotFound("No application for that job. Queue it first.")
 
-    async def save_written(db, applicant_id, job_id, answers, reviews=None):
+    async def save_written(db, applicant_id, job_id, answers, facts=None, reviews=None):
         app = named[job_id]
         saved.update({(app, name): (text, (reviews or {}).get(name)) for name, text in answers.items()})
         _save(out, [
