@@ -22,8 +22,9 @@ same engine). One run, in one transaction:
 4. WorkIt's own fields from the profile's identity: name, contact email,
    phone, links, home location, and the education entry (the student's own,
    matched by school);
-5. the resume the profile names, copied into LOCAL_FILES_DIR and made the
-   default upload as `local:<file name>` (services/local_files.py): nothing
+5. the resume the profile names, copied into the student's folder in
+   LOCAL_FILES_DIR and made the default upload as
+   `local:<applicant_id>/<file name>` (services/local_files.py): nothing
    goes to Storage. Without LOCAL_FILES_DIR it is left out. The unofficial
    transcript it names comes the same way, as the student's transcript document;
 6-8. the student's own writing from story-bank.md as writing samples, voice.md
@@ -197,6 +198,15 @@ async def _set_education(session: AsyncSession, applicant_id: uuid.UUID, facts: 
         report.education = "updated"
 
 
+def _copy_local(applicant_id: uuid.UUID, source: Path) -> str:
+    """Copy a file into the student's own folder in LOCAL_FILES_DIR; its storage path."""
+    path = local_files.local_path(applicant_id, source.name)
+    target = local_files.file_for(path)
+    target.parent.mkdir(parents=True, exist_ok=True)
+    shutil.copyfile(source, target)
+    return path
+
+
 async def _set_resume(
     session: AsyncSession, profile: Applicant_Profile, apply_dir: Path, facts: dict, report: Report,
 ) -> None:
@@ -211,11 +221,14 @@ async def _set_resume(
     if not source.is_file():
         report.notes.append("resume left out: the file the profile names is missing")
         return
-    folder.mkdir(parents=True, exist_ok=True)
-    shutil.copyfile(source, folder / source.name)
-    path = local_files.local_path(source.name)
-    resume = await session.scalar(select(Resume).where(Resume.applicant_id == profile.id, Resume.storage_path == path))
-    if resume is None:
+    path = _copy_local(profile.id, source)
+    # an earlier import named the folder's own file (`local:<name>`): that row moves
+    older = local_files.PREFIX + source.name
+    resume = await session.scalar(select(Resume).where(
+        Resume.applicant_id == profile.id, Resume.storage_path.in_((path, older))).limit(1))
+    if resume is not None:
+        resume.storage_path = path
+    else:
         resume = Resume(id=uuid.uuid4(), applicant_id=profile.id, original_filename=source.name, storage_path=path)
         session.add(resume)
         await session.flush()
@@ -239,13 +252,12 @@ async def _set_transcript(
     if not source.is_file():
         report.notes.append("transcript left out: the file the profile names is missing")
         return
-    folder.mkdir(parents=True, exist_ok=True)
-    shutil.copyfile(source, folder / source.name)
+    path = _copy_local(profile.id, source)
     document = await session.get(Student_Document, (profile.id, "transcript"))
     if document is None:
         document = Student_Document(applicant_id=profile.id, kind="transcript")
         session.add(document)
-    document.original_filename, document.storage_path = source.name, local_files.local_path(source.name)
+    document.original_filename, document.storage_path = source.name, path
     report.transcript = source.name
 
 
