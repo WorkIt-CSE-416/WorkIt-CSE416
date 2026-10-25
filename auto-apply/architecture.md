@@ -1072,7 +1072,8 @@ ids and plain data.
 The rules are the tracer's short set; KAN-381 brings Apply's full ones, the
 per-chat cap and resuming after a usage limit; KAN-380 the checks in code
 on save (above), with `max_length` read from the live form by the Fill
-engine's `limits`; KAN-379 writing as soon as a job is queued and reusing saved
+engine's `limits`, and `answer_bank`, which offers an answer about one
+company (`checks.company_specific`) on that company's forms only; KAN-379 writing as soon as a job is queued and reusing saved
 answers. **WorkIt calls no model on this path**: no tool or route of the
 connector makes a `workit_scout` `LLM` (tested), and batch tabs never call
 the essay-answer route.

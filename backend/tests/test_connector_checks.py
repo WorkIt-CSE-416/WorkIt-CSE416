@@ -79,3 +79,24 @@ async def test_one_failing_answer_keeps_the_others_from_saving(running, applican
     assert refused.is_error
     assert "question_8" in refused.content[0].text and "question_7" not in refused.content[0].text
     assert [q["answer"] for q in await _tab_asks(me, job)] == [None, None]
+
+
+async def test_an_answer_about_one_company_is_never_offered_on_anothers_form(running, applicant, database):  # noqa: F811
+    me, (acme, globex, acme_again) = await _student_queues(database, applicant, 3)
+    await _company(database, globex, "Globex")
+    proud = {"name": "question_8", "label": "Tell us about a project you are proud of.", "required": False, "max_length": None}
+    general = "I built a resume builder with FastAPI, and students used it to make their first resumes."
+    for job in (acme, globex, acme_again):
+        await _tab_asks(me, job, WHY, proud)
+
+    async with claude(applicant) as client:
+        saved = await client.call_tool("save_answers", {"job_id": acme, "answers": [
+            {"name": "question_7", "answer": CLEAN}, {"name": "question_8", "answer": general}]})
+    assert saved.is_error is False, saved.content
+
+    async with database() as db:
+        on_globex = await pipeline.answer_bank(db, applicant, globex)
+        on_acme = await pipeline.answer_bank(db, applicant, acme_again)
+
+    assert on_globex == {proud["label"]: general}
+    assert on_acme == {WHY["label"]: CLEAN, proud["label"]: general}

@@ -27,6 +27,7 @@ from app.auto_apply.queries import (
     fetch_next_to_write,
     fetch_open_apply_url,
     fetch_posting_text,
+    fetch_saved_answers,
     fetch_stage,
     fetch_written,
     link_resume,
@@ -428,6 +429,24 @@ async def writing_samples(db: AsyncSession, applicant_id: uuid.UUID) -> list[str
     """The student's own writing samples, which the copying check reads.
     WorkIt keeps none yet: KAN-384 adds them, and this reads them."""
     return []
+
+
+async def answer_bank(db: AsyncSession, applicant_id: uuid.UUID, job_id: uuid.UUID) -> dict[str, str]:
+    """
+    The answers the student has saved on other applications that may be
+    offered on this one's form, by question wording, the newest for each
+    wording. An answer about one company (checks.company_specific) is
+    offered only on that company's forms, never on another's (KAN-380).
+    """
+    company, _, _ = await fetch_posting_text(db, job_id)
+    same = (company or "").strip().casefold()
+    bank: dict[str, str] = {}
+    for saved in await fetch_saved_answers(db, applicant_id, exclude=job_id):
+        theirs = (saved.company or "").strip().casefold()
+        if checks.company_specific(saved.question, saved.answer, saved.company) and not (same and theirs == same):
+            continue
+        bank.setdefault(saved.question, saved.answer)
+    return bank
 
 
 async def finish_application(

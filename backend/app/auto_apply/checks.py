@@ -25,6 +25,8 @@ rules that were one student's own dropped.
   engine read it from the live form (the extension's `limits`), else
   ANSWER_MAX.
 
+`company_specific` says which saved answers are about one company and so
+never offered on another company's form (`pipeline.answer_bank`).
 """
 
 import re
@@ -49,6 +51,13 @@ TELLS = re.compile(r"""\b(?:
 PLACEHOLDER = re.compile(r"\[(?:add|insert|link|url|your|todo|tbd)[^\]]*\]|\b(?:TBD|TODO|XXX)\b", re.IGNORECASE)
 _NUMBER = re.compile(r"\d+(?:[.,]\d+)*")
 _WORD = re.compile(r"[a-z0-9']+")
+# A question about the company or the role, whose answer fits only that
+# company: "Why do you want to work here?", "What excites you about this role?"
+ABOUT_THE_COMPANY = re.compile(
+    r"\bwhy\b.*\b(?:us|here|join|work(?:ing)?\s+(?:at|for|with)|intern(?:ing)?\s+(?:at|for|with)|company|team|role|position)\b"
+    r"|\b(?:this|our|the)\s+(?:company|team|role|position|opportunity|mission|product|products|values|culture)\b",
+    re.IGNORECASE,
+)
 
 
 @dataclass(frozen=True)
@@ -108,6 +117,16 @@ def numbers(text: str) -> set[str]:
     """The numbers `text` states, each as one form: "1,200" as "1200",
     "3.80" as "3.8"."""
     return {_normal(n) for n in _NUMBER.findall(text)}
+
+
+def company_specific(question: str, answer: str, company: str | None) -> bool:
+    """Whether an answer fits only the company it was written for: its
+    question asks about the company or the role, or the question or the
+    answer names the company. Such an answer is never offered on another
+    company's form."""
+    if ABOUT_THE_COMPANY.search(question):
+        return True
+    return bool(company and company.strip()) and (names(question, company) or names(answer, company))
 
 
 def names(text: str, name: str) -> bool:
