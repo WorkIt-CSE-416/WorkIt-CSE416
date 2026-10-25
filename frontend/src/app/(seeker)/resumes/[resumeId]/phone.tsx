@@ -24,7 +24,7 @@ import { useBack } from "../../back-link";
 import { EDITOR_PARENT } from "./back";
 import { FitNotice } from "./fit-notice";
 import { lineName, shortPageLabel, tray, type Line } from "./model";
-import { boxKey, kindLabel, PdfPages } from "./pdf-pages";
+import { boxKey, kindLabel } from "./pdf-pages";
 import { Tray } from "./tray";
 
 /**
@@ -90,6 +90,7 @@ export function pageOrder(boxes: RenderBox[]) {
 
 export function PhoneEditor({
   rendered,
+  pages,
   bank,
   choices,
   selected,
@@ -109,9 +110,13 @@ export function PhoneEditor({
   onApply,
   onFit,
   onUndoFit,
-  onDrawn,
 }: {
-  rendered: RenderedPdf;
+  /** Null until the first render lands (./editor.tsx streams it in). */
+  rendered: RenderedPdf | null;
+  /** The page area, drawn by the editor: the PDF, or its skeleton while the
+   *  first render is on its way, from the same unawaited render the desktop
+   *  layout reads. */
+  pages: ReactNode;
   bank: Bank;
   choices: Choices;
   selected: string | null;
@@ -135,7 +140,6 @@ export function PhoneEditor({
   onApply: (changes: ChoicesUpdate) => void;
   onFit: () => void;
   onUndoFit: () => void;
-  onDrawn: () => void;
 }) {
   const back = useBack(EDITOR_PARENT);
   const snapshot = useSyncExternalStore(subscribeViewport, viewportSnapshot, () => "0|0");
@@ -145,7 +149,7 @@ export function PhoneEditor({
   const [asking, setAsking] = useState(false);
   const scroller = useRef<HTMLDivElement>(null);
 
-  const order = pageOrder(rendered.boxes);
+  const order = pageOrder(rendered?.boxes ?? []);
   const at = selected ? order.indexOf(selected) : -1;
   const waiting = tray(bank, choices).length;
 
@@ -177,7 +181,7 @@ export function PhoneEditor({
           {/* As on the desktop bar: the way in, or, over one page, the
               count joined to its fix (./fit-notice.tsx), short so it fits
               beside the back arrow; the toast spells it out (KAN-258). */}
-          {rendered.page_count > 1 ? (
+          {rendered && rendered.page_count > 1 ? (
             <span className={TAP}>
               <FitNotice
                 label={shortPageLabel(rendered.page_count, rendered.lines_over)}
@@ -231,15 +235,7 @@ export function PhoneEditor({
         ref={scroller}
         className={cn("min-h-0 flex-1 overflow-auto p-4", selected ? "pb-[70vh]" : "pb-24")}
       >
-        <div className={zoom ? "w-[200%]" : "w-full"}>
-          <PdfPages
-            pdf={rendered.pdf}
-            boxes={rendered.boxes}
-            selected={selected}
-            onSelect={(key) => onSelect(selected === key ? null : key)}
-            onDrawn={onDrawn}
-          />
-        </div>
+        <div className={zoom ? "w-[200%]" : "w-full"}>{pages}</div>
       </div>
 
       {!selected && (
@@ -249,12 +245,18 @@ export function PhoneEditor({
             TAP,
           )}
         >
+          {/* Both wait for the first render: each acts through a new one. */}
           <div className="flex gap-2">
-            <Button variant="secondary" className="flex-1" onClick={() => setTrayOpen(true)}>
+            <Button
+              variant="secondary"
+              className="flex-1"
+              disabled={!rendered}
+              onClick={() => setTrayOpen(true)}
+            >
               Not on This Resume {waiting > 0 && <span className="text-ink-meta">({waiting})</span>}
             </Button>
             {/* The primary action, filled as on the desktop bar. */}
-            <Button onClick={() => setAsking(true)}>
+            <Button disabled={!rendered} onClick={() => setAsking(true)}>
               <SparkleIcon /> Ask Scout
             </Button>
           </div>

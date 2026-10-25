@@ -4,14 +4,17 @@ import {
   ArrowDownIcon,
   ArrowUUpLeftIcon,
   ArrowUpIcon,
+  CloudSlashIcon,
   CursorClickIcon,
   EyeSlashIcon,
 } from "@phosphor-icons/react/ssr";
 import localFont from "next/font/local";
-import { useCallback, useEffect, useRef, useState } from "react";
+import { Suspense, use, useCallback, useEffect, useRef, useState, type ReactNode } from "react";
 
 import { SparkleIcon } from "@/components/icons";
-import { Button } from "@/components/ui/button";
+import { Skeleton } from "@/components/shadcn/skeleton";
+import { Button, buttonClasses } from "@/components/ui/button";
+import { EmptyState } from "@/components/ui/empty-state";
 import { TextLink } from "@/components/ui/text-link";
 import { updateEntry, type Bank } from "@/lib/bank-actions";
 import {
@@ -49,7 +52,7 @@ import {
   type Line,
 } from "./model";
 import { keepFitUndo, readFitUndo } from "./fit-undo";
-import { boxKey, kindLabel, PdfPages } from "./pdf-pages";
+import { boxKey, kindLabel, loadPdfjs, PageSkeleton, PdfPages } from "./pdf-pages";
 import { PhoneEditor, usePhone } from "./phone";
 import { Tray } from "./tray";
 
@@ -70,6 +73,17 @@ import { Tray } from "./tray";
  * (KAN-219, ./phone.tsx). The assistant (KAN-221, ./assistant.tsx) docks
  * beside the page, or opens in a sheet on a phone, and acts through the same
  * saves.
+ *
+ * THE FIRST PDF STREAMS IN (KAN-368). The page starts the render and hands
+ * it over unawaited (`initial`), since the LaTeX compile is the slowest read
+ * in the app (0.7 to 1s): the bar, the title and Back draw at once, and the
+ * page area alone waits, over a page-shaped skeleton (FirstRenderPane, in a
+ * <Suspense>, reads it). Until it lands there is nothing to click (the click
+ * targets are the render's boxes, KAN-209), Ask Scout and Not on This
+ * Resume wait too, and a render that fails shows its own error in the page
+ * area. pdf.js starts downloading as the editor mounts, so it is ready when
+ * the PDF is. An edit's render never loses to the first one: the first is
+ * taken only while there is no other.
  */
 
 // The attribute on the parts of the editor a press may land on without
@@ -125,6 +139,10 @@ const WRAPS = new Set(["bullet", "coursework", "honors"]);
 
 type Draft = { key: string; text: string };
 
+/** The page's render of the PDF, as renderResumePdf answers it. It never
+ *  rejects: a failure is its `error`. */
+type FirstRender = ReturnType<typeof renderResumePdf>;
+
 function splitKey(key: string) {
   const dot = key.lastIndexOf(".");
   return { item_id: key.slice(0, dot), kind: key.slice(dot + 1) };
@@ -138,12 +156,19 @@ export function Editor({
   initialHeader,
 }: {
   resumeId: string;
-  initial: RenderedPdf;
+  /** The first render, started by the page and not awaited. */
+  initial: FirstRender;
   initialBank: Bank;
   initialChoices: Choices;
   initialHeader: Header;
 }) {
-  const [rendered, setRendered] = useState(initial);
+  // Null until the first render lands (FirstRenderPane hands it over).
+  const [rendered, setRendered] = useState<RenderedPdf | null>(null);
+  const adopt = useCallback((first: RenderedPdf) => setRendered((current) => current ?? first), []);
+  // pdf.js downloads while the server compiles, not after.
+  useEffect(() => {
+    void loadPdfjs().catch(() => {});
+  }, []);
   const [bank, setBank] = useState(initialBank);
   const [header, setHeader] = useState(initialHeader);
   const [choices, setChoices] = useState(initialChoices);
@@ -158,7 +183,7 @@ export function Editor({
   // Over one page, a toast says so when the editor opens and again when an
   // edit pushes the resume over (./fit-notice.tsx, KAN-258). The last count
   // is kept in state, so the change is caught while rendering, not after.
-  const over = rendered.page_count > 1;
+  const over = (rendered?.page_count ?? 1) > 1;
   const [toast, setToast] = useState(over);
   const [wasOver, setWasOver] = useState(over);
   if (over !== wasOver) {
@@ -365,7 +390,7 @@ export function Editor({
     rememberFitUndo(null);
   }
 
-  const box = rendered.boxes.find((b) => boxKey(b) === selected);
+  const box = rendered?.boxes.find((b) => boxKey(b) === selected);
   const line = box ? lineOf(bank, box) : null;
 
   function startText(line: Line) {
@@ -454,7 +479,7 @@ export function Editor({
       bank={bank}
       choices={choices}
       line={line?.kind === "header" ? null : line}
-      pageCount={rendered.page_count}
+      pageCount={rendered?.page_count ?? 1}
       onApply={apply}
       onHide={hide}
       onFit={fit}
@@ -464,7 +489,7 @@ export function Editor({
   );
 
   // A phone shows it only with no line's sheet open, which it would cover.
-  const fitToast = toast && !(phone && selected) && (
+  const fitToast = toast && rendered && !(phone && selected) && (
     <FitToast
       pages={rendered.page_count}
       linesOver={rendered.lines_over}
@@ -478,12 +503,34 @@ export function Editor({
     />
   );
 
+  /** The page area: `draw`n from the PDF in hand, or, until the first
+   *  render lands, its skeleton and then FirstRenderPane's error if it
+   *  failed. Both layouts draw their pages through it. */
+  const pdfPane = (draw: (pdf: RenderedPdf) => ReactNode) =>
+    rendered ? (
+      draw(rendered)
+    ) : (
+      <Suspense fallback={<PageSkeleton />}>
+        <FirstRenderPane initial={initial} onLoad={adopt} resumeId={resumeId} />
+      </Suspense>
+    );
+
   if (phone) {
     const start = line && startText(line);
     return (
       <>
         <PhoneEditor
           rendered={rendered}
+          pages={pdfPane((pdf) => (
+            <PdfPages
+              pdf={pdf.pdf}
+              boxes={pdf.boxes}
+              selected={selected}
+              onSelect={(key) => select(selected === key ? null : key)}
+              onDrawn={drawn}
+              placeholder={<PageSkeleton />}
+            />
+          ))}
           bank={bank}
           choices={choices}
           selected={selected}
@@ -516,7 +563,6 @@ export function Editor({
           onApply={apply}
           onFit={fit}
           onUndoFit={undoFit}
-          onDrawn={drawn}
         />
         {fitToast}
       </>
@@ -563,16 +609,20 @@ export function Editor({
             pressed.current = { x: e.clientX - origin.left, y: e.clientY - origin.top };
           }}
         >
-          <PdfPages
-            pdf={rendered.pdf}
-            boxes={rendered.boxes}
-            selected={selected}
-            onSelect={(key) => select(selected === key ? null : key)}
-            field={field}
-            onDrawn={drawn}
-          />
+          {pdfPane((pdf) => (
+            <PdfPages
+              pdf={pdf.pdf}
+              boxes={pdf.boxes}
+              selected={selected}
+              onSelect={(key) => select(selected === key ? null : key)}
+              field={field}
+              onDrawn={drawn}
+              placeholder={<PageSkeleton />}
+            />
+          ))}
         </div>
-        <Tray bank={bank} choices={choices} onPutBack={apply} />
+        {/* Putting an item back renders again, so it waits for the first. */}
+        {rendered && <Tray bank={bank} choices={choices} onPutBack={apply} />}
       </div>
       {/* Kept mounted while closed, so the chat survives closing it */}
       <div
@@ -588,6 +638,12 @@ export function Editor({
     </div>
   );
 }
+
+/** The sticky bar's box, shared with EditorSkeleton. The brand tint, not the
+ *  surface: a secondary button is filled with the surface colour, so on a
+ *  surface bar Download and Done showed only as outlines (KAN-258). */
+const BAR =
+  "bg-brand-tint/95 ring-brand-pale sticky top-2 z-20 flex min-h-12 flex-wrap items-center gap-2 rounded-2xl p-1.5 pl-3 shadow-sm ring-1 backdrop-blur";
 
 /** The sticky bar above the page: the selected line's actions, or the
  *  page-count chip and Fit to One Page, then Download and Ask Scout at its
@@ -616,7 +672,8 @@ function Bar({
   bank: Bank;
   choices: Choices;
   header: Header;
-  rendered: RenderedPdf;
+  /** Null until the first render lands. */
+  rendered: RenderedPdf | null;
   saving: boolean;
   elapsed: number | null;
   fitUndo: ChoicesUpdate | null;
@@ -632,10 +689,7 @@ function Bar({
   return (
     <div
       data-keeps-selection
-      // The brand tint, not the surface: a secondary button is filled with
-      // the surface colour, so on a surface bar Download and Done showed only
-      // as outlines (KAN-258).
-      className="bg-brand-tint/95 ring-brand-pale sticky top-2 z-20 flex min-h-12 flex-wrap items-center gap-2 rounded-2xl p-1.5 pl-3 shadow-sm ring-1 backdrop-blur"
+      className={BAR}
       // A press on a button keeps focus in the field, so it does not blur and save first
       onMouseDown={(e) => {
         if ((e.target as HTMLElement).closest("button")) e.preventDefault();
@@ -672,7 +726,7 @@ function Bar({
           {/* The page count only when it is a problem, joined to its fix. A
               green "1 page" said what the page itself shows, and stood
               apart from everything else in the bar (KAN-258). */}
-          {rendered.page_count > 1 && (
+          {rendered && rendered.page_count > 1 && (
             <FitNotice
               label={pageLabel(rendered.page_count, rendered.lines_over)}
               onFit={onFit}
@@ -695,8 +749,10 @@ function Bar({
         <DownloadMenu download={download} />
         {/* The editor's primary action, so the brand fill: it was an outline,
             as quiet as Fit to One Page (KAN-258). */}
+        {/* Off until the first render lands: the assistant reads its
+            page count and acts through renders. */}
         {onAsk && (
-          <Button size="sm" onClick={onAsk}>
+          <Button size="sm" onClick={onAsk} disabled={!rendered}>
             <SparkleIcon /> Ask Scout
           </Button>
         )}
@@ -888,5 +944,69 @@ function AddContact({
       onKeyDown={(e) => e.key === "Enter" && e.currentTarget.blur()}
       className="text-note bg-panel text-ink ring-border-subtle focus:ring-brand h-9 w-36 rounded-lg px-2 ring-1 outline-none focus:ring-2"
     />
+  );
+}
+
+/**
+ * Where the first PDF is drawn, while the page's render is on its way: it
+ * suspends on the render (the editor wraps it in a <Suspense> over a
+ * PageSkeleton), then hands a PDF to the editor, which draws it from then
+ * on, or shows why it did not come. The same skeleton stays up for the one
+ * frame before the editor takes it.
+ */
+function FirstRenderPane({
+  initial,
+  onLoad,
+  resumeId,
+}: {
+  initial: FirstRender;
+  onLoad: (pdf: RenderedPdf) => void;
+  resumeId: string;
+}) {
+  const { data, error } = use(initial);
+  useEffect(() => {
+    if (data) onLoad(data);
+  }, [data, onLoad]);
+
+  if (data) return <PageSkeleton />;
+  return (
+    <EmptyState
+      Icon={CloudSlashIcon}
+      title="This Resume Isn't Loading Right Now"
+      action={
+        // A plain link: a full reload is what renders it again.
+        <a
+          href={`/resumes/${encodeURIComponent(resumeId)}`}
+          className={buttonClasses({ variant: "secondary", size: "sm" })}
+        >
+          Try Again
+        </a>
+      }
+    >
+      {error}
+    </EmptyState>
+  );
+}
+
+/**
+ * The desktop editor before anything has loaded, for ./loading.tsx: the
+ * sticky bar's box with its way in and its end as bars, over a page's
+ * skeleton, in the editor's own column, so the editor that replaces it
+ * keeps every edge where it was.
+ */
+export function EditorSkeleton() {
+  return (
+    <div aria-hidden="true" className="mt-4 grid items-start gap-5">
+      <div className="flex min-w-0 flex-col gap-4">
+        <div className={BAR}>
+          <Skeleton className="h-4 w-36" />
+          <div className="ml-auto flex items-center gap-2">
+            <Skeleton className="h-9 w-28" />
+            <Skeleton className="h-9 w-28" />
+          </div>
+        </div>
+        <PageSkeleton />
+      </div>
+    </div>
   );
 }

@@ -17,7 +17,7 @@ import {
 import { openDownload } from "@/lib/save-file";
 
 import { LocalDate } from "../../../local-time";
-import { PdfPages } from "../../[resumeId]/pdf-pages";
+import { PageSkeleton, PdfPages } from "../../[resumeId]/pdf-pages";
 import { RenameForm } from "../../built-resume-row";
 import { DeleteConfirm } from "../../delete-confirm";
 
@@ -158,7 +158,14 @@ export function UploadedViewer({ resume, pdf }: { resume: ResumeItem; pdf: strin
         )}
 
         {pdf ? (
-          <PdfPages pdf={pdf} boxes={[]} selected={null} onSelect={() => {}} />
+          // The page's skeleton until pdf.js draws, as ./loading.tsx shows it.
+          <PdfPages
+            pdf={pdf}
+            boxes={[]}
+            selected={null}
+            onSelect={() => {}}
+            placeholder={<PageSkeleton />}
+          />
         ) : (
           <EmptyState
             Icon={FileIcon}
