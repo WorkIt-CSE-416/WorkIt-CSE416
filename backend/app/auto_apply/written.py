@@ -19,6 +19,7 @@ from app.auto_apply import checks
 from app.auto_apply.queries import (
     drop_written,
     fetch_application_companies,
+    fetch_brought_answers,
     fetch_next_to_write,
     fetch_posting_text,
     fetch_saved_answers,
@@ -252,9 +253,16 @@ async def answer_bank(db: AsyncSession, applicant_id: uuid.UUID, job_id: uuid.UU
     sources, employers, _ = await _check_material(db, applicant_id, job_id)
     bank: dict[str, SavedAnswer] = {}
     seen: set[str] = set()
-    for saved in await fetch_saved_answers(db, applicant_id, exclude=job_id):
+    written = await fetch_saved_answers(db, applicant_id, exclude=job_id)
+    # Their own words on applications first, then the answers they brought
+    # (`fill_answers`, all their own), then their Claude's.
+    saved_answers = [
+        *(s for s in written if s.own), *await fetch_brought_answers(db, applicant_id), *(s for s in written if not s.own),
+    ]
+    for saved in saved_answers:
         theirs = (saved.company or "").strip().casefold()
-        if checks.company_specific(saved.question, saved.answer, saved.company) and not (same and theirs == same):
+        said = "; ".join(saved.answer) if isinstance(saved.answer, list) else saved.answer
+        if checks.company_specific(saved.question, said, saved.company) and not (same and theirs == same):
             continue
         if not saved.own and checks.problems(saved.answer, checks.Context(
             sources=(*sources, saved.question), employers=employers,

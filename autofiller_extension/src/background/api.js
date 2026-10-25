@@ -132,6 +132,16 @@ async function getApplicantProfile(applicantId) {
 }
 
 /**
+ * The Fill engine's own profile and policies for the student
+ * (backend/app/routers/profiles.py's get_fill_profile): what they brought
+ * from Apply, `{ profile, policies }`, both empty objects when nothing was.
+ * engine.js lays WorkIt's own fields over them.
+ */
+async function getFillProfile(applicantId) {
+  return apiFetch(`/applicants/${applicantId}/fill-profile`);
+}
+
+/**
  * The experience bank (backend/app/schemas/bank.py's BankResponse): entries
  * and skills, never an uploaded resume's parsed_json. Same rule the
  * recommender and Scout follow (KAN-212, backend/CLAUDE.md): the bank, not
@@ -338,6 +348,8 @@ async function fetchAutofillProfile() {
   const preferences = await getPreferences(account.id);
   const answers = await getAutofillAnswers(account.id);
   const resume = await resolveResumeFile(account.id);
+  // Best effort, like the resume: without it the fill uses WorkIt's fields alone.
+  const fill = await getFillProfile(account.id).catch(() => null);
   const fallback = inferredAnswers(preferences.visa);
   // A real saved answer always wins; the job-search filter only fills the
   // two questions it can confidently speak to, and only while they're
@@ -363,6 +375,7 @@ async function fetchAutofillProfile() {
     bank: bank.entries.length > 0 ? bank : null,
     answers: mergedAnswers,
     resume,
+    fill,
     fetched_at: Date.now(),
   };
 }

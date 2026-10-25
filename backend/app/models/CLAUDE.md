@@ -795,6 +795,40 @@ Application Questions shows and edits them (KAN-269).
 - **Its migration is `a7d3e5c1b942`** (RLS on). It must be on the database
   before the API that maps it deploys.
 
+## The Fill engine's profile — `applicant_profiles.fill_*` (KAN-369)
+
+A student who used Apply (Lisul's own auto-apply tool, which runs the same
+Fill engine) brings its files over with
+`uv run python -m app.scripts.import_apply_profile <applicant_id> <apply_dir>`,
+so WorkIt fills forms as completely as Apply does.
+
+- **Three JSONB columns on `applicant_profiles`**, each `NOT NULL DEFAULT
+  '{}'` with a CHECK that it is an object (migration `7f07adcaef4e`; the
+  table already has RLS on): `fill_profile` (the engine's Profile shape,
+  nested sections: identity, education, screeners, voluntary_self_id...),
+  `fill_policies` (the engine's Policies, only the keys it reads) and
+  `fill_answers` (`{question: {answer, own, company}}`, the Answer bank).
+- **WorkIt's own fields win.** `GET .../fill-profile` serves the profile and
+  policies; the extension lays what it builds from WorkIt's fields
+  (`engineProfile`, `POLICIES`) over them, key by key, and a value WorkIt
+  lacks (null, empty) leaves the stored one. So the import also writes
+  WorkIt's own fields (name, contact email, phone, links, location, the
+  education entry) from the same identity, and they agree.
+- **`fill_answers` are the student's own** (`own: true`). The answer bank
+  (`pipeline.answer_bank`) offers them after the student's own words on
+  applications and before their Claude's, under the same company rule: one
+  about a company only on that company's forms. Not `written_answers`: those
+  rows belong to an application, and a brought answer has none. A choice's
+  answer may be a list (the options ticked).
+- **No `files`.** WorkIt's resume is its own; a transcript's path never
+  comes over. The import's resume is a `resumes` row whose `storage_path` is
+  `local:<file name>` in `LOCAL_FILES_DIR` (services/local_files.py,
+  development only): served by `.../bytes` from that folder, never sent to
+  or removed from Storage.
+- **Sensitive**: it holds self-identification. Only the owner reads it, and
+  it never goes to a model. The import refuses a database not on this
+  computer.
+
 ## Names: parts and one line (KAN-326)
 
 Both account tables keep `first_name`, `middle_name` and `last_name`, which

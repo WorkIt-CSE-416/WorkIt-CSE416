@@ -493,7 +493,8 @@ class SavedAnswer:
     its job posting."""
 
     question: str
-    answer: str
+    # a choice's answer brought from Apply may be the options ticked
+    answer: str | list[str]
     company: str | None
     # the student's own words, not their Claude's (KAN-379)
     own: bool = False
@@ -514,3 +515,14 @@ async def fetch_saved_answers(
     if exclude is not None:
         query = query.where(Written_Answer.job_id != exclude)
     return [SavedAnswer(question=r.label, answer=r.answer, company=r.company_name, own=r.own) for r in await db.execute(query)]
+
+
+async def fetch_brought_answers(db: AsyncSession, applicant_id: uuid.UUID) -> list[SavedAnswer]:
+    """The answers the student brought from Apply (`fill_answers`, in the
+    order they were filed), each their own. An entry with no answer is left out."""
+    answers = await db.scalar(select(Applicant_Profile.fill_answers).where(Applicant_Profile.id == applicant_id))
+    return [
+        SavedAnswer(question=question, answer=entry["answer"], company=entry.get("company"), own=bool(entry.get("own", True)))
+        for question, entry in (answers or {}).items()
+        if isinstance(entry, dict) and entry.get("answer") not in (None, "", [])
+    ]

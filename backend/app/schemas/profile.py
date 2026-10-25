@@ -1,5 +1,6 @@
 """Request/response shapes for the applicant profile (GET + PATCH)."""
 
+from typing import Any
 from urllib.parse import urlsplit
 from uuid import UUID
 
@@ -42,6 +43,15 @@ class ApplicantProfileResponse(BaseModel):
         if self.first_name is None:
             self.first_name, self.middle_name, self.last_name = split_name(self.full_name)
         return self
+
+
+class FillProfile(BaseModel):
+    """The Fill engine's own profile and policies for the student, in the
+    engine's shapes (nested sections by dotted key; models/CLAUDE.md, "The
+    Fill engine's profile"). Empty objects when they brought none."""
+
+    profile: dict[str, Any]
+    policies: dict[str, Any]
 
 
 LINK_FIELDS = ("linkedin_url", "portfolio_url", "github_url", "other_url")

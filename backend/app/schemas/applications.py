@@ -162,9 +162,10 @@ class OwnAnswer(BaseModel):
 class SavedAnswer(BaseModel):
     """An answer saved on another application, as the Fill engine's Answer
     bank takes it (KAN-379): `own` when the words are the student's, false
-    for their Claude's."""
+    for their Claude's. One brought from Apply may be a choice's options
+    ticked, a list."""
 
-    answer: str
+    answer: str | list[str]
     own: bool
 
 
