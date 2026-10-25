@@ -1085,6 +1085,18 @@ through the engine; the tab's group follows, so it moves to Ready once
 nothing else needs the student. A question the student answers by hand
 first keeps the student's answer.
 
+**Adding it, and the directory** (KAN-383). Auto Apply's **Add to Claude**
+and `/docs/mcp` open Claude's Add Custom Connector dialog with WorkIt's name
+and `<api>/mcp` filled in (Anthropic's install link,
+`frontend/src/lib/claude-connector.ts`); the student checks and confirms.
+Anthropic's connector directory, which removes even that step and lets
+Claude suggest WorkIt in a chat, needs every tool to carry a title and a
+read-only or destructive hint (tested for every tool), no instructions in
+tool descriptions, public docs (`/docs/mcp`) and a privacy policy that
+covers the connector (`/privacy`). The submission is written out in
+`docs/connector-directory.md`; the team sends it after deploying. Once
+listed, `CLAUDE_CONNECTOR_LINK` points every Add to Claude at the listing.
+
 **Why not Supabase Auth's OAuth 2.1 server** (decided 2026-10-25, KAN-377):
 its docs call it beta and free "during the beta period", with no price after
 it (WorkIt's Supabase is on the Free plan); dynamic client registration is
