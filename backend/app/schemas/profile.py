@@ -33,6 +33,7 @@ class ApplicantProfileResponse(BaseModel):
     portfolio_url: str | None
     github_url: str | None
     other_url: str | None
+    location: str | None = None
 
     @model_validator(mode="after")
     def _parts_from_full_name(self) -> "ApplicantProfileResponse":
@@ -88,9 +89,11 @@ class ApplicantProfileUpdate(BaseModel):
     portfolio_url: str | None = Field(None, max_length=500)
     github_url: str | None = Field(None, max_length=500)
     other_url: str | None = Field(None, max_length=500)
+    # Where the student lives (KAN-372), as forms ask it: "Stony Brook, NY".
+    location: str | None = Field(None, max_length=100)
 
     @field_validator(
-        "contact_email", "phone_number", "headline", "middle_name", *LINK_FIELDS, mode="before"
+        "contact_email", "phone_number", "headline", "middle_name", "location", *LINK_FIELDS, mode="before"
     )
     @classmethod
     def _blank_is_none(cls, value: object) -> object:

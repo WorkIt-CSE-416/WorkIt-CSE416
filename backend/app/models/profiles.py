@@ -55,6 +55,9 @@ class Applicant_Profile(Profile):
     portfolio_url: Mapped[str | None]
     github_url: Mapped[str | None]
     other_url: Mapped[str | None]    # add another url for extra options
+    # Where the student lives, as forms ask it ("Stony Brook, NY"; KAN-372).
+    # Free text: not a job-search place (applicant_locations holds those).
+    location: Mapped[str | None] = mapped_column(String(100))
 
     @property
     def email_for_employers(self) -> str:
