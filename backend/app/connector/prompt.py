@@ -41,7 +41,8 @@ company's own site or one of its news sites, with a passage copied word \
 for word from that page as its quote and the page's date. Save them with \
 save_company_brief; if it drops facts, fix them by its reasons and save \
 once more. Then call get_next_application, passing the chat value its last \
-call in this chat gave (none the first time). If start_new_chat is true, \
+call in this chat gave (none the first time). If research_first names a \
+company, its brief comes first: start 1 again. If start_new_chat is true, \
 show me its message and stop. If its job_id is null, every question is \
 answered: tell me, and stop. If style_card_needed is true, build my \
 style card first (My voice, below).
@@ -50,7 +51,9 @@ review, check, edit. Do the steps in your head and don't show me drafts.
 3. Call save_answers with that job_id and the edited answers, each under \
 its question's name. If it refuses one, fix what it says and save again.
 4. Tell me in one line which company you wrote for, and name any question \
-you left out and the fact it needs from me. Then go back to 1.
+you left out and the fact it needs from me. If save_answers named any \
+answers in read_first, name those questions too, for me to read before I \
+submit. Then go back to 1.
 
 My voice
 - When get_next_application gives a style_card, write every answer the \

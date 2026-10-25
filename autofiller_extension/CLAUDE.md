@@ -477,7 +477,11 @@ waits for an opened tab's page and form (`waitForLoad`, `formShows`).
   system with no Filler) fills nothing and goes to Needs you. Ashby's
   application has no `<form>` element, so the wait also takes a field in
   Ashby's `[data-field-path]` boxes; without it every Ashby tab went to
-  Needs you with nothing filled (`test/ashby.extension.spec.ts`).
+  Needs you with nothing filled (`test/ashby.extension.spec.ts`). A tab the
+  job system moved off its form (the link no longer a form by `jobOf`) opens
+  the form again, once: Lockheed Martin's Eightfold sends one of two forms
+  opened at once in a new session to its job search, and the form shows the
+  second time (`test/batch.extension.spec.ts`).
 - **The overlay puts itself back when the page removes it.** Greenhouse's
   React app can drop nodes it didn't render, sometimes by replacing
   `<html>` itself. `overlay.js`'s `keepAttached` watches the whole document
@@ -880,6 +884,13 @@ the overlay lists each as "needs_generation" (`lib-status.js`).
   engine like any other. The box's own `maxlength` goes with the question,
   capped at the route's 5000: Workable's cover letter takes 200000, and the
   route answered that with a 422.
+- **A letter for an upload goes up as a PDF.** An optional cover letter
+  upload is an essay under the student's `cover_letter: "always"` policy
+  (often brought from Apply). Its written words, Claude's or the essay
+  route's, are made a PDF (`letter-pdf.js`: Helvetica, wrapped, no
+  library) named for the student as their resume is
+  (`First_Last_Cover_Letter.pdf`) by `engine.js`'s `asUploads` before
+  `fill/page` fills it, so the row shows the file's name.
 - **Company name and job title come from the job system's API** (the Job
   Board API's `company_name` and `title`), not the page's title.
 - **The model call is `POST /applicants/{id}/essay-answer`**
@@ -999,10 +1010,12 @@ openness covers:
   service question is the student's (a Missing fact). Answering it needs a
   new value such as `not_veteran`, mapped to "I am not a veteran"; never
   map not_protected_veteran to false.
-- **First/last name is the first word and the rest** of `full_name` —
-  wrong for anyone with a multi-word given name. WorkIt's own database
-  has no separate first/last name fields to read instead
-  (`backend/app/models/profiles.py`'s `Profile.full_name` is one column).
+- **A profile saved before the name split** (KAN-326) has only
+  `full_name`, so its first/last name is the first word and the rest:
+  wrong for a multi-word given name or a middle name. Once My Profile
+  saves the parts (`first_name`, `middle_name`, `last_name` on GET
+  .../profile), the fill uses them, and a middle name goes only where a
+  form asks for the full legal name.
 - **No packaging/publishing path yet.** The `key` in `manifest.json` pins a
   stable *local* extension id (so the webapp bridge has something fixed to
   call) — it is not a Chrome Web Store signing key, and publishing for
