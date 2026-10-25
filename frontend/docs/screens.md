@@ -19,10 +19,13 @@ the filters as they stand. Until KAN-288 these were two views, Recommended and
 All Jobs, behind a switcher (KAN-231); they drew the same filter row and cards,
 so students read them as one page. An old `?view=all` link opens Newest and
 `?view=recommended` opens Best Match (`readSort` in jobs/page.tsx). **Saved
-preferences apply on a fresh visit only**: bare /jobs redirects to
-`?sort=match` plus the saved filters, where the row shows them checked; from
-then on the URL is the truth, so Clear All clears rather than bringing the
-saved ones back. Load More pages whichever order drew the list (`FeedList`'s
+preferences apply on a fresh visit only**: a bare /jobs visit draws Best
+Match with the saved filters in the same response, where the row shows them
+checked, then writes that exact address into the address bar in place (a
+shallow replace, `jobs/canonical-url.tsx`; KAN-368). From then on the URL is
+the truth, so Clear All clears rather than bringing the saved ones back. A
+`redirect()` here made the sidebar's Jobs link pay two round trips with a
+blank panel between; do not bring it back. Load More pages whichever order drew the list (`FeedList`'s
 `source`).
 
 **Job Type and Experience Level never overlap (KAN-284).** Job Type says
@@ -303,6 +306,13 @@ the header (`[jobId]/sent-note.tsx`, story 98), the last sent resume
 linked to this posting, its day in the viewer's zone. Only the job's own
 page refreshes on a send (`showsSent`): on a card a refresh reran the whole
 feed, Best Match scoring and all, to redraw nothing.
+A job's Key Requirements list is read with the page's other reads
+(`loadJobView`) and handed to the card, not fetched by the card after them
+(KAN-368); it still answers an empty list on any failure, so the page draws
+without the card, and the application page's description tab skips the read.
+The page has a `loading.tsx` whose header and Key Requirements skeletons
+stand at the height of what replaces them; Tailor has its own, so this one
+never stands in for it.
 The job's actions sit in one bar with Back, pinned at the top from md
 (`[jobId]/action-bar.tsx`, KAN-246): Save, a "…" menu, Ask Scout, Auto Apply,
 Tailor My Resume and Apply Now. Below md the bar scrolls away and wraps.
@@ -518,7 +528,12 @@ beside the text they squeezed the title to two words a line. The Jobs page's own
 were tried here first and were too tall for a glance: three filled the
 screen. With an empty bank it asks for the bank. It streams in its own
 `<Suspense>` with a skeleton in the same frame, so the numbers never wait on
-scoring. It replaced New Matches, the newest postings in posting order in
+scoring, and the page starts its four reads first, before its other awaits,
+or its two scoring calls run one whole call late (KAN-368). The page awaits
+only the account: the headline numbers (the Strong Matches count is a full
+scoring pass), Top Matches and Activity each stream over a skeleton of their
+shape, and `dashboard/loading.tsx` draws the same frame (`DashboardFrame`),
+so a prefetched click shows it at once and the page replaces it in place. It replaced New Matches, the newest postings in posting order in
 the same scrolling frame, which went when Strong Matches replaced New Roles
 and came back ordered by fit at the user's ask. The notes below that name
 New Matches describe the archived three-column layout.
@@ -866,7 +881,12 @@ opened. Analytics and explanations go on the Your Application tab only.
 closed posting, has no use for Apply, Tailor, Save or Ask Scout, so the bar
 shows the tabs beside Back instead. A saved job with an open posting keeps
 the job page's actions, and its tabs sit under the header. Two tabs, each a
-URL (`?tab=job` for the second):
+URL (`?tab=job` for the second) that moves in place (KAN-368,
+`applications/[jobId]/tab-panes.tsx`): the server draws both panes once and
+the tabs change `?tab=` with `useShallowParams`, as the Dashboard range does,
+so a click no longer draws the page again with the scored tracker read and
+the job's reads. The job's buttons take their stage and applied date from the
+tracker row, and the tab title comes from the posting's own read:
 
 - **Your Application**, the default. One card tinted by its stage
   (`STAGE_COLOR[stage].panel`: violet for Applied, grey for Saved), so it
@@ -1263,7 +1283,9 @@ resumes read.
 `(seeker)/profile-cache.tsx` keeps the page's last state (the photo URL,
 the applicant profile fields and the Application Questions' answers) in a provider
 in `(seeker)/layout.tsx`. A
-return visit renders it at once and refetches in the background. Only
+return visit renders it at once and refetches in the background, through one
+server action (`getProfilePage`), since Next runs server actions one at a time
+(KAN-368). Only
 settled state is saved: not mid-load, not while a photo upload's `blob:`
 preview is on screen (that URL is revoked once the upload ends), and not
 after a failed load. It lives in the layout, not a module variable, because
@@ -1836,7 +1858,8 @@ Make Primary (while it is not), Rename, Delete and **Download**, the
 page's main action, filled. Under it the PDF, drawn page by page with the
 editor's pdf.js preview (`PdfPages`, no click targets: an upload is read
 here, its facts are edited in Experiences). The server reads the file
-(`readResumePdf`), so the browser never opens the Storage link. A DOCX
+(`readUploadedResume`, which asks for the list and the file link together,
+KAN-368), so the browser never opens the Storage link. A DOCX
 cannot be drawn, so its place holds "This File Can't Be Shown Here" and
 Download. Rename turns the heading into the cards' Rename form; Delete
 asks under the bar, as on a card, and then returns to the Resumes view.
@@ -1945,6 +1968,14 @@ student who opened a resume from Experiences landed on another view.
 - A failed render shows "This Resume Isn't Loading Right Now" with the API's
   message and a Try Again link; a failed save shows the API's message above
   the page and keeps the last PDF.
+- **The editor draws before its PDF compiles** (KAN-368). The page starts the
+  LaTeX render without awaiting it; `editor.tsx` reads it with `use()` inside
+  a `<Suspense>` around the page area only, over a Letter-sized skeleton with
+  its own error state, so Back, the title and the bar do not wait on the
+  compile. Line editing, Ask Scout and the tray stay off until it lands, and
+  "Click a line" is not offered when the first render failed. pdf.js starts
+  downloading as the editor mounts. The editor and an upload's page each have
+  a `loading.tsx` in their own frame.
 - **On a phone** (`phone.tsx`, the KAN-201 prototype's variant A), below
   40rem of window width, the editor's same state and saves take a different
   layout; `editor.tsx` only hands them over, so the two layouts never save
@@ -2157,7 +2188,12 @@ and closing goes back to that page. **A hard load or a reload of a
 Settings address opens it over the Dashboard** (`(seeker)/settings/layout.tsx`
 draws the Dashboard page under it), and closing goes to the Dashboard. A
 full Settings page came first; the user asked for the modal on every way
-in. Escape, the close button and a click outside all close.
+in. Escape, the close button and a click outside all close. **The modal opens
+before its sections have read** (KAN-368): Personal Details and Job
+Preferences stream in their own `<Suspense>` over section-shaped skeletons,
+so it no longer waits for the slowest of the profile, photo, preferences and
+role option reads. There is no `loading.tsx` for the modal: one drew a second
+modal and backdrop over the first.
 
 **Every section is drawn when the modal opens and stays mounted**
 (`settings/sections.tsx`), hidden when not shown, so switching is instant

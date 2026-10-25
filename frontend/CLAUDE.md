@@ -75,6 +75,19 @@ the KAN-296 cutover.
   past 5,000 a month, which the feed's logos would outrun. Where it is off,
   `remotePatterns` and the SVG settings do nothing; they stay for the day the
   optimizer returns.
+- **`public/_headers` gives `/_next/static/*` a one-year immutable cache**
+  (KAN-368). OpenNext copies `public/` into `.open-next/assets`, and wrangler
+  reads `_headers` there without uploading it as an asset. Without it, hashed
+  chunks, CSS and fonts went out with `max-age=0, must-revalidate` and every
+  full load paid a 304 round trip per file (28 to 53 ms on workitjobs.ai).
+  Never widen it past `/_next/static/*`: HTML and un-hashed `public/` files
+  would stop updating for users after a deploy. Vercel ignores it. After a
+  deploy, `curl -sI` one chunk, one CSS file and one woff2 and look for
+  `immutable`.
+- **Still open: on Cloudflare the prerendered marketing pages render per
+  request** until an incremental cache is set (OpenNext's default is the
+  "dummy" cache), so the prerender gain below is full on Vercel only
+  (KAN-368).
 - **The OpenNext build is not guaranteed on Windows.** Run `cf:*` in WSL, or
   leave them to CI; `dev`, `build` and the rest work natively.
 - **OAuth needs each origin allow-listed in Supabase** (Authentication → URL
@@ -546,8 +559,12 @@ the KAN-296 cutover.
   in its pink; Scout had no stop, so it took amber, the one app colour
   left free. **One template, one content file per feature**:
   `features/[slug]/page.tsx` is the route (`generateStaticParams` lists
-  the five slugs and `dynamicParams = false` makes any other a 404; the
-  metadata comes from each content file), and `features/feature-page.tsx`
+  the five slugs and the page's `notFound()` makes any other a 404; the
+  metadata comes from each content file). **Never set `dynamicParams = false`
+  on a prerendered dynamic segment here** (KAN-368): an unlisted value then
+  matches no route, Next falls through to the seeker `@modal/[...catchAll]`,
+  which matches every path, and a signed-out visitor lands on `/login`
+  instead of the 404, and `features/feature-page.tsx`
   draws every one: hero, the animation shown large, three or four deep
   dives, How it works, the other features, an FAQ and a closing call to
   action. Each page's copy and visuals live in its own
@@ -785,7 +802,9 @@ the KAN-296 cutover.
   once 60% of the word shows (`footer-wordmark.tsx`, `useArrived` with a
   threshold: a line a third up the screen was out of reach on a tall
   window), then keep drifting slowly (`.wordmark-drift`, a track of the
-  titles twice moved by half its width), paused off screen. It opens on
+  titles twice moved by half its width), paused off screen. Its copyright year is `new Date().getFullYear()` read
+  on the server, so on a prerendered page it is frozen at build time and
+  rolls over with the first deploy after 1 January (KAN-368). It opens on
   `site.tagline`, which is also the home page's title, so it speaks to
   students ("Your job search, without the busywork."): the site's
   two-sided pitch to recruiters went while the business side is hidden.
@@ -970,6 +989,21 @@ the KAN-296 cutover.
   `components/hover-sidebar.tsx`). A hover opens shadcn's provider over the
   page, so anything sized by the panel's width reads `useSidebarPin().pinned`,
   never shadcn's `state`, or it moves on every hover (`docs/design.md`).
+  The CSS side of that rule: `HoverSidebarProvider` writes
+  `data-pinned="true"|"false"` on the shadcn wrapper in both shells, and CSS
+  sized by the pinned width keys on it, never on `data-state`, which a peek
+  flips to expanded. **`--panel-gain` is registered with `inherits: false`**
+  (KAN-368), so every element that reads `var(--panel-gain)` must carry
+  `transition-[--panel-gain] duration-200 ease-linear
+  md:in-data-[pinned=false]:[--panel-gain:calc(var(--sidebar-width)_-_var(--sidebar-width-icon))]`
+  itself, or it reads 0px and never moves. The readers today are
+  `[data-scout-page]` in `(seeker)/layout.tsx`, the Applications wrapper, and
+  the job rail's frame and aside (`jobs/jobs-rail.tsx`); keep the 200 ms
+  linear equal to shadcn's gap. It used to inherit and ease on the column
+  above the page, which restyled about 4,258 elements on every frame of a pin
+  (130 to 250 ms frames at 4x CPU). A sidebar row eases its current fill to
+  the clicked row the moment its link starts navigating (`useLinkStatus`),
+  while `aria-current` stays on the committed row.
 - **The seeker layout has a `@modal` slot** (KAN-364): a route opened as a
   modal over the current page through an intercepting route, Settings
   for now (`(seeker)/@modal/(.)settings`). A soft navigation to its address
@@ -984,6 +1018,62 @@ the KAN-296 cutover.
   `<a href>`: use `<Link>`, or, where a full reload is the point (the
   Experiences view's Try Again), disable the rule on that line with the
   reason.
+- **The seeker layout wraps the page slot, and only the page slot, in
+  `<Suspense fallback={null}>` inside `ShallowRouting`, with a
+  `display: contents` div inside the boundary** (KAN-368). Without the
+  boundary a hard load sent no byte of the shell until the page's slowest
+  read answered (on the Dashboard, a whole scoring pass). Never wrap
+  `{modal}`, and never add a `loading.tsx` beside the layout: it would wrap
+  `@modal` too. The div must stay: React plays a `<ViewTransition>` enter on
+  a Suspense reveal only when no DOM node sits between the two
+  (`docs/motion.md`). **Still open, two costs.** On a hard load a page's
+  `redirect()` or `notFound()` now answers 200 (a meta refresh plus a client
+  redirect, or a client-drawn not-found with `noindex`): bare `/settings`,
+  `/applications?app=x`, a bad `/jobs/{id}`, a bad `/applications/{jobId}`
+  and a bad `/resumes/uploaded/{id}`. A page that must answer a real 3xx or
+  404 cannot rely on the status. And React reveals a streamed boundary no
+  sooner than 300 ms after the shell's first frame, so a fast page can land
+  up to about 300 ms later on a hard load; only slow pages gain. The real
+  signed-in spread is unmeasured.
+- **A slow seeker page gets a `loading.tsx` drawn in its own frame**
+  (KAN-368). Every seeker route is dynamic, and Next prefetches a dynamic
+  route only down to a loading boundary, so a click changed nothing on screen
+  until the page's reads were done. Give a page one only if it is slow:
+  React holds a shown fallback for 300 ms, so a fast page gets slower. A
+  skeleton stands at the height of what replaces it, so nothing below jumps.
+  A page with two long reads streams each in its own `<Suspense>` over a
+  skeleton of its shape, and starts every read before its first `await` (the
+  Dashboard: only the account is awaited). **Settings' modal has no
+  `loading.tsx`**: one under `@modal` drew a second modal and backdrop over
+  the first; each section streams in its own boundary instead. A clickable
+  table row holds its hover tint while its navigation is pending
+  (`data-pending`), and the profile photo loads `lazy`, or React holds a
+  navigation's commit inside the page's `<ViewTransition>` until the
+  never-cached photo downloads.
+- **Nothing in the root layout or the root `not-found` may read cookies,
+  headers or the session** (no `getCurrentAccount`, `getSessionUser`,
+  `cookies()`, `headers()`; KAN-368). Next renders the root not-found into
+  every page's tree, so one session read there made all 63 routes dynamic on
+  2026-10-24. Check a build's route table with `NEXT_PUBLIC_SUPABASE_*` set
+  (the deploy's `cf:build` log, or `npm run build` with `.env.local`): `/`
+  must be `○`, `/features/*` `●`, and `.next/prerender-manifest.json` must
+  list `/`. CI's build has no env, so it shows `○` even with a `cookies()`
+  read (`createSupabaseServerClient` throws first): CI cannot catch this. The
+  404's button goes to `/home` (`app/home/route.ts`), which reads the session
+  on click and redirects with `homePath()`; the label is always "Back to
+  Dashboard".
+- **A fresh visit to `/jobs` draws in one round trip** (KAN-368). The page
+  draws Best Match with the saved filters in the same response, and
+  `jobs/canonical-url.tsx` then writes that address in place (a shallow
+  replace). The address it writes must equal `sortHref('match', saved)`
+  exactly, and the page must read its sort and filters from that address
+  (`paramsOf`), not from the saved filters: `RememberFeed`, `ScrollMemory`
+  and Load More's kept pages key on the address, so a drifted one loses the
+  list on Back or a reload, and a saved `pay_per` of `hour` with no range
+  reads back as `year`. Never bring `redirect()` back: the Jobs link paid two
+  round trips with a blank panel between. **Still open:** the bar shows bare
+  `/jobs` for about 0.4 s (until page-enter ends, `docs/motion.md`), and a
+  filter pick in that window builds its URL from the bare address.
 - **Pages render a `<div>`**, not a `<main>`: shadcn's `SidebarInset` already is
   the `<main>`. Seeker pages size off `@container/main`, never the window
   (`docs/design.md`).
@@ -1125,6 +1215,15 @@ the KAN-296 cutover.
   there is no `tailwind.config.js`. Write the token names (`text-body`), never
   stock sizes like `text-sm`. A new token or shared component gets its row in
   `/design-kit` (titles in `design-kit/data.ts`) in the same change.
+- **Never key a Tailwind `group-*` variant on the shell wrapper, or on any
+  large ancestor whose attribute changes often** (KAN-368). Tailwind v4
+  compiles it to `.cls:is(:where(.group)[attr] *)`, and Chrome then restyles
+  that ancestor's whole subtree; the cost comes from the rule sitting in the
+  stylesheet, whether or not an element carries the class. Use `in-data-*`
+  (`:where([attr]) .cls`) or an arbitrary `[sel_&]` variant, and make the
+  class string leave every source file: grep the built CSS for
+  `sidebar-wrapper)[data-peek`. A peek open and close restyled 4,265
+  elements (77 to 84 ms at 4x CPU) against 245 without the rule.
 - **Name a variant for its role, never its look**: `primary`, `positive`,
   `quiet`, not `blue`, `green`, `plain`.
 - **`components/company-logo.tsx` hosts are allow-listed** in `next.config.ts`
@@ -1211,15 +1310,33 @@ are in `docs/auth.md`.
   cookies; server code reads the access token and forwards it to `apiFetch()`
   as a Bearer header, so the API never sees cookies and needs no CORS. Use
   `getClaims()`, not `getSession()`, for any decision made here; `getSession()`
-  is fine for fetching a token to forward.
+  is fine for fetching a token to forward. `getSessionUser()` also returns
+  `accountType` from the verified claims (`app_metadata.account_type`,
+  written only by the API's service-role key). Use it for "applicant or
+  company" on the Next side, not `getCurrentAccount()`: `/auth/me` costs an
+  API call on every soft navigation, since the layout that shares it through
+  `cache()` does not render again then (KAN-368). The claim keeps its old
+  value until the token refreshes (at most an hour), and the API still
+  authorizes every call. **Still open:** `isApplicant()` is now true for an
+  applicant while the API is down, so Apply Now asks "Did You Apply?" and
+  marking fails with its own error.
 - **Cookies are httpOnly, 7 days idle** (`lib/supabase/cookies.ts`, used by
   both writers, `supabase/server.ts` and `src/proxy.ts`). Set `maxAge` in that
   helper's `setAll` path, never through `createServerClient`'s
   `cookieOptions`: @supabase/ssr 0.12 overwrites it. httpOnly holds only while
   no `createBrowserClient()` exists.
 - **`src/proxy.ts` (Next 16's middleware) refreshes the session on every
-  request**, because Server Components cannot write cookies and sessions would
-  die with the hour-long access token. It is a convenience, not security: the
+  request that renders session-dependent content**, because Server Components
+  cannot write cookies and sessions would die with the hour-long access token.
+  Its matcher leaves out the static marketing pages (`/`, `/pricing`,
+  `/terms`, `/privacy`, `/features/*`, `/blog`, `/help-center`, `/docs/*`,
+  `/coming-soon`), so they prerender and a visit there runs no proxy
+  (KAN-368). A new marketing page adds its name to the matcher's lookahead;
+  one left out still works, with one proxy call more. Every session-reading
+  path and every path with a proxy redirect (`/company*`,
+  `/onboarding/company`, `/calendar`) must stay matched. **Still open:** time
+  spent only on marketing pages no longer extends the 7-day idle cookie; the
+  first app request does. It is a convenience, not security: the
   API is reachable without Next and checks every token. Its session step
   no-ops when the Supabase env vars are unset, so a clone with no env file
   boots; the business-side redirect above runs first, either way.
@@ -1235,7 +1352,19 @@ are in `docs/auth.md`.
 - **Never export a token-returning helper from a `"use server"` file.** Every
   export there is a browser-callable endpoint. Token helpers (`session.ts`)
   and Server-Component-only reads (`job-queries.ts`) live in `server-only`
-  modules that action files import.
+  modules that action files import. **Likewise never export from a
+  `"use server"` file a function that fetches a URL or path it is handed**:
+  any page script could call it with any argument, an open fetch proxy
+  (SSRF; KAN-368). Keep such helpers unexported (`readPdf` in
+  `lib/resume-actions.ts`) or in a `server-only` module
+  (`lib/job-queries.ts`, `lib/resume-queries.ts`).
+- **A client screen never loads through several server actions**: Next runs
+  them one at a time per client, so a page that looks parallel pays N round
+  trips in a row (KAN-368). Use one action that runs `Promise.all` on the
+  server, or a server component. Shell components start reads that do not
+  depend on `/auth/me` together with `getCurrentAccount`
+  (`account-status.tsx`, `profile-strength.tsx`), or the chip waits on two
+  API calls in a row on every hard load and `router.refresh()`.
 - **The feed's reads send the viewer's token when there is one**
   (`viewerToken` in `(seeker)/jobs/listings.ts`), so the API can leave out a
   signed-in applicant's applied jobs. It answers null with no Supabase env
@@ -1264,7 +1393,10 @@ are in `docs/auth.md`.
 - **My Profile's cache (`(seeker)/profile-cache.tsx`) lives in the seeker
   layout, never a module variable**: sign-out leaving the shell is what drops
   it, and a module variable would show one account's profile to the next
-  person in that tab.
+  person in that tab. My Profile loads through one server action,
+  `getProfilePage` (`lib/profile-page-actions.ts`; KAN-368): its photo,
+  profile and answer bank ran in a row on a first visit, and a Save waited
+  behind them. A read added to My Profile joins that action.
 - **Resume facts are edited in the experience bank only** (KAN-211). An
   upload writes its reading into the bank itself (ADR 0003); no screen holds
   a second copy of an upload's facts to edit. Two editors of the same facts
@@ -1302,7 +1434,7 @@ are in `docs/auth.md`.
   the editor (`(seeker)/resumes/[resumeId]`), an upload its view page
   (`(seeker)/resumes/uploaded/[id]`, the static segment winning over
   `[resumeId]`). The upload's page reads the PDF on the server
-  (`readResumePdf` in `lib/resume-actions.ts`, base64) and draws it with
+  (`readUploadedResume` in `lib/resume-queries.ts`, server-only: it starts the resume list and the file link together, then downloads the PDF, base64, only for a listed PDF; the list still decides the 404; KAN-368) and draws it with
   the editor's `PdfPages` and no click targets; a DOCX gets a Download
   card, since pdf.js cannot draw one. Its bar (the editor's look) holds
   Make Primary, Rename, Delete and Download, calling what the upload's
