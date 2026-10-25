@@ -845,6 +845,16 @@ so WorkIt fills forms as completely as Apply does.
   `local:<file name>` in `LOCAL_FILES_DIR` (services/local_files.py,
   development only): served by `.../bytes` from that folder, never sent to
   or removed from Storage.
+- **The student's writing comes too** (`scripts/import_apply_writing.py`),
+  through the same writers as the student's own edits: `writing_samples`
+  only from the Story bank's "own essays" and "own answers" sections (their
+  words, never a question or a note), packed into `MAX_SAMPLES` of
+  `SAMPLE_MAX`; Apply's voice.md as the `style_cards` row, saved after the
+  samples (a sample change deletes it); and Apply's company briefs as
+  `company_briefs` rows only through `briefs.check` and the keep rule of
+  `save_brief` (MIN_FACTS, a higher score). Apply keeps no quote, so the
+  import takes the page's sentence that names the fact's product and holds
+  its numbers; a fact with none is dropped.
 - **Sensitive**: it holds self-identification. Only the owner reads it, and
   it never goes to a model. The import refuses a database not on this
   computer.
