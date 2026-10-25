@@ -119,9 +119,12 @@
       for (const name of Object.keys(answers)) {
         if (isNew(name)) status.register(name, byName.get(name)?.label ?? name, byName.get(name)?.required ?? false, sources[name] ?? "guessed");
       }
-      for (const q of rows.written) written.set(q.name, q);
-      await writing.showRows(rows.written, isNew);
-      for (const q of rows.yours) {
+      // Outside a batch tab only the essay route writes (Generate): a choice or a one-line draft is the student's there.
+      const toWrite = batch ? rows.written : rows.written.filter((q) => q.generate);
+      const yours = batch ? rows.yours : [...rows.yours, ...rows.written.filter((q) => !q.generate)];
+      for (const q of toWrite) written.set(q.name, q);
+      await writing.showRows(toWrite, isNew);
+      for (const q of yours) {
         if (!isNew(q.name)) continue;
         status.register(q.name, q.label, q.required);
         status.setStatus(q.name, q.required ? "failed" : "skipped", "WorkIt has no answer for this. Answer it yourself.");

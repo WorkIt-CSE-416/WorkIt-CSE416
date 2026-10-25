@@ -55,3 +55,24 @@ test("a form that shows its questions only once open waits for its tab", async (
     expect(await questionsToWrite({ url, profile: STUDENT, today: "2026-10-25", fetchText }), url).toBeNull();
   }
 });
+
+test("a one-off choice goes to the student's Claude with its options", async () => {
+  const form = JSON.parse(readFileSync(join(FORMS, DATACOR, "questions.json"), "utf8"));
+  const choice = (label: string, type: string, name: string, options: string[]) => ({
+    description: null, label, required: true, fields: [{ name, type, values: options.map((o, value) => ({ label: o, value })) }],
+  });
+  form.questions.push(
+    choice("Which team size do you prefer?", "multi_value_single_select", "question_901", ["Small", "Large"]),
+    choice("Which areas interest you?", "multi_value_multi_select", "question_902", ["Backend", "Frontend", "Data"]),
+  );
+  const fetchText = async () => JSON.stringify(form);
+
+  const questions = await questionsToWrite({ url: link(DATACOR), profile: STUDENT, today: "2026-10-25", fetchText });
+
+  expect(questions).toEqual(expect.arrayContaining([
+    { name: "question_901", label: "Which team size do you prefer?", required: true, max_length: null, kind: "choice", options: ["Small", "Large"] },
+    { name: "question_902", label: "Which areas interest you?", required: true, max_length: null, kind: "choices", options: ["Backend", "Frontend", "Data"] },
+  ]));
+  // A question written in words carries no options.
+  expect(questions.find((q: any) => q.label === GOALS)).toEqual({ name: expect.any(String), label: GOALS, required: true, max_length: null });
+});

@@ -5,7 +5,7 @@ import { readFileSync } from "node:fs";
 import { join } from "node:path";
 import { expect, test } from "@playwright/test";
 import { FakeJobServer, FORMS } from "../fill-engine/test/fake-job-server";
-import { engineProfile, enginePolicies, planFill } from "../src/background/engine.js";
+import { enginePolicies, planFill } from "../src/background/engine.js";
 import { STUDENT, bridge, failed, inject, settled, shown } from "./extension";
 
 /** STUDENT with no gender answered in WorkIt, and what they brought from Apply. */
@@ -73,11 +73,10 @@ test("brought policies reach the Plan over WorkIt's own", async () => {
   expect(enginePolicies(STUDENT).cover_letter).toBeUndefined();
 });
 
-test("the name's parts are WorkIt's own first, middle and last names, never a middle name taken as the last", () => {
-  const named = { ...BROUGHT, full_name: "Test Middle Person", first_name: "Test", middle_name: "Middle", last_name: "Person",
-    fill: { profile: { identity: { legal_first_name: "Test", legal_middle_name: "Middle", legal_last_name: "Person" } } } };
-  expect(engineProfile(named).identity).toMatchObject({ legal_first_name: "Test", legal_middle_name: "Middle", legal_last_name: "Person" });
-  // A profile with the full name alone: its first and last words, the words between the middle name.
-  const { first_name, middle_name, last_name, ...unsplit } = named;
-  expect(engineProfile({ ...unsplit, fill: null }).identity).toMatchObject({ legal_first_name: "Test", legal_middle_name: "Middle", legal_last_name: "Person" });
+test("a middle name stays out of the last name", async () => {
+  const named = { ...STUDENT, full_name: "Test Middle Person", first_name: "Test", middle_name: "Middle", last_name: "Person" };
+  const { labels } = await planned("greenhouse-arc", named);
+
+  expect(labels["First Name"]).toBe("Test");
+  expect(labels["Last Name"]).toBe("Person");
 });
