@@ -1224,11 +1224,12 @@ headline line used to leave a gap between the name and the row below.
   field. The section never makes an href of a link that fails the check.
 
 **Application Questions (KAN-269)** is an open section between Contact &
-Links and Resumes & Experiences: the nine questions onboarding's Profile
-step asks (work authorization, sponsorship, citizenship and visa status,
-clearance, and the voluntary gender, Hispanic or Latino, race, veteran and
-disability self-identification), with the seeker's answers
-(`(seeker)/profile/application-questions.tsx`).
+Links and Resumes & Experiences: the nine questions most applications ask
+(work authorization, sponsorship, citizenship and visa status, clearance,
+which onboarding's Profile step asks, and the voluntary gender, Hispanic or
+Latino, race, veteran and disability self-identification, which the
+extension asks on the first form that does, KAN-387), with the seeker's
+answers (`(seeker)/profile/application-questions.tsx`).
 
 - **U.S. Citizen as the citizenship answer puts "U.S. Citizen" on every
   resume header** (PDF, Word and LaTeX), first on the contact line.
@@ -1255,6 +1256,24 @@ disability self-identification), with the seeker's answers
   shows the cached answers and refetches, and a refetch landing mid-edit
   made another tab's newer answers look changed, so Save wrote the cached
   ones back over them (review, 2026-10-20).
+
+**Writing Samples (KAN-384, KAN-387)** is an open section after
+Application Questions (`(seeker)/profile/writing-samples.tsx`): up to three
+pieces of the student's own writing (a class essay, a cover letter), from
+which their own Claude builds a style card through the connector, so the
+answers it writes read the way they write. Optional; WorkIt's own AI never
+reads them.
+
+- **Asked for once, after the first written batch.** The extension's panel
+  asks, with Add Samples and Skip, once the first batch's answers from the
+  student's Claude have all landed, and only when the student has none;
+  Add Samples opens `/profile#writing-samples`, which opens Add at once.
+- **Add, in place.** Add (the section's action, gone at three) opens a text
+  box with Cancel and Save; Escape cancels. The API refuses an empty one or
+  one over 10,000 characters, with its reason under the box.
+- **Each sample is its first three lines, with Remove.** A sample is
+  replaced by removing it and adding the new one: changing a sample drops
+  the style card either way, and Claude builds a new one next time.
 
 **Resumes moved
 out on 2026-10-18**: the Resume card (the uploads and their dropzone) became

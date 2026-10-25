@@ -1395,6 +1395,11 @@ are in `docs/auth.md`.
   them through the same PATCH; My Profile still edits all nine. A new
   self-identification question goes into `SELF_ID_KEYS` too, and into the
   extension's copy of the options (`autofiller_extension/src/background/self-id.js`).
+- **Writing samples are edited in My Profile only** (`(seeker)/profile/writing-samples.tsx`,
+  `lib/writing-samples-actions.ts`, KAN-387): the extension's ask after a
+  first written batch links to `/profile#writing-samples`, which opens Add.
+  Keep that anchor. The samples go to the student's own Claude only:
+  never send them to a WorkIt AI route.
 - **The practice forms (`lib/practice-form.ts`) import nothing** (KAN-378):
   they are whole HTML pages, served by a route handler, and the extension's
   end-to-end test imports the module to serve the same bytes, so it can't
