@@ -7,6 +7,11 @@
 // tell the tab "sent", or move the tab to a thanks page itself, but it can't
 // make this worker see the job system accept a submit request it never got.
 //
+// A job system with no known submit request (Workday, Eightfold, Rippling)
+// has nothing for this worker to see, so there the page's hint alone marks
+// it applied, as before this proof (a weaker signal, kept so those
+// applications aren't left for the student to mark by hand).
+//
 // webRequest carries no install warning (the hosts below are already in
 // host_permissions, which is what lets it see their requests), so adding it
 // doesn't disable the extension on update. It gives no response body, so a
@@ -20,8 +25,8 @@
  * answer proves the submit by itself; otherwise the page must also say it was
  * sent (Ashby answers 200 to a refusal; how Lever and Workable answer one
  * isn't recorded, so their status is checked against the page too). A job system
- * not listed (Workday, Eightfold, Rippling: no submit request is known) is
- * never marked from the page: the student marks it Applied on WorkIt.
+ * not listed (Workday, Eightfold, Rippling: no submit request is recorded) is
+ * marked from the page's hint alone (submitHinted).
  */
 export const SUBMIT_REQUESTS = {
   greenhouse: { url: /^https:\/\/([\w-]+\.)*greenhouse\.io\/(embed\/)?[\w-]+\/jobs\/\d+\/?([?#].*)?$/, ok: [200, 299], alone: true },
@@ -90,15 +95,17 @@ function settle(tabId, mark) {
 /**
  * The page says tab `tabId`'s application was sent (the engine's event, or a
  * confirmation page). Marks it applied once the job system's answer to its
- * submit was seen too, waiting a little for an answer still on its way.
+ * submit was seen too, waiting a little for an answer still on its way; on
+ * a job system with no SUBMIT_REQUESTS row, marks it at once.
  * Resolves true when it was marked, false when no answer came; throws when
  * the mark itself failed.
  * @param {number} tabId
  * @param {(tabId: number) => Promise<unknown>} mark
+ * @param {string | null | undefined} site the tab's job system (engine.js jobOf(url).site), when known
  */
-export function submitHinted(tabId, mark) {
+export function submitHinted(tabId, mark, site) {
   seen.set(tabId, { ...seen.get(tabId), hinted: Date.now() });
-  if (proven(tabId)) return mark(tabId).then(() => true);
+  if (proven(tabId) || (site && !SUBMIT_REQUESTS[site])) return mark(tabId).then(() => true);
   return new Promise((resolve) => {
     const answer = (done) => {
       clearTimeout(timer);

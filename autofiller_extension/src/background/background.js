@@ -181,7 +181,9 @@ async function handleMessage(message, sender) {
     // notices, and tells the content script, which says "batch/submitted"
     // when the application was sent. That is only a hint: the application is
     // marked applied once this worker saw the job system take the submit
-    // request too (submit-proof.js). The extension never submits.
+    // request too (submit-proof.js), or, on a job system whose submit
+    // request isn't known (Workday, Eightfold, Rippling), from the hint
+    // alone. The extension never submits.
     case "batch/watch": {
       const job = jobOf(sender.url);
       // A practice form's submit is its thanks page's (submitPractice below), never an application's.
@@ -191,7 +193,7 @@ async function handleMessage(message, sender) {
     }
 
     case "batch/submitted":
-      return { applied: await submitHinted(sender.tab.id, markSubmitted) };
+      return { applied: await submitHinted(sender.tab.id, markSubmitted, jobOf(sender.url)?.site) };
 
     // The first form that asks the self-identification (KAN-387): the tab
     // whose Plan found it asks whether to ask the student (once, in one
