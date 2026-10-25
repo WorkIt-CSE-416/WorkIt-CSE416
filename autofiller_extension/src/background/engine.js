@@ -164,6 +164,15 @@ export function enginePolicies(profile) {
   return layered(POLICIES, profile?.fill?.policies);
 }
 
+/** Bank entries of one section, the most recently started first, as a resume lists jobs (and Apply's
+ * profile does): a job held now sits by its start, so a form's first job usually has an end date. */
+function newest(entries, section) {
+  const ends = (e) => (e.end_kind === "present" ? "9999" : (e.end_month ?? ""));
+  return entries
+    .filter((e) => e.section === section)
+    .sort((a, b) => (b.start_month ?? "").localeCompare(a.start_month ?? "") || ends(b).localeCompare(ends(a)));
+}
+
 /** Bank entries of one section, the latest first (one still going comes first). */
 function latest(entries, section) {
   const ends = (e) => (e.end_kind === "present" ? "9999" : (e.end_month ?? ""));
@@ -187,7 +196,7 @@ function home(location) {
  * Only what WorkIt holds is given; a question about anything else stays the
  * student's (a Missing fact in the plan). The home is the profile's location
  * as the engine reads it (city and state). The school is the latest education
- * entry; the jobs are the experience entries, latest first. Under all of
+ * entry; the jobs are the experience entries, most recently started first. Under all of
  * it lies the engine profile the student brought from Apply
  * (`profile.fill`): WorkIt's own fields win where both hold a value.
  * @param {import("../shared/types.js").AutofillProfile} profile
@@ -229,7 +238,7 @@ function workitProfile(profile) {
         })
       : {},
     experience_facts: {
-      employment_history: latest(entries, "experience").map((e) =>
+      employment_history: newest(entries, "experience").map((e) =>
         present({ employer: e.organization, title: e.title, start: e.start_month, end: e.end_kind === "present" ? null : e.end_month, location: e.location }),
       ),
     },

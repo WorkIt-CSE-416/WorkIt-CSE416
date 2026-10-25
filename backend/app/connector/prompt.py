@@ -22,6 +22,14 @@ get_writing_samples and saves it; with neither, it writes plainly. The card
 describes how the student writes, never facts, so the rules on sources
 still hold, and the rules win where the card disagrees.
 
+Apply runs the review, the claim check and the edit as separate model
+calls; here they are separate passes of the student's Claude, each as a
+fresh reader (KAN-369), and each written answer is saved with what they
+found: the review's last rating and the claims the check listed. The save
+refuses one with no review, rated under 8 (written.GOOD), or still holding
+a claim it lists, so skipping a pass is a refusal, not silence. An answer
+still under 8 after two rounds is left for the student.
+
 One-off choices nothing else fills (KAN-369) come with their options:
 Claude picks among them, under the same sources, and WorkIt refuses an
 answer that isn't one of them.
@@ -55,11 +63,17 @@ show me its message and stop. If its job_id is null, every question is \
 answered: tell me, and stop. If style_card_needed is true, build my \
 style card first (My voice, below).
 2. Write all of that application's answers by the four steps below: draft, \
-review, check, edit. Do the steps in your head and don't show me drafts.
+review, check, edit. Run them as separate passes, in that order, each over \
+all the answers, and come to each pass as a fresh reader: judge only the \
+text in front of you, never what you meant it to say. Don't show me \
+drafts. For each written answer, keep the rating its last review round \
+gave it and the claims the check listed.
 3. Call save_answers with that job_id and the edited answers, each under \
 its question's name. With an answer that uses a company_brief fact, pass \
-that fact's sentence as its named_fact. If it refuses one, fix what it says \
-and save again.
+that fact's sentence as its named_fact. Give each written answer its \
+review: the rating its last review round gave and the claims the check \
+listed, quoted as the check found them ([] when it listed none). A choice \
+takes no review. If it refuses one, fix what it says and save again.
 4. Tell me in one line which company you wrote for, and name any question \
 you left out and the fact it needs from me. If save_answers named any \
 answers in read_first, name those questions too, for me to read before I \
@@ -265,23 +279,34 @@ reasoning for something weaker. When a change needs a fact my sources \
 don't hold, make it with one they do, or drop the point; never hedge, and \
 never leave a placeholder ("[add link]"). Keep the question's own format \
 and any length it states.
-Rate the rewrite afresh. An answer rated below 8 gets one more round; stop \
-after two rounds either way.
+Date my work as my sources do, and make sure a recruiter who isn't an \
+engineer follows every sentence. A rewrite that states a number neither \
+the draft nor my sources hold is dropped: keep the draft.
+Rate the rewrite afresh, as if you hadn't seen the draft. An answer rated \
+below 8 gets one more round; stop after two rounds either way. An answer \
+still below 8 after the second round isn't saved: leave it out and tell me \
+what would raise it, as for a question my sources can't answer.
 
 Step 3: check
 Check every answer against the sources. List every claim they don't \
 support: a fact, number, step, result, lesson, ranking, or something I \
-did, read, used or felt that they don't state. A plain-words paraphrase of \
-a source is supported, and so is an idea of mine for the company's work \
-said as a plan.
+did, read, used or felt that they don't state, a feeling or reaction among \
+them ("what surprised me"). A plain-words paraphrase of a source is \
+supported, and so is an idea of mine for the company's work said as a \
+plan. Quote each claim word for word from the answer, and give an empty \
+list for an answer whose every claim is supported. Read each claim against \
+the sources themselves, not against what the review or the draft assumed.
 
 Step 4: edit
 Edit all of the application's answers together, so each reads the way I \
 write on a good day and every word is true.
-- Facts first: cut or simplify every claim the check listed, and any \
-sentence that states something about me or the company the sources don't. \
-Keep every sourced fact that serves the answer's point, unless the answer \
-runs over its length.
+- Facts first: cut or simplify every claim the check listed, so none of \
+its words are left as the check quoted them, and any sentence that states \
+something about me or the company the sources don't. Keep every sourced \
+fact that serves the answer's point, unless the answer runs over its \
+length. Never add a fact, number, name or claim: an edit that states a \
+number the reviewed answer didn't hold is wrong, so keep the reviewed \
+sentence.
 - Each answer still answers its question as asked: keep the opening that \
 does, and a sentence the question says to complete, word for word.
 - Fix grammar (comma splices, run-ons, dangling modifiers, unclear \
