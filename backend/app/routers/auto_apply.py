@@ -24,9 +24,10 @@ GET  /applicants/{id}/applications?stage=queued&stage=needs_you
      ?scored=true adds `match`, the Jobs page's score, and its `highlights`
      to each open one
      (the Applications page; null while the experience bank is empty).
-GET  /applicants/{id}/applications/next
+GET  /applicants/{id}/applications/next?skip=<job id>&skip=...
      What the extension fills next: the oldest queued application whose job
-     posting is open, or null when none is left.
+     posting is open, or null when none is left. ?skip= leaves out the jobs
+     batch apply already has open in its tabs (KAN-370).
 GET  /applicants/{id}/applications/{job_id}
      The application for one job posting, as the list has it. 404 when the
      applicant has none.
@@ -51,6 +52,11 @@ PUT  /applicants/{id}/applications/{job_id}/resume  {"built_resume_id": ...}
      of its own pick. Answers SentResumeResponse. 404 with no application,
      or a resume or job posting that isn't available; 409 when it isn't
      queued or needs_you; 503 when a built resume's PDF cannot be made.
+PUT  /applicants/{id}/applications/{job_id}/fill  {"state": "needs_you"}
+     How a batch apply tab's fill left the form (KAN-370): needs_you while
+     anything is unfilled, ready (the stage goes back to queued) once
+     everything is. Answers the stage. 404 with no application, 409 when it
+     isn't queued or needs_you.
 POST /applicants/{id}/applications/{job_id}/finish  {"outcome": "submitted"}
      How a fill ended: submitted → applied, skipped → skipped, failed →
      needs_you. 404 with no application, 409 when it isn't queued or
@@ -77,6 +83,7 @@ from app.schemas.applications import (
     BatchQueued,
     BatchRequest,
     ChooseResume,
+    FillRequest,
     FinishRequest,
     QueueRequest,
 )
@@ -156,12 +163,13 @@ async def list_applications(
 @router.get("/applications/next", response_model=Application | None)
 async def next_application(
     applicant_id: uuid.UUID,
+    skip: list[uuid.UUID] = Query([]),
     account: AuthenticatedAccount = Depends(get_current_account),
     db: AsyncSession = Depends(get_session),
 ) -> Application | None:
-    """The next application to fill, or null."""
+    """The next application to fill, past the jobs in `skip`, or null."""
     assert_applicant_owns(account, applicant_id)
-    return await pipeline.next_application(db, applicant_id)
+    return await pipeline.next_application(db, applicant_id, skip)
 
 
 # After /applications/next: a job id is a UUID, so "next" would match this
@@ -259,6 +267,25 @@ async def finish_application(
     assert_applicant_owns(account, applicant_id)
     try:
         stage = await pipeline.finish_application(db, applicant_id, job_id, body.outcome)
+    except pipeline.NotFound as exc:
+        raise HTTPException(status.HTTP_404_NOT_FOUND, str(exc)) from exc
+    except pipeline.WrongStage as exc:
+        raise HTTPException(status.HTTP_409_CONFLICT, str(exc)) from exc
+    return ApplicationStage(job_id=job_id, stage=stage)
+
+
+@router.put("/applications/{job_id}/fill", response_model=ApplicationStage)
+async def record_fill(
+    applicant_id: uuid.UUID,
+    job_id: uuid.UUID,
+    body: FillRequest,
+    account: AuthenticatedAccount = Depends(get_current_account),
+    db: AsyncSession = Depends(get_session),
+) -> ApplicationStage:
+    """Records how a batch tab's fill left one application's form."""
+    assert_applicant_owns(account, applicant_id)
+    try:
+        stage = await pipeline.record_fill(db, applicant_id, job_id, body.state)
     except pipeline.NotFound as exc:
         raise HTTPException(status.HTTP_404_NOT_FOUND, str(exc)) from exc
     except pipeline.WrongStage as exc:

@@ -196,7 +196,14 @@ Find files with a directory listing; these are the rules for where code goes.
   job's resume** (`choose_resume`, `PUT .../applications/{job_id}/resume`,
   KAN-359) is kept the same way, as the sent resume the application names,
   and `prepare_resume` sends it in place of `pick_resume`'s (`chosen_resume`):
-  no column of its own. Tests: `tests/test_auto_apply_resume.py`. **Which job postings it takes is
+  no column of its own. Tests: `tests/test_auto_apply_resume.py`. **Batch
+  apply's tab states live on the stage column, with no table of their own**
+  (KAN-370): a ready tab stays `queued` (it waits for the student's submit),
+  a tab with anything unfilled is `needs_you` (`record_fill`), and
+  `next_application`'s `skip` passes over the jobs the extension already
+  has open. A new stage value would be an `ALTER TYPE` and a coordinated
+  deploy; add one only when a state must outlive its tab.
+  Tests: `tests/test_batch_apply.py`. **Which job postings it takes is
   one list, `app/auto_apply/hosts.py`** (Greenhouse for now): the matches
   and `queue_applications` require its SQL form (`AUTO_APPLY_SUPPORTED` in
   `queries/jobs/filters.py`) and `JobListing.auto_apply` its Python form,

@@ -800,8 +800,9 @@ function. Every route checks that the caller owns the applicant, like
 | POST | `/applicants/{id}/applications` | `queue_job` | A job's Auto Apply button: queues `{"job_id"}`. **Built** |
 | DELETE | `/applicants/{id}/applications/{job_id}` | `dequeue_job` | Takes a queued job out of the queue; 204. 404 with no application, 409 past queued. **Built** |
 | GET | `/applicants/{id}/applications` | `list_applications` | Live Activity and later the tracker. `?stage=` repeats. **Built** |
-| GET | `/applicants/{id}/applications/next` | `next_application` | What the runner fills next, or `null`. **Built** |
+| GET | `/applicants/{id}/applications/next` | `next_application` | What the runner fills next, or `null`. `?skip=` repeats: the jobs batch apply already has open in its tabs (KAN-370). **Built** |
 | GET | `/applicants/{id}/applications/{job_id}` | `get_application` | One application, as the list has it; 404 without one. Registered after `/next`. **Built** |
+| PUT | `/applicants/{id}/applications/{job_id}/fill` | `record_fill` | How a batch tab's fill left the form (KAN-370, 8.4): `{"state": "needs_you"}` moves it to `needs_you`, `{"state": "ready"}` back to `queued`. 404 with no application, 409 when not queued or needs_you. **Built** |
 | POST | `/applicants/{id}/applications/{job_id}/finish` | `finish_application` | `{"outcome": "submitted" \| "skipped" \| "failed"}`; 409 when not queued or needs_you. **Built**; takes the autofill run's report once `autofill_runs` exists |
 | POST | `/applicants/{id}/applications/{job_id}/resume` | `prepare_resume` | Picks the resume and keeps it as a sent resume for the job posting. Answers the sent resume and a 5-minute link, or `null` with no resume. 404 with no application or a closed job posting, 409 when not queued or needs_you, 503 when the PDF cannot be made, 502 when Storage refuses the file. **Built** |
 

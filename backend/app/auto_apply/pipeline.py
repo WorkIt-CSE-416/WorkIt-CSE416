@@ -57,6 +57,13 @@ OUTCOME_STAGE = {
 # The stages a fill can end from: queued, or needs_you when the student
 # finishes a failed form by hand.
 FINISHABLE = (application_stage.queued, application_stage.needs_you)
+# Batch apply (KAN-370): how a tab's fill left the form, on the stage. A
+# ready tab waits for the student's submit, so it stays queued (the batch
+# skips the jobs it has open); a tab with anything unfilled needs them.
+FILL_STAGE = {
+    "ready": application_stage.queued,
+    "needs_you": application_stage.needs_you,
+}
 
 
 class NotFound(Exception):
@@ -226,10 +233,37 @@ async def get_application(
     return application
 
 
-async def next_application(db: AsyncSession, applicant_id: uuid.UUID) -> Application | None:
+async def next_application(
+    db: AsyncSession, applicant_id: uuid.UUID, skip: Sequence[uuid.UUID] = ()
+) -> Application | None:
     """What the extension fills next: the oldest queued application whose job
-    posting is open. None when the queue is empty, and the run goes idle."""
-    return await fetch_next_application(db, applicant_id)
+    posting is open and isn't in `skip` (the jobs batch apply already has in
+    its tabs). None when the queue is empty, and the run goes idle."""
+    return await fetch_next_application(db, applicant_id, skip)
+
+
+async def record_fill(
+    db: AsyncSession,
+    applicant_id: uuid.UUID,
+    job_id: uuid.UUID,
+    state: Literal["ready", "needs_you"],
+) -> application_stage:
+    """
+    Records how a batch tab's fill left the form (FILL_STAGE) and answers the
+    new stage: needs_you while anything is unfilled, back to queued once the
+    student has answered it. Only a queued or needs_you application takes
+    one: raises NotFound when there is none, WrongStage when it is skipped or
+    applied already.
+    """
+    stage = await fetch_stage(db, applicant_id, job_id)
+    if stage is None:
+        raise NotFound("No application for that job. Queue it first.")
+    if stage not in FINISHABLE:
+        raise WrongStage(f"That application is {stage}, so its form is no longer open.")
+    new = FILL_STAGE[state]
+    await set_stage(db, applicant_id, job_id, new)
+    await db.commit()
+    return new
 
 
 async def finish_application(

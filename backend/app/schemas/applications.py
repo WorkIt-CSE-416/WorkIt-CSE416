@@ -2,7 +2,7 @@ import datetime
 import uuid
 from typing import Literal
 
-from pydantic import BaseModel, Field, model_validator
+from pydantic import BaseModel, ConfigDict, Field, model_validator
 
 from app.models.dto import application_stage
 from app.schemas.jobs import Highlight, JobListing
@@ -98,6 +98,16 @@ class FinishRequest(BaseModel):
     failed: the form could not be filled (no form, sign-in needed)."""
 
     outcome: Literal["submitted", "skipped", "failed"]
+
+
+class FillRequest(BaseModel):
+    """PUT .../applications/{job_id}/fill: how a batch tab's fill left the
+    form (KAN-370). ready: every field it needs is filled. needs_you:
+    something is unfilled, or the hiring system has no filler."""
+
+    model_config = ConfigDict(extra="forbid")
+
+    state: Literal["ready", "needs_you"]
 
 
 class ApplicationStage(BaseModel):

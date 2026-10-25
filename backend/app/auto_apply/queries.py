@@ -164,17 +164,19 @@ async def fetch_application(
 
 
 async def fetch_next_application(
-    db: AsyncSession, applicant_id: uuid.UUID
+    db: AsyncSession, applicant_id: uuid.UUID, skip: Sequence[uuid.UUID] = ()
 ) -> Application | None:
     """The oldest queued application whose job posting is still open, or
     None when nothing is left to fill. A closed one is passed over: its page
-    is gone."""
+    is gone. So is each job in `skip`: batch apply's tabs already open."""
+    query = _applications(applicant_id).where(
+        Job_Application.stage == application_stage.queued, LISTED
+    )
+    if skip:
+        query = query.where(Job_Application.job_id.not_in(skip))
     row = (
         await db.execute(
-            _applications(applicant_id)
-            .where(Job_Application.stage == application_stage.queued, LISTED)
-            .order_by(Job_Application.created_at, Job_Application.job_id)
-            .limit(1)
+            query.order_by(Job_Application.created_at, Job_Application.job_id).limit(1)
         )
     ).first()
     return _to_application(row) if row else None
