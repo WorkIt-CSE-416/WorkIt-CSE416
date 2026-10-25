@@ -875,6 +875,13 @@ the overlay lists each as "needs_generation" (`lib-status.js`).
   engine like any other. The box's own `maxlength` goes with the question,
   capped at the route's 5000: Workable's cover letter takes 200000, and the
   route answered that with a 422.
+- **A letter for an upload goes up as a PDF.** An optional cover letter
+  upload is an essay under the student's `cover_letter: "always"` policy
+  (often brought from Apply). Its written words, Claude's or the essay
+  route's, are made a PDF (`letter-pdf.js`: Helvetica, wrapped, no
+  library) named for the student as their resume is
+  (`First_Last_Cover_Letter.pdf`) by `engine.js`'s `asUploads` before
+  `fill/page` fills it, so the row shows the file's name.
 - **Company name and job title come from the job system's API** (the Job
   Board API's `company_name` and `title`), not the page's title.
 - **The model call is `POST /applicants/{id}/essay-answer`**
