@@ -74,7 +74,8 @@ window.WIA = window.WIA || {};
     const text = document.createElement("div");
     const label = document.createElement("div");
     label.className = "label";
-    label.textContent = field.label + (field.required ? "" : " (optional)");
+    // A row keyed "_..." is the overlay's own message (content-script.js's note), not a field.
+    label.textContent = field.label + (field.required || field.key.startsWith("_") ? "" : " (optional)");
     text.appendChild(label);
     if ((field.status === "failed" || field.status === "skipped") && field.reason) {
       const reason = document.createElement("div");

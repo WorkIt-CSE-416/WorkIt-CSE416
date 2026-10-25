@@ -97,3 +97,18 @@ test("a one-line question the Plan leaves to a draft is the student's, not an es
   expect(rows.written).toEqual([{ name: "details", label: details.label, required: true }]);
   expect(rows.yours).toEqual([{ name: "nick", label: "Nick Name", required: false }]);
 });
+
+test("on a job system the engine doesn't cover, the overlay says so, not as an optional field", async ({ page }) => {
+  // SmartRecruiters (live, 2026-10-24): the overlay read "WorkIt can't fill this job system yet (optional)".
+  await page.route("https://jobs.example.com/**", (route) => route.fulfill({ contentType: "text/html", body: "<form><input name=first></form>" }));
+  await page.goto("https://jobs.example.com/apply/1");
+  await bridge(page, async () => { throw new Error("a job API was fetched"); });
+
+  await inject(page);
+  await settled(page);
+
+  const text = await page.evaluate(() => document.getElementById("workit-autofiller-overlay-host")!.shadowRoot!.querySelector(".list")!.textContent);
+  expect(text).toContain("WorkIt can't fill this job system yet");
+  expect(text).not.toContain("(optional)");
+  await expect(page.locator("input[name=first]")).toHaveValue("");
+});
