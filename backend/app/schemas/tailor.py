@@ -52,8 +52,7 @@ class TailorChange(BaseModel):
     - `show_skill`: show `skill_id`.
     - `order`: show `entry_id`'s bullets in the order `bullet_ids`.
 
-    `label` and `keywords` (the posting's keywords this change alone would
-    add to the match) are for display; Done ignores them.
+    `label` is for display; Done ignores it.
     """
 
     kind: Literal["reword", "show_skill", "order"]
@@ -64,7 +63,6 @@ class TailorChange(BaseModel):
     text: str | None = None
     original: str | None = None
     label: str | None = None
-    keywords: list[str] = []
 
 
 class TailorProposal(BaseModel):
@@ -72,8 +70,7 @@ class TailorProposal(BaseModel):
     an uploaded source that owned nothing wrote into the bank. `built_resume_id` or
     `uploaded_resume_id` is the source the run was given, for Done to send
     back. `matched`/`missing` is the source resume's keyword match ("12 of 18"); `questions` are the
-    missing keywords that are nowhere in the bank, to ask "Have you used
-    X?" about, never to write in. `weak_match`: the posting has no
+    missing keywords, to ask "Have you used X?" about, never to write in. `weak_match`: the posting has no
     description, so WorkIt read its title only. `dropped`: wordings the
     truth-rule check removed."""
 

@@ -338,11 +338,6 @@ def propose(
         best = sorted(shown, key=lambda b: -ranks.get(b, 0.0))
         if len(shown) > 1 and best != shown:
             changes.append(TailorChange(kind="order", entry_id=entry.row.id, bullet_ids=best, label=_label(entry.row)))
-
-    before = {k.keyword for k in match(bank, choices, keywords)[0]}
-    for change in changes:
-        after = match(bank, with_changes(bank, choices, [change]), keywords)[0]
-        change.keywords = [k.keyword for k in after if k.keyword not in before]
     return changes, dropped
 
 

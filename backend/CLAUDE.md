@@ -577,6 +577,11 @@ Find files with a directory listing; these are the rules for where code goes.
     owned the same name). A student whose other upload holds the skill is
     now asked, and Yes adds an unowned copy. The response keeps
     `questions` (equal to `missing`) for the screen.
+  - **A change carries no keywords** (2026-10-25). A run used to run the
+    keyword match once per change to label each card ("Adds Docker") and
+    to move the screen's "With What You Accept" count; both are gone, for
+    simplicity. The screen shows the starting resume's match until Done,
+    whose response is the saved resume's own match.
   - **The model sees handles (b1, e1), never ids**, and no links: an
     entry's link field is left out and the seam removes identity data.
     Postgres text search (`ts_rank`, the posting's words OR'd) ranks the
