@@ -130,7 +130,7 @@ async def read_filters(
     start_term: list[SeasonKey] = Query([], max_length=12),
     visa: Literal["sponsors"] | None = None,
     # All Filters' "Auto Apply Supported": only job postings auto apply can
-    # fill (Greenhouse for now, app/auto_apply/hosts.py).
+    # fill (every hiring system the Fill engine fills, app/auto_apply/hosts.py).
     auto_apply: bool = False,
     # /search's words, read by the role resolver (JobFilters.query_roles).
     q: str | None = Query(None, max_length=200),

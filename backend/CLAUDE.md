@@ -105,9 +105,10 @@ module docstring has the steps.
   and the test uploads to the real bucket. `tests/test_sent_resumes.py`'s
   `storage` fixture is the pattern: an in-memory bucket that records uploads
   and removals.
-- **An auto apply test seeds a Greenhouse `apply_url`** (`_seed_posting(database,
-  url)` in `tests/test_sent_resumes.py`): the queue refuses every other host
-  (`app/auto_apply/hosts.py`) with a 404. The Greenhouse-only rule broke six
+- **An auto apply test seeds a hiring system's `apply_url`** (Greenhouse in
+  most; `_seed_posting(database, url)` in `tests/test_sent_resumes.py`): the
+  queue refuses every host not in `app/auto_apply/hosts.py` with a 404. The
+  first host rule (Greenhouse only) broke six
   database tests that seeded `example.com`; they skip without the local
   container, so only CI caught it (2026-10-17). Run them with the container
   up before pushing a change to auto apply's queue.
@@ -204,7 +205,7 @@ Find files with a directory listing; these are the rules for where code goes.
   has open. A new stage value would be an `ALTER TYPE` and a coordinated
   deploy; add one only when a state must outlive its tab.
   Tests: `tests/test_batch_apply.py`. **Which job postings it takes is
-  one list, `app/auto_apply/hosts.py`** (Greenhouse for now): the matches
+  one list, `app/auto_apply/hosts.py`** (every hiring system the Fill engine fills, KAN-370): the matches
   and `queue_applications` require its SQL form (`AUTO_APPLY_SUPPORTED` in
   `queries/jobs/filters.py`) and `JobListing.auto_apply` its Python form,
   which the Jobs page reads to show the button. One pattern serves both, so

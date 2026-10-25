@@ -97,7 +97,7 @@ view as chips, or a search picker for the long lists, and no facet popups inside
 it (they landed left or right of their button by the room). Its last section,
 Auto Apply (the Zap glyph a job's Auto Apply button wears), has one chip,
 Auto Apply Supported: on, the feed shows only the job postings auto apply can
-fill, the ones with an Auto Apply button (Greenhouse for now, `?auto_apply=true`,
+fill, the ones with an Auto Apply button (every hiring system the Fill engine fills, `?auto_apply=true`,
 counted by GET /jobs/facets' `auto_apply`); off, every job posting. Like Visa,
 it is in All Filters only (asked for 2026-10-17). Its picks are a
 draft until "Show N Jobs", which counts the draft as it changes (GET /jobs/count
@@ -328,7 +328,7 @@ posting. /jobs and /search read the built resumes once beside the first
 page (`getTailoredJobIds`) and hand each card its answer, as for Auto
 Apply; signed out, every card reads Tailor My Resume. Auto Apply shows only on a job posting the
 API marks `auto_apply` (its hiring system is one auto apply fills:
-Greenhouse for now, `backend/app/auto_apply/hosts.py`); every other job
+every hiring system the Fill engine fills, `backend/app/auto_apply/hosts.py`); every other job
 posting has no Auto Apply at all. It sits between Ask Scout and Apply
 Now on the page and the card alike (`auto-apply/auto-apply-button.tsx`):
 Ask Scout's secondary design with the sidebar's Zap glyph. A click queues

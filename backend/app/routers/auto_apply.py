@@ -6,7 +6,7 @@ its result. The webapp, the extension and later an MCP server call these
 
 GET  /applicants/{id}/auto-apply/matches
      The best matches not yet queued or applied, best first, as ScoredJobs.
-     Only job postings auto apply fills (Greenhouse for now), as a batch.
+     Only job postings auto apply fills (every hiring system the Fill engine fills), as a batch.
      ?size= (default 10) and the Jobs page's own filters (?location=, ?visa=...).
      404 while the experience bank is empty.
 POST /applicants/{id}/auto-apply/batches  {"size": 10}
@@ -17,7 +17,7 @@ POST /applicants/{id}/applications  {"job_id": ...}
      A job's Auto Apply button: queues one job posting. Answers its stage;
      a job that already has an application keeps that stage. 404 for a job
      posting that isn't open or isn't on a hiring system auto apply fills
-     (app/auto_apply/hosts.py; Greenhouse for now).
+     (app/auto_apply/hosts.py: every hiring system the Fill engine fills).
 GET  /applicants/{id}/applications?stage=queued&stage=needs_you
      The applications, newest first (every stage without ?stage=), each
      with its job posting's listing and `open` (false once it closed).

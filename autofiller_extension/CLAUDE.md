@@ -216,13 +216,12 @@ Browser": `run/status` answers which job posting the run's tab shows
   title and favicon need `tabs`). Injecting the fill does: `activeTab`
   doesn't cover a tab the runner opened, so `host_permissions` lists each
   hiring system auto apply takes, the same hosts as
-  `backend/app/auto_apply/hosts.py` (Greenhouse only). A host added there
+  `backend/app/auto_apply/hosts.py` (all seven job systems the engine
+  fills, KAN-370). A host added there
   is added to `manifest.json` in the same change, or its fills answer
   `not_allowed`. After pulling a manifest change, reload the unpacked
-  extension in `chrome://extensions`. The manifest also lists the six
-  other job systems the extension fills (KAN-341), which auto apply
-  doesn't take yet: the background fetches their job APIs, and injects
-  Workday's fill again on its next page. An Eightfold board on a
+  extension in `chrome://extensions`. The background also fetches their
+  job APIs, and injects Workday's fill again on its next page. An Eightfold board on a
   company's own domain (Netflix's `explore.jobs.netflix.net`, the
   engine's `EIGHTFOLD_COMPANIES`) is listed by its host: without it, the
   job's names and text failed to fetch. `test/manifest.spec.ts` checks one
@@ -580,7 +579,7 @@ openness covers:
   (KAN-341).** Lever, Ashby, Rippling, Workable and Eightfold filled live
   forms through this fill path in a test browser, not the loaded
   extension; Workday was not filled live at all (it needs a signed-in
-  student). Auto apply still takes Greenhouse only (`hosts.py`).
+  student). Auto apply takes all seven since KAN-370 (`hosts.py`).
 - **One school, and no phone country.** The adapter gives the engine the
   latest education entry only, and WorkIt holds no place the student lives,
   so Greenhouse's Country picker beside Phone is left for the student.

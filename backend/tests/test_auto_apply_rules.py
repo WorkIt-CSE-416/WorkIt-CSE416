@@ -49,20 +49,32 @@ def test_size_zero_or_empty_input():
     "https://job-boards.eu.greenhouse.io/imc/jobs/1",
     "HTTPS://Boards.Greenhouse.IO/acme",
     "https://greenhouse.io/acme",
+    # Every other hiring system the Fill engine fills (KAN-370).
+    "https://jobs.lever.co/acme/1",
+    "https://jobs.ashbyhq.com/acme/1/application",
+    "https://ats.rippling.com/acme/jobs/1",
+    "https://apply.workable.com/acme/j/ABC123/",
+    "https://acme.eightfold.ai/careers?pid=1",
+    "https://explore.jobs.netflix.net/careers/job/1",
+    "https://acme.wd5.myworkdayjobs.com/en-US/Careers/job/Intern_R1",
+    "https://wd3.myworkdaysite.com/recruiting/acme/Careers/job/Intern_R1",
 ])
-def test_auto_apply_takes_greenhouse(url):
+def test_auto_apply_takes_every_hiring_system_the_fill_engine_fills(url):
     assert auto_apply_supported(url)
     assert ScoredJob.model_validate(job("1", url).model_dump()).auto_apply
 
 
 @pytest.mark.parametrize("url", [
-    "https://jobs.ashbyhq.com/acme/1/application",
-    "https://jobs.lever.co/acme/1",
+    # Job boards: their terms ban automation (KAN-369).
+    "https://www.linkedin.com/jobs/view/1",
+    "https://www.indeed.com/viewjob?jk=1",
+    "https://jobs.smartrecruiters.com/acme/1",
     # A company's own careers page that embeds Greenhouse: not its form.
     "https://stripe.com/jobs/search?gh_jid=8257892",
     "https://example.com/?next=https://boards.greenhouse.io/acme",
     "https://greenhouse.io.example.com/acme",
     "https://notgreenhouse.io/acme",
+    "https://notlever.co/acme",
 ])
 def test_auto_apply_leaves_out_other_hosts(url):
     assert not auto_apply_supported(url)

@@ -1,7 +1,9 @@
 """
 Which job postings auto apply takes: the hiring systems the extension can
-fill, read from the posting's apply_url host. Greenhouse only, for now
-(auto-apply/architecture.md, "The batch"). Add a host here and the
+fill, read from the posting's apply_url host: every hiring system the Fill
+engine fills (KAN-370; auto-apply/architecture.md, "The batch"), the same
+hosts as the extension's manifest.json. Never a job board (LinkedIn,
+Indeed), whose terms ban automation. Add a host here and the
 Jobs page's Auto Apply buttons, the matches, a batch and a single queueing
 all follow, since each reads this one rule.
 
@@ -11,7 +13,18 @@ can use it without a cycle.
 
 import re
 
-AUTO_APPLY_HOSTS = ("greenhouse.io",)
+AUTO_APPLY_HOSTS = (
+    "greenhouse.io",
+    "lever.co",
+    "ashbyhq.com",
+    "rippling.com",
+    "workable.com",
+    "eightfold.ai",
+    # Eightfold on a company's own domain (the engine's EIGHTFOLD_COMPANIES).
+    "explore.jobs.netflix.net",
+    "myworkdayjobs.com",
+    "myworkdaysite.com",
+)
 
 # The host is one of AUTO_APPLY_HOSTS or a subdomain of it
 # (job-boards.greenhouse.io, boards.eu.greenhouse.io). Only the host counts:
