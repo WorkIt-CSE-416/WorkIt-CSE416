@@ -32,9 +32,10 @@ import { cn } from "@/lib/cn";
  * when pinned or peeking. Opening for a peek sets its state to "expanded",
  * which on its own would widen the gap beside the panel and push the page,
  * so a peek holds that gap at the rail's width (data-peek below), and
- * anything sized by the pinned width reads `pinned` (useSidebarPin), never
- * shadcn's `state`: the company bar's corner cell (sidebar-brand.tsx) and
- * the seeker page's --panel-gain.
+ * anything sized by the pinned width reads `pinned`, never shadcn's `state`:
+ * in React through useSidebarPin (the company bar's corner cell,
+ * sidebar-brand.tsx), in CSS through data-pinned on the wrapper (the seeker
+ * page's --panel-gain).
  */
 
 /** shadcn's own cookie, which the layouts read as the pinned state. */
@@ -148,6 +149,12 @@ export function HoverSidebarProvider({
           setPinned((p) => !p);
         }}
         data-peek={!pinned && peeking}
+        // The pin itself, for CSS that is sized by the pinned width: the
+        // seeker page's --panel-gain readers key on it with an in-data-
+        // variant ((seeker)/layout.tsx, "A PAGE KEEPS THE WIDTH"). Written
+        // from the same state, in the same render, as shadcn's data-state,
+        // so the page's ease starts in the very frame the panel's does.
+        data-pinned={pinned ? "true" : "false"}
         // A peek's panel opens over the page: the gap beside it keeps the
         // rail's width, so the page stays where it is.
         className={cn(

@@ -101,9 +101,27 @@ import { SeekerSidebar } from "./seeker-sidebar";
  * still reflowing. --panel-gain is a registered <length> (globals.css) that
  * eases over the same 200ms linear as the panel's own width, so the page
  * holds its width through the whole animation and only glides to its new
- * centre; change one duration and change the other. Scout's panel is another
- * matter: open, it takes real room beside the page, and the page does fit
- * itself to what is left.
+ * centre; change one duration and change the other. It follows the pin
+ * (data-pinned, which components/hover-sidebar.tsx writes on the shell's
+ * wrapper), not shadcn's open state, so it is the collapsed gain whenever the
+ * panel is unpinned, peeking or not: a peek opens over the page and must not
+ * move it. Scout's panel is another matter: open, it takes real room beside
+ * the page, and the page does fit itself to what is left.
+ *
+ * EVERY READER OF --panel-gain CARRIES ITS OWN. The property does not inherit
+ * (globals.css says why), so each element that reads var(--panel-gain) sets
+ * and eases its own copy with the same classes the page's container below
+ * carries: `transition-[--panel-gain] duration-200 ease-linear` and the
+ * md:in-data-[pinned=false] value. Today that is the container, the
+ * Applications page's wrapper, and the job posting rail's frame and aside
+ * (jobs/jobs-rail.tsx); an element that reads it without them silently gets
+ * 0px. All of them flip in the frame the pin does and run the same 200ms
+ * linear, so they stay in step with each other and with the panel. They key
+ * on the pin with an in-data-* variant, which makes Chrome restyle only the
+ * elements that carry the class. Never key one on a group-* variant of the
+ * shell's wrapper: Tailwind compiles that to `:is(:where(.group) *)`, and
+ * the peek variant that used to live here made Chrome restyle the whole app
+ * (4,265 elements, against 245 without it) on every peek open and close.
  */
 
 export default async function AppLayout({
@@ -166,12 +184,10 @@ export default async function AppLayout({
         }
       />
 
-      {/* --panel-gain: what a collapse frees, eased in step with the panel's
-          own 200ms linear width (see "A PAGE KEEPS THE WIDTH" above). A
-          hover peek opens the panel over the page, so it keeps the collapsed
-          gain too: the page does not move while the panel is only peeking
-          (components/hover-sidebar.tsx). */}
-      <div className="flex min-w-0 flex-1 flex-col gap-2 p-2 transition-[--panel-gain] duration-200 ease-linear sm:gap-3 sm:p-3 md:pl-0 md:group-data-[peek=true]/sidebar-wrapper:[--panel-gain:calc(var(--sidebar-width)_-_var(--sidebar-width-icon))] md:peer-data-[state=collapsed]:[--panel-gain:calc(var(--sidebar-width)_-_var(--sidebar-width-icon))]">
+      {/* The bar and the page. It holds no --panel-gain: eased here, above
+          everything, it restyled the whole page on every frame of a pin
+          (see "EVERY READER OF --panel-gain CARRIES ITS OWN" above). */}
+      <div className="flex min-w-0 flex-1 flex-col gap-2 p-2 sm:gap-3 sm:p-3 md:pl-0">
         <header className="bg-panel border-rail-border shadow-panel rounded-shell flex h-16 shrink-0 items-center gap-3 border px-3 sm:gap-4 sm:px-4">
           <SidebarPinToggle className="text-ink-meta hover:text-ink hover:bg-app size-10 shrink-0 rounded-full [&_svg]:size-4" />
 
@@ -229,10 +245,11 @@ export default async function AppLayout({
             className="bg-panel border-rail-border shadow-panel rounded-shell min-h-0 min-w-0 flex-1 overflow-x-clip overflow-y-auto overscroll-contain border focus:outline-none"
           >
             {/* The page, as wide as the <main> is with the panel open (see "A
-                PAGE KEEPS THE WIDTH" above), and the container it breaks on. */}
+                PAGE KEEPS THE WIDTH" above), and the container it breaks on.
+                It is the first reader of --panel-gain and carries its own. */}
             <div
               data-scout-page
-              className="@container/main mx-auto flex w-[calc(100%_-_var(--panel-gain))] flex-1 flex-col"
+              className="@container/main mx-auto flex w-[calc(100%_-_var(--panel-gain))] flex-1 flex-col transition-[--panel-gain] duration-200 ease-linear md:in-data-[pinned=false]:[--panel-gain:calc(var(--sidebar-width)_-_var(--sidebar-width-icon))]"
             >
               {/* Outlives a single page so My Profile renders at once on a
                   return visit; see profile-cache.tsx for why it lives here.

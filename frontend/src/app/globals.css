@@ -723,10 +723,19 @@
 /* What collapsing the seeker panel frees, eased over the panel's own 200ms
  * linear (see (seeker)/layout.tsx, "A PAGE KEEPS THE WIDTH"). Registered as a
  * <length> so it can transition at all: an unregistered custom property
- * swaps at once, and the page would narrow for the length of the collapse. */
+ * swaps at once, and the page would narrow for the length of the collapse.
+ *
+ * NOT INHERITED, so every element that reads var(--panel-gain) sets it and
+ * eases it itself, and an element that reads it without doing so gets 0px.
+ * It used to inherit, eased once on the column above the bar and the page:
+ * every frame of a pin or unpin then changed the computed style of every
+ * element under it, and Chrome restyled the whole page about twelve times a
+ * glide (4,258 elements a frame on a 50-card Jobs page, 25-28ms frames, 125ms
+ * and more on a slower CPU). Set on its readers only, a toggle restyles a
+ * few dozen elements. */
 @property --panel-gain {
   syntax: "<length>";
-  inherits: true;
+  inherits: false;
   initial-value: 0px;
 }
 
