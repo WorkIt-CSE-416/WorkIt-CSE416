@@ -2,6 +2,8 @@
 // to load, then for its form to show. Both watch events, never
 // requestAnimationFrame, which a hidden tab does not run.
 
+import { ENGINE_FILES } from "../shared/content-scripts.js";
+
 const LOAD_TIMEOUT_MS = 30_000;
 
 /**
@@ -66,4 +68,27 @@ export function waitForLoad(tabId) {
     // A fast page may have loaded before the listener was added.
     chrome.tabs.get(tabId).then((tab) => tab.status === "complete" && done(resolve), () => {});
   });
+}
+
+/**
+ * Workable restores an unsent draft of its form from local storage as the
+ * form opens (an earlier fill's, or the student's own visit), and the
+ * engine fills only an empty form ("the form already has entries"): the
+ * engine forgets the draft (`forgetDrafts`), and the tab reloads, so the
+ * form opens empty. Resolves once the reloaded page has loaded.
+ * @param {number} tabId
+ */
+export async function forgetWorkableDraft(tabId) {
+  await chrome.scripting.executeScript({ target: { tabId }, world: "MAIN", files: ENGINE_FILES });
+  await chrome.scripting.executeScript({ target: { tabId }, world: "MAIN", func: () => globalThis.FillEngine.forgetDrafts("workable") });
+  const loaded = new Promise((resolve) => {
+    const onUpdated = (id, info) => {
+      if (id !== tabId || info.status !== "complete") return;
+      chrome.tabs.onUpdated.removeListener(onUpdated);
+      resolve();
+    };
+    chrome.tabs.onUpdated.addListener(onUpdated);
+  });
+  await chrome.tabs.reload(tabId);
+  await loaded;
 }
