@@ -129,6 +129,11 @@ _Avoid_: company research, company profile, company notes
 **Written answer**:
 A batch tab's answer to a question its form needs written, such as "Why this company?". The student's Claude saves it through the connector, and the open tab fills it.
 _Avoid_: essay (for the saved answer), AI answer, generated answer
+
+**Saved answer**:
+A written answer kept from one application and filled again on a later form that asks the same question, so the student's Claude is not asked twice. The student's own words come first; an answer about one company is reused only on that company's forms.
+_Avoid_: cached answer, template, answer bank (alone: the Fill engine's name for where saved answers come from)
+
 **Source**:
 Where a filled answer came from, shown beside it: Profile, Saved Answer, Claude (or AI, the essay route), You (the student's own answer or edit) or Guessed (WorkIt's default, or no fact of the student's). A guessed answer is highlighted for the student to check.
 _Avoid_: origin, provenance (in copy), confidence

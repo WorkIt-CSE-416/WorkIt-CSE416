@@ -569,6 +569,7 @@ on after the fill.
 | `fill/read` | content script → background | `{ site, questions, names }`; answers what each field shows |
 | `batch/questions` | content script → background | `{ questions: [{ name, label, required, max_length }] }`: the tab's questions that need writing, sent to the API for the student's Claude (KAN-377, 14.6); answers them with any saved answers |
 | `batch/answers` | content script → background | `{}`; answers the tab's questions with the answers saved so far |
+| `batch/own-answer` | content script → background | `{ name, label, answer }`: the student's own words in a written answer (KAN-379), kept as the application's answer and reused on later forms (`PUT .../answers`) |
 
 **The student's submit marks it applied (KAN-374).** Built. Replaces 8.2's
 **Submitted** button: the extension still never submits, but reads each
@@ -866,7 +867,9 @@ One row per question an application's form needs written, primary key
 `name` is the form field's name in the Fill engine's Question set, so the
 open tab knows where an answer goes; `label`, `required`, `max_length` (the
 form's own limit) and `position` (the form's order) come from the tab;
-`answer` and `answered_at` from the connector's save (14.6). A row per
+`answer` and `answered_at` from the connector's save (14.6), or from the
+student's own edit in the tab, which sets `own` (KAN-379): their Claude's
+save never overwrites it, and later forms reuse it first. A row per
 question, not JSONB on the application: the connector's "oldest application
 with a question left" is one SQL query, and saving one answer rewrites no
 other.
@@ -895,6 +898,8 @@ function. Every route checks that the caller owns the applicant, like
 | PUT | `/applicants/{id}/applications/{job_id}/fill` | `record_fill` | How a batch tab's fill left the form (KAN-370, 8.4): `{"state": "needs_you"}` moves it to `needs_you`, `{"state": "ready"}` back to `queued`. 404 with no application, 409 when not queued or needs_you. **Built** |
 | PUT | `/applicants/{id}/applications/{job_id}/questions` | `ask_questions` | The questions a batch tab's form needs written (KAN-377, 14.6), kept for the connector; a question asked again keeps its answer. 404 with no application, 409 when not queued or needs_you. **Built** |
 | GET | `/applicants/{id}/applications/{job_id}/questions` | `written_answers` | Those questions with the answers the student's Claude saved (`answer`, null until then); the open tab fills each new one. **Built** |
+| PUT | `/applicants/{id}/applications/{job_id}/answers` | `save_own_answer` | The student's own words for one written question in its tab (KAN-379, `{name, label, answer}`): replaces the application's answer and marks it `own`. 404 with no application. **Built** |
+| GET | `/applicants/{id}/applications/{job_id}/answer-bank` | `answer_bank` | The answers saved on the student's other applications this form may reuse, `{wording: {answer, own}}`: the Fill engine's Answer bank for its Plan (KAN-379; never one about another company, KAN-380). 404 with no application. **Built** |
 | POST | `/applicants/{id}/applications/{job_id}/finish` | `finish_application` | `{"outcome": "submitted" \| "skipped" \| "failed"}`; 409 when not queued or needs_you. **Built**; takes the autofill run's report once `autofill_runs` exists |
 | POST | `/applicants/{id}/applications/{job_id}/resume` | `prepare_resume` | Picks the resume and keeps it as a sent resume for the job posting. Answers the sent resume and a 5-minute link, or `null` with no resume. 404 with no application or a closed job posting, 409 when not queued or needs_you, 503 when the PDF cannot be made, 502 when Storage refuses the file. **Built** |
 
@@ -1101,8 +1106,17 @@ Tests: `tests/test_connector_chat.py`.
 KAN-380 adds the checks in code on save (above), with `max_length` read
 from the live form by the Fill engine's `limits`, and `answer_bank`, which
 offers an answer about one company (`checks.company_specific`) on that
-company's forms only; KAN-379 writing as soon as a job is queued and reusing saved
-answers. **WorkIt calls no model on this path**: no tool or route of the
+company's forms only. **Write early, reuse, keep edits (KAN-379):** when
+jobs are queued (the webapp's `run/open`), the extension's `writeEarly`
+(`batch.js`) reads each queued job's Question set from its form's link with
+the Fill engine (no tab; Workday and Eightfold wait for theirs), plans it
+with the job's answer bank (`GET .../answer-bank`) and sends what is left
+to write (`PUT .../questions`), so the student's Claude writes before the
+tab opens. Every batch tab plans with the same bank, so a question answered
+before (by their Claude, or by them) is filled as a Saved Answer and never
+reaches their Claude; an application with nothing left is never offered.
+The student's own words in a written answer (`PUT .../answers`) are kept
+as `own` and win on every later form. **WorkIt calls no model on this path**: no tool or route of the
 connector makes a `workit_scout` `LLM` (tested), and batch tabs never call
 the essay-answer route.
 
