@@ -30,4 +30,6 @@ Uploading a resume saves the file, reads its text into `resumes.raw_text`, parse
   of which uploads found each entry and skill. **ADR 0005 (2026-10-23)
   replaced the merge**: each upload owns its own entries, a new import
   replaces them, and deleting an upload deletes them.
+- ADR 0006 (2026-10-25, KAN-372) puts a parse preview before onboarding's
+  upload: the student sees the reading first, and the upload still saves it.
 - Scout, for an empty bank beside an upload, now says the upload could not be read and points at Import Again and Read It With AI, not at an import still waiting.

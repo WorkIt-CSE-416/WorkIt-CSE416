@@ -26,7 +26,10 @@ never changes another's, and an import runs no duplicate check.
 
 - **An upload owns what its reading found.** Every entry and skill an
   import writes carries the upload's id (`resume_id`). An import never
-  looks for the same entry under another resume and never merges.
+  looks for the same entry under another resume and never merges. One
+  exception (ADR 0006): an upload that confirms onboarding's parse preview
+  (`?replace=matching`) replaces the other uploads' entries and skills it
+  matches.
 - **Two uploads that list the same job hold two entries.** Each is edited
   on its own.
 - **An entry or skill no upload owns** (`resume_id` null) was made by
