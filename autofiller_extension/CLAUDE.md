@@ -105,9 +105,13 @@ builds it: `dist/engine.js` is committed in the engine repo.
   form's link and fills nothing; batch apply opens the form itself
   (`formUrl`).
 - **The profile adapter gives only what WorkIt holds.** Name, email,
-  phone, links, the default resume, the latest school and the jobs from the
+  phone, home, links, the default resume, the latest school and the jobs from the
   bank, and the nine autofill answers, in the words the engine's rules
-  read. Anything else (pay, relocation, a phone country, consent boxes,
+  read. The home is the profile's free-text location (KAN-372) as the
+  engine's `homePlace` reads it: a city with a US state ("Stony Brook, NY")
+  or a city, region and country; anything less certain is left out, so the
+  form's location questions and phone country stay the student's. Never
+  parse the location here. Anything else (pay, relocation, a home address, consent boxes,
   start dates) stays the student's: the Plan lists it as a Missing fact and
   the overlay says "WorkIt has no answer for this". `POLICIES` holds no
   student's choice; "How did you hear?" is WorkIt, or the form's "Job
@@ -309,8 +313,11 @@ and each tab's state (`jobs`), and `run/show` switches to one (`jobId`).
   required one with no row yet, and one the form requires only once
   another is answered, which no Question set marks required (Greenhouse's
   phone country once Phone shows a number: its submit answers "Select a
-  country", seen on Arc's form). Each becomes a failed, required row, so
-  the tab needs the student until it shows an answer.
+  country", seen on Arc's form), and a required field the Question set
+  lacks altogether, which only the page shows (Ashby, Eightfold: the
+  engine's `unaskedQuestions`). Each becomes a failed, required row named
+  by the field's label, so the tab needs the student until it shows an
+  answer; an unasked one joins the tab's questions, so edits read it back.
 - **A batch tab's essays come from the student's own Claude** (KAN-377;
   `auto-apply/architecture.md` 14.6). The essay route is never batch
   apply's. The tab sends the questions its Plan needs written

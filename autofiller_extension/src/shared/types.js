@@ -94,6 +94,8 @@
  * @property {string} full_name
  * @property {string | null} phone_number
  * @property {string | null} headline
+ * @property {string | null} location  Where the student lives, as they typed
+ *   it on the Profile step or My Profile ("Stony Brook, NY"; KAN-372).
  * @property {string | null} linkedin_url
  * @property {string | null} portfolio_url
  * @property {string | null} github_url

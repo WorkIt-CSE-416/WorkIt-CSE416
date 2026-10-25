@@ -101,6 +101,22 @@ async function rowsFor(job: string) {
   return planRows(prepared);
 }
 
+test("the profile's home answers the form's location and picks the phone's country", async () => {
+  // KAN-372's free-text location, as the student typed it; one the engine can't read leaves both to the student.
+  const job = readFileSync(join(FORMS, "greenhouse-purestorage", "questions.json"), "utf8");
+  const saved = new Map(loadHar("greenhouse-purestorage").log.entries.map((e: any) => [e.request.url, e.response.content.text ?? ""]));
+  const fetchText = async (url: string) => (url.startsWith("https://boards-api.greenhouse.io/") ? job : saved.get(url) ?? "");
+  const plan = async (location: string | null) => (await planFill({
+    url: "https://job-boards.greenhouse.io/purestorage/jobs/7210487", profile: { ...STUDENT, phone_number: "+44 20 7946 0958", location },
+    today: "2026-10-22", call: pagelessCall(), fetchText,
+  })).answers;
+
+  expect(await plan("Stony Brook, NY")).toMatchObject({ location: "Stony Brook, New York, United States", country: "United States" });
+  const unread = await plan("Long Island");
+  expect(unread.location).toBeUndefined();
+  expect(unread.country).toBeUndefined(); // a +44 number with no home on file: the student picks
+});
+
 test("an essay question waits for the student to ask for a written answer", async () => {
   const rows = await rowsFor(arcWithEssay("&lt;p&gt;Build boats.&lt;/p&gt;"));
 

@@ -499,12 +499,16 @@
    * Fails every field the form requires now that shows nothing, so a tab is
    * never Ready while the job system would refuse its submit: a required
    * field no row covers yet, and one the form requires only once another is
-   * answered (Greenhouse's phone country, once Phone shows a number). The
-   * engine reads the page; a row it names is made required.
+   * answered (Greenhouse's phone country, once Phone shows a number), and
+   * one the Question set lacks altogether (a required field only Ashby's or
+   * Eightfold's page shows), which joins `prepared.questions`, so the edits
+   * are read back for it too. The engine reads the page; a row it names is
+   * made required.
    */
   async function flagEmptyRequired(prepared) {
     const answer = await send({ type: "fill/required", site: prepared.site, questions: prepared.questions, state: prepared.state }).catch(() => null);
     if (!answer?.ok) return;
+    prepared.questions.push(...(answer.unasked ?? []));
     const rows = new Map(status.summary().fields.map((r) => [r.key, r]));
     const labels = new Map(prepared.questions.map((q) => [q.name, q.label]));
     for (const name of answer.empty) {
