@@ -767,11 +767,18 @@ the KAN-296 cutover.
   changes its words or side while it can be seen. One caption that
   swapped both glitched: the card's stage changes at the landing, and
   that caption had already faded back in with the old words, then
-  swapped them and jumped sides in view. The piles hold each stage's count (24, 12, 4, 1) from one
-  list, `LOGOS`, furthest first, so every logo that reaches a stop came
-  from the pile before and the last one is the followed application. A
-  logo going on waits on the pile before, exactly over its twin so it
-  cannot be seen, until that pile is reached, then flies on an arc; the
+  swapped them and jumped sides in view. The logos come from one list,
+  `LOGOS`, furthest first: the first `count` of each stage (24, 12, 4, 1)
+  reach it, so every logo that reaches a stop came from the pile before
+  and the last one is the followed application. **Each logo is drawn once
+  and moves** (`MovingTile`, KAN-368): as the card glides to a stop, the
+  logos going on fly there from the pile before on an arc, and the ones
+  that went no further close up behind them, so at the offer the piles
+  hold 12, 8, 3 and 1, each role in one place. A copy once flew on from
+  over its twin and left the twin behind, so every role that went on sat
+  in two piles, which the team read as duplicates. The stage chips keep
+  the totals that passed through (24 roles, 12 sent). The stops ahead show
+  dashed slots where their logos will land, gone once they have. The
   piles' places are plain arithmetic from the stops, nothing measured but
   the route's width. One violet runs the route; the stage colour shows
   only in the card's chip and ring: the team found the old four-colour
@@ -783,9 +790,10 @@ the KAN-296 cutover.
   lines at Saved it stood taller and its top dropped as it moved on. Its
   new words come in as the old ones finish going (`swap`'s delay):
   `popLayout` ran both at once, and two lines showed through each other.
-  Below lg the stops are a still list, each pile's first seven logos and a
-  "+N" (`STILL_PILE`; the full piles, 24 and 12 tiles, read as noise on a
-  phone), and the card at its offer.
+  Below lg the stops are a still list, each with the logos left there at
+  the route's end (`leftAt`), seven at most and a "+N" (`STILL_PILE`; the
+  full piles, 24 and 12 tiles, read as noise on a phone), and the card at
+  its offer.
   **Headings come into
   focus** through `FocusIn` (`focus-in.tsx`): an observer marks the
   wrapper and a CSS transition ends at the element's own `filter: none`.
