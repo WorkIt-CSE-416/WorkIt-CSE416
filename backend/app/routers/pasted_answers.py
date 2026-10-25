@@ -11,6 +11,11 @@ GET  /applicants/{id}/written-questions
      Every open application (queued or needs_you, its job posting open) with
      a question still unanswered, oldest first, as
      {"job_id", "company", "title", "questions": [WrittenAnswer]}.
+GET  /applicants/{id}/written-answers
+     Every application with a written question answered, at any stage,
+     newest first, as {"job_id", "company", "title", "questions":
+     [{"name", "label", "answer", "own", "named_fact"}]}: named_fact is the
+     company brief fact the answer uses, {"fact", "url"}, or null (KAN-369).
 PUT  /applicants/{id}/applications/{job_id}/written-answers
      {"answers": [{"name", "answer"}]}
      Saves the answers, all or none, after every check. Answers
@@ -36,7 +41,12 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from app.auto_apply import pipeline
 from app.db import get_session
 from app.deps import assert_applicant_owns, get_current_account
-from app.schemas.applications import PastedAnswers, PostingQuestions, SavedAnswers
+from app.schemas.applications import (
+    PastedAnswers,
+    PostingAnswers,
+    PostingQuestions,
+    SavedAnswers,
+)
 from app.schemas.auth import AuthenticatedAccount
 
 router = APIRouter(prefix="/applicants/{applicant_id}", tags=["auto-apply"])
@@ -51,6 +61,17 @@ async def unanswered_questions(
     """Every unanswered question of the open applications, by job posting."""
     assert_applicant_owns(account, applicant_id)
     return await pipeline.unanswered_questions(db, applicant_id)
+
+
+@router.get("/written-answers", response_model=list[PostingAnswers])
+async def answered_questions(
+    applicant_id: uuid.UUID,
+    account: AuthenticatedAccount = Depends(get_current_account),
+    db: AsyncSession = Depends(get_session),
+) -> list[PostingAnswers]:
+    """Every answered written question, by job posting, with its named fact."""
+    assert_applicant_owns(account, applicant_id)
+    return await pipeline.answered_questions(db, applicant_id)
 
 
 @router.put("/applications/{job_id}/written-answers", response_model=SavedAnswers)

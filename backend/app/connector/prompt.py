@@ -49,16 +49,21 @@ that team (its products, what it shipped this year, its engineering \
 posts) and save with scope team, its job_id and the team. Call \
 get_research_task again while it names the same job_id. Then call \
 get_next_application, passing the chat value its last \
-call in this chat gave (none the first time). If start_new_chat is true, \
+call in this chat gave (none the first time). If research_first names a \
+company, its brief comes first: start 1 again. If start_new_chat is true, \
 show me its message and stop. If its job_id is null, every question is \
 answered: tell me, and stop. If style_card_needed is true, build my \
 style card first (My voice, below).
 2. Write all of that application's answers by the four steps below: draft, \
 review, check, edit. Do the steps in your head and don't show me drafts.
 3. Call save_answers with that job_id and the edited answers, each under \
-its question's name. If it refuses one, fix what it says and save again.
+its question's name. With an answer that uses a company_brief fact, pass \
+that fact's sentence as its named_fact. If it refuses one, fix what it says \
+and save again.
 4. Tell me in one line which company you wrote for, and name any question \
-you left out and the fact it needs from me. Then go back to 1.
+you left out and the fact it needs from me. If save_answers named any \
+answers in read_first, name those questions too, for me to read before I \
+submit. Then go back to 1.
 
 My voice
 - When get_next_application gives a style_card, write every answer the \

@@ -1,7 +1,7 @@
 """team briefs: a brief per team a posting names, and each posting's team (KAN-369)
 
 Revision ID: d2f4a6c8e013
-Revises: a8c4e2f6b310
+Revises: d1f3b5a7c962
 Create Date: 2026-10-25 21:00:00.000000
 
 company_briefs gains `team` (the team's folded name, '' for the company's
@@ -18,7 +18,7 @@ import sqlalchemy as sa
 
 # revision identifiers, used by Alembic.
 revision: str = 'd2f4a6c8e013'
-down_revision: Union[str, Sequence[str], None] = 'a8c4e2f6b310'
+down_revision: Union[str, Sequence[str], None] = 'd1f3b5a7c962'
 branch_labels: Union[str, Sequence[str], None] = None
 depends_on: Union[str, Sequence[str], None] = None
 

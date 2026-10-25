@@ -17,6 +17,7 @@ from app.main import app
 from app.services.page_fetch import Unreadable
 from tests.test_built_resumes import _seed_applicant
 from tests.test_connector import (
+    SIZE,
     WHY,
     _another_students_application,
     _describe,
@@ -25,7 +26,7 @@ from tests.test_connector import (
     claude,
 )
 
-pytestmark = pytest.mark.anyio
+pytestmark = [pytest.mark.anyio, pytest.mark.research_gate]
 
 TODAY = datetime.datetime.now(datetime.UTC).date()
 RECENT = (TODAY - datetime.timedelta(days=40)).strftime("%Y-%m")
@@ -232,10 +233,36 @@ async def test_a_brief_below_the_minimum_is_not_saved(running, applicant, databa
         task = (await client.call_tool("get_research_task", {})).structured_content
 
     assert saved["saved"] is False
+    # Held back, so the application is given without a brief.
+    assert after.structured_content["job_id"] is not None
     assert after.structured_content["company_brief"] == []
     # Still missing, but held back a while: Claude saves again from the
     # reasons it was given, and the next student's Claude isn't sent at once.
     assert task["scope"] != "company"
+
+
+async def test_an_applications_essays_wait_for_its_companys_brief(running, applicant, database, web):
+    _, job = await _queued(database, applicant)
+
+    async with claude(applicant) as client:
+        first = (await client.call_tool("get_next_application", {})).structured_content
+        await client.call_tool("save_company_brief", {"company": "Acme", "facts": [ROCKET, ENGINES, LANDER, TEAM]})
+        then = (await client.call_tool("get_next_application", {"chat": first["chat"]})).structured_content
+
+    assert (first["job_id"], first["research_first"], first["questions"]) == (None, "Acme", [])
+    assert then["job_id"] == job
+    assert len(then["company_brief"]) == 4
+
+
+async def test_choice_questions_go_out_before_the_brief(running, applicant, database, web):
+    me, (job,) = await _student_queues(database, applicant, 1)
+    await _describe(database, job, "Acme builds rockets.")
+    await _tab_asks(me, job, SIZE)
+
+    async with claude(applicant) as client:
+        got = (await client.call_tool("get_next_application", {})).structured_content
+
+    assert (got["job_id"], got["research_first"]) == (job, None)
 
 
 async def test_a_lower_scoring_rebuild_never_replaces_a_higher_one(running, applicant, database, web):

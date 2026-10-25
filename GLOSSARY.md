@@ -130,6 +130,10 @@ _Avoid_: company research, company profile, company notes
 A batch tab's answer to a question its form needs written, such as "Why this company?", or to a one-off choice no rule or saved answer fills, such as "Which teams interest you?", which comes with its options and takes only them. The student's Claude saves it through the connector, and the open tab fills it.
 _Avoid_: essay (for the saved answer), AI answer, generated answer
 
+**Named fact**:
+The company brief fact a written answer uses, which the student's Claude names when it saves the answer and WorkIt confirms is one of the brief's facts. The Written Answers page shows it with the answer, linked to its page, so the student can read up on it before an interview.
+_Avoid_: source, citation, highlight
+
 **Saved answer**:
 A written answer kept from one application and filled again on a later form that asks the same question, so the student's Claude is not asked twice. The student's own words come first; an answer about one company is reused only on that company's forms.
 _Avoid_: cached answer, template, answer bank (alone: the Fill engine's name for where saved answers come from)

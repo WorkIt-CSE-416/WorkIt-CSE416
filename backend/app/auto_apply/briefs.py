@@ -312,6 +312,17 @@ async def brief_for(db: AsyncSession, company: str | None, job_id: uuid.UUID | N
             for row in rows if row is not None and row.saved_at is not None for f in row.facts]
 
 
+async def needs_research(db: AsyncSession, company: str | None) -> bool:
+    """Whether `company`'s brief must be researched before its essays are
+    written: it has none, or only one over FRESH_DAYS old, and it isn't
+    held back (RETRY_DAYS after a failed save). A weak brief is still
+    written from: it was the best one found."""
+    key = company_key(company or "")
+    if not key:
+        return False
+    return _reason(await _row(db, key), await db.scalar(select(func.now()))) in ("missing", "stale")
+
+
 @dataclasses.dataclass(frozen=True)
 class Task:
     company: str
