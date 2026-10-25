@@ -100,13 +100,15 @@ export function engineCaller(run) {
  * student's choice made for them: pay, defense roles, consent boxes and
  * cover letters stay the student's to answer. "How did you hear about this
  * job?" is WorkIt (a free-text box) or the form's own "Job Board" (a list),
- * as the extension answered it before the engine.
+ * as the extension answered it before the engine. WorkIt lists US roles
+ * only, so a question about working abroad is No (us_roles_only).
  */
 export const POLICIES = {
   how_heard: { prefer: ["job board", "other"], text: "WorkIt" },
   marketing_opt_in: false,
   sms_opt_in: false,
   high_stakes_job_systems: [],
+  us_roles_only: true,
 };
 
 // The words a form reads, for each of the autofill answers' option keys
@@ -387,12 +389,14 @@ function selfIdAsked(questions, profile, plan, planFor) {
  * The engine's Plan for a job's questions, with the job's names and text
  * read for it. `bank`: the saved answers this job's form may reuse
  * (GET .../applications/{job}/answer-bank, KAN-379), the engine's Answer bank, which fills a question answered
- * before, and says where it may be reused.
+ * before, and says where it may be reused; or a function of the page's company that answers them (a form
+ * outside a batch, GET .../answer-bank?company=).
  */
 async function planQuestions({ job, url, questions, profile, bank, today, fetchText }) {
   const names = await optional(() => engine.jobNames(url, fetchText), { company: "", title: "" });
   const text = engine.textOf(await optional(() => engine.jobDescription(url, fetchText), ""));
   const posting = { id: String(job.job ?? job.shortcode ?? job.pid ?? url), ...names, url };
+  if (typeof bank === "function") bank = questions.length ? await bank(names.company) : {};
   // `planFor`: the same Plan for another profile (the self-identification's probe, KAN-387).
   const planFor = (someone) => engine.plan(questions, engineProfile(someone), enginePolicies(someone), bank ?? {}, { posting, today, postingText: text, employerText: text });
   const plan = questions.length

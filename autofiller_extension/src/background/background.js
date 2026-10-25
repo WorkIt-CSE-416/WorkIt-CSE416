@@ -8,7 +8,7 @@
 
 import { getSession } from "./auth.js";
 import {
-  answerBank, getAutofillProfile, generateEssayAnswer, ApiError, askQuestions, connectorAdded, me, saveAutofillAnswers, saveOwnAnswer,
+  answerBank, anyFormAnswerBank, getAutofillProfile, generateEssayAnswer, ApiError, askQuestions, connectorAdded, me, saveAutofillAnswers, saveOwnAnswer,
   writingSamples, writtenAnswers,
 } from "./api.js";
 import {
@@ -19,6 +19,7 @@ import { engineCaller, handleFill, jobOf, practiceJob, runEngine, submittedPage 
 import { claimMoment } from "./moments.js";
 import { nextNeedsYou } from "./next-needs-you.js";
 import { SELF_ID, checkedSelfId, unansweredSelfId } from "./self-id.js";
+import { forgetSubmits, submitHinted, watchSubmitRequests } from "./submit-proof.js";
 import { injectFill } from "../shared/content-scripts.js";
 import { workdayLogin } from "./workday-logins.js";
 import { writeEarly } from "./write-early.js";
@@ -97,10 +98,13 @@ async function handleMessage(message, sender) {
     case "fill/required": {
       const profile = await getAutofillProfile();
       if (message.type === "fill/plan" && jobOf(sender.url)?.site === "workday") await rememberWorkdayTab(sender.tab.id);
-      // A batch tab plans with the answers its application may reuse (KAN-379), read fresh for each Plan:
-      // one saved a moment ago in another tab counts. Any other page has no application, so no bank.
+      // A Plan uses the answers the student saved (KAN-379), read fresh for each Plan: one saved a
+      // moment ago in another tab counts. A batch tab's are its application's; any other page has no
+      // application, so it gets the bank for the page's company, once the engine has read it.
       const jobId = message.type === "fill/plan" ? await jobInTab(sender.tab.id) : null;
-      const bank = jobId ? await answerBank(profile.id, jobId).catch(() => ({})) : {};
+      const bank = message.type !== "fill/plan" ? {}
+        : jobId ? await answerBank(profile.id, jobId).catch(() => ({}))
+        : (company) => anyFormAnswerBank(profile.id, company).catch(() => ({}));
       return handleFill(message, {
         url: sender.url, profile, bank, today: today(), call: engineIn(sender), fetchText, trees: workdayTrees,
       });
@@ -175,9 +179,9 @@ async function handleMessage(message, sender) {
     // A batch tab's page watches for the student's own submit (KAN-374):
     // the engine, in the page, reads the job system's answer to it and its
     // notices, and tells the content script, which says "batch/submitted"
-    // when the application was sent. The event is named with the content
-    // script's own key, so a page script can't send it. The extension never
-    // submits.
+    // when the application was sent. That is only a hint: the application is
+    // marked applied once this worker saw the job system take the submit
+    // request too (submit-proof.js). The extension never submits.
     case "batch/watch": {
       const job = jobOf(sender.url);
       // A practice form's submit is its thanks page's (submitPractice below), never an application's.
@@ -187,7 +191,7 @@ async function handleMessage(message, sender) {
     }
 
     case "batch/submitted":
-      return markSubmitted(sender.tab.id);
+      return { applied: await submitHinted(sender.tab.id, markSubmitted) };
 
     // The first form that asks the self-identification (KAN-387): the tab
     // whose Plan found it asks whether to ask the student (once, in one
@@ -262,13 +266,17 @@ async function rememberWorkdayTab(tabId) {
   if (!tabs.includes(tabId)) await chrome.storage.session.set({ [WORKDAY_TABS_KEY]: [...tabs, tabId] });
 }
 
+// The job system's answer to a batch tab's submit request (submit-proof.js)
+// is what marks its application applied.
+watchSubmitRequests(markSubmitted);
+
 // A batch tab that moves to a job system's page for a sent application
-// (Greenhouse's confirmation, Lever's thanks) was submitted by the student.
-// Lever's form is a plain HTML post, so this is its only signal. Host
+// (Greenhouse's confirmation, Lever's thanks): a hint, paired with Lever's
+// form post (a plain HTML post, whose answer only redirects). Host
 // permissions show the tab's link, with no `tabs` permission.
 chrome.tabs.onUpdated.addListener((tabId, change) => {
   if (!change.url || !submittedPage(change.url)) return;
-  markSubmitted(tabId).catch((error) => console.warn("[batch] the application wasn't marked applied:", error.message));
+  submitHinted(tabId, markSubmitted).catch((error) => console.warn("[batch] the application wasn't marked applied:", error.message));
 });
 
 chrome.tabs.onUpdated.addListener(async (tabId, change, tab) => {
@@ -294,6 +302,7 @@ chrome.tabs.onUpdated.addListener((tabId, change) => {
 });
 
 chrome.tabs.onRemoved.addListener(async (tabId, removeInfo) => {
+  forgetSubmits(tabId);
   await forgetTab(tabId, removeInfo);
   const tabs = await workdayTabs();
   if (tabs.includes(tabId)) await chrome.storage.session.set({ [WORKDAY_TABS_KEY]: tabs.filter((id) => id !== tabId) });

@@ -285,7 +285,7 @@ async def _named_facts(db: AsyncSession, job_id: uuid.UUID, named: dict[str, str
 
 
 async def _check_material(
-    db: AsyncSession, applicant_id: uuid.UUID, job_id: uuid.UUID
+    db: AsyncSession, applicant_id: uuid.UUID, job_id: uuid.UUID | None, company: str | None = None,
 ) -> tuple[tuple[str, ...], tuple[str, ...], tuple[str, ...]]:
     """What an application's answers are checked against (checks.Context):
     the texts their facts may come from (the student's bank, the posting,
@@ -294,8 +294,11 @@ async def _check_material(
     places the student worked or studied don't name, and the student's
     writing samples. A company named only in a skill or a bullet is still
     another application's: a tool called "Notion" is no reason to name
-    Notion the employer on another company's form."""
-    company, title, posting = await fetch_posting_text(db, job_id)
+    Notion the employer on another company's form. With no job (a form
+    filled outside a batch), the form is one at `company`, with no posting."""
+    title = posting = None
+    if job_id is not None:
+        company, title, posting = await fetch_posting_text(db, job_id)
     bank = await load_bank(db, applicant_id)
     sources = (*bank_sources(bank), company or "", title or "", posting or "")
     theirs = (*places(bank), company or "", title or "", posting or "")
@@ -361,39 +364,54 @@ async def writing_samples(db: AsyncSession, applicant_id: uuid.UUID) -> list[str
     return list(await writing.sample_texts(db, applicant_id))
 
 
-async def answer_bank(db: AsyncSession, applicant_id: uuid.UUID, job_id: uuid.UUID) -> dict[str, SavedAnswer]:
+async def answer_bank(
+    db: AsyncSession, applicant_id: uuid.UUID, job_id: uuid.UUID | None = None, company: str | None = None,
+) -> dict[str, SavedAnswer]:
     """
-    The answers the student has saved on other applications that may be
-    offered on this one's form, by question wording: for each wording the
-    student's own (KAN-379), else the newest. A wording counts once in any
-    case or spacing, as the Fill engine matches it. An answer about one
-    company (checks.company_specific) is offered only on that company's
-    forms, never on another's (KAN-380), and one of their Claude's only if
-    it passes this application's checks (checks.py: its posting's numbers,
-    the student's other applications' companies; not the copy check, which
-    its save ran, so a sample the student pasted is offered); the form's own length
-    limit is the Fill engine's to check, on the page. The extension gives it to the
-    engine's Plan as its Answer bank (`own`: the student's words), so a
-    question answered before is filled without the student's Claude.
-    Raises NotFound with no application for the job.
+    The answers the student has saved (on other applications, and brought
+    from Apply) that may be offered on a form, by question wording: for each
+    wording the student's own (KAN-379), else the newest. A wording counts
+    once in any case or spacing, as the Fill engine matches it. The form is
+    the application for `job_id`'s, or, with no job (a form filled outside a
+    batch), one at `company` (the page's, when the extension read it). An
+    answer about one company (checks.company_specific) is offered only on
+    that company's forms, never on another's or on one whose company isn't
+    known (KAN-380). No answer naming a company of the student's other
+    applications is offered. One of their Claude's must also pass the rest
+    of checks.py (the posting's numbers among them; not the copy check,
+    which its save ran, so a sample the student pasted is offered); the
+    student's own words skip the checks meant for Claude's text (they are
+    their words, as the paste skips the copy check). The form's own length
+    limit is the Fill engine's to check, on the page, for every answer. The
+    extension gives it to the engine's Plan as its Answer bank (`own`: the
+    student's words), so a question answered before is filled without the
+    student's Claude. Raises NotFound with a job and no application for it.
     """
-    if await fetch_stage(db, applicant_id, job_id) is None:
-        raise NotFound("No application for that job.")
-    company, _, _ = await fetch_posting_text(db, job_id)
+    if job_id is not None:
+        if await fetch_stage(db, applicant_id, job_id) is None:
+            raise NotFound("No application for that job.")
+        company, _, _ = await fetch_posting_text(db, job_id)
+        sources, employers, _ = await _check_material(db, applicant_id, job_id)
+    else:
+        sources, employers, _ = await _check_material(db, applicant_id, None, company)
     same = (company or "").strip().casefold()
-    sources, employers, _ = await _check_material(db, applicant_id, job_id)
     bank: dict[str, SavedAnswer] = {}
     seen: set[str] = set()
     written = await fetch_saved_answers(db, applicant_id, exclude=job_id)
-    # Their own words on applications first, then the answers they brought
-    # (`fill_answers`, all their own), then their Claude's.
+    # Their own words on applications first, then their own words brought
+    # from Apply (`fill_answers`), then their Claude's: on applications, then brought.
+    brought = await fetch_brought_answers(db, applicant_id)
     saved_answers = [
-        *(s for s in written if s.own), *await fetch_brought_answers(db, applicant_id), *(s for s in written if not s.own),
+        *(s for s in written if s.own), *(s for s in brought if s.own),
+        *(s for s in written if not s.own), *(s for s in brought if not s.own),
     ]
     for saved in saved_answers:
         theirs = (saved.company or "").strip().casefold()
         said = "; ".join(saved.answer) if isinstance(saved.answer, list) else saved.answer
         if checks.company_specific(saved.question, said, saved.company) and not (same and theirs == same):
+            continue
+        # Every answer keeps the other-employer rule; only their Claude's take the checks meant for its text.
+        if not saved.choice and any(checks.names(said, name) for name in employers):
             continue
         if not saved.own and not saved.choice and checks.problems(saved.answer, checks.Context(
             sources=(*sources, saved.question), employers=employers, question=saved.question,

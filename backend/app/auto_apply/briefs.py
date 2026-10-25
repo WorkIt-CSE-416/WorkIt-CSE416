@@ -40,7 +40,7 @@ import datetime
 import re
 import unicodedata
 import uuid
-from collections.abc import Iterable
+from collections.abc import Collection, Iterable
 
 from sqlalchemy import func, select
 from sqlalchemy.dialects.postgresql import insert
@@ -361,13 +361,19 @@ async def _known_teams(db: AsyncSession, key: str) -> list[str]:
     return [row.facts[0]["team"] for row in rows if row.facts and row.facts[0].get("team")]
 
 
-async def research_task(db: AsyncSession, applicant_id: uuid.UUID) -> Task | None:
+async def research_task(
+    db: AsyncSession, applicant_id: uuid.UUID, skip: Collection[uuid.UUID] = ()
+) -> Task | None:
     """The student's first application, oldest first, whose company brief
     is missing, stale or weak, whose posting's team isn't named yet, or
-    whose team's brief is missing or stale; None when none is."""
+    whose team's brief is missing or stale; None when none is. The one
+    get_next_application holds (the oldest not in `skip`, the jobs the chat
+    was given) comes first, so its research_first is the task."""
     now = await db.scalar(select(func.now()))
     seen: set[str] = set()
-    for applying in await _applying(db, applicant_id):
+    applications = await _applying(db, applicant_id)
+    held = next((a for a in applications if a.job_id not in skip), None)
+    for applying in sorted(applications, key=lambda a: a is not held):
         key = company_key(applying.company)
         row = await _row(db, key)
         facts = row.facts if row is not None and row.saved_at else []
