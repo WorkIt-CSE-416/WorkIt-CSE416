@@ -194,7 +194,7 @@ Names are not final.
 |---|---|---|
 | 1 | `fetch_recommended(db, account, filters, min_match, limit)` | Scores and ranks job postings. **Built** |
 | 1, pure | `pick_batch(scored, size)` | Drops repeats of one company and title; takes the first `size`. **Built** |
-| 1, pure | `auto_apply_supported(apply_url)` (`hosts.py`) | Whether the host is a hiring system auto apply fills: every hiring system the Fill engine fills (KAN-370), never a job board. `AUTO_APPLY_SUPPORTED` in `queries/jobs/filters.py` is the same rule in SQL, required by the matches and `queue_applications`. **Built** |
+| 1, pure | `auto_apply_supported(apply_url)` (`hosts.py`) | Whether the host is a hiring system auto apply fills: every hiring system the Fill engine fills (KAN-370), never a job board. `FORM_URL` in `queries/jobs/filters.py` is the form auto apply opens: the apply_url on such a host, or the employer's form a job board's posting names (KAN-376). `AUTO_APPLY_SUPPORTED` (a form exists) is required by the matches and `queue_applications`. **Built** |
 | 1 | `queue_applications(db, applicant_id, job_ids)` | Saves the open ones with no application yet as `queued`; answers which. **Built** |
 | 1 | `fetch_stage(db, applicant_id, job_id)` | The application's stage, or `None`. **Built** |
 | 1 | `fetch_applications(db, applicant_id, stages)` | The applications, newest first, each with its job posting's listing and `open`. **Built** |
@@ -322,6 +322,14 @@ One click of **Start Auto Apply** queues a batch of 10 job postings.
    works. This reverses an earlier choice to queue every hiring system and
    let unfillable ones fail to `needs_you`: a student saw a Workday or
    Ashby job queued that the run could only fail.
+   **Job boards** (KAN-376): a job posting on LinkedIn, Indeed or another
+   job board (`JOB_BOARDS` in `hosts.py`) is never opened, since their
+   terms ban automated applications. When its text names the employer's
+   own form on a hiring system the extension fills, that form is the job's
+   `form_url` (`FORM_URL` in `queries/jobs/filters.py`) and the job is
+   queued; the extension opens `form_url`, never the job board. Otherwise
+   queueing it is a 404 whose detail says why. A company's own careers
+   page is never followed through its text.
 
 Why 10: the student checks each form before Submit, so 10 applications take
 about 10 to 30 minutes. A small batch also limits the harm of a bad fill.

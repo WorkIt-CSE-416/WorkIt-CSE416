@@ -39,7 +39,7 @@ export const STUDENT = {
   fetched_at: 0,
 };
 
-export type Row = { key: string; label: string; required: boolean; status: string; reason?: string; shows?: string | string[] };
+export type Row = { key: string; label: string; required: boolean; status: string; reason?: string; shows?: string | string[]; source?: string };
 type Fetch = (url: string, init?: { method: string; body: string }) => Promise<string>;
 
 /** Answers the page's chrome.runtime.sendMessage with the background's fill handler, for every page `page` shows. */

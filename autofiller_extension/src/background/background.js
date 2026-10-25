@@ -8,8 +8,8 @@
 
 import { getSession } from "./auth.js";
 import { getAutofillProfile, generateEssayAnswer, ApiError } from "./api.js";
-import { batchStatus, forgetTab, inBatch, markSubmitted, setTabState, showBatchTab, startBatch } from "./batch.js";
-import { engineCaller, handleFill, jobOf, runEngine, submittedPage } from "./engine.js";
+import { batchStatus, forgetTab, inBatch, markSubmitted, nextNeedsYou, practiceStatus, setTabState, showBatchTab, startBatch, startPractice, submitPractice } from "./batch.js";
+import { engineCaller, handleFill, jobOf, practiceJob, runEngine, submittedPage } from "./engine.js";
 import { injectFill } from "../shared/content-scripts.js";
 
 /**
@@ -96,12 +96,18 @@ async function handleMessage(message, sender) {
       return setTabState(sender.tab.id, message.state);
     }
 
+    // A batch tab's "Next Thing That Needs You" (content-script.js): batch.js goes to it, across the tabs.
+    case "batch/next":
+      return nextNeedsYou();
+
     // A batch tab's page watches for the student's own submit (KAN-374):
     // the engine, in the page, reads the job system's answer to it and its
     // notices, and tells the content script, which says "batch/submitted"
     // when the application was sent. The extension never submits.
     case "batch/watch": {
-      const site = jobOf(sender.url)?.site;
+      const job = jobOf(sender.url);
+      // A practice form's submit is its thanks page's (submitPractice below), never an application's.
+      const site = job && !job.practice ? job.site : null;
       if (site && (await inBatch(sender.tab.id))) await engineIn(sender)("watchSubmit", site);
       return { watching: Boolean(site) };
     }
@@ -149,6 +155,15 @@ chrome.tabs.onUpdated.addListener(async (tabId, change, tab) => {
   injectFill(tabId, { batch: await inBatch(tabId) }).catch((error) => console.warn("[fill] Workday's next page wasn't filled:", error));
 });
 
+// A practice form's Submit opens its /thanks page and sends nothing
+// (frontend/src/lib/practice-form.ts): reaching it is the practice job's
+// submit. `url` is given for WorkIt's own pages, which are in host_permissions.
+chrome.tabs.onUpdated.addListener((tabId, change) => {
+  if (change.url && practiceJob(change.url)?.page === "thanks") {
+    submitPractice(tabId).catch((error) => console.warn("[batch] the practice submit wasn't kept:", error));
+  }
+});
+
 chrome.tabs.onRemoved.addListener(async (tabId) => {
   await forgetTab(tabId);
   const tabs = await workdayTabs();
@@ -179,17 +194,30 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
 // from the API; it gets the sender only to open the tabs in the window that
 // asked. The other two only say which job postings the batch's tabs show,
 // and switch to one of them (`jobId` picks among the batch's own tabs only).
+// Onboarding's practice batch (KAN-378) takes links, but only to WorkIt's own
+// practice forms on the asking page's site (batch.js, `startPractice`).
 const RUNNER_MESSAGES = {
   "run/open": (message, sender) => startBatch(sender),
   "run/status": () => batchStatus(),
   "run/show": (message) => showBatchTab(message),
+  "practice/open": (message, sender) => startPractice(sender, message),
+  "practice/status": () => practiceStatus(),
 };
+
+/** Whether the student pinned the extension to the toolbar; null where Chrome can't say. */
+async function pinned() {
+  try {
+    return (await chrome.action.getUserSettings()).isOnToolbar;
+  } catch {
+    return null;
+  }
+}
 
 chrome.runtime.onMessageExternal.addListener((message, sender, sendResponse) => {
   if (message?.type === "ping") {
-    getSession()
-      .then((session) => sendResponse({ ok: true, installed: true, signedIn: Boolean(session) }))
-      .catch(() => sendResponse({ ok: true, installed: true, signedIn: false }));
+    // `pinned` for onboarding's install step (KAN-378), which asks the student to pin it.
+    Promise.all([getSession().catch(() => null), pinned()])
+      .then(([session, isPinned]) => sendResponse({ ok: true, installed: true, signedIn: Boolean(session), pinned: isPinned }));
     return true;
   }
 

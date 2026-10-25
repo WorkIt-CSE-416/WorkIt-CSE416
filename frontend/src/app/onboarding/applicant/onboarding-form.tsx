@@ -16,6 +16,8 @@ import { cn } from "@/lib/cn";
 import { updateProfile } from "@/lib/profile-actions";
 import { webLink } from "@/lib/profile-links";
 import { previewResume, uploadResume, type ResumePreview } from "@/lib/resume-actions";
+import { showRunTab, startPractice } from "@/lib/autofill-extension";
+import { PRACTICE_JOBS, practiceFormUrl } from "@/lib/practice-form";
 
 import { saveAutofillAnswers } from "@/lib/autofill-answers-actions";
 import {
@@ -28,6 +30,8 @@ import {
 import { savePreferences } from "./actions";
 import { ChoiceTile } from "./choice-tile";
 import { LinkFields, LINKS, LocationField, NO_CONTACT, type Contact } from "./contact-fields";
+import { ExtensionStep, useExtensionState } from "./extension-step";
+import { nextPracticeTab, practiceDone, PracticeStep, usePracticeStatus } from "./practice-step";
 import { ResumeStep } from "./resume-step";
 import { Field, fieldId, RoleStep } from "./role-step";
 import { SignedInAs } from "./signed-in-as";
@@ -35,7 +39,7 @@ import { ONBOARDING_STEPS } from "./steps";
 import { StoryPanel } from "./story-panel";
 
 /**
- * The applicant onboarding wizard (KAN-231): three short steps, each one's
+ * The applicant onboarding wizard (KAN-231): five short steps, each one's
  * question on the left (./story-panel) and the fields answering it on the
  * right, under the step rail (./steps.ts). Each new question takes focus, so
  * a screen reader hears it.
@@ -67,12 +71,24 @@ import { StoryPanel } from "./story-panel";
  * the visa filter question left onboarding (a saved one is kept, and the
  * Jobs page still sets it).
  *
- * FINISH saves step 3 to the answer bank and the profile, only what
+ * STEP 3'S NEXT saves it to the answer bank and the profile, only what
  * changed, then step 1 as the seeker's preferences, which marks onboarding
- * done, and opens the Jobs page in its Best Match order. Step 3 saves first
+ * done, before the extension's two steps: a seeker who leaves during them
+ * has a finished profile, and Skip on either opens the Jobs page. Step 3 saves first
  * because a finished seeker is never sent back here; a failed save leaves
  * this step to retry from, and saving again changes nothing. A link that is
  * no web address stops Finish before anything saves.
+ *
+ * STEPS 4 AND 5 ARE THE EXTENSION (KAN-378). Step 4 asks the seeker to add
+ * the WorkIt extension and pin it (./extension-step), and turns each line
+ * done as the page sees it, asking the extension every 1.5 seconds. Step 5
+ * runs a practice batch on WorkIt's own practice forms (lib/practice-form,
+ * ./practice-step): the extension fills them into the Ready and Needs you
+ * tab groups and the seeker submits each one, which sends nothing. Once
+ * both are submitted it says the seeker is ready, and Find Jobs opens the
+ * Jobs page in its Best Match order. A first real batch then fills the
+ * factual fields only: a batch tab leaves written answers to the seeker
+ * until Claude is added.
  *
  * `initial`, `initialAnswers` and `initialContact` are what the seeker saved, so a finished
  * seeker who comes back edits them rather than starting over.
@@ -101,10 +117,26 @@ const STEPS: { question: ReactNode; line: string }[] = [
   {
     question: (
       <>
-        Last, the questions <strong>every application asks</strong>.
+        Then, the questions <strong>every application asks</strong>.
       </>
     ),
     line: "All optional. Answer once, and I'll keep them ready for your applications.",
+  },
+  {
+    question: (
+      <>
+        Now, <strong>add the WorkIt extension</strong> to Chrome.
+      </>
+    ),
+    line: "It fills each form in its own tab. Pin it, so it's one click away.",
+  },
+  {
+    question: (
+      <>
+        Last, try a <strong>practice batch</strong> before a real one.
+      </>
+    ),
+    line: "These forms are WorkIt's own. Nothing you submit reaches an employer.",
   },
 ];
 
@@ -112,6 +144,8 @@ const STEPS: { question: ReactNode; line: string }[] = [
 const ROLE = 0;
 const RESUME = 1;
 const PROFILE = 2;
+const EXTENSION = 3;
+const PRACTICE = 4;
 
 export function OnboardingForm({
   roles,
@@ -167,14 +201,23 @@ export function OnboardingForm({
   const saving = busy != null;
   const [error, setError] = useState<string | null>(null);
 
+  const extension = useExtensionState(step === EXTENSION);
+  const practice = usePracticeStatus(step === PRACTICE);
+  const done = practiceDone(practice);
+  const practiceTab = nextPracticeTab(practice);
+
   const set = (change: Partial<FeedFilters>) => setAnswers((a) => ({ ...a, ...change }));
-  const last = step === PROFILE;
   // Step 1 asks the required answers; the resume step's Read Resume needs a
-  // file, and Skip is the way on without one.
+  // file, and Skip is the way on without one; the extension step needs the
+  // extension.
   const canNext =
     step === ROLE
       ? answers.roles.length > 0 && answers.jobTypes.length > 0 && answers.workStyles.length > 0
-      : step !== RESUME || resume != null || savedResume != null;
+      : step === RESUME
+        ? resume != null || savedResume != null
+        : step === EXTENSION
+          ? extension?.installed === true
+          : true;
 
   // EACH NEW QUESTION TAKES FOCUS, so a screen reader reads it out. Focus used
   // to stay on the footer's button, which only changed its label, and the new
@@ -261,9 +304,9 @@ export function OnboardingForm({
           ? "Read Resume"
           : "Next";
 
-  /** Saves the answer bank, then the preferences, which finish onboarding.
-   *  A failure leaves this page to retry from. */
-  async function finish() {
+  /** Saves the answer bank, then the preferences, which finish onboarding,
+   *  then goes on to the extension. A failure leaves this page to retry from. */
+  async function saveProfile() {
     // A link that is no web address is refused here, by the API's own rule
     // (lib/profile-links), before anything saves.
     const typed: Contact = {
@@ -308,11 +351,44 @@ export function OnboardingForm({
       // A picked state narrows its country, as All Filters' Apply does.
       const { error: saveError } = await savePreferences(statesNarrowCountries(answers));
       if (saveError) return fail(saveError);
-      router.push("/jobs");
+      setBusy(null);
+      goTo(EXTENSION);
     } catch {
       fail("Could not reach the server. Check your connection and try again.");
     }
   }
+
+  /** The practice step's main button: start the practice batch, show the
+   *  next tab while it runs, or open the Jobs page once it is done. */
+  async function practiceNext() {
+    if (done) return router.push("/jobs");
+    setError(null);
+    if (practiceTab) {
+      if (!(await showRunTab(practiceTab)))
+        setError("That tab was closed. Start the practice again.");
+      return;
+    }
+    const started = await startPractice(
+      PRACTICE_JOBS.map((job) => practiceFormUrl(window.location.origin, job)),
+    );
+    if (started.opened) return;
+    if (started.reason === "error") return setError(started.error);
+    setError(
+      started.reason === "not_installed"
+        ? "WorkIt can't find the extension. Go back a step and add it."
+        : started.reason === "signed_out"
+          ? "The extension can't see your WorkIt sign-in. Reload this page."
+          : "A batch is already open. Finish or close its tabs first.",
+    );
+  }
+
+  const practiceLabel = done
+    ? "Find Jobs"
+    : practiceTab
+      ? "Show Next Tab"
+      : Object.keys(practice).length
+        ? "Start Again"
+        : "Start Practice";
 
   function fail(message: string) {
     setBusy(null);
@@ -360,6 +436,8 @@ export function OnboardingForm({
               savedName={savedResume}
             />
           )}
+          {step === EXTENSION && <ExtensionStep state={extension} />}
+          {step === PRACTICE && <PracticeStep states={practice} />}
           {step === PROFILE && (
             <ProfileStep
               answers={profile}
@@ -398,6 +476,11 @@ export function OnboardingForm({
                   Choose Another File
                 </Button>
               )}
+              {(step === EXTENSION || (step === PRACTICE && !done)) && (
+                <Button variant="outline" size="lg" onClick={() => router.push("/jobs")}>
+                  {step === EXTENSION ? "Skip" : "Skip Practice"}
+                </Button>
+              )}
               {step === RESUME && !preview && !savedResume && (
                 <Button
                   variant="outline"
@@ -417,14 +500,22 @@ export function OnboardingForm({
                 size="lg"
                 className="min-w-32"
                 disabled={!canNext || saving}
-                onClick={() => (last ? finish() : step === RESUME ? resumeNext() : goTo(step + 1))}
+                onClick={() =>
+                  step === PROFILE
+                    ? saveProfile()
+                    : step === RESUME
+                      ? resumeNext()
+                      : step === PRACTICE
+                        ? practiceNext()
+                        : goTo(step + 1)
+                }
               >
                 {busy === "saving"
                   ? "Saving…"
-                  : last
-                    ? "Finish"
-                    : step === RESUME
-                      ? resumeLabel
+                  : step === RESUME
+                    ? resumeLabel
+                    : step === PRACTICE
+                      ? practiceLabel
                       : "Next"}
               </Button>
             </div>

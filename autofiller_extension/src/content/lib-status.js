@@ -46,9 +46,10 @@ window.WIA = window.WIA || {};
    * @param {string} key
    * @param {string} label
    * @param {boolean} required
+   * @param {import("../shared/types.js").Source} [source]  where its planned answer comes from
    */
-  function register(key, label, required) {
-    results.set(key, { key, label, required, status: "pending" });
+  function register(key, label, required, source) {
+    results.set(key, { key, label, required, status: "pending", ...(source ? { source } : {}) });
     notify();
   }
 
@@ -57,11 +58,12 @@ window.WIA = window.WIA || {};
    * @param {import("../shared/types.js").FieldStatus} status
    * @param {string} [reason]
    * @param {string | string[]} [shows]  what a filled field shows now, as the engine read it back
+   * @param {import("../shared/types.js").Source} [source]  a new source for what it shows (the student's edit, a written answer)
    */
-  function setStatus(key, status, reason, shows) {
+  function setStatus(key, status, reason, shows, source) {
     const existing = results.get(key);
     if (!existing) return;
-    results.set(key, { ...existing, status, reason, shows });
+    results.set(key, { ...existing, status, reason, shows, ...(source ? { source } : {}) });
     notify();
   }
 
