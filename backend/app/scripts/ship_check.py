@@ -53,7 +53,7 @@ from pathlib import Path
 from types import SimpleNamespace
 from unittest import mock
 
-from app.auto_apply import briefs, checks, pipeline, written
+from app.auto_apply import briefs, checks, pipeline, review, written
 from app.config import get_settings
 from app.connector import account, style, tools
 from app.connector import briefs as brief_tools
@@ -177,6 +177,8 @@ def stub(folder: Path, chat: int) -> Iterator[tools.MCPServer]:
             (written, "fetch_written", fetch_written),
             (written, "get_application", get_application),
             (written, "load_bank", nothing),
+            # The pre-submit review (KAN-369) isn't what this check reads: it finds nothing to review.
+            (review, "fetch_next_to_review", lambda db, applicant_id: _none()),
             (briefs, "research_task", nothing),
             (briefs, "brief_for", no_brief),
             (written, "open_application", open_application),
@@ -198,6 +200,10 @@ def stub(folder: Path, chat: int) -> Iterator[tools.MCPServer]:
         brief_tools.register(server)
         style.register(server)
         yield server
+
+
+async def _none() -> None:
+    return None
 
 
 def serve(folder: Path, chat: int) -> None:

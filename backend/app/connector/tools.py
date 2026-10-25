@@ -17,6 +17,10 @@ whole view of WorkIt (auto-apply/architecture.md, 14.6):
   KAN-384): the student's writing samples, and the style card their Claude
   builds from them, which get_next_application then gives (`style_card`,
   and `style_card_needed` when samples have no card yet).
+- `get_review_task` (read-only) and `save_review` (KAN-369, in
+  app/auto_apply/review.py): once an application's written questions are
+  all answered, its answers for a re-read before the student submits; the
+  ones reported wrong show in its batch tab as needing the student.
 - The prompt "Write my WorkIt answers" (app/connector/prompt.py): how to
   write them. The writing rules live there and only there: a tool's
   description says what the tool does, never how Claude should behave
@@ -105,6 +109,34 @@ class Answer(BaseModel):
 class Saved(BaseModel):
     saved: int
     left: int = Field(description="How many of the application's questions are still unanswered.")
+
+
+class ReviewAnswer(BaseModel):
+    name: str
+    question: str
+    answer: str
+    own: bool = Field(description="True when the answer is the student's own words, not their Claude's.")
+    options: list[str] | None = Field(default=None, description="A choice's options, as the form words them.")
+
+
+class ReviewTask(BaseModel):
+    job_id: str | None = Field(description="Null when no application's answers are waiting for a review.")
+    company: str | None = None
+    title: str | None = None
+    posting: str | None = Field(default=None, description="The job posting's description.")
+    answers: list[ReviewAnswer] = []
+    experience: str = Field(default="", description="The student's experience bank: each entry and its bullets.")
+    skills: list[str] = []
+    company_brief: list[dict] = Field(default=[], description="WorkIt's checked facts about the company.")
+
+
+class Problem(BaseModel):
+    name: str = Field(description="The question's name, from get_review_task.")
+    reason: str = Field(min_length=1, max_length=500, description="What is wrong with the answer, for the student.")
+
+
+class Reviewed(BaseModel):
+    flagged: int = Field(description="How many answers the student's tab now shows as needing them.")
 
 
 def _handed(chat: str) -> list[uuid.UUID]:
@@ -197,6 +229,63 @@ def register(server: MCPServer) -> None:
             except (pipeline.WrongStage, pipeline.Refused) as exc:
                 raise ToolError(str(exc)) from exc
         return Saved(saved=len(answers), left=left)
+
+    @server.tool(
+        title="Get a review task",
+        description=(
+            "The next WorkIt job application whose written questions are all answered and whose answers "
+            "have not been reviewed as they stand: its company, title, job posting, each question with its "
+            "saved answer, the student's experience and skills, and the company brief. job_id is null when "
+            "none is waiting."
+        ),
+        annotations=ToolAnnotations(readOnlyHint=True, openWorldHint=False),
+    )
+    async def get_review_task() -> ReviewTask:
+        async with get_sessionmaker()() as db:
+            student = await account.current_student(db)
+            found = await pipeline.next_to_review(db, student.id)
+            brief = await briefs.brief_for(db, found.application.job.company) if found else []
+        if found is None:
+            return ReviewTask(job_id=None)
+        experience, skills = bank_context(found.bank)
+        job = found.application.job
+        return ReviewTask(
+            job_id=str(job.id),
+            company=job.company,
+            title=job.title,
+            posting=found.posting,
+            answers=[
+                ReviewAnswer(name=a.name, question=a.label, answer=a.answer, own=own, options=a.options)
+                for a, own in found.answers
+            ],
+            experience=experience,
+            skills=skills,
+            company_brief=brief,
+        )
+
+    @server.tool(
+        title="Save review",
+        description=(
+            "Saves the review of one WorkIt application's answers as they stand: each answer found wrong, "
+            "with the reason, or none. The application's open tab in the student's browser shows each one "
+            "as needing the student, with the reason. Replaces an earlier review of the application."
+        ),
+        annotations=ToolAnnotations(readOnlyHint=False, destructiveHint=False, idempotentHint=True, openWorldHint=False),
+    )
+    async def save_review(job_id: str, problems: list[Problem]) -> Reviewed:
+        try:
+            job = uuid.UUID(job_id)
+        except ValueError as exc:
+            raise ToolError("job_id is not one get_review_task gave.") from exc
+        async with get_sessionmaker()() as db:
+            student = await account.current_student(db)
+            try:
+                flagged = await pipeline.save_review(db, student.id, job, {p.name: p.reason for p in problems})
+            except pipeline.NotFound as exc:
+                raise ToolError("No such application. Use the job_id get_review_task gave.") from exc
+            except (pipeline.WrongStage, pipeline.Refused) as exc:
+                raise ToolError(str(exc)) from exc
+        return Reviewed(flagged=flagged)
 
     @server.prompt(name="write_my_workit_answers", title=TITLE,
                    description="Writes the answers to your WorkIt applications' written questions.")

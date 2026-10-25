@@ -158,9 +158,15 @@ class WrittenQuestions(BaseModel):
 
 
 class WrittenAnswer(WrittenQuestion):
-    """A question and the answer saved for it, or null while none is."""
+    """A question and the answer saved for it, or null while none is.
+    GET .../questions also says whether the student's Claude's pre-submit
+    review read this answer (`reviewed`; always true for the student's own
+    words, which it doesn't hold up) and, when it found it wrong, why
+    (`flag`): the tab shows that as needing the student (KAN-369)."""
 
     answer: str | None
+    reviewed: bool = False
+    flag: str | None = None
 
 
 class OwnAnswer(BaseModel):
