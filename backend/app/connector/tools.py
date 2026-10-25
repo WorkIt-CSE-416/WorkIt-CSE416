@@ -285,7 +285,7 @@ def register(server: MCPServer) -> None:
         async with get_sessionmaker()() as db:
             student = await account.current_student(db)
             found = await pipeline.next_to_review(db, student.id)
-            brief = await briefs.brief_for(db, found.application.job.company) if found else []
+            brief = await briefs.brief_for(db, found.application.job.company, found.application.job.id) if found else []
         if found is None:
             return ReviewTask(job_id=None)
         experience, skills = bank_context(found.bank)

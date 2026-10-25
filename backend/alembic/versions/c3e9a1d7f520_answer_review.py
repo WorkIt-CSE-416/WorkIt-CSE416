@@ -1,7 +1,7 @@
 """job applications: answer_review, the pre-submit review's verdict (KAN-369)
 
 Revision ID: c3e9a1d7f520
-Revises: c3e5a7b9d142
+Revises: d2f4a6c8e013
 Create Date: 2026-10-25 21:00:00.000000
 
 One nullable column, so it is safe to apply before or after the deploy:
@@ -16,7 +16,7 @@ from sqlalchemy.dialects import postgresql
 
 # revision identifiers, used by Alembic.
 revision: str = 'c3e9a1d7f520'
-down_revision: Union[str, Sequence[str], None] = 'c3e5a7b9d142'
+down_revision: Union[str, Sequence[str], None] = 'd2f4a6c8e013'
 branch_labels: Union[str, Sequence[str], None] = None
 depends_on: Union[str, Sequence[str], None] = None
 
