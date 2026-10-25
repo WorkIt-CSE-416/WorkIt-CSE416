@@ -83,7 +83,15 @@ from app.schemas.bank import (
     ResumePreview,
 )
 from app.schemas.resume import ResumeRename
-from app.services import bank, bank_import, built_resumes, local_files, sent_resumes
+from app.services import (
+    bank,
+    bank_import,
+    built_resumes,
+    local_files,
+    sent_resumes,
+    stored_files,
+)
+from app.services.stored_files import BUCKET
 from app.services.text_extraction import UploadRejected
 from app.services.text_extraction import extract as _extract
 from app.services.text_extraction import read_upload as _read_upload
@@ -92,7 +100,6 @@ from app.services.usage import Feature, uses_left
 router = APIRouter()
 logger = logging.getLogger(__name__)
 
-BUCKET = "Resume"
 # The preview link is opened the moment it is made; this only has to outlast
 # the browser's PDF viewer loading a 5 MB file.
 FILE_URL_TTL_SECONDS = 5 * 60
@@ -240,7 +247,7 @@ async def upload_resume(
     except Exception as exc:
         await session.rollback()
         # DB failed - remove the file from Storage
-        await _remove_file(client, storage_path, "Failed to remove orphaned file from Storage")
+        await stored_files.remove(get_supabase, storage_path, "Failed to remove orphaned file from Storage")
         await _raise_if_raced(session, exc, applicant_id, digest)
         raise HTTPException(500, "Failed to save resume record")
 
@@ -326,25 +333,14 @@ async def replace_resume(
         await session.commit()
     except Exception as exc:
         await session.rollback()
-        await _remove_file(client, storage_path, "Failed to remove orphaned file from Storage")
+        await stored_files.remove(get_supabase, storage_path, "Failed to remove orphaned file from Storage")
         await _raise_if_raced(session, exc, applicant_id, digest, besides=resume_id)
         raise HTTPException(500, "Failed to save resume record")
 
     if old_path and not await sent_resumes.file_in_use(session, old_path):
-        await _remove_file(client, old_path, "Failed to remove replaced resume file from Storage")
+        await stored_files.remove(get_supabase, old_path, "Failed to remove replaced resume file from Storage")
 
     return _imported(resume, resume.id == default_id, entries, skills, imported, left)
-
-
-async def _remove_file(client, storage_path: str, message: str) -> None:
-    # Best effort: a file left behind is orphaned, but no data is lost.
-    # A local file (services/local_files.py) was never in Storage.
-    if local_files.is_local(storage_path):
-        return
-    try:
-        await asyncio.to_thread(client.storage.from_(BUCKET).remove, [storage_path])
-    except Exception:
-        logger.exception(message, extra={"storage_path": storage_path})
 
 
 def _imported(resume: Resume, is_default: bool, entries, skills, imported, left: int) -> dict:
@@ -514,13 +510,6 @@ async def get_resume_file_url(
     return {"url": signed.get("signedUrl")}
 
 
-RESUME_MIME_TYPES = {
-    ".pdf": "application/pdf",
-    ".doc": "application/msword",
-    ".docx": "application/vnd.openxmlformats-officedocument.wordprocessingml.document",
-}
-
-
 @router.get("/applicants/{applicant_id}/resumes/{resume_id}/bytes")
 async def get_resume_file_bytes(
     applicant_id: uuid.UUID,
@@ -543,24 +532,18 @@ async def get_resume_file_bytes(
     resume = await _get_owned_resume(session, applicant_id, resume_id)
     if not resume.storage_path:
         raise HTTPException(404, "Resume file not found")
-    if local_files.is_local(resume.storage_path):
-        data = local_files.read(resume.storage_path)
-        if data is None:
-            raise HTTPException(404, "Resume file not found")
-    else:
-        try:
-            data = await asyncio.to_thread(
-                get_supabase().storage.from_(BUCKET).download, resume.storage_path,
-            )
-        except Exception:
-            logger.exception("Failed to download resume file", extra={"storage_path": resume.storage_path})
-            raise HTTPException(502, "Could not open the resume")
+    try:
+        data = await stored_files.read(get_supabase, resume.storage_path)
+    except Exception:
+        logger.exception("Failed to download resume file", extra={"storage_path": resume.storage_path})
+        raise HTTPException(502, "Could not open the resume")
+    if data is None:
+        raise HTTPException(404, "Resume file not found")
     ext = PurePosixPath(resume.storage_path).suffix.lower()
-    media_type = RESUME_MIME_TYPES.get(ext, "application/octet-stream")
     filename = resume.original_filename or f"resume{ext}"
     return Response(
         data,
-        media_type=media_type,
+        media_type=stored_files.media_type(resume.storage_path),
         headers={"Content-Disposition": f'attachment; filename="{filename}"'},
     )
 
@@ -594,24 +577,6 @@ async def delete_resume(
     # removes the file once nothing uses it.
     if await sent_resumes.file_in_use(session, storage_path):
         return {"detail": "Resume deleted"}
-    # A local file (services/local_files.py) was never in Storage.
-    if local_files.is_local(storage_path):
-        return {"detail": "Resume deleted"}
-
-    # DB succeeded — now remove the file from Storage
-    # If this fails the file is orphaned, but no data is lost
-    client = get_supabase()
-    try:
-        await asyncio.to_thread(
-            client.storage.from_(BUCKET).remove,
-            [storage_path],
-        )
-    except Exception:
-        # The database row was already deleted; retain best-effort cleanup behavior,
-        # but record the failure instead of silently ignoring it.
-        logger.exception(
-            "Failed to remove resume file from Storage",
-            extra={"storage_path": storage_path},
-        )
-
+    # DB succeeded: now remove the file (best effort; the row is gone).
+    await stored_files.remove(get_supabase, storage_path, "Failed to remove resume file from Storage")
     return {"detail": "Resume deleted"}
