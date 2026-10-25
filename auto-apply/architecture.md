@@ -1067,7 +1067,21 @@ ids and plain data.
 |---|---|---|
 | `get_next_application` | tool, `readOnlyHint` | The oldest open application (queued or needs_you, posting open) with a written question unanswered (`next_to_write`): its job id, company, title, the posting's description, its unanswered questions (`name`, `question`, `required`, `max_length`), and the student's experience bank and skills (`bank_context`, no links). Only that application's material. `job_id: null` when none is left. Takes and answers a `chat` value (the job ids this chat was given, below); past `CONNECTOR_CHAT_CAP` it answers `start_new_chat: true`, a `message` for the student, and no application |
 | `save_answers` | tool, a write (not destructive) | `{job_id, answers: [{name, answer}]}` (`save_answers`): all or none; refuses a name the application doesn't ask, an empty answer, or one over the form's `max_length` (else 10,000), with the reason as a tool error for Claude to fix. Answers `{saved, left}` |
-| "Write my WorkIt answers" | prompt | The writing rules and the loop: next application, write, save, until the tool says to start a new chat. **The rules live here only**; tool descriptions say what a tool does (Anthropic's review refuses descriptions that steer Claude) |
+| "Write my WorkIt answers" | prompt | `app/connector/prompt.py`. The loop (next application, write, save, until the tool says to start a new chat) and the writing rules. **The rules live here only**; tool descriptions say what a tool does (Anthropic's review refuses descriptions that steer Claude) |
+
+**The writing rules (KAN-381)** are Apply's pipeline, made general for any
+student: a draft by Apply's rules for plain, concrete answers and its
+shapes by question type (under 180 words, 220 for a two-part question,
+within the form's `max_length`); a review as a recruiter, a hiring manager
+and a founder would read it, rewritten until rated 8 of 10, at most two
+rounds; a check that lists every claim the sources don't support; and an
+edit of all of the application's answers together. Facts come only from
+the student's experience bank and the posting. Apply's own facts, examples
+and its owner's preferences are left out; a question the sources can't
+answer (a preference, a reference, something only the student knows) is
+left for the student, never guessed. Banned words stay out of the prompt,
+since naming a word primes a model; the save checks them in code (KAN-380, separate).
+A per-student style card (KAN-384) is not in it yet.
 
 **A chat and its cap (KAN-381).** The server is stateless and Claude
 sends nothing that names a chat, so the chat carries its own count: each

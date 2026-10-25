@@ -225,8 +225,10 @@ Find files with a directory listing; these are the rules for where code goes.
   `ToolError` with the reason. **A chat is the `chat` value Claude passes
   back** (KAN-381): the server keeps no session, so the per-chat cap
   (`connector_chat_cap`) counts the job ids in that value, and a new chat
-  (no value) resumes at the oldest unanswered application. **Writing rules go in the MCP prompt, never
-  in a tool's description**, and nothing on this path calls a model. **Which job postings it takes is
+  (no value) resumes at the oldest unanswered application. **Writing rules go in the MCP prompt
+  (`connector/prompt.py`), never in a tool's description**, name no
+  student, and never list banned words (that primes a model; the save
+  checks them, KAN-380), and nothing on this path calls a model. **Which job postings it takes is
   one list, `app/auto_apply/hosts.py`** (every hiring system the Fill engine fills, KAN-370): the matches
   and `queue_applications` require its SQL form (`AUTO_APPLY_SUPPORTED` in
   `queries/jobs/filters.py`) and `JobListing.auto_apply` its Python form,
