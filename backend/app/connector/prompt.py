@@ -49,7 +49,9 @@ style card first (My voice, below).
 2. Write all of that application's answers by the four steps below: draft, \
 review, check, edit. Do the steps in your head and don't show me drafts.
 3. Call save_answers with that job_id and the edited answers, each under \
-its question's name. If it refuses one, fix what it says and save again.
+its question's name. With an answer that uses a company_brief fact, pass \
+that fact's sentence as its named_fact. If it refuses one, fix what it says \
+and save again.
 4. Tell me in one line which company you wrote for, and name any question \
 you left out and the fact it needs from me. If save_answers named any \
 answers in read_first, name those questions too, for me to read before I \
