@@ -13,6 +13,7 @@
 // extension's test imports this file as it is.
 import "../../fill-engine/dist/engine.js";
 import { DEV_WEB_URL, PROD_SITES } from "../shared/config.js";
+import { letterPdf } from "./letter-pdf.js";
 import { unansweredSelfId } from "./self-id.js";
 
 /** The engine's own copy here, for what needs no page. */
@@ -255,6 +256,26 @@ function withFiles(answers, profile) {
       if (!value || typeof value !== "object" || Array.isArray(value)) return [name, value];
       const resume = profile.resume;
       return [name, resume && value.file === resume.filename ? { file: resume.filename, type: resume.mimeType, base64: resume.base64 } : value];
+    }),
+  );
+}
+
+/**
+ * The answers with each written one to a file question (an upload: an
+ * optional cover letter, written under the cover_letter policy) made a PDF of
+ * its words, named for the student as their resume is
+ * ("First_Last_Cover_Letter.pdf"), since the field takes only a file.
+ */
+export function asUploads(answers, questions, profile) {
+  const files = new Set((questions ?? []).filter((q) => q.kind === "file").map((q) => q.name));
+  const { identity = {} } = engineProfile(profile);
+  const who = [identity.legal_first_name, identity.legal_last_name].filter(Boolean).join("_").replace(/[^\p{L}\p{N}_-]+/gu, "_");
+  return Object.fromEntries(
+    Object.entries(answers ?? {}).map(([name, value]) => {
+      if (!files.has(name) || typeof value !== "string" || !value.trim()) return [name, value];
+      const label = questions.find((q) => q.name === name).label;
+      const what = /cover/i.test(label) ? "Cover_Letter" : "Answer";
+      return [name, { file: `${who ? `${who}_` : ""}${what}.pdf`, type: "application/pdf", base64: letterPdf(value) }];
     }),
   );
 }
@@ -513,7 +534,7 @@ export async function handleFill(message, { url, profile, bank, today, call, fet
     if (!state && trees && jobOf(url)?.site === "workday") state = { tenant: jobOf(url).tenant, trees: {} };
     answer = await planFill({ url, profile, bank, today, call, fetchText, extra: message.extra, state: await withTrees(state) });
   } else if (message.type === "fill/page") {
-    answer = await fillPage({ call, ...message, state: await withTrees(message.state) });
+    answer = await fillPage({ call, ...message, answers: asUploads(message.answers, message.questions, profile), state: await withTrees(message.state) });
   } else if (message.type === "fill/read") {
     // What each named field shows now (the engine's read-back), after the student changed the form.
     return { shows: await call("readback", message.site, message.questions, message.names, message.state) };

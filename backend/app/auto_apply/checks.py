@@ -14,11 +14,12 @@ rules that were one student's own dropped.
 - **Copied**: COPIED or more words in a row from the student's writing
   samples, which show their voice and are never pasted in.
 - **A number not in the sources**: every number must be in the student's
-  bank, the posting, or the question. A year counts like any number.
+  bank, the posting, the company's checked brief, or the question. A year counts like any number.
 - **Another employer's name**: a company the student has another
   application at, named in this answer (a draft written for one company
-  pasted into another's form). A company in the student's bank (where they
-  worked) or in this posting is theirs to name.
+  pasted into another's form). A company the student worked or studied at
+  (a bank entry's organization or school) or in this posting is theirs to
+  name; one named only in a skill or a bullet is not.
 - **A sentence over LONGEST words.**
 - **A placeholder** left for the student to fill ("[insert link]").
 - **Longer than the form takes**: the field's own limit, as the Fill
@@ -113,7 +114,8 @@ class Context:
     """What one answer is checked against.
 
     sources: the texts its facts may come from (the student's bank, the
-    posting, the question). samples: the student's writing samples.
+    posting, the company's checked brief, the question). samples: the
+    student's writing samples.
     employers: companies the student has other applications at.
     limit: the form field's own limit in characters, if it has one."""
 
@@ -137,7 +139,7 @@ def problems(answer: str, context: Context) -> list[str]:
                      "The samples show their voice; write new sentences.")
     known = {n for source in context.sources for n in numbers(source)}
     if invented := [n for n in _unique(_NUMBER.findall(answer)) if _normal(n) not in known]:
-        found.append(f"It states numbers the student's experience, the posting and the question don't hold: "
+        found.append(f"It states numbers the student's experience, the posting, the company brief and the question don't hold: "
                      f"{', '.join(invented)}. Use only numbers from those, or leave the number out.")
     if wrong := [name for name in context.employers if names(answer, name)]:
         found.append(f"It names {_quoted(wrong)}, a company of another of the student's applications. "

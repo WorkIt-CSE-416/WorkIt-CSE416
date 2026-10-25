@@ -41,7 +41,8 @@ company's own site or one of its news sites, with a passage copied word \
 for word from that page as its quote and the page's date. Save them with \
 save_company_brief; if it drops facts, fix them by its reasons and save \
 once more. Then call get_next_application, passing the chat value its last \
-call in this chat gave (none the first time). If start_new_chat is true, \
+call in this chat gave (none the first time). If research_first names a \
+company, its brief comes first: start 1 again. If start_new_chat is true, \
 show me its message and stop. If its job_id is null, every question is \
 answered: tell me, and stop. If style_card_needed is true, build my \
 style card first (My voice, below).

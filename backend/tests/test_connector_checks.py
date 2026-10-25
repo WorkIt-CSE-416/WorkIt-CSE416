@@ -9,7 +9,8 @@ tab, and passes a clean one. The checks themselves: test_answer_checks.py.
 import pytest
 from sqlalchemy import text
 
-from app.auto_apply import pipeline, written
+from app.auto_apply import briefs, pipeline, written
+from app.models.company_briefs import Company_Brief
 from tests.test_connector import (  # noqa: F401  (fixtures)
     _student_queues,
     _tab_asks,
@@ -116,3 +117,59 @@ async def test_an_answer_about_one_company_is_never_offered_on_anothers_form(run
 
     assert {q: a.answer for q, a in on_globex.items()} == {proud["label"]: general}
     assert {q: a.answer for q, a in on_acme.items()} == {WHY["label"]: CLEAN, proud["label"]: general}
+
+
+async def test_a_number_from_the_companys_checked_brief_is_allowed_and_an_invented_one_refused(running, applicant, database):  # noqa: F811
+    me, (job,) = await _student_queues(database, applicant, 1)
+    await _company(database, job, "Initech")
+    async with database() as session:
+        session.add(Company_Brief(company_key=briefs.company_key("Initech"), company="Initech", saved_at=text("now()"), facts=[{
+            "category": "launches", "fact": "Initech launched Ledger in 37 countries.",
+            "url": "https://initech.example/news", "quote": "Ledger is now live in 37 countries", "published": "2026-03",
+        }]))
+        await session.commit()
+    await _tab_asks(me, job, WHY)
+
+    async with claude(applicant) as client:
+        invented = await client.call_tool("save_answers", {"job_id": job, "answers": [
+            {"name": "question_7", "answer": "Ledger reaching 90 countries is why I want in; at Acme I cut page load time by 30%."}]})
+        from_brief = await client.call_tool("save_answers", {"job_id": job, "answers": [
+            {"name": "question_7", "answer": "Ledger reaching 37 countries is why I want in; at Acme I cut page load time by 30%."}]})
+
+    assert invented.is_error and "90" in invented.content[0].text, invented.content
+    assert from_brief.is_error is False, from_brief.content
+
+
+async def test_a_company_named_only_in_skills_or_bullets_is_still_another_applications(running, applicant, database):  # noqa: F811
+    me, (job, other) = await _student_queues(database, applicant, 2)
+    await _company(database, other, "Globex")
+    async with database() as session:  # Globex as a tool and in a bullet, never where the student worked
+        await session.execute(text("UPDATE bank_skills SET name = 'Globex' WHERE applicant_id = :a AND name = 'Docker'"),
+                              {"a": applicant})
+        await session.execute(text("UPDATE bank_bullets SET text = 'Wrote the Globex plugin''s tests' "
+                                   "WHERE text = 'Wrote the billing service''s tests'"))
+        await session.commit()
+    await _tab_asks(me, job, WHY)
+
+    async with claude(applicant) as client:
+        refused = await client.call_tool("save_answers", {"job_id": job, "answers": [
+            {"name": "question_7", "answer": "At Acme I cut page load time by 30%, and I want that at Globex."}]})
+
+    assert refused.is_error and "Globex" in refused.content[0].text, refused.content
+
+
+@pytest.mark.parametrize("where", ["Acme", "Stony Brook University"])
+async def test_where_the_student_worked_or_studied_is_theirs_to_name(running, applicant, database, where):  # noqa: F811
+    me, (job, other) = await _student_queues(database, applicant, 2)
+    await _company(database, other, where)
+    async with database() as session:  # the school only as the education entry's title, not an award's issuer
+        await session.execute(text("UPDATE bank_entries SET organization = NULL WHERE applicant_id = :a AND section = 'awards'"),
+                              {"a": applicant})
+        await session.commit()
+    await _tab_asks(me, job, WHY)
+    answer = f"At {where} I learned to cut page load time by 30%, and I want to keep making pages fast."
+
+    async with claude(applicant) as client:
+        saved = await client.call_tool("save_answers", {"job_id": job, "answers": [{"name": "question_7", "answer": answer}]})
+
+    assert saved.is_error is False, saved.content
