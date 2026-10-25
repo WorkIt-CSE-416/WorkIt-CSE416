@@ -1,15 +1,13 @@
 import type { Metadata } from "next";
 import { Suspense } from "react";
 
-import { cn } from "@/lib/cn";
 import { getCurrentAccount } from "@/lib/session";
 
 import { Greeting } from "../greeting";
-import { SEEKER_GUTTER } from "../gutter";
 import { getAppliedTimes, getHeadline } from "./data";
-import { Headline } from "./headline";
-import { RangeSwitch } from "./range-switch";
-import { Streak } from "./streak";
+import { DashboardFrame } from "./frame";
+import { Headline, HeadlineSkeleton } from "./headline";
+import { Streak, StreakSkeleton } from "./streak";
 import { loadTopMatches, TopMatches, TopMatchesSkeleton } from "./top-matches";
 
 export const metadata: Metadata = {
@@ -37,6 +35,18 @@ export const metadata: Metadata = {
  * streams in its own <Suspense>, so the numbers never wait on its scoring,
  * and its reads start with the page (loadTopMatches), so it never waits on
  * the numbers' reads either.
+ *
+ * ONLY THE GREETING WAITS (KAN-368). The page awaits the account alone, one
+ * plain read the bar makes too (cached per render), and draws the header;
+ * the numbers, Top Matches and Activity each stream in a <Suspense> of their
+ * own over a skeleton of their own shape (HeadlineSkeleton, TopMatches-
+ * Skeleton, StreakSkeleton). Every read is started before that one await,
+ * so none waits on another. The page awaited the numbers too, and the
+ * Strong Matches count is a full scoring pass, so sign-in's landing page,
+ * and every visit to it, showed nothing until that pass was done; on a hard
+ * load not even the shell's first byte left before it. ./loading.tsx draws
+ * the same frame with those skeletons, for the moment before the account
+ * arrives, so the page that replaces it moves nothing.
  */
 
 /**
@@ -104,52 +114,63 @@ export const metadata: Metadata = {
  * @md/upnext, keyed to its own tile.
  */
 export default async function DashboardPage() {
-  // Top Matches' reads start first, before this page awaits anything, so its
-  // two scoring calls run beside the Strong Matches one instead of after it
-  // (./top-matches.tsx, loadTopMatches, says why it never rejects).
+  // Every read starts here, before the one await below, so none waits on
+  // another: Top Matches' two scoring calls run beside the Strong Matches
+  // one, not after it. None of these promises rejects (each answers null or
+  // "empty" on a failure; ./top-matches.tsx, loadTopMatches, says why that
+  // matters). getTracker caches the one tracker read the numbers and
+  // Activity share.
   const topMatches = loadTopMatches();
+  const stats = getHeadline();
+  const applied = getAppliedTimes();
 
-  // The numbers and Activity read the API; asked for alongside the account,
-  // not after. getTracker caches the one tracker read both make.
-  const [account, stats, applied] = await Promise.all([
-    getCurrentAccount(),
-    getHeadline(),
-    getAppliedTimes(),
-  ]);
+  // Only the greeting waits: one plain read, which the bar makes too.
+  const account = await getCurrentAccount();
   const firstName = account?.full_name.split(" ")[0];
 
   return (
-    <div className={cn("max-w-dashboard mx-auto w-full flex-1 py-5", SEEKER_GUTTER)}>
-      <header className="flex flex-wrap items-end justify-between gap-4">
-        <div>
-          {firstName ? (
-            <Greeting
-              as="h1"
-              firstName={firstName}
-              className="text-heading text-ink font-semibold"
-            />
-          ) : (
-            <h1 className="text-heading text-ink font-semibold">Dashboard</h1>
-          )}
-          <p className="text-body text-ink-meta mt-1">Here&apos;s where your search stands.</p>
-        </div>
-
-        {/* Find Jobs sat beside it until KAN-261: the sidebar's Jobs row and
-            the Strong Matches tile already lead there. */}
-        <RangeSwitch />
-      </header>
-
-      {/* The numbers, in a grid of their own: four across, with Activity
-          the full width under them. */}
-      <div className="mt-5 grid grid-cols-2 gap-4 @4xl/main:grid-cols-4">
-        <Headline stats={stats} />
-      </div>
-
-      <Suspense fallback={<TopMatchesSkeleton className="mt-4" />}>
-        <TopMatches data={topMatches} className="mt-4" />
-      </Suspense>
-
-      <Streak applied={applied} className="mt-4" />
-    </div>
+    <DashboardFrame
+      heading={
+        firstName ? (
+          <Greeting as="h1" firstName={firstName} className="text-heading text-ink font-semibold" />
+        ) : (
+          <h1 className="text-heading text-ink font-semibold">Dashboard</h1>
+        )
+      }
+      tiles={
+        <Suspense fallback={<HeadlineSkeleton />}>
+          <HeadlineTiles stats={stats} />
+        </Suspense>
+      }
+      topMatches={
+        <Suspense fallback={<TopMatchesSkeleton className="mt-4" />}>
+          <TopMatches data={topMatches} className="mt-4" />
+        </Suspense>
+      }
+      activity={
+        <Suspense fallback={<StreakSkeleton className="mt-4" />}>
+          <Activity applied={applied} className="mt-4" />
+        </Suspense>
+      }
+    />
   );
+}
+
+/** The four numbers once the scores and the tracker are in. The range
+ *  switch still moves them in place: Headline is handed every range's
+ *  figures and reads ?range= itself (./range-switch.tsx). */
+async function HeadlineTiles({ stats }: { stats: ReturnType<typeof getHeadline> }) {
+  return <Headline stats={await stats} />;
+}
+
+/** Activity once the tracker is in, which it alone waits on: never on the
+ *  scores the numbers need. */
+async function Activity({
+  applied,
+  className,
+}: {
+  applied: ReturnType<typeof getAppliedTimes>;
+  className?: string;
+}) {
+  return <Streak applied={await applied} className={className} />;
 }
