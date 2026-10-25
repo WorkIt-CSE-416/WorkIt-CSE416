@@ -75,6 +75,19 @@ the KAN-296 cutover.
   past 5,000 a month, which the feed's logos would outrun. Where it is off,
   `remotePatterns` and the SVG settings do nothing; they stay for the day the
   optimizer returns.
+- **`public/_headers` gives `/_next/static/*` a one-year immutable cache**
+  (KAN-368). OpenNext copies `public/` into `.open-next/assets`, and wrangler
+  reads `_headers` there without uploading it as an asset. Without it, hashed
+  chunks, CSS and fonts went out with `max-age=0, must-revalidate` and every
+  full load paid a 304 round trip per file (28 to 53 ms on workitjobs.ai).
+  Never widen it past `/_next/static/*`: HTML and un-hashed `public/` files
+  would stop updating for users after a deploy. Vercel ignores it. After a
+  deploy, `curl -sI` one chunk, one CSS file and one woff2 and look for
+  `immutable`.
+- **Still open: on Cloudflare the prerendered marketing pages render per
+  request** until an incremental cache is set (OpenNext's default is the
+  "dummy" cache), so the prerender gain below is full on Vercel only
+  (KAN-368).
 - **The OpenNext build is not guaranteed on Windows.** Run `cf:*` in WSL, or
   leave them to CI; `dev`, `build` and the rest work natively.
 - **OAuth needs each origin allow-listed in Supabase** (Authentication → URL
@@ -216,8 +229,18 @@ the KAN-296 cutover.
   colour rings and land looking as the tabs do (the first white, the rest
   clear with grey labels), and the tab bar shows with no fade: drawn
   plain, the four rings vanished at take-off, and a fade made the pills
-  blink as they landed. Below lg and with reduced motion it is a still
-  block, no pin. The four tabs' labels, icons and colours are one list,
+  blink as they landed. With reduced motion it is a still block, no pin.
+  **Below lg it is its own scene, `ScrolledBridge`** (KAN-368): the same
+  three lines, one at a time, over a 330px stage on a short pin (150svh),
+  the scroll cueing each phase through `useScrollCue` (`scene-time.ts`):
+  eight postings strewn two to a band, tilted and a touch smaller or
+  larger (`SCATTER`), the three that fit sorting into a centred column
+  with their scores by the company, then the four steps lighting. Every
+  card is one size and placed so none covers another's text at 320 to
+  430px: twelve cards in three columns, the fit ones wider, buried each
+  other, and two even columns read as a table. Unpinned, the 520px section
+  left the screen before its last phase; a timed loop played whether or
+  not the reader scrolled, which the team rejected. The four tabs' labels, icons and colours are one list,
   `TOUR_TABS` in `tour-tabs.ts`, a plain module that both the tour and the
   bridge import: a server page cannot pass icon components to a client
   one as props. **Keep every scroll-linked range inside 0 to 1**: motion
@@ -267,8 +290,16 @@ the KAN-296 cutover.
   (`board-data.ts`), each logo a favicon tile (`favicon-logo.tsx`). Scores
   on the hero, the board and both stories are green, amber or red through
   `scoreTone` (`score-tone.ts`). Below lg the
-  stops stack, because a pinned card with the resume animation does not fit
-  a phone. The site's placeholder benefit grid and three steps became the
+  stops are one row that swipes sideways, a stop at a time, the next
+  peeking in, with a 44px dot per stop under it (`StackedTour`, KAN-368),
+  because a pinned card with the resume animation does not fit a phone:
+  stacked, they took 3,290px of a 390px phone. A story's root is
+  `shrink-0`: as `Fit`'s flex child it shrank to its title's 380px, so
+  `Fit` scaled it too little and its 520px scenes were cut at the panel
+  (the Auto Apply window, the Matching card). Where `Fit` draws a story
+  smaller, its scene title grows back by as much, up to the stage's width
+  (`FitScale`, story.tsx), so the line that tells the scene reads at about
+  12px on a phone; the scene's own details stay small. The site's placeholder benefit grid and three steps became the
   hiring-systems section (below). A "How it works" deck of four step
   cards (Find, Apply, Track, Hear back) that flipped in turn after the
   applications section was removed on 2026-10-22, at the user's ask: it
@@ -299,12 +330,19 @@ the KAN-296 cutover.
   four captions at
   once too much text and the first scene's gates, glass bin and rubber
   stamps "AI slop". The headline, "Slop
-  applications get skipped." with "Slop" under a red wavy line, runs one
-  line across the top. It was "Stop sending slop applications.", a second
+  applications get skipped.", runs one line across the top from lg up.
+  "Slop" is drawn as AI slop (`SlopWord`, slop-word.tsx, KAN-368): a
+  glossy magenta-to-cyan gradient with a pink glow, a sweeping gloss,
+  twinkling sparkles and goo dripping off the letters, picked by the team
+  from six treatments over a red spell-checker wave they found too plain.
+  It is still text for screen readers and copying. Its drips run only as
+  far as the room under the headline allows (`--reach` in landing.css:
+  0.4 on a phone, where "get skipped." wraps under it, 0.6 on a tablet,
+  0.7 from lg up, with `pt-14` above the first caption's chip), stop
+  with the section's loop (`data-paused`) and hang still with reduced
+  motion. It was "Stop sending slop applications.", a second
   "Stop" right after the hero's tagline; it now says what the three beats
-  show. The wave is a layer of its own (`.slop-wave`): a
-  text decoration is repainted only inside a selection's highlight, so
-  selecting the headline cut off the wave's lower half. On the left only the current beat's caption shows,
+  show. On the left only the current beat's caption shows,
   under its gate's chip; it lifts away as the next comes in, and its words
   come into focus as they are read. The chips are label-sized, each gate's
   mark on a white disc, and from lg up the marks move (`GateIcon`,
@@ -335,11 +373,13 @@ the KAN-296 cutover.
   on `will-change` layers. The scene is drawn at a fixed size and scaled
   by `Fit`; its root is `shrink-0`, since its children are all absolute
   and, as Fit's flex child, it shrank to the column, so Fit read that
-  width and never scaled it down on a phone. Below lg and with reduced
-  motion it is still: every caption in a short list, then the finished
-  frame; on a phone only the finale's card and checks, at their own size
-  (the whole scene scaled into the column was a 58% miniature, its labels
-  7px). The captions and notes are product copy: the gates' are hedged
+  width and never scaled it down on a phone. Below lg it loops too, in
+  one column (`CompactStatement`, KAN-368): the beat's caption over the
+  screening panel alone, without the bin, drawn at about 0.85 on a phone,
+  a thrown page leaving the panel's edge (the whole scene scaled into the
+  column was a 58% miniature, its labels 7px, which is why phones showed
+  it still until then). With reduced motion it is still: every caption in
+  a short list, then the finished frame. The captions and notes are product copy: the gates' are hedged
   ("often", "look like"), since they describe the market, and the last
   one's claims follow the rules above, never a promise to pass an ATS. The site's closing "Be first in line" banner is
   removed for now. **The applications section** ("Every application, from
@@ -446,7 +486,17 @@ the KAN-296 cutover.
   (`soft`): cut flat at four stepped caps, the skyline stood in terraces
   with sharp corners near the middle; it keeps
   that scale from lg up (cropped at the sides) and shrinks to the panel's
-  width below lg, under the text. A change to the hero's text size or the
+  width below lg, under the text. **Below sm a phone gets its own build**
+  (`buildCity({ phone: true })`, KAN-368): twice the panel's width with
+  only the middle half shown, about 1.7 times the scale, so it builds that
+  half alone, with the skyline's shape across it, no text caps (on a phone
+  the city sits under the buttons) and the wireframes moved in from the
+  cropped sides, of which only the left side's send up a job card: with
+  both sides' cards, one from each side showed at once and they overlapped
+  in the middle in half of all frames. page.tsx's spacer grows to match
+  (`h-[70cqw]`). Shrunk
+  whole to a 390px phone, the city was a 150px strip at 23% scale with
+  bare ground in the middle, which read as too small. A change to the hero's text size or the
   buttons' width means re-checking those caps (`ceiling` in
   `city-model.ts`): the buttons once ran wider than the caps assumed and
   towers rose behind them. Its job cards show only where they fit:
@@ -546,8 +596,12 @@ the KAN-296 cutover.
   in its pink; Scout had no stop, so it took amber, the one app colour
   left free. **One template, one content file per feature**:
   `features/[slug]/page.tsx` is the route (`generateStaticParams` lists
-  the five slugs and `dynamicParams = false` makes any other a 404; the
-  metadata comes from each content file), and `features/feature-page.tsx`
+  the five slugs and the page's `notFound()` makes any other a 404; the
+  metadata comes from each content file). **Never set `dynamicParams = false`
+  on a prerendered dynamic segment here** (KAN-368): an unlisted value then
+  matches no route, Next falls through to the seeker `@modal/[...catchAll]`,
+  which matches every path, and a signed-out visitor lands on `/login`
+  instead of the 404, and `features/feature-page.tsx`
   draws every one: hero, the animation shown large, three or four deep
   dives, How it works, the other features, an FAQ and a closing call to
   action. Each page's copy and visuals live in its own
@@ -568,7 +622,15 @@ the KAN-296 cutover.
   the closing call to action is `ClosingCta` (`closing-cta.tsx`, shared
   with the home page; its own file so the client scenes that import
   `layout-parts.tsx` do not pull the sign-up's server action in), and the
-  FAQ is `FaqList` (`faq-list.tsx`).
+  FAQ is `FaqList` (`faq-list.tsx`). **Every pair of social buttons has
+  "Or sign up with email" under it** (`EmailSignUpLink`, to /signup), and
+  below sm the header shows a short "Get started" beside the menu button
+  (KAN-368): with Google and LinkedIn alone, a student with neither found
+  the way in only inside the phone menu. **Tap targets reach 32 to 48px
+  without changing the look**: an FAQ row's padding is its summary's, so
+  the whole row opens it (on the `<details>` only a 28px strip did), and
+  the footer links, the tour's "Learn more" and the email link widen
+  their tap with an `::after` (18 to 23px boxes before).
   **The header menus** (`NavMenu` in `nav-menu.tsx`, both Features and
   Resources) are disclosures with `aria-expanded`, not ARIA menus, since
   their items are links: a mouse hover opens one, a click pins it, Esc
@@ -702,8 +764,9 @@ the KAN-296 cutover.
   lines at Saved it stood taller and its top dropped as it moved on. Its
   new words come in as the old ones finish going (`swap`'s delay):
   `popLayout` ran both at once, and two lines showed through each other.
-  Below lg the stops are a still list with full piles and the card at its
-  offer.
+  Below lg the stops are a still list, each pile's first seven logos and a
+  "+N" (`STILL_PILE`; the full piles, 24 and 12 tiles, read as noise on a
+  phone), and the card at its offer.
   **Headings come into
   focus** through `FocusIn` (`focus-in.tsx`): an observer marks the
   wrapper and a CSS transition ends at the element's own `filter: none`.
@@ -752,8 +815,14 @@ the KAN-296 cutover.
   mark, a card came some six seconds after its posting and read as
   unrelated to it. The pipe fills from the couplings when the flow first
   runs (`fresh`): shown at once, three postings popped in mid-pipe; a
-  return to a running flow fades it in. The flow's clock runs only once
-  the pipe has formed, in view and in a visible tab. The pipe starts just behind the first coupling, whose coin
+  return to a running flow fades it in. So the fill is quick, the
+  conveyor starts with a place at the last coupling, where the coins end,
+  and on the first lap each place takes the coupling just ahead of it
+  (KAN-368): started at the pipe's end with the systems in turn, only one
+  posting could come out, behind the coins, and the first one cleared
+  them 7.1 s after the scroll's cue (now 1.5 to 1.9 s, then one about
+  every 2.7 s). The flow's clock runs as soon as the pipe has formed
+  (`PIPE_IN`'s end), in view and in a visible tab. The pipe starts just behind the first coupling, whose coin
   hides its end: an open-end ellipse there, and later the bare rounded
   end, read as a stray circle. WorkIt's mark is plain glass on the grey,
   with no violet glow behind it (the team found it decorative). A card
@@ -785,18 +854,21 @@ the KAN-296 cutover.
   once 60% of the word shows (`footer-wordmark.tsx`, `useArrived` with a
   threshold: a line a third up the screen was out of reach on a tall
   window), then keep drifting slowly (`.wordmark-drift`, a track of the
-  titles twice moved by half its width), paused off screen. It opens on
+  titles twice moved by half its width), paused off screen. Its copyright year is `new Date().getFullYear()` read
+  on the server, so on a prerendered page it is frozen at build time and
+  rolls over with the first deploy after 1 January (KAN-368). It opens on
   `site.tagline`, which is also the home page's title, so it speaks to
   students ("Your job search, without the busywork."): the site's
   two-sided pitch to recruiters went while the business side is hidden.
   The footer marks the Resources pages Soon, as the header's menu does: none has a
   page yet. **Below lg
   and with reduced motion every one of these is still**: no pin, no
-  flight, no heading blur, the finished frame. Two exceptions below lg:
-  the statement still follows its section through the screen, and hiring
-  systems falls back to the flat stream, which keeps flowing. **Checking these scenes in
+  flight, no heading blur, the finished frame. Exceptions below lg: the
+  bridge plays on a short pin, cued by the scroll; the statement loops in
+  one column; the tour swipes; and hiring systems falls back to the flat
+  stream, which keeps flowing. **Checking these scenes in
   the Browser pane**: a script's `scrollTo` jumps, but a Lenis glide still
-  under way overrides it, so start from a still page; the pane draws
+  under way (an in-page link's) overrides it, so start from a still page; the pane draws
   frames lazily, so a screenshot after a script scroll often shows an older
   frame and motion values and rects read by script are stale. A real
   wheel scroll (the computer tool's scroll) draws fresh frames; scroll by
@@ -841,9 +913,16 @@ the KAN-296 cutover.
     transforms run on the main thread while a phase plays and cost
     nothing at rest; the array-range rule below matters for what is
     still scroll-linked.
-- **The marketing pages scroll smoothly with Lenis** (`smooth-scroll.tsx`,
-  mounted by the `(landing)` layout): a wheel or trackpad glides to rest.
-  Touch stays native and reduced motion turns it off. It ticks in motion's
+- **The marketing pages run Lenis with the wheel left native**
+  (`smooth-scroll.tsx`, mounted by the `(landing)` layout;
+  `smoothWheel: false`, as twain.ai runs it, KAN-368): Lenis glides
+  in-page links and script scrolls only. Its wheel glide, on until then,
+  moved a 300px notch 70 to 100px in the first 50ms, took about 250ms to
+  get 90% of the way and drifted on for over half a second after a fast
+  scroll, and the team felt it as lag; the native wheel lands at once.
+  Do not turn it back on to smooth a scene: a pinned scene that looks
+  steppy under a notched mouse wheel is a scene to fix. Touch stays
+  native and reduced motion turns Lenis off. It ticks in motion's
   `frame.setup`, before motion reads the scroll; in `frame.update`, as
   Lenis's docs show, every scroll-linked value ran a frame behind and the
   flying card and pills trailed their ends. A script scroll goes through
@@ -853,8 +932,8 @@ the KAN-296 cutover.
   needs `data-lenis-prevent` (the phone menu has it). Its CSS is in
   landing.css, not `lenis/dist/lenis.css`, whose `html.lenis { height:
   auto }` undid `h-full` on `<html>`. The pages set no `scroll-behavior:
-  smooth`: Lenis glides the wheel and in-page links, and on `<html>` it
-  animated every jump a script made.
+  smooth`: Lenis glides in-page links, and on `<html>` it animated every
+  jump a script made.
 - **Each marketing page keeps its place across navigations**
   (`smooth-scroll.tsx`): a link to another page opens it at its top, a
   link with a #section lands on that section under the header, and Back
@@ -970,6 +1049,21 @@ the KAN-296 cutover.
   `components/hover-sidebar.tsx`). A hover opens shadcn's provider over the
   page, so anything sized by the panel's width reads `useSidebarPin().pinned`,
   never shadcn's `state`, or it moves on every hover (`docs/design.md`).
+  The CSS side of that rule: `HoverSidebarProvider` writes
+  `data-pinned="true"|"false"` on the shadcn wrapper in both shells, and CSS
+  sized by the pinned width keys on it, never on `data-state`, which a peek
+  flips to expanded. **`--panel-gain` is registered with `inherits: false`**
+  (KAN-368), so every element that reads `var(--panel-gain)` must carry
+  `transition-[--panel-gain] duration-200 ease-linear
+  md:in-data-[pinned=false]:[--panel-gain:calc(var(--sidebar-width)_-_var(--sidebar-width-icon))]`
+  itself, or it reads 0px and never moves. The readers today are
+  `[data-scout-page]` in `(seeker)/layout.tsx`, the Applications wrapper, and
+  the job rail's frame and aside (`jobs/jobs-rail.tsx`); keep the 200 ms
+  linear equal to shadcn's gap. It used to inherit and ease on the column
+  above the page, which restyled about 4,258 elements on every frame of a pin
+  (130 to 250 ms frames at 4x CPU). A sidebar row eases its current fill to
+  the clicked row the moment its link starts navigating (`useLinkStatus`),
+  while `aria-current` stays on the committed row.
 - **The seeker layout has a `@modal` slot** (KAN-364): a route opened as a
   modal over the current page through an intercepting route, Settings
   for now (`(seeker)/@modal/(.)settings`). A soft navigation to its address
@@ -984,6 +1078,62 @@ the KAN-296 cutover.
   `<a href>`: use `<Link>`, or, where a full reload is the point (the
   Experiences view's Try Again), disable the rule on that line with the
   reason.
+- **The seeker layout wraps the page slot, and only the page slot, in
+  `<Suspense fallback={null}>` inside `ShallowRouting`, with a
+  `display: contents` div inside the boundary** (KAN-368). Without the
+  boundary a hard load sent no byte of the shell until the page's slowest
+  read answered (on the Dashboard, a whole scoring pass). Never wrap
+  `{modal}`, and never add a `loading.tsx` beside the layout: it would wrap
+  `@modal` too. The div must stay: React plays a `<ViewTransition>` enter on
+  a Suspense reveal only when no DOM node sits between the two
+  (`docs/motion.md`). **Still open, two costs.** On a hard load a page's
+  `redirect()` or `notFound()` now answers 200 (a meta refresh plus a client
+  redirect, or a client-drawn not-found with `noindex`): bare `/settings`,
+  `/applications?app=x`, a bad `/jobs/{id}`, a bad `/applications/{jobId}`
+  and a bad `/resumes/uploaded/{id}`. A page that must answer a real 3xx or
+  404 cannot rely on the status. And React reveals a streamed boundary no
+  sooner than 300 ms after the shell's first frame, so a fast page can land
+  up to about 300 ms later on a hard load; only slow pages gain. The real
+  signed-in spread is unmeasured.
+- **A slow seeker page gets a `loading.tsx` drawn in its own frame**
+  (KAN-368). Every seeker route is dynamic, and Next prefetches a dynamic
+  route only down to a loading boundary, so a click changed nothing on screen
+  until the page's reads were done. Give a page one only if it is slow:
+  React holds a shown fallback for 300 ms, so a fast page gets slower. A
+  skeleton stands at the height of what replaces it, so nothing below jumps.
+  A page with two long reads streams each in its own `<Suspense>` over a
+  skeleton of its shape, and starts every read before its first `await` (the
+  Dashboard: only the account is awaited). **Settings' modal has no
+  `loading.tsx`**: one under `@modal` drew a second modal and backdrop over
+  the first; each section streams in its own boundary instead. A clickable
+  table row holds its hover tint while its navigation is pending
+  (`data-pending`), and the profile photo loads `lazy`, or React holds a
+  navigation's commit inside the page's `<ViewTransition>` until the
+  never-cached photo downloads.
+- **Nothing in the root layout or the root `not-found` may read cookies,
+  headers or the session** (no `getCurrentAccount`, `getSessionUser`,
+  `cookies()`, `headers()`; KAN-368). Next renders the root not-found into
+  every page's tree, so one session read there made all 63 routes dynamic on
+  2026-10-24. Check a build's route table with `NEXT_PUBLIC_SUPABASE_*` set
+  (the deploy's `cf:build` log, or `npm run build` with `.env.local`): `/`
+  must be `○`, `/features/*` `●`, and `.next/prerender-manifest.json` must
+  list `/`. CI's build has no env, so it shows `○` even with a `cookies()`
+  read (`createSupabaseServerClient` throws first): CI cannot catch this. The
+  404's button goes to `/home` (`app/home/route.ts`), which reads the session
+  on click and redirects with `homePath()`; the label is always "Back to
+  Dashboard".
+- **A fresh visit to `/jobs` draws in one round trip** (KAN-368). The page
+  draws Best Match with the saved filters in the same response, and
+  `jobs/canonical-url.tsx` then writes that address in place (a shallow
+  replace). The address it writes must equal `sortHref('match', saved)`
+  exactly, and the page must read its sort and filters from that address
+  (`paramsOf`), not from the saved filters: `RememberFeed`, `ScrollMemory`
+  and Load More's kept pages key on the address, so a drifted one loses the
+  list on Back or a reload, and a saved `pay_per` of `hour` with no range
+  reads back as `year`. Never bring `redirect()` back: the Jobs link paid two
+  round trips with a blank panel between. **Still open:** the bar shows bare
+  `/jobs` for about 0.4 s (until page-enter ends, `docs/motion.md`), and a
+  filter pick in that window builds its URL from the bare address.
 - **Pages render a `<div>`**, not a `<main>`: shadcn's `SidebarInset` already is
   the `<main>`. Seeker pages size off `@container/main`, never the window
   (`docs/design.md`).
@@ -1125,6 +1275,15 @@ the KAN-296 cutover.
   there is no `tailwind.config.js`. Write the token names (`text-body`), never
   stock sizes like `text-sm`. A new token or shared component gets its row in
   `/design-kit` (titles in `design-kit/data.ts`) in the same change.
+- **Never key a Tailwind `group-*` variant on the shell wrapper, or on any
+  large ancestor whose attribute changes often** (KAN-368). Tailwind v4
+  compiles it to `.cls:is(:where(.group)[attr] *)`, and Chrome then restyles
+  that ancestor's whole subtree; the cost comes from the rule sitting in the
+  stylesheet, whether or not an element carries the class. Use `in-data-*`
+  (`:where([attr]) .cls`) or an arbitrary `[sel_&]` variant, and make the
+  class string leave every source file: grep the built CSS for
+  `sidebar-wrapper)[data-peek`. A peek open and close restyled 4,265
+  elements (77 to 84 ms at 4x CPU) against 245 without the rule.
 - **Name a variant for its role, never its look**: `primary`, `positive`,
   `quiet`, not `blue`, `green`, `plain`.
 - **`components/company-logo.tsx` hosts are allow-listed** in `next.config.ts`
@@ -1211,15 +1370,33 @@ are in `docs/auth.md`.
   cookies; server code reads the access token and forwards it to `apiFetch()`
   as a Bearer header, so the API never sees cookies and needs no CORS. Use
   `getClaims()`, not `getSession()`, for any decision made here; `getSession()`
-  is fine for fetching a token to forward.
+  is fine for fetching a token to forward. `getSessionUser()` also returns
+  `accountType` from the verified claims (`app_metadata.account_type`,
+  written only by the API's service-role key). Use it for "applicant or
+  company" on the Next side, not `getCurrentAccount()`: `/auth/me` costs an
+  API call on every soft navigation, since the layout that shares it through
+  `cache()` does not render again then (KAN-368). The claim keeps its old
+  value until the token refreshes (at most an hour), and the API still
+  authorizes every call. **Still open:** `isApplicant()` is now true for an
+  applicant while the API is down, so Apply Now asks "Did You Apply?" and
+  marking fails with its own error.
 - **Cookies are httpOnly, 7 days idle** (`lib/supabase/cookies.ts`, used by
   both writers, `supabase/server.ts` and `src/proxy.ts`). Set `maxAge` in that
   helper's `setAll` path, never through `createServerClient`'s
   `cookieOptions`: @supabase/ssr 0.12 overwrites it. httpOnly holds only while
   no `createBrowserClient()` exists.
 - **`src/proxy.ts` (Next 16's middleware) refreshes the session on every
-  request**, because Server Components cannot write cookies and sessions would
-  die with the hour-long access token. It is a convenience, not security: the
+  request that renders session-dependent content**, because Server Components
+  cannot write cookies and sessions would die with the hour-long access token.
+  Its matcher leaves out the static marketing pages (`/`, `/pricing`,
+  `/terms`, `/privacy`, `/features/*`, `/blog`, `/help-center`, `/docs/*`,
+  `/coming-soon`), so they prerender and a visit there runs no proxy
+  (KAN-368). A new marketing page adds its name to the matcher's lookahead;
+  one left out still works, with one proxy call more. Every session-reading
+  path and every path with a proxy redirect (`/company*`,
+  `/onboarding/company`, `/calendar`) must stay matched. **Still open:** time
+  spent only on marketing pages no longer extends the 7-day idle cookie; the
+  first app request does. It is a convenience, not security: the
   API is reachable without Next and checks every token. Its session step
   no-ops when the Supabase env vars are unset, so a clone with no env file
   boots; the business-side redirect above runs first, either way.
@@ -1235,7 +1412,19 @@ are in `docs/auth.md`.
 - **Never export a token-returning helper from a `"use server"` file.** Every
   export there is a browser-callable endpoint. Token helpers (`session.ts`)
   and Server-Component-only reads (`job-queries.ts`) live in `server-only`
-  modules that action files import.
+  modules that action files import. **Likewise never export from a
+  `"use server"` file a function that fetches a URL or path it is handed**:
+  any page script could call it with any argument, an open fetch proxy
+  (SSRF; KAN-368). Keep such helpers unexported (`readPdf` in
+  `lib/resume-actions.ts`) or in a `server-only` module
+  (`lib/job-queries.ts`, `lib/resume-queries.ts`).
+- **A client screen never loads through several server actions**: Next runs
+  them one at a time per client, so a page that looks parallel pays N round
+  trips in a row (KAN-368). Use one action that runs `Promise.all` on the
+  server, or a server component. Shell components start reads that do not
+  depend on `/auth/me` together with `getCurrentAccount`
+  (`account-status.tsx`, `profile-strength.tsx`), or the chip waits on two
+  API calls in a row on every hard load and `router.refresh()`.
 - **The feed's reads send the viewer's token when there is one**
   (`viewerToken` in `(seeker)/jobs/listings.ts`), so the API can leave out a
   signed-in applicant's applied jobs. It answers null with no Supabase env
@@ -1264,7 +1453,10 @@ are in `docs/auth.md`.
 - **My Profile's cache (`(seeker)/profile-cache.tsx`) lives in the seeker
   layout, never a module variable**: sign-out leaving the shell is what drops
   it, and a module variable would show one account's profile to the next
-  person in that tab.
+  person in that tab. My Profile loads through one server action,
+  `getProfilePage` (`lib/profile-page-actions.ts`; KAN-368): its photo,
+  profile and answer bank ran in a row on a first visit, and a Save waited
+  behind them. A read added to My Profile joins that action.
 - **Resume facts are edited in the experience bank only** (KAN-211). An
   upload writes its reading into the bank itself (ADR 0003); no screen holds
   a second copy of an upload's facts to edit. Two editors of the same facts
@@ -1302,7 +1494,7 @@ are in `docs/auth.md`.
   the editor (`(seeker)/resumes/[resumeId]`), an upload its view page
   (`(seeker)/resumes/uploaded/[id]`, the static segment winning over
   `[resumeId]`). The upload's page reads the PDF on the server
-  (`readResumePdf` in `lib/resume-actions.ts`, base64) and draws it with
+  (`readUploadedResume` in `lib/resume-queries.ts`, server-only: it starts the resume list and the file link together, then downloads the PDF, base64, only for a listed PDF; the list still decides the 404; KAN-368) and draws it with
   the editor's `PdfPages` and no click targets; a DOCX gets a Download
   card, since pdf.js cannot draw one. Its bar (the editor's look) holds
   Make Primary, Rename, Delete and Download, calling what the upload's

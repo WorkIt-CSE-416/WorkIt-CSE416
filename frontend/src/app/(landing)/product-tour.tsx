@@ -256,28 +256,77 @@ function PinnedTour() {
   );
 }
 
+/**
+ * Below lg the stops are one row that swipes sideways, a stop at a time,
+ * the next one peeking in at the edge, with a dot per stop under it.
+ * Stacked, the four stops took 3,290px of a 390px phone, almost a third of
+ * the home page (KAN-368). Each story plays only while its stop is on
+ * screen (story.tsx), so the stops off to the side stay still.
+ */
 function StackedTour() {
+  const rowRef = useRef<HTMLDivElement>(null);
+  const [current, setCurrent] = useState(0);
+  const onScroll = () => {
+    const row = rowRef.current;
+    const first = row?.firstElementChild as HTMLElement | null;
+    if (!row || !first) return;
+    const pitch = first.offsetWidth + parseFloat(getComputedStyle(row).columnGap || "0");
+    setCurrent(Math.min(features.length - 1, Math.max(0, Math.round(row.scrollLeft / pitch))));
+  };
+  const show = (index: number) => {
+    const slide = rowRef.current?.children[index] as HTMLElement | undefined;
+    slide?.scrollIntoView({ behavior: "smooth", block: "nearest", inline: "center" });
+  };
   return (
-    <div className="space-y-2 px-2 sm:space-y-4 sm:px-6 lg:hidden">
-      {features.map((feature) => {
-        const { Visual } = STOPS[feature.id];
-        return (
-          <div
+    <div className="lg:hidden" role="region" aria-roledescription="carousel" aria-label="Features">
+      <div
+        ref={rowRef}
+        onScroll={onScroll}
+        className="flex snap-x snap-mandatory scroll-px-2 [scrollbar-width:none] gap-2 overflow-x-auto overscroll-x-contain px-2 sm:scroll-px-6 sm:gap-4 sm:px-6 [&::-webkit-scrollbar]:hidden"
+      >
+        {features.map((feature, i) => {
+          const { Visual } = STOPS[feature.id];
+          return (
+            <div
+              key={feature.id}
+              role="group"
+              aria-roledescription="slide"
+              aria-label={`${i + 1} of ${features.length}`}
+              className="w-[90%] shrink-0 snap-center overflow-hidden rounded-[2rem] p-2 sm:w-[80%] sm:p-4"
+              style={{ background: backdrop(feature.id) }}
+            >
+              <div className="rounded-[1.5rem] bg-white p-6">
+                <StopCopy id={feature.id} />
+              </div>
+              <div className="flex justify-center py-6">
+                <Fit>
+                  <Visual />
+                </Fit>
+              </div>
+            </div>
+          );
+        })}
+      </div>
+      {/* A dot per stop; each 44px tall to tap, drawn 8px. */}
+      <div className="mt-2 flex justify-center">
+        {features.map((feature, i) => (
+          <button
             key={feature.id}
-            className="overflow-hidden rounded-[2rem] p-2 sm:p-4"
-            style={{ background: backdrop(feature.id) }}
+            type="button"
+            onClick={() => show(i)}
+            aria-label={`Show ${feature.title}`}
+            aria-current={i === current}
+            className="grid size-11 place-items-center"
           >
-            <div className="rounded-[1.5rem] bg-white p-6">
-              <StopCopy id={feature.id} />
-            </div>
-            <div className="flex justify-center px-2 py-8">
-              <Fit>
-                <Visual />
-              </Fit>
-            </div>
-          </div>
-        );
-      })}
+            <span
+              className={cn(
+                "h-2 rounded-full transition-all duration-300",
+                i === current ? "bg-landing-brand-600 w-5" : "w-2 bg-slate-300",
+              )}
+            />
+          </button>
+        ))}
+      </div>
     </div>
   );
 }
@@ -302,9 +351,11 @@ function StopCopy({ id }: { id: FeatureId }) {
           made two calls to action for one paragraph; the header and the
           hero already ask for the sign-up. */}
       <div className="mt-6 text-sm font-medium">
+        {/* The ::after widens what a tap reaches to about 48px, with the
+            underlined link drawn as before: alone it was 23px tall. */}
         <Link
           href={href}
-          className="group text-ink inline-flex items-center gap-1.5 border-b border-current pb-0.5"
+          className="group text-ink relative inline-flex items-center gap-1.5 border-b border-current pb-0.5 after:absolute after:-inset-3 after:content-['']"
         >
           Learn more<span className="sr-only"> about {name}</span>
           <span

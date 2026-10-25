@@ -79,6 +79,12 @@ export function Header() {
             <div className="hidden sm:block">
               <GlassButton href={site.primaryCta.href} label={site.primaryCta.label} />
             </div>
+            {/* On a phone too, shortened to fit beside the logo and the menu:
+                with only the menu there, the sign-up was two taps away
+                (KAN-368). */}
+            <div className="sm:hidden">
+              <GlassButton href={site.primaryCta.href} label="Get started" className="px-3" />
+            </div>
             <button
               type="button"
               popoverTarget="mobile-menu"

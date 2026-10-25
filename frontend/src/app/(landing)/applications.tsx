@@ -536,8 +536,11 @@ function FlyingTile({
   );
 }
 
-/** Below lg, and with reduced motion: the four stops as a list, every
- * pile full, and the application at its offer. */
+/** Logos a still pile shows before the rest become a count. */
+const STILL_PILE = 7;
+
+/** Below lg, and with reduced motion: the four stops as a list, each
+ * pile's first logos and its count, and the application at its offer. */
 function StillApplications() {
   return (
     <section id="applications" className="py-20 sm:py-28">
@@ -563,10 +566,18 @@ function StillApplications() {
                       {stage.soon && <SoonChip />}
                     </p>
                     <p className="text-ink-meta mt-0.5 text-sm text-pretty">{stage.description}</p>
-                    <div aria-hidden="true" className="mt-3 flex flex-wrap gap-[5px]">
-                      {LOGOS.slice(0, count).map((logo) => (
+                    {/* Seven at most, then the rest as a count: the full
+                        piles (24, 12) ran to three rows of 16px tiles that
+                        read as noise on a phone (KAN-368). */}
+                    <div aria-hidden="true" className="mt-3 flex flex-wrap items-center gap-[5px]">
+                      {LOGOS.slice(0, Math.min(count, STILL_PILE)).map((logo) => (
                         <LogoTile key={logo.domain} logo={logo} />
                       ))}
+                      {count > STILL_PILE && (
+                        <span className="text-ink-meta ml-1 text-xs font-medium tabular-nums">
+                          +{count - STILL_PILE}
+                        </span>
+                      )}
                     </div>
                   </div>
                 </li>

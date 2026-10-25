@@ -67,9 +67,17 @@ export default async function ApplicationsPage({ searchParams }: PageProps<"/app
     // the room only shows more columns. A negative margin of half the gain on
     // each side widens the page itself, easing with the panel, while its
     // @…/main queries still see the open width, so nothing on it reflows.
-    // Reading pages keep --container-app: text past ~80 characters a line is
-    // hard to follow.
-    <div className={cn("-mx-[calc(var(--panel-gain)/2)] flex-1 py-6", SEEKER_GUTTER)}>
+    // --panel-gain does not inherit, so this wrapper sets and eases its own
+    // copy with the shell's classes ("EVERY READER OF --panel-gain CARRIES
+    // ITS OWN", ../layout.tsx); without them it reads 0px and the page stops
+    // widening. Reading pages keep --container-app: text past ~80 characters
+    // a line is hard to follow.
+    <div
+      className={cn(
+        "-mx-[calc(var(--panel-gain)/2)] flex-1 py-6 transition-[--panel-gain] duration-200 ease-linear md:in-data-[pinned=false]:[--panel-gain:calc(var(--sidebar-width)_-_var(--sidebar-width-icon))]",
+        SEEKER_GUTTER,
+      )}
+    >
       {/* The switcher is two glyphs, so it fits beside the title at every
           width: the subtitle wraps rather than pushing it onto a line of its
           own. items-start, as on the Dashboard, so the switcher sits level
