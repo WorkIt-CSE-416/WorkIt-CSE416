@@ -99,6 +99,30 @@ test("a tab moves to Needs you when a field empties, and back to Ready when it i
   expect(forms.submissions).toEqual([]);
 });
 
+test("a job board's posting opens the employer's form it names, and never the job board", async () => {
+  test.setTimeout(90_000);
+  const forms = new SavedForms(["greenhouse-arc"]);
+  const api = new FakeApi().queue(
+    // The API names no form for this one: an older queued row, from before the queue refused job boards.
+    { id: "job-0", apply_url: "https://www.indeed.com/viewjob?jk=1a2b3c", form_url: null },
+    { id: "job-1", apply_url: "https://www.linkedin.com/jobs/view/4012345678", form_url: forms.url("greenhouse-arc") },
+    // Whatever the API says, a job board's link is never opened.
+    { id: "job-2", apply_url: "https://www.linkedin.com/jobs/view/4012345679", form_url: "https://www.linkedin.com/jobs/view/4012345679/apply" },
+  );
+  const { webappPage, before } = await start(api, forms);
+
+  const answer = await sendFromWebapp(webappPage, { type: "run/open" });
+  expect(answer).toMatchObject({ ok: true, opened: true, jobIds: ["job-1"] });
+
+  const groupOfArc = async () => (await tabs(loaded.worker)).find((t) => t.url === forms.url("greenhouse-arc"))?.group?.title;
+  await expect.poll(groupOfArc, { timeout: 60_000 }).toBe("Ready");
+  const batch = (await tabs(loaded.worker)).filter((t) => !before.has(t.id));
+  expect(batch.map((t) => t.url)).toEqual([forms.url("greenhouse-arc")]);
+  // The refused ones keep their stage: nothing was filled for them.
+  expect(Object.fromEntries(api.stages)).toEqual({ "job-0": "queued", "job-1": "queued", "job-2": "queued" });
+  expect(forms.submissions).toEqual([]);
+});
+
 /** `forms`' handler, with `script` added to the saved form `name`'s page: the form misbehaving as a live one may. */
 function withScript(forms: SavedForms, name: string, script: string): Handler {
   return async (request) => {

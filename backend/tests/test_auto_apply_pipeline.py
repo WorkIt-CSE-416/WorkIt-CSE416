@@ -118,9 +118,10 @@ def test_queue_job_keeps_an_existing_application(monkeypatch):
 
 def test_queue_job_refuses_a_job_that_isnt_open(monkeypatch):
     monkeypatch.setattr(pipeline, "queue_applications", AsyncMock(return_value=set()))
+    monkeypatch.setattr(pipeline, "fetch_open_apply_url", AsyncMock(return_value=None))
     fake_stage(monkeypatch, None)
 
-    with pytest.raises(pipeline.NotFound):
+    with pytest.raises(pipeline.NotFound, match="That job isn't open any more."):
         asyncio.run(pipeline.queue_job(FakeDB(), APPLICANT, JOB))
 
 

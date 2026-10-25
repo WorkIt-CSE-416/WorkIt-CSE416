@@ -22,9 +22,18 @@
 // filled hidden and at once gave the same fields as each filled in turn while
 // shown (checked 2026-10-25, Chromium 1248). So no tab is ever made active,
 // and the student stays on the page they were on.
+//
+// A PRACTICE BATCH (KAN-378) is onboarding's: the same tabs and groups on
+// WorkIt's own practice forms (engine.js, `practiceJob`), whose links the
+// webapp sends (each checked to be a practice form on the sender's own
+// site). It has no queue or stages in the API: its jobs and which ones the
+// student submitted are kept in the batch itself (`practice`), and a tab
+// that reaches the job's /thanks page is submitted (background.js).
+// Starting a real batch ends a practice one.
 
 import { ApiError, me, nextApplication, recordFill } from "./api.js";
-import { formUrl } from "./engine.js";
+import { formUrl, practiceJob } from "./engine.js";
+import { jobBoard } from "./job-boards.js";
 import { injectFill } from "../shared/content-scripts.js";
 
 /** At most this many tabs fill at once. */
@@ -46,6 +55,7 @@ const FORM_TIMEOUT_MS = 10_000;
  *   tabs: Record<string, { jobId: string, url: string, state: TabState }>,
  *   opened: string[],
  *   groups: { ready?: number, needs_you?: number },
+ *   practice?: { jobs: { jobId: string, url: string }[], submitted: string[] },
  * }} Batch
  */
 
@@ -88,7 +98,7 @@ export async function startBatch(sender) {
   }
   return serially(async () => {
     let batch = await liveBatch();
-    if (!batch) batch = { windowId: sender.tab?.windowId ?? chrome.windows.WINDOW_ID_CURRENT, tabs: {}, opened: [], groups: {} };
+    if (!batch || batch.practice) batch = { windowId: sender.tab?.windowId ?? chrome.windows.WINDOW_ID_CURRENT, tabs: {}, opened: [], groups: {} };
     const before = Object.keys(batch.tabs).length;
     await topUp(batch, account.id);
     const open = Object.values(batch.tabs);
@@ -123,11 +133,19 @@ async function liveBatch() {
 async function topUp(batch, applicantId) {
   const filling = () => Object.values(batch.tabs).filter((t) => t.state === "filling").length;
   while (filling() < WINDOW) {
-    const application = await nextApplication(applicantId, batch.opened);
+    const application = batch.practice ? nextPractice(batch) : await nextApplication(applicantId, batch.opened);
     if (!application) break;
     const jobId = application.job.id;
+    // The employer's form the API names (a job board's posting is taken only through it, KAN-376).
+    const link = application.job.form_url ?? application.job.apply_url;
+    if (jobBoard(link)) {
+      // Never a job board's page, whatever the API says: this batch passes it over.
+      console.warn(`[batch] not opened: ${jobBoard(link)} is a job board, and batch apply opens only an employer's own form`);
+      batch.opened.push(jobId);
+      continue;
+    }
     // The form, not the job's page, where the two differ (a Lever posting's form is at .../apply).
-    const url = formUrl(application.job.apply_url);
+    const url = formUrl(link);
     const tab = await chrome.tabs.create({ url, active: false, windowId: batch.windowId });
     // Memory Saver must never throw away a form the student hasn't reviewed.
     await chrome.tabs.update(tab.id, { autoDiscardable: false });
@@ -175,6 +193,10 @@ export function setTabState(tabId, state) {
     tab.state = state;
     await save(batch);
     await moveToGroup(batch, tabId, state);
+    if (batch.practice) {
+      if (wasFilling) await topUp(batch, null);
+      return { batch: true };
+    }
     let account = null;
     try {
       account = await me();
@@ -216,7 +238,7 @@ export function forgetTab(tabId) {
     await save(batch);
     if (tab.state !== "filling") return;
     try {
-      await topUp(batch, (await me()).id);
+      await topUp(batch, batch.practice ? null : (await me()).id);
     } catch (error) {
       console.warn("[batch] the next application didn't open:", error.message);
     }
@@ -296,6 +318,85 @@ export async function nextNeedsYou() {
   await chrome.windows.update(tab.windowId, { focused: true });
   if (next.key !== null) await chrome.tabs.sendMessage(next.tabId, { type: "batch/focus", key: next.key }).catch(() => {});
   return { done: false, tabId: next.tabId, key: next.key };
+}
+
+/**
+ * Onboarding's practice batch (`practice/open`): opens the practice forms
+ * `message.urls` names, as a batch's tabs, in the window of the WorkIt tab
+ * that asked. Only practice forms on that tab's own site are taken. A
+ * practice batch with tabs open is kept as it is; a real batch with tabs
+ * open is never mixed with one.
+ * @param {chrome.runtime.MessageSender} sender
+ * @param {{ urls?: unknown }} message
+ * @returns {Promise<
+ *   | { opened: true, jobIds: string[], fill: "started" | "kept" }
+ *   | { opened: false, reason: "signed_out" | "batch_running" }
+ * >}
+ */
+export async function startPractice(sender, message) {
+  const origin = sender.origin ?? new URL(sender.url).origin;
+  const urls = Array.isArray(message?.urls) ? message.urls : [];
+  const jobs = urls
+    .filter((url) => typeof url === "string" && practiceJob(url)?.page === "apply" && new URL(url).origin === origin)
+    .map((url) => ({ jobId: practiceJob(url).job, url }));
+  if (!jobs.length) throw new Error("No practice form to open");
+  // The fill reads the student's profile: a signed-out student would get empty forms.
+  try {
+    await me();
+  } catch (error) {
+    if (error instanceof ApiError && error.status === 401) return { opened: false, reason: "signed_out" };
+    throw error;
+  }
+  return serially(async () => {
+    const live = await liveBatch();
+    const open = (batch) => Object.values(batch.tabs).map((t) => t.jobId);
+    if (live && open(live).length) {
+      return live.practice ? { opened: true, jobIds: open(live), fill: "kept" } : { opened: false, reason: "batch_running" };
+    }
+    const batch = { windowId: sender.tab?.windowId ?? chrome.windows.WINDOW_ID_CURRENT, tabs: {}, opened: [], groups: {}, practice: { jobs, submitted: [] } };
+    await topUp(batch, null);
+    return { opened: true, jobIds: open(batch), fill: "started" };
+  });
+}
+
+/** The practice batch's next job not yet opened, as GET .../applications/next answers one. */
+function nextPractice(batch) {
+  const job = batch.practice.jobs.find((j) => !batch.opened.includes(j.jobId));
+  return job ? { job: { id: job.jobId, apply_url: job.url } } : null;
+}
+
+/**
+ * The student pressed a practice form's Submit (its tab reached /thanks):
+ * the job is submitted, and its tab leaves the batch and its group, as a
+ * submitted application's does. Tabs outside a practice batch are ignored.
+ * @param {number} tabId
+ */
+export function submitPractice(tabId) {
+  return serially(async () => {
+    const batch = await load();
+    const tab = batch?.tabs[tabId];
+    if (!batch?.practice || !tab) return;
+    delete batch.tabs[tabId];
+    if (!batch.practice.submitted.includes(tab.jobId)) batch.practice.submitted.push(tab.jobId);
+    await save(batch);
+    await chrome.tabs.ungroup(tabId).catch(() => {});
+    if (tab.state === "filling") await topUp(batch, null);
+  });
+}
+
+/**
+ * Where each practice job is, for onboarding's practice step: "waiting"
+ * (not opened yet), "filling", "ready", "needs_you", "submitted", or
+ * "closed" (its tab was closed before Submit). Empty with no practice batch.
+ * @returns {Promise<{ jobs: { jobId: string, state: string }[] }>}
+ */
+export async function practiceStatus() {
+  const batch = await liveBatch();
+  if (!batch?.practice) return { jobs: [] };
+  const shown = new Map(Object.values(batch.tabs).map((t) => [t.jobId, t.state]));
+  const stateOf = (jobId) =>
+    batch.practice.submitted.includes(jobId) ? "submitted" : (shown.get(jobId) ?? (batch.opened.includes(jobId) ? "closed" : "waiting"));
+  return { jobs: batch.practice.jobs.map(({ jobId }) => ({ jobId, state: stateOf(jobId) })) };
 }
 
 /**

@@ -1379,6 +1379,12 @@ are in `docs/auth.md`.
   Profile step then saves the home `location` and the links through
   `updateProfile`, checked with `webLink` first, the same fields My Profile
   edits. Screen: `docs/screens.md`, Applicant onboarding.
+- **The practice forms (`lib/practice-form.ts`) import nothing** (KAN-378):
+  they are whole HTML pages, served by a route handler, and the extension's
+  end-to-end test imports the module to serve the same bytes, so it can't
+  reach `@/` or React. Their Submit must never send anything; keep it the
+  page script's `/thanks` navigation. They copy WorkIt's tokens by name:
+  change them with `globals.css`.
 - **A built resume's download keeps nothing** (KAN-267): the PDF through
   `renderResumePdf` (base64 and its `file_name`), the Word file and the
   PDF's LaTeX source through `downloadResumeFile(id, "docx" | "tex")`

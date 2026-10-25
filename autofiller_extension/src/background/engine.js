@@ -12,6 +12,7 @@
 // (reading a job, planning). No chrome.* API is used at import time, so the
 // extension's test imports this file as it is.
 import "../../fill-engine/dist/engine.js";
+import { DEV_WEB_URL, PROD_SITES } from "../shared/config.js";
 
 /** The engine's own copy here, for what needs no page. */
 const engine = globalThis.FillEngine;
@@ -23,7 +24,34 @@ const engine = globalThis.FillEngine;
  * @param {string} url
  */
 export function jobOf(url) {
+  const practice = practiceJob(url);
+  if (practice) return practice.page === "apply" ? { site: "lever", practice: true, company: practice.company, job: practice.job, form: url, onForm: true } : null;
   return engine.jobOf(url);
+}
+
+// WorkIt's own web origins: the only ones whose practice forms are filled.
+const WEB_ORIGINS = [DEV_WEB_URL, ...PROD_SITES.map((site) => site.web)];
+const PRACTICE_PATH = /^\/practice\/([a-z0-9-]+)\/([0-9a-f-]{36})\/(apply|thanks)\/?$/;
+
+/**
+ * A practice job's page on WorkIt's own site (onboarding's practice batch,
+ * KAN-378; frontend/src/lib/practice-form.ts): its form (`apply`) or the
+ * page its Submit opens (`thanks`). Null for any other page. The practice
+ * form is laid out as Lever's, so `jobOf` gives it to the engine's Lever
+ * Filler, and its Question set is read from its own HTML as a Lever form's is.
+ * @param {string} url
+ * @returns {{ company: string, job: string, page: "apply" | "thanks" } | null}
+ */
+export function practiceJob(url) {
+  let parsed;
+  try {
+    parsed = new URL(url);
+  } catch {
+    return null;
+  }
+  if (!WEB_ORIGINS.includes(parsed.origin)) return null;
+  const m = PRACTICE_PATH.exec(parsed.pathname);
+  return m ? { company: m[1], job: m[2], page: m[3] } : null;
 }
 
 /** The link to open for an application: its form, where the engine covers the job system. */
@@ -201,6 +229,8 @@ async function readQuestions({ job, url, call, fetchText, state }) {
     return { questions: shown.questions, step, state: shown.state };
   }
   if (job.site === "eightfold") return { questions: await call("readQuestions", "eightfold") };
+  // A practice form's questions are in its own page, as a Lever form's are in its /apply page.
+  if (job.practice) return { questions: engine.parseQuestions("lever", await fetchText(url)) };
   try {
     return { questions: await engine.questionSet(url, fetchText) };
   } catch (error) {

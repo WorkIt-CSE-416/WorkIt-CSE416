@@ -137,5 +137,8 @@ def test_matches_hide_every_job_with_an_application_saved_ones_too():
 def test_matches_can_take_only_jobs_auto_apply_fills():
     assert matching(JobFilters()) == []
     (clause,) = matching(JobFilters(auto_apply_only=True))
-    assert _sql(clause).startswith("job_postings.apply_url ~* '^https?://")
-    assert "greenhouse\\.io" in _sql(clause)
+    sql = _sql(clause)
+    # Its apply_url is a hiring system's form, or a job board's posting names one (KAN-376).
+    assert sql.startswith("CASE WHEN (job_postings.apply_url ~* '^https?://")
+    assert "greenhouse\\.io" in sql and "linkedin\\.com" in sql
+    assert sql.endswith("END IS NOT NULL")

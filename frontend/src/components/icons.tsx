@@ -525,3 +525,9 @@ export function SidebarPinIcon({ pinned, className }: IconProps & { pinned: bool
   const Glyph = pinned ? PushPinSlash : PushPin;
   return <Glyph aria-hidden className={className} />;
 }
+
+/** Pinning the WorkIt extension to Chrome's toolbar (KAN-378, onboarding's
+ *  install step): the sidebar's pin glyph. Not PinIcon, which is a place. */
+export function ToolbarPinIcon({ className }: IconProps) {
+  return <PushPin aria-hidden className={className} />;
+}

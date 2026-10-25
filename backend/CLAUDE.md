@@ -107,7 +107,8 @@ module docstring has the steps.
   and removals.
 - **An auto apply test seeds a hiring system's `apply_url`** (Greenhouse in
   most; `_seed_posting(database, url)` in `tests/test_sent_resumes.py`): the
-  queue refuses every host not in `app/auto_apply/hosts.py` with a 404. The
+  queue refuses every host not in `app/auto_apply/hosts.py` with a 404 (a
+  job board's posting with the reason, KAN-376). The
   first host rule (Greenhouse only) broke six
   database tests that seeded `example.com`; they skip without the local
   container, so only CI caught it (2026-10-17). Run them with the container
@@ -211,7 +212,10 @@ Find files with a directory listing; these are the rules for where code goes.
   which the Jobs page reads to show the button. One pattern serves both, so
   they agree; the Python form is tested against URLs, the SQL form only by
   the SQL it sends (on 2026-10-17 the two agreed on all 13,308 listed jobs
-  in the dev database).
+  in the dev database). A job board's posting (`JOB_BOARDS`, KAN-376) is
+  taken only through the employer's form its text names: `FORM_URL` reads
+  it in SQL, the listing carries it as `form_url`, and `auto_apply` checks
+  that form (`tests/test_job_board_links.py`).
   matching: `app/services/matching/CLAUDE.md`. Resume PDFs (LaTeX through
   Tectonic): `app/services/resume_render/CLAUDE.md`. A service that reads or
   writes rows (the experience bank, `services/bank.py`) takes the caller's
