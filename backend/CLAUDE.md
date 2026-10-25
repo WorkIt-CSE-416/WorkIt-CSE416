@@ -211,6 +211,10 @@ Find files with a directory listing; these are the rules for where code goes.
   each answer through the connector, and the tab reads them back
   (`GET .../questions`) to fill them. Only a queued or needs_you application
   takes questions. Tests: `tests/test_written_answers.py`.
+  **A student's writing samples and style card** (KAN-384) are
+  `queries/writing.py`, behind `routers/writing_samples.py` (the student's
+  add, replace, remove) and the connector's tools (their Claude reads the
+  samples and saves the card). Tests: `tests/test_writing_samples.py`.
   **The connector is an MCP server inside this API** (`app/connector/`,
   KAN-377; `../auto-apply/architecture.md` 14.6): the official MCP SDK at
   `/mcp`, with WorkIt as its own OAuth server (`connector/oauth.py`; the
@@ -221,7 +225,8 @@ Find files with a directory listing; these are the rules for where code goes.
   signs in with the SDK's own client as Claude does). Its tokens reach
   `/mcp` only. **Its tools are layer 3** (`connector/tools.py`): the
   student comes from the token (`load_account`), each tool calls one
-  layer-2 step (`next_to_write`, `save_answers`), and a refusal is a
+  layer-2 step (`next_to_write`, `save_answers`; the style card's two tools,
+  `connector/style.py`, read and write `queries/writing.py`), and a refusal is a
   `ToolError` with the reason. **A chat is the `chat` value Claude passes
   back** (KAN-381): the server keeps no session, so the per-chat cap
   (`connector_chat_cap`) counts the job ids in that value, and a new chat
@@ -966,6 +971,10 @@ removed at cutover, not before. Until then a change must work on both.
   changes two foreign keys (no column the code maps), so either order
   works. Before it, a hard-deleted posting still cascades to tailored
   resumes and their bullet variants.
+- **Apply `c3e5a7b9d146` (`writing_samples`, `style_cards`, KAN-384)
+  before the deploy that reads them.** It only adds tables, so applying it
+  early is safe; deployed first, the connector's get_next_application and
+  the writing-samples routes answer 500.
 - **Apply `f2b8d6c4a913` before deploying KAN-217.** It adds
   `bank_bullet_variants` and `built_resume_bullets.variant_id`, which the
   model maps, so Generate's inserts fail on a database without it.

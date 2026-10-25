@@ -134,6 +134,13 @@ _Avoid_: essay (for the saved answer), AI answer, generated answer
 A written answer kept from one application and filled again on a later form that asks the same question, so the student's Claude is not asked twice. The student's own words come first; an answer about one company is reused only on that company's forms.
 _Avoid_: cached answer, template, answer bank (alone: the Fill engine's name for where saved answers come from)
 
+**Writing sample**:
+A piece of the student's own writing (an essay, a cover letter, an answer they wrote), word for word. A student keeps up to three. Their Claude reads them to build the style card, and a written answer must copy no run of words from them.
+_Avoid_: example, voice sample
+**Style card**:
+How a student writes, as their own Claude described it from their writing samples: sentence length, how they open, explain and end, the words they use and avoid. Their Claude writes their answers in that voice; without one, it writes in a plain, neutral voice. It describes how they write, never what they did.
+_Avoid_: voice profile, persona, tone settings
+
 **Source**:
 Where a filled answer came from, shown beside it: Profile, Saved Answer, Claude (or AI, the essay route), You (the student's own answer or edit) or Guessed (WorkIt's default, or no fact of the student's). A guessed answer is highlighted for the student to check.
 _Avoid_: origin, provenance (in copy), confidence

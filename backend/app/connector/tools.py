@@ -12,6 +12,10 @@ whole view of WorkIt (auto-apply/architecture.md, 14.6):
   the application's company brief with it.
 - `save_answers` (a write): saves answers to that application's
   questions, all or none; the open batch tab fills each one.
+- `get_writing_samples` and `save_style_card` (app/connector/style.py,
+  KAN-384): the student's writing samples, and the style card their Claude
+  builds from them, which get_next_application then gives (`style_card`,
+  and `style_card_needed` when samples have no card yet).
 - The prompt "Write my WorkIt answers" (app/connector/prompt.py): how to
   write them. The writing rules live there and only there: a tool's
   description says what the tool does, never how Claude should behave
@@ -47,6 +51,7 @@ from app.config import get_settings
 from app.connector.prompt import PROMPT, TITLE
 from app.db import get_sessionmaker
 from app.deps import load_account
+from app.queries import writing
 from app.schemas.applications import ANSWER_MAX
 from app.schemas.auth import AccountType, AuthenticatedAccount
 from app.services.essay_answer import bank_context
@@ -78,6 +83,12 @@ class NextApplication(BaseModel):
         default=[],
         description="Facts about the company, each with its category, page url, the page's date and, for a team, "
         "its name. Web text checked against its page; [] when WorkIt has no brief for the company.",
+    )
+    style_card: str | None = Field(
+        default=None, description="How the student writes, from their writing samples (KAN-384); null when none is saved."
+    )
+    style_card_needed: bool = Field(
+        default=False, description="True when the student has writing samples and no style card built from them."
     )
 
 
@@ -130,6 +141,7 @@ def register(server: MCPServer) -> None:
             student = await _student(db)
             found = await pipeline.next_to_write(db, student.id, skip=handed)
             brief = await briefs.brief_for(db, found.application.job.company) if found else []
+            card, card_needed = await writing.card_state(db, student.id)
         if found is None:
             return NextApplication(job_id=None, chat=chat)
         cap = get_settings().connector_chat_cap
@@ -158,6 +170,8 @@ def register(server: MCPServer) -> None:
             experience=experience,
             skills=skills,
             company_brief=brief,
+            style_card=card,
+            style_card_needed=card_needed,
         )
 
     @server.tool(

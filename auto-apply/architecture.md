@@ -1072,6 +1072,8 @@ ids and plain data.
 |---|---|---|
 | `get_next_application` | tool, `readOnlyHint` | The oldest open application (queued or needs_you, posting open) with a written question unanswered (`next_to_write`): its job id, company, title, the posting's description, its unanswered questions (`name`, `question`, `required`, `max_length`), and the student's experience bank and skills (`bank_context`, no links). Only that application's material. `job_id: null` when none is left. Takes and answers a `chat` value (the job ids this chat was given, below); past `CONNECTOR_CHAT_CAP` it answers `start_new_chat: true`, a `message` for the student, and no application |
 | `save_answers` | tool, a write (not destructive) | `{job_id, answers: [{name, answer}]}` (`save_answers`): all or none; refuses a name the application doesn't ask, an empty answer, or one that fails a check in code (`app/auto_apply/checks.py`, KAN-380: machine-made words, a run of 5 words copied from the student's writing samples, a number not in the bank, posting or question, another application's company, a sentence over 30 words, a placeholder, or over the form's `max_length`, else 10,000), with every failing answer's reasons as one tool error for Claude to fix. Answers `{saved, left}` |
+| `get_writing_samples` | tool, `readOnlyHint` | `app/connector/style.py` (KAN-384): the student's writing samples, word for word, and the style card saved from them, if any |
+| `save_style_card` | tool, a write (not destructive) | `{card}`: adds or replaces the student's style card; refuses one when the student has no samples, or an empty one or one over 4,000 characters |
 | "Write my WorkIt answers" | prompt | `app/connector/prompt.py`. The loop (next application, research its company if `get_research_task` names it (KAN-382), write, save, until the tool says to start a new chat) and the writing rules. **The rules live here only**; tool descriptions say what a tool does (Anthropic's review refuses descriptions that steer Claude) |
 
 **The writing rules (KAN-381)** are Apply's pipeline, made general for any
@@ -1086,7 +1088,21 @@ and its owner's preferences are left out; a question the sources can't
 answer (a preference, a reference, something only the student knows) is
 left for the student, never guessed. Banned words stay out of the prompt,
 since naming a word primes a model; the save checks them in code (KAN-380, separate).
-A per-student style card (KAN-384) is not in it yet.
+
+**The style card (KAN-384).** A student keeps up to three writing samples
+on WorkIt (`/applicants/{id}/writing-samples`; add, replace, remove).
+`get_next_application` gives `style_card` when one is saved, and
+`style_card_needed: true` when samples have no card yet; the prompt then
+has Claude read them (`get_writing_samples`), build a card on how the
+student writes (sentence length, openings, explanations, transitions,
+punctuation, tone, endings, what they never do; examples of at most four
+words, no facts) and save it (`save_style_card`) before it writes. Any
+change to the samples deletes the card, so the next chat builds a new
+one. Without samples, Claude writes in a plain, neutral voice. The card
+holds no facts: the rules on sources hold, and the rules win where the
+card disagrees. The samples stay on WorkIt for the copying check
+(KAN-380, `pipeline.writing_samples`). Tests:
+`tests/test_connector_style_card.py`, `tests/test_writing_samples.py`.
 
 **A chat and its cap (KAN-381).** The server is stateless and Claude
 sends nothing that names a chat, so the chat carries its own count: each
