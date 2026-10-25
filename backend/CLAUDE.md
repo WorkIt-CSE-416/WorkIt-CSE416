@@ -186,11 +186,15 @@ Find files with a directory listing; these are the rules for where code goes.
 - **Services** (`app/services/`): logic with no HTTP or database of its own.
   Never in `models/`, whose `__init__` imports every file as a model. Job
   matching: `app/services/matching/CLAUDE.md`.
-- **Auto apply** (`app/auto_apply/`): KAN-223's layers 1 and 2, in three
-  files by kind: `rules.py` pure (no session), `queries.py` database, and
-  `pipeline.py` the steps that call them. Unlike a service, its functions may
+- **Auto apply** (`app/auto_apply/`): KAN-223's layers 1 and 2. Layer 1
+  is `rules.py` pure (no session) and `queries.py` database; layer 2 is
+  the steps that call them, `pipeline.py`, which every caller imports.
+  `stages.py` holds what every step checks first (the application exists,
+  its form is open: `open_application`, `get_application`) and the errors
+  for it. Unlike a service, its functions may
   take a session; its routes still go in `app/routers/`. Its `NotFound`
-  and `WrongStage` answer 404 and 409 from one handler each in
+  and `WrongStage` (`stages.py`, also `pipeline.NotFound`) answer 404 and
+  409 from one handler each in
   `app/main.py`: a route lets them through rather than catching them. Read
   `../auto-apply/architecture.md`, "The function layers", before adding one:
   a layer-2 step that skips a layer-1 check lets any caller skip it. Its

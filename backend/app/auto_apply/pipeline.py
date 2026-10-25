@@ -21,7 +21,6 @@ from app.auto_apply.queries import (
     ResumeChoice,
     chosen_resume,
     drop_written,
-    fetch_application,
     fetch_application_companies,
     fetch_applications,
     fetch_next_application,
@@ -42,6 +41,13 @@ from app.auto_apply.queries import (
     set_stage,
 )
 from app.auto_apply.rules import pick_batch
+from app.auto_apply.stages import (
+    FINISHABLE,
+    NotFound,
+    WrongStage,
+    get_application,
+    open_application,
+)
 from app.models.dto import application_stage
 from app.queries import writing
 from app.queries.jobs.filters import JobFilters
@@ -76,9 +82,6 @@ OUTCOME_STAGE = {
     "skipped": application_stage.skipped,
     "failed": application_stage.needs_you,
 }
-# The stages a fill can end from: queued, or needs_you when the student
-# finishes a failed form by hand.
-FINISHABLE = (application_stage.queued, application_stage.needs_you)
 # Batch apply (KAN-370): how a tab's fill left the form, on the stage. A
 # ready tab waits for the student's submit, so it stays queued (the batch
 # skips the jobs it has open); a tab with anything unfilled needs them.
@@ -86,15 +89,6 @@ FILL_STAGE = {
     "ready": application_stage.queued,
     "needs_you": application_stage.needs_you,
 }
-
-
-class NotFound(Exception):
-    """No such job posting open, or no application for it. The route answers 404."""
-
-
-class WrongStage(Exception):
-    """The application is not in the stage this step needs. The message names
-    the step to call first. The route answers 409."""
 
 
 class FileFailed(Exception):
@@ -246,17 +240,6 @@ async def list_applications(
     ]
 
 
-async def get_application(
-    db: AsyncSession, applicant_id: uuid.UUID, job_id: uuid.UUID
-) -> Application:
-    """The applicant's application for one job posting: its listing, stage
-    and dates. Raises NotFound when they have none."""
-    application = await fetch_application(db, applicant_id, job_id)
-    if application is None:
-        raise NotFound("No application for that job.")
-    return application
-
-
 async def next_application(
     db: AsyncSession, applicant_id: uuid.UUID, skip: Sequence[uuid.UUID] = ()
 ) -> Application | None:
@@ -290,16 +273,6 @@ async def record_fill(
     return new
 
 
-async def _open_application(db: AsyncSession, applicant_id: uuid.UUID, job_id: uuid.UUID) -> None:
-    """Raises NotFound with no application, WrongStage once it is past
-    the form (skipped or applied)."""
-    stage = await fetch_stage(db, applicant_id, job_id)
-    if stage is None:
-        raise NotFound("No application for that job. Queue it first.")
-    if stage not in FINISHABLE:
-        raise WrongStage(f"That application is {stage}, so its form is no longer open.")
-
-
 async def ask_questions(
     db: AsyncSession, applicant_id: uuid.UUID, job_id: uuid.UUID, questions: Sequence[WrittenQuestion]
 ) -> list[WrittenAnswer]:
@@ -314,7 +287,7 @@ async def ask_questions(
     filled, for their Claude to write again. Only a queued or needs_you application:
     NotFound / WrongStage otherwise.
     """
-    await _open_application(db, applicant_id, job_id)
+    await open_application(db, applicant_id, job_id)
     await put_questions(db, applicant_id, job_id, questions)
     asked = {q.name for q in questions}
     answered = [q for q in await fetch_written(db, applicant_id, job_id) if q.answer and q.name in asked]
@@ -415,7 +388,7 @@ async def save_answers(
     come from any AI. Raises NotFound / WrongStage for an application that
     isn't open, Refused otherwise.
     """
-    await _open_application(db, applicant_id, job_id)
+    await open_application(db, applicant_id, job_id)
     questions = {q.name: q for q in await fetch_written(db, applicant_id, job_id)}
     if not answers:
         raise Refused("No answers to save.")

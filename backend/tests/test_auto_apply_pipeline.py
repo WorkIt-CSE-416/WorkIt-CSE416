@@ -9,7 +9,7 @@ from unittest.mock import AsyncMock, MagicMock
 import pytest
 from sqlalchemy.exc import SQLAlchemyError
 
-from app.auto_apply import pipeline
+from app.auto_apply import pipeline, stages
 from app.auto_apply.queries import ResumeChoice
 from app.models.dto import application_stage
 from app.queries.jobs.filters import JobFilters
@@ -162,7 +162,7 @@ def test_get_application_without_one_is_not_found(monkeypatch):
     async def fetch_application(db, applicant_id, job_id):
         return None
 
-    monkeypatch.setattr(pipeline, "fetch_application", fetch_application)
+    monkeypatch.setattr(stages, "fetch_application", fetch_application)
     with pytest.raises(pipeline.NotFound):
         asyncio.run(pipeline.get_application(None, APPLICANT, JOB))
 
