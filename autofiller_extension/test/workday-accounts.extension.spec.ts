@@ -158,3 +158,24 @@ test("a refused sign-in stays refused when the page loads again: Sign In isn't p
   expect(workdays.signIns.map((s) => s.view)).toEqual(["create", "signin"]);
   expect(await box(again, "password").inputValue()).toBe("");
 });
+
+test("a terms box that doesn't show ticked: Create Account isn't pressed, the password is kept, and the student is told", async () => {
+  test.setTimeout(120_000);
+  const workdays = new FakeWorkdays(["workday-caci"]);
+  workdays.stuckTerms.add("caci.wd1.myworkdayjobs.com");
+  const page = await start(workdays, { id: "wd-0", apply_url: workdays.signInUrl(0) });
+
+  const caci = await page(workdays.signInUrl(0));
+  await allow(caci);
+  await expect(overlay(caci).locator(".row").filter({ hasText: 'couldn\'t tick "I agree to the terms"' })).toBeVisible({ timeout: 30_000 });
+  await caci.waitForTimeout(3000);
+  expect(workdays.signIns).toEqual([]);
+  const saved = await loaded!.worker.evaluate(async () => (await chrome.storage.local.get("workday_logins")).workday_logins ?? {});
+  expect(saved["caci.wd1.myworkdayjobs.com"]?.password).toBe(await box(caci, "password").inputValue());
+
+  // The student ticks it and presses Create Account: the account is made with the kept password.
+  await box(caci, "createAccountCheckbox").check();
+  await box(caci, "click_filter").click();
+  await caci.waitForURL(workdays.url(0), { timeout: 30_000 });
+  expect(workdays.signIns[0]?.password).toBe(saved["caci.wd1.myworkdayjobs.com"].password);
+});

@@ -30,6 +30,8 @@ window.WIA = window.WIA || {};
   const VERIFY = /verif/i;
   const SIGNED_IN = "WorkIt fills each step once you're signed in.";
   const WONT_TRY = "WorkIt won't try again, so your account doesn't lock. Sign in yourself, or press Forgot Password.";
+  // How long a ticked box gets to show it is ticked before Create Account is pressed.
+  const TICK_SHOWS = 100;
   // How long a Workday step's page must stop changing before it is read, and the longest wait for that.
   const STEP_QUIET = 1000;
   const STEP_QUIET_MAX = 10_000;
@@ -64,6 +66,11 @@ window.WIA = window.WIA || {};
       button.dispatchEvent(new Event(type, { bubbles: true, cancelable: true, button: 0 }));
     }
     button.click();
+  }
+
+  /** Whether the terms box shows ticked, as a checkbox or as Workday's own (aria-checked). */
+  function ticks(box) {
+    return box.checked || box.getAttribute("aria-checked") === "true";
   }
 
   /** The words of the terms box's label, as the student reads them on the page. */
@@ -153,6 +160,7 @@ window.WIA = window.WIA || {};
     let withEmail = false;
     let alerted = "";
     let ticked = "";
+    let untickable = false;
     async function fillSignIn() {
       if (busy) return void (again = true);
       busy = true;
@@ -212,7 +220,7 @@ window.WIA = window.WIA || {};
     /**
      * Once allowed: switches to the view that fits the saved login, presses
      * Create Account (a password made on this page only, so a refused one
-     * was never an account) or Sign In
+     * was never an account; only once the terms box shows ticked) or Sign In
      * (never with a login Workday refused) once the boxes hold the login and
      * the page has settled, and reads Workday's answer if it stays on the page.
      * Answers true when it told the student something (the usual note is
@@ -247,6 +255,7 @@ window.WIA = window.WIA || {};
         noted = "refused";
         return true;
       }
+      if (create && untickable) return true;
       if (!login.password || (create && !login.made)) return false;
       await quiet();
       const now = document.querySelector(SIGN_IN_FORM);
@@ -258,10 +267,19 @@ window.WIA = window.WIA || {};
       const button = document.querySelector(SUBMIT[view]);
       if (!button) return false;
       const box = create ? form.querySelector(TERMS_BOX) : null;
-      if (box && !box.checked && box.getAttribute("aria-checked") !== "true") press(box);
+      const terms = box ? termsWords(box) : "";
+      if (box && !ticks(box)) {
+        press(box);
+        await new Promise((resolve) => setTimeout(resolve, TICK_SHOWS));
+        if (!ticks(box)) {
+          // Not ticked: Create Account isn't pressed, and the password stays saved for the student's own press.
+          untickable = true;
+          onView(`WorkIt filled your email and a new password for this company's Workday, kept only in this browser, but couldn't tick ${terms ? `"${terms}"` : "the terms box"}. Tick it yourself, then press Create Account. ${SIGNED_IN}`);
+          return true;
+        }
+      }
       pressed.add(view);
       press(button);
-      const terms = box ? termsWords(box) : "";
       ticked = terms;
       onView(create
         ? `WorkIt made your account on this company's Workday${terms ? ` and ticked "${terms}" for you` : ""}. ${SIGNED_IN}`
