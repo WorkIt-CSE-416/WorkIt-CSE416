@@ -815,7 +815,7 @@ the KAN-296 cutover.
   the statement still follows its section through the screen, and hiring
   systems falls back to the flat stream, which keeps flowing. **Checking these scenes in
   the Browser pane**: a script's `scrollTo` jumps, but a Lenis glide still
-  under way overrides it, so start from a still page; the pane draws
+  under way (an in-page link's) overrides it, so start from a still page; the pane draws
   frames lazily, so a screenshot after a script scroll often shows an older
   frame and motion values and rects read by script are stale. A real
   wheel scroll (the computer tool's scroll) draws fresh frames; scroll by
@@ -860,9 +860,16 @@ the KAN-296 cutover.
     transforms run on the main thread while a phase plays and cost
     nothing at rest; the array-range rule below matters for what is
     still scroll-linked.
-- **The marketing pages scroll smoothly with Lenis** (`smooth-scroll.tsx`,
-  mounted by the `(landing)` layout): a wheel or trackpad glides to rest.
-  Touch stays native and reduced motion turns it off. It ticks in motion's
+- **The marketing pages run Lenis with the wheel left native**
+  (`smooth-scroll.tsx`, mounted by the `(landing)` layout;
+  `smoothWheel: false`, as twain.ai runs it, KAN-368): Lenis glides
+  in-page links and script scrolls only. Its wheel glide, on until then,
+  moved a 300px notch 70 to 100px in the first 50ms, took about 250ms to
+  get 90% of the way and drifted on for over half a second after a fast
+  scroll, and the team felt it as lag; the native wheel lands at once.
+  Do not turn it back on to smooth a scene: a pinned scene that looks
+  steppy under a notched mouse wheel is a scene to fix. Touch stays
+  native and reduced motion turns Lenis off. It ticks in motion's
   `frame.setup`, before motion reads the scroll; in `frame.update`, as
   Lenis's docs show, every scroll-linked value ran a frame behind and the
   flying card and pills trailed their ends. A script scroll goes through
@@ -872,8 +879,8 @@ the KAN-296 cutover.
   needs `data-lenis-prevent` (the phone menu has it). Its CSS is in
   landing.css, not `lenis/dist/lenis.css`, whose `html.lenis { height:
   auto }` undid `h-full` on `<html>`. The pages set no `scroll-behavior:
-  smooth`: Lenis glides the wheel and in-page links, and on `<html>` it
-  animated every jump a script made.
+  smooth`: Lenis glides in-page links, and on `<html>` it animated every
+  jump a script made.
 - **Each marketing page keeps its place across navigations**
   (`smooth-scroll.tsx`): a link to another page opens it at its top, a
   link with a #section lands on that section under the header, and Back
