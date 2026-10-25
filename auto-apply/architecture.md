@@ -1205,7 +1205,15 @@ Claude: WorkIt calls no model for it.
 
 `get_next_application` hands the application's company brief as
 `company_brief` (category, fact, url, published, team), described as web
-text. **Score, in code:** 10 per category covered (products, launches,
+text. **The brief comes first**, as Apply builds it before its essays:
+while the next application has a question in words and its company's brief
+is missing or older than 30 days, and the company isn't held back after a
+failed save, `get_next_application` answers `job_id: null` with
+`research_first` naming the company, and the prompt starts its loop again
+(get_research_task, save_company_brief). Once a brief is saved or the hold
+applies, the application is given. A weak brief doesn't hold it (it was the
+best found); an application with only choice questions needs no company
+facts and goes out at once. **Score, in code:** 10 per category covered (products, launches,
 engineering, team), 4 per checked fact up to 10, 4 per fact whose page is
 under a year old up to 5; recency is counted on the day of the comparison,
 so a brief scores lower as it ages. **The fetcher** reads http(s) only, on

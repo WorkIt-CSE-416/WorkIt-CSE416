@@ -55,6 +55,7 @@ dev = [
 [tool.pytest.ini_options]
 pythonpath = ["."]
 testpaths = ["tests"]
+markers = ["research_gate: keeps the brief-before-essays rule (tests/conftest.py)"]
 
 [tool.ruff]
 exclude = ["alembic/versions"]
