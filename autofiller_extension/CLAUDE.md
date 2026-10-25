@@ -196,10 +196,13 @@ filling at once**, and opens the next one as soon as one finishes. A
 finished tab goes into the **"Ready"** tab group (green: every field it
 needs shows an answer) or **"Needs you"** (orange: anything unfilled, a
 note the Plan left the student, a Workday step, or a job system with no
-Filler), and moves between them when that changes. The student reviews
+Filler), and moves between them when that changes. A tab whose fill itself
+went wrong (the Plan failed, Workday's error page, a covered job system's
+page that never loaded or took no fill) is **failed**: in Needs you too,
+but its own state. The student reviews
 each tab and presses the employer's own Submit; nothing here submits.
-`run/status` answers which job postings the batch's tabs show (`jobIds`),
-and `run/show` switches to one (`jobId`).
+`run/status` answers which job postings the batch's tabs show (`jobIds`)
+and each tab's state (`jobs`), and `run/show` switches to one (`jobId`).
 
 - **The URLs always come from the API, never the message.** `run/open`
   carries no body: a page on an allowed origin that could hand the worker
@@ -218,8 +221,9 @@ and `run/show` switches to one (`jobId`).
   (`needs_you`, or `ready`, which moves the stage back to `queued`: the
   application waits for the student's submit). Tab states map onto the
   stage column: queued, filling and ready are `queued`; needs_you is
-  `needs_you`; submitted, skipped and failed are `applied`, `skipped` and
-  `needs_you` (`.../finish`, KAN-373/374).
+  `needs_you`; submitted and skipped are `applied` and `skipped`
+  (`.../finish`, KAN-373/374); failed is `needs_you`, recorded as a
+  needs_you fill, so the student can still finish the form by hand.
 - **What only the browser knows lives in `chrome.storage.local`**
   (`workit_batch`: each tab's job, link and state, the jobs opened, the two
   group ids). Chrome stops this worker after ~30 seconds idle and clears
@@ -257,7 +261,7 @@ and `run/show` switches to one (`jobId`).
   Workday tab at most. A queued Workday job met while one is open waits in
   the batch's `held` list (left out of the queue reads with the opened
   ones) and opens as soon as the open one leaves the batch: closed,
-  skipped, or out of the fill states (filling, ready, needs_you), as a
+  skipped, or out of the fill states (filling, ready, needs_you, failed), as a
   submitted one will be (KAN-374). The other job systems fill beside it;
   the slot doesn't count against the five filling.
 - **Workday sign-in (KAN-373).** On Workday's Create Account or Sign In

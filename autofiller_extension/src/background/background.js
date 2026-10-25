@@ -107,7 +107,7 @@ async function handleMessage(message, sender) {
     // A batch apply tab's fill says whether the tab is ready or needs the
     // student (content-script.js); batch.js moves it to that group.
     case "batch/state": {
-      if (message.state !== "ready" && message.state !== "needs_you") throw new Error(`Unknown tab state: ${message.state}`);
+      if (!["ready", "needs_you", "failed"].includes(message.state)) throw new Error(`Unknown tab state: ${message.state}`);
       return setTabState(sender.tab.id, message.state);
     }
 

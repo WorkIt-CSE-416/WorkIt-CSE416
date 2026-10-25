@@ -80,6 +80,22 @@ test("fills a batch five tabs at a time into the Ready and Needs you groups", as
   expect(forms.submissions).toEqual([]);
 });
 
+test("a fill that errors leaves its tab failed, not just needing the student, in the Needs you group", async () => {
+  const forms = new SavedForms(["greenhouse-arc"]);
+  const api = new FakeApi().queue({ id: "job-0", apply_url: forms.url("greenhouse-arc") });
+  api.profileDown = true;
+  const { webappPage } = await start(api, forms);
+  await sendFromWebapp(webappPage, { type: "run/open" });
+  const arc = async () => (await tabs(loaded.worker)).find((t) => t.url === forms.url("greenhouse-arc"));
+  await expect.poll(async () => (await arc())?.group?.title, { timeout: 60_000 }).toBe("Needs you");
+
+  // The webapp's status says the fill failed; the application's stage is the one a failed fill maps to.
+  const status = await sendFromWebapp(webappPage, { type: "run/status" });
+  expect(status.jobs).toEqual([{ jobId: "job-0", state: "failed" }]);
+  await expect.poll(() => api.stages.get("job-0")).toBe("needs_you");
+  expect(forms.submissions).toEqual([]);
+});
+
 test("a tab moves to Needs you when a field empties, and back to Ready when it is answered", async () => {
   const forms = new SavedForms(["greenhouse-arc"]);
   const api = new FakeApi().queue({ id: "job-0", apply_url: forms.url("greenhouse-arc") });

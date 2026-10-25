@@ -387,13 +387,16 @@
   const needsYou = (r) => r.key.startsWith("_") || r.status === "failed" || (r.required && r.status !== "filled");
 
   /**
-   * Whether this batch tab is "ready" (every field it needs shows an answer)
-   * or "needs_you": the fill stopped (no Filler for this job system, an
-   * error), a Workday step waits for the student, a field failed, a required
-   * one is unanswered, or the Plan left something to the student (a note).
+   * Whether this batch tab is "ready" (every field it needs shows an answer),
+   * "failed" (the fill itself went wrong: an error note) or "needs_you": the
+   * fill stopped (no Filler for this job system), a Workday step waits for
+   * the student, a field failed, a required one is unanswered, or the Plan
+   * left something to the student (a note).
    */
   function tabState() {
     const phase = window.WIA.phase;
+    // The fill itself went wrong (the Plan failed, Workday's error page): failed, not a question for the student.
+    if (status.summary().fields.some((r) => r.key === "_error" && r.status === "failed")) return "failed";
     if (phase !== "filled") return "needs_you";
     return status.summary().fields.some(needsYou) ? "needs_you" : "ready";
   }

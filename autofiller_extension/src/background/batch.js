@@ -69,7 +69,10 @@ const LOAD_TIMEOUT_MS = 30_000;
 const FORM_TIMEOUT_MS = 10_000;
 
 /**
- * @typedef {"filling" | "ready" | "needs_you" | "applied"} TabState
+ * `failed`: the fill itself went wrong (an error, not a question for the
+ * student); it sits in the Needs you group, and its application takes the
+ * stage a failed fill maps to (needs_you), but the batch keeps it apart.
+ * @typedef {"filling" | "ready" | "needs_you" | "failed" | "applied"} TabState
  * @typedef {{
  *   windowId: number,
  *   tabs: Record<string, { jobId: string, url: string, state: TabState }>,
@@ -291,7 +294,7 @@ async function topUp(batch, applicantId) {
 }
 
 const isWorkday = (url) => jobOf(url)?.site === "workday";
-const FILL_STATES = ["filling", "ready", "needs_you"];
+const FILL_STATES = ["filling", "ready", "needs_you", "failed"];
 
 /** Whether a Workday application holds the batch's one Workday slot. */
 function workdayOpen(batch) {
@@ -316,9 +319,10 @@ async function openTab(batch, jobId, url) {
 }
 
 /**
- * Waits for the tab's page and its form, then injects the fill. A page that
- * never loads, shows no form, or is on a site the extension may not touch
- * (a job system with no Filler) fills nothing and needs the student.
+ * Waits for the tab's page and its form, then injects the fill. A site the
+ * extension may not touch (a job system with no Filler) fills nothing and
+ * needs the student; a job system's page that never loads, shows no form or
+ * takes no fill has failed.
  * @param {number} tabId
  */
 async function startFill(tabId) {
@@ -331,17 +335,19 @@ async function startFill(tabId) {
     await injectFill(tabId, { batch: true });
   } catch (error) {
     console.warn("[batch] nothing was filled:", error.message);
-    await setTabState(tabId, "needs_you");
+    const url = (await chrome.tabs.get(tabId).catch(() => null))?.url ?? "";
+    await setTabState(tabId, jobOf(url) ? "failed" : "needs_you");
   }
 }
 
 /**
  * A batch tab's new state, from its content script or from startFill: the
- * tab moves to its group and the application's stage follows (needs_you, or
- * queued while ready). A tab that was filling frees its place, and the next
- * queued application opens. Tabs outside the batch are ignored.
+ * tab moves to its group (a failed one to Needs you) and the application's
+ * stage follows (needs_you, failed included, or queued while ready). A tab
+ * that was filling frees its place, and the next queued application opens.
+ * Tabs outside the batch are ignored.
  * @param {number} tabId
- * @param {"ready" | "needs_you"} state
+ * @param {"ready" | "needs_you" | "failed"} state
  */
 export function setTabState(tabId, state) {
   return serially(async () => {
@@ -352,7 +358,8 @@ export function setTabState(tabId, state) {
     const wasFilling = tab.state === "filling";
     tab.state = state;
     await save(batch);
-    await moveToGroup(batch, tabId, state);
+    const group = state === "failed" ? "needs_you" : state;
+    await moveToGroup(batch, tabId, group);
     if (batch.practice) {
       if (wasFilling) await topUp(batch, null);
       return { batch: true };
@@ -360,7 +367,7 @@ export function setTabState(tabId, state) {
     let account = null;
     try {
       account = await me();
-      await recordFill(account.id, tab.jobId, state);
+      await recordFill(account.id, tab.jobId, group);
     } catch (error) {
       console.warn("[batch] the application's stage wasn't saved:", error.message);
     }
@@ -510,13 +517,15 @@ export async function inBatch(tabId) {
 
 /**
  * Which job postings the batch's tabs show (`jobIds`, in the order they
- * opened; `jobId` the first), for the webapp's "Working in Browser".
- * @returns {Promise<{ jobId: string | null, jobIds: string[] }>}
+ * opened; `jobId` the first), for the webapp's "Working in Browser", and
+ * each one's tab state (`jobs`).
+ * @returns {Promise<{ jobId: string | null, jobIds: string[], jobs: { jobId: string, state: TabState }[] }>}
  */
 export async function batchStatus() {
   const batch = await liveBatch();
-  const jobIds = Object.values(batch?.tabs ?? {}).map((t) => t.jobId);
-  return { jobId: jobIds[0] ?? null, jobIds };
+  const jobs = Object.values(batch?.tabs ?? {}).map((t) => ({ jobId: t.jobId, state: t.state }));
+  const jobIds = jobs.map((j) => j.jobId);
+  return { jobId: jobIds[0] ?? null, jobIds, jobs };
 }
 
 /**
@@ -560,7 +569,7 @@ export async function nextNeedsYou() {
   for (const [place, { tabId, state }] of order.entries()) {
     const answer = await chrome.tabs.sendMessage(tabId, { type: "batch/flags" }).catch(() => null);
     if (answer) answer.keys.forEach((key, index) => things.push({ place, tabId, key, index }));
-    else if (state === "needs_you") things.push({ place, tabId, key: null, index: 0 });
+    else if (state === "needs_you" || state === "failed") things.push({ place, tabId, key: null, index: 0 });
   }
   const cursor = (await chrome.storage.session.get(CURSOR_KEY))[CURSOR_KEY];
   const from = cursor ? order.findIndex((t) => t.tabId === cursor.tabId) : -1;

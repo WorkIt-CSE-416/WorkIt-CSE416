@@ -48,6 +48,9 @@ export class FakeApi {
   /** The student's writing samples (GET .../writing-samples). */
   samples: { id: string; text: string }[] = [];
 
+  /** Set to answer the profile with a server error, so a tab's fill can't plan. */
+  profileDown = false;
+
   /** Whether the student's Claude has signed in to WorkIt's connector (GET .../connector). */
   connectorAdded = false;
 
@@ -77,6 +80,7 @@ export class FakeApi {
     if (!path.startsWith(`${me}/`)) return { status: 403, json: { detail: "Not yours" } };
     const route = path.slice(me.length);
     if (route === "/profile") {
+      if (this.profileDown) return { status: 500, json: { detail: "Internal Server Error" } };
       const { phone_number, headline, linkedin_url, portfolio_url, github_url, other_url } = { ...STUDENT, ...this.profile };
       return { json: { contact_email: null, phone_number, headline, linkedin_url, portfolio_url, github_url, other_url } };
     }
