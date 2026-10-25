@@ -17,7 +17,9 @@ POST /applicants/{id}/applications  {"job_id": ...}
      A job's Auto Apply button: queues one job posting. Answers its stage;
      a job that already has an application keeps that stage. 404 for a job
      posting that isn't open or isn't on a hiring system auto apply fills
-     (app/auto_apply/hosts.py: every hiring system the Fill engine fills).
+     (app/auto_apply/hosts.py: every hiring system the Fill engine fills),
+     its detail saying why. A job board's posting (LinkedIn, Indeed) is
+     taken only through the employer's form it names, its `form_url`.
 GET  /applicants/{id}/applications?stage=queued&stage=needs_you
      The applications, newest first (every stage without ?stage=), each
      with its job posting's listing and `open` (false once it closed).

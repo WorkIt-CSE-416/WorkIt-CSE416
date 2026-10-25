@@ -56,6 +56,8 @@ test("an answer the student's Claude saves fills into its open tab", async () =>
   // Within one poll (10 seconds), the answer is in the form, read back by the engine.
   await expect(box(form, name)).toHaveValue(ANSWER, { timeout: 20_000 });
   await expect(row(form, WHY)).not.toContainText("Waiting for your Claude");
+  // Labelled as Claude's (KAN-375's source labels).
+  await expect(row(form, WHY).locator(".source")).toHaveText("Claude");
   expect(forms.submissions).toEqual([]);
 });
 

@@ -79,8 +79,12 @@ builds it: `dist/engine.js` is committed in the engine repo.
   filled, failed with the engine's reason, or skipped when the form never
   showed it. One field the engine can't fill doesn't stop the rest. A field
   that shows something other than its planned answer (or a wording the
-  Plan accepts) is failed with what the page shows, so the student checks
-  it.
+  Plan accepts), or shows nothing, is failed with what the page shows, so
+  the student checks it: "skipped" means only that the form doesn't show
+  the field. Once the whole page is filled the engine reads every filled
+  field back again, so one a later answer emptied (a form that redraws a
+  box) is failed too (KAN-375). A batch tab with a failed field goes to
+  Needs you.
 - **More questions mean a new plan.** A fill that brings on questions
   (Eightfold's follow-ups, Workday's new panels) answers `more`; the
   content script plans again with them (`extra`) and fills what is new.
@@ -139,9 +143,10 @@ here:
 - **The webapp's role is a thin, optional bridge** (`frontend/src/lib/
   autofill-extension.ts`), using Chrome's `externally_connectable` to ask
   batch apply to open (and fill) the queued applications, which jobs its
-  tabs show, and to switch to one of them — nothing more. The job cards' "Autofill ready"
-  badge, the bridge's one use of `ping`, was removed (KAN-278); the
-  background script still answers `ping`, with no webapp caller. The extension's core function
+  tabs show, and to switch to one of them, and onboarding's practice batch
+  and install check (`ping`, KAN-378) — nothing more. The job cards'
+  "Autofill ready" badge, `ping`'s first caller, was removed (KAN-278).
+  The extension's core function
   never depends on this bridge: it works from its own popup on whatever
   page the user is on, bridge or no bridge.
 
@@ -200,6 +205,13 @@ and `run/show` switches to one (`jobId`).
   carries no body: a page on an allowed origin that could hand the worker
   a URL could make it open any site. `run/show`'s `jobId` only picks among
   the batch's own tabs.
+- **Never a job board** (KAN-376; GLOSSARY.md, "Job board"). A tab opens
+  `job.form_url`, the employer's form the API names (a LinkedIn or Indeed
+  posting is queued only through the form its text names, and refused
+  otherwise), else `job.apply_url`. A link on a job board's host
+  (`src/background/job-boards.js`, the same hosts as `hosts.py`
+  `JOB_BOARDS`) is never opened, whatever the API answers: the batch
+  passes over it and leaves its stage alone.
 - **The API keeps the queue, its order and each application's stage.**
   The next tab's job is `GET .../applications/next?skip=...`, skipping every
   job this batch opened; a tab's state is `PUT .../applications/{job}/fill`
@@ -229,11 +241,26 @@ and `run/show` switches to one (`jobId`).
   10 seconds (`batch/answers` → `GET .../questions`) until none is left,
   filling each through the engine; its group follows. The background takes
   the job from the batch's own record of the tab (`jobInTab`), never from
-  the message. A question the student answered first keeps their answer.
+  the message. A question the student answered first keeps their answer;
+  one Claude's answer fills is labelled Claude (KAN-375's sources). A
+  practice batch's tabs (KAN-378) send nothing: a practice job has no
+  application at WorkIt, so its essays stay the student's.
   A hidden tab's timers slow to about once a minute after five minutes, so
   an answer can take that long to land. Tests:
   `test/connector.extension.spec.ts` (Ashby's Harvey form: no saved
   Greenhouse form has an essay the Plan sends to Claude).
+- **"Next Thing That Needs You" walks the batch** (KAN-375). Each batch
+  tab's panel has the button. `batch.js`'s `nextNeedsYou` asks every batch
+  tab, in the order the tabs opened, which of its rows need the student
+  (`batch/flags`: the rows that send a tab to Needs you, in page order,
+  notes last), goes to the first one after the last it went to (cursor in
+  `chrome.storage.session`, `workit_batch_next`), switches to its tab and
+  has the content script scroll to and focus the field and mark its row
+  (`batch/focus`). Past the last one the panel says "Nothing else needs
+  you." and the next press starts again. A field is found by the job
+  system's own field id (`content-script.js`'s `fieldOf`); a tab nothing
+  was filled in is one stop, the page itself. This is the only time the
+  extension switches tabs on its own, and only on the student's press.
 - **The tabs fill hidden; the student is never taken to one.** KAN-305's
   runner showed its tab before the fill, because hidden fills by the
   pre-engine filler left most dropdowns empty. The Fill engine does not
@@ -319,6 +346,44 @@ open: Workday takes one slot at a time, a closed tab counts as Skip, and
 the batch resumes after the browser closes (KAN-373); submit detection
 (KAN-374). With the student's Chrome window behind another app, macOS may
 slow every tab further; not yet measured.
+
+## The practice batch (KAN-378): onboarding's batch on WorkIt's own forms
+
+Onboarding's last step (`frontend/src/app/onboarding/applicant/practice-step.tsx`)
+sends `practice/open` with the links of WorkIt's two practice forms
+(`frontend/src/lib/practice-form.ts`, `/practice/<company>/<job>/apply`);
+`batch.js`'s `startPractice` opens them as a batch, with the same tabs,
+fill and groups as a real one, and `practice/status` says where each is.
+
+- **Only practice forms on the asking page's own site are opened.** The
+  one message that takes links: each must be `practiceJob(url)`'s `apply`
+  page (`engine.js`: a path under `/practice/` on one of `config.js`'s web
+  origins) and on `sender.origin`. Anything else is dropped, and a message
+  with none left fails.
+- **The engine fills it as a Lever form.** The practice form is laid out as
+  Lever's hosted form, so `jobOf` gives a practice link the site `lever`
+  and its Question set is the engine's `parseQuestions("lever", html)` of
+  the page itself, fetched by the background (the WorkIt web origins are
+  in `host_permissions`). Nothing practice-only is in the engine. The page
+  sets `window.jQuery.isReady` and shows `.resume-upload-success`, the two
+  signals the Lever Filler waits for.
+- **No API queue or stages.** A practice batch keeps its jobs and the
+  submitted ones in `workit_batch` itself (`practice`); `topUp` takes the
+  next job from there and `setTabState` records no stage. Starting a real
+  batch (`run/open`) ends a practice one; `practice/open` while a real
+  batch has tabs open answers `batch_running`.
+- **Submit is reaching `/thanks`.** The practice form's Submit sends
+  nothing and opens the job's `/thanks` page; `background.js` sees that
+  URL change (`tabs.onUpdated`, which gives the URL for hosts in
+  `host_permissions`) and `submitPractice` marks the job submitted and
+  takes its tab out of the batch and its group. Real submit detection is
+  KAN-374's.
+- **`ping` also answers `pinned`** (`chrome.action.getUserSettings().isOnToolbar`,
+  null where Chrome can't say), for onboarding's install step.
+- **Tests** (`test/practice.extension.spec.ts`): the loaded extension fills
+  both practice forms, served from the webapp's own module, into Ready and
+  Needs you; the student's Submit on each reaches `/thanks` with no data,
+  and nothing reaches any host but WorkIt's site and API.
 
 ## Auth: inherits the webapp's session, has no sign-in of its own
 
@@ -559,6 +624,21 @@ from rows the form marks required, so an optional field left empty is
 "skipped", never red, and no parent row can hide a failed one (the two
 JobRight bugs the research caught). The overlay shows a failed row's
 reason in red and a skipped row's in gray.
+
+Each filled row carries its **Source** (KAN-375, `GLOSSARY.md`): the Fill
+engine's Plan names each planned answer's (`plan.sources`: profile,
+student, saved, guessed), the essay route's answers are "ai", the
+student's own Claude's (the connector) "claude", and a value the student
+types after the fill "student". The overlay shows it as a badge (Profile,
+Saved Answer, Claude, AI, You, Guessed; the AI ones carry the sparkle) and
+highlights a guessed row in the warning tint. Where an answer comes from
+is the engine's to say: never work it out here.
+
+The overlay's colours are WorkIt's tokens, copied by hand into its shadow
+root's `:host` from `frontend/src/app/globals.css` (no build step can
+import them): change a value in both. No hex colour is written anywhere
+else in the overlay. The font is Plus Jakarta Sans where the student has
+it installed; the extension ships no font files.
 
 ## Conventions
 

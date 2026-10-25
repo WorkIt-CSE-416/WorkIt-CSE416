@@ -82,6 +82,11 @@ async def queue_applications(
     return set(queued)
 
 
+async def fetch_open_apply_url(db: AsyncSession, job_id: uuid.UUID) -> str | None:
+    """The apply_url of this job posting while it is listed (open), else None."""
+    return await db.scalar(select(Job_Post.apply_url).where(Job_Post.id == job_id, LISTED))
+
+
 async def fetch_stage(
     db: AsyncSession, applicant_id: uuid.UUID, job_id: uuid.UUID
 ) -> application_stage | None:

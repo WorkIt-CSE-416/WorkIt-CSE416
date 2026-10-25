@@ -110,6 +110,10 @@ _Avoid_: unknown field, blank, unanswered
 The extension filling the student's queued Applications in background tabs, at most five at once, the next opening as one finishes. It never submits.
 _Avoid_: runner, run tab
 
+**Practice batch**:
+Onboarding's batch apply on WorkIt's own practice forms, two made-up job postings laid out as a hiring system's, so a new student sees the whole flow before a real one. Its Submit sends nothing.
+_Avoid_: demo, tutorial, test batch
+
 **Ready** / **Needs you**:
 The two tab groups a batch tab sits in once filled: Ready when every field the form needs shows an answer, Needs you when anything is left for the student. A tab moves between them as that changes.
 _Avoid_: done, failed, review
@@ -121,6 +125,9 @@ _Avoid_: integration, plugin, MCP (alone)
 **Written answer**:
 A batch tab's answer to a question its form needs written, such as "Why this company?". The student's Claude saves it through the connector, and the open tab fills it.
 _Avoid_: essay (for the saved answer), AI answer, generated answer
+**Source**:
+Where a filled answer came from, shown beside it: Profile, Saved Answer, Claude (or AI, the essay route), You (the student's own answer or edit) or Guessed (WorkIt's default, or no fact of the student's). A guessed answer is highlighted for the student to check.
+_Avoid_: origin, provenance (in copy), confidence
 
 ## Tracking
 
@@ -149,3 +156,7 @@ _Avoid_: recommendation, best job
 **Job Type**:
 What kind of job a job posting is: Full-Time, Part-Time, Contract or Internship. The Jobs page and the Applications Tracker both filter on it under this name.
 _Avoid_: Track, employment type, position type
+
+**Job board**:
+A site that lists other employers' job postings, such as LinkedIn or Indeed. Their terms ban automated applications, so batch apply never opens one: it fills a job board's posting only through the employer's own form that the posting names, and refuses it otherwise. Not a company job board, which is one company's page on a hiring system.
+_Avoid_: job site, aggregator, calling a hiring system a job board

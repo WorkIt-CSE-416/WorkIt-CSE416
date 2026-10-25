@@ -15,6 +15,7 @@ from typing import Any, Literal
 from sqlalchemy.exc import SQLAlchemyError
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from app.auto_apply.hosts import refusal
 from app.auto_apply.queries import (
     ResumeChoice,
     chosen_resume,
@@ -22,6 +23,7 @@ from app.auto_apply.queries import (
     fetch_applications,
     fetch_next_application,
     fetch_next_to_write,
+    fetch_open_apply_url,
     fetch_stage,
     fetch_written,
     link_resume,
@@ -167,14 +169,16 @@ async def queue_job(
     any other stage keeps it, and answers that
     stage: a second click changes nothing. Raises NotFound for a job posting
     that isn't open, or isn't on a hiring system auto apply fills
-    (queue_applications saves neither).
+    (queue_applications saves neither), with the reason: a job board's
+    posting that names no employer form (KAN-376) says so.
     """
     if await queue_applications(db, applicant_id, [job_id]):
         await db.commit()
         return application_stage.queued
     stage = await fetch_stage(db, applicant_id, job_id)
     if stage is None:
-        raise NotFound("That job isn't open, or Auto Apply can't fill its hiring system yet.")
+        apply_url = await fetch_open_apply_url(db, job_id)
+        raise NotFound(refusal(apply_url) if apply_url else "That job isn't open any more.")
     return stage
 
 
