@@ -157,9 +157,10 @@ export default function PrivacyPage() {
           with your own Claude plan, under Anthropic&apos;s terms and privacy policy.
         </li>
         <li>
-          <strong>Stopping it:</strong> remove WorkIt in Claude&apos;s connector settings to stop
-          Claude from using it. Deleting your WorkIt account deletes its connector tokens and saved
-          answers.
+          <strong>Stopping it:</strong> in WorkIt, Settings &gt; Sign-In &amp; Security &gt;
+          Connected Apps &gt; Disconnect deletes every token Claude holds, so it stops at once; you
+          can also remove WorkIt in Claude&apos;s connector settings. Deleting your WorkIt account
+          deletes its connector tokens and saved answers.
         </li>
       </ul>
 
