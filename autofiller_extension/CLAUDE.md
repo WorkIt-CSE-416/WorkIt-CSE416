@@ -79,8 +79,12 @@ builds it: `dist/engine.js` is committed in the engine repo.
   filled, failed with the engine's reason, or skipped when the form never
   showed it. One field the engine can't fill doesn't stop the rest. A field
   that shows something other than its planned answer (or a wording the
-  Plan accepts) is failed with what the page shows, so the student checks
-  it.
+  Plan accepts), or shows nothing, is failed with what the page shows, so
+  the student checks it: "skipped" means only that the form doesn't show
+  the field. Once the whole page is filled the engine reads every filled
+  field back again, so one a later answer emptied (a form that redraws a
+  box) is failed too (KAN-375). A batch tab with a failed field goes to
+  Needs you.
 - **More questions mean a new plan.** A fill that brings on questions
   (Eightfold's follow-ups, Workday's new panels) answers `more`; the
   content script plans again with them (`extra`) and fills what is new.

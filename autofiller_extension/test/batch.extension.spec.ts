@@ -6,7 +6,7 @@
 import { expect, test, type Page, type Worker } from "@playwright/test";
 import { FakeApi } from "./fake-api";
 import { SavedForms, uncoveredForm } from "./fake-job-systems";
-import { loadExtension, sendFromWebapp, signIn, webapp, type Loaded } from "./loaded-extension";
+import { loadExtension, sendFromWebapp, signIn, webapp, type Handler, type Loaded } from "./loaded-extension";
 
 const GREENHOUSE = ["greenhouse-arc", "greenhouse-purestorage", "greenhouse-anduril", "greenhouse-coinbase", "greenhouse-datacor"];
 
@@ -96,5 +96,41 @@ test("a tab moves to Needs you when a field empties, and back to Ready when it i
   await form.locator("#first_name").fill("Test");
   await expect.poll(groupOfArc, { timeout: 15_000 }).toBe("Ready");
   await expect.poll(() => api.stages.get("job-0")).toBe("queued");
+  expect(forms.submissions).toEqual([]);
+});
+
+/** `forms`' handler, with `script` added to the saved form `name`'s page: the form misbehaving as a live one may. */
+function withScript(forms: SavedForms, name: string, script: string): Handler {
+  return async (request) => {
+    const reply = await forms.handler(request);
+    if (!reply || request.method !== "GET" || request.url.href !== forms.url(name)) return reply;
+    return { ...reply, body: String(reply.body).replace("<head>", `<head><script>${script}</script>`) };
+  };
+}
+
+// The name box silently rejects what is typed in it: the form's own code never hears of it, and the box stays empty.
+const DROPS_FIRST_NAME = `window.addEventListener("input", (e) => {
+  if (e.target.id !== "first_name") return;
+  e.stopImmediatePropagation();
+  e.target.value = "";
+}, true);`;
+
+test("a field that silently rejects its answer is flagged, and its tab needs you", async () => {
+  const forms = new SavedForms(["greenhouse-arc"]);
+  const api = new FakeApi().queue({ id: "job-0", apply_url: forms.url("greenhouse-arc") });
+  loaded = await loadExtension([api.handler, webapp, withScript(forms, "greenhouse-arc", DROPS_FIRST_NAME)]);
+  await signIn(loaded.context);
+  const webappPage = loaded.context.pages()[0] ?? (await loaded.context.newPage());
+  await webappPage.goto("http://localhost:3000/auto-apply");
+
+  await sendFromWebapp(webappPage, { type: "run/open" });
+  const groupOfArc = async () => (await tabs(loaded.worker)).find((t) => t.url === forms.url("greenhouse-arc"))?.group?.title;
+  // Arc's form is Ready when every field takes its answer (the first test).
+  await expect.poll(groupOfArc, { timeout: 60_000 }).toBe("Needs you");
+  await expect.poll(() => api.stages.get("job-0")).toBe("needs_you");
+
+  const form = loaded.context.pages().find((p) => p.url() === forms.url("greenhouse-arc"))!;
+  const row = form.locator('#workit-autofiller-overlay-host [data-key="first_name"]');
+  await expect(row.locator(".reason")).toHaveText("meant 'Test', page shows ''");
   expect(forms.submissions).toEqual([]);
 });
