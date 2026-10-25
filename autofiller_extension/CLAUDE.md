@@ -208,6 +208,13 @@ each tab and presses the employer's own Submit; nothing here submits.
 `run/status` answers which job postings the batch's tabs show (`jobIds`)
 and each tab's state (`jobs`), and `run/show` switches to one (`jobId`).
 
+`batch.js` is the batch itself (opening, topping up, groups, states,
+resume after a restart, the practice batch); background.js imports each
+message's function from the module that owns it. Beside it:
+`batch-store.js` keeps the batch in `chrome.storage.local` and runs every
+change one at a time (`serially`), so every module reading or changing the
+batch goes through it.
+
 - **The URLs always come from the API, never the message.** `run/open`
   carries no body: a page on an allowed origin that could hand the worker
   a URL could make it open any site. `run/show`'s `jobId` only picks among

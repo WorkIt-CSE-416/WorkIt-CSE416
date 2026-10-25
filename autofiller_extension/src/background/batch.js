@@ -55,6 +55,9 @@ import {
 import { formUrl, jobOf, practiceJob, questionsToWrite } from "./engine.js";
 import { jobBoard } from "./job-boards.js";
 import { injectFill } from "../shared/content-scripts.js";
+import { liveBatch, load, save, serially } from "./batch-store.js";
+
+/** @typedef {import("./batch-store.js").Batch} Batch @typedef {import("./batch-store.js").TabState} TabState */
 
 /** At most this many tabs fill at once. */
 export const WINDOW = 5;
@@ -64,45 +67,8 @@ const GROUPS = {
   ready: { title: "Ready", color: "green" },
   needs_you: { title: "Needs you", color: "orange" },
 };
-const BATCH_KEY = "workit_batch";
 const LOAD_TIMEOUT_MS = 30_000;
 const FORM_TIMEOUT_MS = 10_000;
-
-/**
- * `failed`: the fill itself went wrong (an error, not a question for the
- * student); it sits in the Needs you group, and its application takes the
- * stage a failed fill maps to (needs_you), but the batch keeps it apart.
- * @typedef {"filling" | "ready" | "needs_you" | "failed" | "applied"} TabState
- * @typedef {{
- *   windowId: number,
- *   tabs: Record<string, { jobId: string, url: string, state: TabState }>,
- *   opened: string[],
- *   held?: { jobId: string, url: string }[],
- *   groups: { ready?: number, needs_you?: number },
- *   practice?: { jobs: { jobId: string, url: string }[], submitted: string[] },
- *   writing?: string[], wroteWithClaude?: boolean,
- * }} Batch
- * `writing`: the tabs (ids) still waiting for the student's Claude to write;
- * `wroteWithClaude`: an answer it wrote has filled in (KAN-387, the samples ask).
- */
-
-// One change to the batch at a time: two tabs finishing together would
-// otherwise each read the same state and open the same next job.
-let queue = Promise.resolve();
-function serially(change) {
-  const run = queue.then(change, change);
-  queue = run.catch(() => {});
-  return run;
-}
-
-/** @returns {Promise<Batch | null>} */
-async function load() {
-  return (await chrome.storage.local.get(BATCH_KEY))[BATCH_KEY] ?? null;
-}
-
-function save(batch) {
-  return chrome.storage.local.set({ [BATCH_KEY]: batch });
-}
 
 /**
  * Start Auto Apply and a job card's Auto Apply (`run/open`): starts the
@@ -237,16 +203,6 @@ export async function writeEarly({ fetchText, today }) {
     done.add(jobId);
     await chrome.storage.session.set({ [EARLY_KEY]: [...done] });
   }
-}
-
-/** The saved batch, without the tabs the student has closed since (the worker may have slept through it). */
-async function liveBatch() {
-  const batch = await load();
-  if (!batch) return null;
-  for (const id of Object.keys(batch.tabs)) {
-    if (!(await chrome.tabs.get(Number(id)).catch(() => null))) delete batch.tabs[id];
-  }
-  return batch;
 }
 
 /**
