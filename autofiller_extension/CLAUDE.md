@@ -113,7 +113,16 @@ builds it: `dist/engine.js` is committed in the engine repo.
   Workable or Eightfold posting shows the job on one page and the form on
   another (`jobOf`'s `form`). On the job's page the overlay names the
   form's link and fills nothing; batch apply opens the form itself
-  (`formUrl`).
+  (`formFor`: `formUrl`, then the engine's `greenhouseForm`). A hosted
+  Greenhouse job whose board shows it on the company's own site (the
+  Job Board API's `absolute_url` is off greenhouse.io) is sent there, its
+  form in an iframe the fill can't reach, so it opens as its embedded form
+  (`job-boards.greenhouse.io/embed/job_app?for=<board>&token=<job>`), as does
+  an embed link without `for=` (its page names the board). Write-early reads
+  the same link. On a company's careers page that holds Greenhouse's form in an
+  iframe (`iframe[src*="greenhouse.io/embed/job_app"]`), the overlay names
+  that iframe's link instead of "can't fill this job system yet"
+  (`content-script.js`).
 - **The profile adapter gives only what WorkIt holds.** Name, email,
   phone, home, links, the default resume, the transcript, the latest school and the jobs from the
   bank, and the nine autofill answers, in the words the engine's rules
@@ -229,6 +238,16 @@ batch goes through it. `write-early.js` sends the queued jobs' written
 questions before their tabs open (`writeEarly`); `next-needs-you.js`
 walks the tabs for Next Thing That Needs You (`nextNeedsYou`); `tab-load.js`
 waits for an opened tab's page and form (`waitForLoad`, `formShows`).
+
+- **A human check where the form should be needs the student.** A tab
+  whose form doesn't show within 10 s, on a page with a captcha
+  (Cloudflare's Turnstile, hCaptcha, reCAPTCHA: its frame, or words such
+  as "Verify you are human", `humanCheckShows`), goes to Needs you and
+  keeps waiting up to 5 minutes for the form (`formAfterHumanCheck`, also
+  across the new page a passed check loads); the fill runs once it shows.
+  The extension never solves a check. A form that never shows has failed,
+  as any other. Test: `test/batch.extension.spec.ts` ("a human check
+  before the form").
 
 - **The URLs always come from the API, never the message.** `run/open`
   carries no body: a page on an allowed origin that could hand the worker
@@ -552,6 +571,16 @@ waits for an opened tab's page and form (`waitForLoad`, `formShows`).
   click (another card, Start again) tops up the window from the queue and
   leaves the open tabs alone (`fill: "kept"` when nothing new opened). A
   student who reloads a tab by hand fills it from the popup.
+- **A Workable form fills from empty, in a batch or not.** Workable
+  restores an unsent draft from local storage (`evergreen-*`) as its form
+  opens, and the engine won't add to entries a section already lists. A
+  batch tab forgets the draft and reloads as it opens (`batch.js`'s
+  `startFill`); the student's own Autofill does so only when its first Plan
+  finds entries showing once the form's Submit shows (`tab-load.js`'s
+  `forgetShownWorkableDraft`), then fills again, so what the student typed
+  by hand on that form is lost (`test/workable.extension.spec.ts`). The
+  draft is forgotten again as the page goes (`pagehide`): Workable can save
+  it back after it was forgotten, seen as a flaky refill in that test.
 - **Nothing here waits on a redraw.** The first runner fill (before the
   Fill engine) filled the name fields, then reported "No options appeared"
   on every dropdown: its waits polled with `requestAnimationFrame`, which a
@@ -985,8 +1014,13 @@ the overlay lists each as "needs_generation" (`lib-status.js`).
   (often brought from Apply). Its written words, Claude's or the essay
   route's, are made a PDF (`letter-pdf.js`: Helvetica, wrapped, no
   library) named for the student as their resume is
-  (`First_Last_Cover_Letter.pdf`) by `engine.js`'s `asUploads` before
-  `fill/page` fills it, so the row shows the file's name.
+  (`First_Last_Cover_Letter.pdf`, with the first and last name the
+  student goes by when the profile brought from Apply holds one, else the
+  legal ones) by `engine.js`'s `asUploads` before `fill/page` fills it, so
+  the row shows the file's name. The letter is headed as the resume is:
+  the name, larger, over a contact line (phone | email | LinkedIn |
+  GitHub, the links without `https://www.`), as Apply's letter is. No
+  date or "Re:" line: the student's Claude writes the whole letter.
 - **Company name and job title come from the job system's API** (the Job
   Board API's `company_name` and `title`), not the page's title.
 - **The model call is `POST /applicants/{id}/essay-answer`**

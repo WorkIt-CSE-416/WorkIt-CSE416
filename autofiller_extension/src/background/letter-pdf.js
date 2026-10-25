@@ -1,10 +1,15 @@
 // A written answer as a one-page-or-more PDF, for a form that takes it only as
 // an upload (an optional cover letter): plain text in Helvetica, wrapped to the
-// page, no library. Uses no chrome.* (the tests import it as is).
+// page, no library, perhaps under the student's name and contact line, as
+// their resume heads itself. Uses no chrome.* (the tests import it as is).
 
 const PAGE = { width: 612, height: 792, margin: 72 }; // US Letter, 1 inch margins
 const SIZE = 11;
 const LEADING = 15;
+// The header: the name, larger, over the contact line, centred; it takes four of the letter's lines on page one.
+const NAME_SIZE = 20;
+const CONTACT_SIZE = 10;
+const HEADER_LINES = 4;
 
 // Helvetica's advance widths (per 1000 units) for ASCII 32-126, from its AFM.
 const WIDTHS = [
@@ -26,7 +31,7 @@ function glyph(ch) {
   return ["?", 556];
 }
 
-const width = (text) => [...text].reduce((sum, ch) => sum + glyph(ch)[1], 0) * SIZE / 1000;
+const width = (text, size = SIZE) => [...text].reduce((sum, ch) => sum + glyph(ch)[1], 0) * size / 1000;
 
 /** The text's lines, each paragraph wrapped to the page's width; a blank line between paragraphs stays. */
 function lines(text) {
@@ -49,16 +54,25 @@ function lines(text) {
 /** A PDF string literal: WinAnsi bytes, with \, ( and ) escaped. */
 const literal = (text) => `(${[...text].map((ch) => glyph(ch)[0]).join("").replace(/[\\()]/g, (c) => `\\${c}`)})`;
 
+/** A line centred on the page with its top `down` points below the margin. */
+function centred(text, size, down) {
+  const x = ((PAGE.width - width(text, size)) / 2).toFixed(2);
+  return `BT /F1 ${size} Tf ${x} ${PAGE.height - PAGE.margin - down} Td ${literal(text)} Tj ET`;
+}
+
 /**
- * `text` as a PDF, base64: as many Letter pages as it needs.
+ * `text` as a PDF, base64: as many Letter pages as it needs, the first
+ * headed by `header` when given (the student's name over their contact line).
  * @param {string} text
+ * @param {{ name?: string, contact?: string }} [header]
  * @returns {string}
  */
-export function letterPdf(text) {
+export function letterPdf(text, header) {
   const perPage = Math.floor((PAGE.height - 2 * PAGE.margin) / LEADING);
+  const headed = Boolean(header?.name || header?.contact);
   const all = lines(text);
   const pages = [];
-  for (let i = 0; i < all.length; i += perPage) pages.push(all.slice(i, i + perPage));
+  for (let i = 0, room = perPage - (headed ? HEADER_LINES : 0); i < all.length; i += room, room = perPage) pages.push(all.slice(i, i + room));
   if (!pages.length) pages.push([]);
   // Objects: 1 catalog, 2 page tree, 3 font, then each page and its content.
   const objects = [
@@ -67,7 +81,12 @@ export function letterPdf(text) {
     "<< /Type /Font /Subtype /Type1 /BaseFont /Helvetica /Encoding /WinAnsiEncoding >>",
   ];
   for (const [i, page] of pages.entries()) {
-    const body = [`BT /F1 ${SIZE} Tf ${LEADING} TL ${PAGE.margin} ${PAGE.height - PAGE.margin - SIZE} Td`, ...page.map((l) => `${literal(l)} Tj T*`), "ET"].join("\n");
+    const top = i === 0 && headed ? [
+      header.name && centred(header.name, NAME_SIZE, NAME_SIZE),
+      header.contact && centred(header.contact, CONTACT_SIZE, NAME_SIZE + 15),
+    ].filter(Boolean) : [];
+    const down = SIZE + (top.length ? HEADER_LINES * LEADING : 0);
+    const body = [...top, `BT /F1 ${SIZE} Tf ${LEADING} TL ${PAGE.margin} ${PAGE.height - PAGE.margin - down} Td`, ...page.map((l) => `${literal(l)} Tj T*`), "ET"].join("\n");
     objects.push(`<< /Type /Page /Parent 2 0 R /MediaBox [0 0 ${PAGE.width} ${PAGE.height}] /Resources << /Font << /F1 3 0 R >> >> /Contents ${5 + 2 * i} 0 R >>`);
     objects.push(`<< /Length ${body.length} >>\nstream\n${body}\nendstream`);
   }

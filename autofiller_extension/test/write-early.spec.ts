@@ -6,7 +6,7 @@ import { readFileSync } from "node:fs";
 import { join } from "node:path";
 import { expect, test } from "@playwright/test";
 import { FORMS, boardAndJob, loadHar } from "../fill-engine/test/fake-job-server";
-import { formUrl, questionsToWrite } from "../src/background/engine.js";
+import { formFor, formUrl, questionsToWrite } from "../src/background/engine.js";
 import { STUDENT } from "./extension";
 
 const DATACOR = "greenhouse-datacor";
@@ -34,6 +34,23 @@ test("reads a queued job's questions that need writing from its link, with no pa
   // Datacor's internship question reaches the student's Claude (decision 33): WorkIt keeps no stock answers.
   expect(questions).toEqual([{ name: expect.any(String), label: GOALS, required: true, max_length: null }]);
   expect(asked.every((url) => url.startsWith("https://boards-api.greenhouse.io/"))).toBe(true);
+});
+
+test("a hosted Greenhouse job its company shows on its own site is read from its embedded form", async () => {
+  // Coinbase's hosted page sends the student to coinbase.com (not saved here); its embedded form holds the education block.
+  const COINBASE = "greenhouse-coinbase";
+  const saved = loadHar(COINBASE).log.entries;
+  const embed = saved[0].request.url;
+  const { asked, fetchText: api } = jobBoardApi(COINBASE);
+  // The embedded page and its education lists as saved; the Job Board API as the other tests serve it.
+  const fetchText = async (url: string) => saved.find((e: any) => e.request.url === url)?.response.content.text ?? api(url);
+
+  const url = await formFor("https://job-boards.greenhouse.io/coinbase/jobs/8175510", fetchText);
+  const questions = await questionsToWrite({ url, profile: STUDENT, today: "2026-10-25", fetchText });
+
+  expect(url).toBe(embed);
+  expect(Array.isArray(questions)).toBe(true);
+  expect(asked).not.toContain("https://job-boards.greenhouse.io/coinbase/jobs/8175510");
 });
 
 test("a question the saved answers hold is not sent to be written", async () => {
