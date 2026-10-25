@@ -100,13 +100,15 @@ export function engineCaller(run) {
  * student's choice made for them: pay, defense roles, consent boxes and
  * cover letters stay the student's to answer. "How did you hear about this
  * job?" is WorkIt (a free-text box) or the form's own "Job Board" (a list),
- * as the extension answered it before the engine.
+ * as the extension answered it before the engine. WorkIt lists US roles
+ * only, so a question about working abroad is No (us_roles_only).
  */
 export const POLICIES = {
   how_heard: { prefer: ["job board", "other"], text: "WorkIt" },
   marketing_opt_in: false,
   sms_opt_in: false,
   high_stakes_job_systems: [],
+  us_roles_only: true,
 };
 
 // The words a form reads, for each of the autofill answers' option keys

@@ -143,7 +143,9 @@ uv run pytest
   `DIRECT_URL` to the test database before the app reads them (exported
   variables beat the root `.env`), and refuses a `TEST_DATABASE_URL` whose host
   is not localhost. The app's own `get_session` uses the test database, so do
-  not override it in these tests.
+  not override it in these tests. It also pins `CONNECTOR_API_URL` and
+  `CONNECTOR_WEB_URL` to the config defaults (`:8000`, `:3000`), so a `.env`
+  serving the connector on other ports doesn't break the connector tests.
 - **Without the container, database tests skip** with a message saying how to
   start it; the rest run. In CI (`CI` set) they fail instead, so a broken
   service never passes as green. CI's backend job runs the same image as a
@@ -301,7 +303,10 @@ Find files with a directory listing; these are the rules for where code goes.
   application with a question in words has a company whose brief is
   missing or over 30 days old and not held back (`briefs.needs_research`),
   `get_next_application` answers `research_first` with the company and no
-  application; a choice-only application still goes out. Tests get every
+  application; a choice-only application still goes out.
+  `get_research_task`, given the same `chat`, puts that held application
+  first (`briefs.research_task(skip=)`), so it names the company
+  `research_first` named, not an older application's. Tests get every
   company as researched (an autouse fixture in `tests/conftest.py`);
   mark a test `research_gate` to keep the real rule, and stub
   `needs_research` with the other brief calls wherever they are stubbed

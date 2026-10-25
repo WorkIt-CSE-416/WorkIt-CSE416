@@ -49,7 +49,8 @@ Write the answers to my WorkIt job applications' written questions, one \
 application at a time.
 
 The loop
-1. Call get_research_task. If it names a company, research that company \
+1. Call get_research_task, passing the chat value get_next_application \
+last gave in this chat (none the first time). If it names a company, research that company \
 on the web first: facts in each of its categories, each from a page on the \
 company's own site (its news sites only where its own pages fall short), \
 with a passage copied word \
