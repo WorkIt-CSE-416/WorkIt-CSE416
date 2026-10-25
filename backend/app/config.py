@@ -107,6 +107,11 @@ class Settings(BaseSettings):
     # of Claude's attention. Lower it if the blind read (KAN-386) finds a
     # chat's last answers worse than its first.
     connector_chat_cap: int = 5
+    # Whether a client may register a loopback redirect (http://localhost or
+    # 127.0.0.1, any port, /callback), as Claude Code does. Off in production:
+    # any program on the student's computer can listen there. Claude's web,
+    # desktop and mobile apps use https://claude.ai (or .com) callbacks only.
+    connector_loopback_redirects: bool = False
 
     # The scraper's output, which app/scripts/import_jobs.py loads into the
     # database by default. Data — nothing from scraper/ is imported, so it

@@ -229,7 +229,9 @@ Find files with a directory listing; these are the rules for where code goes.
   `/mcp`, with WorkIt as its own OAuth server (`connector/oauth.py`; the
   SDK's endpoints at the root, `/authorize`, `/token`, `/register`,
   `/revoke`, `/.well-known/...`, added path by path, never a catch-all
-  mount). It answers only inside the app's lifespan, so its tests run
+  mount). Only Claude's own callbacks register (`oauth.CLAUDE_CALLBACKS`;
+  loopback only with `connector_loopback_redirects`), so no other page can
+  pose as Claude on the consent page. It answers only inside the app's lifespan, so its tests run
   `app.router.lifespan_context(app)` (`tests/test_connector.py`, which
   signs in with the SDK's own client as Claude does). Its tokens reach
   `/mcp` only. Whether a student added it is `GET

@@ -19,12 +19,14 @@ import datetime
 import hashlib
 import secrets
 import uuid
+from urllib.parse import urlsplit
 
 from mcp.server.auth.provider import (
     AccessToken,
     AuthorizationCode,
     AuthorizationParams,
     RefreshToken,
+    RegistrationError,
     TokenError,
     construct_redirect_uri,
 )
@@ -42,6 +44,30 @@ REQUEST_TTL = datetime.timedelta(minutes=10)
 ACCESS_TTL = datetime.timedelta(hours=1)
 # A student connects once; Claude refreshes, rotating both tokens.
 REFRESH_TTL = datetime.timedelta(days=90)
+
+
+# Where Claude's apps take the code back (claude.com/docs/connectors/building/
+# authentication, "Callback URLs"; Anthropic's support article says the
+# claude.ai one may move to claude.com, so both). Anything else could be a
+# page posing as Claude to get a student's code from the consent page.
+CLAUDE_CALLBACKS = frozenset({
+    "https://claude.ai/api/mcp/auth_callback",
+    "https://claude.com/api/mcp/auth_callback",
+})
+
+
+def _allowed_redirect(uri: str) -> bool:
+    if uri in CLAUDE_CALLBACKS:
+        return True
+    # Claude Code's loopback redirect, any port (RFC 8252): only where the
+    # setting allows it (tests, local development).
+    parts = urlsplit(uri)
+    return (
+        get_settings().connector_loopback_redirects
+        and parts.scheme == "http"
+        and parts.hostname in ("localhost", "127.0.0.1")
+        and parts.path == "/callback"
+    )
 
 
 def _hash(secret: str) -> str:
@@ -65,6 +91,12 @@ class Provider:
         return OAuthClientInformationFull.model_validate(info) if info else None
 
     async def register_client(self, client_info: OAuthClientInformationFull) -> None:
+        bad = [str(uri) for uri in client_info.redirect_uris or [] if not _allowed_redirect(str(uri))]
+        if bad or not client_info.redirect_uris:
+            raise RegistrationError(
+                error="invalid_redirect_uri",
+                error_description=f"WorkIt signs in Claude only; not a Claude callback: {', '.join(bad) or 'none'}.",
+            )
         async with get_sessionmaker()() as db:
             db.add(Connector_Client(client_id=client_info.client_id, info=client_info.model_dump(mode="json")))
             await db.commit()

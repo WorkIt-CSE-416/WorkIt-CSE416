@@ -162,6 +162,29 @@ async def test_a_denied_consent_sends_claude_back_with_access_denied(running, ap
     assert again.status_code == 404
 
 
+async def test_only_claudes_own_callback_can_register(running, database, monkeypatch):
+    """A page that registers its own redirect would get the student's code
+    from WorkIt's consent page: only Claude's callbacks register, and the
+    loopback ones (Claude Code) only where a setting allows them."""
+    from app.config import Settings
+    from app.connector import oauth
+
+    async def register(*uris: str) -> int:
+        async with _api() as api:
+            return (await api.post("/register", json={"client_name": "Claude", "redirect_uris": list(uris)})).status_code
+
+    assert await register(REDIRECT) == 201
+    assert await register("https://claude.com/api/mcp/auth_callback") == 201
+    assert await register("https://evil.example/api/mcp/auth_callback") == 400
+    assert await register(REDIRECT, "https://claude.ai.evil.example/api/mcp/auth_callback") == 400
+    assert await register("https://claude.ai/somewhere/else") == 400
+    assert await register("http://localhost:3118/callback") == 400
+
+    monkeypatch.setattr(oauth, "get_settings", lambda: Settings(_env_file=None, connector_loopback_redirects=True))
+    assert await register("http://localhost:3118/callback", "http://127.0.0.1:50000/callback") == 201
+    assert await register("http://localhost.evil.example/callback") == 400
+
+
 async def test_only_a_student_can_connect_claude(running, applicant):
     async with _api() as api:
         meta = (await api.post("/register", json={"client_name": "Claude", "redirect_uris": [REDIRECT]})).json()
