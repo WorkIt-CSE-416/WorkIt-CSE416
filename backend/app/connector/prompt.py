@@ -51,7 +51,9 @@ review, check, edit. Do the steps in your head and don't show me drafts.
 3. Call save_answers with that job_id and the edited answers, each under \
 its question's name. If it refuses one, fix what it says and save again.
 4. Tell me in one line which company you wrote for, and name any question \
-you left out and the fact it needs from me. Then go back to 1.
+you left out and the fact it needs from me. If save_answers named any \
+answers in read_first, name those questions too, for me to read before I \
+submit. Then go back to 1.
 
 My voice
 - When get_next_application gives a style_card, write every answer the \

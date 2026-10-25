@@ -296,9 +296,15 @@ Find files with a directory listing; these are the rules for where code goes.
   (`app/auto_apply/checks.py`, KAN-380; pure, `tests/test_answer_checks.py`):
   machine-made words, a run copied from the student's writing samples, a
   number not in the bank, posting or question, another application's
-  company, a sentence over 30 words, a placeholder, and the form's own
+  company, a sentence over 30 words, a placeholder, the form's own
   limit (the Fill engine reads it from the live form; the tab sends it as
-  `max_length`). `save_answers` refuses the whole save with every failing
+  `max_length`), and Apply's editor checks (how it was written, talk of
+  the posting, time counted from today, signposts, more than 2 numbers,
+  low-level detail, a course credited). Each reason says what to change.
+  Apply's holds, in WorkIt: an answer needing the student's input is left
+  out by their Claude (the row stays Needs you); a high-stakes one
+  (`checks.high_stakes`) is saved and filled, and `save_answers` names it
+  in `read_first` for the student to read before Submit. `save_answers` refuses the whole save with every failing
   answer's reasons, so nothing failing reaches a tab. **No saved answer is
   filled without passing that form's checks**: when a tab sends the form's
   own limit (`ask_questions`; a question read early had none), each saved

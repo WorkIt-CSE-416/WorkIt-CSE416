@@ -10,7 +10,7 @@ its transaction, as every layer-2 step does.
 
 import dataclasses
 import uuid
-from collections.abc import Collection, Sequence
+from collections.abc import Collection, Iterable, Sequence
 from typing import Literal
 
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -356,3 +356,15 @@ async def save_own_answer(
             raise Refused(f"Not saved: {' '.join(found)}", {own.name: found})
     await save_own_written(db, applicant_id, job_id, own.name, own.label.strip(), answer, own.own)
     await db.commit()
+
+
+async def read_first(db: AsyncSession, applicant_id: uuid.UUID, job_id: uuid.UUID, names: Iterable[str]) -> list[str]:
+    """Which of `names`, an application's saved written answers, the student
+    reads before pressing Submit (`checks.high_stakes`: about this company,
+    or about what isn't on their resume). Apply holds such an essay for its
+    student; WorkIt never submits, so it saves and fills it, and its Claude
+    names it to the student. A choice is never one."""
+    company, _, _ = await fetch_posting_text(db, job_id)
+    asked = set(names)
+    return [q.name for q in await fetch_written(db, applicant_id, job_id)
+            if q.name in asked and q.answer and not q.kind and checks.high_stakes(q.label, company)]

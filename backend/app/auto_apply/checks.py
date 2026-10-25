@@ -25,6 +25,23 @@ rules that were one student's own dropped.
 - **Longer than the form takes**: the field's own limit, as the Fill
   engine read it from the live form (the extension's `limits`), else
   ANSWER_MAX.
+- **How it was written** (GIVEAWAY): talk of the student's materials or
+  what they lack, a hedge ("I should be upfront"), "as an AI", or the
+  posting cited to its employer ("your posting").
+- **Talk of the posting** (POSTING_TALK): "the role requires ...", which
+  the employer wrote and needn't be told.
+- **Time counted from today** (RELATIVE_TIME): "last summer", "recently";
+  the answer is read weeks later.
+- **Signposts**: "Hence", "Particularly" opening a sentence, or more than
+  one signpost word (SIGNPOSTS).
+- **More than NUMBERS numbers**, years aside.
+- **Low-level detail** (LOW_LEVEL): bytes, protocols, versions, below what
+  a recruiter follows.
+- **A course credited with what the student did** (COURSE_CREDIT).
+
+`high_stakes` says which answers the student reads before Submit: about
+this company, or about what isn't on their resume (saved, and named back
+to their Claude, `pipeline.read_first`).
 
 `company_specific` says which saved answers are about one company and so
 never offered on another company's form (`pipeline.answer_bank`).
@@ -50,6 +67,37 @@ TELLS = re.compile(r"""\b(?:
   | I\ am\ writing\ to | excited\ to\ apply | eager\ to
 )\b|—|!""", re.IGNORECASE | re.VERBOSE)
 PLACEHOLDER = re.compile(r"\[(?:add|insert|link|url|your|todo|tbd)[^\]]*\]|\b(?:TBD|TODO|XXX)\b", re.IGNORECASE)
+NUMBERS = 2  # numbers an answer may state, years aside
+# Words that say how an answer was written: the student's files and what
+# they lack, a hedge, an AI, or the posting cited to its employer.
+GIVEAWAY = re.compile(r"""\b(?:
+    my\ (?:materials|sources|notes|experience\ bank)
+  | my\ r[eé]sum[eé]\ (?:does\ not|doesn['’]t|do\ not|don['’]t|never|says\ nothing)
+  | (?:your|this)\ (?:job\ )?(?:posting|listing|job\ description|job\ ad)
+  | the\ (?:job\ )?(?:posting|listing|job\ description|description)\ (?:itself\ )?
+      (?:says|said|lists|listed|mentions|mentioned|states|stated|notes|noted|asks|asked|describes|calls\ for|highlights)
+  | I\ should\ be\ upfront | to\ be\ upfront
+  | rather\ not\ (?:invent|make\ up) | (?:invent|make\ up)\ a\ reason
+  | don['’]t\ (?:yet\ )?say\ why | doesn['’]t\ (?:yet\ )?say\ why
+  | as\ an\ AI
+)\b""", re.IGNORECASE | re.VERBOSE)
+# Telling the employer what their posting asks for.
+POSTING_TALK = re.compile(r"\b(?:(?:the|your|this)\ (?:job\ )?(?:posting|listing|job\ description|role|job)|\w+\ also)\ (?:also\ )?"
+                          r"(?:asks?\ for|stresses|calls\ for|wants|emphasi[sz]es|requires|mentions|lists)\b", re.IGNORECASE | re.VERBOSE)
+RELATIVE_TIME = re.compile(r"\b(?:(?:this|last|next|past)\s+(?:summer|fall|autumn|spring|winter|year|semester)|recently|currently\s+interning)\b",
+                           re.IGNORECASE)
+# Signpost words opening a sentence: one reads as the student's, more as a tic.
+SIGNPOSTS = re.compile(r"(?:^|(?<=[.!?]\s))(?:Hence|Particularly|Lastly|In fact|Indeed|Essentially|As such|In terms of)\b")
+HENCE = re.compile(r"\b[Hh]ence\b")  # readers flag it in most answers that use it
+# Detail below what a recruiter follows; the resume has it.
+LOW_LEVEL = re.compile(r"\b(?:serializ\w*|byte[- ]alignment|bytes?|binary|protobuf|udp|tcp|version\ (?:two|three|\d)|v\d)\b",
+                       re.IGNORECASE | re.VERBOSE)
+# A course credited with what the student did ("that class taught me where to look").
+_COURSE = r"(?:course|class|(?-i:[A-Z]{2,4})\ ?\d{3})"
+COURSE_CREDIT = re.compile(rf"\b{_COURSE}\b[^.]*\b(?:helped|taught|why|without|reason|knew|let\ me|prepared)\b"
+                           rf"|\b(?:helped|taught|without|knew|prepared)\b[^.]*\b{_COURSE}\b", re.IGNORECASE | re.VERBOSE)
+# A question about what the resume doesn't show, or a ranking against others.
+BEYOND_THE_RESUME = re.compile(r"not\s+on\s+your\s+(?:cv|r[eé]sum[eé])|\btop\s+[\d.]+\s?%", re.IGNORECASE)
 _NUMBER = re.compile(r"\d+(?:[.,]\d+)*")
 _WORD = re.compile(r"[a-z0-9']+")
 # A question about the company or the role, whose answer fits only that
@@ -102,7 +150,49 @@ def problems(answer: str, context: Context) -> list[str]:
                          f"split it into sentences of at most {LONGEST}.")
     if holes := _unique(m.group() for m in PLACEHOLDER.finditer(answer)):
         found.append(f"It leaves placeholders to fill: {_quoted(holes)}. Leave out what only the student can give.")
+    return found + _writing(answer)
+
+
+def _writing(answer: str) -> list[str]:
+    """What reads as machine-written beyond its words: Apply's editor checks."""
+    found: list[str] = []
+    if said := _unique(m.group() for m in GIVEAWAY.finditer(answer)):
+        found.append(f"It says how it was written: {_quoted(said)}. Write it as if the student wrote it, with no talk "
+                     "of their materials, what they lack, or the posting.")
+    if talk := _unique(m.group() for m in POSTING_TALK.finditer(answer)):
+        found.append(f"It tells the employer what their posting asks: {_quoted(talk)}. Show the work that meets it instead.")
+    if when := _unique(m.group() for m in RELATIVE_TIME.finditer(answer)):
+        found.append(f"It counts time from today: {_quoted(when)}, but the answer is read weeks later. "
+                     "Date it as the student's experience does (\"in summer 2025\").")
+    if HENCE.search(answer):
+        found.append('It uses "Hence", which readers flag. Say "so", or drop it.')
+    signposts = [m.group() for m in SIGNPOSTS.finditer(answer)]
+    if len(signposts) > 1:
+        found.append(f"It uses {len(signposts)} signpost words ({', '.join(signposts)}); keep at most one, "
+                     "where the sentence follows from the one before.")
+    if "Particularly" in signposts:
+        found.append('"Particularly" opens a sentence. Say it plainly ("Specifically", or nothing).')
+    stated = [n for n in _unique(_NUMBER.findall(answer)) if not re.fullmatch(r"(?:19|20)\d\d", n)]
+    if len(stated) > NUMBERS:
+        found.append(f"It states {len(stated)} numbers ({', '.join(stated)}); keep the {NUMBERS} that matter most "
+                     "(years aside).")
+    if low := _unique(m.group() for m in LOW_LEVEL.finditer(answer)):
+        found.append(f"It goes below what a recruiter follows: {_quoted(low)}. Say what it does in plain words, "
+                     "or drop it; the resume has the detail.")
+    if credit := _unique(m.group() for m in COURSE_CREDIT.finditer(answer)):
+        found.append(f"It credits a course with what the student did: {_quoted(credit)}. Name a course only as one "
+                     "the student liked and why, as their experience says.")
     return found
+
+
+def high_stakes(question: str, company: str | None) -> bool:
+    """Whether the student reads the answer to `question` before pressing
+    Submit: it asks about this company or role, or about what isn't on
+    their resume (Apply's high-stakes essays, read from the question alone).
+    Such an answer is saved and filled, and named back to their Claude to
+    tell them."""
+    return (ABOUT_THE_COMPANY.search(question) is not None or BEYOND_THE_RESUME.search(question) is not None
+            or bool(company and names(question, company)))
 
 
 def copied(text: str, samples: Iterable[str], n: int = COPIED) -> list[str]:
