@@ -46,7 +46,7 @@ import { cn } from "@/lib/cn";
  *
  * The toggle's glyph is 16px, the rail icons' size, by `[&_svg]:size-4`.
  * shadcn's own button base sizes an svg for it; WorkIt's Button does not, so
- * without this the PanelLeft glyph fell back to Lucide's 24px and was the
+ * without this the toggle's glyph fell back to its own default size and was the
  * heaviest mark at the top of the column. It is set here rather than in the
  * Button base, which would resize the glyph in every Button.
  *

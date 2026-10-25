@@ -6,7 +6,8 @@
  * Auto Apply and Updates stops take theirs from the applications board
  * (./board-data.ts), so the sections match.
  */
-import { Headset, Presentation, type LucideIcon } from "lucide-react";
+import type { Icon as PhosphorIcon } from "@phosphor-icons/react";
+import { HeadsetIcon, PresentationIcon } from "@phosphor-icons/react/ssr";
 
 import { stages } from "./board-data";
 
@@ -100,9 +101,9 @@ export const matchingFeature = {
      * bare "Past titles" they read as a list, not as the student's
      * experience. */
     experiences: [
-      { title: "Teaching Assistant", detail: "Data Structures", icon: Presentation },
-      { title: "IT Support Intern", detail: "Campus Help Desk", icon: Headset },
-    ] satisfies { title: string; detail: string; icon: LucideIcon }[],
+      { title: "Teaching Assistant", detail: "Data Structures", icon: PresentationIcon },
+      { title: "IT Support Intern", detail: "Campus Help Desk", icon: HeadsetIcon },
+    ] satisfies { title: string; detail: string; icon: PhosphorIcon }[],
   },
   factorLabels: {
     meaning: "Meaning",

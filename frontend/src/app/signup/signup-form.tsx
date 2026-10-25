@@ -4,7 +4,7 @@ different form for applicant, company, and company_membership sign up
 */
 "use client";
 
-import { Building2, CircleAlert, UserRoundPlus } from "lucide-react";
+import { BuildingOfficeIcon, UserPlusIcon, WarningCircleIcon } from "@phosphor-icons/react/ssr";
 import { useActionState, useState } from "react";
 
 import { AccountTypeSwitcher, type AccountTypeValue } from "@/components/account-type-switcher";
@@ -15,6 +15,7 @@ import { ToggleGroup, ToggleGroupItem } from "@/components/shadcn/toggle-group";
 import { Button } from "@/components/ui/button";
 import { TextField } from "@/components/ui/text-field";
 import { cn } from "@/lib/cn";
+import { PASSWORD_MIN_LENGTH } from "@/lib/password-rules";
 
 import { createAccount, type SignupState } from "./actions";
 
@@ -30,13 +31,6 @@ const INITIAL_STATE: SignupState = {
   contactPhone: "",
 };
 
-// A UX check only — it saves a round trip, it doesn't enforce anything. The
-// same floor of 8 is enforced by backend/app/schemas/auth.py's
-// SignupRequest.password (a direct API call) and by the Supabase project's
-// minimum password length (anything reaching Supabase Auth with the public
-// anon key, e.g. updateUser). Change all three together.
-const PASSWORD_MIN_LENGTH = 8;
-
 /**
  * The two doors behind the Company tab. Only "create" has a form so far, so
  * "join" is drawn disabled and marked Soon rather than offered as an equal
@@ -49,13 +43,13 @@ const COMPANY_PATHS = [
     value: "create",
     label: "Create Company",
     hint: "Set up a new company page",
-    icon: Building2,
+    icon: BuildingOfficeIcon,
   },
   {
     value: "join",
     label: "Join a Company",
     hint: "Join your team on WorkIt",
-    icon: UserRoundPlus,
+    icon: UserPlusIcon,
   },
 ] as const;
 
@@ -135,7 +129,7 @@ export function SignupForm({ formId }: { formId: string }) {
               className="rounded-control border-border-subtle text-ink-muted hover:bg-hover hover:text-ink aria-pressed:border-brand/50 aria-pressed:bg-brand-tint aria-pressed:text-brand-ink flex h-auto flex-col items-start gap-0.5 border px-3.5 py-2.5 text-left whitespace-normal disabled:opacity-100"
             >
               <span className="text-label flex items-center gap-2">
-                <Icon className="size-4 group-disabled/toggle:opacity-50" />
+                <Icon aria-hidden className="size-4 group-disabled/toggle:opacity-50" />
                 <span className="group-disabled/toggle:opacity-50">{label}</span>
                 {value === "join" && <SoonBadge />}
               </span>
@@ -290,7 +284,7 @@ export function SignupForm({ formId }: { formId: string }) {
               role="alert"
               className="text-label text-danger bg-danger-tint rounded-control mt-2.5 flex items-start gap-2 px-3 py-2"
             >
-              <CircleAlert className="mt-px size-4 shrink-0" aria-hidden />
+              <WarningCircleIcon className="mt-px size-4 shrink-0" aria-hidden />
               {state.error}
             </p>
           )}

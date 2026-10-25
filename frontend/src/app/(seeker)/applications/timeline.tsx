@@ -136,7 +136,7 @@ function Step({
             style={{ animationDelay: `${delay + 260}ms` }}
           />
         )}
-        {filled && <Glyph className="relative size-3" />}
+        {filled && <Glyph aria-hidden className="relative size-3" />}
       </span>
 
       <div className="min-w-0 flex-1">

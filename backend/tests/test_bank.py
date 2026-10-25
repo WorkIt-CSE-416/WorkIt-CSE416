@@ -378,82 +378,52 @@ async def test_the_bank_lists_sections_in_order_ongoing_first_then_newest(studen
     assert titles == ["SBU", "Current job", "Recent job", "Past job", "New project", "Old project", "Prize"]
 
 
-async def test_a_skill_links_to_the_entries_that_show_it(student):
-    client, bank = student
-    workit = (await client.post(f"{bank}/entries", json={"section": "projects", "title": "WorkIt"})).json()
-    intern = (await client.post(f"{bank}/entries", json={"section": "experience", "title": "Intern"})).json()
-    python = (await client.post(f"{bank}/skills", json={"name": "Python"})).json()
-    assert python["entry_ids"] == []
-
-    assert (await client.put(f"{bank}/skills/{python['id']}/entries/{workit['id']}")).status_code == 204
-    assert (await client.put(f"{bank}/skills/{python['id']}/entries/{intern['id']}")).status_code == 204
-    # Linking twice is a no-op, not an error.
-    assert (await client.put(f"{bank}/skills/{python['id']}/entries/{workit['id']}")).status_code == 204
-
-    skills = (await client.get(bank)).json()["skills"]
-    assert sorted(skills[0]["entry_ids"]) == sorted([workit["id"], intern["id"]])
-
-    assert (await client.delete(f"{bank}/skills/{python['id']}/entries/{workit['id']}")).status_code == 204
-    assert (await client.get(bank)).json()["skills"][0]["entry_ids"] == [intern["id"]]
-    # Removing a link that is not there answers 404.
-    assert (await client.delete(f"{bank}/skills/{python['id']}/entries/{workit['id']}")).status_code == 404
-
-
-async def test_a_skill_links_only_within_its_own_bank(student, database):
-    client, bank = student
-    me = uuid.UUID(bank.split("/")[2])
-    async with database() as session:
-        other = await _seed_applicant(session)
-    other_bank = f"/applicants/{other}/bank"
-
-    _sign_in(other)
-    their_entry = (await client.post(f"{other_bank}/entries", json={"section": "projects", "title": "Theirs"})).json()
-    their_skill = (await client.post(f"{other_bank}/skills", json={"name": "Rust"})).json()
-    assert (await client.put(f"{other_bank}/skills/{their_skill['id']}/entries/{their_entry['id']}")).status_code == 204
-
-    _sign_in(me)
-    my_entry = (await client.post(f"{bank}/entries", json={"section": "projects", "title": "Mine"})).json()
-    my_skill = (await client.post(f"{bank}/skills", json={"name": "Go"})).json()
-
-    # Their bank's URL is forbidden; their ids through my bank are not found.
-    assert (await client.put(f"{other_bank}/skills/{their_skill['id']}/entries/{their_entry['id']}")).status_code == 403
-    assert (await client.delete(f"{other_bank}/skills/{their_skill['id']}/entries/{their_entry['id']}")).status_code == 403
-    assert (await client.put(f"{bank}/skills/{my_skill['id']}/entries/{their_entry['id']}")).status_code == 404
-    assert (await client.put(f"{bank}/skills/{their_skill['id']}/entries/{my_entry['id']}")).status_code == 404
-    assert (await client.delete(f"{bank}/skills/{their_skill['id']}/entries/{their_entry['id']}")).status_code == 404
-    assert (await client.get(bank)).json()["skills"][0]["entry_ids"] == []
-
-    _sign_in(other)
-    assert (await client.get(other_bank)).json()["skills"][0]["entry_ids"] == [their_entry["id"]]
-
-
-async def test_deleting_an_entry_or_a_skill_removes_its_links(student):
-    client, bank = student
-    entry = (await client.post(f"{bank}/entries", json={"section": "projects", "title": "WorkIt"})).json()
-    kept = (await client.post(f"{bank}/entries", json={"section": "projects", "title": "Scout"})).json()
-    skill = (await client.post(f"{bank}/skills", json={"name": "Python"})).json()
-    for e in (entry, kept):
-        assert (await client.put(f"{bank}/skills/{skill['id']}/entries/{e['id']}")).status_code == 204
-
-    assert (await client.delete(f"{bank}/entries/{entry['id']}")).status_code == 204
-    assert (await client.get(bank)).json()["skills"][0]["entry_ids"] == [kept["id"]]
-
-    # An edit answers with the links the skill still has.
-    res = await client.patch(f"{bank}/skills/{skill['id']}", json={"group": "Languages"})
-    assert res.json()["entry_ids"] == [kept["id"]]
-
-    assert (await client.delete(f"{bank}/skills/{skill['id']}")).status_code == 204
-    assert (await client.get(bank)).json()["skills"] == []
-
-
-async def test_linking_a_skill_keeps_the_bank_embedding(student, database):
-    # The embedding text holds skills and entries, not which goes with which.
+async def test_clear_all_deletes_the_entries_sent_and_their_choice_rows(student, database):
     client, bank = student
     applicant_id = uuid.UUID(bank.split("/")[2])
-    entry = (await client.post(f"{bank}/entries", json={"section": "projects", "title": "WorkIt"})).json()
+    ids = []
+    for title in ("WorkIt", "PennyWise", "Micromouse"):
+        res = await client.post(f"{bank}/entries", json={"section": "projects", "title": title, "bullets": ["Built it"]})
+        ids.append(res.json()["id"])
+    assert (await client.post(f"/applicants/{applicant_id}/built-resumes", json={"name": "General SWE"})).status_code == 201
+    await _mark_embedded(database, applicant_id)
+
+    assert (await client.post(f"{bank}/entries/delete", json={"ids": ids[:2]})).status_code == 204
+    assert [e["title"] for e in (await client.get(bank)).json()["entries"]] == ["Micromouse"]
+    assert not await _is_embedded(database, applicant_id)
+    async with database() as session:
+        shown = await session.scalar(text("SELECT count(*) FROM built_resume_entries"))
+        bullets = await session.scalar(text("SELECT count(*) FROM bank_bullets"))
+    assert (shown, bullets) == (1, 1)
+
+
+async def test_clear_all_deletes_nothing_when_one_id_is_not_mine(student, database):
+    client, bank = student
+    entry = (await client.post(f"{bank}/entries", json={"section": "awards", "title": "Prize"})).json()
     skill = (await client.post(f"{bank}/skills", json={"name": "Python"})).json()
-    link = f"{bank}/skills/{skill['id']}/entries/{entry['id']}"
-    for change in (client.put, client.delete):
-        await _mark_embedded(database, applicant_id)
-        assert (await change(link)).status_code == 204
-        assert await _is_embedded(database, applicant_id)
+    async with database() as session:
+        other = await _seed_applicant(session)
+    _sign_in(other)
+    theirs = f"/applicants/{other}/bank"
+    their_entry = (await client.post(f"{theirs}/entries", json={"section": "awards", "title": "Medal"})).json()
+    their_skill = (await client.post(f"{theirs}/skills", json={"name": "Go"})).json()
+
+    for path, mine, not_mine in (("entries", entry, their_entry), ("skills", skill, their_skill)):
+        res = await client.post(f"{theirs}/{path}/delete", json={"ids": [not_mine["id"], mine["id"]]})
+        assert res.status_code == 404
+        assert (await client.post(f"{theirs}/{path}/delete", json={"ids": [str(uuid.uuid4())]})).status_code == 404
+        assert len((await client.get(theirs)).json()[path]) == 1
+    assert (await client.post(f"{bank}/entries/delete", json={"ids": [entry["id"]]})).status_code == 403
+    assert (await client.post(f"{theirs}/entries/delete", json={"ids": []})).status_code == 422
+
+
+async def test_clear_all_removes_the_skills_sent(student, database):
+    client, bank = student
+    applicant_id = uuid.UUID(bank.split("/")[2])
+    ids = [(await client.post(f"{bank}/skills", json={"name": n})).json()["id"] for n in ("Python", "Go", "Rust")]
+    await _mark_embedded(database, applicant_id)
+
+    # The same id twice is one skill.
+    assert (await client.post(f"{bank}/skills/delete", json={"ids": [ids[0], ids[1], ids[1]]})).status_code == 204
+    assert [s["name"] for s in (await client.get(bank)).json()["skills"]] == ["Rust"]
+    assert not await _is_embedded(database, applicant_id)

@@ -1,4 +1,4 @@
-import { Ban, CloudOff } from "lucide-react";
+import { CloudSlashIcon, ProhibitIcon } from "@phosphor-icons/react/ssr";
 
 import { SparkleIcon } from "@/components/icons";
 import { JobPostingCard, NOT_LISTED } from "@/components/job-posting-card";
@@ -113,7 +113,7 @@ export function ListingCard({
             variant="outline"
             className="size-9"
           >
-            <Ban className="size-4" />
+            <ProhibitIcon aria-hidden className="size-4" />
           </IconButton>
 
           <SaveJobButton jobId={job.id} title={job.title} stage={stage} />
@@ -263,7 +263,7 @@ export function ListingsSkeleton() {
 export function ListingsError({ error, retryHref }: { error: string; retryHref: string }) {
   return (
     <EmptyState
-      Icon={CloudOff}
+      Icon={CloudSlashIcon}
       title="Jobs Aren't Loading Right Now"
       className="mt-4"
       /* A plain link, not <Link>: a full reload is what re-runs the fetch. */

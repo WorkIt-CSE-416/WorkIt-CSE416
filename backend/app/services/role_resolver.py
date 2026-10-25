@@ -319,6 +319,22 @@ def raw_words(text: str) -> list[str]:
     return _WORD.findall(folded)
 
 
+def raw_word_spans(text: str) -> list[tuple[int, int]]:
+    '''
+    where each of raw_words' words stands in text as typed, start and end.
+    Folded a character at a time, which folds the same as the whole text at
+    once, so each folded character keeps the place it came from
+    '''
+    folded: list[str] = []
+    origin: list[int] = []   # folded index -> text index
+    for i, c in enumerate(text):
+        f = "".join(x for x in unicodedata.normalize("NFKD", c) if not unicodedata.combining(x))
+        for x in f.casefold():
+            folded.append(x)
+            origin.append(i)
+    return [(origin[m.start()], origin[m.end() - 1] + 1) for m in _WORD.finditer("".join(folded))]
+
+
 def words(text: str) -> list[str]:
     '''
     the form every title, query and alias is compared in

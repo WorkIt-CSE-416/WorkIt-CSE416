@@ -39,6 +39,7 @@ current when a route changes.
 - **Storage buckets are made in the dashboard, not by migrations.** A new
   bucket's name and settings go in its `../../../docs/*.md` note (`Resume` and
   `Avatar` exist). A route pointing at a missing bucket fails with a 502 on the
-  first upload.
+  first upload. A bucket keyed by the applicant (`<applicant_id>/...`) also
+  joins `ACCOUNT_BUCKETS` in `auth.py`, so Delete Account removes its files.
 - **A catch-all path parameter route is registered last** (`GET /jobs/{job_id}`),
   so named paths like `/jobs/facets` match first.

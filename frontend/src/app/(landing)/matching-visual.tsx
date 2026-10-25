@@ -3,7 +3,7 @@
 import * as React from "react";
 import Image from "next/image";
 import { AnimatePresence, animate, motion, useMotionValue, useTransform } from "motion/react";
-import { ArrowDownWideNarrow } from "lucide-react";
+import { SortDescendingIcon } from "@phosphor-icons/react/ssr";
 
 import { cn } from "@/lib/cn";
 
@@ -286,7 +286,7 @@ function ListHeader({ phase }: { phase: Phase }) {
           exit={{ opacity: 0, y: -4 }}
           transition={{ duration: 0.2 }}
         >
-          {phase === "rank" && <ArrowDownWideNarrow className="size-3.5" aria-hidden="true" />}
+          {phase === "rank" && <SortDescendingIcon className="size-3.5" aria-hidden="true" />}
           {text}
         </motion.p>
       </AnimatePresence>

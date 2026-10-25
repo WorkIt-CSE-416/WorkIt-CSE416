@@ -1,7 +1,8 @@
 """
-Seam-1 tests for import (KAN-211, ADR 0003) on real Postgres: an upload,
-Import Updated Resume and Import Again read a resume and write it into the experience bank, merging an
-entry the bank already has. The model reads a resume only when the student
+Seam-1 tests for import (KAN-211, ADR 0003, ADR 0005) on real Postgres: an
+upload, Import Updated Resume and Import Again read a resume and write it into
+the experience bank as that upload's own entries and skills, replacing what
+it owned and never merging into another resume's. The model reads a resume only when the student
 asks. backend/CLAUDE.md's Tests section has the setup.
 """
 
@@ -21,7 +22,6 @@ from app.routers import resumes as resumes_router
 from app.routers.resumes import text_hash
 from app.routers.scout import get_llm
 from app.schemas.auth import AccountType, AuthenticatedAccount
-from app.services import bank as bank_service
 from app.services.bank_import import read
 
 pytestmark = pytest.mark.anyio
@@ -124,7 +124,7 @@ def _summary(entry: dict) -> tuple:
 
 
 def _counts(body: dict) -> tuple:
-    return (body["entries_added"], body["entries_updated"], body["skills_added"])
+    return (body["entries_added"], body["skills_added"])
 
 
 class _Bucket:
@@ -179,7 +179,7 @@ async def test_an_upload_writes_its_reading_into_the_bank(student, upload):
     assert "parsed_json" not in body
     assert body["status"] == "parsed"
     assert body["bank"] == {
-        "found": 8, "entries_added": 6, "entries_updated": 0, "skills_added": 2, "read_by": "parser", "uses_left": 1,
+        "found": 8, "entries_added": 6, "skills_added": 2, "read_by": "parser", "uses_left": 1,
     }
 
     saved = (await client.get(bank)).json()
@@ -215,41 +215,27 @@ async def test_an_upload_writes_its_reading_into_the_bank(student, upload):
     assert [(s["name"], s["group"]) for s in saved["skills"]] == [("MATLAB", "Tools"), ("SolidWorks", "Tools")]
 
 
-async def test_a_second_resume_merges_into_the_entries_the_bank_has(student, upload):
+async def test_an_upload_never_merges_into_an_entry_the_bank_has(student, upload):
     client, applicant_id, bank = student
-    # What the student typed, and fixed, before uploading.
+    # What the student typed before uploading: the same job and skill.
     mine = (
         await client.post(
             f"{bank}/entries",
-            json={
-                "section": "experience",
-                "title": "mechanical engineering intern",
-                "organization": "HARBOR ROBOTICS",
-                "location": "Seattle, WA",
-                "bullets": ["Ran tolerance  stack-up analyses in solidworks"],
-            },
+            json={"section": "experience", "title": "mechanical engineering intern", "organization": "HARBOR ROBOTICS"},
         )
     ).json()
     await client.post(f"{bank}/skills", json={"name": "matlab"})
 
     body = (await upload(client, applicant_id, RESUME_TEXT)).json()["bank"]
-    assert _counts(body) == (5, 1, 1)
+    assert _counts(body) == (6, 2)
 
     saved = (await client.get(bank)).json()
     jobs = [e for e in saved["entries"] if e["section"] == "experience"]
-    assert [j["id"] for j in jobs] == [mine["id"]]
-    job = jobs[0]
-    # The student's values stay; what the bank lacked is filled.
-    assert (job["title"], job["organization"], job["location"]) == (
-        "mechanical engineering intern", "HARBOR ROBOTICS", "Seattle, WA",
-    )
-    assert (job["start_month"], job["end_month"]) == ("2026-06", "2026-08")
-    # The same bullet, in other case and spacing, is not added again.
-    assert [b["text"] for b in job["bullets"]] == [
-        "Ran tolerance  stack-up analyses in solidworks",
-        "Designed a sheet-metal bracket that cut assembly time by 20%",
-    ]
-    assert sorted(s["name"] for s in saved["skills"]) == ["SolidWorks", "matlab"]
+    # Two rows: the student's, untouched, and the upload's own.
+    assert len(jobs) == 2
+    kept = next(j for j in jobs if j["id"] == mine["id"])
+    assert (kept["title"], kept["start_month"], kept["bullets"]) == ("mechanical engineering intern", None, [])
+    assert sorted(s["name"] for s in saved["skills"]) == ["MATLAB", "SolidWorks", "matlab"]
 
 
 # --- duplicates (KAN-267) ---------------------------------------------------------
@@ -324,8 +310,9 @@ async def test_an_upload_the_parser_cannot_read_adds_nothing(student, upload):
     res = await upload(client, applicant_id, UNREADABLE_TEXT)
     assert res.status_code == 200
     assert res.json()["status"] == "parse_failed"
-    assert (res.json()["bank"]["found"], _counts(res.json()["bank"])) == (0, (0, 0, 0))
-    assert (await client.get(bank)).json() == {"entries": [], "skills": []}
+    assert (res.json()["bank"]["found"], _counts(res.json()["bank"])) == (0, (0, 0))
+    saved = (await client.get(bank)).json()
+    assert (saved["entries"], saved["skills"]) == ([], [])
 
 
 async def test_a_failed_bank_write_keeps_no_resume_and_no_file(student, upload, monkeypatch):
@@ -334,7 +321,7 @@ async def test_a_failed_bank_write_keeps_no_resume_and_no_file(student, upload, 
     async def broken(*args, **kwargs):
         raise RuntimeError("the database went away")
 
-    monkeypatch.setattr("app.services.bank.merge_import", broken)
+    monkeypatch.setattr("app.services.bank.import_upload", broken)
     res = await upload(client, applicant_id, RESUME_TEXT)
     assert res.status_code == 500
     assert upload.bucket.removed == list(upload.bucket.files)
@@ -349,7 +336,7 @@ UPDATED_TEXT = RESUME_TEXT.replace(
 )
 
 
-async def test_an_updated_resume_replaces_the_rows_file_and_merges_what_is_new(student, upload, database):
+async def test_an_updated_resume_replaces_the_rows_file_and_its_entries(student, upload, database):
     client, applicant_id, bank = student
     first = (await upload(client, applicant_id, RESUME_TEXT)).json()
     await _set_default(database, applicant_id, uuid.UUID(first["id"]))
@@ -359,12 +346,15 @@ async def test_an_updated_resume_replaces_the_rows_file_and_merges_what_is_new(s
     body = res.json()
     assert (body["id"], body["original_filename"], body["is_default"]) == (first["id"], "resume-v2.pdf", True)
     assert body["storage_path"] != first["storage_path"]
-    assert (body["bank"]["found"], _counts(body["bank"])) == (8, (0, 1, 0))
+    assert (body["bank"]["found"], _counts(body["bank"])) == (8, (6, 2))
     assert upload.bucket.removed == [first["storage_path"]]
 
     listed = (await client.get(f"/applicants/{applicant_id}/resumes")).json()
     assert [(r["id"], r["storage_path"]) for r in listed] == [(first["id"], body["storage_path"])]
-    internship = next(e for e in (await client.get(bank)).json()["entries"] if e["section"] == "experience")
+    saved = (await client.get(bank)).json()
+    # Replaced, not copied: one set of the upload's entries and skills.
+    assert (len(saved["entries"]), len(saved["skills"])) == (6, 2)
+    internship = next(e for e in saved["entries"] if e["section"] == "experience")
     assert "Wrote the test plan for the bracket" in [b["text"] for b in internship["bullets"]]
 
 
@@ -417,7 +407,7 @@ async def test_a_failed_update_keeps_the_old_file_and_removes_the_new_one(studen
     async def broken(*args, **kwargs):
         raise RuntimeError("the database went away")
 
-    monkeypatch.setattr("app.services.bank.merge_import", broken)
+    monkeypatch.setattr("app.services.bank.import_upload", broken)
     res = await upload(client, applicant_id, UPDATED_TEXT, replacing=first["id"])
     assert res.status_code == 500
     new_path = next(p for p in upload.bucket.files if p != first["storage_path"])
@@ -452,7 +442,7 @@ async def test_another_students_resume_cannot_be_updated(student, upload, databa
 # --- Import Again ---------------------------------------------------------------
 
 
-async def test_import_again_writes_into_the_bank_and_merges_on_a_second_run(student, database):
+async def test_import_again_writes_into_the_bank_and_replaces_on_a_second_run(student, database):
     client, applicant_id, bank = student
     resume_id = await _seed_resume(database, applicant_id, RESUME_TEXT)
 
@@ -460,11 +450,15 @@ async def test_import_again_writes_into_the_bank_and_merges_on_a_second_run(stud
     assert res.status_code == 200
     body = res.json()
     assert (body["resume_id"], body["filename"], body["read_by"]) == (str(resume_id), "resume.pdf", "parser")
-    assert _counts(body) == (6, 0, 2)
+    assert _counts(body) == (6, 2)
+    first = {e["id"] for e in (await client.get(bank)).json()["entries"]}
 
     again = (await client.post(f"{bank}/import", json={"resume_id": str(resume_id)})).json()
-    assert _counts(again) == (0, 0, 0)
-    assert len((await client.get(bank)).json()["entries"]) == 6
+    assert _counts(again) == (6, 2)
+    saved = (await client.get(bank)).json()
+    assert (len(saved["entries"]), len(saved["skills"])) == (6, 2)
+    # New rows: the second reading replaced the first.
+    assert first.isdisjoint(e["id"] for e in saved["entries"])
 
 
 async def test_without_a_resume_id_import_reads_the_default_resume_else_the_newest(student, database):
@@ -485,7 +479,7 @@ async def test_a_resume_with_no_readable_sections_writes_nothing(student, databa
     unreadable = await _seed_resume(database, applicant_id, None)
     res = await client.post(f"{bank}/import", json={"resume_id": str(unreadable)})
     assert res.status_code == 200
-    assert _counts(res.json()) == (0, 0, 0)
+    assert _counts(res.json()) == (0, 0)
 
 
 async def test_import_with_no_uploaded_resume_is_not_found(student):
@@ -503,24 +497,164 @@ async def test_another_students_resume_cannot_be_imported(student, database):
     assert (await client.post(f"/applicants/{other}/bank/import", json={})).status_code == 403
 
 
-async def test_a_filled_field_that_clashes_leaves_the_entry_but_adds_its_bullets(student, database):
-    client, applicant_id, bank = student
-    school = (
-        await client.post(
-            f"{bank}/entries",
-            json={"section": "education", "title": "Lakeview University", "gpa_scale": 4.0},
-        )
-    ).json()
-    draft = {"section": "education", "title": "Lakeview University", "gpa": 85, "gpa_scale": 100, "bullets": ["Tutored calculus"]}
-    async with database() as session:
-        from app.schemas.bank import DraftEntry
+# --- owners: which resumes hold an entry (KAN-343, ADR 0005) ----------------------
+#
+# docs/bank_by_resume.md. An upload holds what it owns; a built resume holds
+# what it shows.
 
-        merged = await bank_service.merge_import(session, applicant_id, [DraftEntry.model_validate(draft)], [])
+OTHER_TEXT = """\
+Experience
+Harbor Robotics  Jun 2026 - Aug 2026
+Mechanical Engineering Intern  Portland, OR
+•Designed a sheet-metal bracket that cut assembly time by 20%
+Projects
+Solar Kart  Jan 2025 - May 2025
+•Built a solar go-kart
+Skills
+•Tools: MATLAB, Python
+"""
+
+
+def _held(saved: dict) -> list[tuple[str, list[str]]]:
+    """Each entry's title and skill's name with its resume ids, sorted."""
+    return sorted(
+        [(e["title"], e["resume_ids"]) for e in saved["entries"]]
+        + [(s["name"], s["resume_ids"]) for s in saved["skills"]]
+    )
+
+
+async def test_each_upload_owns_what_it_read_and_shares_nothing(student, upload):
+    client, applicant_id, bank = student
+    mine = (await client.post(f"{bank}/entries", json={"section": "projects", "title": "Typed by hand"})).json()
+    a = (await upload(client, applicant_id, RESUME_TEXT)).json()["id"]
+    b = (await upload(client, applicant_id, OTHER_TEXT, filename="resume-b.pdf")).json()["id"]
+
+    saved = (await client.get(bank)).json()
+    assert [(r["id"], r["kind"], r["name"], r["primary"]) for r in saved["resumes"]] == [
+        (b, "uploaded", "resume-b.pdf", False), (a, "uploaded", "resume.pdf", True),
+    ]
+    # An upload's table date is its upload time (KAN-361).
+    assert all(r["edited_at"] == r["created_at"] for r in saved["resumes"])
+    held = _held(saved)
+    # The internship and MATLAB are on both uploads: one row each, per upload.
+    assert [ids for name, ids in held if name == "Mechanical Engineering Intern"] in ([[a], [b]], [[b], [a]])
+    assert sorted(ids[0] for name, ids in held if name == "MATLAB") == sorted([a, b])
+    assert ("Budget Buddy", [a]) in held and ("Solar Kart", [b]) in held and ("Python", [b]) in held
+    assert (mine["title"], []) in held
+
+
+async def test_import_again_keeps_one_set_owned_by_the_upload(student, database):
+    client, applicant_id, bank = student
+    resume_id = str(await _seed_resume(database, applicant_id, RESUME_TEXT))
+
+    for _ in range(2):
+        assert (await client.post(f"{bank}/import", json={"resume_id": resume_id})).status_code == 200
+    held = _held((await client.get(bank)).json())
+    assert len(held) == 8 and all(ids == [resume_id] for _, ids in held)
+
+
+async def test_an_updated_resume_deletes_what_the_new_file_lacks(student, upload):
+    client, applicant_id, bank = student
+    a = (await upload(client, applicant_id, RESUME_TEXT)).json()["id"]
+    mine = (await client.post(f"{bank}/entries", json={"section": "projects", "title": "Typed by hand"})).json()
+    await upload(client, applicant_id, OTHER_TEXT, replacing=a, filename="resume-v2.pdf")
+
+    held = _held((await client.get(bank)).json())
+    assert [name for name, _ in held] == [
+        "MATLAB", "Mechanical Engineering Intern", "Python", "Solar Kart", mine["title"]]
+    assert all(ids == [a] for name, ids in held if name != mine["title"])
+
+
+async def test_deleting_an_upload_deletes_its_entries_and_skills(student, upload):
+    client, applicant_id, bank = student
+    mine = (await client.post(f"{bank}/entries", json={"section": "projects", "title": "Typed by hand"})).json()
+    a = (await upload(client, applicant_id, RESUME_TEXT)).json()["id"]
+    assert (await client.delete(f"/applicants/{applicant_id}/resumes/{a}")).status_code == 200
+
+    saved = (await client.get(bank)).json()
+    assert saved["resumes"] == []
+    assert ([e["id"] for e in saved["entries"]], saved["skills"]) == ([mine["id"]], [])
+
+
+async def test_a_built_resume_holds_what_it_shows_and_loses_what_a_replace_deletes(student, upload, database):
+    client, applicant_id, bank = student
+    a = (await upload(client, applicant_id, RESUME_TEXT)).json()["id"]
+    built = (await client.post(f"/applicants/{applicant_id}/built-resumes", json={})).json()["id"]
+    saved = (await client.get(bank)).json()
+    budget = next(e["id"] for e in saved["entries"] if e["title"] == "Budget Buddy")
+    async with database() as session:
+        await session.execute(
+            text("UPDATE built_resume_entries SET shown = false WHERE built_resume_id = :b AND entry_id = :e"),
+            {"b": built, "e": budget},
+        )
         await session.commit()
-    assert merged.entries_updated == 1
-    saved = (await client.get(bank)).json()["entries"]
-    assert [(e["id"], e["gpa"], e["gpa_scale"]) for e in saved] == [(school["id"], None, 4.0)]
-    assert [b["text"] for b in saved[0]["bullets"]] == ["Tutored calculus"]
+
+    saved = (await client.get(bank)).json()
+    assert [(r["id"], r["kind"]) for r in saved["resumes"]] == [(a, "uploaded"), (built, "base")]
+    held = dict(_held(saved))
+    assert held["Budget Buddy"] == [a]
+    assert held["Mechanical Engineering Intern"] == [a, built]
+    assert held["SolidWorks"] == [a, built]
+
+    # A replace deletes the upload's rows, so the built resume shows them no more.
+    await client.post(f"{bank}/import", json={"resume_id": a})
+    held = dict(_held((await client.get(bank)).json()))
+    assert held["Mechanical Engineering Intern"] == [a]
+
+
+# --- Add under a resume pick (ADR 0005) ----------------------------------------------
+
+
+async def test_add_under_an_upload_belongs_to_it_and_checks_only_its_entries(student, upload):
+    client, applicant_id, bank = student
+    a = (await upload(client, applicant_id, RESUME_TEXT)).json()["id"]
+    job = {"section": "experience", "title": "Mechanical Engineering Intern", "organization": "Harbor Robotics"}
+
+    # The upload has this job: the duplicate warning, under its pick only.
+    res = await client.post(f"{bank}/entries", params={"resume_id": a}, json=job)
+    assert res.status_code == 409
+    assert (await client.post(f"{bank}/entries", json=job)).status_code == 201
+
+    res = await client.post(f"{bank}/entries", params={"resume_id": a}, json={"section": "projects", "title": "New"})
+    assert (res.status_code, res.json()["resume_ids"]) == (201, [a])
+    skill = await client.post(f"{bank}/skills", params={"resume_id": a}, json={"name": "Excel"})
+    assert (skill.status_code, skill.json()["resume_ids"]) == (201, [a])
+    # One name per owner: the upload has SolidWorks, the student's own list does not.
+    assert (await client.post(f"{bank}/skills", params={"resume_id": a}, json={"name": "solidworks"})).status_code == 409
+    assert (await client.post(f"{bank}/skills", json={"name": "solidworks"})).status_code == 201
+
+    held = dict(_held((await client.get(bank)).json()))
+    assert (held["New"], held["Excel"]) == ([a], [a])
+
+
+async def test_add_under_a_built_resume_shows_it_there(student, upload):
+    client, applicant_id, bank = student
+    await upload(client, applicant_id, RESUME_TEXT)
+    built = (await client.post(f"/applicants/{applicant_id}/built-resumes", json={})).json()["id"]
+
+    res = await client.post(
+        f"{bank}/entries", params={"resume_id": built},
+        json={"section": "projects", "title": "New", "bullets": ["Did a thing"]},
+    )
+    assert (res.status_code, res.json()["resume_ids"]) == (201, [built])
+    skill = await client.post(f"{bank}/skills", params={"resume_id": built}, json={"name": "Excel"})
+    assert (skill.status_code, skill.json()["resume_ids"]) == (201, [built])
+
+    held = dict(_held((await client.get(bank)).json()))
+    assert (held["New"], held["Excel"]) == ([built], [built])
+    shown = (await client.get(f"/applicants/{applicant_id}/built-resumes/{built}/choices")).json()
+    assert res.json()["id"] in {e["entry_id"] for e in shown["entries"] if e["shown"]}
+
+
+async def test_add_under_another_students_resume_is_not_found(student, database):
+    client, _, bank = student
+    async with database() as session:
+        other = await _seed_applicant(session)
+    theirs = await _seed_resume(database, other, RESUME_TEXT)
+
+    res = await client.post(f"{bank}/entries", params={"resume_id": str(theirs)}, json={"section": "projects", "title": "X"})
+    assert res.status_code == 404
+    assert (await client.get(bank)).json()["entries"] == []
 
 
 # --- reading with the model (KAN-222) ----------------------------------------------
@@ -595,7 +729,7 @@ async def test_read_with_ai_writes_the_models_entries_checked_against_the_entry_
     assert res.status_code == 200
     body = res.json()
     assert (body["read_by"], body["uses_left"]) == ("model", 0)
-    assert _counts(body) == (3, 0, 1)
+    assert _counts(body) == (3, 1)
 
     saved = (await client.get(bank)).json()
     school, lab, tunnel = saved["entries"]
@@ -634,7 +768,8 @@ async def test_an_invalid_model_reply_writes_nothing_and_counts_no_use(student, 
     res = await client.post(f"{bank}/import", json={"read_with_ai": True})
     assert res.status_code == 503
     assert "detail" in res.json()
-    assert (await client.get(bank)).json() == {"entries": [], "skills": []}
+    saved = (await client.get(bank)).json()
+    assert (saved["entries"], saved["skills"]) == ([], [])
 
     use_model(_reading())
     res = await client.post(f"{bank}/import", json={"read_with_ai": True})

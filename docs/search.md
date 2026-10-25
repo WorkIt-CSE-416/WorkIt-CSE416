@@ -384,7 +384,11 @@ workplace, experience and posted filters the same way: each one narrows.
      only what the roles left, so "marketing intern" is the marketing role
      (whose alias used "intern") *and* internships. Each narrows its own
      column beside the filter row's, so a search's "remote" with a ticked
-     Hybrid finds nothing. Like those filters, each hides a job that doesn't
+     Hybrid finds nothing. So /search shows each as a chip (KAN-308): `GET
+     /jobs/search-facts` lists the facts with the search their words leave
+     out, and a chip's cross searches that (`FoundFact` keeps each fact's
+     word places; `without_words` cuts them from the search as typed). Like
+     those filters, each hides a job that doesn't
      state the fact: a start term hides the 311 of 780 internships (and most
      new-grad jobs) that name none, on the 2026-10-11 snapshot. As keywords
      they did worse: "intern" missed every "Internship" (the stemmer keeps them

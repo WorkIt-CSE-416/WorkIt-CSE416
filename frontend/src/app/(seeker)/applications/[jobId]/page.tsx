@@ -1,17 +1,16 @@
-import { CloudOff } from "lucide-react";
+import { CloudSlashIcon } from "@phosphor-icons/react/ssr";
 import type { Metadata } from "next";
 import { notFound } from "next/navigation";
 
-import { ArrowLeftIcon } from "@/components/icons";
 import { CompanyLogo } from "@/components/company-logo";
 import type { JobPosting } from "@/components/job-detail/data";
 import { JobDetailHeader } from "@/components/job-detail/job-detail-header";
-import { ButtonLink } from "@/components/ui/button";
 import { EmptyState } from "@/components/ui/empty-state";
 import { Section } from "@/components/ui/section";
 import { SegmentedLinks } from "@/components/ui/segmented-control";
 import { cn } from "@/lib/cn";
 
+import { BackLink } from "../../back-link";
 import { SEEKER_GUTTER } from "../../gutter";
 import { JobActionBar } from "../../jobs/[jobId]/action-bar";
 import {
@@ -83,7 +82,7 @@ export default async function ApplicationPage({
       <div className={cn(JOB_PAGE_WIDTH, SEEKER_GUTTER)}>
         <BackToApplications />
         <EmptyState
-          Icon={CloudOff}
+          Icon={CloudSlashIcon}
           title="This Application Isn't Loading"
           detail={process.env.NODE_ENV === "development" ? error : undefined}
         >
@@ -150,12 +149,16 @@ export default async function ApplicationPage({
   );
 }
 
-function BackToApplications({ className = "group/back mb-3" }: { className?: string }) {
+/** Back to the page that opened this one, the Calendar or the tracker's
+ *  list or board, else the tracker (../../back-link.tsx, KAN-363). It went
+ *  to the tracker from everywhere. */
+function BackToApplications({ className }: { className?: string }) {
   return (
-    <ButtonLink href="/applications" variant="secondary" size="sm" className={className}>
-      <ArrowLeftIcon className="ease-glide size-3.5 transition-transform duration-200 group-hover/back:-translate-x-0.5" />
-      Back to Applications
-    </ButtonLink>
+    <BackLink
+      parent={{ href: "/applications", name: "Applications Tracker" }}
+      named
+      className={className}
+    />
   );
 }
 

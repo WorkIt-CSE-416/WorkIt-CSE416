@@ -1,4 +1,4 @@
-import { MessageSquareText } from "lucide-react";
+import { ChatTextIcon } from "@phosphor-icons/react/ssr";
 import type { ReactNode } from "react";
 
 import { FileIcon } from "@/components/icons";
@@ -209,7 +209,7 @@ export function YourApplication({
         )}
 
         <h3 className="text-label text-ink mt-5 font-semibold">Answers</h3>
-        <EmptySlot icon={<MessageSquareText aria-hidden className="text-ink-meta size-5" />}>
+        <EmptySlot icon={<ChatTextIcon aria-hidden className="text-ink-meta size-5" />}>
           Your answers to this application&apos;s questions will show here.
         </EmptySlot>
       </Section>
@@ -229,9 +229,15 @@ function EmptySlot({ icon, children }: { icon: ReactNode; children: ReactNode })
   );
 }
 
-/** Steps closer than this came from one action: "Did You Apply?"'s Yes
- *  saves the job, sends the resume and applies within a second or two. */
+/** A resume sent closer than this to applying went with the application:
+ *  "Did You Apply?"'s Yes sends the resume and applies within a second or
+ *  two. */
 const ONE_ACTION_MS = 2 * 60 * 1000;
+
+/** A save closer than this to applying came from the same click: Yes on a
+ *  job never saved writes both in one statement, at one time. Two minutes
+ *  here once hid a real save made a minute before applying. */
+const SAME_CLICK_MS = 5 * 1000;
 
 /** The order of steps from one action, whatever their milliseconds say. */
 const RANK: Partial<Record<TimelineStep["kind"], number>> = { saved: 0, sent: 1, applied: 2 };
@@ -245,16 +251,18 @@ const RANK: Partial<Record<TimelineStep["kind"], number>> = { saved: 0, sent: 1,
  * sorting by the millisecond once drew Sent, Saved, Applied, all at 3:02
  * PM: a resume sent before the job was saved. Now a resume sent with the
  * application is the Applied step's note, and a save from the same click
- * is left out, since the student never saved the job first. Steps further
- * apart keep their own dot; a tie still sorts Saved, Sent, Applied.
+ * is left out, since the student never saved the job first. The save's
+ * window is seconds, the resume's minutes: a student who saves and applies
+ * a minute later did two things. Steps further apart keep their own dot;
+ * a tie still sorts Saved, Sent, Applied.
  */
 function timeline(app: Application, sent: SentResume[]): TimelineStep[] {
   const applied = app.appliedOn ? sortKey(app.appliedOn) : null;
-  const withApplying = (at: string) =>
-    applied != null && Math.abs(sortKey(at) - applied) <= ONE_ACTION_MS;
+  const withApplying = (at: string, within = ONE_ACTION_MS) =>
+    applied != null && Math.abs(sortKey(at) - applied) <= within;
 
   const steps: TimelineStep[] = [];
-  if (!withApplying(app.savedOn)) {
+  if (!withApplying(app.savedOn, SAME_CLICK_MS)) {
     steps.push({ id: "saved", kind: "saved", title: "Saved", at: app.savedOn, state: "done" });
   }
   const alone = sent.filter((resume) => !withApplying(resume.created_at));

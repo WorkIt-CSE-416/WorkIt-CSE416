@@ -17,7 +17,6 @@ applicant_profiles
   ├── bank_entries       one per job, degree, project, club role, award or certification
   │     └── bank_bullets the entry's lines, in order, in their original wording
   └── bank_skills        a plain list, each with an optional group
-        └── bank_skill_links  the entries that show the skill (none is fine)
 ```
 
 - **Six entry sections, not seven.** Skills is the seventh section, but a
@@ -38,10 +37,10 @@ applicant_profiles
   code is deployed (expand, then contract).
 - **The duplicate check matches section, title and organization, ignoring
   case.** It warns and never blocks: two real roles may share a title.
-- **A skill links to the entries that show it** (KAN-216), so Tailor can
-  show the skill with proof. A skill with no links is fine: one learned on
-  one's own. Links do not clear the embedding, whose text never pairs a
-  skill with an entry.
+- **A skill is one list per student, never tied to an entry.** KAN-216
+  linked a skill to the entries that showed it, as proof for Tailor; that
+  use was never built, no upload wrote a link, and only the bank screen
+  read them, so the links were removed (`9e4b2d7a5c18`).
 - **A bullet variant is another wording kept beside the original**
   (`bank_bullet_variants`, KAN-217), never in its place. It belongs to a
   job posting (made by Tailor) or to one built resume (typed on it, the
@@ -70,16 +69,23 @@ transaction as the `resumes` row. Nothing waits for review; the student
 fixes an entry in the bank, where every fact is edited. The parser reads all
 seven sections, Leadership & Activities and Awards included.
 
-An entry the bank already has (the duplicate check: section, title and
-organization, ignoring case) is **merged, never copied**: it gains only the
-fields it has empty and the bullets it lacks, so the student's fixes stay
-and several resumes add up to one bank. Dates fill only as a set, when the
-bank entry has none. **Import Again** (intake's Use One I Uploaded, the
-Jobs page's empty-bank card) reads a stored upload the same way, so a
-parser fix reaches old uploads. **Import Updated Resume**, on each upload's
-row on the Resumes view, takes a newer version of that file: it replaces the
-file on the same row and merges the new reading the same way.
-Deleting an upload leaves the bank as it is.
+**Each upload owns what it imported** (ADR 0005, `bank_by_resume.md`):
+`bank_entries.resume_id` and `bank_skills.resume_id`. An import never
+looks at another resume's entries, so the same job on two uploads is two
+rows. **Import Again** (intake's Use One I Uploaded, the Jobs page's
+empty-bank card) reads a stored upload again and **replaces** what it owns,
+so a parser fix reaches old uploads. **Import Updated Resume** (`PUT`, now only the resume picker's replace at
+the 5-upload limit; on each upload's row on the Resumes view until
+KAN-362) takes a newer version of that file: it replaces the file on the
+same row and the upload's entries with the new reading. On the Resumes
+view a newer version is a delete and an upload, which leaves the bank the
+same. Deleting an upload deletes its entries and skills. Until 2026-10-23
+an import merged into the entry the bank already had (ADR 0003).
+
+**Each import records what it found** (KAN-343, `bank_by_resume.md`): a
+source row per entry and skill, so the Experiences view can show one
+resume's facts. Built resumes need none; their choice rows say what they
+show.
 
 KAN-211 had import return drafts the student saved one by one, and wrote
 nothing itself. Students uploaded, saw nothing happen and never found the

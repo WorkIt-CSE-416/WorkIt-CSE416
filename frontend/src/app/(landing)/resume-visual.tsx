@@ -10,18 +10,18 @@ import {
   useMotionValue,
   useTransform,
 } from "motion/react";
+import type { Icon as PhosphorIcon } from "@phosphor-icons/react";
 import {
-  Award,
-  Briefcase,
-  Check,
-  Code,
-  FileText,
-  FolderGit2,
-  GraduationCap,
-  MousePointer2,
-  Users,
-  type LucideIcon,
-} from "lucide-react";
+  BriefcaseMetalIcon,
+  CheckIcon,
+  CodeIcon,
+  CursorIcon,
+  FileTextIcon,
+  GraduationCapIcon,
+  MedalIcon,
+  UsersIcon,
+} from "@phosphor-icons/react/ssr";
+import { FolderGitBranchIcon } from "@/components/custom-icons";
 
 import { SparkleIcon } from "@/components/icons";
 import { cn } from "@/lib/cn";
@@ -85,13 +85,13 @@ export default function ResumeVisual() {
 
 // --- Scene 1: the jumble, gathering into the bank ---
 
-const SECTION_ICON: Record<BankEntry["section"], LucideIcon> = {
-  Education: GraduationCap,
-  Experience: Briefcase,
-  Projects: FolderGit2,
-  Leadership: Users,
-  Awards: Award,
-  Skills: Code,
+const SECTION_ICON: Record<BankEntry["section"], PhosphorIcon> = {
+  Education: GraduationCapIcon,
+  Experience: BriefcaseMetalIcon,
+  Projects: FolderGitBranchIcon,
+  Leadership: UsersIcon,
+  Awards: MedalIcon,
+  Skills: CodeIcon,
 };
 
 /** A bank card's width; the pile sits centred on the stage. */
@@ -225,7 +225,7 @@ function TemplateScene() {
                       animate={{ scale: 1 }}
                       transition={{ type: "spring", stiffness: 500, damping: 24 }}
                     >
-                      <Check className="size-3" aria-hidden="true" />
+                      <CheckIcon className="size-3" aria-hidden="true" />
                     </motion.span>
                   )}
                 </AnimatePresence>
@@ -254,7 +254,12 @@ function TemplateScene() {
           scale: { duration: 0.25 },
         }}
       >
-        <MousePointer2 className="size-5 fill-white drop-shadow" />
+        {/* A white pointer with a dark edge: Phosphor fills a glyph by its weight, so
+            the fill and the outline are two glyphs stacked. */}
+        <span className="grid drop-shadow *:col-start-1 *:row-start-1">
+          <CursorIcon aria-hidden weight="fill" className="size-5 text-white" />
+          <CursorIcon aria-hidden className="size-5" />
+        </span>
       </motion.span>
     </motion.div>
   );
@@ -643,7 +648,7 @@ function WriteStatus({
               animate={{ scale: 1, opacity: 1 }}
               transition={{ type: "spring", stiffness: 500, damping: 22 }}
             >
-              <Check className="size-4" strokeWidth={3} />
+              <CheckIcon aria-hidden className="size-4" weight="bold" />
             </motion.span>
           ) : (
             <motion.span
@@ -651,7 +656,7 @@ function WriteStatus({
               className="text-advanced absolute inset-0 grid place-items-center rounded-lg bg-white ring-1 ring-slate-900/5"
               exit={{ opacity: 0, scale: 0.8 }}
             >
-              <FileText className="size-3.5" />
+              <FileTextIcon aria-hidden className="size-3.5" />
               {/* A CSS loop (landing.css, .tour-spin), on its own layer. */}
               <svg viewBox="0 0 32 32" className="tour-spin absolute -inset-[3px]">
                 <circle
@@ -852,7 +857,7 @@ function SuggestionCard({
         )}
       >
         {done ? (
-          <Check className="size-3 shrink-0" aria-hidden="true" />
+          <CheckIcon className="size-3 shrink-0" aria-hidden="true" />
         ) : (
           <SparkleIcon className="size-3 shrink-0" />
         )}

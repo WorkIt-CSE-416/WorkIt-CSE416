@@ -34,7 +34,7 @@ export function FeatureIcon({
       )}
       style={{ background: glow }}
     >
-      <Icon className={SIZES[size].icon} />
+      <Icon aria-hidden className={SIZES[size].icon} />
     </span>
   );
 }

@@ -1,4 +1,6 @@
-import { Bell, FileText, Target, Zap, type LucideIcon } from "lucide-react";
+import type { Icon as PhosphorIcon } from "@phosphor-icons/react";
+import { BellIcon, FileTextIcon, TargetIcon } from "@phosphor-icons/react/ssr";
+import { LightningRoundedIcon } from "@/components/custom-icons";
 
 import { features, type FeatureId } from "./feature-data";
 import { FEATURES, type FeatureSlug } from "./features/catalog";
@@ -13,18 +15,18 @@ import { FEATURES, type FeatureSlug } from "./features/catalog";
 export type TourTab = {
   id: FeatureId;
   label: string;
-  icon: LucideIcon;
+  icon: PhosphorIcon;
   page: FeatureSlug;
   glow: string;
 };
 
 const META: Record<FeatureId, Omit<TourTab, "id" | "glow">> = {
-  resumes: { label: "Resumes", icon: FileText, page: "resumes" },
-  matching: { label: "Matching", icon: Target, page: "matching" },
+  resumes: { label: "Resumes", icon: FileTextIcon, page: "resumes" },
+  matching: { label: "Matching", icon: TargetIcon, page: "matching" },
   // The app's own Auto Apply glyph (the Jobs page's filters, the sidebar).
-  "auto-apply": { label: "Auto Apply", icon: Zap, page: "auto-apply" },
+  "auto-apply": { label: "Auto Apply", icon: LightningRoundedIcon, page: "auto-apply" },
   // The Application Tracker's page shows this stop's animation.
-  updates: { label: "Updates", icon: Bell, page: "tracker" },
+  updates: { label: "Updates", icon: BellIcon, page: "tracker" },
 };
 
 export const TOUR_TABS: TourTab[] = features.map((feature) => ({

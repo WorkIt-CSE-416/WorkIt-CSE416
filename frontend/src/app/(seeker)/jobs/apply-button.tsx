@@ -2,10 +2,9 @@
 
 // import Link from "next/link"; (Pick a Resume, hidden for now)
 import { useRouter } from "next/navigation";
-import { useState } from "react";
+import { useCallback, useState } from "react";
 
 import { ExternalLinkIcon } from "@/components/icons";
-import { ResumeUpload } from "@/components/resume-upload";
 import {
   Dialog,
   DialogContent,
@@ -15,17 +14,11 @@ import {
   DialogTitle,
 } from "@/components/shadcn/dialog";
 import { Button, buttonClasses } from "@/components/ui/button";
-import { listBuiltResumes } from "@/lib/built-resume-actions";
-import { listResumes, replaceResume, uploadResume, type ResumeItem } from "@/lib/resume-actions";
-import { MAX_UPLOADS } from "@/lib/resume-limits";
+import { type ResumeItem } from "@/lib/resume-actions";
 import { applyWithResume, type SentDownload } from "@/lib/sent-resume-actions";
 
 import { markApplied } from "./actions";
-
-/** One resume the student can apply with: a built resume (a base resume, or
- *  the one tailored to this posting) or an uploaded resume. */
-type Choice = { key: string; label: string; kind: string; source: Source; isDefault: boolean };
-type Source = { builtResumeId: string } | { uploadedResumeId: string };
+import { firstChoice, loadChoices, ResumeLists, UploadPick, type Choice } from "./resume-picker";
 
 /** "Did You Apply?"'s own choice: the student applied without a resume. */
 const NO_RESUME = "none";
@@ -64,7 +57,7 @@ function sentKey(sent: SentDownload): string {
  * who has not marked this job already (`applied`).
  *
  * EVERY APPLY NOW OPENS THIS DIALOG (KAN-290): the job posting page, the feed
- * card (/jobs, /search) and the Dashboard's New Matches. WorkIt cannot see the
+ * card (/jobs, /search). WorkIt cannot see the
  * employer's site, so this is its one chance to learn which resume went and
  * whether the student applied; a card's Apply Now once linked straight to the
  * employer and recorded neither.
@@ -84,8 +77,6 @@ export function ApplyButton({
   applied = false,
   // showsSent: read only by Pick a Resume's Apply, hidden for now.
   onApplied,
-  label = "Apply Now",
-  "aria-label": ariaLabel,
   className,
 }: {
   jobId: string;
@@ -100,10 +91,6 @@ export function ApplyButton({
   /** Takes the job off the caller's list once marked applied, in place of
    *  refreshing the route. */
   onApplied?: () => void;
-  /** The button's words: New Matches' row has room for "Apply" only. */
-  label?: string;
-  /** For a short label, the job it applies to, as a screen reader hears it. */
-  "aria-label"?: string;
   className?: string;
 }) {
   const router = useRouter();
@@ -116,62 +103,30 @@ export function ApplyButton({
   const [asking, setAsking] = useState(false);
   // "Did You Apply?"'s pick: a choice's key, or NO_RESUME.
   const [appliedWith, setAppliedWith] = useState(NO_RESUME);
-  // Upload a resume there, the Resumes page's way (KAN-267): the uploads,
-  // for the limit and the one to replace past it; a file waiting for that
-  // pick; and what the last upload said.
+  // Upload a resume there, the Resumes page's way (./resume-picker): the
+  // uploads, for the limit, and whether a file is on its way.
   const [uploads, setUploads] = useState<ResumeItem[]>([]);
-  const [waiting, setWaiting] = useState<File | null>(null);
-  const [replacing, setReplacing] = useState<string | null>(null);
   const [uploading, setUploading] = useState(false);
-  const [uploadNote, setUploadNote] = useState<string | null>(null);
-  const [uploadError, setUploadError] = useState<string | null>(null);
+  const onUploadBusy = useCallback((busy: boolean) => setUploading(busy), []);
 
   async function load() {
     setChoices(null);
     setSent(null);
     setError(null);
-    const [built, uploaded] = await Promise.all([listBuiltResumes(), listResumes()]);
-    if (built.error || uploaded.error) {
-      setChoices([]);
-      return setError(built.error ?? uploaded.error);
-    }
-    setUploads(uploaded.resumes);
-    const list: Choice[] = [
-      ...(built.data ?? [])
-        // A resume tailored to another posting shows only as the primary
-        // (KAN-268): the student starred it, so it is theirs to send.
-        .filter((r) => r.job_posting_id == null || r.job_posting_id === jobId || r.is_default)
-        .map((r) => ({
-          key: `built:${r.id}`,
-          label: r.name,
-          kind:
-            r.job_posting_id === jobId
-              ? "Tailored to this job"
-              : r.job_posting_id
-                ? "Tailored resume"
-                : "Built resume",
-          source: { builtResumeId: r.id },
-          isDefault: r.is_default,
-        })),
-      ...uploaded.resumes
-        .filter((r) => r.storage_path)
-        .map((r) => ({
-          key: `uploaded:${r.id}`,
-          label: r.original_filename ?? "Uploaded resume",
-          kind: "Uploaded file",
-          source: { uploadedResumeId: r.id },
-          isDefault: r.is_default,
-        })),
-    ];
-    setChoices(list);
-    // The tailored resume first, else the default resume, else the first.
-    const first =
-      list.find((c) => c.kind === "Tailored to this job") ??
-      list.find((c) => c.isDefault) ??
-      list[0];
+    const first = firstChoice(await refresh());
     // setPicked(first?.key ?? null); (Pick a Resume, hidden for now)
     // With nothing picked at Apply, "Did You Apply?" starts on it.
     setAppliedWith(first?.key ?? NO_RESUME);
+  }
+
+  /** Reads the list again without blanking it, so an upload in progress
+   *  keeps its place. */
+  async function refresh(): Promise<Choice[]> {
+    const { choices, uploads, error } = await loadChoices(jobId);
+    setChoices(choices);
+    setUploads(uploads);
+    if (error) setError(error);
+    return choices;
   }
 
   // Called by the hidden employer link (end of file).
@@ -181,40 +136,11 @@ export function ApplyButton({
   //   setAsking(true);
   // }
 
-  // A file dropped on "Did You Apply?": uploaded as the Resumes page does,
-  // or, at the limit, held until the student picks an upload to replace.
-  function pickFile(file: File) {
-    setUploadError(null);
-    setUploadNote(null);
-    if (uploads.length >= MAX_UPLOADS) {
-      setWaiting(file);
-      setReplacing(uploads[0]?.id ?? null);
-      return;
-    }
-    void send(file, null);
-  }
-
-  /** Uploads the file, or with `replace` puts it on that upload's row
-   *  (Import Updated Resume: the old file's sent resumes keep a frozen
-   *  copy). Then the list is read again and the new resume picked; a
-   *  duplicate picks the resume it matched instead. */
-  async function send(file: File, replace: string | null) {
-    setUploading(true);
-    const fd = new FormData();
-    fd.append("file", file);
-    const { resume, error, duplicateOf } = replace
-      ? await replaceResume(replace, fd)
-      : await uploadResume(fd);
-    setUploading(false);
-    if (!resume && !duplicateOf) return setUploadError(error ?? "Could not upload the resume.");
-    setWaiting(null);
-    await load();
-    setAppliedWith(`uploaded:${resume?.id ?? duplicateOf}`);
-    setUploadNote(
-      duplicateOf
-        ? `${error} It is picked under Uploaded Resumes.`
-        : `Uploaded ${file.name}. It is picked under Uploaded Resumes.`,
-    );
+  // A file uploaded on "Did You Apply?" (or the resume it duplicates)
+  // becomes the pick.
+  async function uploaded(id: string) {
+    await refresh();
+    setAppliedWith(`uploaded:${id}`);
   }
 
   async function confirmApplied() {
@@ -238,8 +164,7 @@ export function ApplyButton({
     if (result.error) return setError(result.error);
     setOpen(false);
     if (onApplied) return onApplied();
-    // The page's "You applied on …" reads the new mark, and New Matches
-    // drops the job.
+    // The page's "You applied on …" reads the new mark.
     router.refresh();
   }
 
@@ -258,18 +183,14 @@ export function ApplyButton({
         target="_blank"
         rel="noopener noreferrer"
         className={buttonClasses({ size: "sm", className })}
-        aria-label={ariaLabel}
         onClick={() => {
           if (!canMarkApplied || applied) return;
           setOpen(true);
           setAsking(true);
-          setWaiting(null);
-          setUploadNote(null);
-          setUploadError(null);
           void load();
         }}
       >
-        {label}
+        Apply Now
         <ExternalLinkIcon className="size-4" />
         <span className="sr-only"> (opens in a new tab)</span>
       </a>
@@ -295,83 +216,22 @@ export function ApplyButton({
               {choices == null ? (
                 <p className="text-note text-ink-muted">Loading your resumes…</p>
               ) : (
-                <div className="grid gap-4 md:grid-cols-2">
-                  <ResumeChoices
-                    legend="Generated Resumes"
-                    name="applied-with"
-                    choices={choices.filter((c) => c.key.startsWith("built:"))}
-                    empty="None yet. Generate Resume on Resumes & Experiences makes one."
-                    picked={appliedWith}
-                    onPick={setAppliedWith}
-                  />
-                  <ResumeChoices
-                    legend="Uploaded Resumes"
-                    name="applied-with"
-                    choices={choices.filter((c) => c.key.startsWith("uploaded:"))}
-                    empty="None yet. Upload the file you sent below."
-                    picked={appliedWith}
-                    onPick={setAppliedWith}
-                  />
-                </div>
+                <ResumeLists
+                  name="applied-with"
+                  choices={choices}
+                  emptyBuilt="None yet. Generate Resume on Resumes & Experiences makes one."
+                  emptyUploaded="None yet. Upload the file you sent below."
+                  picked={appliedWith}
+                  onPick={setAppliedWith}
+                />
               )}
               {choices != null && (
-                <div className="flex flex-col gap-2">
-                  <p className="text-label text-ink">Sent a Different Resume?</p>
-                  {waiting ? (
-                    // At the limit: which upload the new file replaces.
-                    <>
-                      <p className="text-note text-ink-muted">
-                        You have {MAX_UPLOADS} uploaded resumes, the most WorkIt keeps. Pick the one{" "}
-                        {waiting.name} replaces. Applications sent with it keep a copy.
-                      </p>
-                      <ResumeChoices
-                        legend="Upload to Replace"
-                        hideLegend
-                        name="replace"
-                        choices={uploads.map((r) => ({
-                          key: r.id,
-                          label: r.original_filename ?? "Uploaded resume",
-                        }))}
-                        picked={replacing}
-                        onPick={setReplacing}
-                      />
-                      <div className="flex gap-2">
-                        <Button
-                          variant="secondary"
-                          size="sm"
-                          onClick={() => setWaiting(null)}
-                          disabled={uploading}
-                        >
-                          Cancel
-                        </Button>
-                        <Button
-                          size="sm"
-                          onClick={() => void send(waiting, replacing)}
-                          disabled={uploading || replacing == null}
-                        >
-                          {uploading ? "Replacing…" : "Replace It"}
-                        </Button>
-                      </div>
-                    </>
-                  ) : (
-                    <ResumeUpload
-                      file={null}
-                      onFileChange={pickFile}
-                      onRemove={() => {}}
-                      busy={uploading}
-                    />
-                  )}
-                  {uploadError && (
-                    <p role="alert" className="text-meta text-danger">
-                      {uploadError}
-                    </p>
-                  )}
-                  {uploadNote && (
-                    <p className="text-note text-ink-muted" aria-live="polite">
-                      {uploadNote}
-                    </p>
-                  )}
-                </div>
+                <UploadPick
+                  label="Sent a Different Resume?"
+                  uploads={uploads}
+                  onUploaded={uploaded}
+                  onBusyChange={onUploadBusy}
+                />
               )}
               {/* No Resume is a button, not a section of its own: pressed, it
                   is the pick (every radio above clears), and Yes then marks
@@ -393,10 +253,7 @@ export function ApplyButton({
                 </Button>
                 {/* Off until the resume list is in: Yes names the resume picked
                     there, and before it loads the pick is only a guess. */}
-                <Button
-                  onClick={confirmApplied}
-                  disabled={busy || choices == null || uploading || waiting != null}
-                >
+                <Button onClick={confirmApplied} disabled={busy || choices == null || uploading}>
                   {busy ? "Saving…" : "Yes, I Applied"}
                 </Button>
               </DialogFooter>
@@ -405,56 +262,6 @@ export function ApplyButton({
         </DialogContent>
       </Dialog>
     </>
-  );
-}
-
-/** One radio row per resume, by its name. */
-function ResumeChoices({
-  legend,
-  hideLegend = false,
-  name,
-  choices,
-  empty,
-  picked,
-  onPick,
-}: {
-  legend: string;
-  hideLegend?: boolean;
-  name: string;
-  /** What an empty section says, under its title. */
-  empty?: string;
-  choices: { key: string; label: string }[];
-  picked: string | null;
-  onPick: (key: string) => void;
-}) {
-  // min-w-0: a fieldset's minimum width is its content's, so in the
-  // dialog's two columns a long resume name pushed Generated Resumes over
-  // Uploaded Resumes instead of wrapping.
-  return (
-    <fieldset className="flex min-w-0 flex-col gap-1">
-      <legend className={hideLegend ? "sr-only" : "text-label text-ink mb-1"}>{legend}</legend>
-      {choices.length === 0 && empty && <p className="text-note text-ink-meta">{empty}</p>}
-      {choices.map((c) => (
-        <label
-          key={c.key}
-          className="hover:bg-hover has-checked:border-brand border-border rounded-control flex cursor-pointer items-center gap-3 border px-3 py-2"
-        >
-          <input
-            type="radio"
-            name={name}
-            value={c.key}
-            checked={picked === c.key}
-            onChange={() => onPick(c.key)}
-            className="accent-brand shrink-0"
-          />
-          {/* The name alone: the section title already says what kind it is,
-              and a grey kind line under each name only repeated it. It
-              wraps, never truncates: two resumes tailored for one company
-              differ only at the end of their names. */}
-          <span className="text-body text-ink min-w-0 break-words">{c.label}</span>
-        </label>
-      ))}
-    </fieldset>
   );
 }
 
@@ -467,7 +274,7 @@ function ResumeChoices({
 // make Apply Now a Button that opens the dialog and calls `load()` (which
 // sets `picked` again), and put the two branches back in front of "Did You
 // Apply?" in the ternary they came from (`asking ? ... : sent ? ... : ...`).
-// `Link` comes back to the imports.
+// `Link` comes back to the imports, and `ResumeChoices` from ./resume-picker.
 //
 //   async function apply() {
 //     const choice = choices?.find((c) => c.key === picked);

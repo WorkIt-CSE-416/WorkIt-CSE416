@@ -120,6 +120,23 @@ export async function getResumeFileUrl(
   }
 }
 
+// An uploaded PDF's bytes, base64, for its view page (KAN-366), which draws
+// it with the editor's pdf.js preview: read on the server from the
+// short-lived link, so the browser never opens the Storage URL itself.
+export async function readResumePdf(
+  resumeId: string,
+): Promise<{ data: string | null; error: string | null }> {
+  const { url, error } = await getResumeFileUrl(resumeId);
+  if (!url) return { data: null, error: error ?? "Could not open the resume." };
+  try {
+    const res = await fetch(url);
+    if (!res.ok) return { data: null, error: "Could not read the resume's file." };
+    return { data: Buffer.from(await res.arrayBuffer()).toString("base64"), error: null };
+  } catch {
+    return { data: null, error: "Could not reach the resume's file." };
+  }
+}
+
 // The API reads the file itself and writes what it read into the experience
 // bank; the client never sends parsed content. A file whose text the student
 // has already uploaded is refused (KAN-267): `error` is "Duplicate Resume

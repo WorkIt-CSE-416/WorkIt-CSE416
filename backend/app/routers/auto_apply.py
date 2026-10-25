@@ -42,6 +42,15 @@ POST /applicants/{id}/applications/{job_id}/resume
      content answers the same sent resume. 404 with no application or a
      closed job posting, 409 when it isn't queued or needs_you, 503 when the
      PDF cannot be made, 502 when Storage refuses the file.
+PUT  /applicants/{id}/applications/{job_id}/resume  {"built_resume_id": ...}
+     The student's own pick of the resume a queued application goes out
+     with (the Auto Apply page's Up Next, KAN-359): exactly one of
+     built_resume_id or uploaded_resume_id (422 otherwise). Kept as a sent
+     resume linked to the job posting, which the application names, so the
+     POST above sends that resume (again, from its current content) instead
+     of its own pick. Answers SentResumeResponse. 404 with no application,
+     or a resume or job posting that isn't available; 409 when it isn't
+     queued or needs_you; 503 when a built resume's PDF cannot be made.
 POST /applicants/{id}/applications/{job_id}/finish  {"outcome": "submitted"}
      How a fill ended: submitted → applied, skipped → skipped, failed →
      needs_you. 404 with no application, 409 when it isn't queued or
@@ -56,6 +65,7 @@ from fastapi import APIRouter, Depends, HTTPException, Query, Response, status
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.auto_apply import pipeline
+from app.auto_apply.queries import ResumeChoice
 from app.db import get_session, get_supabase
 from app.deps import assert_applicant_owns, get_current_account
 from app.models.dto import application_stage
@@ -66,12 +76,13 @@ from app.schemas.applications import (
     ApplicationStage,
     BatchQueued,
     BatchRequest,
+    ChooseResume,
     FinishRequest,
     QueueRequest,
 )
 from app.schemas.auth import AuthenticatedAccount
 from app.schemas.jobs import ScoredJob
-from app.schemas.sent_resume import SentResumeDownload
+from app.schemas.sent_resume import SentResumeDownload, SentResumeResponse
 from app.services.resume_render import TectonicUnavailable
 
 router = APIRouter(prefix="/applicants/{applicant_id}", tags=["auto-apply"])
@@ -209,6 +220,31 @@ async def prepare_resume(
         ) from exc
     except pipeline.FileFailed as exc:
         raise HTTPException(status.HTTP_502_BAD_GATEWAY, str(exc)) from exc
+
+
+@router.put("/applications/{job_id}/resume", response_model=SentResumeResponse)
+async def choose_resume(
+    applicant_id: uuid.UUID,
+    job_id: uuid.UUID,
+    body: ChooseResume,
+    account: AuthenticatedAccount = Depends(get_current_account),
+    db: AsyncSession = Depends(get_session),
+) -> SentResumeResponse:
+    """The student's pick of the resume one queued application goes out with."""
+    assert_applicant_owns(account, applicant_id)
+    choice = ResumeChoice(
+        built_resume_id=body.built_resume_id, uploaded_resume_id=body.uploaded_resume_id
+    )
+    try:
+        return await pipeline.choose_resume(db, applicant_id, job_id, choice)
+    except pipeline.NotFound as exc:
+        raise HTTPException(status.HTTP_404_NOT_FOUND, str(exc)) from exc
+    except pipeline.WrongStage as exc:
+        raise HTTPException(status.HTTP_409_CONFLICT, str(exc)) from exc
+    except TectonicUnavailable as exc:
+        raise HTTPException(
+            status.HTTP_503_SERVICE_UNAVAILABLE, "The resume's PDF could not be made. Try again."
+        ) from exc
 
 
 @router.post("/applications/{job_id}/finish", response_model=ApplicationStage)

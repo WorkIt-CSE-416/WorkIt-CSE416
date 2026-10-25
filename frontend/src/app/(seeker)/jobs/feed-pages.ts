@@ -14,12 +14,9 @@
  * every seeker page and shouldn't carry the job card along.
  */
 
+import { LIST_FRESH_FOR } from "./list-pages";
 import type { JobListing } from "./listings";
-
-/** How long loaded pages are kept for a return to their list. */
-const KEPT_FOR = 30 * 60 * 1000;
-
-const PAGES = "workit:feed-pages";
+import { sessionStore } from "./session-store";
 
 type Kept = {
   /** The page the list is on (/jobs or /search), so only a fresh arrival
@@ -32,51 +29,28 @@ type Kept = {
   at: number;
 };
 
-/** The kept pages, in memory and mirrored to sessionStorage so they survive a
- *  reload too. `undefined` until first read. A store rather than state, so a
- *  list reads them as it renders (useSyncExternalStore) with no flash of the
- *  first page alone. */
-let kept: Kept | null | undefined;
-const listeners = new Set<() => void>();
+/** The kept pages, mirrored to sessionStorage so they survive a reload too
+ *  (./session-store). A store rather than state, so a list reads them as it
+ *  renders (useSyncExternalStore) with no flash of the first page alone. */
+const store = sessionStore<Kept>("workit:feed-pages");
 
+export const subscribe = store.subscribe;
+
+/** The kept pages while they are young enough to show (LIST_FRESH_FOR). */
 export function readKept(): Kept | null {
-  if (kept === undefined) {
-    try {
-      kept = JSON.parse(sessionStorage.getItem(PAGES) ?? "null") as Kept | null;
-    } catch {
-      kept = null;
-    }
-  }
-  return kept && Date.now() - kept.at < KEPT_FOR ? kept : null;
+  const kept = store.read();
+  return kept && Date.now() - kept.at < LIST_FRESH_FOR ? kept : null;
 }
 
 /** Keeps `next`, dated now unless it carries the date its pages were
  *  loaded (a job dropped from them doesn't make them any fresher). */
 export function keep({ at = Date.now(), ...pages }: Omit<Kept, "at"> & { at?: number }) {
-  kept = { ...pages, at };
-  try {
-    sessionStorage.setItem(PAGES, JSON.stringify(kept));
-  } catch {
-    /* storage off or full: kept in memory for this visit */
-  }
-  for (const listener of listeners) listener();
-}
-
-export function subscribe(listener: () => void) {
-  listeners.add(listener);
-  return () => listeners.delete(listener);
+  store.write({ ...pages, at });
 }
 
 /** Drops the kept pages when `path` is the list's own page: a fresh arrival
  *  there starts the list at its first page. An arrival anywhere else leaves
  *  them, so Jobs, then the Dashboard, then Back still finds them. */
 export function forgetFeedPages(path: string) {
-  if (readKept()?.path !== path) return;
-  kept = null;
-  try {
-    sessionStorage.removeItem(PAGES);
-  } catch {
-    /* storage off: memory alone held them */
-  }
-  for (const listener of listeners) listener();
+  if (readKept()?.path === path) store.write(null);
 }

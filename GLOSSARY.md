@@ -17,7 +17,7 @@ One of the fixed kinds of entry in the experience bank: Education, Experience, P
 _Avoid_: category, block, custom section
 
 **Skill**:
-A named ability in the experience bank, optionally linked to the entries that show it was used.
+A named ability in the experience bank. Skills are one list per student, not tied to entries.
 _Avoid_: keyword, tag
 
 **Bullet**:
@@ -45,7 +45,7 @@ A file the student brought in. It is read-only, can be applied with as it is, an
 _Avoid_: original resume, parsed resume
 
 **Import**:
-To read an uploaded resume and write its entries and skills into the experience bank, merging an entry the bank already has instead of copying it. Upload imports once; Import Again reads a stored upload again (ADR 0003).
+To read an uploaded resume and write its entries and skills into the experience bank as that upload's own, replacing what it owned before; it never merges into another resume's entries (ADR 0005). Upload imports once; Import Again reads a stored upload again (ADR 0003).
 _Avoid_: parse, sync, auto-fill
 
 **Sent resume**:
@@ -105,3 +105,31 @@ _Avoid_: skipped field, manual field, error
 **Missing fact**:
 A question the student's data doesn't answer, left for the student to fill in.
 _Avoid_: unknown field, blank, unanswered
+
+## Tracking
+
+**Applications Tracker**:
+The page that holds every job posting a student is following, from saved to offer.
+_Avoid_: Applications (alone, for the page), Tracker (alone), My Applications, board
+
+**Stage**:
+Where one application stands in the Applications Tracker: Saved, Applied, Interviewing or Offer.
+_Avoid_: column, step (the Applications Tracker's Status filter picks stages)
+
+**Application**:
+One job posting a student is following in the Applications Tracker, at one stage.
+_Avoid_: Applications (as the page's name)
+
+**Strong Match**:
+A job posting that scores 80 or more for a student, the Strong Match band and above. The Dashboard's first number, Strong Matches, counts them.
+_Avoid_: good match (for that number), new role, recommendation
+
+**Top Match**:
+One of a student's highest-scoring open jobs, whatever its band. The Dashboard lists them under its numbers.
+_Avoid_: recommendation, best job
+
+## Jobs
+
+**Job Type**:
+What kind of job a job posting is: Full-Time, Part-Time, Contract or Internship. The Jobs page and the Applications Tracker both filter on it under this name.
+_Avoid_: Track, employment type, position type

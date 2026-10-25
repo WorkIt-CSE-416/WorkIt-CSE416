@@ -106,7 +106,15 @@ import { SeekerSidebar } from "./seeker-sidebar";
  * itself to what is left.
  */
 
-export default async function AppLayout({ children }: { children: React.ReactNode }) {
+export default async function AppLayout({
+  children,
+  modal,
+}: {
+  children: React.ReactNode;
+  /** The @modal slot: a route opened as a modal over the page, Settings for
+   *  now (KAN-364, @modal/(.)settings), or nothing (@modal/default.tsx). */
+  modal: React.ReactNode;
+}) {
   // Request time, not build time. The sign-in check below needs the Supabase
   // keys, and `next build` prerenders any page that has not yet asked for a
   // request: CI has no keys, so /applications failed its build with "must
@@ -241,6 +249,7 @@ export default async function AppLayout({ children }: { children: React.ReactNod
           <ScrollMemory />
           <ScoutPanel />
         </div>
+        {modal}
       </div>
     </HoverSidebarProvider>
   );

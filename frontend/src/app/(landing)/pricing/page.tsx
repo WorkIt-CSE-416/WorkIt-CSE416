@@ -1,4 +1,4 @@
-import { Check } from "lucide-react";
+import { CheckIcon } from "@phosphor-icons/react/ssr";
 import type { Metadata } from "next";
 import Link from "next/link";
 import type { CSSProperties } from "react";
@@ -242,7 +242,7 @@ function Value({ cell, plan }: { cell: Cell; plan: PlanId }) {
           plan === "free" ? "bg-ink-meta" : "bg-landing-brand-600",
         )}
       >
-        <Check className="size-3.5" strokeWidth={3} aria-hidden="true" />
+        <CheckIcon className="size-3.5" weight="bold" aria-hidden="true" />
         <span className="sr-only">Included</span>
       </span>
     );

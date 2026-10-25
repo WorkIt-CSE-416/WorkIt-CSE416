@@ -274,11 +274,19 @@ change here must keep:
 - **Bullet positions are 0..n-1 within an entry.** The service renumbers on
   every move and delete; there is no unique constraint on them, because a
   reorder would then have to dodge its own rows mid-update.
-- **`bank_skill_links` joins a skill to an entry of the same applicant**
-  (KAN-216), keyed by the pair, cascading from either side. The table has
-  no applicant column, so it cannot check that both sides share an owner:
-  `services/bank.py`'s `link_skill` does, and a link written any other way
-  can join two students' rows.
+- **A skill is one list per applicant, never tied to an entry.** KAN-216's
+  `bank_skill_links` (a skill to the entries that showed it, meant as
+  proof for Tailor) was removed in `9e4b2d7a5c18`: no upload wrote a link,
+  and nothing but the bank screen read one. Do not add it back without a
+  reader that needs it.
+- **An entry or skill belongs to at most one upload** (`resume_id`, ADR
+  0005, `../../../docs/bank_by_resume.md`): uploads never merge, so one
+  column holds the truth and the link tables of KAN-343 were dropped
+  (`c8f2a4e6b913`). It cascades: deleting an upload deletes its entries
+  and skills. Null means the student made it. A skill's name is unique
+  per owner (`bank_skills_applicant_name_key`, `NULLS NOT DISTINCT`, so
+  the student's own skills are one list). Built resumes need no owner
+  column: their shown choice rows say what they hold.
 
 ## Built resumes
 
@@ -784,6 +792,20 @@ Application Questions shows and edits them (KAN-269).
 - **Its migration is `a7d3e5c1b942`** (RLS on). It must be on the database
   before the API that maps it deploys.
 
+## Names: parts and one line (KAN-326)
+
+Both account tables keep `first_name`, `middle_name` and `last_name`, which
+signup and Settings ask for, and `full_name`, the line every other reader
+prints (the bar, resume headers, the Chrome autofiller). **`full_name` is
+always the parts joined**, through `app/services/names.py`: every writer
+sets the four together with `name_columns`. A writer with only a line (an
+OAuth sign-in, the resume editor's header sending `full_name`) has it split:
+the first word, the words between, the last word. The parts are nullable: a
+one-word name has no last name, and a row written by code that predates
+them has `full_name` alone, which `ApplicantProfileResponse` answers split.
+A first and a last name are required on every PATCH that sends parts, as at
+signup, and the joined line must fit `full_name`'s 50.
+
 ## job_postings holds company-posted and scraped jobs
 
 One table, two kinds of row (`b40588efa7b7`), told apart by `company_id`:
@@ -968,8 +990,11 @@ What that means for the account tables:
   foreign key. `alembic/env.py`'s filters keep autogenerate from ever creating
   or dropping it. Do not add columns to it or query through it.
 - **`email` is a copy** of `auth.users.email`, kept for display and joins.
-  Supabase signs in with its own copy. Nothing changes an email yet; whatever
-  first does must update both.
+  Supabase signs in with its own copy. Settings' Change Email (KAN-326)
+  changes Supabase's; `get_current_account` (`app/deps.py`) copies it onto
+  the row on the account's next request, when the token's email differs.
+  Copied there, not by the confirm link's callback, which runs only in the
+  browser that opens the link.
 - **`contact_email` is the email employers see** (KAN-262,
   `applicant_profiles` only): resume headers and the autofiller print it.
   NULL means the sign-in `email`, so read it through the model's

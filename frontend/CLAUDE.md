@@ -79,8 +79,11 @@ the KAN-296 cutover.
   leave them to CI; `dev`, `build` and the rest work natively.
 - **OAuth needs each origin allow-listed in Supabase** (Authentication → URL
   Configuration → Redirect URLs): production, a wildcard for previews and
-  `http://localhost:3000`, each with `/auth/callback`. `oauth-actions.ts`
-  builds `redirectTo` from `x-forwarded-host` on Vercel, whose proxy sets it,
+  `http://localhost:3000`, each with `/auth/callback`. Settings' links and
+  confirm emails add `?next=/settings/...` to it; if Supabase sends those to
+  its Site URL instead (untested on 2026-10-23), add a `**` wildcard entry
+  for each origin's callback. `lib/request-origin.ts` (OAuth sign-in, linking, Change Email)
+  builds the origin from `x-forwarded-host` on Vercel, whose proxy sets it,
   and from `Host` elsewhere: on Cloudflare `x-forwarded-host` is whatever the
   browser sent. It assumes https for any host
   but localhost when `x-forwarded-proto` is missing; Supabase silently falls
@@ -967,6 +970,20 @@ the KAN-296 cutover.
   `components/hover-sidebar.tsx`). A hover opens shadcn's provider over the
   page, so anything sized by the panel's width reads `useSidebarPin().pinned`,
   never shadcn's `state`, or it moves on every hover (`docs/design.md`).
+- **The seeker layout has a `@modal` slot** (KAN-364): a route opened as a
+  modal over the current page through an intercepting route, Settings
+  for now (`(seeker)/@modal/(.)settings`). A soft navigation to its address
+  opens the modal there; a hard load reaches the route's own layout, which
+  for Settings draws the same modal over the Dashboard, so Settings is a
+  modal on every way in (`docs/screens.md`, Settings). The slot's
+  `default.tsx` and `[...catchAll]/page.tsx` both render nothing: without
+  the catch-all, a link out of the modal to another seeker page would leave
+  the modal open over it, since a slot keeps what it last matched. The
+  catch-all makes every path a page to the lint's
+  `@next/next/no-html-link-for-pages`, so it flags every internal
+  `<a href>`: use `<Link>`, or, where a full reload is the point (the
+  Experiences view's Try Again), disable the rule on that line with the
+  reason.
 - **Pages render a `<div>`**, not a `<main>`: shadcn's `SidebarInset` already is
   the `<main>`. Seeker pages size off `@container/main`, never the window
   (`docs/design.md`).
@@ -976,7 +993,10 @@ the KAN-296 cutover.
   `import "server-only"` (`(seeker)/jobs/listings.ts` is the first). A live
   fetch in a page calls `await connection()` so `next build` does not prerender
   it with no API running.
-- **The application tracker is live and has no fixture** (KAN-261): saved
+- **The application tracker is live and has no fixture** (KAN-261), and
+  its page shows as the Applications Tracker (KAN-342: in the sidebar,
+  the tab and its heading) while its URL and code keep
+  `applications` (`docs/screens.md`, Applications). Saved
   and applied jobs come from the API (`(seeker)/applications/tracked.ts`,
   cached per request by `getTracker` in `data.ts`), each with the Jobs
   page's own match score (`?scored=true`, KAN-256) and the sent resume the
@@ -988,18 +1008,69 @@ the KAN-296 cutover.
   stretched link, and a dialog opened from one stops its own clicks, since
   React passes them up through the portal. A row or card opens the application's own page,
   `/applications/[jobId]` (KAN-256), not a side panel. Interviewing, Offer and
-  dated events stay empty until the API stores them; a failed read shows an
-  error, never stand-in cards. A job's application
+  dated events stay empty until the API stores them (the Dashboard's
+  Interviews number is a dash, KAN-342); a failed read shows an error, never
+  stand-in cards. The Dashboard's four numbers are all live and all links
+  (KAN-342); its Strong Matches reads the Best Match scores
+  (`getMatchDates`), and Top Matches under them lists the twelve
+  best-scoring jobs as flat rows that scroll inside a tile, with no score
+  floor (`getTopMatches`); its Auto Apply button picks jobs for the queue
+  from the best matches auto apply can fill, each one chosen by the seeker. A job's application
   stage (`saved`, `queued`...) reaches its Save and Auto Apply buttons from
   one read per page. Auto Apply never picks a saved job for a batch; only
-  the job's own Auto Apply click queues it.
+  the job's own Auto Apply click queues it, or the Auto Apply page's Add
+  Jobs, where the seeker picks each one (`auto-apply/add-jobs-dialog.tsx`).
+  That dialog is the one place several jobs are queued at once. Up Next's
+  resume picker stores a job's resume as the sent resume its application
+  names; the extension does not read it yet (`docs/screens.md`, Auto
+  Apply).
+  Every resume dialog (Did You Apply?, Tailor's Pick a Resume, Up Next's
+  Choose a Resume) picks through one table, `ResumeLists` in
+  `jobs/resume-picker.tsx` (KAN-360): change it there, never per dialog
+  (`docs/screens.md`, Job posting page).
   `docs/screens.md`, Applications, has the rest.
+- **/search keeps the filter row, and shows what its words filter by**
+  (KAN-308). A new search from the top bar sends only ?q, so it starts
+  with no filters; the row stays on /search to narrow the results. The
+  words "remote", "intern", "new grad" or "summer 2027" also narrow them,
+  as the API reads them (`docs/search.md`, the facts), so each shows as a
+  chip above the results (`search/search-facts.tsx`, from GET
+  /jobs/search-facts) whose cross searches again without its words. A
+  fact the API learns to read needs a label in `factLabel` there, or its
+  chip shows the raw key. A PR removed the row on 2026-10-24 to "clear the
+  filters" a search already cleared; the chips were the missing part.
 - **A "Back" link to a dynamic page goes back in history when it can.** Next
   keeps no dynamic page for a link visit (`staleTimes.dynamic` is 0), but
   reuses the one it holds on a history Back. A job page's Back that followed
   its link re-ran the whole feed fetch and Best Match scoring, so the list
   seemed slow to load; `BackToJobs` now calls `router.back()` when
   `cameFrom()` is its target (`docs/screens.md`, Job posting page).
+- **Every other seeker Back goes to the page that opened it**
+  (`(seeker)/back-link.tsx`, KAN-363): `BackLink`, or `useBack` for a
+  control drawn its own way (the editor's phone arrow), given the page's
+  parent for a direct visit. The scroll memory records each page's opener
+  (`openerOf`, sessionStorage, the last 50 pages) on every forward arrival
+  and never on a return, so a detour and the browser's Back keep it. A
+  new Back control uses them, never a fixed `href`; a new seeker page a
+  Back can name joins `PAGES` there. Each Back named its parent until
+  then: an application opened from the Calendar went to the tracker, a
+  resume opened from Experiences to Resumes. Not the job page
+  (`BackToJobs` skips the rail's job-to-job clicks to the list), a 404's
+  or placeholder's way out (no page to go back to), or a step form's
+  Back (the step before).
+- **A job posting's page has a rail of jobs beside it** (KAN-297), drawn by
+  `(seeker)/jobs/layout.tsx` so it survives job-to-job navigation. It reads
+  the list `FeedList` last showed (`jobs/shown-list.ts`); a new list screen
+  whose cards open job pages writes it the same way, or the rail shows the
+  last /jobs or /search list (`docs/screens.md`, Job posting page). Every
+  reader that pages a list of roles goes through `nextPage`
+  (`jobs/list-pages.ts`), which picks the action for the list's order and
+  counts the offset; the feed and the rail each had a copy until the
+  KAN-297 review. A list kept for the session builds on `sessionStore`
+  (`jobs/session-store.ts`), as the feed's Load More pages and the rail's
+  list do, and ages by `LIST_FRESH_FOR`. The rail checks its list's age on
+  every job opened, not once: checked on mount only, it sat on its skeleton
+  for good once the list passed half an hour, since it stays mounted.
 - **Promote to `src/components` on the second consumer**, not in anticipation;
   anything used by one route stays beside it (the per-route `icons.tsx`).
 - **`src/components/ui` is hand-written and is what screens import.**
@@ -1015,9 +1086,26 @@ the KAN-296 cutover.
   `shadcn/button.tsx` re-exports it and an ESLint rule keeps app code on the
   canonical path (likewise `badge` and `card`). A control's styling belongs in
   its component, not at the call site.
+- **Icons are Phosphor's, from `@phosphor-icons/react/ssr`** (KAN-350),
+  through the wrappers in `components/icons.tsx` or a route's own
+  `icons.tsx`. Lucide is gone (it read as every AI app's default) and the
+  lint refuses `lucide-react`, and Phosphor's main entry too: its icons read
+  a React context, so a server component that imported one would fail.
+  Phosphor adds no `aria-hidden` and fills by `weight`, never by a `fill`
+  class, which paints the whole glyph. Every glyph draws about a 2px line
+  at `size-4`, not Phosphor's 1px: one rule in `globals.css` thickens them
+  (KAN-365), and `custom-icons.tsx`'s `STROKE` matches it. A glyph
+  Phosphor lacks goes in `components/custom-icons.tsx` with all its
+  weights (`docs/design.md`, Brand and icons).
+- **Anything clicked or picked is medium (500)**: buttons, chips,
+  segmented controls, filter options, and shadcn's menu, select and
+  combobox rows, which `globals.css` sets by `data-slot` since they set no
+  weight of their own (KAN-365). Regular text is 450, not 400
+  (`--font-weight-normal`): the face's 400 read thin in small grey text. The four weights and their jobs are in
+  `docs/design.md`, Type weights, and on `/design-kit/type`.
 - **One mark for Scout and AI, `SparkleIcon`** (`components/icons.tsx`,
   KAN-257): every Scout or AI control, and Scout's mark in the chat and
-  the panel header, draws it. An ESLint rule refuses Lucide's `Sparkles`
+  the panel header, draws it. An ESLint rule refuses Phosphor's sparkle
   imported anywhere else; a hand-drawn sparkle beside Lucide's had given
   the assistant two marks (`docs/design.md`, Brand and icons).
 - **A button is a rounded rectangle; a pill is a chip** (`ui/chip.tsx`, KAN-251).
@@ -1068,18 +1156,26 @@ the KAN-296 cutover.
   share the Applications list's frame and its promoted pieces
   (`components/clickable-row.tsx`, `match-badge.tsx`, `reflow.tsx`,
   `field-facet.tsx`); a new seeker table starts from those, not a copy.
+- **How many rows a table or list shows depends on where it sits.** A
+  full-page table (the Applications list, Up Next) shows every row and the
+  page scrolls. A list or table inside a dialog or a tile scrolls inside
+  itself at one height, the `--spacing-scroll-box` token (`max-h-scroll-box`
+  or `h-scroll-box`, 320px): the resume picker, Add Jobs and Top Matches.
+  Each picked its own height before, and Add Jobs grew to 90% of the window.
 - **A filter whose rows the page already holds moves the URL in place**
   (`useShallowPush`, `docs/motion.md`): Live Activity's Status and sort
   (KAN-285). A tick passes `{ replace: true }`, so ticks are not steps of
   Back, as the Applications page's server-side picks replace the URL.
-- **pdf.js (`pdfjs-dist`, pinned exactly) loads on the resume editor
-  page only** (KAN-209), through `import("pdfjs-dist")` inside an effect in
+- **pdf.js (`pdfjs-dist`, pinned exactly) loads on the resume pages
+  only**: the editor (KAN-209) and an upload's page (KAN-366,
+  `(seeker)/resumes/uploaded/[id]`, which draws through the same
+  `PdfPages`), through `import("pdfjs-dist")` inside an effect in
   `(seeker)/resumes/[resumeId]/pdf-pages.tsx`: about 110 KB gzip plus a
   290 KB worker, which every other page would otherwise pay for, and its
   module touches browser globals, so a top-level import breaks the server
   render. The worker comes from `new URL("pdfjs-dist/build/pdf.worker.min.mjs",
   import.meta.url)`, which Turbopack emits as a static file. After a build,
-  only the editor route's client manifest names the pdf.js chunk.
+  only those two routes' client manifests name the pdf.js chunk.
   `npm install` on a Mac dropped two optional `@emnapi/*` entries from the
   lockfile when pdf.js was added; they were put back by hand. Check the
   lockfile diff for removals after adding any dependency. Adding Lenis
@@ -1174,13 +1270,90 @@ are in `docs/auth.md`.
   a second copy of an upload's facts to edit. Two editors of the same facts
   drift apart, and built resumes read the bank. Every screen that reports an
   import says it with `lib/import-summary.ts`, from the `bank` of an upload
-  or an Import Updated Resume, or Import Again's response. An upload's row
-  on the Resumes view offers Import Updated Resume (a newer file for that
-  row), never a re-read of the stored file, which only ever read the same
-  text. "Read It With
+  or a replace (the resume picker's, at the limit), or Import Again's
+  response. A newer version of an upload is a delete and an upload: the
+  Resumes view's row offered Import Updated Resume until KAN-362, and never
+  a re-read of the stored file, which only ever read the same text. "Read It With
   AI" (KAN-222) runs only on a click, never on its own, and shows only
   while `uses_left` is above 0; a failed reading writes nothing and says
   why.
+- **The Resumes view is one list of every resume** (KAN-362,
+  `(seeker)/resumes/built-resumes.tsx`): uploaded, generated and tailored,
+  newest first, each as its card (`components/resume-row.tsx`'s box, star
+  and icons: star, Rename, Download, Delete), in one card that scrolls
+  inside itself at `max-h-scroll-box` (`resume-list.tsx`). **It is laid
+  out as the Applications Tracker is**, so keep the two alike: the search
+  on its own row, then the Type filter (`FieldFacet`, the Applications
+  list's dropdown, in `?type=`) and the Sort dropdown (Last Edited, the
+  default; Oldest First; Name, A to Z; in `?sort=`, KAN-366) with Upload
+  Resume and Generate Resume at the right, both above the list, and `EmptyState` in the list's place
+  when no card shows. Upload Resume and Generate Resume never sit in the
+  shared header. A card says what it is in its own line ("Uploaded …",
+  "Last edited … · For <posting>"), so the list needs no Type or date
+  column: two table versions came first in KAN-362, one with Type and
+  Last Edited columns and sort headings, one with each row's icons in a
+  `⋯` menu, and the user found the columns useless beside the cards and
+  the menu hid the actions students use. Three views behind pills, then
+  tabs, came before that: each split one list though every card acts
+  alike, and a student had to look in three places for their latest
+  resume. The resume picker still splits Generated (base and tailored)
+  from Uploaded; whether it takes a Type filter too is open.
+- **Every resume opens a page of WorkIt's own** (KAN-366): a built resume
+  the editor (`(seeker)/resumes/[resumeId]`), an upload its view page
+  (`(seeker)/resumes/uploaded/[id]`, the static segment winning over
+  `[resumeId]`). The upload's page reads the PDF on the server
+  (`readResumePdf` in `lib/resume-actions.ts`, base64) and draws it with
+  the editor's `PdfPages` and no click targets; a DOCX gets a Download
+  card, since pdf.js cannot draw one. Its bar (the editor's look) holds
+  Make Primary, Rename, Delete and Download, calling what the upload's
+  card calls, and reads the name and star back with `router.refresh()`
+  rather than guessing them. An upload's card opened its Storage link in
+  a new tab until then (`lib/preview-resume.ts`, now gone), so an upload
+  left the app and a DOCX simply downloaded.
+- **The Experiences view shows one resume at a time** (KAN-343, ADR 0005,
+  `../docs/bank_by_resume.md`): a Showing card names the pick, drawn as
+  the Resumes page draws a resume (KAN-363), and its Change Resume opens
+  the shared resume table (KAN-361, `(seeker)/bank/resume-bar.tsx` over
+  `(seeker)/jobs/resume-picker.tsx`'s `ResumeLists`), with Not From an
+  Upload as a row under the table, in its radio group, while anything no
+  upload owns exists or while it is the pick. The page opens on
+  `?resume=`, else the starred resume, else the newest. A pick applies on Show Resume, never on a row
+  click, so the arrow keys can move it. The dropdown it replaced had no
+  search and cut long names short. The rules (which items a pick shows, the opening pick, the "Also
+  used in" line) live in `(seeker)/bank/holdings.ts` and read only the
+  API's `resume_ids`; never work out a resume's items in a component.
+  Intake always gets the whole bank. Add sends the pick (`createEntry`,
+  `addSkill`), so the new item belongs to that upload or shows on that
+  built resume and stays in view. `resume_ids` names at most one upload,
+  so the note in an entry's editor (KAN-363, "Saving also changes this
+  entry on …") names built resumes only, each name a link that switches
+  the pick to that resume. The entry's view names none. The Showing card opens its resume as a Resumes row does (the
+  editor, or the upload's own page, `/resumes/uploaded/[id]`); Rename,
+  Download, Make Primary and Delete stay on the Resumes view, so the page
+  never shows a resume deleted from under it. All Experiences was removed
+  (2026-10-23). **Every item must show under some pick**: Not From an
+  Upload holds what no upload owns (intake's, or one that came from
+  several uploads before ADR 0005). It was removed too at first, which
+  left 96 entries and 242 skills of 8 students that every reader used but
+  no student could see, edit or delete, so it came back (2026-10-24).
+  Clear All (KAN-352) deletes what a card shows, from the whole bank, as
+  Delete Entry does (`docs/screens.md`, Resumes & Experiences). **Every
+  card's heading is LinkedIn's** (KAN-363, `SectionActions` in
+  `bank-screen.tsx`): a + that adds, on all seven cards, and a pencil
+  (hidden while the card is empty) that opens the card's edit mode, one
+  card at a time. Only in edit mode do entries show their pencil, skills
+  their pencil and ×, and the heading Clear All and Done. Delete Entry is
+  at the foot of the editor an entry's pencil opens.
+- **The Experiences view has a section nav** (KAN-349,
+  `(seeker)/bank/section-nav.tsx`): one sticky row of links to the seven
+  section cards, each with its count under the current pick, the one in
+  view lit. It is one row at every width, scrolling sideways where it does
+  not fit, so its height never changes; every section card's `scroll-mt-16`
+  is room for it, and a card added to the page needs that margin and an
+  `id` of `section-<id>` too, or a jump to it (and Scout's scroll) lands
+  under the row. A click keeps its link lit until the student scrolls on:
+  lit by the scroll alone, a click on Certifications ended with Skills lit,
+  since a short last card never reaches the top.
 - **Applicant server actions call the API through `applicantCall`**
   (`lib/applicant-call.ts`, server-only): the session, the Bearer token,
   GET/DELETE/fetch, and a `Result<T>` (`data`, `error`, `status`) that never
@@ -1205,8 +1378,8 @@ are in `docs/auth.md`.
   posting page): Apply Now opens the employer's page and asks "Did You
   Apply?", whose Yes keeps the pick through `applyWithResume`. It went through
   `applyWithResume` (KAN-220) at Apply wherever it
-  sits: the job posting page, the feed cards on /jobs and /search, and the
-  Dashboard's New Matches (KAN-290). It keeps its sent resume: the student
+  sits: the job posting page and the feed cards on /jobs and /search
+  (KAN-290). It keeps its sent resume: the student
   is told WorkIt kept a copy, so it is never deleted behind their back.
   **Resume files download on Resumes & Experiences only** (KAN-267): the
   editor's Download and an upload's row (`lib/save-file.ts`). The Apply
@@ -1219,8 +1392,8 @@ are in `docs/auth.md`.
   (intake's draft entry, KAN-213, and its skipped sections, KAN-214), and
   so does a per-browser view preference that should leave with the student
   (the Applications list's column layout, KAN-282): one key prefix, cleared by Sign Out in
-  `account-menu.tsx` and on the login page, which an expired session also
-  reaches. A draft stored under any other key outlives sign-out.
+  `account-menu.tsx` and in Settings, by Delete Account, and on the login
+  page, which an expired session also reaches. A draft stored under any other key outlives sign-out.
 - **To test a page behind sign-in, use the shared test account**:
   `TEST_ACCOUNT_EMAIL` / `TEST_ACCOUNT_PASSWORD` in the root `.env`. It is a
   normal applicant with test data only, on the one shared Supabase project, so
@@ -1234,8 +1407,8 @@ are in `docs/auth.md`.
 
 - **Screens**: before changing how a screen behaves (Jobs page and filters, job
   posting page and card, seeker Dashboard, Applications, Calendar, My Profile,
-  Resumes & Experiences, Scout's panel, applicant onboarding, company
-  screens), read its section in `docs/screens.md`.
+  Resumes & Experiences, Scout's panel, applicant onboarding, Settings,
+  company screens), read its section in `docs/screens.md`.
 - **Design**: before changing a shell, a page's layout or widths, a colour
   (stage or match), a segmented control or a `ui/` component, read
   `docs/design.md`.

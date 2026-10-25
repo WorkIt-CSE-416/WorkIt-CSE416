@@ -10,7 +10,9 @@ import {
   useTransform,
   type MotionValue,
 } from "motion/react";
-import { Bot, Check, ScanSearch, ShieldAlert, X, type LucideIcon } from "lucide-react";
+import type { Icon as PhosphorIcon } from "@phosphor-icons/react";
+import { CheckIcon, RobotIcon, ShieldWarningIcon, XIcon } from "@phosphor-icons/react/ssr";
+import { ScanMagnifyingGlassIcon } from "@/components/custom-icons";
 
 import { Logo } from "@/components/logo";
 import { cn } from "@/lib/cn";
@@ -53,7 +55,7 @@ import { CARD_WIDTH, FollowedCard } from "./thread";
 type Beat = {
   gate: string;
   /** The gate's icon in the screening panel's header. */
-  icon: LucideIcon;
+  icon: PhosphorIcon;
   /** Its moving mark in the caption's chip (`GateIcon`). */
   mark: "scan" | "shield" | "bot";
   verdict: string;
@@ -66,7 +68,7 @@ type Beat = {
 const BEATS: Beat[] = [
   {
     gate: "ATS filter",
-    icon: ScanSearch,
+    icon: ScanMagnifyingGlassIcon,
     mark: "scan",
     verdict: "Filtered out",
     text: "One resume sent to every posting often gets filtered out before a person reads it.",
@@ -78,7 +80,7 @@ const BEATS: Beat[] = [
   },
   {
     gate: "Spam detection",
-    icon: ShieldAlert,
+    icon: ShieldWarningIcon,
     mark: "shield",
     verdict: "Flagged as spam",
     text: "Two hundred copy-paste applications look like spam, and get treated like it.",
@@ -90,7 +92,7 @@ const BEATS: Beat[] = [
   },
   {
     gate: "Slop detection",
-    icon: Bot,
+    icon: RobotIcon,
     mark: "bot",
     verdict: "Flagged as slop",
     text: "A template cover letter reads like AI slop, so it gets skipped.",
@@ -604,7 +606,7 @@ function Screen({ p }: { p: MotionValue<number> }) {
           <Shown p={p} range={showRange(BEATS.length)} className="absolute inset-0">
             {/* WorkIt's own logo, as in the caption's chip. */}
             <ScreenTitle
-              icon={Check}
+              icon={CheckIcon}
               title={
                 <span className="inline-flex items-center gap-1.5">
                   With <Logo size="bar" className="h-[15px]" />
@@ -682,7 +684,7 @@ function ScreenTitle({
   title,
   tone,
 }: {
-  icon: LucideIcon;
+  icon: PhosphorIcon;
   title: React.ReactNode;
   tone: "danger" | "brand";
 }) {
@@ -694,7 +696,7 @@ function ScreenTitle({
           tone === "danger" ? "bg-slate-100 text-slate-600" : "bg-brand-tint text-brand-ink",
         )}
       >
-        <Icon className="size-[18px]" strokeWidth={tone === "brand" ? 3 : 2} />
+        <Icon aria-hidden className="size-[18px]" weight={tone === "brand" ? "bold" : "regular"} />
       </span>
       <span className="min-w-0">
         <span className="text-ink block text-[13px] leading-tight font-semibold">{title}</span>
@@ -724,8 +726,8 @@ function Status({ tone, children }: { tone: "neutral" | "danger" | "positive"; c
           ))}
         </span>
       )}
-      {tone === "danger" && <X className="size-3.5" strokeWidth={3} />}
-      {tone === "positive" && <Check className="size-3.5" strokeWidth={3} />}
+      {tone === "danger" && <XIcon aria-hidden className="size-3.5" weight="bold" />}
+      {tone === "positive" && <CheckIcon aria-hidden className="size-3.5" weight="bold" />}
       {children}
     </span>
   );
@@ -859,7 +861,7 @@ function Note({
       />
       <span className="bg-danger/35 absolute top-1/2 right-full -mt-[2px] mr-[22px] size-[5px] rounded-full" />
       <span className="border-danger/20 text-danger inline-flex h-[26px] items-center gap-1 rounded-lg border bg-white px-2 text-[11px] font-semibold whitespace-nowrap shadow-[0_4px_12px_-8px_rgb(16_48_94/0.4)]">
-        <X className="size-3" strokeWidth={3} />
+        <XIcon aria-hidden className="size-3" weight="bold" />
         {children}
       </span>
     </motion.div>
@@ -1234,7 +1236,7 @@ function CheckChip({
       className="bg-positive-tint text-positive-ink inline-flex h-7 items-center gap-1.5 rounded-full px-2.5 text-[11.5px] font-semibold whitespace-nowrap"
       style={{ opacity, transform }}
     >
-      <Check className="size-3.5" strokeWidth={3} />
+      <CheckIcon aria-hidden className="size-3.5" weight="bold" />
       {children}
     </motion.span>
   );

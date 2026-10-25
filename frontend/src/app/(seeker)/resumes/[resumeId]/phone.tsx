@@ -1,15 +1,15 @@
 "use client";
 
 import {
-  ArrowLeft,
-  ChevronLeft,
-  ChevronRight,
-  Pointer,
-  Undo2,
-  X,
-  ZoomIn,
-  ZoomOut,
-} from "lucide-react";
+  ArrowLeftIcon,
+  ArrowUUpLeftIcon,
+  CaretLeftIcon,
+  CaretRightIcon,
+  HandPointingIcon,
+  MagnifyingGlassMinusIcon,
+  MagnifyingGlassPlusIcon,
+  XIcon,
+} from "@phosphor-icons/react/ssr";
 import Link from "next/link";
 import { useEffect, useRef, useState, useSyncExternalStore, type ReactNode } from "react";
 
@@ -20,6 +20,8 @@ import type { Choices, ChoicesUpdate, RenderBox, RenderedPdf } from "@/lib/built
 import { cn } from "@/lib/cn";
 
 import { DownloadMenu, DownloadNotes, type ResumeDownload } from "../download-menu";
+import { useBack } from "../../back-link";
+import { EDITOR_PARENT } from "./back";
 import { FitNotice } from "./fit-notice";
 import { lineName, shortPageLabel, tray, type Line } from "./model";
 import { boxKey, kindLabel, PdfPages } from "./pdf-pages";
@@ -135,6 +137,7 @@ export function PhoneEditor({
   onUndoFit: () => void;
   onDrawn: () => void;
 }) {
+  const back = useBack(EDITOR_PARENT);
   const snapshot = useSyncExternalStore(subscribeViewport, viewportSnapshot, () => "0|0");
   const [height, top] = snapshot.split("|").map(Number);
   const [zoom, setZoom] = useState(false);
@@ -164,11 +167,12 @@ export function PhoneEditor({
       <header className="bg-brand-tint/95 border-brand-pale flex flex-col gap-2 border-b px-4 pt-3 pb-2 backdrop-blur">
         <div className="flex items-center gap-2">
           <Link
-            href="/resumes"
-            aria-label="Back to Resumes"
+            href={back.href}
+            aria-label={back.label}
+            onClick={back.onClick}
             className="text-ink -ml-2 flex size-11 items-center justify-center rounded-full"
           >
-            <ArrowLeft className="size-5" />
+            <ArrowLeftIcon aria-hidden className="size-5" />
           </Link>
           {/* As on the desktop bar: the way in, or, over one page, the
               count joined to its fix (./fit-notice.tsx), short so it fits
@@ -184,7 +188,7 @@ export function PhoneEditor({
             </span>
           ) : (
             <span className="text-label text-ink flex items-center gap-1.5 font-medium">
-              <Pointer aria-hidden className="text-brand size-4 shrink-0" />
+              <HandPointingIcon aria-hidden className="text-brand size-4 shrink-0" />
               Tap a line to edit it.
             </span>
           )}
@@ -195,7 +199,7 @@ export function PhoneEditor({
         <div className={cn("flex flex-wrap items-center gap-2", TAP)}>
           {fitUndo && (
             <Button variant="secondary" size="sm" onClick={onUndoFit} disabled={saving}>
-              <Undo2 /> Undo
+              <ArrowUUpLeftIcon aria-hidden /> Undo
             </Button>
           )}
           <div className="ml-auto flex gap-2">
@@ -206,7 +210,11 @@ export function PhoneEditor({
               aria-pressed={zoom}
               onClick={() => setZoom(!zoom)}
             >
-              {zoom ? <ZoomOut /> : <ZoomIn />}
+              {zoom ? (
+                <MagnifyingGlassMinusIcon aria-hidden />
+              ) : (
+                <MagnifyingGlassPlusIcon aria-hidden />
+              )}
               {zoom ? "Fit Width" : "Zoom"}
             </Button>
           </div>
@@ -266,7 +274,7 @@ export function PhoneEditor({
                 disabled={at <= 0}
                 onClick={() => onSelect(order[at - 1])}
               >
-                <ChevronLeft />
+                <CaretLeftIcon aria-hidden />
               </Button>
               <span className="text-label text-ink-meta min-w-0 flex-1 truncate text-center font-semibold">
                 {kindLabel(box.kind)} · {lineName(line)}
@@ -278,7 +286,7 @@ export function PhoneEditor({
                 disabled={at < 0 || at >= order.length - 1}
                 onClick={() => onSelect(order[at + 1])}
               >
-                <ChevronRight />
+                <CaretRightIcon aria-hidden />
               </Button>
             </div>
           }
@@ -376,7 +384,7 @@ function Sheet({
           {title}
         </div>
         <Button variant="secondary" size="sm" aria-label="Close" onClick={onClose}>
-          <X />
+          <XIcon aria-hidden />
         </Button>
       </div>
       {fill ? (

@@ -192,7 +192,11 @@ Find files with a directory listing; these are the rules for where code goes.
   resume step (`prepare_resume`) keeps the file through
   `services/sent_resumes.py`, never Storage or the renderer itself, so a
   resume auto apply sends is a sent resume under Apply's rules (the repeat
-  hash, the file kept while a row uses it). **Which job postings it takes is
+  hash, the file kept while a row uses it). **A student's own pick of a queued
+  job's resume** (`choose_resume`, `PUT .../applications/{job_id}/resume`,
+  KAN-359) is kept the same way, as the sent resume the application names,
+  and `prepare_resume` sends it in place of `pick_resume`'s (`chosen_resume`):
+  no column of its own. Tests: `tests/test_auto_apply_resume.py`. **Which job postings it takes is
   one list, `app/auto_apply/hosts.py`** (Greenhouse for now): the matches
   and `queue_applications` require its SQL form (`AUTO_APPLY_SUPPORTED` in
   `queries/jobs/filters.py`) and `JobListing.auto_apply` its Python form,
@@ -208,11 +212,12 @@ Find files with a directory listing; these are the rules for where code goes.
   entries).
 - **The experience bank is written only through `services/bank.py`.** It
   holds the ownership scoping, the duplicate check and the clearing of the
-  bank embedding on every entry, bullet or skill change (a skill link is
-  not one: the embedding text never says which skill goes with which
-  entry); a route or script
+  bank embedding on every entry, bullet or skill change; a route or script
   that writes `bank_*` rows itself leaves the recommender on a stale
   embedding. Schema rationale: `../docs/resume.md`, "The experience bank".
+  Clear All (KAN-352) is `delete_entries` / `delete_skills`: all or none,
+  a 404 when any id is not the applicant's, and the same cascades as one
+  delete (bullets, built resumes' choice rows), in one statement.
 - **The recommender and Scout read the bank, never an uploaded resume**
   (KAN-212). `GET /jobs/recommended` scores against the bank and its
   embedding (`app/services/matching/CLAUDE.md`); Scout's facts come from
@@ -239,28 +244,38 @@ Find files with a directory listing; these are the rules for where code goes.
 - **An upload fills the bank** (KAN-240, `../docs/adr/0003-upload-fills-the-experience-bank.md`).
   `POST .../resumes` extracts `raw_text`, reads it with the heuristic
   parser (`services/bank_import.py`'s `read`, pure) and writes it with
-  `services/bank.py`'s `merge_import`, in the same transaction as the
+  `services/bank.py`'s `import_upload`, in the same transaction as the
   resume row: if the commit fails, nothing is kept and the Storage file is
   removed. The parser's reading is stored nowhere else (`parsed_json` is
-  gone). The response's `bank` says what went in, with `found` (what the
-  reading found, written or not) so the screen can tell "read nothing"
-  from "already in your bank". A reading never fails an upload: a parser
-  crash reads as nothing.
-- **Import merges, never copies.** `merge_import` adds an entry the bank
-  lacks; one that `find_duplicate` matches gains only the fields it has
-  empty and the bullets it lacks (ignoring case and spacing), so what the
-  student fixed stays fixed and several resumes add up to one bank. Dates
-  fill only as a set, when the bank entry has none: a merge never pairs one
-  resume's start with another's end. A fill that clashes with a kept field
-  (a GPA above the bank's scale) is dropped, and the bullets still go in.
-- **Import Again** is `POST /applicants/{id}/bank/import`: the same read and
-  merge on a stored upload, from intake's Use One I Uploaded and the Jobs
-  page's empty-bank card. It re-reads `raw_text`, so a resume uploaded
-  before a parser fix gets the fix. It can bring back a bullet the student
-  deleted; that is the student's explicit click.
+  gone). The response's `bank` says what went in (`found`,
+  `entries_added`, `skills_added`). A reading never fails an upload: a
+  parser crash reads as nothing.
+- **Each upload owns its entries and skills; uploads never merge** (ADR
+  0005, `../docs/bank_by_resume.md`). `import_upload` deletes what the
+  upload owns (`bank_entries.resume_id`, `bank_skills.resume_id`), then
+  writes the whole reading as the upload's own, with no `find_duplicate`
+  across resumes: the same job on two uploads is two rows, and Generate,
+  Tailor's ranking, Scout and the recommender read both (accepted). A
+  re-read replaces, so the student's edits to that upload's entries and
+  their places on built resumes go, with no warning. Deleting an upload
+  deletes its rows (cascade). Upload flushes the `Resume` row first (the
+  rows point at it). An item with no owner was made by the student, by
+  intake or by Tailor's "Have you used X?". Add (`POST .../bank/entries`
+  and `.../skills`) takes `?resume_id=`: an upload owns the new item, a
+  built resume gets a shown choice row; its duplicate check and the skill
+  name index (`NULLS NOT DISTINCT`) look at one owner only. `GET /bank`
+  sends each item's `resume_ids` (the owner, then the built resumes that
+  show it, `load_holdings`) and `resumes`; other `bank_response` callers
+  (Scout) send none. Tests: `tests/test_bank_import.py`, "owners" and
+  "Add under a resume pick".
+- **Import Again** is `POST /applicants/{id}/bank/import`: the same read on
+  a stored upload, replacing what it owns, from intake's Use One I
+  Uploaded, the Jobs page's empty-bank card and the Experiences view's
+  prompt for an upload that owns nothing. It re-reads `raw_text`, so a
+  resume uploaded before a parser fix gets the fix.
 - **Import Updated Resume** is `PUT /applicants/{id}/resumes/{resume_id}`
   with a file, from an upload's row on the Resumes view: a newer version replaces the row's
-  file and is read and merged as an upload is. The row keeps its id and
+  file and is read as an upload is, replacing what the upload owned. The row keeps its id and
   primary star, and its `created_at` becomes now, the upload date the row
   shows. The file goes to a new Storage path: a sent resume may point at the
   old one, and a sent resume's file never changes, so the old file goes only
@@ -525,37 +540,55 @@ Find files with a directory listing; these are the rules for where code goes.
   by the hash, an invalid or failed reply counts nothing, the cap).
 - **Tailor** (KAN-217) is `routers/tailor.py` over `services/tailor.py`.
   A run (`POST .../tailor`) proposes changes and saves nothing but the
-  count; Done (`POST .../tailor/done`) saves the accepted ones on the
+  count and an uploaded source's reading, merged into the bank; Done (`POST .../tailor/done`) saves the accepted ones on the
   posting's one tailored resume, approved wordings as bullet variants for
   the posting. Rules, each with a test in `tests/test_tailor.py`:
+  - **The student picks the source** (KAN-318): run and Done each take
+    exactly one of `built_resume_id` or `uploaded_resume_id` (422
+    otherwise; 404 for one not the applicant's). A built resume gives its
+    choices. An upload gives the entries and skills it owns
+    (`tailor.upload_source`, ADR 0005), built in memory, never saved;
+    every other entry and skill waits hidden. It never reads an upload
+    that owns something again: a reading replaces what it owns, which
+    would drop those entries from the tailored resume. One that owns
+    nothing is read into the bank first. It used to
+    start from the newest base resume by `created_at`, which ignored the
+    star and the student's edits, and to generate one when there was
+    none. An upload the parser reads nothing from answers 409. Done
+    writes the posting's one tailored resume from whichever source it is
+    sent, so a new source replaces what it showed.
   - **The truth rule is one pure function**, `services/truth_rule.py`'s
     `invented` (tested directly, `tests/test_truth_rule.py`): a wording
     with a number or tool in neither its original bullet nor the bank's
     skills is dropped from the proposals and refused (422) at Done, since
     the browser can send any text. Change what counts as a tool there and
     nowhere else.
-  - **A missing keyword that is nowhere in the bank is a question**
-    ("Have you used X?"), never words. Yes adds the skill through the
-    bank's own routes and shows it, with no AI call.
+  - **A run tailors only what the picked resume shows** (KAN-318,
+    `tailor.on_resume`): its shown entries and their shown bullets are
+    all that is ranked, sent to the model, reworded, reordered and
+    matched. It never proposes an entry or bullet the resume hides, so a
+    pick keeps its focus and length. "Bring back" (`show_entry`) is gone,
+    and the API refuses it at Done (422). Skills are the exception: every
+    bank skill stays in, so a hidden one that adds a keyword is still
+    proposed, and the truth rule still reads them all. Before this, the
+    whole bank went to the model, and the hidden bullets took places among
+    the best 40 although a reword of one was always dropped.
+  - **A missing keyword that neither the resume's entries nor any bank
+    skill hold is a question** ("Have you used X?"), never words. A hidden
+    entry's words do not count, since the run never brings it back. Yes
+    adds the skill through the bank's own routes and shows it, with no AI
+    call.
   - **The model sees handles (b1, e1), never ids**, and no links: an
     entry's link field is left out and the seam removes identity data.
     Postgres text search (`ts_rank`, the posting's words OR'd) ranks the
-    bullets: the best 40 go to the model, and the rank proposes each
-    entry's bullet order. A posting with no description is read by its
+    resume's bullets: the best 40 go to the model, and the rank proposes
+    each entry's bullet order. A posting with no description is read by its
     title, with `weak_match`.
-  - **An entry brought back is never a copy of one shown** (`bank.py`'s
-    `copy_key`: section, title and organization ignoring case, and the
-    same months, which Generate and intake's bank match also use), and it takes its date-order place among its
-    section's shown entries (`_bring_back`), not the end. A change names
-    its entry with the organization ("Software Intern, Acme"). An import
-    saved "as new" left a second Software Engineer Intern at Clever Devices
-    off a resume; Tailor offered "Bring back: Software Engineer Intern",
-    showed the job twice below an older one, and ran to 2 pages
-    (2026-10-14).
+  - **A change names its entry with the organization** ("Software Intern,
+    Acme"), since two jobs can share a title.
   - **One run is one `TAILOR` use**, counted after the model answers and
     the proposals are built; a keyword extraction inside the run is not a
-    second use. A run with no base resume generates one first (saved with
-    the count). **Lifted for now (KAN-319):** the route's `uses_left`
+    second use. **Lifted for now (KAN-319):** the route's `uses_left`
     check and `count_use` are commented out, it answers `uses_left` as the
     cap, the Tailor screen hides its "runs left today" and "Each run uses
     one of today's 2 Tailor runs" lines, and the three
@@ -623,7 +656,19 @@ Find files with a directory listing; these are the rules for where code goes.
   lazy loading fails in async code with `MissingGreenlet`: load relationships
   explicitly with `selectinload()`.
 - **Comments explain why.** A non-obvious setting gets a sentence on what
-  breaks without it.
+  breaks without it. Moving code to another layer moves its comments with
+  it: KAN-260's move out of the routers dropped about twenty, put back in
+  a follow-up.
+- **A PR that removes imports is checked against today's main before it
+  merges.** CI runs on the PR's own head: KAN-260 dropped `select` from
+  `routers/bank.py`, KAN-343 added a use of it, each passed alone, and the
+  merged `main` raised NameError on every Add under a resume pick
+  (2026-10-24). Merge `main` into the branch and run `uv run ruff check .`
+  first; F821 catches it. The same goes the other way: two fixes for that
+  bug merged ten seconds apart, one restoring the import and one moving
+  the query out (`queries/bank.py`'s `owned_upload_id`), and `main` then
+  failed lint on the unused import (F401). Check `main` once more right
+  before pressing Merge.
 - **The app starts with no credentials.** `/health` works without the root
   `.env`; only `/health/db` and routes that read real data need it. That lets
   someone work on one half without the other, and makes a failure point at one
@@ -797,10 +842,40 @@ removed at cutover, not before. Until then a change must work on both.
   `sent_resumes.snapshot_id`, so deployed first, every Apply and auto apply
   resume answers 500. It only adds a table, a nullable column and a CHECK
   the existing rows meet, so applying it early is safe.
+- **Apply `7c2e9a4b1f63` (`bank_entry_sources`, `bank_skill_sources`,
+  KAN-343) before the deploy that writes them.** The models map both
+  tables, so deployed first, every upload, Import Again and `GET /bank`
+  answers 500. It only adds two tables, so applying it early is safe.
+- **ADR 0005 is two migrations around one deploy.** Apply `b5e1c3a7d920`
+  (adds `resume_id` to `bank_entries` and `bank_skills`, fills it from
+  single-source rows, swaps the skill name index) before the deploy: the
+  models map the column, so deployed first, every bank read and upload
+  answers 500. Then merge and deploy, then `uv run alembic upgrade head`
+  for `c8f2a4e6b913`, which drops the source tables; applied before the
+  deploy, the running code's `GET /bank` and uploads answer 500. An entry
+  that came from several uploads stays unowned and shows under no upload
+  until Import Again.
+- **`9e4b2d7a5c18` (drops `bank_skill_links`, KAN-216's skill links) goes
+  on only AFTER the deploy that stopped reading it.** The code before it
+  queries the table on every bank load, so applying it first makes the
+  Experiences page, Generate, Tailor and Scout answer 500. The order:
+  `uv run alembic upgrade 7c2e9a4b1f63`, merge and deploy, then `uv run
+  alembic upgrade head`. Skill links were removed because nothing used
+  them: an upload never wrote one, and Tailor, the resume view, Generate,
+  Scout, the recommender and the embedding all ignored them. A skill is
+  one list per student.
 - **Apply `d642d93fcfbc` (`resumes.text_hash`, KAN-267) before the deploy
   that writes it.** The model maps the column, so every upload's INSERT
   names it: deployed first, every upload answers 500. It only adds a
   nullable column and an index, so applying it early is safe.
+- **Apply `0457dddf041a` (name parts, KAN-326) before the deploy that maps
+  them**. The model selects `first_name`,
+  `middle_name` and `last_name` with every account row, so deployed first,
+  every signed-in request fails, `get_current_account` included. It only
+  adds nullable columns and fills them from `full_name`, so applying it
+  early is safe. A branch with these models cannot run against the shared
+  database until it is applied, so merge the migration to `main` in its own
+  PR first, then apply it, then test the branch.
 - **Apply `a7d3e5c1b942` (`autofill_answers`, KAN-283) before the deploy
   that reads it.** It sits on KAN-262's `9d3f6b1e4a72`
   (`applicant_profiles.contact_email`), which sits on `c785e96ac011`. It
@@ -883,7 +958,10 @@ why each rule exists.
   unsupported on purpose: it can mint tokens.
 - **Access decisions read the profile row and `app_metadata`**, never
   `user_metadata`, which the user can edit. `company_id` and onboarding state
-  come from the row, never the token.
+  come from the row, never the token. The one value copied the other way is
+  the sign-in email: `get_current_account` writes the token's onto the row
+  when they differ (Settings' Change Email, KAN-326), and keeps the old copy
+  if another row holds the new address. Tests: `tests/test_sign_in_email.py`.
 - **Derive identity from the verified token**, never from a client-supplied
   `company_id`, `profile_id` or role. Company-scoped endpoints check for an
   active membership; role checks are Python guards.
@@ -895,12 +973,25 @@ why each rule exists.
   Next, so every endpoint checks for itself.
 - **"Allow new users to sign up" stays ON** in the Supabase dashboard, or
   first-time OAuth sign-in fails with `signup_disabled` (`../docs/auth.md`).
+- **Deleting an account is `DELETE /auth/me`** (KAN-326, Settings' Delete
+  Account): every file under `<applicant_id>/` in each bucket of
+  `ACCOUNT_BUCKETS` (`routers/auth.py`), sub-folders included (the
+  pre-KAN-267 `sent/`), then the auth user, whose foreign keys cascade to
+  every row. Files go first because Storage has no cascade. **A new bucket
+  keyed by the account joins `ACCOUNT_BUCKETS`**, or deleted accounts leave
+  its files behind. Every foreign key to `applicant_profiles` or
+  `auth.users` must cascade or set null, or Supabase refuses the delete
+  ("Database error deleting user"). Company accounts get a 403 until a
+  company owner's delete is designed. Tests: `tests/test_delete_account.py`.
 
 Still open:
 
-- Email verification and password reset: supported by Supabase, not wired up.
-- Deleting an account cascades its rows but not its Storage objects
-  (`Resume/<id>/`, `Avatar/<id>/`).
+- Email verification and a forgotten-password reset: supported by Supabase,
+  not wired up. A signed-in seeker changes their password in Settings
+  (`frontend/src/lib/account-actions.ts`).
+- Deleting an account from the Supabase dashboard cascades its rows but
+  leaves its Storage files; `DELETE /auth/me` removes both.
+- A company account cannot be deleted (403).
 - Joining an existing company: no endpoint; the form's Join tab is a
   placeholder.
 - Every signup `IntegrityError` answers "An account with this email already

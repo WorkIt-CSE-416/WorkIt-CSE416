@@ -57,7 +57,7 @@ export function UpNext({ items, className }: { items: UpNextItem[]; className?: 
                   STAGE_COLOR[key].fill,
                 )}
               >
-                <Icon className="size-4" />
+                <Icon aria-hidden className="size-4" />
               </span>
               {/* The date sits at the row's end once the list itself is wide
                   enough (@md/upnext, 448px of list) and drops under the role

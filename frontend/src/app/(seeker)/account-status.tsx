@@ -1,4 +1,4 @@
-import { CircleHelp, Settings } from "lucide-react";
+import { GearIcon, QuestionIcon } from "@phosphor-icons/react/ssr";
 
 import { signOut } from "@/app/actions";
 import { AccountMenu, type AccountMenuItem } from "@/components/account-menu";
@@ -44,8 +44,12 @@ import { getCurrentAccount, getSessionUser } from "@/lib/session";
  *  group. Elements, not components, since they cross into the client menu
  *  (see `icon` in @/components/account-menu). */
 const MENU_ITEMS: AccountMenuItem[] = [
-  { href: "/settings", label: "Settings", icon: <Settings aria-hidden className="size-4" /> },
-  { href: "/help", label: "Help", icon: <CircleHelp aria-hidden className="size-4" /> },
+  {
+    href: "/settings/personal",
+    label: "Settings",
+    icon: <GearIcon aria-hidden className="size-4" />,
+  },
+  { href: "/help", label: "Help", icon: <QuestionIcon aria-hidden className="size-4" /> },
 ];
 
 export async function SeekerAccount() {

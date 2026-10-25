@@ -1,6 +1,6 @@
 "use client";
 
-import { Eye } from "lucide-react";
+import { EyeIcon } from "@phosphor-icons/react/ssr";
 import { useEffect, useState } from "react";
 
 import {
@@ -50,7 +50,7 @@ export function ViewResumeButton({ resume, className }: { resume: Viewed; classN
         aria-label={`View resume ${resume.name}`}
         className={cn("max-w-full min-w-0", className)}
       >
-        <Eye />
+        <EyeIcon aria-hidden />
         <span className="truncate">{resume.name}</span>
       </Button>
       {viewer.dialog}

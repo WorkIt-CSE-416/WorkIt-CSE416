@@ -1,6 +1,6 @@
 "use client";
 
-import { CircleAlert } from "lucide-react";
+import { WarningCircleIcon } from "@phosphor-icons/react/ssr";
 import { useActionState, useEffect } from "react";
 
 import { ArrowRightIcon, LockIcon, MailIcon } from "@/components/icons";
@@ -64,7 +64,7 @@ export function LoginForm({ formId }: { formId: string }) {
           role="alert"
           className="text-label text-danger bg-danger-tint rounded-control mt-2.5 flex items-start gap-2 px-3 py-2"
         >
-          <CircleAlert className="mt-px size-4 shrink-0" aria-hidden />
+          <WarningCircleIcon className="mt-px size-4 shrink-0" aria-hidden />
           {state.error}
         </p>
       )}
