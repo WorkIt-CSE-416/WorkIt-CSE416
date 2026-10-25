@@ -7,7 +7,7 @@
 import { readFileSync } from "node:fs";
 import { join } from "node:path";
 import { FakeJobServer, FORMS, boardAndJob, loadHar, type Options } from "../fill-engine/test/fake-job-server";
-import { FakeWorkday, type Step } from "../fill-engine/test/fake-workday";
+import { FakeWorkday, type Options as WorkdayOptions, type Step } from "../fill-engine/test/fake-workday";
 import { FakeWorkable } from "../fill-engine/test/fake-workable";
 import type { Handler, Reply, Request } from "./loaded-extension";
 
@@ -98,12 +98,12 @@ async function replay(server: FakeJobServer | FakeWorkday | FakeWorkable, reques
 export class FakeWorkdays {
   private tenants: FakeWorkday[];
 
-  /** `names`: saved Workday forms (fill-engine/test/fixtures/forms), one tenant each. */
+  /** `names`: saved Workday forms (fill-engine/test/fixtures/forms), one tenant each; `options`: the n-th tenant's FakeWorkday options. */
   constructor(names: string[], steps: Step[] = [["My Information", [
     { key: "legalName--firstName", label: "First Name", kind: "text", required: true },
     { key: "legalName--lastName", label: "Last Name", kind: "text", required: true },
-  ]]]) {
-    this.tenants = names.map((name) => new FakeWorkday(name, { steps }));
+  ]]], options: Omit<WorkdayOptions, "steps">[] = []) {
+    this.tenants = names.map((name, n) => new FakeWorkday(name, { ...options[n], steps }));
   }
 
   /** The application's first step (or step `step`) on the n-th tenant; the first is what a posting's apply_url gives. */
