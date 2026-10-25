@@ -107,7 +107,9 @@ the KAN-296 cutover.
   (KAN-383): Claude's Add Custom Connector dialog filled in with WorkIt's
   name and `<api>/mcp`, or the directory listing once
   `CLAUDE_CONNECTOR_LINK` is set. Read it on the server and pass it down;
-  never write the claude.ai URL anywhere else.
+  never write the claude.ai URL anywhere else. What can't read it (the
+  extension's add-Claude step, KAN-387) opens `/connect/claude/add`, a
+  route handler that redirects to it.
 - **The business side is hidden until it ships** (KAN-239). `src/proxy.ts`
   redirects `/company` and `/onboarding/company` (and everything under them)
   to `/coming-soon`, "Waiting for Deployment", before its env check, so a
