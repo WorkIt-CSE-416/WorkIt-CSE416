@@ -147,3 +147,17 @@ def database(_migrated_database):
 @pytest.fixture
 def anyio_backend():
     return "asyncio"
+
+
+@pytest.fixture(autouse=True)
+def _researched(request, monkeypatch):
+    """Every company counts as researched, so a test about something else
+    gets its application without saving a brief first. Tests marked
+    `research_gate` (tests/test_company_briefs.py) keep the real rule."""
+    if request.node.get_closest_marker("research_gate") is None:
+        from app.auto_apply import briefs
+
+        async def researched(db, company):
+            return False
+
+        monkeypatch.setattr(briefs, "needs_research", researched)

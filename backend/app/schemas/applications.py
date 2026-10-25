@@ -215,6 +215,36 @@ class PostingQuestions(BaseModel):
     questions: list[WrittenAnswer]
 
 
+class NamedFact(BaseModel):
+    """The company brief fact an answer uses (KAN-369): its sentence and
+    the page that states it, as the brief had them when the answer was
+    saved."""
+
+    fact: str
+    url: str
+
+
+class AnsweredQuestion(BaseModel):
+    """A written question and the answer saved for it, with the brief fact
+    it names, if any, as the Written Answers page shows it."""
+
+    name: str
+    label: str
+    answer: str
+    own: bool
+    named_fact: NamedFact | None
+
+
+class PostingAnswers(BaseModel):
+    """One application's answered written questions, under its job
+    posting, in the form's order."""
+
+    job_id: uuid.UUID
+    company: str | None
+    title: str | None
+    questions: list[AnsweredQuestion]
+
+
 class PastedAnswer(BaseModel):
     """An answer the student pasted for one question, by its `name`."""
 

@@ -181,6 +181,7 @@ def stub(folder: Path, chat: int) -> Iterator[tools.MCPServer]:
             (review, "fetch_next_to_review", lambda db, applicant_id: _none()),
             (briefs, "research_task", nothing),
             (briefs, "brief_for", no_brief),
+            (briefs, "needs_research", nothing),
             (written, "open_application", open_application),
             (written, "save_written", save_written),
             (written, "_check_material", check_material),

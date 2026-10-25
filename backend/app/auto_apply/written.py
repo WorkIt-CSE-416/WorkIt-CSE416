@@ -10,14 +10,15 @@ its transaction, as every layer-2 step does.
 
 import dataclasses
 import uuid
-from collections.abc import Collection, Sequence
+from collections.abc import Collection, Iterable, Sequence
 from typing import Literal
 
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from app.auto_apply import checks
+from app.auto_apply import briefs, checks
 from app.auto_apply.queries import (
     drop_written,
+    fetch_answered,
     fetch_application_companies,
     fetch_brought_answers,
     fetch_next_to_write,
@@ -33,8 +34,11 @@ from app.auto_apply.queries import (
 from app.auto_apply.stages import NotFound, get_application, open_application
 from app.queries import writing
 from app.schemas.applications import (
+    AnsweredQuestion,
     Application,
+    NamedFact,
     OwnAnswer,
+    PostingAnswers,
     PostingQuestions,
     SavedAnswer,
     WrittenAnswer,
@@ -96,6 +100,25 @@ async def unanswered_questions(db: AsyncSession, applicant_id: uuid.UUID) -> lis
     ]
 
 
+async def answered_questions(db: AsyncSession, applicant_id: uuid.UUID) -> list[PostingAnswers]:
+    """
+    Every written question the student's applications have an answer for,
+    under its job posting, newest application first, each with the brief
+    fact it names (KAN-369): the Written Answers page's record of what was
+    sent, so the student can read up on each fact before an interview.
+    """
+    return [
+        PostingAnswers(job_id=job_id, company=company, title=title, questions=[
+            AnsweredQuestion(
+                name=r.name, label=r.label, answer=r.answer or "", own=r.own,
+                named_fact=NamedFact(**r.named_fact) if r.named_fact else None,
+            )
+            for r in rows
+        ])
+        for job_id, company, title, rows in await fetch_answered(db, applicant_id)
+    ]
+
+
 class Refused(Exception):
     """A save refused whole, with the reason for the student's Claude (or
     the student, on the Written Answers page) to fix it by. Nothing was
@@ -139,7 +162,7 @@ async def next_to_write(
 
 async def save_answers(
     db: AsyncSession, applicant_id: uuid.UUID, job_id: uuid.UUID, answers: dict[str, str],
-    *, by: Literal["claude", "student"] = "claude",
+    *, by: Literal["claude", "student"] = "claude", named: dict[str, str] | None = None,
 ) -> int:
     """
     Saves the student's Claude's answers to one application's questions
@@ -155,7 +178,10 @@ async def save_answers(
     Answers page, which skips only the copy check against the student's
     own writing samples (it stops their Claude parroting them; the student
     may use their own words), every other check kept, since the paste may
-    come from any AI. Raises NotFound / WrongStage for an application that
+    come from any AI. `named` gives, by question name, the company brief
+    fact an answer uses (KAN-369), its sentence as the brief words it: it
+    must be one of the brief's facts, and is saved with the answer, which
+    names none without it. Raises NotFound / WrongStage for an application that
     isn't open, Refused otherwise.
     """
     await open_application(db, applicant_id, job_id)
@@ -170,6 +196,7 @@ async def save_answers(
             )
         if not answer.strip():
             raise Refused(f"The answer to {name!r} is empty.", {name: ["The answer is empty."]})
+    facts = await _named_facts(db, job_id, named or {})
     sources, employers, samples = await _check_material(db, applicant_id, job_id)
     if by == "student":
         samples = ()
@@ -190,26 +217,54 @@ async def save_answers(
         raise Refused("Nothing was saved. Fix these answers and save them all again:\n" + "\n".join(
             f"- {name!r}: {' '.join(found)}" for name, found in failing.items()
         ), failing)
-    await save_written(db, applicant_id, job_id, kept)
+    await save_written(db, applicant_id, job_id, kept, facts)
     await db.commit()
     return sum(1 for name, q in questions.items() if q.answer is None and name not in answers)
+
+
+async def _named_facts(db: AsyncSession, job_id: uuid.UUID, named: dict[str, str]) -> dict[str, NamedFact]:
+    """Each named fact as the company's brief has it, by question name,
+    matched with case, punctuation and spacing folded. Refused for one that
+    is not among the brief's facts."""
+    if not named:
+        return {}
+    company, _, _ = await fetch_posting_text(db, job_id)
+    brief = {briefs._plain(f["fact"]): f for f in await briefs.brief_for(db, company)}
+    found: dict[str, NamedFact] = {}
+    for name, fact in named.items():
+        match = brief.get(briefs._plain(fact))
+        if match is None:
+            raise Refused(
+                f"The named_fact for {name!r} is not one of the company_brief's facts. Copy one from "
+                "company_brief as get_next_application gave it, or leave named_fact out.",
+                {name: ["The named fact is not one of the company brief's facts."]},
+            )
+        found[name] = NamedFact(fact=match["fact"], url=match["url"])
+    return found
 
 
 async def _check_material(
     db: AsyncSession, applicant_id: uuid.UUID, job_id: uuid.UUID
 ) -> tuple[tuple[str, ...], tuple[str, ...], tuple[str, ...]]:
     """What an application's answers are checked against (checks.Context):
-    the texts their facts may come from (the student's bank, the posting),
-    the companies of the student's other applications that this posting and
-    bank don't name, and the student's writing samples."""
+    the texts their facts may come from (the student's bank, the posting,
+    the company's kept brief, whose facts were checked on their pages), the
+    companies of the student's other applications that this posting and the
+    places the student worked or studied don't name, and the student's
+    writing samples. A company named only in a skill or a bullet is still
+    another application's: a tool called "Notion" is no reason to name
+    Notion the employer on another company's form."""
     company, title, posting = await fetch_posting_text(db, job_id)
     bank = await load_bank(db, applicant_id)
     sources = (*bank_sources(bank), company or "", title or "", posting or "")
+    theirs = (*places(bank), company or "", title or "", posting or "")
     employers = tuple(
         name for name in await fetch_application_companies(db, applicant_id)
         if name.strip().casefold() != (company or "").strip().casefold()
-        and not any(checks.names(source, name) for source in sources)
+        and not any(checks.names(source, name) for source in theirs)
     )
+    # The brief only widens the number check: a name in it doesn't exempt another employer.
+    sources += tuple(str(f[k]) for f in await briefs.brief_for(db, company) for k in ("fact", "published") if f.get(k))
     return sources, employers, tuple(await writing_samples(db, applicant_id))
 
 
@@ -248,6 +303,15 @@ def bank_sources(bank: Bank) -> list[str]:
         texts += [b.text for b in entry.bullets]
     texts += [s.name for s in bank.skills]
     return texts
+
+
+def places(bank: Bank) -> list[str]:
+    """Where the student worked or studied: each entry's organization, and an
+    education entry's title (its school)."""
+    return [
+        name for entry in bank.entries
+        for name in (entry.row.organization, entry.row.title if entry.row.section == "education" else None) if name
+    ]
 
 
 async def writing_samples(db: AsyncSession, applicant_id: uuid.UUID) -> list[str]:
@@ -340,3 +404,15 @@ async def save_own_answer(
             raise Refused(f"Not saved: {' '.join(found)}", {own.name: found})
     await save_own_written(db, applicant_id, job_id, own.name, own.label.strip(), answer, own.own)
     await db.commit()
+
+
+async def read_first(db: AsyncSession, applicant_id: uuid.UUID, job_id: uuid.UUID, names: Iterable[str]) -> list[str]:
+    """Which of `names`, an application's saved written answers, the student
+    reads before pressing Submit (`checks.high_stakes`: about this company,
+    or about what isn't on their resume). Apply holds such an essay for its
+    student; WorkIt never submits, so it saves and fills it, and its Claude
+    names it to the student. A choice is never one."""
+    company, _, _ = await fetch_posting_text(db, job_id)
+    asked = set(names)
+    return [q.name for q in await fetch_written(db, applicant_id, job_id)
+            if q.name in asked and q.answer and not q.kind and checks.high_stakes(q.label, company)]
