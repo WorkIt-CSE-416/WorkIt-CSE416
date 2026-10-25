@@ -190,7 +190,10 @@ async def run(
             identity=identity, max_tokens=tailor.REPLY_TOKENS)
     except ScoutUnavailable as exc:
         raise HTTPException(503, AI.failure(exc)) from exc
-    changes, dropped = tailor.propose(bank, view, reading, ranks, found, picked)
+    # What the truth rule takes as said: the resume's skills, the picks and
+    # the keywords the resume already shows. Propose and the save read one list.
+    known = tailor.known(view, picked, matched)
+    changes, dropped = tailor.propose(bank, view, reading, ranks, found, known)
 
     # Saved with no confirmation: the editor marks each change and reverts it.
     resume = Built_Resume(
@@ -198,8 +201,7 @@ async def run(
     session.add(resume)
     await session.flush()
     try:
-        variants = await tailor.save_variants(
-            session, bank, job.id, changes, [s.name for s in view.skills] + picked, found)
+        variants = await tailor.save_variants(session, bank, job.id, changes, known, found)
     except tailor.BreaksTruthRule as exc:
         # propose() already dropped these; this is the save's own guard.
         await session.rollback()

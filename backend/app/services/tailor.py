@@ -100,8 +100,11 @@ Answer with JSON only: \
 
 - rewords: understand the type of bullets the posting cares about, use the given keyword match list, reworded to use the \
 posting's words where the bullet's experience supports them. One line each, \
-under 200 characters, starting with a strong verb. No need to rewrite a bullet that \
-already fits.
+under 200 characters, starting with a strong verb. Most resumes have several \
+bullets that relate to the posting: reword each of them so a reader sees the \
+match, rather than leaving them as they are. Leave a bullet out only when it \
+already uses the posting's words, or when no honest rewording fits it; an empty \
+list is fine when none do.
 - Use only the bullet handles given such as (b1).
 - placements: one for each skill under "Place these skills", none \
 otherwise. group: the resume's group it belongs in, or a short new group \
@@ -415,20 +418,28 @@ def check_wording(
     return found + placeholders_in(text)
 
 
+def known(view: ResumeView, picked: Sequence[str], matched: Sequence[Keyword]) -> list[str]:
+    """What the truth rule takes as already said by the student, beside each
+    bullet's own wording: the skills the resume shows, the missing keywords
+    they picked (picking one says they have it), and the posting's keywords
+    the resume already shows anywhere (`keywords.match`: "algorithms" in
+    coursework). A missing keyword they did not pick is in none of these, so
+    a wording that names it is dropped: "backend" on a designer's bullet."""
+    return [s.name for s in view.skills] + list(picked) + [k.keyword for k in matched]
+
+
 def propose(
     bank: Bank,
     view: ResumeView,
     reading: TailorReading,
     ranks: Mapping[uuid.UUID, float],
     keywords: Sequence[Keyword],
-    picked: Sequence[str] = (),
+    skills: Sequence[str] = (),
 ) -> tuple[list[TailorChange], int]:
     """(changes, how many wordings the truth rule dropped), for the bullets
     `view` shows. `bank` gives each bullet's own wording; the truth rule
-    reads the skills `view` shows and the `picked` ones, which the student
-    says they have by picking them."""
+    reads `skills` beside it (`known`)."""
     ids = handles(view)
-    skills = [s.name for s in view.skills] + list(picked)
     showing = {b.id: b.text for b in _bullets(view)}
     originals = {b.id: b.text for e in bank.entries for b in e.bullets if b.id in showing}
     changes: list[TailorChange] = []

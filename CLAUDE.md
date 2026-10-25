@@ -169,8 +169,7 @@ with the failure it prevents.
   (KAN-363). Add saves into the picked resume.
   Read it before changing import, the bank's API shape or the Experiences
   view.
-- `docs/tailor_resume.md` — Tailor's redesign, designed and not built
-  (2026-10-25): the student picks a resume and the missing keywords to
+- `docs/tailor_resume.md` — Tailor's redesign, built (2026-10-25): the student picks a resume and the missing keywords to
   add, one click rewrites and saves the posting's tailored resume with no
   proposals and no Done, and the editor marks each change and reverts it.
   Holds the skill placement rule. Read it before changing Tailor or its

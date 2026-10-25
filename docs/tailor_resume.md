@@ -1,9 +1,8 @@
 # Tailor Resume: one click, changes in place
 
-Status: **designed 2026-10-25; steps 1 to 3 built 2026-10-25**
-(placement, the picked skills in the truth rule, resume-local skills
-(migration `a3d7f1c9e2b4`), and the run that saves). Step 4, the editor's
-marks and reverts, is next. It replaces Tailor's proposals
+Status: **steps 1 to 4 built 2026-10-25** (placement, the truth rule's
+known words, resume-local skills (migration `a3d7f1c9e2b4`), the run that
+saves, and the editor's review). Step 5, the clean-up, is left. It replaces Tailor's proposals
 and Done (KAN-217, `backend/CLAUDE.md`, "Tailor"). Build it in the steps at
 the end; each step ships on its own.
 
@@ -135,11 +134,13 @@ insert with renumbering.
 
 ## The truth rule
 
-A wording may hold a number or tool only if its original bullet or the
-**skills the tailored resume shows** hold it: the view's skills **plus the
-picked skills** (decided 2026-10-25). The student says they have a picked
-skill by picking it, so a rewording may name it. Today's rule reads the
-view's skills only.
+A wording may hold a number or tool only if its original bullet or what
+the student has already said holds it (`tailor.known`, decided
+2026-10-25): the view's skills, **the picked skills** (picking one says
+the student has it), and **the posting's keywords the resume already shows
+anywhere** (`keywords.match`, coursework included). So "algorithms", in
+the resume's coursework, may go in a bullet; "backend", missing and not
+picked, may not. Each missing keyword has one way in: the student's pick.
 
 ## Marking and reverting changes
 
@@ -252,8 +253,13 @@ them:
    (`TailorEdit`). Done, the proposal cards and "Have you used X?" are
    gone. The screen picks skills before the run, stores the edits in
    sessionStorage and opens the editor.
-4. **The editor marks and reverts.** Colour each change from the run's
-   answer; revert per change; a revert or an edit drops it; Save drops
-   them all. Keep the record in `sessionStorage` for a reload.
+4. **The editor marks and reverts. Built.** `resumes/[resumeId]/
+   tailor-review.tsx`: Review Tailor's Changes lists each change with
+   Revert and Save; `marksOf` tints the lines (green a new wording or
+   skill, amber a new order); `revertOf` builds the choices PATCH;
+   `untouched` drops a change any later PATCH touches, a revert included.
+   The screen stores `{edits, dropped}`; the card shows the dropped count.
+   Checked in the browser on 2026-10-25: marks, a skill and an order
+   reverted, the review kept across a reload, and Save clearing it.
 5. **Clean up.** Remove the questions, `show_skill`, `TailorChange` and the
    proposal schemas; update `backend/CLAUDE.md` and `frontend/CLAUDE.md`.

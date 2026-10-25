@@ -54,6 +54,7 @@ import {
 import { keepFitUndo, readFitUndo } from "./fit-undo";
 import { boxKey, kindLabel, loadPdfjs, PageSkeleton, PdfPages } from "./pdf-pages";
 import { PhoneEditor, usePhone } from "./phone";
+import { marksOf, revertOf, TailorReview, untouched, useTailorReview } from "./tailor-review";
 import { Tray } from "./tray";
 
 /**
@@ -72,7 +73,9 @@ import { Tray } from "./tray";
  * On a phone-width screen the same state is laid out by `PhoneEditor`
  * (KAN-219, ./phone.tsx). The assistant (KAN-221, ./assistant.tsx) docks
  * beside the page, or opens in a sheet on a phone, and acts through the same
- * saves.
+ * saves. After a Tailor run, its review (./tailor-review.tsx) sits above the
+ * page: each change is tinted on its line and listed with Revert until Save,
+ * and an edit of a changed item through `apply` drops that change.
  *
  * THE FIRST PDF STREAMS IN (KAN-368). The page starts the render and hands
  * it over unawaited (`initial`), since the LaTeX compile is the slowest read
@@ -184,6 +187,12 @@ export function Editor({
   const [fitUndo, setFitUndo] = useState<ChoicesUpdate | null>(null);
   // The resume's PDF and Word downloads, here since KAN-258 (../download-menu.tsx)
   const download = useResumeDownload(resumeId);
+  // Tailor's changes awaiting review; `apply` reads the newest through a ref
+  const [review, setReview] = useTailorReview(resumeId);
+  const latestReview = useRef(review);
+  useEffect(() => {
+    latestReview.current = review;
+  });
   // Over one page, a toast says so when the editor opens and again when an
   // edit pushes the resume over (./fit-notice.tsx, KAN-258). The last count
   // is kept in state, so the change is caught while rendering, not after.
@@ -248,9 +257,12 @@ export function Editor({
         return setError(error);
       }
       setChoices(data);
+      // A change to an item Tailor changed (a revert included) drops its mark
+      const waiting = latestReview.current;
+      if (waiting) setReview({ ...waiting, edits: untouched(waiting.edits, changes) });
       await renderAgain(current);
     },
-    [begin, resumeId, renderAgain],
+    [begin, resumeId, renderAgain, setReview],
   );
 
   /** Changes the profile fields the header prints, then renders again. */
@@ -518,6 +530,16 @@ export function Editor({
         <FirstRenderPane initial={initial} onLoad={adopt} onFail={fail} resumeId={resumeId} />
       </Suspense>
     );
+  const marks = review ? marksOf(review.edits) : undefined;
+  const reviewCard = review && (
+    <TailorReview
+      record={review}
+      bank={bank}
+      saving={saving}
+      onRevert={(edit) => void apply(revertOf(edit))}
+      onSave={() => setReview(null)}
+    />
+  );
 
   if (phone) {
     const start = line && startText(line);
@@ -534,6 +556,7 @@ export function Editor({
               onSelect={(key) => select(selected === key ? null : key)}
               onDrawn={drawn}
               placeholder={<PageSkeleton />}
+              marks={marks}
             />
           ))}
           bank={bank}
@@ -568,6 +591,7 @@ export function Editor({
           onApply={apply}
           onFit={fit}
           onUndoFit={undoFit}
+          review={reviewCard}
         />
         {fitToast}
       </>
@@ -607,6 +631,7 @@ export function Editor({
           </p>
         )}
         <DownloadNotes download={download} />
+        {reviewCard}
         <div
           ref={pages}
           data-keeps-selection
@@ -624,6 +649,7 @@ export function Editor({
               field={field}
               onDrawn={drawn}
               placeholder={<PageSkeleton />}
+              marks={marks}
             />
           ))}
         </div>

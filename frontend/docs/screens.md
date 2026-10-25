@@ -1672,8 +1672,9 @@ with no proposals to accept and no Done (2026-10-25).
   with no description shows the "weak match" notice.
 - **Tailor Resume runs once** and saves the posting's tailored resume,
   then opens it in the editor (`/resumes/[id]`). The run's record of
-  changes goes to sessionStorage (`tailorEditsKey` in `lib/local-drafts.ts`,
-  cleared by Sign Out) for the editor to mark and revert until Save.
+  changes and its dropped count go to sessionStorage (`tailorEditsKey` in
+  `lib/local-drafts.ts`, cleared by Sign Out) for the editor's review
+  (Resume editor, below).
 - An empty bank (409) shows a link to the bank page, where intake starts.
 
 ## Resumes (`/resumes`)
@@ -1927,7 +1928,20 @@ student who opened a resume from Experiences landed on another view.
   everything Fit hid (the response's `undo` body). A one-page resume shows
   no count: a green "1 page" said what the page itself shows, and stood
   apart from the rest of the bar. Undo is kept in sessionStorage per resume
-  (`fit-undo.ts`), so a reload in the same tab still offers it. The bar also
+  (`fit-undo.ts`), so a reload in the same tab still offers it.
+  **After a Tailor run, Review Tailor's Changes sits under the bar**
+  (`tailor-review.tsx`, `../../docs/tailor_resume.md`): each change the run
+  saved, with Revert, and Save, which ends the review. Changed lines are
+  tinted on the page, see-through so the PDF's text shows: a new wording
+  or an added skill green (`positive`), an entry's bullets in a new order
+  amber (`warning-fill`). Revert goes through the choices PATCH (the
+  wording back to the source's, the old order, the skill hidden), and any
+  later edit of a changed item through it drops that change's mark. The
+  card says how many wordings the truth rule left out. The run's record is
+  in sessionStorage (`tailorEditsKey`, under `lib/local-drafts.ts`'s
+  prefix, so Sign Out clears it): a reload in the same tab keeps the
+  review, and a new tab or device opens with none. The phone editor shows
+  the same card above the page and the same tints. The bar also
   says "Saving…" or the last round trip ("Saved, 412 ms"), the measure for
   the Vercel preview check. **Download** (PDF or Word) and Ask Scout end
   the bar whether or not a line is selected, so Download stays in reach down

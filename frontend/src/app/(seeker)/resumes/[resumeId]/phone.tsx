@@ -111,6 +111,7 @@ export function PhoneEditor({
   onApply,
   onFit,
   onUndoFit,
+  review,
 }: {
   /** Null until the first render lands (./editor.tsx streams it in). */
   rendered: RenderedPdf | null;
@@ -143,6 +144,8 @@ export function PhoneEditor({
   onApply: (changes: ChoicesUpdate) => void;
   onFit: () => void;
   onUndoFit: () => void;
+  /** Tailor's review card, above the page while it waits (./tailor-review.tsx). */
+  review?: ReactNode;
 }) {
   const back = useBack(EDITOR_PARENT);
   const snapshot = useSyncExternalStore(subscribeViewport, viewportSnapshot, () => "0|0");
@@ -240,6 +243,7 @@ export function PhoneEditor({
         ref={scroller}
         className={cn("min-h-0 flex-1 overflow-auto p-4", selected ? "pb-[70vh]" : "pb-24")}
       >
+        {review && <div className="mb-4">{review}</div>}
         <div className={zoom ? "w-[200%]" : "w-full"}>{pages}</div>
       </div>
 

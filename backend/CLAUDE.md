@@ -577,9 +577,16 @@ Find files with a directory listing; these are the rules for where code goes.
     reads nothing from answers 409. The source never changes.
   - **The truth rule is one pure function**, `services/truth_rule.py`'s
     `invented` (tested directly, `tests/test_truth_rule.py`): a wording
-    with a number or tool in neither its original bullet nor the skills
-    the tailored resume shows (the view's and the picked ones) is dropped
-    and counted in `dropped`. `save_variants` checks again as it saves.
+    with a number or tool in neither its original bullet nor what the
+    student has already said (`tailor.known`: the resume's skills, the
+    picked missing keywords, and the posting's keywords the resume already
+    shows anywhere, coursework included) is dropped and counted in
+    `dropped`. A missing keyword the student did not pick is in none of
+    these, so "backend" on a designer's bullet is dropped while
+    "algorithms", in the resume's coursework, passes: in the first live run
+    (2026-10-25) the posting-keyword check dropped both rewordings, the
+    second for "algorithms" alone. `propose` and `save_variants` read one
+    `known` list.
     Both read every bank skill before 2026-10-25, so a wording could bring
     in another upload's skill. Change what counts as a tool there and
     nowhere else.

@@ -368,6 +368,33 @@ async def test_a_rewording_may_name_only_a_skill_the_resume_shows(student, datab
     assert body["dropped"] == 1
 
 
+async def test_a_keyword_the_resume_shows_anywhere_passes_and_an_unpicked_missing_one_does_not(
+    signed_in, database, use_model
+):
+    # Kubernetes shows only in coursework: matched, so a bullet may name it.
+    # Go is nowhere on the resume and not picked: a bullet may not.
+    await signed_in.entry(
+        section="education", title="Stony Brook University", degree="B.S.", field_of_study="Computer Science",
+        coursework=["Cloud Computing with Kubernetes"])
+    await signed_in.entry(
+        section="experience", title="Software Intern", organization="Acme",
+        bullets=["Wrote billing services in python", "Deployed billing services to staging servers"])
+    base = await signed_in.generate()
+    posting = await _seed_posting(database)
+    fake = use_model(reply(rewords=[
+        ("b1", "Wrote billing services in python and Go"),
+        ("b2", "Deployed billing services to staging servers on Kubernetes"),
+    ]))
+
+    body = (await signed_in.tailor(posting, built(base))).json()
+
+    assert "Kubernetes" in _words(body["matched"]) and "Go" in _words(body["missing"])
+    assert "b1: Wrote billing services in python" in fake.prompts[0][-1]["content"]
+    assert [c["text"] for c in _edits(body, "reword")] == [
+        "Deployed billing services to staging servers on Kubernetes"]
+    assert body["dropped"] == 1
+
+
 async def test_a_picked_skill_is_placed_on_the_tailored_resume_only(student, database, use_model):
     posting = await _seed_posting(database)
     fake = use_model(reply(

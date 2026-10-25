@@ -100,7 +100,7 @@ export function TailorScreen({
       setRunning(false);
       return setError({ message: error ?? "Tailor failed.", status });
     }
-    writeSessionDraft(tailorEditsKey(data.resume.id), data.edits);
+    writeSessionDraft(tailorEditsKey(data.resume.id), { edits: data.edits, dropped: data.dropped });
     router.push(`/resumes/${encodeURIComponent(data.resume.id)}`);
   }
 

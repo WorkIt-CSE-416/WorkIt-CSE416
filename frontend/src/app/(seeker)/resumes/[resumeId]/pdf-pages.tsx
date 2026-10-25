@@ -7,6 +7,8 @@ import { Skeleton } from "@/components/shadcn/skeleton";
 import type { RenderBox } from "@/lib/built-resume-actions";
 import { cn } from "@/lib/cn";
 
+import type { Mark } from "./tailor-review";
+
 /**
  * The rendered PDF drawn with pdf.js, one canvas per page, with a click
  * target over each line from the render's boxes (KAN-209). pdf.js is
@@ -16,8 +18,15 @@ import { cn } from "@/lib/cn";
  * percent of the page, so they need no redraw to follow the canvas's size.
  * `field` draws the selected line's text field over its first box (KAN-218);
  * each page is a size container, so the field's type can be set in `cqw` to
- * match the PDF's at any width.
+ * match the PDF's at any width. `marks` tints the lines a Tailor run changed
+ * until the student saves its review (./tailor-review.tsx): see-through, so
+ * the PDF's text shows under the colour.
  */
+
+const MARK_TINT: Record<Mark, string> = {
+  changed: "bg-positive/20",
+  moved: "bg-warning-fill/25",
+};
 
 /** A box's identity across renders: its bank item and which part of it. */
 export const boxKey = (box: Pick<RenderBox, "item_id" | "kind">) => `${box.item_id}.${box.kind}`;
@@ -111,6 +120,7 @@ export function PdfPages({
   onDrawn,
   field,
   placeholder,
+  marks,
 }: {
   /** base64, as the render response sends it */
   pdf: string;
@@ -124,6 +134,8 @@ export function PdfPages({
   /** Shown until pdf.js has read the PDF: the editor's PageSkeleton, so
    *  its skeleton holds until the canvas. A line of text by default. */
   placeholder?: ReactNode;
+  /** Tailor's changed lines, by box key, until the review is saved. */
+  marks?: Map<string, Mark>;
 }) {
   const first = boxes.find((b) => boxKey(b) === selected);
   const typing = first && field?.(first);
@@ -201,6 +213,7 @@ export function PdfPages({
                   className={cn(
                     "absolute rounded-[2px] outline-offset-1 transition-colors",
                     "hover:bg-brand/5 focus-visible:outline-brand focus-visible:outline-2",
+                    marks?.has(key) && MARK_TINT[marks.get(key) as Mark],
                     selected === key && "bg-brand/10 outline-brand outline-2",
                   )}
                   style={{
