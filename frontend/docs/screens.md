@@ -344,20 +344,19 @@ Apply.", with Undo, which takes the job out again (`dequeueJob`) and turns
 the button back to Auto Apply: Live Activity's cross and Undo, the other way
 round. A failed Undo says so in a toast and leaves the button Queued.
 A click that leaves the job queued then runs Start Auto Apply's pipeline
-without the matching: it asks the extension to open the oldest queued job
-in a background tab beside this one (`openNextApplication`), which is this
-job only when nothing older waits. Once its form is ready, the extension
-switches the student to that tab and fills it (the popup's fill; its
-overlay says what was filled): a hidden tab left most dropdowns empty. A failed
-fill shows nothing here yet. It runs after the click settles, so the
+without the matching: it starts batch apply, or tops up the batch running
+(`openNextApplication`, KAN-370): the extension opens the queued jobs in
+background tabs in this window, at most five filling at once, and sorts
+each filled tab into its "Ready" or "Needs you" tab group. The student
+stays on this page. It runs after the click settles, so the
 button never waits on a page load; only a failure shows, as a line above
-the button (no extension stays silent). The job open in that tab reads
+the button (no extension stays silent). A job open in a batch tab reads
 **Working in Browser** (the AppWindow glyph) on every card that shows it,
-read once per page from the extension (`useRunnerJob` in
+read once per page from the extension (`useBrowserJobs` in
 `src/lib/autofill-extension.ts`, asked again whenever the tab gets focus).
 It goes back to Queued only when the extension says the tab is closed,
 never on a failed answer: coming back from the run's tab once reset it;
-a click switches to the tab (`showRunTab`, tooltip "Go to the tab"), and the job
+a click switches to its tab (`showRunTab(jobId)`, tooltip "Go to the tab"), and the job
 leaves the queue from Live Activity only. Its first state comes from
 the server: the job's page reads its one application (`GET
 .../applications/{job_id}`), and /jobs and /search read every application
@@ -955,14 +954,15 @@ matches through the API (`POST .../auto-apply/batches`, the server action
 `startBatch`: 10, leaving out every job they already have an application
 for), says how many in a note under the header, and refreshes the route so
 Live Activity lists them; an error (an empty experience bank) shows there in
-red instead. Then it asks the extension to open the oldest queued
-application's page in a background tab beside this one
-(`openNextApplication` in `src/lib/autofill-extension.ts`, the message
-`run/open`), and the note says so, or why not (no extension, signed out) in
-red (`auto-apply/opened-note.ts`, shared with the job card). A tab already
-on that job stays as it is, so Start never wipes a form in progress. A tab
-the extension opens, it also fills, with the student taken to it
-(KAN-305). Pause and Resume only move
+red instead. Then it starts batch apply (KAN-370): the extension opens the
+queued applications in background tabs, at most five filling at once,
+the next opening as one finishes, and puts each filled tab in its "Ready"
+or "Needs you" tab group (`openNextApplication` in
+`src/lib/autofill-extension.ts`, the message `run/open`). The note says so,
+or why not (no extension, signed out) in red (`auto-apply/opened-note.ts`,
+shared with the job card). Tabs already open stay as they are, so Start
+never wipes a form in progress, and the student is never taken to a tab.
+Pause and Resume only move
 the state. It is off until
 the seeker has a resume (`hasResume`, read on the server with both resume
 lists), and while a batch is queueing. It never waits on
@@ -1025,8 +1025,8 @@ opens next, and a newly queued one at the bottom (asked for 2026-10-17).
 The API answers newest first and the page reverses it, so the API's order
 stays as other callers know it. Each stored stage is a row (`activityOf` in
 `auto-apply/activity-list.tsx`): queued Queued, needs_you Couldn't Finish,
-skipped Skipped, applied Applied. The queued job open in the extension's
-tab reads Working in Browser instead (`auto-apply/live-activity.tsx`, the
+skipped Skipped, applied Applied. A queued job open in one of the
+extension's batch tabs reads Working in Browser instead (`auto-apply/live-activity.tsx`, the
 one client step over the server's rows), in flight.
 
 - **The table**: Role (the company's logo, then the role, bold, over the

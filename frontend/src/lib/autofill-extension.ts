@@ -17,7 +17,7 @@ const EXTENSION_ID = "cpklhdkoafegnndlafmiceehfloodjgi";
  * no extension at this id, are both just "no extension here", not errors a
  * caller needs to handle specially. Never throws.
  */
-function sendToExtension(message: { type: string }): Promise<unknown> {
+function sendToExtension(message: { type: string; jobId?: string }): Promise<unknown> {
   const runtime = (window as typeof window & { chrome?: { runtime?: { sendMessage?: unknown } } })
     .chrome?.runtime;
 
@@ -48,30 +48,32 @@ function sendToExtension(message: { type: string }): Promise<unknown> {
 
 /* The extension talks to this page through manifest.json's
  * `externally_connectable`, the one, deliberately narrow channel a web page
- * gets: the runner's three messages below (open the next queued
- * application, which job its tab shows, switch to that tab). Never the
- * profile itself; see autofiller_extension/src/background/background.js's
- * own comment on why that line is drawn where it is. */
+ * gets: batch apply's three messages below (start or top up the batch,
+ * which jobs its tabs show, switch to one of them;
+ * autofiller_extension/src/background/batch.js). Never the profile itself;
+ * see autofiller_extension/src/background/background.js's own comment on
+ * why that line is drawn where it is. */
 
-/** How the fill went in the run's tab: started, kept (the tab already
- *  showed this job, so it was neither reloaded nor filled again), or failed
- *  before it began (`no_form`, `not_allowed`, or the error's message). */
-export type FillStart = { fill: "started" | "kept" } | { fill: "failed"; reason: string };
+/** Whether `run/open` opened new tabs (started) or found the batch's
+ *  window already full (kept: nothing reloaded or filled again). */
+export type FillStart = { fill: "started" | "kept" };
 
-/** What the extension's runner did with `run/open`. */
+/** What the extension's batch did with `run/open`: `jobIds` are the jobs
+ *  its tabs show, `jobId` the first. */
 export type OpenApplicationResult =
-  | ({ opened: true; jobId: string; url: string } & FillStart)
+  | ({ opened: true; jobId: string; jobIds: string[]; url: string } & FillStart)
   | { opened: false; reason: "not_installed" | "queue_empty" | "signed_out" }
   | { opened: false; reason: "error"; error: string };
 
 /**
- * Asks the extension's runner to open the next queued application's
- * apply_url in its own background tab, beside this one, and to start the
- * extension's fill there (autofiller_extension/src/background/runner.js).
- * The message carries no URL: the runner reads the queue from the API
- * itself. A tab already on that application is left as it is. Resolves
- * once the fill has started, or with why nothing opened; never throws.
- * No answer means no extension, or one turned off. Updates `useRunnerJob`.
+ * Starts batch apply (KAN-370), or tops up the batch running: the extension
+ * opens the queued applications in background tabs in this window, at most
+ * five filling at once, and sorts each into its "Ready" or "Needs you" tab
+ * group (autofiller_extension/src/background/batch.js). The message carries
+ * no URL: the extension reads the queue from the API itself. Tabs already
+ * open are left as they are. Resolves once the tabs have opened, or with
+ * why nothing opened; never throws. No answer means no extension, or one
+ * turned off. Updates `useBrowserJobs`.
  */
 export async function openNextApplication(): Promise<OpenApplicationResult> {
   const r = (await sendToExtension({ type: "run/open" })) as
@@ -80,71 +82,68 @@ export async function openNextApplication(): Promise<OpenApplicationResult> {
     | undefined;
   if (r === undefined) return { opened: false, reason: "not_installed" };
   if (!r.ok) return { opened: false, reason: "error", error: r.error };
-  setRunnerJob(r.opened ? r.jobId : null);
+  setBrowserJobs(r.opened ? r.jobIds : []);
   if (!r.opened) return { opened: false, reason: r.reason };
-  const { jobId, url } = r;
-  return r.fill === "failed"
-    ? { opened: true, jobId, url, fill: "failed", reason: r.reason }
-    : { opened: true, jobId, url, fill: r.fill };
+  const { jobId, jobIds, url, fill } = r;
+  return { opened: true, jobId, jobIds, url, fill };
 }
 
-/** Switches to the run's tab. False when it was closed (and
- *  `useRunnerJob` drops the job) or the extension failed to answer (it
- *  keeps the job). */
-export async function showRunTab(): Promise<boolean> {
-  const r = (await sendToExtension({ type: "run/show" })) as
+/** Switches to the batch's tab showing `jobId`. False when it was closed
+ *  (and `useBrowserJobs` asks again) or the extension failed to answer. */
+export async function showRunTab(jobId: string): Promise<boolean> {
+  const r = (await sendToExtension({ type: "run/show", jobId })) as
     { ok: true; shown: boolean } | { ok: false } | undefined;
   if (!r?.ok) return false;
-  if (!r.shown) setRunnerJob(null);
+  if (!r.shown) void refreshBrowserJobs();
   return r.shown;
 }
 
 /**
- * WHICH JOB POSTING THE RUN'S TAB SHOWS, shared by every caller on the
+ * WHICH JOB POSTINGS THE BATCH'S TABS SHOW, shared by every caller on the
  * page: each job card's Auto Apply and Live Activity read one value, so the
  * extension is asked once, not once per card. Asked on the first
  * subscriber and again whenever this tab gets focus, since the student
- * closes the run's tab and comes back here. Null with no extension, no
- * run tab, or before the first answer (and on the server). It goes back
- * to null only when the extension says the tab is gone
- * (run/status, run/show), never on a failed answer.
+ * closes batch tabs and comes back here. Empty with no extension, no batch,
+ * or before the first answer (and on the server). It changes only on the
+ * extension's answer (run/open, run/status), never on a failed one.
  */
-let runnerJob: string | null = null;
+const NONE: ReadonlySet<string> = new Set();
+let browserJobs: ReadonlySet<string> = NONE;
 let watching = false;
 const listeners = new Set<() => void>();
 
-function setRunnerJob(jobId: string | null) {
-  if (jobId === runnerJob) return;
-  runnerJob = jobId;
+function setBrowserJobs(jobIds: string[]) {
+  if (jobIds.length === browserJobs.size && jobIds.every((id) => browserJobs.has(id))) return;
+  browserJobs = new Set(jobIds);
   for (const listener of listeners) listener();
 }
 
-async function refreshRunnerJob() {
+async function refreshBrowserJobs() {
   const r = (await sendToExtension({ type: "run/status" })) as
-    { ok: true; jobId: string | null } | { ok: false } | undefined;
+    { ok: true; jobIds?: string[] } | { ok: false } | undefined;
   // Only a real answer changes it. A failed one (an extension that predates
   // run/status, a worker that errored) once turned Working in Browser back
   // to Queued each time the student came back from the run's tab.
-  if (r?.ok) setRunnerJob(r.jobId);
+  if (r?.ok) setBrowserJobs(r.jobIds ?? []);
 }
 
 function subscribe(listener: () => void) {
   listeners.add(listener);
   if (!watching) {
     watching = true;
-    void refreshRunnerJob();
-    window.addEventListener("focus", refreshRunnerJob);
+    void refreshBrowserJobs();
+    window.addEventListener("focus", refreshBrowserJobs);
   }
   return () => {
     listeners.delete(listener);
   };
 }
 
-/** The job posting id open in the run's tab, or null. */
-export function useRunnerJob(): string | null {
+/** The job posting ids open in the batch's tabs. */
+export function useBrowserJobs(): ReadonlySet<string> {
   return useSyncExternalStore(
     subscribe,
-    () => runnerJob,
-    () => null,
+    () => browserJobs,
+    () => NONE,
   );
 }

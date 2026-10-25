@@ -501,7 +501,7 @@ function Row({
             label={`Go to the tab with ${item.role}`}
             tooltip="Go to the tab"
             className="size-8"
-            onClick={() => void showRunTab()}
+            onClick={() => void showRunTab(item.id)}
           >
             <AppWindowIcon aria-hidden className="size-4" />
           </IconButton>
