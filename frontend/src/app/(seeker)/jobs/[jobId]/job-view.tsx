@@ -2,7 +2,9 @@ import { CompanyLogo } from "@/components/company-logo";
 import { SparkleIcon } from "@/components/icons";
 import { JobDetailHeader } from "@/components/job-detail/job-detail-header";
 import { AskScoutButton } from "@/components/scout/scout-buttons";
+import { Skeleton } from "@/components/shadcn/skeleton";
 import { ButtonLink } from "@/components/ui/button";
+import { Card } from "@/components/ui/card";
 import { Section } from "@/components/ui/section";
 import { listBuiltResumes } from "@/lib/built-resume-actions";
 import { listSentResumes } from "@/lib/sent-resume-actions";
@@ -141,6 +143,35 @@ export function JobViewHeader({ job }: { job: JobListing }) {
         />
       }
     />
+  );
+}
+
+/** JobViewHeader's card while the posting loads (./loading.tsx, and the
+ *  application's page's): the company line, the title and the facts under
+ *  their rule, as JobDetailHeader draws them, each a bar of its line's
+ *  height, so the card is its own size and the page under it holds still. */
+export function JobViewHeaderSkeleton() {
+  return (
+    <Card
+      as="header"
+      padding="lg"
+      elevated={false}
+      aria-hidden="true"
+      className="@container flex flex-col gap-4"
+    >
+      <div>
+        <div className="flex items-center gap-3">
+          <Skeleton className="rounded-control size-10 shrink-0" />
+          <Skeleton className="h-4 w-48" />
+        </div>
+        <Skeleton className="mt-2 h-8 w-3/4" />
+      </div>
+      <div className="border-border-subtle grid grid-cols-2 gap-x-4 gap-y-2 border-t pt-4 @md:grid-cols-3">
+        {Array.from({ length: 6 }, (_, i) => (
+          <Skeleton key={i} className="h-4 w-4/5" />
+        ))}
+      </div>
+    </Card>
   );
 }
 
