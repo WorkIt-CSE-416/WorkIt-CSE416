@@ -164,7 +164,14 @@ export function JobViewHeaderSkeleton() {
           <Skeleton className="rounded-control size-10 shrink-0" />
           <Skeleton className="h-4 w-48" />
         </div>
-        <Skeleton className="mt-2 h-8 w-3/4" />
+        {/* The title's 32px lines: two below 448px of card, where nearly
+            every title wraps, one above. */}
+        <div className="mt-2 flex h-8 items-center">
+          <Skeleton className="h-7 w-3/4" />
+        </div>
+        <div className="flex h-8 items-center @md:hidden">
+          <Skeleton className="h-7 w-1/2" />
+        </div>
       </div>
       <div className="border-border-subtle grid grid-cols-2 gap-x-4 gap-y-2 border-t pt-4 @md:grid-cols-3">
         {Array.from({ length: 6 }, (_, i) => (

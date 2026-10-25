@@ -18,6 +18,12 @@ import { ViewSwitcher } from "./view-switcher";
  * filter bar's search and dropdowns as bars at the widths the real row
  * shows them, and the list's card with rows in a row's shape: the logo,
  * the role and company, then the cells.
+ *
+ * A loading.tsx wraps everything under its folder, so this one also covers
+ * ./[jobId]: a link to an application from outside the tracker (none today
+ * but the archived Calendar's) would show this list's skeleton until the
+ * application's own (./[jobId]/loading.tsx) takes over. From the tracker's
+ * own rows, the only way in now, the application's skeleton shows at once.
  */
 export default function ApplicationsLoading() {
   return (

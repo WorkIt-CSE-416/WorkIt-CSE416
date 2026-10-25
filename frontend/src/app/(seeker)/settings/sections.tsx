@@ -19,11 +19,20 @@ import { SecuritySection } from "./security/section";
  * Details reads the profile and the photo, Job Preferences the saved
  * filters and the role options (the facets and the locations), and with no
  * boundary the modal opened only once the slowest of those had answered.
- * Now the modal opens at once over each section's skeleton, its own card
+ * Now the route's layout awaits nothing, so the modal opens as soon as the
+ * route's first bytes arrive, over each section's skeleton: its own card
  * and heading with bars where the fields go. A section's form mounts once,
  * when its data arrives, so its unsaved-changes guard (./unsaved-changes)
  * only ever starts clean; a refresh after a save keeps the drawn form, since
  * React never falls back a boundary that is already showing.
+ *
+ * NO loading.tsx FOR THE MODAL. A loading.tsx in ../@modal/(.)settings sits
+ * inside that folder's layout, which is what draws the modal, so it wraps
+ * only the section's empty page: one drawing the modal as its fallback put
+ * a second modal, and a second backdrop, over the first while the page
+ * resolved (measured in a production build, KAN-368). One in ../@modal
+ * itself would wrap the slot on every page. The section boundaries here are
+ * the whole loading state.
  */
 export function allSections() {
   return {

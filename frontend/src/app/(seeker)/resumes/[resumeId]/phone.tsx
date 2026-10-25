@@ -90,6 +90,7 @@ export function pageOrder(boxes: RenderBox[]) {
 
 export function PhoneEditor({
   rendered,
+  hint,
   pages,
   bank,
   choices,
@@ -113,6 +114,8 @@ export function PhoneEditor({
 }: {
   /** Null until the first render lands (./editor.tsx streams it in). */
   rendered: RenderedPdf | null;
+  /** Shows "Tap a line to edit it."; off once the first render failed. */
+  hint: boolean;
   /** The page area, drawn by the editor: the PDF, or its skeleton while the
    *  first render is on its way, from the same unawaited render the desktop
    *  layout reads. */
@@ -191,10 +194,12 @@ export function PhoneEditor({
               />
             </span>
           ) : (
-            <span className="text-label text-ink flex items-center gap-1.5 font-medium">
-              <HandPointingIcon aria-hidden className="text-brand size-4 shrink-0" />
-              Tap a line to edit it.
-            </span>
+            hint && (
+              <span className="text-label text-ink flex items-center gap-1.5 font-medium">
+                <HandPointingIcon aria-hidden className="text-brand size-4 shrink-0" />
+                Tap a line to edit it.
+              </span>
+            )
           )}
           <span className="text-note text-ink-meta ml-auto" aria-live="polite">
             {saving ? "Saving…" : elapsed != null ? `Saved, ${elapsed} ms` : ""}

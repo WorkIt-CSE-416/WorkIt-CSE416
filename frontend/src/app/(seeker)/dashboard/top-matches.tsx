@@ -134,20 +134,32 @@ function StaticHeading() {
 
 /** Top Matches while the scores load: its heading over rows in their own
  *  shape (a logo, a title line, a meta line, the buttons), filling the same
- *  frame, so Activity below does not jump when the jobs arrive. */
+ *  frame, so Activity below does not jump when the jobs arrive. Below
+ *  @xl/main a row's buttons take a full-width line under the text, as the
+ *  real row's do (./top-matches-list.tsx); with the buttons beside the
+ *  text, the skeleton stood 260px short of the list at 390px wide, and
+ *  Activity jumped by that much when the jobs arrived (KAN-368). */
 export function TopMatchesSkeleton({ className }: { className?: string }) {
   return (
     <SectionCard aria-labelledby="top-matches" aria-busy="true" className={className}>
       <StaticHeading />
       <ul aria-hidden="true" className={cn(LIST, "@4xl/main:overflow-hidden")}>
         {Array.from({ length: 6 }, (_, i) => (
-          <li key={i} className="bg-well rounded-card flex shrink-0 items-center gap-3 p-3">
-            <span className="bg-panel rounded-control size-10 shrink-0 animate-pulse" />
-            <span className="flex flex-1 flex-col gap-1.5">
-              <span className="bg-panel h-3.5 w-2/3 animate-pulse rounded" />
-              <span className="bg-panel h-3 w-1/3 animate-pulse rounded" />
+          <li
+            key={i}
+            className="bg-well rounded-card flex shrink-0 flex-col gap-3 p-3 @xl/main:flex-row @xl/main:items-center"
+          >
+            <span className="flex min-w-0 flex-1 items-center gap-3">
+              <span className="bg-panel rounded-control size-10 shrink-0 animate-pulse" />
+              <span className="flex flex-1 flex-col gap-1.5">
+                <span className="bg-panel h-3.5 w-2/3 animate-pulse rounded" />
+                <span className="bg-panel h-3 w-1/3 animate-pulse rounded" />
+              </span>
             </span>
-            <span className="bg-panel rounded-control h-9 w-28 shrink-0 animate-pulse" />
+            <span className="flex shrink-0 gap-2 @max-xl/main:w-full">
+              <span className="bg-panel rounded-control size-9 shrink-0 animate-pulse" />
+              <span className="bg-panel rounded-control h-9 w-28 animate-pulse @max-xl/main:flex-1" />
+            </span>
           </li>
         ))}
       </ul>

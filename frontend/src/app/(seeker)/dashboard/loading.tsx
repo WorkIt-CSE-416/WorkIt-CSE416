@@ -17,7 +17,9 @@ import { TopMatchesSkeleton } from "./top-matches";
  * click's next frame. It is worth it only where a page waits on slow reads:
  * React keeps a fallback it has shown for at least 300ms, so on a page that
  * draws in 150ms a skeleton only makes it slower (no loading.tsx on the
- * Experiences, Resumes, My Profile, Help or Search pages for that reason).
+ * Experiences, Resumes, My Profile, Help or Search pages for that reason;
+ * Settings' modal has none for another, ../settings/sections.tsx). Never
+ * one beside the seeker layout: it would wrap the @modal slot too.
  *
  * The page-enter motion ((seeker)/template.tsx) now plays on this skeleton,
  * and the page then replaces it without a transition of its own.

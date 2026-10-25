@@ -59,13 +59,22 @@ function JobPageSkeleton() {
       <span className="sr-only">Loading the job posting</span>
       <JobViewHeaderSkeleton />
 
+      {/* Key Requirements' box (./key-requirements-visibility.tsx): its
+          28px heading row, then three of its label-and-line groups, each
+          two 20px lines. */}
       <div aria-hidden="true" className="border-border mt-6 rounded-xl border p-4">
-        <Skeleton className="h-5 w-40" />
+        <div className="flex h-7 items-center">
+          <Skeleton className="h-5 w-40" />
+        </div>
         <div className="mt-4 flex flex-col gap-4">
           {Array.from({ length: 3 }, (_, i) => (
-            <div key={i} className="flex flex-col gap-1.5">
-              <Skeleton className="h-4 w-28" />
-              <Skeleton className="h-4 w-2/3" />
+            <div key={i} className="flex flex-col gap-1">
+              <div className="flex h-5 items-center">
+                <Skeleton className="h-4 w-28" />
+              </div>
+              <div className="flex h-5 items-center">
+                <Skeleton className="h-4 w-2/3" />
+              </div>
             </div>
           ))}
         </div>

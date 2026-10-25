@@ -12,6 +12,11 @@ import { BackToJobs } from "../page-actions";
  * Tailor page would load behind a job page's skeleton. It draws Tailor's
  * frame (./page.tsx): Back (live), the title, the posting's line as a bar,
  * and the opening card.
+ *
+ * From the job page's own Tailor My Resume, the way in, the job's segment
+ * is already on screen, so this is the skeleton that shows. A link to
+ * Tailor from any other page prefetches only down to the job page's
+ * boundary, and shows the job page's skeleton first.
  */
 export default function TailorLoading() {
   return (

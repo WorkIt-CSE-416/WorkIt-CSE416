@@ -165,6 +165,10 @@ export function Editor({
   // Null until the first render lands (FirstRenderPane hands it over).
   const [rendered, setRendered] = useState<RenderedPdf | null>(null);
   const adopt = useCallback((first: RenderedPdf) => setRendered((current) => current ?? first), []);
+  // The first render failed: the page area says so, and the bar stops
+  // offering "Click a line", since there is no line to click.
+  const [firstFailed, setFirstFailed] = useState(false);
+  const fail = useCallback(() => setFirstFailed(true), []);
   // pdf.js downloads while the server compiles, not after.
   useEffect(() => {
     void loadPdfjs().catch(() => {});
@@ -511,7 +515,7 @@ export function Editor({
       draw(rendered)
     ) : (
       <Suspense fallback={<PageSkeleton />}>
-        <FirstRenderPane initial={initial} onLoad={adopt} resumeId={resumeId} />
+        <FirstRenderPane initial={initial} onLoad={adopt} onFail={fail} resumeId={resumeId} />
       </Suspense>
     );
 
@@ -521,6 +525,7 @@ export function Editor({
       <>
         <PhoneEditor
           rendered={rendered}
+          hint={!(firstFailed && !rendered)}
           pages={pdfPane((pdf) => (
             <PdfPages
               pdf={pdf.pdf}
@@ -584,6 +589,7 @@ export function Editor({
           choices={choices}
           header={header}
           rendered={rendered}
+          hint={!(firstFailed && !rendered)}
           saving={saving}
           elapsed={elapsed}
           fitUndo={fitUndo}
@@ -656,6 +662,7 @@ function Bar({
   choices,
   header,
   rendered,
+  hint,
   saving,
   elapsed,
   fitUndo,
@@ -674,6 +681,8 @@ function Bar({
   header: Header;
   /** Null until the first render lands. */
   rendered: RenderedPdf | null;
+  /** Shows "Click a line to edit it."; off once the first render failed. */
+  hint: boolean;
   saving: boolean;
   elapsed: number | null;
   fitUndo: ChoicesUpdate | null;
@@ -719,10 +728,12 @@ function Bar({
         <>
           {/* The way in, first and in ink with a brand glyph: as a grey note
               after the page count it read as fine print (KAN-258). */}
-          <span className="text-label text-ink flex items-center gap-1.5 font-medium">
-            <CursorClickIcon aria-hidden className="text-brand size-4 shrink-0" />
-            Click a line to edit it.
-          </span>
+          {hint && (
+            <span className="text-label text-ink flex items-center gap-1.5 font-medium">
+              <CursorClickIcon aria-hidden className="text-brand size-4 shrink-0" />
+              Click a line to edit it.
+            </span>
+          )}
           {/* The page count only when it is a problem, joined to its fix. A
               green "1 page" said what the page itself shows, and stood
               apart from everything else in the bar (KAN-258). */}
@@ -957,16 +968,19 @@ function AddContact({
 function FirstRenderPane({
   initial,
   onLoad,
+  onFail,
   resumeId,
 }: {
   initial: FirstRender;
   onLoad: (pdf: RenderedPdf) => void;
+  onFail: () => void;
   resumeId: string;
 }) {
   const { data, error } = use(initial);
   useEffect(() => {
     if (data) onLoad(data);
-  }, [data, onLoad]);
+    else onFail();
+  }, [data, onLoad, onFail]);
 
   if (data) return <PageSkeleton />;
   return (
