@@ -312,8 +312,11 @@ waits for an opened tab's page and form (`waitForLoad`, `formShows`).
   In, once the boxes hold the login and the page has settled. **Each
   button at most once a page**: Workday's message after a press is shown
   (a verification email: open it, come back and press Sign In; a refused
-  sign-in: never tried again, since Workday locks accounts), and a refused
-  Create Account drops its new password (`workday/forget`). Every change
+  sign-in: never tried again), and a refused Create Account drops its new
+  password (`workday/forget`). **A refused Sign In is never pressed again,
+  on any page** (Workday locks accounts): `workday/refused` saves `refused`
+  on the tenant's login, its password is no longer typed, and it clears
+  when the student signs in there (the tenant's next `fill/plan`). Every change
   to `workday_logins` runs one at a time (`serially` in
   `workday-logins.js`), so two tenants' Create Account at once keep both
   passwords. Without the student's yes, nothing is pressed. The

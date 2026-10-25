@@ -13,7 +13,9 @@
 // page's panel), the content script also ticks each company's terms box and
 // presses Create Account or Sign In itself, as Jobright and Simplify do
 // (workday.js). A tenant whose application has shown since is marked
-// `signedIn`: its account exists, so its Create Account is never pressed.
+// `signedIn`: its account exists, so its Create Account is never pressed. A
+// tenant whose Sign In Workday refused is marked `refused`: its Sign In is
+// never pressed again until the student signs in there.
 
 const LOGINS_KEY = "workday_logins";
 const FOR_ME_KEY = "workday_accounts_for_me";
@@ -52,13 +54,14 @@ function changeLogins(change) {
  * @param {string} email the student's email
  * @param {{ create: boolean }} options
  * `made`: the password is new, made by this call. `signedIn`: it has signed
- * in here. `forMe`: the student allowed the extension to press the buttons.
- * @returns {Promise<{ email: string, password: string | null, made: boolean, signedIn: boolean, forMe: boolean }>}
+ * in here. `refused`: Workday refused a Sign In the extension pressed with
+ * it. `forMe`: the student allowed the extension to press the buttons.
+ * @returns {Promise<{ email: string, password: string | null, made: boolean, signedIn: boolean, refused: boolean, forMe: boolean }>}
  */
 export function workdayLogin(tenant, email, { create }) {
   return changeLogins((logins, forMe) => {
     const answer = (login, made) => ({
-      email: login.email, password: login.password, made, signedIn: Boolean(login.signedIn), forMe,
+      email: login.email, password: login.password, made, signedIn: Boolean(login.signedIn), refused: Boolean(login.refused), forMe,
     });
     if (logins[tenant]) return { value: answer(logins[tenant], false) };
     if (!create) return { value: answer({ email, password: null }, false) };
@@ -72,11 +75,30 @@ export async function allowForMe() {
   await chrome.storage.local.set({ [FOR_ME_KEY]: true });
 }
 
-/** A tenant's application showed: the saved login signs in there. Nothing to mark without one. */
+/**
+ * A tenant's application showed: the saved login signs in there, and a
+ * refused Sign In no longer holds (the student signed in). Nothing to mark
+ * without one.
+ */
 export function markSignedIn(tenant) {
   return changeLogins((logins) => {
-    if (!logins[tenant] || logins[tenant].signedIn) return;
-    logins[tenant] = { ...logins[tenant], signedIn: true };
+    const login = logins[tenant];
+    if (!login || (login.signedIn && !login.refused)) return;
+    const { refused: _, ...rest } = login;
+    logins[tenant] = { ...rest, signedIn: true };
+    return { save: true };
+  });
+}
+
+/**
+ * Workday refused a Sign In the extension pressed with the saved login: it
+ * is kept, but never pressed with again (each try counts toward Workday's
+ * lockout), on any page, until the student signs in (markSignedIn).
+ */
+export function markRefused(tenant) {
+  return changeLogins((logins) => {
+    if (!logins[tenant] || logins[tenant].refused) return;
+    logins[tenant] = { ...logins[tenant], refused: true };
     return { save: true };
   });
 }

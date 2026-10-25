@@ -135,3 +135,26 @@ test("two companies' Create Account at once each keep the password their account
     expect(saved[host]?.password).toBe(password);
   }
 });
+
+test("a refused sign-in stays refused when the page loads again: Sign In isn't pressed with it", async () => {
+  test.setTimeout(120_000);
+  const workdays = new FakeWorkdays(["workday-caci"]);
+  workdays.alerts["caci.wd1.myworkdayjobs.com"] = { signin: "Wrong email address or password." };
+  const page = await start(workdays,
+    { id: "wd-0", apply_url: workdays.signInUrl(0) },
+    { id: "wd-1", apply_url: workdays.signInUrl(0, "signin") });
+
+  const caci = await page(workdays.signInUrl(0));
+  await allow(caci);
+  await caci.waitForURL(workdays.url(0), { timeout: 30_000 });
+  await skip(caci);
+  const again = await page(workdays.signInUrl(0, "signin"));
+  await expect(overlay(again).locator(".row").filter({ hasText: "won't try again" })).toBeVisible({ timeout: 30_000 });
+
+  // The page loads again (the student reloads it, or the batch opens the form again): still refused.
+  await again.reload();
+  await expect(overlay(again).locator(".row").filter({ hasText: "won't try again" })).toBeVisible({ timeout: 30_000 });
+  await again.waitForTimeout(3000);
+  expect(workdays.signIns.map((s) => s.view)).toEqual(["create", "signin"]);
+  expect(await box(again, "password").inputValue()).toBe("");
+});
