@@ -73,6 +73,18 @@ test("brought policies reach the Plan over WorkIt's own", async () => {
   expect(enginePolicies(STUDENT).cover_letter).toBeUndefined();
 });
 
+test("WorkIt applies to US roles only, so a question about working in the UK is No", async () => {
+  const asked = "Do you have the right to work in the UK?";
+  const prepared: any = await planFill({
+    url: "https://boards.greenhouse.io/example/jobs/1", profile: STUDENT, today: "2026-10-22",
+    call: async () => { throw new Error("no page"); },
+    fetchText: async () => job("greenhouse-arc"),
+    extra: [{ name: "uk_right_to_work", label: asked, kind: "select", required: true, options: ["Yes", "No"] }],
+  });
+
+  expect(prepared.plan.answers.uk_right_to_work).toBe("No");
+});
+
 test("a middle name stays out of the last name", async () => {
   const named = { ...STUDENT, full_name: "Test Middle Person", first_name: "Test", middle_name: "Middle", last_name: "Person" };
   const { labels } = await planned("greenhouse-arc", named);
