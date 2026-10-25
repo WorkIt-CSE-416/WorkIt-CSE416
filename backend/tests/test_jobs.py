@@ -50,6 +50,8 @@ ROW = SimpleNamespace(
     salary_max=46.0,
     salary_currency="USD",
     salary_period=dto.salary_period.hour,
+    # FORM_URL: jobs.example is no hiring system auto apply fills (KAN-376).
+    form_url=None,
 )
 
 
@@ -99,8 +101,9 @@ def test_row_becomes_the_feed_shape():
         "min_years_experience": None,
         "start_term": "Summer 2027",
         "sponsorship": dto.visa_sponsorship.sponsors,
-        # Worked out from apply_url: jobs.example is no hiring system auto
+        # Worked out from the form: jobs.example is no hiring system auto
         # apply fills (app/auto_apply/hosts.py).
+        "form_url": None,
         "auto_apply": False,
     }
 

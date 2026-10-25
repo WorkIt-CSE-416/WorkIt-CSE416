@@ -141,3 +141,7 @@ _Avoid_: recommendation, best job
 **Job Type**:
 What kind of job a job posting is: Full-Time, Part-Time, Contract or Internship. The Jobs page and the Applications Tracker both filter on it under this name.
 _Avoid_: Track, employment type, position type
+
+**Job board**:
+A site that lists other employers' job postings, such as LinkedIn or Indeed. Their terms ban automated applications, so batch apply never opens one: it fills a job board's posting only through the employer's own form that the posting names, and refuses it otherwise. Not a company job board, which is one company's page on a hiring system.
+_Avoid_: job site, aggregator, calling a hiring system a job board
