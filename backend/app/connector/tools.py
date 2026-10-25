@@ -12,7 +12,9 @@ whole view of WorkIt (auto-apply/architecture.md, 14.6):
   briefs (KAN-382), in app/connector/briefs.py; get_next_application hands
   the application's company brief with it.
 - `save_answers` (a write): saves answers to that application's
-  questions, all or none; the open batch tab fills each one.
+  questions, all or none; the open batch tab fills each one. Each written
+  answer carries its review (the rating and the claims the claim check
+  cut, KAN-369), kept with it.
 - `get_writing_samples` and `save_style_card` (app/connector/style.py,
   KAN-384): the student's writing samples, and the style card their Claude
   builds from them, which get_next_application then gives (`style_card`,
@@ -97,9 +99,20 @@ class NextApplication(BaseModel):
     )
 
 
+class Review(BaseModel):
+    rating: int = Field(ge=1, le=10, description="The last rating the review gave the answer, from 1 to 10.")
+    unsupported: list[str] = Field(
+        description="Each claim the claim check found the sources don't support, quoted, which the edit cut; "
+        "[] when it found none."
+    )
+
+
 class Answer(BaseModel):
     name: str = Field(description="The question's name, from get_next_application.")
     answer: str = Field(max_length=ANSWER_MAX)
+    review: Review | None = Field(
+        default=None, description='Required for a question of kind "text"; none for a choice.'
+    )
 
 
 class Saved(BaseModel):
@@ -179,7 +192,8 @@ def register(server: MCPServer) -> None:
             "Saves answers to one WorkIt job application's written questions, all or none, and fills "
             "them into the application's open tab in the student's browser. Refuses an answer to a "
             "question the application doesn't have, an empty one, or one that fails WorkIt's checks (over the question's "
-            "max_length among them), with every reason."
+            "max_length among them), with every reason. A written answer is saved with its review, and refused "
+            "without one, rated under 8, or still holding a claim it lists as unsupported."
         ),
         annotations=ToolAnnotations(readOnlyHint=False, destructiveHint=False, idempotentHint=True, openWorldHint=False),
     )
@@ -191,7 +205,10 @@ def register(server: MCPServer) -> None:
         async with get_sessionmaker()() as db:
             student = await account.current_student(db)
             try:
-                left = await pipeline.save_answers(db, student.id, job, {a.name: a.answer for a in answers})
+                left = await pipeline.save_answers(
+                    db, student.id, job, {a.name: a.answer for a in answers},
+                    reviews={a.name: pipeline.Review(a.review.rating, a.review.unsupported) for a in answers if a.review},
+                )
             except pipeline.NotFound as exc:
                 raise ToolError("No such application. Use the job_id get_next_application gave.") from exc
             except (pipeline.WrongStage, pipeline.Refused) as exc:

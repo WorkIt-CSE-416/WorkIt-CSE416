@@ -37,6 +37,7 @@ from app.auto_apply.stages import (  # noqa: F401 (get_application re-exported)
 )
 from app.auto_apply.written import (  # noqa: F401 (re-exported: callers name these steps as pipeline's)
     Refused,
+    Review,
     ToWrite,
     answer_bank,
     ask_questions,

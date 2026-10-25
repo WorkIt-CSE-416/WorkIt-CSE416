@@ -252,6 +252,8 @@ async def test_a_refresh_token_used_twice_at_once_gives_one_pair(running, applic
 # --- The tools and the prompt ---
 
 WHY = {"name": "question_7", "label": "Why do you want to work at Acme?", "required": True, "max_length": 600}
+# The passes Claude ran on a written answer, which save_answers takes with it (KAN-369).
+REVIEWED = {"rating": 8, "unsupported": []}
 PROUD = {"name": "question_8", "label": "Tell us about a project you are proud of.", "required": False, "max_length": None}
 
 
@@ -323,7 +325,7 @@ async def test_saved_answers_reach_the_tab_and_the_next_application_moves_on(run
     answer = "I want to build flight software at Acme, and my internship there taught me the codebase."
 
     async with claude(applicant) as client:
-        saved = await client.call_tool("save_answers", {"job_id": first, "answers": [{"name": "question_7", "answer": answer}]})
+        saved = await client.call_tool("save_answers", {"job_id": first, "answers": [{"name": "question_7", "answer": answer, "review": REVIEWED}]})
         after = await client.call_tool("get_next_application", {})
 
     assert saved.is_error is False, saved.content
@@ -350,11 +352,11 @@ async def test_a_bad_save_is_refused_and_nothing_is_kept(running, applicant, dat
 
     async with claude(applicant) as client:
         too_long = await client.call_tool("save_answers", {"job_id": job, "answers": [
-            {"name": "question_7", "answer": "x" * 601}]})
+            {"name": "question_7", "answer": "x" * 601, "review": REVIEWED}]})
         unknown = await client.call_tool("save_answers", {"job_id": job, "answers": [
-            {"name": "question_7", "answer": "Fine."}, {"name": "question_99", "answer": "No such question."}]})
+            {"name": "question_7", "answer": "Fine.", "review": REVIEWED}, {"name": "question_99", "answer": "No such question.", "review": REVIEWED}]})
         not_mine = await client.call_tool("save_answers", {"job_id": theirs, "answers": [
-            {"name": "question_7", "answer": "Not my application."}]})
+            {"name": "question_7", "answer": "Not my application.", "review": REVIEWED}]})
 
     assert too_long.is_error and unknown.is_error and not_mine.is_error
     assert (await _tab_asks(me, job))[0]["answer"] is None
@@ -399,7 +401,7 @@ async def test_the_connector_calls_no_model(running, applicant, database, monkey
 
     async with claude(applicant) as client:
         assert not (await client.call_tool("get_next_application", {})).is_error
-        assert not (await client.call_tool("save_answers", {"job_id": job, "answers": [{"name": "question_7", "answer": "Yes."}]})).is_error
+        assert not (await client.call_tool("save_answers", {"job_id": job, "answers": [{"name": "question_7", "answer": "Yes.", "review": REVIEWED}]})).is_error
 
 
 async def test_every_tool_carries_the_annotations_anthropics_directory_asks_for(running, applicant):

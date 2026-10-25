@@ -17,6 +17,7 @@ import pytest
 
 from tests.test_connector import (
     PROUD,
+    REVIEWED,
     WHY,
     _api,
     _signed_in_as,
@@ -78,7 +79,7 @@ async def _student_edits(me: str, job: str, question: dict, answer: str, own: bo
 
 async def _save(applicant, job: str, name: str, answer: str) -> None:
     async with claude(applicant) as client:
-        result = await client.call_tool("save_answers", {"job_id": job, "answers": [{"name": name, "answer": answer}]})
+        result = await client.call_tool("save_answers", {"job_id": job, "answers": [{"name": name, "answer": answer, "review": REVIEWED}]})
     assert not result.is_error, result.content
 
 
@@ -124,7 +125,7 @@ async def test_a_saved_answer_is_offered_to_later_forms_and_never_reaches_claude
     await _tab_asks(me, first, PROUD, WHY)
     async with claude(applicant) as client:
         saved = await client.call_tool("save_answers", {"job_id": first, "answers": [
-            {"name": "question_8", "answer": ROBOT}, {"name": "question_7", "answer": "Acme builds the software I want to build."}]})
+            {"name": "question_8", "answer": ROBOT, "review": REVIEWED}, {"name": "question_7", "answer": "Acme builds the software I want to build.", "review": REVIEWED}]})
     assert not saved.is_error, saved.content
 
     bank = await _bank(me, second)
@@ -160,7 +161,7 @@ async def test_the_students_edit_replaces_the_answer_and_is_reused_from_then_on(
     # Their wording replaces their Claude's in the application, and a later save there never replaces it.
     assert (await _tab_asks(me, first))[0]["answer"] == "My own words about my robot."
     async with claude(applicant) as client:
-        again = await client.call_tool("save_answers", {"job_id": first, "answers": [{"name": "question_8", "answer": ROBOT}]})
+        again = await client.call_tool("save_answers", {"job_id": first, "answers": [{"name": "question_8", "answer": ROBOT, "review": REVIEWED}]})
     assert not again.is_error, again.content
     assert (await _tab_asks(me, first))[0]["answer"] == "My own words about my robot."
     # Their Claude answers the same question on another form, later: the student's words still come first.

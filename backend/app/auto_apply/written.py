@@ -139,7 +139,7 @@ async def next_to_write(
 
 async def save_answers(
     db: AsyncSession, applicant_id: uuid.UUID, job_id: uuid.UUID, answers: dict[str, str],
-    *, by: Literal["claude", "student"] = "claude",
+    *, by: Literal["claude", "student"] = "claude", reviews: dict[str, "Review"] | None = None,
 ) -> int:
     """
     Saves the student's Claude's answers to one application's questions
@@ -155,8 +155,11 @@ async def save_answers(
     Answers page, which skips only the copy check against the student's
     own writing samples (it stops their Claude parroting them; the student
     may use their own words), every other check kept, since the paste may
-    come from any AI. Raises NotFound / WrongStage for an application that
-    isn't open, Refused otherwise.
+    come from any AI. Claude's answer written in words also needs its
+    Review (KAN-369, `reviews` by name), kept with it: a missing one, one
+    rated under GOOD, or a cut claim still in the answer is refused. A paste
+    needs none. Raises NotFound / WrongStage for an application that isn't
+    open, Refused otherwise.
     """
     await open_application(db, applicant_id, job_id)
     questions = {q.name: q for q in await fetch_written(db, applicant_id, job_id)}
@@ -184,15 +187,52 @@ async def save_answers(
             kept[name], found = answer.strip(), checks.problems(answer.strip(), checks.Context(
                 sources=(*sources, q.label), samples=samples, employers=employers, limit=q.max_length,
             ))
+            if by == "claude":
+                found += _review_problems(kept[name], (reviews or {}).get(name))
         if found:
             failing[name] = found
     if failing:
         raise Refused("Nothing was saved. Fix these answers and save them all again:\n" + "\n".join(
             f"- {name!r}: {' '.join(found)}" for name, found in failing.items()
         ), failing)
-    await save_written(db, applicant_id, job_id, kept)
+    await save_written(db, applicant_id, job_id, kept, {
+        name: dataclasses.asdict(review) for name, review in (reviews or {}).items()
+        if by == "claude" and name in kept and not questions[name].kind
+    })
     await db.commit()
     return sum(1 for name, q in questions.items() if q.answer is None and name not in answers)
+
+
+# The rating (1-10) the reader's review must give an answer before it is
+# saved, as in Apply: what a judge gives a standout answer.
+GOOD = 8
+
+
+@dataclasses.dataclass(frozen=True)
+class Review:
+    """The passes the student's Claude ran on one written answer (the
+    prompt's steps 2-4): the reader's review's last rating, 1-10, and the
+    claims the claim check listed, each quoted from the draft, which the
+    edit cut (empty when it found none)."""
+    rating: int
+    unsupported: list[str]
+
+
+def _review_problems(answer: str, review: Review | None) -> list[str]:
+    """What keeps an answer of Claude's from saving on its review: none
+    given, a rating under GOOD, or a claim the check cut still in it. A
+    model-free server can't redo the passes; this makes skipping one, or
+    saving what they found weak, a refusal rather than silence."""
+    if review is None:
+        return [("It has no review: give the rating your last review round gave it and the claims "
+                 "the claim check listed (an empty list when it found none).")]
+    if review.rating < GOOD:
+        return [(f"Its review rated it {review.rating} of 10, under {GOOD}: review and rewrite it again, or "
+                 "leave the question out and tell the student what it needs.")]
+    text = " ".join(answer.casefold().split())
+    left = [claim for claim in review.unsupported if (c := " ".join(claim.casefold().split())) and c in text]
+    return [f"A claim the check listed is still in it: {claim!r}. Cut it, or say only what the sources support."
+            for claim in left]
 
 
 async def _check_material(

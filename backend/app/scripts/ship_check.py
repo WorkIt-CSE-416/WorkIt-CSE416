@@ -22,7 +22,7 @@ its only tools are the connector's own (app/connector/tools.py, briefs.py
 and style.py, unchanged), served over stdio with the chat's applications,
 in the chat's order, and the student's samples in place of the database;
 save_answers runs WorkIt's own checks (KAN-380). It saves connector.json (each answer with
-its chat and its place in it) and each chat's transcript in
+its review (KAN-369), its chat and its place in it) and each chat's transcript in
 <folder>/connector/. A chat already written is kept; delete its files to
 write it again.
 
@@ -132,12 +132,13 @@ def stub(folder: Path, chat: int) -> Iterator[tools.MCPServer]:
         if job_id not in named:
             raise pipeline.NotFound("No application for that job. Queue it first.")
 
-    async def save_written(db, applicant_id, job_id, answers):
+    async def save_written(db, applicant_id, job_id, answers, reviews=None):
         app = named[job_id]
-        saved.update({(app, name): text for name, text in answers.items()})
+        saved.update({(app, name): (text, (reviews or {}).get(name)) for name, text in answers.items()})
         _save(out, [
-            {"application": a, "question": q, "answer": text, "chat": chat + 1, "position": order.index(a) + 1}
-            for (a, q), text in saved.items()
+            {"application": a, "question": q, "answer": text, "review": review, "chat": chat + 1,
+             "position": order.index(a) + 1}
+            for (a, q), (text, review) in saved.items()
         ])
 
     async def student(db):

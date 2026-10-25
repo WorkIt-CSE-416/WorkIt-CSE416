@@ -416,11 +416,13 @@ async def fetch_unanswered(
 
 
 async def save_written(
-    db: AsyncSession, applicant_id: uuid.UUID, job_id: uuid.UUID, answers: dict[str, str]
+    db: AsyncSession, applicant_id: uuid.UUID, job_id: uuid.UUID, answers: dict[str, str],
+    reviews: dict[str, dict] | None = None,
 ) -> None:
-    """Writes each answer onto its question's row, but never over the
-    student's own (KAN-379). Flushes; the caller commits, and has checked
-    every name is the application's."""
+    """Writes each answer onto its question's row, with its review (KAN-369;
+    none for a name `reviews` lacks), but never over the student's own
+    (KAN-379). Flushes; the caller commits, and has checked every name is
+    the application's."""
     for name, answer in answers.items():
         await db.execute(
             update(Written_Answer)
@@ -430,7 +432,7 @@ async def save_written(
                 Written_Answer.name == name,
                 Written_Answer.own.is_(False),
             )
-            .values(answer=answer, answered_at=func.now())
+            .values(answer=answer, answered_at=func.now(), review=(reviews or {}).get(name))
         )
 
 
@@ -447,7 +449,7 @@ async def drop_written(db: AsyncSession, applicant_id: uuid.UUID, job_id: uuid.U
                 Written_Answer.name.in_(list(names)),
                 Written_Answer.own.is_(False),
             )
-            .values(answer=None, answered_at=None)
+            .values(answer=None, answered_at=None, review=None)
         )
 
 
@@ -468,10 +470,10 @@ async def save_own_written(
     row = insert(Written_Answer).values(
         applicant_id=applicant_id, job_id=job_id, name=name, label=label, required=False, position=UNSENT,
         answer=answer, answered_at=func.now(), own=own,
-    )
+    )  # no review: the text is no longer the one Claude's review was of
     await db.execute(row.on_conflict_do_update(
         index_elements=["applicant_id", "job_id", "name"],
-        set_={"answer": row.excluded.answer, "answered_at": row.excluded.answered_at, "own": own},
+        set_={"answer": row.excluded.answer, "answered_at": row.excluded.answered_at, "own": own, "review": None},
     ))
 
 

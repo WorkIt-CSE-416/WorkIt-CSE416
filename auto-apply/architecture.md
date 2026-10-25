@@ -908,7 +908,9 @@ One row per question an application's form needs written, primary key
 `name` is the form field's name in the Fill engine's Question set, so the
 open tab knows where an answer goes; `label`, `required`, `max_length` (the
 form's own limit) and `position` (the form's order) come from the tab;
-`answer` and `answered_at` from the connector's save (14.6), or from the
+`answer` and `answered_at` from the connector's save (14.6), with its
+`review` (KAN-369: the review's last rating and the claims the claim check
+cut; NULL for a choice, a paste or the student's edit), or from the
 same save when the student pastes an answer on the Written Answers page
 (KAN-385), or from the student's own edit in the tab, which sets `own`
 (KAN-379): their Claude's save never overwrites it, and later forms reuse
@@ -1116,7 +1118,7 @@ ids and plain data.
 | Name | Kind | Does |
 |---|---|---|
 | `get_next_application` | tool, `readOnlyHint` | The oldest open application (queued or needs_you, posting open) with a written question unanswered (`next_to_write`): its job id, company, title, the posting's description, its unanswered questions (`name`, `question`, `required`, `max_length`), and the student's experience bank and skills (`bank_context`, no links). Only that application's material. `job_id: null` when none is left. Takes and answers a `chat` value (the job ids this chat was given, below); past `CONNECTOR_CHAT_CAP` it answers `start_new_chat: true`, a `message` for the student, and no application |
-| `save_answers` | tool, a write (not destructive) | `{job_id, answers: [{name, answer}]}` (`save_answers`): all or none; refuses a name the application doesn't ask, an empty answer, or one that fails a check in code (`app/auto_apply/checks.py`, KAN-380: machine-made words, a run of 5 words copied from the student's writing samples, a number not in the bank, posting or question, another application's company, a sentence over 30 words, a placeholder, or over the form's `max_length`, else 10,000), with every failing answer's reasons as one tool error for Claude to fix. Answers `{saved, left}` |
+| `save_answers` | tool, a write (not destructive) | `{job_id, answers: [{name, answer, review: {rating, unsupported}}]}` (`save_answers`; `review` on a written answer only, KAN-369): all or none; refuses a written answer with no review, rated under 8, or still holding a claim its review lists; refuses a name the application doesn't ask, an empty answer, or one that fails a check in code (`app/auto_apply/checks.py`, KAN-380: machine-made words, a run of 5 words copied from the student's writing samples, a number not in the bank, posting or question, another application's company, a sentence over 30 words, a placeholder, or over the form's `max_length`, else 10,000), with every failing answer's reasons as one tool error for Claude to fix. Answers `{saved, left}` |
 | `get_writing_samples` | tool, `readOnlyHint` | `app/connector/style.py` (KAN-384): the student's writing samples, word for word, and the style card saved from them, if any |
 | `save_style_card` | tool, a write (not destructive) | `{card}`: adds or replaces the student's style card; refuses one when the student has no samples, or an empty one or one over 4,000 characters |
 | "Write my WorkIt answers" | prompt | `app/connector/prompt.py`. The loop (next application, research its company if `get_research_task` names it (KAN-382), write, save, until the tool says to start a new chat) and the writing rules. **The rules live here only**; tool descriptions say what a tool does (Anthropic's review refuses descriptions that steer Claude) |
@@ -1127,7 +1129,12 @@ shapes by question type (under 180 words, 220 for a two-part question,
 within the form's `max_length`); a review as a recruiter, a hiring manager
 and a founder would read it, rewritten until rated 8 of 10, at most two
 rounds; a check that lists every claim the sources don't support; and an
-edit of all of the application's answers together. Facts come only from
+edit of all of the application's answers together. Apply runs these as
+separate model calls; the prompt has the student's Claude run them as
+separate passes, each as a fresh reader, and save each written answer with
+its last rating and the claims the check listed (KAN-369), which the save
+refuses without, under 8, or with a listed claim left in. An answer still
+under 8 after two rounds is left for the student. Facts come only from
 the student's experience bank and the posting. Apply's own facts, examples
 and its owner's preferences are left out; a question the sources can't
 answer (a preference, a reference, something only the student knows) is
