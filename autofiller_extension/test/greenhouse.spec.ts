@@ -87,3 +87,13 @@ test("on a posting that bans AI-written answers, the essay is left for the stude
   expect(rows.written).toEqual([]);
   expect(rows.notes.join(" ")).toMatch(/AI/);
 });
+
+test("a one-line question the Plan leaves to a draft is the student's, not an essay", () => {
+  // Hermeus's Lever form (live, 2026-10-24): "Nick Name" went to the essay route, which writes 3-5 sentences.
+  const nickname = { name: "nick", label: "Nick Name", kind: "text", required: false, options: [] };
+  const details = { name: "details", label: "Have you completed at least one previous internship? Please provide details.", kind: "textarea", required: true, options: [] };
+  const rows = planRows({ plan: { essays: [], drafts: [nickname, details], missing: [], handoffs: [] } });
+
+  expect(rows.written).toEqual([{ name: "details", label: details.label, required: true }]);
+  expect(rows.yours).toEqual([{ name: "nick", label: "Nick Name", required: false }]);
+});

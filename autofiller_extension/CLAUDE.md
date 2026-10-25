@@ -476,7 +476,7 @@ real file input is directly targetable underneath both.
 
 Open-ended questions ("Why do you want to work here?") have no fixed
 answer. The Fill engine's Plan says which questions need a written answer
-(its essays, and its drafts that take text; `engine.js`'s `planRows`), and
+(its essays, and its drafts in a text area; `engine.js`'s `planRows`), and
 the overlay lists each as "needs_generation" (`lib-status.js`).
 
 - **One blanket opt-in, never per-question.** After the fill, the overlay's
@@ -488,8 +488,9 @@ the overlay lists each as "needs_generation" (`lib-status.js`).
   AI-written answers, or a posting that speaks to AI agents, makes the Plan
   hand those questions off instead: they never reach the essay route, and
   the overlay lists the Plan's reason under "Left for you". A draft that is
-  a choice (a dropdown) is the student's too: a written answer can't pick
-  an option.
+  a choice (a dropdown) or one line ("Nick Name") is the student's too: a
+  written answer can't pick an option, and the essay route writes
+  sentences.
 - **Generation is sequential** (`content-script.js`'s `onGenerate`), one
   `essay/generate` per question: each is its own counted AI use, and the
   overlay shows each row as it lands. The answer is then filled through the

@@ -269,10 +269,10 @@ export async function fillPage({ call, site, questions, answers, accepted, state
 /**
  * What the overlay lists besides the planned answers, from the Plan:
  * - `written`: questions that need a written answer (the Plan's essays, and
- *   its drafts that take text). Each waits for the student's one Generate
+ *   its drafts in a text area). Each waits for the student's one Generate
  *   click, then goes to the essay-answer route.
  * - `yours`: questions WorkIt has no answer for (Missing facts, and drafts
- *   that are a choice, which a written answer can't make).
+ *   that are a choice or one line, which a written answer can't make).
  * - `notes`: what the Plan leaves to the student and why (an AI trap or ban,
  *   a video), and a screener the student would not pass.
  * A form that bans AI-written text never has `written`: the Plan hands its
@@ -282,7 +282,9 @@ export async function fillPage({ call, site, questions, answers, accepted, state
  */
 export function planRows({ plan }) {
   const row = (q) => ({ name: q.name, label: q.label, required: q.required });
-  const takesText = (q) => q.kind === "text" || q.kind === "textarea";
+  // Only a text area takes a written answer: the essay route writes sentences, so a one-line
+  // draft ("Nick Name", Hermeus's Lever form) is the student's.
+  const takesText = (q) => q.kind === "textarea";
   const drafts = plan.drafts ?? [];
   const notes = [...(plan.handoffs ?? [])];
   if (plan.not_eligible) notes.push(`You may not meet this requirement: ${plan.not_eligible}`);
