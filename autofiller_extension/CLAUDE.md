@@ -64,7 +64,9 @@ builds it: `dist/engine.js` is committed in the engine repo.
   `workday.js` reads Workday's pages (the step shown, a settled step, the
   sign-in it fills) as `window.WIA.workday`, and `written-answers.js` the
   questions that need writing (their rows, Generate or the student's
-  Claude, the student's edits of them) as `window.WIA.writtenAnswers`.
+  Claude, the student's edits of them) as `window.WIA.writtenAnswers`,
+  and `batch-tab.js` a batch tab's side (`batch/state`, the walk's
+  `batch/flags` and `batch/focus`, the submit watch) as `window.WIA.batchTab`.
   The content script reaches the engine through the background,
   which runs `engine.js`'s `runEngine` (the engine's own dispatcher,
   `FillEngine.call`) in the page's MAIN world with
@@ -321,7 +323,7 @@ waits for an opened tab's page and form (`waitForLoad`, `formShows`).
     most).
 - **The content script says when a tab is ready.** In a batch tab
   (`injectFill(tabId, { batch: true })` sets `window.WIA.batch`),
-  `content-script.js` sends `batch/state` once the fill ends, then watches
+  `batch-tab.js` sends `batch/state` once the fill ends; `content-script.js` watches
   the student's edits: the engine reads back (`fill/read`) every required
   or failed field, so emptying one moves the tab to Needs you and answering
   the last one moves it to Ready.
@@ -415,7 +417,7 @@ waits for an opened tab's page and form (`waitForLoad`, `formShows`).
   has the content script scroll to and focus the field and mark its row
   (`batch/focus`). Past the last one the panel says "Nothing else needs
   you." and the next press starts again. A field is found by the job
-  system's own field id (`content-script.js`'s `fieldOf`); a tab nothing
+  system's own field id (`batch-tab.js`'s `fieldOf`); a tab nothing
   was filled in is one stop, the page itself. This is the only time the
   extension switches tabs on its own, and only on the student's press.
 - **The tabs fill hidden; the student is never taken to one.** KAN-305's

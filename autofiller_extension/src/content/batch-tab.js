@@ -1,0 +1,133 @@
+// A batch tab's side of batch apply (KAN-370, KAN-374, KAN-375), for the
+// fill (content-script.js): it tells the background whether the tab is
+// ready or needs the student ("batch/state") whenever that changes, answers
+// Next Thing That Needs You's walk ("batch/flags", "batch/focus"), and
+// watches for the student's own submit ("batch/watch"). Loaded before
+// content-script.js (shared/content-scripts.js), as window.WIA.batchTab,
+// which makes one per fill.
+window.WIA = window.WIA || {};
+
+(function () {
+  "use strict";
+
+  /**
+   * One fill's batch side. `batch`: the fill is one of batch apply's tabs
+   * (else report() does nothing). `note(key, label, reason, failed)`: puts
+   * a message row on the panel.
+   * @param {{ batch: boolean, note: Function }} options
+   */
+  function batchTab({ batch, note }) {
+    const { status, overlay } = window.WIA;
+    const send = (message) => chrome.runtime.sendMessage(message);
+
+    // The Fill engine's event for the student's submit (its SUBMIT_EVENT, then this tab's key); its
+    // detail is the result as JSON. The key is made here, in the isolated world the page can't read, so
+    // a page script can't send an event this tab believes (it doesn't know the name).
+    const SUBMIT_KEY = crypto.randomUUID();
+    const SUBMIT_EVENT = `fillengine:submit:${SUBMIT_KEY}`;
+
+    /** Whether a row needs the student: a note the Plan left them, a failed field, or a required one unanswered. */
+    const needsYou = (r) => r.key.startsWith("_") || r.status === "failed" || (r.required && r.status !== "filled");
+
+    /**
+     * Whether this batch tab is "ready" (every field it needs shows an answer),
+     * "failed" (the fill itself went wrong: an error note) or "needs_you": the
+     * fill stopped (no Filler for this job system), a Workday step waits for
+     * the student, a field failed, a required one is unanswered, or the Plan
+     * left something to the student (a note).
+     */
+    function tabState() {
+      const phase = window.WIA.phase;
+      // The fill itself went wrong (the Plan failed, Workday's error page): failed, not a question for the student.
+      if (status.summary().fields.some((r) => r.key === "_error" && r.status === "failed")) return "failed";
+      if (phase !== "filled") return "needs_you";
+      return status.summary().fields.some(needsYou) ? "needs_you" : "ready";
+    }
+
+    /**
+     * The form's field for a question, by the job system's own field id: an
+     * element's id (Greenhouse, Lever's cards), its name (Lever), or the
+     * attribute Ashby, Workable or Rippling mark a field's box with. Null for
+     * a row that is not a field, or a field the page doesn't show.
+     */
+    function fieldOf(key) {
+      if (key.startsWith("_")) return null;
+      const name = CSS.escape(key);
+      return (
+        document.getElementById(key) ??
+        document.querySelector(`[name="${name}"], [data-field-path="${name}"], [data-ui="${name}"], [data-testid="${name}"]`)
+      );
+    }
+
+    /** The keys of the rows that need the student, in the order their fields stand on the page (notes last). */
+    function flagged() {
+      const rows = status.summary().fields.filter(needsYou).map((r) => ({ key: r.key, field: fieldOf(r.key) }));
+      const placed = rows.filter((r) => r.field).sort((a, b) => (a.field.compareDocumentPosition(b.field) & Node.DOCUMENT_POSITION_FOLLOWING ? -1 : 1));
+      return [...placed, ...rows.filter((r) => !r.field)].map((r) => r.key);
+    }
+
+    /** Brings a flagged row's field into view and focuses it, and marks its row on the panel. */
+    function show(key) {
+      const field = fieldOf(key);
+      if (field) {
+        field.scrollIntoView({ block: "center" });
+        const control = field.matches("input, select, textarea, button, [tabindex]") ? field : field.querySelector("input, select, textarea, button, [tabindex]");
+        control?.focus({ preventScroll: true });
+      }
+      overlay.setCurrent(key);
+    }
+
+    /**
+     * Batch apply's "Next Thing That Needs You" (background/batch.js walks the
+     * batch's tabs): this tab answers which of its rows need the student
+     * ("batch/flags") and shows one when it is next ("batch/focus"). Added
+     * once per page, though the fill may be injected again.
+     */
+    function answerTheWalk() {
+      if (window.WIA.walking) return;
+      window.WIA.walking = true;
+      chrome.runtime.onMessage.addListener((message, _sender, reply) => {
+        if (message?.type === "batch/flags") reply({ keys: window.WIA.phase === "filling" ? [] : flagged() });
+        else if (message?.type === "batch/focus") {
+          show(message.key);
+          reply({ shown: true });
+        }
+      });
+      overlay.offerNext(async () => {
+        const answer = await send({ type: "batch/next" }).catch(() => null);
+        if (!answer?.ok) return "WorkIt couldn't look through the batch. Try again.";
+        return answer.done ? "Nothing else needs you." : null;
+      });
+    }
+
+    let reported = null;
+    /** Tells the background this batch tab's state, when it changed. */
+    function report() {
+      if (!batch || window.WIA.phase === "filling") return;
+      const state = tabState();
+      if (state === reported) return;
+      reported = state;
+      send({ type: "batch/state", state }).catch(() => {});
+    }
+
+    /** Watches the page for the student's submit, from before the fill: the student may submit any time. */
+    function watchSubmit() {
+      document.addEventListener(SUBMIT_EVENT, async (event) => {
+        const result = JSON.parse(event.detail);
+        if (!result.submitted) {
+          note("_submit", "Your application wasn't sent", result.reason, true);
+          return;
+        }
+        const answer = await send({ type: "batch/submitted" }).catch((error) => ({ ok: false, error: error.message }));
+        if (answer?.ok) note("_submit", "Application sent", "WorkIt marked it Applied.");
+        else note("_submit", "Application sent, but WorkIt didn't mark it Applied", `Mark it Applied on WorkIt's Applications page. (${answer?.error ?? "No answer"})`, true);
+      });
+      send({ type: "batch/watch", key: SUBMIT_KEY }).catch(() => {});
+    }
+
+    status.subscribe(report);
+    return { report, answerTheWalk, watchSubmit };
+  }
+
+  window.WIA.batchTab = batchTab;
+})();
