@@ -13,6 +13,7 @@ from sqlalchemy import text
 
 from app.auto_apply import briefs
 from tests.test_connector import (  # noqa: F401  (fixtures)
+    REVIEWED,
     WHY,
     _api,
     _describe,
@@ -55,9 +56,9 @@ async def test_an_answer_keeps_the_brief_fact_it_names_for_the_page(running, app
 
     async with claude(applicant) as client:
         off_brief = await client.call_tool("save_answers", {"job_id": job, "answers": [
-            {"name": "question_7", "answer": ANSWER, "named_fact": "Acme builds the fastest rockets."}]})
+            {"name": "question_7", "answer": ANSWER, "named_fact": "Acme builds the fastest rockets.", "review": REVIEWED}]})
         saved = await client.call_tool("save_answers", {"job_id": job, "answers": [
-            {"name": "question_7", "answer": ANSWER, "named_fact": " acme launched Acme Lander, which sets probes down on the moon"}]})
+            {"name": "question_7", "answer": ANSWER, "named_fact": " acme launched Acme Lander, which sets probes down on the moon", "review": REVIEWED}]})
 
     assert off_brief.is_error and "company_brief" in off_brief.content[0].text
     assert saved.is_error is False, saved.content

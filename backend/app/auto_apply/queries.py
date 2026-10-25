@@ -516,12 +516,12 @@ async def fetch_answered(
 
 async def save_written(
     db: AsyncSession, applicant_id: uuid.UUID, job_id: uuid.UUID, answers: dict[str, str],
-    named: dict[str, NamedFact] | None = None,
+    named: dict[str, NamedFact] | None = None, reviews: dict[str, dict] | None = None,
 ) -> None:
     """Writes each answer onto its question's row, with the brief fact it
-    names in `named` (none when absent), but never over the student's own
-    (KAN-379). Flushes; the caller commits, and has checked every name is
-    the application's."""
+    names in `named` and its review in `reviews` (KAN-369; none when
+    absent), but never over the student's own (KAN-379). Flushes; the
+    caller commits, and has checked every name is the application's."""
     named = named or {}
     for name, answer in answers.items():
         await db.execute(
@@ -532,7 +532,7 @@ async def save_written(
                 Written_Answer.name == name,
                 Written_Answer.own.is_(False),
             )
-            .values(answer=answer, answered_at=func.now(),
+            .values(answer=answer, answered_at=func.now(), review=(reviews or {}).get(name),
                     named_fact=named[name].model_dump() if name in named else None)
         )
 
@@ -550,7 +550,7 @@ async def drop_written(db: AsyncSession, applicant_id: uuid.UUID, job_id: uuid.U
                 Written_Answer.name.in_(list(names)),
                 Written_Answer.own.is_(False),
             )
-            .values(answer=None, answered_at=None, named_fact=None)
+            .values(answer=None, answered_at=None, review=None, named_fact=None)
         )
 
 
@@ -571,11 +571,12 @@ async def save_own_written(
     row = insert(Written_Answer).values(
         applicant_id=applicant_id, job_id=job_id, name=name, label=label, required=False, position=UNSENT,
         answer=answer, answered_at=func.now(), own=own,
-    )
+    )  # no review: the text is no longer the one Claude's review was of
     await db.execute(row.on_conflict_do_update(
         index_elements=["applicant_id", "job_id", "name"],
         # Their own words name no brief fact; an edit keeps the one it had.
-        set_={"answer": row.excluded.answer, "answered_at": row.excluded.answered_at, "own": own,
+        # Neither keeps a review: it was of Claude's text.
+        set_={"answer": row.excluded.answer, "answered_at": row.excluded.answered_at, "own": own, "review": None,
               **({"named_fact": None} if own else {})},
     ))
 

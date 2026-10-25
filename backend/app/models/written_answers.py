@@ -54,6 +54,11 @@ class Written_Answer(BaseModel):
     # before their Claude's. Their Claude's save never replaces it, and it is
     # the answer later forms reuse for the same question
     own: Mapped[bool] = mapped_column(server_default=text("false"))
+    # the passes the student's Claude ran on the answer it saved here
+    # (KAN-369): {"rating": the reader's review's last rating, 1-10,
+    # "unsupported": the claims the claim check listed and the edit cut}.
+    # NULL for a choice, a pasted answer or the student's own words
+    review: Mapped[dict | None] = mapped_column(JSONB(none_as_null=True))
     # the company brief fact the answer uses, {"fact", "url"} as the brief
     # had it when saved, so the student can read up on it before an
     # interview; NULL when it names none (KAN-369)
@@ -64,6 +69,7 @@ class Written_Answer(BaseModel):
             "(kind IS NULL AND options IS NULL) OR (kind IN ('choice', 'choices') AND jsonb_typeof(options) = 'array')",
             name="written_answers_kind_options",
         ),
+        CheckConstraint("review IS NULL OR jsonb_typeof(review) = 'object'", name="written_answers_review_object"),
         CheckConstraint("named_fact IS NULL OR jsonb_typeof(named_fact) = 'object'", name="written_answers_named_fact_object"),
         # The application's questions go with it: dequeued, or the account deleted.
         ForeignKeyConstraint(
