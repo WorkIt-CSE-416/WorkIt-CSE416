@@ -13,9 +13,12 @@ same engine). One run, in one transaction:
    a transcript's path never comes over);
 2. `fill_policies`: only the policies the engine reads (ENGINE_POLICIES);
    Apply's run settings (caps, limits, schedules) stay Apply's;
-3. `fill_answers`: every Answer bank entry, as the student's own words, with
-   the company it was first asked at (the answer bank keeps a company's
-   answers to that company's forms);
+3. `fill_answers`: every Answer bank entry, with the company it was first
+   asked at (the answer bank keeps a company's answers to that company's
+   forms). As in Apply, only an entry with `source: lisul` is the student's
+   own words; Claude's drafts (`source: claude`, reviewed or not) come as
+   their Claude's, so they pass Claude's checks and a form that bans AI text
+   never takes them. A choice's entry (its options, or a list) is `choice`;
 4. WorkIt's own fields from the profile's identity: name, contact email,
    phone, links, home location, and the education entry (the student's own,
    matched by school);
@@ -105,8 +108,12 @@ def _answers(entries: dict) -> dict:
         answer = entry["answer"]
         answer = [str(a) for a in answer] if isinstance(answer, list) else str(answer)
         first = entry.get("first_seen") if isinstance(entry.get("first_seen"), dict) else {}
+        # Apply's own rule (answer_bank.py, LISUL): only an answer the student
+        # gave is theirs. A Claude draft stays Claude's even once reviewed.
         brought[str(entry.get("question") or filed).strip()] = {
-            "answer": answer, "own": True, "company": (str(first.get("company") or "").strip() or None),
+            "answer": answer, "own": entry.get("source") == "lisul",
+            "choice": isinstance(answer, list) or bool(entry.get("options")),
+            "company": (str(first.get("company") or "").strip() or None),
         }
     return brought
 
