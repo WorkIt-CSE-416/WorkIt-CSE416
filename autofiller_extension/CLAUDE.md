@@ -214,8 +214,9 @@ message's function from the module that owns it. Beside it:
 `batch-store.js` keeps the batch in `chrome.storage.local` and runs every
 change one at a time (`serially`), so every module reading or changing the
 batch goes through it. `write-early.js` sends the queued jobs' written
-questions before their tabs open (`writeEarly`), and `next-needs-you.js`
-walks the tabs for Next Thing That Needs You (`nextNeedsYou`).
+questions before their tabs open (`writeEarly`); `next-needs-you.js`
+walks the tabs for Next Thing That Needs You (`nextNeedsYou`); `tab-load.js`
+waits for an opened tab's page and form (`waitForLoad`, `formShows`).
 
 - **The URLs always come from the API, never the message.** `run/open`
   carries no body: a page on an allowed origin that could hand the worker

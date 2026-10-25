@@ -54,6 +54,7 @@ import { formUrl, jobOf, practiceJob } from "./engine.js";
 import { jobBoard } from "./job-boards.js";
 import { injectFill } from "../shared/content-scripts.js";
 import { liveBatch, load, save, serially } from "./batch-store.js";
+import { formShows, waitForLoad } from "./tab-load.js";
 
 /** @typedef {import("./batch-store.js").Batch} Batch @typedef {import("./batch-store.js").TabState} TabState */
 
@@ -65,7 +66,6 @@ const GROUPS = {
   ready: { title: "Ready", color: "green" },
   needs_you: { title: "Needs you", color: "orange" },
 };
-const LOAD_TIMEOUT_MS = 30_000;
 const FORM_TIMEOUT_MS = 10_000;
 
 /**
@@ -246,7 +246,7 @@ async function startFill(tabId) {
     await waitForLoad(tabId);
     // A Workday posting shows no form until the student presses Apply and signs in: its fill waits for them.
     const workday = isWorkday((await chrome.tabs.get(tabId)).url ?? "");
-    const [{ result: found }] = await chrome.scripting.executeScript({ target: { tabId }, func: waitForForm, args: [workday ? 0 : FORM_TIMEOUT_MS] });
+    const found = await formShows(tabId, workday ? 0 : FORM_TIMEOUT_MS);
     if (!found && !workday) throw new Error("no_form");
     await injectFill(tabId, { batch: true });
   } catch (error) {
@@ -537,56 +537,4 @@ export async function practiceStatus() {
   const stateOf = (jobId) =>
     batch.practice.submitted.includes(jobId) ? "submitted" : (shown.get(jobId) ?? (batch.opened.includes(jobId) ? "closed" : "waiting"));
   return { jobs: batch.practice.jobs.map(({ jobId }) => ({ jobId, state: stateOf(jobId) })) };
-}
-
-/**
- * Runs in the application's page. Resolves true once a form field exists,
- * false after `timeoutMs`. It watches the DOM, never requestAnimationFrame,
- * which a hidden tab does not run.
- * @param {number} timeoutMs
- */
-function waitForForm(timeoutMs) {
-  // Ashby's form has no <form> element: its fields sit in [data-field-path] boxes.
-  const FIELD = "#first_name, form input:not([type=hidden]), form select, form textarea, [data-field-path] input, [data-field-path] textarea";
-  return new Promise((resolve) => {
-    if (document.querySelector(FIELD)) return resolve(true);
-    const observer = new MutationObserver(() => {
-      if (document.querySelector(FIELD)) done(true);
-    });
-    const timer = setTimeout(() => done(false), timeoutMs);
-    function done(found) {
-      observer.disconnect();
-      clearTimeout(timer);
-      resolve(found);
-    }
-    observer.observe(document.documentElement, { childList: true, subtree: true });
-  });
-}
-
-/**
- * Resolves on the tab's `complete` status (already reached, or later).
- * Rejects when the tab closes or the page takes longer than LOAD_TIMEOUT_MS.
- * `status` needs no `tabs` permission.
- * @param {number} tabId
- */
-function waitForLoad(tabId) {
-  return new Promise((resolve, reject) => {
-    const done = (settle, value) => {
-      clearTimeout(timer);
-      chrome.tabs.onUpdated.removeListener(onUpdated);
-      chrome.tabs.onRemoved.removeListener(onRemoved);
-      settle(value);
-    };
-    const onUpdated = (id, info) => {
-      if (id === tabId && info.status === "complete") done(resolve);
-    };
-    const onRemoved = (id) => {
-      if (id === tabId) done(reject, new Error("The application's tab was closed"));
-    };
-    const timer = setTimeout(() => done(reject, new Error("The application page did not load")), LOAD_TIMEOUT_MS);
-    chrome.tabs.onUpdated.addListener(onUpdated);
-    chrome.tabs.onRemoved.addListener(onRemoved);
-    // A fast page may have loaded before the listener was added.
-    chrome.tabs.get(tabId).then((tab) => tab.status === "complete" && done(resolve), () => {});
-  });
 }
