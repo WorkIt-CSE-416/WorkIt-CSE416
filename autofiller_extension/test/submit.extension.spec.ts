@@ -157,6 +157,67 @@ test("on a job system with no known submit request, its page's notice of a sent 
   await expect.poll(() => api.stages.get("job-0"), { timeout: 15_000 }).toBe("applied");
 });
 
+const PATREON = "ashby-patreon";
+const ASHBY_SUBMIT = "https://jobs.ashbyhq.com/api/non-user-graphql?op=ApiSubmitMultipleFormsAction";
+
+/** Starts a batch of Patreon's saved Ashby form, whose submit request Ashby answers OK, and resolves to its tab once the engine watches it. */
+async function readyPatreon(api: FakeApi): Promise<Page> {
+  const forms = new SavedForms([PATREON]);
+  const accepted: Handler = ({ url }) =>
+    url.href === ASHBY_SUBMIT ? { json: { data: { submitMultipleFormsAction: { applicationFormResult: { __typename: "FormSubmitSuccess" } } } } } : undefined;
+  api.queue({ id: "job-0", apply_url: forms.url(PATREON) });
+  loaded = await loadExtension([api.handler, webapp, accepted, forms.handler]);
+  await signIn(loaded.context);
+  const webappPage = loaded.context.pages()[0] ?? (await loaded.context.newPage());
+  await webappPage.goto("http://localhost:3000/auto-apply");
+  await sendFromWebapp(webappPage, { type: "run/open" });
+  await expect.poll(() => api.stages.get("job-0"), { timeout: 60_000 }).toBe("needs_you");
+  const page = loaded.context.pages().find((p) => p.url().startsWith(forms.url(PATREON)))!;
+  await page.waitForFunction(() => (window as any).__fillEngineSubmitWatch, undefined, { timeout: 30_000 });
+  return page;
+}
+
+test("the page's notice of a sent application, shown just before the job system's answer, still marks it applied", async () => {
+  // Ashby's answer needs the page's notice too (submit-proof.js), and the engine can tell the page's
+  // notice before the service worker sees the answer arrive.
+  const api = new FakeApi();
+  const page = await readyPatreon(api);
+
+  await page.evaluate(() => document.body.insertAdjacentHTML("beforeend", '<div class="ashby-application-form-success-container">Sent</div>'));
+  await page.waitForTimeout(1_500);
+  await page.evaluate((url) => fetch(url, { method: "POST", body: "{}" }), ASHBY_SUBMIT);
+
+  await expect.poll(() => api.stages.get("job-0"), { timeout: 20_000 }).toBe("applied");
+});
+
+test("a submit the job system took proves only its own application, not a later one in the same tab", async () => {
+  // Greenhouse's answer proves its submit alone. Once it has marked the application, a later notice in
+  // that tab (here its confirmation page, when the tab has come to hold another application) needs an
+  // answer of its own.
+  const forms = new SavedForms([ARC]);
+  const api = new FakeApi().queue({ id: "job-0", apply_url: forms.url(ARC) });
+  const form = await readyArc(forms, api);
+  await submit(form);
+  await expect.poll(() => api.stages.get("job-0"), { timeout: 15_000 }).toBe("applied");
+
+  // After the page's own notices of that submit are past (submit-proof.js's WAIT_MS), the tab holds job-1.
+  await form.waitForTimeout(16_000);
+  api.stages.set("job-1", "queued");
+  await loaded.worker.evaluate(async (url) => {
+    const { workit_batch: batch } = await chrome.storage.local.get("workit_batch");
+    const [tab] = await chrome.tabs.query({ url: `${url.split("?")[0]}*` });
+    batch.tabs[tab.id] = { jobId: "job-1", url, state: "ready" };
+    await chrome.storage.local.set({ workit_batch: batch });
+  }, forms.url(ARC));
+  // The job board moved the tab to its confirmation page already: back to the form, then confirmed again.
+  await form.goto(forms.url(ARC));
+  await form.goto("https://job-boards.greenhouse.io/arcboatcompany/jobs/5442881008/confirmation");
+  await form.waitForTimeout(2_000);
+
+  expect(api.stages.get("job-1")).toBe("queued");
+  expect(api.calls.filter((c) => c.includes("job-1"))).toEqual([]);
+});
+
 test("reading the student's edits back leaves their focus where they put it", async () => {
   // The tab reads the form back after each edit. Greenhouse's phone country was read by opening its
   // picker, which took the focus: an Enter meant for Submit went to the picker, and nothing was sent.

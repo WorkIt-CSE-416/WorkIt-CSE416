@@ -8,8 +8,10 @@ The writing half of the Apply import (scripts/import_apply_profile.py, steps
    quoted (">") text and each answer under its bold question, never a
    heading, a question or a note. They are packed in file order into at most
    MAX_SAMPLES samples of SAMPLE_MAX characters; a piece too long for one is
-   cut at its last paragraph that fits. The samples are replaced only when
-   they differ, since any change to them deletes the style card;
+   cut at its last paragraph that fits. Only the samples an import brought
+   (`imported`) are replaced, and only when they differ, since any change
+   to them deletes the style card; one the student added or edited in
+   WorkIt stays, and the brought ones take only the room it leaves;
 7. the style card: voice.md as Apply wrote it (its leading HTML comment left
    out), saved after the samples it was measured from, when it is under
    CARD_MAX;
@@ -36,6 +38,7 @@ from app.auto_apply import briefs
 from app.models.company_briefs import Company_Brief
 from app.models.jobs import Job_Post
 from app.models.profiles import Company_Profile
+from app.models.writing import Writing_Sample
 from app.queries import writing
 from app.schemas.writing import CARD_MAX, MAX_SAMPLES, SAMPLE_MAX
 from app.services.page_fetch import Unreadable
@@ -91,17 +94,31 @@ def pack(pieces: list[str]) -> list[str]:
 
 
 async def set_samples(session: AsyncSession, applicant_id: uuid.UUID, apply_dir: Path) -> int:
-    """Steps 6 and the samples' count; 0 (and the student's samples kept) with no own words."""
+    """Step 6 and the count of brought samples kept; 0 (and the student's samples kept) with no own words."""
     path = apply_dir / STORY_BANK
     samples = pack(own_pieces(path.read_text())) if path.is_file() else []
     if not samples:
         return 0
-    if sorted(await writing.sample_texts(session, applicant_id)) != sorted(samples):
-        for old in await writing.fetch_samples(session, applicant_id):
-            await writing.remove_sample(session, applicant_id, old.id)
-        for text in samples:
-            await writing.add_sample(session, applicant_id, text)
-    return len(samples)
+    rows = list(await session.scalars(
+        select(Writing_Sample).where(Writing_Sample.applicant_id == applicant_id)
+        .order_by(Writing_Sample.created_at, Writing_Sample.id)))
+    if not any(r.imported for r in rows) and sorted(r.text for r in rows) == sorted(samples):
+        for row in rows:  # brought before samples were marked: the same texts are the import's
+            row.imported = True
+        return len(samples)
+    brought = [r for r in rows if r.imported]
+    if sorted(r.text for r in brought) == sorted(samples):
+        return len(samples)
+    for old in brought:
+        await writing.remove_sample(session, applicant_id, old.id)
+    kept = 0
+    for text in samples:
+        try:
+            await writing.add_sample(session, applicant_id, text, imported=True)
+        except writing.TooMany:
+            break
+        kept += 1
+    return kept
 
 
 def style_card(voice: str) -> str:

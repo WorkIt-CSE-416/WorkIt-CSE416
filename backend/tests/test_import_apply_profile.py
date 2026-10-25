@@ -326,6 +326,28 @@ async def test_the_transcript_attaches_from_this_computer_and_a_rerun_keeps_one(
     assert res.content == TRANSCRIPT
 
 
+async def test_two_students_files_of_the_same_name_stay_each_their_own(
+    running, applicant, database, apply_dir, local_files, tmp_path,
+):
+    from tests.test_built_resumes import _seed_applicant
+
+    async with database() as session:
+        other = await _seed_applicant(session)
+    other_dir = tmp_path / "other" / "apply"
+    other_dir.mkdir(parents=True)
+    for name in ("applicant-profile.yaml", "policies.yaml", "answer-bank.yaml"):
+        (other_dir / name).write_text((apply_dir / name).read_text())
+    for folder, name in (("final", "Riley_Example_Resume.pdf"), ("records", "transcript.pdf")):
+        (tmp_path / "other" / folder).mkdir()
+        (tmp_path / "other" / folder / name).write_bytes(b"%PDF-1.4\n% another student's file\n%%EOF\n")
+    await _import(database, applicant, apply_dir)
+    await _import(database, other, other_dir)
+
+    [resume] = (await _get(applicant, "/resumes")).json()
+    assert (await _get(applicant, f"/resumes/{resume['id']}/bytes")).content == PDF
+    assert (await _get(applicant, "/documents/transcript/bytes")).content == TRANSCRIPT
+
+
 async def test_a_local_resume_has_no_file_without_the_local_folder(
     running, applicant, database, apply_dir, local_files, monkeypatch,
 ):
@@ -375,7 +397,6 @@ async def test_an_edited_apply_file_reaches_workit_on_the_next_import(running, a
     assert (await _get(applicant, "/fill-profile")).json()["profile"]["identity"]["current_location"]["city"] == "Shelbyville"
 
 
-
 NAMING = """\
 'what are you proud of?':
   question: What are you proud of?
@@ -416,3 +437,26 @@ async def test_a_brought_draft_with_no_company_that_names_one_keeps_to_it(
     await _company(database, job, "Initech")
     bank = (await _get(applicant, f"/applications/{job}/answer-bank")).json()
     assert "What are you proud of?" in bank
+
+
+def test_a_local_path_never_leaves_the_folder(local_files):
+    from app.services.local_files import file_for
+
+    student = uuid.uuid4()
+    assert file_for(f"local:{student}/cv.pdf") == local_files / str(student) / "cv.pdf"
+    assert file_for("local:cv.pdf") == local_files / "cv.pdf"
+    for path in ("local:../cv.pdf", "local:notes/cv.pdf", f"local:{student}/../cv.pdf", f"local:{student}/a/cv.pdf",
+                 "local:/etc/passwd", f"local:{student}/"):
+        assert file_for(path) is None, path
+
+
+async def test_a_fact_workit_cannot_take_refuses_the_import_and_names_its_field(
+    running, applicant, database, apply_dir, local_files,
+):
+    from app.scripts.import_apply_profile import ImportRefused
+
+    profile = apply_dir / "applicant-profile.yaml"
+    profile.write_text(profile.read_text().replace("https://github.com/riley-example", "not a link"))
+
+    with pytest.raises(ImportRefused, match="github_url"):
+        await _import(database, applicant, apply_dir)

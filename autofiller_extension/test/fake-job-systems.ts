@@ -137,6 +137,9 @@ export class FakeWorkdays {
    */
   readonly alerts: Record<string, Partial<Record<"create" | "signin", string>>> = {};
 
+  /** Tenant hosts whose terms box a script's click doesn't tick (the student must tick it). */
+  readonly stuckTerms = new Set<string>();
+
   /** Every submit any tenant received (the extension must never send one). */
   get submissions(): unknown[] {
     return this.tenants.flatMap((t) => t.submissions);
@@ -149,7 +152,7 @@ export class FakeWorkdays {
         const apply = `<a data-automation-id="adventureButton" href="/__fake__/signin?view=create">Apply</a>`;
         return { headers: { "content-type": "text/html" }, body: `<!doctype html><title>Intern</title><h2>Software Engineering Intern</h2>${apply}` };
       }
-      if (request.url.pathname === "/__fake__/signin") return { headers: { "content-type": "text/html" }, body: signInPage(request.url.searchParams.get("view")!) };
+      if (request.url.pathname === "/__fake__/signin") return { headers: { "content-type": "text/html" }, body: signInPage(request.url.searchParams.get("view")!, this.stuckTerms.has(tenant.host)) };
       if (request.url.pathname === "/__fake__/account" && request.method === "POST") {
         const { agreed, ...sent } = JSON.parse(request.body.toString());
         this.signIns.push({ host: tenant.host, ...sent });
@@ -172,9 +175,10 @@ export class FakeWorkdays {
  * message above the form, as Workday's `errorMessage` alert, and stays.
  * The link switches views in the page, as live Workday does: the form is
  * drawn again, its boxes empty, a moment after it changes title (Xcel
- * Energy's, live 2026-10-25).
+ * Energy's, live 2026-10-25). With `stuckTerms`, the terms box ignores a
+ * script's click (event.isTrusted false) and stays unticked.
  */
-function signInPage(view: string): string {
+function signInPage(view: string, stuckTerms = false): string {
   return `<!doctype html><meta charset="utf-8"><title>Workday</title>
 <ol data-automation-id="progressBar"><li data-automation-id="progressBarActiveStep"><label>current step 1 of 3</label><label>Create Account/Sign In</label></li></ol>
 <div data-automation-id="signInContent"></div>
@@ -186,7 +190,7 @@ function draw() {
   document.querySelector("[data-automation-id=signInContent]").innerHTML =
     '<h2 id="authViewTitle">' + (create ? "Create Account" : "Sign In") + '</h2>' +
     '<form data-automation-id="signInFormo" onsubmit="return false">' + box("email", "Email Address", "text") + box("password", "Password") +
-    (create ? box("verifyPassword", "Verify New Password") + '<label><input type="checkbox" data-automation-id="createAccountCheckbox">I agree to the terms</label>' : "") +
+    (create ? box("verifyPassword", "Verify New Password") + '<label><input type="checkbox" data-automation-id="createAccountCheckbox"' + (${JSON.stringify(stuckTerms)} ? ' onclick="return event.isTrusted"' : '') + '>I agree to the terms</label>' : "") +
     '<div role="button" aria-label="' + (create ? "Create Account" : "Sign In") + '" data-automation-id="click_filter" style="width:200px;height:40px;background:#ddd"></div></form>' +
     '<button data-automation-id="' + (create ? "signInLink" : "createAccountLink") + '">' + (create ? "Sign In" : "Create Account") + '</button>';
 }

@@ -21,7 +21,7 @@ import { nextNeedsYou } from "./next-needs-you.js";
 import { SELF_ID, checkedSelfId, unansweredSelfId } from "./self-id.js";
 import { forgetSubmits, submitHinted, watchSubmitRequests } from "./submit-proof.js";
 import { injectFill } from "../shared/content-scripts.js";
-import { allowForMe, forgetLogin, markSignedIn, workdayLogin } from "./workday-logins.js";
+import { allowForMe, forgetLogin, markRefused, markSignedIn, workdayLogin } from "./workday-logins.js";
 import { writeEarly } from "./write-early.js";
 
 /**
@@ -146,6 +146,13 @@ async function handleMessage(message, sender) {
       const job = jobOf(sender.url);
       if (job?.site !== "workday") throw new Error("Not a Workday page");
       return forgetLogin(job.tenant);
+    }
+
+    // Workday refused a Sign In the extension pressed: it is never pressed with that login again.
+    case "workday/refused": {
+      const job = jobOf(sender.url);
+      if (job?.site !== "workday") throw new Error("Not a Workday page");
+      return markRefused(job.tenant);
     }
 
     // The student pressed Skip on a batch tab's panel (content-script.js).

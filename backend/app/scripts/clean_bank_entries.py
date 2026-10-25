@@ -2,9 +2,9 @@
 Clean what an older resume reading left in the bank, before the parser split
 a "| C++, Go" tool list off a title (utils/CLAUDE.md, "A role's tools"):
 
-    uv run python -m app.scripts.clean_bank_reading            # dry run: prints, writes nothing
-    uv run python -m app.scripts.clean_bank_reading --apply    # writes
-    uv run python -m app.scripts.clean_bank_reading --applicant <id> [--apply]
+    uv run python -m app.scripts.clean_bank_entries            # dry run: prints, writes nothing
+    uv run python -m app.scripts.clean_bank_entries --apply    # writes
+    uv run python -m app.scripts.clean_bank_entries --applicant <id> [--apply]
 
 For every experience, leadership or project entry whose title ends in a tool
 list after a bar, the title keeps only what comes before it, and the tools
@@ -12,6 +12,8 @@ the same owner (the upload, or the student's own) lacks become its
 ungrouped skills, as a fresh import does now. A skill that is not one
 (`bank_import.not_a_skill`) is removed; one with a bar ("Club| C++") is
 renamed to what follows the last bar when that is a skill the owner lacks.
+Only skills read from an upload are checked: a skill the student typed
+(no resume_id) is theirs and is never renamed or removed.
 
 Running it again changes nothing. It refuses a database that is not on this
 computer. It prints counts and the changes it makes.
@@ -58,11 +60,11 @@ async def clean(session: AsyncSession, applicant_id: uuid.UUID | None = None) ->
     # the names each owner holds, ignoring case
     held: dict[tuple, set[str]] = {}
     for skill in all_skills:
-        if not not_a_skill(skill.name):
+        if skill.resume_id is None or not not_a_skill(skill.name):
             held.setdefault((skill.applicant_id, skill.resume_id), set()).add(skill.name.lower())
 
     for skill in all_skills:
-        if not not_a_skill(skill.name):
+        if skill.resume_id is None or not not_a_skill(skill.name):
             continue
         names = held.setdefault((skill.applicant_id, skill.resume_id), set())
         tail = skill.name.rpartition("|")[2].strip()

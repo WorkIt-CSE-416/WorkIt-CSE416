@@ -8,7 +8,7 @@ a card that says Sam writes short sentences and opens with the result
 '''
 import uuid
 
-from sqlalchemy import CheckConstraint, ForeignKey, Text
+from sqlalchemy import CheckConstraint, ForeignKey, Text, false
 from sqlalchemy.orm import Mapped, mapped_column
 
 from app.db import BaseModel
@@ -18,13 +18,16 @@ class Writing_Sample(BaseModel):
     '''
     one piece of the student's own writing, word for word. Changing any of
     a student's samples deletes their style card (queries/writing.py), so a
-    card is always built from the samples they have now.
+    card is always built from the samples they have now. `imported`: the
+    Apply import brought it (scripts/import_apply_writing.py), which replaces
+    only these; one the student adds or edits in WorkIt is false.
     '''
     __tablename__ = "writing_samples"
     id: Mapped[uuid.UUID] = mapped_column(primary_key=True, default=uuid.uuid4)
     applicant_id: Mapped[uuid.UUID] = mapped_column(
         ForeignKey("applicant_profiles.id", ondelete="CASCADE"), index=True)
     text: Mapped[str] = mapped_column(Text)
+    imported: Mapped[bool] = mapped_column(server_default=false())
 
     __table_args__ = (CheckConstraint("length(btrim(text)) > 0", name="writing_samples_text_not_blank"),)
 
