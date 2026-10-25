@@ -225,7 +225,8 @@ function workitProfile(profile) {
       current_location: home(profile.location),
     }),
     links: present({ linkedin_url: profile.linkedin_url, github_url: profile.github_url, portfolio_url: profile.portfolio_url ?? profile.other_url }),
-    files: present({ resume_pdf: profile.resume?.filename }),
+    // The engine's names for the files it plans (rules.ts): the resume and the unofficial transcript (KAN-369).
+    files: present({ resume_pdf: profile.resume?.filename, unofficial_transcript_pdf: profile.transcript?.filename }),
     education: school
       ? present({
           school: school.title,
@@ -265,8 +266,8 @@ function withFiles(answers, profile) {
   return Object.fromEntries(
     Object.entries(answers).map(([name, value]) => {
       if (!value || typeof value !== "object" || Array.isArray(value)) return [name, value];
-      const resume = profile.resume;
-      return [name, resume && value.file === resume.filename ? { file: resume.filename, type: resume.mimeType, base64: resume.base64 } : value];
+      const file = [profile.resume, profile.transcript].find((f) => f && value.file === f.filename);
+      return [name, file ? { file: file.filename, type: file.mimeType, base64: file.base64 } : value];
     }),
   );
 }

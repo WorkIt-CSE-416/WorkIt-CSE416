@@ -115,7 +115,7 @@ builds it: `dist/engine.js` is committed in the engine repo.
   form's link and fills nothing; batch apply opens the form itself
   (`formUrl`).
 - **The profile adapter gives only what WorkIt holds.** Name, email,
-  phone, home, links, the default resume, the latest school and the jobs from the
+  phone, home, links, the default resume, the transcript, the latest school and the jobs from the
   bank, and the nine autofill answers, in the words the engine's rules
   read. The home is the profile's free-text location (KAN-372) as the
   engine's `homePlace` reads it: a city with a US state ("Stony Brook, NY")
@@ -901,6 +901,22 @@ real file input is directly targetable underneath both.
 - **The engine attaches it**, from `{ file, type, base64 }`, through a
   `DataTransfer` and the events a file picker fires, and waits for
   Greenhouse's uploader to show the file.
+
+## Attaching the student's transcript (KAN-369)
+
+Some forms ask for an unofficial transcript (Verkada requires one). The
+student keeps one on My Profile (`backend/app/routers/documents.py`).
+`resolveTranscriptFile` fetches it with the resume, at profile-fetch time:
+`GET /applicants/{id}/documents`, then `GET .../documents/transcript/bytes`
+(from this API's own origin, as the resume's `.../bytes` and for the same
+reason), onto `AutofillProfile.transcript`. `engineProfile` gives its name
+as `files.unofficial_transcript_pdf`, the engine's name for it (rules.ts
+plans it for a "transcript" upload, never a graduate transcript), and
+`withFiles` gives the planned file its bytes. A transcript named as the
+resume is gets a `Transcript_` prefix, since a planned file is matched to
+its bytes by name. Best effort, like the resume: no transcript, or a failed
+fetch, is `transcript: null`, and the Plan lists a required transcript as
+a Missing fact. Test: `test/transcript.extension.spec.ts`.
 
 ## Essay-question generation: the one opt-in, model-backed feature
 

@@ -67,6 +67,9 @@ export class FakeApi {
   /** Set to answer the profile with a server error, so a tab's fill can't plan. */
   profileDown = false;
 
+  /** The student's transcript (GET .../documents, .../documents/transcript/bytes, KAN-369), or none. */
+  transcript: { filename: string; base64: string } | null = null;
+
   /** Whether the student's Claude has signed in to WorkIt's connector (GET .../connector). */
   connectorAdded = false;
 
@@ -113,6 +116,10 @@ export class FakeApi {
     if (route === "/resumes") return { json: [{ id: RESUME_ID, is_default: true, original_filename: STUDENT.resume.filename }] };
     if (route === `/resumes/${RESUME_ID}/bytes`) return { headers: { "content-type": "application/pdf" }, body: Buffer.from(STUDENT.resume.base64, "base64") };
     if (route === "/built-resumes") return { json: [] };
+    if (route === "/documents") return { json: this.transcript ? [{ kind: "transcript", original_filename: this.transcript.filename }] : [] };
+    if (route === "/documents/transcript/bytes" && this.transcript) {
+      return { headers: { "content-type": "application/pdf" }, body: Buffer.from(this.transcript.base64, "base64") };
+    }
     if (route === "/connector") return { json: { added: this.connectorAdded } };
     if (route === "/writing-samples" && method === "GET") return { json: { samples: this.samples, style_card: null } };
 
