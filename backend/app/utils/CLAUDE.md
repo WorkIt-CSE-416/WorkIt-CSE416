@@ -134,8 +134,12 @@ as `None` (null end date).
   Before, the whole tail stayed in the title.
 - **Skills a reading keeps** (`bank_import.skill_pairs`, for the parser's and
   the model's readings alike) leave out what is not a skill (`not_a_skill`):
-  a name still holding a "|", a qualification (degree, years, clearance), or
-  a vague phrase ending in "tools" or "skills" ("AI tools").
+  a name still holding a "|", a qualification ("<field> degree",
+  "Bachelor's in ...", "GPA", "N years", a clearance), or a generic phrase
+  that names no product ("AI tools", "communication skills"). A product or
+  a role keeps its name: "Scrum Master", "Chrome Developer Tools", "CI/CD
+  tools". The clean-up script checks only skills read from an upload; one
+  the student typed is never removed.
 - **A skills line that ends in a comma** continues on the next line, which
   keeps its group. Before this, a wrapped "Concepts:" list lost its group.
 

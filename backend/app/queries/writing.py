@@ -56,15 +56,16 @@ async def _drop_card(db: AsyncSession, applicant_id: uuid.UUID) -> None:
     await db.execute(delete(Style_Card).where(Style_Card.applicant_id == applicant_id))
 
 
-async def add_sample(db: AsyncSession, applicant_id: uuid.UUID, text: str) -> Sample:
+async def add_sample(db: AsyncSession, applicant_id: uuid.UUID, text: str, *, imported: bool = False) -> Sample:
     '''raises TooMany at MAX_SAMPLES. Two adds at once could both pass the
-    count; a fourth sample harms nothing, so no lock is taken.'''
+    count; a fourth sample harms nothing, so no lock is taken. `imported`:
+    the Apply import's own (models/writing.py).'''
     count = await db.scalar(
         select(func.count()).select_from(Writing_Sample).where(Writing_Sample.applicant_id == applicant_id)
     )
     if count >= MAX_SAMPLES:
         raise TooMany
-    sample = Writing_Sample(applicant_id=applicant_id, text=text)
+    sample = Writing_Sample(applicant_id=applicant_id, text=text, imported=imported)
     db.add(sample)
     await db.flush()
     await _drop_card(db, applicant_id)
@@ -76,7 +77,7 @@ async def replace_sample(db: AsyncSession, applicant_id: uuid.UUID, sample_id: u
     found = await db.scalar(
         update(Writing_Sample)
         .where(Writing_Sample.id == sample_id, Writing_Sample.applicant_id == applicant_id)
-        .values(text=text, updated_at=func.now())
+        .values(text=text, imported=False, updated_at=func.now())
         .returning(Writing_Sample.id)
     )
     if found is None:

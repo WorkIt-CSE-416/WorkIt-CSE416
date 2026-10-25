@@ -2,7 +2,7 @@
 A student's uploaded files: resumes, sent resumes and documents.
 
 All live in the `Resume` Storage bucket under the student's folder, or, in
-development, as `local:<file name>` in LOCAL_FILES_DIR (services/local_files.py),
+development, as `local:<applicant_id>/<file name>` in LOCAL_FILES_DIR (services/local_files.py),
 which is never sent to or removed from Storage. `read` and `remove` take
 either, so a route never checks for a local file itself. They take the
 route's `get_supabase` (called only for a Storage path), so a test patches
