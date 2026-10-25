@@ -544,7 +544,7 @@ async def get_resume_file_bytes(
     return Response(
         data,
         media_type=stored_files.media_type(resume.storage_path),
-        headers={"Content-Disposition": f'attachment; filename="{filename}"'},
+        headers={"Content-Disposition": stored_files.attachment(filename)},
     )
 
 

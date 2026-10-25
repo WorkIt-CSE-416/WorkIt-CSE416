@@ -132,7 +132,7 @@ async def get_document_bytes(
     return Response(
         data,
         media_type=stored_files.media_type(doc.storage_path),
-        headers={"Content-Disposition": f'attachment; filename="{doc.original_filename}"'},
+        headers={"Content-Disposition": stored_files.attachment(doc.original_filename)},
     )
 
 

@@ -11,8 +11,10 @@ Storage where the route looks it up.
 
 import asyncio
 import logging
+import unicodedata
 from collections.abc import Callable
 from pathlib import PurePosixPath
+from urllib.parse import quote
 
 from app.services import local_files
 
@@ -49,3 +51,11 @@ async def remove(get_supabase: Callable, storage_path: str, message: str) -> Non
 def media_type(storage_path: str) -> str:
     return MIME_TYPES.get(PurePosixPath(storage_path).suffix.lower(), "application/octet-stream")
 
+
+def attachment(filename: str) -> str:
+    """A Content-Disposition that downloads the file under `filename`, any name
+    a student uploads (RFC 6266): `filename*` carries it in UTF-8, `filename`
+    a plain-ASCII stand-in for an old client."""
+    ascii_name = unicodedata.normalize("NFKD", filename).encode("ascii", "ignore").decode()
+    ascii_name = "".join(c if c.isprintable() and c not in '"\\' else "_" for c in ascii_name)
+    return f"attachment; filename=\"{ascii_name or 'file'}\"; filename*=UTF-8''{quote(filename, safe='')}"
