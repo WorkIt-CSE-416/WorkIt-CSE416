@@ -181,3 +181,20 @@ test("on a job system the engine doesn't cover, the overlay says so, not as an o
   expect(text).not.toContain("(optional)");
   await expect(page.locator("input[name=first]")).toHaveValue("");
 });
+
+test("a company's careers page that embeds a Greenhouse form points the student to that form", async ({ page }) => {
+  // The page Greenhouse sends a hosted job to when its board has its own careers site: the form is in an iframe.
+  const form = "https://job-boards.greenhouse.io/embed/job_app?for=acmerobots&token=123";
+  await page.route("https://careers.acmerobots.example/**", (route) => route.fulfill({ contentType: "text/html",
+    body: `<h1>Robot Wrangler</h1><iframe id="grnhse_iframe" src="${form}&amp;gh_jid=123"></iframe>` }));
+  await page.route("https://job-boards.greenhouse.io/**", (route) => route.fulfill({ contentType: "text/html", body: "<form></form>" }));
+  await page.goto("https://careers.acmerobots.example/jobs?gh_jid=123");
+  await bridge(page, async () => { throw new Error("a job API was fetched"); });
+
+  await inject(page);
+  await settled(page);
+
+  const text = await page.evaluate(() => document.getElementById("workit-autofiller-overlay-host")!.shadowRoot!.querySelector(".list")!.textContent);
+  expect(text).toContain(`Open the application form (${form}&gh_jid=123)`);
+  expect(text).not.toContain("WorkIt can't fill this job system yet");
+});

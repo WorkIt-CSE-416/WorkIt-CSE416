@@ -6,7 +6,7 @@ import { readFileSync } from "node:fs";
 import { join } from "node:path";
 import { expect, test } from "@playwright/test";
 import { FakeJobServer, FORMS } from "../fill-engine/test/fake-job-server";
-import { engineCaller, handleFill, runEngine } from "../src/background/engine.js";
+import { asUploads, engineCaller, handleFill, runEngine } from "../src/background/engine.js";
 import { letterPdf } from "../src/background/letter-pdf.js";
 import { STUDENT } from "./extension";
 
@@ -35,4 +35,26 @@ test("the letter's PDF holds its words", () => {
   expect(pdf).toContain("(Dear Example Recruiting Team:)");
   expect(pdf).toContain("(Test Person)");
   expect(pdf.trimEnd().endsWith("%%EOF")).toBe(true);
+});
+
+const QUESTIONS = [{ name: COVER, label: "Cover Letter", kind: "file" }];
+const letterOf = (profile: typeof STUDENT) => asUploads({ [COVER]: LETTER }, QUESTIONS, profile)[COVER] as { file: string; base64: string };
+
+test("the letter's file is named for the first name the student goes by", () => {
+  const goesBy = { ...STUDENT, fill: { profile: { identity: { preferred_first_name: "Tess" } } } };
+
+  expect(letterOf(goesBy).file).toBe("Tess_Person_Cover_Letter.pdf");
+  expect(letterOf(STUDENT).file).toBe("Test_Person_Cover_Letter.pdf");
+});
+
+test("the letter's PDF opens with the student's name over their contact line", () => {
+  const pdf = Buffer.from(letterOf(STUDENT).base64, "base64").toString("latin1");
+
+  // The name, larger, then phone | email | LinkedIn | GitHub, the links without https://www.; then the letter.
+  const name = pdf.indexOf("(Test Person) Tj");
+  const contact = pdf.indexOf("(\\(555\\) 010-0199 | test.person@example.com | linkedin.com/in/test-person | github.com/test-person) Tj");
+  expect(name).toBeGreaterThan(-1);
+  expect(pdf.lastIndexOf("/F1 20 Tf", name)).toBeGreaterThan(-1);
+  expect(contact).toBeGreaterThan(name);
+  expect(pdf.indexOf("(Dear Example Recruiting Team:)")).toBeGreaterThan(contact);
 });

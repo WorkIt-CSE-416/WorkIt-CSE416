@@ -21,6 +21,7 @@ import { nextNeedsYou } from "./next-needs-you.js";
 import { SELF_ID, checkedSelfId, unansweredSelfId } from "./self-id.js";
 import { forgetSubmits, submitHinted, watchSubmitRequests } from "./submit-proof.js";
 import { injectFill } from "../shared/content-scripts.js";
+import { forgetShownWorkableDraft } from "./tab-load.js";
 import { allowForMe, forgetLogin, markRefused, markSignedIn, workdayLogin } from "./workday-logins.js";
 import { writeEarly } from "./write-early.js";
 
@@ -113,9 +114,14 @@ async function handleMessage(message, sender) {
       const bank = message.type !== "fill/plan" ? {}
         : jobId ? await answerBank(profile.id, jobId).catch(() => ({}))
         : (company) => anyFormAnswerBank(profile.id, company).catch(() => ({}));
-      return handleFill(message, {
+      const answer = await handleFill(message, {
         url: sender.url, profile, bank, today: today(), call: engineIn(sender), fetchText, trees: workdayTrees, jobType,
       });
+      // Outside a batch, a Workable draft with entries is forgotten and the form filled again from empty (tab-load.js).
+      if (message.type === "fill/plan" && !(await inBatch(sender.tab.id)) && (await forgetShownWorkableDraft(sender.tab.id, answer))) {
+        injectFill(sender.tab.id).catch((error) => console.warn("[fill] the reloaded Workable form wasn't filled:", error));
+      }
+      return answer;
     }
 
     // A batch apply tab's fill says whether the tab is ready or needs the
