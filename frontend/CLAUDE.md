@@ -110,6 +110,12 @@ the KAN-296 cutover.
   never write the claude.ai URL anywhere else. What can't read it (the
   extension's add-Claude step, KAN-387) opens `/connect/claude/add`, a
   route handler that redirects to it.
+  **Starting the student's Claude is one link too**: `CLAUDE_START_URL`
+  and `CLAUDE_TRIGGER` in the same file (a new claude.ai chat with "Write
+  my WorkIt answers", the connector prompt's title, in its box, not sent),
+  used only by Write with Claude (`auto-apply/write-with-claude.tsx`),
+  which also copies the trigger since claude.ai's `?q=` is undocumented.
+  Never put the student's data in that link: it lands in browser history.
   Disconnecting is WorkIt's, in Settings' Sign-In & Security, Connected
   Apps (`lib/connector-actions.ts`, `DELETE /applicants/{id}/connector`):
   it revokes every token the student's Claude holds, which removing the

@@ -440,6 +440,16 @@ waits for an opened tab's page and form (`waitForLoad`, `formShows`).
   real application (its one written question is all that needs the
   student, so the filled answer moves the tab to Ready; Harvey's other
   questions keep it in Needs you).
+  **The same row has Write with Claude** (a row's `claude` in
+  lib-status.js): a link to `https://claude.ai/new?q=Write%20my%20WorkIt%20answers`
+  in a new tab, which opens a new chat with the trigger in its box, not
+  sent, and a click that also copies the trigger, with "Press Enter in
+  Claude (or paste)". claude.ai's `?q=` is undocumented (it once sent the
+  text by itself, and may stop working), so the copy is the fallback.
+  The trigger is overlay.js's `CLAUDE_TRIGGER`, the connector prompt's
+  title (`backend/app/connector/prompt.py` TITLE); every line that names
+  it uses that constant. Never put the student's data in the link: it
+  lands in browser history. Test: `test/claude-start.extension.spec.ts`.
 - **Writing starts when jobs are queued, and a question is answered once**
   (KAN-379). On `run/open`, once the tabs have opened, `write-early.js`'s
   `writeEarly` reads every queued job the batch hasn't opened with
@@ -723,8 +733,9 @@ My Profile instead.
   `/connect/claude/add`, which redirects to Claude's Add Custom Connector
   dialog: the install link is built only in
   `frontend/src/lib/claude-connector.ts`, from the API's address, which the
-  extension doesn't keep. A practice batch never shows it (its essays stay
-  the student's).
+  extension doesn't keep. The step tells the student to choose "Always
+  allow" for each of WorkIt's tools, so a run doesn't stop at every save.
+  A practice batch never shows it (its essays stay the student's).
 - **Writing samples, once the first written batch is.** A batch tab that
   sends its questions is `writing` (`batch.js`'s `setWriting`, kept in the
   batch); once its last one shows an answer it says `batch/written`, and

@@ -158,6 +158,7 @@
  *   (KAN-369): the row needs the student until they edit it
  * @property {{ text: string, href: string }} [link]  A link ending the reason (a batch tab's
  *   wait for Claude links the webapp's Written Answers page)
+ * @property {boolean} [claude]  It waits for the student's Claude: the overlay offers Write with Claude.
  */
 
 /**

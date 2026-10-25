@@ -18,6 +18,7 @@ import { getWrittenQuestions } from "./answers/questions";
 import { AutoApplyPanel } from "./auto-apply-panel";
 import type { SavedJob } from "./add-jobs-dialog";
 import { UpNext } from "./up-next";
+import { WriteWithClaude } from "./write-with-claude";
 
 export const metadata: Metadata = {
   title: "Auto Apply",
@@ -50,8 +51,9 @@ export const metadata: Metadata = {
  * written question with no answer, a card over Up Next says how many and
  * links to Written Answers (./answers/page.tsx), where a student without
  * Claude writes or pastes them. A student with Claude can leave them to it;
- * the card says so. A failed read hides the card: Up Next says the API is
- * down.
+ * the card says so, and its Write with Claude (./write-with-claude.tsx)
+ * opens a Claude chat with the trigger in its box. A failed read hides the
+ * card: Up Next says the API is down.
  *
  * It opened with a Resume List of every resume until KAN-359; the page is
  * about which jobs go out, so jobs lead it.
@@ -155,10 +157,13 @@ export default async function AutoApplyPage() {
                     paste answers from any AI.
                   </p>
                 </div>
-                <ButtonLink href="/auto-apply/answers" variant="secondary" size="sm">
-                  <PencilIcon className="size-4" />
-                  Write Answers
-                </ButtonLink>
+                <div className="flex shrink-0 flex-col gap-2 @md/main:flex-row @md/main:items-start">
+                  <WriteWithClaude />
+                  <ButtonLink href="/auto-apply/answers" variant="secondary" size="sm">
+                    <PencilIcon className="size-4" />
+                    Write Answers
+                  </ButtonLink>
+                </div>
               </Card>
             )}
             <UpNext items={queue} saved={savedJobs} />
