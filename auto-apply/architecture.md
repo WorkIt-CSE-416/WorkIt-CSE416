@@ -1065,15 +1065,43 @@ ids and plain data.
 
 | Name | Kind | Does |
 |---|---|---|
-| `get_next_application` | tool, `readOnlyHint` | The oldest open application (queued or needs_you, posting open) with a written question unanswered (`next_to_write`): its job id, company, title, the posting's description, its unanswered questions (`name`, `question`, `required`, `max_length`), and the student's experience bank and skills (`bank_context`, no links). Only that application's material. `job_id: null` when none is left |
+| `get_next_application` | tool, `readOnlyHint` | The oldest open application (queued or needs_you, posting open) with a written question unanswered (`next_to_write`): its job id, company, title, the posting's description, its unanswered questions (`name`, `question`, `required`, `max_length`), and the student's experience bank and skills (`bank_context`, no links). Only that application's material. `job_id: null` when none is left. Takes and answers a `chat` value (the job ids this chat was given, below); past `CONNECTOR_CHAT_CAP` it answers `start_new_chat: true`, a `message` for the student, and no application |
 | `save_answers` | tool, a write (not destructive) | `{job_id, answers: [{name, answer}]}` (`save_answers`): all or none; refuses a name the application doesn't ask, an empty answer, or one that fails a check in code (`app/auto_apply/checks.py`, KAN-380: machine-made words, a run of 5 words copied from the student's writing samples, a number not in the bank, posting or question, another application's company, a sentence over 30 words, a placeholder, or over the form's `max_length`, else 10,000), with every failing answer's reasons as one tool error for Claude to fix. Answers `{saved, left}` |
-| "Write my WorkIt answers" | prompt | The writing rules and the loop: next application, write, save, at most 5 per chat. **The rules live here only**; tool descriptions say what a tool does (Anthropic's review refuses descriptions that steer Claude) |
+| "Write my WorkIt answers" | prompt | `app/connector/prompt.py`. The loop (next application, research its company if `get_research_task` names it (KAN-382), write, save, until the tool says to start a new chat) and the writing rules. **The rules live here only**; tool descriptions say what a tool does (Anthropic's review refuses descriptions that steer Claude) |
 
-The rules are the tracer's short set; KAN-381 brings Apply's full ones, the
-per-chat cap and resuming after a usage limit; KAN-380 the checks in code
-on save (above), with `max_length` read from the live form by the Fill
-engine's `limits`, and `answer_bank`, which offers an answer about one
-company (`checks.company_specific`) on that company's forms only; KAN-379 writing as soon as a job is queued and reusing saved
+**The writing rules (KAN-381)** are Apply's pipeline, made general for any
+student: a draft by Apply's rules for plain, concrete answers and its
+shapes by question type (under 180 words, 220 for a two-part question,
+within the form's `max_length`); a review as a recruiter, a hiring manager
+and a founder would read it, rewritten until rated 8 of 10, at most two
+rounds; a check that lists every claim the sources don't support; and an
+edit of all of the application's answers together. Facts come only from
+the student's experience bank and the posting. Apply's own facts, examples
+and its owner's preferences are left out; a question the sources can't
+answer (a preference, a reference, something only the student knows) is
+left for the student, never guessed. Banned words stay out of the prompt,
+since naming a word primes a model; the save checks them in code (KAN-380, separate).
+A per-student style card (KAN-384) is not in it yet.
+
+**A chat and its cap (KAN-381).** The server is stateless and Claude
+sends nothing that names a chat, so the chat carries its own count: each
+`get_next_application` answers a `chat` value (the job ids this chat was
+given, comma-joined) and the chat passes it back. No value is a new chat.
+After `CONNECTOR_CHAT_CAP` applications (5; lower it if the blind read,
+KAN-386, finds a chat's last answers worse than its first) the tool says to
+start a new chat. A new chat starts at the oldest open application with a
+question unanswered, so a batch whose writing stopped at a Claude usage
+limit resumes there: answers save all or none per application, so a
+stopped application has nothing saved. A chat is never given the same
+application twice, so a question Claude left out (no fact for it) can't
+hold it. The value isn't signed: it guards only the student's own answer
+quality, and one that isn't valid starts a new chat.
+Tests: `tests/test_connector_chat.py`.
+
+KAN-380 adds the checks in code on save (above), with `max_length` read
+from the live form by the Fill engine's `limits`, and `answer_bank`, which
+offers an answer about one company (`checks.company_specific`) on that
+company's forms only; KAN-379 writing as soon as a job is queued and reusing saved
 answers. **WorkIt calls no model on this path**: no tool or route of the
 connector makes a `workit_scout` `LLM` (tested), and batch tabs never call
 the essay-answer route.
@@ -1086,6 +1114,41 @@ waiting, the tab asks for the saved answers every 10 seconds
 through the engine; the tab's group follows, so it moves to Ready once
 nothing else needs the student. A question the student answers by hand
 first keeps the student's answer.
+
+**Company briefs** (KAN-382; `app/auto_apply/briefs.py`, tools in
+`app/connector/briefs.py`). One brief per company, in `company_briefs`,
+shared by every student who applies there and built by the first one's
+Claude: WorkIt calls no model for it.
+
+| Name | Kind | Does |
+|---|---|---|
+| `get_research_task` | tool, `readOnlyHint` | The first company of the student's open applications with a written question left whose brief is missing, older than 30 days, or scores under 60 of 100: the company, the job, why, its score, the categories it lacks, and the news sites a fact may cite. `company: null` when none needs it. A research that was not kept holds the company back 3 days |
+| `save_company_brief` | tool, a write (not destructive) | `{company, facts: [{category, fact, url, quote, published, team}]}` for a company the student applies to (else a tool error). WorkIt reads each page through the safe fetcher (`app/services/page_fetch.py`) and keeps a fact only if its host is the company's own (a domain named for it, or its WorkIt profile's website) or a listed news site, its quote is on the page word for word (case, punctuation and spacing folded), and each number the fact states is in its quote; a date whose year the page doesn't show is dropped from the fact. Kept only with 3 or more checked facts and a higher score today than the kept brief. Answers `{saved, score, current_score, kept, dropped: [{url, reason}]}` |
+
+`get_next_application` hands the application's company brief as
+`company_brief` (category, fact, url, published, team), described as web
+text. **Score, in code:** 10 per category covered (products, launches,
+engineering, team), 4 per checked fact up to 10, 4 per fact whose page is
+under a year old up to 5; recency is counted on the day of the comparison,
+so a brief scores lower as it ages. **The fetcher** reads http(s) only, on
+the default port, the allowed hosts only (checked again on each of at most
+3 redirects), never a host that resolves to a non-public address, and
+connects to the address it checked (TLS still verified against the host
+name), with 10 seconds and 2 MB per page, text types only. Tests use a fake
+fetcher (`tests/test_company_briefs.py`); the fetcher's own refusals are in
+`tests/test_page_fetch.py`.
+
+**Adding it, and the directory** (KAN-383). Auto Apply's **Add to Claude**
+and `/docs/mcp` open Claude's Add Custom Connector dialog with WorkIt's name
+and `<api>/mcp` filled in (Anthropic's install link,
+`frontend/src/lib/claude-connector.ts`); the student checks and confirms.
+Anthropic's connector directory, which removes even that step and lets
+Claude suggest WorkIt in a chat, needs every tool to carry a title and a
+read-only or destructive hint (tested for every tool), no instructions in
+tool descriptions, public docs (`/docs/mcp`) and a privacy policy that
+covers the connector (`/privacy`). The submission is written out in
+`docs/connector-directory.md`; the team sends it after deploying. Once
+listed, `CLAUDE_CONNECTOR_LINK` points every Add to Claude at the listing.
 
 **Why not Supabase Auth's OAuth 2.1 server** (decided 2026-10-25, KAN-377):
 its docs call it beta and free "during the beta period", with no price after

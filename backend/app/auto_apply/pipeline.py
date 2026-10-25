@@ -9,7 +9,7 @@ import dataclasses
 import logging
 import sys
 import uuid
-from collections.abc import Sequence
+from collections.abc import Collection, Sequence
 from typing import Any, Literal
 
 from sqlalchemy.exc import SQLAlchemyError
@@ -334,11 +334,14 @@ class ToWrite:
     bank: Bank
 
 
-async def next_to_write(db: AsyncSession, applicant_id: uuid.UUID) -> ToWrite | None:
+async def next_to_write(
+    db: AsyncSession, applicant_id: uuid.UUID, skip: Collection[uuid.UUID] = ()
+) -> ToWrite | None:
     """The connector's next application: the oldest open one with a
-    question still unanswered, its unanswered questions in the form's
-    order. None when nothing is left to write."""
-    found = await fetch_next_to_write(db, applicant_id)
+    question still unanswered, other than the jobs in `skip` (those the chat
+    was given already), its unanswered questions in the form's order. None
+    when nothing is left to write."""
+    found = await fetch_next_to_write(db, applicant_id, skip)
     if found is None:
         return None
     job_id, posting = found

@@ -350,3 +350,23 @@ async def test_the_connector_calls_no_model(running, applicant, database, monkey
     async with claude(applicant) as client:
         assert not (await client.call_tool("get_next_application", {})).is_error
         assert not (await client.call_tool("save_answers", {"job_id": job, "answers": [{"name": "question_7", "answer": "Yes."}]})).is_error
+
+
+async def test_every_tool_carries_the_annotations_anthropics_directory_asks_for(running, applicant):
+    """Anthropic's connector directory (KAN-383) refuses a tool without a
+    title and an explicit read-only or destructive hint, and Claude runs a
+    read-only tool without asking each time. Only the save tools write."""
+    async with claude(applicant) as client:
+        tools = (await client.list_tools()).tools
+
+    assert tools
+    for tool in tools:
+        hints = tool.annotations
+        assert tool.title, f"{tool.name} has no title"
+        assert len(tool.name) <= 64, f"{tool.name} is over 64 characters"
+        assert hints is not None and hints.read_only_hint is not None, f"{tool.name} doesn't say if it writes"
+        writes = not hints.read_only_hint
+        assert writes == tool.name.startswith("save_"), f"{tool.name}: only the save tools write"
+        if writes:
+            assert hints.destructive_hint is not None, f"{tool.name} doesn't say if it destroys data"
+        assert hints.open_world_hint is False, f"{tool.name} reaches past WorkIt"
