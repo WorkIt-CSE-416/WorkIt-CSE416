@@ -105,3 +105,11 @@ async def connector_added(
     db: AsyncSession = Depends(get_session),
 ) -> Added:
     return Added(added=await oauth.added(db, applicant_id))
+
+
+@added_router.delete("/applicants/{applicant_id}/connector", status_code=status.HTTP_204_NO_CONTENT)
+async def disconnect(
+    applicant_id: uuid.UUID = Depends(owned_applicant),
+    db: AsyncSession = Depends(get_session),
+) -> None:
+    await oauth.disconnect(db, applicant_id)

@@ -240,6 +240,17 @@ async def added(db: AsyncSession, applicant_id: uuid.UUID) -> bool:
     ).limit(1)) is not None
 
 
+async def disconnect(db: AsyncSession, applicant_id: uuid.UUID) -> None:
+    """The student disconnected Claude from WorkIt: every access and refresh
+    token given for them goes, on every client, and so does a sign-in they
+    allowed whose code wasn't traded yet, so the connector refuses their
+    Claude at once until they connect again (a token is checked on every
+    call, load_access_token)."""
+    await db.execute(delete(Connector_Token).where(Connector_Token.applicant_id == applicant_id))
+    await db.execute(delete(Connector_Request).where(Connector_Request.applicant_id == applicant_id))
+    await db.commit()
+
+
 # --- The consent page's side (routers/connector.py) ---
 
 

@@ -110,6 +110,10 @@ the KAN-296 cutover.
   never write the claude.ai URL anywhere else. What can't read it (the
   extension's add-Claude step, KAN-387) opens `/connect/claude/add`, a
   route handler that redirects to it.
+  Disconnecting is WorkIt's, in Settings' Sign-In & Security, Connected
+  Apps (`lib/connector-actions.ts`, `DELETE /applicants/{id}/connector`):
+  it revokes every token the student's Claude holds, which removing the
+  connector in Claude alone doesn't.
 - **The business side is hidden until it ships** (KAN-239). `src/proxy.ts`
   redirects `/company` and `/onboarding/company` (and everything under them)
   to `/coming-soon`, "Waiting for Deployment", before its env check, so a
