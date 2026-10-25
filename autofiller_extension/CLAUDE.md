@@ -521,9 +521,25 @@ waits for an opened tab's page and form (`waitForLoad`, `formShows`).
   before its fill, listens for the engine's `fillengine:submit:<key>`
   event (its detail is JSON: an object detail reaches the isolated world as
   null), and on a sent application says
-  `batch/submitted`. The key is why a page script, which shares the
-  engine's world, can't mark a tab submitted: it doesn't know the event's
-  name. `markSubmitted` (batch.js) then keeps the resume the
+  `batch/submitted`. The key keeps out a page script that merely guesses
+  the event's name, but not one written to hook the engine before it runs
+  (it shares the engine's world), nor one that moves the tab to a thanks
+  page itself. So the page's signals are only hints: **the application is
+  marked applied only on the job system's own answer to the submit
+  request**, which the service worker sees with `chrome.webRequest`
+  (`src/background/submit-proof.js`, observing only, no body;
+  `SUBMIT_REQUESTS` is the one table of each job system's submit request).
+  Greenhouse's OK answer marks it alone; Ashby (it answers 200 to a
+  refusal), Lever (its post redirects to the thanks page) and Workable
+  also need the page's hint after the answer, within 5 minutes. A job
+  system with no known submit request (Workday, Eightfold, Rippling) is
+  never marked from the page: the tab asks the student to mark it Applied
+  on WorkIt. `webRequest` shows no install warning (Chrome's permissions
+  list gives none; the hosts are already in `host_permissions`, which it
+  also needs, for the request and its initiator), so adding it doesn't
+  disable the extension on update; `debugger` would read bodies but warns.
+  Limit: a page script that hooks the engine can still pair a fake hint
+  with a real Ashby refusal (a 200). `markSubmitted` (batch.js) then keeps the resume the
   fill attached as the sent resume (`PUT .../resume` with the profile
   resume's `uploaded_resume_id` or `built_resume_id`; one that fails is
   logged, never blocks), marks it applied (`POST .../finish
