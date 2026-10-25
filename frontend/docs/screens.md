@@ -2072,7 +2072,10 @@ bubble on every step. It is all decoration over made-up data, so it is
 aria-hidden, and it holds still under reduced motion.
 
 **Profile asks what every application asks (KAN-283).** Authorization to
-Work and Visa Sponsorship (yes or no), Citizenship and Visa Status, Security
+Work and Visa Sponsorship (yes or no), then Location and Links (KAN-372:
+where the student lives, typed as forms ask it, "Stony Brook, NY", and
+LinkedIn, GitHub and Portfolio or Website; `onboarding/applicant/contact-fields.tsx`),
+then Citizenship and Visa Status, Security
 Clearance, then the voluntary Gender, Hispanic or Latino, Race/Ethnicity,
 Veteran Status and Disability, in the order real forms ask them, each under the question as forms word it. The options
 are real forms' options (`lib/autofill-answers.ts`): gender's are the
@@ -2082,9 +2085,12 @@ EEO-1 category or decline, the EEO's own two questions, which every U.S.
 form keeps apart; veteran
 status's three are the U.S. protected veteran self-identification's, disability's
 three are Form CC-305's words. One answer each, as dots; pressing a picked
-answer again clears it. They are not filters: Continue saves them to the
+answer again clears it. They are not filters: Finish saves them to the
 answer bank (`PATCH /applicants/{id}/autofill-answers`, only the changed
-ones), which auto apply fills forms from. The step was Pay & Visa until
+ones), and the location and links to the profile (`PATCH
+/applicants/{id}/profile`, only the changed ones; My Profile edits the same
+fields), which auto apply fills forms from. A link that is no web address
+is marked under its box and stops Finish before anything saves. The step was Pay & Visa until
 KAN-283: pay moved to step 1, beside the job types that set its units, and
 the visa filter question left onboarding. A visa filter saved before is
 kept, and the Jobs page still sets it.

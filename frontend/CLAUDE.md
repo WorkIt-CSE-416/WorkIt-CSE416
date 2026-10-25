@@ -1375,8 +1375,10 @@ are in `docs/auth.md`.
   0006): `previewResume` (saves nothing), then `uploadResume(fd, {
   replaceMatching: true })` on the student's Save Resume, which replaces
   the other uploads' copies of the same entries. Every other upload screen
-  calls `uploadResume` plain and keeps ADR 0005's one-owner rule. Screen:
-  `docs/screens.md`, Applicant onboarding.
+  calls `uploadResume` plain and keeps ADR 0005's one-owner rule. Its
+  Profile step then saves the home `location` and the links through
+  `updateProfile`, checked with `webLink` first, the same fields My Profile
+  edits. Screen: `docs/screens.md`, Applicant onboarding.
 - **A built resume's download keeps nothing** (KAN-267): the PDF through
   `renderResumePdf` (base64 and its `file_name`), the Word file and the
   PDF's LaTeX source through `downloadResumeFile(id, "docx" | "tex")`

@@ -4,6 +4,7 @@ import { redirect } from "next/navigation";
 
 import { getSavedFilters } from "@/app/(seeker)/jobs/listings";
 import { getAutofillAnswers } from "@/lib/autofill-answers-actions";
+import { getProfile } from "@/lib/profile-actions";
 import { getCurrentAccount, getSessionUser } from "@/lib/session";
 
 import { OnboardingForm } from "./onboarding-form";
@@ -44,10 +45,11 @@ export default async function ApplicantOnboardingPage({
   const account = await getCurrentAccount();
   if (account?.account_type === "company") redirect("/onboarding/company");
 
-  const [options, saved, savedAnswers, params] = await Promise.all([
+  const [options, saved, savedAnswers, { profile }, params] = await Promise.all([
     getRoleOptions(),
     getSavedFilters(),
     getAutofillAnswers(),
+    getProfile(),
     searchParams,
   ]);
 
@@ -56,6 +58,16 @@ export default async function ApplicantOnboardingPage({
       {...options}
       initial={saved ?? undefined}
       initialAnswers={savedAnswers.answers}
+      initialContact={
+        profile
+          ? {
+              location: profile.location,
+              linkedin_url: profile.linkedin_url,
+              github_url: profile.github_url,
+              portfolio_url: profile.portfolio_url,
+            }
+          : undefined
+      }
       email={user.email}
       startStep={params.step === "2" && saved ? 2 : 0}
     />

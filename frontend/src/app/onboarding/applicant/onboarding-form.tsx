@@ -13,13 +13,21 @@ import { answerIcon } from "@/components/icons";
 import { Stepper } from "@/components/stepper";
 import { Button } from "@/components/ui/button";
 import { cn } from "@/lib/cn";
+import { updateProfile } from "@/lib/profile-actions";
+import { webLink } from "@/lib/profile-links";
 import { previewResume, uploadResume, type ResumePreview } from "@/lib/resume-actions";
 
 import { saveAutofillAnswers } from "@/lib/autofill-answers-actions";
-import { NO_ANSWERS, PROFILE_QUESTIONS, type AutofillAnswers } from "@/lib/autofill-answers";
+import {
+  NO_ANSWERS,
+  PROFILE_QUESTIONS,
+  type AutofillAnswers,
+  type ProfileQuestion,
+} from "@/lib/autofill-answers";
 
 import { savePreferences } from "./actions";
 import { ChoiceTile } from "./choice-tile";
+import { LinkFields, LINKS, LocationField, NO_CONTACT, type Contact } from "./contact-fields";
 import { ResumeStep } from "./resume-step";
 import { Field, fieldId, RoleStep } from "./role-step";
 import { SignedInAs } from "./signed-in-as";
@@ -49,23 +57,24 @@ import { StoryPanel } from "./story-panel";
  * on without one. It replaced intake's chat (KAN-275 put the resume last).
  *
  * STEP 3 IS WHAT EVERY APPLICATION ASKS (KAN-283), right after the resume
- * (KAN-372): work authorization,
- * sponsorship, citizenship and visa status, clearance, and the voluntary
- * gender, Hispanic or Latino, race, veteran and disability
- * self-identification (lib/autofill-answers). They are no
- * filter: they go to the seeker's answer bank, which auto apply fills forms
- * from. It used to be Pay & Visa; pay moved to step 1 with the rest of the
- * role, and the visa filter question left onboarding (a saved one is kept,
- * and the Jobs page still sets it).
+ * (KAN-372). Work authorization and sponsorship come first, then the home
+ * location and the links (./contact-fields), then citizenship and visa
+ * status, clearance, and the voluntary gender, Hispanic or Latino, race,
+ * veteran and disability self-identification (lib/autofill-answers). They
+ * are no filter: the questions go to the seeker's answer bank and the
+ * location and links to the profile, which auto apply fills forms from. It
+ * used to be Pay & Visa; pay moved to step 1 with the rest of the role, and
+ * the visa filter question left onboarding (a saved one is kept, and the
+ * Jobs page still sets it).
  *
- * FINISH saves step 3 to the answer bank, then step 1 as the seeker's
- * preferences, which marks onboarding done, and opens the Jobs page in its
- * Best Match order. The answer bank saves first because a finished seeker
- * is never sent back here, and only My Profile's Application Questions asks
- * them again; a failed save leaves this step to retry from, and saving again
- * changes nothing.
+ * FINISH saves step 3 to the answer bank and the profile, only what
+ * changed, then step 1 as the seeker's preferences, which marks onboarding
+ * done, and opens the Jobs page in its Best Match order. Step 3 saves first
+ * because a finished seeker is never sent back here; a failed save leaves
+ * this step to retry from, and saving again changes nothing. A link that is
+ * no web address stops Finish before anything saves.
  *
- * `initial` and `initialAnswers` are what the seeker saved, so a finished
+ * `initial`, `initialAnswers` and `initialContact` are what the seeker saved, so a finished
  * seeker who comes back edits them rather than starting over.
  */
 
@@ -110,6 +119,7 @@ export function OnboardingForm({
   seasons,
   initial = NO_FILTERS,
   initialAnswers = NO_ANSWERS,
+  initialContact = NO_CONTACT,
   email,
   startStep = 0,
 }: {
@@ -120,6 +130,8 @@ export function OnboardingForm({
   initial?: FeedFilters;
   /** The answer bank as saved (lib/autofill-answers-actions), for step 3. */
   initialAnswers?: AutofillAnswers;
+  /** The profile's location and links as saved, for step 3. */
+  initialContact?: Contact;
   /** Who is signed in, for the line at the foot (./signed-in-as). */
   email: string | null;
   /** The step to open on: Profile for ?step=2 (./page). */
@@ -140,6 +152,10 @@ export function OnboardingForm({
    *  still clears it. Against the page's first props it sent nothing, and
    *  the bank kept the answer the seeker took back. */
   const bankSaved = useRef<AutofillAnswers>(initialAnswers);
+  const [contact, setContact] = useState<Contact>(initialContact);
+  /** The profile as saved, so Finish sends only what changed (as bankSaved). */
+  const contactSaved = useRef<Contact>(initialContact);
+  const [badLinks, setBadLinks] = useState<ReadonlySet<keyof Contact>>(new Set());
   const [resume, setResume] = useState<File | null>(null);
   /** The picked file's reading, from Read Resume; cleared with the file. */
   const [preview, setPreview] = useState<ResumePreview | null>(null);
@@ -248,6 +264,20 @@ export function OnboardingForm({
   /** Saves the answer bank, then the preferences, which finish onboarding.
    *  A failure leaves this page to retry from. */
   async function finish() {
+    // A link that is no web address is refused here, by the API's own rule
+    // (lib/profile-links), before anything saves.
+    const typed: Contact = {
+      ...contact,
+      location: contact.location?.trim() || null,
+    };
+    const bad = new Set<keyof Contact>();
+    for (const { key } of LINKS) {
+      const link = webLink(contact[key] ?? "");
+      if (link === "invalid") bad.add(key);
+      else typed[key] = link;
+    }
+    setBadLinks(bad);
+    if (bad.size) return fail("Check the links: each must be a web address.");
     setBusy("saving");
     setError(null);
     // Each action catches its own API failures, but the call to the action
@@ -265,6 +295,16 @@ export function OnboardingForm({
       const { error: bankError } = await saveAutofillAnswers(changed);
       if (bankError) return fail(bankError);
       bankSaved.current = sent;
+      const contactChanged = Object.fromEntries(
+        Object.entries(typed).filter(
+          ([key, value]) => value !== contactSaved.current[key as keyof Contact],
+        ),
+      );
+      if (Object.keys(contactChanged).length) {
+        const { error: profileError } = await updateProfile(contactChanged);
+        if (profileError) return fail(profileError);
+        contactSaved.current = typed;
+      }
       // A picked state narrows its country, as All Filters' Apply does.
       const { error: saveError } = await savePreferences(statesNarrowCountries(answers));
       if (saveError) return fail(saveError);
@@ -324,6 +364,9 @@ export function OnboardingForm({
             <ProfileStep
               answers={profile}
               set={(change) => setProfile((a) => ({ ...a, ...change }))}
+              contact={contact}
+              setContact={(change) => setContact((c) => ({ ...c, ...change }))}
+              badLinks={badLinks}
             />
           )}
         </div>
@@ -443,25 +486,42 @@ function OneOf<V extends string>({
 function ProfileStep({
   answers,
   set,
+  contact,
+  setContact,
+  badLinks,
 }: {
   answers: AutofillAnswers;
   set: (change: Partial<AutofillAnswers>) => void;
+  contact: Contact;
+  setContact: (change: Partial<Contact>) => void;
+  badLinks: ReadonlySet<keyof Contact>;
 }) {
+  const question = (q: ProfileQuestion) => (
+    <Field key={q.key} Icon={answerIcon(q.key)} label={q.label} hint={q.question}>
+      <OneOf
+        labelledBy={fieldId(q.label)}
+        describedBy={`${fieldId(q.label)}-hint`}
+        columns={q.columns}
+        options={q.options}
+        value={answers[q.key]}
+        // The key's own options, so the value is one of its answers.
+        onChange={(next) => set({ [q.key]: next } as Partial<AutofillAnswers>)}
+      />
+    </Field>
+  );
+  // Work authorization and sponsorship lead (KAN-372): the facts a Match
+  // and most forms need first. Location and links follow, then the rest in
+  // the order forms ask.
+  const first = PROFILE_QUESTIONS.filter((q) => FIRST.includes(q.key));
+  const rest = PROFILE_QUESTIONS.filter((q) => !FIRST.includes(q.key));
   return (
     <>
-      {PROFILE_QUESTIONS.map((q) => (
-        <Field key={q.key} Icon={answerIcon(q.key)} label={q.label} hint={q.question}>
-          <OneOf
-            labelledBy={fieldId(q.label)}
-            describedBy={`${fieldId(q.label)}-hint`}
-            columns={q.columns}
-            options={q.options}
-            value={answers[q.key]}
-            // The key's own options, so the value is one of its answers.
-            onChange={(next) => set({ [q.key]: next } as Partial<AutofillAnswers>)}
-          />
-        </Field>
-      ))}
+      {first.map(question)}
+      <LocationField value={contact.location} onChange={(location) => setContact({ location })} />
+      <LinkFields contact={contact} onChange={setContact} invalid={badLinks} />
+      {rest.map(question)}
     </>
   );
 }
+
+const FIRST: ProfileQuestion["key"][] = ["work_authorized_us", "needs_sponsorship"];
