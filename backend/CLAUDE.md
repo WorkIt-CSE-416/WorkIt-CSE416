@@ -586,6 +586,16 @@ Find files with a directory listing; these are the rules for where code goes.
     owned the same name). A student whose other upload holds the skill is
     now asked, and Yes adds an unowned copy. The response keeps
     `questions` (equal to `missing`) for the screen.
+  - **Picked skills and their placement** (`../docs/tailor_resume.md`,
+    step 1): a run takes `skills`, the missing keywords the student picked
+    to add (any other name is ignored). The prompt numbers the resume's
+    skills by group (`skill_numbers`) and lists the picked ones to place;
+    the model answers a group and `after` (a number it copies, 0 for first
+    in the group) for each, and `place_skills` checks each placement alone
+    and builds the order (the group wins over the number; at most two new
+    groups; positions come from code, never the model). The truth rule
+    counts the picked skills: the student says they have them. Nothing
+    saves the placed order until the run saves (step 3).
   - **A change carries no keywords** (2026-10-25). A run used to run the
     keyword match once per change to label each card ("Adds Docker") and
     to move the screen's "With What You Accept" count; both are gone, for

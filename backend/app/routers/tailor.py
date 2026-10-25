@@ -141,18 +141,20 @@ async def run(
 
     # scores each bullet the resume shows, used to suggest a better order
     ranks = await tailor.rank_bullets(session, view, tailor.posting_text(job, found))
+    matched, missing = keywords.match(view, found)
+    # Only missing keywords can be picked: any other name is ignored.
+    asked = {name.casefold() for name in body.skills}
+    picked = [k.keyword for k in missing if k.keyword.casefold() in asked]
 
     identity = await load_identity(session, account)
     try:
         reading = await llm.complete_json(
-            tailor.prompt(job, found, view, ranks), TailorReading,
+            tailor.prompt(job, found, view, ranks, picked), TailorReading,
             identity=identity, max_tokens=tailor.REPLY_TOKENS)
     except ScoutUnavailable as exc:
         raise HTTPException(503, AI.failure(exc)) from exc
     # propose new order 
-    changes, dropped = tailor.propose(bank, view, reading, ranks, found)
-    # extract all missing and matching keywords
-    matched, missing = keywords.match(view, found)
+    changes, dropped = tailor.propose(bank, view, reading, ranks, found, picked)
     tailored_id = tailored.id if tailored else None
     # KAN-319: the Tailor limit is lifted for now.
     # await count_use(session, applicant_id, Feature.TAILOR)

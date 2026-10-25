@@ -22,9 +22,11 @@ from app.main import app
 from app.models.jobs import Job_Post
 from app.routers.scout import get_llm
 from app.schemas.auth import AccountType, AuthenticatedAccount
+from app.schemas.tailor import Placement
 from app.services import tailor
 from app.services.ai_messages import TOO_LARGE
 from app.services.keywords import posting_hash
+from app.services.resume_view import ResumeView, ViewSkill
 
 pytestmark = pytest.mark.anyio
 
@@ -345,8 +347,9 @@ async def test_the_model_sees_only_the_skills_the_resume_shows(student, database
 
     await student.tailor(posting)
 
-    skills = next(line for line in fake.prompts[0][-1]["content"].splitlines() if line.startswith("The student's skills:"))
-    assert skills == "The student's skills: Docker"
+    sent = fake.prompts[0][-1]["content"]
+    skills = sent.split("The resume's skills:\n")[1].split("\n\n")[0]
+    assert skills == "Other: [1] Docker"
 
 
 async def test_a_rewording_may_name_only_a_skill_the_resume_shows(student, database, use_model):
@@ -367,6 +370,20 @@ async def test_a_rewording_may_name_only_a_skill_the_resume_shows(student, datab
     assert refused.status_code == 422 and "Rust" in refused.json()["detail"]
     show = {"kind": "show_skill", "skill_id": rust["id"], "label": "Rust"}
     assert (await student.done(posting, built(student.base), [reword, show])).status_code == 200
+
+
+async def test_a_picked_skill_is_placed_by_the_model_and_counts_for_the_truth_rule(student, database, use_model):
+    posting = await _seed_posting(database)
+    fake = use_model(reply(rewords=[("b2", "Wrote billing services in Python and Go")]))
+
+    # Go is missing; Python is matched and Rust is no keyword, so both are ignored.
+    body = (await student.post("/tailor", {
+        "job_posting_id": posting, **built(student.base), "skills": ["go", "Python", "Rust"]})).json()
+
+    assert "Place these skills: Go" in fake.prompts[0][-1]["content"]
+    assert "Rust" not in fake.prompts[0][-1]["content"]
+    rewords = [c for c in body["changes"] if c["kind"] == "reword"]
+    assert [c["text"] for c in rewords] == ["Wrote billing services in Python and Go"]
 
 
 async def test_handles_follow_the_resume_s_own_order(student, database, use_model):
@@ -760,3 +777,72 @@ async def test_another_resume_keeps_a_shared_wording_when_its_first_posting_goes
         await session.commit()
 
     assert "Built Python billing services" in await student.words(kept["id"])
+
+
+# --- Skill placement (docs/tailor_resume.md) ---------------------------------
+
+
+def _view(*skills: tuple[str, str | None]) -> ResumeView:
+    return ResumeView((), tuple(ViewSkill(uuid.uuid4(), name, group) for name, group in skills))
+
+
+# Printed as: Languages: [1] Python, [2] Java / Tools: [3] Git, [4] Docker
+SKILLS = _view(("Python", "Languages"), ("Java", "Languages"), ("Git", "Tools"), ("Docker", "Tools"))
+
+
+def _placed(view: ResumeView, picked: list[str], *placements: dict) -> list[tuple[str, str | None]]:
+    return [(p.name, p.group) for p in tailor.place_skills(view, picked, [Placement(**p) for p in placements])]
+
+
+def test_a_skill_goes_after_the_numbered_skill_in_its_group():
+    assert _placed(SKILLS, ["Go"], {"skill": "Go", "group": "Languages", "after": 1}) == [
+        ("Python", "Languages"), ("Go", "Languages"), ("Java", "Languages"), ("Git", "Tools"), ("Docker", "Tools")]
+
+
+def test_after_zero_puts_a_skill_first_in_its_group():
+    assert _placed(SKILLS, ["Bash"], {"skill": "Bash", "group": "tools", "after": 0})[2] == ("Bash", "Tools")
+
+
+def test_two_skills_after_one_skill_keep_the_reply_s_order():
+    placed = _placed(SKILLS, ["Kubernetes", "Terraform"],
+                     {"skill": "Terraform", "group": "Tools", "after": 4},
+                     {"skill": "Kubernetes", "group": "Tools", "after": 4})
+    assert [name for name, _ in placed][-2:] == ["Terraform", "Kubernetes"]
+
+
+@pytest.mark.parametrize("after", [9, 3, None])
+def test_an_after_out_of_range_or_in_another_group_puts_the_skill_last_in_its_group(after):
+    # 3 is Git, in Tools: the group wins over the number.
+    placed = _placed(SKILLS, ["Go"], {"skill": "Go", "group": "Languages", "after": after})
+    assert placed[:3] == [("Python", "Languages"), ("Java", "Languages"), ("Go", "Languages")]
+
+
+def test_a_new_group_goes_last_and_at_most_two_are_made():
+    placed = _placed(SKILLS, ["Terraform", "Figma", "Excel"],
+                     {"skill": "Terraform", "group": "Infrastructure", "after": 0},
+                     {"skill": "Figma", "group": "Design", "after": 0},
+                     {"skill": "Excel", "group": "Office", "after": 0})
+    assert placed[4:] == [("Terraform", "Infrastructure"), ("Figma", "Design"), ("Excel", None)]
+
+
+def test_a_group_too_long_or_holding_a_placeholder_is_no_group():
+    placed = _placed(SKILLS, ["Go", "Rust"],
+                     {"skill": "Go", "group": "x" * 41},
+                     {"skill": "Rust", "group": "[name]'s tools"})
+    assert placed[4:] == [("Go", None), ("Rust", None)]
+
+
+def test_a_skill_not_picked_placed_twice_or_left_out_is_handled_alone():
+    placed = _placed(SKILLS, ["Go", "Rust"],
+                     {"skill": "Kotlin", "group": "Languages", "after": 1},
+                     {"skill": "go", "group": "Languages", "after": 2},
+                     {"skill": "Go", "group": "Tools", "after": 3})
+    names = [name for name, _ in placed]
+    assert "Kotlin" not in names and names.count("Go") == 1
+    assert placed[2] == ("Go", "Languages") and placed[-1] == ("Rust", None)
+
+
+def test_other_names_the_resume_s_ungrouped_skills():
+    view = _view(("Python", None), ("Git", "Tools"))
+    assert _placed(view, ["Go"], {"skill": "Go", "group": "Other", "after": 1})[:2] == [
+        ("Python", None), ("Go", None)]

@@ -1,6 +1,7 @@
 # Tailor Resume: one click, changes in place
 
-Status: **designed 2026-10-25, not built.** It replaces Tailor's proposals
+Status: **designed 2026-10-25; step 1 built 2026-10-25** (placement and
+the picked skills in the truth rule, behind today's screen). It replaces Tailor's proposals
 and Done (KAN-217, `backend/CLAUDE.md`, "Tailor"). Build it in the steps at
 the end; each step ships on its own.
 
@@ -196,9 +197,16 @@ A picked skill is never written into the experience bank (decided
 resume shows a skill through a choice row (`built_resume_skills`) that
 points at a `bank_skills` row, so the skill still needs a row.
 
-**Proposal: a resume-local skill**, as the bank already has resume-local
-wording (`bank_bullet_variants.built_resume_id`, the editor's typed
-wording):
+**A resume-local skill** (decided 2026-10-25), as the bank already has
+resume-local wording (`bank_bullet_variants.built_resume_id`, the editor's
+typed wording). It needs the database, not the browser: the server builds
+the resume from saved rows every time it shows it (the PDF, the Word file,
+Apply's snapshot, auto apply with no tab open, another device), and
+`built_resume_skills.skill_id` must point at a `bank_skills` row. A new
+table (`built_resume_local_skills`) was the other option: bank readers
+could never see it, but `build_view`, positions, the editor and the
+renderer would each handle two kinds of skill. The column reuses all of
+them:
 
 - `bank_skills` gains `built_resume_id uuid NULL`, FK `built_resumes.id`
   **ON DELETE CASCADE**: deleting the tailored resume deletes its skills.
@@ -222,9 +230,13 @@ wording):
 
 ## Build order
 
-1. **Placement, alone.** Add `placements` to the reply, the checks above
-   and the insert with renumbering, behind today's screen. Tests: each row
-   of the placement table.
+1. **Placement, alone. Built.** The run takes `skills` (the picked
+   missing keywords; any other name is ignored), prints the resume's skills
+   numbered by group with "Place these skills", and counts the picked
+   skills for the truth rule. The reply has `placements`, and
+   `place_skills` turns them into the tailored resume's skill order (the
+   checks above). Nothing saves that order yet: step 3 writes it. Tests:
+   each row of the placement table (`tests/test_tailor.py`).
 2. **Resume-local skills.** The migration, the `load_bank` default and
    the view's loading of one resume's own skills.
 3. **The run saves.** The run refuses a posting that has a tailored

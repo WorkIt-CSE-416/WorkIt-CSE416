@@ -1,9 +1,9 @@
 """Request/response shapes for Tailor (KAN-217)."""
 
-from typing import Literal
+from typing import Annotated, Literal
 from uuid import UUID
 
-from pydantic import BaseModel, Field, model_validator
+from pydantic import BaseModel, Field, StringConstraints, model_validator
 
 from app.schemas.built_resume import BuiltResumeResponse
 from app.schemas.keywords import Keyword
@@ -14,12 +14,24 @@ class Reword(BaseModel):
     text: str
 
 
+class Placement(BaseModel):
+    """Where one picked skill goes: a `group` (the resume's, or a new one)
+    and `after`, the prompt's number of the skill it follows, 0 for first in
+    its group. `services/tailor.py`'s `place_skills` checks each one."""
+
+    skill: str
+    group: str | None = None
+    after: int | None = None
+
+
 class TailorReading(BaseModel):
     """The model's reply: new wordings for the resume's bullets, each named
-    by its handle in the prompt (b1). Unknown handles are ignored; every
-    wording then faces the truth-rule check."""
+    by its handle in the prompt (b1), and a placement for each picked skill.
+    Unknown handles are ignored; every wording then faces the truth-rule
+    check."""
 
     rewords: list[Reword] = []
+    placements: list[Placement] = []
 
 
 class TailorSource(BaseModel):
@@ -40,9 +52,13 @@ class TailorSource(BaseModel):
 
 
 class TailorRun(TailorSource):
-    """POST /tailor body."""
+    """POST /tailor body. `skills`: the missing keywords the student picked
+    to add to the resume (`docs/tailor_resume.md`); any other name is
+    ignored."""
 
     job_posting_id: UUID
+    skills: list[Annotated[str, StringConstraints(strip_whitespace=True, min_length=1, max_length=60)]] = Field(
+        default=[], max_length=20)
 
 
 class TailorChange(BaseModel):

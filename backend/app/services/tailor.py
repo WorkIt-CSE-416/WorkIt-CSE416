@@ -44,7 +44,7 @@ from app.models.bank import Bank_Bullet, Bank_Bullet_Variant, Bank_Entry
 from app.models.jobs import Job_Post
 from app.models.resume import Resume
 from app.schemas.keywords import Keyword
-from app.schemas.tailor import TailorChange, TailorReading
+from app.schemas.tailor import Placement, TailorChange, TailorReading
 from app.services import bank_import
 from app.services import keywords as kw
 from app.services.bank import (
@@ -61,6 +61,7 @@ from app.services.resume_view import (
     SkillChoice,
     ViewBullet,
     ViewEntry,
+    ViewSkill,
     all_chosen,
 )
 from app.services.truth_rule import invented
@@ -76,21 +77,32 @@ REPLY_TOKENS = 3_000
 # English runs about four characters a token; an estimate, never a count.
 CHARS_PER_TOKEN = 4
 
+# How the prompt names the skills with no group, as the renderer does beside
+# groups (resume_render/fields.py's `skill_lines`).
+OTHER = "Other"
+# A new group the model names: this short, and at most this many a run.
+MAX_GROUP = 40
+MAX_NEW_GROUPS = 2
+
 # One frozen string, so providers can cache it as a prefix.
 PROMPT = """\
 You tailor a student's resume to one job posting. You may rephrase \
 facts the student gave or understand the job requirements and rewrite the experience based on the job description: \
 never add a number or result that the \
 bullet or the student's skills do not already hold. \
-You can add skill or tool that's needed from job and relevant to the student's experience into the bullet point. \
+You can add skill or tool that's needed from job and relevant to the student's experience from the bullet point. \
 Answer with JSON only: \
-{"rewords": [{"bullet": "b1", "text": ...}]}.
+{"rewords": [{"bullet": "b1", "text": ...}], "placements": [{"skill": ..., "group": ..., "after": 2}]}.
 
 - rewords: understand the type of bullets the posting cares about, use the given keyword match list, reworded to use the \
 posting's words where the bullet's experience supports them. One line each, \
 under 200 characters, starting with a strong verb. No need to rewrite a bullet that \
 already fits.
 - Use only the bullet handles given such as (b1).
+- placements: one for each skill under "Place these skills", none \
+otherwise. group: the resume's group it belongs in, or a short new group \
+when none fits. after: the number of the skill in that group it should \
+follow, or 0 to put it first.
 """
 
 
@@ -146,13 +158,18 @@ def handles(view: ResumeView) -> dict[str, uuid.UUID]:
 
 
 def prompt(
-    job: Job_Post, keywords: Sequence[Keyword], view: ResumeView, ranks: Mapping[uuid.UUID, float]
+    job: Job_Post,
+    keywords: Sequence[Keyword],
+    view: ResumeView,
+    ranks: Mapping[uuid.UUID, float],
+    picked: Sequence[str] = (),
 ) -> list[dict[str, str]]:
     """Create a central prompt with job posting, extracted keywords and the
     resume's view: its entries and bullets in its order and wording, and
     only the skills it shows. Over `PROMPT_TOKENS`, the lowest-ranked bullets
     are left out until it fits (`ranks`, ties leaving the latest on the
-    resume first); their entries stay."""
+    resume first); their entries stay. The skills are numbered by group
+    (`skill_numbers`), with the `picked` ones to place after them."""
     named = {v: k for k, v in handles(view).items()}
     shown = {b.id: f"  {named[b.id]}: {b.text}" for b in _bullets(view)}
     description = (
@@ -160,10 +177,15 @@ def prompt(
         or "(No description: only the title.)"
     )
     words = ", ".join(f"{k.keyword} ({k.kind})" for k in keywords) or "(none)"
-    skills = ", ".join(s.name for s in view.skills) or "(none)"
+    number = {s.id: n for n, s in skill_numbers(view).items()}
+    skills = "\n".join(
+        f"{group or OTHER}: " + ", ".join(f"[{number[s.id]}] {s.name}" for s in members)
+        for group, members in skill_groups(view)
+    ) or "(none)"
+    place = f"\n\nPlace these skills: {', '.join(picked)}" if picked else ""
     head = (
         f"Job posting: {job.title}\n\n{description}\n\nKeywords: {words}\n\n"
-        f"The student's skills: {skills}\n\nThe resume's entries:\n"
+        f"The resume's skills:\n{skills}{place}\n\nThe resume's entries:\n"
     )
     entries = {e.id: f"{named[e.id]} [{e.section}] {_label(e)}" for e in _entries(view)}
 
@@ -179,6 +201,99 @@ def prompt(
         lines.append(entries[entry.id])
         lines += [shown[b.id] for b in entry.bullets if b.id in keep]
     return [{"role": "system", "content": PROMPT}, {"role": "user", "content": head + "\n".join(lines)}]
+
+
+def skill_groups(view: ResumeView) -> list[tuple[str | None, list[ViewSkill]]]:
+    """The resume's skills by group, each group where it first shows: the
+    lines the renderer draws."""
+    groups: dict[str | None, list[ViewSkill]] = {}
+    for skill in view.skills:
+        groups.setdefault(skill.group, []).append(skill)
+    return list(groups.items())
+
+
+def skill_numbers(view: ResumeView) -> dict[int, ViewSkill]:
+    """1.. for the resume's skills, group by group, as the prompt prints
+    them. A placement's `after` names one; the numbers never change in a
+    run, so the model copies a number and never counts."""
+    every = [s for _, members in skill_groups(view) for s in members]
+    return dict(enumerate(every, 1))
+
+
+@dataclasses.dataclass(frozen=True)
+class Placed:
+    """One skill in the tailored resume's order: one the resume shows
+    (`skill_id`), or a picked one (`skill_id` None)."""
+
+    skill_id: uuid.UUID | None
+    name: str
+    group: str | None
+
+
+def _group(said: str | None, known: Mapping[str, str | None], made: list[str]) -> str | None:
+    """The group a placement names: the resume's own (any case), no group
+    for "Other", or a new one if it is short, holds no identity placeholder
+    and the run has made fewer than `MAX_NEW_GROUPS`; else no group."""
+    name = " ".join((said or "").split())
+    if not name or name.casefold() == OTHER.casefold() and name.casefold() not in known:
+        return None
+    if name.casefold() in known:
+        return known[name.casefold()]
+    if hit := next((g for g in made if g.casefold() == name.casefold()), None):
+        return hit
+    if len(name) > MAX_GROUP or placeholders_in(name) or len(made) >= MAX_NEW_GROUPS:
+        return None
+    made.append(name)
+    return name
+
+
+def place_skills(view: ResumeView, picked: Sequence[str], placements: Sequence[Placement]) -> list[Placed]:
+    """Every skill of the tailored resume, in order: the resume's own as
+    they show, and each picked one where its placement says
+    (`docs/tailor_resume.md`, "Skill placement"). Each placement is checked
+    alone: a skill not picked, or placed twice, is ignored; an `after` that
+    is out of range or in another group puts the skill last in its group;
+    one with no placement goes last with no group. The group wins over the
+    number. Positions come from this order, never from the model."""
+    groups = skill_groups(view)
+    number = skill_numbers(view)
+    known = {(g or OTHER).casefold(): g for g, _ in groups}
+    wanted = {name.casefold(): name for name in picked}
+    made: list[str] = []
+    first: dict[str | None, list[str]] = {}
+    after: dict[uuid.UUID, list[str]] = {}
+    last: dict[str | None, list[str]] = {}
+    seen: set[str] = set()
+    for p in placements:
+        name = wanted.get(" ".join(p.skill.split()).casefold())
+        if name is None or name.casefold() in seen:
+            continue
+        seen.add(name.casefold())
+        group = _group(p.group, known, made)
+        anchor = number.get(p.after) if p.after else None
+        if p.after == 0:
+            first.setdefault(group, []).append(name)
+        elif anchor is not None and anchor.group == group:
+            after.setdefault(anchor.id, []).append(name)
+        else:
+            last.setdefault(group, []).append(name)
+    for name in picked:
+        if name.casefold() not in seen:
+            seen.add(name.casefold())
+            last.setdefault(None, []).append(name)
+
+    members = dict(groups)
+    order: list[str | None] = [g for g, _ in groups] + made
+    if None not in members and (None in first or None in last):
+        order.append(None)
+    out: list[Placed] = []
+    for group in order:
+        out += [Placed(None, name, group) for name in first.get(group, [])]
+        for skill in members.get(group, []):
+            out.append(Placed(skill.id, skill.name, group))
+            out += [Placed(None, name, group) for name in after.get(skill.id, [])]
+        out += [Placed(None, name, group) for name in last.get(group, [])]
+    return out
 
 
 def _next(positions: Iterable[int]) -> int:
@@ -306,12 +421,14 @@ def propose(
     reading: TailorReading,
     ranks: Mapping[uuid.UUID, float],
     keywords: Sequence[Keyword],
+    picked: Sequence[str] = (),
 ) -> tuple[list[TailorChange], int]:
     """(changes, how many wordings the truth rule dropped), for the bullets
     `view` shows. `bank` gives each bullet's own wording; the truth rule
-    reads the skills `view` shows."""
+    reads the skills `view` shows and the `picked` ones, which the student
+    says they have by picking them."""
     ids = handles(view)
-    skills = [s.name for s in view.skills]
+    skills = [s.name for s in view.skills] + list(picked)
     showing = {b.id: b.text for b in _bullets(view)}
     originals = {b.id: b.text for e in bank.entries for b in e.bullets if b.id in showing}
     changes: list[TailorChange] = []
