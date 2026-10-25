@@ -554,6 +554,16 @@ waits for an opened tab's page and form (`waitForLoad`, `formShows`).
   click (another card, Start again) tops up the window from the queue and
   leaves the open tabs alone (`fill: "kept"` when nothing new opened). A
   student who reloads a tab by hand fills it from the popup.
+- **A Workable form fills from empty, in a batch or not.** Workable
+  restores an unsent draft from local storage (`evergreen-*`) as its form
+  opens, and the engine won't add to entries a section already lists. A
+  batch tab forgets the draft and reloads as it opens (`batch.js`'s
+  `startFill`); the student's own Autofill does so only when its first Plan
+  finds entries showing once the form's Submit shows (`tab-load.js`'s
+  `forgetShownWorkableDraft`), then fills again, so what the student typed
+  by hand on that form is lost (`test/workable.extension.spec.ts`). The
+  draft is forgotten again as the page goes (`pagehide`): Workable can save
+  it back after it was forgotten, seen as a flaky refill in that test.
 - **Nothing here waits on a redraw.** The first runner fill (before the
   Fill engine) filled the name fields, then reported "No options appeared"
   on every dropdown: its waits polled with `requestAnimationFrame`, which a
