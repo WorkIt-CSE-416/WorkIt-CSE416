@@ -86,6 +86,10 @@ GET  /applicants/{id}/applications/{job_id}/answer-bank
      the form, so a question answered once is filled again without the
      student's Claude. `own` marks the student's own words. 404 with no
      application.
+GET  /applicants/{id}/answer-bank?company=...
+     The same for a form filled outside a batch, which has no application:
+     every saved answer it may reuse, an answer about one company only when
+     `company` (the page's, when the extension read it) is that company.
 POST /applicants/{id}/applications/{job_id}/finish  {"outcome": "submitted"}
      How a fill ended: submitted → applied, skipped → skipped, failed →
      needs_you. 404 with no application, 409 when it isn't queued or
@@ -336,6 +340,18 @@ async def answer_bank(
     """The saved answers this application's form may reuse, by question wording."""
     assert_applicant_owns(account, applicant_id)
     return await pipeline.answer_bank(db, applicant_id, job_id)
+
+
+@router.get("/answer-bank", response_model=dict[str, SavedAnswer])
+async def any_form_answer_bank(
+    applicant_id: uuid.UUID,
+    company: str | None = Query(default=None, max_length=200),
+    account: AuthenticatedAccount = Depends(get_current_account),
+    db: AsyncSession = Depends(get_session),
+) -> dict[str, SavedAnswer]:
+    """The saved answers a form filled outside a batch may reuse, by question wording."""
+    assert_applicant_owns(account, applicant_id)
+    return await pipeline.answer_bank(db, applicant_id, None, company)
 
 
 @router.put("/applications/{job_id}/fill", response_model=ApplicationStage)
