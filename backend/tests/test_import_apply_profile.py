@@ -374,3 +374,45 @@ async def test_an_edited_apply_file_reaches_workit_on_the_next_import(running, a
     assert float(school["gpa"]) == 3.8
     assert (await _get(applicant, "/fill-profile")).json()["profile"]["identity"]["current_location"]["city"] == "Shelbyville"
 
+
+
+NAMING = """\
+'what are you proud of?':
+  question: What are you proud of?
+  answer: The dashboard I built for Initech's warehouse robots.
+  source: claude
+  reviewed: true
+'what did you learn last summer?':
+  question: What did you learn last summer?
+  answer: At Acme I learned to read a large codebase before changing it.
+  source: claude
+  reviewed: true
+"""
+
+
+async def test_a_brought_draft_with_no_company_that_names_one_keeps_to_it(
+    running, applicant, database, apply_dir, local_files,
+):
+    from sqlalchemy import text
+
+    from tests.test_connector import _student_queues
+    from tests.test_connector_checks import _company
+
+    (apply_dir / "answer-bank.yaml").write_text(NAMING)
+    await _import(database, applicant, apply_dir)
+    _, (job, initech, acme) = await _student_queues(database, applicant, 3)
+    # Two postings the student hasn't applied to: Initech, and Acme, where they worked.
+    await _company(database, initech, "Initech")
+    await _company(database, acme, "Acme")
+    async with database() as session:
+        await session.execute(text("DELETE FROM job_applications WHERE job_id IN (:a, :b)"), {"a": initech, "b": acme})
+        await session.commit()
+    await _company(database, job, "Hooli")
+
+    bank = (await _get(applicant, f"/applications/{job}/answer-bank")).json()
+    assert "What are you proud of?" not in bank
+    assert "What did you learn last summer?" in bank
+
+    await _company(database, job, "Initech")
+    bank = (await _get(applicant, f"/applications/{job}/answer-bank")).json()
+    assert "What are you proud of?" in bank

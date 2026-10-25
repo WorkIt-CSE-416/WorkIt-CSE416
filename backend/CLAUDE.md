@@ -336,7 +336,10 @@ Find files with a directory listing; these are the rules for where code goes.
   that application's checks (the engine checks the form's limit on the page). **An answer about one
   company is offered on that company's forms only** (`checks.company_specific`,
   read through `pipeline.answer_bank`: reuse saved answers through it, never
-  from `written_answers` directly). **The student's own words win**
+  from `written_answers` directly). A draft of their Claude's brought
+  from Apply with no company (no `first_seen`) that names a company WorkIt
+  knows (`written.companies_named`; the student's own places don't count)
+  is that company's answer. **The student's own words win**
   (KAN-379): the student's words in a tab (`PUT .../answers`, `own` true:
   written into a field WorkIt didn't fill, or replacing what it filled) set
   the row's `own`, which their Claude's later save never overwrites and

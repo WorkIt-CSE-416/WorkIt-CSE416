@@ -9,6 +9,7 @@ its transaction, as every layer-2 step does.
 """
 
 import dataclasses
+import re
 import uuid
 from collections.abc import Collection, Iterable, Sequence
 from typing import Literal
@@ -21,6 +22,7 @@ from app.auto_apply.queries import (
     fetch_answered,
     fetch_application_companies,
     fetch_brought_answers,
+    fetch_company_names,
     fetch_next_to_write,
     fetch_posting_text,
     fetch_saved_answers,
@@ -405,9 +407,17 @@ async def answer_bank(
         *(s for s in written if s.own), *(s for s in brought if s.own),
         *(s for s in written if not s.own), *(s for s in brought if not s.own),
     ]
+    # A draft brought from Apply with no company (no first_seen) that names
+    # one is about that company: offered only on its forms.
+    unplaced = [s for s in brought if not s.own and not s.choice and s.company is None]
+    known = await _known_companies(db, applicant_id) if unplaced else set()
     for saved in saved_answers:
         theirs = (saved.company or "").strip().casefold()
         said = "; ".join(saved.answer) if isinstance(saved.answer, list) else saved.answer
+        if any(saved is s for s in unplaced) and (
+            named := companies_named(said, known)
+        ) and named != {briefs.company_key(company or "")}:
+            continue
         if checks.company_specific(saved.question, said, saved.company) and not (same and theirs == same):
             continue
         # Every answer keeps the other-employer rule; only their Claude's take the checks meant for its text.
@@ -421,6 +431,32 @@ async def answer_bank(
             seen.add(wording)
             bank[saved.question] = SavedAnswer(answer=saved.answer, own=saved.own)
     return bank
+
+
+async def _known_companies(db: AsyncSession, applicant_id: uuid.UUID) -> set[str]:
+    """The keys (briefs.company_key) of every company WorkIt knows, less the
+    places the student worked or studied: naming those is their own story."""
+    own = {briefs.company_key(place) for place in places(await load_bank(db, applicant_id))}
+    return {key for name in await fetch_company_names(db) if (key := briefs.company_key(name)) and key not in own}
+
+
+def companies_named(text: str, known: Collection[str]) -> set[str]:
+    """The keys of the `known` companies `text` names: each run of up to
+    four capitalized words (a possessive's "'s" and the punctuation that
+    ends a run dropped) folded as briefs.company_key folds a company's name."""
+    named: set[str] = set()
+    run: list[str] = []
+    for word in [*text.split(), ""]:
+        bare = re.sub(r"(['\u2019]s)?[,.;:!?)\"\u201d]*$", "", word.lstrip("(\"\u201c"))
+        if bare[:1].isupper() or bare[:1].isdigit():
+            run.append(bare)
+        if not (bare[:1].isupper() or bare[:1].isdigit()) or not word.endswith(bare):
+            for start in range(len(run)):
+                for end in range(start + 1, min(start + 4, len(run)) + 1):
+                    if len(key := briefs.company_key(" ".join(run[start:end]))) > 1 and key in known:
+                        named.add(key)
+            run = []
+    return named
 
 
 def _wording(question: str) -> str:
