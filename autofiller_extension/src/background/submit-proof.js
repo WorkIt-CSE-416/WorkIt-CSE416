@@ -46,7 +46,10 @@ const PAIRED_MS = 5 * 60_000;
 // the page's answer as the page gets it, which can be before this worker sees it: Greenhouse's, Ashby's).
 const WAIT_MS = 15_000;
 
-/** Per tab: when the job system took a submit (`answered`, `alone`) and when the page said "sent" (`hinted`). */
+/**
+ * Per tab: when the job system took a submit (`answered`, `alone`) and when the page said "sent"
+ * (`hinted`); once that marked the application, only when (`marked`) and how it went (`done`).
+ */
 const seen = new Map();
 const waiting = new Map();
 const pending = new Map();
@@ -88,6 +91,9 @@ export function watchSubmitRequests(mark) {
 function settle(tabId, mark) {
   const done = mark(tabId).then(() => true);
   done.catch((error) => console.warn("[batch] the application wasn't marked applied:", error.message));
+  // The proof is spent: a later hint in this tab (another application it comes to hold) needs its own
+  // answer. The page's own notices of this submit, up to WAIT_MS later, are told how it went.
+  seen.set(tabId, { marked: Date.now(), done });
   for (const resolve of waiting.get(tabId) ?? []) resolve(done);
   waiting.delete(tabId);
   return done;
@@ -105,8 +111,11 @@ function settle(tabId, mark) {
  * @param {string | null | undefined} site the tab's job system (engine.js jobOf(url).site), when known
  */
 export function submitHinted(tabId, mark, site) {
-  seen.set(tabId, { ...seen.get(tabId), hinted: Date.now() });
-  if (proven(tabId) || (site && !SUBMIT_REQUESTS[site])) return mark(tabId).then(() => true);
+  const tab = seen.get(tabId);
+  if (tab?.marked && Date.now() - tab.marked <= WAIT_MS) return tab.done;
+  seen.set(tabId, { ...tab, hinted: Date.now() });
+  if (proven(tabId)) return settle(tabId, mark);
+  if (site && !SUBMIT_REQUESTS[site]) return mark(tabId).then(() => true);
   return new Promise((resolve) => {
     const answer = (done) => {
       clearTimeout(timer);

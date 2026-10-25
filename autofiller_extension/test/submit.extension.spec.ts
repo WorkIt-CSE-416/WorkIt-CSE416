@@ -190,6 +190,34 @@ test("the page's notice of a sent application, shown just before the job system'
   await expect.poll(() => api.stages.get("job-0"), { timeout: 20_000 }).toBe("applied");
 });
 
+test("a submit the job system took proves only its own application, not a later one in the same tab", async () => {
+  // Greenhouse's answer proves its submit alone. Once it has marked the application, a later notice in
+  // that tab (here its confirmation page, when the tab has come to hold another application) needs an
+  // answer of its own.
+  const forms = new SavedForms([ARC]);
+  const api = new FakeApi().queue({ id: "job-0", apply_url: forms.url(ARC) });
+  const form = await readyArc(forms, api);
+  await submit(form);
+  await expect.poll(() => api.stages.get("job-0"), { timeout: 15_000 }).toBe("applied");
+
+  // After the page's own notices of that submit are past (submit-proof.js's WAIT_MS), the tab holds job-1.
+  await form.waitForTimeout(16_000);
+  api.stages.set("job-1", "queued");
+  await loaded.worker.evaluate(async (url) => {
+    const { workit_batch: batch } = await chrome.storage.local.get("workit_batch");
+    const [tab] = await chrome.tabs.query({ url: `${url.split("?")[0]}*` });
+    batch.tabs[tab.id] = { jobId: "job-1", url, state: "ready" };
+    await chrome.storage.local.set({ workit_batch: batch });
+  }, forms.url(ARC));
+  // The job board moved the tab to its confirmation page already: back to the form, then confirmed again.
+  await form.goto(forms.url(ARC));
+  await form.goto("https://job-boards.greenhouse.io/arcboatcompany/jobs/5442881008/confirmation");
+  await form.waitForTimeout(2_000);
+
+  expect(api.stages.get("job-1")).toBe("queued");
+  expect(api.calls.filter((c) => c.includes("job-1"))).toEqual([]);
+});
+
 test("reading the student's edits back leaves their focus where they put it", async () => {
   // The tab reads the form back after each edit. Greenhouse's phone country was read by opening its
   // picker, which took the focus: an Enter meant for Submit went to the picker, and nothing was sent.
