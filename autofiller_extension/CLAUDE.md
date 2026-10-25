@@ -257,6 +257,14 @@ and `run/show` switches to one (`jobId`).
   an answer can take that long to land. Tests:
   `test/connector.extension.spec.ts` (Ashby's Harvey form: no saved
   Greenhouse form has an essay the Plan sends to Claude).
+  **An answer the student pastes on the webapp's Written Answers page
+  (KAN-385) arrives the same way**: the API saves it through the
+  connector's own save, and the tab's poll can't tell the two apart, so
+  the extension has no paste path of its own and must not grow one.
+  Test: `test/paste.extension.spec.ts`, Lumen's practice form queued as a
+  real application (its one written question is all that needs the
+  student, so the filled answer moves the tab to Ready; Harvey's other
+  questions keep it in Needs you).
 - **A written question's limit comes from the Fill engine** (KAN-380).
   `planFill` passes the Question set through the engine's `limits`, which
   reads each text field's own `maxlength` on the page, and `planRows`
