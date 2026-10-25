@@ -77,11 +77,13 @@ everything up to that click and nothing after it ("Decisions", below).
 
 - Submitting an application without the student.
 - Solving CAPTCHAs or hiding automation from a hiring system.
-- Creating accounts on a hiring system for the student. Workday asks for one
-  per company; the student makes it. The extension fills its Create Account
-  form (the student's email and a password of its own for that company,
-  kept only in the extension's local storage), but the student presses
-  Create Account and opens Workday's email (KAN-373, 8.4).
+- Creating accounts on a hiring system without the student's yes. Workday
+  asks for one per company. The extension fills its Create Account form
+  (the student's email and a password of its own for that company, kept
+  only in the extension's local storage); once the student allows it,
+  asked once, it also ticks the terms box and presses Create Account or
+  Sign In, as Jobright and Simplify do. The student opens Workday's email
+  (KAN-373, KAN-369, 8.4).
 - Writing cover letters. The tailoring step can do it later.
 
 ## 2. What exists today
@@ -402,9 +404,9 @@ systems show different confirmation pages. That is why the student clicks
 later, one hiring system at a time. (Batch apply does detect it, from each
 hiring system's answer to the submit: 8.4, KAN-374.)
 
-Workday asks for an account on each company's site. The runner never
-creates one: it fills the sign-in form and the student presses the button
-(KAN-373, "Workday sign-in" in 8.4).
+Workday asks for an account on each company's site. The extension fills
+the sign-in form, and presses its button once the student allows it
+(KAN-373, KAN-369, "Workday sign-in" in 8.4).
 
 ### 8.3 The first fill: Auto Apply starts the extension's fill (KAN-305)
 
@@ -574,9 +576,14 @@ filling beside it.
 content script fills the student's email and a strong password unique to
 that company's Workday (its tenant), made the first time and kept only in
 the extension's `chrome.storage.local` on the student's computer: never sent
-to WorkIt's servers (Chrome may offer to save it too). The student presses
-Create Account and opens the verification email; the extension never
-presses it. Later visits fill the saved login. The tab sits in Needs you
+to WorkIt's servers (Chrome may offer to save it too). Later visits fill the
+saved login. The first sign-in page asks the student once whether WorkIt
+may make and sign in to their Workday accounts (KAN-369, as Jobright and
+Simplify do). After a yes, at every company it ticks the terms box (and
+names its words in the panel) and presses Create Account or Sign In itself,
+each at most once a page: a refused sign-in is never tried again, since
+Workday locks accounts. Without a yes, the student presses the button. The
+student always opens the verification email; the panel says so. The tab sits in Needs you
 with "Sign in to continue" until the application's first step shows, and the
 fill then goes on by itself (on a page signing in loads, too: the tab is
 remembered for Workday's re-injection). Never one password shared across
@@ -605,7 +612,9 @@ on after the fill.
 | `run/status` | webapp → extension | `{}`; answers `{ jobId, jobIds }` |
 | `run/show` | webapp → extension | `{ jobId }`; switches to that job's tab |
 | `batch/state` | content script → background | `{ state: "ready" \| "needs_you" }` |
-| `workday/login` | content script → background | `{ create }`; answers `{ email, password, made }`, the login for the page's Workday tenant (a new password for Create Account when none is saved) |
+| `workday/login` | content script → background | `{ create }`; answers `{ email, password, made, signedIn, forMe }`, the login for the page's Workday tenant (a new password for Create Account when none is saved) and whether the student allowed the extension to press its buttons |
+| `workday/allow` | content script → background | `{}`; the student allowed, once, the extension to make and sign in to their Workday accounts (KAN-369) |
+| `workday/forget` | content script → background | `{}`; Workday refused the Create Account the extension pressed: drop that new password |
 | `batch/skip` | content script → background | `{}`: the panel's Skip. The application goes to `skipped` (`POST .../finish`), its tab closes, the next one opens (KAN-373) |
 | `batch/watch` | content script → background | `{}`; the engine starts watching the page for the student's submit |
 | `batch/submitted` | content script → background | `{}`; the student's submit sent the application: mark it applied |

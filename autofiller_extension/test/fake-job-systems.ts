@@ -127,6 +127,16 @@ export class FakeWorkdays {
   /** Each Create Account and Sign In the student sent: the tenant's host, the view, the email and the password. */
   readonly signIns: { host: string; view: string; email: string; password: string }[] = [];
 
+  /** Whether each Create Account sent had its terms box ticked, in order. */
+  readonly agreed: boolean[] = [];
+
+  /**
+   * Workday's answer to a Create Account or Sign In, by tenant host and view:
+   * the words of the message it shows on the page instead of going on to the
+   * application (a verification email, a wrong password).
+   */
+  readonly alerts: Record<string, Partial<Record<"create" | "signin", string>>> = {};
+
   /** Every submit any tenant received (the extension must never send one). */
   get submissions(): unknown[] {
     return this.tenants.flatMap((t) => t.submissions);
@@ -141,9 +151,11 @@ export class FakeWorkdays {
       }
       if (request.url.pathname === "/__fake__/signin") return { headers: { "content-type": "text/html" }, body: signInPage(request.url.searchParams.get("view")!) };
       if (request.url.pathname === "/__fake__/account" && request.method === "POST") {
-        const sent = JSON.parse(request.body.toString());
+        const { agreed, ...sent } = JSON.parse(request.body.toString());
         this.signIns.push({ host: tenant.host, ...sent });
-        return { json: { next: tenant.stepUrl(1) } };
+        if (sent.view === "create") this.agreed.push(agreed);
+        const alert = this.alerts[tenant.host]?.[sent.view as "create" | "signin"];
+        return { json: alert ? { alert } : { next: tenant.stepUrl(1) } };
       }
       return replay(tenant, request);
     }
@@ -156,6 +168,8 @@ export class FakeWorkdays {
  * one (the automation ids Workday's own pages use): the form, a link to the
  * other view, and the button, which Workday covers with a `click_filter`
  * that takes the click. The step bar names the sign-in as the first step.
+ * A Create Account or Sign In that Workday refuses (`alerts`) shows its
+ * message above the form, as Workday's `errorMessage` alert, and stays.
  * The link switches views in the page, as live Workday does: the form is
  * drawn again, its boxes empty, a moment after it changes title (Xcel
  * Energy's, live 2026-10-25).
@@ -187,8 +201,14 @@ document.addEventListener("click", async (event) => {
   }
   if (!event.target.closest("[data-automation-id=click_filter]")) return;
   const value = (id) => document.querySelector("[data-automation-id=" + id + "]").value;
-  const answer = await (await fetch("/__fake__/account", { method: "POST", body: JSON.stringify({ view, email: value("email"), password: value("password") }) })).json();
-  location.href = answer.next;
+  const agreed = Boolean(document.querySelector("[data-automation-id=createAccountCheckbox]")?.checked);
+  const answer = await (await fetch("/__fake__/account", { method: "POST", body: JSON.stringify({ view, email: value("email"), password: value("password"), agreed }) })).json();
+  if (!answer.alert) return void (location.href = answer.next);
+  const alert = document.createElement("div");
+  alert.setAttribute("data-automation-id", "errorMessage");
+  alert.setAttribute("role", "alert");
+  alert.textContent = answer.alert;
+  document.querySelector("[data-automation-id=signInFormo]").prepend(alert);
 });
 </script>`;
 }

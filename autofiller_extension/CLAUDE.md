@@ -298,9 +298,23 @@ waits for an opened tab's page and form (`waitForLoad`, `formShows`).
   on Create Account a new 20-character password, saved before it is typed,
   in both boxes. Rules: **passwords live only in `chrome.storage.local`
   (`workday_logins`)**, never in an API call, a webapp message or a log;
-  **one per tenant, never shared**; **the extension never presses Create
-  Account, Sign In or the terms box**, and never opens the verification
-  email: the student does. A box the student typed in is left alone. The
+  **one per tenant, never shared**; the extension never opens the
+  verification email: the student does. A box the student typed in is left
+  alone. **Pressing for the student (KAN-369)**, as Jobright and Simplify
+  do (resume-2027 `research/workday-accounts.md`): the panel asks once
+  ("Let WorkIt Sign You In to Workday", `askWorkdayAccounts`), and Sign Me
+  In stores `workday_accounts_for_me` (`workday/allow`). From then on, at
+  every company, `workday.js` presses "Sign in with email", switches to
+  Create Account when nothing is saved there (to Sign In when the saved
+  login has signed in, `signedIn`, set by the first `fill/plan` on the
+  tenant), ticks the terms box and names its words in the panel, and
+  presses Create Account (only with a password made on that page) or Sign
+  In, once the boxes hold the login and the page has settled. **Each
+  button at most once a page**: Workday's message after a press is shown
+  (a verification email: open it, come back and press Sign In; a refused
+  sign-in: never tried again, since Workday locks accounts), and a refused
+  Create Account drops its new password (`workday/forget`). Without the
+  student's yes, nothing is pressed. The
   panel says "Sign in to continue" and the tab sits in Needs you until a
   step shows; then the fill goes on, in the page or (the tab is
   remembered by `workday/login`) on the page signing in loads. A tenant's
