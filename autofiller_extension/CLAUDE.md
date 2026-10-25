@@ -119,7 +119,10 @@ builds it: `dist/engine.js` is committed in the engine repo.
   form in an iframe the fill can't reach, so it opens as its embedded form
   (`job-boards.greenhouse.io/embed/job_app?for=<board>&token=<job>`), as does
   an embed link without `for=` (its page names the board). Write-early reads
-  the same link.
+  the same link. On a company's careers page that holds Greenhouse's form in an
+  iframe (`iframe[src*="greenhouse.io/embed/job_app"]`), the overlay names
+  that iframe's link instead of "can't fill this job system yet"
+  (`content-script.js`).
 - **The profile adapter gives only what WorkIt holds.** Name, email,
   phone, home, links, the default resume, the transcript, the latest school and the jobs from the
   bank, and the nine autofill answers, in the words the engine's rules
