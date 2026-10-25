@@ -164,9 +164,15 @@ class Provider:
         self, client: OAuthClientInformationFull, refresh_token: RefreshToken, scopes: list[str]
     ) -> OAuthToken:
         async with get_sessionmaker()() as db:
+            # A refresh token is used once, as a code is: taking it is the
+            # delete, so of two refreshes at once only one finds it.
             grant = await db.scalar(
-                select(Connector_Token.grant_id).where(Connector_Token.token_hash == _hash(refresh_token.token))
+                delete(Connector_Token)
+                .where(Connector_Token.token_hash == _hash(refresh_token.token), Connector_Token.kind == "refresh")
+                .returning(Connector_Token.grant_id)
             )
+            if grant is None:
+                raise TokenError(error="invalid_grant", error_description="The refresh token was already used.")
             await db.execute(delete(Connector_Token).where(Connector_Token.grant_id == grant))
             token = await _give_tokens(
                 db, client.client_id, uuid.UUID(refresh_token.subject),

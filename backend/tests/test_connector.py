@@ -224,6 +224,31 @@ async def test_claude_refreshes_its_token_and_the_old_one_stops_working(running,
     assert old.status_code == 401
 
 
+async def test_a_refresh_token_used_twice_at_once_gives_one_pair(running, applicant):
+    """Two refreshes racing with one refresh token: only one gets tokens,
+    as with a code, so a stolen copy can't keep a second sign-in alive."""
+    import anyio
+
+    memory = _Memory()
+    async with claude(applicant, memory):
+        pass
+    refresh = {
+        "grant_type": "refresh_token", "refresh_token": memory.tokens.refresh_token,
+        "client_id": memory.client.client_id, "client_secret": memory.client.client_secret,
+    }
+    answers = []
+
+    async def use() -> None:
+        async with _api() as api:
+            answers.append(await api.post("/token", data=refresh))
+
+    async with anyio.create_task_group() as both:
+        for _ in range(4):
+            both.start_soon(use)
+
+    assert sorted(res.status_code for res in answers) == [200, 400, 400, 400]
+
+
 # --- The tools and the prompt ---
 
 WHY = {"name": "question_7", "label": "Why do you want to work at Acme?", "required": True, "max_length": 600}
