@@ -42,12 +42,12 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.models.resume import Resume
 from app.models.sent_resume import Resume_Snapshot, Sent_Resume
-from app.services import bank_import, built_resumes, postings
+from app.services import bank_import, built_resumes, postings, stored_files
 from app.services.bank import NotFound
 from app.services.resume_render import HeaderIdentity, render
 from app.services.resume_view import ResumeView, view_from_json, view_from_reading
 
-BUCKET = "Resume"
+BUCKET = stored_files.BUCKET
 # How long a sent resume's download link works.
 FILE_URL_TTL_SECONDS = 5 * 60
 # The snapshot JSON's shape, for a reader that must handle an older one later.
