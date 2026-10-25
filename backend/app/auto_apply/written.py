@@ -34,6 +34,7 @@ from app.auto_apply.queries import (
     save_written,
 )
 from app.auto_apply.stages import NotFound, get_application, open_application
+from app.models.written_answers import is_text
 from app.queries import writing
 from app.schemas.applications import (
     AnsweredQuestion,
@@ -71,7 +72,7 @@ async def ask_questions(
         sources, employers, _ = await _check_material(db, applicant_id, job_id)
         await drop_written(db, applicant_id, job_id, [
             q.name for q in answered
-            if (picked(q, q.answer)[1] if q.kind else checks.problems(q.answer, checks.Context(
+            if (picked(q, q.answer)[1] if not is_text(q.kind) else checks.problems(q.answer, checks.Context(
                 sources=(*sources, q.label), employers=employers, limit=q.max_length, question=q.label,
             )))
         ])
@@ -210,7 +211,7 @@ async def save_answers(
     failing: dict[str, list[str]] = {}
     for name, answer in answers.items():
         q = questions[name]
-        if q.kind:
+        if not is_text(q.kind):
             # A choice is the form's options, not words: only whether it is among them is checked.
             kept[name], found = picked(q, answer)
         else:
@@ -227,7 +228,7 @@ async def save_answers(
         ), failing)
     await save_written(db, applicant_id, job_id, kept, facts, {
         name: dataclasses.asdict(review) for name, review in (reviews or {}).items()
-        if by == "claude" and name in kept and not questions[name].kind
+        if by == "claude" and name in kept and is_text(questions[name].kind)
     })
     await db.commit()
     return sum(1 for name, q in questions.items() if q.answer is None and name not in answers)
@@ -272,10 +273,10 @@ async def _named_facts(db: AsyncSession, job_id: uuid.UUID, named: dict[str, str
     if not named:
         return {}
     company, _, _ = await fetch_posting_text(db, job_id)
-    brief = {briefs._plain(f["fact"]): f for f in await briefs.brief_for(db, company, job_id)}
+    brief = {briefs.plain(f["fact"]): f for f in await briefs.brief_for(db, company, job_id)}
     found: dict[str, NamedFact] = {}
     for name, fact in named.items():
-        match = brief.get(briefs._plain(fact))
+        match = brief.get(briefs.plain(fact))
         if match is None:
             raise Refused(
                 f"The named_fact for {name!r} is not one of the company_brief's facts. Copy one from "
@@ -489,7 +490,7 @@ async def save_own_answer(
         raise Refused("The answer is empty.")
     asked = {q.name: q for q in await fetch_written(db, applicant_id, job_id)}.get(own.name)
     # A choice the student picked on the form is the form's own option: nothing to check.
-    if not own.own and not (asked and asked.kind):
+    if not own.own and not (asked and not is_text(asked.kind)):
         sources, employers, samples = await _check_material(db, applicant_id, job_id)
         found = checks.problems(answer, checks.Context(
             sources=(*sources, own.label), samples=samples, employers=employers, question=own.label,
@@ -510,4 +511,4 @@ async def read_first(db: AsyncSession, applicant_id: uuid.UUID, job_id: uuid.UUI
     company, _, _ = await fetch_posting_text(db, job_id)
     asked = set(names)
     return [q.name for q in await fetch_written(db, applicant_id, job_id)
-            if q.name in asked and q.answer and not q.kind and checks.high_stakes(q.label, company)]
+            if q.name in asked and q.answer and is_text(q.kind) and checks.high_stakes(q.label, company)]

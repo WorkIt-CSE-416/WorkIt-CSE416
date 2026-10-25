@@ -200,7 +200,17 @@ Find files with a directory listing; these are the rules for where code goes.
   callers keep naming them `pipeline.save_answers` and so on, but a test
   that fakes one of their layer-1 calls patches `written`. `resume.py`
   holds the resume steps (`choose_resume`, `prepare_resume`, `FileFailed`),
-  re-exported the same way. Unlike a
+  re-exported the same way. `review.py` holds the pre-submit review
+  (`next_to_review`, `save_review`, `reviewed_answers`, KAN-369): once an
+  application's written questions are all answered, the connector's
+  `get_review_task` hands its answers out for a re-read, each with its
+  version (`answer_version`, a hash of its text), and `save_review` keeps
+  the answers whose version still matches, with each flag, as
+  `job_applications.answer_review`; an answer edited meanwhile stays due.
+  Re-exported the same way; tests: `tests/test_connector_review.py`. A
+  question asked in words (kind NULL, "text" to the connector) is
+  `models/written_answers.is_text`, for a value or, given the column, in
+  SQL: test a question's kind through it, never `kind`'s truth. Unlike a
   service, its functions may
   take a session; its routes still go in `app/routers/`. Its `NotFound`
   and `WrongStage` (`stages.py`, also `pipeline.NotFound`) answer 404 and
