@@ -272,7 +272,13 @@ Find files with a directory listing; these are the rules for where code goes.
   company, a sentence over 30 words, a placeholder, and the form's own
   limit (the Fill engine reads it from the live form; the tab sends it as
   `max_length`). `save_answers` refuses the whole save with every failing
-  answer's reasons, so nothing failing reaches a tab. **An answer about one
+  answer's reasons, so nothing failing reaches a tab. **No saved answer is
+  filled without passing that form's checks**: when a tab sends the form's
+  own limit (`ask_questions`; a question read early had none), each saved
+  answer of their Claude's is checked again and a failing one dropped
+  (`queries.drop_written`) for their Claude to write again; `answer_bank`
+  offers one of their Claude's on another application only if it passes
+  that application's checks (the engine checks the form's limit on the page). **An answer about one
   company is offered on that company's forms only** (`checks.company_specific`,
   read through `pipeline.answer_bank`: reuse saved answers through it, never
   from `written_answers` directly). **The student's own words win**

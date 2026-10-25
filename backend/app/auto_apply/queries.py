@@ -426,6 +426,23 @@ async def save_written(
         )
 
 
+async def drop_written(db: AsyncSession, applicant_id: uuid.UUID, job_id: uuid.UUID, names: Collection[str]) -> None:
+    """Clears the answers to these questions, so the student's Claude
+    writes them again, but never the student's own. Flushes; the caller
+    commits."""
+    if names:
+        await db.execute(
+            update(Written_Answer)
+            .where(
+                Written_Answer.applicant_id == applicant_id,
+                Written_Answer.job_id == job_id,
+                Written_Answer.name.in_(list(names)),
+                Written_Answer.own.is_(False),
+            )
+            .values(answer=None, answered_at=None)
+        )
+
+
 # Where a question the form never sent goes among the application's (an
 # edit to a field a saved answer filled): after every one the form sent.
 UNSENT = 10_000

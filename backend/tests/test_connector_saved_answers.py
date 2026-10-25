@@ -215,3 +215,39 @@ async def test_an_edit_of_claudes_answer_stays_claudes_and_is_checked(running, a
     assert (await _bank(me, third))[PROUD["label"]] == {"answer": edited, "own": False}
     assert too_long.status_code == 422 and "120" in too_long.text
     assert names_globex.status_code == 422 and "Globex" in names_globex.text
+
+
+async def test_the_forms_own_limit_sends_a_too_long_saved_answer_back_to_claude(running, applicant, database):
+    """Questions read early carry no limit, so Claude's answer was saved against none. When the tab
+    sends the form's own limit, an answer over it is dropped, never filled, and Claude writes it again
+    within the limit."""
+    me, (job,) = await _student_queues(database, applicant, 1)
+    await _tab_asks(me, job, {**PROUD, "max_length": None})
+    await _save(applicant, job, "question_8", ROBOT)
+
+    asked = await _tab_asks(me, job, {**PROUD, "max_length": 60})
+
+    assert asked[0]["answer"] is None
+    async with claude(applicant) as client:
+        got = (await client.call_tool("get_next_application", {})).structured_content
+    assert got["job_id"] == job
+    assert got["questions"] == [{"name": "question_8", "question": PROUD["label"], "required": False, "max_length": 60}]
+    # One within the limit stays.
+    short = "I built a robot that placed second at a contest."
+    await _save(applicant, job, "question_8", short)
+    assert (await _tab_asks(me, job, {**PROUD, "max_length": 60}))[0]["answer"] == short
+
+
+async def test_a_saved_answer_is_offered_on_another_form_only_if_it_passes_that_applications_checks(
+    running, applicant, database
+):
+    from tests.test_connector import _describe
+
+    me, (first, second) = await _student_queues(database, applicant, 2)
+    await _describe(database, first, "Our robots cut warehouse costs by 75%.")
+    await _tab_asks(me, first, PROUD)
+    # Fine on the first application: its posting holds the number.
+    await _save(applicant, first, "question_8", "I built a robot like yours, and I would help cut costs by 75%.")
+
+    # The second posting doesn't: the answer would state a number nothing there supports.
+    assert await _bank(me, second) == {}

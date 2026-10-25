@@ -20,6 +20,7 @@ from app.auto_apply.hosts import refusal
 from app.auto_apply.queries import (
     ResumeChoice,
     chosen_resume,
+    drop_written,
     fetch_application,
     fetch_application_companies,
     fetch_applications,
@@ -305,11 +306,25 @@ async def ask_questions(
     """
     Keeps the questions a batch tab's form needs written (KAN-377), for the
     student's Claude to answer through the connector, and answers every
-    question the application has, with the answers saved so far. Only a
-    queued or needs_you application: NotFound / WrongStage otherwise.
+    question the application has, with the answers saved so far. The tab
+    sends the form's own limit, which a question read early lacked: each
+    saved answer of their Claude's is checked again against it (and the
+    rest of checks.py), and one that fails is dropped, never filled, for
+    their Claude to write again. Only a queued or needs_you application:
+    NotFound / WrongStage otherwise.
     """
     await _open_application(db, applicant_id, job_id)
     await put_questions(db, applicant_id, job_id, questions)
+    asked = {q.name for q in questions}
+    answered = [q for q in await fetch_written(db, applicant_id, job_id) if q.answer and q.name in asked]
+    if answered:
+        sources, employers, samples = await _check_material(db, applicant_id, job_id)
+        await drop_written(db, applicant_id, job_id, [
+            q.name for q in answered
+            if checks.problems(q.answer, checks.Context(
+                sources=(*sources, q.label), samples=samples, employers=employers, limit=q.max_length,
+            ))
+        ])
     await db.commit()
     return await fetch_written(db, applicant_id, job_id)
 
@@ -471,7 +486,10 @@ async def answer_bank(db: AsyncSession, applicant_id: uuid.UUID, job_id: uuid.UU
     student's own (KAN-379), else the newest. A wording counts once in any
     case or spacing, as the Fill engine matches it. An answer about one
     company (checks.company_specific) is offered only on that company's
-    forms, never on another's (KAN-380). The extension gives it to the
+    forms, never on another's (KAN-380), and one of their Claude's only if
+    it passes this application's checks (checks.py: its posting's numbers,
+    the student's other applications' companies); the form's own length
+    limit is the Fill engine's to check, on the page. The extension gives it to the
     engine's Plan as its Answer bank (`own`: the student's words), so a
     question answered before is filled without the student's Claude.
     Raises NotFound with no application for the job.
@@ -480,11 +498,16 @@ async def answer_bank(db: AsyncSession, applicant_id: uuid.UUID, job_id: uuid.UU
         raise NotFound("No application for that job.")
     company, _, _ = await fetch_posting_text(db, job_id)
     same = (company or "").strip().casefold()
+    sources, employers, samples = await _check_material(db, applicant_id, job_id)
     bank: dict[str, SavedAnswer] = {}
     seen: set[str] = set()
     for saved in await fetch_saved_answers(db, applicant_id, exclude=job_id):
         theirs = (saved.company or "").strip().casefold()
         if checks.company_specific(saved.question, saved.answer, saved.company) and not (same and theirs == same):
+            continue
+        if not saved.own and checks.problems(saved.answer, checks.Context(
+            sources=(*sources, saved.question), samples=samples, employers=employers,
+        )):
             continue
         if (wording := _wording(saved.question)) not in seen:
             seen.add(wording)
