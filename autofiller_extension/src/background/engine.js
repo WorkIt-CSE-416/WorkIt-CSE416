@@ -238,7 +238,7 @@ export async function planFill({ url, profile, today, call, fetchText, extra = [
   const posting = { id: String(job.job ?? job.shortcode ?? job.pid ?? url), ...names, url };
   const plan = questions.length
     ? engine.plan(questions, engineProfile(profile), POLICIES, {}, { posting, today, postingText: text, employerText: text })
-    : { answers: {}, essays: [], drafts: [], missing: [], handoffs: [], accepted: {} };
+    : { answers: {}, essays: [], drafts: [], missing: [], handoffs: [], accepted: {}, sources: {} };
   const answers = withFiles(plan.answers, profile);
   const prepared = { covered: true, site, posting, questions, plan, answers, applicantId: profile.id, step: read.step, state: read.state };
   return { ...prepared, rows: planRows(prepared) };

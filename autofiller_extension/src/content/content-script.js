@@ -96,7 +96,10 @@
       const byName = new Map(questions.map((q) => [q.name, q]));
       const isNew = (name) => !shown.has(name) && shown.add(name);
 
-      for (const name of Object.keys(answers)) if (isNew(name)) status.register(name, byName.get(name)?.label ?? name, byName.get(name)?.required ?? false);
+      const sources = prepared.plan.sources ?? {};
+      for (const name of Object.keys(answers)) {
+        if (isNew(name)) status.register(name, byName.get(name)?.label ?? name, byName.get(name)?.required ?? false, sources[name] ?? "guessed");
+      }
       for (const q of rows.written) {
         if (batch) {
           if (!isNew(q.name)) continue;
@@ -150,11 +153,11 @@
     }
   }
 
-  /** Fills one answer that needed writing, through the engine, and shows how it went. */
-  async function fillWritten(prepared, name, value) {
+  /** Fills one answer that needed writing, through the engine, and shows how it went. `source`: who wrote it. */
+  async function fillWritten(prepared, name, value, source = "ai") {
     const answer = await send({ type: "fill/page", site: prepared.site, questions: prepared.questions, answers: { [name]: value }, state: prepared.state });
     const result = answer.ok ? answer.results[name] ?? { status: "failed", reason: "The form changed before this was filled" } : { status: "failed", reason: answer.error };
-    status.setStatus(name, result.status, result.reason, result.shows);
+    status.setStatus(name, result.status, result.reason, result.shows, source);
   }
 
   /** The Generate prompt for the questions that need a written answer, if any. */
@@ -234,7 +237,7 @@
       for (const row of rows) {
         const shown = answer.shows[row.key];
         if (!isEmpty(shown)) {
-          if (row.status !== "filled" || JSON.stringify(shown) !== JSON.stringify(row.shows)) status.setStatus(row.key, "filled", row.status === "filled" ? row.reason : "You answered this", shown);
+          if (row.status !== "filled" || JSON.stringify(shown) !== JSON.stringify(row.shows)) status.setStatus(row.key, "filled", row.status === "filled" ? row.reason : "You answered this", shown, "student");
         } else if (row.required && row.status === "filled") status.setStatus(row.key, "failed", "This is empty now. Answer it yourself.");
       }
     };

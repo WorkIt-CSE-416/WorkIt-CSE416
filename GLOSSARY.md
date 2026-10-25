@@ -114,6 +114,10 @@ _Avoid_: runner, run tab
 The two tab groups a batch tab sits in once filled: Ready when every field the form needs shows an answer, Needs you when anything is left for the student. A tab moves between them as that changes.
 _Avoid_: done, failed, review
 
+**Source**:
+Where a filled answer came from, shown beside it: Profile, Saved Answer, Claude (or AI, the essay route), You (the student's own answer or edit) or Guessed (WorkIt's default, or no fact of the student's). A guessed answer is highlighted for the student to check.
+_Avoid_: origin, provenance (in copy), confidence
+
 ## Tracking
 
 **Applications Tracker**:

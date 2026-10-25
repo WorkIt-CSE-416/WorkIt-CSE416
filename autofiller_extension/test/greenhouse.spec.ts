@@ -5,7 +5,7 @@ import { readFileSync } from "node:fs";
 import { join } from "node:path";
 import { runInNewContext } from "node:vm";
 import { expect, test } from "@playwright/test";
-import { FakeJobServer, FORMS } from "../fill-engine/test/fake-job-server";
+import { FakeJobServer, FORMS, loadHar } from "../fill-engine/test/fake-job-server";
 import { ENGINE_FILES } from "../src/shared/content-scripts.js";
 import { engineCaller, planFill, planRows, runEngine } from "../src/background/engine.js";
 import { STUDENT, bridge, failed, inject, settled, shown } from "./extension";
@@ -38,6 +38,32 @@ test("fills a saved Greenhouse form from a WorkIt profile and submits nothing", 
   });
   expect(failed(rows)).toEqual({});
   expect(arc.submissions).toEqual([]);
+});
+
+test("each filled field says where its answer came from, and a guess is marked for checking", async ({ context }) => {
+  const pure = new FakeJobServer("greenhouse-purestorage");
+  const page = await pure.open(context);
+  const job = readFileSync(join(FORMS, "greenhouse-purestorage", "questions.json"), "utf8");
+  // The Job Board API's answer for the job, and the rest (the posting page, its education lists) from the saved form.
+  const saved = new Map(loadHar("greenhouse-purestorage").log.entries.map((e: any) => [e.request.url, e.response.content.text ?? ""]));
+  await bridge(page, async (url) => {
+    if (url.startsWith("https://boards-api.greenhouse.io/")) return job;
+    if (!saved.has(url)) throw new Error(`not saved: ${url}`);
+    return saved.get(url)!;
+  });
+
+  await inject(page);
+  const { rows } = await settled(page);
+  const source = Object.fromEntries(rows.filter((r) => r.status === "filled").map((r) => [r.label, r.source]));
+
+  expect(source).toMatchObject({ "First Name": "profile", Email: "profile", Phone: "profile", "Resume/CV": "profile" });
+  // "How did you hear?" is WorkIt's own default, not something the student said.
+  expect(source["How did you hear about this job?"]).toBe("guessed");
+  // The overlay labels each one, and marks the guess.
+  const panel = page.locator("#workit-autofiller-overlay-host");
+  await expect(panel.locator('[data-key="first_name"] [data-source]')).toHaveText("Profile");
+  await expect(panel.locator(`[data-key="${rows.find((r) => r.source === "guessed")!.key}"]`)).toHaveAttribute("data-guessed", "");
+  expect(pure.submissions).toEqual([]);
 });
 
 test("leaves a job system the engine doesn't cover alone", async () => {

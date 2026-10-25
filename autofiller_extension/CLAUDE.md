@@ -550,6 +550,21 @@ from rows the form marks required, so an optional field left empty is
 JobRight bugs the research caught). The overlay shows a failed row's
 reason in red and a skipped row's in gray.
 
+Each filled row carries its **Source** (KAN-375, `GLOSSARY.md`): the Fill
+engine's Plan names each planned answer's (`plan.sources`: profile,
+student, saved, guessed), the essay route's answers are "ai", the
+student's own Claude's (the connector) "claude", and a value the student
+types after the fill "student". The overlay shows it as a badge (Profile,
+Saved Answer, Claude, AI, You, Guessed; the AI ones carry the sparkle) and
+highlights a guessed row in the warning tint. Where an answer comes from
+is the engine's to say: never work it out here.
+
+The overlay's colours are WorkIt's tokens, copied by hand into its shadow
+root's `:host` from `frontend/src/app/globals.css` (no build step can
+import them): change a value in both. No hex colour is written anywhere
+else in the overlay. The font is Plus Jakarta Sans where the student has
+it installed; the extension ships no font files.
+
 ## Conventions
 
 - **Plain scripts, shared globals, explicit load order** in `src/content/`:
