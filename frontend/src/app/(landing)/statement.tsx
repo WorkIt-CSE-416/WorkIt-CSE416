@@ -644,7 +644,7 @@ function Scene({ p, compact = false }: { p: MotionValue<number>; compact?: boole
 function Screen({ p }: { p: MotionValue<number> }) {
   return (
     <div
-      className="absolute rounded-2xl bg-white shadow-[0_24px_50px_-28px_rgb(16_48_94/0.45)] ring-1 ring-slate-900/[0.06]"
+      className="gloss-card absolute rounded-2xl"
       style={{ left: SCREEN.x, top: SCREEN.y, width: SCREEN.w, height: SCREEN.h }}
     >
       <div className="relative flex items-center gap-3 px-4" style={{ height: HEADER_H }}>

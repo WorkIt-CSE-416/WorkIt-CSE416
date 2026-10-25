@@ -675,7 +675,7 @@ function Posting({
       style={{ x, y, scale, opacity }}
     >
       <div
-        className="text-ink flex h-7 items-center gap-1.5 rounded-full bg-white py-1 pr-2.5 pl-1 text-[11px] font-medium whitespace-nowrap shadow-[0_4px_10px_-6px_rgba(40,20,90,0.45)] ring-1 ring-slate-900/[0.07]"
+        className="gloss-card text-ink flex h-7 items-center gap-1.5 rounded-full py-1 pr-2.5 pl-1 text-[11px] font-medium whitespace-nowrap"
         style={{ width: PILL_W }}
       >
         <FaviconLogo domain={posting.domain} eager className="size-5 rounded-full" />

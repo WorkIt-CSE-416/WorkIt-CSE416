@@ -197,7 +197,7 @@ function ApplicationCard({ landed }: { landed: number }) {
   const reached = STEPS.filter((step) => step.at <= landed).length - 1;
   const current = STEPS[reached];
   return (
-    <div className="rounded-2xl bg-white p-4 shadow-[0_16px_36px_-22px_rgb(16_48_94/0.5)] ring-1 ring-slate-900/5">
+    <div className="gloss-card rounded-2xl p-4">
       <div className="flex items-center gap-3">
         <FaviconLogo domain={domain} eager className="size-10 rounded-xl" />
         <div className="min-w-0 flex-1">
@@ -274,8 +274,7 @@ function ApplicationCard({ landed }: { landed: number }) {
 }
 
 /** The update's panel: one white card filling the room under the application. */
-const PANEL =
-  "flex h-full items-center gap-5 rounded-2xl bg-white/90 p-4 shadow-[0_16px_36px_-22px_rgb(16_48_94/0.5)] ring-1 ring-slate-900/5";
+const PANEL = "gloss-card flex h-full items-center gap-5 rounded-2xl p-4";
 
 function ViewedUpdate() {
   return (

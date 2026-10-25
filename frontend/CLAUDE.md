@@ -413,7 +413,7 @@ the KAN-296 cutover.
   hiring system carries job postings from real employers on that system
   in `scraper/boards.csv` (`streams` in `data.ts`) into WorkIt's mark: a
   senior role is struck through and falls away, an internship or new-grad
-  role goes in and comes out as a glass card on the Jobs page side,
+  role goes in and comes out as a glossy card on the Jobs page side,
   sorted by Best Match. Below lg it runs top to bottom in two or three
   columns. The lines under the mark are pipeline steps, so each is a
   claim. The team dropped the two cards that sat under it (Autofill for
@@ -526,7 +526,7 @@ the KAN-296 cutover.
   runs, not elements: a block line's box spans the full width. The cards are
   frosted glass (`.glass-card` in `landing.css`, a `backdrop-filter` over
   the towers; the page's one glass look, shared with the tour's scene
-  titles and the board's cards). Their fade runs on the tag's children, never the tag itself:
+  titles). Their fade runs on the tag's children, never the tag itself:
   an ancestor below full opacity is a backdrop root, so the blur would see
   nothing behind it and snap on only when the fade ended. Two cards on one
   side of the city once stacked on each other: a card now shows for less
@@ -992,6 +992,15 @@ the KAN-296 cutover.
   move when the new page's start is already on screen, so a short page
   opened from the footer stayed at its foot; and the browser restored a
   place before the home page had grown, so Back stopped short.
+- **A solid card on the marketing pages is `.gloss-card`** (landing.css,
+  KAN-368): a white body shading to a pale violet at its foot under a top
+  sheen, a hairline lit from above and a stack of soft shadows. It
+  replaced `bg-white` with a 5% ring and one shadow, which the team found
+  flat ("basic white cards with borders"). Glass (`.glass-card`) is for a
+  card over colour, where its blur has something to show; over a grey or
+  white panel it read as that same flat card. An element with it carries
+  no `ring-*` or `shadow-*` utility, which would replace its shadows, and
+  paper (a resume page, the statement's pages) stays flat paper.
 - **Type on the marketing pages.** Plus Jakarta Sans is 1.26em tall
   (ascent 1.038, descent 0.222), taller than any display line, so a
   wrapped heading's lines overlap by a few pixels. The selection
