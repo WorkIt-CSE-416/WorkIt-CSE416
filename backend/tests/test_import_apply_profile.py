@@ -23,6 +23,7 @@ from app.scripts.import_apply_profile import import_apply
 pytestmark = pytest.mark.anyio
 
 PDF = b"%PDF-1.4\n% a made-up resume\n%%EOF\n"
+TRANSCRIPT = b"%PDF-1.4\n% a made-up transcript\n%%EOF\n"
 
 PROFILE = """\
 identity:
@@ -119,6 +120,8 @@ def apply_dir(tmp_path):
     (folder / "answer-bank.yaml").write_text(ANSWERS)
     (tmp_path / "repo" / "final").mkdir()
     (tmp_path / "repo" / "final" / "Riley_Example_Resume.pdf").write_bytes(PDF)
+    (tmp_path / "repo" / "records").mkdir()
+    (tmp_path / "repo" / "records" / "transcript.pdf").write_bytes(TRANSCRIPT)
     return folder
 
 
@@ -309,6 +312,18 @@ async def test_the_resume_attaches_from_this_computer_and_is_the_default(running
     assert res.status_code == 200, res.text
     assert res.content == PDF
     assert res.headers["content-type"] == "application/pdf"
+
+
+async def test_the_transcript_attaches_from_this_computer_and_a_rerun_keeps_one(running, applicant, database, apply_dir, local_files):
+    await _import(database, applicant, apply_dir)
+    await _import(database, applicant, apply_dir)
+
+    [document] = (await _get(applicant, "/documents")).json()
+    assert document["kind"] == "transcript"
+    assert document["original_filename"] == "transcript.pdf"
+    res = await _get(applicant, "/documents/transcript/bytes")
+    assert res.status_code == 200, res.text
+    assert res.content == TRANSCRIPT
 
 
 async def test_a_local_resume_has_no_file_without_the_local_folder(

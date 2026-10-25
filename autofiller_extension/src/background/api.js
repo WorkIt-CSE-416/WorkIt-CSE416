@@ -1,6 +1,7 @@
 // Client for WorkIt's own FastAPI backend. Most calls here reuse an
 // endpoint that already exists for the webapp (backend/app/routers/auth.py,
-// profiles.py, bank.py, preferences.py, autofill_answers.py, auto_apply.py)
+// profiles.py, bank.py, preferences.py, autofill_answers.py, auto_apply.py,
+// documents.py)
 // — straight from the extension's background service worker instead of a
 // Server Action. Two routes are new, built for this extension specifically
 // because no existing one was safe/usable from here: essay-answer
@@ -312,6 +313,35 @@ async function resolveResumeFile(applicantId) {
 }
 
 /**
+ * The student's unofficial transcript (backend/app/routers/documents.py,
+ * KAN-369), as file bytes, for a form's transcript upload: null when they
+ * have none, or on any failure (best effort, like the resume). Named apart
+ * from the resume when both files share a name, since a planned file is
+ * matched to its bytes by name (engine.js's withFiles).
+ * @param {string} applicantId
+ * @param {{ filename: string } | null} resume
+ * @returns {Promise<{ filename: string, mimeType: string, base64: string } | null>}
+ */
+async function resolveTranscriptFile(applicantId, resume) {
+  try {
+    const documents = await apiFetch(`/applicants/${applicantId}/documents`);
+    const transcript = documents.find((d) => d.kind === "transcript");
+    if (!transcript) return null;
+    const buffer = await apiFetchBinary(`/applicants/${applicantId}/documents/transcript/bytes`);
+    const ext = (transcript.original_filename?.split(".").pop() || "pdf").toLowerCase();
+    const name = transcript.original_filename || `transcript.${ext}`;
+    return {
+      filename: name === resume?.filename ? `Transcript_${name}` : name,
+      mimeType: RESUME_MIME_TYPES[ext] ?? "application/octet-stream",
+      base64: arrayBufferToBase64(buffer),
+    };
+  } catch (error) {
+    console.warn("resolveTranscriptFile: failed to fetch the transcript", error);
+    return null;
+  }
+}
+
+/**
  * Before KAN-283 built a real answer bank, this file inferred
  * work_authorized_us/needs_sponsorship from the job-search visa filter —
  * the only visa-adjacent fact WorkIt had. That filter only ever supports
@@ -348,6 +378,7 @@ async function fetchAutofillProfile() {
   const preferences = await getPreferences(account.id);
   const answers = await getAutofillAnswers(account.id);
   const resume = await resolveResumeFile(account.id);
+  const transcript = await resolveTranscriptFile(account.id, resume);
   // Best effort, like the resume: without it the fill uses WorkIt's fields alone.
   const fill = await getFillProfile(account.id).catch(() => null);
   const fallback = inferredAnswers(preferences.visa);
@@ -378,6 +409,7 @@ async function fetchAutofillProfile() {
     bank: bank.entries.length > 0 ? bank : null,
     answers: mergedAnswers,
     resume,
+    transcript,
     fill,
     fetched_at: Date.now(),
   };

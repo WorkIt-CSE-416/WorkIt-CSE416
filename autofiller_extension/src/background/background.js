@@ -89,12 +89,14 @@ async function handleMessage(message, sender) {
 
     // The content script's fill (content-script.js): the Plan for the page
     // it runs in (fill/plan), then the planned answers filled through the
-    // engine (fill/page), what fields show (fill/read) and which required
-    // ones show nothing (fill/required). A Workday tab is remembered, so its
+    // engine (fill/page), what fields show (fill/read), which follow-ups
+    // the answers don't call for (fill/moot) and which required ones show
+    // nothing (fill/required). A Workday tab is remembered, so its
     // fill starts again when a step loads as a new page.
     case "fill/plan":
     case "fill/page":
     case "fill/read":
+    case "fill/moot":
     case "fill/required": {
       const profile = await getAutofillProfile();
       if (message.type === "fill/plan" && jobOf(sender.url)?.site === "workday") await rememberWorkdayTab(sender.tab.id);
@@ -228,6 +230,13 @@ async function handleMessage(message, sender) {
       if (await connectorAdded(id)) return { show: false };
       if (!(await claimMoment(id, "claude"))) return { show: false };
       return { show: true, url: `${session.web_origin}/connect/claude/add` };
+    }
+
+    // Whether the student's Claude holds a sign-in to the connector (KAN-369):
+    // without one, no Claude reviews a batch tab's answers, so it stops asking.
+    case "connector/added": {
+      const { id } = await me();
+      return { added: await connectorAdded(id) };
     }
 
     // The panel's font (overlay.js's loadFont), as base64: the page can't

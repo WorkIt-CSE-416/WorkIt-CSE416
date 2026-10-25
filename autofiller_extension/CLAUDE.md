@@ -115,7 +115,7 @@ builds it: `dist/engine.js` is committed in the engine repo.
   form's link and fills nothing; batch apply opens the form itself
   (`formUrl`).
 - **The profile adapter gives only what WorkIt holds.** Name, email,
-  phone, home, links, the default resume, the latest school and the jobs from the
+  phone, home, links, the default resume, the transcript, the latest school and the jobs from the
   bank, and the nine autofill answers, in the words the engine's rules
   read. The home is the profile's free-text location (KAN-372) as the
   engine's `homePlace` reads it: a city with a US state ("Stony Brook, NY")
@@ -369,12 +369,26 @@ waits for an opened tab's page and form (`waitForLoad`, `formShows`).
   (`status.flag`; warning tint and the reason) only while the field still
   shows the answer the review read, and the row needs the student (Needs
   you, Next Thing walks to it) until their edit (any `setStatus` clears
-  it). A batch whose answers no Claude reviews (pasted ones) polls while
-  the tab is open. Test: `test/paste.extension.spec.ts`.
+  it). A student with no connector added (`connector/added` →
+  `GET .../connector`) has no Claude to review, so the tab stops asking;
+  otherwise it stops after 180 polls (30 minutes). The student's edit of an
+  answer whose verdict the tab showed, once saved (`batch/own-answer`),
+  starts the poll again until the edit's verdict lands (their own words
+  count as reviewed at once). Tests: `test/paste.extension.spec.ts`.
   A hidden tab's timers slow to about once a minute after five minutes, so
   an answer can take that long to land. Tests:
   `test/connector.extension.spec.ts` (Ashby's Harvey form: no saved
   Greenhouse form has an essay the Plan sends to Claude).
+  **A follow-up is decided again once its parent is answered**: a parent
+  question sent to Claude ("Are you currently working with Amplify?")
+  has no answer at plan time, so its follow-up ("If a contingent worker,
+  which agency...?") waits too. Each poll while rows wait, the tab asks
+  `fill/moot` (the engine's `notCalledFor` over what the form now shows,
+  Claude's and the student's answers alike) and a follow-up the answer
+  doesn't call for stops waiting: skipped "Not needed", or filled N/A
+  (Guessed) where the form asks for it. Its question stays at WorkIt; an
+  answer Claude saves for it later is not filled. Test:
+  `test/connector.extension.spec.ts` (Ashby's Amplify form).
   **An answer the student pastes on the webapp's Written Answers page
   (KAN-385) arrives the same way**: the API saves it through the
   connector's own save, and the tab's poll can't tell the two apart, so
@@ -889,6 +903,22 @@ real file input is directly targetable underneath both.
 - **The engine attaches it**, from `{ file, type, base64 }`, through a
   `DataTransfer` and the events a file picker fires, and waits for
   Greenhouse's uploader to show the file.
+
+## Attaching the student's transcript (KAN-369)
+
+Some forms ask for an unofficial transcript (Verkada requires one). The
+student keeps one on My Profile (`backend/app/routers/documents.py`).
+`resolveTranscriptFile` fetches it with the resume, at profile-fetch time:
+`GET /applicants/{id}/documents`, then `GET .../documents/transcript/bytes`
+(from this API's own origin, as the resume's `.../bytes` and for the same
+reason), onto `AutofillProfile.transcript`. `engineProfile` gives its name
+as `files.unofficial_transcript_pdf`, the engine's name for it (rules.ts
+plans it for a "transcript" upload, never a graduate transcript), and
+`withFiles` gives the planned file its bytes. A transcript named as the
+resume is gets a `Transcript_` prefix, since a planned file is matched to
+its bytes by name. Best effort, like the resume: no transcript, or a failed
+fetch, is `transcript: null`, and the Plan lists a required transcript as
+a Missing fact. Test: `test/transcript.extension.spec.ts`.
 
 ## Essay-question generation: the one opt-in, model-backed feature
 

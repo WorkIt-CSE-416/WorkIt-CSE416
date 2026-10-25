@@ -68,6 +68,7 @@ test("a pasted answer fills into its open tab, which moves to Ready", async () =
 test("an answer the review flags needs the student until they edit it", async () => {
   test.setTimeout(120_000);
   const api = new FakeApi().queue({ id: "job-0", apply_url: LUMEN });
+  api.connectorAdded = true; // only a student's Claude reviews
   loaded = await loadExtension([api.handler, webapp]);
   await signIn(loaded.context);
   const page = loaded.context.pages()[0] ?? (await loaded.context.newPage());
@@ -92,4 +93,51 @@ test("an answer the review flags needs the student until they edit it", async ()
   await form.locator(`[name='${name}']`).fill("I want to build data pipelines for clinics.");
   await expect(row.locator(".reason")).toHaveCount(0, { timeout: 15_000 });
   await expect.poll(() => groupOf(loaded.worker, LUMEN), { timeout: 15_000 }).toBe("Ready");
+});
+
+/** A filled Lumen tab for the student: their Claude's (or a pasted) answer is in the form, and the tab is Ready. */
+async function filledLumen(api: FakeApi) {
+  loaded = await loadExtension([api.handler, webapp]);
+  await signIn(loaded.context);
+  const page = loaded.context.pages()[0] ?? (await loaded.context.newPage());
+  await page.goto(`${WEB}/auto-apply`);
+  await sendFromWebapp(page, { type: "run/open" });
+  await expect.poll(() => api.written.get("job-0")?.length, { timeout: 60_000 }).toBe(1);
+  const name = api.written.get("job-0")![0].name;
+  api.saveAnswer("job-0", name, ANSWER);
+  const form = loaded.context.pages().find((p) => p.url() === LUMEN)!;
+  await expect(form.locator(`[name='${name}']`)).toHaveValue(ANSWER, { timeout: 20_000 });
+  await expect.poll(() => groupOf(loaded.worker, LUMEN), { timeout: 15_000 }).toBe("Ready");
+  return { name, form };
+}
+
+// No Claude reviews the answers of a student without the connector (pasted ones): the tab stops asking for them.
+test("a tab stops polling for a review when the student has no connector", async () => {
+  test.setTimeout(120_000);
+  const api = new FakeApi().queue({ id: "job-0", apply_url: LUMEN });
+  await filledLumen(api);
+  const polls = () => api.calls.filter((c) => /^GET \S*\/applications\/job-0\/questions$/.test(c)).length;
+  const before = polls();
+  await new Promise((done) => setTimeout(done, 25_000)); // two and a half polls
+  expect(polls()).toBe(before);
+});
+
+// The student edits an answer the review passed: the tab asks again until the review reads the edit.
+test("an edit of a reviewed answer shows its new verdict", async () => {
+  test.setTimeout(150_000);
+  const api = new FakeApi().queue({ id: "job-0", apply_url: LUMEN });
+  api.connectorAdded = true;
+  const { name, form } = await filledLumen(api);
+  api.saveReview("job-0", {});
+  const done = api.calls.length;
+  // The tab reads the verdict (no flag), so every answer is reviewed.
+  await expect.poll(() => api.calls.slice(done).some((c) => c.endsWith("/applications/job-0/questions")), { timeout: 20_000 }).toBe(true);
+
+  await form.locator(`[name='${name}']`).fill("I want to build data pipelines for clinics in my city.");
+  await expect.poll(() => api.written.get("job-0")![0].reviewed, { timeout: 15_000 }).toBe(false);
+  const flag = "It says the student lives near the clinics; the experience doesn't say that.";
+  api.saveReview("job-0", { [name]: flag });
+  const row = form.locator(`#workit-autofiller-overlay-host [data-key="${name}"]`);
+  await expect(row.locator(".reason")).toHaveText(`Your Claude's check: ${flag} Read it before you submit, and edit it if it's wrong.`, { timeout: 20_000 });
+  await expect.poll(() => groupOf(loaded.worker, LUMEN), { timeout: 15_000 }).toBe("Needs you");
 });

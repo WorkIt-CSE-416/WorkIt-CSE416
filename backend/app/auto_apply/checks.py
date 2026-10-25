@@ -117,12 +117,15 @@ class Context:
     posting, the company's checked brief, the question). samples: the
     student's writing samples.
     employers: companies the student has other applications at.
-    limit: the form field's own limit in characters, if it has one."""
+    limit: the form field's own limit in characters, if it has one.
+    question: the question answered, when it asks for a count of numbers
+    ("Give us three numbers that describe you") that many may be stated."""
 
     sources: tuple[str, ...] = ()
     samples: tuple[str, ...] = ()
     employers: tuple[str, ...] = ()
     limit: int | None = None
+    question: str = ""
 
 
 def problems(answer: str, context: Context) -> list[str]:
@@ -150,10 +153,23 @@ def problems(answer: str, context: Context) -> list[str]:
                          f"split it into sentences of at most {LONGEST}.")
     if holes := _unique(m.group() for m in PLACEHOLDER.finditer(answer)):
         found.append(f"It leaves placeholders to fill: {_quoted(holes)}. Leave out what only the student can give.")
-    return found + _writing(answer)
+    return found + _writing(answer, max(NUMBERS, asked_numbers(context.question)))
 
 
-def _writing(answer: str) -> list[str]:
+_COUNTS = {"two": 2, "three": 3, "four": 4, "five": 5}
+ASKED_NUMBERS = re.compile(r"\b(\d+|two|three|four|five)\s+numbers\b", re.IGNORECASE)
+
+
+def asked_numbers(question: str) -> int:
+    """How many numbers the question asks for ("three numbers"); 0 for none."""
+    found = ASKED_NUMBERS.search(question)
+    if not found:
+        return 0
+    word = found.group(1).lower()
+    return int(word) if word.isdigit() else _COUNTS[word]
+
+
+def _writing(answer: str, allowed: int = NUMBERS) -> list[str]:
     """What reads as machine-written beyond its words: Apply's editor checks."""
     found: list[str] = []
     if said := _unique(m.group() for m in GIVEAWAY.finditer(answer)):
@@ -173,8 +189,8 @@ def _writing(answer: str) -> list[str]:
     if "Particularly" in signposts:
         found.append('"Particularly" opens a sentence. Say it plainly ("Specifically", or nothing).')
     stated = [n for n in _unique(_NUMBER.findall(answer)) if not re.fullmatch(r"(?:19|20)\d\d", n)]
-    if len(stated) > NUMBERS:
-        found.append(f"It states {len(stated)} numbers ({', '.join(stated)}); keep the {NUMBERS} that matter most "
+    if len(stated) > allowed:
+        found.append(f"It states {len(stated)} numbers ({', '.join(stated)}); keep the {allowed} that matter most "
                      "(years aside).")
     if low := _unique(m.group() for m in LOW_LEVEL.finditer(answer)):
         found.append(f"It goes below what a recruiter follows: {_quoted(low)}. Say what it does in plain words, "
