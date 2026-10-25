@@ -476,6 +476,14 @@ export async function connectorAdded(applicantId) {
 }
 
 /**
+ * GET .../writing-samples — the student's writing samples (`samples`, KAN-384).
+ * @param {string} applicantId
+ */
+export async function writingSamples(applicantId) {
+  return (await apiFetch(`/applicants/${applicantId}/writing-samples`)).samples;
+}
+
+/**
  * PATCH .../autofill-answers — saves the answers `changed` names and keeps
  * the rest (the self-identification a form first asked, KAN-387).
  * @param {string} applicantId

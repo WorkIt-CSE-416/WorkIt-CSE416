@@ -36,6 +36,9 @@ export class FakeApi {
   /** Every PATCH .../autofill-answers body, in order. */
   readonly answersSaved: Record<string, string | null>[] = [];
 
+  /** The student's writing samples (GET .../writing-samples). */
+  samples: { id: string; text: string }[] = [];
+
   /** Whether the student's Claude has signed in to WorkIt's connector (GET .../connector). */
   connectorAdded = false;
 
@@ -82,6 +85,7 @@ export class FakeApi {
     if (route === `/resumes/${RESUME_ID}/bytes`) return { headers: { "content-type": "application/pdf" }, body: Buffer.from(STUDENT.resume.base64, "base64") };
     if (route === "/built-resumes") return { json: [] };
     if (route === "/connector") return { json: { added: this.connectorAdded } };
+    if (route === "/writing-samples" && method === "GET") return { json: { samples: this.samples, style_card: null } };
 
     if (route === "/applications/next" && method === "GET") {
       const skip = new Set(url.searchParams.getAll("skip"));

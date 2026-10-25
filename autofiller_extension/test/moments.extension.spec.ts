@@ -131,3 +131,50 @@ test("a student who already added the connector never sees the add-Claude step",
   await expect(tab.locator(".add-claude")).toHaveCount(0);
   await expect(row(tab, WHY)).toContainText("Waiting for your Claude");
 });
+
+const ANSWER = "I want to build legal tools that lawyers trust, and my internship taught me how to ship them.";
+
+test("once the first batch's written answers land, the student is asked for writing samples, with Skip", async () => {
+  test.setTimeout(180_000);
+  const forms = new SavedForms([HARVEY]);
+  const api = new FakeApi().queue({ id: "job-0", apply_url: forms.url(HARVEY) }, { id: "job-1", apply_url: forms.url(HARVEY) });
+  api.connectorAdded = true;
+  await start(api, forms);
+  await expect.poll(() => api.written.size, { timeout: 60_000 }).toBe(2);
+  const tabs = loaded.context.pages().filter((p) => p.url().startsWith(forms.url(HARVEY)));
+  const asks = async () => (await tabs[0].locator(".samples").count()) + (await tabs[1].locator(".samples").count());
+
+  // One tab's answer lands: the batch is still being written, so nothing is asked yet.
+  api.saveAnswer("job-0", api.written.get("job-0")![0].name, ANSWER);
+  await expect.poll(async () => (await Promise.all(tabs.map((t) => row(t, WHY).locator(".source").count()))).reduce((a, b) => a + b), { timeout: 20_000 }).toBe(1);
+  await tabs[0].waitForTimeout(2_000);
+  expect(await asks()).toBe(0);
+
+  // The last one lands: one tab asks.
+  api.saveAnswer("job-1", api.written.get("job-1")![0].name, ANSWER);
+  await expect.poll(asks, { timeout: 20_000 }).toBe(1);
+  await tabs[0].waitForTimeout(2_000);
+  expect(await asks()).toBe(1);
+  const ask = ((await tabs[0].locator(".samples").count()) ? tabs[0] : tabs[1]).locator(".samples");
+  await expect(ask.locator("a[data-add]")).toHaveAttribute("href", "http://localhost:3000/profile#writing-samples");
+  await ask.locator("button[data-dismiss]").click();
+  await expect(ask).toHaveCount(0);
+  expect(forms.submissions).toEqual([]);
+});
+
+test("a student who has writing samples is never asked for them", async () => {
+  test.setTimeout(120_000);
+  const forms = new SavedForms([HARVEY]);
+  const api = new FakeApi().queue({ id: "job-0", apply_url: forms.url(HARVEY) });
+  api.connectorAdded = true;
+  api.samples = [{ id: "sample-1", text: "Something I wrote." }];
+  await start(api, forms);
+  await expect.poll(() => api.written.size, { timeout: 60_000 }).toBe(1);
+  const tab = await tabOf(forms.url(HARVEY));
+
+  api.saveAnswer("job-0", api.written.get("job-0")![0].name, ANSWER);
+  await expect(row(tab, WHY).locator(".source")).toHaveText("Claude", { timeout: 20_000 });
+  await expect.poll(() => api.calls.some((c) => c.endsWith("/writing-samples")), { timeout: 10_000 }).toBe(true);
+  await tab.waitForTimeout(2_000);
+  await expect(tab.locator(".samples")).toHaveCount(0);
+});

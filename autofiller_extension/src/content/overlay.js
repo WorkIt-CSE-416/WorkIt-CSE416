@@ -300,6 +300,28 @@ window.WIA = window.WIA || {};
   }
 
   /**
+   * The writing samples ask (KAN-387), once the first batch's written answers
+   * landed: Add Samples opens `url` (My Profile's Writing Samples) in a new
+   * tab; Skip closes it. Either way it is not asked again.
+   * @param {{ url: string }} options
+   */
+  function askSamples({ url }) {
+    const card = momentCard("samples", `
+      <h2>Make Your Answers Sound Like You</h2>
+      <p>Your Claude wrote this batch's answers. Add two or three things you wrote yourself, such as a class essay or a cover letter, and it writes the next ones in your style. Optional.</p>
+      <div class="actions">
+        <a data-primary data-add target="_blank" rel="noreferrer">Add Samples</a>
+        <button type="button" data-secondary data-dismiss>Skip</button>
+      </div>
+    `);
+    if (!card) return;
+    const add = card.querySelector("[data-add]");
+    add.href = url;
+    add.addEventListener("click", () => card.remove());
+    card.querySelector("[data-dismiss]").addEventListener("click", () => card.remove());
+  }
+
+  /**
    * Batch apply's "Next Thing That Needs You" (content-script.js): shows the
    * button, which calls `onNext` and shows what it answers (a sentence for
    * the student, or nothing when it went to a field).
@@ -385,5 +407,5 @@ window.WIA = window.WIA || {};
     root = null;
   }
 
-  window.WIA.overlay = { mount, unmount, promptForEssays, offerNext, setCurrent, askSelfId, offerClaude };
+  window.WIA.overlay = { mount, unmount, promptForEssays, offerNext, setCurrent, askSelfId, offerClaude, askSamples };
 })();

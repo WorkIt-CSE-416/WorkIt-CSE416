@@ -7,8 +7,8 @@
 // comment explains why) — just the cache.
 
 import { getSession } from "./auth.js";
-import { getAutofillProfile, generateEssayAnswer, ApiError, askQuestions, connectorAdded, me, saveAutofillAnswers, writtenAnswers } from "./api.js";
-import { batchStatus, batchTabIds, forgetTab, inBatch, jobInTab, markSubmitted, nextNeedsYou, practiceStatus, setTabState, showBatchTab, startBatch, startPractice, submitPractice } from "./batch.js";
+import { getAutofillProfile, generateEssayAnswer, ApiError, askQuestions, connectorAdded, me, saveAutofillAnswers, writingSamples, writtenAnswers } from "./api.js";
+import { batchStatus, batchTabIds, forgetTab, inBatch, jobInTab, markSubmitted, nextNeedsYou, practiceStatus, setTabState, setWriting, showBatchTab, startBatch, startPractice, submitPractice } from "./batch.js";
 import { engineCaller, handleFill, jobOf, practiceJob, runEngine, submittedPage } from "./engine.js";
 import { claimMoment } from "./moments.js";
 import { SELF_ID, checkedSelfId, unansweredSelfId } from "./self-id.js";
@@ -112,7 +112,20 @@ async function handleMessage(message, sender) {
       const questions = message.type === "batch/questions"
         ? await askQuestions(id, jobId, message.questions)
         : await writtenAnswers(id, jobId);
+      if (message.type === "batch/questions") await setWriting(sender.tab.id, { writing: true });
       return { questions };
+    }
+
+    // A batch tab's written questions are all answered (KAN-387): once the
+    // batch's last one is, in a batch the student's Claude wrote for, the
+    // student is asked for writing samples, once, unless they have some.
+    case "batch/written": {
+      const last = await setWriting(sender.tab.id, { writing: false, byClaude: Boolean(message.byClaude) });
+      if (!last) return { show: false };
+      const [session, { id }] = await Promise.all([getSession(), me()]);
+      if ((await writingSamples(id)).length) return { show: false };
+      if (!(await claimMoment(id, "samples"))) return { show: false };
+      return { show: true, url: `${session.web_origin}/profile#writing-samples` };
     }
 
     // A batch tab's "Next Thing That Needs You" (content-script.js): batch.js goes to it, across the tabs.

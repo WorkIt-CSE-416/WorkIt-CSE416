@@ -202,14 +202,18 @@
       return;
     }
     offerClaude();
+    let byClaude = false;
     for (;;) {
       for (const { name, answer } of reply.ok ? reply.questions : []) {
         if (!answer || !waiting.has(name)) continue;
         waiting.delete(name);
-        if (rowStatus(name) !== "filled") await fillWritten(prepared, name, answer, "claude");
+        if (rowStatus(name) !== "filled") {
+          await fillWritten(prepared, name, answer, "claude");
+          byClaude = true;
+        }
       }
       for (const name of waiting) if (rowStatus(name) === "filled") waiting.delete(name);
-      if (!waiting.size) return;
+      if (!waiting.size) return offerSamples(byClaude);
       await sleep(ANSWER_POLL);
       reply = await send({ type: "batch/answers" }).catch((error) => ({ ok: false, error: error.message }));
     }
@@ -223,6 +227,16 @@
   async function offerClaude() {
     const answer = await send({ type: "moment/claude" }).catch(() => null);
     if (answer?.ok && answer.show) overlay.offerClaude({ url: answer.url });
+  }
+
+  /**
+   * This tab's written questions are all answered (KAN-387): the background
+   * says whether this was the batch's last, in a batch the student's Claude
+   * wrote for, and this tab is the one to ask for writing samples (once).
+   */
+  async function offerSamples(byClaude) {
+    const answer = await send({ type: "batch/written", byClaude }).catch(() => null);
+    if (answer?.ok && answer.show) overlay.askSamples({ url: answer.url });
   }
 
   /** The Generate prompt for the questions that need a written answer, if any. */

@@ -467,11 +467,22 @@ My Profile instead.
   `frontend/src/lib/claude-connector.ts`, from the API's address, which the
   extension doesn't keep. A practice batch never shows it (its essays stay
   the student's).
+- **Writing samples, once the first written batch is.** A batch tab that
+  sends its questions is `writing` (`batch.js`'s `setWriting`, kept in the
+  batch); once its last one shows an answer it says `batch/written`, and
+  whether Claude wrote any. When no batch tab still waits and Claude wrote
+  for this batch, the tab that finished last asks for samples (Add Samples
+  opens the webapp's `/profile#writing-samples`; Skip closes it), once, and
+  never for a student who has some (`GET .../writing-samples`). A batch the
+  student wrote all by hand doesn't ask: the samples are only for their
+  Claude's style card.
 - **Tests** (`test/moments.extension.spec.ts`): two saved Greenhouse forms
   that both ask the self-identification, for a student with none saved: one
   tab asks, the save reaches the API once, both forms fill, and a later form
   fills without asking. Two Harvey tabs show the add-Claude step once, with
-  the webapp's link; with the connector added, neither shows it.
+  the webapp's link; with the connector added, neither shows it. In two
+  Harvey tabs, the samples ask waits for the second answer and shows once;
+  a student with samples is never asked.
 
 ## Auth: inherits the webapp's session, has no sign-in of its own
 
