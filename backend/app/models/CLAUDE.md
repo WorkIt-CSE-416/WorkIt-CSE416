@@ -342,6 +342,18 @@ change here must keep:
   Rows from before `d642d93fcfbc` are NULL, not backfilled. The rule and
   its normalization: `../../CLAUDE.md`, "A duplicate resume is refused".
 
+## Student documents — `documents.py` (KAN-369)
+
+- **One file per student and kind** (`student_documents`, PK
+  `(applicant_id, kind)`); the only kind is `transcript` (CHECK). A new
+  kind widens the CHECK in a migration and the router's `Kind`.
+- The file is in the `Resume` bucket under the student's folder
+  (`<applicant_id>/documents/<uuid><ext>`), so Delete Account removes it
+  with the resumes. `storage_path` may be `local:<file name>`
+  (services/local_files.py, development only), served from LOCAL_FILES_DIR.
+- Nothing reads its text and no sent copy is kept: a replace or delete
+  removes the old file at once. Written only by `routers/documents.py`.
+
 ## Sent resumes
 
 `sent_resume.py` (KAN-208): the exact file a student applied with (a
@@ -821,7 +833,8 @@ so WorkIt fills forms as completely as Apply does.
   rows belong to an application, and a brought answer has none. A choice's
   answer may be a list (the options ticked).
 - **No `files`.** WorkIt's resume is its own; a transcript's path never
-  comes over. The import's resume is a `resumes` row whose `storage_path` is
+  comes over (the student uploads a transcript on My Profile, a
+  `student_documents` row). The import's resume is a `resumes` row whose `storage_path` is
   `local:<file name>` in `LOCAL_FILES_DIR` (services/local_files.py,
   development only): served by `.../bytes` from that folder, never sent to
   or removed from Storage.
