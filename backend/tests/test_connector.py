@@ -198,3 +198,155 @@ async def test_claude_refreshes_its_token_and_the_old_one_stops_working(running,
     # Both tokens rotate: the used refresh token and the old access token are dead.
     assert again.status_code == 400
     assert old.status_code == 401
+
+
+# --- The tools and the prompt ---
+
+WHY = {"name": "question_7", "label": "Why do you want to work at Acme?", "required": True, "max_length": 600}
+PROUD = {"name": "question_8", "label": "Tell us about a project you are proud of.", "required": False, "max_length": None}
+
+
+async def _student_queues(database, applicant: uuid.UUID, count: int) -> tuple[str, list[str]]:
+    """The student's bank and `count` queued applications, through the API
+    the webapp calls. Answers the applicant URL and the job ids, oldest first."""
+    from tests.test_batch_apply import _queue
+    from tests.test_built_resumes import _fill_bank
+
+    me = f"/applicants/{applicant}"
+    _signed_in_as(applicant)
+    async with _api() as webapp:
+        await _fill_bank(webapp, me)
+        jobs = await _queue(webapp, me, database, count)
+    return me, jobs
+
+
+async def _tab_asks(me: str, job: str, *questions: dict) -> list[dict]:
+    """A batch tab sends its form's questions (the extension's call), and
+    reads back what is saved."""
+    _signed_in_as(uuid.UUID(me.rsplit("/", 1)[1]))
+    async with _api() as extension:
+        res = await extension.put(f"{me}/applications/{job}/questions", json={"questions": list(questions)})
+        assert res.status_code == 200, res.text
+        return (await extension.get(f"{me}/applications/{job}/questions")).json()
+
+
+async def _describe(database, job: str, text: str) -> None:
+    from sqlalchemy import text as sql
+
+    async with database() as session:
+        await session.execute(sql("UPDATE job_postings SET description = :d, company_name = 'Acme' WHERE id = :id"), {"d": text, "id": job})
+        await session.commit()
+
+
+async def test_the_next_application_is_read_only_and_holds_only_that_application(running, applicant, database):
+    me, (first, second) = await _student_queues(database, applicant, 2)
+    await _describe(database, second, "Acme builds rockets. You will write flight software.")
+    await _describe(database, first, "Another company's posting.")
+    # The first tab's form asked nothing written; the second asked two.
+    await _tab_asks(me, second, WHY, PROUD)
+
+    async with claude(applicant) as client:
+        tools = {t.name: t for t in (await client.list_tools()).tools}
+        result = await client.call_tool("get_next_application", {})
+
+    assert tools["get_next_application"].annotations.read_only_hint is True
+    assert tools["save_answers"].annotations.read_only_hint is False
+    got = result.structured_content
+    assert got["job_id"] == second
+    assert (got["company"], got["title"]) == ("Acme", "Intern")
+    assert got["posting"] == "Acme builds rockets. You will write flight software."
+    assert got["questions"] == [
+        {"name": "question_7", "question": WHY["label"], "required": True, "max_length": 600},
+        {"name": "question_8", "question": PROUD["label"], "required": False, "max_length": None},
+    ]
+    # The student's experience bank, to write from.
+    assert "Software Intern, Acme" in got["experience"]
+    assert "- Cut page load time by 30%" in got["experience"]
+    assert "Python" in got["skills"]
+    # Nothing from the other application.
+    assert "Another company" not in str(got)
+
+
+async def test_saved_answers_reach_the_tab_and_the_next_application_moves_on(running, applicant, database):
+    me, (first, second) = await _student_queues(database, applicant, 2)
+    await _tab_asks(me, first, WHY)
+    await _tab_asks(me, second, PROUD)
+    answer = "I want to build flight software at Acme, and my internship there taught me the codebase."
+
+    async with claude(applicant) as client:
+        saved = await client.call_tool("save_answers", {"job_id": first, "answers": [{"name": "question_7", "answer": answer}]})
+        after = await client.call_tool("get_next_application", {})
+
+    assert saved.is_error is False, saved.content
+    assert saved.structured_content == {"saved": 1, "left": 0}
+    # The open tab reads it back, to fill it.
+    assert (await _tab_asks(me, first))[0]["answer"] == answer
+    assert after.structured_content["job_id"] == second
+
+
+async def test_nothing_left_to_write_says_so(running, applicant, database):
+    await _student_queues(database, applicant, 1)
+
+    async with claude(applicant) as client:
+        result = await client.call_tool("get_next_application", {})
+
+    assert result.structured_content["job_id"] is None
+
+
+async def test_a_bad_save_is_refused_and_nothing_is_kept(running, applicant, database):
+    me, (job,) = await _student_queues(database, applicant, 1)
+    await _tab_asks(me, job, WHY)
+    other, theirs = await _another_students_application(database)
+    await _tab_asks(other, theirs, WHY)
+
+    async with claude(applicant) as client:
+        too_long = await client.call_tool("save_answers", {"job_id": job, "answers": [
+            {"name": "question_7", "answer": "x" * 601}]})
+        unknown = await client.call_tool("save_answers", {"job_id": job, "answers": [
+            {"name": "question_7", "answer": "Fine."}, {"name": "question_99", "answer": "No such question."}]})
+        not_mine = await client.call_tool("save_answers", {"job_id": theirs, "answers": [
+            {"name": "question_7", "answer": "Not my application."}]})
+
+    assert too_long.is_error and unknown.is_error and not_mine.is_error
+    assert (await _tab_asks(me, job))[0]["answer"] is None
+    assert (await _tab_asks(other, theirs))[0]["answer"] is None
+
+
+async def _another_students_application(database) -> tuple[str, str]:
+    """Another student with one queued application: their URL and its job id."""
+    from tests.test_sent_resumes import _seed_posting
+
+    async with database() as session:
+        them = await _seed_applicant(session)
+    job = await _seed_posting(database, "https://job-boards.greenhouse.io/other/jobs/1")
+    _signed_in_as(them)
+    async with _api() as webapp:
+        assert (await webapp.post(f"/applicants/{them}/applications", json={"job_id": job})).status_code == 200
+    return f"/applicants/{them}", job
+
+
+async def test_the_writing_rules_are_a_prompt(running, applicant):
+    async with claude(applicant) as client:
+        prompts = (await client.list_prompts()).prompts
+        got = await client.get_prompt(prompts[0].name)
+
+    assert [p.title for p in prompts] == ["Write my WorkIt answers"]
+    assert got.messages and got.messages[0].content.text
+
+
+async def test_the_connector_calls_no_model(running, applicant, database, monkeypatch):
+    """Every model WorkIt calls is made through workit_scout's LLM (Scout,
+    intake, Tailor, the essay-answer route): none may be made."""
+    from workit_scout.llm import LLM
+
+    me, (job,) = await _student_queues(database, applicant, 1)
+
+    def no_model(*args, **kwargs):
+        raise AssertionError("The connector called a model")
+
+    monkeypatch.setattr(LLM, "__init__", no_model)
+    await _tab_asks(me, job, WHY)
+
+    async with claude(applicant) as client:
+        assert not (await client.call_tool("get_next_application", {})).is_error
+        assert not (await client.call_tool("save_answers", {"job_id": job, "answers": [{"name": "question_7", "answer": "Yes."}]})).is_error

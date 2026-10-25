@@ -28,6 +28,7 @@ from starlette.routing import Route
 from starlette.types import Receive, Scope, Send
 
 from app.config import get_settings
+from app.connector import tools
 from app.connector.oauth import SCOPE, Provider
 
 NAME = "WorkIt"
@@ -57,6 +58,7 @@ def build_server() -> MCPServer:
 
 
 server = build_server()
+tools.register(server)
 
 
 def _app():

@@ -218,7 +218,11 @@ Find files with a directory listing; these are the rules for where code goes.
   mount). It answers only inside the app's lifespan, so its tests run
   `app.router.lifespan_context(app)` (`tests/test_connector.py`, which
   signs in with the SDK's own client as Claude does). Its tokens reach
-  `/mcp` only. **Which job postings it takes is
+  `/mcp` only. **Its tools are layer 3** (`connector/tools.py`): the
+  student comes from the token (`load_account`), each tool calls one
+  layer-2 step (`next_to_write`, `save_answers`), and a refusal is a
+  `ToolError` with the reason. **Writing rules go in the MCP prompt, never
+  in a tool's description**, and nothing on this path calls a model. **Which job postings it takes is
   one list, `app/auto_apply/hosts.py`** (every hiring system the Fill engine fills, KAN-370): the matches
   and `queue_applications` require its SQL form (`AUTO_APPLY_SUPPORTED` in
   `queries/jobs/filters.py`) and `JobListing.auto_apply` its Python form,

@@ -336,3 +336,50 @@ async def fetch_written(
         WrittenAnswer(name=r.name, label=r.label, required=r.required, max_length=r.max_length, answer=r.answer)
         for r in rows
     ]
+
+
+async def fetch_next_to_write(db: AsyncSession, applicant_id: uuid.UUID) -> tuple[uuid.UUID, str | None] | None:
+    """The oldest open application (queued or needs_you, its job posting
+    open) with a question still unanswered: its job id and the posting's
+    description. None when nothing is left to write."""
+    unanswered = (
+        select(Written_Answer.job_id)
+        .where(
+            Written_Answer.applicant_id == applicant_id,
+            Written_Answer.job_id == Job_Application.job_id,
+            Written_Answer.answer.is_(None),
+        )
+        .exists()
+    )
+    row = (
+        await db.execute(
+            select(Job_Application.job_id, Job_Post.description)
+            .join(Job_Post, Job_Post.id == Job_Application.job_id)
+            .where(
+                Job_Application.applicant_id == applicant_id,
+                Job_Application.stage.in_((application_stage.queued, application_stage.needs_you)),
+                LISTED,
+                unanswered,
+            )
+            .order_by(Job_Application.created_at, Job_Application.job_id)
+            .limit(1)
+        )
+    ).first()
+    return (row.job_id, row.description) if row else None
+
+
+async def save_written(
+    db: AsyncSession, applicant_id: uuid.UUID, job_id: uuid.UUID, answers: dict[str, str]
+) -> None:
+    """Writes each answer onto its question's row. Flushes; the caller
+    commits, and has checked every name is the application's."""
+    for name, answer in answers.items():
+        await db.execute(
+            update(Written_Answer)
+            .where(
+                Written_Answer.applicant_id == applicant_id,
+                Written_Answer.job_id == job_id,
+                Written_Answer.name == name,
+            )
+            .values(answer=answer, answered_at=func.now())
+        )
