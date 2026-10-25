@@ -276,12 +276,15 @@ function withFiles(answers, profile) {
  * The answers with each written one to a file question (an upload: an
  * optional cover letter, written under the cover_letter policy) made a PDF of
  * its words, named for the student as their resume is
- * ("First_Last_Cover_Letter.pdf"), since the field takes only a file.
+ * ("First_Last_Cover_Letter.pdf", the first name they go by), since the
+ * field takes only a file.
  */
 export function asUploads(answers, questions, profile) {
   const files = new Set((questions ?? []).filter((q) => q.kind === "file").map((q) => q.name));
   const { identity = {} } = engineProfile(profile);
-  const who = [identity.legal_first_name, identity.legal_last_name].filter(Boolean).join("_").replace(/[^\p{L}\p{N}_-]+/gu, "_");
+  // The name the student goes by (one brought from Apply), else the legal one, as Apply names its letter.
+  const name = [identity.preferred_first_name || identity.legal_first_name, identity.preferred_last_name || identity.legal_last_name];
+  const who = name.filter(Boolean).join("_").replace(/[^\p{L}\p{N}_-]+/gu, "_");
   return Object.fromEntries(
     Object.entries(answers ?? {}).map(([name, value]) => {
       if (!files.has(name) || typeof value !== "string" || !value.trim()) return [name, value];
