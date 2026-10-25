@@ -322,12 +322,26 @@ JOIN = "; "
 def picked(question: WrittenAnswer, answer: str) -> tuple[str, list[str]]:
     """A choice question's answer in the form's own wording (an option, or
     for "choices" one or more joined by JOIN, in any case or spacing), and
-    what is wrong with it: empty when every part is one of its options."""
+    what is wrong with it: empty when every part is one of its options.
+    A "choices" answer is read against the options, longest first, each a
+    whole ";"-separated item, so an option with a ";" of its own is one pick."""
     wording = {_wording(o): o for o in question.options or ()}
     text = answer.strip()
-    parts = [text] if question.kind == "choice" or _wording(text) in wording else text.split(JOIN.strip())
-    parts = [p.strip() for p in parts if p.strip()]
-    unknown = [p for p in parts if _wording(p) not in wording]
+    if question.kind == "choice" or _wording(text) in wording:
+        parts = [text] if text else []
+        unknown = [p for p in parts if _wording(p) not in wording]
+    else:
+        at: list[tuple[int, str]] = []
+        rest = _wording(text)
+        for option in sorted(wording, key=len, reverse=True):
+            item = re.compile(rf"(?:^|;)\s*{re.escape(option)}\s*(?=;|$)")
+            while hit := item.search(rest):
+                at.append((hit.start(), option))
+                # Blanked to ";", the same length, so each pick keeps its place.
+                rest = rest[:hit.start()] + ";" * (hit.end() - hit.start()) + rest[hit.end():]
+        parts = [option for _, option in sorted(at)]
+        typed = {_wording(p): p.strip() for p in text.split(JOIN.strip())}
+        unknown = [typed.get(r.strip(), r.strip()) for r in rest.split(JOIN.strip()) if r.strip()]
     if unknown or not parts:
         options = "; ".join(repr(o) for o in question.options or ())
         how = "one of" if question.kind == "choice" else f'one or more, joined by "{JOIN}", of'
