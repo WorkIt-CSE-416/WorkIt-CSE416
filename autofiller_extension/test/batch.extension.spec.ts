@@ -347,6 +347,23 @@ test("a required question the form doesn't show is left alone: Next Thing passes
   expect(forms.submissions).toEqual([]);
 });
 
+test("a dropdown the student answers with the mouse alone no longer needs them: Next Thing passes it over", async () => {
+  test.setTimeout(120_000);
+  const ANDURIL = "greenhouse-anduril";
+  const forms = new SavedForms([ANDURIL]);
+  await startBatch(forms, [ANDURIL]);
+  const form = page(forms.url(ANDURIL));
+  // A click opens the dropdown and a click picks its first option: no typing, so no input event.
+  await form.locator("#question_13130330007").click();
+  await form.getByRole("option").first().click();
+  const row = form.locator('#workit-autofiller-overlay-host [data-key="question_13130330007"]');
+  await expect(row.locator(".source")).toHaveText("You", { timeout: 10_000 });
+
+  const { walked } = await walkToEnd(forms.url(ANDURIL));
+  expect(walked.map(([, key]) => key)).toEqual(["question_13130331007"]);
+  expect(forms.submissions).toEqual([]);
+});
+
 /** The text the phone's country picker beside Phone shows on Greenhouse's form (its dial code), "" when none is picked. */
 const phoneCountryShown = (form: Page) =>
   form.locator("#country").locator("xpath=ancestor::div[contains(@class, 'select__control')]").locator(".select__single-value").allInnerTexts();

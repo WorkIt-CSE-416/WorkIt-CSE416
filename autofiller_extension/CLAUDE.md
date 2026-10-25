@@ -347,7 +347,8 @@ waits for an opened tab's page and form (`waitForLoad`, `formShows`).
 - **The content script says when a tab is ready.** In a batch tab
   (`injectFill(tabId, { batch: true })` sets `window.WIA.batch`),
   `batch-tab.js` sends `batch/state` once the fill ends; `content-script.js` watches
-  the student's edits: the engine reads back (`fill/read`) every required
+  the student's edits (input, change, and click: a dropdown picked with the
+  mouse fires neither of the others): the engine reads back (`fill/read`) every required
   or failed field, so emptying one moves the tab to Needs you and answering
   the last one moves it to Ready.
 - **Never Ready while the form would refuse the submit.** After the fill
