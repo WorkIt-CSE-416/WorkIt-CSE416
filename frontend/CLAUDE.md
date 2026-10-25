@@ -229,8 +229,18 @@ the KAN-296 cutover.
   colour rings and land looking as the tabs do (the first white, the rest
   clear with grey labels), and the tab bar shows with no fade: drawn
   plain, the four rings vanished at take-off, and a fade made the pills
-  blink as they landed. Below lg and with reduced motion it is a still
-  block, no pin. The four tabs' labels, icons and colours are one list,
+  blink as they landed. With reduced motion it is a still block, no pin.
+  **Below lg it is its own scene, `ScrolledBridge`** (KAN-368): the same
+  three lines, one at a time, over a 330px stage on a short pin (150svh),
+  the scroll cueing each phase through `useScrollCue` (`scene-time.ts`):
+  eight postings strewn two to a band, tilted and a touch smaller or
+  larger (`SCATTER`), the three that fit sorting into a centred column
+  with their scores by the company, then the four steps lighting. Every
+  card is one size and placed so none covers another's text at 320 to
+  430px: twelve cards in three columns, the fit ones wider, buried each
+  other, and two even columns read as a table. Unpinned, the 520px section
+  left the screen before its last phase; a timed loop played whether or
+  not the reader scrolled, which the team rejected. The four tabs' labels, icons and colours are one list,
   `TOUR_TABS` in `tour-tabs.ts`, a plain module that both the tour and the
   bridge import: a server page cannot pass icon components to a client
   one as props. **Keep every scroll-linked range inside 0 to 1**: motion
@@ -280,8 +290,16 @@ the KAN-296 cutover.
   (`board-data.ts`), each logo a favicon tile (`favicon-logo.tsx`). Scores
   on the hero, the board and both stories are green, amber or red through
   `scoreTone` (`score-tone.ts`). Below lg the
-  stops stack, because a pinned card with the resume animation does not fit
-  a phone. The site's placeholder benefit grid and three steps became the
+  stops are one row that swipes sideways, a stop at a time, the next
+  peeking in, with a 44px dot per stop under it (`StackedTour`, KAN-368),
+  because a pinned card with the resume animation does not fit a phone:
+  stacked, they took 3,290px of a 390px phone. A story's root is
+  `shrink-0`: as `Fit`'s flex child it shrank to its title's 380px, so
+  `Fit` scaled it too little and its 520px scenes were cut at the panel
+  (the Auto Apply window, the Matching card). Where `Fit` draws a story
+  smaller, its scene title grows back by as much, up to the stage's width
+  (`FitScale`, story.tsx), so the line that tells the scene reads at about
+  12px on a phone; the scene's own details stay small. The site's placeholder benefit grid and three steps became the
   hiring-systems section (below). A "How it works" deck of four step
   cards (Find, Apply, Track, Hear back) that flipped in turn after the
   applications section was removed on 2026-10-22, at the user's ask: it
@@ -312,12 +330,19 @@ the KAN-296 cutover.
   four captions at
   once too much text and the first scene's gates, glass bin and rubber
   stamps "AI slop". The headline, "Slop
-  applications get skipped." with "Slop" under a red wavy line, runs one
-  line across the top. It was "Stop sending slop applications.", a second
+  applications get skipped.", runs one line across the top from lg up.
+  "Slop" is drawn as AI slop (`SlopWord`, slop-word.tsx, KAN-368): a
+  glossy magenta-to-cyan gradient with a pink glow, a sweeping gloss,
+  twinkling sparkles and goo dripping off the letters, picked by the team
+  from six treatments over a red spell-checker wave they found too plain.
+  It is still text for screen readers and copying. Its drips run only as
+  far as the room under the headline allows (`--reach` in landing.css:
+  0.4 on a phone, where "get skipped." wraps under it, 0.6 on a tablet,
+  0.7 from lg up, with `pt-14` above the first caption's chip), stop
+  with the section's loop (`data-paused`) and hang still with reduced
+  motion. It was "Stop sending slop applications.", a second
   "Stop" right after the hero's tagline; it now says what the three beats
-  show. The wave is a layer of its own (`.slop-wave`): a
-  text decoration is repainted only inside a selection's highlight, so
-  selecting the headline cut off the wave's lower half. On the left only the current beat's caption shows,
+  show. On the left only the current beat's caption shows,
   under its gate's chip; it lifts away as the next comes in, and its words
   come into focus as they are read. The chips are label-sized, each gate's
   mark on a white disc, and from lg up the marks move (`GateIcon`,
@@ -348,11 +373,13 @@ the KAN-296 cutover.
   on `will-change` layers. The scene is drawn at a fixed size and scaled
   by `Fit`; its root is `shrink-0`, since its children are all absolute
   and, as Fit's flex child, it shrank to the column, so Fit read that
-  width and never scaled it down on a phone. Below lg and with reduced
-  motion it is still: every caption in a short list, then the finished
-  frame; on a phone only the finale's card and checks, at their own size
-  (the whole scene scaled into the column was a 58% miniature, its labels
-  7px). The captions and notes are product copy: the gates' are hedged
+  width and never scaled it down on a phone. Below lg it loops too, in
+  one column (`CompactStatement`, KAN-368): the beat's caption over the
+  screening panel alone, without the bin, drawn at about 0.85 on a phone,
+  a thrown page leaving the panel's edge (the whole scene scaled into the
+  column was a 58% miniature, its labels 7px, which is why phones showed
+  it still until then). With reduced motion it is still: every caption in
+  a short list, then the finished frame. The captions and notes are product copy: the gates' are hedged
   ("often", "look like"), since they describe the market, and the last
   one's claims follow the rules above, never a promise to pass an ATS. The site's closing "Be first in line" banner is
   removed for now. **The applications section** ("Every application, from
@@ -595,7 +622,15 @@ the KAN-296 cutover.
   the closing call to action is `ClosingCta` (`closing-cta.tsx`, shared
   with the home page; its own file so the client scenes that import
   `layout-parts.tsx` do not pull the sign-up's server action in), and the
-  FAQ is `FaqList` (`faq-list.tsx`).
+  FAQ is `FaqList` (`faq-list.tsx`). **Every pair of social buttons has
+  "Or sign up with email" under it** (`EmailSignUpLink`, to /signup), and
+  below sm the header shows a short "Get started" beside the menu button
+  (KAN-368): with Google and LinkedIn alone, a student with neither found
+  the way in only inside the phone menu. **Tap targets reach 32 to 48px
+  without changing the look**: an FAQ row's padding is its summary's, so
+  the whole row opens it (on the `<details>` only a 28px strip did), and
+  the footer links, the tour's "Learn more" and the email link widen
+  their tap with an `::after` (18 to 23px boxes before).
   **The header menus** (`NavMenu` in `nav-menu.tsx`, both Features and
   Resources) are disclosures with `aria-expanded`, not ARIA menus, since
   their items are links: a mouse hover opens one, a click pins it, Esc
@@ -729,8 +764,9 @@ the KAN-296 cutover.
   lines at Saved it stood taller and its top dropped as it moved on. Its
   new words come in as the old ones finish going (`swap`'s delay):
   `popLayout` ran both at once, and two lines showed through each other.
-  Below lg the stops are a still list with full piles and the card at its
-  offer.
+  Below lg the stops are a still list, each pile's first seven logos and a
+  "+N" (`STILL_PILE`; the full piles, 24 and 12 tiles, read as noise on a
+  phone), and the card at its offer.
   **Headings come into
   focus** through `FocusIn` (`focus-in.tsx`): an observer marks the
   wrapper and a CSS transition ends at the element's own `filter: none`.
@@ -827,9 +863,10 @@ the KAN-296 cutover.
   The footer marks the Resources pages Soon, as the header's menu does: none has a
   page yet. **Below lg
   and with reduced motion every one of these is still**: no pin, no
-  flight, no heading blur, the finished frame. Two exceptions below lg:
-  the statement still follows its section through the screen, and hiring
-  systems falls back to the flat stream, which keeps flowing. **Checking these scenes in
+  flight, no heading blur, the finished frame. Exceptions below lg: the
+  bridge plays on a short pin, cued by the scroll; the statement loops in
+  one column; the tour swipes; and hiring systems falls back to the flat
+  stream, which keeps flowing. **Checking these scenes in
   the Browser pane**: a script's `scrollTo` jumps, but a Lenis glide still
   under way (an in-page link's) overrides it, so start from a still page; the pane draws
   frames lazily, so a screenshot after a script scroll often shows an older
