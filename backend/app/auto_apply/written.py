@@ -9,6 +9,7 @@ its transaction, as every layer-2 step does.
 """
 
 import dataclasses
+import re
 import uuid
 from collections.abc import Collection, Iterable, Sequence
 from typing import Literal
@@ -21,6 +22,7 @@ from app.auto_apply.queries import (
     fetch_answered,
     fetch_application_companies,
     fetch_brought_answers,
+    fetch_company_names,
     fetch_next_to_write,
     fetch_posting_text,
     fetch_saved_answers,
@@ -32,6 +34,7 @@ from app.auto_apply.queries import (
     save_written,
 )
 from app.auto_apply.stages import NotFound, get_application, open_application
+from app.models.written_answers import is_text
 from app.queries import writing
 from app.schemas.applications import (
     AnsweredQuestion,
@@ -69,7 +72,7 @@ async def ask_questions(
         sources, employers, _ = await _check_material(db, applicant_id, job_id)
         await drop_written(db, applicant_id, job_id, [
             q.name for q in answered
-            if (picked(q, q.answer)[1] if q.kind else checks.problems(q.answer, checks.Context(
+            if (picked(q, q.answer)[1] if not is_text(q.kind) else checks.problems(q.answer, checks.Context(
                 sources=(*sources, q.label), employers=employers, limit=q.max_length, question=q.label,
             )))
         ])
@@ -208,7 +211,7 @@ async def save_answers(
     failing: dict[str, list[str]] = {}
     for name, answer in answers.items():
         q = questions[name]
-        if q.kind:
+        if not is_text(q.kind):
             # A choice is the form's options, not words: only whether it is among them is checked.
             kept[name], found = picked(q, answer)
         else:
@@ -225,7 +228,7 @@ async def save_answers(
         ), failing)
     await save_written(db, applicant_id, job_id, kept, facts, {
         name: dataclasses.asdict(review) for name, review in (reviews or {}).items()
-        if by == "claude" and name in kept and not questions[name].kind
+        if by == "claude" and name in kept and is_text(questions[name].kind)
     })
     await db.commit()
     return sum(1 for name, q in questions.items() if q.answer is None and name not in answers)
@@ -270,10 +273,10 @@ async def _named_facts(db: AsyncSession, job_id: uuid.UUID, named: dict[str, str
     if not named:
         return {}
     company, _, _ = await fetch_posting_text(db, job_id)
-    brief = {briefs._plain(f["fact"]): f for f in await briefs.brief_for(db, company)}
+    brief = {briefs.plain(f["fact"]): f for f in await briefs.brief_for(db, company, job_id)}
     found: dict[str, NamedFact] = {}
     for name, fact in named.items():
-        match = brief.get(briefs._plain(fact))
+        match = brief.get(briefs.plain(fact))
         if match is None:
             raise Refused(
                 f"The named_fact for {name!r} is not one of the company_brief's facts. Copy one from "
@@ -289,10 +292,10 @@ async def _check_material(
 ) -> tuple[tuple[str, ...], tuple[str, ...], tuple[str, ...]]:
     """What an application's answers are checked against (checks.Context):
     the texts their facts may come from (the student's bank, the posting,
-    the company's kept brief, whose facts were checked on their pages), the
-    companies of the student's other applications that this posting and the
-    places the student worked or studied don't name, and the student's
-    writing samples. A company named only in a skill or a bullet is still
+    the company's kept brief and the posting's team brief, whose facts
+    were checked on their pages), the companies of the student's other
+    applications that this posting and the places the student worked or
+    studied don't name, and the student's writing samples. A company named only in a skill or a bullet is still
     another application's: a tool called "Notion" is no reason to name
     Notion the employer on another company's form. With no job (a form
     filled outside a batch), the form is one at `company`, with no posting."""
@@ -308,7 +311,7 @@ async def _check_material(
         and not any(checks.names(source, name) for source in theirs)
     )
     # The brief only widens the number check: a name in it doesn't exempt another employer.
-    sources += tuple(str(f[k]) for f in await briefs.brief_for(db, company) for k in ("fact", "published") if f.get(k))
+    sources += tuple(str(f[k]) for f in await briefs.brief_for(db, company, job_id) for k in ("fact", "published") if f.get(k))
     return sources, employers, tuple(await writing_samples(db, applicant_id))
 
 
@@ -319,12 +322,26 @@ JOIN = "; "
 def picked(question: WrittenAnswer, answer: str) -> tuple[str, list[str]]:
     """A choice question's answer in the form's own wording (an option, or
     for "choices" one or more joined by JOIN, in any case or spacing), and
-    what is wrong with it: empty when every part is one of its options."""
+    what is wrong with it: empty when every part is one of its options.
+    A "choices" answer is read against the options, longest first, each a
+    whole ";"-separated item, so an option with a ";" of its own is one pick."""
     wording = {_wording(o): o for o in question.options or ()}
     text = answer.strip()
-    parts = [text] if question.kind == "choice" or _wording(text) in wording else text.split(JOIN.strip())
-    parts = [p.strip() for p in parts if p.strip()]
-    unknown = [p for p in parts if _wording(p) not in wording]
+    if question.kind == "choice" or _wording(text) in wording:
+        parts = [text] if text else []
+        unknown = [p for p in parts if _wording(p) not in wording]
+    else:
+        at: list[tuple[int, str]] = []
+        rest = _wording(text)
+        for option in sorted(wording, key=len, reverse=True):
+            item = re.compile(rf"(?:^|;)\s*{re.escape(option)}\s*(?=;|$)")
+            while hit := item.search(rest):
+                at.append((hit.start(), option))
+                # Blanked to ";", the same length, so each pick keeps its place.
+                rest = rest[:hit.start()] + ";" * (hit.end() - hit.start()) + rest[hit.end():]
+        parts = [option for _, option in sorted(at)]
+        typed = {_wording(p): p.strip() for p in text.split(JOIN.strip())}
+        unknown = [typed.get(r.strip(), r.strip()) for r in rest.split(JOIN.strip()) if r.strip()]
     if unknown or not parts:
         options = "; ".join(repr(o) for o in question.options or ())
         how = "one of" if question.kind == "choice" else f'one or more, joined by "{JOIN}", of'
@@ -405,9 +422,17 @@ async def answer_bank(
         *(s for s in written if s.own), *(s for s in brought if s.own),
         *(s for s in written if not s.own), *(s for s in brought if not s.own),
     ]
+    # A draft brought from Apply with no company (no first_seen) that names
+    # one is about that company: offered only on its forms.
+    unplaced = [s for s in brought if not s.own and not s.choice and s.company is None]
+    known = await _known_companies(db, applicant_id) if unplaced else set()
     for saved in saved_answers:
         theirs = (saved.company or "").strip().casefold()
         said = "; ".join(saved.answer) if isinstance(saved.answer, list) else saved.answer
+        if any(saved is s for s in unplaced) and (
+            named := companies_named(said, known)
+        ) and named != {briefs.company_key(company or "")}:
+            continue
         if checks.company_specific(saved.question, said, saved.company) and not (same and theirs == same):
             continue
         # Every answer keeps the other-employer rule; only their Claude's take the checks meant for its text.
@@ -421,6 +446,32 @@ async def answer_bank(
             seen.add(wording)
             bank[saved.question] = SavedAnswer(answer=saved.answer, own=saved.own)
     return bank
+
+
+async def _known_companies(db: AsyncSession, applicant_id: uuid.UUID) -> set[str]:
+    """The keys (briefs.company_key) of every company WorkIt knows, less the
+    places the student worked or studied: naming those is their own story."""
+    own = {briefs.company_key(place) for place in places(await load_bank(db, applicant_id))}
+    return {key for name in await fetch_company_names(db) if (key := briefs.company_key(name)) and key not in own}
+
+
+def companies_named(text: str, known: Collection[str]) -> set[str]:
+    """The keys of the `known` companies `text` names: each run of up to
+    four capitalized words (a possessive's "'s" and the punctuation that
+    ends a run dropped) folded as briefs.company_key folds a company's name."""
+    named: set[str] = set()
+    run: list[str] = []
+    for word in [*text.split(), ""]:
+        bare = re.sub(r"(['\u2019]s)?[,.;:!?)\"\u201d]*$", "", word.lstrip("(\"\u201c"))
+        if bare[:1].isupper() or bare[:1].isdigit():
+            run.append(bare)
+        if not (bare[:1].isupper() or bare[:1].isdigit()) or not word.endswith(bare):
+            for start in range(len(run)):
+                for end in range(start + 1, min(start + 4, len(run)) + 1):
+                    if len(key := briefs.company_key(" ".join(run[start:end]))) > 1 and key in known:
+                        named.add(key)
+            run = []
+    return named
 
 
 def _wording(question: str) -> str:
@@ -453,7 +504,7 @@ async def save_own_answer(
         raise Refused("The answer is empty.")
     asked = {q.name: q for q in await fetch_written(db, applicant_id, job_id)}.get(own.name)
     # A choice the student picked on the form is the form's own option: nothing to check.
-    if not own.own and not (asked and asked.kind):
+    if not own.own and not (asked and not is_text(asked.kind)):
         sources, employers, samples = await _check_material(db, applicant_id, job_id)
         found = checks.problems(answer, checks.Context(
             sources=(*sources, own.label), samples=samples, employers=employers, question=own.label,
@@ -474,4 +525,4 @@ async def read_first(db: AsyncSession, applicant_id: uuid.UUID, job_id: uuid.UUI
     company, _, _ = await fetch_posting_text(db, job_id)
     asked = set(names)
     return [q.name for q in await fetch_written(db, applicant_id, job_id)
-            if q.name in asked and q.answer and not q.kind and checks.high_stakes(q.label, company)]
+            if q.name in asked and q.answer and is_text(q.kind) and checks.high_stakes(q.label, company)]

@@ -30,6 +30,7 @@ from app.auto_apply.resume import (  # noqa: F401 (re-exported: callers name the
 )
 from app.auto_apply.review import (  # noqa: F401 (re-exported: callers name these steps as pipeline's)
     ToReview,
+    answer_version,
     next_to_review,
     reviewed_answers,
     save_review,

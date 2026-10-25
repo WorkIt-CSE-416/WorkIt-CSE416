@@ -130,7 +130,7 @@ def news_site(host: str) -> bool:
     return any(host == n or host.endswith("." + n) for n in NEWS)
 
 
-def _plain(text: str) -> str:
+def plain(text: str) -> str:
     """Text as a quote is matched: case, accents, punctuation and spacing folded."""
     folded = unicodedata.normalize("NFKC", text).casefold()
     return " ".join(re.findall(r"\w+", folded))
@@ -193,14 +193,14 @@ async def check(
             dropped.append(Dropped(url, "not the company's own site or a listed news site"))
         elif not own and _numbers(fact["fact"]):
             dropped.append(Dropped(url, "a news site's fact that states a number"))
-        elif len(_plain(quote).split()) < QUOTE_WORDS:
+        elif len(plain(quote).split()) < QUOTE_WORDS:
             dropped.append(Dropped(url, f"the quote is under {QUOTE_WORDS} words"))
         elif not _numbers(fact["fact"]) <= _numbers(quote):
             dropped.append(Dropped(url, "the fact states a number its quote doesn't"))
-        elif _plain(quote) in quotes:
+        elif plain(quote) in quotes:
             dropped.append(Dropped(url, "the same quote as another fact"))
         else:
-            quotes.add(_plain(quote))
+            quotes.add(plain(quote))
             waiting.append({**fact, "url": url})
             if not own:
                 press.add(id(waiting[-1]))
@@ -211,7 +211,7 @@ async def check(
         page = pages.get(fact["url"])
         if page is None:
             dropped.append(Dropped(fact["url"], "the page could not be read"))
-        elif _plain(fact["quote"]) not in page:
+        elif plain(fact["quote"]) not in page:
             dropped.append(Dropped(fact["url"], "the quote is not on the page"))
         else:
             day = _month(fact.get("published"), today)
@@ -239,7 +239,7 @@ async def _read(urls: set[str], allowed) -> dict[str, str]:
 
     async def read(url: str) -> str:
         async with gate:
-            return _plain(await fetch_page(url, allowed))
+            return plain(await fetch_page(url, allowed))
 
     tasks = {url: asyncio.ensure_future(read(url)) for url in urls}
     if not tasks:
@@ -431,8 +431,8 @@ async def _name_team(db: AsyncSession, applying: Applying, team: str | None) -> 
         return named
     if team:
         key = team_key(team)
-        posting = f" {_plain(applying.title + chr(10) + (applying.posting or ''))} "
-        words = _plain(team).split()
+        posting = f" {plain(applying.title + chr(10) + (applying.posting or ''))} "
+        words = plain(team).split()
         while len(words) > 1 and words[-1] == "team":
             words.pop()  # "Flight Software team" for a posting that writes "Flight Software"
         if not key or key == company_key(applying.company) or f" {' '.join(words)} " not in posting:

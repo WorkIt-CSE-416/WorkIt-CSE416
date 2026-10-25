@@ -29,15 +29,17 @@ rules that were one student's own dropped.
   what they lack, a hedge ("I should be upfront"), "as an AI", or the
   posting cited to its employer ("your posting").
 - **Talk of the posting** (POSTING_TALK): "the role requires ...", which
-  the employer wrote and needn't be told.
+  the employer wrote and needn't be told (the posting, role or job
+  description only: "my manager also wants" is not it).
 - **Time counted from today** (RELATIVE_TIME): "last summer", "recently";
   the answer is read weeks later.
 - **Signposts**: "Hence", "Particularly" opening a sentence, or more than
   one signpost word (SIGNPOSTS).
 - **More than NUMBERS numbers**, years aside.
 - **Low-level detail** (LOW_LEVEL): bytes, protocols, versions, below what
-  a recruiter follows.
-- **A course credited with what the student did** (COURSE_CREDIT).
+  a recruiter follows (not everyday terms such as "binary search").
+- **A course credited with what the student did** (COURSE_CREDIT): a
+  course code, or "course"/"class" as a school's, never a class in code.
 
 `high_stakes` says which answers the student reads before Submit: about
 this company, or about what isn't on their resume (saved, and named back
@@ -82,18 +84,23 @@ GIVEAWAY = re.compile(r"""\b(?:
   | as\ an\ AI
 )\b""", re.IGNORECASE | re.VERBOSE)
 # Telling the employer what their posting asks for.
-POSTING_TALK = re.compile(r"\b(?:(?:the|your|this)\ (?:job\ )?(?:posting|listing|job\ description|role|job)|\w+\ also)\ (?:also\ )?"
+POSTING_TALK = re.compile(r"\b(?:the|your|this)\ (?:job\ )?(?:posting|listing|job\ description|role|job)\ (?:also\ )?"
                           r"(?:asks?\ for|stresses|calls\ for|wants|emphasi[sz]es|requires|mentions|lists)\b", re.IGNORECASE | re.VERBOSE)
 RELATIVE_TIME = re.compile(r"\b(?:(?:this|last|next|past)\s+(?:summer|fall|autumn|spring|winter|year|semester)|recently|currently\s+interning)\b",
                            re.IGNORECASE)
 # Signpost words opening a sentence: one reads as the student's, more as a tic.
 SIGNPOSTS = re.compile(r"(?:^|(?<=[.!?]\s))(?:Hence|Particularly|Lastly|In fact|Indeed|Essentially|As such|In terms of)\b")
 HENCE = re.compile(r"\b[Hh]ence\b")  # readers flag it in most answers that use it
-# Detail below what a recruiter follows; the resume has it.
-LOW_LEVEL = re.compile(r"\b(?:serializ\w*|byte[- ]alignment|bytes?|binary|protobuf|udp|tcp|version\ (?:two|three|\d)|v\d)\b",
+# Detail below what a recruiter follows; the resume has it. Everyday terms
+# ("binary search") aren't: only binary as a data format is.
+LOW_LEVEL = re.compile(r"\b(?:serializ\w*|byte[- ]alignment|bytes?|binary\ (?:format|encoding|protocol|layout)|protobuf|udp|tcp|version\ (?:two|three|\d)|v\d)\b",
                        re.IGNORECASE | re.VERBOSE)
 # A course credited with what the student did ("that class taught me where to look").
-_COURSE = r"(?:course|class|(?-i:[A-Z]{2,4})\ ?\d{3})"
+# A course is a course code, "course", or "class" as a school's ("in my
+# databases class", "that class"), not a class in code ("a parser class",
+# "the User class").
+_COURSE = (r"(?:course|(?-i:[A-Z]{2,4})\ ?\d{3}"
+           r"|\b(?:my|our|that|in\ (?:my|our|a|that))\ (?:\w+\ ){0,3}?class(?:es)?)")
 COURSE_CREDIT = re.compile(rf"\b{_COURSE}\b[^.]*\b(?:helped|taught|why|without|reason|knew|let\ me|prepared)\b"
                            rf"|\b(?:helped|taught|without|knew|prepared)\b[^.]*\b{_COURSE}\b", re.IGNORECASE | re.VERBOSE)
 # A question about what the resume doesn't show, or a ranking against others.

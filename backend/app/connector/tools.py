@@ -28,7 +28,10 @@ whole view of WorkIt (auto-apply/architecture.md, 14.6):
 - `get_review_task` (read-only) and `save_review` (KAN-369, in
   app/auto_apply/review.py): once an application's written questions are
   all answered, its answers for a re-read before the student submits; the
-  ones reported wrong show in its batch tab as needing the student.
+  ones reported wrong show in its batch tab as needing the student. Each
+  answer goes out with its version (a hash of its text) and save_review
+  takes the versions back: an answer the student edited during the
+  re-read is not marked reviewed, and a flag about its old text is dropped.
 - The prompt "Write my WorkIt answers" (app/connector/prompt.py): how to
   write them. The writing rules live there and only there: a tool's
   description says what the tool does, never how Claude should behave
@@ -52,6 +55,7 @@ student's own answer quality, and a value that isn't one starts a new chat.
 """
 
 import uuid
+from typing import Annotated
 
 from mcp.server.mcpserver import MCPServer
 from mcp.server.mcpserver.exceptions import ToolError
@@ -63,6 +67,7 @@ from app.config import get_settings
 from app.connector import account
 from app.connector.prompt import PROMPT, TITLE
 from app.db import get_sessionmaker
+from app.models.written_answers import is_text
 from app.queries import writing
 from app.schemas.applications import ANSWER_MAX
 from app.services.essay_answer import bank_context
@@ -148,6 +153,7 @@ class ReviewAnswer(BaseModel):
     answer: str
     own: bool = Field(description="True when the answer is the student's own words, not their Claude's.")
     options: list[str] | None = Field(default=None, description="A choice's options, as the form words them.")
+    version: str = Field(description="The answer's version, for save_review's versions.")
 
 
 class ReviewTask(BaseModel):
@@ -168,9 +174,11 @@ class Problem(BaseModel):
 
 class Reviewed(BaseModel):
     flagged: int = Field(description="How many answers the student's tab now shows as needing them.")
+    changed: list[str] = Field(default=[], description=(
+        "Answers (question names) that changed since get_review_task gave them: not reviewed, and offered again."))
 
 
-def _handed(chat: str) -> list[uuid.UUID]:
+def handed(chat: str) -> list[uuid.UUID]:
     """The job ids a chat value names; none for a value that isn't one."""
     try:
         return [uuid.UUID(job) for job in chat.split(",")] if chat else []
@@ -195,18 +203,18 @@ def register(server: MCPServer) -> None:
             description="The chat value this chat's last get_next_application call gave; empty in a new chat.",
         ),
     ) -> NextApplication:
-        handed = _handed(chat)
+        skip = handed(chat)
         async with get_sessionmaker()() as db:
             student = await account.current_student(db)
-            found = await pipeline.next_to_write(db, student.id, skip=handed)
+            found = await pipeline.next_to_write(db, student.id, skip=skip)
             brief = await briefs.brief_for(db, found.application.job.company, found.application.job.id) if found else []
-            research = found is not None and any((q.kind or "text") == "text" for q in found.questions) \
+            research = found is not None and any(is_text(q.kind) for q in found.questions) \
                 and await briefs.needs_research(db, found.application.job.company)
             card, card_needed = await writing.card_state(db, student.id)
         if found is None:
             return NextApplication(job_id=None, chat=chat)
         cap = get_settings().connector_chat_cap
-        if len(handed) >= cap:
+        if len(skip) >= cap:
             return NextApplication(
                 job_id=None,
                 chat=chat,
@@ -222,14 +230,14 @@ def register(server: MCPServer) -> None:
         experience, skills = bank_context(found.bank)
         return NextApplication(
             job_id=str(job.id),
-            chat=",".join(str(j) for j in [*handed, job.id]),
+            chat=",".join(str(j) for j in [*skip, job.id]),
             company=job.company,
             title=job.title,
             posting=found.posting,
             questions=[
                 Question(
                     name=q.name, question=q.label, required=q.required, max_length=q.max_length,
-                    kind=q.kind or "text", options=q.options,
+                    kind="text" if is_text(q.kind) else q.kind, options=q.options,
                 )
                 for q in found.questions
             ],
@@ -296,7 +304,8 @@ def register(server: MCPServer) -> None:
             title=job.title,
             posting=found.posting,
             answers=[
-                ReviewAnswer(name=a.name, question=a.label, answer=a.answer, own=own, options=a.options)
+                ReviewAnswer(name=a.name, question=a.label, answer=a.answer, own=own, options=a.options,
+                             version=pipeline.answer_version(a.answer))
                 for a, own in found.answers
             ],
             experience=experience,
@@ -313,7 +322,13 @@ def register(server: MCPServer) -> None:
         ),
         annotations=ToolAnnotations(readOnlyHint=False, destructiveHint=False, idempotentHint=True, openWorldHint=False),
     )
-    async def save_review(job_id: str, problems: list[Problem]) -> Reviewed:
+    async def save_review(
+        job_id: str,
+        problems: list[Problem],
+        versions: Annotated[dict[str, str], Field(description=(
+            "Each answer's version as get_review_task gave it, by question name: an answer changed since "
+            "is not marked reviewed."))],
+    ) -> Reviewed:
         try:
             job = uuid.UUID(job_id)
         except ValueError as exc:
@@ -321,12 +336,13 @@ def register(server: MCPServer) -> None:
         async with get_sessionmaker()() as db:
             student = await account.current_student(db)
             try:
-                flagged = await pipeline.save_review(db, student.id, job, {p.name: p.reason for p in problems})
+                flagged, changed = await pipeline.save_review(
+                    db, student.id, job, {p.name: p.reason for p in problems}, versions)
             except pipeline.NotFound as exc:
                 raise ToolError("No such application. Use the job_id get_review_task gave.") from exc
             except (pipeline.WrongStage, pipeline.Refused) as exc:
                 raise ToolError(str(exc)) from exc
-        return Reviewed(flagged=flagged)
+        return Reviewed(flagged=flagged, changed=changed)
 
     @server.prompt(name="write_my_workit_answers", title=TITLE,
                    description="Writes the answers to your WorkIt applications' written questions.")

@@ -200,7 +200,17 @@ Find files with a directory listing; these are the rules for where code goes.
   callers keep naming them `pipeline.save_answers` and so on, but a test
   that fakes one of their layer-1 calls patches `written`. `resume.py`
   holds the resume steps (`choose_resume`, `prepare_resume`, `FileFailed`),
-  re-exported the same way. Unlike a
+  re-exported the same way. `review.py` holds the pre-submit review
+  (`next_to_review`, `save_review`, `reviewed_answers`, KAN-369): once an
+  application's written questions are all answered, the connector's
+  `get_review_task` hands its answers out for a re-read, each with its
+  version (`answer_version`, a hash of its text), and `save_review` keeps
+  the answers whose version still matches, with each flag, as
+  `job_applications.answer_review`; an answer edited meanwhile stays due.
+  Re-exported the same way; tests: `tests/test_connector_review.py`. A
+  question asked in words (kind NULL, "text" to the connector) is
+  `models/written_answers.is_text`, for a value or, given the column, in
+  SQL: test a question's kind through it, never `kind`'s truth. Unlike a
   service, its functions may
   take a session; its routes still go in `app/routers/`. Its `NotFound`
   and `WrongStage` (`stages.py`, also `pipeline.NotFound`) answer 404 and
@@ -250,7 +260,9 @@ Find files with a directory listing; these are the rules for where code goes.
   name, for the page to show under its box. Tests: `tests/test_pasted_answers.py`.
   **An answer may name the brief fact it uses** (KAN-369): the connector's
   `named_fact`, `save_answers(named=...)`, must fold-match one of the
-  company brief's facts or the save is refused; it is kept as
+  company brief's facts, or those of the team brief the posting names
+  (the same `brief_for(company, job_id)` the connector hands out, which
+  also widens the number check), or the save is refused; it is kept as
   `written_answers.named_fact` (`{"fact", "url"}`), cleared with its answer
   and by the student's own words, and the Written Answers page lists it
   with the answer (`GET .../written-answers`, `pipeline.answered_questions`).
@@ -334,7 +346,10 @@ Find files with a directory listing; these are the rules for where code goes.
   that application's checks (the engine checks the form's limit on the page). **An answer about one
   company is offered on that company's forms only** (`checks.company_specific`,
   read through `pipeline.answer_bank`: reuse saved answers through it, never
-  from `written_answers` directly). **The student's own words win**
+  from `written_answers` directly). A draft of their Claude's brought
+  from Apply with no company (no `first_seen`) that names a company WorkIt
+  knows (`written.companies_named`; the student's own places don't count)
+  is that company's answer. **The student's own words win**
   (KAN-379): the student's words in a tab (`PUT .../answers`, `own` true:
   written into a field WorkIt didn't fill, or replacing what it filled) set
   the row's `own`, which their Claude's later save never overwrites and

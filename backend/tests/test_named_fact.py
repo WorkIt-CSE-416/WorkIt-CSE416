@@ -67,3 +67,30 @@ async def test_an_answer_keeps_the_brief_fact_it_names_for_the_page(running, app
     (question,) = posting["questions"]
     assert question["answer"] == ANSWER
     assert question["named_fact"] == {"fact": LANDER["fact"], "url": LANDER["url"]}
+
+
+async def test_a_team_brief_fact_can_be_named_and_its_number_used(running, applicant, database):  # noqa: F811
+    me, (job,) = await _student_queues(database, applicant, 1)
+    await _describe(database, job, "Acme builds rockets. Join the Guidance team.")
+    await _brief(database, LANDER)
+    guidance = {"category": "team", "fact": "Acme's Guidance team flew 14 test landings this year.",
+                "url": "https://acme.com/teams/guidance", "quote": "14 test landings", "published": None, "team": "Guidance"}
+    async with database() as session:
+        await session.execute(
+            text("INSERT INTO company_briefs (company_key, team, company, facts, saved_at) "
+                 "VALUES (:k, :t, 'Acme', CAST(:f AS jsonb), now())"),
+            {"k": briefs.company_key("Acme"), "t": briefs.team_key("Guidance"), "f": json.dumps([guidance])},
+        )
+        await session.execute(text("INSERT INTO posting_teams (job_id, team) VALUES (:j, 'Guidance')"), {"j": job})
+        await session.commit()
+    await _tab_asks(me, job, WHY)
+    answer = "I want to build flight software at Acme, where the Guidance team has flown 14 test landings."
+
+    async with claude(applicant) as client:
+        saved = await client.call_tool("save_answers", {"job_id": job, "answers": [
+            {"name": "question_7", "answer": answer, "named_fact": guidance["fact"], "review": REVIEWED}]})
+
+    assert saved.is_error is False, saved.content
+    (posting,) = await _answered(me)
+    (question,) = posting["questions"]
+    assert question["named_fact"] == {"fact": guidance["fact"], "url": guidance["url"]}

@@ -33,10 +33,10 @@ from app.models.applications import Job_Application
 from app.models.built_resume import Built_Resume
 from app.models.dto import application_stage
 from app.models.jobs import Job_Post
-from app.models.profiles import Applicant_Profile
+from app.models.profiles import Applicant_Profile, Company_Profile
 from app.models.resume import Resume
 from app.models.sent_resume import Sent_Resume
-from app.models.written_answers import Written_Answer
+from app.models.written_answers import Written_Answer, is_text
 from app.queries.jobs.filters import AUTO_APPLY_SUPPORTED, LISTED
 from app.queries.jobs.listings import LISTING_COLUMNS, to_listing
 from app.schemas.applications import (
@@ -504,7 +504,7 @@ async def fetch_answered(
         .where(
             Written_Answer.applicant_id == applicant_id,
             Written_Answer.answer.is_not(None),
-            Written_Answer.kind.is_(None),
+            is_text(Written_Answer.kind),
         )
         .order_by(Job_Application.created_at.desc(), Job_Application.job_id, Written_Answer.position, Written_Answer.name)
     )
@@ -601,6 +601,16 @@ async def fetch_application_companies(db: AsyncSession, applicant_id: uuid.UUID)
     return list(rows)
 
 
+async def fetch_company_names(db: AsyncSession) -> list[str]:
+    """Every company WorkIt knows by name: its job postings' and its
+    company profiles', each once."""
+    rows = await db.scalars(
+        select(Job_Post.company_name).where(Job_Post.company_name.is_not(None))
+        .union(select(Company_Profile.company_name).where(Company_Profile.company_name.is_not(None)))
+    )
+    return list(rows)
+
+
 @dataclass(frozen=True)
 class SavedAnswer:
     """An answer saved to one application's question, and the company of
@@ -631,7 +641,7 @@ async def fetch_saved_answers(
     if exclude is not None:
         query = query.where(Written_Answer.job_id != exclude)
     return [
-        SavedAnswer(question=r.label, answer=r.answer, company=r.company_name, own=r.own, choice=r.kind is not None)
+        SavedAnswer(question=r.label, answer=r.answer, company=r.company_name, own=r.own, choice=not is_text(r.kind))
         for r in await db.execute(query)
     ]
 

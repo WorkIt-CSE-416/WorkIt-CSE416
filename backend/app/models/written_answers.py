@@ -16,9 +16,16 @@ from sqlalchemy import (
     text,
 )
 from sqlalchemy.dialects.postgresql import JSONB
-from sqlalchemy.orm import Mapped, mapped_column
+from sqlalchemy.orm import Mapped, QueryableAttribute, mapped_column
 
 from app.db import BaseModel
+
+
+def is_text(kind):
+    """Whether a written question of `kind` is asked in words (a text
+    question): its kind is NULL, where "choice" and "choices" pick options.
+    Given the `Written_Answer.kind` column, the same as a SQL condition."""
+    return kind.is_(None) if isinstance(kind, QueryableAttribute) else kind is None
 
 
 class Written_Answer(BaseModel):

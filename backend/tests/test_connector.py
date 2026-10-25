@@ -452,3 +452,16 @@ async def test_a_choice_question_reaches_claude_with_its_options_and_takes_only_
     assert saved.is_error is False, saved.content
     # Kept in the form's own wording, as the tab fills it.
     assert [q["answer"] for q in await _tab_asks(me, job)] == ["Small", "Data; Backend"]
+
+
+def test_a_choices_option_with_a_semicolon_in_it_is_one_pick():
+    from app.auto_apply.written import picked
+    from app.schemas.applications import WrittenAnswer
+
+    question = WrittenAnswer(name="q", label="Which areas?", required=True, max_length=None, kind="choices",
+                             options=["Backend; APIs", "Backend", "Data"], answer=None)
+
+    assert picked(question, "backend; apis; Data") == ("Backend; APIs; Data", [])
+    assert picked(question, "Backend; Data") == ("Backend; Data", [])
+    assert picked(question, "Backend; APIs") == ("Backend; APIs", [])
+    assert picked(question, "APIs; Data")[1]  # "APIs" alone is no option

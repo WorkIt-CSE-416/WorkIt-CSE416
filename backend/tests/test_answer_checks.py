@@ -105,6 +105,26 @@ def test_writing_that_reads_machine_made_is_refused_with_what_to_change(answer, 
     assert problems(CLEAN, Context(sources=BANK)) == []
 
 
+@pytest.mark.parametrize("answer", [
+    "I wrote a parser class that helped the team ship faster.",  # a class in code, not a school class
+    "I split the User class so the team could test it without a database.",
+    "My manager also wants weekly demos, so I keep a running demo branch.",  # not the posting
+    "I used binary search to find the commit that slowed the page.",  # an everyday term
+])
+def test_ordinary_technical_writing_passes_the_writing_checks(answer):
+    assert problems(answer, Context(sources=(answer, "Acme"))) == []
+
+
+@pytest.mark.parametrize("answer", [
+    "In my CSE 416 class I learned why tests come first, and it helped me at Acme.",
+    "That course taught me where to look.",
+    "The job description also asks for Go, which I used at Acme.",
+    "I stored the records in a binary format so they loaded faster.",
+])
+def test_the_narrowed_writing_checks_still_refuse_their_cases(answer):
+    assert problems(answer, Context(sources=(answer, "Acme")))
+
+
 def test_a_question_that_asks_for_numbers_may_have_that_many():
     answer = "I placed 2nd of 15 teams, and I picked 13 new members."
     sources = (answer,)

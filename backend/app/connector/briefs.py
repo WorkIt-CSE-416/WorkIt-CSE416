@@ -28,7 +28,7 @@ from pydantic import BaseModel, Field
 
 from app.auto_apply import briefs
 from app.connector import account
-from app.connector.tools import _handed
+from app.connector.tools import handed
 from app.db import get_sessionmaker
 
 Category = Literal["products", "launches", "engineering", "team"]
@@ -107,7 +107,7 @@ def register(server: MCPServer) -> None:
         ),
     ) -> ResearchTask:
         async with get_sessionmaker()() as db:
-            task = await briefs.research_task(db, (await account.current_student(db)).id, skip=_handed(chat))
+            task = await briefs.research_task(db, (await account.current_student(db)).id, skip=handed(chat))
         if task is None:
             return ResearchTask(company=None)
         return ResearchTask(

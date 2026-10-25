@@ -174,14 +174,14 @@ def find_quote(page: str, name: str, fact: str) -> str | None:
     """The sentence on `page` that names `name` and holds every number in
     `fact`, the one sharing most words with `fact`; None when none does."""
     needs = briefs._numbers(fact)
-    named = briefs._plain(name)
-    words = set(briefs._plain(fact).split())
+    named = briefs.plain(name)
+    words = set(briefs.plain(fact).split())
     found = [
         s.strip() for s in _SENTENCE.split(page)
-        if f" {named} " in f" {briefs._plain(s)} " and needs <= briefs._numbers(s)
-        and briefs.QUOTE_WORDS <= len(briefs._plain(s).split()) <= _LONGEST_QUOTE
+        if f" {named} " in f" {briefs.plain(s)} " and needs <= briefs._numbers(s)
+        and briefs.QUOTE_WORDS <= len(briefs.plain(s).split()) <= _LONGEST_QUOTE
     ]
-    return max(found, key=lambda s: len(words & set(briefs._plain(s).split())), default=None)
+    return max(found, key=lambda s: len(words & set(briefs.plain(s).split())), default=None)
 
 
 async def _quoted(company: str, facts: list[dict], team: str, websites: list[str]) -> tuple[list[dict], int]:
