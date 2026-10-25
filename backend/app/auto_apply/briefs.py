@@ -115,9 +115,11 @@ def _site(host: str) -> tuple[str, str]:
 
 def own_domain(host: str, company: str, websites: Iterable[str] = ()) -> bool:
     """Whether `host` is the company's own: a domain named for it
-    (blog.acme.com for Acme), or the site its WorkIt profile names."""
+    (blog.acme.com for Acme; shield.ai for Shield AI, whose ending spells
+    the rest of the name), or the site its WorkIt profile names."""
     domain, label = _site(host)
-    if re.sub(r"[^a-z0-9]", "", label) == company_key(company):
+    name = re.sub(r"[^a-z0-9]", "", label)
+    if company_key(company) in (name, name + re.sub(r"[^a-z0-9]", "", domain[len(label):])):
         return True
     return any(domain == _site(re.sub(r"^\w+://", "", w).split("/")[0].split(":")[0])[0] for w in websites if w)
 

@@ -364,3 +364,10 @@ def test_scoring_counts_categories_facts_and_recency():
 ])
 def test_the_companys_own_domain_is_named_for_it(host, own):
     assert briefs.own_domain(host, "Acme, Inc.") is own
+
+
+@pytest.mark.parametrize(("host", "own"), [
+    ("shield.ai", True), ("www.shield.ai", True), ("shield.com", False), ("shieldai.com", True), ("shield.io", False),
+])
+def test_a_domain_whose_ending_completes_the_name_is_the_companys(host, own):
+    assert briefs.own_domain(host, "Shield AI") is own
