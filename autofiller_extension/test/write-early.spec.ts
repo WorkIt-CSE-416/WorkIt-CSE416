@@ -1,6 +1,6 @@
 // Write early (KAN-379): a queued job's questions that need writing, read
 // from its form's link by the Fill engine with no page, and planned with the
-// student's saved answers, as background/batch.js's writeEarly sends them.
+// student's saved answers, as background/write-early.js sends them.
 // The loaded extension's end to end is write-early.extension.spec.ts.
 import { readFileSync } from "node:fs";
 import { join } from "node:path";

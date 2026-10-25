@@ -213,7 +213,8 @@ resume after a restart, the practice batch); background.js imports each
 message's function from the module that owns it. Beside it:
 `batch-store.js` keeps the batch in `chrome.storage.local` and runs every
 change one at a time (`serially`), so every module reading or changing the
-batch goes through it.
+batch goes through it. `write-early.js` sends the queued jobs' written
+questions before their tabs open (`writeEarly`).
 
 - **The URLs always come from the API, never the message.** `run/open`
   carries no body: a page on an allowed origin that could hand the worker
@@ -359,7 +360,7 @@ batch goes through it.
   student, so the filled answer moves the tab to Ready; Harvey's other
   questions keep it in Needs you).
 - **Writing starts when jobs are queued, and a question is answered once**
-  (KAN-379). On `run/open`, once the tabs have opened, `batch.js`'s
+  (KAN-379). On `run/open`, once the tabs have opened, `write-early.js`'s
   `writeEarly` reads every queued job the batch hasn't opened with
   `engine.js`'s `questionsToWrite` (the engine's `questionSet` from the
   form's link, no tab; Workday and Eightfold wait for their tab, a job

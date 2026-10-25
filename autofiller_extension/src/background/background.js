@@ -13,13 +13,14 @@ import {
 } from "./api.js";
 import {
   batchStatus, batchTabIds, forgetTab, inBatch, jobInTab, markSubmitted, nextNeedsYou, practiceStatus, resumeBatch, setTabState, setWriting,
-  showBatchTab, skipTab, startBatch, startPractice, submitPractice, writeEarly,
+  showBatchTab, skipTab, startBatch, startPractice, submitPractice,
 } from "./batch.js";
 import { engineCaller, handleFill, jobOf, practiceJob, runEngine, submittedPage } from "./engine.js";
 import { claimMoment } from "./moments.js";
 import { SELF_ID, checkedSelfId, unansweredSelfId } from "./self-id.js";
 import { injectFill } from "../shared/content-scripts.js";
 import { workdayLogin } from "./workday-logins.js";
+import { writeEarly } from "./write-early.js";
 
 /**
  * Calls the Fill engine in the frame that sent `sender`'s message: the
