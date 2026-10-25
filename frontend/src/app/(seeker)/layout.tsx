@@ -257,7 +257,42 @@ export default async function AppLayout({
                   controls and the Calendar's arrows, is held by
                   ShallowRouting. */}
               <ProfileCacheProvider>
-                <ShallowRouting>{children}</ShallowRouting>
+                <ShallowRouting>
+                  {/* THE PAGE STREAMS IN BEHIND THE SHELL on a hard load (a
+                      sign-in landing, a reload, a new tab). Without this
+                      boundary the page was part of React's shell, so no byte
+                      of the panel or the bar left the server until the page's
+                      slowest read had answered: on the Dashboard, a whole
+                      scoring pass. Now the shell goes out at once and the page
+                      follows it in the same response. A soft navigation is
+                      unchanged: the boundary is already showing a page, and a
+                      navigation is a transition, which keeps the old page up
+                      until the new one is ready, so the fallback never shows
+                      there. It is empty, for that moment of a hard load only.
+                      It wraps the page slot only, never {modal}, so a modal
+                      never waits on the page under it.
+                      What a page that answers after the shell gives up: a
+                      redirect() or notFound() in it can no longer set the
+                      status, so the response is a 200 and the browser follows
+                      the redirect (a meta refresh without JavaScript) or draws
+                      the not-found page itself; and React reveals a streamed
+                      boundary no sooner than 300ms after the shell's first
+                      frame, so a page that answers inside that window lands up
+                      to that much later than it did riding with the shell.
+                      THE contents DIV KEEPS PAGE-ENTER TO SOFT NAVIGATIONS.
+                      React plays a <ViewTransition>'s enter on a Suspense
+                      reveal only when no DOM element sits between the boundary
+                      and it, so without this div a hard load's page rose in
+                      with the template's page-enter whenever it streamed in
+                      (checked in Chromium on a copy of this tree), where it
+                      used to simply be there. A soft navigation remounts the
+                      template below the div, so its enter and exit still run.
+                      display: contents leaves no box, so the page is still the
+                      container's flex child. */}
+                  <Suspense fallback={null}>
+                    <div className="contents">{children}</div>
+                  </Suspense>
+                </ShallowRouting>
               </ProfileCacheProvider>
             </div>
           </SidebarInset>
