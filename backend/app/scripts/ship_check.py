@@ -11,15 +11,17 @@ picks decide whether batch apply ships, not an AI judge.
 - applications.json: {"experience": text, "skills": [str],
   "applications": [{"id", "company", "title", "posting",
   "questions": [{"name", "question", "required", "max_length"}]}],
-  "chats": [[application id, ...], ...]}
+  "chats": [[application id, ...], ...],
+  "samples": [the student's writing samples, at most 3; optional]}
 - other.json: the answers to read the connector's against,
   {"writer": its name, "answers": [{"application", "question", "answer"}]}
 
 `write` runs each chat as one `claude -p` session on the user's own Claude
 login: its message is the connector's prompt (app/connector/prompt.py) and
-its only tools are the connector's own two (app/connector/tools.py,
-unchanged), served over stdio with the chat's applications, in the chat's
-order, in place of the database. It saves connector.json (each answer with
+its only tools are the connector's own (app/connector/tools.py, briefs.py
+and style.py, unchanged), served over stdio with the chat's applications,
+in the chat's order, and the student's samples in place of the database;
+save_answers runs WorkIt's own checks (KAN-380). It saves connector.json (each answer with
 its chat and its place in it) and each chat's transcript in
 <folder>/connector/. A chat already written is kept; delete its files to
 write it again.
@@ -50,11 +52,12 @@ from pathlib import Path
 from types import SimpleNamespace
 from unittest import mock
 
-from app.auto_apply import briefs, pipeline
+from app.auto_apply import briefs, checks, pipeline
 from app.config import get_settings
 from app.connector import briefs as brief_tools
-from app.connector import tools
+from app.connector import style, tools
 from app.connector.prompt import PROMPT
+from app.queries import writing
 from app.schemas.applications import WrittenAnswer
 
 BACKEND = Path(__file__).resolve().parents[2]
@@ -62,7 +65,6 @@ CONNECTOR = "connector"
 # The chat's system prompt: Claude Code's own is for writing code, and a
 # student's Claude app has no WorkIt-specific one.
 SYSTEM = "You are Claude, an AI assistant made by Anthropic. The user has connected the WorkIt connector."
-TOOLS = [f"mcp__workit__{t}" for t in ("get_research_task", "save_company_brief", "get_next_application", "save_answers")]
 
 
 def _load(path: Path) -> dict:
@@ -95,7 +97,9 @@ def stub(folder: Path, chat: int) -> Iterator[tools.MCPServer]:
     applications.json as its whole database: the tools' own code, with
     only the reads and writes of the database replaced. Each save goes to
     <folder>/connector/chat-<n>.json at once. No company has a brief or
-    needs research, so both writers work from the same posting and facts."""
+    needs research, so both writers work from the same posting and facts.
+    The style card a chat builds from the samples is kept for the next
+    chat, as WorkIt keeps it, in <folder>/connector/style-card.txt."""
     data = _load(folder / "applications.json")
     apps = {a["id"]: a for a in data["applications"]}
     order = data["chats"][chat]
@@ -104,6 +108,8 @@ def stub(folder: Path, chat: int) -> Iterator[tools.MCPServer]:
     out = folder / CONNECTOR / f"chat-{chat + 1}.json"
     out.parent.mkdir(exist_ok=True)
     saved: dict[tuple[str, str], str] = {}
+    samples = tuple(data.get("samples", []))
+    card_file = out.parent / "style-card.txt"
 
     async def fetch_next_to_write(db, applicant_id, skip):
         job = next((ids[app] for app in order if ids[app] not in skip), None)
@@ -142,6 +148,28 @@ def stub(folder: Path, chat: int) -> Iterator[tools.MCPServer]:
     async def no_brief(db, company):
         return []
 
+    async def check_material(db, applicant_id, job_id):
+        # As pipeline._check_material: the facts' texts, other employers this
+        # posting and bank don't name, and the samples.
+        app = apps[named[job_id]]
+        sources = (data["experience"], *data["skills"], app["company"], app["title"], app["posting"])
+        employers = tuple(a["company"] for a in data["applications"] if a["company"] != app["company"]
+                          and not any(checks.names(source, a["company"]) for source in sources))
+        return sources, employers, samples
+
+    async def sample_texts(db, applicant_id):
+        return samples
+
+    async def style_card(db, applicant_id):
+        return card_file.read_text() if card_file.exists() else None
+
+    async def card_state(db, applicant_id):
+        card = await style_card(db, applicant_id)
+        return card, card is None and bool(samples)
+
+    async def save_style_card(db, applicant_id, card):
+        card_file.write_text(card)
+
     with contextlib.ExitStack() as patches:
         for module, name, value in [
             (pipeline, "fetch_next_to_write", fetch_next_to_write),
@@ -152,8 +180,15 @@ def stub(folder: Path, chat: int) -> Iterator[tools.MCPServer]:
             (briefs, "brief_for", no_brief),
             (pipeline, "_open_application", open_application),
             (pipeline, "save_written", save_written),
+            (pipeline, "_check_material", check_material),
+            (writing, "sample_texts", sample_texts),
+            (writing, "fetch_style_card", style_card),
+            (writing, "card_state", card_state),
+            (writing, "save_style_card", save_style_card),
             (tools, "get_sessionmaker", lambda: _Session),
             (brief_tools, "get_sessionmaker", lambda: _Session),
+            (style, "get_sessionmaker", lambda: _Session),
+            (style, "_student", student),
             (tools, "_student", student),
             (tools, "bank_context", lambda bank: (data["experience"], data["skills"])),
         ]:
@@ -161,6 +196,7 @@ def stub(folder: Path, chat: int) -> Iterator[tools.MCPServer]:
         server = tools.MCPServer("WorkIt")
         tools.register(server)
         brief_tools.register(server, tools._student)
+        style.register(server)
         yield server
 
 
@@ -205,7 +241,8 @@ def _chat(folder: Path, chat: int, model: str) -> list[dict]:
         "claude", "-p", "--model", model, "--system-prompt", SYSTEM,
         "--setting-sources", "", "--disable-slash-commands", "--no-session-persistence",
         "--strict-mcp-config", "--mcp-config", json.dumps({"mcpServers": {"workit": server}}),
-        "--tools", "", "--allowedTools", ",".join(TOOLS), "--permission-mode", "dontAsk",
+        # No built-in tools; every tool of the connector's, nothing else.
+        "--tools", "", "--allowedTools", "mcp__workit", "--permission-mode", "dontAsk",
         "--output-format", "stream-json", "--verbose",
     ]
     env = {k: v for k, v in os.environ.items() if k != "ANTHROPIC_API_KEY"} | {"CLAUDE_CODE_DISABLE_AUTO_MEMORY": "1"}

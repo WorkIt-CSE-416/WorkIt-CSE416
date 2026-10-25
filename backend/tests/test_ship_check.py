@@ -24,7 +24,8 @@ def _app(app: str) -> dict:
 def folder(tmp_path):
     data = {"experience": "Built a bus tracker.", "skills": ["Python"],
             "applications": [_app(a) for a in ("acme", "bolt", "core")],
-            "chats": [["acme", "bolt", "core"], ["core", "bolt", "acme"]]}
+            "chats": [["acme", "bolt", "core"], ["core", "bolt", "acme"]],
+            "samples": ["I like building robots that find their own way through a maze."]}
     (tmp_path / "applications.json").write_text(json.dumps(data))
     return tmp_path
 
@@ -46,6 +47,7 @@ async def test_a_chat_is_handed_its_applications_in_order_and_saves_their_place(
             second = (await client.call_tool("get_next_application", {"chat": first["chat"]})).structured_content
 
     assert second["company"] == "Bolt"
+    assert first["style_card_needed"] is True
     saved = json.loads((folder / "connector" / "chat-2.json").read_text())
     assert saved == [{"application": "core", "question": "why", "answer": "Buses.", "chat": 2, "position": 1}]
 
@@ -85,3 +87,22 @@ def test_the_read_hides_the_writer_and_records_the_pick_by_writer(folder):
     assert picks["picks"][first]["winner"] == picks["sides"][first][0]
     assert sorted(p["winner"] for p in picks["picks"].values()).count("tie") == 1
     assert "Signed off" in (folder / "summary.md").read_text()
+
+
+@pytest.mark.anyio
+async def test_a_style_card_built_in_one_chat_is_kept_for_the_next(folder):
+    with ship_check.stub(folder, 0) as server:
+        async with Client(server) as client:
+            samples = (await client.call_tool("get_writing_samples", {})).structured_content
+            assert samples["samples"] == ["I like building robots that find their own way through a maze."]
+            await client.call_tool("save_style_card", {"card": "Short plain sentences."})
+
+    with ship_check.stub(folder, 1) as server:
+        async with Client(server) as client:
+            first = (await client.call_tool("get_next_application", {})).structured_content
+            # The copying check reads the samples, as WorkIt's save does.
+            copied = await client.call_tool("save_answers", {"job_id": first["job_id"], "answers": [
+                {"name": "why", "answer": "I like building robots that find their own way through a maze."}]})
+
+    assert (first["style_card"], first["style_card_needed"]) == ("Short plain sentences.", False)
+    assert copied.is_error
