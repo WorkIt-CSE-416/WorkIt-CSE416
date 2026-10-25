@@ -195,7 +195,9 @@ Find files with a directory listing; these are the rules for where code goes.
   sends, the connector's and the Written Answers page's saves, each checked
   by `checks.py`, and the answer bank); `pipeline.py` re-exports them, so
   callers keep naming them `pipeline.save_answers` and so on, but a test
-  that fakes one of their layer-1 calls patches `written`. Unlike a
+  that fakes one of their layer-1 calls patches `written`. `resume.py`
+  holds the resume steps (`choose_resume`, `prepare_resume`, `FileFailed`),
+  re-exported the same way. Unlike a
   service, its functions may
   take a session; its routes still go in `app/routers/`. Its `NotFound`
   and `WrongStage` (`stages.py`, also `pipeline.NotFound`) answer 404 and

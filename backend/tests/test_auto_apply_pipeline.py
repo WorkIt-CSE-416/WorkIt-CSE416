@@ -10,6 +10,7 @@ import pytest
 from sqlalchemy.exc import SQLAlchemyError
 
 from app.auto_apply import pipeline, stages
+from app.auto_apply import resume as resume_step
 from app.auto_apply.queries import ResumeChoice
 from app.models.dto import application_stage
 from app.queries.jobs.filters import JobFilters
@@ -41,6 +42,7 @@ def fake_stage(monkeypatch, stage):
     async def fetch_stage(db, applicant_id, job_id):
         return stage
     monkeypatch.setattr(pipeline, "fetch_stage", fetch_stage)
+    monkeypatch.setattr(resume_step, "fetch_stage", fetch_stage)
 
 
 # --- get_matches ---
@@ -211,10 +213,10 @@ def fake_pick(monkeypatch, choice, chosen=None):
         return choice
     async def chosen_resume(db, applicant_id, job_id):
         return chosen
-    monkeypatch.setattr(pipeline, "pick_resume", pick_resume)
-    monkeypatch.setattr(pipeline, "chosen_resume", chosen_resume)
+    monkeypatch.setattr(resume_step, "pick_resume", pick_resume)
+    monkeypatch.setattr(resume_step, "chosen_resume", chosen_resume)
     links = AsyncMock()
-    monkeypatch.setattr(pipeline, "link_resume", links)
+    monkeypatch.setattr(resume_step, "link_resume", links)
     return links
 
 
@@ -228,7 +230,7 @@ def fake_send(monkeypatch, name, sent=None, raises=None):
             raise raises
         return sent
 
-    monkeypatch.setattr(pipeline.sent_resumes, name, send)
+    monkeypatch.setattr(resume_step.sent_resumes, name, send)
     return calls
 
 
@@ -300,7 +302,7 @@ def test_prepare_resume_without_a_resume_is_none(monkeypatch):
 )
 def test_prepare_resume_needs_an_open_application(monkeypatch, stage, error):
     fake_stage(monkeypatch, stage)
-    monkeypatch.setattr(pipeline, "pick_resume", AsyncMock(side_effect=AssertionError("picked first")))
+    monkeypatch.setattr(resume_step, "pick_resume", AsyncMock(side_effect=AssertionError("picked first")))
 
     with pytest.raises(error):
         asyncio.run(pipeline.prepare_resume(FakeDB(), FakeStorage(), APPLICANT, JOB))
