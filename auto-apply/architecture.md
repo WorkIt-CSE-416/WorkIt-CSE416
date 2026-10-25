@@ -1067,7 +1067,7 @@ ids and plain data.
 |---|---|---|
 | `get_next_application` | tool, `readOnlyHint` | The oldest open application (queued or needs_you, posting open) with a written question unanswered (`next_to_write`): its job id, company, title, the posting's description, its unanswered questions (`name`, `question`, `required`, `max_length`), and the student's experience bank and skills (`bank_context`, no links). Only that application's material. `job_id: null` when none is left |
 | `save_answers` | tool, a write (not destructive) | `{job_id, answers: [{name, answer}]}` (`save_answers`): all or none; refuses a name the application doesn't ask, an empty answer, or one over the form's `max_length` (else 10,000), with the reason as a tool error for Claude to fix. Answers `{saved, left}` |
-| "Write my WorkIt answers" | prompt | The writing rules and the loop: next application, write, save, at most 5 per chat. **The rules live here only**; tool descriptions say what a tool does (Anthropic's review refuses descriptions that steer Claude) |
+| "Write my WorkIt answers" | prompt | The writing rules and the loop: next application, research its company if `get_research_task` names it (KAN-382), write, save, at most 5 per chat. **The rules live here only**; tool descriptions say what a tool does (Anthropic's review refuses descriptions that steer Claude) |
 
 The rules are the tracer's short set; KAN-381 brings Apply's full ones, the
 per-chat cap and resuming after a usage limit; KAN-380 the checks in code
@@ -1084,6 +1084,29 @@ waiting, the tab asks for the saved answers every 10 seconds
 through the engine; the tab's group follows, so it moves to Ready once
 nothing else needs the student. A question the student answers by hand
 first keeps the student's answer.
+
+**Company briefs** (KAN-382; `app/auto_apply/briefs.py`, tools in
+`app/connector/briefs.py`). One brief per company, in `company_briefs`,
+shared by every student who applies there and built by the first one's
+Claude: WorkIt calls no model for it.
+
+| Name | Kind | Does |
+|---|---|---|
+| `get_research_task` | tool, `readOnlyHint` | The first company of the student's open applications with a written question left whose brief is missing, older than 30 days, or scores under 60 of 100: the company, the job, why, its score, the categories it lacks, and the news sites a fact may cite. `company: null` when none needs it. A research that was not kept holds the company back 3 days |
+| `save_company_brief` | tool, a write (not destructive) | `{company, facts: [{category, fact, url, quote, published, team}]}` for a company the student applies to (else a tool error). WorkIt reads each page through the safe fetcher (`app/services/page_fetch.py`) and keeps a fact only if its host is the company's own (a domain named for it, or its WorkIt profile's website) or a listed news site, its quote is on the page word for word (case, punctuation and spacing folded), and each number the fact states is in its quote; a date whose year the page doesn't show is dropped from the fact. Kept only with 3 or more checked facts and a higher score today than the kept brief. Answers `{saved, score, current_score, kept, dropped: [{url, reason}]}` |
+
+`get_next_application` hands the application's company brief as
+`company_brief` (category, fact, url, published, team), described as web
+text. **Score, in code:** 10 per category covered (products, launches,
+engineering, team), 4 per checked fact up to 10, 4 per fact whose page is
+under a year old up to 5; recency is counted on the day of the comparison,
+so a brief scores lower as it ages. **The fetcher** reads http(s) only, on
+the default port, the allowed hosts only (checked again on each of at most
+3 redirects), never a host that resolves to a non-public address, and
+connects to the address it checked (TLS still verified against the host
+name), with 10 seconds and 2 MB per page, text types only. Tests use a fake
+fetcher (`tests/test_company_briefs.py`); the fetcher's own refusals are in
+`tests/test_page_fetch.py`.
 
 **Why not Supabase Auth's OAuth 2.1 server** (decided 2026-10-25, KAN-377):
 its docs call it beta and free "during the beta period", with no price after
