@@ -318,6 +318,12 @@ and each tab's state (`jobs`), and `run/show` switches to one (`jobId`).
   engine's `unaskedQuestions`). Each becomes a failed, required row named
   by the field's label, so the tab needs the student until it shows an
   answer; an unasked one joins the tab's questions, so edits read it back.
+  **These reads must only read**: they run while the student works in
+  the form and while WorkIt fills it. The engine once read Greenhouse's
+  phone country by opening its picker, which took the focus (an Enter
+  meant for Submit went to the picker) and closed any list open
+  elsewhere (the self-identification fill's, under load). Test:
+  `test/submit.extension.spec.ts` ("leaves their focus where they put it").
 - **A batch tab's essays come from the student's own Claude** (KAN-377;
   `auto-apply/architecture.md` 14.6). The essay route is never batch
   apply's. The tab sends the questions its Plan needs written
@@ -365,9 +371,14 @@ and each tab's state (`jobs`), and `run/show` switches to one (`jobId`).
   copy check's run). An edit of their Claude's answer (or a saved one of
   their Claude's) keeps its source label, is sent with `own: false`, and
   WorkIt checks it as their Claude's; a refusal fails the row with the
-  reason (`workitFilled`, `replaces`). Tests:
+  reason (`workitFilled`, `replaces`). On Workday each step's fill
+  watches that step's edits, and the watch stops once the step is left
+  (Workday draws the next step in the same page, or loads it as a new
+  one, where the fill is injected again); a Workday tab is never Ready,
+  so `fill/required` isn't asked there. Tests:
   `test/write-early.spec.ts` (the read, no page) and
-  `test/write-early.extension.spec.ts`.
+  `test/write-early.extension.spec.ts` (Workday: a step's own words, an
+  edit of Claude's answer on the next page, and a step drawn in the page).
 - **A written question's limit comes from the Fill engine** (KAN-380).
   `planFill` passes the Question set through the engine's `limits`, which
   reads each text field's own `maxlength` on the page, and `planRows`

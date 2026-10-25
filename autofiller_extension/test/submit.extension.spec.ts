@@ -114,3 +114,19 @@ test("a page script can't mark the application applied", async () => {
   expect(api.calls.filter((c) => c.endsWith("/finish"))).toEqual([]);
   await expect.poll(() => groupOf(loaded.worker, forms.url(ARC))).toBe("Ready");
 });
+
+test("reading the student's edits back leaves their focus where they put it", async () => {
+  // The tab reads the form back after each edit. Greenhouse's phone country was read by opening its
+  // picker, which took the focus: an Enter meant for Submit went to the picker, and nothing was sent.
+  const forms = new SavedForms([ARC]);
+  const api = new FakeApi().queue({ id: "job-0", apply_url: forms.url(ARC) });
+  const form = await readyArc(forms, api);
+
+  await form.locator("#first_name").fill("Tess");
+  await form.getByRole("button", { name: "Submit application" }).focus();
+  await form.waitForTimeout(2_000); // past the pause after typing, and the read back
+
+  expect(await form.evaluate(() => document.activeElement?.textContent?.trim())).toBe("Submit application");
+  expect(await form.locator("#react-select-country-listbox").count()).toBe(0);
+  expect(forms.submissions).toEqual([]);
+});

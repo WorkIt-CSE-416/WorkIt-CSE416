@@ -533,8 +533,16 @@
    * writing, and those a saved answer filled): the student's own words in
    * one are saved (keepOwn), for this application and every later form
    * that asks it (KAN-379). WorkIt's own fill of one is never taken for theirs.
+   *
+   * On Workday, each step's fill watches that step, and the watch stops
+   * (the returned function) once the step is left: Workday draws the next
+   * step in the same page, and its fields are another step's. A Workday tab
+   * is never Ready, so the form's required fields aren't looked for there.
    */
   function watchEdits(prepared) {
+    const workday = prepared.site === "workday";
+    let stopped = false;
+    const required = () => (workday ? undefined : flagEmptyRequired(prepared));
     const byName = new Map(prepared.questions.map((q) => [q.name, q]));
     const inWords = (q) => q.kind === "text" || q.kind === "textarea";
     const written = new Set([...prepared.written.map((q) => q.name), ...(prepared.plan.banked ?? []).filter(inWords).map((q) => q.name)]);
@@ -544,11 +552,11 @@
         workitFilled.set(row.key, { text: row.shows, source: row.source });
     let timer;
     const check = async () => {
-      if (fillingWritten) return;
+      if (fillingWritten || stopped) return;
       const rows = status.summary().fields.filter((r) => byName.has(r.key) && (r.required || r.status === "failed" || written.has(r.key)));
-      if (!rows.length) return flagEmptyRequired(prepared);
+      if (!rows.length) return required();
       const answer = await send({ type: "fill/read", site: prepared.site, questions: prepared.questions, names: rows.map((r) => r.key), state: prepared.state });
-      if (!answer.ok || fillingWritten) return;
+      if (!answer.ok || fillingWritten || stopped) return;
       for (const row of rows) {
         const shown = answer.shows[row.key];
         if (!isEmpty(shown)) {
@@ -562,7 +570,7 @@
           }
         } else if (row.required && row.status === "filled") status.setStatus(row.key, "failed", "This is empty now. Answer it yourself.");
       }
-      await flagEmptyRequired(prepared);
+      await required();
     };
     const edited = () => {
       clearTimeout(timer);
@@ -570,6 +578,12 @@
     };
     document.addEventListener("input", edited, true);
     document.addEventListener("change", edited, true);
+    return () => {
+      stopped = true;
+      clearTimeout(timer);
+      document.removeEventListener("input", edited, true);
+      document.removeEventListener("change", edited, true);
+    };
   }
 
   const ownTimers = new Map();
@@ -770,9 +784,11 @@
       : "Check this step, then press Save and Continue. WorkIt fills the next step when it shows.");
     offerEssays(prepared);
     offerSelfId(prepared);
+    const stopEdits = batch ? watchEdits(prepared) : null;
     window.WIA.phase = last ? "last" : "step";
     report();
     if (last) return;
     step = await stepAfter(step);
+    stopEdits?.();
   }
 })();
