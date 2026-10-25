@@ -909,7 +909,11 @@ becomes the parent of the layer-2 steps.** So:
    server lists makes the list easy to use. It does not make the order safe.
 6. **The MCP tools call the routes, not the Python functions.** The routes
    check ownership, and the MCP server may run where there is no database
-   access. Host it at WorkIt, so we control and update it.
+   access. Host it at WorkIt, so we control and update it. *Changed by
+   KAN-377 (14.6): the connector runs inside the API and its tools call
+   layer-2 functions, each checking that the token's student owns what it
+   names, as a route does. A second service calling the routes would need
+   its own deploy and a Supabase session to call them with.*
 
 **The extension cannot be an MCP tool.** The MCP server runs on our side and
 cannot reach the student's Chrome. A batch an agent starts waits in the
@@ -937,8 +941,10 @@ To build:
   of an API key.
 
 The MCP standard also supports OAuth sign-in for a hosted MCP server: the
-user signs in, and pastes nothing. It is better for users and more work. Add
-it later if needed.
+user signs in, and pastes nothing. It is better for users and more work.
+*KAN-377 built OAuth instead (14.6): Anthropic's connector directory takes
+OAuth only, and a key pasted into Claude is one more thing a student can
+get wrong. No API keys.*
 
 ### 14.3 Billing: charge the action
 
@@ -990,6 +996,53 @@ That is prompt injection: AI apps watch for it, and it breaks trust.
    student clicks Submit" helps. Get a legal check before selling it.
 3. **Key safety.** Show a key once, store only its hash, let users revoke
    keys, and limit calls per key.
+
+### 14.6 The connector (KAN-377)
+
+**Built, as the batch apply design's AI route** (KAN-369): WorkIt pays for
+no model. The student adds WorkIt's remote MCP server to their own Claude
+and runs the prompt "Write my WorkIt answers"; their Claude reads one
+application at a time and saves its answers, and each answer fills into
+the batch tab that asked for it.
+
+**Where it runs.** Inside the API (`backend/app/connector/`), on the
+official MCP Python SDK (`MCPServer`, Streamable HTTP, stateless, JSON
+answers), at `<api>/mcp`. No second service. The SDK's session manager runs
+in the API's lifespan (`app/main.py`); Vercel runs FastAPI lifespans, and
+so does uvicorn in the container. `CONNECTOR_API_URL` and
+`CONNECTOR_WEB_URL` (`app/config.py`) say where the API and the webapp are
+reached from outside; production sets both.
+
+**Sign-in: WorkIt is its own OAuth 2.1 authorization server.** The SDK
+serves the endpoints at the API's root: `/.well-known/oauth-protected-resource/mcp`,
+`/.well-known/oauth-authorization-server`, `/register` (dynamic client
+registration, which Claude uses), `/authorize` (PKCE), `/token` and
+`/revoke`. `app/connector/oauth.py` is the provider behind them, on three
+tables (`connector_clients`, `connector_requests`, `connector_tokens`).
+
+1. Claude calls `/mcp` with no token, gets a 401 naming the resource
+   metadata, finds the authorization server, and registers itself.
+2. It sends the student's browser to `/authorize`, which keeps the
+   sign-in for 10 minutes and sends the browser to the webapp's consent
+   page, `/connect/claude?request=<id>`.
+3. The page, signed in with the student's normal Supabase session, shows
+   who asks and calls `POST /connector/requests/{id}/approve` (or `/deny`).
+   The API gives a code and answers the client's redirect URI; the page
+   sends the browser there.
+4. Claude trades the code at `/token` for an access token (1 hour) and a
+   refresh token (90 days). Each refresh rotates both.
+
+Tokens are random strings, not JWTs; only their sha256 is stored. A
+connector token reaches `/mcp` only, and a Supabase session token is not a
+connector token. Student accounts only.
+
+**Why not Supabase Auth's OAuth 2.1 server** (decided 2026-10-25, KAN-377):
+its docs call it beta and free "during the beta period", with no price after
+it (WorkIt's Supabase is on the Free plan); dynamic client registration is
+off until a dashboard setting turns it on on the shared project; its tokens
+are Supabase session JWTs, which every other route would also accept, where
+a connector token should reach the connector only; and no test could run it,
+since the tests' throwaway database has no Supabase Auth.
 
 ---
 

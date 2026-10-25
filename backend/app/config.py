@@ -96,6 +96,13 @@ class Settings(BaseSettings):
     ai_assistant_share: float = 0.1
     ai_essay_share: float = 0.1
 
+    # The connector (KAN-377, app/connector/): where this API and the webapp
+    # are reached from outside. The API's is the OAuth issuer and the MCP
+    # server's address Claude is given (<api>/mcp); the webapp's has the
+    # consent page (<web>/connect/claude). Production sets both.
+    connector_api_url: str = "http://localhost:8000"
+    connector_web_url: str = "http://localhost:3000"
+
     # The scraper's output, which app/scripts/import_jobs.py loads into the
     # database by default. Data — nothing from scraper/ is imported, so it
     # stays out of this build.

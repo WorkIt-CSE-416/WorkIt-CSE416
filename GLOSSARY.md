@@ -114,6 +114,14 @@ _Avoid_: runner, run tab
 The two tab groups a batch tab sits in once filled: Ready when every field the form needs shows an answer, Needs you when anything is left for the student. A tab moves between them as that changes.
 _Avoid_: done, failed, review
 
+**Connector**:
+WorkIt's MCP server, which a student adds to their own Claude so it can write their applications' essay answers. WorkIt calls no model for them.
+_Avoid_: integration, plugin, MCP (alone)
+
+**Written answer**:
+A batch tab's answer to a question its form needs written, such as "Why this company?". The student's Claude saves it through the connector, and the open tab fills it.
+_Avoid_: essay (for the saved answer), AI answer, generated answer
+
 ## Tracking
 
 **Applications Tracker**:

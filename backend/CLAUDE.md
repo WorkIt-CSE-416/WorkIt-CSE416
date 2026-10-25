@@ -209,7 +209,16 @@ Find files with a directory listing; these are the rules for where code goes.
   form needs written (`PUT .../questions`), the student's own Claude saves
   each answer through the connector, and the tab reads them back
   (`GET .../questions`) to fill them. Only a queued or needs_you application
-  takes questions. Tests: `tests/test_written_answers.py`. **Which job postings it takes is
+  takes questions. Tests: `tests/test_written_answers.py`.
+  **The connector is an MCP server inside this API** (`app/connector/`,
+  KAN-377; `../auto-apply/architecture.md` 14.6): the official MCP SDK at
+  `/mcp`, with WorkIt as its own OAuth server (`connector/oauth.py`; the
+  SDK's endpoints at the root, `/authorize`, `/token`, `/register`,
+  `/revoke`, `/.well-known/...`, added path by path, never a catch-all
+  mount). It answers only inside the app's lifespan, so its tests run
+  `app.router.lifespan_context(app)` (`tests/test_connector.py`, which
+  signs in with the SDK's own client as Claude does). Its tokens reach
+  `/mcp` only. **Which job postings it takes is
   one list, `app/auto_apply/hosts.py`** (every hiring system the Fill engine fills, KAN-370): the matches
   and `queue_applications` require its SQL form (`AUTO_APPLY_SUPPORTED` in
   `queries/jobs/filters.py`) and `JobListing.auto_apply` its Python form,
