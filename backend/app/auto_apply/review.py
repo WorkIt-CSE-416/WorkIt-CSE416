@@ -7,7 +7,9 @@ the application's one review, and its batch tab shows each as needing the
 student, with the reason, before they press Submit.
 
 The review is a snapshot (job_applications.answer_review): the answers it
-read and the reasons it gave. A flag holds only while its answer is still
+read and the reasons it gave. "Read" means as handed out: each answer
+goes out with its version (answer_version), and an answer whose text
+changed before save_review came back is left out of the snapshot. A flag holds only while its answer is still
 the one read, so an edit or a new save clears it, and an application with
 an answer not the student's own that the review didn't read is offered
 again. The student's own words are given to the review but never make it
@@ -15,6 +17,7 @@ due: the student wrote them.
 """
 
 import dataclasses
+import hashlib
 import uuid
 
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -29,6 +32,13 @@ from app.auto_apply.stages import NotFound, get_application, open_application
 from app.auto_apply.written import Refused
 from app.schemas.applications import Application, WrittenAnswer
 from app.services.bank import Bank, load_bank
+
+
+def answer_version(answer: str) -> str:
+    """An answer's version: a hash of its text, which get_review_task hands
+    out with it and save_review takes back, so a review keeps only the
+    answers it read as they still stand."""
+    return hashlib.sha256(answer.encode()).hexdigest()[:16]
 
 
 def _marked(review: dict | None, rows: list[tuple[WrittenAnswer, bool]]) -> list[tuple[WrittenAnswer, bool]]:
@@ -83,13 +93,17 @@ async def next_to_review(db: AsyncSession, applicant_id: uuid.UUID) -> ToReview 
 
 
 async def save_review(
-    db: AsyncSession, applicant_id: uuid.UUID, job_id: uuid.UUID, problems: dict[str, str]
-) -> int:
-    """Keeps the review of the application's answers as they stand now:
-    `problems` names each answer found wrong, with the reason. Replaces any
-    earlier review. Answers how many answers it flagged. Raises NotFound /
-    WrongStage for an application that isn't open, Refused for a name that
-    isn't one of its answered questions or an empty reason."""
+    db: AsyncSession, applicant_id: uuid.UUID, job_id: uuid.UUID, problems: dict[str, str],
+    versions: dict[str, str],
+) -> tuple[int, list[str]]:
+    """Keeps the review of the answers it read: `versions` holds each
+    answer's version as get_review_task handed it out, and `problems` names
+    each answer found wrong, with the reason. An answer whose text has
+    changed since (or that wasn't read) is left out, flag and all, so it
+    stays due. Replaces any earlier review. Answers how many answers it
+    flagged and the names left out as changed. Raises NotFound / WrongStage
+    for an application that isn't open, Refused for a name that isn't one
+    of its answered questions or an empty reason."""
     await open_application(db, applicant_id, job_id)
     _, rows = await fetch_review(db, applicant_id, job_id)
     answers = {a.name: a.answer for a, _ in rows if a.answer is not None}
@@ -98,8 +112,9 @@ async def save_review(
             raise Refused(f"The application has no answered question named {name!r}. Use the names get_review_task gave.")
         if not reason.strip():
             raise Refused(f"Say why the answer to {name!r} is wrong.")
-    await set_answer_review(db, applicant_id, job_id, {
-        "answers": answers, "flags": {name: reason.strip() for name, reason in problems.items()},
-    })
+    read = {name: text for name, text in answers.items() if versions.get(name) == answer_version(text)}
+    changed = [name for name in answers if name in versions and name not in read]
+    flags = {name: reason.strip() for name, reason in problems.items() if name in read}
+    await set_answer_review(db, applicant_id, job_id, {"answers": read, "flags": flags})
     await db.commit()
-    return len(problems)
+    return len(flags), changed

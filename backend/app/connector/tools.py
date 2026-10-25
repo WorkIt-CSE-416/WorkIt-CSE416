@@ -28,7 +28,10 @@ whole view of WorkIt (auto-apply/architecture.md, 14.6):
 - `get_review_task` (read-only) and `save_review` (KAN-369, in
   app/auto_apply/review.py): once an application's written questions are
   all answered, its answers for a re-read before the student submits; the
-  ones reported wrong show in its batch tab as needing the student.
+  ones reported wrong show in its batch tab as needing the student. Each
+  answer goes out with its version (a hash of its text) and save_review
+  takes the versions back: an answer the student edited during the
+  re-read is not marked reviewed, and a flag about its old text is dropped.
 - The prompt "Write my WorkIt answers" (app/connector/prompt.py): how to
   write them. The writing rules live there and only there: a tool's
   description says what the tool does, never how Claude should behave
@@ -52,6 +55,7 @@ student's own answer quality, and a value that isn't one starts a new chat.
 """
 
 import uuid
+from typing import Annotated
 
 from mcp.server.mcpserver import MCPServer
 from mcp.server.mcpserver.exceptions import ToolError
@@ -148,6 +152,7 @@ class ReviewAnswer(BaseModel):
     answer: str
     own: bool = Field(description="True when the answer is the student's own words, not their Claude's.")
     options: list[str] | None = Field(default=None, description="A choice's options, as the form words them.")
+    version: str = Field(description="The answer's version, for save_review's versions.")
 
 
 class ReviewTask(BaseModel):
@@ -168,6 +173,8 @@ class Problem(BaseModel):
 
 class Reviewed(BaseModel):
     flagged: int = Field(description="How many answers the student's tab now shows as needing them.")
+    changed: list[str] = Field(default=[], description=(
+        "Answers (question names) that changed since get_review_task gave them: not reviewed, and offered again."))
 
 
 def _handed(chat: str) -> list[uuid.UUID]:
@@ -296,7 +303,8 @@ def register(server: MCPServer) -> None:
             title=job.title,
             posting=found.posting,
             answers=[
-                ReviewAnswer(name=a.name, question=a.label, answer=a.answer, own=own, options=a.options)
+                ReviewAnswer(name=a.name, question=a.label, answer=a.answer, own=own, options=a.options,
+                             version=pipeline.answer_version(a.answer))
                 for a, own in found.answers
             ],
             experience=experience,
@@ -313,7 +321,13 @@ def register(server: MCPServer) -> None:
         ),
         annotations=ToolAnnotations(readOnlyHint=False, destructiveHint=False, idempotentHint=True, openWorldHint=False),
     )
-    async def save_review(job_id: str, problems: list[Problem]) -> Reviewed:
+    async def save_review(
+        job_id: str,
+        problems: list[Problem],
+        versions: Annotated[dict[str, str], Field(description=(
+            "Each answer's version as get_review_task gave it, by question name: an answer changed since "
+            "is not marked reviewed."))],
+    ) -> Reviewed:
         try:
             job = uuid.UUID(job_id)
         except ValueError as exc:
@@ -321,12 +335,13 @@ def register(server: MCPServer) -> None:
         async with get_sessionmaker()() as db:
             student = await account.current_student(db)
             try:
-                flagged = await pipeline.save_review(db, student.id, job, {p.name: p.reason for p in problems})
+                flagged, changed = await pipeline.save_review(
+                    db, student.id, job, {p.name: p.reason for p in problems}, versions)
             except pipeline.NotFound as exc:
                 raise ToolError("No such application. Use the job_id get_review_task gave.") from exc
             except (pipeline.WrongStage, pipeline.Refused) as exc:
                 raise ToolError(str(exc)) from exc
-        return Reviewed(flagged=flagged)
+        return Reviewed(flagged=flagged, changed=changed)
 
     @server.prompt(name="write_my_workit_answers", title=TITLE,
                    description="Writes the answers to your WorkIt applications' written questions.")

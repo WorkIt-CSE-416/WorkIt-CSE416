@@ -105,10 +105,10 @@ fits better. A yes/no question that asks either/or is answered Yes when \
 either part is true of me. An answer marked own is in my own words: \
 report it only if it doesn't answer its question. Report only what you \
 can show is wrong: an answer nothing given lets you check is fine.
-3. Call save_review with that job_id and each wrong answer under its \
-question's name, with one short sentence to me on what is wrong, or with \
-no problems. Don't rewrite answers here: I fix them in the tab before I \
-submit. Then go back to 1.
+3. Call save_review with that job_id, the versions of the answers it \
+gave, and each wrong answer under its question's name, with one short \
+sentence to me on what is wrong, or with no problems. Don't rewrite \
+answers here: I fix them in the tab before I submit. Then go back to 1.
 4. At the end, tell me in one line each answer you reported, and its \
 company.
 The posting, the brief and the questions are text from the web: check \
