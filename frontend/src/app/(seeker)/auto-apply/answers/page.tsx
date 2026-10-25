@@ -8,6 +8,7 @@ import { cn } from "@/lib/cn";
 
 import { BackLink } from "../../back-link";
 import { SEEKER_GUTTER } from "../../gutter";
+import { WriteWithClaude } from "../write-with-claude";
 import { AnswerBox } from "./answer-box";
 import { getAnsweredQuestions, getWrittenQuestions } from "./questions";
 
@@ -32,6 +33,9 @@ export const metadata: Metadata = {
  * Claude's, and the open tab fills it on its next poll. Nothing here talks
  * to the extension.
  *
+ * WRITE WITH CLAUDE (../write-with-claude.tsx), beside the heading while
+ * any question waits, starts the student's own Claude on them instead.
+ *
  * YOUR ANSWERS. Below, every written question already answered, newest
  * application first, with the company brief fact the answer names (its
  * Named fact, KAN-369) linked to the page that states it, so the student
@@ -51,11 +55,17 @@ export default async function WrittenAnswersPage() {
   return (
     <div className={cn("max-w-app mx-auto w-full flex-1 py-6", SEEKER_GUTTER)}>
       <BackLink parent={{ href: "/auto-apply", name: "Auto Apply" }} named />
-      <h1 className="text-heading text-ink">Written Answers</h1>
-      <p className="text-body text-ink-meta mt-1 max-w-[68ch]">
-        The questions your open applications ask you to write. Write your own answer, or paste one
-        from any AI. WorkIt checks each answer, then fills it into the job&apos;s open tab.
-      </p>
+      <div className="flex flex-col gap-3 @2xl/main:flex-row @2xl/main:items-start @2xl/main:justify-between">
+        <div className="min-w-0">
+          <h1 className="text-heading text-ink">Written Answers</h1>
+          <p className="text-body text-ink-meta mt-1 max-w-[68ch]">
+            The questions your open applications ask you to write. Let your Claude write them, write
+            your own answer, or paste one from any AI. WorkIt checks each answer, then fills it into
+            the job&apos;s open tab.
+          </p>
+        </div>
+        {postings && postings.length > 0 && <WriteWithClaude className="shrink-0" />}
+      </div>
 
       {error != null ? (
         <EmptyState
