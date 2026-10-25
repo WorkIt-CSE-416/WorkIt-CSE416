@@ -476,7 +476,26 @@ the KAN-296 cutover.
   The hero's backdrop is an animated SVG city (`city-model.ts` draws it,
   `hero-city.tsx` renders it after hydration, since server-rendered its path
   data would add hundreds of KB to the page): New York-style towers, six of
-  which rise as violet wireframes with a job tag. The strip's viewBox starts
+  which rise as violet wireframes with a job tag. **It is drawn as layers**
+  (`getLayers`, KAN-368): each run of still buildings is one image (an SVG
+  document as a blob URL, made once per build), and the pieces that move
+  (the six towers and the two pulsing wireframes) are small inline SVGs
+  between them, split where they fall in the draw order, so every building
+  in front of a tower stays in front; the ground, streaks and pools are
+  one inline SVG under them all. One inline SVG of some 5,700 paths made
+  Chrome's per-frame re-layering of the page take 12 to 20ms on an M1
+  wherever the city was within reach of the screen (the hero, the bridge,
+  the tour), so the main thread was 69 to 99% busy at rest and frames fell
+  to 25 to 40 a second; an image is one item to it, and re-layering is now
+  0.6ms, the main thread 12 to 24% busy at rest, and a trackpad scroll
+  down the page holds 60 frames a second. The buildings' colours and line
+  weights are `LOOK` in hero-city.tsx, written into each image (which
+  landing.css cannot reach) and into the page for the live layers; keep
+  them there. The city shows once its images have loaded
+  (`data-ready`), so the towers never stand alone on bare ground. The
+  images snap to whole device pixels and inline SVG does not, so a still
+  building can sit up to one device pixel from where one inline SVG drew
+  it; the towers and ground match exactly. The strip's viewBox starts
   100px above the ground's origin (`STRIP_TOP`): the tallest side towers
   reach there and were once cut flat at the top. The ground grid runs ten
   rows behind the back row of buildings and fades out towards the text, so
@@ -1019,6 +1038,11 @@ the KAN-296 cutover.
     landing.css: the Resumes loader's ring and sheen, the Updates scan
     and typing dots), never a motion `repeat: Infinity`, which runs
     script on every frame it shows.
+  - Keep big vector art out of the DOM when it does not move: Chrome
+    re-layers the whole page's paint on every frame anything repaints, and
+    each element within reach of the screen adds to it, so thousands of
+    SVG paths slowed every frame of the hero, the bridge and the tour, even
+    paused (the hero city, above). Draw the still part as an image.
   - Loops stop off screen: the hero city's 67 SVG animations pause through
     `data-paused` (an IntersectionObserver, with `!important` over each
     piece's `animation` shorthand). The city's wireframe glow stays an SVG

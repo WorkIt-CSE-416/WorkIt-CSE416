@@ -244,17 +244,9 @@ html:has(.landing) {
   background: linear-gradient(180deg, #ffffff 0%, #ffffff 55%, #f6f5f8 100%);
 }
 
+/* Its colours and the buildings' line weights are `LOOK` in hero-city.tsx,
+ * shared with the still images, which this file cannot reach. */
 .hero-city {
-  --top: #ffffff;
-  --left: #e1d9f6;
-  --right: #eee9fd;
-  --edge: rgb(76 39 163 / 0.17);
-  --hi: rgb(109 63 216 / 0.32);
-  --floor: rgb(76 39 163 / 0.09);
-  --pier: rgb(76 39 163 / 0.16);
-  --spire: #aaa4b8;
-  --holo: #6d3fd8;
-
   position: absolute;
   left: 50%;
   bottom: 0;
@@ -264,6 +256,15 @@ html:has(.landing) {
   transform: translateX(-50%);
   pointer-events: none;
   mask-image: linear-gradient(90deg, transparent 0%, #000 9%, #000 91%, transparent 100%);
+}
+
+/* Hidden until its still images have loaded, then faded in: shown at
+ * once, the live towers stood on bare ground for a moment. */
+.hero-city:not([data-ready]) {
+  visibility: hidden;
+}
+
+.hero-city[data-ready] {
   animation: hero-city-in 1.2s ease-out both;
 }
 
@@ -356,70 +357,13 @@ html:has(.landing) {
   }
 }
 
-.hero-city svg {
+.hero-city svg,
+.hero-city > img {
   position: absolute;
   inset: 0;
   width: 100%;
   height: 100%;
   overflow: visible;
-}
-
-.hero-city .tone-stone {
-  --top: #fffdf9;
-  --left: #e6dee9;
-  --right: #f3eef4;
-}
-.hero-city .tone-peri {
-  --top: #f8f8ff;
-  --left: #d6d8f5;
-  --right: #e7e9fd;
-}
-.hero-city .tone-glass {
-  --top: #f5f4fb;
-  --left: #d6d2ea;
-  --right: #e7e4f4;
-}
-.hero-city .tone-deep {
-  --top: #f3f0f5;
-  --left: #d8d1df;
-  --right: #e7e2ec;
-}
-
-.hero-city .t {
-  fill: var(--top);
-}
-.hero-city .l {
-  fill: var(--left);
-}
-.hero-city .r {
-  fill: var(--right);
-}
-.hero-city .fl {
-  fill: none;
-  stroke: var(--floor);
-  stroke-width: 0.8;
-}
-.hero-city .pi {
-  fill: none;
-  stroke: var(--pier);
-  stroke-width: 1;
-}
-.hero-city .e {
-  fill: none;
-  stroke: var(--edge);
-  stroke-width: 1;
-  stroke-linejoin: round;
-}
-.hero-city .hi {
-  fill: none;
-  stroke: var(--hi);
-  stroke-width: 1;
-}
-.hero-city .sp {
-  fill: none;
-  stroke: var(--spire);
-  stroke-width: 1.4;
-  stroke-linecap: round;
 }
 
 .hero-city .grid {
