@@ -249,10 +249,10 @@ async function openTab(batch, jobId, url) {
 async function startFill(tabId, url, again = false) {
   try {
     await waitForLoad(tabId);
-    const url = (await chrome.tabs.get(tabId)).url ?? "";
-    if (jobOf(url)?.site === "workable") await forgetWorkableDraft(tabId);
+    const shown = (await chrome.tabs.get(tabId)).url ?? "";
+    if (jobOf(shown)?.site === "workable") await forgetWorkableDraft(tabId);
     // A Workday posting shows no form until the student presses Apply and signs in: its fill waits for them.
-    const workday = isWorkday(url);
+    const workday = isWorkday(shown);
     const found = await formShows(tabId, workday ? 0 : FORM_TIMEOUT_MS);
     const now = (await chrome.tabs.get(tabId)).url ?? "";
     if (!again && url && jobOf(url)?.onForm && !jobOf(now)?.onForm) {
