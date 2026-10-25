@@ -105,6 +105,16 @@ def test_writing_that_reads_machine_made_is_refused_with_what_to_change(answer, 
     assert problems(CLEAN, Context(sources=BANK)) == []
 
 
+def test_a_question_that_asks_for_numbers_may_have_that_many():
+    answer = "I placed 2nd of 15 teams, and I picked 13 new members."
+    sources = (answer,)
+
+    assert problems(answer, Context(sources=sources, question="Give us three numbers that describe you.")) == []
+    assert problems(answer, Context(sources=sources, question="Give us 3 numbers that describe you.")) == []
+    (found,) = problems(answer, Context(sources=sources, question="Tell us about a time you led a team."))
+    assert "the 2 that matter most" in found
+
+
 def test_an_answer_about_this_company_or_beyond_the_resume_is_for_the_student_to_read_first():
     assert high_stakes("Why do you want to work at Acme?", "Acme")
     assert high_stakes("What would you build at Acme?", "Acme")

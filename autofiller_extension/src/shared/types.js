@@ -119,6 +119,10 @@
  *   resolved to file bytes — null when there is none, or when resolving it
  *   failed (background/api.js's resolveResumeFile is best-effort and never
  *   fails the rest of the profile over this one field).
+ * @property {{ filename: string, mimeType: string, base64: string } | null} [transcript]
+ *   The student's unofficial transcript (My Profile's Transcript, KAN-369),
+ *   as file bytes for a form's transcript upload; null when there is none or
+ *   the fetch failed (background/api.js's resolveTranscriptFile).
  * @property {number} fetched_at  Unix ms, for cache-staleness decisions.
  */
 

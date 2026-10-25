@@ -20,8 +20,10 @@
 // Before that, Workday asks the student to sign in to the company's site
 // (KAN-373): on its Create Account or Sign In form the fill types the
 // student's email and the password the extension keeps for that company
-// (background/workday-logins.js), and the student presses the button and
-// opens Workday's email themselves. The steps fill once they show.
+// (background/workday-logins.js). Once the student allows it (asked once in
+// the panel), it also ticks the terms box and presses the button itself
+// (KAN-369, workday.js); else the student presses it. The student opens
+// Workday's email themselves. The steps fill once they show.
 //
 // In one of batch apply's tabs (KAN-370; `window.WIA.batch`, set by
 // injectFill), the fill writes no essays itself: it sends the questions that
@@ -349,7 +351,7 @@
       note("_step", "Sign in to continue", reason);
       window.WIA.phase = "step";
       report();
-    });
+    }, (onAllow) => overlay.askWorkdayAccounts({ onAllow }));
   }
   let step = await workday.stepAfter("");
   for (;;) {

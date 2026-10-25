@@ -1,0 +1,112 @@
+// Workday accounts made and signed in to for the student (KAN-369), end to
+// end in the loaded extension (loaded-extension.ts), on the fake Workday
+// tenants (fake-job-systems.ts). Once the student allows it, the extension
+// fills each company's Create Account or Sign In, ticks its terms box and
+// presses the button itself; a step only the student can do (Workday's email,
+// a refused password) is told to them, and nothing is pressed twice.
+import { expect, test, type Page } from "@playwright/test";
+import { FakeApi } from "./fake-api";
+import { FakeWorkdays } from "./fake-job-systems";
+import { loadExtension, sendFromWebapp, signIn, webapp, type Loaded } from "./loaded-extension";
+
+let loaded: Loaded | undefined;
+test.afterEach(async () => {
+  await loaded?.close();
+  loaded = undefined;
+});
+
+const overlay = (p: Page) => p.locator("#workit-autofiller-overlay-host");
+const box = (p: Page, id: string) => p.locator(`[data-automation-id=${id}]`);
+
+/** Loads the extension with `workdays` and starts a batch of `jobs`. */
+async function start(workdays: FakeWorkdays, ...jobs: { id: string; apply_url: string }[]): Promise<(url: string) => Promise<Page>> {
+  const api = new FakeApi().queue(...jobs);
+  loaded = await loadExtension([api.handler, webapp, workdays.handler]);
+  await signIn(loaded.context);
+  const app = loaded.context.pages()[0] ?? (await loaded.context.newPage());
+  await app.goto("http://localhost:3000/auto-apply");
+  await sendFromWebapp(app, { type: "run/open" });
+  return async (url) => {
+    await expect.poll(() => loaded!.context.pages().some((p) => p.url() === url), { timeout: 30_000 }).toBe(true);
+    return loaded!.context.pages().find((p) => p.url() === url)!;
+  };
+}
+
+/** Allows the extension, once, to make and sign in to the student's Workday accounts. */
+async function allow(page: Page): Promise<void> {
+  const card = overlay(page).locator(".moment.workday-accounts");
+  await expect(card).toContainText("ticks the box that you agree to the company's terms", { timeout: 30_000 });
+  await card.locator("[data-allow]").click();
+}
+
+async function skip(page: Page): Promise<void> {
+  await overlay(page).locator("[data-skip]").click();
+}
+
+test("allowed once, makes each company's Workday account itself, terms box shown, and signs in later", async () => {
+  test.setTimeout(180_000);
+  const workdays = new FakeWorkdays(["workday-caci", "workday-xcel"]);
+  const page = await start(workdays,
+    { id: "wd-0", apply_url: workdays.signInUrl(0) },
+    { id: "wd-1", apply_url: workdays.signInUrl(1, "signin") },
+    { id: "wd-2", apply_url: workdays.signInUrl(0, "signin") });
+
+  // The first company: the student allows it once; the extension ticks the terms box, which it names, and presses Create Account.
+  const caci = await page(workdays.signInUrl(0));
+  await allow(caci);
+  await caci.waitForURL(workdays.url(0), { timeout: 30_000 });
+  await expect.poll(() => caci.locator("[data-automation-id=formField-legalName--firstName] input").inputValue(), { timeout: 30_000 }).toBe("Test");
+  const caciPassword = workdays.signIns[0]?.password;
+  expect(workdays.signIns).toEqual([{ host: "caci.wd1.myworkdayjobs.com", view: "create", email: "test.person@example.com", password: caciPassword }]);
+  expect(workdays.agreed).toEqual([true]);
+
+  // The next company opens on Sign In with nothing saved: it switches to Create Account and makes it, without asking again.
+  await skip(caci);
+  const xcel = await page(workdays.signInUrl(1, "signin"));
+  await expect.poll(() => workdays.signIns.length, { timeout: 30_000 }).toBe(2);
+  expect(workdays.signIns[1]).toMatchObject({ host: "xcelenergy.wd1.myworkdayjobs.com", view: "create", email: "test.person@example.com" });
+  expect(workdays.signIns[1].password).not.toBe(caciPassword);
+  expect(workdays.agreed).toEqual([true, true]);
+  await expect(overlay(xcel).locator(".moment.workday-accounts")).toHaveCount(0);
+
+  // Back on the first company, its Sign In is pressed with the saved login.
+  await skip(xcel);
+  await page(workdays.signInUrl(0, "signin"));
+  await expect.poll(() => workdays.signIns.length, { timeout: 30_000 }).toBe(3);
+  expect(workdays.signIns[2]).toEqual({ host: "caci.wd1.myworkdayjobs.com", view: "signin", email: "test.person@example.com", password: caciPassword });
+  expect(workdays.submissions).toEqual([]);
+});
+
+test("Workday's verification email is the student's step: the panel says what to do", async () => {
+  test.setTimeout(120_000);
+  const workdays = new FakeWorkdays(["workday-caci"]);
+  workdays.alerts["caci.wd1.myworkdayjobs.com"] = { create: "Please verify your account. We sent a verification email to test.person@example.com." };
+  const page = await start(workdays, { id: "wd-0", apply_url: workdays.signInUrl(0) });
+
+  const caci = await page(workdays.signInUrl(0));
+  await allow(caci);
+  const row = overlay(caci).locator(".row").filter({ hasText: "Open the email" });
+  await expect(row).toBeVisible({ timeout: 30_000 });
+  // The terms box it ticked is named, in the page's own words.
+  await expect(row).toContainText('ticked "I agree to the terms" for you');
+  expect(workdays.signIns.map((s) => s.view)).toEqual(["create"]);
+});
+
+test("a sign-in Workday refuses is never pressed again, and the student is told", async () => {
+  test.setTimeout(120_000);
+  const workdays = new FakeWorkdays(["workday-caci"]);
+  workdays.alerts["caci.wd1.myworkdayjobs.com"] = { signin: "Wrong email address or password. Your account might be locked." };
+  const page = await start(workdays,
+    { id: "wd-0", apply_url: workdays.signInUrl(0) },
+    { id: "wd-1", apply_url: workdays.signInUrl(0, "signin") });
+
+  const caci = await page(workdays.signInUrl(0));
+  await allow(caci);
+  await caci.waitForURL(workdays.url(0), { timeout: 30_000 });
+  await skip(caci);
+
+  const again = await page(workdays.signInUrl(0, "signin"));
+  await expect(overlay(again).locator(".row").filter({ hasText: "won't try again" })).toBeVisible({ timeout: 30_000 });
+  await again.waitForTimeout(3000);
+  expect(workdays.signIns.map((s) => s.view)).toEqual(["create", "signin"]);
+});
