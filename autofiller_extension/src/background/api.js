@@ -394,8 +394,9 @@ export async function getAutofillProfile({ force = false } = {}) {
 
 /**
  * GET .../applications/next — the oldest queued application whose job
- * posting is open (its `job.apply_url` is the page to open), past the jobs
- * in `skip` (those batch apply has opened), or null when none is left.
+ * posting is open (its `job.form_url`, else `job.apply_url`, is the page
+ * to open), past the jobs in `skip` (those batch apply has opened), or
+ * null when none is left.
  * @param {string} applicantId
  * @param {string[]} [skip]
  */

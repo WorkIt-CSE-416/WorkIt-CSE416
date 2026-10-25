@@ -15,7 +15,7 @@ from sqlalchemy import Row, func, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.models.jobs import Job_Post
-from app.queries.jobs.filters import LISTED, JobFilters, matching
+from app.queries.jobs.filters import FORM_URL, LISTED, JobFilters, matching
 from app.schemas.jobs import JobListing
 
 LISTING_COLUMNS = (
@@ -38,6 +38,7 @@ LISTING_COLUMNS = (
     Job_Post.salary_max,
     Job_Post.salary_currency,
     Job_Post.salary_period,
+    FORM_URL.label("form_url"),
 )
 
 
@@ -52,6 +53,7 @@ def to_listing(row: Row, description: str | None = None) -> JobListing:
         title=row.title,
         company=row.company_name,
         apply_url=row.apply_url,
+        form_url=row.form_url,
         experience_level=row.experience_level.value,
         work_style=row.work_style,
         location=row.location_raw,
