@@ -26,6 +26,12 @@
 // the engine reads back the fields the student edits, so emptying a required
 // field, or answering the last one, moves the tab between the Ready and
 // Needs you groups (background/batch.js).
+//
+// A batch tab also watches for the student's own submit (KAN-374): the
+// engine, in the page, reads the job system's answer to it ("batch/watch").
+// A submit that sent the application is told to the background, which marks
+// it applied ("batch/submitted"); one the job system refused shows here as a
+// failed row, with its words, and the tab needs the student again.
 (async function () {
   "use strict";
 
@@ -61,6 +67,8 @@
 
   const send = (message) => chrome.runtime.sendMessage(message);
   const sleep = (ms) => new Promise((done) => setTimeout(done, ms));
+  // The Fill engine's event for the student's submit (its SUBMIT_EVENT); its detail is the result as JSON.
+  const SUBMIT_EVENT = "fillengine:submit";
 
   /** A row that is the overlay's message, not a field. */
   function note(key, label, reason, failed = false) {
@@ -325,6 +333,22 @@
     send({ type: "batch/state", state }).catch(() => {});
   }
   status.subscribe(report);
+
+  /** Watches the page for the student's submit, from before the fill: the student may submit any time. */
+  function watchSubmit() {
+    document.addEventListener(SUBMIT_EVENT, async (event) => {
+      const result = JSON.parse(event.detail);
+      if (!result.submitted) {
+        note("_submit", "Your application wasn't sent", result.reason, true);
+        return;
+      }
+      const answer = await send({ type: "batch/submitted" }).catch((error) => ({ ok: false, error: error.message }));
+      if (answer?.ok) note("_submit", "Application sent", "WorkIt marked it Applied.");
+      else note("_submit", "Application sent, but WorkIt didn't mark it Applied", `Mark it Applied on WorkIt's Applications page. (${answer?.error ?? "No answer"})`, true);
+    });
+    send({ type: "batch/watch" }).catch(() => {});
+  }
+  if (batch) watchSubmit();
 
   const isEmpty = (shown) => shown === undefined || shown === null || shown === "" || (Array.isArray(shown) && shown.length === 0);
 

@@ -16,6 +16,8 @@ const RESUME_ID = "00000000-0000-0000-0000-0000000000r1";
 export class FakeApi {
   /** Each queued job's stage, in queue order. */
   readonly stages = new Map<string, Stage>();
+  /** The resume each job's application names as sent (PUT .../resume), by job. */
+  readonly sentResumes = new Map<string, Record<string, string>>();
   /** Every call, as "METHOD /path?query". */
   readonly calls: string[] = [];
   private postings = new Map<string, Posting>();
@@ -88,8 +90,32 @@ export class FakeApi {
       }
       return { json: saved };
     }
+    const resume = /^\/applications\/([^/]+)\/resume$/.exec(route);
+    if (resume && method === "PUT") {
+      const refused = this.refuseUnlessOpen(resume[1]);
+      if (refused) return refused;
+      this.sentResumes.set(resume[1], JSON.parse(body.toString()));
+      return { json: { id: `sent-${resume[1]}` } };
+    }
+    const finish = /^\/applications\/([^/]+)\/finish$/.exec(route);
+    if (finish && method === "POST") {
+      const refused = this.refuseUnlessOpen(finish[1]);
+      if (refused) return refused;
+      const { outcome } = JSON.parse(body.toString());
+      const next: Stage = ({ submitted: "applied", skipped: "skipped", failed: "needs_you" } as const)[outcome as "submitted"];
+      this.stages.set(finish[1], next);
+      return { json: { job_id: finish[1], stage: next } };
+    }
     return { status: 404, json: { detail: `The fake API has no ${method} ${route}` } };
   };
+
+  /** pipeline.py's stage check: only a queued or needs_you application is still open. */
+  private refuseUnlessOpen(id: string) {
+    const stage = this.stages.get(id);
+    if (!stage) return { status: 404, json: { detail: "No application for that job." } };
+    if (stage !== "queued" && stage !== "needs_you") return { status: 409, json: { detail: `That application is ${stage}` } };
+    return undefined;
+  }
 
   /** An Application as GET .../applications/next answers it (the parts the extension reads). */
   private application(id: string) {

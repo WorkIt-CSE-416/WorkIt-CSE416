@@ -6,7 +6,7 @@
 // fetches.
 import { readFileSync } from "node:fs";
 import { join } from "node:path";
-import { FakeJobServer, FORMS, boardAndJob, loadHar } from "../fill-engine/test/fake-job-server";
+import { FakeJobServer, FORMS, boardAndJob, loadHar, type Options } from "../fill-engine/test/fake-job-server";
 import type { Handler, Reply, Request } from "./loaded-extension";
 
 // Where Greenhouse's presigned uploads (the résumé) go: answered here, as the engine's fake upload store answers them.
@@ -19,9 +19,10 @@ export const uncoveredForm = (n: number) => `https://careers.example.com/jobs/${
 export class SavedForms {
   private servers: { name: string; url: string; server: FakeJobServer }[];
 
-  /** `names`: fixture folders in fill-engine/test/fixtures/forms (Greenhouse and Ashby forms). */
-  constructor(names: string[]) {
-    this.servers = names.map((name) => ({ name, url: loadHar(name).log.entries[0].request.url, server: new FakeJobServer(name) }));
+  /** `names`: fixture folders in fill-engine/test/fixtures/forms (Greenhouse and Ashby forms).
+   * `submitReply`: how Greenhouse answers the applicant's submit, when not OK. */
+  constructor(names: string[], { submitReply }: Options = {}) {
+    this.servers = names.map((name) => ({ name, url: loadHar(name).log.entries[0].request.url, server: new FakeJobServer(name, { submitReply }) }));
   }
 
   /** The saved form's own link, as a posting's apply_url gives it. */
@@ -41,6 +42,12 @@ export class SavedForms {
       return { headers: { "content-type": "text/html" }, body: "<!doctype html><title>Apply</title><form><label>First name <input name=first></label></form>" };
     }
     if (url.host === "boards-api.greenhouse.io") return this.jobBoardApi(url);
+    // The job board posts the application to boards.greenhouse.io from job-boards.greenhouse.io, after a CORS preflight.
+    if (method === "OPTIONS" && url.host === "boards.greenhouse.io") return { status: 204, headers: CORS };
+    // The page Greenhouse's job board opens once it has the application.
+    if (url.host.endsWith("greenhouse.io") && url.pathname.endsWith("/confirmation")) {
+      return { headers: { "content-type": "text/html" }, body: "<!doctype html><title>Thank you</title><p>Thank you for applying." };
+    }
     // The first saved form that has an answer: each server refuses (aborts) what it didn't save.
     for (const { server } of this.servers) {
       const reply = await replay(server, request);

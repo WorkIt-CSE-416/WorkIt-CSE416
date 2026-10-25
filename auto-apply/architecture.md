@@ -388,7 +388,8 @@ goes on to the next one. Live Activity shows it under "Needs You".
 The extension cannot reliably tell that the student submitted: hiring
 systems show different confirmation pages. That is why the student clicks
 **Submitted**. Detecting each hiring system's confirmation page can come
-later, one hiring system at a time.
+later, one hiring system at a time. (Batch apply does detect it, from each
+hiring system's answer to the submit: 8.4, KAN-374.)
 
 Workday asks for an account on each company's site. The runner cannot create
 one. When the content script sees a sign-in form and no application form, it
@@ -563,12 +564,24 @@ on after the fill.
 | `run/status` | webapp → extension | `{}`; answers `{ jobId, jobIds }` |
 | `run/show` | webapp → extension | `{ jobId }`; switches to that job's tab |
 | `batch/state` | content script → background | `{ state: "ready" \| "needs_you" }` |
+| `batch/watch` | content script → background | `{}`; the engine starts watching the page for the student's submit |
+| `batch/submitted` | content script → background | `{}`; the student's submit sent the application: mark it applied |
 | `fill/read` | content script → background | `{ site, questions, names }`; answers what each field shows |
 | `batch/questions` | content script → background | `{ questions: [{ name, label, required, max_length }] }`: the tab's questions that need writing, sent to the API for the student's Claude (KAN-377, 14.6); answers them with any saved answers |
 | `batch/answers` | content script → background | `{}`; answers the tab's questions with the answers saved so far |
 
-Next: Workday one slot at a time, Skip and resuming a batch (KAN-373),
-submit detection (KAN-374).
+**The student's submit marks it applied (KAN-374).** Built. Replaces 8.2's
+**Submitted** button: the extension still never submits, but reads each
+hiring system's own answer to the student's submit, through the Fill
+engine's signal for it (`submitResult` on the submit's response, read in the
+page; a success or failure notice; `submittedPage` for the confirmation page,
+Lever's only signal). On success the batch keeps the resume the fill attached
+as the application's sent resume (`PUT .../resume`), finishes it as
+`submitted` (`applied`), and takes the tab out of its group. A refused submit
+leaves the stage alone, shows the hiring system's words in the tab's panel,
+and moves the tab to Needs you.
+
+Next: Workday one slot at a time, Skip and resuming a batch (KAN-373).
 
 ## 9. Messages
 

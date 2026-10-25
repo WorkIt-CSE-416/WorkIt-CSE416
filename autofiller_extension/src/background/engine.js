@@ -29,6 +29,16 @@ export function jobOf(url) {
   return engine.jobOf(url);
 }
 
+/**
+ * Whether `url` is a page a job system shows only once an application is
+ * sent (Greenhouse's confirmation, Lever's thanks): the student's submit
+ * went through (the engine's `submittedPage`).
+ * @param {string} url
+ */
+export function submittedPage(url) {
+  return engine.submittedPage(url);
+}
+
 // WorkIt's own web origins: the only ones whose practice forms are filled.
 const WEB_ORIGINS = [DEV_WEB_URL, ...PROD_SITES.map((site) => site.web)];
 const PRACTICE_PATH = /^\/practice\/([a-z0-9-]+)\/([0-9a-f-]{36})\/(apply|thanks)\/?$/;
