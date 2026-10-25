@@ -1,7 +1,9 @@
 # Tailor Resume: one click, changes in place
 
-Status: **designed 2026-10-25; step 1 built 2026-10-25** (placement and
-the picked skills in the truth rule, behind today's screen). It replaces Tailor's proposals
+Status: **designed 2026-10-25; steps 1 to 3 built 2026-10-25**
+(placement, the picked skills in the truth rule, resume-local skills
+(migration `a3d7f1c9e2b4`), and the run that saves). Step 4, the editor's
+marks and reverts, is next. It replaces Tailor's proposals
 and Done (KAN-217, `backend/CLAUDE.md`, "Tailor"). Build it in the steps at
 the end; each step ships on its own.
 
@@ -151,20 +153,22 @@ response lists each change with what it replaced, by handle and id:
 
 ```json
 {
-  "tailored_resume_id": "...",
-  "changes": [
-    {"kind": "reword", "handle": "b2", "bullet_id": "...", "before": "Wrote billing services in python"},
-    {"kind": "order", "handle": "e2", "entry_id": "...", "before": ["<b1 id>", "<b2 id>"]},
-    {"kind": "skill", "skill_id": "...", "name": "Go", "group": "Languages"}
+  "resume": {"id": "...", "name": "Acme – Backend Intern"},
+  "edits": [
+    {"kind": "reword", "bullet_id": "...", "text": "Built Python billing services",
+     "before": "Wrote billing services in python", "before_variant_id": null},
+    {"kind": "order", "entry_id": "...", "label": "Software Intern, Acme",
+     "bullet_ids": ["<b2 id>", "<b1 id>"], "before_ids": ["<b1 id>", "<b2 id>"]},
+    {"kind": "skill", "skill_id": "...", "label": "Go", "group": "Languages"}
   ]
 }
 ```
 
 | Change | Revert | Through |
 |---|---|---|
-| A new wording | Show the `before` wording again | The editor's choices PATCH: the bullet's wording back to the source's (its original, or the source's variant) |
-| A new bullet order | Put the entry's bullets in the `before` order | The choices PATCH: the positions |
-| A picked skill | Take it off the resume | Delete the resume-local skill (below) |
+| A new wording | Show the `before` wording again | The editor's choices PATCH: `variant_id` = `before_variant_id` (null: the bank's own wording) |
+| A new bullet order | Put the entry's bullets in the `before_ids` order | The choices PATCH: the positions |
+| A picked skill | Take it off the resume | The choices PATCH: `shown` false (the skill row goes with the resume) |
 
 - **Not in the server's memory.** The API runs as several instances that
   restart (Cloudflare Containers, `backend/CLAUDE.md`, Deployment), so a
@@ -237,12 +241,17 @@ them:
    `place_skills` turns them into the tailored resume's skill order (the
    checks above). Nothing saves that order yet: step 3 writes it. Tests:
    each row of the placement table (`tests/test_tailor.py`).
-2. **Resume-local skills.** The migration, the `load_bank` default and
-   the view's loading of one resume's own skills.
-3. **The run saves.** The run refuses a posting that has a tailored
-   resume, applies rewords, order and placed skills, writes the tailored
-   resume and answers with the changes; Done and the proposal cards go.
-   The screen picks skills before the run and opens the editor after it.
+2. **Resume-local skills. Built.** Migration `a3d7f1c9e2b4`,
+   `load_bank(..., local_to=)` (left out by default), `add_local_skill`,
+   and every reader of one built resume naming it (`backend/CLAUDE.md`).
+   Nothing writes one yet: step 3 does.
+3. **The run saves. Built.** `POST .../tailor/match` reads the source's
+   match; the run refuses a posting that has a tailored resume (409 before
+   any model call), applies rewords, order and placed skills, writes the
+   tailored resume in one commit and answers with `edits`
+   (`TailorEdit`). Done, the proposal cards and "Have you used X?" are
+   gone. The screen picks skills before the run, stores the edits in
+   sessionStorage and opens the editor.
 4. **The editor marks and reverts.** Colour each change from the run's
    answer; revert per change; a revert or an edit drops it; Save drops
    them all. Keep the record in `sessionStorage` for a reload.

@@ -19,12 +19,14 @@ from workit_scout.testing import ScriptedLLM
 from app.config import get_settings
 from app.deps import get_current_account
 from app.main import app
+from app.models.built_resume import Built_Resume_Skill
 from app.models.jobs import Job_Post
 from app.routers.scout import get_llm
 from app.schemas.auth import AccountType, AuthenticatedAccount
 from app.schemas.tailor import Placement
 from app.services import tailor
 from app.services.ai_messages import TOO_LARGE
+from app.services.bank import add_local_skill
 from app.services.keywords import posting_hash
 from app.services.resume_view import ResumeView, ViewSkill
 
@@ -40,10 +42,13 @@ KEYWORDS = [
 LINKEDIN = "https://linkedin.com/in/sam-seeker"
 
 
-def reply(rewords=()) -> list[str]:
+def reply(rewords=(), placements=()) -> list[str]:
     """A ScriptedLLM script: the model's Tailor reply. Bullets are named by
-    their handles in the prompt (b1: the resume's bullets, in bank order)."""
-    return [json.dumps({"rewords": [{"bullet": b, "text": t} for b, t in rewords]})]
+    their handles in the prompt (b1: the resume's bullets, in its order)."""
+    return [json.dumps({
+        "rewords": [{"bullet": b, "text": t} for b, t in rewords],
+        "placements": list(placements),
+    })]
 
 
 def rate_limited() -> RateLimitError:
@@ -116,12 +121,13 @@ class Student:
         assert res.status_code == 201, res.text
         return res.json()["id"]
 
-    async def tailor(self, posting: str, source: dict | None = None) -> httpx.Response:
-        """A run from `source`, by default the base resume."""
-        return await self.post("/tailor", {"job_posting_id": posting, **(source or built(self.base))})
+    async def tailor(self, posting: str, source: dict | None = None, skills: list[str] = ()) -> httpx.Response:
+        """A run from `source`, by default the base resume, adding `skills`."""
+        return await self.post(
+            "/tailor", {"job_posting_id": posting, **(source or built(self.base)), "skills": list(skills)})
 
-    async def done(self, posting: str, source: dict, changes: list[dict]) -> httpx.Response:
-        return await self.post("/tailor/done", {"job_posting_id": posting, **source, "changes": changes})
+    async def match(self, posting: str, source: dict | None = None) -> httpx.Response:
+        return await self.post("/tailor/match", {"job_posting_id": posting, **(source or built(self.base))})
 
     async def resumes(self) -> list[dict]:
         return (await self.client.get(f"{self.me}/built-resumes")).json()
@@ -194,20 +200,19 @@ def built(resume_id: str) -> dict:
     return {"built_resume_id": resume_id}
 
 
-def source_of(run: dict) -> dict:
-    """The source a run names, as Done takes it back."""
-    return {k: run[k] for k in ("built_resume_id", "uploaded_resume_id") if run[k]}
-
-
 def _kinds(body: dict) -> list[str]:
-    return [c["kind"] for c in body["changes"]]
+    return [c["kind"] for c in body["edits"]]
+
+
+def _edits(body: dict, kind: str) -> list[dict]:
+    return [c for c in body["edits"] if c["kind"] == kind]
 
 
 def _words(keywords: list[dict]) -> list[str]:
     return [k["keyword"] for k in keywords]
 
 
-# --- A run: the proposals -------------------------------------------------
+# --- A run: what it changes ----------------------------------------------
 
 
 async def test_a_run_proposes_a_truthful_rewording_and_drops_an_invented_one(student, database, use_model):
@@ -221,12 +226,10 @@ async def test_a_run_proposes_a_truthful_rewording_and_drops_an_invented_one(stu
 
     assert res.status_code == 200, res.text
     body = res.json()
-    rewords = [c for c in body["changes"] if c["kind"] == "reword"]
-    assert [(c["original"], c["text"]) for c in rewords] == [
+    assert [(c["before"], c["text"]) for c in _edits(body, "reword")] == [
         ("Wrote billing services in python", "Built Python billing services packaged with Docker"),
     ]
     assert body["dropped"] == 1
-    assert source_of(body) == built(student.base)
 
 
 async def test_a_rewording_under_another_bullet_s_handle_is_dropped(student, database, use_model):
@@ -280,29 +283,30 @@ async def test_a_request_too_large_for_every_model_answers_503_saying_so(student
     assert res.json()["detail"] == TOO_LARGE
 
 
-async def test_the_keyword_match_before_and_a_missing_keyword_is_asked_not_written(student, database, use_model):
+async def test_the_match_before_a_run_reads_the_source_and_saves_nothing(student, database, use_model):
     posting = await _seed_posting(database)
-    use_model(reply())
+    fake = use_model(reply())
 
-    body = (await student.tailor(posting)).json()
+    body = (await student.match(posting)).json()
 
     assert _words(body["matched"]) == ["Python", "Docker"]
     assert _words(body["missing"]) == ["Go", "Kubernetes"]
-    # Neither is anywhere in the bank: WorkIt asks, it does not write them in.
-    assert _words(body["questions"]) == ["Go", "Kubernetes"]
-    assert body["weak_match"] is False
+    assert body["weak_match"] is False and body["tailored_resume_id"] is None
+    # The keywords were cached already: no model call, and nothing saved.
+    assert fake.prompts == []
+    assert [r["job_posting_id"] for r in await student.resumes()] == [None]
 
 
-async def test_a_bank_skill_left_off_the_resume_is_asked_not_proposed(student, database, use_model):
+async def test_a_keyword_the_student_does_not_pick_is_never_added(student, database, use_model):
+    # The bank holds Kubernetes, hidden on the resume: not picked, it stays off.
     await student.skill("Kubernetes")
     posting = await _seed_posting(database)
     use_model(reply())
 
     body = (await student.tailor(posting)).json()
 
-    # Every missing keyword is one question; Yes is what shows the skill.
-    assert "show_skill" not in _kinds(body)
-    assert _words(body["questions"]) == ["Go", "Kubernetes"]
+    assert "skill" not in _kinds(body)
+    assert _words(body["after_missing"]) == ["Go", "Kubernetes"]
 
 
 async def test_an_entry_the_resume_hides_is_left_out_of_the_run(student, database, use_model):
@@ -318,8 +322,8 @@ async def test_an_entry_the_resume_hides_is_left_out_of_the_run(student, databas
     sent = "\n".join(m["content"] for m in fake.prompts[0])
     assert "Software Intern" in sent and "Cluster Tool" not in sent and "Go tool" not in sent
     assert "reword" not in _kinds(body)
-    # The hidden project's Go does not count: it is asked about.
-    assert _words(body["questions"]) == ["Go", "Kubernetes"]
+    # The hidden project's Go does not count.
+    assert _words(body["missing"]) == ["Go", "Kubernetes"]
 
 
 async def test_a_bullet_the_resume_hides_is_left_out_of_the_run(student, database, use_model):
@@ -354,7 +358,7 @@ async def test_the_model_sees_only_the_skills_the_resume_shows(student, database
 
 async def test_a_rewording_may_name_only_a_skill_the_resume_shows(student, database, use_model):
     # Added after the base resume was generated, so the resume hides it.
-    rust = await student.skill("Rust")
+    await student.skill("Rust")
     posting = await _seed_posting(database)
     use_model(reply(rewords=[("b2", "Wrote billing services in Python and Rust")]))
 
@@ -363,27 +367,27 @@ async def test_a_rewording_may_name_only_a_skill_the_resume_shows(student, datab
     assert "reword" not in _kinds(body)
     assert body["dropped"] == 1
 
-    # Done refuses it too, unless the same Done shows the skill (a Yes).
-    bullet = (await student.client.get(f"{student.me}/bank")).json()["entries"][0]["bullets"][1]["id"]
-    reword = {"kind": "reword", "bullet_id": bullet, "text": "Wrote billing services in Python and Rust"}
-    refused = await student.done(posting, built(student.base), [reword])
-    assert refused.status_code == 422 and "Rust" in refused.json()["detail"]
-    show = {"kind": "show_skill", "skill_id": rust["id"], "label": "Rust"}
-    assert (await student.done(posting, built(student.base), [reword, show])).status_code == 200
 
-
-async def test_a_picked_skill_is_placed_by_the_model_and_counts_for_the_truth_rule(student, database, use_model):
+async def test_a_picked_skill_is_placed_on_the_tailored_resume_only(student, database, use_model):
     posting = await _seed_posting(database)
-    fake = use_model(reply(rewords=[("b2", "Wrote billing services in Python and Go")]))
+    fake = use_model(reply(
+        rewords=[("b2", "Wrote billing services in Python and Go")],
+        placements=[{"skill": "Go", "group": "Languages", "after": 0}]))
 
     # Go is missing; Python is matched and Rust is no keyword, so both are ignored.
-    body = (await student.post("/tailor", {
-        "job_posting_id": posting, **built(student.base), "skills": ["go", "Python", "Rust"]})).json()
+    body = (await student.tailor(posting, skills=["go", "Python", "Rust"])).json()
 
     assert "Place these skills: Go" in fake.prompts[0][-1]["content"]
     assert "Rust" not in fake.prompts[0][-1]["content"]
-    rewords = [c for c in body["changes"] if c["kind"] == "reword"]
-    assert [c["text"] for c in rewords] == ["Wrote billing services in Python and Go"]
+    # The picked skill counts for the truth rule.
+    assert [c["text"] for c in _edits(body, "reword")] == ["Wrote billing services in Python and Go"]
+    [skill] = _edits(body, "skill")
+    assert (skill["label"], skill["group"]) == ("Go", "Languages")
+    assert "Go" in _words(body["after_matched"])
+    # On the tailored resume, in its group, and not in the experience bank.
+    assert "Languages: Go" in await student.words(body["resume"]["id"])
+    bank = (await student.client.get(f"{student.me}/bank")).json()
+    assert "Go" not in {s["name"] for s in bank["skills"]}
 
 
 async def test_handles_follow_the_resume_s_own_order(student, database, use_model):
@@ -400,8 +404,8 @@ async def test_handles_follow_the_resume_s_own_order(student, database, use_mode
     body = (await student.tailor(posting)).json()
 
     assert "b1: Wrote billing services in python" in fake.prompts[0][-1]["content"]
-    rewords = [c for c in body["changes"] if c["kind"] == "reword"]
-    assert [(c["bullet_id"], c["text"]) for c in rewords] == [(billing, "Built billing services in Python")]
+    assert [(c["bullet_id"], c["text"]) for c in _edits(body, "reword")] == [
+        (billing, "Built billing services in Python")]
 
 
 async def test_text_search_puts_the_posting_s_bullets_first(student, database, use_model):
@@ -410,12 +414,11 @@ async def test_text_search_puts_the_posting_s_bullets_first(student, database, u
 
     body = (await student.tailor(posting)).json()
 
-    orders = [c for c in body["changes"] if c["kind"] == "order"]
-    assert len(orders) == 1
+    [order] = _edits(body, "order")
     bullets = await student.client.get(f"{student.me}/bank")
     b1, b2 = [b["id"] for b in bullets.json()["entries"][0]["bullets"]]
     # "python" matches the posting; the React bullet does not.
-    assert orders[0]["bullet_ids"] == [b2, b1]
+    assert (order["bullet_ids"], order["before_ids"]) == ([b2, b1], [b1, b2])
 
 
 async def test_a_posting_with_no_description_uses_its_title_with_a_weak_match_notice(
@@ -492,22 +495,15 @@ async def test_an_upload_is_read_into_the_bank_and_tailored_as_its_own_entries(s
 
     run = (await student.tailor(posting, upload)).json()
 
-    assert source_of(run) == upload
     assert await _entries(student) == [
         ("Backend Intern", "Initech"), ("Software Intern", "Acme"), ("Maze Robot", None)]
     # The upload's facts only: Acme's Python and the bank's Docker are hidden.
     assert _words(run["matched"]) == ["Go", "Kubernetes"]
     assert "Acme" not in fake.prompts[0][-1]["content"]
-    # Both are asked, though the bank holds Docker: a run proposes no skill.
-    assert "show_skill" not in _kinds(run)
-    assert _words(run["questions"]) == ["Python", "Docker"]
-
-    res = await student.done(posting, source_of(run), [])
-
-    assert res.status_code == 200, res.text
-    shown = await student.words(res.json()["resume"]["id"])
+    assert "skill" not in _kinds(run)
+    shown = await student.words(run["resume"]["id"])
     assert "Initech" in shown and "Maze Robot" in shown and "Acme" not in shown
-    # Done did not read the upload again (it owns entries now); no base resume was saved.
+    # The run saved the tailored resume only; no base resume was saved.
     assert len(await _entries(student)) == 3
     assert sorted(r["job_posting_id"] or "" for r in await student.resumes()) == ["", posting]
 
@@ -524,7 +520,7 @@ async def test_an_upload_read_as_nothing_is_409_and_another_students_is_404(stud
     assert res.status_code == 409
     assert "read" in res.json()["detail"].lower()
     assert (await student.tailor(posting, {"uploaded_resume_id": theirs})).status_code == 404
-    assert (await student.done(posting, {"uploaded_resume_id": theirs}, [])).status_code == 404
+    assert (await student.match(posting, {"uploaded_resume_id": theirs})).status_code == 404
     assert (await student.tailor(posting, built(str(uuid.uuid4())))).status_code == 404
     assert fake.prompts == []
     assert len(await _entries(student)) == 1
@@ -572,7 +568,7 @@ async def test_a_posting_the_jobs_page_does_not_list_is_404(student, database, u
     fake = use_model(reply())
 
     assert (await student.tailor(posting)).status_code == 404
-    assert (await student.done(posting, built(student.base), [])).status_code == 404
+    assert (await student.match(posting)).status_code == 404
     assert fake.prompts == []
 
 
@@ -581,14 +577,13 @@ async def test_a_posting_the_jobs_page_does_not_list_is_404(student, database, u
 
 @pytest.mark.skip(reason="KAN-319: the Tailor limit is lifted for now")
 async def test_each_run_counts_against_the_tailor_cap(student, database, use_model):
-    posting = await _seed_posting(database)
     use_model(reply())
     cap = get_settings().ai_tailor_cap
 
-    assert (await student.tailor(posting)).json()["uses_left"] == cap - 1
-    assert (await student.tailor(posting)).json()["uses_left"] == cap - 2
+    assert (await student.tailor(await _seed_posting(database))).json()["uses_left"] == cap - 1
+    assert (await student.tailor(await _seed_posting(database))).json()["uses_left"] == cap - 2
     fake = use_model(reply())
-    assert (await student.tailor(posting)).status_code == 429
+    assert (await student.tailor(await _seed_posting(database))).status_code == 429
     assert fake.prompts == []
 
 
@@ -620,36 +615,20 @@ async def test_an_invalid_reply_answers_503_and_counts_no_run(student, database,
     assert (await student.tailor(posting)).json()["uses_left"] == get_settings().ai_tailor_cap - 1
 
 
-async def test_the_run_saves_nothing(student, database, use_model):
+async def test_a_run_saves_the_tailored_resume_and_leaves_the_source(student, database, use_model):
     posting = await _seed_posting(database)
-    use_model(reply(rewords=[("b2", "Built Python billing services")]))
-    await student.tailor(posting)
+    use_model(reply(
+        rewords=[("b2", "Built Python billing services packaged with Docker")],
+        placements=[{"skill": "Kubernetes", "group": "Tools", "after": 0}]))
 
-    assert [r["job_posting_id"] for r in await student.resumes()] == [None]
-
-
-# --- Done -----------------------------------------------------------------
-
-
-async def test_done_saves_approved_changes_on_one_tailored_resume_and_leaves_the_base(
-    student, database, use_model
-):
-    kubernetes = await student.skill("Kubernetes")
-    posting = await _seed_posting(database)
-    use_model(reply(rewords=[("b2", "Built Python billing services packaged with Docker")]))
-    run = (await student.tailor(posting)).json()
-    reword = next(c for c in run["changes"] if c["kind"] == "reword")
-    # What the screen sends after "Have you used Kubernetes?" Yes.
-    show = {"kind": "show_skill", "skill_id": kubernetes["id"], "label": "Kubernetes"}
-
-    res = await student.done(posting, source_of(run), [reword, show])
+    res = await student.tailor(posting, skills=["Kubernetes"])
 
     assert res.status_code == 200, res.text
     body = res.json()
     tailored = body["resume"]
     assert tailored["job_posting_id"] == posting
     assert tailored["name"] == "Acme – Backend Intern"
-    assert _words(body["matched"]) == ["Python", "Docker", "Kubernetes"]
+    assert _words(body["after_matched"]) == ["Python", "Docker", "Kubernetes"]
     shown = await student.words(tailored["id"])
     assert "Built Python billing services packaged with Docker" in shown
     assert "Wrote billing services in python" not in shown
@@ -659,92 +638,65 @@ async def test_done_saves_approved_changes_on_one_tailored_resume_and_leaves_the
     assert "Wrote billing services in python" in base and "Kubernetes" not in base
     bank = (await student.client.get(f"{student.me}/bank")).json()
     assert bank["entries"][0]["bullets"][1]["text"] == "Wrote billing services in python"
-    assert kubernetes["id"] in {s["id"] for s in bank["skills"]}
 
 
-async def test_a_second_done_updates_the_same_tailored_resume(student, database, use_model):
+async def test_a_reword_edit_names_the_wording_it_replaced_for_revert(student, database, use_model):
     posting = await _seed_posting(database)
     use_model(reply(rewords=[("b2", "Built Python billing services")]))
-    run = (await student.tailor(posting)).json()
-    reword = next(c for c in run["changes"] if c["kind"] == "reword")
-    first = (await student.done(posting, source_of(run), [reword])).json()["resume"]
 
-    # A second run from the tailored resume reuses its variant.
-    use_model(reply(rewords=[("b2", "Built Python billing services")]))
-    again = (await student.tailor(posting, built(first["id"]))).json()
-    assert source_of(again) == built(first["id"])
-    assert [c for c in again["changes"] if c["kind"] == "reword"] == []
-    order = next(c for c in again["changes"] if c["kind"] == "order")
-    second = (await student.done(posting, source_of(again), [order])).json()["resume"]
+    body = (await student.tailor(posting)).json()
+    [edit] = _edits(body, "reword")
 
-    assert second["id"] == first["id"]
-    assert [r["job_posting_id"] for r in await student.resumes()].count(posting) == 1
-    assert "Built Python billing services" in await student.words(first["id"])
+    assert edit["before"] == "Wrote billing services in python" and edit["before_variant_id"] is None
+    # Revert: the bank's own wording shows again on the tailored resume.
+    res = await student.client.patch(
+        f"{student.me}/built-resumes/{body['resume']['id']}/choices",
+        json={"bullets": [{"bullet_id": edit["bullet_id"], "variant_id": edit["before_variant_id"]}]})
+    assert res.status_code == 200, res.text
+    assert "Wrote billing services in python" in await student.words(body["resume"]["id"])
+
+
+async def test_a_second_run_on_a_posting_is_refused_before_the_model(student, database, use_model):
+    posting = await _seed_posting(database)
+    use_model(reply())
+    first = (await student.tailor(posting)).json()["resume"]
+    fake = use_model(reply())
+
+    res = await student.tailor(posting)
+
+    assert res.status_code == 409
+    assert res.json()["detail"]["tailored_resume_id"] == first["id"]
+    assert fake.prompts == []
+    assert (await student.match(posting)).json()["tailored_resume_id"] == first["id"]
 
 
 async def test_the_same_wording_reuses_one_variant(student, database, use_model):
-    posting = await _seed_posting(database)
-    other = await _seed_posting(database)
-    change = None
-    for p in (posting, other):
+    bullet = None
+    for p in (await _seed_posting(database), await _seed_posting(database)):
         use_model(reply(rewords=[("b2", "Built Python billing services")]))
-        run = (await student.tailor(p)).json()
-        change = next(c for c in run["changes"] if c["kind"] == "reword")
-        assert (await student.done(p, source_of(run), [change])).status_code == 200
+        [edit] = _edits((await student.tailor(p)).json(), "reword")
+        bullet = edit["bullet_id"]
 
     async with database() as session:
         count = await session.scalar(
-            text("SELECT count(*) FROM bank_bullet_variants WHERE bullet_id = :b"), {"b": change["bullet_id"]})
+            text("SELECT count(*) FROM bank_bullet_variants WHERE bullet_id = :b"), {"b": bullet})
     assert count == 1
 
 
-async def test_done_refuses_a_variant_that_breaks_the_truth_rule(student, database, use_model):
+async def test_a_failed_model_saves_nothing(student, database, use_model):
     posting = await _seed_posting(database)
-    bank = (await student.client.get(f"{student.me}/bank")).json()
-    bullet = bank["entries"][0]["bullets"][1]["id"]
+    use_model(rate_limited())
 
-    res = await student.done(posting, built(student.base), [
-        {"kind": "reword", "bullet_id": bullet, "text": "Wrote Go billing services for 9 clients"}])
-
-    assert res.status_code == 422
-    assert "Go" in res.json()["detail"]
+    assert (await student.tailor(posting, skills=["Go"])).status_code == 503
     assert [r["job_posting_id"] for r in await student.resumes()] == [None]
-
-
-async def test_done_refuses_bringing_back_an_entry(student, database, use_model):
-    project = await student.entry(section="projects", title="Cluster Tool", bullets=["Wrote a Go tool"])
-    posting = await _seed_posting(database)
-
-    res = await student.done(posting, built(student.base), [{"kind": "show_entry", "entry_id": project["id"]}])
-
-    assert res.status_code == 422
-    assert [r["job_posting_id"] for r in await student.resumes()] == [None]
-
-
-async def test_done_refuses_another_students_bullet(student, database, use_model):
-    posting = await _seed_posting(database)
-    bank = (await student.client.get(f"{student.me}/bank")).json()
-    bullet = bank["entries"][0]["bullets"][1]["id"]
-    async with database() as session:
-        other = await _seed_applicant(session)
-    _sign_in(other)
-    mine = Student(student.client, other)
-    await mine.entry(section="experience", title="Tutor", bullets=["Taught Python"])
-    source = await mine.generate()
-
-    res = await mine.done(posting, built(source), [{"kind": "reword", "bullet_id": bullet, "text": "Wrote billing"}])
-
-    assert res.status_code == 404
 
 
 # --- When a posting row goes ----------------------------------------------
 
 
-async def _tailor_and_done(student, use_model, posting: str) -> dict:
+async def _tailored(student, use_model, posting: str) -> dict:
     use_model(reply(rewords=[("b2", "Built Python billing services")]))
-    run = (await student.tailor(posting)).json()
-    change = next(c for c in run["changes"] if c["kind"] == "reword")
-    res = await student.done(posting, source_of(run), [change])
+    res = await student.tailor(posting)
     assert res.status_code == 200, res.text
     return res.json()["resume"]
 
@@ -755,7 +707,7 @@ async def test_a_posting_with_a_tailored_resume_cannot_be_deleted(student, datab
     from sqlalchemy.exc import IntegrityError
 
     posting = await _seed_posting(database)
-    tailored = await _tailor_and_done(student, use_model, posting)
+    tailored = await _tailored(student, use_model, posting)
 
     async with database() as session:
         with pytest.raises(IntegrityError):
@@ -768,8 +720,8 @@ async def test_a_posting_with_a_tailored_resume_cannot_be_deleted(student, datab
 async def test_another_resume_keeps_a_shared_wording_when_its_first_posting_goes(student, database, use_model):
     first = await _seed_posting(database)
     second = await _seed_posting(database)
-    made_first = await _tailor_and_done(student, use_model, first)
-    kept = await _tailor_and_done(student, use_model, second)
+    made_first = await _tailored(student, use_model, first)
+    kept = await _tailored(student, use_model, second)
     assert (await student.client.delete(f"{student.me}/built-resumes/{made_first['id']}")).status_code == 204
 
     async with database() as session:
@@ -846,3 +798,45 @@ def test_other_names_the_resume_s_ungrouped_skills():
     view = _view(("Python", None), ("Git", "Tools"))
     assert _placed(view, ["Go"], {"skill": "Go", "group": "Other", "after": 1})[:2] == [
         ("Python", None), ("Go", None)]
+
+
+# --- Resume-local skills (docs/tailor_resume.md, step 2) ----------------------
+
+
+async def _local_skill(database, student, name: str, group: str | None = None) -> str:
+    """A skill on the base resume only, shown last, as Tailor will add one."""
+    async with database() as session:
+        skill = await add_local_skill(session, student.id, uuid.UUID(student.base), name, group)
+        session.add(Built_Resume_Skill(
+            built_resume_id=uuid.UUID(student.base), skill_id=skill.id, shown=True, position=99))
+        await session.commit()
+        return str(skill.id)
+
+
+async def test_a_local_skill_shows_on_its_resume_and_stays_out_of_the_bank(student, database):
+    skill = await _local_skill(database, student, "Golang", "Languages")
+
+    assert "Golang" in await student.words(student.base)
+    bank = (await student.client.get(f"{student.me}/bank")).json()
+    assert skill not in {s["id"] for s in bank["skills"]}
+    # Its editor names it.
+    own = (await student.client.get(f"{student.me}/bank", params={"built_resume_id": student.base})).json()
+    assert skill in {s["id"] for s in own["skills"]}
+    # A new resume from the bank never gets it.
+    assert "Golang" not in await student.words(await student.generate())
+
+
+async def test_a_local_skill_may_share_a_bank_skill_s_name(student, database):
+    # The bank has Docker: the name index counts the resume as its own owner.
+    await _local_skill(database, student, "docker")
+
+
+async def test_deleting_the_resume_deletes_its_local_skills(student, database):
+    skill = await _local_skill(database, student, "Golang")
+
+    res = await student.client.delete(f"{student.me}/built-resumes/{student.base}")
+
+    assert res.status_code == 204, res.text
+    async with database() as session:
+        left = await session.scalar(text("SELECT count(*) FROM bank_skills WHERE id = :id"), {"id": skill})
+    assert left == 0

@@ -30,7 +30,7 @@ export default async function ResumeEditorPage({ params }: PageProps<"/resumes/[
   const [rendered, resumes, bank, choices, { profile, error: profileError }] = await Promise.all([
     renderResumePdf(resumeId),
     listBuiltResumes(),
-    getBank(),
+    getBank(resumeId),
     getChoices(resumeId),
     getProfile(),
   ]);

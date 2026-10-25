@@ -1,43 +1,42 @@
-"""Tailor under /applicants/{applicant_id}/tailor (KAN-217). Both routes
-check the token's account owns `applicant_id` first. The rules live in
-`app/services/tailor.py`; the truth rule in `app/services/truth_rule.py`.
+"""Tailor under /applicants/{applicant_id}/tailor (KAN-217;
+`docs/tailor_resume.md`). Both routes check the token's account owns
+`applicant_id` first. The rules live in `app/services/tailor.py`; the truth
+rule in `app/services/truth_rule.py`.
 
-Both bodies name the source the student picked in Tailor's dialog: exactly
-one of `built_resume_id` (its choices) or `uploaded_resume_id` (the entries
-and skills it owns, everything else hidden; built in memory, never saved;
-an upload that owns nothing is read into the bank first).
-422 for neither or both.
+Both bodies name the source the student picked: exactly one of
+`built_resume_id` (its choices) or `uploaded_resume_id` (the entries and
+skills it owns, everything else hidden; built in memory, never saved; an
+upload that owns nothing is read into the bank first). 422 for neither or
+both.
 
-POST /applicants/{id}/tailor       TailorRun {job_posting_id, source} -> TailorProposal
-     One Tailor run: proposed changes from the picked source, which the
-     proposal names again for Done. It tailors only the entries and
-     bullets the source shows; it never proposes one it hides. Saves nothing but what reading an
-     uploaded source that owned nothing wrote into the bank (nothing until Done).
+POST /applicants/{id}/tailor/match  TailorMatchRequest {job_posting_id, source} -> TailorMatch
+     The source's keyword match, for the student to pick the missing
+     keywords to add, and the posting's tailored resume if it has one. It
+     extracts the posting's keywords once (cached on the posting) and saves
+     what reading an upload that owned nothing wrote. Free while KAN-319
+     lifts the limit. 404 a posting the Jobs page does not list or a source
+     not the applicant's; 409 an upload read as nothing; 503 when the model
+     cannot extract the keywords.
+POST /applicants/{id}/tailor        TailorRun {job_posting_id, source, skills} -> TailorRunResult
+     One run, saved as the posting's one tailored resume with no
+     confirmation: rewordings (as bullet variants for the posting), each
+     entry's bullets by rank, and the picked missing keywords as skills of
+     that resume only, placed by the model's answer. Answers with what it
+     changed (`edits`), which the editor marks and can revert until Save.
+     A posting that already has a tailored resume answers 409
+     {detail: {message, tailored_resume_id}} before any model call: the
+     student edits it instead. It tailors only what the source shows.
      Free while KAN-319 lifts the limit: no Tailor use is checked or
-     counted, and uses_left is always the cap. Restoring the commented
-     lines brings back one use per successful run (a keyword extraction
-     inside the run is part of it, not a second use) and the 429.
-     404 a posting the Jobs page does not list (unknown, draft, paused,
-     closed) or a source not the applicant's; 409 {detail} an upload the
-     parser reads nothing from, or an empty bank (send the student to
-     intake);
-     503 when the model fails or answers out of
-     schema (nothing counted).
-POST /applicants/{id}/tailor/done  TailorDone {job_posting_id, source, changes} -> TailorResult {resume, matched, missing}
-     Saves the accepted changes, applied to the source, on the posting's
-     one tailored resume (made on the first Done, updated after; a
-     different source than last time replaces what it showed), approved
-     wordings as bullet variants for the posting. Free: no model call. 404
-     a posting the Jobs page does not list, a source or a bank id not the
-     applicant's; 409 an upload read as nothing; 422 {detail} a wording
-     that breaks the truth rule (nothing saved).
+     counted, and uses_left is always the cap. 404 as above; 409 an empty
+     bank (send the student to intake) or an upload read as nothing; 503
+     when the model fails or answers out of schema (nothing saved).
 """
 
 import logging
 import uuid
 
 from fastapi import APIRouter, Depends, HTTPException
-from sqlalchemy.exc import SQLAlchemyError
+from sqlalchemy.exc import IntegrityError, SQLAlchemyError
 from sqlalchemy.ext.asyncio import AsyncSession
 from workit_scout.llm import LLM, ScoutUnavailable
 
@@ -50,11 +49,11 @@ from app.routers.scout import get_llm
 from app.schemas.auth import AuthenticatedAccount
 from app.schemas.built_resume import BuiltResumeResponse
 from app.schemas.tailor import (
-    TailorDone,
-    TailorProposal,
+    TailorMatch,
+    TailorMatchRequest,
     TailorReading,
-    TailorResult,
     TailorRun,
+    TailorRunResult,
     TailorSource,
 )
 from app.services import built_resumes, keywords, postings, tailor
@@ -71,6 +70,7 @@ logger = logging.getLogger(__name__)
 router = APIRouter(prefix="/applicants/{applicant_id}/tailor", tags=["tailor"])
 
 EMPTY_BANK = "Your experience bank is empty. Add what you did first, then Tailor."
+ALREADY_TAILORED = "This posting already has a tailored resume. Open it in the editor to change it."
 NOTHING_READ = (
     "WorkIt couldn't read anything from this resume. Pick another, or use Read It With AI on Resumes first."
 )
@@ -86,6 +86,11 @@ async def _posting(session: AsyncSession, posting_id: uuid.UUID) -> Job_Post:
     if job is None:
         raise HTTPException(404, "Job posting not found")
     return job
+
+
+def _own(body: TailorSource) -> list[uuid.UUID]:
+    """The built source whose resume-local skills the run reads, if any."""
+    return [body.built_resume_id] if body.built_resume_id else []
 
 
 async def _source(session: AsyncSession, applicant_id: uuid.UUID, body: TailorSource) -> tuple[Choices, str]:
@@ -104,25 +109,59 @@ async def _source(session: AsyncSession, applicant_id: uuid.UUID, body: TailorSo
         raise HTTPException(409, NOTHING_READ)
 
 
-@router.post("", response_model=TailorProposal)
+@router.post("/match", response_model=TailorMatch)
+async def match(
+    body: TailorMatchRequest,
+    applicant_id: uuid.UUID,
+    account: AuthenticatedAccount = Depends(get_current_account),
+    llm: LLM = Depends(get_llm),
+    session: AsyncSession = Depends(get_session),
+) -> TailorMatch:
+    assert_applicant_owns(account, applicant_id)
+    job = await _posting(session, body.job_posting_id)
+    # Before the bank loads: an uploaded source that owns nothing is read into it.
+    choices, _ = await _source(session, applicant_id, body)
+    bank = await load_bank(session, applicant_id, local_to=_own(body))
+    try:
+        found, _ = await keywords.ensure(job, llm)
+    except ScoutUnavailable as exc:
+        raise HTTPException(503, AI.failure(exc)) from exc
+    matched, missing = keywords.match(build_view(bank, choices), found)
+    tailored = await built_resumes.tailored_for(session, applicant_id, job.id)
+    # One commit: the keyword cache and what reading an uploaded source wrote.
+    await session.commit()
+    return TailorMatch(
+        job_posting_id=job.id,
+        tailored_resume_id=tailored.id if tailored else None,
+        weak_match=tailor.weak_match(job),
+        matched=matched,
+        missing=missing,
+    )
+
+
+@router.post("", response_model=TailorRunResult)
 async def run(
     body: TailorRun,
     applicant_id: uuid.UUID,
     account: AuthenticatedAccount = Depends(get_current_account),
     llm: LLM = Depends(get_llm),
     session: AsyncSession = Depends(get_session),
-) -> TailorProposal:
+) -> TailorRunResult:
     assert_applicant_owns(account, applicant_id)
-    # KAN-319: the Tailor limit is lifted for now. Check before anything else 
+    # KAN-319: the Tailor limit is lifted for now. Check before anything else
     # left = await uses_left(session, applicant_id, Feature.TAILOR)
     # if left <= 0:
     #     raise HTTPException(429, AI.spent)
     left = get_settings().ai_tailor_cap
 
     job = await _posting(session, body.job_posting_id)
+    # One tailored resume per posting, made once: refused before any model
+    # call, so a second run spends no tokens.
+    if (existing := await built_resumes.tailored_for(session, applicant_id, job.id)) is not None:
+        raise HTTPException(409, {"message": ALREADY_TAILORED, "tailored_resume_id": str(existing.id)})
     # Before the bank loads: an uploaded source that owns nothing is read into it.
-    choices, _ = await _source(session, applicant_id, body)
-    bank = await load_bank(session, applicant_id)
+    source, template = await _source(session, applicant_id, body)
+    bank = await load_bank(session, applicant_id, local_to=_own(body))
     if not bank.entries:
         raise HTTPException(409, EMPTY_BANK)
     try:
@@ -134,12 +173,10 @@ async def run(
         # run fails below. The run's one use counts the extraction too.
         await session.commit()
 
-    tailored = await built_resumes.tailored_for(session, applicant_id, job.id)
     # The picked resume as it shows, read once: the rank, the prompt, the
     # proposals and the match all read it, so they agree on what it holds.
-    view = build_view(bank, choices)
-
-    # scores each bullet the resume shows, used to suggest a better order
+    view = build_view(bank, source)
+    # scores each bullet the resume shows, used to order each entry's bullets
     ranks = await tailor.rank_bullets(session, view, tailor.posting_text(job, found))
     matched, missing = keywords.match(view, found)
     # Only missing keywords can be picked: any other name is ignored.
@@ -153,84 +190,57 @@ async def run(
             identity=identity, max_tokens=tailor.REPLY_TOKENS)
     except ScoutUnavailable as exc:
         raise HTTPException(503, AI.failure(exc)) from exc
-    # propose new order 
     changes, dropped = tailor.propose(bank, view, reading, ranks, found, picked)
-    tailored_id = tailored.id if tailored else None
-    # KAN-319: the Tailor limit is lifted for now.
-    # await count_use(session, applicant_id, Feature.TAILOR)
-    # One commit: the count and what reading an uploaded source wrote.
-    await session.commit()
 
-    # commit proposed changes to generate 
-    return TailorProposal(
-        job_posting_id=job.id,
-        built_resume_id=body.built_resume_id,
-        uploaded_resume_id=body.uploaded_resume_id,
-        tailored_resume_id=tailored_id,
-        weak_match=tailor.weak_match(job),
-        matched=matched,
-        missing=missing,
-        questions=missing,
-        changes=changes,
-        dropped=dropped,
-        uses_left=left,  # need to update when to deduct uses_left 
-    )
-
-
-def _name(job: Job_Post) -> str:
-    return f"{job.company_name} – {job.title}"[:80] if job.company_name else job.title[:80]
-
-
-@router.post("/done", response_model=TailorResult)
-async def done(
-    body: TailorDone,
-    applicant_id: uuid.UUID,
-    account: AuthenticatedAccount = Depends(get_current_account),
-    session: AsyncSession = Depends(get_session),
-) -> TailorResult:
-    assert_applicant_owns(account, applicant_id)
-    job = await _posting(session, body.job_posting_id)
-    found = keywords.cached(job) or []
-    source, template = await _source(session, applicant_id, body)
-    try:
-        bank = await load_bank(session, applicant_id)
-        tailor.validate(bank, body.changes)
-    except NotFound:
-        raise HTTPException(404, "Not found in your experience bank")
-    # The skills the saved resume will show, a Yes answer's included: the
-    # truth rule reads these, as the run read its resume's.
-    shown = build_view(bank, tailor.with_changes(bank, source, body.changes)).skills
+    # Saved with no confirmation: the editor marks each change and reverts it.
+    resume = Built_Resume(
+        id=uuid.uuid4(), applicant_id=applicant_id, name=_name(job), template=template, job_posting_id=job.id)
+    session.add(resume)
+    await session.flush()
     try:
         variants = await tailor.save_variants(
-            session, bank, job.id, body.changes, [s.name for s in shown], found)
+            session, bank, job.id, changes, [s.name for s in view.skills] + picked, found)
     except tailor.BreaksTruthRule as exc:
+        # propose() already dropped these; this is the save's own guard.
         await session.rollback()
         raise HTTPException(422, str(exc))
-    choices = tailor.with_changes(bank, source, body.changes, variants)
-
-    resume = await built_resumes.tailored_for(session, applicant_id, job.id)
-    if resume is None:
-        resume = Built_Resume(
-            id=uuid.uuid4(), applicant_id=applicant_id, name=_name(job), template=template,
-            job_posting_id=job.id)
-        session.add(resume)
-        await session.flush()
+    choices = tailor.with_changes(bank, source, changes, variants)
+    placed = tailor.place_skills(view, picked, reading.placements)
+    choices, new = await tailor.place_on(session, applicant_id, resume.id, choices, placed)
     await built_resumes.write_choices(session, resume.id, choices)
+    # KAN-319: the Tailor limit is lifted for now.
+    # await count_use(session, applicant_id, Feature.TAILOR)
     try:
         await session.commit()
+    except IntegrityError:
+        # Another run for this posting saved first (one per posting).
+        await session.rollback()
+        raise HTTPException(409, ALREADY_TAILORED)
     except SQLAlchemyError:
         await session.rollback()
         logger.exception("Failed to save the tailored resume")
         raise HTTPException(500, "Failed to save the tailored resume")
+
     await session.refresh(resume)
+    tailored = await load_bank(session, applicant_id, local_to=[resume.id])
+    after_matched, after_missing = keywords.match(build_view(tailored, choices), found)
     default_id = await built_resumes.default_built_id(session, applicant_id)
-    matched, missing = keywords.match(build_view(bank, choices), found)
-    return TailorResult(
+    return TailorRunResult(
         resume=BuiltResumeResponse(
             id=resume.id, name=resume.name, template=resume.template, job_posting_id=resume.job_posting_id,
             is_default=resume.id == default_id, created_at=resume.created_at,
             edited_at=resume.updated_at, posting_title=job.title, posting_company=job.company_name,
         ),
+        weak_match=tailor.weak_match(job),
         matched=matched,
         missing=missing,
+        after_matched=after_matched,
+        after_missing=after_missing,
+        edits=tailor.edits(view, source, changes, variants, placed, new),
+        dropped=dropped,
+        uses_left=left,  # KAN-319: was left - 1
     )
+
+
+def _name(job: Job_Post) -> str:
+    return f"{job.company_name} – {job.title}"[:80] if job.company_name else job.title[:80]

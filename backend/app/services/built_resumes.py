@@ -338,6 +338,9 @@ async def same_resume(
     an equal content hash would say, without hashing either."""
     resumes = await list_resumes(session, applicant_id)
     choices = await _choices_of(session, [r.id for r in resumes])
+    # Each resume as it prints, its own skills included: without them a
+    # tailored resume could read as equal to a new base resume.
+    bank = await load_bank(session, applicant_id, local_to=[r.id for r in resumes])
     return next((r for r in resumes if r.template == template and build_view(bank, choices[r.id]) == view), None)
 
 
@@ -357,7 +360,7 @@ async def update_choices(
     siblings; an entry brought onto the resume brings its row-less bullets
     with it, or it would show with none."""
     await get_resume(session, applicant_id, resume_id)
-    bank = await load_bank(session, applicant_id)
+    bank = await load_bank(session, applicant_id, local_to=[resume_id])
     entry_of = {b.id: e.row.id for e in bank.entries for b in e.bullets}
     original = {b.id: b.text for e in bank.entries for b in e.bullets}
     section_of = {e.row.id: str(e.row.section) for e in bank.entries}
@@ -422,7 +425,7 @@ async def load_view(
     session: AsyncSession, applicant_id: uuid.UUID, resume_id: uuid.UUID
 ) -> tuple[Built_Resume, ResumeView]:
     resume = await get_resume(session, applicant_id, resume_id)
-    bank = await load_bank(session, applicant_id)
+    bank = await load_bank(session, applicant_id, local_to=[resume.id])
     return resume, build_view(bank, await load_choices(session, resume.id))
 
 

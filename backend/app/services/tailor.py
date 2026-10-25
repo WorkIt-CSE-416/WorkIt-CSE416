@@ -1,33 +1,36 @@
 """
-Tailor (KAN-217): proposals that fit a built resume to one job posting, and
-the rules Done saves them by. Like services/bank.py, functions that touch
-rows take the caller's session, scope to the applicant, flush and never
-commit; the rest are pure.
+Tailor (KAN-217, `docs/tailor_resume.md`): one run that fits a resume to one
+job posting and saves it as the posting's tailored resume, with no
+confirmation step. Like services/bank.py, functions that touch rows take the
+caller's session, scope to the applicant, flush and never commit; the rest
+are pure.
 
 The source is the resume the student picked: a built resume's choices, or an
 uploaded resume shown as the entries and skills it owns (`upload_source`,
 ADR 0005), built in memory and never saved. A run reads that resume
 once, as its view (`resume_view.build_view`): its shown entries, bullets
 and skills, in its own order and wording. The rank, the prompt, the
-proposals and the keyword match all read that one view, so the model sees
+changes and the keyword match all read that one view, so the model sees
 the resume the student sees, and never an entry, bullet or skill it hides.
-The truth rule reads the same skills: a wording may name only a skill the
-resume shows. A run never proposes a hidden
-skill: a missing keyword is asked about ("Have you used X?"), and Yes adds
-it (`show_skill`).
 
 A run (`routers/tailor.py`) reads the posting's keywords (KAN-215's cache, or
 one extraction), ranks the resume's bullets against the posting with Postgres
-text search (`rank_bullets`), and sends the model the posting and every
-bullet the resume shows, the lowest-ranked left out past a token budget
+text search (`rank_bullets`), and sends the model the posting, every bullet
+the resume shows (the lowest-ranked left out past a token budget), its
+skills numbered by group and the missing keywords the student picked to add
 (`prompt`): no links, and the model seam removes identity data. The model
-names bullets by handle (b1), never by id. `propose` turns its reply into
-changes, dropping any wording that breaks the truth rule
-(`services/truth_rule.py`), and adds the ranked bullet order.
+names bullets by handle (b1), never by id. `propose` turns its rewordings
+into changes, dropping any that breaks the truth rule
+(`services/truth_rule.py`: the resume's skills and the picked ones count)
+or the overlap check, and adds each entry's bullets by rank.
+`place_skills` turns its placements into the skills' order, and `place_on`
+saves each picked skill as the tailored resume's own, never the bank's.
+`edits` records what the run changed and what it replaced, for the editor
+to mark and revert until Save.
 
-Tailor changes only what shows, the order, which bullet variant shows and
-which skills show; it never writes the bank's text. A missing keyword that
-is nowhere in the bank becomes a question ("Have you used X?"), never words.
+Tailor changes only what shows: the order, which bullet variant shows, and
+the tailored resume's own skills; it never writes the bank's text or adds a
+skill to the bank. A keyword the student does not pick is never written in.
 """
 
 import dataclasses
@@ -44,12 +47,13 @@ from app.models.bank import Bank_Bullet, Bank_Bullet_Variant, Bank_Entry
 from app.models.jobs import Job_Post
 from app.models.resume import Resume
 from app.schemas.keywords import Keyword
-from app.schemas.tailor import Placement, TailorChange, TailorReading
+from app.schemas.tailor import Placement, TailorChange, TailorEdit, TailorReading
 from app.services import bank_import
 from app.services import keywords as kw
 from app.services.bank import (
     Bank,
     NotFound,
+    add_local_skill,
     import_upload,
     load_bank,
 )
@@ -320,10 +324,6 @@ def with_changes(
             old = bullets.get(change.bullet_id, BulletChoice(position=_next(c.position for c in bullets.values())))
             bullets[change.bullet_id] = dataclasses.replace(
                 old, variant_id=(variant_ids or {}).get(change.bullet_id), text=change.text)
-        elif change.kind == "show_skill" and change.skill_id is not None:
-            old = skills.get(change.skill_id)
-            position = old.position if old else _next(c.position for c in skills.values())
-            skills[change.skill_id] = SkillChoice(shown=True, position=position)
         elif change.kind == "order" and change.entry_id in by_id:
             listed = [b for b in change.bullet_ids if b in bullets]
             rest = sorted((b.id for b in by_id[change.entry_id].bullets if b.id in bullets and b.id not in listed),
@@ -456,21 +456,56 @@ def propose(
     return changes, dropped
 
 
-def validate(bank: Bank, changes: Sequence[TailorChange]) -> None:
-    """Raise NotFound for any id that is not in this applicant's bank, or a
-    bullet ordered under another entry."""
-    entries = {e.row.id: {b.id for b in e.bullets} for e in bank.entries}
-    bullets = {b for ids in entries.values() for b in ids}
-    skills = {s.id for s in bank.skills}
+async def place_on(
+    session: AsyncSession,
+    applicant_id: uuid.UUID,
+    resume_id: uuid.UUID,
+    choices: Choices,
+    placed: Sequence[Placed],
+) -> tuple[Choices, dict[str, uuid.UUID]]:
+    """`choices` with the skills in `place_skills`' order, flushed: each
+    picked skill saved as `resume_id`'s own (`add_local_skill`, never the
+    bank's), and every shown skill numbered from 0 in that order. The
+    source's hidden skill rows stay hidden, after them. Returns the choices
+    and each picked skill's new id by name."""
+    new: dict[str, uuid.UUID] = {}
+    order: list[uuid.UUID] = []
+    for p in placed:
+        if p.skill_id is None:
+            new[p.name] = (await add_local_skill(session, applicant_id, resume_id, p.name, p.group)).id
+        order.append(p.skill_id or new[p.name])
+    skills = {skill_id: SkillChoice(shown=True, position=i) for i, skill_id in enumerate(order)}
+    hidden = [i for i, c in choices.skills.items() if i not in skills and not c.shown]
+    skills |= {skill_id: SkillChoice(shown=False, position=len(order) + i) for i, skill_id in enumerate(hidden)}
+    return Choices(choices.entries, choices.bullets, skills), new
+
+
+def edits(
+    view: ResumeView,
+    source: Choices,
+    changes: Sequence[TailorChange],
+    variant_ids: Mapping[uuid.UUID, uuid.UUID],
+    placed: Sequence[Placed],
+    new: Mapping[str, uuid.UUID],
+) -> list[TailorEdit]:
+    """What a run changed on the tailored resume, each with what it replaced
+    on the source (`view`, `source`), for the editor to mark and revert."""
+    showing = {b.id: b.text for b in _bullets(view)}
+    order = {e.id: [b.id for b in e.bullets] for e in _entries(view)}
+    out: list[TailorEdit] = []
     for c in changes:
-        if c.kind == "reword" and c.bullet_id not in bullets:
-            raise NotFound
-        if c.kind == "order" and c.entry_id not in entries:
-            raise NotFound
-        if c.kind == "show_skill" and c.skill_id not in skills:
-            raise NotFound
-        if c.kind == "order" and not set(c.bullet_ids) <= entries[c.entry_id]:  # type: ignore[index]
-            raise NotFound
+        if c.kind == "reword" and c.bullet_id is not None:
+            choice = source.bullets.get(c.bullet_id)
+            out.append(TailorEdit(
+                kind="reword", bullet_id=c.bullet_id, text=c.text, variant_id=variant_ids.get(c.bullet_id),
+                before=showing[c.bullet_id], before_variant_id=choice.variant_id if choice else None))
+        elif c.kind == "order" and c.entry_id is not None:
+            out.append(TailorEdit(
+                kind="order", entry_id=c.entry_id, label=c.label, bullet_ids=c.bullet_ids,
+                before_ids=order[c.entry_id]))
+    out += [TailorEdit(kind="skill", skill_id=new[p.name], label=p.name, group=p.group)
+            for p in placed if p.skill_id is None]
+    return out
 
 
 class BreaksTruthRule(Exception):

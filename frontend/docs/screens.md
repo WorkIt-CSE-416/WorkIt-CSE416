@@ -1483,34 +1483,29 @@ in Docs (suggested answers in the chat, not a banner).
 
 ### Tailor (`/jobs/[jobId]/tailor`, KAN-217)
 
+The design is `../../docs/tailor_resume.md`: one click tailors and saves,
+with no proposals to accept and no Done (2026-10-25).
+
 - **Opened from "Tailor My Resume"** on the job posting page, which reads
   "Your Tailored Resume" once the student has one for that posting.
-- **The run waits for a click.** Each run spends one of today's 2 Tailor
-  runs, so loading the page never starts one.
-- **Tailor My Resume opens Pick a Resume to Tailor** (KAN-318): the
-  posting's resumes as "Did You Apply?" lists them (Generated Resumes and
-  Uploaded Resumes, one radio group), starting on the resume tailored to
-  this job, else the default, and an upload with the same limit, replace
-  step and duplicate rule. Both dialogs share `jobs/resume-picker.tsx`,
-  so a rule changed there changes both. The dialog's Tailor My Resume
-  closes it and runs; "Tailoring…" and errors show on the card. A pick
-  other than this job's tailored resume warns that Done replaces it. An
-  upload is read into the bank and tailored as its own entries; nothing
-  new appears under Generated Resumes. A run changes only what the picked
-  resume shows: it never proposes an entry or bullet that resume hides.
-- **The keyword match** shows "12 of 18" before, and again with what the
-  student has accepted, required keywords first. The second count adds
-  each accepted change's `keywords` and each Yes in the browser, with no
-  call; Done's response is the saved resume's own match. A posting with no
-  description shows the "weak match" notice.
-- **Every change has Accept and Reject**, plus Accept All; a new wording
-  shows beside the old one. Nothing saves until Done; Leave Without Saving
-  goes back to the posting. "Reorder bullets" names the entry with its
-  organization ("Software Intern, Acme"), since two jobs can share a title.
-- **"Have you used X?"** lists missing keywords that neither the picked
-  resume's entries nor any bank skill hold. Yes adds the skill to the bank
-  (it is saved at once, being true) and shows it on the tailored resume. It
-  no longer asks where the skill was used: skill links were removed.
+- **A posting is tailored once.** When it has a tailored resume, the screen
+  shows it with Open in Editor and offers no run; the API refuses a second
+  run (409), so no tokens are spent on it.
+- **Pick a Resume opens Pick a Resume to Tailor** (KAN-318): the posting's
+  resumes as "Did You Apply?" lists them (Generated Resumes and Uploaded
+  Resumes, one radio group), starting on the resume tailored to this job,
+  else the default, and an upload with the same limit, replace step and
+  duplicate rule. Both dialogs share `jobs/resume-picker.tsx`, so a rule
+  changed there changes both. Its Use This Resume reads the resume's
+  keyword match (`matchTailor`); "Reading…" and errors show on the card.
+- **The keyword match** shows "12 of 18", the matched keywords, and the
+  missing ones as toggle chips: the student picks those they have used,
+  to add as skills. A keyword not picked is never written in. A posting
+  with no description shows the "weak match" notice.
+- **Tailor Resume runs once** and saves the posting's tailored resume,
+  then opens it in the editor (`/resumes/[id]`). The run's record of
+  changes goes to sessionStorage (`tailorEditsKey` in `lib/local-drafts.ts`,
+  cleared by Sign Out) for the editor to mark and revert until Save.
 - An empty bank (409) shows a link to the bank page, where intake starts.
 
 ## Resumes (`/resumes`)

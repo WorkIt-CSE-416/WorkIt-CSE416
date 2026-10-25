@@ -19,10 +19,10 @@ export async function generateMetadata({
 }
 
 /**
- * /jobs/[jobId]/tailor, Tailor (KAN-217): opened from "Tailor My Resume" on
- * a job posting's page. The page loads the posting and whether a tailored
- * resume for it exists; the run itself waits for the student's click,
- * because each run spends one of today's Tailor runs.
+ * /jobs/[jobId]/tailor, Tailor (KAN-217, docs/tailor_resume.md): opened
+ * from "Tailor My Resume" on a job posting's page. The page loads the
+ * posting and its tailored resume if it has one, which the screen opens
+ * instead of running again; the run itself waits for the student's click.
  */
 export default async function TailorPage({ params }: PageProps<"/jobs/[jobId]/tailor">) {
   const { jobId } = await params;
@@ -45,7 +45,11 @@ export default async function TailorPage({ params }: PageProps<"/jobs/[jobId]/ta
       <p className="text-body text-ink-meta mt-1">
         {job.title} at {job.company}
       </p>
-      <TailorScreen jobId={job.id} title={job.title} tailoredName={tailored?.name ?? null} />
+      <TailorScreen
+        jobId={job.id}
+        title={job.title}
+        tailored={tailored && { id: tailored.id, name: tailored.name }}
+      />
     </div>
   );
 }

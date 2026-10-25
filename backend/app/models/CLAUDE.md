@@ -286,7 +286,18 @@ change here must keep:
   and skills. Null means the student made it. A skill's name is unique
   per owner (`bank_skills_applicant_name_key`, `NULLS NOT DISTINCT`, so
   the student's own skills are one list). Built resumes need no owner
-  column: their shown choice rows say what they hold.
+  column for what they show from the bank: their shown choice rows say it.
+- **A skill can belong to one built resume instead**
+  (`bank_skills.built_resume_id`, `a3d7f1c9e2b4`,
+  `../../../docs/tailor_resume.md`): Tailor's picked skills, which show on
+  the tailored resume only and are not in the experience bank. It still
+  needs a `bank_skills` row, since `built_resume_skills.skill_id` points
+  there. At most one owner (`bank_skills_one_owner_check`); it cascades
+  with its resume; the name index includes it, so a resume's "Go" never
+  clashes with the bank's. `load_bank` leaves these rows out unless the
+  caller names their resume (`local_to`), so a new reader of skills that
+  forgets them still sees only the bank. The same pattern as
+  `bank_bullet_variants.built_resume_id` (below).
 
 ## Built resumes
 

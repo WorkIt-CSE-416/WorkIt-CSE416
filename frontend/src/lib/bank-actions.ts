@@ -68,8 +68,11 @@ function call<T>(path: string, init?: RequestInit, read?: (res: Response) => Pro
   return applicantCall<T>(`/bank${path}`, init, read);
 }
 
-export async function getBank(): Promise<Result<Bank>> {
-  return call<Bank>("");
+/** `builtResumeId` adds that built resume's own skills, which are not in
+ *  the bank (Tailor's picked skills, docs/tailor_resume.md): its editor
+ *  names them. */
+export async function getBank(builtResumeId?: string): Promise<Result<Bank>> {
+  return call<Bank>(builtResumeId ? `?built_resume_id=${id(builtResumeId)}` : "");
 }
 
 /** Saves a new entry with its bullets, into `resumeId` when given (ADR

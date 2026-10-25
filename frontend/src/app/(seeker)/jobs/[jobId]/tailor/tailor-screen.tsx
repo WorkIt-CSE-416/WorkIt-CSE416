@@ -1,6 +1,6 @@
 "use client";
 
-import { CheckIcon, XIcon } from "@phosphor-icons/react/ssr";
+import { useRouter } from "next/navigation";
 import { useCallback, useState } from "react";
 
 import { SparkleIcon } from "@/components/icons";
@@ -15,16 +15,14 @@ import {
 import { Badge } from "@/components/ui/badge";
 import { Button, ButtonLink } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
-import { addSkill } from "@/lib/bank-actions";
-import { cn } from "@/lib/cn";
+import { Chip } from "@/components/ui/chip";
+import { tailorEditsKey, writeSessionDraft } from "@/lib/local-drafts";
 import type { ResumeItem } from "@/lib/resume-actions";
 import {
-  finishTailor,
+  matchTailor,
   runTailor,
   type Keyword,
-  type TailorChange,
-  type TailorProposal,
-  type TailorResult,
+  type TailorMatch,
   type TailorSource,
 } from "@/lib/tailor-actions";
 
@@ -37,207 +35,146 @@ import {
 } from "../../resume-picker";
 
 /**
- * The Tailor screen (KAN-217). Tailor My Resume opens Pick a Resume to
- * Tailor (KAN-318): the student picks a generated or uploaded resume, or
- * uploads one with the Resumes page's rules (../../resume-picker), and the
- * dialog's own Tailor My Resume runs from it. An upload is read into the
- * bank again and tailored as the entries it holds; nothing new shows under
- * Generated Resumes. Run spends one of today's Tailor runs and proposes
- * changes; the student accepts or rejects each, answers "Have you
- * used X?" for missing keywords, and Done saves the accepted ones on the
- * posting's one tailored resume. Nothing is saved before Done, except a
- * skill added by answering Yes (it goes into the bank, which is the point).
+ * The Tailor screen (KAN-217, docs/tailor_resume.md). The student picks a
+ * generated or uploaded resume, or uploads one with the Resumes page's rules
+ * (../../resume-picker, KAN-318); WorkIt reads its keyword match, and the
+ * student picks which missing keywords to add as skills. Tailor Resume runs
+ * once and saves the posting's one tailored resume with no confirmation,
+ * then opens it in the editor, which marks each change and can revert it
+ * until Save. The run's record of changes goes to sessionStorage
+ * (`tailorEditsKey`) for the editor; nothing else keeps it.
  *
- * The keyword match ("12 of 18") is the API's for the starting resume; it
- * does not move as changes are accepted. Done's response is the saved
- * resume's own match.
+ * A posting has one tailored resume, made once: when it has one, the screen
+ * opens it instead of running, and the API refuses a second run (409).
  */
-
-type Decision = "accepted" | "rejected";
-
 export function TailorScreen({
   jobId,
   title,
-  tailoredName,
+  tailored,
 }: {
   jobId: string;
   title: string;
-  tailoredName: string | null;
+  tailored: { id: string; name: string } | null;
 }) {
+  const router = useRouter();
+  const [source, setSource] = useState<TailorSource | null>(null);
+  const [match, setMatch] = useState<TailorMatch | null>(null);
+  const [picked, setPicked] = useState<Set<string>>(new Set());
+  const [reading, setReading] = useState(false);
   const [running, setRunning] = useState(false);
-  const [proposal, setProposal] = useState<TailorProposal | null>(null);
-  const [decisions, setDecisions] = useState<Record<number, Decision>>({});
-  // Skills added by answering Yes, as accepted show_skill changes.
-  const [added, setAdded] = useState<TailorChange[]>([]);
-  const [answered, setAnswered] = useState<Record<string, "yes" | "no">>({});
-  const [saving, setSaving] = useState(false);
-  const [result, setResult] = useState<TailorResult | null>(null);
   const [error, setError] = useState<{ message: string; status: number | null } | null>(null);
 
-  async function run(source: TailorSource) {
-    setRunning(true);
-    setError(null);
-    const { data, error, status } = await runTailor(jobId, source);
-    setRunning(false);
-    if (!data) return setError({ message: error ?? "Tailor failed.", status });
-    setProposal(data);
-    setDecisions({});
-    setAdded([]);
-    setAnswered({});
-    setResult(null);
-  }
-
-  async function done() {
-    if (!proposal) return;
-    setSaving(true);
-    setError(null);
-    const accepted = [...proposal.changes.filter((_, i) => decisions[i] === "accepted"), ...added];
-    const { data, error, status } = await finishTailor(proposal, accepted);
-    setSaving(false);
-    if (!data) return setError({ message: error ?? "Saving failed.", status });
-    setResult(data);
-  }
-
-  if (result) {
+  if (tailored) {
     return (
       <Card as="section" className="mt-4">
-        <h2 className="text-subtitle text-ink">Saved: {result.resume.name}</h2>
-        <MatchCount matched={result.matched} missing={result.missing} />
-        <p className="text-body text-ink-muted mt-2">
-          Your tailored resume is under Resumes, in Tailored Resumes. Open it there to download it
-          as a PDF or a Word file.
+        <h2 className="text-subtitle text-ink">You Tailored a Resume for {title}</h2>
+        <p className="text-body text-ink-muted mt-1">
+          {tailored.name} is this posting&apos;s tailored resume. Change it in the editor; WorkIt
+          tailors each posting once.
         </p>
-        <div className="mt-3 flex gap-3">
-          <ButtonLink href="/resumes" size="sm">
-            Go to Resumes
-          </ButtonLink>
-          <ButtonLink href={`/jobs/${encodeURIComponent(jobId)}`} variant="secondary" size="sm">
-            Back to the Job
-          </ButtonLink>
-        </div>
+        <ButtonLink href={`/resumes/${encodeURIComponent(tailored.id)}`} size="sm" className="mt-3">
+          Open in Editor
+        </ButtonLink>
       </Card>
     );
   }
 
-  if (!proposal) {
-    return (
-      <Card as="section" className="mt-4">
-        <h2 className="text-subtitle text-ink">Tailor your resume to {title}</h2>
+  async function read(next: TailorSource) {
+    setReading(true);
+    setError(null);
+    const { data, error, status } = await matchTailor(jobId, next);
+    setReading(false);
+    if (!data) return setError({ message: error ?? "WorkIt couldn't read that resume.", status });
+    if (data.tailored_resume_id) return router.push(`/resumes/${data.tailored_resume_id}`);
+    setSource(next);
+    setMatch(data);
+    setPicked(new Set());
+  }
+
+  async function run() {
+    if (!source) return;
+    setRunning(true);
+    setError(null);
+    const { data, error, status } = await runTailor(jobId, source, [...picked]);
+    if (!data) {
+      setRunning(false);
+      return setError({ message: error ?? "Tailor failed.", status });
+    }
+    writeSessionDraft(tailorEditsKey(data.resume.id), data.edits);
+    router.push(`/resumes/${encodeURIComponent(data.resume.id)}`);
+  }
+
+  const toggle = (keyword: string) =>
+    setPicked((all) => {
+      const next = new Set(all);
+      if (next.has(keyword)) next.delete(keyword);
+      else next.add(keyword);
+      return next;
+    });
+
+  return (
+    <div className="mt-4 flex flex-col gap-4">
+      <Card as="section">
+        <h2 className="text-subtitle text-ink">Tailor Your Resume to {title}</h2>
         <p className="text-body text-ink-muted mt-1">
-          WorkIt compares your resume with this posting and proposes changes. You approve each one.
-          WorkIt never adds a fact you did not give: when a keyword is missing, it asks you.
+          Pick a resume, then the keywords you want on it. WorkIt rewrites its bullets for this
+          posting and opens the result in the editor, where you can undo any change. WorkIt never
+          adds a number or tool you did not give.
         </p>
-        {tailoredName && (
-          <p className="text-note text-ink-meta mt-2">
-            You already have a tailored resume for this posting ({tailoredName}). Pick it to keep
-            building on it.
-          </p>
-        )}
-        <PickResume jobId={jobId} title={title} running={running} onRun={run} />
+        <PickResume
+          jobId={jobId}
+          title={title}
+          label={match ? "Pick Another Resume" : "Pick a Resume"}
+          running={reading || running}
+          onRun={read}
+        />
         {/* KAN-319: the Tailor limit is lifted for now, so the cost is hidden.
         <p className="text-note text-ink-meta mt-2">
           Each run uses one of today&apos;s 2 Tailor runs.
         </p>
         */}
-        <TailorError error={error} />
-      </Card>
-    );
-  }
-
-  const decide = (i: number, d: Decision) => setDecisions((all) => ({ ...all, [i]: d }));
-  const acceptAll = () =>
-    setDecisions(Object.fromEntries(proposal.changes.map((_, i) => [i, "accepted" as const])));
-
-  return (
-    <div className="mt-4 flex flex-col gap-4">
-      <Card as="section" aria-labelledby="tailor-match">
-        <h2 id="tailor-match" className="text-subtitle text-ink">
-          Keyword Match
-        </h2>
-        {proposal.weak_match && (
-          <p role="note" className="text-note text-ink-muted mt-1">
-            Weak match: this posting has no description, so WorkIt read only its title.
-          </p>
-        )}
-        <div className="mt-2">
-          <MatchCount matched={proposal.matched} missing={proposal.missing} />
-        </div>
-        <KeywordList label="Matched" keywords={proposal.matched} />
-        <KeywordList label="Missing" keywords={proposal.missing} />
-        {/* KAN-319: the Tailor limit is lifted for now, so the count is hidden.
-        <p className="text-note text-ink-meta mt-2">
-          {proposal.uses_left} Tailor {proposal.uses_left === 1 ? "run" : "runs"} left today.
-        </p>
-        */}
+        {!match && <TailorError error={error} />}
       </Card>
 
-      {proposal.questions.length > 0 && (
-        <Card as="section" aria-labelledby="tailor-questions">
-          <h2 id="tailor-questions" className="text-subtitle text-ink">
-            Have You Used These?
+      {match && (
+        <Card as="section" aria-labelledby="tailor-match">
+          <h2 id="tailor-match" className="text-subtitle text-ink">
+            Keyword Match
           </h2>
-          <p className="text-note text-ink-meta mt-1">
-            Your bank does not mention them, so WorkIt will not write them in. Say Yes only if you
-            have used it.
-          </p>
-          <ul role="list" className="divide-border-subtle mt-2 flex flex-col divide-y">
-            {proposal.questions.map((k) => (
-              <Question
-                key={k.keyword}
-                keyword={k}
-                answer={answered[k.keyword]}
-                onAnswer={(answer, change) => {
-                  setAnswered((all) => ({ ...all, [k.keyword]: answer }));
-                  if (change) setAdded((all) => [...all, change]);
-                }}
-              />
-            ))}
-          </ul>
+          {match.weak_match && (
+            <p role="note" className="text-note text-ink-muted mt-1">
+              Weak match: this posting has no description, so WorkIt read only its title.
+            </p>
+          )}
+          <div className="mt-2">
+            <MatchCount matched={match.matched} missing={match.missing} />
+          </div>
+          <KeywordList label="Matched" keywords={match.matched} />
+          {match.missing.length > 0 && (
+            <div className="mt-3">
+              <p className="text-note text-ink-meta">Missing: Pick the Ones to Add as Skills</p>
+              <p className="text-note text-ink-muted">
+                Pick only what you have used. WorkIt adds each to this resume&apos;s skills and may
+                name it in a bullet.
+              </p>
+              <ul role="list" className="mt-2 flex flex-wrap gap-1.5">
+                {match.missing.map((k) => (
+                  <li key={k.keyword}>
+                    <Chip pressed={picked.has(k.keyword)} onClick={() => toggle(k.keyword)}>
+                      {k.keyword}
+                      {k.kind === "required" && <span className="sr-only"> (required)</span>}
+                    </Chip>
+                  </li>
+                ))}
+              </ul>
+            </div>
+          )}
+          <Button className="mt-4" onClick={run} disabled={running}>
+            <SparkleIcon /> {running ? "Tailoring…" : "Tailor Resume"}
+          </Button>
+          <TailorError error={error} />
         </Card>
       )}
-
-      <Card as="section" aria-labelledby="tailor-changes">
-        <div className="flex items-baseline justify-between gap-3">
-          <h2 id="tailor-changes" className="text-subtitle text-ink">
-            Proposed Changes
-          </h2>
-          {proposal.changes.length > 1 && (
-            <Button variant="ghost" size="inline" onClick={acceptAll}>
-              Accept All
-            </Button>
-          )}
-        </div>
-        {proposal.dropped > 0 && (
-          <p className="text-note text-ink-meta mt-1">
-            WorkIt dropped {proposal.dropped} {proposal.dropped === 1 ? "wording" : "wordings"} that
-            added a number or tool your bank does not hold.
-          </p>
-        )}
-        {proposal.changes.length === 0 ? (
-          <p className="text-body text-ink-muted mt-2">No changes to propose.</p>
-        ) : (
-          <ul role="list" className="divide-border-subtle mt-2 flex flex-col divide-y">
-            {proposal.changes.map((change, i) => (
-              <ChangeRow
-                key={i}
-                change={change}
-                decision={decisions[i]}
-                onDecide={(d) => decide(i, d)}
-              />
-            ))}
-          </ul>
-        )}
-      </Card>
-
-      <div className="flex flex-wrap items-center gap-3">
-        <Button onClick={done} disabled={saving}>
-          <CheckIcon aria-hidden /> {saving ? "Saving…" : "Done"}
-        </Button>
-        <ButtonLink href={`/jobs/${encodeURIComponent(jobId)}`} variant="secondary">
-          Leave Without Saving
-        </ButtonLink>
-      </div>
-      <TailorError error={error} />
     </div>
   );
 }
@@ -251,17 +188,19 @@ const toSource = (choice: Choice): TailorSource =>
  * Tailor My Resume and its dialog, Pick a Resume to Tailor: the job
  * posting's resumes as "Did You Apply?" lists them, starting on the one
  * tailored to this job, else the default. Its Tailor My Resume closes the
- * dialog and runs; the card shows "Tailoring…" and any error. Picking a
- * source other than this job's tailored resume warns that Done replaces it.
+ * dialog and reads its keyword match; the card shows "Reading…" and any
+ * error.
  */
 function PickResume({
   jobId,
   title,
+  label,
   running,
   onRun,
 }: {
   jobId: string;
   title: string;
+  label: string;
   running: boolean;
   onRun: (source: TailorSource) => void;
 }) {
@@ -294,12 +233,11 @@ function PickResume({
   }
 
   const choice = choices?.find((c) => c.key === picked);
-  const tailored = choices?.find((c) => c.kind === "Tailored to this job");
 
   return (
     <>
       <Button className="mt-3" onClick={openPicker} disabled={running}>
-        <SparkleIcon /> {running ? "Tailoring…" : "Tailor My Resume"}
+        <SparkleIcon /> {running ? "Reading…" : label}
       </Button>
       <Dialog open={open} onOpenChange={setOpen}>
         {/* As wide as "Did You Apply?", for the same two lists side by side. */}
@@ -309,8 +247,8 @@ function PickResume({
               Pick a Resume to Tailor
             </DialogTitle>
             <DialogDescription>
-              WorkIt proposes changes to it for {title}. An uploaded resume is read into your
-              experience bank first.
+              WorkIt tailors it to {title} and saves the result as a new resume; this one stays as
+              it is. An uploaded resume is read into your experience bank first.
             </DialogDescription>
           </DialogHeader>
           {choices == null ? (
@@ -333,12 +271,6 @@ function PickResume({
               />
             </>
           )}
-          {tailored && choice && choice.key !== tailored.key && (
-            <p className="text-note text-warning">
-              Done replaces your tailored resume for this posting ({tailored.label}) with this
-              one&apos;s changes.
-            </p>
-          )}
           {error && <p className="text-meta text-danger">{error}</p>}
           <DialogFooter>
             <Button variant="secondary" onClick={() => setOpen(false)}>
@@ -352,7 +284,7 @@ function PickResume({
               }}
               disabled={choice == null || uploading}
             >
-              <SparkleIcon /> Tailor My Resume
+              Use This Resume
             </Button>
           </DialogFooter>
         </DialogContent>
@@ -387,133 +319,6 @@ function KeywordList({ label, keywords }: { label: string; keywords: Keyword[] }
         ))}
       </ul>
     </div>
-  );
-}
-
-const WHAT: Record<TailorChange["kind"], string> = {
-  reword: "New wording",
-  show_skill: "Show skill",
-  order: "Reorder bullets",
-};
-
-function ChangeRow({
-  change,
-  decision,
-  onDecide,
-}: {
-  change: TailorChange;
-  decision: Decision | undefined;
-  onDecide: (d: Decision) => void;
-}) {
-  return (
-    <li className={cn("py-3", decision === "rejected" && "opacity-60")}>
-      <div className="flex flex-wrap items-start justify-between gap-3">
-        <div className="min-w-0 flex-1">
-          <p className="text-note text-ink-meta">
-            {WHAT[change.kind]}
-            {change.label ? `: ${change.label}` : ""}
-          </p>
-          {change.kind === "reword" && (
-            <div className="mt-1 grid gap-1 @lg/main:grid-cols-2">
-              <p className="text-body text-ink-muted">
-                <span className="sr-only">Old wording: </span>
-                {change.original}
-              </p>
-              <p className="text-body text-ink">
-                <span className="sr-only">New wording: </span>
-                {change.text}
-              </p>
-            </div>
-          )}
-        </div>
-        <div className="flex shrink-0 gap-2">
-          <Button
-            size="sm"
-            variant={decision === "accepted" ? "positive" : "secondary"}
-            aria-pressed={decision === "accepted"}
-            onClick={() => onDecide("accepted")}
-          >
-            <CheckIcon aria-hidden /> Accept
-          </Button>
-          <Button
-            size="sm"
-            variant="secondary"
-            aria-pressed={decision === "rejected"}
-            onClick={() => onDecide("rejected")}
-          >
-            <XIcon aria-hidden /> Reject
-          </Button>
-        </div>
-      </div>
-    </li>
-  );
-}
-
-/** "Have you used X?" Yes adds X to the bank as a skill and shows it on
- *  the tailored resume (an accepted change). No AI call. */
-function Question({
-  keyword,
-  answer,
-  onAnswer,
-}: {
-  keyword: Keyword;
-  answer: "yes" | "no" | undefined;
-  onAnswer: (answer: "yes" | "no", change?: TailorChange) => void;
-}) {
-  const [busy, setBusy] = useState(false);
-  const [error, setError] = useState<string | null>(null);
-
-  async function yes() {
-    setBusy(true);
-    setError(null);
-    const { data, error } = await addSkill(keyword.keyword, null);
-    if (!data) {
-      setBusy(false);
-      return setError(error);
-    }
-    onAnswer("yes", {
-      kind: "show_skill",
-      skill_id: data.id,
-      bullet_id: null,
-      entry_id: null,
-      bullet_ids: [],
-      text: null,
-      original: null,
-      label: data.name,
-    });
-    setBusy(false);
-  }
-
-  return (
-    <li className="py-3">
-      <div className="flex flex-wrap items-center justify-between gap-3">
-        <p className="text-body text-ink">
-          Have you used <strong>{keyword.keyword}</strong>?
-          {keyword.kind === "required" && (
-            <span className="text-note text-ink-meta"> The posting requires it.</span>
-          )}
-        </p>
-        {answer == null ? (
-          <div className="flex gap-2">
-            <Button size="sm" variant="secondary" onClick={yes} disabled={busy}>
-              Yes, Add It
-            </Button>
-            <Button size="sm" variant="secondary" onClick={() => onAnswer("no")} disabled={busy}>
-              No
-            </Button>
-          </div>
-        ) : (
-          <p className="text-note text-ink-meta">
-            {answer === "yes" ? "Added to your skills" : "Left out"}
-          </p>
-        )}
-      </div>
-      {error && (
-        <p role="alert" className="text-note text-danger mt-1">
-          {error}
-        </p>
-      )}
-    </li>
   );
 }
 
