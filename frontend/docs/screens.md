@@ -2027,17 +2027,18 @@ its scrollbar's room kept on every step: when the page scrolled, only the
 long step 1 grew a scrollbar, and the panel and form shifted against step 2.
 Step 1 is Role, Job Type and Workplace (all required), and Start Date,
 Experience Level, Location and Salary Range, Experience Level after Job Type
-(KAN-284); step 2, Profile, is the questions every application asks
-(KAN-283, all optional); step 3 is Resume (KAN-275), with Skip and Continue
-in place of
-Next. Start Date shows only once
+(KAN-284); step 2 is Resume (KAN-275), read and confirmed before it is
+saved (KAN-372); step 3, Profile, is the questions every application asks
+(KAN-283, all optional), right after the resume (KAN-372), with Finish in
+place of Next. Start Date shows only once
 Internship is picked, and unpicking Internship clears it: a saved season keeps
 only the jobs that name one, which a new-grad role rarely does. Preference Tags, free-text skills, were dropped
 (KAN-231): the feed has no filter for them.
 
 **One step rail counts the whole journey (KAN-259).** The wizard heads its
 fields with the shared `components/stepper.tsx` at `size="lg"`: Role,
-Profile, Resume (`onboarding/applicant/steps.ts`). It replaced a thin bar and
+Resume, Profile (`onboarding/applicant/steps.ts`; Resume was last until
+KAN-372). It replaced a thin bar and
 a 14px grey "Step 1 of 2" at the foot of the left half: the smallest type on
 the screen, far from the fields, and wrong, since intake then opened six more
 sections on a page of its own. That page carried the rail too, with
@@ -2118,15 +2119,25 @@ text came out semibold.
 **The resume step (KAN-275)** is the dropzone the Resumes view had until KAN-362
 (`components/resume-upload.tsx`), inside the wizard so it keeps Scout's
 panel, the step rail and the footer's Back. Picking a file only holds it,
-with a Remove; Continue is disabled until one is picked, and Skip is the way
-on without one. The dropzone says "Uploading…" only while the file is on its
-way: it once took the save's busy state too, so Skip read as if it had sent
-a file. The footer's "Saving…" covers the save. It replaced intake
+with a Remove; Read Resume is disabled until one is picked, and Skip is the
+way on without one. **The student sees the reading before it is saved
+(KAN-372, ADR 0006; `onboarding/applicant/resume-step.tsx`).** Read Resume
+sends the file to `POST .../resumes/preview`, which saves nothing, and the
+step shows what it found: each entry by section (title, organization and
+dates, bullets), then the skills. An entry an earlier upload already holds
+carries Replaces Earlier Copy, and the note above counts them. Save Resume
+uploads the same file with `?replace=matching`, so the earlier copies are
+replaced, not doubled, then opens Profile; Choose Another File drops the
+reading. A file already uploaded says so, and Next goes on. A file with
+nothing read can still be saved. The resume saves at once, before onboarding
+is done; coming back to the step shows "Saved …" over the dropzone. The
+dropzone says "Reading…" only while the file is being read: it once took
+the save's busy state too, so Skip read as if it had sent a file. It replaced intake
 (KAN-214), whose chat asked about each section in turn, on its own page and
 in another design: one upload fills most of the bank in one step, and intake
 still runs on the Experiences view for what the resume missed.
 
-**Continue or Skip saves the answers.** The Profile step's go to the answer
+**Finish saves the answers.** The Profile step's go to the answer
 bank first (`PATCH /applicants/{id}/autofill-answers`, only the changed ones,
 KAN-283), then step 1's as the seeker's preferences (`PUT
 /applicants/{id}/preferences`, KAN-231, which also marks onboarding
@@ -2134,16 +2145,15 @@ complete). The bank goes first because a finished seeker is never sent back
 here, and only My Profile's Application Questions asks those questions
 again. Step 1's fields are `role-step.tsx`, which Settings' Job Preferences
 draws too, so the wizard and Settings ask the same questions.
-Continue then uploads the file through `uploadResume`, and the API reads it
-into the experience bank as it reads any upload (ADR 0003). Both open /jobs,
-whose Best Match order scores the saved filters' jobs against the bank. The
-answers save first: a failed save or upload leaves the seeker on the step,
+Finish then opens /jobs, whose Best Match order scores the saved filters'
+jobs against the bank. A failed save or upload leaves the seeker on the step,
 saying why in the API's words (a sixth upload's 409 among them), and a retry
 saves the answers again harmlessly. Date Posted is not asked: a saved "past
 24 hours" would empty the feed within days. Sign-in sends an applicant here
 until they finish (`docs/auth.md`); a finished one who opens the page again
-finds the wizard filled with their saved answers, and Continue saves the
-edits. `?step=2` opens the wizard on its second step, Profile; intake's "Back to
+finds the wizard filled with their saved answers, and Finish saves the
+edits. `?step=2` opens the wizard on Profile (the second step until
+KAN-372, now the third); intake's "Back to
 Pay & Visa" linked there until KAN-275, and nothing does now. Without saved
 answers `?step=2` opens on the first step, which holds the answers that must
 be given.

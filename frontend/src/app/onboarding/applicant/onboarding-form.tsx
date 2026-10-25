@@ -9,18 +9,18 @@ import {
   type FeedFilters,
 } from "@/app/(seeker)/jobs/filter-query";
 import type { PickOption } from "@/components/filter-controls";
-import { answerIcon, FileIcon } from "@/components/icons";
-import { ResumeUpload } from "@/components/resume-upload";
+import { answerIcon } from "@/components/icons";
 import { Stepper } from "@/components/stepper";
 import { Button } from "@/components/ui/button";
 import { cn } from "@/lib/cn";
-import { uploadResume } from "@/lib/resume-actions";
+import { previewResume, uploadResume, type ResumePreview } from "@/lib/resume-actions";
 
 import { saveAutofillAnswers } from "@/lib/autofill-answers-actions";
 import { NO_ANSWERS, PROFILE_QUESTIONS, type AutofillAnswers } from "@/lib/autofill-answers";
 
 import { savePreferences } from "./actions";
 import { ChoiceTile } from "./choice-tile";
+import { ResumeStep } from "./resume-step";
 import { Field, fieldId, RoleStep } from "./role-step";
 import { SignedInAs } from "./signed-in-as";
 import { ONBOARDING_STEPS } from "./steps";
@@ -41,7 +41,15 @@ import { StoryPanel } from "./story-panel";
  * rarely does. Date Posted is not asked: a saved "past 24 hours" would empty
  * the feed within days.
  *
- * STEP 2 IS WHAT EVERY APPLICATION ASKS (KAN-283): work authorization,
+ * STEP 2 IS THE RESUME, CHECKED BEFORE IT IS SAVED (KAN-372, ADR 0006;
+ * ./resume-step). Read Resume shows what the parser found and saves nothing;
+ * Save Resume uploads the file with `replace=matching`, so a second resume
+ * replaces the first one's copies of the same entries instead of adding
+ * them again. The upload saves at once, before onboarding is done; Skip goes
+ * on without one. It replaced intake's chat (KAN-275 put the resume last).
+ *
+ * STEP 3 IS WHAT EVERY APPLICATION ASKS (KAN-283), right after the resume
+ * (KAN-372): work authorization,
  * sponsorship, citizenship and visa status, clearance, and the voluntary
  * gender, Hispanic or Latino, race, veteran and disability
  * self-identification (lib/autofill-answers). They are no
@@ -50,16 +58,12 @@ import { StoryPanel } from "./story-panel";
  * role, and the visa filter question left onboarding (a saved one is kept,
  * and the Jobs page still sets it).
  *
- * THE LAST STEP IS A RESUME (KAN-275), the Resumes view's dropzone, and it
- * replaced intake's chat (KAN-214). Continue saves step 2 to the answer bank,
- * then step 1 as the seeker's preferences, which marks onboarding done, then
- * uploads the picked file; the API reads it into the experience bank matching
- * reads (ADR 0003). Skip saves the answers alone. Either opens the Jobs
- * page in its Best Match order. The answer bank saves first because a finished
- * seeker is never sent back here, and only My Profile's Application
- * Questions asks them again;
- * a failed upload leaves onboarding done and this step to retry from, and
- * saving again changes nothing.
+ * FINISH saves step 3 to the answer bank, then step 1 as the seeker's
+ * preferences, which marks onboarding done, and opens the Jobs page in its
+ * Best Match order. The answer bank saves first because a finished seeker
+ * is never sent back here, and only My Profile's Application Questions asks
+ * them again; a failed save leaves this step to retry from, and saving again
+ * changes nothing.
  *
  * `initial` and `initialAnswers` are what the seeker saved, so a finished
  * seeker who comes back edits them rather than starting over.
@@ -80,20 +84,25 @@ const STEPS: { question: ReactNode; line: string }[] = [
   {
     question: (
       <>
-        Next, the questions <strong>every application asks</strong>.
+        Next, <strong>upload your resume</strong> and check what I read.
       </>
     ),
-    line: "All optional. Answer once, and I'll keep them ready for your applications.",
+    line: "Nothing is saved until you say so. No resume yet? Skip it.",
   },
   {
     question: (
       <>
-        Last, <strong>upload your resume</strong> and I&apos;ll fill in your experiences.
+        Last, the questions <strong>every application asks</strong>.
       </>
     ),
-    line: "One file, and I'll know what you've done. No resume yet? Skip it.",
+    line: "All optional. Answer once, and I'll keep them ready for your applications.",
   },
 ];
+
+/** The steps by name, in ONBOARDING_STEPS' order. */
+const ROLE = 0;
+const RESUME = 1;
+const PROFILE = 2;
 
 export function OnboardingForm({
   roles,
@@ -109,7 +118,7 @@ export function OnboardingForm({
   /** The Start Date options, GET /jobs/facets' seasons. */
   seasons: PickOption[];
   initial?: FeedFilters;
-  /** The answer bank as saved (lib/autofill-answers-actions), for step 2. */
+  /** The answer bank as saved (lib/autofill-answers-actions), for step 3. */
   initialAnswers?: AutofillAnswers;
   /** Who is signed in, for the line at the foot (./signed-in-as). */
   email: string | null;
@@ -132,20 +141,24 @@ export function OnboardingForm({
    *  the bank kept the answer the seeker took back. */
   const bankSaved = useRef<AutofillAnswers>(initialAnswers);
   const [resume, setResume] = useState<File | null>(null);
-  const [saving, setSaving] = useState(false);
-  // Only while the file is on its way, so the dropzone's "Uploading…" never
-  // shows for Skip or for the answers' save before the upload.
-  const [uploading, setUploading] = useState(false);
+  /** The picked file's reading, from Read Resume; cleared with the file. */
+  const [preview, setPreview] = useState<ResumePreview | null>(null);
+  /** The file name this visit saved, for the resume step's "Saved" line. */
+  const [savedResume, setSavedResume] = useState<string | null>(null);
+  // What is in flight. "reading" alone shows on the dropzone, so it never
+  // says "Uploading…" for a save.
+  const [busy, setBusy] = useState<"reading" | "saving" | null>(null);
+  const saving = busy != null;
   const [error, setError] = useState<string | null>(null);
 
   const set = (change: Partial<FeedFilters>) => setAnswers((a) => ({ ...a, ...change }));
-  const last = step === STEPS.length - 1;
-  // Step 1 asks the required answers; the resume step's Continue needs a
+  const last = step === PROFILE;
+  // Step 1 asks the required answers; the resume step's Read Resume needs a
   // file, and Skip is the way on without one.
-  const canNext = last
-    ? resume != null
-    : step > 0 ||
-      (answers.roles.length > 0 && answers.jobTypes.length > 0 && answers.workStyles.length > 0);
+  const canNext =
+    step === ROLE
+      ? answers.roles.length > 0 && answers.jobTypes.length > 0 && answers.workStyles.length > 0
+      : step !== RESUME || resume != null || savedResume != null;
 
   // EACH NEW QUESTION TAKES FOCUS, so a screen reader reads it out. Focus used
   // to stay on the footer's button, which only changed its label, and the new
@@ -162,11 +175,80 @@ export function OnboardingForm({
     window.scrollTo({ top: 0 });
   }
 
-  /** Saves the answer bank, then the preferences, which finish onboarding,
-   *  then uploads the resume if one was picked. A failure leaves this page to
-   *  retry from. */
-  async function finish(file: File | null) {
-    setSaving(true);
+  function pickResume(file: File | null) {
+    setResume(file);
+    setPreview(null);
+    setError(null);
+  }
+
+  function resumeForm() {
+    const fd = new FormData();
+    fd.append("file", resume!);
+    return fd;
+  }
+
+  /** Read Resume: what the parser finds in the picked file, saving nothing. */
+  async function readResume() {
+    setBusy("reading");
+    setError(null);
+    try {
+      const { preview: reading, error: readError } = await previewResume(resumeForm());
+      if (!reading) return fail(readError ?? "Could not read the resume.");
+      setPreview(reading);
+      setBusy(null);
+    } catch {
+      fail("Could not reach the server. Check your connection and try again.");
+    }
+  }
+
+  /** Save Resume: the confirmed upload, replacing earlier copies (ADR 0006). */
+  async function saveResume() {
+    setBusy("saving");
+    setError(null);
+    try {
+      const { error: uploadError, duplicateOf } = await uploadResume(resumeForm(), {
+        replaceMatching: true,
+      });
+      // A duplicate is already uploaded (KAN-267): an upload that reached
+      // the API before a dropped connection, sent again on retry. Not a
+      // reason to keep the student here.
+      if (uploadError && !duplicateOf) return fail(uploadError);
+      setSavedResume(resume!.name);
+      pickResume(null);
+      setBusy(null);
+      goTo(PROFILE);
+    } catch {
+      fail("Could not reach the server. Check your connection and try again.");
+    }
+  }
+
+  /** The resume step's main button: read the picked file, save a reading,
+   *  or go on once there is nothing new to save. */
+  function resumeNext() {
+    if (preview?.duplicate_of) {
+      setSavedResume(preview.duplicate_of.name);
+      pickResume(null);
+      goTo(PROFILE);
+    } else if (preview) saveResume();
+    else if (resume) readResume();
+    else goTo(PROFILE);
+  }
+
+  const resumeLabel =
+    busy === "reading"
+      ? "Reading…"
+      : preview
+        ? preview.duplicate_of
+          ? "Next"
+          : "Save Resume"
+        : resume || !savedResume
+          ? "Read Resume"
+          : "Next";
+
+  /** Saves the answer bank, then the preferences, which finish onboarding.
+   *  A failure leaves this page to retry from. */
+  async function finish() {
+    setBusy("saving");
     setError(null);
     // Each action catches its own API failures, but the call to the action
     // can itself fail (the connection drops, the Next server is down). That
@@ -186,16 +268,6 @@ export function OnboardingForm({
       // A picked state narrows its country, as All Filters' Apply does.
       const { error: saveError } = await savePreferences(statesNarrowCountries(answers));
       if (saveError) return fail(saveError);
-      if (file) {
-        const fd = new FormData();
-        fd.append("file", file);
-        setUploading(true);
-        const { error: uploadError, duplicateOf } = await uploadResume(fd);
-        // A duplicate is already uploaded (KAN-267): an upload that reached
-        // the API before a dropped connection, sent again on retry. Not
-        // a reason to keep the student here.
-        if (uploadError && !duplicateOf) return fail(uploadError);
-      }
       router.push("/jobs");
     } catch {
       fail("Could not reach the server. Check your connection and try again.");
@@ -203,8 +275,7 @@ export function OnboardingForm({
   }
 
   function fail(message: string) {
-    setSaving(false);
-    setUploading(false);
+    setBusy(null);
     setError(message);
   }
 
@@ -236,24 +307,24 @@ export function OnboardingForm({
 
         {/* Keyed on the step so each step's fields rise in. */}
         <div key={step} className="animate-rise mx-auto w-full max-w-2xl flex-1 px-6 py-8 lg:pt-12">
-          {step === 0 && (
+          {step === ROLE && (
             <RoleStep answers={answers} set={set} roles={roles} places={places} seasons={seasons} />
           )}
-          {step === 1 && (
+          {step === RESUME && (
+            <ResumeStep
+              file={resume}
+              onFileChange={pickResume}
+              onRemove={() => pickResume(null)}
+              reading={busy === "reading"}
+              preview={preview}
+              savedName={savedResume}
+            />
+          )}
+          {step === PROFILE && (
             <ProfileStep
               answers={profile}
               set={(change) => setProfile((a) => ({ ...a, ...change }))}
             />
-          )}
-          {step === 2 && (
-            <Field Icon={FileIcon} label="Resume">
-              <ResumeUpload
-                file={resume}
-                onFileChange={setResume}
-                onRemove={() => setResume(null)}
-                busy={uploading}
-              />
-            </Field>
           )}
         </div>
 
@@ -274,8 +345,26 @@ export function OnboardingForm({
                   {error}
                 </p>
               )}
-              {last && (
-                <Button variant="outline" size="lg" disabled={saving} onClick={() => finish(null)}>
+              {step === RESUME && preview && (
+                <Button
+                  variant="outline"
+                  size="lg"
+                  disabled={saving}
+                  onClick={() => pickResume(null)}
+                >
+                  Choose Another File
+                </Button>
+              )}
+              {step === RESUME && !preview && !savedResume && (
+                <Button
+                  variant="outline"
+                  size="lg"
+                  disabled={saving}
+                  onClick={() => {
+                    pickResume(null);
+                    goTo(PROFILE);
+                  }}
+                >
                   Skip
                 </Button>
               )}
@@ -285,9 +374,15 @@ export function OnboardingForm({
                 size="lg"
                 className="min-w-32"
                 disabled={!canNext || saving}
-                onClick={() => (last ? finish(resume) : goTo(step + 1))}
+                onClick={() => (last ? finish() : step === RESUME ? resumeNext() : goTo(step + 1))}
               >
-                {saving ? "Saving…" : last ? "Continue" : "Next"}
+                {busy === "saving"
+                  ? "Saving…"
+                  : last
+                    ? "Finish"
+                    : step === RESUME
+                      ? resumeLabel
+                      : "Next"}
               </Button>
             </div>
           </div>
@@ -343,7 +438,7 @@ function OneOf<V extends string>({
   );
 }
 
-/** Step 2 (KAN-283): lib/autofill-answers' PROFILE_QUESTIONS, each under the question as
+/** Step 3 (KAN-283): lib/autofill-answers' PROFILE_QUESTIONS, each under the question as
  *  forms word it, so the seeker knows what their answer will fill in. */
 function ProfileStep({
   answers,
