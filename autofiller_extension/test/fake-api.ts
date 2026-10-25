@@ -25,8 +25,11 @@ export class FakeApi {
   readonly written = new Map<string, Written[]>();
   /** The answer bank every job's form may reuse (GET .../answer-bank, KAN-379), by question wording. */
   readonly bank: Record<string, { answer: string; own: boolean }> = {};
-  /** The student's own answers the tabs saved (PUT .../answers, KAN-379), in order. */
-  readonly own: { jobId: string; name: string; label: string; answer: string }[] = [];
+  /** The student's answers the tabs saved (PUT .../answers, KAN-379), in order: `own` for their own words,
+   * false for an edit of an answer WorkIt filled. */
+  readonly own: { jobId: string; name: string; label: string; answer: string; own: boolean }[] = [];
+  /** Set to refuse the next edits of a filled answer (not own) with these reasons, as WorkIt's checks do (422). */
+  refuseEdits: string[] | null = null;
   /** In order: "next:<job>" when GET .../applications/next hands a job out (its tab opens), "questions:<job>" when its questions arrive. */
   readonly events: string[] = [];
 
@@ -107,9 +110,11 @@ export class FakeApi {
     if (bank && method === "GET" && this.stages.has(bank[1])) return { json: this.bank };
     const own = /^\/applications\/([^/]+)\/answers$/.exec(route);
     if (own && method === "PUT" && this.stages.has(own[1])) {
-      const { name, label, answer } = JSON.parse(body.toString());
-      this.own.push({ jobId: own[1], name, label, answer });
-      return { json: { answer, own: true } };
+      const { name, label, answer, own: isOwn } = JSON.parse(body.toString());
+      if (typeof isOwn !== "boolean") return { status: 422, json: { detail: "own is required" } };
+      if (!isOwn && this.refuseEdits) return { status: 422, json: { detail: `Not saved: ${this.refuseEdits.join(" ")}` } };
+      this.own.push({ jobId: own[1], name, label, answer, own: isOwn });
+      return { json: { answer, own: isOwn } };
     }
     const fill = /^\/applications\/([^/]+)\/fill$/.exec(route);
     if (fill && method === "PUT") {

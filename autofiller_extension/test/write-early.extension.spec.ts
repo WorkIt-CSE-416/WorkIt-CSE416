@@ -84,7 +84,37 @@ test("the student's own words in a written answer are saved for later forms", as
   // The student rewrites it.
   await box.fill("I want to build tools lawyers rely on, and I learn fastest on a small team.");
   await expect.poll(() => api.own, { timeout: 15_000 }).toEqual([
-    { jobId: "job-0", name, label: WHY, answer: "I want to build tools lawyers rely on, and I learn fastest on a small team." },
+    { jobId: "job-0", name, label: WHY, answer: "I want to build tools lawyers rely on, and I learn fastest on a small team.", own: true },
   ]);
+  await expect(row(form, WHY).locator(".source")).toHaveText("You");
+  expect(forms.submissions).toEqual([]);
+});
+
+test("the student's edit of their Claude's answer stays Claude's, and WorkIt's checks still apply", async () => {
+  test.setTimeout(120_000);
+  const forms = new SavedForms([HARVEY]);
+  const api = new FakeApi().queue({ id: "job-0", apply_url: forms.url(HARVEY) });
+  await start(api, forms);
+  await expect.poll(() => api.written.get("job-0")?.length, { timeout: 60_000 }).toBe(1);
+  const name = api.written.get("job-0")![0].name;
+  const [form] = formTabs(forms, HARVEY);
+  const box = form.locator(`[data-field-path="${name}"] textarea`);
+  const claudes = "I want to build legal tools that lawyers trust, because I saw how slow research was at my internship.";
+  api.saveAnswer("job-0", name, claudes);
+  await expect(box).toHaveValue(claudes, { timeout: 20_000 });
+  await expect(row(form, WHY).locator(".source")).toHaveText("Claude"); // the fill is done
+
+  // The student changes a few words: most of the text is still their Claude's.
+  const touched = claudes.replace("legal tools", "careful legal tools");
+  await box.fill(touched);
+
+  await expect.poll(() => api.own, { timeout: 15_000 }).toEqual([{ jobId: "job-0", name, label: WHY, answer: touched, own: false }]);
+  await expect(row(form, WHY).locator(".source")).toHaveText("Claude");
+
+  // A touch-up that fails WorkIt's checks (here, too long for the form) is not saved, and the row says why.
+  api.refuseEdits = ["The form takes at most 300 characters; this is 320."];
+  await box.fill(touched + " And more.");
+  await expect(row(form, WHY)).toContainText("at most 300 characters", { timeout: 15_000 });
+  expect(api.own).toHaveLength(1);
   expect(forms.submissions).toEqual([]);
 });

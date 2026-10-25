@@ -162,7 +162,7 @@ async function handleMessage(message, sender) {
       const jobId = await jobInTab(sender.tab.id);
       if (!jobId) throw new Error("This tab isn't one of the batch's");
       const { id } = await me();
-      await saveOwnAnswer(id, jobId, { name: message.name, label: message.label, answer: message.answer });
+      await saveOwnAnswer(id, jobId, { name: message.name, label: message.label, answer: message.answer, own: message.own === true });
       return {};
     }
 

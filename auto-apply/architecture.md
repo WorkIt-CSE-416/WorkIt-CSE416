@@ -604,7 +604,7 @@ on after the fill.
 | `fill/read` | content script → background | `{ site, questions, names }`; answers what each field shows |
 | `batch/questions` | content script → background | `{ questions: [{ name, label, required, max_length }] }`: the tab's questions that need writing, sent to the API for the student's Claude (KAN-377, 14.6); answers them with any saved answers |
 | `batch/answers` | content script → background | `{}`; answers the tab's questions with the answers saved so far |
-| `batch/own-answer` | content script → background | `{ name, label, answer }`: the student's own words in a written answer (KAN-379), kept as the application's answer and reused on later forms (`PUT .../answers`) |
+| `batch/own-answer` | content script → background | `{ name, label, answer, own }`: the student's words in a written answer (KAN-379), kept as the application's answer and reused on later forms (`PUT .../answers`); `own` false for an edit of an answer WorkIt filled |
 
 **The student's submit marks it applied (KAN-374).** Built. Replaces 8.2's
 **Submitted** button: the extension still never submits, but reads each

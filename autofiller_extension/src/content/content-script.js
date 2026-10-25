@@ -204,6 +204,29 @@
       .finally(() => (fillingWritten -= 1));
     const result = answer.ok ? answer.results[name] ?? { status: "failed", reason: "The form changed before this was filled" } : { status: "failed", reason: answer.error };
     status.setStatus(name, result.status, result.reason, result.shows, source);
+    if (result.status === "filled" && typeof result.shows === "string") workitFilled.set(name, { text: result.shows, source });
+  }
+
+  /**
+   * The written answers WorkIt filled that aren't the student's own words
+   * (their Claude's, the essay route's, a saved one of their Claude's), by
+   * field: what was filled, and who wrote it. A student's edit of one stays
+   * that writer's (KAN-379): only words they wrote into a field WorkIt
+   * didn't fill, or that replace what it filled, count as their own.
+   */
+  const workitFilled = new Map();
+
+  /** Words in a row WorkIt's checks count as copied (backend checks.py's copy run): sharing one keeps an edit WorkIt's. */
+  const RUN = 5;
+  /** Whether `edited` replaces `filled` wholesale: no run of RUN words (or all of a shorter `filled`) left in it. */
+  function replaces(filled, edited) {
+    const words = (text) => text.toLowerCase().match(/[\p{L}\p{N}']+/gu) ?? [];
+    const before = words(filled);
+    const after = words(edited).join(" ");
+    const n = Math.min(RUN, before.length);
+    if (!n) return true;
+    for (let i = 0; i + n <= before.length; i += 1) if (` ${after} `.includes(` ${before.slice(i, i + n).join(" ")} `)) return false;
+    return true;
   }
 
   /** The current status of one row, or undefined. */
@@ -499,6 +522,10 @@
     const byName = new Map(prepared.questions.map((q) => [q.name, q]));
     const inWords = (q) => q.kind === "text" || q.kind === "textarea";
     const written = new Set([...prepared.written.map((q) => q.name), ...(prepared.plan.banked ?? []).filter(inWords).map((q) => q.name)]);
+    // A saved answer the Plan filled that isn't the student's own: an edit of it stays a saved answer.
+    for (const row of status.summary().fields)
+      if (written.has(row.key) && row.status === "filled" && row.source && row.source !== "student" && typeof row.shows === "string")
+        workitFilled.set(row.key, { text: row.shows, source: row.source });
     let timer;
     const check = async () => {
       if (fillingWritten) return;
@@ -510,8 +537,12 @@
         const shown = answer.shows[row.key];
         if (!isEmpty(shown)) {
           if (row.status !== "filled" || JSON.stringify(shown) !== JSON.stringify(row.shows)) {
-            status.setStatus(row.key, "filled", row.status === "filled" ? row.reason : "You answered this", shown, "student");
-            if (written.has(row.key) && typeof shown === "string") keepOwn(byName.get(row.key), shown);
+            const filled = written.has(row.key) && typeof shown === "string" ? workitFilled.get(row.key) : undefined;
+            if (filled && replaces(filled.text, shown)) workitFilled.delete(row.key); // rewritten: the student's now
+            const edit = filled && workitFilled.has(row.key);
+            if (edit) status.setStatus(row.key, "filled", `You edited ${filled.source === "claude" ? "your Claude's" : "WorkIt's"} answer`, shown, filled.source);
+            else status.setStatus(row.key, "filled", row.status === "filled" ? row.reason : "You answered this", shown, "student");
+            if (written.has(row.key) && typeof shown === "string") keepOwn(byName.get(row.key), shown, !edit);
           }
         } else if (row.required && row.status === "filled") status.setStatus(row.key, "failed", "This is empty now. Answer it yourself.");
       }
@@ -527,18 +558,21 @@
 
   const ownTimers = new Map();
   /**
-   * Saves the student's own words for a written question once their typing
+   * Saves the student's words for a written question once their typing
    * pauses (KAN-379): the background keeps them as this application's
-   * answer, so their Claude isn't asked for it, and for later forms. Batch
-   * tabs only: only they have an application at WorkIt.
+   * answer, so their Claude isn't asked for it, and for later forms. `own`:
+   * their own words; false for their edit of an answer WorkIt filled, which
+   * WorkIt checks as their Claude's (a refusal shows on the row, and the
+   * edit isn't kept). Batch tabs only: only they have an application at WorkIt.
    */
-  function keepOwn(question, answer) {
+  function keepOwn(question, answer, own) {
     if (!batch || !answer.trim() || answer.length > ANSWER_MAX) return;
     clearTimeout(ownTimers.get(question.name));
-    ownTimers.set(question.name, setTimeout(() => {
+    ownTimers.set(question.name, setTimeout(async () => {
       ownTimers.delete(question.name);
-      send({ type: "batch/own-answer", name: question.name.slice(0, FIELD_NAME_MAX), label: question.label.slice(0, LABEL_MAX), answer })
-        .catch(() => {});
+      const saved = await send({ type: "batch/own-answer", name: question.name.slice(0, FIELD_NAME_MAX), label: question.label.slice(0, LABEL_MAX), answer, own })
+        .catch((error) => ({ ok: false, error: error.message }));
+      if (!saved?.ok && !own) status.setStatus(question.name, "failed", `WorkIt didn't keep your edit: ${saved?.error ?? "no answer"}`, answer, workitFilled.get(question.name)?.source);
     }, OWN_PAUSE));
   }
 

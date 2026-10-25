@@ -342,10 +342,16 @@ and `run/show` switches to one (`jobId`).
   a batch tab, and each early read, uses the job's answer bank
   (`GET .../applications/{job}/answer-bank`) as the engine's Answer bank:
   a question answered before fills as a Saved Answer and is never sent.
-  The student's own words in a written answer (or one the bank filled) are
+  The student's words in a written answer (or one the bank filled) are
   read back by `watchEdits` and saved after a 2-second pause
   (`batch/own-answer` → `PUT .../answers`); while WorkIt's own fill of one
-  runs (`fillingWritten`), no edit is read. Tests:
+  runs (`fillingWritten`), no edit is read. **Only the student's own words
+  count as theirs**: words in a field WorkIt didn't fill, or ones that
+  replace what it filled wholesale (no run of 5 words left of it, the
+  copy check's run). An edit of their Claude's answer (or a saved one of
+  their Claude's) keeps its source label, is sent with `own: false`, and
+  WorkIt checks it as their Claude's; a refusal fails the row with the
+  reason (`workitFilled`, `replaces`). Tests:
   `test/write-early.spec.ts` (the read, no page) and
   `test/write-early.extension.spec.ts`.
 - **A written question's limit comes from the Fill engine** (KAN-380).
