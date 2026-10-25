@@ -7,6 +7,7 @@
 import { expect, test, type Page } from "@playwright/test";
 import { FakeApi } from "./fake-api";
 import { FakeWorkdays } from "./fake-job-systems";
+import { CONTENT_SCRIPT_FILES, ENGINE_FILES } from "../src/shared/content-scripts.js";
 import { loadExtension, sendFromWebapp, signIn, webapp, type Loaded } from "./loaded-extension";
 
 let loaded: Loaded | undefined;
@@ -109,4 +110,28 @@ test("a sign-in Workday refuses is never pressed again, and the student is told"
   await expect(overlay(again).locator(".row").filter({ hasText: "won't try again" })).toBeVisible({ timeout: 30_000 });
   await again.waitForTimeout(3000);
   expect(workdays.signIns.map((s) => s.view)).toEqual(["create", "signin"]);
+});
+
+test("two companies' Create Account at once each keep the password their account was made with", async () => {
+  test.setTimeout(120_000);
+  const workdays = new FakeWorkdays(["workday-caci", "workday-xcel"]);
+  loaded = await loadExtension([new FakeApi().handler, webapp, workdays.handler]);
+  await signIn(loaded.context);
+  await loaded.worker.evaluate(() => chrome.storage.local.set({ workday_accounts_for_me: true }));
+  for (const n of [0, 1]) await (await loaded.context.newPage()).goto(workdays.signInUrl(n));
+  // Both fills start together (Autofill This Page in two tabs), so both new passwords are saved at once.
+  await loaded.worker.evaluate(async ([engine, scripts]) => {
+    const tabs = await chrome.tabs.query({ url: "https://*/__fake__/signin*" });
+    await Promise.all(tabs.map(async ({ id }) => {
+      await chrome.scripting.executeScript({ target: { tabId: id! }, world: "MAIN", files: engine });
+      void chrome.scripting.executeScript({ target: { tabId: id! }, files: scripts });
+    }));
+  }, [ENGINE_FILES, CONTENT_SCRIPT_FILES]);
+
+  await expect.poll(() => workdays.signIns.length, { timeout: 30_000 }).toBe(2);
+  const saved = await loaded.worker.evaluate(async () => (await chrome.storage.local.get("workday_logins")).workday_logins ?? {});
+  for (const { host, view, password } of workdays.signIns) {
+    expect(view).toBe("create");
+    expect(saved[host]?.password).toBe(password);
+  }
 });

@@ -313,8 +313,10 @@ waits for an opened tab's page and form (`waitForLoad`, `formShows`).
   button at most once a page**: Workday's message after a press is shown
   (a verification email: open it, come back and press Sign In; a refused
   sign-in: never tried again, since Workday locks accounts), and a refused
-  Create Account drops its new password (`workday/forget`). Without the
-  student's yes, nothing is pressed. The
+  Create Account drops its new password (`workday/forget`). Every change
+  to `workday_logins` runs one at a time (`serially` in
+  `workday-logins.js`), so two tenants' Create Account at once keep both
+  passwords. Without the student's yes, nothing is pressed. The
   panel says "Sign in to continue" and the tab sits in Needs you until a
   step shows; then the fill goes on, in the page or (the tab is
   remembered by `workday/login`) on the page signing in loads. A tenant's
