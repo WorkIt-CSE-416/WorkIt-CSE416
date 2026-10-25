@@ -167,7 +167,7 @@ async def run(
         weak_match=tailor.weak_match(job),
         matched=matched,
         missing=missing,
-        questions=tailor.questions(resume, found, missing),
+        questions=missing,
         changes=changes,
         dropped=dropped,
         uses_left=left,  # need to update when to deduct uses_left 

@@ -563,17 +563,20 @@ Find files with a directory listing; these are the rules for where code goes.
     matched. It never proposes an entry or bullet the resume hides, so a
     pick keeps its focus and length. "Bring back" (`show_entry`) is gone,
     and the API refuses it at Done (422). Skills are the exception: every
-    bank skill stays in, so a hidden one that adds a keyword is still
-    proposed, and the truth rule still reads them all. Before this, the
+    bank skill stays in, so the model and the truth rule read them all. Before this, the
     whole bank went to the model, and the hidden bullets took places among
     the best 40 although a reword of one was always dropped. Now every
     bullet the resume shows goes to the model, cut only by the token
     budget below.
-  - **A missing keyword that neither the resume's entries nor any bank
-    skill hold is a question** ("Have you used X?"), never words. A hidden
-    entry's words do not count, since the run never brings it back. Yes
-    adds the skill through the bank's own routes and shows it, with no AI
-    call.
+  - **Every missing keyword is a question** ("Have you used X?"), never
+    words, and a run proposes no skill. Yes adds the skill through the
+    bank's own routes and sends a `show_skill` change at Done, with no AI
+    call. A run used to propose each hidden bank skill that would add a
+    keyword (2026-10-25: removed for simplicity, and because under ADR
+    0005 it offered other uploads' skills, and two cards when two uploads
+    owned the same name). A student whose other upload holds the skill is
+    now asked, and Yes adds an unowned copy. The response keeps
+    `questions` (equal to `missing`) for the screen.
   - **The model sees handles (b1, e1), never ids**, and no links: an
     entry's link field is left out and the seam removes identity data.
     Postgres text search (`ts_rank`, the posting's words OR'd) ranks the

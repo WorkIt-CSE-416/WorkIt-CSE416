@@ -291,16 +291,16 @@ async def test_the_keyword_match_before_and_a_missing_keyword_is_asked_not_writt
     assert body["weak_match"] is False
 
 
-async def test_a_bank_skill_left_off_the_resume_is_proposed_not_asked(student, database, use_model):
-    kubernetes = await student.skill("Kubernetes")
+async def test_a_bank_skill_left_off_the_resume_is_asked_not_proposed(student, database, use_model):
+    await student.skill("Kubernetes")
     posting = await _seed_posting(database)
     use_model(reply())
 
     body = (await student.tailor(posting)).json()
 
-    shows = [c for c in body["changes"] if c["kind"] == "show_skill"]
-    assert [(c["skill_id"], c["keywords"]) for c in shows] == [(kubernetes["id"], ["Kubernetes"])]
-    assert _words(body["questions"]) == ["Go"]
+    # Every missing keyword is one question; Yes is what shows the skill.
+    assert "show_skill" not in _kinds(body)
+    assert _words(body["questions"]) == ["Go", "Kubernetes"]
 
 
 async def test_an_entry_the_resume_hides_is_left_out_of_the_run(student, database, use_model):
@@ -431,10 +431,9 @@ async def test_an_upload_is_read_into_the_bank_and_tailored_as_its_own_entries(s
     # The upload's facts only: Acme's Python and the bank's Docker are hidden.
     assert _words(run["matched"]) == ["Go", "Kubernetes"]
     assert "Acme" not in fake.prompts[0][-1]["content"]
-    # The bank's Docker is a skill, so it is proposed; Acme's Python is asked.
-    shows = [c for c in run["changes"] if c["kind"] == "show_skill"]
-    assert [c["label"] for c in shows] == ["Docker"]
-    assert _words(run["questions"]) == ["Python"]
+    # Both are asked, though the bank holds Docker: a run proposes no skill.
+    assert "show_skill" not in _kinds(run)
+    assert _words(run["questions"]) == ["Python", "Docker"]
 
     res = await student.done(posting, source_of(run), [])
 
@@ -573,7 +572,8 @@ async def test_done_saves_approved_changes_on_one_tailored_resume_and_leaves_the
     use_model(reply(rewords=[("b2", "Built Python billing services packaged with Docker")]))
     run = (await student.tailor(posting)).json()
     reword = next(c for c in run["changes"] if c["kind"] == "reword")
-    show = next(c for c in run["changes"] if c["kind"] == "show_skill")
+    # What the screen sends after "Have you used Kubernetes?" Yes.
+    show = {"kind": "show_skill", "skill_id": kubernetes["id"], "label": "Kubernetes"}
 
     res = await student.done(posting, source_of(run), [reword, show])
 

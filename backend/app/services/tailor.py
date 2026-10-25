@@ -8,8 +8,9 @@ The source is the resume the student picked: a built resume's choices, or an
 uploaded resume shown as the entries and skills it owns (`upload_source`,
 ADR 0005), built in memory and never saved. A run tailors only what
 that resume shows (`on_resume`): its entries and their bullets, never an entry
-or bullet it hides. Skills are the exception: every bank skill stays in, so a
-hidden one can still be proposed and the truth rule reads them all.
+or bullet it hides. Skills are the exception: every bank skill stays in, so
+the truth rule reads them all. A run never proposes a hidden skill: a missing
+keyword is asked about ("Have you used X?"), and Yes adds it (`show_skill`).
 
 A run (`routers/tailor.py`) reads the posting's keywords (KAN-215's cache, or
 one extraction), ranks the resume's bullets against the posting with Postgres
@@ -229,8 +230,7 @@ class NothingRead(Exception):
 def upload_choices(bank: Bank, resume_id: uuid.UUID) -> Choices:
     """A resume of the entries (with all their bullets) and skills the upload
     owns, pure. Every other entry and skill waits hidden, as Generate leaves a
-    copy: a run leaves those entries out, and can still propose a hidden
-    skill."""
+    copy: a run leaves them out."""
     chosen = all_chosen(bank)
     owned = {e.row.id for e in bank.entries if e.row.resume_id == resume_id}
     owned |= {s.id for s in bank.skills if s.resume_id == resume_id}
@@ -266,15 +266,6 @@ async def upload_source(session: AsyncSession, applicant_id: uuid.UUID, resume_i
 
 def match(bank: Bank, choices: Choices, keywords: Sequence[Keyword]) -> tuple[list[Keyword], list[Keyword]]:
     return kw.match(build_view(bank, choices), list(keywords))
-
-
-def questions(bank: Bank, keywords: Sequence[Keyword], missing: Sequence[Keyword]) -> list[Keyword]:
-    """The missing keywords that neither the resume's entries nor any bank
-    skill hold (`bank` is `on_resume`'s): "Have you used X?". A hidden
-    entry's words do not count: a run never brings that entry back."""
-    _, nowhere = match(bank, all_chosen(bank), keywords)
-    absent = {k.keyword for k in nowhere}
-    return [k for k in missing if k.keyword in absent]
 
 
 def _clean(text: str | None) -> str:
@@ -342,10 +333,6 @@ def propose(
         reworded.add(bullet_id)
         changes.append(TailorChange(kind="reword", bullet_id=bullet_id, text=text, original=originals[bullet_id]))
 
-    for skill in bank.skills:
-        if not _shown(choices.skills, skill.id):
-            changes.append(TailorChange(kind="show_skill", skill_id=skill.id, label=skill.name))
-
     for entry in bank.entries:
         shown = sorted((b.id for b in entry.bullets), key=lambda b: choices.bullets[b].position)
         best = sorted(shown, key=lambda b: -ranks.get(b, 0.0))
@@ -356,8 +343,6 @@ def propose(
     for change in changes:
         after = match(bank, with_changes(bank, choices, [change]), keywords)[0]
         change.keywords = [k.keyword for k in after if k.keyword not in before]
-    # A skill earns a place only by matching a keyword.
-    changes = [c for c in changes if c.kind != "show_skill" or c.keywords]
     return changes, dropped
 
 
