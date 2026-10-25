@@ -126,7 +126,7 @@ as `None` (null end date).
   section as ungrouped skills. One phrase after the bar is a subtitle and
   stays in the name ("WorkIt | Full Stack Recruiting Platform"); with a
   subtitle and a list ("Robot | Club| C++, Go") the name keeps both phrases
-  and only the list is tools (`_split_tools`). Before, the first bar split,
+  and only the list is tools (`split_tools`). Before, the first bar split,
   and "Club| C++" became a skill.
 - **A role's tools** work the same way: "Software Engineer Intern| C++, Go"
   keeps only the role as the title, and the list goes to

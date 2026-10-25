@@ -233,7 +233,7 @@ def _strip_dates(line: str) -> str:
     return BARE_DATE_RE.sub("", DATE_RANGE_RE.sub("", line)).strip().rstrip(",|–—-").strip()
 
 
-def _split_tools(text: str) -> tuple[str, list[str]]:
+def split_tools(text: str) -> tuple[str, list[str]]:
     """"Name | C++, Python": a list after the last bar is the tools, and the
     name keeps what comes before it ("Robot | Club| C++, Go" keeps "Robot |
     Club"). A single phrase there is a subtitle ("WorkIt | Recruiting
@@ -496,7 +496,7 @@ def _parse_experience(text: str) -> list[Experience]:
             bullet_start = date_idx + 1
 
         # "Role| C++, Python": the role is the title, the tools its skills
-        title, technologies = _split_tools(title)
+        title, technologies = split_tools(title)
         if not company:
             company = title
 
@@ -555,7 +555,7 @@ def _parse_projects(text: str) -> list[Project]:
         start, end = _parse_date_range(first)
         name = BARE_DATE_RE.sub("", DATE_RANGE_RE.sub("", first)).strip().rstrip(",").rstrip("–—-").strip()
         technologies: list[str] = []
-        name, technologies = _split_tools(name)
+        name, technologies = split_tools(name)
         # "Name (C++, Python)"
         paren = re.search(r'\s*\((.*?)\)\s*$', name)
         if paren:
