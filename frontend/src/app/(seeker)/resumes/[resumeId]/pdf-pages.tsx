@@ -3,14 +3,16 @@
 import type { PDFDocumentProxy, RenderTask } from "pdfjs-dist";
 import { useEffect, useRef, useState, type ReactNode } from "react";
 
+import { Skeleton } from "@/components/shadcn/skeleton";
 import type { RenderBox } from "@/lib/built-resume-actions";
 import { cn } from "@/lib/cn";
 
 /**
  * The rendered PDF drawn with pdf.js, one canvas per page, with a click
  * target over each line from the render's boxes (KAN-209). pdf.js is
- * imported inside an effect, so it never runs on the server and loads only
- * where this component mounts: the editor page. Targets are placed in
+ * imported inside an effect (loadPdfjs), so it never runs on the server and
+ * loads only where this component mounts: the editor page and an upload's
+ * page. Targets are placed in
  * percent of the page, so they need no redraw to follow the canvas's size.
  * `field` draws the selected line's text field over its first box (KAN-218);
  * each page is a size container, so the field's type can be set in `cqw` to
@@ -43,6 +45,64 @@ export const kindLabel = (kind: string) => KIND_LABELS[kind] ?? kind;
 
 type Size = { width: number; height: number };
 
+let pdfjsLoading: Promise<typeof import("pdfjs-dist")> | null = null;
+
+/**
+ * pdf.js, imported once and shared, with its worker set. PdfPages waits on
+ * it, and the editor calls it as it mounts (KAN-368), so the library
+ * downloads while the server is still compiling the PDF rather than after
+ * the PDF has arrived. A failed import is forgotten, so the next caller
+ * tries again.
+ */
+export function loadPdfjs() {
+  pdfjsLoading ??= import("pdfjs-dist").then(
+    (pdfjs) => {
+      pdfjs.GlobalWorkerOptions.workerSrc ||= new URL(
+        "pdfjs-dist/build/pdf.worker.min.mjs",
+        import.meta.url,
+      ).toString();
+      return pdfjs;
+    },
+    (error: unknown) => {
+      pdfjsLoading = null;
+      throw error;
+    },
+  );
+  return pdfjsLoading;
+}
+
+/** A Letter page's proportions, in points: 8.5 by 11 inches. */
+const LETTER = "612 / 792";
+
+/**
+ * A page's place while the PDF is on its way: the page's own box (white,
+ * its border and shadow, Letter's 8.5 by 11), with bars where a resume's
+ * name, contact line, headings and lines sit, so the editor and an upload's
+ * page hold their full height and the PDF lands in place. One page: a
+ * second page, when there is one, extends the column below the first.
+ */
+export function PageSkeleton() {
+  return (
+    <div
+      role="status"
+      className="bg-panel border-border-subtle flex w-full flex-col items-center gap-2 overflow-hidden border px-[8%] pt-[7%] shadow-sm"
+      style={{ aspectRatio: LETTER }}
+    >
+      <span className="sr-only">Drawing the PDF</span>
+      <Skeleton aria-hidden="true" className="h-5 w-2/5" />
+      <Skeleton aria-hidden="true" className="h-2.5 w-3/5" />
+      {[0, 1, 2].map((section) => (
+        <div key={section} aria-hidden="true" className="mt-5 flex w-full flex-col gap-2">
+          <Skeleton className="h-3 w-1/4" />
+          {["w-full", "w-11/12", "w-full", "w-4/5"].map((width, line) => (
+            <Skeleton key={line} className={cn("h-2", width)} />
+          ))}
+        </div>
+      ))}
+    </div>
+  );
+}
+
 export function PdfPages({
   pdf,
   boxes,
@@ -50,6 +110,7 @@ export function PdfPages({
   onSelect,
   onDrawn,
   field,
+  placeholder,
 }: {
   /** base64, as the render response sends it */
   pdf: string;
@@ -60,6 +121,9 @@ export function PdfPages({
   onDrawn?: () => void;
   /** The text field for the selected line, laid over its first box. */
   field?: (box: RenderBox) => ReactNode;
+  /** Shown until pdf.js has read the PDF: the editor's PageSkeleton, so
+   *  its skeleton holds until the canvas. A line of text by default. */
+  placeholder?: ReactNode;
 }) {
   const first = boxes.find((b) => boxKey(b) === selected);
   const typing = first && field?.(first);
@@ -74,11 +138,7 @@ export function PdfPages({
   useEffect(() => {
     let cancelled = false;
     (async () => {
-      const pdfjs = await import("pdfjs-dist");
-      pdfjs.GlobalWorkerOptions.workerSrc ||= new URL(
-        "pdfjs-dist/build/pdf.worker.min.mjs",
-        import.meta.url,
-      ).toString();
+      const pdfjs = await loadPdfjs();
       const data = Uint8Array.from(atob(pdf), (c) => c.charCodeAt(0));
       const loaded = await pdfjs.getDocument({ data }).promise;
       const sizes: Size[] = [];
@@ -108,7 +168,7 @@ export function PdfPages({
       </p>
     );
   }
-  if (!doc) return <p className="text-body text-ink-meta">Drawing the PDF…</p>;
+  if (!doc) return placeholder ?? <p className="text-body text-ink-meta">Drawing the PDF…</p>;
 
   return (
     <div className="flex flex-col gap-4">
