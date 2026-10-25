@@ -523,7 +523,7 @@ edits. The student reviews each tab and presses the employer's Submit.
 
 **Tab states and the stage column.** The API keeps the queue, its order and
 each application's stage; the extension keeps only which tab shows which
-job (`chrome.storage.session`).
+job (`chrome.storage.local`, so a batch outlives Chrome: KAN-373 below).
 
 | Tab state | `job_applications.stage` | Written by |
 |---|---|---|
@@ -533,7 +533,16 @@ job (`chrome.storage.session`).
 | submitted, skipped, failed | `applied`, `skipped`, `needs_you` | `POST .../finish` (KAN-373, KAN-374) |
 
 The next tab's job is `GET .../applications/next?skip=...`, past every job
-the batch opened. No migration: no state needs to outlive its tab yet.
+the batch opened. No migration: what outlives a tab is the browser's
+(which tab shows which job), kept in the extension's local storage.
+
+**Resuming (KAN-373).** When Chrome starts again, or Start Auto Apply is
+pressed after the batch's window was closed, the batch resumes. A tab
+Chrome restored is found by its link and keeps its job, state and group,
+and is not filled again; a job still filling when Chrome closed fills in
+its restored tab, or opens again; a finished job whose tab is gone leaves
+the batch. Then the queue goes on. A batch with no tab left has ended, and
+the next Start begins a new one.
 
 **The tabs fill hidden.** Checked 2026-10-25 with Chromium started directly
 (Playwright keeps every page it drives visible): five saved Greenhouse forms,

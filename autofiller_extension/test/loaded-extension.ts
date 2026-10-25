@@ -106,15 +106,19 @@ export async function startFakeNet(handlers: Handler[]): Promise<FakeNet> {
  * default) turns that off: `document.hasFocus()` is false and focus events
  * wait, as in the student's Chrome.
  */
-export async function loadExtension(handlers: Handler[], { focused = false, headless = !process.env.HEADED } = {}): Promise<Loaded> {
+export async function loadExtension(
+  handlers: Handler[],
+  { focused = false, headless = !process.env.HEADED, profile: kept = undefined as string | undefined, args = [] as string[] } = {},
+): Promise<Loaded> {
   const net = await startFakeNet(handlers);
-  const profile = mkdtempSync(join(tmpdir(), "workit-extension-"));
+  // `profile`: a Chromium profile folder to start (again) with, which the caller keeps; else a new one, removed on close.
+  const profile = kept ?? mkdtempSync(join(tmpdir(), "workit-extension-"));
   const context = await chromium.launchPersistentContext(profile, {
     channel: "chromium", // the full browser: the headless shell can't load extensions
     headless,
     // Playwright turns off Chrome's own handling of tabs no one looks at; the student's Chrome has it.
     ignoreDefaultArgs: ["--disable-background-timer-throttling", "--disable-backgrounding-occluded-windows", "--disable-renderer-backgrounding"],
-    args: net.args,
+    args: [...net.args, ...args],
   });
   if (!focused) {
     const unfocus = (page: Page) =>
@@ -131,7 +135,7 @@ export async function loadExtension(handlers: Handler[], { focused = false, head
     async close() {
       await context.close();
       net.close();
-      rmSync(profile, { recursive: true, force: true });
+      if (!kept) rmSync(profile, { recursive: true, force: true });
     },
   };
 }

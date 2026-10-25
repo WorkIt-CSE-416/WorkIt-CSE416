@@ -208,13 +208,29 @@ and `run/show` switches to one (`jobId`).
   stage column: queued, filling and ready are `queued`; needs_you is
   `needs_you`; submitted, skipped and failed are `applied`, `skipped` and
   `needs_you` (`.../finish`, KAN-373/374).
-- **What only the browser knows lives in `chrome.storage.session`**
-  (`workit_batch`: each tab's job and state, the jobs opened, the two
+- **What only the browser knows lives in `chrome.storage.local`**
+  (`workit_batch`: each tab's job, link and state, the jobs opened, the two
   group ids). Chrome stops this worker after ~30 seconds idle and clears
   its variables; every change is driven by an event (a content script's
   `batch/state`, a closed tab, `run/open`), so a restarted worker carries
   on. Changes run one at a time (`serially`): two tabs finishing together
-  would otherwise both open the same next job.
+  would otherwise both open the same next job. Local, not session,
+  storage, so the batch outlives Chrome (KAN-373, below).
+- **A batch resumes where it stopped (KAN-373).** Once per browser session
+  (`onStartup`, and the worker's first start in the session, since Chrome
+  sends no `onStartup` to an extension loaded with `--load-extension`, as
+  the tests load it), and on `run/open`, `resume()` matches the saved tabs
+  to the open ones: a tab id that is gone is looked for **by its link**,
+  which is where Chrome's "Continue where you left off" restores it. Found,
+  the job keeps its state and group there and is **not filled again**
+  (only one still filling is); `autoDiscardable` is set again, since a
+  restored tab loses it. Not found, a job still filling opens again and a
+  finished one leaves the batch (its stage is the API's). Tabs closed with
+  their window (`removeInfo.isWindowClosing`) stay in the batch for that
+  match; they never free a place, which would open the next job in a
+  window that is closing. A batch with no tab left has ended: the next
+  `run/open` starts a new one, so a job the student closed unsubmitted
+  comes back then. Chrome restores only tabs whose page had loaded.
 - **The content script says when a tab is ready.** In a batch tab
   (`injectFill(tabId, { batch: true })` sets `window.WIA.batch`),
   `content-script.js` sends `batch/state` once the fill ends, then watches
@@ -301,9 +317,8 @@ and `run/show` switches to one (`jobId`).
 
 A batch tab opens a job's form, not its page (`formUrl`: a Lever
 `apply_url` opens the posting, and the form is at `.../apply`). Still
-open: Workday takes one slot at a time, a closed tab counts as Skip, and
-the batch resumes after the browser closes (KAN-373); submit detection
-(KAN-374). With the student's Chrome window behind another app, macOS may
+open: Workday takes one slot at a time, and Skip (KAN-373); submit
+detection (KAN-374). With the student's Chrome window behind another app, macOS may
 slow every tab further; not yet measured.
 
 ## Auth: inherits the webapp's session, has no sign-in of its own

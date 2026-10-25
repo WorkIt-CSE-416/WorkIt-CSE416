@@ -8,7 +8,7 @@
 
 import { getSession } from "./auth.js";
 import { getAutofillProfile, generateEssayAnswer, ApiError } from "./api.js";
-import { batchStatus, forgetTab, inBatch, setTabState, showBatchTab, startBatch } from "./batch.js";
+import { batchStatus, forgetTab, inBatch, resumeBatch, setTabState, showBatchTab, startBatch } from "./batch.js";
 import { engineCaller, handleFill, jobOf, runEngine } from "./engine.js";
 import { injectFill } from "../shared/content-scripts.js";
 
@@ -127,11 +127,29 @@ chrome.tabs.onUpdated.addListener(async (tabId, change, tab) => {
   injectFill(tabId, { batch: await inBatch(tabId) }).catch((error) => console.warn("[fill] Workday's next page wasn't filled:", error));
 });
 
-chrome.tabs.onRemoved.addListener(async (tabId) => {
-  await forgetTab(tabId);
+chrome.tabs.onRemoved.addListener(async (tabId, removeInfo) => {
+  await forgetTab(tabId, removeInfo);
   const tabs = await workdayTabs();
   if (tabs.includes(tabId)) await chrome.storage.session.set({ [WORKDAY_TABS_KEY]: tabs.filter((id) => id !== tabId) });
 });
+
+// A batch Chrome closed mid-way picks up where it stopped (batch.js), once
+// each time Chrome starts. onStartup wakes this worker for it, but Chrome
+// doesn't send it to an extension loaded with --load-extension (the tests'),
+// so the worker's first start in a browser session does it too: session
+// storage is empty only then.
+const STARTED_KEY = "workit_started";
+let resuming = null;
+function resumeOnce() {
+  resuming ??= (async () => {
+    if ((await chrome.storage.session.get(STARTED_KEY))[STARTED_KEY]) return;
+    await chrome.storage.session.set({ [STARTED_KEY]: true });
+    await resumeBatch();
+  })().catch((error) => console.warn("[batch] the batch didn't resume:", error));
+  return resuming;
+}
+chrome.runtime.onStartup.addListener(resumeOnce);
+resumeOnce();
 
 // Messages from the popup and the content script (same extension, so this
 // channel, not the External one below).

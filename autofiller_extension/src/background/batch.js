@@ -12,9 +12,16 @@
 // opened, and a tab's state is PUT .../applications/{job}/fill (needs_you
 // moves the application to needs_you, ready back to queued). What only the
 // browser knows (which tab shows which job, which tabs are still filling,
-// the two groups) is kept in chrome.storage.session, since Chrome stops this
+// the two groups) is kept in chrome.storage.local, since Chrome stops this
 // worker after ~30 seconds idle; every change is driven by an event (a
 // message, a closed tab), so a restarted worker carries on from storage.
+//
+// A BATCH OUTLIVES CHROME (KAN-373). Local storage survives a restart, so
+// when Chrome opens again (or Start Auto Apply is pressed after the batch's
+// window was closed) the batch resumes: a tab Chrome restored is taken back
+// by its link, as it is, never filled again; a job that was still filling is
+// filled in its restored tab or opened again; a finished one whose tab is
+// gone leaves the batch (its stage is the API's). Then the queue goes on.
 //
 // THE TABS FILL HIDDEN. KAN-305's runner showed its one tab for the fill,
 // after the pre-engine filler left most dropdowns empty in a hidden tab. The
@@ -60,11 +67,11 @@ function serially(change) {
 
 /** @returns {Promise<Batch | null>} */
 async function load() {
-  return (await chrome.storage.session.get(BATCH_KEY))[BATCH_KEY] ?? null;
+  return (await chrome.storage.local.get(BATCH_KEY))[BATCH_KEY] ?? null;
 }
 
 function save(batch) {
-  return chrome.storage.session.set({ [BATCH_KEY]: batch });
+  return chrome.storage.local.set({ [BATCH_KEY]: batch });
 }
 
 /**
@@ -87,8 +94,11 @@ export async function startBatch(sender) {
     throw error;
   }
   return serially(async () => {
-    let batch = await liveBatch();
-    if (!batch) batch = { windowId: sender.tab?.windowId ?? chrome.windows.WINDOW_ID_CURRENT, tabs: {}, opened: [], groups: {} };
+    const windowId = sender.tab?.windowId ?? chrome.windows.WINDOW_ID_CURRENT;
+    let batch = await load();
+    if (batch) await resume(batch, windowId);
+    // A batch with no tab left has ended: the next one starts afresh.
+    if (!batch || !Object.keys(batch.tabs).length) batch = { windowId, tabs: {}, opened: [], groups: {} };
     const before = Object.keys(batch.tabs).length;
     await topUp(batch, account.id);
     const open = Object.values(batch.tabs);
@@ -101,6 +111,64 @@ export async function startBatch(sender) {
       fill: open.length > before ? "started" : "kept",
     };
   });
+}
+
+/**
+ * Chrome started: a batch that had tabs when it closed resumes (resume), in
+ * the window its restored tabs are in, else the last one the student used.
+ */
+export function resumeBatch() {
+  return serially(async () => {
+    const batch = await load();
+    if (!batch || !Object.keys(batch.tabs).length) return;
+    const window = await chrome.windows.getLastFocused({ windowTypes: ["normal"] }).catch(() => null);
+    await resume(batch, window?.id);
+    let account;
+    try {
+      account = await me();
+    } catch (error) {
+      console.warn("[batch] the batch didn't resume:", error.message);
+      return;
+    }
+    await topUp(batch, account.id);
+  });
+}
+
+/**
+ * Brings the saved batch up to the tabs that exist now. A tab id that is gone
+ * (the student closed the window, or Chrome restarted) is looked for by its
+ * link among the open tabs, which is where Chrome restores it: found, the job
+ * keeps its state and group in that tab, and its fill starts again only if it
+ * never finished. Not found, a job still filling opens again; a finished one
+ * leaves the batch. `windowId` is where reopened and new tabs go when the
+ * batch's own window is gone.
+ * @param {Batch} batch
+ * @param {number | undefined} windowId
+ */
+async function resume(batch, windowId) {
+  const open = await chrome.tabs.query({});
+  const live = new Set(open.map((t) => t.id));
+  const taken = new Set(Object.keys(batch.tabs).map(Number).filter((id) => live.has(id)));
+  const reopen = [];
+  for (const [id, tab] of Object.entries(batch.tabs)) {
+    if (live.has(Number(id))) continue;
+    delete batch.tabs[id];
+    const back = open.find((t) => !taken.has(t.id) && (t.url || t.pendingUrl) === tab.url);
+    if (!back) {
+      if (tab.state === "filling") reopen.push(tab);
+      continue;
+    }
+    taken.add(back.id);
+    batch.tabs[back.id] = tab;
+    batch.windowId = back.windowId;
+    // A restored tab is discardable again.
+    await chrome.tabs.update(back.id, { autoDiscardable: false });
+    if (tab.state === "filling") startFill(back.id);
+    else await moveToGroup(batch, back.id, tab.state);
+  }
+  if (!(await chrome.windows.get(batch.windowId).catch(() => null)) && windowId !== undefined) batch.windowId = windowId;
+  await save(batch);
+  for (const tab of reopen) await openTab(batch, tab.jobId, tab.url);
 }
 
 /** The saved batch, without the tabs the student has closed since (the worker may have slept through it). */
@@ -121,23 +189,35 @@ async function liveBatch() {
  * @param {string} applicantId
  */
 async function topUp(batch, applicantId) {
+  // The student closed the batch's window: it waits for resume(), never a window they didn't pick.
+  if (!(await chrome.windows.get(batch.windowId).catch(() => null))) return;
   const filling = () => Object.values(batch.tabs).filter((t) => t.state === "filling").length;
   while (filling() < WINDOW) {
     const application = await nextApplication(applicantId, batch.opened);
     if (!application) break;
     const jobId = application.job.id;
     // The form, not the job's page, where the two differ (a Lever posting's form is at .../apply).
-    const url = formUrl(application.job.apply_url);
-    const tab = await chrome.tabs.create({ url, active: false, windowId: batch.windowId });
-    // Memory Saver must never throw away a form the student hasn't reviewed.
-    await chrome.tabs.update(tab.id, { autoDiscardable: false });
-    batch.windowId = tab.windowId;
-    batch.tabs[tab.id] = { jobId, url, state: "filling" };
     batch.opened.push(jobId);
-    await save(batch);
-    startFill(tab.id);
+    await openTab(batch, jobId, formUrl(application.job.apply_url));
   }
   await save(batch);
+}
+
+/**
+ * Opens one job's form in a new hidden tab of the batch's window, kept from
+ * being discarded, and starts its fill once it loads (not awaited here).
+ * @param {Batch} batch
+ * @param {string} jobId
+ * @param {string} url
+ */
+async function openTab(batch, jobId, url) {
+  const tab = await chrome.tabs.create({ url, active: false, windowId: batch.windowId });
+  // Memory Saver must never throw away a form the student hasn't reviewed.
+  await chrome.tabs.update(tab.id, { autoDiscardable: false });
+  batch.windowId = tab.windowId;
+  batch.tabs[tab.id] = { jobId, url, state: "filling" };
+  await save(batch);
+  startFill(tab.id);
 }
 
 /**
@@ -206,8 +286,15 @@ async function moveToGroup(batch, tabId, state) {
   }
 }
 
-/** A closed batch tab leaves the batch; a filling one frees its place for the next. */
-export function forgetTab(tabId) {
+/**
+ * A closed batch tab leaves the batch; a filling one frees its place for the
+ * next. Tabs closed with their window stay, for resume() to find again (the
+ * student may reopen the window, or Chrome restore it).
+ * @param {number} tabId
+ * @param {{ isWindowClosing?: boolean }} [removeInfo]
+ */
+export function forgetTab(tabId, removeInfo = {}) {
+  if (removeInfo.isWindowClosing) return Promise.resolve();
   return serially(async () => {
     const batch = await load();
     const tab = batch?.tabs[tabId];
