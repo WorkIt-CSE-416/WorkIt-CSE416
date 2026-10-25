@@ -27,11 +27,16 @@ _SHORT, _LONG, _NAME = 200, 500, 60
 _COURSEWORK_RE = re.compile(r"^(?:Relevant\s+)?(?:Coursework|Courses)\s*:?\s*", re.IGNORECASE)
 _GPA_LINE_RE = re.compile(r"^GPA\b", re.IGNORECASE)
 # Not a skill: a name still holding a "|" (a title's tail glued on), a
-# qualification (a degree, years of something, a clearance), or a vague
-# phrase ending in "tools" or "skills" ("AI tools").
+# qualification ("Computer Science degree", "Bachelor's in ...", "GPA 3.8",
+# "3+ years of Java", a citizenship or clearance), or a generic phrase that
+# names no product ("AI tools", "communication skills"). A product or a role
+# stays: "Scrum Master", "Master Data Management", "Chrome Developer Tools",
+# "CI/CD tools", "User Experience".
 _NOT_A_SKILL_RE = re.compile(
-    r"\||\b(?:degree|bachelor'?s?|master'?s?|diploma|gpa|years?|citizen(?:ship)?|clearance)\b"
-    r"|\s(?:tools|skills|experience|knowledge)$",
+    r"\||\bdegree\b|\b(?:bachelor|master)(?:'?s)?\s+(?:degree|of|in)\b|\bbachelor(?:'?s)?\b|\bdiploma\b|\bgpa\b"
+    r"|\b\d+\+?\s*(?:years?|yrs)\b|\byears?\s+of\b|\bcitizen(?:ship)?\b|\bclearance\b"
+    r"|^(?:ai|genai|software|development|productivity|collaboration|communication|soft|interpersonal"
+    r"|technical|analytical|leadership|problem[- ]solving)\s+(?:tools|skills)$",
     re.IGNORECASE,
 )
 logger = logging.getLogger(__name__)
