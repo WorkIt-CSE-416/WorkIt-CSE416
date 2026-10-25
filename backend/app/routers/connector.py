@@ -16,6 +16,12 @@ POST /connector/requests/{id}/deny
 
 Student accounts only (403 for a company account): the connector reads a
 student's applications.
+
+GET  /applicants/{applicant_id}/connector
+     {"added": bool}: whether the student's Claude holds a live sign-in to
+     WorkIt (a refresh token not expired or revoked). The extension asks
+     before it shows the add-Claude step on a batch's first essay question
+     (KAN-387), so a student who added it never sees it.
 """
 
 import uuid
@@ -26,10 +32,11 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.connector import oauth
 from app.db import get_session
-from app.deps import get_current_account
+from app.deps import get_current_account, owned_applicant
 from app.schemas.auth import AccountType, AuthenticatedAccount
 
 router = APIRouter(prefix="/connector/requests", tags=["connector"])
+added_router = APIRouter(tags=["connector"])
 
 
 class ConsentRequest(BaseModel):
@@ -83,3 +90,15 @@ async def deny(
         return Redirect(redirect_to=await oauth.deny(db, request_id))
     except oauth.NotPending as exc:
         raise HTTPException(status.HTTP_404_NOT_FOUND, str(exc)) from exc
+
+
+class Added(BaseModel):
+    added: bool
+
+
+@added_router.get("/applicants/{applicant_id}/connector", response_model=Added)
+async def connector_added(
+    applicant_id: uuid.UUID = Depends(owned_applicant),
+    db: AsyncSession = Depends(get_session),
+) -> Added:
+    return Added(added=await oauth.added(db, applicant_id))
