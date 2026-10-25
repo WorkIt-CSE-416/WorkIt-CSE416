@@ -19,6 +19,7 @@ window.WIA = window.WIA || {};
   const WAIT_FOR_CLAUDE = "Waiting for your Claude: run \"Write my WorkIt answers\" in Claude, or write it yourself.";
   // The same, ending in a link to the webapp's Written Answers page (KAN-385), where a student without Claude pastes answers.
   const WAIT_OR_PASTE = "Waiting for your Claude: run \"Write my WorkIt answers\" in Claude, write it yourself, or paste it in";
+  const NOT_NEEDED = "Not needed: your answer to the question before it doesn't call for it.";
   // How often a batch tab asks whether the student's Claude saved an answer (KAN-377).
   const ANSWER_POLL = 10_000;
   // The connector's limits on a question and an answer (backend/app/schemas/applications.py).
@@ -141,6 +142,7 @@ window.WIA = window.WIA || {};
           }
         }
         for (const name of waiting) if (rowStatus(name) === "filled") waiting.delete(name);
+        if (waiting.size) await settleFollowUps(prepared, waiting);
         if (!waiting.size && !answered) {
           answered = true;
           offerSamples(byClaude);
@@ -154,6 +156,25 @@ window.WIA = window.WIA || {};
         }
         await sleep(ANSWER_POLL);
         reply = await send({ type: "batch/answers" }).catch((error) => ({ ok: false, error: error.message }));
+      }
+    }
+
+    /**
+     * The follow-ups still `waiting` that the answers now on the form don't
+     * call for (decision 223): a parent the Plan left to the student's Claude
+     * ("Are you currently working with Amplify?") is answered after the Plan,
+     * by their Claude or by them, so only then can "If a contingent worker,
+     * which agency...?" be ruled out. Each one ruled out stops waiting, left
+     * blank, or N/A where the form asks for it.
+     */
+    async function settleFollowUps(prepared, waiting) {
+      const answers = { ...prepared.answers };
+      for (const row of status.summary().fields) if (row.status === "filled" && row.shows !== undefined) answers[row.key] = row.shows;
+      const reply = await send({ type: "fill/moot", questions: prepared.questions, answers, names: [...waiting] }).catch(() => null);
+      for (const [name, { answer }] of Object.entries(reply?.ok ? reply.moot : {})) {
+        if (!waiting.delete(name)) continue;
+        if (answer !== null) await fillWritten(prepared, name, answer, "guessed");
+        else status.setStatus(name, "skipped", NOT_NEEDED);
       }
     }
 

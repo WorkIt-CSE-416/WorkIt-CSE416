@@ -375,6 +375,16 @@ waits for an opened tab's page and form (`waitForLoad`, `formShows`).
   an answer can take that long to land. Tests:
   `test/connector.extension.spec.ts` (Ashby's Harvey form: no saved
   Greenhouse form has an essay the Plan sends to Claude).
+  **A follow-up is decided again once its parent is answered**: a parent
+  question sent to Claude ("Are you currently working with Amplify?")
+  has no answer at plan time, so its follow-up ("If a contingent worker,
+  which agency...?") waits too. Each poll while rows wait, the tab asks
+  `fill/moot` (the engine's `notCalledFor` over what the form now shows,
+  Claude's and the student's answers alike) and a follow-up the answer
+  doesn't call for stops waiting: skipped "Not needed", or filled N/A
+  (Guessed) where the form asks for it. Its question stays at WorkIt; an
+  answer Claude saves for it later is not filled. Test:
+  `test/connector.extension.spec.ts` (Ashby's Amplify form).
   **An answer the student pastes on the webapp's Written Answers page
   (KAN-385) arrives the same way**: the API saves it through the
   connector's own save, and the tab's poll can't tell the two apart, so

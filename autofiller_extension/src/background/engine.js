@@ -523,7 +523,9 @@ function choice(q) {
 /**
  * The content script's fill messages, as the background answers them:
  * `fill/plan` (planFill, for the page at `url`), `fill/page` (fillPage) and
- * `fill/read` (what named fields show now, `{ shows: {[name]: value} }`) and
+ * `fill/read` (what named fields show now, `{ shows: {[name]: value} }`),
+ * `fill/moot` (the named follow-ups the answers given don't call for, `{ moot: {[name]: {answer}} }`,
+ * `answer` the N/A to fill or null to leave blank) and
  * `fill/required` (the questions the form requires now that show nothing,
  * `{ empty: [name], unasked: [Question] }`, `unasked` being the required
  * fields the Question set lacks, which `empty` covers too).
@@ -551,6 +553,17 @@ export async function handleFill(message, { url, profile, bank, today, call, fet
   } else if (message.type === "fill/read") {
     // What each named field shows now (the engine's read-back), after the student changed the form.
     return { shows: await call("readback", message.site, message.questions, message.names, message.state) };
+  } else if (message.type === "fill/moot") {
+    // The follow-ups among `names` that the answers now on the form don't call for (a parent the
+    // student's Claude or the student answered after the Plan), each with its answer: N/A, or none.
+    const byName = new Map(message.questions.map((q) => [q.name, q]));
+    const moot = {};
+    for (const name of message.names) {
+      const q = byName.get(name);
+      const [notNeeded, answer] = q ? engine.notCalledFor(q, message.questions, message.answers) : [false, null];
+      if (notNeeded) moot[name] = { answer };
+    }
+    return { moot };
   } else if (message.type === "fill/required") {
     // The fields the form won't send without that show nothing, the planned and the unplanned alike
     // (Greenhouse's phone country, required once Phone shows a number, is in no Question set as required),
