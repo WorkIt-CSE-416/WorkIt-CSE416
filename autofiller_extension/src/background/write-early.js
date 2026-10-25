@@ -35,7 +35,7 @@ export async function writeEarly({ fetchText, today }) {
     const link = application.job.form_url ?? application.job.apply_url;
     if (!jobBoard(link)) {
       const bank = await answerBank(account.id, jobId).catch(() => ({}));
-      const questions = await questionsToWrite({ url: formUrl(link), profile, bank, today, fetchText }).catch(() => null);
+      const questions = await questionsToWrite({ url: formUrl(link), profile, bank, today, fetchText, jobType: application.job.job_type }).catch(() => null);
       if (questions?.length) {
         await askQuestions(account.id, jobId, questions).catch((error) => console.warn("[batch] questions not sent early:", error.message));
       }

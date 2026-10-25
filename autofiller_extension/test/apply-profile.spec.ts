@@ -105,3 +105,17 @@ test("jobs go most recently started first, as the student lists them, a job held
   // A form's first Work Experience then has an end date (Greenhouse requires the first entry's).
   expect(history.map((j: any) => j.employer)).toEqual(["Globex", "Initech", "Acme"]);
 });
+
+test("a queued full-time job's start date is the day the student graduates, not the internship start", async () => {
+  const available = { ...BROUGHT, fill: { ...BROUGHT.fill, profile: { ...BROUGHT.fill.profile,
+    education: { graduation_day: 15 }, logistics: { earliest_start_date: "2029-06-01" } } } };
+  const prepared: any = await planFill({
+    url: "https://boards.greenhouse.io/example/jobs/1", profile: available, today: "2026-10-22", jobType: "full_time",
+    call: async () => { throw new Error("no page"); },
+    fetchText: async () => job("greenhouse-arc"),
+    extra: [{ name: "date_available", label: "Date available", kind: "text", required: true, options: [] }],
+  });
+
+  expect(prepared.posting.job_type).toBe("full_time");
+  expect(prepared.plan.answers.date_available).toBe("2028-05-15"); // the bank's graduation, on the day brought from Apply
+});

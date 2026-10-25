@@ -12,7 +12,7 @@ import {
   writingSamples, writtenAnswers,
 } from "./api.js";
 import {
-  batchStatus, batchTabIds, forgetTab, inBatch, jobInTab, markSubmitted, practiceStatus, resumeBatch, setTabState, setWriting,
+  batchStatus, batchTabIds, forgetTab, inBatch, jobInTab, jobTypeInTab, markSubmitted, practiceStatus, resumeBatch, setTabState, setWriting,
   showBatchTab, skipTab, startBatch, startPractice, submitPractice,
 } from "./batch.js";
 import { engineCaller, handleFill, jobOf, practiceJob, runEngine, submittedPage } from "./engine.js";
@@ -108,11 +108,13 @@ async function handleMessage(message, sender) {
       // moment ago in another tab counts. A batch tab's are its application's; any other page has no
       // application, so it gets the bank for the page's company, once the engine has read it.
       const jobId = message.type === "fill/plan" ? await jobInTab(sender.tab.id) : null;
+      // Its job type picks the start date: a full-time role's is graduation, an internship's its start.
+      const jobType = jobId ? await jobTypeInTab(sender.tab.id) : null;
       const bank = message.type !== "fill/plan" ? {}
         : jobId ? await answerBank(profile.id, jobId).catch(() => ({}))
         : (company) => anyFormAnswerBank(profile.id, company).catch(() => ({}));
       return handleFill(message, {
-        url: sender.url, profile, bank, today: today(), call: engineIn(sender), fetchText, trees: workdayTrees,
+        url: sender.url, profile, bank, today: today(), call: engineIn(sender), fetchText, trees: workdayTrees, jobType,
       });
     }
 
