@@ -55,7 +55,9 @@ export class SavedForms {
       const reply = await replay(server, request);
       if (reply) return reply;
     }
-    return undefined;
+    // A form saved with a query (Amplify's "?embed=true") that the extension opens without it.
+    const saved = this.servers.find((s) => s.url !== request.url.href && s.url.split("?")[0] === request.url.href);
+    return saved ? replay(saved.server, { ...request, url: new URL(saved.url) }) : undefined;
   };
 
   /** Greenhouse's Job Board API for a saved form's job: its questions.json. */

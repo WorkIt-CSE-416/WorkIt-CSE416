@@ -121,6 +121,25 @@ async def test_a_company_with_no_brief_is_a_research_task(running, applicant, da
     assert "reuters.com" in task["news_sites"]
 
 
+async def test_the_research_task_is_the_held_applications_company_first(running, applicant, database, web):
+    me, (first, second) = await _student_queues(database, applicant, 2)
+    await _describe(database, second, "Acme builds rockets.")
+    await _describe(database, first, "Beta builds boats.")
+    async with database() as session:
+        await session.execute(sql("UPDATE job_postings SET company_name = 'Beta' WHERE id = :id"), {"id": first})
+        await session.commit()
+    await _tab_asks(me, first, WHY)
+    await _tab_asks(me, second, WHY)
+
+    # This chat was handed the first application already, so the second is held, and Beta has no brief either.
+    async with claude(applicant) as client:
+        held = (await client.call_tool("get_next_application", {"chat": first})).structured_content
+        task = (await client.call_tool("get_research_task", {"chat": first})).structured_content
+
+    assert held["research_first"] == "Acme"
+    assert (task["company"], task["job_id"]) == ("Acme", second)
+
+
 async def test_a_fact_off_its_page_or_off_the_allowed_sites_is_dropped(running, applicant, database, web):
     await _queued(database, applicant)
     made_up = {**LANDER, "quote": "we launched Acme Orbiter to Mars and Venus", "url": "https://acme.com/news/lander"}
@@ -364,3 +383,10 @@ def test_scoring_counts_categories_facts_and_recency():
 ])
 def test_the_companys_own_domain_is_named_for_it(host, own):
     assert briefs.own_domain(host, "Acme, Inc.") is own
+
+
+@pytest.mark.parametrize(("host", "own"), [
+    ("shield.ai", True), ("www.shield.ai", True), ("shield.com", False), ("shieldai.com", True), ("shield.io", False),
+])
+def test_a_domain_whose_ending_completes_the_name_is_the_companys(host, own):
+    assert briefs.own_domain(host, "Shield AI") is own

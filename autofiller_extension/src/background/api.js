@@ -516,6 +516,19 @@ export async function answerBank(applicantId, jobId) {
 }
 
 /**
+ * GET .../answer-bank?company= — the same for a form filled outside a batch,
+ * which has no application: every saved answer it may reuse, one about a
+ * company only when `company` (the page's, if read) is that company.
+ * @param {string} applicantId
+ * @param {string} [company]
+ * @returns {Promise<Record<string, { answer: string, own: boolean }>>}
+ */
+export async function anyFormAnswerBank(applicantId, company) {
+  const query = company ? `?company=${encodeURIComponent(company.slice(0, 200))}` : "";
+  return apiFetch(`/applicants/${applicantId}/answer-bank${query}`);
+}
+
+/**
  * PUT .../applications/{job_id}/answers — the student's own words for one of
  * a batch tab's questions that need writing (KAN-379): kept as the
  * application's answer, and saved for every later form that asks it.
