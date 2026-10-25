@@ -70,7 +70,8 @@ test("the student's own words in a written answer are saved for later forms", as
   const forms = new SavedForms([HARVEY]);
   const api = new FakeApi().queue({ id: "job-0", apply_url: forms.url(HARVEY) });
   await start(api, forms);
-  await expect.poll(() => api.written.get("job-0")?.length, { timeout: 60_000 }).toBe(1);
+  // Harvey's why-us, and its two one-off questions (KAN-369).
+  await expect.poll(() => api.written.get("job-0")?.length, { timeout: 60_000 }).toBe(3);
   const name = api.written.get("job-0")![0].name;
   const [form] = formTabs(forms, HARVEY);
   const box = form.locator(`[data-field-path="${name}"] textarea`);
@@ -95,7 +96,8 @@ test("the student's edit of their Claude's answer stays Claude's, and WorkIt's c
   const forms = new SavedForms([HARVEY]);
   const api = new FakeApi().queue({ id: "job-0", apply_url: forms.url(HARVEY) });
   await start(api, forms);
-  await expect.poll(() => api.written.get("job-0")?.length, { timeout: 60_000 }).toBe(1);
+  // Harvey's why-us, and its two one-off questions (KAN-369).
+  await expect.poll(() => api.written.get("job-0")?.length, { timeout: 60_000 }).toBe(3);
   const name = api.written.get("job-0")![0].name;
   const [form] = formTabs(forms, HARVEY);
   const box = form.locator(`[data-field-path="${name}"] textarea`);

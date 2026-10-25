@@ -117,6 +117,8 @@ window.WIA = window.WIA || {};
         label: q.label.slice(0, LABEL_MAX),
         required: Boolean(q.required),
         max_length: q.max_length ?? null,
+        // A one-off choice (KAN-369): Claude picks among its options.
+        ...(q.kind ? { kind: q.kind, options: q.options } : {}),
       }));
       let reply = await send({ type: "batch/questions", questions }).catch((error) => ({ ok: false, error: error.message }));
       if (!reply.ok) {

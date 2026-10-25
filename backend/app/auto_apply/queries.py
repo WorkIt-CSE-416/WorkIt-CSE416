@@ -321,6 +321,8 @@ async def put_questions(
                 "label": insert_rows.excluded.label,
                 "required": insert_rows.excluded.required,
                 "max_length": insert_rows.excluded.max_length,
+                "kind": insert_rows.excluded.kind,
+                "options": insert_rows.excluded.options,
                 "position": insert_rows.excluded.position,
             },
         )
@@ -338,7 +340,10 @@ async def fetch_written(
         .order_by(Written_Answer.position, Written_Answer.name)
     )
     return [
-        WrittenAnswer(name=r.name, label=r.label, required=r.required, max_length=r.max_length, answer=r.answer)
+        WrittenAnswer(
+            name=r.name, label=r.label, required=r.required, max_length=r.max_length, kind=r.kind, options=r.options,
+            answer=r.answer,
+        )
         for r in rows
     ]
 
@@ -402,7 +407,10 @@ async def fetch_unanswered(
     for r, company, title in rows:
         posting = found.setdefault(r.job_id, (r.job_id, company, title, []))
         posting[3].append(
-            WrittenAnswer(name=r.name, label=r.label, required=r.required, max_length=r.max_length, answer=None)
+            WrittenAnswer(
+                name=r.name, label=r.label, required=r.required, max_length=r.max_length, kind=r.kind,
+                options=r.options, answer=None,
+            )
         )
     return list(found.values())
 
@@ -498,6 +506,8 @@ class SavedAnswer:
     company: str | None
     # the student's own words, not their Claude's (KAN-379)
     own: bool = False
+    # an option (or options) picked, not words: WorkIt's writing checks don't apply
+    choice: bool = False
 
 
 async def fetch_saved_answers(
@@ -507,14 +517,17 @@ async def fetch_saved_answers(
     the student's own first (KAN-379), then newest first, but those of the
     job `exclude`."""
     query = (
-        select(Written_Answer.label, Written_Answer.answer, Written_Answer.own, Job_Post.company_name)
+        select(Written_Answer.label, Written_Answer.answer, Written_Answer.own, Written_Answer.kind, Job_Post.company_name)
         .join(Job_Post, Job_Post.id == Written_Answer.job_id)
         .where(Written_Answer.applicant_id == applicant_id, Written_Answer.answer.is_not(None))
         .order_by(Written_Answer.own.desc(), Written_Answer.answered_at.desc(), Written_Answer.job_id, Written_Answer.name)
     )
     if exclude is not None:
         query = query.where(Written_Answer.job_id != exclude)
-    return [SavedAnswer(question=r.label, answer=r.answer, company=r.company_name, own=r.own) for r in await db.execute(query)]
+    return [
+        SavedAnswer(question=r.label, answer=r.answer, company=r.company_name, own=r.own, choice=r.kind is not None)
+        for r in await db.execute(query)
+    ]
 
 
 async def fetch_brought_answers(db: AsyncSession, applicant_id: uuid.UUID) -> list[SavedAnswer]:

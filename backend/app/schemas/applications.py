@@ -1,8 +1,8 @@
 import datetime
 import uuid
-from typing import Literal
+from typing import Annotated, Literal
 
-from pydantic import BaseModel, ConfigDict, Field, model_validator
+from pydantic import BaseModel, ConfigDict, Field, StringConstraints, model_validator
 
 from app.models.dto import application_stage
 from app.schemas.jobs import Highlight, JobListing
@@ -116,9 +116,19 @@ LABEL_MAX = 2000
 ANSWER_MAX = 10000
 
 
+# A choice's options: a long list (a country, a school) is never a one-off
+# question nothing else fills, so this many is plenty.
+OPTIONS_MAX = 300
+OPTION_MAX = 500
+
+
 class WrittenQuestion(BaseModel):
-    """One question a batch tab's form needs written (KAN-377): the form
-    field's `name` the answer fills, its label, and the form's own limit."""
+    """One question a batch tab's form needs answered by the student's
+    Claude (KAN-377): the form field's `name` the answer fills, its label,
+    and the form's own limit. A one-off choice nothing else fills (KAN-369)
+    has `kind` "choice" (one of `options`) or "choices" (one or more) and
+    its options as the form words them; a question written in words has
+    neither."""
 
     model_config = ConfigDict(extra="forbid")
 
@@ -126,6 +136,16 @@ class WrittenQuestion(BaseModel):
     label: str = Field(min_length=1, max_length=LABEL_MAX)
     required: bool
     max_length: int | None = Field(default=None, ge=1)
+    kind: Literal["choice", "choices"] | None = None
+    options: list[Annotated[str, StringConstraints(min_length=1, max_length=OPTION_MAX)]] | None = Field(
+        default=None, min_length=1, max_length=OPTIONS_MAX,
+    )
+
+    @model_validator(mode="after")
+    def _choice_has_options(self) -> "WrittenQuestion":
+        if (self.kind is None) != (self.options is None):
+            raise ValueError("A choice question needs its options, and a written one has none.")
+        return self
 
 
 class WrittenQuestions(BaseModel):

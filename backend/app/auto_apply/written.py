@@ -65,9 +65,9 @@ async def ask_questions(
         sources, employers, _ = await _check_material(db, applicant_id, job_id)
         await drop_written(db, applicant_id, job_id, [
             q.name for q in answered
-            if checks.problems(q.answer, checks.Context(
+            if (picked(q, q.answer)[1] if q.kind else checks.problems(q.answer, checks.Context(
                 sources=(*sources, q.label), employers=employers, limit=q.max_length,
-            ))
+            )))
         ])
     await db.commit()
     return await fetch_written(db, applicant_id, job_id)
@@ -173,19 +173,24 @@ async def save_answers(
     sources, employers, samples = await _check_material(db, applicant_id, job_id)
     if by == "student":
         samples = ()
-    failing = {
-        name: found
-        for name, answer in answers.items()
-        if (found := checks.problems(answer.strip(), checks.Context(
-            sources=(*sources, questions[name].label), samples=samples, employers=employers,
-            limit=questions[name].max_length,
-        )))
-    }
+    kept: dict[str, str] = {}
+    failing: dict[str, list[str]] = {}
+    for name, answer in answers.items():
+        q = questions[name]
+        if q.kind:
+            # A choice is the form's options, not words: only whether it is among them is checked.
+            kept[name], found = picked(q, answer)
+        else:
+            kept[name], found = answer.strip(), checks.problems(answer.strip(), checks.Context(
+                sources=(*sources, q.label), samples=samples, employers=employers, limit=q.max_length,
+            ))
+        if found:
+            failing[name] = found
     if failing:
         raise Refused("Nothing was saved. Fix these answers and save them all again:\n" + "\n".join(
             f"- {name!r}: {' '.join(found)}" for name, found in failing.items()
         ), failing)
-    await save_written(db, applicant_id, job_id, {name: answer.strip() for name, answer in answers.items()})
+    await save_written(db, applicant_id, job_id, kept)
     await db.commit()
     return sum(1 for name, q in questions.items() if q.answer is None and name not in answers)
 
@@ -206,6 +211,27 @@ async def _check_material(
         and not any(checks.names(source, name) for source in sources)
     )
     return sources, employers, tuple(await writing_samples(db, applicant_id))
+
+
+# How a "choices" answer joins its options, as the Fill engine reads one (fit.ts).
+JOIN = "; "
+
+
+def picked(question: WrittenAnswer, answer: str) -> tuple[str, list[str]]:
+    """A choice question's answer in the form's own wording (an option, or
+    for "choices" one or more joined by JOIN, in any case or spacing), and
+    what is wrong with it: empty when every part is one of its options."""
+    wording = {_wording(o): o for o in question.options or ()}
+    text = answer.strip()
+    parts = [text] if question.kind == "choice" or _wording(text) in wording else text.split(JOIN.strip())
+    parts = [p.strip() for p in parts if p.strip()]
+    unknown = [p for p in parts if _wording(p) not in wording]
+    if unknown or not parts:
+        options = "; ".join(repr(o) for o in question.options or ())
+        how = "one of" if question.kind == "choice" else f'one or more, joined by "{JOIN}", of'
+        found = [f"{', '.join(repr(p) for p in unknown) or 'Nothing'} is not an option. Answer with {how} {options}."]
+        return text, found
+    return JOIN.join(dict.fromkeys(wording[_wording(p)] for p in parts)), []
 
 
 def bank_sources(bank: Bank) -> list[str]:
@@ -264,7 +290,7 @@ async def answer_bank(db: AsyncSession, applicant_id: uuid.UUID, job_id: uuid.UU
         said = "; ".join(saved.answer) if isinstance(saved.answer, list) else saved.answer
         if checks.company_specific(saved.question, said, saved.company) and not (same and theirs == same):
             continue
-        if not saved.own and checks.problems(saved.answer, checks.Context(
+        if not saved.own and not saved.choice and checks.problems(saved.answer, checks.Context(
             sources=(*sources, saved.question), employers=employers,
         )):
             continue
@@ -302,8 +328,9 @@ async def save_own_answer(
     answer = own.answer.strip()
     if not answer:
         raise Refused("The answer is empty.")
-    if not own.own:
-        asked = {q.name: q for q in await fetch_written(db, applicant_id, job_id)}.get(own.name)
+    asked = {q.name: q for q in await fetch_written(db, applicant_id, job_id)}.get(own.name)
+    # A choice the student picked on the form is the form's own option: nothing to check.
+    if not own.own and not (asked and asked.kind):
         sources, employers, samples = await _check_material(db, applicant_id, job_id)
         found = checks.problems(answer, checks.Context(
             sources=(*sources, own.label), samples=samples, employers=employers,
