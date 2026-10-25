@@ -110,6 +110,10 @@ _Avoid_: unknown field, blank, unanswered
 The extension filling the student's queued Applications in background tabs, at most five at once, the next opening as one finishes. It never submits.
 _Avoid_: runner, run tab
 
+**Practice batch**:
+Onboarding's batch apply on WorkIt's own practice forms, two made-up job postings laid out as a hiring system's, so a new student sees the whole flow before a real one. Its Submit sends nothing.
+_Avoid_: demo, tutorial, test batch
+
 **Ready** / **Needs you**:
 The two tab groups a batch tab sits in once filled: Ready when every field the form needs shows an answer, Needs you when anything is left for the student. A tab moves between them as that changes.
 _Avoid_: done, failed, review

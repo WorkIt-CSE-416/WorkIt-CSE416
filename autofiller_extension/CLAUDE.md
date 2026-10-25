@@ -139,9 +139,10 @@ here:
 - **The webapp's role is a thin, optional bridge** (`frontend/src/lib/
   autofill-extension.ts`), using Chrome's `externally_connectable` to ask
   batch apply to open (and fill) the queued applications, which jobs its
-  tabs show, and to switch to one of them — nothing more. The job cards' "Autofill ready"
-  badge, the bridge's one use of `ping`, was removed (KAN-278); the
-  background script still answers `ping`, with no webapp caller. The extension's core function
+  tabs show, and to switch to one of them, and onboarding's practice batch
+  and install check (`ping`, KAN-378) — nothing more. The job cards'
+  "Autofill ready" badge, `ping`'s first caller, was removed (KAN-278).
+  The extension's core function
   never depends on this bridge: it works from its own popup on whatever
   page the user is on, bridge or no bridge.
 
@@ -305,6 +306,44 @@ open: Workday takes one slot at a time, a closed tab counts as Skip, and
 the batch resumes after the browser closes (KAN-373); submit detection
 (KAN-374). With the student's Chrome window behind another app, macOS may
 slow every tab further; not yet measured.
+
+## The practice batch (KAN-378): onboarding's batch on WorkIt's own forms
+
+Onboarding's last step (`frontend/src/app/onboarding/applicant/practice-step.tsx`)
+sends `practice/open` with the links of WorkIt's two practice forms
+(`frontend/src/lib/practice-form.ts`, `/practice/<company>/<job>/apply`);
+`batch.js`'s `startPractice` opens them as a batch, with the same tabs,
+fill and groups as a real one, and `practice/status` says where each is.
+
+- **Only practice forms on the asking page's own site are opened.** The
+  one message that takes links: each must be `practiceJob(url)`'s `apply`
+  page (`engine.js`: a path under `/practice/` on one of `config.js`'s web
+  origins) and on `sender.origin`. Anything else is dropped, and a message
+  with none left fails.
+- **The engine fills it as a Lever form.** The practice form is laid out as
+  Lever's hosted form, so `jobOf` gives a practice link the site `lever`
+  and its Question set is the engine's `parseQuestions("lever", html)` of
+  the page itself, fetched by the background (the WorkIt web origins are
+  in `host_permissions`). Nothing practice-only is in the engine. The page
+  sets `window.jQuery.isReady` and shows `.resume-upload-success`, the two
+  signals the Lever Filler waits for.
+- **No API queue or stages.** A practice batch keeps its jobs and the
+  submitted ones in `workit_batch` itself (`practice`); `topUp` takes the
+  next job from there and `setTabState` records no stage. Starting a real
+  batch (`run/open`) ends a practice one; `practice/open` while a real
+  batch has tabs open answers `batch_running`.
+- **Submit is reaching `/thanks`.** The practice form's Submit sends
+  nothing and opens the job's `/thanks` page; `background.js` sees that
+  URL change (`tabs.onUpdated`, which gives the URL for hosts in
+  `host_permissions`) and `submitPractice` marks the job submitted and
+  takes its tab out of the batch and its group. Real submit detection is
+  KAN-374's.
+- **`ping` also answers `pinned`** (`chrome.action.getUserSettings().isOnToolbar`,
+  null where Chrome can't say), for onboarding's install step.
+- **Tests** (`test/practice.extension.spec.ts`): the loaded extension fills
+  both practice forms, served from the webapp's own module, into Ready and
+  Needs you; the student's Submit on each reaches `/thanks` with no data,
+  and nothing reaches any host but WorkIt's site and API.
 
 ## Auth: inherits the webapp's session, has no sign-in of its own
 
