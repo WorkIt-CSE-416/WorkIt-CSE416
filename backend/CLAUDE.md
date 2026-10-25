@@ -566,7 +566,9 @@ Find files with a directory listing; these are the rules for where code goes.
     bank skill stays in, so a hidden one that adds a keyword is still
     proposed, and the truth rule still reads them all. Before this, the
     whole bank went to the model, and the hidden bullets took places among
-    the best 40 although a reword of one was always dropped.
+    the best 40 although a reword of one was always dropped. Now every
+    bullet the resume shows goes to the model, cut only by the token
+    budget below.
   - **A missing keyword that neither the resume's entries nor any bank
     skill hold is a question** ("Have you used X?"), never words. A hidden
     entry's words do not count, since the run never brings it back. Yes
@@ -575,9 +577,24 @@ Find files with a directory listing; these are the rules for where code goes.
   - **The model sees handles (b1, e1), never ids**, and no links: an
     entry's link field is left out and the seam removes identity data.
     Postgres text search (`ts_rank`, the posting's words OR'd) ranks the
-    resume's bullets: the best 40 go to the model, and the rank proposes
-    each entry's bullet order. A posting with no description is read by its
+    resume's bullets: the rank proposes each entry's bullet order. A posting with no description is read by its
     title, with `weak_match`.
+  - **A run fits Groq's free tier** (8,000 tokens a minute for
+    gpt-oss-120b, prompt and reply together): the prompt is estimated at
+    four characters a token, and over `PROMPT_TOKENS` (5,000) it leaves out
+    the lowest-ranked bullets, keeping every entry's line; the reply asks
+    for `REPLY_TOKENS` (3,000) at most. A request a provider still finds too
+    large moves down the chain (Scout's `RequestTooLarge`); a reply stopped
+    at its cap is `ReplyCutOff`. Each has its own line in
+    `services/ai_messages.py`. There is no cap on how many bullets the model
+    rewords.
+  - **A rewording must keep its bullet** (`keeps_its_bullet`): a third of
+    the original's words (three letters or more; a shared start of four
+    letters counts) must be in it, or it is dropped and counted in
+    `dropped`. The model copies handles, and one copied wrong puts a
+    rewording on another bullet; the truth rule passes it when it adds no
+    number or tool. Only a run checks this, never Done, where the
+    student's own typing need not overlap.
   - **A change names its entry with the organization** ("Software Intern,
     Acme"), since two jobs can share a title.
   - **One run is one `TAILOR` use**, counted after the model answers and

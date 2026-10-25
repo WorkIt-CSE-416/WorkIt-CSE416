@@ -13,7 +13,8 @@ hidden one can still be proposed and the truth rule reads them all.
 
 A run (`routers/tailor.py`) reads the posting's keywords (KAN-215's cache, or
 one extraction), ranks the resume's bullets against the posting with Postgres
-text search (`rank_bullets`), and sends the model the posting and the resume
+text search (`rank_bullets`), and sends the model the posting and every
+bullet the resume shows, the lowest-ranked left out past a token budget
 (`prompt`): no links, and the model seam removes identity data. The model
 names bullets by handle (b1), never by id. `propose` turns its reply into
 changes, dropping any wording that breaks the truth rule
@@ -26,6 +27,7 @@ is nowhere in the bank becomes a question ("Have you used X?"), never words.
 """
 
 import dataclasses
+import re
 import uuid
 from collections.abc import Iterable, Mapping, Sequence
 
@@ -58,24 +60,32 @@ from app.services.resume_view import (
 )
 from app.services.truth_rule import invented
 
-# The model sees at most this many bullets, the best-ranked first, so a long
-# resume keeps the prompt small.
-MAX_BULLETS = 40
-MAX_REWORDS = 6
 MAX_TEXT = 500
+
+# Sized to the chain's smallest room, Groq's free tier: 8,000 tokens a minute
+# for gpt-oss-120b, prompt and reply (reasoning included) together. A prompt
+# over its budget loses its lowest-ranked bullets; a provider that still finds
+# it too large passes it down the chain (Scout's `RequestTooLarge`).
+PROMPT_TOKENS = 5_000
+REPLY_TOKENS = 3_000
+# English runs about four characters a token; an estimate, never a count.
+CHARS_PER_TOKEN = 4
 
 # One frozen string, so providers can cache it as a prefix.
 PROMPT = """\
-You tailor a student's resume to one job posting. You may only rephrase \
-facts the student gave: never add a number, tool, skill or result that the \
-bullet or the student's skills do not already hold. Answer with JSON only: \
+You tailor a student's resume to one job posting. You may rephrase \
+facts the student gave or understand the job requirements and rewrite the experience based on the job description: \
+never add a number or result that the \
+bullet or the student's skills do not already hold. \
+You can add skill or tool that's needed from job and relevant to the student's experience into the bullet point. \
+Answer with JSON only: \
 {"rewords": [{"bullet": "b1", "text": ...}]}.
 
-- rewords: at most 6 bullets the posting cares about, reworded to use the \
-posting's words where the bullet already supports them. One line each, \
-under 200 characters, starting with a strong verb. Leave out a bullet that \
+- rewords: understand the type of bullets the posting cares about, use the given keyword match list, reworded to use the \
+posting's words where the bullet's experience supports them. One line each, \
+under 200 characters, starting with a strong verb. No need to rewrite a bullet that \
 already fits.
-- Use only the bullet handles given (b1).
+- Use only the bullet handles given such as (b1).
 """
 
 
@@ -139,31 +149,40 @@ def on_resume(bank: Bank, choices: Choices) -> Bank:
 def prompt(
     job: Job_Post, keywords: Sequence[Keyword], bank: Bank, choices: Choices, ranks: Mapping[uuid.UUID, float]
 ) -> list[dict[str, str]]:
-    """The posting and the resume (`bank` is `on_resume`'s), with no links:
-    an entry's link field is left out, and the model seam replaces any URL
-    left in the text."""
+    """Create a central prompt with job posting, extracted keywords and every
+    bullet the resume shows, in the wording it shows. Over `PROMPT_TOKENS`,
+    the lowest-ranked bullets are left out until it fits (`ranks`, ties
+    leaving the latest in bank order first); their entries stay."""
     named = {v: k for k, v in handles(bank).items()}
-    every = [b for e in bank.entries for b in e.bullets]
-    best = set(sorted((b.id for b in every), key=lambda i: -ranks.get(i, 0.0))[:MAX_BULLETS])
-    lines = []
+    shown = {}
     for entry in bank.entries:
-        row = entry.row
-        lines.append(f"{named[row.id]} [{row.section}] {_label(row)}")
         for bullet in entry.bullets:
-            if bullet.id in best:
-                shows = choices.bullets.get(bullet.id)
-                lines.append(f"  {named[bullet.id]}: {(shows and shows.text) or bullet.text}")
+            shows = choices.bullets.get(bullet.id)
+            shown[bullet.id] = f"  {named[bullet.id]}: {(shows and shows.text) or bullet.text}"
     description = (
         job_part(job.description, keep_headings=True).strip()[: kw.MAX_DESCRIPTION_CHARS]
         or "(No description: only the title.)"
     )
     words = ", ".join(f"{k.keyword} ({k.kind})" for k in keywords) or "(none)"
     skills = ", ".join(s.name for s in bank.skills) or "(none)"
-    user = (
+    head = (
         f"Job posting: {job.title}\n\n{description}\n\nKeywords: {words}\n\n"
-        f"The student's skills: {skills}\n\nThe resume's entries:\n" + "\n".join(lines)
+        f"The student's skills: {skills}\n\nThe resume's entries:\n"
     )
-    return [{"role": "system", "content": PROMPT}, {"role": "user", "content": user}]
+    entries = {e.row.id: f"{named[e.row.id]} [{e.row.section}] {_label(e.row)}" for e in bank.entries}
+
+    room = PROMPT_TOKENS * CHARS_PER_TOKEN - len(PROMPT) - len(head) - sum(len(t) + 1 for t in entries.values())
+    kept = sorted(shown, key=lambda i: -ranks.get(i, 0.0))
+    used = sum(len(t) + 1 for t in shown.values())
+    while kept and used > room:
+        used -= len(shown[kept.pop()]) + 1
+    keep = set(kept)
+
+    lines = []
+    for entry in bank.entries:
+        lines.append(entries[entry.row.id])
+        lines += [shown[b.id] for b in entry.bullets if b.id in keep]
+    return [{"role": "system", "content": PROMPT}, {"role": "user", "content": head + "\n".join(lines)}]
 
 
 def _next(positions: Iterable[int]) -> int:
@@ -262,6 +281,30 @@ def _clean(text: str | None) -> str:
     return " ".join((text or "").split())[:MAX_TEXT]
 
 
+_WORD = re.compile(r"[a-z0-9][a-z0-9+#]*")
+_SMALL = frozenset(["and", "for", "from", "into", "the", "via", "with", "using", "onto", "over"])
+
+
+def _words(text: str) -> set[str]:
+    return {w for w in _WORD.findall(text.lower()) if len(w) > 2 and w not in _SMALL}
+
+
+def _same_word(a: str, b: str) -> bool:
+    short, long = sorted((a, b), key=len)
+    return short == long or (len(short) >= 4 and long.startswith(short))
+
+
+def keeps_its_bullet(text: str, original: str) -> bool:
+    """Whether a rewording still says what its bullet says: at least a third
+    of the original's words (three letters or more) are in it, a shared start
+    of four letters counting ("data", "datasets"). A model that copies the
+    wrong handle puts another bullet's rewording here, which shares almost
+    none, and the truth rule passes it when it adds no number or tool."""
+    old, new = _words(original), _words(text)
+    shared = sum(1 for w in old if any(_same_word(w, n) for n in new))
+    return shared * 3 >= len(old)
+
+
 def check_wording(bank: Bank, bullet_id: uuid.UUID, text: str, keywords: Sequence[Keyword]) -> list[str]:
     """The facts `text` invents for the bullet (empty: it keeps the truth
     rule). An identity placeholder the model echoed counts as one."""
@@ -287,13 +330,13 @@ def propose(
     reworded: set[uuid.UUID] = set()
     for item in reading.rewords:
         bullet_id = ids.get(item.bullet.strip())
-        if bullet_id not in originals or bullet_id in reworded or len(reworded) >= MAX_REWORDS:
+        if bullet_id not in originals or bullet_id in reworded:
             continue
         text = _clean(item.text)
         current = choices.bullets.get(bullet_id)
         if not text or text.casefold() == ((current and current.text) or originals[bullet_id]).casefold():
             continue
-        if check_wording(bank, bullet_id, text, keywords):
+        if check_wording(bank, bullet_id, text, keywords) or not keeps_its_bullet(text, originals[bullet_id]):
             dropped += 1
             continue
         reworded.add(bullet_id)

@@ -12,7 +12,7 @@ import uuid
 import docx
 import httpx
 import pytest
-from openai import RateLimitError
+from openai import APIStatusError, RateLimitError
 from sqlalchemy import text
 from workit_scout.testing import ScriptedLLM
 
@@ -22,6 +22,8 @@ from app.main import app
 from app.models.jobs import Job_Post
 from app.routers.scout import get_llm
 from app.schemas.auth import AccountType, AuthenticatedAccount
+from app.services import tailor
+from app.services.ai_messages import TOO_LARGE
 from app.services.keywords import posting_hash
 
 pytestmark = pytest.mark.anyio
@@ -47,6 +49,11 @@ def rate_limited() -> RateLimitError:
     return RateLimitError("quota", response=httpx.Response(429, request=request), body=None)
 
 
+def too_large() -> APIStatusError:
+    request = httpx.Request("POST", "http://endpoint.test/v1/chat/completions")
+    return APIStatusError("Request too large", response=httpx.Response(413, request=request), body=None)
+
+
 class QueuedLLM(ScriptedLLM):
     """One reply per call, in order: keyword extraction, then Tailor."""
 
@@ -54,7 +61,7 @@ class QueuedLLM(ScriptedLLM):
         super().__init__(["unused"])
         self._replies = list(replies)
 
-    async def _complete_json(self, client, endpoint, messages, schema) -> str:
+    async def _complete_json(self, client, endpoint, messages, schema, max_tokens=None) -> str:
         self.prompts.append(list(messages))
         return self._replies.pop(0)
 
@@ -218,6 +225,57 @@ async def test_a_run_proposes_a_truthful_rewording_and_drops_an_invented_one(stu
     ]
     assert body["dropped"] == 1
     assert source_of(body) == built(student.base)
+
+
+async def test_a_rewording_under_another_bullet_s_handle_is_dropped(student, database, use_model):
+    posting = await _seed_posting(database)
+    # b1 is the React bullet: this is b2's rewording under the wrong handle.
+    # It adds no number or tool, so only the overlap check catches it.
+    use_model(reply(rewords=[("b1", "Wrote billing services in Python")]))
+
+    body = (await student.tailor(posting)).json()
+
+    assert "reword" not in _kinds(body)
+    assert body["dropped"] == 1
+
+
+def test_a_rewording_keeps_its_bullet_and_another_bullet_s_does_not():
+    original = "Wrote Python scripts to clean survey data"
+    assert tailor.keeps_its_bullet("Cleaned survey datasets with Python scripts", original)
+    assert not tailor.keeps_its_bullet("Developed web endpoints with Flask", original)
+
+
+async def test_a_prompt_over_budget_leaves_out_the_lowest_ranked_bullets(signed_in, database, use_model):
+    # An entry holds at most 30 bullets: five of them, about 30,000 characters.
+    for n in range(5):
+        await signed_in.entry(section="leadership", title=f"Volunteer {n}", organization="Pantry", bullets=[
+            f"Organized volunteer shift number {n}-{i} for the campus food pantry drive, " * 3 for i in range(30)])
+    await signed_in.entry(
+        section="experience", title="Volunteer", organization="Pantry",
+        bullets=["Wrote billing services in Python and Go"],
+    )
+    base = await signed_in.generate()
+    posting = await _seed_posting(database)
+    fake = use_model(reply())
+
+    assert (await signed_in.tailor(posting, built(base))).status_code == 200
+
+    sent = "\n".join(m["content"] for m in fake.prompts[0])
+    assert len(sent) <= tailor.PROMPT_TOKENS * tailor.CHARS_PER_TOKEN
+    # The posting's bullet is last in the bank but first by rank, so it stays.
+    assert "Wrote billing services in Python and Go" in sent and "Volunteer, Pantry" in sent
+    assert 0 < sent.count("Organized volunteer") < 150 * 3
+    assert fake.max_tokens == [tailor.REPLY_TOKENS]
+
+
+async def test_a_request_too_large_for_every_model_answers_503_saying_so(student, database, use_model):
+    posting = await _seed_posting(database)
+    use_model(too_large())
+
+    res = await student.tailor(posting)
+
+    assert res.status_code == 503
+    assert res.json()["detail"] == TOO_LARGE
 
 
 async def test_the_keyword_match_before_and_a_missing_keyword_is_asked_not_written(student, database, use_model):

@@ -40,6 +40,7 @@ skills, tools, languages, coding languages, coding frameworks, and qualification
 with JSON only: {"keywords": [{"keyword": ..., "kind": "required" | \
 "preferred"}]}.
 
+- At most 20 keywords, choose the most important ones.
 - kind is "required" when the posting asks for it such as in the Requirements section, "preferred" when \
 it says nice to have, a plus, preferred or bonus, usually written under Preferred Qualifications section
 - Use the posting's own words, short: "Python", "REST APIs", "SQL". No \

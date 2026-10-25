@@ -138,13 +138,14 @@ async def run(
     # retrieve only the entries and skills 
     resume = tailor.on_resume(bank, choices)
 
-    # rank the best experiences, used to suggest better order next time 
+    # scores each experience bank bullet, used to suggest better order next time 
     ranks = await tailor.rank_bullets(session, resume, tailor.posting_text(job, found))
 
     identity = await load_identity(session, account)
     try:
         reading = await llm.complete_json(
-            tailor.prompt(job, found, resume, choices, ranks), TailorReading, identity=identity)
+            tailor.prompt(job, found, resume, choices, ranks), TailorReading,
+            identity=identity, max_tokens=tailor.REPLY_TOKENS)
     except ScoutUnavailable as exc:
         raise HTTPException(503, AI.failure(exc)) from exc
     # propose new order 
