@@ -12,8 +12,8 @@ window.WIA = window.WIA || {};
 
   /**
    * One fill's batch side. `batch`: the fill is one of batch apply's tabs
-   * (else report() does nothing). `note(key, label, reason, failed)`: puts
-   * a message row on the panel.
+   * (else report() does nothing). `note(key, label, reason, failed, done)`:
+   * puts a message row on the panel.
    * @param {{ batch: boolean, note: Function }} options
    */
   function batchTab({ batch, note }) {
@@ -26,8 +26,14 @@ window.WIA = window.WIA || {};
     const SUBMIT_KEY = crypto.randomUUID();
     const SUBMIT_EVENT = `fillengine:submit:${SUBMIT_KEY}`;
 
-    /** Whether a row needs the student: a note the Plan left them, a failed field, a required one unanswered, or an answer the review flagged. */
-    const needsYou = (r) => r.key.startsWith("_") || r.status === "failed" || (r.required && r.status !== "filled") || Boolean(r.flag);
+    /**
+     * Whether a row needs the student: a note that asks something of them
+     * (the Plan's, a Workday step, a failed fill or submit), a failed field,
+     * a required one unanswered, or an answer the review flagged. A row is a
+     * note by its `note`, never by its key: Ashby's own fields are keyed
+     * "_systemfield_...".
+     */
+    const needsYou = (r) => (r.note ? r.note === "todo" : r.status === "failed" || (r.required && r.status !== "filled") || Boolean(r.flag));
 
     /**
      * Whether this batch tab is "ready" (every field it needs shows an answer),
@@ -51,7 +57,7 @@ window.WIA = window.WIA || {};
      * a row that is not a field, or a field the page doesn't show.
      */
     function fieldOf(key) {
-      if (key.startsWith("_")) return null;
+      if (status.summary().fields.find((r) => r.key === key)?.note) return null;
       const name = CSS.escape(key);
       return (
         document.getElementById(key) ??
@@ -119,7 +125,7 @@ window.WIA = window.WIA || {};
           return;
         }
         const answer = await send({ type: "batch/submitted" }).catch((error) => ({ ok: false, error: error.message }));
-        if (answer?.ok && answer.applied) note("_submit", "Application sent", "WorkIt marked it Applied.");
+        if (answer?.ok && answer.applied) note("_submit", "Application sent", "WorkIt marked it Applied.", false, true);
         // The page said so, but WorkIt didn't see the job system take its submit request.
         else if (answer?.ok) note("_submit", "Did your application go out?", "WorkIt couldn't confirm it with the job system. If it was sent, mark it Applied on WorkIt's Applications page.", true);
         else note("_submit", "Application sent, but WorkIt didn't mark it Applied", `Mark it Applied on WorkIt's Applications page. (${answer?.error ?? "No answer"})`, true);

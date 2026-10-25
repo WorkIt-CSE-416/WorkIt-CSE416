@@ -471,7 +471,9 @@ waits for an opened tab's page and form (`waitForLoad`, `formShows`).
   tab's panel has the button. `next-needs-you.js`'s `nextNeedsYou` asks every batch
   tab, in the order the tabs opened, which of its rows need the student
   (`batch/flags`: the rows that send a tab to Needs you, in page order,
-  notes last), goes to the first one after the last it went to (cursor in
+  notes last; a note is a row marked `note`, "todo" or "done" for news
+  like "Application sent", never a key starting "_": Ashby keys its own
+  fields `_systemfield_...`), goes to the first one after the last it went to (cursor in
   `chrome.storage.session`, `workit_batch_next`), switches to its tab and
   has the content script scroll to and focus the field and mark its row
   (`batch/focus`). Past the last one the panel says "Nothing else needs

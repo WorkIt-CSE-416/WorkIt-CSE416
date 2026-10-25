@@ -199,41 +199,33 @@ test("a field that silently rejects its answer is flagged, and its tab needs you
   expect(forms.submissions).toEqual([]);
 });
 
-test("Next Thing That Needs You walks every flagged field across the tabs in batch order, then says none are left", async () => {
-  test.setTimeout(120_000);
-  const forms = new SavedForms(["greenhouse-arc", "greenhouse-anduril"]);
-  const api = new FakeApi().queue(
-    { id: "job-0", apply_url: forms.url("greenhouse-arc") },
-    { id: "job-1", apply_url: forms.url("greenhouse-anduril") },
-  );
-  loaded = await loadExtension([api.handler, webapp, withScript(forms, "greenhouse-arc", DROPS_FIRST_NAME)]);
-  await signIn(loaded.context);
-  const webappPage = loaded.context.pages()[0] ?? (await loaded.context.newPage());
-  await webappPage.goto("http://localhost:3000/auto-apply");
-  await sendFromWebapp(webappPage, { type: "run/open" });
-  const batchGroups = async () => (await tabs(loaded.worker)).filter((t) => t.url?.startsWith("https://")).map((t) => t.group?.title);
-  await expect.poll(batchGroups, { timeout: 90_000 }).toEqual(["Needs you", "Needs you"]);
+/**
+ * Presses "Next Thing That Needs You" in the tab `at` shows, then in whichever tab it went to, until it
+ * says nothing is left (at most `most` presses): each step's [tab link, row key], and what it said.
+ * `onStep` runs after each step, as the student would act on what it showed.
+ */
+/** The batch tab showing the form at `url`. */
+const page = (url: string) => loaded.context.pages().find((p) => p.url().startsWith(url.split("?")[0]))!;
 
-  const page = (url: string) => loaded.context.pages().find((p) => p.url() === url)!;
+async function walkToEnd(at: string, { most = 20, onStep = async (_url: string, _key: string) => {} } = {}) {
   const panel = (url: string) => page(url).locator("#workit-autofiller-overlay-host");
   const shownTab = async () => (await tabs(loaded.worker)).find((t) => t.active)!.url!;
-  // The student starts in the first tab and presses Next until nothing is left.
   const currentIn = async (url: string) => {
     const row = panel(url).locator("[data-current]");
     return (await row.count()) ? row.getAttribute("data-key") : null;
   };
-  let at = forms.url("greenhouse-arc");
   const walked: [string, string][] = [];
   let left = "";
-  for (let n = 0; n < 10 && !left; n++) {
+  for (let n = 0; n < most && !left; n++) {
+    const before = JSON.stringify(walked.at(-1));
     await panel(at).getByRole("button", { name: "Next Thing That Needs You" }).click();
-    // Either it says nothing is left, or a tab shows a field it hasn't shown yet.
+    // Either it says nothing is left, or a tab shows a field it hasn't just shown.
     const after = async () => {
       const said = panel(at).locator("[data-said]");
       if (await said.isVisible()) return `said: ${await said.innerText()}`;
       const url = await shownTab();
       const key = await currentIn(url);
-      return key && JSON.stringify([url, key]) !== JSON.stringify(walked.at(-1)) ? JSON.stringify([url, key]) : "waiting";
+      return key && JSON.stringify([url, key]) !== before ? JSON.stringify([url, key]) : "waiting";
     };
     await expect.poll(after).not.toBe("waiting");
     const step = await after();
@@ -244,9 +236,32 @@ test("Next Thing That Needs You walks every flagged field across the tabs in bat
     const [url, key] = JSON.parse(step);
     walked.push([url, key]);
     at = url;
-    // The field itself is brought into view and focused.
-    expect(await page(at).evaluate(() => document.activeElement?.id)).toBe(key);
+    await onStep(url, key);
   }
+  return { walked, left };
+}
+
+/** Opens a batch of `forms`' saved forms, in order, and waits until every tab is in a group. */
+async function startBatch(forms: SavedForms, names: string[], handlers: Handler[] = [forms.handler]) {
+  const api = new FakeApi().queue(...names.map((name, n) => ({ id: `job-${n}`, apply_url: forms.url(name) })));
+  loaded = await loadExtension([api.handler, webapp, ...handlers]);
+  await signIn(loaded.context);
+  const webappPage = loaded.context.pages()[0] ?? (await loaded.context.newPage());
+  await webappPage.goto("http://localhost:3000/auto-apply");
+  await sendFromWebapp(webappPage, { type: "run/open" });
+  const grouped = async () => (await tabs(loaded.worker)).filter((t) => t.url?.startsWith("https://") && t.group).length;
+  await expect.poll(grouped, { timeout: 90_000 }).toBe(names.length);
+  return api;
+}
+
+test("Next Thing That Needs You walks every flagged field across the tabs in batch order, then says none are left", async () => {
+  test.setTimeout(120_000);
+  const forms = new SavedForms(["greenhouse-arc", "greenhouse-anduril"]);
+  await startBatch(forms, ["greenhouse-arc", "greenhouse-anduril"], [withScript(forms, "greenhouse-arc", DROPS_FIRST_NAME)]);
+  const { walked, left } = await walkToEnd(forms.url("greenhouse-arc"), {
+    // The field itself is brought into view and focused.
+    onStep: async (url, key) => expect(await page(url).evaluate(() => document.activeElement?.id)).toBe(key),
+  });
 
   // Arc's one flagged field (its name box rejected the answer), then Anduril's, in batch order.
   expect(walked).toEqual([
@@ -254,6 +269,33 @@ test("Next Thing That Needs You walks every flagged field across the tabs in bat
     [forms.url("greenhouse-anduril"), "question_13130330007"],
     [forms.url("greenhouse-anduril"), "question_13130331007"],
   ]);
+  expect(left).toBe("Nothing else needs you.");
+  expect(forms.submissions).toEqual([]);
+});
+
+test("Next Thing That Needs You passes over filled fields whose names start with an underscore (Ashby's own)", async () => {
+  test.setTimeout(120_000);
+  const HARVEY = "ashby-harvey";
+  const forms = new SavedForms([HARVEY]);
+  await startBatch(forms, [HARVEY]);
+  let locationFocused = false;
+  const { walked, left } = await walkToEnd(forms.url(HARVEY), {
+    onStep: async (url, key) => {
+      if (key === "_systemfield_location")
+        locationFocused = await page(url).evaluate(() => Boolean(document.activeElement?.closest('[data-field-path="_systemfield_location"]')));
+    },
+  });
+  const panelRow = (key: string) => page(forms.url(HARVEY)).locator(`#workit-autofiller-overlay-host [data-key="${key}"]`);
+
+  // Harvey's name, email and resume are Ashby's "_systemfield_" fields, filled from the profile: never walked.
+  for (const key of ["_systemfield_name", "_systemfield_email", "_systemfield_resume"]) {
+    await expect(panelRow(key).locator(".source")).toHaveText("Profile");
+    expect(walked.map(([, k]) => k)).not.toContain(key);
+  }
+  // Its location, which WorkIt has no answer for, is: a field, brought into view like any other.
+  expect(walked.map(([, k]) => k)).toContain("_systemfield_location");
+  expect(locationFocused).toBe(true);
+  expect(await panelRow("_systemfield_location").locator(".label").innerText()).toBe("Current Location");
   expect(left).toBe("Nothing else needs you.");
   expect(forms.submissions).toEqual([]);
 });

@@ -75,9 +75,9 @@
   // The panel's options: a batch tab's panel has Skip.
   const panel = batch ? { onSkip: () => send({ type: "batch/skip" }).catch(() => {}) } : undefined;
   const sleep = (ms) => new Promise((done) => setTimeout(done, ms));
-  /** A row that is the overlay's message, not a field. */
-  function note(key, label, reason, failed = false) {
-    status.register(key, label, failed);
+  /** A row that is the overlay's message, not a field. `done`: news that asks nothing of the student. */
+  function note(key, label, reason, failed = false, done = false) {
+    status.register(key, label, failed, undefined, done ? "done" : "todo");
     status.setStatus(key, failed ? "failed" : "skipped", reason);
   }
 

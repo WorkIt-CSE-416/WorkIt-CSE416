@@ -152,8 +152,8 @@ window.WIA = window.WIA || {};
     text.className = "text";
     const label = document.createElement("div");
     label.className = "label";
-    // A row keyed "_..." is the overlay's own message (content-script.js's note), not a field.
-    label.textContent = field.label + (field.required || field.key.startsWith("_") ? "" : " (optional)");
+    // A note row is the overlay's own message (content-script.js's note), not a field.
+    label.textContent = field.label + (field.required || field.note ? "" : " (optional)");
     text.appendChild(label);
     // Where a filled value came from; a guess is highlighted for the student to check.
     if (field.status === "filled" && SOURCE_LABEL[field.source]) {
