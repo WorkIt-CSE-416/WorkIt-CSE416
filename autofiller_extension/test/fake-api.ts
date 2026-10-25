@@ -8,6 +8,8 @@ import type { Handler } from "./loaded-extension";
 export type Stage = "queued" | "needs_you" | "skipped" | "applied";
 /** `form_url`: the employer's form the API names (KAN-376); its apply_url when left out, as for a hiring system's posting. */
 export type Posting = { id: string; apply_url: string; form_url?: string | null; title?: string; company?: string };
+/** A question a batch tab's form needs written, and the answer the student's Claude saved (KAN-377). */
+export type Written = { name: string; label: string; required: boolean; max_length: number | null; answer: string | null };
 
 const RESUME_ID = "00000000-0000-0000-0000-0000000000r1";
 
@@ -19,6 +21,15 @@ export class FakeApi {
   /** Every call, as "METHOD /path?query". */
   readonly calls: string[] = [];
   private postings = new Map<string, Posting>();
+  /** Each job's questions that need writing, as the tab sent them, with the saved answers. */
+  readonly written = new Map<string, Written[]>();
+
+  /** The connector's save (backend/app/connector/tools.py): the student's Claude answered one question. */
+  saveAnswer(jobId: string, name: string, answer: string): void {
+    const question = this.written.get(jobId)?.find((q) => q.name === name);
+    if (!question) throw new Error(`Job ${jobId} has no question ${name}`);
+    question.answer = answer;
+  }
 
   /** `profile`: the student's profile fields that differ from STUDENT's. */
   constructor(private profile: Partial<typeof STUDENT> = {}) {}
@@ -68,6 +79,19 @@ export class FakeApi {
       const next: Stage = state === "needs_you" ? "needs_you" : "queued";
       this.stages.set(fill[1], next);
       return { json: { job_id: fill[1], stage: next } };
+    }
+    const questions = /^\/applications\/([^/]+)\/questions$/.exec(route);
+    if (questions && this.stages.has(questions[1])) {
+      const saved = this.written.get(questions[1]) ?? [];
+      if (method === "PUT") {
+        for (const q of JSON.parse(body.toString()).questions) {
+          const known = saved.find((s) => s.name === q.name);
+          if (known) Object.assign(known, q);
+          else saved.push({ ...q, answer: null });
+        }
+        this.written.set(questions[1], saved);
+      }
+      return { json: saved };
     }
     const resume = /^\/applications\/([^/]+)\/resume$/.exec(route);
     if (resume && method === "PUT") {

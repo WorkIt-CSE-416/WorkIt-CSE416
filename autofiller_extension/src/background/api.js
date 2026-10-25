@@ -421,6 +421,29 @@ export async function recordFill(applicantId, jobId, state) {
 }
 
 /**
+ * PUT .../applications/{job_id}/questions — the questions a batch tab's form
+ * needs written (KAN-377), for the student's own Claude to answer through
+ * the connector. Answers every question the application has, with any
+ * answer saved so far.
+ * @param {string} applicantId
+ * @param {string} jobId
+ * @param {{ name: string, label: string, required: boolean, max_length: number | null }[]} questions
+ */
+export async function askQuestions(applicantId, jobId, questions) {
+  return apiFetch(`/applicants/${applicantId}/applications/${jobId}/questions`, { method: "PUT", body: JSON.stringify({ questions }) });
+}
+
+/**
+ * GET .../applications/{job_id}/questions — those questions, each with the
+ * `answer` the student's Claude saved, or null.
+ * @param {string} applicantId
+ * @param {string} jobId
+ */
+export async function writtenAnswers(applicantId, jobId) {
+  return apiFetch(`/applicants/${applicantId}/applications/${jobId}/questions`);
+}
+
+/**
  * PUT .../applications/{job_id}/resume — keeps the resume an application
  * went out with as its sent resume (the route's `built_resume_id` or
  * `uploaded_resume_id`, from the profile's resume file).

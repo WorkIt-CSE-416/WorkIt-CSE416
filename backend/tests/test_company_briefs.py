@@ -1,0 +1,253 @@
+"""
+Company briefs (KAN-382), spec seam 2: the student's Claude, through the
+connector, is handed a company to research, saves a brief, and reads it
+with the next application. A fake page fetcher stands in for the web: a
+fact is kept only if its quote is on the page it names.
+"""
+
+import datetime
+import uuid
+
+import pytest
+from sqlalchemy import text as sql
+
+from app.auto_apply import briefs
+from app.deps import get_current_account
+from app.main import app
+from app.services.page_fetch import Unreadable
+from tests.test_built_resumes import _seed_applicant
+from tests.test_connector import (
+    WHY,
+    _another_students_application,
+    _describe,
+    _student_queues,
+    _tab_asks,
+    claude,
+)
+
+pytestmark = pytest.mark.anyio
+
+TODAY = datetime.datetime.now(datetime.UTC).date()
+RECENT = (TODAY - datetime.timedelta(days=40)).strftime("%Y-%m")
+
+PAGES = {
+    "https://acme.com/rocket": f"Acme Rocket\nPublished {RECENT}\nAcme Rocket carries small satellites to low orbit for 40 customers.",
+    "https://blog.acme.com/engines": f"{RECENT[:4]}\nOur engineers rebuilt the engine controller in Rust to cut restart time.",
+    "https://acme.com/news/lander": f"{RECENT}\nToday we launched Acme Lander, which sets probes down on the Moon.",
+    "https://www.reuters.com/acme": f"{RECENT}\nAcme's flight software team writes the guidance code for every Acme vehicle.",
+    "https://evil.example/acme": "Acme Rocket carries small satellites to low orbit for 40 customers.",
+}
+
+ROCKET = {"category": "products", "fact": "Acme Rocket carries small satellites to low orbit.",
+          "url": "https://acme.com/rocket", "quote": "Acme Rocket carries small satellites to low orbit",
+          "published": RECENT}
+ENGINES = {"category": "engineering", "fact": "Acme rebuilt its engine controller in Rust.",
+           "url": "https://blog.acme.com/engines",
+           "quote": "Our engineers rebuilt the engine controller in Rust to cut restart time.", "published": RECENT}
+LANDER = {"category": "launches", "fact": "Acme launched Acme Lander, which sets probes down on the Moon.",
+          "url": "https://acme.com/news/lander", "quote": "we launched Acme Lander, which sets probes down on the Moon",
+          "published": RECENT}
+TEAM = {"category": "team", "fact": "The flight software team writes guidance code for every Acme vehicle.",
+        "url": "https://www.reuters.com/acme",
+        "quote": "flight software team writes the guidance code for every Acme vehicle", "published": RECENT,
+        "team": "Flight Software"}
+
+
+@pytest.fixture
+async def running():
+    """The API with its lifespan running (tests/test_connector.py)."""
+    async with app.router.lifespan_context(app):
+        yield
+    app.dependency_overrides.pop(get_current_account, None)
+
+
+@pytest.fixture
+async def applicant(database) -> uuid.UUID:
+    async with database() as session:
+        return await _seed_applicant(session)
+
+
+@pytest.fixture
+def web(monkeypatch) -> list[str]:
+    """The fake web: PAGES, and the URLs read."""
+    read: list[str] = []
+
+    async def fetch(url: str, allowed) -> str:
+        read.append(url)
+        if url not in PAGES:
+            raise Unreadable("404")
+        return PAGES[url]
+
+    monkeypatch.setattr(briefs, "fetch_page", fetch)
+    return read
+
+
+async def _queued(database, applicant) -> tuple[str, str]:
+    me, (job,) = await _student_queues(database, applicant, 1)
+    await _describe(database, job, "Acme builds rockets.")
+    await _tab_asks(me, job, WHY)
+    return me, job
+
+
+async def _age(database, days: int) -> None:
+    async with database() as session:
+        await session.execute(sql("UPDATE company_briefs SET saved_at = now() - make_interval(days => :d)"), {"d": days})
+        await session.commit()
+
+
+async def test_a_company_with_no_brief_is_a_research_task(running, applicant, database, web):
+    _, job = await _queued(database, applicant)
+
+    async with claude(applicant) as client:
+        tools = {t.name: t for t in (await client.list_tools()).tools}
+        task = (await client.call_tool("get_research_task", {})).structured_content
+
+    assert tools["get_research_task"].annotations.read_only_hint is True
+    assert tools["save_company_brief"].annotations.read_only_hint is False
+    assert task["company"] == "Acme"
+    assert task["job_id"] == job
+    assert task["reason"] == "missing"
+    assert set(task["categories"]) == {"products", "launches", "engineering", "team"}
+    assert "reuters.com" in task["news_sites"]
+
+
+async def test_a_fact_off_its_page_or_off_the_allowed_sites_is_dropped(running, applicant, database, web):
+    await _queued(database, applicant)
+    made_up = {**LANDER, "quote": "we launched Acme Orbiter to Mars and Venus", "url": "https://acme.com/news/lander"}
+    elsewhere = {**ROCKET, "url": "https://evil.example/acme"}
+    gone = {**ENGINES, "url": "https://acme.com/missing-page"}
+    padded = {**ROCKET, "fact": "Acme Rocket has flown 900 missions."}  # a number its quote doesn't hold
+
+    async with claude(applicant) as client:
+        saved = (await client.call_tool("save_company_brief", {
+            "company": "Acme", "facts": [ROCKET, ENGINES, TEAM, made_up, elsewhere, gone, padded]})).structured_content
+        after = await client.call_tool("get_next_application", {})
+
+    assert saved["saved"] is True
+    assert saved["kept"] == 3
+    reasons = {d["url"]: d["reason"] for d in saved["dropped"]}
+    assert set(reasons) == {"https://acme.com/news/lander", "https://evil.example/acme",
+                            "https://acme.com/missing-page", "https://acme.com/rocket"}
+    # A site that isn't the company's or a listed news site is never read.
+    assert "https://evil.example/acme" not in web
+    brief = after.structured_content["company_brief"]
+    assert [f["url"] for f in brief] == [ROCKET["url"], ENGINES["url"], TEAM["url"]]
+    assert brief[2]["team"] == "Flight Software"
+
+
+async def test_a_brief_below_the_minimum_is_not_saved(running, applicant, database, web):
+    await _queued(database, applicant)
+    wrong = {**ENGINES, "quote": "Our engineers rewrote everything in Haskell last week."}
+
+    async with claude(applicant) as client:
+        saved = (await client.call_tool("save_company_brief", {
+            "company": "Acme", "facts": [ROCKET, wrong]})).structured_content
+        after = await client.call_tool("get_next_application", {})
+        task = (await client.call_tool("get_research_task", {})).structured_content
+
+    assert saved["saved"] is False
+    assert after.structured_content["company_brief"] == []
+    # Still missing, but held back a while: Claude saves again from the
+    # reasons it was given, and the next student's Claude isn't sent at once.
+    assert task["company"] is None
+
+
+async def test_a_lower_scoring_rebuild_never_replaces_a_higher_one(running, applicant, database, web):
+    await _queued(database, applicant)
+
+    async with claude(applicant) as client:
+        first = (await client.call_tool("save_company_brief", {
+            "company": "Acme", "facts": [ROCKET, ENGINES, LANDER, TEAM]})).structured_content
+        await _age(database, 45)
+        worse = (await client.call_tool("save_company_brief", {
+            "company": "Acme", "facts": [ROCKET, ENGINES, LANDER]})).structured_content
+        kept = (await client.call_tool("get_next_application", {})).structured_content["company_brief"]
+
+    assert first["saved"] is True
+    assert worse["saved"] is False
+    assert worse["score"] < worse["current_score"]
+    assert len(kept) == 4
+
+
+async def test_a_higher_scoring_rebuild_replaces_the_brief(running, applicant, database, web):
+    await _queued(database, applicant)
+
+    async with claude(applicant) as client:
+        await client.call_tool("save_company_brief", {"company": "Acme", "facts": [ROCKET, ENGINES, LANDER]})
+        better = (await client.call_tool("save_company_brief", {
+            "company": "Acme", "facts": [ROCKET, ENGINES, LANDER, TEAM]})).structured_content
+        kept = (await client.call_tool("get_next_application", {})).structured_content["company_brief"]
+
+    assert better["saved"] is True
+    assert better["score"] > better["current_score"]
+    assert len(kept) == 4
+
+
+async def test_only_stale_or_weak_briefs_are_offered(running, applicant, database, web):
+    await _queued(database, applicant)
+
+    async with claude(applicant) as client:
+        await client.call_tool("save_company_brief", {"company": "Acme", "facts": [ROCKET, ENGINES, LANDER, TEAM]})
+        fresh = (await client.call_tool("get_research_task", {})).structured_content
+        await _age(database, briefs.FRESH_DAYS + 1)
+        stale = (await client.call_tool("get_research_task", {})).structured_content
+
+    assert fresh["company"] is None
+    assert (stale["company"], stale["reason"]) == ("Acme", "stale")
+
+
+async def test_a_weak_brief_is_offered(running, applicant, database, web):
+    await _queued(database, applicant)
+    undated = [{**f, "published": None} for f in (ROCKET, ENGINES, LANDER)]
+
+    async with claude(applicant) as client:
+        saved = (await client.call_tool("save_company_brief", {"company": "Acme", "facts": undated})).structured_content
+        task = (await client.call_tool("get_research_task", {})).structured_content
+
+    assert saved["saved"] is True
+    assert saved["score"] < briefs.STRONG
+    assert (task["company"], task["reason"]) == ("Acme", "weak")
+
+
+async def test_a_brief_only_for_a_company_the_student_applies_to(running, applicant, database, web):
+    await _queued(database, applicant)
+
+    async with claude(applicant) as client:
+        other = await client.call_tool("save_company_brief", {"company": "Globex", "facts": [ROCKET, ENGINES, LANDER]})
+
+    assert other.is_error
+    assert web == []
+
+
+async def test_a_brief_is_shared_by_every_student_applying(running, applicant, database, web):
+    await _queued(database, applicant)
+    other, theirs_job = await _another_students_application(database)
+    await _tab_asks(other, theirs_job, WHY)
+    them = uuid.UUID(other.rsplit("/", 1)[1])
+
+    async with claude(applicant) as client:
+        await client.call_tool("save_company_brief", {"company": "Acme", "facts": [ROCKET, ENGINES, LANDER, TEAM]})
+    async with claude(them) as client:
+        theirs = (await client.call_tool("get_next_application", {})).structured_content["company_brief"]
+        task = (await client.call_tool("get_research_task", {})).structured_content
+
+    assert len(theirs) == 4
+    assert task["company"] is None
+
+
+def test_scoring_counts_categories_facts_and_recency():
+    today = datetime.date(2026, 10, 25)
+    one = [{"category": "products", "published": None}] * 3
+    spread = [{"category": c, "published": "2026-09"} for c in ("products", "launches", "engineering", "team")]
+    old = [{"category": c, "published": "2024-01"} for c in ("products", "launches", "engineering", "team")]
+
+    assert briefs.score(one, today) < briefs.score(old, today) < briefs.score(spread, today)
+    assert briefs.score([], today) == 0
+
+
+@pytest.mark.parametrize(("host", "own"), [
+    ("acme.com", True), ("blog.acme.com", True), ("acme.co.uk", True), ("www.reuters.com", False),
+    ("acme.com.evil.io", False), ("notacme.com", False), ("acme.github.io", False),
+])
+def test_the_companys_own_domain_is_named_for_it(host, own):
+    assert briefs.own_domain(host, "Acme, Inc.") is own

@@ -240,9 +240,23 @@ and `run/show` switches to one (`jobId`).
   another is answered, which no Question set marks required (Greenhouse's
   phone country once Phone shows a number: its submit answers "Select a
   country", seen on Arc's form). Each becomes a failed, required row, so
-  the tab needs the student until it shows an answer. A batch tab writes no essays (the essay
-  route is not batch apply's; the student's own Claude will write them,
-  KAN-377): they are left to the student.
+  the tab needs the student until it shows an answer.
+- **A batch tab's essays come from the student's own Claude** (KAN-377;
+  `auto-apply/architecture.md` 14.6). The essay route is never batch
+  apply's. The tab sends the questions its Plan needs written
+  (`batch/questions` → `PUT .../applications/{job}/questions`), shows each
+  as waiting for the student's Claude, and asks for the saved answers every
+  10 seconds (`batch/answers` → `GET .../questions`) until none is left,
+  filling each through the engine; its group follows. The background takes
+  the job from the batch's own record of the tab (`jobInTab`), never from
+  the message. A question the student answered first keeps their answer;
+  one Claude's answer fills is labelled Claude (KAN-375's sources). A
+  practice batch's tabs (KAN-378) send nothing: a practice job has no
+  application at WorkIt, so its essays stay the student's.
+  A hidden tab's timers slow to about once a minute after five minutes, so
+  an answer can take that long to land. Tests:
+  `test/connector.extension.spec.ts` (Ashby's Harvey form: no saved
+  Greenhouse form has an essay the Plan sends to Claude).
 - **"Next Thing That Needs You" walks the batch** (KAN-375). Each batch
   tab's panel has the button. `batch.js`'s `nextNeedsYou` asks every batch
   tab, in the order the tabs opened, which of its rows need the student
@@ -305,7 +319,10 @@ and `run/show` switches to one (`jobId`).
   which watches the DOM (never `requestAnimationFrame`: a hidden tab runs
   none) for up to 10 seconds, then injects the fill. A page that never
   loads, shows no form, or is on a host the extension may not touch (a job
-  system with no Filler) fills nothing and goes to Needs you.
+  system with no Filler) fills nothing and goes to Needs you. Ashby's
+  application has no `<form>` element, so the wait also takes a field in
+  Ashby's `[data-field-path]` boxes; without it every Ashby tab went to
+  Needs you with nothing filled (`test/ashby.extension.spec.ts`).
 - **The overlay puts itself back when the page removes it.** Greenhouse's
   React app can drop nodes it didn't render, sometimes by replacing
   `<html>` itself. `overlay.js`'s `keepAttached` watches the whole document

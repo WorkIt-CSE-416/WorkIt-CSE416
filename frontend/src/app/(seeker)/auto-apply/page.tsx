@@ -3,6 +3,7 @@ import type { Metadata } from "next";
 
 import { EmptyState } from "@/components/ui/empty-state";
 import { listBuiltResumes } from "@/lib/built-resume-actions";
+import { claudeConnectorLink } from "@/lib/claude-connector";
 import { cn } from "@/lib/cn";
 import { listResumes } from "@/lib/resume-actions";
 
@@ -115,7 +116,10 @@ export default async function AutoApplyPage() {
     <div className={cn("max-w-app mx-auto w-full flex-1 py-6", SEEKER_GUTTER)}>
       {/* So a queued job's page goes back here, not to the feed. */}
       <RememberFeed />
-      <AutoApplyPanel hasResume={builtList.length + uploadedList.length > 0}>
+      <AutoApplyPanel
+        hasResume={builtList.length + uploadedList.length > 0}
+        claudeLink={claudeConnectorLink()}
+      >
         {run.error != null ? (
           <EmptyState
             Icon={CloudSlashIcon}

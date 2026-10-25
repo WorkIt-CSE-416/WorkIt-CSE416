@@ -7,11 +7,11 @@ import type { ComponentType } from "react";
  * the footer's Resources column all read this list, the way
  * features/catalog.ts feeds the Features menu.
  *
- * None of the three has a page yet. While an item has `soon`, the menu marks
- * it Soon and its route renders ComingSoonPage (coming-soon.tsx) with this
- * copy. When a real page lands, it replaces the route file and the item
- * drops `soon`. Every line here is a claim: the MCP server is only planned
- * (auto-apply/architecture.md, section 14), so nothing may say it exists.
+ * While an item has `soon`, the menu marks it Soon and its route renders
+ * ComingSoonPage (coming-soon.tsx) with this copy. When a real page lands,
+ * it replaces the route file and the item drops `soon`. Every line here is
+ * a claim. MCP docs has its page (KAN-383): the connector for Claude
+ * (auto-apply/architecture.md, 14.6); Help Center and Blog are still soon.
  */
 export type ResourceSlug = "mcp" | "help" | "blog";
 
@@ -43,12 +43,7 @@ export const RESOURCES: Record<ResourceSlug, Resource> = {
     name: "MCP docs",
     href: "/docs/mcp",
     icon: PlugIcon,
-    line: "Use WorkIt from an AI agent",
-    soon: {
-      summary:
-        "WorkIt plans an MCP server: a set of tools an AI agent can call to read your job matches and queue applications. It is not built yet, so there is nothing to document. These docs will go up when it ships.",
-      meanwhile: { label: "See Auto Apply", href: "/features/auto-apply" },
-    },
+    line: "Let your Claude write your answers",
   }),
   help: resource("help", {
     name: "Help Center",

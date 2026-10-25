@@ -5,7 +5,7 @@ import { LightningRoundedIcon } from "@/components/custom-icons";
 import { useRouter } from "next/navigation";
 import { useRef, useState, useTransition, type ReactNode } from "react";
 
-import { FileIcon } from "@/components/icons";
+import { FileIcon, SparkleIcon } from "@/components/icons";
 import { Button, ButtonLink } from "@/components/ui/button";
 import { openNextApplication } from "@/lib/autofill-extension";
 import { cn } from "@/lib/cn";
@@ -29,8 +29,8 @@ const RUN_BUTTON: Record<
 };
 
 /**
- * The Auto Apply page's heading with its two actions, Manage Resumes and the
- * run button. `children` is the page's sections, Up Next and History, drawn
+ * The Auto Apply page's heading with its three actions, Manage Resumes, Add
+ * to Claude and the run button. `children` is the page's sections, Up Next and History, drawn
  * on the server (./page.tsx) and passed through, since this half is a
  * client component.
  *
@@ -65,13 +65,23 @@ const RUN_BUTTON: Record<
  * load. Nothing fills the form yet, and Pause and Resume only move this state
  * (`auto-apply/architecture.md`, "The run"). The state is the page's own,
  * so a return visit starts idle, and Start queues another batch.
+ *
+ * ADD TO CLAUDE (KAN-383) opens Claude's Add Custom Connector dialog in a
+ * new tab, WorkIt's name and connector address filled in
+ * (`lib/claude-connector.ts`, read on the server and passed as
+ * `claudeLink`). The student's own Claude then writes the batch's essay
+ * answers (auto-apply/architecture.md, 14.6). A bordered secondary with the
+ * sparkle, the AI mark: Start stays the one brand-filled action.
  */
 export function AutoApplyPanel({
   hasResume,
+  claudeLink,
   children,
 }: {
   /** The seeker has at least one resume: Start is off without one. */
   hasResume: boolean;
+  /** Claude's Add Custom Connector dialog, filled in for WorkIt. */
+  claudeLink: string;
   children: ReactNode;
 }) {
   const router = useRouter();
@@ -137,6 +147,16 @@ export function AutoApplyPanel({
           <ButtonLink href="/resumes" variant="secondary" size="sm">
             <FileIcon className="size-4" />
             Manage Resumes
+          </ButtonLink>
+          <ButtonLink
+            href={claudeLink}
+            target="_blank"
+            rel="noreferrer"
+            variant="secondary"
+            size="sm"
+          >
+            <SparkleIcon className="size-4" />
+            Add to Claude
           </ButtonLink>
           <Button
             variant={button.variant}

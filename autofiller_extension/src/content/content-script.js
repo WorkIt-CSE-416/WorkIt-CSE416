@@ -18,12 +18,14 @@
 // is filled and the overlay says so.
 //
 // In one of batch apply's tabs (KAN-370; `window.WIA.batch`, set by
-// injectFill), the fill writes no essays (the student's own Claude will, by
-// the connector) and tells the background whether the tab is ready or needs
-// the student ("batch/state"), once the fill ends and again whenever that
-// changes: the engine reads back the fields the student edits, so emptying
-// a required field, or answering the last one, moves the tab between the
-// Ready and Needs you groups (background/batch.js).
+// injectFill), the fill writes no essays itself: it sends the questions that
+// need writing to WorkIt, and fills each answer the student's own Claude
+// saves through the connector as it arrives (KAN-377). It tells the
+// background whether the tab is ready or needs the student ("batch/state"),
+// once the fill ends and again whenever that changes (an answer filled too):
+// the engine reads back the fields the student edits, so emptying a required
+// field, or answering the last one, moves the tab between the Ready and
+// Needs you groups (background/batch.js).
 //
 // A batch tab also watches for the student's own submit (KAN-374): the
 // engine, in the page, reads the job system's answer to it ("batch/watch").
@@ -51,6 +53,12 @@
   const EDIT_PAUSE = 400;
   const batch = Boolean(window.WIA.batch);
   const WRITE_IT = "Write this answer yourself.";
+  const WAIT_FOR_CLAUDE = "Waiting for your Claude: run \"Write my WorkIt answers\" in Claude, or write it yourself.";
+  // How often a batch tab asks whether the student's Claude saved an answer (KAN-377).
+  const ANSWER_POLL = 10_000;
+  // The connector's limits on a question (backend/app/schemas/applications.py).
+  const LABEL_MAX = 2000;
+  const FIELD_NAME_MAX = 200;
 
   status.reset();
   // Where the fill is, for whoever drives the page (the extension's test):
@@ -109,13 +117,13 @@
         if (isNew(name)) status.register(name, byName.get(name)?.label ?? name, byName.get(name)?.required ?? false, sources[name] ?? "guessed");
       }
       for (const q of rows.written) {
+        written.set(q.name, q);
         if (batch) {
           if (!isNew(q.name)) continue;
           status.register(q.name, q.label, q.required);
-          status.setStatus(q.name, q.required ? "failed" : "skipped", WRITE_IT);
+          status.setStatus(q.name, "needs_generation", WAIT_FOR_CLAUDE);
           continue;
         }
-        written.set(q.name, q);
         if (!isNew(q.name)) continue;
         status.register(q.name, q.label, q.required);
         status.setStatus(q.name, "needs_generation");
@@ -168,10 +176,54 @@
     status.setStatus(name, result.status, result.reason, result.shows, source);
   }
 
+  /** The current status of one row, or undefined. */
+  const rowStatus = (key) => status.summary().fields.find((r) => r.key === key)?.status;
+
+  /**
+   * A batch tab's questions that need writing (KAN-377): sent to WorkIt for
+   * the student's own Claude, which saves its answers through the connector.
+   * The tab then asks for the saved answers every ANSWER_POLL ms and fills
+   * each new one through the engine, until none is left; the tab's group
+   * follows (report()). A question the student answered first keeps their
+   * answer.
+   */
+  async function awaitClaude(prepared) {
+    const waiting = new Set(prepared.written.map((q) => q.name));
+    const questions = prepared.written.map((q) => {
+      const box = document.getElementById(q.name);
+      return {
+        name: q.name.slice(0, FIELD_NAME_MAX),
+        label: q.label.slice(0, LABEL_MAX),
+        required: Boolean(q.required),
+        max_length: box && box.maxLength > 0 ? box.maxLength : null,
+      };
+    });
+    let reply = await send({ type: "batch/questions", questions }).catch((error) => ({ ok: false, error: error.message }));
+    if (!reply.ok) {
+      for (const q of prepared.written) status.setStatus(q.name, q.required ? "failed" : "skipped", WRITE_IT);
+      return;
+    }
+    for (;;) {
+      for (const { name, answer } of reply.ok ? reply.questions : []) {
+        if (!answer || !waiting.has(name)) continue;
+        waiting.delete(name);
+        if (rowStatus(name) !== "filled") await fillWritten(prepared, name, answer, "claude");
+      }
+      for (const name of waiting) if (rowStatus(name) === "filled") waiting.delete(name);
+      if (!waiting.size) return;
+      await sleep(ANSWER_POLL);
+      reply = await send({ type: "batch/answers" }).catch((error) => ({ ok: false, error: error.message }));
+    }
+  }
+
   /** The Generate prompt for the questions that need a written answer, if any. */
   function offerEssays(prepared) {
     const written = prepared.written;
     if (written.length === 0) return;
+    if (batch) {
+      awaitClaude(prepared);
+      return;
+    }
     overlay.promptForEssays({
       count: written.length,
       onDismiss() {

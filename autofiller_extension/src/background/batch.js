@@ -280,6 +280,16 @@ export function forgetTab(tabId) {
   });
 }
 
+/**
+ * The job a batch tab shows, for its written answers (KAN-377), or null for
+ * a tab outside the batch, or a practice one: a practice job has no
+ * application at WorkIt, so its essays stay the student's.
+ */
+export async function jobInTab(tabId) {
+  const batch = await load();
+  return batch?.practice ? null : batch?.tabs[tabId]?.jobId ?? null;
+}
+
 /** Whether a tab is one of the batch's, for a fill injected again (Workday's next page). */
 export async function inBatch(tabId) {
   return Boolean((await load())?.tabs[tabId]);
@@ -441,7 +451,8 @@ export async function practiceStatus() {
  * @param {number} timeoutMs
  */
 function waitForForm(timeoutMs) {
-  const FIELD = "#first_name, form input:not([type=hidden]), form select, form textarea";
+  // Ashby's form has no <form> element: its fields sit in [data-field-path] boxes.
+  const FIELD = "#first_name, form input:not([type=hidden]), form select, form textarea, [data-field-path] input, [data-field-path] textarea";
   return new Promise((resolve) => {
     if (document.querySelector(FIELD)) return resolve(true);
     const observer = new MutationObserver(() => {

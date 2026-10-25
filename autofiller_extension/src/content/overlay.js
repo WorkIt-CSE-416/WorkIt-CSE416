@@ -144,7 +144,8 @@ window.WIA = window.WIA || {};
       text.appendChild(source);
       if (field.source === "guessed") el.dataset.guessed = "";
     }
-    if ((field.status === "failed" || field.status === "skipped") && field.reason) {
+    // needs_generation's reason says who writes it (a batch tab: the student's Claude, KAN-377).
+    if ((field.status === "failed" || field.status === "skipped" || field.status === "needs_generation") && field.reason) {
       const reason = document.createElement("div");
       reason.className = field.status === "failed" ? "reason" : "reason note";
       reason.textContent = field.reason;

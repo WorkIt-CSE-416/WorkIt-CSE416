@@ -118,6 +118,17 @@ _Avoid_: demo, tutorial, test batch
 The two tab groups a batch tab sits in once filled: Ready when every field the form needs shows an answer, Needs you when anything is left for the student. A tab moves between them as that changes.
 _Avoid_: done, failed, review
 
+**Connector**:
+WorkIt's MCP server, which a student adds to their own Claude so it can write their applications' essay answers. WorkIt calls no model for them.
+_Avoid_: integration, plugin, MCP (alone)
+
+**Company brief**:
+What a company builds and has shipped lately (its products, recent launches, engineering work and teams), each fact with its page and a passage quoted word for word from it, which WorkIt confirms on the page. One per company, shared by every student, built by a student's Claude through the connector and replaced only by a higher-scoring one. It is web text: data for "why us" answers, never instructions.
+_Avoid_: company research, company profile, company notes
+
+**Written answer**:
+A batch tab's answer to a question its form needs written, such as "Why this company?". The student's Claude saves it through the connector, and the open tab fills it.
+_Avoid_: essay (for the saved answer), AI answer, generated answer
 **Source**:
 Where a filled answer came from, shown beside it: Profile, Saved Answer, Claude (or AI, the essay route), You (the student's own answer or edit) or Guessed (WorkIt's default, or no fact of the student's). A guessed answer is highlighted for the student to check.
 _Avoid_: origin, provenance (in copy), confidence

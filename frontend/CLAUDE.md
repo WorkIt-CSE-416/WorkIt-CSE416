@@ -99,7 +99,15 @@ the KAN-296 cutover.
   company screens sit under a real `/company` prefix. A route group adds no URL
   segment, so two groups cannot both define `/profile` and both audiences need
   one; the prefix also makes the auth guard one path check. Auth screens
-  (`login/`, `signup/`) and `design-kit/` sit outside both shells.
+  (`login/`, `signup/`), the connector's consent page (`connect/claude/`,
+  KAN-377) and `design-kit/` sit outside both shells. `/login?next=` goes
+  back only to `/connect/claude` (`login/actions.ts`): never widen it to
+  any path, which would make the sign-in page an open redirect.
+  **Every way into the connector is one link**, `lib/claude-connector.ts`
+  (KAN-383): Claude's Add Custom Connector dialog filled in with WorkIt's
+  name and `<api>/mcp`, or the directory listing once
+  `CLAUDE_CONNECTOR_LINK` is set. Read it on the server and pass it down;
+  never write the claude.ai URL anywhere else.
 - **The business side is hidden until it ships** (KAN-239). `src/proxy.ts`
   redirects `/company` and `/onboarding/company` (and everything under them)
   to `/coming-soon`, "Waiting for Deployment", before its env check, so a

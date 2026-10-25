@@ -205,7 +205,37 @@ Find files with a directory listing; these are the rules for where code goes.
   `next_application`'s `skip` passes over the jobs the extension already
   has open. A new stage value would be an `ALTER TYPE` and a coordinated
   deploy; add one only when a state must outlive its tab.
-  Tests: `tests/test_batch_apply.py`. **Which job postings it takes is
+  Tests: `tests/test_batch_apply.py`. **A batch tab's essay questions are
+  rows in `written_answers`** (KAN-377): the tab sends the questions its
+  form needs written (`PUT .../questions`), the student's own Claude saves
+  each answer through the connector, and the tab reads them back
+  (`GET .../questions`) to fill them. Only a queued or needs_you application
+  takes questions. Tests: `tests/test_written_answers.py`.
+  **The connector is an MCP server inside this API** (`app/connector/`,
+  KAN-377; `../auto-apply/architecture.md` 14.6): the official MCP SDK at
+  `/mcp`, with WorkIt as its own OAuth server (`connector/oauth.py`; the
+  SDK's endpoints at the root, `/authorize`, `/token`, `/register`,
+  `/revoke`, `/.well-known/...`, added path by path, never a catch-all
+  mount). It answers only inside the app's lifespan, so its tests run
+  `app.router.lifespan_context(app)` (`tests/test_connector.py`, which
+  signs in with the SDK's own client as Claude does). Its tokens reach
+  `/mcp` only. **Its tools are layer 3** (`connector/tools.py`): the
+  student comes from the token (`load_account`), each tool calls one
+  layer-2 step (`next_to_write`, `save_answers`), and a refusal is a
+  `ToolError` with the reason. **A chat is the `chat` value Claude passes
+  back** (KAN-381): the server keeps no session, so the per-chat cap
+  (`connector_chat_cap`) counts the job ids in that value, and a new chat
+  (no value) resumes at the oldest unanswered application. **Writing rules go in the MCP prompt
+  (`connector/prompt.py`), never in a tool's description**, name no
+  student, and never list banned words (that primes a model; the save
+  checks them, KAN-380), and nothing on this path calls a model. **Every tool takes a title and explicit annotations** (KAN-383, Anthropic's directory refuses a tool without them): `readOnlyHint=True` on a read, so Claude runs it without asking; only `save_*` tools write, each saying `destructiveHint`; `openWorldHint=False` on all. A test lists the tools and checks each one, so a new tool without them fails. **Company
+  briefs are shared by every student** (KAN-382, `auto_apply/briefs.py`,
+  tools in `connector/briefs.py`): a fact is kept only if WorkIt finds its
+  quote on its page, so **every page a brief cites is read through
+  `services/page_fetch.py`**, never a bare `httpx` call: the URL comes from
+  outside, and the fetcher is what refuses internal addresses, other
+  hosts, redirects off them and oversized pages. Tests swap
+  `briefs.fetch_page` for a fake; nothing in the suite reads the web. **Which job postings it takes is
   one list, `app/auto_apply/hosts.py`** (every hiring system the Fill engine fills, KAN-370): the matches
   and `queue_applications` require its SQL form (`AUTO_APPLY_SUPPORTED` in
   `queries/jobs/filters.py`) and `JobListing.auto_apply` its Python form,

@@ -2,9 +2,11 @@
 main file for the backend app
 '''
 
+import contextlib
 import logging
 import math
 import time
+from collections.abc import AsyncIterator
 
 from fastapi import FastAPI, Request
 from fastapi.encoders import jsonable_encoder
@@ -12,6 +14,8 @@ from fastapi.exceptions import RequestValidationError
 from fastapi.responses import JSONResponse
 from sqlalchemy import text
 
+from app.connector.server import ROUTES as CONNECTOR_ROUTES
+from app.connector.server import connector
 from app.db import get_sessionmaker
 from app.routers.applications import router as applications_router
 from app.routers.assistant import router as assistant_router
@@ -22,6 +26,7 @@ from app.routers.avatars import router as avatar_router
 from app.routers.bank import router as bank_router
 from app.routers.built_resumes import router as built_resumes_router
 from app.routers.company_jobs import router as company_jobs_router
+from app.routers.connector import router as connector_router
 from app.routers.essay_answer import router as essay_answer_router
 from app.routers.intake import router as intake_router
 from app.routers.jobs import router as jobs_router
@@ -34,8 +39,17 @@ from app.routers.tailor import router as tailor_router
 
 logger = logging.getLogger(__name__)
 
+
+@contextlib.asynccontextmanager
+async def lifespan(_: FastAPI) -> AsyncIterator[None]:
+    # The connector's MCP server (KAN-377) answers only while this runs.
+    async with connector.running():
+        yield
+
+
 app = FastAPI(
-    title="WorkIt"
+    title="WorkIt",
+    lifespan=lifespan,
 )
 
 app.include_router(auth_router)
@@ -56,6 +70,9 @@ app.include_router(assistant_router)
 app.include_router(preferences_router)
 app.include_router(autofill_answers_router)
 app.include_router(essay_answer_router)
+app.include_router(connector_router)
+# The connector's MCP server and its OAuth endpoints (app/connector/server.py).
+app.router.routes.extend(CONNECTOR_ROUTES)
 
 
 @app.exception_handler(RequestValidationError)

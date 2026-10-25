@@ -9,7 +9,7 @@ import dataclasses
 import logging
 import sys
 import uuid
-from collections.abc import Sequence
+from collections.abc import Collection, Sequence
 from typing import Any, Literal
 
 from sqlalchemy.exc import SQLAlchemyError
@@ -22,23 +22,33 @@ from app.auto_apply.queries import (
     fetch_application,
     fetch_applications,
     fetch_next_application,
+    fetch_next_to_write,
     fetch_open_apply_url,
     fetch_stage,
+    fetch_written,
     link_resume,
     pick_resume,
+    put_questions,
     queue_applications,
     remove_queued,
+    save_written,
     set_stage,
 )
 from app.auto_apply.rules import pick_batch
 from app.models.dto import application_stage
 from app.queries.jobs.filters import JobFilters
 from app.routers.jobs import EmptyBank, fetch_recommended
-from app.schemas.applications import Application
+from app.schemas.applications import (
+    ANSWER_MAX,
+    Application,
+    WrittenAnswer,
+    WrittenQuestion,
+)
 from app.schemas.auth import AuthenticatedAccount
 from app.schemas.jobs import ScoredJob
 from app.schemas.sent_resume import SentResumeDownload, SentResumeResponse
 from app.services import sent_resumes
+from app.services.bank import Bank, load_bank
 from app.services.bank import NotFound as ResumeNotFound
 from app.services.resume_render import TectonicUnavailable
 
@@ -268,6 +278,105 @@ async def record_fill(
     await set_stage(db, applicant_id, job_id, new)
     await db.commit()
     return new
+
+
+async def _open_application(db: AsyncSession, applicant_id: uuid.UUID, job_id: uuid.UUID) -> None:
+    """Raises NotFound with no application, WrongStage once it is past
+    the form (skipped or applied)."""
+    stage = await fetch_stage(db, applicant_id, job_id)
+    if stage is None:
+        raise NotFound("No application for that job. Queue it first.")
+    if stage not in FINISHABLE:
+        raise WrongStage(f"That application is {stage}, so its form is no longer open.")
+
+
+async def ask_questions(
+    db: AsyncSession, applicant_id: uuid.UUID, job_id: uuid.UUID, questions: Sequence[WrittenQuestion]
+) -> list[WrittenAnswer]:
+    """
+    Keeps the questions a batch tab's form needs written (KAN-377), for the
+    student's Claude to answer through the connector, and answers every
+    question the application has, with the answers saved so far. Only a
+    queued or needs_you application: NotFound / WrongStage otherwise.
+    """
+    await _open_application(db, applicant_id, job_id)
+    await put_questions(db, applicant_id, job_id, questions)
+    await db.commit()
+    return await fetch_written(db, applicant_id, job_id)
+
+
+async def written_answers(
+    db: AsyncSession, applicant_id: uuid.UUID, job_id: uuid.UUID
+) -> list[WrittenAnswer]:
+    """An application's questions that need writing, with the answers saved
+    so far (the open tab fills each new one). NotFound with no application."""
+    if await fetch_stage(db, applicant_id, job_id) is None:
+        raise NotFound("No application for that job.")
+    return await fetch_written(db, applicant_id, job_id)
+
+
+class Refused(Exception):
+    """A save the connector refuses whole, with the reason for the student's
+    Claude to fix it by. Nothing was saved."""
+
+
+@dataclasses.dataclass(frozen=True)
+class ToWrite:
+    """One application's material for the student's Claude (KAN-377): only
+    that application's job posting and questions, and the student's bank."""
+
+    application: Application
+    posting: str | None
+    questions: list[WrittenAnswer]
+    bank: Bank
+
+
+async def next_to_write(
+    db: AsyncSession, applicant_id: uuid.UUID, skip: Collection[uuid.UUID] = ()
+) -> ToWrite | None:
+    """The connector's next application: the oldest open one with a
+    question still unanswered, other than the jobs in `skip` (those the chat
+    was given already), its unanswered questions in the form's order. None
+    when nothing is left to write."""
+    found = await fetch_next_to_write(db, applicant_id, skip)
+    if found is None:
+        return None
+    job_id, posting = found
+    questions = [q for q in await fetch_written(db, applicant_id, job_id) if q.answer is None]
+    return ToWrite(
+        application=await get_application(db, applicant_id, job_id),
+        posting=posting,
+        questions=questions,
+        bank=await load_bank(db, applicant_id),
+    )
+
+
+async def save_answers(
+    db: AsyncSession, applicant_id: uuid.UUID, job_id: uuid.UUID, answers: dict[str, str]
+) -> int:
+    """
+    Saves the student's Claude's answers to one application's questions
+    (KAN-377), all or none, and answers how many of its questions are
+    still unanswered. Each name must be one of the application's questions,
+    and each answer must fit the form's own limit. Raises NotFound /
+    WrongStage for an application that isn't open, Refused otherwise.
+    """
+    await _open_application(db, applicant_id, job_id)
+    questions = {q.name: q for q in await fetch_written(db, applicant_id, job_id)}
+    if not answers:
+        raise Refused("No answers to save.")
+    for name, answer in answers.items():
+        question = questions.get(name)
+        if question is None:
+            raise Refused(f"The application has no question named {name!r}. Use the names get_next_application gave.")
+        limit = question.max_length or ANSWER_MAX
+        if not answer.strip():
+            raise Refused(f"The answer to {name!r} is empty.")
+        if len(answer) > limit:
+            raise Refused(f"The answer to {name!r} is {len(answer)} characters; the form takes at most {limit}.")
+    await save_written(db, applicant_id, job_id, {name: answer.strip() for name, answer in answers.items()})
+    await db.commit()
+    return sum(1 for name, q in questions.items() if q.answer is None and name not in answers)
 
 
 async def finish_application(

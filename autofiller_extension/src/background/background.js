@@ -7,8 +7,8 @@
 // comment explains why) — just the cache.
 
 import { getSession } from "./auth.js";
-import { getAutofillProfile, generateEssayAnswer, ApiError } from "./api.js";
-import { batchStatus, forgetTab, inBatch, markSubmitted, nextNeedsYou, practiceStatus, setTabState, showBatchTab, startBatch, startPractice, submitPractice } from "./batch.js";
+import { getAutofillProfile, generateEssayAnswer, ApiError, askQuestions, me, writtenAnswers } from "./api.js";
+import { batchStatus, forgetTab, inBatch, jobInTab, markSubmitted, nextNeedsYou, practiceStatus, setTabState, showBatchTab, startBatch, startPractice, submitPractice } from "./batch.js";
 import { engineCaller, handleFill, jobOf, practiceJob, runEngine, submittedPage } from "./engine.js";
 import { injectFill } from "../shared/content-scripts.js";
 
@@ -96,6 +96,21 @@ async function handleMessage(message, sender) {
     case "batch/state": {
       if (message.state !== "ready" && message.state !== "needs_you") throw new Error(`Unknown tab state: ${message.state}`);
       return setTabState(sender.tab.id, message.state);
+    }
+
+    // A batch tab's questions that need writing (KAN-377): sent to the API for
+    // the student's own Claude to answer through the connector
+    // (batch/questions), then the answers saved so far (batch/answers), which
+    // the tab fills. The job is the batch's own for that tab, never the message's.
+    case "batch/questions":
+    case "batch/answers": {
+      const jobId = await jobInTab(sender.tab.id);
+      if (!jobId) throw new Error("This tab isn't one of the batch's");
+      const { id } = await me();
+      const questions = message.type === "batch/questions"
+        ? await askQuestions(id, jobId, message.questions)
+        : await writtenAnswers(id, jobId);
+      return { questions };
     }
 
     // A batch tab's "Next Thing That Needs You" (content-script.js): batch.js goes to it, across the tabs.
