@@ -197,13 +197,17 @@ export function engineProfile(profile) {
 
 /** The engine profile from WorkIt's own fields alone. */
 function workitProfile(profile) {
-  const [first, ...rest] = (profile.full_name ?? "").trim().split(/\s+/);
+  // The student's own parts (Settings), else the full name's first and last words with the words between as the middle.
+  const words = (profile.full_name ?? "").trim().split(/\s+/).filter(Boolean);
+  const first = profile.first_name || words[0];
+  const last = profile.first_name ? profile.last_name : words.length > 1 ? words.at(-1) : null;
+  const middle = profile.first_name ? profile.middle_name : words.slice(1, -1).join(" ");
   const entries = profile.bank?.entries ?? [];
   const [school] = latest(entries, "education");
   const answers = profile.answers ?? {};
   return {
     identity: present({
-      legal_first_name: first || null, legal_last_name: rest.join(" ") || null, email: profile.email, phone: profile.phone_number,
+      legal_first_name: first || null, legal_middle_name: middle || null, legal_last_name: last || null, email: profile.email, phone: profile.phone_number,
       // Where the student lives, as they typed it (KAN-372), read by the engine; one it can't read is left out.
       current_location: home(profile.location),
     }),
