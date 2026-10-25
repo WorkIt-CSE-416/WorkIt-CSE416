@@ -54,7 +54,7 @@ import { formUrl, jobOf, practiceJob } from "./engine.js";
 import { jobBoard } from "./job-boards.js";
 import { injectFill } from "../shared/content-scripts.js";
 import { liveBatch, load, save, serially } from "./batch-store.js";
-import { formShows, waitForLoad } from "./tab-load.js";
+import { forgetWorkableDraft, formShows, waitForLoad } from "./tab-load.js";
 
 /** @typedef {import("./batch-store.js").Batch} Batch @typedef {import("./batch-store.js").TabState} TabState */
 
@@ -244,8 +244,10 @@ async function openTab(batch, jobId, url) {
 async function startFill(tabId) {
   try {
     await waitForLoad(tabId);
+    const url = (await chrome.tabs.get(tabId)).url ?? "";
+    if (jobOf(url)?.site === "workable") await forgetWorkableDraft(tabId);
     // A Workday posting shows no form until the student presses Apply and signs in: its fill waits for them.
-    const workday = isWorkday((await chrome.tabs.get(tabId)).url ?? "");
+    const workday = isWorkday(url);
     const found = await formShows(tabId, workday ? 0 : FORM_TIMEOUT_MS);
     if (!found && !workday) throw new Error("no_form");
     await injectFill(tabId, { batch: true });

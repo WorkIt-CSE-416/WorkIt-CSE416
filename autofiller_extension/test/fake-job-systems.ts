@@ -8,6 +8,7 @@ import { readFileSync } from "node:fs";
 import { join } from "node:path";
 import { FakeJobServer, FORMS, boardAndJob, loadHar, type Options } from "../fill-engine/test/fake-job-server";
 import { FakeWorkday, type Step } from "../fill-engine/test/fake-workday";
+import { FakeWorkable } from "../fill-engine/test/fake-workable";
 import type { Handler, Reply, Request } from "./loaded-extension";
 
 // Where Greenhouse's presigned uploads (the résumé) go: answered here, as the engine's fake upload store answers them.
@@ -67,7 +68,7 @@ export class SavedForms {
 }
 
 /** Asks one FakeJobServer for `request`, as its Playwright route handler would answer it. */
-async function replay(server: FakeJobServer | FakeWorkday, request: Request): Promise<Reply | undefined> {
+async function replay(server: FakeJobServer | FakeWorkday | FakeWorkable, request: Request): Promise<Reply | undefined> {
   let reply: Reply | undefined;
   const route = {
     request: () => ({
@@ -188,4 +189,20 @@ document.addEventListener("click", async (event) => {
   location.href = answer.next;
 });
 </script>`;
+}
+
+/** A saved Workable form (fill-engine/test/fixtures/forms/workable-*) for the loaded extension: the Fill engine's FakeWorkable, answered from the fake network. */
+export class SavedWorkable {
+  readonly server: FakeWorkable;
+
+  constructor(name: string) {
+    this.server = new FakeWorkable(name);
+  }
+
+  /** The form's own link, as a posting's apply_url gives it. */
+  get url(): string {
+    return this.server.url;
+  }
+
+  readonly handler: Handler = (request) => replay(this.server, request);
 }
