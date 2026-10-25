@@ -1043,6 +1043,14 @@ Real, not forgotten. Do not treat their absence as a decision already made.
   as sha256 only; a row's `grant_id` ties an access token to its refresh
   token, so revoking one revokes both. A token's student is
   `applicant_id`, deleted with the account (CASCADE).
+- **`writing_samples` and `style_cards` are a student's own writing**
+  (KAN-384, `writing.py`): up to three samples (`MAX_SAMPLES`, checked in
+  code, not by the table) and at most one card per student. **Any change to
+  the samples deletes the card in the same transaction**
+  (`queries/writing.py`), so a card always describes the samples the
+  student has now, with no hash or version to keep in step; the connector
+  then asks their Claude for a new one. The copying check (KAN-380) reads
+  the samples through `queries.writing.sample_texts`, never the table.
 
 ## Out of scope
 
