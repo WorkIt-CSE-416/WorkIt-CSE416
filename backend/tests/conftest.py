@@ -11,8 +11,9 @@ nothing here may reach Supabase.
 DATABASE_URL and DIRECT_URL are pointed at that database before anything
 reads them, so the app's own get_session (and Alembic) use it, and a test
 that forgets an override still cannot reach the root `.env`'s database.
-CONNECTOR_API_URL and CONNECTOR_WEB_URL are pinned to the config defaults the
-same way, so a local `.env` serving the connector elsewhere changes no test.
+CONNECTOR_API_URL, CONNECTOR_WEB_URL and CONNECTOR_LOOPBACK_REDIRECTS are pinned
+to the config defaults the same way, so a local `.env` serving the connector
+elsewhere, or allowing Claude Code's loopback sign-in, changes no test.
 """
 
 import asyncio
@@ -44,6 +45,7 @@ os.environ["DATABASE_URL"] = os.environ["DIRECT_URL"] = _test_url.render_as_stri
 # API and WEB): a developer's .env pointing them at another port breaks OAuth.
 os.environ["CONNECTOR_API_URL"] = "http://localhost:8000"
 os.environ["CONNECTOR_WEB_URL"] = "http://localhost:3000"
+os.environ["CONNECTOR_LOOPBACK_REDIRECTS"] = "false"
 
 
 def _dsn(url) -> str:
