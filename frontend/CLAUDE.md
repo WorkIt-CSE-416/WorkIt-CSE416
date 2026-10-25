@@ -1244,6 +1244,11 @@ are in `docs/auth.md`.
 - **Signup goes through `POST /auth/signup`**, not `supabase.auth.signUp()`,
   which can only write user-editable `user_metadata` and so cannot be trusted
   with the account type.
+- **Signup asks the minimum** (KAN-372): first and last name, email and
+  password, or Google or LinkedIn. Middle Name and Confirm Password were
+  removed: Settings adds a middle name, and the new account is signed in at
+  once, so a mistyped password is changed there. A fact a later step needs
+  (location, links, work authorization) is asked in onboarding, never here.
 - **A key the API's Pydantic schema doesn't declare is dropped silently**, not
   rejected. A field added to a request body here does nothing until
   `backend/app/schemas/` declares it too.

@@ -2198,8 +2198,8 @@ fields on the page read as something to fill in.
 
 - **Personal Details** (`/settings/personal`): the photo (Change Photo,
   Remove Photo; it saves on pick, shows the file at once and rolls back if
-  the upload fails), First Name, Middle Name (optional) and Last Name, as
-  signup asks them, and Headline, with Save and Discard. Save sends only
+  the upload fails), First Name, Middle Name (optional; signup no longer
+  asks it, KAN-372) and Last Name, and Headline, with Save and Discard. Save sends only
   what changed; the API joins the parts into the full name every other
   screen prints (`backend/app/models/CLAUDE.md`, Names). These are edited
   here only; My Profile shows them and links here. Saving
