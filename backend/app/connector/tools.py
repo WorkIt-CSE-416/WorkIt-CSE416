@@ -10,7 +10,11 @@ whole view of WorkIt (auto-apply/architecture.md, 14.6):
   (KAN-381, below).
 - `get_research_task` and `save_company_brief`: the shared company
   briefs (KAN-382), in app/connector/briefs.py; get_next_application hands
-  the application's company brief with it.
+  the application's company brief with it. While that company still needs
+  research (briefs.needs_research), an application with a question in
+  words is held back: get_next_application names the company in
+  `research_first` instead, as Apply builds the brief before its essays.
+  One with only choices goes out (they need no company facts).
 - `save_answers` (a write): saves answers to that application's
   questions, all or none; the open batch tab fills each one.
 - `get_writing_samples` and `save_style_card` (app/connector/style.py,
@@ -71,13 +75,19 @@ class Question(BaseModel):
 
 class NextApplication(BaseModel):
     job_id: str | None = Field(
-        description="Null when no application has a question left, or when start_new_chat is true."
+        description="Null when no application has a question left, when start_new_chat is true, "
+        "or when research_first names a company."
     )
     chat: str = Field(default="", description="Pass this to the next get_next_application call in this chat.")
     start_new_chat: bool = Field(
         default=False, description="True when this chat has written its share of applications."
     )
     message: str | None = Field(default=None, description="For the student, when start_new_chat is true.")
+    research_first: str | None = Field(
+        default=None,
+        description="The next application's company, when it has no current brief (get_research_task): the "
+        "application is given once its brief is saved, or once a save for it has failed.",
+    )
     company: str | None = None
     title: str | None = None
     posting: str | None = Field(default=None, description="The job posting's description.")
@@ -137,6 +147,8 @@ def register(server: MCPServer) -> None:
             student = await account.current_student(db)
             found = await pipeline.next_to_write(db, student.id, skip=handed)
             brief = await briefs.brief_for(db, found.application.job.company) if found else []
+            research = found is not None and any((q.kind or "text") == "text" for q in found.questions) \
+                and await briefs.needs_research(db, found.application.job.company)
             card, card_needed = await writing.card_state(db, student.id)
         if found is None:
             return NextApplication(job_id=None, chat=chat)
@@ -151,8 +163,10 @@ def register(server: MCPServer) -> None:
                     f'"{TITLE}" again: it picks up at the next application.'
                 ),
             )
-        experience, skills = bank_context(found.bank)
         job = found.application.job
+        if research:
+            return NextApplication(job_id=None, chat=chat, research_first=job.company)
+        experience, skills = bank_context(found.bank)
         return NextApplication(
             job_id=str(job.id),
             chat=",".join(str(j) for j in [*handed, job.id]),
