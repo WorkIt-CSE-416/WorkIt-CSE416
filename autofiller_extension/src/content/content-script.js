@@ -100,6 +100,13 @@
         note("_error", prepared.error || "Could not plan this application", prepared.status === 401 ? "Sign in from the extension popup first." : prepared.error, true);
         return null;
       }
+      // A company's careers page with Greenhouse's form in an iframe (a hosted job its board shows there):
+      // the fill reaches only this page, so the student is pointed at the form's own link.
+      const embedded = prepared.covered ? null : document.querySelector('iframe[src*="greenhouse.io/embed/job_app"]');
+      if (embedded) {
+        note("_form", "This page shows the job, not its application", `Open the application form (${embedded.src}), then click Autofill again.`);
+        return null;
+      }
       if (!prepared.covered) {
         note("_uncovered", "WorkIt can't fill this job system yet", "Nothing on this page was filled. WorkIt fills Greenhouse, Lever, Ashby, Rippling, Workable, Eightfold and Workday applications.");
         return null;

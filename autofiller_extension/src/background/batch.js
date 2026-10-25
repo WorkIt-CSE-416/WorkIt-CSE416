@@ -50,11 +50,11 @@
 // Starting a real batch ends a practice one.
 
 import { ApiError, finishApplication, getAutofillProfile, me, nextApplication, recordFill, recordSentResume } from "./api.js";
-import { formUrl, jobOf, practiceJob } from "./engine.js";
+import { formFor, jobOf, practiceJob } from "./engine.js";
 import { jobBoard } from "./job-boards.js";
 import { injectFill } from "../shared/content-scripts.js";
 import { liveBatch, load, save, serially } from "./batch-store.js";
-import { forgetWorkableDraft, formShows, waitForLoad } from "./tab-load.js";
+import { forgetWorkableDraft, formAfterHumanCheck, formShows, humanCheckShows, waitForLoad } from "./tab-load.js";
 
 /** @typedef {import("./batch-store.js").Batch} Batch @typedef {import("./batch-store.js").TabState} TabState */
 
@@ -199,7 +199,7 @@ async function topUp(batch, applicantId) {
       continue;
     }
     // The form, not the job's page, where the two differ (a Lever posting's form is at .../apply).
-    const url = formUrl(link);
+    const url = await formFor(link);
     if (isWorkday(url) && workdayOpen(batch)) {
       batch.held.push({ jobId, url, jobType });
       continue;
@@ -255,11 +255,16 @@ async function startFill(tabId, url, again = false) {
     if (jobOf(shown)?.site === "workable") await forgetWorkableDraft(tabId);
     // A Workday posting shows no form until the student presses Apply and signs in: its fill waits for them.
     const workday = isWorkday(shown);
-    const found = await formShows(tabId, workday ? 0 : FORM_TIMEOUT_MS);
+    let found = await formShows(tabId, workday ? 0 : FORM_TIMEOUT_MS);
     const now = (await chrome.tabs.get(tabId)).url ?? "";
     if (!again && url && jobOf(url)?.onForm && !jobOf(now)?.onForm) {
       await chrome.tabs.update(tabId, { url });
       return startFill(tabId, url, true);
+    }
+    // A human check where the form should be needs the student; the fill runs once they pass it.
+    if (!found && !workday && (await humanCheckShows(tabId))) {
+      await setTabState(tabId, "needs_you");
+      found = await formAfterHumanCheck(tabId);
     }
     if (!found && !workday) throw new Error("no_form");
     await injectFill(tabId, { batch: true });
