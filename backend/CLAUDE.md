@@ -38,6 +38,7 @@ uv run alembic check                           fail if models lack a migration
 uv run alembic upgrade head                    apply migrations (the user runs it, never Claude)
 uv run python -m app.scripts.import_jobs       feed.json → job_postings, job_role_tags (--dry-run rolls back)
 uv run python -m app.scripts.intake_test_set   intake's fixed test set against the SCOUT_* model (by hand, never CI)
+uv run python -m app.scripts.ship_check ...   the connector's blind read, KAN-386 (by hand, never CI; data outside the repo)
 python3 scripts/fetch_tectonic.py              Tectonic + warm cache into vendor/ (resume PDFs; once per checkout)
 ```
 
@@ -225,7 +226,15 @@ Find files with a directory listing; these are the rules for where code goes.
   `ToolError` with the reason. **A chat is the `chat` value Claude passes
   back** (KAN-381): the server keeps no session, so the per-chat cap
   (`connector_chat_cap`) counts the job ids in that value, and a new chat
-  (no value) resumes at the oldest unanswered application. **Writing rules go in the MCP prompt
+  (no value) resumes at the oldest unanswered application. **A change to
+  the prompt or the cap is checked by a person's blind read, never an AI
+  judge** (KAN-386, `app.scripts.ship_check`): it runs the prompt through
+  `claude -p` on the user's own login against the tools' real code with a
+  stub in place of the database, then shows the connector's answers against
+  another writer's, and a chat's first against its fifth, with the writer
+  hidden. The question set, both answer sets and the picks hold a student's
+  facts, so they live outside this public repo; only the script is here.
+  **Writing rules go in the MCP prompt
   (`connector/prompt.py`), never in a tool's description**, name no
   student, and never list banned words (that primes a model; the save
   checks them, KAN-380), and nothing on this path calls a model. **Every tool takes a title and explicit annotations** (KAN-383, Anthropic's directory refuses a tool without them): `readOnlyHint=True` on a read, so Claude runs it without asking; only `save_*` tools write, each saying `destructiveHint`; `openWorldHint=False` on all. A test lists the tools and checks each one, so a new tool without them fails. **Company
