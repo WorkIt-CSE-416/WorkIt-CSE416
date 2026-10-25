@@ -15,7 +15,7 @@ from typing import Literal
 
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from app.auto_apply import checks
+from app.auto_apply import briefs, checks
 from app.auto_apply.queries import (
     drop_written,
     fetch_application_companies,
@@ -199,9 +199,10 @@ async def _check_material(
     db: AsyncSession, applicant_id: uuid.UUID, job_id: uuid.UUID
 ) -> tuple[tuple[str, ...], tuple[str, ...], tuple[str, ...]]:
     """What an application's answers are checked against (checks.Context):
-    the texts their facts may come from (the student's bank, the posting),
-    the companies of the student's other applications that this posting and
-    the places the student worked or studied don't name, and the student's
+    the texts their facts may come from (the student's bank, the posting,
+    the company's kept brief, whose facts were checked on their pages), the
+    companies of the student's other applications that this posting and the
+    places the student worked or studied don't name, and the student's
     writing samples. A company named only in a skill or a bullet is still
     another application's: a tool called "Notion" is no reason to name
     Notion the employer on another company's form."""
@@ -214,6 +215,8 @@ async def _check_material(
         if name.strip().casefold() != (company or "").strip().casefold()
         and not any(checks.names(source, name) for source in theirs)
     )
+    # The brief only widens the number check: a name in it doesn't exempt another employer.
+    sources += tuple(str(f[k]) for f in await briefs.brief_for(db, company) for k in ("fact", "published") if f.get(k))
     return sources, employers, tuple(await writing_samples(db, applicant_id))
 
 
