@@ -10,6 +10,9 @@ import { loadExtension, sendFromWebapp, signIn, webapp, type Loaded } from "./lo
 
 const ARC = "greenhouse-arc";
 const PURE = "greenhouse-purestorage";
+// Harvey's Ashby form asks one question the Plan sends to the student's Claude (connector.extension.spec.ts).
+const HARVEY = "ashby-harvey";
+const WHY = "Why are you interested in working at Harvey?";
 // A student who signed up after KAN-387: onboarding never asked the self-identification.
 const NO_SELF_ID = { ...STUDENT.answers, gender: null, hispanic_latino: null, race: null, veteran_status: null, disability_status: null };
 
@@ -86,4 +89,45 @@ test("the first form that asks the self-identification asks the student once, an
   await expect(later.locator(".self-id")).toHaveCount(0);
   expect(api.answersSaved).toHaveLength(1);
   expect(forms.submissions).toEqual([]);
+});
+
+test("a batch's first question for Claude shows the add-Claude step, once, with the install link", async () => {
+  test.setTimeout(180_000);
+  const forms = new SavedForms([HARVEY]);
+  const api = new FakeApi().queue({ id: "job-0", apply_url: forms.url(HARVEY) }, { id: "job-1", apply_url: forms.url(HARVEY) });
+  await start(api, forms);
+
+  await expect.poll(() => api.written.size, { timeout: 60_000 }).toBe(2);
+  const tabs = loaded.context.pages().filter((p) => p.url().startsWith(forms.url(HARVEY)));
+  expect(tabs).toHaveLength(2);
+  const steps = async () => (await tabs[0].locator(".add-claude").count()) + (await tabs[1].locator(".add-claude").count());
+  await expect.poll(steps, { timeout: 20_000 }).toBe(1);
+  await tabs[0].waitForTimeout(2_000);
+  expect(await steps()).toBe(1);
+
+  const step = ((await tabs[0].locator(".add-claude").count()) ? tabs[0] : tabs[1]).locator(".add-claude");
+  // The webapp's link, which sends the browser on to Claude's Add Custom Connector dialog.
+  const add = step.locator("a[data-add]");
+  await expect(add).toHaveAttribute("href", "http://localhost:3000/connect/claude/add");
+  await expect(add).toHaveAttribute("target", "_blank");
+  // The question still waits for Claude, and the step says what to do once it is added.
+  await expect(row(tabs[0], WHY)).toContainText("Waiting for your Claude");
+  await step.locator("button[data-dismiss]").click();
+  await expect(step).toHaveCount(0);
+  expect(forms.submissions).toEqual([]);
+});
+
+test("a student who already added the connector never sees the add-Claude step", async () => {
+  test.setTimeout(120_000);
+  const forms = new SavedForms([HARVEY]);
+  const api = new FakeApi().queue({ id: "job-0", apply_url: forms.url(HARVEY) });
+  api.connectorAdded = true;
+  await start(api, forms);
+
+  await expect.poll(() => api.written.size, { timeout: 60_000 }).toBe(1);
+  const tab = await tabOf(forms.url(HARVEY));
+  await expect.poll(() => api.calls.some((c) => c.endsWith("/connector")), { timeout: 20_000 }).toBe(true);
+  await tab.waitForTimeout(2_000);
+  await expect(tab.locator(".add-claude")).toHaveCount(0);
+  await expect(row(tab, WHY)).toContainText("Waiting for your Claude");
 });

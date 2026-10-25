@@ -7,7 +7,7 @@
 // comment explains why) — just the cache.
 
 import { getSession } from "./auth.js";
-import { getAutofillProfile, generateEssayAnswer, ApiError, askQuestions, me, saveAutofillAnswers, writtenAnswers } from "./api.js";
+import { getAutofillProfile, generateEssayAnswer, ApiError, askQuestions, connectorAdded, me, saveAutofillAnswers, writtenAnswers } from "./api.js";
 import { batchStatus, batchTabIds, forgetTab, inBatch, jobInTab, markSubmitted, nextNeedsYou, practiceStatus, setTabState, showBatchTab, startBatch, startPractice, submitPractice } from "./batch.js";
 import { engineCaller, handleFill, jobOf, practiceJob, runEngine, submittedPage } from "./engine.js";
 import { claimMoment } from "./moments.js";
@@ -155,6 +155,18 @@ async function handleMessage(message, sender) {
         if (tabId !== sender.tab?.id) chrome.tabs.sendMessage(tabId, { type: "selfid/saved" }).catch(() => {});
       }
       return {};
+    }
+
+    // A batch tab sent its first questions for the student's Claude
+    // (KAN-387): the add-Claude step, once, unless the connector is added.
+    // The link is the webapp's, which redirects to Claude's dialog (the
+    // install link is built there, from the API's address).
+    case "moment/claude": {
+      if (!(await jobInTab(sender.tab.id))) return { show: false };
+      const [session, { id }] = await Promise.all([getSession(), me()]);
+      if (await connectorAdded(id)) return { show: false };
+      if (!(await claimMoment(id, "claude"))) return { show: false };
+      return { show: true, url: `${session.web_origin}/connect/claude/add` };
     }
 
     default:

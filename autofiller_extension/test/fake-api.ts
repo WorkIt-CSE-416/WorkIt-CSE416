@@ -36,6 +36,9 @@ export class FakeApi {
   /** Every PATCH .../autofill-answers body, in order. */
   readonly answersSaved: Record<string, string | null>[] = [];
 
+  /** Whether the student's Claude has signed in to WorkIt's connector (GET .../connector). */
+  connectorAdded = false;
+
   /** `profile`: the student's profile fields that differ from STUDENT's. */
   constructor(private profile: Partial<Omit<typeof STUDENT, "answers">> & { answers?: Record<string, string | null> } = {}) {
     this.answers = { ...(profile.answers ?? STUDENT.answers) };
@@ -78,6 +81,7 @@ export class FakeApi {
     if (route === "/resumes") return { json: [{ id: RESUME_ID, is_default: true, original_filename: STUDENT.resume.filename }] };
     if (route === `/resumes/${RESUME_ID}/bytes`) return { headers: { "content-type": "application/pdf" }, body: Buffer.from(STUDENT.resume.base64, "base64") };
     if (route === "/built-resumes") return { json: [] };
+    if (route === "/connector") return { json: { added: this.connectorAdded } };
 
     if (route === "/applications/next" && method === "GET") {
       const skip = new Set(url.searchParams.getAll("skip"));

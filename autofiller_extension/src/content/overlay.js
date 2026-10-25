@@ -277,6 +277,29 @@ window.WIA = window.WIA || {};
   }
 
   /**
+   * The add-Claude step (KAN-387), on a batch's first question for the
+   * student's Claude: Add to Claude opens `url` (the webapp's
+   * /connect/claude/add, which goes on to Claude's Add Custom Connector
+   * dialog) in a new tab; then the student asks their Claude to write.
+   * @param {{ url: string }} options
+   */
+  function offerClaude({ url }) {
+    const card = momentCard("add-claude", `
+      <h2>Let Your Claude Write These</h2>
+      <p>This form has a question to write. Add WorkIt to your Claude once, then ask it to "Write my WorkIt answers": each answer fills in here, for you to check.</p>
+      <div class="actions">
+        <a data-primary data-add target="_blank" rel="noreferrer">${SPARKLE}Add to Claude</a>
+        <button type="button" data-secondary data-dismiss>Not Now</button>
+      </div>
+    `);
+    if (!card) return;
+    const add = card.querySelector("[data-add]");
+    add.href = url;
+    add.addEventListener("click", () => card.remove());
+    card.querySelector("[data-dismiss]").addEventListener("click", () => card.remove());
+  }
+
+  /**
    * Batch apply's "Next Thing That Needs You" (content-script.js): shows the
    * button, which calls `onNext` and shows what it answers (a sentence for
    * the student, or nothing when it went to a field).
@@ -362,5 +385,5 @@ window.WIA = window.WIA || {};
     root = null;
   }
 
-  window.WIA.overlay = { mount, unmount, promptForEssays, offerNext, setCurrent, askSelfId };
+  window.WIA.overlay = { mount, unmount, promptForEssays, offerNext, setCurrent, askSelfId, offerClaude };
 })();

@@ -201,6 +201,7 @@
       for (const q of prepared.written) status.setStatus(q.name, q.required ? "failed" : "skipped", WRITE_IT);
       return;
     }
+    offerClaude();
     for (;;) {
       for (const { name, answer } of reply.ok ? reply.questions : []) {
         if (!answer || !waiting.has(name)) continue;
@@ -212,6 +213,16 @@
       await sleep(ANSWER_POLL);
       reply = await send({ type: "batch/answers" }).catch((error) => ({ ok: false, error: error.message }));
     }
+  }
+
+  /**
+   * The add-Claude step (KAN-387): on the batch's first question for the
+   * student's Claude, once (the background decides, and skips a student who
+   * already added the connector), the install link and what to do next.
+   */
+  async function offerClaude() {
+    const answer = await send({ type: "moment/claude" }).catch(() => null);
+    if (answer?.ok && answer.show) overlay.offerClaude({ url: answer.url });
   }
 
   /** The Generate prompt for the questions that need a written answer, if any. */

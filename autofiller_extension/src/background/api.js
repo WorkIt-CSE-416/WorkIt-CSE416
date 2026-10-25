@@ -467,6 +467,15 @@ export async function finishApplication(applicantId, jobId, outcome) {
 }
 
 /**
+ * GET .../connector — whether the student's Claude holds a live sign-in to
+ * WorkIt's connector (`{ added }`, KAN-387).
+ * @param {string} applicantId
+ */
+export async function connectorAdded(applicantId) {
+  return (await apiFetch(`/applicants/${applicantId}/connector`)).added;
+}
+
+/**
  * PATCH .../autofill-answers — saves the answers `changed` names and keeps
  * the rest (the self-identification a form first asked, KAN-387).
  * @param {string} applicantId

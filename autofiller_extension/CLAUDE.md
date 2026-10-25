@@ -457,9 +457,21 @@ My Profile instead.
   (`selfid/saved`); each plans again and fills those questions. Until then
   nothing is guessed: the fields stay as the Plan left them. Later forms
   fill them from the profile and ask nothing. Not Now saves nothing.
+- **Adding Claude, at the batch's first question for it.** Once a batch
+  tab has sent its questions for the student's Claude (`batch/questions`),
+  it asks `moment/claude`: a student whose Claude already holds a sign-in
+  (`GET .../connector`, a live connector token) never sees the step, and
+  the first tab to claim it shows Add to Claude. That opens the webapp's
+  `/connect/claude/add`, which redirects to Claude's Add Custom Connector
+  dialog: the install link is built only in
+  `frontend/src/lib/claude-connector.ts`, from the API's address, which the
+  extension doesn't keep. A practice batch never shows it (its essays stay
+  the student's).
 - **Tests** (`test/moments.extension.spec.ts`): two saved Greenhouse forms
-  that both ask it, for a student with none saved: one tab asks, the save
-  reaches the API once, both forms fill, and a later form fills without asking.
+  that both ask the self-identification, for a student with none saved: one
+  tab asks, the save reaches the API once, both forms fill, and a later form
+  fills without asking. Two Harvey tabs show the add-Claude step once, with
+  the webapp's link; with the connector added, neither shows it.
 
 ## Auth: inherits the webapp's session, has no sign-in of its own
 
