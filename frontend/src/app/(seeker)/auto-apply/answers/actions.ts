@@ -9,7 +9,8 @@ import { getApplicantSession } from "@/lib/session";
  * or pasted, saved to one question of one application
  * (PUT .../applications/{job_id}/written-answers). The API saves it through
  * the connector's own step, so it passes the same checks as an answer from
- * the student's Claude, and the open batch tab fills it the same way. Every
+ * the student's Claude except copying from their own samples, and the open
+ * batch tab fills it the same way. Every
  * export of a "use server" file is a public POST endpoint: the applicant is
  * always the session's own.
  */
