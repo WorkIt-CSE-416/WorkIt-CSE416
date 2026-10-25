@@ -98,8 +98,10 @@ test("a practice batch fills WorkIt's practice forms, and the student's Submit s
   // Submit sent nothing: the browser asked only for the two /thanks pages, with no data.
   const sent = loaded.asked.slice(asked).filter((url) => !url.startsWith("http://localhost:8000/") && !url.endsWith("/favicon.ico"));
   expect(sent).toEqual([HARBOR.replace(/apply$/, "thanks"), LUMEN.replace(/apply$/, "thanks")]);
-  // Nothing ever left WorkIt's own site and API (but Chromium's own calls to Google), and no application stage changed.
-  const hosts = new Set(loaded.asked.map((url) => new URL(url).host).filter((host) => !/(^|\.)(google\.com|googleapis\.com)$/.test(host)));
+  // Nothing ever left WorkIt's own site and API, and no application stage changed. Chromium's own
+  // services (sign-in, updates, autofill hints) call Google's hosts at times of their own: not the pages'.
+  const CHROMIUM = /(^|\.)(google\.com|googleapis\.com|gstatic\.com|gvt1\.com|gvt2\.com|googleusercontent\.com)$/;
+  const hosts = new Set(loaded.asked.map((url) => new URL(url).host).filter((host) => !CHROMIUM.test(host)));
   expect([...hosts].sort()).toEqual(["localhost:3000", "localhost:8000"]);
   expect(api.calls.filter((call) => !call.startsWith("GET "))).toEqual([]);
 });
