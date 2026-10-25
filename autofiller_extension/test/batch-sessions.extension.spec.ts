@@ -165,8 +165,8 @@ test("on Workday's sign-in, fills the student's email and a password of its own 
   test.setTimeout(180_000);
   const workdays = new FakeWorkdays(["workday-caci", "workday-xcel"]);
   const api = new FakeApi().queue(
-    { id: "wd-0", apply_url: workdays.signInUrl(0) },
-    { id: "wd-1", apply_url: workdays.signInUrl(1) },
+    { id: "wd-0", apply_url: workdays.postingUrl(0) },
+    { id: "wd-1", apply_url: workdays.signInUrl(1, "signin") },
     { id: "wd-2", apply_url: workdays.signInUrl(0, "signin") },
   );
   // Every request the browser sends but the Workday tenants' own sign-in, to look for the passwords in.
@@ -186,7 +186,9 @@ test("on Workday's sign-in, fills the student's email and a password of its own 
   const saved = () => loaded!.worker.evaluate(async () => (await chrome.storage.local.get("workday_logins")).workday_logins ?? {});
   const panel = (p: Page) => p.locator("#workit-autofiller-overlay-host .row").filter({ hasText: "Sign in to continue" });
 
-  // Create Account on the first company: the email, and a new strong password typed twice.
+  // The first company's posting has no form: the student presses Apply, which loads Create Account as a new page.
+  await (await page(workdays.postingUrl(0))).locator("[data-automation-id=adventureButton]").click();
+  // Create Account there: the email, and a new strong password typed twice.
   const caci = await page(workdays.signInUrl(0));
   await expect.poll(() => box(caci, "verifyPassword").inputValue(), { timeout: 30_000 }).not.toBe("");
   expect(await box(caci, "email").inputValue()).toBe("test.person@example.com");
@@ -205,10 +207,16 @@ test("on Workday's sign-in, fills the student's email and a password of its own 
   await expect.poll(() => caci.locator("[data-automation-id=formField-legalName--firstName] input").inputValue(), { timeout: 30_000 }).toBe("Test");
   expect(workdays.signIns).toEqual([{ host: "caci.wd1.myworkdayjobs.com", view: "create", email: "test.person@example.com", password: caciPassword }]);
 
-  // The next company gets a password of its own.
+  // The next company opens on Sign In, with no login saved there: only the email is filled.
   await skip(caci);
-  const xcel = await page(workdays.signInUrl(1));
-  await expect.poll(() => box(xcel, "password").inputValue(), { timeout: 30_000 }).not.toBe("");
+  const xcel = await page(workdays.signInUrl(1, "signin"));
+  await expect.poll(() => box(xcel, "email").inputValue(), { timeout: 30_000 }).toBe("test.person@example.com");
+  await expect(xcel.locator("#workit-autofiller-overlay-host .row").filter({ hasText: "New here?" })).toBeVisible();
+  expect(await box(xcel, "password").inputValue()).toBe("");
+  // The student switches to Create Account, which Workday draws twice: the company gets a password of its own.
+  await box(xcel, "createAccountLink").click();
+  await xcel.waitForTimeout(1500);
+  await expect.poll(() => box(xcel, "verifyPassword").inputValue(), { timeout: 30_000 }).not.toBe("");
   const xcelPassword = await box(xcel, "password").inputValue();
   expect(xcelPassword).not.toBe(caciPassword);
 

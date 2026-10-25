@@ -47,10 +47,13 @@
   const MAX_LENGTH = 5000; // a box that takes more (Workable's cover letter: 200000) asks for this much
   // Workday's name of the step shown, and how long to let an answer bring up a follow-up before reading the step again.
   const WORKDAY_STEP = "[data-automation-id=progressBarActiveStep]";
-  // Workday's sign-in: its form, the name its step bar gives it, and how long a typed box must hold its value.
+  // Workday's sign-in: its form, the name its step bar gives it, and when to look at a typed box again.
   const SIGN_IN_FORM = "[data-automation-id=signInFormo]";
   const SIGN_IN_STEP = /sign in|create account/i;
   const SIGN_IN_SETTLE = 300;
+  // How long a Workday step's page must stop changing before it is read, and the longest wait for that.
+  const STEP_QUIET = 1000;
+  const STEP_QUIET_MAX = 10_000;
   const FOLLOW_UP_WAIT = 300;
   // How long the student's typing pauses before the fields they changed are read back.
   const EDIT_PAUSE = 400;
@@ -270,69 +273,106 @@
   }
 
   /**
-   * Types `value` into the sign-in form's box `id` (an automation id), unless
-   * the student already typed there, as typing would: Workday's React reads
-   * the input event. Workday may draw the form again right after, emptying
-   * it, so a box found empty a moment later is typed again.
+   * Types `value` into the sign-in form's box `id` (an automation id), as
+   * typing would (Workday's React reads the input event), unless the box
+   * holds something already: the student's typing, or this fill's.
    */
-  async function typeInto(form, id, value) {
-    const setValue = Object.getOwnPropertyDescriptor(HTMLInputElement.prototype, "value").set;
-    for (let tries = 0; tries < 3; tries++) {
-      const box = form.querySelector(`[data-automation-id=${id}]`);
-      if (!box || (box.value && box.value !== value)) return;
-      if (box.value !== value) {
-        setValue.call(box, value);
-        box.dispatchEvent(new Event("input", { bubbles: true }));
-        box.dispatchEvent(new Event("change", { bubbles: true }));
-      }
-      await sleep(SIGN_IN_SETTLE);
-      if (box.isConnected && box.value === value) return;
-    }
+  function typeInto(id, value) {
+    const box = document.querySelector(`${SIGN_IN_FORM} [data-automation-id=${id}]`);
+    if (!box || box.value) return;
+    Object.getOwnPropertyDescriptor(HTMLInputElement.prototype, "value").set.call(box, value);
+    box.dispatchEvent(new Event("input", { bubbles: true }));
+    box.dispatchEvent(new Event("change", { bubbles: true }));
   }
 
   /**
    * Fills Workday's Create Account or Sign In form with the login the
-   * extension keeps for this company, once per view shown, and tells the
-   * student what is left: press the button (and, for a new account, open
-   * Workday's email). Never presses anything.
+   * extension keeps for this company, and tells the student what is left:
+   * press the button (and, for a new account, open Workday's email). Never
+   * presses anything. Called on every change to the page and a few times
+   * after each fill, since Workday draws the form again as it switches
+   * views (Xcel Energy's, live: the boxes typed just before came back
+   * empty) and may empty a box without changing the page; only empty boxes
+   * are typed, so the student's typing is never replaced.
    */
-  let signInView = null;
+  let login = null;
+  let loginView = null;
+  let noted = null;
+  let busy = false;
+  let again = false;
   async function fillSignIn() {
-    const form = document.querySelector(SIGN_IN_FORM);
-    if (!form || workdayStep()) return;
-    const create = Boolean(form.querySelector("[data-automation-id=verifyPassword]"));
-    const view = create ? "create" : "signin";
-    if (signInView === view) return;
-    signInView = view;
-    const login = await send({ type: "workday/login", create });
-    if (!login.ok) {
-      note("_step", "Sign in to continue", "Sign in yourself. WorkIt fills each step once you're signed in.");
-      return;
+    if (busy) return void (again = true);
+    busy = true;
+    try {
+      do {
+        again = false;
+        const form = document.querySelector(SIGN_IN_FORM);
+        if (!form || workdayStep()) return;
+        const create = Boolean(form.querySelector("[data-automation-id=verifyPassword]"));
+        const view = create ? "create" : "signin";
+        if (loginView !== view) {
+          login = await send({ type: "workday/login", create });
+          loginView = view;
+          [SIGN_IN_SETTLE, 1000, 2500].forEach((ms) => setTimeout(fillSignIn, ms));
+        }
+        if (login.ok) {
+          typeInto("email", login.email);
+          if (login.password) typeInto("password", login.password);
+          if (login.password && create) typeInto("verifyPassword", login.password);
+        }
+        if (noted === view) continue;
+        noted = view;
+        status.reset();
+        note("_step", "Sign in to continue", !login.ok
+          ? "Sign in yourself. WorkIt fills each step once you're signed in."
+          : create && login.made
+            ? "WorkIt filled your email and a new password for this company's Workday, kept only in this browser. Press Create Account, then open the link Workday emails you. WorkIt fills each step once you're signed in."
+            : create
+              ? "WorkIt filled the login it saved for this company's Workday. If you made the account already, press Sign In instead. WorkIt fills each step once you're signed in."
+              : login.password
+                ? "WorkIt filled your sign-in for this company's Workday. Press Sign In. WorkIt fills each step once you're signed in."
+                : "WorkIt has no password saved for this company's Workday. New here? Press Create Account, and WorkIt fills a new one. Else sign in yourself. WorkIt fills each step once you're signed in.");
+        window.WIA.phase = "step";
+        report();
+      } while (again);
+    } finally {
+      busy = false;
     }
-    await typeInto(form, "email", login.email);
-    if (login.password) {
-      await typeInto(form, "password", login.password);
-      if (create) await typeInto(form, "verifyPassword", login.password);
-    }
-    status.reset();
-    note("_step", "Sign in to continue", create
-      ? "WorkIt filled your email and a new password for this company's Workday, kept only in this browser. Press Create Account, then open the link Workday emails you. WorkIt fills each step once you're signed in."
-      : login.password
-        ? "WorkIt filled your sign-in for this company's Workday. Press Sign In. WorkIt fills each step once you're signed in."
-        : "WorkIt has no password saved for this company's Workday. Sign in yourself. WorkIt fills each step once you're signed in.");
-    window.WIA.phase = "step";
-    report();
   }
 
   /** Fills Workday's sign-in whenever it shows, until the application's first step does. */
   function watchSignIn() {
     const observer = new MutationObserver(() => {
       if (workdayStep()) return observer.disconnect();
-      if (!document.querySelector(SIGN_IN_FORM)) signInView = null;
       fillSignIn();
     });
     observer.observe(document.documentElement, { childList: true, subtree: true });
     fillSignIn();
+  }
+
+  /**
+   * Resolves once the page has stopped changing for STEP_QUIET ms (at most
+   * STEP_QUIET_MAX). Workday names a step in its bar before it draws the
+   * step's fields: on CACI's live My Information, right after signing in,
+   * a fill that started at once read only Country (KAN-373).
+   */
+  function quiet() {
+    return new Promise((resolve) => {
+      let timer;
+      const done = () => {
+        observer.disconnect();
+        clearTimeout(timer);
+        clearTimeout(limit);
+        resolve();
+      };
+      const observer = new MutationObserver(() => {
+        clearTimeout(timer);
+        timer = setTimeout(done, STEP_QUIET);
+      });
+      observer.observe(document.documentElement, { childList: true, subtree: true });
+      timer = setTimeout(done, STEP_QUIET);
+      const limit = setTimeout(done, STEP_QUIET_MAX);
+    });
   }
 
   /** Resolves with Workday's step once it shows and isn't `from`. Watches the page; never times out. */
@@ -380,6 +420,7 @@
   }
   let step = await stepAfter("");
   for (;;) {
+    await quiet();
     status.reset();
     window.WIA.phase = "filling";
     const prepared = await fillShown();

@@ -109,6 +109,11 @@ export class FakeWorkdays {
     return `https://${this.tenants[n].host}/__fake__/signin?view=${view}`;
   }
 
+  /** The n-th tenant's job posting: no form, only Apply, which loads the Create Account page. */
+  postingUrl(n: number): string {
+    return `https://${this.tenants[n].host}/__fake__/job`;
+  }
+
   /** Each Create Account and Sign In the student sent: the tenant's host, the view, the email and the password. */
   readonly signIns: { host: string; view: string; email: string; password: string }[] = [];
 
@@ -120,6 +125,10 @@ export class FakeWorkdays {
   readonly handler: Handler = async (request) => {
     for (const tenant of this.tenants) {
       if (request.url.hostname !== tenant.host) continue;
+      if (request.url.pathname === "/__fake__/job") {
+        const apply = `<a data-automation-id="adventureButton" href="/__fake__/signin?view=create">Apply</a>`;
+        return { headers: { "content-type": "text/html" }, body: `<!doctype html><title>Intern</title><h2>Software Engineering Intern</h2>${apply}` };
+      }
       if (request.url.pathname === "/__fake__/signin") return { headers: { "content-type": "text/html" }, body: signInPage(request.url.searchParams.get("view")!) };
       if (request.url.pathname === "/__fake__/account" && request.method === "POST") {
         const sent = JSON.parse(request.body.toString());
@@ -137,24 +146,38 @@ export class FakeWorkdays {
  * one (the automation ids Workday's own pages use): the form, a link to the
  * other view, and the button, which Workday covers with a `click_filter`
  * that takes the click. The step bar names the sign-in as the first step.
+ * The link switches views in the page, as live Workday does: the form is
+ * drawn again, its boxes empty, a moment after it changes title (Xcel
+ * Energy's, live 2026-10-25).
  */
 function signInPage(view: string): string {
-  const create = view === "create";
-  const box = (id: string, label: string, type = "password") => `<label>${label}<input type="${type}" data-automation-id="${id}"></label>`;
   return `<!doctype html><meta charset="utf-8"><title>Workday</title>
 <ol data-automation-id="progressBar"><li data-automation-id="progressBarActiveStep"><label>current step 1 of 3</label><label>Create Account/Sign In</label></li></ol>
-<div data-automation-id="signInContent">
-<h2 id="authViewTitle">${create ? "Create Account" : "Sign In"}</h2>
-<form data-automation-id="signInFormo" onsubmit="return false">
-${box("email", "Email Address", "text")}${box("password", "Password")}${create ? box("verifyPassword", "Verify New Password") + '<label><input type="checkbox" data-automation-id="createAccountCheckbox">I agree to the terms</label>' : ""}
-<div role="button" aria-label="${create ? "Create Account" : "Sign In"}" data-automation-id="click_filter" style="width:200px;height:40px;background:#ddd"></div>
-</form>
-<button data-automation-id="${create ? "signInLink" : "createAccountLink"}" onclick="location.search='?view=${create ? "signin" : "create"}'">${create ? "Sign In" : "Create Account"}</button>
-</div>
+<div data-automation-id="signInContent"></div>
 <script>
-document.querySelector("[data-automation-id=click_filter]").addEventListener("click", async () => {
+let view = ${JSON.stringify(view)};
+const box = (id, label, type = "password") => '<label>' + label + '<input type="' + type + '" data-automation-id="' + id + '"></label>';
+function draw() {
+  const create = view === "create";
+  document.querySelector("[data-automation-id=signInContent]").innerHTML =
+    '<h2 id="authViewTitle">' + (create ? "Create Account" : "Sign In") + '</h2>' +
+    '<form data-automation-id="signInFormo" onsubmit="return false">' + box("email", "Email Address", "text") + box("password", "Password") +
+    (create ? box("verifyPassword", "Verify New Password") + '<label><input type="checkbox" data-automation-id="createAccountCheckbox">I agree to the terms</label>' : "") +
+    '<div role="button" aria-label="' + (create ? "Create Account" : "Sign In") + '" data-automation-id="click_filter" style="width:200px;height:40px;background:#ddd"></div></form>' +
+    '<button data-automation-id="' + (create ? "signInLink" : "createAccountLink") + '">' + (create ? "Sign In" : "Create Account") + '</button>';
+}
+draw();
+document.addEventListener("click", async (event) => {
+  if (event.target.closest("[data-automation-id$=Link]")) {
+    view = view === "create" ? "signin" : "create";
+    draw();
+    // Drawn again a moment later, emptying what was typed meanwhile.
+    setTimeout(draw, 400);
+    return;
+  }
+  if (!event.target.closest("[data-automation-id=click_filter]")) return;
   const value = (id) => document.querySelector("[data-automation-id=" + id + "]").value;
-  const answer = await (await fetch("/__fake__/account", { method: "POST", body: JSON.stringify({ view: ${JSON.stringify(view)}, email: value("email"), password: value("password") }) })).json();
+  const answer = await (await fetch("/__fake__/account", { method: "POST", body: JSON.stringify({ view, email: value("email"), password: value("password") }) })).json();
   location.href = answer.next;
 });
 </script>`;

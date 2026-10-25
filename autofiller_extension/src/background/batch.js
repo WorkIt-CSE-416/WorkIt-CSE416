@@ -257,8 +257,10 @@ async function openTab(batch, jobId, url) {
 async function startFill(tabId) {
   try {
     await waitForLoad(tabId);
-    const [{ result: found }] = await chrome.scripting.executeScript({ target: { tabId }, func: waitForForm, args: [FORM_TIMEOUT_MS] });
-    if (!found) throw new Error("no_form");
+    // A Workday posting shows no form until the student presses Apply and signs in: its fill waits for them.
+    const workday = isWorkday((await chrome.tabs.get(tabId)).url ?? "");
+    const [{ result: found }] = await chrome.scripting.executeScript({ target: { tabId }, func: waitForForm, args: [workday ? 0 : FORM_TIMEOUT_MS] });
+    if (!found && !workday) throw new Error("no_form");
     await injectFill(tabId, { batch: true });
   } catch (error) {
     console.warn("[batch] nothing was filled:", error.message);

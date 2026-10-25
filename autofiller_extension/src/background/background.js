@@ -135,7 +135,9 @@ async function rememberWorkdayTab(tabId) {
 chrome.tabs.onUpdated.addListener(async (tabId, change, tab) => {
   if (change.status !== "complete") return;
   const tabs = await workdayTabs();
-  if (!tabs.includes(tabId)) return;
+  // A batch tab on Workday too: its posting's Apply loads the sign-in as a new page (KAN-373).
+  const batchWorkday = !tabs.includes(tabId) && jobOf(tab.url ?? "")?.site === "workday" && (await inBatch(tabId));
+  if (!tabs.includes(tabId) && !batchWorkday) return;
   if (jobOf(tab.url ?? "")?.site !== "workday") {
     await chrome.storage.session.set({ [WORKDAY_TABS_KEY]: tabs.filter((id) => id !== tabId) });
     return;

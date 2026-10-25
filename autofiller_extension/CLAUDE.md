@@ -263,7 +263,24 @@ and `run/show` switches to one (`jobId`).
   step shows; then the fill goes on, in the page or (the tab is
   remembered by `workday/login`) on the page signing in loads. A tenant's
   account made without WorkIt has no saved password: only the email is
-  filled.
+  filled, and the panel points a new candidate to Create Account.
+  **Learned live** (CACI and Xcel Energy, 2026-10-25, filled only):
+  - A Workday posting shows no form, so `startFill` injects the fill there
+    without waiting for one, and a batch tab on Workday gets the fill again
+    on every page it loads (`background.js`'s `onUpdated`): Apply loads the
+    sign-in as a new page, and so does Workday's `/login` after Create
+    Account for an account that exists.
+  - Switching between Sign In and Create Account draws the form again and
+    empties what was just typed (Xcel). So the sign-in fill runs on every
+    change to the page and again 0.3, 1 and 2.5 seconds after each lookup,
+    typing only into empty boxes.
+  - Some tenants first offer Google, LinkedIn or "Sign in with email"
+    (Xcel); the student picks, and the form fills when it shows. Xcel
+    mails a verification link; CACI signed straight in.
+  - Workday names a step in its bar before it draws the step's fields: a
+    fill that started at once, right after sign-in, read only Country on
+    CACI. A step is read once the page has been still for 1 second (10 at
+    most).
 - **The content script says when a tab is ready.** In a batch tab
   (`injectFill(tabId, { batch: true })` sets `window.WIA.batch`),
   `content-script.js` sends `batch/state` once the fill ends, then watches
@@ -336,7 +353,11 @@ and `run/show` switches to one (`jobId`).
   on every dropdown: its waits polled with `requestAnimationFrame`, which a
   hidden tab never runs. A new wait in `src/` watches the DOM
   (`MutationObserver`) with a `setTimeout` limit.
-- **Tests** (`test/batch.extension.spec.ts`): the unpacked extension loaded
+- **Tests** (`test/batch.extension.spec.ts`; KAN-373's resume, Skip,
+  Workday slot and sign-in in `test/batch-sessions.extension.spec.ts`,
+  with fake Workday tenants and sign-in pages in `fake-job-systems.ts`;
+  the resume test restarts Chromium on the same profile with
+  `--restore-last-session`): the unpacked extension loaded
   into Chromium (`test/loaded-extension.ts`) runs a batch of seven saved
   forms and asserts the window and the groups. Playwright's routing never
   sees the service worker's requests or the first load of a tab the
