@@ -4,7 +4,8 @@ whole view of WorkIt (auto-apply/architecture.md, 14.6):
 
 - `get_next_application` (read-only): the oldest open application with a
   question still unanswered: only its job posting, its unanswered
-  questions, and the student's experience bank. A job id of null when
+  questions (in words, or a one-off choice with its options, KAN-369),
+  and the student's experience bank. A job id of null when
   nothing is left, or when this chat has had its share of applications
   (KAN-381, below).
 - `get_research_task` and `save_company_brief`: the shared company
@@ -60,6 +61,12 @@ class Question(BaseModel):
     question: str
     required: bool
     max_length: int | None = Field(description="The form's limit in characters, if it has one.")
+    kind: str = Field(
+        default="text",
+        description='"text": answered in words. "choice": one of options. "choices": one or more of options, '
+        'joined by "; ".',
+    )
+    options: list[str] | None = Field(default=None, description="A choice's options, as the form words them.")
 
 
 class NextApplication(BaseModel):
@@ -153,7 +160,10 @@ def register(server: MCPServer) -> None:
             title=job.title,
             posting=found.posting,
             questions=[
-                Question(name=q.name, question=q.label, required=q.required, max_length=q.max_length)
+                Question(
+                    name=q.name, question=q.label, required=q.required, max_length=q.max_length,
+                    kind=q.kind or "text", options=q.options,
+                )
                 for q in found.questions
             ],
             experience=experience,
