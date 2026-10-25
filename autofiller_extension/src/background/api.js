@@ -467,6 +467,16 @@ export async function finishApplication(applicantId, jobId, outcome) {
 }
 
 /**
+ * PATCH .../autofill-answers — saves the answers `changed` names and keeps
+ * the rest (the self-identification a form first asked, KAN-387).
+ * @param {string} applicantId
+ * @param {Record<string, string>} changed
+ */
+export async function saveAutofillAnswers(applicantId, changed) {
+  return apiFetch(`/applicants/${applicantId}/autofill-answers`, { method: "PATCH", body: JSON.stringify(changed) });
+}
+
+/**
  * POST .../essay-answer — a drafted answer to one open-ended application
  * question, grounded in the applicant's experience bank. Never looked up
  * against a stored job posting: `question`/`companyName`/`jobTitle` are

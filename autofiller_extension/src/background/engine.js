@@ -13,6 +13,7 @@
 // extension's test imports this file as it is.
 import "../../fill-engine/dist/engine.js";
 import { DEV_WEB_URL, PROD_SITES } from "../shared/config.js";
+import { unansweredSelfId } from "./self-id.js";
 
 /** The engine's own copy here, for what needs no page. */
 const engine = globalThis.FillEngine;
@@ -278,12 +279,31 @@ export async function planFill({ url, profile, today, call, fetchText, extra = [
   const names = await optional(() => engine.jobNames(url, fetchOnce), { company: "", title: "" });
   const text = engine.textOf(await optional(() => engine.jobDescription(url, fetchOnce), ""));
   const posting = { id: String(job.job ?? job.shortcode ?? job.pid ?? url), ...names, url };
+  const context = { posting, today, postingText: text, employerText: text };
   const plan = questions.length
-    ? engine.plan(questions, engineProfile(profile), POLICIES, {}, { posting, today, postingText: text, employerText: text })
+    ? engine.plan(questions, engineProfile(profile), POLICIES, {}, context)
     : { answers: {}, essays: [], drafts: [], missing: [], handoffs: [], accepted: {}, sources: {} };
   const answers = withFiles(plan.answers, profile);
   const prepared = { covered: true, site, posting, questions, plan, answers, applicantId: profile.id, step: read.step, state: read.state };
-  return { ...prepared, rows: planRows(prepared) };
+  return { ...prepared, rows: planRows(prepared), selfId: selfIdAsked(questions, profile, plan, context) };
+}
+
+/**
+ * The self-identification questions this form asks that the student hasn't
+ * answered (KAN-387): onboarding no longer asks them, so the first form that
+ * does asks the student. Which questions are self-identification is the
+ * engine's to say, never a list of labels here: the Plan is made again as if
+ * the student had answered every missing one ("declined"), and the questions
+ * that only then get an answer are theirs. Null when there are none.
+ * @returns {{ keys: string[], names: string[] } | null}
+ */
+function selfIdAsked(questions, profile, plan, context) {
+  const keys = unansweredSelfId(profile.answers);
+  if (!keys.length || !questions.length) return null;
+  const answered = { ...profile.answers, ...Object.fromEntries(keys.map((key) => [key, "declined"])) };
+  const probe = engine.plan(questions, engineProfile({ ...profile, answers: answered }), POLICIES, {}, context);
+  const names = Object.keys(probe.answers).filter((name) => !(name in plan.answers));
+  return names.length ? { keys, names } : null;
 }
 
 /**

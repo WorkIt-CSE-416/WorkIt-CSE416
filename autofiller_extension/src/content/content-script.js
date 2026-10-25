@@ -249,6 +249,62 @@
     });
   }
 
+  // The self-identification questions this page asks and the student hasn't
+  // answered yet (KAN-387; the Plan's `selfId`), with the fill they belong to.
+  let selfIdWaiting = null;
+
+  /**
+   * The first form that asks the self-identification asks the student
+   * (once, and in one tab: the background decides). Nothing is guessed
+   * meanwhile: those fields stay as the Plan left them. Once the student
+   * saves, this page fills them, and so does every other batch tab
+   * ("selfid/saved"); every later form fills them from the profile.
+   */
+  async function offerSelfId(prepared) {
+    selfIdWaiting = prepared.selfId ? prepared : null;
+    if (!selfIdWaiting) return;
+    const answer = await send({ type: "selfid/ask" }).catch(() => null);
+    if (!answer?.ok || !answer.ask) return;
+    overlay.askSelfId({
+      questions: answer.questions,
+      async onSave(answers) {
+        const saved = await send({ type: "selfid/save", answers }).catch((error) => ({ ok: false, error: error.message }));
+        if (!saved.ok) return saved.error || "WorkIt couldn't save these. Try again.";
+        fillSelfId(); // the card closes now; the fields fill as the engine gets to them
+        return null;
+      },
+    });
+  }
+
+  /** Fills this page's self-identification questions from the profile, now that the student answered them. */
+  async function fillSelfId() {
+    const prepared = selfIdWaiting;
+    if (!prepared) return;
+    selfIdWaiting = null;
+    const fresh = await send({ type: "fill/plan", state: prepared.state });
+    if (!fresh.ok) return;
+    const answers = Object.fromEntries(prepared.selfId.names.filter((name) => name in fresh.answers).map((name) => [name, fresh.answers[name]]));
+    if (!Object.keys(answers).length) return;
+    const byName = new Map(fresh.questions.map((q) => [q.name, q]));
+    for (const name of Object.keys(answers)) {
+      if (rowStatus(name) === "filled") continue;
+      status.register(name, byName.get(name)?.label ?? name, byName.get(name)?.required ?? false, fresh.plan.sources?.[name] ?? "profile");
+    }
+    const filled = await send({ type: "fill/page", site: fresh.site, questions: fresh.questions, answers, accepted: fresh.plan.accepted, state: fresh.state });
+    for (const [name, result] of Object.entries(filled.ok ? filled.results : {})) status.setStatus(name, result.status, result.reason, result.shows);
+  }
+
+  // In a batch tab, the student saved the self-identification in another tab (background.js tells only
+  // the batch's): fill it here too. Added once per page; it calls the latest fill's, since the fill may be
+  // injected again.
+  window.WIA.fillSelfId = fillSelfId;
+  if (batch && !window.WIA.selfIdHeard) {
+    window.WIA.selfIdHeard = true;
+    chrome.runtime.onMessage.addListener((message) => {
+      if (message?.type === "selfid/saved") window.WIA.fillSelfId();
+    });
+  }
+
   /** Whether a row needs the student: a note the Plan left them, a failed field, or a required one unanswered. */
   const needsYou = (r) => r.key.startsWith("_") || r.status === "failed" || (r.required && r.status !== "filled");
 
@@ -440,6 +496,7 @@
     window.WIA.running = false;
     report();
     if (prepared) offerEssays(prepared);
+    if (prepared) offerSelfId(prepared);
     if (prepared && batch) watchEdits(prepared);
     if (batch) answerTheWalk();
     return;
@@ -470,6 +527,7 @@
       ? "This is the last step. Check the whole application, then submit it yourself."
       : "Check this step, then press Save and Continue. WorkIt fills the next step when it shows.");
     offerEssays(prepared);
+    offerSelfId(prepared);
     window.WIA.phase = last ? "last" : "step";
     report();
     if (last) return;

@@ -290,6 +290,11 @@ export async function jobInTab(tabId) {
   return batch?.practice ? null : batch?.tabs[tabId]?.jobId ?? null;
 }
 
+/** The batch's open tabs, for news every tab acts on (the student's saved self-identification, KAN-387). */
+export async function batchTabIds() {
+  return Object.keys((await load())?.tabs ?? {}).map(Number);
+}
+
 /** Whether a tab is one of the batch's, for a fill injected again (Workday's next page). */
 export async function inBatch(tabId) {
   return Boolean((await load())?.tabs[tabId]);

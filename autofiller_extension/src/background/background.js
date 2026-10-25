@@ -7,9 +7,11 @@
 // comment explains why) — just the cache.
 
 import { getSession } from "./auth.js";
-import { getAutofillProfile, generateEssayAnswer, ApiError, askQuestions, me, writtenAnswers } from "./api.js";
-import { batchStatus, forgetTab, inBatch, jobInTab, markSubmitted, nextNeedsYou, practiceStatus, setTabState, showBatchTab, startBatch, startPractice, submitPractice } from "./batch.js";
+import { getAutofillProfile, generateEssayAnswer, ApiError, askQuestions, me, saveAutofillAnswers, writtenAnswers } from "./api.js";
+import { batchStatus, batchTabIds, forgetTab, inBatch, jobInTab, markSubmitted, nextNeedsYou, practiceStatus, setTabState, showBatchTab, startBatch, startPractice, submitPractice } from "./batch.js";
 import { engineCaller, handleFill, jobOf, practiceJob, runEngine, submittedPage } from "./engine.js";
+import { claimMoment } from "./moments.js";
+import { SELF_ID, checkedSelfId, unansweredSelfId } from "./self-id.js";
 import { injectFill } from "../shared/content-scripts.js";
 
 /**
@@ -131,6 +133,29 @@ async function handleMessage(message, sender) {
 
     case "batch/submitted":
       return markSubmitted(sender.tab.id);
+
+    // The first form that asks the self-identification (KAN-387): the tab
+    // whose Plan found it asks whether to ask the student (once, in one
+    // tab: moments.js), then saves their answers to the profile, and every
+    // other batch tab fills them too ("selfid/saved").
+    case "selfid/ask": {
+      const profile = await getAutofillProfile();
+      const keys = unansweredSelfId(profile.answers);
+      if (!keys.length || !(await claimMoment(profile.id, "self_id"))) return { ask: false };
+      return { ask: true, questions: SELF_ID.filter((q) => keys.includes(q.key)) };
+    }
+
+    case "selfid/save": {
+      const answers = checkedSelfId(message.answers);
+      const { id } = await me();
+      if (Object.keys(answers).length) await saveAutofillAnswers(id, answers);
+      // The cached profile must have them before any tab plans again.
+      await getAutofillProfile({ force: true });
+      for (const tabId of await batchTabIds()) {
+        if (tabId !== sender.tab?.id) chrome.tabs.sendMessage(tabId, { type: "selfid/saved" }).catch(() => {});
+      }
+      return {};
+    }
 
     default:
       throw new Error(`Unknown message type: ${message.type}`);
