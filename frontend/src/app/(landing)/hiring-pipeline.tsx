@@ -80,7 +80,9 @@ const CARDS = 3;
 const MORPH: [number, number] = [0.4, 0.74];
 const PIPE_IN: [number, number] = [0.56, 0.76];
 const OUTLET_IN: [number, number] = [0.66, 0.8];
-const FLOWING = 0.8;
+/** The flow starts as the pipe finishes forming; at 0.8 it waited on the
+ * outlet's fade too, about 0.13 s more after the scroll's cue. */
+const FLOWING = PIPE_IN[1];
 const RING = MORPH[0];
 /** The scroll's cues: the ring from the start, then the pipe once the
  * pinned stretch is a third through. */
@@ -570,9 +572,24 @@ function Posting({
   onEnter: (posting: StreamPosting) => void;
 }) {
   const n = hiringSystems.length;
-  const travel = (t: number) => SPEED * t + place * SPACING;
+  // The conveyor starts with a place at the last coupling, the manifold's
+  // outlet, so the first posting clears the coins as the flow begins: the
+  // coins cover the pipe up to there, and from a place further back a
+  // posting rode hidden behind them for seconds.
+  const outletRun = layout.couplings[n - 1] - layout.pipeLeft;
+  const start = outletRun - Math.floor(outletRun / SPACING) * SPACING;
+  const travel = (t: number) => SPEED * t + place * SPACING + start;
   const lapAt = (t: number) => Math.floor(travel(t) / loop);
-  const systemOn = (lap: number) => (((lap * places + place) % n) + n) % n;
+  // On the first lap a place takes the coupling just ahead of where it
+  // starts, so it comes out of it within a second of the flow beginning.
+  // Given the systems in turn from the start, every place but the first
+  // began past its coupling, so it stayed hidden (`fresh`) for a whole
+  // lap: one posting rode an empty pipe for about seven seconds after the
+  // pipe formed, which read as a long delay (KAN-368). A place with no
+  // coupling ahead keeps its turn; it shows from its next lap.
+  const firstLap = layout.couplings.findIndex((c) => c >= layout.pipeLeft + travel(0));
+  const systemOn = (lap: number) =>
+    lap === 0 && firstLap >= 0 ? firstLap : (((lap * places + place) % n) + n) % n;
   const postingOn = (lap: number) => {
     const list = streams[hiringSystems[systemOn(lap)].name];
     const turn = Math.floor((lap * places + place) / n);

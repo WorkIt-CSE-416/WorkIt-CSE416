@@ -769,8 +769,14 @@ the KAN-296 cutover.
   mark, a card came some six seconds after its posting and read as
   unrelated to it. The pipe fills from the couplings when the flow first
   runs (`fresh`): shown at once, three postings popped in mid-pipe; a
-  return to a running flow fades it in. The flow's clock runs only once
-  the pipe has formed, in view and in a visible tab. The pipe starts just behind the first coupling, whose coin
+  return to a running flow fades it in. So the fill is quick, the
+  conveyor starts with a place at the last coupling, where the coins end,
+  and on the first lap each place takes the coupling just ahead of it
+  (KAN-368): started at the pipe's end with the systems in turn, only one
+  posting could come out, behind the coins, and the first one cleared
+  them 7.1 s after the scroll's cue (now 1.5 to 1.9 s, then one about
+  every 2.7 s). The flow's clock runs as soon as the pipe has formed
+  (`PIPE_IN`'s end), in view and in a visible tab. The pipe starts just behind the first coupling, whose coin
   hides its end: an open-end ellipse there, and later the bare rounded
   end, read as a stray circle. WorkIt's mark is plain glass on the grey,
   with no violet glow behind it (the team found it decorative). A card
