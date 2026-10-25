@@ -178,6 +178,8 @@ export function engineProfile(profile) {
       ? present({
           school: school.title,
           degree: school.degree ? engine.degreeLevel(school.degree) : null,
+          // As written ("B.S."): the kind a list of kinds (BA, BS) picks by.
+          degree_type: school.degree,
           majors: school.field_of_study ? [school.field_of_study] : null,
           gpa_cumulative: school.gpa,
           gpa_scale: school.gpa_scale,
