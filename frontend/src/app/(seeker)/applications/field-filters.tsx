@@ -283,7 +283,7 @@ function PanelBody({
         </Section>
 
         <div className="grid gap-x-6 sm:grid-cols-2">
-          {chipSection("track", "Track")}
+          {chipSection("track", "Job Type")}
           {chipSection("workModel", "Work Model")}
         </div>
         {chipSection("source", "Source")}

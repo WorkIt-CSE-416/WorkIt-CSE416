@@ -42,7 +42,7 @@ export const DEFAULT_SORT: Sort = "applied";
  *  values, as Status does, and a value is the cell's own text. */
 export const FILTER_FIELDS = [
   { key: "company", param: "company", label: "Company" },
-  { key: "track", param: "track", label: "Track" },
+  { key: "track", param: "track", label: "Job Type" },
   { key: "workModel", param: "work", label: "Work Model" },
   { key: "source", param: "source", label: "Source" },
 ] as const;

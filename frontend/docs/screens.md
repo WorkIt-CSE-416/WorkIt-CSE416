@@ -707,7 +707,8 @@ the stage pill, which its ungrouped cards would otherwise lose.
 **The list is a table that scrolls sideways** (KAN-256), as a Notion table
 does, rather than dropping columns as the page narrows. In the order job
 trackers read: what and who (Role, with its company), where it stands (Status, Date
-Applied), how good it is (Match), the job's facts (Track, the job type;
+Applied), how good it is (Match), the job's facts (Job Type, as the Jobs
+page names it, though the code and `?track=` keep the older name Track;
 Location; Work Model; Pay Range), where and what was sent (Source, the
 hiring system the posting is on, named from its apply link in
 `applications/tracked.ts`, "Company Site" for any other host; Resume;
@@ -766,7 +767,7 @@ filtered.
 - **The filter row, laid out as the Jobs page's** (`applications/field-filters.tsx`,
   `filter-bar.tsx`; a plain dropdown is `components/field-facet.tsx`, which
   Auto Apply's Status filter shares): under the search, a row with a dropdown for Status
-  and one per field (Company, Track, Work Model, Source), each the Jobs
+  and one per field (Company, Job Type, Work Model, Source), each the Jobs
   page facet's look (glyph, label, chevron, brand tint while it holds a
   pick) over checkbox rows. Status lists the four stages, each with its
   stage's glyph in its colour; the fields list every value the tracked
@@ -774,7 +775,7 @@ filtered.
   list, as the Jobs page's Role dropdown does, since the list grows with
   every application; a pick keeps the search. The dropdowns step out one
   at a time from the right as the row narrows (Status from 440px of row,
-  Company 592, Track 744, Work Model 896, Source 1048); at
+  Company 592, Job Type 744, Work Model 896, Source 1048); at
   the right end, Clear Filters as an outlined cross (shown while anything
   is picked or searched; it hands focus to All Filters), All Filters, and
   Columns in the list view. A phone's row is All Filters and Columns.
@@ -784,7 +785,7 @@ filtered.
   chips' counts went with them, as the Jobs page's options carry none.
 - **All Filters** is a panel with every field, as on the Jobs page: Status
   (with the stages' glyphs), Company (a search
-  picker, since the list grows), then Track, Work Model and Source as
+  picker, since the list grows), then Job Type, Work Model and Source as
   option chips. Its picks are a draft until "Show 3 Applications", which
   counts the draft in the browser (the page hands the bar what each
   tracked application is filtered on); closing it drops the draft.

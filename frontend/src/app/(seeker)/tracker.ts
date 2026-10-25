@@ -56,7 +56,7 @@ export type Application = {
   location?: string | null;
   /** Remote, Hybrid or On-Site; null when the posting doesn't say. */
   workModel?: string | null;
-  /** Its job type, Internship or Full-Time and so on: the list's Track
+  /** Its job type, Internship or Full-Time and so on: the list's Job Type
    *  column (KAN-256); null when unstated. */
   track?: string | null;
   /** The hiring system its posting is on (Greenhouse, Workday...), named

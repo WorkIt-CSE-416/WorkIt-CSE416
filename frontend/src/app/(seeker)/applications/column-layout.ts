@@ -35,7 +35,7 @@ export const COLUMNS = [
   { id: "status", label: "Status", width: 128 },
   { id: "applied", label: "Date Applied", width: 152 },
   { id: "match", label: "Match", width: 128 },
-  { id: "track", label: "Track", width: 152 },
+  { id: "track", label: "Job Type", width: 152 },
   { id: "location", label: "Location", width: 208 },
   { id: "workModel", label: "Work Model", width: 144 },
   { id: "pay", label: "Pay Range", width: 184 },
