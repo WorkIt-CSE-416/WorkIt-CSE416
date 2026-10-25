@@ -31,8 +31,12 @@ same engine). One run, in one transaction:
    as their style card, and company-briefs/ through WorkIt's own page check
    (scripts/import_apply_writing.py). The briefs' pages are read from the web.
 
-Running it again on the same files changes nothing; an edited file's facts
-replace the old ones. It refuses a database that is not on this computer:
+Running it again on the same files changes nothing. An edited file's
+profile, policies, answers, fields, resume and transcript replace the old
+ones; its writing samples replace only the samples an import brought, and a
+company brief replaces the kept one only when it scores higher. A fact
+WorkIt's own checks refuse (a link that is not one) refuses the whole
+import, naming the field. It refuses a database that is not on this computer:
 the files hold a student's personal facts, which go to a local copy only.
 It prints counts and field names, never a value.
 """
@@ -50,6 +54,7 @@ from typing import Any
 from urllib.parse import urlsplit
 
 import yaml
+from pydantic import ValidationError
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
@@ -156,7 +161,11 @@ def _identity_fields(facts: dict) -> dict:
 
 
 async def _set_fields(profile: Applicant_Profile, facts: dict, report: Report) -> None:
-    update = ApplicantProfileUpdate(**{k: str(v) for k, v in _identity_fields(facts).items()})
+    try:
+        update = ApplicantProfileUpdate(**{k: str(v) for k, v in _identity_fields(facts).items()})
+    except ValidationError as exc:  # names the field and the rule, never the value
+        fields = ", ".join(f"{'.'.join(map(str, e['loc']))} ({e['msg']})" for e in exc.errors())
+        raise ImportRefused(f"WorkIt cannot take {PROFILE}'s {fields}; nothing was written.") from exc
     for name in sorted(update.model_fields_set):
         value = getattr(update, name)
         if name in ("first_name", "middle_name", "last_name"):

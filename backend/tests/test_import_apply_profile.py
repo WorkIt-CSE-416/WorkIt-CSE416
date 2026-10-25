@@ -407,3 +407,15 @@ def test_a_local_path_never_leaves_the_folder(local_files):
     for path in ("local:../cv.pdf", "local:notes/cv.pdf", f"local:{student}/../cv.pdf", f"local:{student}/a/cv.pdf",
                  "local:/etc/passwd", f"local:{student}/"):
         assert file_for(path) is None, path
+
+
+async def test_a_fact_workit_cannot_take_refuses_the_import_and_names_its_field(
+    running, applicant, database, apply_dir, local_files,
+):
+    from app.scripts.import_apply_profile import ImportRefused
+
+    profile = apply_dir / "applicant-profile.yaml"
+    profile.write_text(profile.read_text().replace("https://github.com/riley-example", "not a link"))
+
+    with pytest.raises(ImportRefused, match="github_url"):
+        await _import(database, applicant, apply_dir)
