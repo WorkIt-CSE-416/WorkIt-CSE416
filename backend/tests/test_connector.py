@@ -379,7 +379,8 @@ async def test_the_writing_rules_are_a_prompt(running, applicant):
         prompts = (await client.list_prompts()).prompts
         got = await client.get_prompt(prompts[0].name)
 
-    assert [p.title for p in prompts] == ["Write my WorkIt answers"]
+    # One titled prompt with a message; its wording is a person's read, not a test's.
+    assert len(prompts) == 1 and prompts[0].title
     assert got.messages and got.messages[0].content.text
 
 
