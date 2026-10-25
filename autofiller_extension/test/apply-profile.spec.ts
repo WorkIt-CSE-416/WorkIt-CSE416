@@ -106,6 +106,28 @@ test("jobs go most recently started first, as the student lists them, a job held
   expect(history.map((j: any) => j.employer)).toEqual(["Globex", "Initech", "Acme"]);
 });
 
+test("the bank's skills (languages first) and earlier schools reach the engine; an empty list keeps what was brought", () => {
+  const skill = (name: string, group: string | null) => ({ id: name, name, group });
+  const school = (id: string, title: string, degree: string, end_month: string) => ({
+    ...STUDENT.bank.entries[0], id, title, degree, field_of_study: null, start_month: null, end_month, end_kind: "month",
+  });
+  const bank = {
+    entries: [...STUDENT.bank.entries, school("e2", "Example High School", "High School Diploma", "2024-06")],
+    // As the bank orders them: by group, then name, so "Frameworks" comes before "Languages".
+    skills: [skill("React", "Frameworks"), skill("Java", "Languages"), skill("Python", "Languages"), skill("Git", "Tools"), skill("Figma", null)],
+  };
+
+  const profile = engineProfile({ ...STUDENT, bank });
+
+  expect(profile.experience_facts.skills).toEqual(["Java", "Python", "React", "Git", "Figma"]);
+  expect(profile.education.school).toBe("Example State University");
+  expect(profile.education.past_schools).toEqual([{ school: "Example High School", degree: "High School Diploma", end: "2024-06" }]);
+  // STUDENT's bank has no skills and one school: what the student brought from Apply stays.
+  const brought = engineProfile({ ...STUDENT, fill: { profile: { experience_facts: { skills: ["Rust"] }, education: { past_schools: [{ school: "Old School" }] } } } });
+  expect(brought.experience_facts.skills).toEqual(["Rust"]);
+  expect(brought.education.past_schools).toEqual([{ school: "Old School" }]);
+});
+
 test("a queued full-time job's start date is the day the student graduates, not the internship start", async () => {
   const available = { ...BROUGHT, fill: { ...BROUGHT.fill, profile: { ...BROUGHT.fill.profile,
     education: { graduation_day: 15 }, logistics: { earliest_start_date: "2029-06-01" } } } };
