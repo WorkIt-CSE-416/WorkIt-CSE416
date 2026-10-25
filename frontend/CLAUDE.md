@@ -1411,6 +1411,10 @@ are in `docs/auth.md`.
   first written batch links to `/profile#writing-samples`, which opens Add.
   Keep that anchor. The samples go to the student's own Claude only:
   never send them to a WorkIt AI route.
+- **The transcript is edited in My Profile only** (`(seeker)/profile/transcript.tsx`,
+  `lib/transcript-actions.ts`, KAN-369): one file, uploaded, replaced or
+  removed there, with the resume's file checks (`resumeFileError`). The
+  autofiller attaches it to a form's transcript upload.
 - **The practice forms (`lib/practice-form.ts`) import nothing** (KAN-378):
   they are whole HTML pages, served by a route handler, and the extension's
   end-to-end test imports the module to serve the same bytes, so it can't

@@ -39,6 +39,7 @@ uv run alembic upgrade head                    apply migrations (the user runs i
 uv run python -m app.scripts.import_jobs       feed.json → job_postings, job_role_tags (--dry-run rolls back)
 uv run python -m app.scripts.intake_test_set   intake's fixed test set against the SCOUT_* model (by hand, never CI)
 uv run python -m app.scripts.ship_check ...   the connector's blind read, KAN-386 (by hand, never CI; data outside the repo)
+uv run python -m app.scripts.clean_bank_reading  one-off: split "| C++, Go" off older bank titles, drop non-skills (dry run unless --apply; local DB only)
 python3 scripts/fetch_tectonic.py              Tectonic + warm cache into vendor/ (resume PDFs; once per checkout)
 ```
 
@@ -143,7 +144,9 @@ uv run pytest
   `DIRECT_URL` to the test database before the app reads them (exported
   variables beat the root `.env`), and refuses a `TEST_DATABASE_URL` whose host
   is not localhost. The app's own `get_session` uses the test database, so do
-  not override it in these tests.
+  not override it in these tests. It also pins `CONNECTOR_API_URL` and
+  `CONNECTOR_WEB_URL` to the config defaults (`:8000`, `:3000`), so a `.env`
+  serving the connector on other ports doesn't break the connector tests.
 - **Without the container, database tests skip** with a message saying how to
   start it; the rest run. In CI (`CI` set) they fail instead, so a broken
   service never passes as green. CI's backend job runs the same image as a
@@ -301,7 +304,10 @@ Find files with a directory listing; these are the rules for where code goes.
   application with a question in words has a company whose brief is
   missing or over 30 days old and not held back (`briefs.needs_research`),
   `get_next_application` answers `research_first` with the company and no
-  application; a choice-only application still goes out. Tests get every
+  application; a choice-only application still goes out.
+  `get_research_task`, given the same `chat`, puts that held application
+  first (`briefs.research_task(skip=)`), so it names the company
+  `research_first` named, not an older application's. Tests get every
   company as researched (an autouse fixture in `tests/conftest.py`);
   mark a test `research_gate` to keep the real rule, and stub
   `needs_research` with the other brief calls wherever they are stubbed
@@ -332,10 +338,14 @@ Find files with a directory listing; these are the rules for where code goes.
   (KAN-379): the student's words in a tab (`PUT .../answers`, `own` true:
   written into a field WorkIt didn't fill, or replacing what it filled) set
   the row's `own`, which their Claude's later save never overwrites and
-  `answer_bank` offers first; an edit of an answer WorkIt filled (`own`
+  `answer_bank` offers first, unchecked by the checks meant for their
+  Claude's text (only the company rule, no other application's company
+  named, and the form's limit on the page apply to them); an edit of an answer WorkIt filled (`own`
   false) stays not own and passes the same checks as their Claude's save;
   the extension plans every batch form with `GET .../answer-bank`, so a
-  saved question never reaches their Claude. Seam-2 tests:
+  saved question never reaches their Claude, and every form outside a
+  batch with `GET /applicants/{id}/answer-bank?company=` (no application:
+  an answer about a company only when the page's company is that one). Seam-2 tests:
   `tests/test_connector_saved_answers.py`. Seam-2 tests:
   `tests/test_connector_checks.py`. The writing samples are KAN-384's;
   until then `pipeline.writing_samples` holds none. **Which job postings it takes is

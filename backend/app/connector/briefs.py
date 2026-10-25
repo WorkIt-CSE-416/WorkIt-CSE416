@@ -6,6 +6,8 @@ app/auto_apply/briefs.py:
   to whose shared brief is missing, stale or weak, what it lacks, and the
   sites a brief may cite; else the first posting whose team isn't named
   yet, or whose team's brief is missing or stale (scope "team", KAN-369).
+  Given the chat value, the application get_next_application holds comes
+  first, so its research_first is the task.
   A company of null when none needs research.
 - `save_company_brief` (a write): checks each fact on its page and keeps
   the brief only if it beats the one kept. Answers what was kept, what was
@@ -26,6 +28,7 @@ from pydantic import BaseModel, Field
 
 from app.auto_apply import briefs
 from app.connector import account
+from app.connector.tools import _handed
 from app.db import get_sessionmaker
 
 Category = Literal["products", "launches", "engineering", "team"]
@@ -92,13 +95,19 @@ def register(server: MCPServer) -> None:
             "missing, over 30 days old or weak: the company, the job, why, the brief's score, the "
             "categories it lacks, and the news sites a brief may cite. Then (scope team) the first job "
             "whose posting's team isn't named yet, or whose team's brief is missing or stale, with the "
-            "posting's text. company is null when none needs it."
+            "posting's text. The application get_next_application holds (pass the same chat) comes first. "
+            "company is null when none needs it."
         ),
         annotations=ToolAnnotations(readOnlyHint=True, openWorldHint=False),
     )
-    async def get_research_task() -> ResearchTask:
+    async def get_research_task(
+        chat: str = Field(
+            default="",
+            description="The chat value this chat's last get_next_application call gave; empty in a new chat.",
+        ),
+    ) -> ResearchTask:
         async with get_sessionmaker()() as db:
-            task = await briefs.research_task(db, (await account.current_student(db)).id)
+            task = await briefs.research_task(db, (await account.current_student(db)).id, skip=_handed(chat))
         if task is None:
             return ResearchTask(company=None)
         return ResearchTask(

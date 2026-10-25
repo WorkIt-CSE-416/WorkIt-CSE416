@@ -19,8 +19,11 @@ window.WIA = window.WIA || {};
   const WAIT_FOR_CLAUDE = "Waiting for your Claude: run \"Write my WorkIt answers\" in Claude, or write it yourself.";
   // The same, ending in a link to the webapp's Written Answers page (KAN-385), where a student without Claude pastes answers.
   const WAIT_OR_PASTE = "Waiting for your Claude: run \"Write my WorkIt answers\" in Claude, write it yourself, or paste it in";
+  const NOT_NEEDED = "Not needed: your answer to the question before it doesn't call for it.";
   // How often a batch tab asks whether the student's Claude saved an answer (KAN-377).
   const ANSWER_POLL = 10_000;
+  // How many polls a tab waits for the pre-submit review's verdict (KAN-369): 30 minutes, then it stops asking.
+  const REVIEW_POLLS = 180;
   // The connector's limits on a question and an answer (backend/app/schemas/applications.py).
   const LABEL_MAX = 2000;
   const FIELD_NAME_MAX = 200;
@@ -108,8 +111,7 @@ window.WIA = window.WIA || {};
      * each new one through the engine, until none is left; the tab's group
      * follows (report()). A question the student answered first keeps their
      * answer. It then asks on until the student's Claude's pre-submit review
-     * has read every answer (KAN-369), and puts each flag it gives on the
-     * row of the answer it read, while the field still shows that answer.
+     * has read every answer (KAN-369, awaitReview).
      */
     async function awaitClaude(prepared) {
       const waiting = new Set(prepared.written.map((q) => q.name));
@@ -141,19 +143,82 @@ window.WIA = window.WIA || {};
           }
         }
         for (const name of waiting) if (rowStatus(name) === "filled") waiting.delete(name);
+        if (waiting.size) await settleFollowUps(prepared, waiting);
         if (!waiting.size && !answered) {
           answered = true;
           offerSamples(byClaude);
         }
         if (answered) {
-          for (const { name, answer, reviewed, flag } of rows) {
-            const row = status.summary().fields.find((r) => r.key === name);
-            if (reviewed && row?.status === "filled" && row.shows === answer) status.flag(name, flag ?? undefined);
-          }
-          if (reply.ok && rows.every((q) => !q.answer || q.reviewed)) return;
+          awaitReview(reply);
+          return;
         }
         await sleep(ANSWER_POLL);
         reply = await send({ type: "batch/answers" }).catch((error) => ({ ok: false, error: error.message }));
+      }
+    }
+
+    // The answers whose review verdict this tab has seen: an edit of one waits for its new verdict.
+    const reviewedNames = new Set();
+    // Whether a review poll is under way, how many polls it has left, and whether an edit came after its last answers.
+    let reviewing = false;
+    let pollsLeft = 0;
+    let stale = false;
+
+    /**
+     * Asks every ANSWER_POLL ms (from `reply`, the answers just read, if any)
+     * until the student's Claude's pre-submit review has read every answer
+     * (KAN-369), and puts each flag it gives on the row of the answer it
+     * read, while the field still shows that answer. Not for a student with
+     * no connector added, whose answers no Claude reviews, and at most
+     * REVIEW_POLLS polls. Called again after the student's edit of a
+     * reviewed answer, it waits for that edit's verdict.
+     */
+    async function awaitReview(reply = null) {
+      pollsLeft = REVIEW_POLLS;
+      stale = reply === null;
+      if (reviewing) return;
+      reviewing = true;
+      try {
+        for (;;) {
+          const rows = reply?.ok ? reply.questions : [];
+          for (const { name, answer, reviewed, flag } of rows) {
+            if (!reviewed) continue;
+            reviewedNames.add(name);
+            const row = status.summary().fields.find((r) => r.key === name);
+            if (row?.status === "filled" && row.shows === answer) status.flag(name, flag ?? undefined);
+          }
+          if (reply?.ok && !stale && rows.every((q) => !q.answer || q.reviewed)) return;
+          if (pollsLeft <= 0) return;
+          if (pollsLeft === REVIEW_POLLS) {
+            const added = await send({ type: "connector/added" }).catch(() => null);
+            if (!added?.ok || !added.added) return;
+          }
+          pollsLeft -= 1;
+          if (reply) await sleep(ANSWER_POLL);
+          stale = false;
+          reply = await send({ type: "batch/answers" }).catch((error) => ({ ok: false, error: error.message }));
+        }
+      } finally {
+        reviewing = false;
+      }
+    }
+
+    /**
+     * The follow-ups still `waiting` that the answers now on the form don't
+     * call for (decision 223): a parent the Plan left to the student's Claude
+     * ("Are you currently working with Amplify?") is answered after the Plan,
+     * by their Claude or by them, so only then can "If a contingent worker,
+     * which agency...?" be ruled out. Each one ruled out stops waiting, left
+     * blank, or N/A where the form asks for it.
+     */
+    async function settleFollowUps(prepared, waiting) {
+      const answers = { ...prepared.answers };
+      for (const row of status.summary().fields) if (row.status === "filled" && row.shows !== undefined) answers[row.key] = row.shows;
+      const reply = await send({ type: "fill/moot", questions: prepared.questions, answers, names: [...waiting] }).catch(() => null);
+      for (const [name, { answer }] of Object.entries(reply?.ok ? reply.moot : {})) {
+        if (!waiting.delete(name)) continue;
+        if (answer !== null) await fillWritten(prepared, name, answer, "guessed");
+        else status.setStatus(name, "skipped", NOT_NEEDED);
       }
     }
 
@@ -228,6 +293,7 @@ window.WIA = window.WIA || {};
         ownTimers.delete(question.name);
         const saved = await send({ type: "batch/own-answer", name: question.name.slice(0, FIELD_NAME_MAX), label: question.label.slice(0, LABEL_MAX), answer, own })
           .catch((error) => ({ ok: false, error: error.message }));
+        if (saved?.ok && reviewedNames.has(question.name)) awaitReview();
         if (!saved?.ok && !own) status.setStatus(question.name, "failed", `WorkIt didn't keep your edit: ${saved?.error ?? "no answer"}`, answer, workitFilled.get(question.name)?.source);
       }, OWN_PAUSE));
     }

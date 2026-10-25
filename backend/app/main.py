@@ -36,6 +36,7 @@ from app.routers.pasted_answers import router as pasted_answers_router
 from app.routers.preferences import router as preferences_router
 from app.routers.profiles import router as profile_router
 from app.routers.resumes import router as resume_router
+from app.routers.documents import router as documents_router
 from app.routers.scout import router as scout_router
 from app.routers.sent_resumes import router as sent_resumes_router
 from app.routers.tailor import router as tailor_router
@@ -61,6 +62,7 @@ app.include_router(jobs_router)
 app.include_router(applications_router)
 app.include_router(auto_apply_router)
 app.include_router(resume_router)
+app.include_router(documents_router)
 app.include_router(avatar_router)
 app.include_router(company_jobs_router)
 app.include_router(scout_router)
