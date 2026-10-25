@@ -103,9 +103,9 @@ export class FakeWorkdays {
     this.tenants = names.map((name) => new FakeWorkday(name, { steps }));
   }
 
-  /** The application's first step on the n-th tenant, as a posting's apply_url gives it. */
-  url(n: number): string {
-    return this.tenants[n].stepUrl(1);
+  /** The application's first step (or step `step`) on the n-th tenant; the first is what a posting's apply_url gives. */
+  url(n: number, step = 1): string {
+    return this.tenants[n].stepUrl(step);
   }
 
   /**

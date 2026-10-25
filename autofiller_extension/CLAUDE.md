@@ -355,9 +355,14 @@ and each tab's state (`jobs`), and `run/show` switches to one (`jobId`).
   copy check's run). An edit of their Claude's answer (or a saved one of
   their Claude's) keeps its source label, is sent with `own: false`, and
   WorkIt checks it as their Claude's; a refusal fails the row with the
-  reason (`workitFilled`, `replaces`). Tests:
+  reason (`workitFilled`, `replaces`). On Workday each step's fill
+  watches that step's edits, and the watch stops once the step is left
+  (Workday draws the next step in the same page, or loads it as a new
+  one, where the fill is injected again); a Workday tab is never Ready,
+  so `fill/required` isn't asked there. Tests:
   `test/write-early.spec.ts` (the read, no page) and
-  `test/write-early.extension.spec.ts`.
+  `test/write-early.extension.spec.ts` (Workday: a step's own words, an
+  edit of Claude's answer on the next page, and a step drawn in the page).
 - **A written question's limit comes from the Fill engine** (KAN-380).
   `planFill` passes the Question set through the engine's `limits`, which
   reads each text field's own `maxlength` on the page, and `planRows`
