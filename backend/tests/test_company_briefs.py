@@ -159,6 +159,68 @@ async def test_a_news_fact_stands_in_only_without_enough_own_facts(web):
     assert [d.reason for d in short_dropped] == ["a news site's fact that states a number"]
 
 
+async def _names_team(database, job: str, title: str, text: str) -> None:
+    async with database() as session:
+        await session.execute(sql("UPDATE job_postings SET title = :t, description = :d WHERE id = :id"),
+                              {"t": title, "d": text, "id": job})
+        await session.commit()
+
+
+async def test_the_team_a_posting_names_is_researched_and_shared(running, applicant, database, web):
+    _, job = await _queued(database, applicant)
+    await _names_team(database, job, "Software Engineer Intern", "Join the Flight Software team at Acme.")
+    other, theirs = await _another_students_application(database)
+    await _describe(database, theirs, "Acme builds rockets.")
+    await _names_team(database, theirs, "Intern, Flight Software", "Acme builds rockets.")
+    await _tab_asks(other, theirs, WHY)
+    them = uuid.UUID(other.rsplit("/", 1)[1])
+
+    async with claude(applicant) as client:
+        await client.call_tool("save_company_brief", {"company": "Acme", "facts": [ROCKET, ENGINES, LANDER, TEAM]})
+        task = (await client.call_tool("get_research_task", {})).structured_content
+        off_posting = await client.call_tool("save_company_brief", {
+            "company": "Acme", "scope": "team", "job_id": job, "team": "Avionics", "facts": [TEAM, AUTOPILOT]})
+        saved = (await client.call_tool("save_company_brief", {
+            "company": "Acme", "scope": "team", "job_id": job, "team": "Flight Software",
+            "facts": [TEAM, AUTOPILOT]})).structured_content
+        mine = (await client.call_tool("get_next_application", {})).structured_content["company_brief"]
+        done = (await client.call_tool("get_research_task", {})).structured_content
+    async with claude(them) as client:
+        their_task = (await client.call_tool("get_research_task", {})).structured_content
+        named = (await client.call_tool("save_company_brief", {
+            "company": "Acme", "scope": "team", "job_id": theirs, "team": "Flight Software team",
+            "facts": []})).structured_content
+        theirs_brief = (await client.call_tool("get_next_application", {})).structured_content["company_brief"]
+
+    assert (task["scope"], task["reason"], task["job_id"]) == ("team", "unnamed", job)
+    assert "Flight Software team" in task["posting"]
+    assert off_posting.is_error  # a team is named as the posting writes it
+    assert saved["saved"] is True and saved["team"] == "Flight Software"
+    assert [f["url"] for f in mine] == [ROCKET["url"], ENGINES["url"], LANDER["url"], TEAM["url"],
+                                       TEAM["url"], AUTOPILOT["url"]]
+    assert {f["team"] for f in mine[4:]} == {"Flight Software"}
+    assert done["company"] is None
+    # Another posting naming the same team reuses its brief.
+    assert their_task["known_teams"] == ["Flight Software"]
+    assert named["team"] == "Flight Software"
+    assert [f["url"] for f in theirs_brief[4:]] == [TEAM["url"], AUTOPILOT["url"]]
+
+
+async def test_a_posting_that_names_no_team_is_asked_once(running, applicant, database, web):
+    _, job = await _queued(database, applicant)
+
+    async with claude(applicant) as client:
+        await client.call_tool("save_company_brief", {"company": "Acme", "facts": [ROCKET, ENGINES, LANDER, TEAM]})
+        task = (await client.call_tool("get_research_task", {})).structured_content
+        none = (await client.call_tool("save_company_brief", {
+            "company": "Acme", "scope": "team", "job_id": job, "team": None, "facts": []})).structured_content
+        after = (await client.call_tool("get_research_task", {})).structured_content
+
+    assert (task["scope"], task["reason"]) == ("team", "unnamed")
+    assert none["saved"] is False and none["team"] is None
+    assert after["company"] is None
+
+
 async def test_a_brief_below_the_minimum_is_not_saved(running, applicant, database, web):
     await _queued(database, applicant)
     wrong = {**ENGINES, "quote": "Our engineers rewrote everything in Haskell last week."}
@@ -173,7 +235,7 @@ async def test_a_brief_below_the_minimum_is_not_saved(running, applicant, databa
     assert after.structured_content["company_brief"] == []
     # Still missing, but held back a while: Claude saves again from the
     # reasons it was given, and the next student's Claude isn't sent at once.
-    assert task["company"] is None
+    assert task["scope"] != "company"
 
 
 async def test_a_lower_scoring_rebuild_never_replaces_a_higher_one(running, applicant, database, web):
@@ -216,8 +278,8 @@ async def test_only_stale_or_weak_briefs_are_offered(running, applicant, databas
         await _age(database, briefs.FRESH_DAYS + 1)
         stale = (await client.call_tool("get_research_task", {})).structured_content
 
-    assert fresh["company"] is None
-    assert (stale["company"], stale["reason"]) == ("Acme", "stale")
+    assert fresh["scope"] != "company"
+    assert (stale["company"], stale["scope"], stale["reason"]) == ("Acme", "company", "stale")
 
 
 async def test_a_weak_brief_is_offered(running, applicant, database, web):
@@ -256,7 +318,7 @@ async def test_a_brief_is_shared_by_every_student_applying(running, applicant, d
         task = (await client.call_tool("get_research_task", {})).structured_content
 
     assert len(theirs) == 4
-    assert task["company"] is None
+    assert task["scope"] != "company"
 
 
 def test_scoring_counts_categories_facts_and_recency():
