@@ -1076,6 +1076,8 @@ openness covers:
   forms through this fill path in a test browser, not the loaded
   extension; Workday was not filled live at all (it needs a signed-in
   student). Auto apply takes all seven since KAN-370 (`hosts.py`).
+  Rippling has since filled two live forms end to end through a batch tab
+  of the loaded extension (KAN-369, 2026-10-25), cover letter included.
 - **One school, and no phone country.** The adapter gives the engine the
   latest education entry only, and WorkIt holds no place the student lives,
   so Greenhouse's Country picker beside Phone is left for the student.
