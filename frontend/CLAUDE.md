@@ -220,16 +220,27 @@ the KAN-296 cutover.
   visible one selected a hidden one. The six then stack into one under
   the four steps, which light in turn ("And it helps with every step of
   the search": "every step after that" put Matching after the match), and as the
-  tour comes up those four pills fly into its tab bar (`TabFlight`,
-  mounted by `PinnedTour` with the pin's entry progress). The flight marks
-  `<html>` with `data-tab-flight` (idle, flying, landed), and landing.css
-  hides the bridge's pills while they fly and the tour's tab bar until
-  they land, so each pill is drawn once; with no flight the attribute is
-  absent and the tabs show. The flying pills leave with the bridge pills'
-  colour rings and land looking as the tabs do (the first white, the rest
-  clear with grey labels), and the tab bar shows with no fade: drawn
-  plain, the four rings vanished at take-off, and a fade made the pills
-  blink as they landed. With reduced motion it is a still block, no pin.
+  tour comes up the tour's own tabs take off from those four pills and
+  fly into its tab bar (`useTabFlight`, used by `PinnedTour` with the
+  pin's entry progress; KAN-368): once the tour has risen to `TAKE_OFF`
+  each tab jumps to its pill's place, looking as the pill does (white,
+  with its colour ring), and flies to the bar in time, one after another,
+  shedding the ring and, but for the first, the white fill; below
+  `FLY_BACK` they fly back. The tabs live in the tour's panel, so they
+  move with the page as the browser scrolls it (the panel is not clipped,
+  its backdrops are, so the tabs can start above it). Two earlier
+  versions placed copies on a fixed layer by script on every scroll:
+  between the two ends through an ease, they sank past the rising bar and
+  came back up with it; held still and then carried by the bar, they
+  bunched with their rings touching over the panel's edge. Both trailed
+  the page by a frame once the wheel went native, which read as a glitch.
+  A flight runs once each way, and only the latest one settles: started
+  again on each scroll step, an older run's end settled the tabs mid
+  flight. The flight marks `<html>` with `data-tab-flight` (idle, flying,
+  landed); landing.css hides the bar until the tabs take off and the
+  bridge's pills once they have, so each pill is drawn once, and keeps
+  the bar bare (no fill, no ring) while they fly; with no flight the
+  attribute is absent and the tabs show. With reduced motion it is a still block, no pin.
   **Below lg it is its own scene, `ScrolledBridge`** (KAN-368): the same
   three lines, one at a time, over a 330px stage on a short pin (150svh),
   the scroll cueing each phase through `useScrollCue` (`scene-time.ts`):
@@ -814,7 +825,21 @@ the KAN-296 cutover.
   where the postings come from, the proof behind the bridge's flood and
   Matching, and it names the systems whose filter is the statement's
   first beat. At the page's end it read as an afterthought, just above
-  the FAQ's "Where do the jobs come from?". It pins for 220vh in a grey
+  the FAQ's "Where do the jobs come from?". **It slides up over the
+  tour** (KAN-368): the tour keeps its last stop pinned for
+  `TOUR_COVER_VH` more (`layout-parts.tsx`), and this section starts that
+  far up the page, so its panel rises over the tour's while the tour sinks
+  back (scaled to 0.94, shaded by a layer over it, since a filter would
+  stop its glass blurring) and fades as the cover ends: once unpinned it
+  scrolled away in the strip above this section's panel. The panel casts
+  a soft shadow on the tour as it comes (a blurred ellipse under its top
+  edge, faded as it pins): without it the grey edge barely showed and the
+  cover read as a fog. The tour reads the cover's progress from a box
+  the cover's height at the foot of its pin: a box of no height gave the
+  browser's view timeline nothing to measure, it stood at its end, and
+  the tour vanished at once and left the screen blank, which read as an
+  abrupt cut. Both read the one constant; with reduced motion neither
+  moves. It pins for 220vh in a grey
   panel: the seven hiring systems
   come in as thick coins (CSS 3D: a face, three stacked discs for the
   edge, a back, under the stage's `perspective`; seven discs read the
@@ -936,10 +961,10 @@ the KAN-296 cutover.
     wholly below the screen, with a second observer: one observer that
     reset at the arrival line undid reveals in full view whenever the
     reader scrolled back a little.
-  - Still scroll-linked, by design: the flight that carries the bridge's
-    step pills into the tour's tabs (both ends move with the page), and
-    entrances that track their section's position (the tour panel's and
-    `GrowIn`'s scale).
+  - Still scroll-linked, by design: entrances and exits that track their
+    section's position (the tour panel's and `GrowIn`'s scale, the tour
+    sinking under the hiring-systems section). The bridge's hand-off to the tour's
+    tabs is cued by the scroll and plays in time.
   - Timeline values from `useSceneTime` are animated by script, so their
     transforms run on the main thread while a phase plays and cost
     nothing at rest; the array-range rule below matters for what is

@@ -705,9 +705,11 @@ html:has(.landing) {
 }
 
 /*
- * The bridge's handoff (bridge.tsx, TabFlight): while its four pills fly
- * into the tour, the bridge's own pills hide, and the tour's tab bar shows
- * only once they land, so each pill is drawn once. With no flight the
+ * The bridge's handoff (bridge.tsx, `useTabFlight`): the tour's tabs take
+ * off from where the bridge's four steps are and fly to the tab bar. Until
+ * they take off the tab bar is hidden and the steps show; from then the
+ * steps hide, so each pill is drawn once, and the bar is bare (no fill, no
+ * ring) until its tabs have landed, then fills in. With no flight the
  * attribute is absent and the tab bar simply shows.
  */
 html[data-tab-flight="flying"] [data-bridge-pill],
@@ -715,12 +717,19 @@ html[data-tab-flight="landed"] [data-bridge-pill] {
   visibility: hidden;
 }
 
-/* No fade: the flying pills land looking as the tabs do and vanish in the
- * frame the tabs show. A 0.3s fade in made the pills blink as they landed,
- * and on the way back up both sets showed at once. */
-html[data-tab-flight="idle"] .tour-tabs,
-html[data-tab-flight="flying"] .tour-tabs {
+html[data-tab-flight="idle"] .tour-tabs {
   opacity: 0;
+}
+
+.tour-tabs {
+  transition:
+    background-color 0.3s,
+    box-shadow 0.3s;
+}
+
+html[data-tab-flight="flying"] .tour-tabs {
+  background-color: transparent;
+  box-shadow: none;
 }
 
 /*

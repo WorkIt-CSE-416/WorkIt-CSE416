@@ -27,6 +27,15 @@ export const CONTAINER = "mx-auto w-full max-w-6xl px-4 sm:px-6 lg:px-8";
 export const PANEL_INSET = "px-2 sm:px-6";
 export const PANEL = "rounded-[2rem] lg:rounded-[3rem]";
 
+/**
+ * How far the hiring-systems section slides up over the pinned tour's last
+ * stop, in vh, from lg up with motion: the tour keeps that much pin after
+ * its last stop, and the section starts that far up the page, over it
+ * (KAN-368). One number for both, or the tour unpins under the section or
+ * the section leaves a gap.
+ */
+export const TOUR_COVER_VH = 100;
+
 export function SectionHeading({
   eyebrow,
   title,

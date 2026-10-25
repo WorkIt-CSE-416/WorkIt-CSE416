@@ -25,7 +25,7 @@ import { FocusIn } from "./focus-in";
 import { GrowIn } from "./grow-in";
 import { DiagramLabel, HiringSystems, JobCard } from "./hiring-systems";
 import { useMediaQuery, usePageHidden } from "./hooks";
-import { CONTAINER, PANEL, PANEL_INSET, SectionHeading } from "./layout-parts";
+import { CONTAINER, PANEL, PANEL_INSET, SectionHeading, TOUR_COVER_VH } from "./layout-parts";
 import { useLoopClock, useSceneTime, type Cue } from "./scene-time";
 import { GLIDE } from "./story";
 
@@ -166,6 +166,10 @@ function PinnedPipeline() {
 
   // The scroll cues the phases; time plays them (scene-time.ts).
   const t = useSceneTime(q, CUES, { rate: 0.3, longest: 2.2 });
+  // The shadow the panel casts on the tour as it slides over it, gone as
+  // it pins: without it the grey panel's edge barely showed against the
+  // shaded tour, and the cover read as a fog coming up.
+  const edge = useTransform(entry, [0.85, 1], [1, 0]);
 
   const [layout, setLayout] = React.useState<Layout | null>(null);
   const layoutRef = React.useRef<Layout | null>(null);
@@ -194,8 +198,20 @@ function PinnedPipeline() {
   const spin = useLoopClock(phase === "ring" && inView && !hidden);
 
   return (
-    <section ref={ref} id="hiring-systems" className="h-[220vh]">
+    // It starts `TOUR_COVER_VH` up the page, over the pinned tour's last
+    // stop, and slides up over it as the tour sinks back (product-tour.tsx).
+    <section
+      ref={ref}
+      id="hiring-systems"
+      className="relative z-10 h-[220vh]"
+      style={{ marginTop: `-${TOUR_COVER_VH}vh` }}
+    >
       <div className={cn(PANEL_INSET, "sticky top-0 flex h-dvh flex-col pt-20 pb-4")}>
+        <motion.div
+          aria-hidden="true"
+          className="pointer-events-none absolute inset-x-16 top-16 h-24 rounded-[50%] bg-[rgb(30_20_70/0.3)] blur-2xl"
+          style={{ opacity: edge }}
+        />
         <div className={cn(PANEL, "bg-surface relative isolate min-h-0 flex-1 overflow-hidden")}>
           <div className="relative z-10 px-10 pt-10 xl:px-14">
             <div className="max-w-[32rem]">
