@@ -303,7 +303,10 @@ Find files with a directory listing; these are the rules for where code goes.
   application with a question in words has a company whose brief is
   missing or over 30 days old and not held back (`briefs.needs_research`),
   `get_next_application` answers `research_first` with the company and no
-  application; a choice-only application still goes out. Tests get every
+  application; a choice-only application still goes out.
+  `get_research_task`, given the same `chat`, puts that held application
+  first (`briefs.research_task(skip=)`), so it names the company
+  `research_first` named, not an older application's. Tests get every
   company as researched (an autouse fixture in `tests/conftest.py`);
   mark a test `research_gate` to keep the real rule, and stub
   `needs_research` with the other brief calls wherever they are stubbed
