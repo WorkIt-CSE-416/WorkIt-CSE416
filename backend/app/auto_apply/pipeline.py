@@ -15,15 +15,19 @@ from typing import Any, Literal
 from sqlalchemy.exc import SQLAlchemyError
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from app.auto_apply import checks
 from app.auto_apply.hosts import refusal
 from app.auto_apply.queries import (
     ResumeChoice,
     chosen_resume,
     fetch_application,
+    fetch_application_companies,
     fetch_applications,
     fetch_next_application,
     fetch_next_to_write,
     fetch_open_apply_url,
+    fetch_posting_text,
+    fetch_saved_answers,
     fetch_stage,
     fetch_written,
     link_resume,
@@ -39,7 +43,6 @@ from app.models.dto import application_stage
 from app.queries.jobs.filters import JobFilters
 from app.routers.jobs import EmptyBank, fetch_recommended
 from app.schemas.applications import (
-    ANSWER_MAX,
     Application,
     WrittenAnswer,
     WrittenQuestion,
@@ -358,25 +361,95 @@ async def save_answers(
     Saves the student's Claude's answers to one application's questions
     (KAN-377), all or none, and answers how many of its questions are
     still unanswered. Each name must be one of the application's questions,
-    and each answer must fit the form's own limit. Raises NotFound /
-    WrongStage for an application that isn't open, Refused otherwise.
+    and each answer must pass every check in app/auto_apply/checks.py
+    (KAN-380), the form's own limit among them: a failing one is refused
+    with every reason, for Claude to fix, so it never reaches the tab.
+    Raises NotFound / WrongStage for an application that isn't open,
+    Refused otherwise.
     """
     await _open_application(db, applicant_id, job_id)
     questions = {q.name: q for q in await fetch_written(db, applicant_id, job_id)}
     if not answers:
         raise Refused("No answers to save.")
     for name, answer in answers.items():
-        question = questions.get(name)
-        if question is None:
+        if name not in questions:
             raise Refused(f"The application has no question named {name!r}. Use the names get_next_application gave.")
-        limit = question.max_length or ANSWER_MAX
         if not answer.strip():
             raise Refused(f"The answer to {name!r} is empty.")
-        if len(answer) > limit:
-            raise Refused(f"The answer to {name!r} is {len(answer)} characters; the form takes at most {limit}.")
+    sources, employers, samples = await _check_material(db, applicant_id, job_id)
+    failing = {
+        name: found
+        for name, answer in answers.items()
+        if (found := checks.problems(answer.strip(), checks.Context(
+            sources=(*sources, questions[name].label), samples=samples, employers=employers,
+            limit=questions[name].max_length,
+        )))
+    }
+    if failing:
+        raise Refused("Nothing was saved. Fix these answers and save them all again:\n" + "\n".join(
+            f"- {name!r}: {' '.join(found)}" for name, found in failing.items()
+        ))
     await save_written(db, applicant_id, job_id, {name: answer.strip() for name, answer in answers.items()})
     await db.commit()
     return sum(1 for name, q in questions.items() if q.answer is None and name not in answers)
+
+
+async def _check_material(
+    db: AsyncSession, applicant_id: uuid.UUID, job_id: uuid.UUID
+) -> tuple[tuple[str, ...], tuple[str, ...], tuple[str, ...]]:
+    """What an application's answers are checked against (checks.Context):
+    the texts their facts may come from (the student's bank, the posting),
+    the companies of the student's other applications that this posting and
+    bank don't name, and the student's writing samples."""
+    company, title, posting = await fetch_posting_text(db, job_id)
+    bank = await load_bank(db, applicant_id)
+    sources = (*bank_sources(bank), company or "", title or "", posting or "")
+    employers = tuple(
+        name for name in await fetch_application_companies(db, applicant_id)
+        if name.strip().casefold() != (company or "").strip().casefold()
+        and not any(checks.names(source, name) for source in sources)
+    )
+    return sources, employers, tuple(await writing_samples(db, applicant_id))
+
+
+def bank_sources(bank: Bank) -> list[str]:
+    """Every fact of the student's bank as text, for the number check: each
+    entry's fields, its months' years and its bullets, and the skills."""
+    texts: list[str] = []
+    for entry in bank.entries:
+        row = entry.row
+        texts += [str(v) for v in (
+            row.title, row.organization, row.location, row.degree, row.field_of_study, row.gpa, row.gpa_scale,
+            row.honors, row.issuer, *(row.coursework or ()),
+            *(d.year for d in (row.start_month, row.end_month, row.award_date) if d),
+        ) if v is not None]
+        texts += [b.text for b in entry.bullets]
+    texts += [s.name for s in bank.skills]
+    return texts
+
+
+async def writing_samples(db: AsyncSession, applicant_id: uuid.UUID) -> list[str]:
+    """The student's own writing samples, which the copying check reads.
+    WorkIt keeps none yet: KAN-384 adds them, and this reads them."""
+    return []
+
+
+async def answer_bank(db: AsyncSession, applicant_id: uuid.UUID, job_id: uuid.UUID) -> dict[str, str]:
+    """
+    The answers the student has saved on other applications that may be
+    offered on this one's form, by question wording, the newest for each
+    wording. An answer about one company (checks.company_specific) is
+    offered only on that company's forms, never on another's (KAN-380).
+    """
+    company, _, _ = await fetch_posting_text(db, job_id)
+    same = (company or "").strip().casefold()
+    bank: dict[str, str] = {}
+    for saved in await fetch_saved_answers(db, applicant_id, exclude=job_id):
+        theirs = (saved.company or "").strip().casefold()
+        if checks.company_specific(saved.question, saved.answer, saved.company) and not (same and theirs == same):
+            continue
+        bank.setdefault(saved.question, saved.answer)
+    return bank
 
 
 async def finish_application(

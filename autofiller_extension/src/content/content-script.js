@@ -189,15 +189,13 @@
    */
   async function awaitClaude(prepared) {
     const waiting = new Set(prepared.written.map((q) => q.name));
-    const questions = prepared.written.map((q) => {
-      const box = document.getElementById(q.name);
-      return {
-        name: q.name.slice(0, FIELD_NAME_MAX),
-        label: q.label.slice(0, LABEL_MAX),
-        required: Boolean(q.required),
-        max_length: box && box.maxLength > 0 ? box.maxLength : null,
-      };
-    });
+    // max_length: the field's own limit, as the Fill engine read it from the form; WorkIt refuses a longer answer.
+    const questions = prepared.written.map((q) => ({
+      name: q.name.slice(0, FIELD_NAME_MAX),
+      label: q.label.slice(0, LABEL_MAX),
+      required: Boolean(q.required),
+      max_length: q.max_length ?? null,
+    }));
     let reply = await send({ type: "batch/questions", questions }).catch((error) => ({ ok: false, error: error.message }));
     if (!reply.ok) {
       for (const q of prepared.written) status.setStatus(q.name, q.required ? "failed" : "skipped", WRITE_IT);
@@ -232,8 +230,7 @@
       async onGenerate() {
         // One at a time: each is its own counted AI use, and the overlay shows each row as it lands.
         for (const q of written) {
-          const box = document.getElementById(q.name);
-          const maxLength = box && box.maxLength >= MIN_LENGTH ? Math.min(box.maxLength, MAX_LENGTH) : null;
+          const maxLength = q.max_length >= MIN_LENGTH ? Math.min(q.max_length, MAX_LENGTH) : null;
           const result = await send({
             type: "essay/generate",
             applicantId: prepared.applicantId,

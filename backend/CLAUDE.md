@@ -240,7 +240,20 @@ Find files with a directory listing; these are the rules for where code goes.
   `services/page_fetch.py`**, never a bare `httpx` call: the URL comes from
   outside, and the fetcher is what refuses internal addresses, other
   hosts, redirects off them and oversized pages. Tests swap
-  `briefs.fetch_page` for a fake; nothing in the suite reads the web. **Which job postings it takes is
+  `briefs.fetch_page` for a fake; nothing in the suite reads the web.
+  **Every saved answer passes the checks in code first**
+  (`app/auto_apply/checks.py`, KAN-380; pure, `tests/test_answer_checks.py`):
+  machine-made words, a run copied from the student's writing samples, a
+  number not in the bank, posting or question, another application's
+  company, a sentence over 30 words, a placeholder, and the form's own
+  limit (the Fill engine reads it from the live form; the tab sends it as
+  `max_length`). `save_answers` refuses the whole save with every failing
+  answer's reasons, so nothing failing reaches a tab. **An answer about one
+  company is offered on that company's forms only** (`checks.company_specific`,
+  read through `pipeline.answer_bank`: reuse saved answers through it, never
+  from `written_answers` directly). Seam-2 tests:
+  `tests/test_connector_checks.py`. The writing samples are KAN-384's;
+  until then `pipeline.writing_samples` holds none. **Which job postings it takes is
   one list, `app/auto_apply/hosts.py`** (every hiring system the Fill engine fills, KAN-370): the matches
   and `queue_applications` require its SQL form (`AUTO_APPLY_SUPPORTED` in
   `queries/jobs/filters.py`) and `JobListing.auto_apply` its Python form,

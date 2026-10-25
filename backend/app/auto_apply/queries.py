@@ -392,3 +392,49 @@ async def save_written(
             )
             .values(answer=answer, answered_at=func.now())
         )
+
+
+async def fetch_posting_text(db: AsyncSession, job_id: uuid.UUID) -> tuple[str | None, str | None, str | None]:
+    """One job posting's company, title and description, as saved."""
+    row = (
+        await db.execute(select(Job_Post.company_name, Job_Post.title, Job_Post.description).where(Job_Post.id == job_id))
+    ).first()
+    return (row.company_name, row.title, row.description) if row else (None, None, None)
+
+
+async def fetch_application_companies(db: AsyncSession, applicant_id: uuid.UUID) -> list[str]:
+    """The companies of every job posting the applicant has an application
+    for, at any stage, each once."""
+    rows = await db.scalars(
+        select(Job_Post.company_name)
+        .join(Job_Application, Job_Application.job_id == Job_Post.id)
+        .where(Job_Application.applicant_id == applicant_id, Job_Post.company_name.is_not(None))
+        .distinct()
+    )
+    return list(rows)
+
+
+@dataclass(frozen=True)
+class SavedAnswer:
+    """An answer saved to one application's question, and the company of
+    its job posting."""
+
+    question: str
+    answer: str
+    company: str | None
+
+
+async def fetch_saved_answers(
+    db: AsyncSession, applicant_id: uuid.UUID, exclude: uuid.UUID | None = None
+) -> list[SavedAnswer]:
+    """Every answer the applicant has saved to an application's question,
+    newest first, but those of the job `exclude`."""
+    query = (
+        select(Written_Answer.label, Written_Answer.answer, Job_Post.company_name)
+        .join(Job_Post, Job_Post.id == Written_Answer.job_id)
+        .where(Written_Answer.applicant_id == applicant_id, Written_Answer.answer.is_not(None))
+        .order_by(Written_Answer.answered_at.desc(), Written_Answer.job_id, Written_Answer.name)
+    )
+    if exclude is not None:
+        query = query.where(Written_Answer.job_id != exclude)
+    return [SavedAnswer(question=r.label, answer=r.answer, company=r.company_name) for r in await db.execute(query)]
