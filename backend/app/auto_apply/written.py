@@ -70,7 +70,7 @@ async def ask_questions(
         await drop_written(db, applicant_id, job_id, [
             q.name for q in answered
             if (picked(q, q.answer)[1] if q.kind else checks.problems(q.answer, checks.Context(
-                sources=(*sources, q.label), employers=employers, limit=q.max_length,
+                sources=(*sources, q.label), employers=employers, limit=q.max_length, question=q.label,
             )))
         ])
     await db.commit()
@@ -213,7 +213,7 @@ async def save_answers(
             kept[name], found = picked(q, answer)
         else:
             kept[name], found = answer.strip(), checks.problems(answer.strip(), checks.Context(
-                sources=(*sources, q.label), samples=samples, employers=employers, limit=q.max_length,
+                sources=(*sources, q.label), samples=samples, employers=employers, limit=q.max_length, question=q.label,
             ))
             if by == "claude":
                 found += _review_problems(kept[name], (reviews or {}).get(name))
@@ -396,7 +396,7 @@ async def answer_bank(db: AsyncSession, applicant_id: uuid.UUID, job_id: uuid.UU
         if checks.company_specific(saved.question, said, saved.company) and not (same and theirs == same):
             continue
         if not saved.own and not saved.choice and checks.problems(saved.answer, checks.Context(
-            sources=(*sources, saved.question), employers=employers,
+            sources=(*sources, saved.question), employers=employers, question=saved.question,
         )):
             continue
         if (wording := _wording(saved.question)) not in seen:
@@ -438,7 +438,7 @@ async def save_own_answer(
     if not own.own and not (asked and asked.kind):
         sources, employers, samples = await _check_material(db, applicant_id, job_id)
         found = checks.problems(answer, checks.Context(
-            sources=(*sources, own.label), samples=samples, employers=employers,
+            sources=(*sources, own.label), samples=samples, employers=employers, question=own.label,
             limit=asked.max_length if asked else None,
         ))
         if found:
