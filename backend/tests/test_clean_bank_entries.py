@@ -1,4 +1,4 @@
-"""The one-off clean-up of older resume readings (scripts/clean_bank_reading.py),
+"""The one-off clean-up of older resume readings (scripts/clean_bank_entries.py),
 on the test database. Made-up rows only."""
 
 import uuid
@@ -9,7 +9,7 @@ from sqlalchemy import select
 from app.models.bank import Bank_Entry, Bank_Skill
 from app.models.dto import bank_section
 from app.models.resume import Resume
-from app.scripts.clean_bank_reading import clean
+from app.scripts.clean_bank_entries import clean
 
 pytestmark = pytest.mark.anyio
 

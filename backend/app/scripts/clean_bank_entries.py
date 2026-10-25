@@ -2,9 +2,9 @@
 Clean what an older resume reading left in the bank, before the parser split
 a "| C++, Go" tool list off a title (utils/CLAUDE.md, "A role's tools"):
 
-    uv run python -m app.scripts.clean_bank_reading            # dry run: prints, writes nothing
-    uv run python -m app.scripts.clean_bank_reading --apply    # writes
-    uv run python -m app.scripts.clean_bank_reading --applicant <id> [--apply]
+    uv run python -m app.scripts.clean_bank_entries            # dry run: prints, writes nothing
+    uv run python -m app.scripts.clean_bank_entries --apply    # writes
+    uv run python -m app.scripts.clean_bank_entries --applicant <id> [--apply]
 
 For every experience, leadership or project entry whose title ends in a tool
 list after a bar, the title keeps only what comes before it, and the tools
