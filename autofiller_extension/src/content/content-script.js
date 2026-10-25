@@ -52,33 +52,13 @@
   window.WIA.running = true;
 
   const { status, overlay } = window.WIA;
-  // The essay-answer route's limits (backend/app/schemas/essay_answer.py).
-  const QUESTION_MAX = 500;
-  const NAME_MAX = 200;
-  const MIN_LENGTH = 50;
-  const MAX_LENGTH = 5000; // a box that takes more (Workable's cover letter: 200000) asks for this much
   // How long to let an answer bring up a follow-up on Workday before reading the step again.
   const FOLLOW_UP_WAIT = 300;
   // How long the student's typing pauses before the fields they changed are read back.
   const EDIT_PAUSE = 400;
   const batch = Boolean(window.WIA.batch);
-  const WRITE_IT = "Write this answer yourself.";
-  const WAIT_FOR_CLAUDE = "Waiting for your Claude: run \"Write my WorkIt answers\" in Claude, or write it yourself.";
-  // The same, ending in a link to the webapp's Written Answers page (KAN-385), where a student without Claude pastes answers.
-  const WAIT_OR_PASTE = "Waiting for your Claude: run \"Write my WorkIt answers\" in Claude, write it yourself, or paste it in";
-  // That link ({ text, href }), asked of the background once; null when it couldn't say.
-  let answersPage;
-  // How often a batch tab asks whether the student's Claude saved an answer (KAN-377).
-  const ANSWER_POLL = 10_000;
-  // The connector's limits on a question and an answer (backend/app/schemas/applications.py).
-  const LABEL_MAX = 2000;
-  const FIELD_NAME_MAX = 200;
-  const ANSWER_MAX = 10_000;
-  // How long the student's typing in a written answer pauses before their words are saved (KAN-379).
-  const OWN_PAUSE = 2_000;
-  // How many fills of a written answer are under way: their typing is WorkIt's, not the student's.
-  let fillingWritten = 0;
-
+  // The questions that need a written answer: their rows, their writing, the student's edits of them.
+  const writing = window.WIA.writtenAnswers({ batch });
   status.reset();
   // Where the fill is, for whoever drives the page (the extension's test):
   // "filling", "filled", "step" (a Workday step filled, waiting for Save and Continue), "last" or "stopped".
@@ -140,23 +120,8 @@
       for (const name of Object.keys(answers)) {
         if (isNew(name)) status.register(name, byName.get(name)?.label ?? name, byName.get(name)?.required ?? false, sources[name] ?? "guessed");
       }
-      if (batch && rows.written.length && answersPage === undefined) {
-        const page = await send({ type: "batch/answers-page" }).catch(() => null);
-        answersPage = page?.ok ? { text: "Written Answers", href: page.url } : null;
-      }
-      for (const q of rows.written) {
-        written.set(q.name, q);
-        if (batch) {
-          if (!isNew(q.name)) continue;
-          status.register(q.name, q.label, q.required);
-          if (answersPage) status.setStatus(q.name, "needs_generation", WAIT_OR_PASTE, undefined, undefined, answersPage);
-          else status.setStatus(q.name, "needs_generation", WAIT_FOR_CLAUDE);
-          continue;
-        }
-        if (!isNew(q.name)) continue;
-        status.register(q.name, q.label, q.required);
-        status.setStatus(q.name, "needs_generation");
-      }
+      for (const q of rows.written) written.set(q.name, q);
+      await writing.showRows(rows.written, isNew);
       for (const q of rows.yours) {
         if (!isNew(q.name)) continue;
         status.register(q.name, q.label, q.required);
@@ -198,135 +163,8 @@
     }
   }
 
-  /** Fills one answer that needed writing, through the engine, and shows how it went. `source`: who wrote it. */
-  async function fillWritten(prepared, name, value, source = "ai") {
-    fillingWritten += 1;
-    const answer = await send({ type: "fill/page", site: prepared.site, questions: prepared.questions, answers: { [name]: value }, state: prepared.state })
-      .finally(() => (fillingWritten -= 1));
-    const result = answer.ok ? answer.results[name] ?? { status: "failed", reason: "The form changed before this was filled" } : { status: "failed", reason: answer.error };
-    status.setStatus(name, result.status, result.reason, result.shows, source);
-    if (result.status === "filled" && typeof result.shows === "string") workitFilled.set(name, { text: result.shows, source });
-  }
-
-  /**
-   * The written answers WorkIt filled that aren't the student's own words
-   * (their Claude's, the essay route's, a saved one of their Claude's), by
-   * field: what was filled, and who wrote it. A student's edit of one stays
-   * that writer's (KAN-379): only words they wrote into a field WorkIt
-   * didn't fill, or that replace what it filled, count as their own.
-   */
-  const workitFilled = new Map();
-
-  /** Words in a row WorkIt's checks count as copied (backend checks.py's copy run): sharing one keeps an edit WorkIt's. */
-  const RUN = 5;
-  /** Whether `edited` replaces `filled` wholesale: no run of RUN words (or all of a shorter `filled`) left in it. */
-  function replaces(filled, edited) {
-    const words = (text) => text.toLowerCase().match(/[\p{L}\p{N}']+/gu) ?? [];
-    const before = words(filled);
-    const after = words(edited).join(" ");
-    const n = Math.min(RUN, before.length);
-    if (!n) return true;
-    for (let i = 0; i + n <= before.length; i += 1) if (` ${after} `.includes(` ${before.slice(i, i + n).join(" ")} `)) return false;
-    return true;
-  }
-
   /** The current status of one row, or undefined. */
   const rowStatus = (key) => status.summary().fields.find((r) => r.key === key)?.status;
-
-  /**
-   * A batch tab's questions that need writing (KAN-377): sent to WorkIt for
-   * the student's own Claude, which saves its answers through the connector.
-   * The tab then asks for the saved answers every ANSWER_POLL ms and fills
-   * each new one through the engine, until none is left; the tab's group
-   * follows (report()). A question the student answered first keeps their
-   * answer.
-   */
-  async function awaitClaude(prepared) {
-    const waiting = new Set(prepared.written.map((q) => q.name));
-    // max_length: the field's own limit, as the Fill engine read it from the form; WorkIt refuses a longer answer.
-    const questions = prepared.written.map((q) => ({
-      name: q.name.slice(0, FIELD_NAME_MAX),
-      label: q.label.slice(0, LABEL_MAX),
-      required: Boolean(q.required),
-      max_length: q.max_length ?? null,
-    }));
-    let reply = await send({ type: "batch/questions", questions }).catch((error) => ({ ok: false, error: error.message }));
-    if (!reply.ok) {
-      for (const q of prepared.written) status.setStatus(q.name, q.required ? "failed" : "skipped", WRITE_IT);
-      return;
-    }
-    offerClaude();
-    let byClaude = false;
-    for (;;) {
-      for (const { name, answer } of reply.ok ? reply.questions : []) {
-        if (!answer || !waiting.has(name)) continue;
-        waiting.delete(name);
-        if (rowStatus(name) !== "filled") {
-          await fillWritten(prepared, name, answer, "claude");
-          byClaude = true;
-        }
-      }
-      for (const name of waiting) if (rowStatus(name) === "filled") waiting.delete(name);
-      if (!waiting.size) return offerSamples(byClaude);
-      await sleep(ANSWER_POLL);
-      reply = await send({ type: "batch/answers" }).catch((error) => ({ ok: false, error: error.message }));
-    }
-  }
-
-  /**
-   * The add-Claude step (KAN-387): on the batch's first question for the
-   * student's Claude, once (the background decides, and skips a student who
-   * already added the connector), the install link and what to do next.
-   */
-  async function offerClaude() {
-    const answer = await send({ type: "moment/claude" }).catch(() => null);
-    if (answer?.ok && answer.show) overlay.offerClaude({ url: answer.url });
-  }
-
-  /**
-   * This tab's written questions are all answered (KAN-387): the background
-   * says whether this was the batch's last, in a batch the student's Claude
-   * wrote for, and this tab is the one to ask for writing samples (once).
-   */
-  async function offerSamples(byClaude) {
-    const answer = await send({ type: "batch/written", byClaude }).catch(() => null);
-    if (answer?.ok && answer.show) overlay.askSamples({ url: answer.url });
-  }
-
-  /** The Generate prompt for the questions that need a written answer, if any. */
-  function offerEssays(prepared) {
-    const written = prepared.written;
-    if (written.length === 0) return;
-    if (batch) {
-      awaitClaude(prepared);
-      return;
-    }
-    overlay.promptForEssays({
-      count: written.length,
-      onDismiss() {
-        for (const { name } of written) status.setStatus(name, "skipped", "You chose to answer this yourself");
-      },
-      async onGenerate() {
-        // One at a time: each is its own counted AI use, and the overlay shows each row as it lands.
-        for (const q of written) {
-          const maxLength = q.max_length >= MIN_LENGTH ? Math.min(q.max_length, MAX_LENGTH) : null;
-          const result = await send({
-            type: "essay/generate",
-            applicantId: prepared.applicantId,
-            question: q.label.slice(0, QUESTION_MAX),
-            companyName: prepared.posting.company.slice(0, NAME_MAX) || null,
-            jobTitle: prepared.posting.title.slice(0, NAME_MAX) || null,
-            maxLength,
-          });
-          if (!result.ok) {
-            status.setStatus(q.name, "failed", result.error);
-            continue;
-          }
-          await fillWritten(prepared, q.name, result.answer);
-        }
-      },
-    });
-  }
 
   // The self-identification questions this page asks and the student hasn't
   // answered yet (KAN-387; the Plan's `selfId`), with the fill they belong to.
@@ -538,27 +376,20 @@
     const byName = new Map(prepared.questions.map((q) => [q.name, q]));
     const inWords = (q) => q.kind === "text" || q.kind === "textarea";
     const written = new Set([...prepared.written.map((q) => q.name), ...(prepared.plan.banked ?? []).filter(inWords).map((q) => q.name)]);
-    // A saved answer the Plan filled that isn't the student's own: an edit of it stays a saved answer.
-    for (const row of status.summary().fields)
-      if (written.has(row.key) && row.status === "filled" && row.source && row.source !== "student" && typeof row.shows === "string")
-        workitFilled.set(row.key, { text: row.shows, source: row.source });
+    writing.adopt(written);
     let timer;
     const check = async () => {
-      if (fillingWritten || stopped) return;
+      if (writing.busy() || stopped) return;
       const rows = status.summary().fields.filter((r) => byName.has(r.key) && (r.required || r.status === "failed" || written.has(r.key)));
       if (!rows.length) return required();
       const answer = await send({ type: "fill/read", site: prepared.site, questions: prepared.questions, names: rows.map((r) => r.key), state: prepared.state });
-      if (!answer.ok || fillingWritten || stopped) return;
+      if (!answer.ok || writing.busy() || stopped) return;
       for (const row of rows) {
         const shown = answer.shows[row.key];
         if (!isEmpty(shown)) {
           if (row.status !== "filled" || JSON.stringify(shown) !== JSON.stringify(row.shows)) {
-            const filled = written.has(row.key) && typeof shown === "string" ? workitFilled.get(row.key) : undefined;
-            if (filled && replaces(filled.text, shown)) workitFilled.delete(row.key); // rewritten: the student's now
-            const edit = filled && workitFilled.has(row.key);
-            if (edit) status.setStatus(row.key, "filled", `You edited ${filled.source === "claude" ? "your Claude's" : "WorkIt's"} answer`, shown, filled.source);
+            if (written.has(row.key) && typeof shown === "string") writing.edited(row, shown, byName.get(row.key));
             else status.setStatus(row.key, "filled", row.status === "filled" ? row.reason : "You answered this", shown, "student");
-            if (written.has(row.key) && typeof shown === "string") keepOwn(byName.get(row.key), shown, !edit);
           }
         } else if (row.required && row.status === "filled") status.setStatus(row.key, "failed", "This is empty now. Answer it yourself.");
       }
@@ -578,26 +409,6 @@
     };
   }
 
-  const ownTimers = new Map();
-  /**
-   * Saves the student's words for a written question once their typing
-   * pauses (KAN-379): the background keeps them as this application's
-   * answer, so their Claude isn't asked for it, and for later forms. `own`:
-   * their own words; false for their edit of an answer WorkIt filled, which
-   * WorkIt checks as their Claude's (a refusal shows on the row, and the
-   * edit isn't kept). Batch tabs only: only they have an application at WorkIt.
-   */
-  function keepOwn(question, answer, own) {
-    if (!batch || !answer.trim() || answer.length > ANSWER_MAX) return;
-    clearTimeout(ownTimers.get(question.name));
-    ownTimers.set(question.name, setTimeout(async () => {
-      ownTimers.delete(question.name);
-      const saved = await send({ type: "batch/own-answer", name: question.name.slice(0, FIELD_NAME_MAX), label: question.label.slice(0, LABEL_MAX), answer, own })
-        .catch((error) => ({ ok: false, error: error.message }));
-      if (!saved?.ok && !own) status.setStatus(question.name, "failed", `WorkIt didn't keep your edit: ${saved?.error ?? "no answer"}`, answer, workitFilled.get(question.name)?.source);
-    }, OWN_PAUSE));
-  }
-
   const workday = window.WIA.workday;
   if (!workday.isWorkday) {
     // THE PANEL GOES ON THE PAGE ONCE THE FILL IS DONE, not before. Greenhouse's
@@ -613,7 +424,7 @@
     window.WIA.phase = prepared ? "filled" : "stopped";
     window.WIA.running = false;
     report();
-    if (prepared) offerEssays(prepared);
+    if (prepared) writing.offer(prepared);
     if (prepared) offerSelfId(prepared);
     if (prepared && batch) watchEdits(prepared);
     if (batch) answerTheWalk();
@@ -651,7 +462,7 @@
     note("_step", `Workday: ${step}`, last
       ? "This is the last step. Check the whole application, then submit it yourself."
       : "Check this step, then press Save and Continue. WorkIt fills the next step when it shows.");
-    offerEssays(prepared);
+    writing.offer(prepared);
     offerSelfId(prepared);
     const stopEdits = batch ? watchEdits(prepared) : null;
     window.WIA.phase = last ? "last" : "step";

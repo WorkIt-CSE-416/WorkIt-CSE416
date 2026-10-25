@@ -62,7 +62,9 @@ builds it: `dist/engine.js` is committed in the engine repo.
   the fill with them, so `CONTENT_SCRIPT_FILES`' order matters. Beside the
   status rows (`lib-status.js`) and the panel (`overlay.js`),
   `workday.js` reads Workday's pages (the step shown, a settled step, the
-  sign-in it fills) as `window.WIA.workday`.
+  sign-in it fills) as `window.WIA.workday`, and `written-answers.js` the
+  questions that need writing (their rows, Generate or the student's
+  Claude, the student's edits of them) as `window.WIA.writtenAnswers`.
   The content script reaches the engine through the background,
   which runs `engine.js`'s `runEngine` (the engine's own dispatcher,
   `FillEngine.call`) in the page's MAIN world with
@@ -851,7 +853,7 @@ the overlay lists each as "needs_generation" (`lib-status.js`).
   a choice (a dropdown) or one line ("Nick Name") is the student's too: a
   written answer can't pick an option, and the essay route writes
   sentences.
-- **Generation is sequential** (`content-script.js`'s `onGenerate`), one
+- **Generation is sequential** (`written-answers.js`'s `onGenerate`), one
   `essay/generate` per question: each is its own counted AI use, and the
   overlay shows each row as it lands. The answer is then filled through the
   engine like any other. The box's own `maxlength` goes with the question,
