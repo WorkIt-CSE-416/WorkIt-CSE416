@@ -76,7 +76,7 @@ import { ViewResumeButton } from "./view-resume";
 /**
  * The applications as a table, one row each, in the order job trackers read
  * (KAN-256): what and who (Role, with its company under it), where it stands (Status, Date
- * Applied), how good it is (Match), the job's facts (Track, the job type;
+ * Applied), how good it is (Match), the job's facts (Job Type;
  * Location; Work Model; Pay Range), where and what was sent (Source, the
  * hiring system its posting is on; Resume; Posting, open or not), and Notes /
  * Next Step last, the widest and least scanned. Role stays frozen at the
