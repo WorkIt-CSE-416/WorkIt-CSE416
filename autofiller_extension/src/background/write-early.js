@@ -4,7 +4,7 @@
 
 import { answerBank, askQuestions, getAutofillProfile, me, queuedApplications } from "./api.js";
 import { load } from "./batch-store.js";
-import { formUrl, questionsToWrite } from "./engine.js";
+import { formFor, questionsToWrite } from "./engine.js";
 import { jobBoard } from "./job-boards.js";
 
 // The queued jobs whose questions writeEarly has read (or found it can't), for this browser session.
@@ -35,7 +35,7 @@ export async function writeEarly({ fetchText, today }) {
     const link = application.job.form_url ?? application.job.apply_url;
     if (!jobBoard(link)) {
       const bank = await answerBank(account.id, jobId).catch(() => ({}));
-      const questions = await questionsToWrite({ url: formUrl(link), profile, bank, today, fetchText, jobType: application.job.job_type }).catch(() => null);
+      const questions = await questionsToWrite({ url: await formFor(link, fetchText), profile, bank, today, fetchText, jobType: application.job.job_type }).catch(() => null);
       if (questions?.length) {
         await askQuestions(account.id, jobId, questions).catch((error) => console.warn("[batch] questions not sent early:", error.message));
       }

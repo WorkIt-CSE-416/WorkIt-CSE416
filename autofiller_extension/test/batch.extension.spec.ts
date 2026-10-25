@@ -163,6 +163,18 @@ test("a job board's posting opens the employer's form it names, and never the jo
   expect(forms.submissions).toEqual([]);
 });
 
+test("a hosted Greenhouse job its company shows on its own site opens in its embedded form", async () => {
+  // Coinbase's board sends its hosted page to coinbase.com, where the form is in an iframe; the Job Board API names that page.
+  const forms = new SavedForms(["greenhouse-coinbase"]);
+  const api = new FakeApi().queue({ id: "job-0", apply_url: "https://job-boards.greenhouse.io/coinbase/jobs/8175510" });
+  const { webappPage, before } = await start(api, forms);
+
+  expect(await sendFromWebapp(webappPage, { type: "run/open" })).toMatchObject({ ok: true, opened: true });
+  const opened = async () => (await tabs(loaded.worker)).filter((t) => !before.has(t.id)).map((t) => t.url);
+  await expect.poll(opened, { timeout: 30_000 }).toEqual([forms.url("greenhouse-coinbase")]);
+  expect(forms.submissions).toEqual([]);
+});
+
 /** `forms`' handler, with `script` added to the saved form `name`'s page: the form misbehaving as a live one may. */
 function withScript(forms: SavedForms, name: string, script: string): Handler {
   return async (request) => {

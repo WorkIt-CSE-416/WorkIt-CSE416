@@ -113,7 +113,16 @@ builds it: `dist/engine.js` is committed in the engine repo.
   Workable or Eightfold posting shows the job on one page and the form on
   another (`jobOf`'s `form`). On the job's page the overlay names the
   form's link and fills nothing; batch apply opens the form itself
-  (`formUrl`).
+  (`formFor`: `formUrl`, then the engine's `greenhouseForm`). A hosted
+  Greenhouse job whose board shows it on the company's own site (the
+  Job Board API's `absolute_url` is off greenhouse.io) is sent there, its
+  form in an iframe the fill can't reach, so it opens as its embedded form
+  (`job-boards.greenhouse.io/embed/job_app?for=<board>&token=<job>`), as does
+  an embed link without `for=` (its page names the board). Write-early reads
+  the same link. On a company's careers page that holds Greenhouse's form in an
+  iframe (`iframe[src*="greenhouse.io/embed/job_app"]`), the overlay names
+  that iframe's link instead of "can't fill this job system yet"
+  (`content-script.js`).
 - **The profile adapter gives only what WorkIt holds.** Name, email,
   phone, home, links, the default resume, the transcript, the latest school and the jobs from the
   bank, and the nine autofill answers, in the words the engine's rules
