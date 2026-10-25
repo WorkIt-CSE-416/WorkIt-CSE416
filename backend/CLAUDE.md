@@ -291,7 +291,11 @@ Find files with a directory listing; these are the rules for where code goes.
   limit (the Fill engine reads it from the live form; the tab sends it as
   `max_length`), and Apply's editor checks (how it was written, talk of
   the posting, time counted from today, signposts, more than 2 numbers,
-  low-level detail, a course credited). Each reason says what to change. `save_answers` refuses the whole save with every failing
+  low-level detail, a course credited). Each reason says what to change.
+  Apply's holds, in WorkIt: an answer needing the student's input is left
+  out by their Claude (the row stays Needs you); a high-stakes one
+  (`checks.high_stakes`) is saved and filled, and `save_answers` names it
+  in `read_first` for the student to read before Submit. `save_answers` refuses the whole save with every failing
   answer's reasons, so nothing failing reaches a tab. **No saved answer is
   filled without passing that form's checks**: when a tab sends the form's
   own limit (`ask_questions`; a question read early had none), each saved

@@ -68,6 +68,21 @@ async def test_each_check_refuses_a_failing_answer_and_passes_a_clean_one(runnin
     assert (await _tab_asks(me, job))[0]["answer"] == CLEAN
 
 
+async def test_an_answer_the_student_reads_first_is_saved_and_named_back(running, applicant, database):  # noqa: F811
+    me, (job,) = await _student_queues(database, applicant, 1)
+    proud = {"name": "question_8", "label": "Tell us about a project you are proud of.", "required": False, "max_length": None}
+    await _tab_asks(me, job, WHY, proud)
+
+    async with claude(applicant) as client:
+        saved = await client.call_tool("save_answers", {"job_id": job, "answers": [
+            {"name": "question_7", "answer": CLEAN}, {"name": "question_8", "answer": "At Acme I cut page load time by 30%."}]})
+
+    assert saved.is_error is False, saved.content
+    # Saved and filled like any answer, but "why here" is named for the student to read before Submit.
+    assert saved.structured_content["read_first"] == ["question_7"]
+    assert [q["answer"] for q in await _tab_asks(me, job)] == [CLEAN, "At Acme I cut page load time by 30%."]
+
+
 async def test_one_failing_answer_keeps_the_others_from_saving(running, applicant, database):  # noqa: F811
     me, (job,) = await _student_queues(database, applicant, 1)
     proud = {"name": "question_8", "label": "Tell us about a project you are proud of.", "required": False, "max_length": None}

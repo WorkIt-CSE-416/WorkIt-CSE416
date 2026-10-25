@@ -41,6 +41,7 @@ from app.auto_apply.written import (  # noqa: F401 (re-exported: callers name th
     answer_bank,
     ask_questions,
     next_to_write,
+    read_first,
     save_answers,
     save_own_answer,
     unanswered_questions,

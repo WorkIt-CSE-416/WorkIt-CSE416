@@ -38,6 +38,9 @@ rules that were one student's own dropped.
   a recruiter follows.
 - **A course credited with what the student did** (COURSE_CREDIT).
 
+`high_stakes` says which answers the student reads before Submit: about
+this company, or about what isn't on their resume (saved, and named back
+to their Claude, `pipeline.read_first`).
 
 `company_specific` says which saved answers are about one company and so
 never offered on another company's form (`pipeline.answer_bank`).
@@ -92,6 +95,8 @@ LOW_LEVEL = re.compile(r"\b(?:serializ\w*|byte[- ]alignment|bytes?|binary|protob
 _COURSE = r"(?:course|class|(?-i:[A-Z]{2,4})\ ?\d{3})"
 COURSE_CREDIT = re.compile(rf"\b{_COURSE}\b[^.]*\b(?:helped|taught|why|without|reason|knew|let\ me|prepared)\b"
                            rf"|\b(?:helped|taught|without|knew|prepared)\b[^.]*\b{_COURSE}\b", re.IGNORECASE | re.VERBOSE)
+# A question about what the resume doesn't show, or a ranking against others.
+BEYOND_THE_RESUME = re.compile(r"not\s+on\s+your\s+(?:cv|r[eé]sum[eé])|\btop\s+[\d.]+\s?%", re.IGNORECASE)
 _NUMBER = re.compile(r"\d+(?:[.,]\d+)*")
 _WORD = re.compile(r"[a-z0-9']+")
 # A question about the company or the role, whose answer fits only that
@@ -177,6 +182,15 @@ def _writing(answer: str) -> list[str]:
                      "the student liked and why, as their experience says.")
     return found
 
+
+def high_stakes(question: str, company: str | None) -> bool:
+    """Whether the student reads the answer to `question` before pressing
+    Submit: it asks about this company or role, or about what isn't on
+    their resume (Apply's high-stakes essays, read from the question alone).
+    Such an answer is saved and filled, and named back to their Claude to
+    tell them."""
+    return (ABOUT_THE_COMPANY.search(question) is not None or BEYOND_THE_RESUME.search(question) is not None
+            or bool(company and names(question, company)))
 
 
 def copied(text: str, samples: Iterable[str], n: int = COPIED) -> list[str]:

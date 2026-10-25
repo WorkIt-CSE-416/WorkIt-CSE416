@@ -105,6 +105,9 @@ class Answer(BaseModel):
 class Saved(BaseModel):
     saved: int
     left: int = Field(description="How many of the application's questions are still unanswered.")
+    read_first: list[str] = Field(default_factory=list, description=(
+        "The saved answers (question names) the student should read before Submit: about this company, "
+        "or about what isn't on their resume."))
 
 
 def _handed(chat: str) -> list[uuid.UUID]:
@@ -192,11 +195,12 @@ def register(server: MCPServer) -> None:
             student = await account.current_student(db)
             try:
                 left = await pipeline.save_answers(db, student.id, job, {a.name: a.answer for a in answers})
+                first = await pipeline.read_first(db, student.id, job, [a.name for a in answers])
             except pipeline.NotFound as exc:
                 raise ToolError("No such application. Use the job_id get_next_application gave.") from exc
             except (pipeline.WrongStage, pipeline.Refused) as exc:
                 raise ToolError(str(exc)) from exc
-        return Saved(saved=len(answers), left=left)
+        return Saved(saved=len(answers), left=left, read_first=first)
 
     @server.prompt(name="write_my_workit_answers", title=TITLE,
                    description="Writes the answers to your WorkIt applications' written questions.")

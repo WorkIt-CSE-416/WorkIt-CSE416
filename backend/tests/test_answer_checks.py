@@ -8,6 +8,7 @@ from app.auto_apply.checks import (
     Context,
     company_specific,
     copied,
+    high_stakes,
     numbers,
     problems,
 )
@@ -102,6 +103,14 @@ def test_writing_that_reads_machine_made_is_refused_with_what_to_change(answer, 
 
     assert named in found and fix in found
     assert problems(CLEAN, Context(sources=BANK)) == []
+
+
+def test_an_answer_about_this_company_or_beyond_the_resume_is_for_the_student_to_read_first():
+    assert high_stakes("Why do you want to work at Acme?", "Acme")
+    assert high_stakes("What would you build at Acme?", "Acme")
+    assert high_stakes("Tell us something that is not on your resume.", "Acme")
+    # Read from the question alone: a project answer that names where the student worked is not one.
+    assert not high_stakes("Tell us about a project you are proud of.", "Acme")
 
 
 def test_every_problem_is_named_at_once():
