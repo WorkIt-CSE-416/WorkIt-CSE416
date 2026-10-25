@@ -398,6 +398,7 @@ export async function questionsToWrite({ url, profile, bank = {}, today, fetchTe
     label: q.label.slice(0, WRITTEN_LABEL_MAX),
     required: Boolean(q.required),
     max_length: null,
+    ...(q.kind ? { kind: q.kind, options: q.options } : {}),
   }));
 }
 
@@ -429,12 +430,17 @@ export async function fillPage({ call, site, questions, answers, accepted, state
 
 /**
  * What the overlay lists besides the planned answers, from the Plan:
- * - `written`: questions that need a written answer (the Plan's essays, and
- *   its drafts in a text area), each with `max_length`, its field's own limit
- *   as the engine read it from the form (null when it sets none). Each waits
- *   for the student's one Generate click, then goes to the essay-answer route.
- * - `yours`: questions WorkIt has no answer for (Missing facts, and drafts
- *   that are a choice or one line, which a written answer can't make).
+ * - `written`: questions for the student's Claude to answer (the Plan's
+ *   essays, and every one-off draft but a file), each with `max_length`,
+ *   its field's own limit as the engine read it from the form (null when it
+ *   sets none). A draft that is a choice whose options were read has `kind`
+ *   "choice" (a select) or "choices" (a multi-select) and its `options`
+ *   (KAN-369), which the connector shows Claude and takes only. `generate`:
+ *   the essay-answer route writes it (an essay, or a draft in a text area),
+ *   so outside a batch tab it waits for the student's one Generate click;
+ *   the rest are the student's there (content-script.js).
+ * - `yours`: questions WorkIt has no answer for (Missing facts, and a draft
+ *   that is a file).
  * - `notes`: what the Plan leaves to the student and why (an AI trap or ban,
  *   a video), and a screener the student would not pass.
  * A form that bans AI-written text never has `written`: the Plan hands its
@@ -444,17 +450,40 @@ export async function fillPage({ call, site, questions, answers, accepted, state
  */
 export function planRows({ plan }) {
   const row = (q) => ({ name: q.name, label: q.label, required: q.required });
-  // Only a text area takes a written answer: the essay route writes sentences, so a one-line
-  // draft ("Nick Name", Hermeus's Lever form) is the student's.
+  // Only a text area takes the essay route's answer: it writes sentences, so a one-line draft
+  // ("Nick Name", Hermeus's Lever form) or a choice is the student's Claude's alone.
   const takesText = (q) => q.kind === "textarea";
   const drafts = plan.drafts ?? [];
+  const toClaude = (q) => q.kind !== "file" && !tooManyOptions(q);
   const notes = [...(plan.handoffs ?? [])];
   if (plan.not_eligible) notes.push(`You may not meet this requirement: ${plan.not_eligible}`);
   return {
-    written: [...plan.essays, ...drafts.filter(takesText)].map((q) => ({ ...row(q), max_length: q.maxLength ?? null })),
-    yours: [...plan.missing, ...drafts.filter((q) => !takesText(q))].map(row),
+    written: [
+      ...plan.essays.map((q) => ({ ...row(q), max_length: q.maxLength ?? null, generate: true })),
+      ...drafts.filter(toClaude).map((q) => ({ ...row(q), max_length: q.maxLength ?? null, generate: takesText(q), ...choice(q) })),
+    ],
+    yours: [...plan.missing, ...drafts.filter((q) => !toClaude(q))].map(row),
     notes,
   };
+}
+
+// The connector's limits on a choice's options (backend/app/schemas/applications.py): a longer
+// list (a country, a school) is no one-off question, and stays the student's.
+const OPTIONS_MAX = 300;
+const OPTION_MAX = 500;
+const CHOICE_KINDS = { select: "choice", multi_select: "choices" };
+
+/** Whether a choice has more options, or longer ones, than the connector takes. */
+function tooManyOptions(q) {
+  return Boolean(CHOICE_KINDS[q.kind]) && (q.options.length > OPTIONS_MAX || q.options.some((o) => o.length > OPTION_MAX));
+}
+
+/** A draft's `kind` and `options` for the student's Claude when it is a choice whose options were read
+ * (not only "Select..." placeholders, which the engine answers in words); else none (written in words). */
+function choice(q) {
+  const unread = q.options.every((o) => /^\W*((select|choose|pick)\b.*)?$/i.test(o.trim()));
+  if (!CHOICE_KINDS[q.kind] || unread) return {};
+  return { kind: CHOICE_KINDS[q.kind], options: q.options };
 }
 
 /**
