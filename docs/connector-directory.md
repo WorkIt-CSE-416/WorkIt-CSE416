@@ -156,7 +156,10 @@ Make a reviewer account before sending (not the shared team test account):
    skills.
 2. Install the WorkIt extension, open Auto Apply, and start a batch (or the
    onboarding practice batch) so at least two open applications hold written
-   questions. Leave them unsubmitted.
+   questions. Leave them unsubmitted. Run "Write my WorkIt answers" once
+   so each of their companies has a saved brief: until then
+   `get_next_application` answers `research_first` instead of the
+   application.
 3. Check `get_next_application` returns an application through Claude, then
    remove your own connection.
 

@@ -290,6 +290,15 @@ Find files with a directory listing; these are the rules for where code goes.
   outside, and the fetcher is what refuses internal addresses, other
   hosts, redirects off them and oversized pages. Tests swap
   `briefs.fetch_page` for a fake; nothing in the suite reads the web.
+  **The brief comes before the essays** (as in Apply): while an
+  application with a question in words has a company whose brief is
+  missing or over 30 days old and not held back (`briefs.needs_research`),
+  `get_next_application` answers `research_first` with the company and no
+  application; a choice-only application still goes out. Tests get every
+  company as researched (an autouse fixture in `tests/conftest.py`);
+  mark a test `research_gate` to keep the real rule, and stub
+  `needs_research` with the other brief calls wherever they are stubbed
+  (`scripts/ship_check.py`).
   **Every saved answer passes the checks in code first**
   (`app/auto_apply/checks.py`, KAN-380; pure, `tests/test_answer_checks.py`):
   machine-made words, a run copied from the student's writing samples, a
