@@ -470,7 +470,10 @@ waits for an opened tab's page and form (`waitForLoad`, `formShows`).
 - **"Next Thing That Needs You" walks the batch** (KAN-375). Each batch
   tab's panel has the button. `next-needs-you.js`'s `nextNeedsYou` asks every batch
   tab, in the order the tabs opened, which of its rows need the student
-  (`batch/flags`: the rows that send a tab to Needs you, in page order,
+  (`batch/flags`: the rows that send a tab to Needs you, in page order:
+  a note that asks something, a failed field, a required one still
+  waiting for its answer, a review flag; never a filled one or a required
+  one the form doesn't show or no longer calls for, "skipped";
   notes last; a note is a row marked `note`, "todo" or "done" for news
   like "Application sent", never a key starting "_": Ashby keys its own
   fields `_systemfield_...`), goes to the first one after the last it went to (cursor in

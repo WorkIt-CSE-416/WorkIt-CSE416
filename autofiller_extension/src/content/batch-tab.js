@@ -29,11 +29,15 @@ window.WIA = window.WIA || {};
     /**
      * Whether a row needs the student: a note that asks something of them
      * (the Plan's, a Workday step, a failed fill or submit), a failed field,
-     * a required one unanswered, or an answer the review flagged. A row is a
-     * note by its `note`, never by its key: Ashby's own fields are keyed
-     * "_systemfield_...".
+     * a required one still waiting for an answer (its fill, or a written
+     * answer), or an answer the review flagged. A required one "skipped" is
+     * not: the form doesn't show it, or the answer before it doesn't call
+     * for it (a required field the page shows empty has failed,
+     * flagEmptyRequired). A row is a note by its `note`, never by its key:
+     * Ashby's own fields are keyed "_systemfield_...".
      */
-    const needsYou = (r) => (r.note ? r.note === "todo" : r.status === "failed" || (r.required && r.status !== "filled") || Boolean(r.flag));
+    const waiting = (r) => r.status === "pending" || r.status === "needs_generation";
+    const needsYou = (r) => (r.note ? r.note === "todo" : r.status === "failed" || (r.required && waiting(r)) || Boolean(r.flag));
 
     /**
      * Whether this batch tab is "ready" (every field it needs shows an answer),

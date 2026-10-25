@@ -326,6 +326,27 @@ test("Next Thing That Needs You goes on from where it was when the student answe
   expect(forms.submissions).toEqual([]);
 });
 
+// Anduril's form never shows its work authorization question (as a form hides a follow-up its answer
+// before doesn't call for): the question's box is taken off the page as soon as it is drawn.
+const HIDES_WORK_AUTHORIZATION = `new MutationObserver(() => {
+  document.getElementById("question_13130333007")?.closest(".select, .field-wrapper, fieldset")?.remove();
+}).observe(document, { childList: true, subtree: true });`;
+
+test("a required question the form doesn't show is left alone: Next Thing passes it over", async () => {
+  test.setTimeout(120_000);
+  const ANDURIL = "greenhouse-anduril";
+  const forms = new SavedForms([ANDURIL]);
+  await startBatch(forms, [ANDURIL], [withScript(forms, ANDURIL, HIDES_WORK_AUTHORIZATION)]);
+  const row = page(forms.url(ANDURIL)).locator('#workit-autofiller-overlay-host [data-key="question_13130333007"]');
+  await expect(row.locator(".reason")).toHaveText("The form didn't show this question");
+
+  const { walked, left } = await walkToEnd(forms.url(ANDURIL));
+  // Only the two questions WorkIt has no answer for.
+  expect(walked.map(([, key]) => key)).toEqual(["question_13130330007", "question_13130331007"]);
+  expect(left).toBe("Nothing else needs you.");
+  expect(forms.submissions).toEqual([]);
+});
+
 /** The text the phone's country picker beside Phone shows on Greenhouse's form (its dial code), "" when none is picked. */
 const phoneCountryShown = (form: Page) =>
   form.locator("#country").locator("xpath=ancestor::div[contains(@class, 'select__control')]").locator(".select__single-value").allInnerTexts();
