@@ -150,6 +150,8 @@
  *   e.g. "No matching option for \"SUNY Korea\""
  * @property {string | string[]} [shows]  What a filled field shows now, as the engine read it back
  * @property {Source} [source]  Where the value came from, shown beside it (overlay.js)
+ * @property {string} [flag]  Why the student's Claude's pre-submit review found a filled answer wrong
+ *   (KAN-369): the row needs the student until they edit it
  * @property {{ text: string, href: string }} [link]  A link ending the reason (a batch tab's
  *   wait for Claude links the webapp's Written Answers page)
  */
