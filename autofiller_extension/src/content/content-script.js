@@ -43,6 +43,11 @@
 // it applied ("batch/submitted"); one the job system refused shows here as a
 // failed row, with its words, and the tab needs the student again. Its
 // panel has Skip (KAN-373): the job is skipped, and its tab closes.
+//
+// This file is the fill's order of events. Its parts load before it
+// (shared/content-scripts.js): workday.js reads Workday's pages and fills
+// its sign-in, written-answers.js the questions that need writing, and
+// batch-tab.js a batch tab's side (its state, the walk, the submit watch).
 (async function () {
   "use strict";
 
