@@ -61,7 +61,7 @@ from app.services import built_resumes, keywords, postings, tailor
 from app.services.ai_messages import AIMessages
 from app.services.bank import NotFound, load_bank
 from app.services.identity import load_identity
-from app.services.resume_view import Choices
+from app.services.resume_view import Choices, build_view
 
 # KAN-319: the Tailor limit is lifted for now; restore with the lines in run().
 # from app.services.usage import Feature, count_use, uses_left
@@ -135,23 +135,24 @@ async def run(
         await session.commit()
 
     tailored = await built_resumes.tailored_for(session, applicant_id, job.id)
-    # retrieve only the entries and skills 
-    resume = tailor.on_resume(bank, choices)
+    # The picked resume as it shows, read once: the rank, the prompt, the
+    # proposals and the match all read it, so they agree on what it holds.
+    view = build_view(bank, choices)
 
-    # scores each experience bank bullet, used to suggest better order next time 
-    ranks = await tailor.rank_bullets(session, resume, tailor.posting_text(job, found))
+    # scores each bullet the resume shows, used to suggest a better order
+    ranks = await tailor.rank_bullets(session, view, tailor.posting_text(job, found))
 
     identity = await load_identity(session, account)
     try:
         reading = await llm.complete_json(
-            tailor.prompt(job, found, resume, choices, ranks), TailorReading,
+            tailor.prompt(job, found, view, ranks), TailorReading,
             identity=identity, max_tokens=tailor.REPLY_TOKENS)
     except ScoutUnavailable as exc:
         raise HTTPException(503, AI.failure(exc)) from exc
     # propose new order 
-    changes, dropped = tailor.propose(resume, choices, reading, ranks, found)
-    # extract all missing and matching bullet points 
-    matched, missing = tailor.match(resume, choices, found)
+    changes, dropped = tailor.propose(bank, view, reading, ranks, found)
+    # extract all missing and matching keywords
+    matched, missing = keywords.match(view, found)
     tailored_id = tailored.id if tailored else None
     # KAN-319: the Tailor limit is lifted for now.
     # await count_use(session, applicant_id, Feature.TAILOR)
@@ -194,8 +195,12 @@ async def done(
         tailor.validate(bank, body.changes)
     except NotFound:
         raise HTTPException(404, "Not found in your experience bank")
+    # The skills the saved resume will show, a Yes answer's included: the
+    # truth rule reads these, as the run read its resume's.
+    shown = build_view(bank, tailor.with_changes(bank, source, body.changes)).skills
     try:
-        variants = await tailor.save_variants(session, bank, job.id, body.changes, found)
+        variants = await tailor.save_variants(
+            session, bank, job.id, body.changes, [s.name for s in shown], found)
     except tailor.BreaksTruthRule as exc:
         await session.rollback()
         raise HTTPException(422, str(exc))
@@ -217,7 +222,7 @@ async def done(
         raise HTTPException(500, "Failed to save the tailored resume")
     await session.refresh(resume)
     default_id = await built_resumes.default_built_id(session, applicant_id)
-    matched, missing = tailor.match(bank, choices, found)
+    matched, missing = keywords.match(build_view(bank, choices), found)
     return TailorResult(
         resume=BuiltResumeResponse(
             id=resume.id, name=resume.name, template=resume.template, job_posting_id=resume.job_posting_id,

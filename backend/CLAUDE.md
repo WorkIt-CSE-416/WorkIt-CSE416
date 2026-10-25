@@ -553,17 +553,26 @@ Find files with a directory listing; these are the rules for where code goes.
     sent, so a new source replaces what it showed.
   - **The truth rule is one pure function**, `services/truth_rule.py`'s
     `invented` (tested directly, `tests/test_truth_rule.py`): a wording
-    with a number or tool in neither its original bullet nor the bank's
-    skills is dropped from the proposals and refused (422) at Done, since
-    the browser can send any text. Change what counts as a tool there and
-    nowhere else.
-  - **A run tailors only what the picked resume shows** (KAN-318,
-    `tailor.on_resume`): its shown entries and their shown bullets are
-    all that is ranked, sent to the model, reworded, reordered and
-    matched. It never proposes an entry or bullet the resume hides, so a
-    pick keeps its focus and length. "Bring back" (`show_entry`) is gone,
-    and the API refuses it at Done (422). Skills are the exception: every
-    bank skill stays in, so the model and the truth rule read them all. Before this, the
+    with a number or tool in neither its original bullet nor the skills
+    the resume shows is dropped from the proposals and refused (422) at
+    Done, since the browser can send any text. A run reads its view's
+    skills; Done reads the skills the saved resume will show, so a skill
+    added by Yes in the same Done counts (2026-10-25; both read every bank
+    skill before, so a wording could bring in another upload's skill).
+    Change what counts as a tool there and nowhere else.
+  - **A run tailors only what the picked resume shows, read once as its
+    view** (KAN-318): the router builds `build_view(bank, choices)` once,
+    and the rank, the prompt, the handles, the proposals and the keyword
+    match all read it. So the model sees the resume the student sees: its
+    shown entries and bullets in the resume's own order and wording, and
+    only its shown skills (2026-10-25; it saw every bank skill, other
+    uploads' included, in bank order). `prompt` and `propose` number the
+    handles from the same view, or b3 would name two bullets. It never
+    proposes an entry or bullet the resume hides, so a pick keeps its focus
+    and length. "Bring back" (`show_entry`) is gone, and the API refuses it
+    at Done (422). The truth rule reads the same shown skills (above).
+    `on_resume`, the bank cut to what shows, was a second copy of the
+    view's rule and is gone. Before this, the
     whole bank went to the model, and the hidden bullets took places among
     the best 40 although a reword of one was always dropped. Now every
     bullet the resume shows goes to the model, cut only by the token

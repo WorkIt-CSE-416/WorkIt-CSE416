@@ -337,6 +337,56 @@ async def test_a_bullet_the_resume_hides_is_left_out_of_the_run(student, databas
     assert "order" not in _kinds(body)
 
 
+async def test_the_model_sees_only_the_skills_the_resume_shows(student, database, use_model):
+    # Added after the base resume was generated, so the resume hides it.
+    await student.skill("Rust")
+    posting = await _seed_posting(database)
+    fake = use_model(reply())
+
+    await student.tailor(posting)
+
+    skills = next(line for line in fake.prompts[0][-1]["content"].splitlines() if line.startswith("The student's skills:"))
+    assert skills == "The student's skills: Docker"
+
+
+async def test_a_rewording_may_name_only_a_skill_the_resume_shows(student, database, use_model):
+    # Added after the base resume was generated, so the resume hides it.
+    rust = await student.skill("Rust")
+    posting = await _seed_posting(database)
+    use_model(reply(rewords=[("b2", "Wrote billing services in Python and Rust")]))
+
+    body = (await student.tailor(posting)).json()
+
+    assert "reword" not in _kinds(body)
+    assert body["dropped"] == 1
+
+    # Done refuses it too, unless the same Done shows the skill (a Yes).
+    bullet = (await student.client.get(f"{student.me}/bank")).json()["entries"][0]["bullets"][1]["id"]
+    reword = {"kind": "reword", "bullet_id": bullet, "text": "Wrote billing services in Python and Rust"}
+    refused = await student.done(posting, built(student.base), [reword])
+    assert refused.status_code == 422 and "Rust" in refused.json()["detail"]
+    show = {"kind": "show_skill", "skill_id": rust["id"], "label": "Rust"}
+    assert (await student.done(posting, built(student.base), [reword, show])).status_code == 200
+
+
+async def test_handles_follow_the_resume_s_own_order(student, database, use_model):
+    bank = (await student.client.get(f"{student.me}/bank")).json()
+    react, billing = [b["id"] for b in bank["entries"][0]["bullets"]]
+    # The resume shows billing first, unlike the bank.
+    res = await student.client.patch(
+        f"{student.me}/built-resumes/{student.base}/choices",
+        json={"bullets": [{"bullet_id": billing, "position": 0}, {"bullet_id": react, "position": 1}]})
+    assert res.status_code == 200, res.text
+    posting = await _seed_posting(database)
+    fake = use_model(reply(rewords=[("b1", "Built billing services in Python")]))
+
+    body = (await student.tailor(posting)).json()
+
+    assert "b1: Wrote billing services in python" in fake.prompts[0][-1]["content"]
+    rewords = [c for c in body["changes"] if c["kind"] == "reword"]
+    assert [(c["bullet_id"], c["text"]) for c in rewords] == [(billing, "Built billing services in Python")]
+
+
 async def test_text_search_puts_the_posting_s_bullets_first(student, database, use_model):
     posting = await _seed_posting(database)
     use_model(reply())

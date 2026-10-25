@@ -6,7 +6,8 @@ student gave. One pure function, tested directly (tests/test_truth_rule.py):
 
 A bullet variant passes when the list is empty. It fails when it holds a
 **number** or a **tool** that is in neither its original bullet nor the
-experience bank's skills.
+`skills` the caller passes (Tailor: the skills the resume shows; the editor
+assistant and essay answers: the bank's).
 
 - **A number** is a run of digits ("40" in "40%", "1,200" read as "1200").
 - **A tool** is a word shaped like a product name: one with a capital after

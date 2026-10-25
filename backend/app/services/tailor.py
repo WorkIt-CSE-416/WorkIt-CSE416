@@ -6,11 +6,15 @@ commit; the rest are pure.
 
 The source is the resume the student picked: a built resume's choices, or an
 uploaded resume shown as the entries and skills it owns (`upload_source`,
-ADR 0005), built in memory and never saved. A run tailors only what
-that resume shows (`on_resume`): its entries and their bullets, never an entry
-or bullet it hides. Skills are the exception: every bank skill stays in, so
-the truth rule reads them all. A run never proposes a hidden skill: a missing
-keyword is asked about ("Have you used X?"), and Yes adds it (`show_skill`).
+ADR 0005), built in memory and never saved. A run reads that resume
+once, as its view (`resume_view.build_view`): its shown entries, bullets
+and skills, in its own order and wording. The rank, the prompt, the
+proposals and the keyword match all read that one view, so the model sees
+the resume the student sees, and never an entry, bullet or skill it hides.
+The truth rule reads the same skills: a wording may name only a skill the
+resume shows. A run never proposes a hidden
+skill: a missing keyword is asked about ("Have you used X?"), and Yes adds
+it (`show_skill`).
 
 A run (`routers/tailor.py`) reads the posting's keywords (KAN-215's cache, or
 one extraction), ranks the resume's bullets against the posting with Postgres
@@ -19,8 +23,7 @@ bullet the resume shows, the lowest-ranked left out past a token budget
 (`prompt`): no links, and the model seam removes identity data. The model
 names bullets by handle (b1), never by id. `propose` turns its reply into
 changes, dropping any wording that breaks the truth rule
-(`services/truth_rule.py`), and adds what code can find alone: bank skills
-left off the resume that match a keyword, and the ranked bullet order.
+(`services/truth_rule.py`), and adds the ranked bullet order.
 
 Tailor changes only what shows, the order, which bullet variant shows and
 which skills show; it never writes the bank's text. A missing keyword that
@@ -46,7 +49,6 @@ from app.services import bank_import
 from app.services import keywords as kw
 from app.services.bank import (
     Bank,
-    Entry,
     NotFound,
     import_upload,
     load_bank,
@@ -55,9 +57,11 @@ from app.services.matching.embeddings import job_part
 from app.services.resume_view import (
     BulletChoice,
     Choices,
+    ResumeView,
     SkillChoice,
+    ViewBullet,
+    ViewEntry,
     all_chosen,
-    build_view,
 )
 from app.services.truth_rule import invented
 
@@ -102,11 +106,20 @@ def weak_match(job: Job_Post) -> bool:
     return not (job.description or "").strip()
 
 
-async def rank_bullets(session: AsyncSession, bank: Bank, text: str) -> dict[uuid.UUID, float]:
+def _bullets(view: ResumeView) -> list[ViewBullet]:
+    return [b for s in view.sections for e in s.entries for b in e.bullets]
+
+
+def _entries(view: ResumeView) -> list[ViewEntry]:
+    return [e for s in view.sections for e in s.entries]
+
+
+async def rank_bullets(session: AsyncSession, view: ResumeView, text: str) -> dict[uuid.UUID, float]:
     '''
-    bring all entries, format the job description + title into one 
+    Each bullet the resume shows, ranked against `text` (`posting_text`) by
+    Postgres text search on its bank wording.
     '''
-    ids = [b.id for e in bank.entries for b in e.bullets]
+    ids = [b.id for b in _bullets(view)]
     if not ids:
         return {}
     # reformat the input job posting string 
@@ -118,59 +131,41 @@ async def rank_bullets(session: AsyncSession, bank: Bank, text: str) -> dict[uui
     return {bullet_id: float(rank) for bullet_id, rank in rows}
 
 
-def handles(bank: Bank) -> dict[str, uuid.UUID]:
-    """e1.. for entries and b1.. for bullets, in bank order."""
+def handles(view: ResumeView) -> dict[str, uuid.UUID]:
+    """e1.. for entries and b1.. for bullets (counted across entries), in the
+    resume's order. `prompt` and `propose` both number from the same view,
+    so b3 names one bullet in both."""
     out: dict[str, uuid.UUID] = {}
     n = 0
-    for i, entry in enumerate(bank.entries, 1):
-        out[f"e{i}"] = entry.row.id
+    for i, entry in enumerate(_entries(view), 1):
+        out[f"e{i}"] = entry.id
         for bullet in entry.bullets:
             n += 1
             out[f"b{n}"] = bullet.id
     return out
 
 
-def _shown(choices: Mapping[uuid.UUID, object], item_id: uuid.UUID) -> bool:
-    choice = choices.get(item_id)
-    return choice is not None and choice.shown  # type: ignore[attr-defined]
-
-
-def on_resume(bank: Bank, choices: Choices) -> Bank:
-    """`bank` cut to what the resume shows: its shown entries, each with its
-    shown bullets, and every skill. A run reads this, never the whole bank,
-    so it tailors the picked resume and adds no entry the student left off."""
-    entries = [
-        Entry(e.row, [b for b in e.bullets if _shown(choices.bullets, b.id)])
-        for e in bank.entries
-        if _shown(choices.entries, e.row.id)
-    ]
-    return Bank(entries=entries, skills=bank.skills)
-
-
 def prompt(
-    job: Job_Post, keywords: Sequence[Keyword], bank: Bank, choices: Choices, ranks: Mapping[uuid.UUID, float]
+    job: Job_Post, keywords: Sequence[Keyword], view: ResumeView, ranks: Mapping[uuid.UUID, float]
 ) -> list[dict[str, str]]:
-    """Create a central prompt with job posting, extracted keywords and every
-    bullet the resume shows, in the wording it shows. Over `PROMPT_TOKENS`,
-    the lowest-ranked bullets are left out until it fits (`ranks`, ties
-    leaving the latest in bank order first); their entries stay."""
-    named = {v: k for k, v in handles(bank).items()}
-    shown = {}
-    for entry in bank.entries:
-        for bullet in entry.bullets:
-            shows = choices.bullets.get(bullet.id)
-            shown[bullet.id] = f"  {named[bullet.id]}: {(shows and shows.text) or bullet.text}"
+    """Create a central prompt with job posting, extracted keywords and the
+    resume's view: its entries and bullets in its order and wording, and
+    only the skills it shows. Over `PROMPT_TOKENS`, the lowest-ranked bullets
+    are left out until it fits (`ranks`, ties leaving the latest on the
+    resume first); their entries stay."""
+    named = {v: k for k, v in handles(view).items()}
+    shown = {b.id: f"  {named[b.id]}: {b.text}" for b in _bullets(view)}
     description = (
         job_part(job.description, keep_headings=True).strip()[: kw.MAX_DESCRIPTION_CHARS]
         or "(No description: only the title.)"
     )
     words = ", ".join(f"{k.keyword} ({k.kind})" for k in keywords) or "(none)"
-    skills = ", ".join(s.name for s in bank.skills) or "(none)"
+    skills = ", ".join(s.name for s in view.skills) or "(none)"
     head = (
         f"Job posting: {job.title}\n\n{description}\n\nKeywords: {words}\n\n"
         f"The student's skills: {skills}\n\nThe resume's entries:\n"
     )
-    entries = {e.row.id: f"{named[e.row.id]} [{e.row.section}] {_label(e.row)}" for e in bank.entries}
+    entries = {e.id: f"{named[e.id]} [{e.section}] {_label(e)}" for e in _entries(view)}
 
     room = PROMPT_TOKENS * CHARS_PER_TOKEN - len(PROMPT) - len(head) - sum(len(t) + 1 for t in entries.values())
     kept = sorted(shown, key=lambda i: -ranks.get(i, 0.0))
@@ -180,8 +175,8 @@ def prompt(
     keep = set(kept)
 
     lines = []
-    for entry in bank.entries:
-        lines.append(entries[entry.row.id])
+    for entry in _entries(view):
+        lines.append(entries[entry.id])
         lines += [shown[b.id] for b in entry.bullets if b.id in keep]
     return [{"role": "system", "content": PROMPT}, {"role": "user", "content": head + "\n".join(lines)}]
 
@@ -190,9 +185,9 @@ def _next(positions: Iterable[int]) -> int:
     return max(positions, default=-1) + 1
 
 
-def _label(row: Bank_Entry) -> str:
+def _label(entry: Bank_Entry | ViewEntry) -> str:
     """An entry as a change names it: two jobs can share a title."""
-    return ", ".join(p for p in (row.title, row.organization) if p)
+    return ", ".join(p for p in (entry.title, entry.organization) if p)
 
 
 def with_changes(
@@ -264,10 +259,6 @@ async def upload_source(session: AsyncSession, applicant_id: uuid.UUID, resume_i
     return upload_choices(bank, resume.id)
 
 
-def match(bank: Bank, choices: Choices, keywords: Sequence[Keyword]) -> tuple[list[Keyword], list[Keyword]]:
-    return kw.match(build_view(bank, choices), list(keywords))
-
-
 def _clean(text: str | None) -> str:
     return " ".join((text or "").split())[:MAX_TEXT]
 
@@ -296,25 +287,33 @@ def keeps_its_bullet(text: str, original: str) -> bool:
     return shared * 3 >= len(old)
 
 
-def check_wording(bank: Bank, bullet_id: uuid.UUID, text: str, keywords: Sequence[Keyword]) -> list[str]:
+def check_wording(
+    bank: Bank, bullet_id: uuid.UUID, text: str, skills: Iterable[str], keywords: Sequence[Keyword]
+) -> list[str]:
     """The facts `text` invents for the bullet (empty: it keeps the truth
-    rule). An identity placeholder the model echoed counts as one."""
+    rule), against its bank wording and `skills`: the skills the resume
+    shows, never the whole bank's, so a wording cannot bring in a skill the
+    student left off this resume. An identity placeholder the model echoed
+    counts as one."""
     original = next(b.text for e in bank.entries for b in e.bullets if b.id == bullet_id)
-    found = invented(text, original, [s.name for s in bank.skills], tools=[k.keyword for k in keywords])
+    found = invented(text, original, skills, tools=[k.keyword for k in keywords])
     return found + placeholders_in(text)
 
 
 def propose(
     bank: Bank,
-    choices: Choices,
+    view: ResumeView,
     reading: TailorReading,
     ranks: Mapping[uuid.UUID, float],
     keywords: Sequence[Keyword],
 ) -> tuple[list[TailorChange], int]:
-    """(changes, how many wordings the truth rule dropped). `bank` is
-    `on_resume`'s, so every entry and bullet in it shows."""
-    ids = handles(bank)
-    originals = {b.id: b.text for e in bank.entries for b in e.bullets}
+    """(changes, how many wordings the truth rule dropped), for the bullets
+    `view` shows. `bank` gives each bullet's own wording; the truth rule
+    reads the skills `view` shows."""
+    ids = handles(view)
+    skills = [s.name for s in view.skills]
+    showing = {b.id: b.text for b in _bullets(view)}
+    originals = {b.id: b.text for e in bank.entries for b in e.bullets if b.id in showing}
     changes: list[TailorChange] = []
     dropped = 0
 
@@ -324,20 +323,19 @@ def propose(
         if bullet_id not in originals or bullet_id in reworded:
             continue
         text = _clean(item.text)
-        current = choices.bullets.get(bullet_id)
-        if not text or text.casefold() == ((current and current.text) or originals[bullet_id]).casefold():
+        if not text or text.casefold() == showing[bullet_id].casefold():
             continue
-        if check_wording(bank, bullet_id, text, keywords) or not keeps_its_bullet(text, originals[bullet_id]):
+        if check_wording(bank, bullet_id, text, skills, keywords) or not keeps_its_bullet(text, originals[bullet_id]):
             dropped += 1
             continue
         reworded.add(bullet_id)
         changes.append(TailorChange(kind="reword", bullet_id=bullet_id, text=text, original=originals[bullet_id]))
 
-    for entry in bank.entries:
-        shown = sorted((b.id for b in entry.bullets), key=lambda b: choices.bullets[b].position)
+    for entry in _entries(view):
+        shown = [b.id for b in entry.bullets]
         best = sorted(shown, key=lambda b: -ranks.get(b, 0.0))
         if len(shown) > 1 and best != shown:
-            changes.append(TailorChange(kind="order", entry_id=entry.row.id, bullet_ids=best, label=_label(entry.row)))
+            changes.append(TailorChange(kind="order", entry_id=entry.id, bullet_ids=best, label=_label(entry)))
     return changes, dropped
 
 
@@ -369,10 +367,12 @@ async def save_variants(
     bank: Bank,
     posting_id: uuid.UUID,
     changes: Sequence[TailorChange],
+    skills: Iterable[str],
     keywords: Sequence[Keyword],
 ) -> dict[uuid.UUID, uuid.UUID]:
     """Each accepted wording as a bullet variant for the posting, checked
-    against the truth rule again (the browser could send anything). The same
+    against the truth rule again (the browser could send anything), with
+    `skills` the ones the saved resume will show. The same
     wording for the same bullet reuses its variant, whichever posting made
     it. Returns bullet id -> variant id."""
     out: dict[uuid.UUID, uuid.UUID] = {}
@@ -382,7 +382,7 @@ async def save_variants(
         change.text = _clean(change.text)
         if not change.text:
             raise BreaksTruthRule(["an empty line"])
-        facts = check_wording(bank, change.bullet_id, change.text, keywords)
+        facts = check_wording(bank, change.bullet_id, change.text, skills, keywords)
         if facts:
             raise BreaksTruthRule(facts)
         variant = await session.scalar(
