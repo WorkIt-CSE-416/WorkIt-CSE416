@@ -2088,16 +2088,9 @@ aria-hidden, and it holds still under reduced motion.
 Work and Visa Sponsorship (yes or no), then Location and Links (KAN-372:
 where the student lives, typed as forms ask it, "Stony Brook, NY", and
 LinkedIn, GitHub and Portfolio or Website; `onboarding/applicant/contact-fields.tsx`),
-then Citizenship and Visa Status, Security
-Clearance, then the voluntary Gender, Hispanic or Latino, Race/Ethnicity,
-Veteran Status and Disability, in the order real forms ask them, each under the question as forms word it. The options
-are real forms' options (`lib/autofill-answers.ts`): gender's are the
-EEO Male, Female and decline plus Non-Binary, which many forms add;
-Hispanic or Latino (KAN-299) is Yes, No or decline, and Race/Ethnicity one
-EEO-1 category or decline, the EEO's own two questions, which every U.S.
-form keeps apart; veteran
-status's three are the U.S. protected veteran self-identification's, disability's
-three are Form CC-305's words. One answer each, as dots; pressing a picked
+then Citizenship and Visa Status and Security
+Clearance, each under the question as forms word it. The options
+are real forms' options (`lib/autofill-answers.ts`). One answer each, as dots; pressing a picked
 answer again clears it. They are not filters: Finish saves them to the
 answer bank (`PATCH /applicants/{id}/autofill-answers`, only the changed
 ones), and the location and links to the profile (`PATCH
@@ -2107,6 +2100,19 @@ is marked under its box and stops Finish before anything saves. The step was Pay
 KAN-283: pay moved to step 1, beside the job types that set its units, and
 the visa filter question left onboarding. A visa filter saved before is
 kept, and the Jobs page still sets it.
+
+**The voluntary self-identification is not asked here (KAN-387).** Gender,
+Hispanic or Latino, Race/Ethnicity, Veteran Status and Disability
+(`SELF_ID_KEYS`) wait for the first form that asks one: the extension's panel
+on that form asks them once, with the same options (gender's are the EEO
+Male, Female and decline plus Non-Binary; Hispanic or Latino and
+Race/Ethnicity are the EEO's own two questions, which every U.S. form keeps
+apart; veteran status's three are the U.S. protected veteran
+self-identification's, disability's three Form CC-305's words), saves them
+to the same answer bank, and fills them on that form and every later one.
+Asked at sign-up, they were five more questions before a student had seen a
+single form; asked on the form, the student sees why. My Profile's
+Application Questions still shows and edits all nine.
 
 **Step 1's answers are the Jobs page's filters.** Every question takes
 `FeedFilters` and the options in `jobs/filter-query.ts`, and Role, Location,

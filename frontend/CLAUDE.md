@@ -1387,6 +1387,12 @@ are in `docs/auth.md`.
   Profile step then saves the home `location` and the links through
   `updateProfile`, checked with `webLink` first, the same fields My Profile
   edits. Screen: `docs/screens.md`, Applicant onboarding.
+- **Onboarding never asks the self-identification** (KAN-387): its Profile
+  step leaves out `SELF_ID_KEYS` (gender, Hispanic or Latino, race, veteran,
+  disability). The extension asks them on the first form that does and saves
+  them through the same PATCH; My Profile still edits all nine. A new
+  self-identification question goes into `SELF_ID_KEYS` too, and into the
+  extension's copy of the options (`autofiller_extension/src/background/self-id.js`).
 - **The practice forms (`lib/practice-form.ts`) import nothing** (KAN-378):
   they are whole HTML pages, served by a route handler, and the extension's
   end-to-end test imports the module to serve the same bytes, so it can't
@@ -1455,7 +1461,7 @@ descriptions and subtitles, other tooltips (so an icon button's label too),
 placeholders, empty-state body copy, error and validation messages, and a
 measured value or annotation outside a badge ("Over 7 days", "vs last week").
 An answer quoted from a self-identification form keeps the form's words and
-case: onboarding's veteran and disability answers ("I am not a protected
+case: the veteran and disability answers ("I am not a protected
 veteran", Form CC-305's "I do not want to answer"), so a student recognises
 the answer the employer's form will show.
 Fixture data stays as written. A label that doubles as a value, like the

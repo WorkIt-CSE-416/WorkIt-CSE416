@@ -23,6 +23,7 @@ import { saveAutofillAnswers } from "@/lib/autofill-answers-actions";
 import {
   NO_ANSWERS,
   PROFILE_QUESTIONS,
+  SELF_ID_KEYS,
   type AutofillAnswers,
   type ProfileQuestion,
 } from "@/lib/autofill-answers";
@@ -63,9 +64,10 @@ import { StoryPanel } from "./story-panel";
  * STEP 3 IS WHAT EVERY APPLICATION ASKS (KAN-283), right after the resume
  * (KAN-372). Work authorization and sponsorship come first, then the home
  * location and the links (./contact-fields), then citizenship and visa
- * status, clearance, and the voluntary gender, Hispanic or Latino, race,
- * veteran and disability self-identification (lib/autofill-answers). They
- * are no filter: the questions go to the seeker's answer bank and the
+ * status and clearance (lib/autofill-answers). Never the voluntary gender,
+ * Hispanic or Latino, race, veteran and disability self-identification
+ * (KAN-387): the extension asks those the first time a form does, and saves
+ * them for later forms. They are no filter: the questions go to the seeker's answer bank and the
  * location and links to the profile, which auto apply fills forms from. It
  * used to be Pay & Visa; pay moved to step 1 with the rest of the role, and
  * the visa filter question left onboarding (a saved one is kept, and the
@@ -603,8 +605,9 @@ function ProfileStep({
   // Work authorization and sponsorship lead (KAN-372): the facts a Match
   // and most forms need first. Location and links follow, then the rest in
   // the order forms ask.
-  const first = PROFILE_QUESTIONS.filter((q) => FIRST.includes(q.key));
-  const rest = PROFILE_QUESTIONS.filter((q) => !FIRST.includes(q.key));
+  const asked = PROFILE_QUESTIONS.filter((q) => !SELF_ID_KEYS.includes(q.key));
+  const first = asked.filter((q) => FIRST.includes(q.key));
+  const rest = asked.filter((q) => !FIRST.includes(q.key));
   return (
     <>
       {first.map(question)}
