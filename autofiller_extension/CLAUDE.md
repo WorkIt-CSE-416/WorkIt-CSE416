@@ -248,6 +248,22 @@ and `run/show` switches to one (`jobId`).
   skipped, or out of the fill states (filling, ready, needs_you), as a
   submitted one will be (KAN-374). The other job systems fill beside it;
   the slot doesn't count against the five filling.
+- **Workday sign-in (KAN-373).** On Workday's Create Account or Sign In
+  form (`[data-automation-id=signInFormo]`; Workday's step bar calls it a
+  step, which `workdayStep()` ignores), `content-script.js` asks
+  `workday/login` and types the student's email and the login
+  `workday-logins.js` keeps for that company's tenant (`jobOf(url).tenant`):
+  on Create Account a new 20-character password, saved before it is typed,
+  in both boxes. Rules: **passwords live only in `chrome.storage.local`
+  (`workday_logins`)**, never in an API call, a webapp message or a log;
+  **one per tenant, never shared**; **the extension never presses Create
+  Account, Sign In or the terms box**, and never opens the verification
+  email: the student does. A box the student typed in is left alone. The
+  panel says "Sign in to continue" and the tab sits in Needs you until a
+  step shows; then the fill goes on, in the page or (the tab is
+  remembered by `workday/login`) on the page signing in loads. A tenant's
+  account made without WorkIt has no saved password: only the email is
+  filled.
 - **The content script says when a tab is ready.** In a batch tab
   (`injectFill(tabId, { batch: true })` sets `window.WIA.batch`),
   `content-script.js` sends `batch/state` once the fill ends, then watches

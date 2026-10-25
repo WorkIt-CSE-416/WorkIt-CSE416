@@ -160,3 +160,65 @@ test("Workday applications fill one at a time while other job systems fill besid
   expect(api.stages.get("wd-0")).toBe("skipped");
   expect([...forms.submissions, ...workdays.submissions]).toEqual([]);
 });
+
+test("on Workday's sign-in, fills the student's email and a password of its own for each company, kept only in the browser", async () => {
+  test.setTimeout(180_000);
+  const workdays = new FakeWorkdays(["workday-caci", "workday-xcel"]);
+  const api = new FakeApi().queue(
+    { id: "wd-0", apply_url: workdays.signInUrl(0) },
+    { id: "wd-1", apply_url: workdays.signInUrl(1) },
+    { id: "wd-2", apply_url: workdays.signInUrl(0, "signin") },
+  );
+  // Every request the browser sends but the Workday tenants' own sign-in, to look for the passwords in.
+  const sent: string[] = [];
+  const spy: Handler = ({ url, body }) => {
+    if (url.pathname !== "/__fake__/account") sent.push(url.href + body.toString());
+    return undefined;
+  };
+  loaded = await loadExtension([spy, api.handler, webapp, workdays.handler]);
+  await signIn(loaded.context);
+  await sendFromWebapp(await openWebapp(), { type: "run/open" });
+  const page = async (url: string) => {
+    await expect.poll(() => loaded!.context.pages().some((p) => p.url() === url), { timeout: 30_000 }).toBe(true);
+    return loaded!.context.pages().find((p) => p.url() === url)!;
+  };
+  const box = (p: Page, id: string) => p.locator(`[data-automation-id=${id}]`);
+  const saved = () => loaded!.worker.evaluate(async () => (await chrome.storage.local.get("workday_logins")).workday_logins ?? {});
+  const panel = (p: Page) => p.locator("#workit-autofiller-overlay-host .row").filter({ hasText: "Sign in to continue" });
+
+  // Create Account on the first company: the email, and a new strong password typed twice.
+  const caci = await page(workdays.signInUrl(0));
+  await expect.poll(() => box(caci, "verifyPassword").inputValue(), { timeout: 30_000 }).not.toBe("");
+  expect(await box(caci, "email").inputValue()).toBe("test.person@example.com");
+  const caciPassword = await box(caci, "password").inputValue();
+  expect(caciPassword).toMatch(/^(?=.*[A-Z])(?=.*[a-z])(?=.*\d)(?=.*[^A-Za-z\d]).{16,}$/);
+  expect(await box(caci, "verifyPassword").inputValue()).toBe(caciPassword);
+  expect(await saved()).toEqual({ "caci.wd1.myworkdayjobs.com": { email: "test.person@example.com", password: caciPassword } });
+  // It waits for the student in Needs you, and never presses Create Account itself.
+  await expect(panel(caci)).toBeVisible();
+  await expect.poll(async () => (await tabs(loaded!.worker)).find((t) => t.url === workdays.signInUrl(0))?.group).toBe("Needs you");
+  expect(workdays.signIns).toEqual([]);
+
+  // The student presses Create Account; once signed in, the fill goes on by itself.
+  await box(caci, "click_filter").click();
+  await caci.waitForURL(workdays.url(0));
+  await expect.poll(() => caci.locator("[data-automation-id=formField-legalName--firstName] input").inputValue(), { timeout: 30_000 }).toBe("Test");
+  expect(workdays.signIns).toEqual([{ host: "caci.wd1.myworkdayjobs.com", view: "create", email: "test.person@example.com", password: caciPassword }]);
+
+  // The next company gets a password of its own.
+  await skip(caci);
+  const xcel = await page(workdays.signInUrl(1));
+  await expect.poll(() => box(xcel, "password").inputValue(), { timeout: 30_000 }).not.toBe("");
+  const xcelPassword = await box(xcel, "password").inputValue();
+  expect(xcelPassword).not.toBe(caciPassword);
+
+  // Back on the first company later, its Sign In takes the saved login.
+  await skip(xcel);
+  const again = await page(workdays.signInUrl(0, "signin"));
+  await expect.poll(() => box(again, "password").inputValue(), { timeout: 30_000 }).toBe(caciPassword);
+  expect(await box(again, "email").inputValue()).toBe("test.person@example.com");
+
+  // Neither password went anywhere but the company's own Workday.
+  expect(sent.filter((r) => r.includes(caciPassword) || r.includes(xcelPassword))).toEqual([]);
+  expect(workdays.submissions).toEqual([]);
+});

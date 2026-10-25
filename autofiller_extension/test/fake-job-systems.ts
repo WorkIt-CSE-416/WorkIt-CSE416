@@ -101,6 +101,17 @@ export class FakeWorkdays {
     return this.tenants[n].stepUrl(1);
   }
 
+  /**
+   * The n-th tenant's Create Account page (or its Sign In page), where an
+   * application starts for a candidate who isn't signed in.
+   */
+  signInUrl(n: number, view: "create" | "signin" = "create"): string {
+    return `https://${this.tenants[n].host}/__fake__/signin?view=${view}`;
+  }
+
+  /** Each Create Account and Sign In the student sent: the tenant's host, the view, the email and the password. */
+  readonly signIns: { host: string; view: string; email: string; password: string }[] = [];
+
   /** Every submit any tenant received (the extension must never send one). */
   get submissions(): unknown[] {
     return this.tenants.flatMap((t) => t.submissions);
@@ -109,8 +120,42 @@ export class FakeWorkdays {
   readonly handler: Handler = async (request) => {
     for (const tenant of this.tenants) {
       if (request.url.hostname !== tenant.host) continue;
+      if (request.url.pathname === "/__fake__/signin") return { headers: { "content-type": "text/html" }, body: signInPage(request.url.searchParams.get("view")!) };
+      if (request.url.pathname === "/__fake__/account" && request.method === "POST") {
+        const sent = JSON.parse(request.body.toString());
+        this.signIns.push({ host: tenant.host, ...sent });
+        return { json: { next: tenant.stepUrl(1) } };
+      }
       return replay(tenant, request);
     }
     return undefined;
   };
+}
+
+/**
+ * A Workday tenant's Create Account / Sign In page, in the shape of the live
+ * one (the automation ids Workday's own pages use): the form, a link to the
+ * other view, and the button, which Workday covers with a `click_filter`
+ * that takes the click. The step bar names the sign-in as the first step.
+ */
+function signInPage(view: string): string {
+  const create = view === "create";
+  const box = (id: string, label: string, type = "password") => `<label>${label}<input type="${type}" data-automation-id="${id}"></label>`;
+  return `<!doctype html><meta charset="utf-8"><title>Workday</title>
+<ol data-automation-id="progressBar"><li data-automation-id="progressBarActiveStep"><label>current step 1 of 3</label><label>Create Account/Sign In</label></li></ol>
+<div data-automation-id="signInContent">
+<h2 id="authViewTitle">${create ? "Create Account" : "Sign In"}</h2>
+<form data-automation-id="signInFormo" onsubmit="return false">
+${box("email", "Email Address", "text")}${box("password", "Password")}${create ? box("verifyPassword", "Verify New Password") + '<label><input type="checkbox" data-automation-id="createAccountCheckbox">I agree to the terms</label>' : ""}
+<div role="button" aria-label="${create ? "Create Account" : "Sign In"}" data-automation-id="click_filter" style="width:200px;height:40px;background:#ddd"></div>
+</form>
+<button data-automation-id="${create ? "signInLink" : "createAccountLink"}" onclick="location.search='?view=${create ? "signin" : "create"}'">${create ? "Sign In" : "Create Account"}</button>
+</div>
+<script>
+document.querySelector("[data-automation-id=click_filter]").addEventListener("click", async () => {
+  const value = (id) => document.querySelector("[data-automation-id=" + id + "]").value;
+  const answer = await (await fetch("/__fake__/account", { method: "POST", body: JSON.stringify({ view: ${JSON.stringify(view)}, email: value("email"), password: value("password") }) })).json();
+  location.href = answer.next;
+});
+</script>`;
 }

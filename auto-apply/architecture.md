@@ -78,7 +78,10 @@ everything up to that click and nothing after it ("Decisions", below).
 - Submitting an application without the student.
 - Solving CAPTCHAs or hiding automation from a hiring system.
 - Creating accounts on a hiring system for the student. Workday asks for one
-  per company; the student makes it.
+  per company; the student makes it. The extension fills its Create Account
+  form (the student's email and a password of its own for that company,
+  kept only in the extension's local storage), but the student presses
+  Create Account and opens Workday's email (KAN-373, 8.4).
 - Writing cover letters. The tailoring step can do it later.
 
 ## 2. What exists today
@@ -382,9 +385,9 @@ systems show different confirmation pages. That is why the student clicks
 **Submitted**. Detecting each hiring system's confirmation page can come
 later, one hiring system at a time.
 
-Workday asks for an account on each company's site. The runner cannot create
-one. When the content script sees a sign-in form and no application form, it
-reports "sign-in needed" and the runner moves on.
+Workday asks for an account on each company's site. The runner never
+creates one: it fills the sign-in form and the student presses the button
+(KAN-373, "Workday sign-in" in 8.4).
 
 ### 8.3 The first fill: Auto Apply starts the extension's fill (KAN-305)
 
@@ -550,6 +553,18 @@ Continue). A queued Workday job met meanwhile waits and opens when that one
 leaves the batch (closed, skipped or submitted); other job systems keep
 filling beside it.
 
+**Workday sign-in.** On a Workday Create Account or Sign In form, the
+content script fills the student's email and a strong password unique to
+that company's Workday (its tenant), made the first time and kept only in
+the extension's `chrome.storage.local` on the student's computer: never sent
+to WorkIt's servers (Chrome may offer to save it too). The student presses
+Create Account and opens the verification email; the extension never
+presses it. Later visits fill the saved login. The tab sits in Needs you
+with "Sign in to continue" until the application's first step shows, and the
+fill then goes on by itself (on a page signing in loads, too: the tab is
+remembered for Workday's re-injection). Never one password shared across
+companies, never a password on a server.
+
 **Skip** is on a batch tab's panel: the application goes to `skipped`, its
 tab closes, and the next queued one opens. Closing a tab is not Skip.
 
@@ -573,6 +588,7 @@ on after the fill.
 | `run/status` | webapp → extension | `{}`; answers `{ jobId, jobIds }` |
 | `run/show` | webapp → extension | `{ jobId }`; switches to that job's tab |
 | `batch/state` | content script → background | `{ state: "ready" \| "needs_you" }` |
+| `workday/login` | content script → background | `{ create }`; answers `{ email, password, made }`, the login for the page's Workday tenant (a new password for Create Account when none is saved) |
 | `batch/skip` | content script → background | `{}`: the panel's Skip. The application goes to `skipped` (`POST .../finish`), its tab closes, the next one opens (KAN-373) |
 | `fill/read` | content script → background | `{ site, questions, names }`; answers what each field shows |
 

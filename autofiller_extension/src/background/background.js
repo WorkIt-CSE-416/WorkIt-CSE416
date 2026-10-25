@@ -11,6 +11,7 @@ import { getAutofillProfile, generateEssayAnswer, ApiError } from "./api.js";
 import { batchStatus, forgetTab, inBatch, resumeBatch, setTabState, showBatchTab, skipTab, startBatch } from "./batch.js";
 import { engineCaller, handleFill, jobOf, runEngine } from "./engine.js";
 import { injectFill } from "../shared/content-scripts.js";
+import { workdayLogin } from "./workday-logins.js";
 
 /**
  * Calls the Fill engine in the frame that sent `sender`'s message: the
@@ -94,6 +95,17 @@ async function handleMessage(message, sender) {
     case "batch/state": {
       if (message.state !== "ready" && message.state !== "needs_you") throw new Error(`Unknown tab state: ${message.state}`);
       return setTabState(sender.tab.id, message.state);
+    }
+
+    // Workday's Create Account or Sign In shows (content-script.js): the
+    // login to fill for this company's Workday (workday-logins.js). The tab
+    // is remembered, so the fill starts again on the page signing in loads.
+    case "workday/login": {
+      const job = jobOf(sender.url);
+      if (job?.site !== "workday") throw new Error("Not a Workday page");
+      await rememberWorkdayTab(sender.tab.id);
+      const profile = await getAutofillProfile();
+      return workdayLogin(job.tenant, profile.email, { create: Boolean(message.create) });
     }
 
     // The student pressed Skip on a batch tab's panel (content-script.js).
