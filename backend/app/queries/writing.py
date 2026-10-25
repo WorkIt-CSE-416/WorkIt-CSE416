@@ -5,7 +5,7 @@ flushes, never commits: the caller does.
 
 Any change to the samples deletes the style card in the same transaction,
 so a card is always built from the samples the student has now; the
-connector then asks their Claude for a new one (`card_needed`).
+connector then asks their Claude for a new one (`card_state`).
 
 `sample_texts` is what the copying check (KAN-380) reads: the samples' text,
 oldest first, empty when the student gave none.
@@ -42,11 +42,13 @@ async def fetch_style_card(db: AsyncSession, applicant_id: uuid.UUID) -> str | N
     return await db.scalar(select(Style_Card.card).where(Style_Card.applicant_id == applicant_id))
 
 
-async def card_needed(db: AsyncSession, applicant_id: uuid.UUID) -> bool:
-    '''the student has samples and no style card built from them'''
-    has_samples = exists().where(Writing_Sample.applicant_id == applicant_id)
-    has_card = exists().where(Style_Card.applicant_id == applicant_id)
-    return bool(await db.scalar(select(has_samples & ~has_card)))
+async def card_state(db: AsyncSession, applicant_id: uuid.UUID) -> tuple[str | None, bool]:
+    '''the student's style card, and whether one is needed: they have
+    samples and no card built from them'''
+    card = await fetch_style_card(db, applicant_id)
+    if card is not None:
+        return card, False
+    return None, bool(await db.scalar(select(exists().where(Writing_Sample.applicant_id == applicant_id))))
 
 
 async def _drop_card(db: AsyncSession, applicant_id: uuid.UUID) -> None:

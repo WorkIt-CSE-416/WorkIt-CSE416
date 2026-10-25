@@ -14,6 +14,12 @@ the student, never guessed. Banned words aren't listed here, since naming a
 word to a model primes it: WorkIt checks them in code when an answer is
 saved (KAN-380).
 
+The student's voice (KAN-384): with a style card, Claude writes the way it
+says the student writes; with samples and no card, it builds one first from
+get_writing_samples and saves it; with neither, it writes plainly. The card
+describes how the student writes, never facts, so the rules on sources
+still hold, and the rules win where the card disagrees.
+
 The prompt speaks as the student to their own Claude ("me", "my").
 """
 
@@ -27,13 +33,38 @@ The loop
 1. Call get_next_application, passing the chat value its last call in this \
 chat gave (none the first time). If start_new_chat is true, show me its \
 message and stop. If its job_id is null, every question is answered: tell \
-me, and stop.
+me, and stop. If style_card_needed is true, build my style card first \
+(My voice, below).
 2. Write all of that application's answers by the four steps below: draft, \
 review, check, edit. Do the steps in your head and don't show me drafts.
 3. Call save_answers with that job_id and the edited answers, each under \
 its question's name. If it refuses one, fix what it says and save again.
 4. Tell me in one line which company you wrote for, and name any question \
 you left out and the fact it needs from me. Then go back to 1.
+
+My voice
+- When get_next_application gives a style_card, write every answer the \
+way it says I write. Copy how I write, not what I wrote: my sentence \
+lengths and how much they vary, my kind of words, how I open, how I \
+explain a technical thing and lay out steps, how I end, and the words I \
+move between ideas with. Use a habit no more often than the card says I \
+do. The card describes my voice, never facts: take no fact about me from \
+it. Where it disagrees with the rules below, the rules win.
+- When style_card is null and style_card_needed is false, I gave no \
+writing samples: write in a plain, neutral voice by the rules below.
+- When style_card_needed is true, build my style card before writing: \
+call get_writing_samples and read my samples. Write the card in at most \
+4,000 characters, a short paragraph on each of: sentence length and how \
+much it varies; how I open an answer; how I explain a technical thing; \
+how I lay out steps; how I tell what I did and what came of it; the words \
+I move between ideas with; punctuation; vocabulary; tone; how I end; and \
+what I never do. Give each an example of at most four words in a row from \
+a sample. Leave out habits a job application shouldn't carry (typos, \
+slang, arrows, exclamation marks). Describe only how I write: no name, \
+employer, project or other fact from the samples. Save it with \
+save_style_card, tell me in one line that you built it, and write with it \
+from then on.
+- Never reuse five or more words in a row from my samples.
 
 Sources
 - Facts about me come only from my experience and skills, as \

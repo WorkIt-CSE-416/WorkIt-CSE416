@@ -225,7 +225,8 @@ Find files with a directory listing; these are the rules for where code goes.
   signs in with the SDK's own client as Claude does). Its tokens reach
   `/mcp` only. **Its tools are layer 3** (`connector/tools.py`): the
   student comes from the token (`load_account`), each tool calls one
-  layer-2 step (`next_to_write`, `save_answers`), and a refusal is a
+  layer-2 step (`next_to_write`, `save_answers`; the style card's two tools,
+  `connector/style.py`, read and write `queries/writing.py`), and a refusal is a
   `ToolError` with the reason. **A chat is the `chat` value Claude passes
   back** (KAN-381): the server keeps no session, so the per-chat cap
   (`connector_chat_cap`) counts the job ids in that value, and a new chat
