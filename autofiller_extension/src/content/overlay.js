@@ -138,6 +138,8 @@ window.WIA = window.WIA || {};
       .source[data-source="claude"], .source[data-source="ai"] { background: var(--color-brand-tint); color: var(--color-brand-ink); }
       .reason { color: var(--color-danger); font-size: 12px; margin-top: 2px; }
       .reason.note { color: var(--color-ink-meta); }
+      .reason a { color: var(--color-brand-ink); font-weight: 500; text-decoration: underline; }
+      .reason a:focus-visible { outline: 2px solid var(--color-brand); outline-offset: 2px; }
       .empty { padding: 16px 12px; color: var(--color-ink-meta); }
     `;
     return style;
@@ -173,6 +175,10 @@ window.WIA = window.WIA || {};
       const reason = document.createElement("div");
       reason.className = field.status === "failed" ? "reason" : "reason note";
       reason.textContent = field.reason;
+      if (field.link) {
+        const link = Object.assign(document.createElement("a"), { href: field.link.href, textContent: field.link.text, target: "_blank", rel: "noreferrer" });
+        reason.append(" ", link, ".");
+      }
       text.appendChild(reason);
     }
     el.append(dot, text);

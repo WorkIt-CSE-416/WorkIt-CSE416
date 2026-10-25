@@ -47,6 +47,11 @@ test("an answer the student's Claude saves fills into its open tab", async () =>
   ]);
   const form = loaded.context.pages().find((p) => p.url().startsWith(forms.url(HARVEY)))!;
   await expect(row(form, WHY)).toContainText("Waiting for your Claude");
+  // A student without Claude is pointed at Written Answers, on the webapp they signed in on.
+  await expect(row(form, WHY).getByRole("link", { name: "Written Answers" })).toHaveAttribute(
+    "href",
+    "http://localhost:3000/auto-apply/answers",
+  );
   // Harvey's form asks other things WorkIt has no answer for: the tab needs the student either way.
   expect(api.stages.get("job-0")).toBe("needs_you");
 

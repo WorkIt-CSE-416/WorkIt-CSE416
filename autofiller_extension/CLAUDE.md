@@ -330,7 +330,10 @@ and each tab's state (`jobs`), and `run/show` switches to one (`jobId`).
   **An answer the student pastes on the webapp's Written Answers page
   (KAN-385) arrives the same way**: the API saves it through the
   connector's own save, and the tab's poll can't tell the two apart, so
-  the extension has no paste path of its own and must not grow one.
+  the extension has no paste path of its own and must not grow one. The
+  tab's "Waiting for your Claude" line ends in a link to that page, on the
+  webapp origin the student signed in on (`batch/answers-page`, a row's
+  `link` in lib-status.js), so a student without Claude knows where to go.
   Test: `test/paste.extension.spec.ts`, Lumen's practice form queued as a
   real application (its one written question is all that needs the
   student, so the filled answer moves the tab to Ready; Harvey's other

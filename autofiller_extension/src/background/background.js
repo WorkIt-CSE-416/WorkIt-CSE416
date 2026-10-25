@@ -222,6 +222,15 @@ async function handleMessage(message, sender) {
       return { show: true, url: `${session.web_origin}/connect/claude/add` };
     }
 
+    // A batch tab's questions waiting for the student's Claude point at the
+    // webapp's Written Answers page (KAN-385), on the origin they signed in on,
+    // where a student without Claude pastes or writes the answers.
+    case "batch/answers-page": {
+      const session = await getSession();
+      if (!session) throw new Error("Not signed in");
+      return { url: `${session.web_origin}/auto-apply/answers` };
+    }
+
     default:
       throw new Error(`Unknown message type: ${message.type}`);
   }
