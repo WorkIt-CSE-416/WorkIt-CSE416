@@ -5,7 +5,7 @@ import { readFileSync } from "node:fs";
 import { join } from "node:path";
 import { expect, test } from "@playwright/test";
 import { FakeJobServer, FORMS } from "../fill-engine/test/fake-job-server";
-import { enginePolicies, planFill } from "../src/background/engine.js";
+import { engineProfile, enginePolicies, planFill } from "../src/background/engine.js";
 import { STUDENT, bridge, failed, inject, settled, shown } from "./extension";
 
 /** STUDENT with no gender answered in WorkIt, and what they brought from Apply. */
@@ -79,4 +79,17 @@ test("a middle name stays out of the last name", async () => {
 
   expect(labels["First Name"]).toBe("Test");
   expect(labels["Last Name"]).toBe("Person");
+});
+
+test("jobs go most recently started first, as the student lists them, a job held now among them", () => {
+  const job = (id: string, organization: string, start_month: string, end_month: string | null) => ({
+    id, section: "experience", title: "Intern", organization, location: null, start_month, end_month,
+    end_kind: end_month ? "month" : "present", bullets: [],
+  });
+  const bank = { entries: [job("j1", "Initech", "2026-01", null), job("j2", "Globex", "2026-06", "2026-08"), job("j3", "Acme", "2025-06", "2025-08")], skills: [] };
+
+  const history = engineProfile({ ...STUDENT, bank }).experience_facts.employment_history;
+
+  // A form's first Work Experience then has an end date (Greenhouse requires the first entry's).
+  expect(history.map((j: any) => j.employer)).toEqual(["Globex", "Initech", "Acme"]);
 });
