@@ -55,6 +55,7 @@ from app.schemas.sent_resume import (
     SentResumeFile,
     SentResumeResponse,
 )
+from app.services import local_files
 from app.services import sent_resumes as service
 from app.services.bank import NotFound
 from app.services.resume_render import TectonicUnavailable
@@ -81,6 +82,9 @@ async def _file(session: AsyncSession, row: Sent_Resume, *, download: bool = Tru
 
 async def _remove_file(path: str) -> None:
     # After the commit: a failure here orphans a file but loses no record.
+    # A local file (services/local_files.py) was never in Storage.
+    if local_files.is_local(path):
+        return
     try:
         await asyncio.to_thread(get_supabase().storage.from_(service.BUCKET).remove, [path])
     except Exception:

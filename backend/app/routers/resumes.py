@@ -83,7 +83,7 @@ from app.schemas.bank import (
     ResumePreview,
 )
 from app.schemas.resume import ResumeRename
-from app.services import bank, bank_import, built_resumes, sent_resumes
+from app.services import bank, bank_import, built_resumes, local_files, sent_resumes
 from app.services.text_extraction import UploadRejected
 from app.services.text_extraction import extract as _extract
 from app.services.text_extraction import read_upload as _read_upload
@@ -338,6 +338,9 @@ async def replace_resume(
 
 async def _remove_file(client, storage_path: str, message: str) -> None:
     # Best effort: a file left behind is orphaned, but no data is lost.
+    # A local file (services/local_files.py) was never in Storage.
+    if local_files.is_local(storage_path):
+        return
     try:
         await asyncio.to_thread(client.storage.from_(BUCKET).remove, [storage_path])
     except Exception:
@@ -491,7 +494,8 @@ async def get_resume_file_url(
     the file under its name, as every link does with `download`."""
     assert_applicant_owns(account, applicant_id)
     resume = await _get_owned_resume(session, applicant_id, resume_id)
-    if not resume.storage_path:
+    # A local file (services/local_files.py) has no Storage link.
+    if not resume.storage_path or local_files.is_local(resume.storage_path):
         raise HTTPException(404, "Resume file not found")
     options = (
         {} if resume.storage_path.endswith(".pdf") and not download
@@ -532,18 +536,25 @@ async def get_resume_file_bytes(
     policy the Storage bucket happens to have, not this app's. Routing the
     bytes through here instead needs no such assumption, at the cost of a
     server round trip through Storage and this app at attach-time instead of
-    a direct browser-to-Storage fetch."""
+    a direct browser-to-Storage fetch. A local resume (`local:<name>`,
+    services/local_files.py; development only) comes from LOCAL_FILES_DIR,
+    never Storage: 404 when the folder is unset or lacks it."""
     assert_applicant_owns(account, applicant_id)
     resume = await _get_owned_resume(session, applicant_id, resume_id)
     if not resume.storage_path:
         raise HTTPException(404, "Resume file not found")
-    try:
-        data = await asyncio.to_thread(
-            get_supabase().storage.from_(BUCKET).download, resume.storage_path,
-        )
-    except Exception:
-        logger.exception("Failed to download resume file", extra={"storage_path": resume.storage_path})
-        raise HTTPException(502, "Could not open the resume")
+    if local_files.is_local(resume.storage_path):
+        data = local_files.read(resume.storage_path)
+        if data is None:
+            raise HTTPException(404, "Resume file not found")
+    else:
+        try:
+            data = await asyncio.to_thread(
+                get_supabase().storage.from_(BUCKET).download, resume.storage_path,
+            )
+        except Exception:
+            logger.exception("Failed to download resume file", extra={"storage_path": resume.storage_path})
+            raise HTTPException(502, "Could not open the resume")
     ext = PurePosixPath(resume.storage_path).suffix.lower()
     media_type = RESUME_MIME_TYPES.get(ext, "application/octet-stream")
     filename = resume.original_filename or f"resume{ext}"
@@ -582,6 +593,9 @@ async def delete_resume(
     # rebuild from) keeps it (KAN-208); deleting that sent resume later
     # removes the file once nothing uses it.
     if await sent_resumes.file_in_use(session, storage_path):
+        return {"detail": "Resume deleted"}
+    # A local file (services/local_files.py) was never in Storage.
+    if local_files.is_local(storage_path):
         return {"detail": "Resume deleted"}
 
     # DB succeeded — now remove the file from Storage

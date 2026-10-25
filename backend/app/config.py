@@ -118,6 +118,13 @@ class Settings(BaseSettings):
     # stays out of this build.
     scraper_feed: Path = Field(default_factory=default_scraper_feed)
 
+    # Development only: a folder on this computer whose files an uploaded
+    # resume may name instead of a Storage path (`local:<file name>`,
+    # app/services/local_files.py), so a student's resume brought from Apply
+    # (scripts/import_apply_profile.py) attaches without going to the shared
+    # bucket. Unset (production), such a resume has no file.
+    local_files_dir: Path | None = None
+
     @property
     def app_url(self) -> str:
         if not self.database_url:
