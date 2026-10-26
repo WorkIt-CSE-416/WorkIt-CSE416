@@ -316,8 +316,9 @@ weight.
   heading with the entry's title, its organization, how many suggestions
   it holds and a caret. Under a hairline, each suggestion is a row with
   its type's round badge, its one line (the new or removed line, how many
-  bullets moved, a skill and its group) and a caret that turns up while
-  open. Open, the row names the change ("Removed bullet") and a grey box
+  bullets moved, a skill and its group) and a plus that turns to a minus
+  while open. Only a section folds with a caret: a caret on each row too
+  read as a second section heading under the section's own. Open, the row names the change ("Removed bullet") and a grey box
   holds the words: the old struck and the new highlighted (inline when
   only a run in the middle changed, else the old line over the new one),
   each moved bullet's place before and now ("2nd → 1st"), with ✕ Reject

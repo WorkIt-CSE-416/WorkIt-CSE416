@@ -357,8 +357,8 @@ function SuggestionsPanel({
   );
 }
 
-/** The panel's one sign of something to open: a caret at the row's end,
- *  turned up while open. */
+/** A section's sign that it folds: a caret at its heading's end, turned
+ *  up while open. */
 function Chevron({ open }: { open: boolean }) {
   return (
     <CaretDownIcon
@@ -369,6 +369,14 @@ function Chevron({ open }: { open: boolean }) {
       )}
     />
   );
+}
+
+/** A suggestion's own toggle: a plus that turns to a minus while open. A
+ *  caret here read as a second section heading under the section's own
+ *  caret, so only sections fold with a caret. */
+function PlusMinus({ open }: { open: boolean }) {
+  const Glyph = open ? MinusIcon : PlusIcon;
+  return <Glyph aria-hidden className="text-ink-meta ml-auto size-4 shrink-0" />;
 }
 
 /** A row's type, as a small round badge in its colour with its glyph. */
@@ -386,7 +394,7 @@ function KindBadge({ kind }: { kind: ChangeKind }) {
 
 /**
  * One suggestion, a row in its entry's section: its type's badge, its one
- * line and a caret; open, it shows the change, and ✕ Reject and ✓ Accept.
+ * line and a plus (`PlusMinus`); open, it shows the change, and ✕ Reject and ✓ Accept.
  * Grey while pointed at or focused; its lines on the page are highlighted
  * then. Sections were by type (Reworded Bullets, Reordered Bullets, Added
  * Skills) until 2026-10-26: with every type in play, a student read the
@@ -459,7 +467,7 @@ function Suggestion({
           </>
         )}
         <span className="mt-1 flex">
-          <Chevron open={isOpen} />
+          <PlusMinus open={isOpen} />
         </span>
       </button>
       {isOpen && (

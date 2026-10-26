@@ -1786,7 +1786,7 @@ with no proposals to accept and no Done (2026-10-25).
   its count); under it one white section per resume entry, top to bottom
   as on the page, each heading with the entry's title, organization,
   count and a caret, and each suggestion a row with its type's badge and
-  a caret that opens to its change with a red ✕ Reject and a green ✓
+  a plus (a minus while open) that opens to its change with a red ✕ Reject and a green ✓
   Accept. Sample changes of every type sit beside the run's for now
   (`demo-suggestions.ts`, temporary). On a phone the panel is a sheet opened by
   "Suggestions (n)". With no record (a new tab or device) the editor
