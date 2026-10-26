@@ -165,11 +165,15 @@ export function ResumePreviewDialog({
 
 /** The resume Tailor started from, read-only, beside the tailored one on
  *  the review step (the toolbar's View Original). The record keeps the
- *  source's id, not its name, so it is labelled for what it is. */
+ *  source's id, not its name, so it is labelled for what it is. Its label
+ *  row is the toolbar's height (44px), so the two pages start level. */
 export function OriginalResume({ source }: { source: TailorSource }) {
   return (
     <section aria-labelledby="original-heading" className="flex flex-col gap-2">
-      <h2 id="original-heading" className="text-label text-ink-meta font-semibold">
+      <h2
+        id="original-heading"
+        className="text-label text-ink-meta flex min-h-11 items-center px-2 font-semibold"
+      >
         Original Resume
       </h2>
       <PreviewPages source={source} label="Original Resume" enabled />

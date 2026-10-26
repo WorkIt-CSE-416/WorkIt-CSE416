@@ -84,7 +84,7 @@ export default async function TailorPage({
         )}
       >
         <div className="max-w-dashboard mx-auto w-full">
-          <TailorReviewBar job={job} />
+          <TailorReviewBar job={job} resumeId={resume.id} />
           {bank.data && choices.data && profile ? (
             <TailorReview
               name={resume.name}

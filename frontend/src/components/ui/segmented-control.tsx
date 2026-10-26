@@ -199,8 +199,9 @@ export function SegmentedLinks({
 
 export type SegmentedToggleOption = {
   value: string;
-  /** What the option shows. */
-  label: string;
+  /** What the option shows: text, or text with a count (Tailor's
+   *  Suggestions), named by `ariaLabel` when it is more than text. */
+  label: ReactNode;
   /** Its accessible name, when `label` is abbreviated ("7D"). */
   ariaLabel?: string;
 };
@@ -212,12 +213,17 @@ export function SegmentedToggle({
   onValueChange,
   size = "sm",
   className,
+  onClear,
 }: {
   label: string;
   options: SegmentedToggleOption[];
   /** The chosen option, or null when none is (the thumb hides). */
   value: string | null;
   onValueChange: (value: string) => void;
+  /** Pressing the pressed option chooses none, where none is a choice of
+   *  its own (Tailor's review: nothing beside the page). Without it, that
+   *  press is dropped. */
+  onClear?: () => void;
   size?: Size;
   className?: string;
 }) {
@@ -225,9 +231,10 @@ export function SegmentedToggle({
     <ToggleGroup
       value={value ? [value] : []}
       // Pressing the pressed option empties the group, which a choice of
-      // exactly one cannot be; that change is dropped.
+      // exactly one cannot be; that change is dropped unless `onClear`
       onValueChange={([next]) => {
         if (next) onValueChange(next as string);
+        else onClear?.();
       }}
       aria-label={label}
       className={cn(TRACK, SIZES[size].track, className)}

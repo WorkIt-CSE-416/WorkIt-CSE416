@@ -229,30 +229,38 @@ panel with every card open and every line tinted was then made quiet
 after Quinncia's resume review (2026-10-26): everything had the same
 weight.
 
-- **Two columns under one line of titles**: the resume's name over the
-  page and "Suggestions" with its count in a filled pill over the panel,
-  both at subtitle size. The name renames in place (`ResumeTitle`): it
+- **The page's top row**: Back at the left, the flow and its step in the
+  middle ("Tailor Resume", "Step 3 of 3 · Review Changes"), and the two
+  ways out at the right: Download (secondary, `TailorDownload`) and Finish
+  (the row's one filled button), which leaves for the job posting's page,
+  where the student applies. Every change is saved as it is made, so
+  Finish saves nothing, and suggestions not handled stay as the run made
+  them. There was no Finish until 2026-10-26, so the review had no end.
+- **Under it, the resume's name**, spanning the page and the panel, then
+  two columns that start level: the toolbar and the page, and beside them
+  the panel, "Suggestions" with its count in a filled pill at its top. The name renames in place (`ResumeTitle`): it
   reads as text, shows a faint outline and a pencil when pointed at, and a
   click makes it a field in the same box; Enter or a click away saves
   (`renameBuiltResume`), Esc cancels. They were grey small capitals
   ("RESUME · <name>", "SUGGESTIONS · 6") until the user found them muted.
-  The page bar over both holds only Back and "Step 3 of 3": the job's
-  logo, title and company beside Back crowded it. The editor's toolbar is its
-  slim row here (`compact`), under the resume's name and across the page
-  and the column beside it, so it has room for every tool; over the page
-  alone it had none to spare. It has two states with only what each
-  needs. Both open with Undo and Redo, which are UI only for now: the
-  editor keeps no history yet, so both stay disabled (2026-10-26).
-  Idle: the page count as an amber chip with a warning sign and a caret
-  ("⚠ 2 pages ⌄", over one page only), so it reads as a problem to open,
-  whose click offers Fit to One Page; Undo after a fit; "Click a line to
-  edit it." only while the pointer is over the page; then View Original
-  (below); then Suggestions,
-  which shows and hides the panel and carries its count (its glyph a
-  pencil over a line, `PencilSimpleLine`, since ListChecks is the
-  Applications Tracker's), and Download in
-  the brand fill. Download was an outlined glyph and the panel folded to a
-  rail of its own (»), which the user found dated.
+  The job's logo, title and company beside Back crowded the top row.
+- **The toolbar groups its tools by what they act on**: the editor's
+  slim row (`compact`), one row over the page. At the left, the page:
+  Undo and Redo, UI only for now (the editor keeps no history yet, so
+  both stay disabled, 2026-10-26), then the page count as an amber chip
+  with a warning sign and a caret ("⚠ 2 pages ⌄", over one page only),
+  which reads as a problem to open and offers Fit to One Page, and Undo
+  Fit after a fit. At the right, what sits beside the page: one switch,
+  Suggestions (with its count) or Original (`SegmentedToggle`, whose
+  `onClear` lets a press on the chosen one leave the page alone). Two
+  rows were weighed and refused: the toolbar sticks over the page, so a
+  second row hides more resume as it scrolls. Before this the toolbar
+  held View Original, Suggestions and Download as three buttons and
+  wrapped to two rows; it spanned the page and the panel for a day, which
+  put the panel under it; Download was an outlined glyph, the panel
+  folded to a rail of its own (»), and a "Click a line to edit it." hint
+  showed while the pointer was over the page, which the line's own
+  highlight already says.
   Editing a line: its kind, Move Up and Move Down first, then Hide and the
   line's own choices (a bullet's wordings, Education's GPA), and "Esc when
   done" in place of a Done button. No Ask Scout on this page: the panel
@@ -270,16 +278,17 @@ weight.
   click on a dot or on a changed line opens its suggestion (and its
   section). Dots and cards were numbered until 2026-10-26: the numbers
   read as an order to follow, so each section counts its own instead.
-- **View Original sets the source resume beside the tailored one**, in
-  place of the panel, the two at one width under "Tailored Resume" and
-  "Original Resume", so a line reads against its twin. The source (the
+- **Original sets the source resume beside the tailored one**, in place
+  of the panel, the two at one width, so a line reads against its twin;
+  its "Original Resume" label row is the toolbar's height, so the pages
+  start level. The source (the
   record's `source`) draws read-only through step 1's preview loader
   (`OriginalResume` in `resume-preview.tsx`), kept for the page's life so
   a second look shows at once; the record keeps the source's id, not its
-  name, so it is labelled for what it is. Suggestions and View Original
-  each show their column or hide it, one at a time (`side` in the
-  editor). It was a link in the panel's top, then a white button there,
-  and opened the Preview dialog; the user wanted the two side by side.
+  name, so it is labelled for what it is. The switch shows one column
+  at a time or none (`side` in the editor). View Original was a link in
+  the panel's top, then a white button there, and opened the Preview
+  dialog; the user wanted the two side by side.
 - **The panel's top**, pinned while the cards scroll: a
   "…" menu (Accept All, Reject All), then the keyword match as one thin
   row over a hairline meter ("Keyword match 3 → 9 of 14", the keywords

@@ -5,17 +5,20 @@ import { CompanyLogo } from "@/components/company-logo";
 import {
   BriefcaseIcon,
   CalendarIcon,
+  CheckIcon,
   CoinIcon,
   LevelIcon,
   PinIcon,
   workStyleIcon,
 } from "@/components/icons";
+import { ButtonLink } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
 import { Fact } from "@/components/ui/fact";
 
 import type { JobListing } from "../../listings";
 import { toPosting } from "../../to-posting";
 import { BackToJobs } from "../page-actions";
+import { TailorDownload } from "./tailor-download";
 import { TAILOR_STEPS } from "./tailor-steps";
 
 /**
@@ -104,25 +107,40 @@ function TailorJobCard({ job }: { job: JobListing }) {
 
 /**
  * The review step's whole header (./page.tsx), one slim row so the resume
- * starts near the top: Back (the job page's `BackToJobs`) and "Step 3 of
- * 3". The page's h1 names the job for screen readers only; on screen the
- * resume's own title (`ResumeTitle`, over the page) leads. Until
+ * starts near the top, in three parts: Back (the job page's `BackToJobs`),
+ * the flow and its step in the middle ("Tailor Resume", "Step 3 of 3 ·
+ * Review Changes"), and the two ways out of the review at the right:
+ * Download (`TailorDownload`) and Finish, which leaves for the job
+ * posting's page, where the student applies. Every change is saved as it is made, so
+ * Finish saves nothing; suggestions not yet handled stay as the run made
+ * them. The page's h1 names the job for screen readers only; on screen the
+ * resume's own title (`ResumeTitle`, under this row) leads. Until
  * 2026-10-26 this step had the pick steps' Back, title, line, job card and
  * timeline, about 300px over the resume, and the user found it
  * overwhelming beside the review (after Quinncia's slim bar); then the
- * job's logo and "Title · Company" beside Back, which the user found
- * crowded Back and repeated what the resume's name already says.
+ * job's logo and "Title · Company" beside Back, which crowded it; then
+ * Back and "Step 3 of 3" alone, with no way to say the review was done.
  */
-export function TailorReviewBar({ job }: { job: JobListing }) {
+export function TailorReviewBar({ job, resumeId }: { job: JobListing; resumeId: string }) {
+  const last = TAILOR_STEPS[TAILOR_STEPS.length - 1];
   return (
-    <div className="flex items-center justify-between gap-3">
+    <div className="grid grid-cols-[1fr_auto_1fr] items-center gap-3">
       <h1 className="sr-only">
         Tailor for {job.title} at {job.company}
       </h1>
-      <BackToJobs className="group/back shrink-0" />
-      <p className="text-note text-ink-meta shrink-0 whitespace-nowrap">
-        Step {TAILOR_STEPS.length} of {TAILOR_STEPS.length}
-      </p>
+      <BackToJobs className="group/back justify-self-start" />
+      <div className="flex flex-col items-center text-center">
+        <p className="text-label text-ink font-semibold">Tailor Resume</p>
+        <p className="text-note text-ink-meta">
+          Step {TAILOR_STEPS.length} of {TAILOR_STEPS.length} · {last.label}
+        </p>
+      </div>
+      <div className="flex items-center gap-2 justify-self-end">
+        <TailorDownload resumeId={resumeId} />
+        <ButtonLink href={`/jobs/${encodeURIComponent(job.id)}`} size="sm">
+          <CheckIcon aria-hidden className="size-4" /> Finish
+        </ButtonLink>
+      </div>
     </div>
   );
 }

@@ -1263,8 +1263,8 @@ the KAN-296 cutover.
 - **Tailor is one step per view** (`(seeker)/jobs/[jobId]/tailor`,
   2026-10-26): `TailorHeader` (the title, its line and the job card) tops
   the pick steps; the tailored resume's page has the slim
-  `TailorReviewBar` instead (Back and "Step 3 of 3" only, the job in an
-  sr-only h1), so the resume starts near the top, under its own name
+  `TailorReviewBar` instead (Back, the flow and its step, Download and
+  Finish; the job in an sr-only h1), so the resume starts near the top, under its own name
   renamed in place (`ResumeTitle`).
   `TailorScreen` holds the step in state, so Back keeps the pick, the
   match and the picked keywords. A new step joins `TAILOR_STEPS` in

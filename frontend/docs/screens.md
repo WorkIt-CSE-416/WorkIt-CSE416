@@ -1669,8 +1669,10 @@ with no proposals to accept and no Done (2026-10-25).
   inside the picker card until 2026-10-26, as the card's heading and a
   paragraph; the user wanted the card to hold the list alone.
 - **The review step's header is one slim row** (`TailorReviewBar`,
-  2026-10-26), so the resume starts near the top: Back (`BackToJobs`) and
-  "Step 3 of 3" at the right, nothing else. The page's h1, "Tailor for
+  2026-10-26), so the resume starts near the top: Back (`BackToJobs`),
+  "Tailor Resume" over "Step 3 of 3 · Review Changes" in the middle, and
+  Download (secondary) and Finish (filled, to the job posting's page) at
+  the right. The page's h1, "Tailor for
   <title> at <company>", is for screen readers only. Under it the
   resume's name leads, renamed in place (`ResumeTitle`, below). The step
   had the pick steps' Back, the resume's name as a big title, a line, the
@@ -1761,17 +1763,18 @@ with no proposals to accept and no Done (2026-10-25).
   resume's name over the page (`ResumeTitle`: plain text that shows a
   faint outline and a pencil when pointed at, and a click makes it a field
   in the same box; Enter or a click away saves, Esc cancels), the
-  editor's slim toolbar under it across the page and the panel, and
+  editor's slim toolbar over the page with the panel level beside it, and
   "Suggestions" with its count in a
   filled pill over a 360px panel in the brand tint (the editor's bar's
   colour) of white sections that sticks and scrolls on its own. The
-  toolbar opens with Undo and Redo (UI only for now, disabled); idle, it
-  shows the page count when over one page as an amber chip with a
-  warning sign and a caret (its click offers Fit to One Page), then View
-  Original, which sets the source resume beside the tailored one at one
-  width in place of the panel, then Suggestions with its count, which
-  shows and hides the panel (hidden, the page takes the width), and
-  Download in the brand fill; while a line is open, its moves, Hide and its choices with "Esc
+  toolbar is one row grouped by what each tool acts on: at the left Undo
+  and Redo (UI only for now, disabled) and, idle, the page count when over
+  one page as an amber chip with a warning sign and a caret (its click
+  offers Fit to One Page); at the right one switch, Suggestions (with its
+  count) or Original, which sets the source resume beside the tailored
+  one at one width in place of the panel; a press on the chosen one
+  leaves the page alone at full width. Download and Finish sit in the
+  top row; while a line is open, its moves, Hide and its choices with "Esc
   when done"; no Ask Scout and no Done. Each changed line has a small
   plain dot in the page's margin and is highlighted (its tint, a 1px dark
   border, rounded, after Quinncia) only while its suggestion is pointed
@@ -2081,10 +2084,10 @@ student who opened a resume from Experiences landed on another view.
   wording or an added skill green (`positive`, bordered in
   `positive-ink`), an entry's bullets in a new order amber (`warning-fill`,
   bordered in `warning-strong`). The same page passes `compact`, the slim
-  toolbar: idle, a "⚠ 2 pages" chip whose popover offers Fit to One Page,
-  the hint only while the pointer is over the page, Suggestions (shows
-  and hides the panel) and Download in the brand fill (`DownloadMenu`'s
-  `primary`); editing a line, its moves first (`LineActions`' `movesFirst`),
+  toolbar: Undo and Redo (disabled, UI only); idle, a "⚠ 2 pages" chip
+  whose popover offers Fit to One Page and the Suggestions or Original
+  switch, with no hint and no Download (Tailor's top row has it); editing
+  a line, its moves first (`LineActions`' `movesFirst`),
   Hide and its choices, and "Esc when done" for Done. It has no Ask Scout.
   It also passes `heading`, the label over the page's column; the
   editor's own page passes neither and keeps this bar. The panel sits in the Ask Scout
