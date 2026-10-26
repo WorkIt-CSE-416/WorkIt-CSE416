@@ -1795,9 +1795,14 @@ fills `tab:resume` from `src/background/resume-tab.js` (`resume/tab`,
   **Preview** (the file, from the background, opens as a blob in a new tab).
 - **Keyword match** (GLOSSARY): a built résumé's "3 of 5 keywords" with the
   matched ("On your résumé") and missing ones, exactly as `GET
-  .../built-resumes/{id}/keyword-match?job_posting_id=` gives them. Read the
-  first time the tab shows, not on every page: a posting read for the first
-  time spends one of the day's Tailor uses. An uploaded file has none
+  .../built-resumes/{id}/keyword-match?job_posting_id=` gives them. A
+  posting read for the first time spends one of the day's Tailor uses, so
+  nothing is spent silently: the match shows by itself only for a job whose
+  keywords WorkIt read before (`keywords_read_jobs` in chrome.storage.local,
+  background `keywordsFor`); for any other the tab shows **Check keyword
+  match (uses 1 Tailor run today)**, and only that press reads it. (The
+  backend has no read that never extracts, so a posting the webapp already
+  read still shows the button once.) An uploaded file has none
   ("Keyword match is for résumés built in WorkIt").
 - **Tailor for this job** opens the website's `/jobs/{job}/tailor` on the
   origin the student signed in on. Only for a job WorkIt has an

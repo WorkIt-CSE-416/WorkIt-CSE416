@@ -383,7 +383,7 @@ async function handleMessage(message, sender) {
     case "resume/choose":
       return chooseResume({ tabId: sender.tab.id, url: sender.url ?? "", key: message.key });
     case "resume/keywords":
-      return keywordsFor({ tabId: sender.tab.id, url: sender.url ?? "", key: message.key });
+      return keywordsFor({ tabId: sender.tab.id, url: sender.url ?? "", key: message.key, spend: message.spend === true });
     case "resume/tailor":
       return openTailor({ tabId: sender.tab.id, url: sender.url ?? "" });
     // Report a problem (report.js, KAN-403): what the card previews, and its Send.

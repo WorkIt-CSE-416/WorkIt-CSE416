@@ -115,15 +115,27 @@ export async function chooseResume({ tabId, url, key }) {
   return { file: { filename: file.filename, mimeType: file.mimeType, base64: file.base64 } };
 }
 
-/** A built résumé's Keyword match against the tab's job: `matched` and `missing` keywords, or a plain reason. */
-export async function keywordsFor({ tabId, url, key }) {
+// The jobs whose keywords WorkIt already read here (chrome.storage.local): the backend caches a posting's
+// keywords on its first read, which spends one of the day's Tailor uses, so a later read spends nothing.
+const KEYWORDS_READ = "keywords_read_jobs";
+
+/**
+ * A built résumé's Keyword match against the tab's job: `matched` and
+ * `missing` keywords, or a plain reason. A job read here before is read at
+ * once; any other answers `unread` unless `spend` (the student pressed Check
+ * keyword match, since the read may spend a Tailor use).
+ */
+export async function keywordsFor({ tabId, url, key, spend = false }) {
   const [kind, id] = (key ?? "").split(":");
   if (kind !== "built") return { none: true };
   const account = await me();
   const jobId = (await applicationForTab({ tabId, url }))?.job?.id;
   if (!jobId) return { none: true };
+  const read = (await chrome.storage.local.get(KEYWORDS_READ))[KEYWORDS_READ] ?? [];
+  if (!spend && !read.includes(jobId)) return { unread: true };
   try {
     const match = await keywordMatch(account.id, id, jobId);
+    if (!read.includes(jobId)) await chrome.storage.local.set({ [KEYWORDS_READ]: [...read, jobId].slice(-500) });
     const words = (list) => (list ?? []).map((k) => k.keyword);
     return { matched: words(match.matched), missing: words(match.missing) };
   } catch (error) {
