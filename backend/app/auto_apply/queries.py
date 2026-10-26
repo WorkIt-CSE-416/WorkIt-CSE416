@@ -327,6 +327,7 @@ async def put_questions(
                 "label": insert_rows.excluded.label,
                 "required": insert_rows.excluded.required,
                 "max_length": insert_rows.excluded.max_length,
+                "description": insert_rows.excluded.description,
                 "kind": insert_rows.excluded.kind,
                 "options": insert_rows.excluded.options,
                 "position": insert_rows.excluded.position,
@@ -353,8 +354,8 @@ def _written(r: Written_Answer) -> WrittenAnswer:
     Claude asked for while it has no answer (KAN-369)."""
     ask = (r.review or {}).get("ask") if r.answer is None else None
     return WrittenAnswer(
-        name=r.name, label=r.label, required=r.required, max_length=r.max_length, kind=r.kind, options=r.options,
-        answer=r.answer, ask=ask and ask.get("question"), ask_about=ask and ask.get("entry"),
+        name=r.name, label=r.label, required=r.required, max_length=r.max_length, description=r.description,
+        kind=r.kind, options=r.options, answer=r.answer, ask=ask and ask.get("question"), ask_about=ask and ask.get("entry"),
     )
 
 

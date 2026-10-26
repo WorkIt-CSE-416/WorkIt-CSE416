@@ -368,7 +368,12 @@ Find files with a directory listing; these are the rules for where code goes.
   file in `auto_apply/type_guides/` whose front matter code reads (its
   summary, company link, default length, match patterns and slots) and
   whose body is guidance `get_next_application` hands out as data (each
-  question its type and default length, `guides` by type). A guide names
+  question its type and default length, `guides` by type). A question's
+  help text (`written_answers.description`, what the form shows under the
+  label, which the tab sends as it sends `max_length`) goes out with it,
+  is read with the label to classify it, and a length it states replaces
+  the type's default; the prompt holds the stated-limit rules (a word
+  limit 75-95%, a sentence range its top, a character cap 80-95%). A guide names
   no student and lists no banned word; change its slots and the save's
   plan check changes with them. Tests: `tests/test_question_types.py`.
   **Every saved answer passes the checks in code first**

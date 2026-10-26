@@ -623,6 +623,10 @@ waits for an opened tab's page and form (`waitForLoad`, `formShows`).
   is named differently on each hiring system: the engine knows how). The
   API refuses a saved answer over it.
   Tests: `test/greenhouse.spec.ts`.
+  `batch/questions` also sends a question's `description` when the engine
+  read one (the help text under the label, "3-4 sentences", cut to 1,000
+  characters; KAN-369), so the student's Claude writes to the form's own
+  length; a question without one sends no key.
 - **"Next Thing That Needs You" walks the batch** (KAN-375). Each batch
   tab's panel has the button. `next-needs-you.js`'s `nextNeedsYou` asks every batch
   tab, in the order the tabs opened, which of its rows need the student

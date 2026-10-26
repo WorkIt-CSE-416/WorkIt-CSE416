@@ -311,10 +311,10 @@ async def test_the_next_application_is_read_only_and_holds_only_that_application
     assert (got["company"], got["title"]) == ("Acme", "Intern")
     assert got["posting"] == "Acme builds rockets. You will write flight software."
     assert got["questions"] == [
-        {"name": "question_7", "question": WHY["label"], "required": True, "max_length": 600, "kind": "text", "options": None,
-         "rewrite": None, "type": "why-company", "default_length": None},
-        {"name": "question_8", "question": PROUD["label"], "required": False, "max_length": None, "kind": "text", "options": None,
-         "rewrite": None, "type": "best-project", "default_length": "80-120 words"},
+        {"name": "question_7", "question": WHY["label"], "required": True, "max_length": 600, "description": None,
+         "kind": "text", "options": None, "rewrite": None, "type": "why-company", "default_length": None},
+        {"name": "question_8", "question": PROUD["label"], "required": False, "max_length": None, "description": None,
+         "kind": "text", "options": None, "rewrite": None, "type": "best-project", "default_length": "80-120 words"},
     ]
     # The guide of each type the application asks, with its slots; the rest in a line each.
     assert set(got["guides"]) == {"why-company", "best-project"}
@@ -326,6 +326,24 @@ async def test_the_next_application_is_read_only_and_holds_only_that_application
     assert "Python" in got["skills"]
     # Nothing from the other application.
     assert "Another company" not in str(got)
+
+
+async def test_a_questions_help_text_reaches_claude_and_its_stated_length_wins(running, applicant, database):
+    me, (job,) = await _student_queues(database, applicant, 1)
+    stated = {**PROUD, "description": "In 3-4 sentences, tell us what you built and why."}
+    plain = {**PROUD, "name": "question_9", "label": "What is a project you are proud of?", "description": "Any project counts."}
+    back = await _tab_asks(me, job, stated, plain)
+
+    async with claude(applicant) as client:
+        got = (await client.call_tool("get_next_application", {})).structured_content
+
+    # Kept with the question, and handed to Claude with it.
+    assert [q["description"] for q in back] == [stated["description"], plain["description"]]
+    first, second = got["questions"]
+    assert first["description"] == stated["description"]
+    # The form's own length wins: no default when the help text states one.
+    assert first["default_length"] is None
+    assert second["default_length"] == "80-120 words"
 
 
 async def test_saved_answers_reach_the_tab_and_the_next_application_moves_on(running, applicant, database):

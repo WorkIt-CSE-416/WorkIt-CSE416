@@ -319,10 +319,12 @@ only where the sentence follows from the one before; never "Hence".
 exclamation marks, unless the question asks for a list.
 
 Keep each answer concise: each point once, nothing that restates the \
-question, no praise of the company, and stop once the point is made. Keep \
-it under its max_length (characters), if it has one, filling about 80 to \
-95 percent of it; when the question states a length in words or \
-sentences, keep to it; else keep to its default_length. A short field (a \
+question, no praise of the company, and stop once the point is made. The \
+form's own length wins, in the question, its description or its \
+max_length: a word limit, fill 75 to 95 percent of it, never over; a \
+sentence range, aim for the top of it ("a few" means 3 to 4); a character \
+cap (max_length, or one the description states), fill 80 to 95 percent of \
+it, never over. With none of these, keep to its default_length. A short field (a \
 sentence or a few words) takes the direct answer and at most one specific \
 detail.
 

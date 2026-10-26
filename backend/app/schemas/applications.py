@@ -122,10 +122,15 @@ OPTIONS_MAX = 300
 OPTION_MAX = 500
 
 
+# The most of a question's help text the tab sends (KAN-369): the extension cuts it there.
+DESCRIPTION_MAX = 1000
+
+
 class WrittenQuestion(BaseModel):
     """One question a batch tab's form needs answered by the student's
     Claude (KAN-377): the form field's `name` the answer fills, its label,
-    and the form's own limit. A one-off choice nothing else fills (KAN-369)
+    the form's own limit, and the help text the form shows under the label
+    (`description`, KAN-369: "3-4 sentences", "250 words max"). A one-off choice nothing else fills (KAN-369)
     has `kind` "choice" (one of `options`) or "choices" (one or more) and
     its options as the form words them; a question written in words has
     neither."""
@@ -136,6 +141,7 @@ class WrittenQuestion(BaseModel):
     label: str = Field(min_length=1, max_length=LABEL_MAX)
     required: bool
     max_length: int | None = Field(default=None, ge=1)
+    description: str | None = Field(default=None, max_length=DESCRIPTION_MAX)
     kind: Literal["choice", "choices"] | None = None
     options: list[Annotated[str, StringConstraints(min_length=1, max_length=OPTION_MAX)]] | None = Field(
         default=None, min_length=1, max_length=OPTIONS_MAX,

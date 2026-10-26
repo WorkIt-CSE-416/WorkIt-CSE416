@@ -32,6 +32,7 @@ window.WIA = window.WIA || {};
   const LABEL_MAX = 2000;
   const FIELD_NAME_MAX = 200;
   const ANSWER_MAX = 10_000;
+  const DESCRIPTION_MAX = 1000; // a question's help text (backend schemas/applications.py, DESCRIPTION_MAX)
   // How long the student's typing in a written answer pauses before their words are saved (KAN-379).
   const OWN_PAUSE = 2_000;
 
@@ -149,6 +150,8 @@ window.WIA = window.WIA || {};
         label: q.label.slice(0, LABEL_MAX),
         required: Boolean(q.required),
         max_length: q.max_length ?? null,
+        // The help text under the label ("3-4 sentences", "250 words max"), as the engine read it: the writer's length rules read it.
+        ...(q.description?.trim() ? { description: q.description.trim().slice(0, DESCRIPTION_MAX) } : {}),
         // A one-off choice (KAN-369): Claude picks among its options.
         ...(q.kind ? { kind: q.kind, options: q.options } : {}),
       }));

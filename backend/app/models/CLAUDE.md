@@ -1117,7 +1117,9 @@ Real, not forgotten. Do not treat their absence as a decision already made.
   didn't fill, or replacing what it filled; an edit of a filled answer
   stays not own): their
   Claude's save never overwrites it, and `pipeline.answer_bank` offers it
-  first on later forms. `review` (KAN-369, JSONB object) is what the
+  first on later forms. `description` (KAN-369) is the help text the form
+  shows under the label, as the tab sent it; NULL when none.
+  `review` (KAN-369, JSONB object) is what the
   student's Claude's passes found on the answer it saved: `{plan,
   unsupported}`, its Essay plan as `plans.Plan.stored` writes it and the
   claim check's claims (rows saved before carry a `rating` and no plan;

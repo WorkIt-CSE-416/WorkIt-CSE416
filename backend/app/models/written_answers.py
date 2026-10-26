@@ -48,6 +48,9 @@ class Written_Answer(BaseModel):
     position: Mapped[int] = mapped_column(Integer)
     # the form's own limit in characters, when it has one
     max_length: Mapped[int | None] = mapped_column(Integer)
+    # what the form shows under the label ("3-4 sentences", "250 words
+    # max"), as the Fill engine read it (KAN-369); NULL when it shows none
+    description: Mapped[str | None] = mapped_column(Text)
     # a one-off choice nothing else fills (KAN-369): "choice" takes one of
     # `options`, "choices" one or more; NULL for a question written in words
     kind: Mapped[str | None] = mapped_column(Text)

@@ -103,6 +103,8 @@ class Question(BaseModel):
     question: str
     required: bool
     max_length: int | None = Field(description="The form's limit in characters, if it has one.")
+    description: str | None = Field(default=None, description=(
+        "What the form shows under the question, such as a length it asks for; null when it shows none."))
     kind: str = Field(
         default="text",
         description='"text": answered in words. "choice": one of options. "choices": one or more of options, '
@@ -163,9 +165,10 @@ def typed(questions: list) -> tuple[list[tuple[str | None, str | None]], dict[st
     """Each question's Question type and default length (none for a
     choice), the guides of the types they have, and the other types' summaries."""
     guides = question_types.load()
-    kinds = [question_types.classify(q.label) if is_text(q.kind) else None for q in questions]
-    tags = [(kind, kind and question_types.default_length(q.label, kind, q.max_length))
-            for q, kind in zip(questions, kinds)]
+    asked = [f"{q.label} {q.description or ''}".strip() for q in questions]
+    kinds = [question_types.classify(text) if is_text(q.kind) else None for q, text in zip(questions, asked)]
+    tags = [(kind, kind and question_types.default_length(text, kind, q.max_length))
+            for q, kind, text in zip(questions, kinds, asked)]
     given = {kind: guides[kind].shown() for kind in kinds if kind}
     return tags, given, {name: g.summary for name, g in guides.items() if name not in given}
 
@@ -284,7 +287,7 @@ def register(server: MCPServer) -> None:
             card, card_needed = await writing.card_state(db, student.id)
             led = await pipeline.led_before(
                 db, student.id, found.application.job.company,
-                {question_types.classify(q.label) for q in found.questions if is_text(q.kind)},
+                {question_types.classify(f"{q.label} {q.description or ''}") for q in found.questions if is_text(q.kind)},
             ) if found else {}
             sent_back = await pipeline.rewrites(db, student.id, found.application.job.id) if found else {}
         if found is None:
@@ -314,6 +317,7 @@ def register(server: MCPServer) -> None:
             questions=[
                 Question(
                     name=q.name, question=q.label, required=q.required, max_length=q.max_length,
+                    description=q.description,
                     kind="text" if is_text(q.kind) else q.kind, options=q.options,
                     rewrite=Rewrite(**sent_back[q.name]) if q.name in sent_back else None,
                     type=kind, default_length=length,
