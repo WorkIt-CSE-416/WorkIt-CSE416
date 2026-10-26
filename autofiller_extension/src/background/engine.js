@@ -184,7 +184,24 @@ const RACE = {
   two_or_more: "Two or More Races",
   declined: "decline",
 };
-const VETERAN = { protected_veteran: true, not_protected_veteran: "I am not a protected veteran", declined: "decline" };
+// "Never served" is "I am not a veteran" (the engine's isVeteran reads it as false): it also answers
+// "have you ever served?" and a branch or status (N/A); "not a protected veteran" says nothing of service.
+const VETERAN = {
+  protected_veteran: true, not_protected_veteran: "I am not a protected veteran", not_veteran: "I am not a veteran", declined: "decline",
+};
+const ORIENTATION = {
+  heterosexual: "Heterosexual", gay: "Gay", lesbian: "Lesbian", bisexual: "Bisexual", asexual: "Asexual", queer: "Queer", declined: "decline",
+};
+// "He/him" fits "He/Him/His" and "He/him/his" alike (the engine takes the shortest option it starts).
+const PRONOUNS = { he_him: "He/him", she_her: "She/her", they_them: "They/them", declined: "decline" };
+const COMMUNITY = {
+  disability: "Person with disability", neurodiverse: "Neurodiverse", veteran: "Veteran", parent: "Parent",
+  refugee_immigrant: "Refugee or immigrant", first_generation: "First-generation", lgbtq: "LGBTQ+",
+};
+const ROLE_INTEREST = {
+  backend: "Backend", frontend: "Frontend", full_stack: "Full-Stack", mobile: "Mobile", embedded: "Embedded", ml: "Machine Learning",
+  data: "Data", infrastructure: "Infrastructure", security: "Security", robotics: "Robotics",
+};
 const YES_NO_DECLINE = { yes: true, no: false, declined: "decline" };
 const YES_NO = { yes: true, no: false };
 
@@ -213,7 +230,18 @@ export function layered(under, over) {
 /** The student's policies: WorkIt's own (POLICIES), with what they brought from Apply over them (a
  * student's own rules are how they apply, so Apply's how-heard beats WorkIt's default). */
 export function enginePolicies(profile) {
-  return layered(POLICIES, profile?.fill?.policies);
+  return layered(layered(POLICIES, profile?.fill?.policies), { compensation: pay(profile?.answers ?? {}) });
+}
+
+/** Pay as the student answered it (Application answers), never a WorkIt default: their hourly figure,
+ * and whether a posting's stated range is fine, which a question asking in words reads as their words. */
+function pay(answers) {
+  const accepts = yes(answers.accept_posted_pay);
+  return present({
+    fallback_hourly: typeof answers.expected_hourly_pay === "number" ? answers.expected_hourly_pay : undefined,
+    accept_stated_rate: accepts,
+    expectation: accepts ? "Open to the posted range" : undefined,
+  });
 }
 
 /** Bank entries of one section, the most recently started first, as a resume lists jobs (and Apply's
@@ -338,6 +366,22 @@ function applicationFacts(answers, place) {
   };
 }
 
+/** Communities as the engine's list ([] is "none of these"), or "decline" for a student who declined. */
+function communities(keys) {
+  if (!Array.isArray(keys)) return undefined;
+  return keys.includes("declined") ? "decline" : keys.map((k) => COMMUNITY[k]).filter(Boolean);
+}
+
+/** How many internships the bank's jobs hold (titled intern or co-op); unknown while it holds no job. */
+function internships(jobs) {
+  return jobs.length ? jobs.filter((e) => /\bintern(ship)?\b|\bco-?op\b/i.test(e.title ?? "")).length : undefined;
+}
+
+/** The company of the job held now, the most recently started first; none held, none named. */
+function currentCompany(jobs) {
+  return jobs.find((e) => e.end_kind === "present" && e.organization)?.organization;
+}
+
 /** The engine profile from WorkIt's own fields alone. */
 function workitProfile(profile, today) {
   // The profile's own name parts where it has them, so a middle name never joins the last name.
@@ -349,6 +393,7 @@ function workitProfile(profile, today) {
   const answers = profile.answers ?? {};
   const place = home(profile.location);
   const facts = applicationFacts(answers, place);
+  const jobs = newest(entries, "experience");
   return {
     logistics: facts.logistics,
     screeners: facts.screeners,
@@ -360,8 +405,14 @@ function workitProfile(profile, today) {
       email: profile.email, phone: profile.phone_number,
       // Where the student lives, as they typed it (KAN-372), read by the engine; one it can't read is left out.
       current_location: place,
+      age_18_or_over: yes(answers.age_18_or_over),
+      pronouns: PRONOUNS[answers.pronouns],
+      current_company: currentCompany(jobs),
     }),
-    links: present({ linkedin_url: profile.linkedin_url, github_url: profile.github_url, portfolio_url: profile.portfolio_url ?? profile.other_url }),
+    links: present({
+      linkedin_url: profile.linkedin_url, github_url: profile.github_url, portfolio_url: profile.portfolio_url ?? profile.other_url,
+      x_twitter_url: answers.x_url,
+    }),
     // The engine's names for the files it plans (rules.ts): the resume and the unofficial transcript (KAN-369).
     files: present({ resume_pdf: profile.resume?.filename, unofficial_transcript_pdf: profile.transcript?.filename }),
     education: school
@@ -384,7 +435,7 @@ function workitProfile(profile, today) {
         })
       : {},
     experience_facts: present({
-      employment_history: newest(entries, "experience").map((e) =>
+      employment_history: jobs.map((e) =>
         present({
           employer: e.organization, title: e.title, start: e.start_month, end: e.end_kind === "present" ? null : e.end_month, location: e.location,
           // A Role Description (Workday's Work Experience) is the job's bullets, one a line, as Apply gives it.
@@ -393,11 +444,15 @@ function workitProfile(profile, today) {
       ),
       // Workday's "Type to Add Skills" and "languages most comfortable" read these.
       skills: skills.length ? skills : null,
+      prior_internships_count: internships(jobs),
+      role_interests: Array.isArray(answers.role_interests) ? answers.role_interests.map((k) => ROLE_INTEREST[k]).filter(Boolean) : undefined,
     }),
     work_authorization: present({
       authorized_to_work_us: YES_NO[answers.work_authorized_us],
       requires_sponsorship_now_or_future: YES_NO[answers.needs_sponsorship],
       citizenship: CITIZENSHIP[answers.work_authorization_status],
+      // Any country's, for a list of countries of citizenship (two: a dual citizen's, theirs to pick).
+      citizenship_countries: Array.isArray(answers.citizenship_countries) && answers.citizenship_countries.length ? answers.citizenship_countries : undefined,
       security_clearance: CLEARANCE[answers.security_clearance],
     }),
     voluntary_self_id: present({
@@ -406,6 +461,9 @@ function workitProfile(profile, today) {
       race: RACE[answers.race],
       veteran: VETERAN[answers.veteran_status],
       disability: YES_NO_DECLINE[answers.disability_status],
+      sexual_orientation: ORIENTATION[answers.sexual_orientation],
+      transgender: YES_NO_DECLINE[answers.transgender],
+      communities: communities(answers.communities),
     }),
   };
 }

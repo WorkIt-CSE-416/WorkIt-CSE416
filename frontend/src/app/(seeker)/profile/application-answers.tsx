@@ -11,11 +11,16 @@ import {
 } from "@/components/answer-fields";
 import { ANSWER_GROUP_ICON, PencilIcon } from "@/components/icons";
 import { Button } from "@/components/ui/button";
+import { Chip } from "@/components/ui/chip";
 import { SectionHeading } from "@/components/ui/section-heading";
 import { TextField } from "@/components/ui/text-field";
 import {
   AVAILABILITY,
   changedAnswers,
+  COMMUNITY_OPTIONS,
+  parsePay,
+  ROLE_INTEREST_OPTIONS,
+  toggleCommunity,
   SCREENERS,
   screenerChoice,
   SUGGESTED_LANGUAGES,
@@ -33,10 +38,11 @@ import { SectionAction } from "./section-action";
 /**
  * Application Answers (KAN-369): the facts screening questions ask, beside
  * Application Questions and edited the same way (two modes, one Edit at the
- * top right, Cancel and Save under the fields, Escape cancels). Six groups:
- * Availability, Start Window, Relocation, Address, Languages and Screener
- * Facts, then School Year, which WorkIt works out from the latest education
- * entry (lib/school-year) and never asks.
+ * top right, Cancel and Save under the fields, Escape cancels). Groups:
+ * Availability, Start Window, Relocation, Address, Languages, Age and Pay,
+ * More About You (role interests, X profile, citizenship), Communities and Screener Facts, then School Year,
+ * which WorkIt works out from the latest education entry (lib/school-year)
+ * and never asks. Pay is only ever the student's own figure.
  *
  * Languages lists English until the student says otherwise: a suggestion,
  * saved only with a Save. The screener facts are never answered for them;
@@ -60,6 +66,8 @@ export function ApplicationAnswers({
   const [base, setBase] = useState(answers);
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  // Pay as typed, read as a figure on Save.
+  const [payText, setPayText] = useState("");
   const form = useRef<HTMLFormElement>(null);
 
   useEffect(() => {
@@ -72,6 +80,7 @@ export function ApplicationAnswers({
   function startEditing() {
     // The suggested language is in the draft, so a Save keeps it unless removed.
     setDraft({ ...answers, languages: answers.languages ?? SUGGESTED_LANGUAGES });
+    setPayText(answers.expected_hourly_pay == null ? "" : String(answers.expected_hourly_pay));
     setBase(answers);
     setError(null);
     setEditing(true);
@@ -82,9 +91,12 @@ export function ApplicationAnswers({
     setError(null);
     // Typed text is trimmed here, not as it is typed, so a space can be typed.
     const typed = { ...draft };
-    for (const key of ["internship_location", "address_line1", "postal_code"] as const) {
+    for (const key of ["internship_location", "address_line1", "postal_code", "x_url"] as const) {
       typed[key] = typed[key]?.trim() || null;
     }
+    const pay = parsePay(payText);
+    if (pay === undefined) return setError("Type your pay as dollars an hour, such as 30.");
+    typed.expected_hourly_pay = pay;
     const changed = changedAnswers(typed, base);
     if (Object.keys(changed).length === 0) return setEditing(false);
     setSaving(true);
@@ -215,6 +227,118 @@ export function ApplicationAnswers({
                 onChange={(names) => set({ languages: names.length ? names : null })}
               />
             </Group>
+
+            <Group icon="agePay" title="Age and Pay">
+              <Question id="answers-age-label" label="Are you 18 or older?">
+                <YesNoChips
+                  labelledBy="answers-age-label"
+                  value={draft.age_18_or_over}
+                  onChange={(age_18_or_over) => set({ age_18_or_over })}
+                />
+              </Question>
+              <TextField
+                id="answers-expected_hourly_pay"
+                label="Expected Pay, Dollars an Hour"
+                inputMode="decimal"
+                placeholder="30"
+                value={payText}
+                onChange={(e) => setPayText(e.target.value)}
+              />
+              <Question
+                id="answers-posted-pay-label"
+                label="Is a posting's stated pay range fine with you?"
+              >
+                <YesNoChips
+                  labelledBy="answers-posted-pay-label"
+                  value={draft.accept_posted_pay}
+                  onChange={(accept_posted_pay) => set({ accept_posted_pay })}
+                />
+              </Question>
+              <Note>WorkIt types pay only from your answers here, never a guess.</Note>
+            </Group>
+
+            <Group icon="interests" title="More About You">
+              <Question id="answers-interests-label" label="Kinds of work you want">
+                <div
+                  role="group"
+                  aria-labelledby="answers-interests-label"
+                  className="flex flex-wrap gap-2"
+                >
+                  {ROLE_INTEREST_OPTIONS.map((o) => {
+                    const picked = draft.role_interests ?? [];
+                    const on = picked.includes(o.value);
+                    return (
+                      <Chip
+                        key={o.value}
+                        pressed={on}
+                        onClick={() => {
+                          const next = on
+                            ? picked.filter((k) => k !== o.value)
+                            : [...picked, o.value];
+                          set({ role_interests: next.length ? next : null });
+                        }}
+                      >
+                        {o.label}
+                      </Chip>
+                    );
+                  })}
+                </div>
+              </Question>
+              <ListField
+                id="answers-citizenship_countries"
+                label="Countries You Are a Citizen Of"
+                value={draft.citizenship_countries}
+                onChange={(names) => set({ citizenship_countries: names.length ? names : null })}
+              />
+              <TextField
+                id="answers-x_url"
+                label="X (Twitter) Profile"
+                placeholder="https://x.com/yourname"
+                value={draft.x_url ?? ""}
+                onChange={(e) => set({ x_url: e.target.value || null })}
+              />
+            </Group>
+
+            <Group icon="communities" title="Communities">
+              <Question
+                id="answers-communities-label"
+                label="Communities you belong to (voluntary)"
+              >
+                <div
+                  role="group"
+                  aria-labelledby="answers-communities-label"
+                  className="flex flex-wrap gap-2"
+                >
+                  {COMMUNITY_OPTIONS.map((o) => (
+                    <Chip
+                      key={o.value}
+                      pressed={draft.communities?.includes(o.value) ?? false}
+                      onClick={() =>
+                        set({ communities: toggleCommunity(draft.communities, o.value) })
+                      }
+                    >
+                      {o.label}
+                    </Chip>
+                  ))}
+                  <Chip
+                    pressed={draft.communities?.length === 0}
+                    onClick={() =>
+                      set({ communities: draft.communities?.length === 0 ? null : [] })
+                    }
+                  >
+                    None of These
+                  </Chip>
+                  <Chip
+                    pressed={draft.communities?.includes("declined") ?? false}
+                    onClick={() =>
+                      set({ communities: toggleCommunity(draft.communities, "declined") })
+                    }
+                  >
+                    I Don&apos;t Wish to Answer
+                  </Chip>
+                </div>
+              </Question>
+            </Group>
           </div>
 
           <div className="mt-6">
@@ -275,6 +399,37 @@ export function ApplicationAnswers({
             <p className="text-body text-ink-muted">
               {(answers.languages ?? SUGGESTED_LANGUAGES).join(", ")}
               {!answers.languages && <span className="text-ink-meta"> (suggested)</span>}
+            </p>
+          </Group>
+          <Group icon="agePay" title="Age and Pay">
+            <dl className="grid gap-2">
+              <Fact label="18 or Older" value={yesNo(answers.age_18_or_over)} />
+              <Fact
+                label="Expected Pay"
+                value={
+                  answers.expected_hourly_pay == null ? null : `$${answers.expected_hourly_pay}/hr`
+                }
+              />
+              <Fact label="Posted Range Is Fine" value={yesNo(answers.accept_posted_pay)} />
+            </dl>
+          </Group>
+          <Group icon="interests" title="More About You">
+            <dl className="grid gap-2">
+              <Fact
+                label="Kinds of Work"
+                value={answers.role_interests
+                  ?.map((k) => ROLE_INTEREST_OPTIONS.find((o) => o.value === k)?.label)
+                  .join(", ")}
+              />
+              <Fact label="X Profile" value={answers.x_url} />
+              <Fact label="Citizenship" value={answers.citizenship_countries?.join(", ")} />
+            </dl>
+          </Group>
+          <Group icon="communities" title="Communities">
+            <p className="text-body text-ink-muted">
+              {communitiesText(answers.communities) ?? (
+                <span className="text-ink-meta">Not answered</span>
+              )}
             </p>
           </Group>
           <Group icon="screeners" title="Screener Facts">
@@ -379,6 +534,13 @@ function Fact({
 
 function Note({ children }: { children: ReactNode }) {
   return <p className="text-meta text-ink-meta">{children}</p>;
+}
+
+function communitiesText(list: AutofillAnswers["communities"]) {
+  if (!list) return null;
+  if (list.includes("declined")) return "I don't wish to answer";
+  if (!list.length) return "None of these";
+  return list.map((k) => COMMUNITY_OPTIONS.find((o) => o.value === k)?.label).join(", ");
 }
 
 const yesNo = (v: YesNo | null) => (v === "yes" ? "Yes" : v === "no" ? "No" : null);

@@ -6,6 +6,8 @@ import {
   NO_ANSWERS,
   noneOfTheseApply,
   parseList,
+  parsePay,
+  toggleCommunity,
   screenerChoice,
   upcomingTerms,
 } from "./autofill-answers.ts";
@@ -43,4 +45,21 @@ test("upcoming terms start at the next term", () => {
     "spring 2027",
     "summer 2027",
   ]);
+});
+
+test("a community picked clears a decline, and a decline clears the rest", () => {
+  assert.deepEqual(toggleCommunity(null, "parent"), ["parent"]);
+  assert.deepEqual(toggleCommunity(["declined"], "parent"), ["parent"]);
+  assert.deepEqual(toggleCommunity(["parent", "veteran"], "declined"), ["declined"]);
+  // Unpicking the last one leaves the question unanswered, not "none of these".
+  assert.equal(toggleCommunity(["parent"], "parent"), null);
+});
+
+test("pay is a positive figure under $1,000 an hour, typed with or without a dollar sign", () => {
+  assert.equal(parsePay("32.50"), 32.5);
+  assert.equal(parsePay(" $45 "), 45);
+  assert.equal(parsePay(""), null);
+  assert.equal(parsePay("lots"), undefined);
+  assert.equal(parsePay("85000"), undefined);
+  assert.equal(parsePay("0"), undefined);
 });

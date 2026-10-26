@@ -28,7 +28,8 @@ const shot = async (page: Page, name: string) => {
 };
 
 /** Opens a saved form as the student would and presses Autofill This Page; returns what the list showed when the fill began. */
-async function autofill(forms: SavedForms, name: string, handlers: Handler[] = []): Promise<{ page: Page; atStart: () => Promise<{ rows: number; spinning: number } | null> }> {
+type AtStart = { rows: number; spinning: number; titles: string[]; keys: string[][] };
+async function autofill(forms: SavedForms, name: string, handlers: Handler[] = []): Promise<{ page: Page; atStart: () => Promise<AtStart | null> }> {
   loaded = await loadExtension([...handlers, new FakeApi().handler, webapp, forms.handler]);
   await signIn(loaded.context);
   const page = await loaded.context.newPage();
@@ -41,7 +42,14 @@ async function autofill(forms: SavedForms, name: string, handlers: Handler[] = [
     const observer = new MutationObserver(() => {
       if (root.querySelector("[data-progress-said]")?.textContent !== "Autofilling · 0%") return;
       const rows = root.querySelectorAll('[data-tab="autofill"] .row[data-key]');
-      (window as any).atStart = { rows: rows.length, spinning: [...rows].filter((r) => (r as HTMLElement).dataset.mark === "filling").length };
+      (window as any).atStart = {
+        rows: rows.length,
+        spinning: [...rows].filter((r) => (r as HTMLElement).dataset.mark === "filling").length,
+        titles: [...root.querySelectorAll(".entry-title")].map((t) => t.textContent),
+        // Each section's own rows (a repeated section's by its own row), in the list's order.
+        keys: [...root.querySelectorAll('[data-tab="autofill"] .section')].map((section) =>
+          [...section.querySelectorAll<HTMLElement>(":scope > .row[data-key], :scope > .entries > .row[data-key]")].map((r) => r.dataset.key!)),
+      };
       observer.disconnect();
     });
     observer.observe(root, { subtree: true, childList: true, characterData: true });
@@ -67,6 +75,16 @@ test("every field is listed with a spinner from the start, and after the fill re
   // Every planned field was there before the first one filled, each spinning (the ones WorkIt has no answer for are red at once).
   expect(start!.spinning).toBeGreaterThan(10);
   expect(start!.rows).toBeGreaterThanOrEqual(after - 2);
+  // While it fills, Required lists its rows in the page's order, not the Plan's (which put the questions
+  // WorkIt has no answer for after every planned one). Optional is left out: its race question shows only once
+  // Hispanic is answered, so it comes last until then, as a field the page doesn't show yet.
+  const requiredKeys = start!.keys[0];
+  expect(requiredKeys.length).toBeGreaterThan(8);
+  const inPageOrder = await page.evaluate((keys) => {
+    const at = keys.map((key) => document.getElementById(key) ?? document.querySelector(`[name="${CSS.escape(key)}"]`)).filter((el): el is HTMLElement => Boolean(el));
+    return at.every((el, i) => i === 0 || Boolean(at[i - 1].compareDocumentPosition(el) & Node.DOCUMENT_POSITION_FOLLOWING));
+  }, requiredKeys);
+  expect(inPageOrder).toBe(true);
 
   const sections = host.locator('[data-tab="autofill"] .section');
   await expect(sections.locator(".section-head")).toHaveText(["Required", "Optional"]);
@@ -103,7 +121,7 @@ const withJobs: Handler = ({ url }) =>
 test("Work Experience and Education show as one row each, with a block per entry titled by its company or school", async () => {
   test.setTimeout(120_000);
   const forms = new SavedForms([COINBASE]);
-  const { page } = await autofill(forms, COINBASE, [withJobs]);
+  const { page, atStart } = await autofill(forms, COINBASE, [withJobs]);
   const host = hostOf(page);
   await expect(host.locator("[data-progress-said]")).toHaveText(/^Autofilling · \d+%$/, { timeout: 60_000 });
   await shot(page, "coinbase-filling");
@@ -113,6 +131,8 @@ test("Work Experience and Education show as one row each, with a block per entry
   await expect(work).toHaveCount(1);
   await expect(work.locator(".entries-head .label")).toHaveText("Work Experience");
   await expect(work.locator(".entry-title")).toHaveText(["Globex", "Initech"]);
+  // Titled by the profile entry the Plan fills each block from, before its company field filled.
+  expect((await atStart())!.titles).toEqual(["Globex", "Initech", expect.stringMatching(/^Example State University/)]);
   await expect(work.locator(".entry").first().locator(".row .label").first()).toHaveText("Company name");
   await expect(work.locator(".entry").first().locator('.row[data-mark="filled"]').first()).toBeVisible();
   const school = host.locator('.entries[data-entries="Education"]');
