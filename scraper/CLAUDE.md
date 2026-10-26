@@ -295,6 +295,14 @@ posting is gone**: a timeout, a partial read, or one board seen twice in one
 run is not. Actually closing a posting is a real design for the ticket that
 needs it: two accepted complete absences, at most one miss per board per run.
 
+**A board we hold postings from that now answers "no such board" was read in
+full, with nothing open** (`__main__.scrape`): a 404, Workday's 422 or
+BambooHR's redirect home, when the company has left that hiring system. Counted
+as no read until 2026-10-26, its postings stayed on the page for good. A board
+never read that answers so is still unread (a typo has nothing to close, and
+`Store.is_new` reads a board's first read). A spurious 404 closes the board's
+jobs for one run; the next read lists them again and the import reopens them.
+
 ## Politeness is ours to enforce
 
 Every request goes through `web.get` and, before it, `polite.Robots`,

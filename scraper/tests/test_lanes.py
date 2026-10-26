@@ -114,6 +114,38 @@ class TestLanes:
         assert fetched == []
 
 
+class TestVanishedBoards:
+    """A board that answered once and now says it does not exist (a 404; Workday's
+    422; BambooHR's redirect home) has nothing open. Counted as no read at all, its
+    postings stayed on the page for good, since only a complete read moves them."""
+
+    gone = board("greenhouse", "left-greenhouse")
+
+    def test_a_known_board_now_missing_is_read_with_nothing_open(self, monkeypatch) -> None:
+        listed = replace(job(self.gone), first_seen_at=MONDAY, last_seen_at=MONDAY)
+        monday = stored(read_at=MONDAY, jobs=[listed], boards=[self.gone])
+        monkeypatch.setattr(run, "_scrape_one", lambda b, robots: (run.Outcome.MISSING, []))
+        scanned, stats, read = run.scrape([self.gone], SimpleNamespace(), {listed.key: listed})
+        assert read == [self.gone.key]
+        assert stats.boards_missing == 1
+        tuesday = store.update(monday, scanned, read, stats, "2026-10-06T09:00:00+00:00")
+        assert not tuesday.is_listed(tuesday.jobs[0])
+
+    def test_a_board_never_read_stays_unread(self, monkeypatch) -> None:
+        # A typo in boards.csv: it has nothing stored, so nothing to close, and it
+        # must not look read (`Store.is_new` reads its first read).
+        typo = board("greenhouse", "stirpe")
+        monkeypatch.setattr(run, "_scrape_one", lambda b, robots: (run.Outcome.MISSING, []))
+        _, _, read = run.scrape([typo], SimpleNamespace(), {})
+        assert read == []
+
+    def test_a_failed_read_is_still_evidence_of_nothing(self, monkeypatch) -> None:
+        listed = job(self.gone)
+        monkeypatch.setattr(run, "_scrape_one", lambda b, robots: (run.Outcome.FAILED, []))
+        _, _, read = run.scrape([self.gone], SimpleNamespace(), {listed.key: listed})
+        assert read == []
+
+
 def test_carry_brings_the_page_forward() -> None:
     gh = board("greenhouse", "cloudflare")
     read = Page(providers.PAGE_VERSION, None, Facts(), ("Lisbon, Portugal",))

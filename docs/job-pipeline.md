@@ -133,6 +133,9 @@ the logo reader learns a new place to look.
 board.** If a company job board fails to load, its job postings are kept as
 they were. A Workday company job board is read whole or not at all: every
 page, adding up to the count Workday reports, or the read counts for nothing.
+A company job board that answers "no such board" after we have read it (the
+company left that hiring system) counts as a complete read with nothing open,
+so its job postings close; one we never read is just reported.
 
 ### 3.1 Which job postings are kept
 

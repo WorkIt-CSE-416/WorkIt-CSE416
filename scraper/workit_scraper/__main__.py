@@ -138,10 +138,14 @@ def scrape(
         boards_failed=outcomes[Outcome.FAILED],
         boards_deferred=outcomes[Outcome.DEFERRED],
     )
+    # A board we hold postings from that now says it does not exist has nothing
+    # open: read in full, with none. Not one never read (a typo has nothing to
+    # close), and never a failure, which is evidence of nothing.
+    known = {job.board_key for job in before.values()}
     read = [
         board.key
         for board, (outcome, _) in zip(boards, results, strict=True)
-        if outcome is Outcome.OK
+        if outcome is Outcome.OK or (outcome is Outcome.MISSING and board.key in known)
     ]
     return scanned, stats, read
 
