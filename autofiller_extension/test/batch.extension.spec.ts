@@ -393,8 +393,9 @@ test("Next Thing That Needs You goes on from where it was when the student answe
   const HARVEY = "ashby-harvey";
   const forms = new SavedForms([HARVEY]);
   await startBatch(forms, [HARVEY]);
-  // Harvey's first four flagged fields, in page order: its location, a choice, a short question, then a written one.
-  const [INTERNSHIPS, LAST, WHY] = ["7f6c3046-8557-4f77-869a-9e874d3ead38", "dfa930a1-8ce3-4246-a520-e2df415622c5", "e4d88906-fe42-43c1-bebc-05e24a4c967d"];
+  // Harvey's first four flagged fields, in page order: its location, a choice, a short question, then the
+  // next one. Its written question waits on the student's Claude, so the walk leaves it for last.
+  const [INTERNSHIPS, LAST, NEXT] = ["7f6c3046-8557-4f77-869a-9e874d3ead38", "dfa930a1-8ce3-4246-a520-e2df415622c5", "a2422df5-471e-4da2-9e8e-e02d0edd46bf"];
   const form = () => page(forms.url(HARVEY));
   const { walked } = await walkToEnd(forms.url(HARVEY), {
     most: 4,
@@ -409,8 +410,8 @@ test("Next Thing That Needs You goes on from where it was when the student answe
     },
   });
 
-  // The next press goes to the written question after them, not past it.
-  expect(walked.map(([, key]) => key)).toEqual(["_systemfield_location", INTERNSHIPS, LAST, WHY]);
+  // The next press goes to the field after them, not past it.
+  expect(walked.map(([, key]) => key)).toEqual(["_systemfield_location", INTERNSHIPS, LAST, NEXT]);
   expect(forms.submissions).toEqual([]);
 });
 
