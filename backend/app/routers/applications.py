@@ -130,8 +130,10 @@ async def post_saved_by_link(
     extension's Save to WorkIt on a site it can't fill (KAN-401)."""
     applicant_id = _applicant_only(account)
     job_id = await listed_job_by_link(db, body.url)
-    stage = job_id and await save_job(db, applicant_id, job_id)
-    if not stage:
+    if job_id is None:
+        raise HTTPException(status.HTTP_404_NOT_FOUND, "WorkIt doesn't list this job yet.")
+    stage = await save_job(db, applicant_id, job_id)
+    if stage is None:
         raise HTTPException(status.HTTP_404_NOT_FOUND, "WorkIt doesn't list this job yet.")
     return JobSavedByLink(job_id=job_id, stage=stage)
 
