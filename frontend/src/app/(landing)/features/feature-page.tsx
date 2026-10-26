@@ -6,7 +6,7 @@ import { cn } from "@/lib/cn";
 import { ClosingCta } from "../closing-cta";
 import { FaqList } from "../faq-list";
 import { CONTAINER, PANEL, PANEL_INSET, SectionHeading } from "../layout-parts";
-import { SocialSignUpButton } from "../social-sign-up";
+import { EmailSignUpLink, SocialSignUpButton } from "../social-sign-up";
 import { backdrop, featurePages, type Feature } from "./catalog";
 import { featureContent } from "./content";
 import { FeatureIcon } from "./feature-icon";
@@ -217,9 +217,17 @@ function Placeholder({ feature, className }: { feature: Feature; className?: str
 /** The hero's sign-up pair, the same as the home page's. */
 function SignUpButtons({ className }: { className?: string }) {
   return (
-    <div className={cn("flex flex-col items-center justify-center gap-3 sm:flex-row", className)}>
+    <div
+      className={cn(
+        "flex flex-col flex-wrap items-center justify-center gap-3 sm:flex-row",
+        className,
+      )}
+    >
       <SocialSignUpButton provider="google" />
       <SocialSignUpButton provider="linkedin_oidc" />
+      <div className="w-full text-center sm:basis-full">
+        <EmailSignUpLink />
+      </div>
     </div>
   );
 }

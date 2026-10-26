@@ -11,14 +11,14 @@
 //    number can disagree with its own children's.
 // 2. Minor(s) marked failed/red despite the form never marking it
 //    required. `required` here always comes from the field itself
-//    (field-map.js reads the DOM's own required/aria-required/asterisk
-//    signal) — an unfilled optional field renders as "skipped", a neutral
+//    (the Question set the job system's own API gives, read by the Fill
+//    engine) — an unfilled optional field renders as "skipped", a neutral
 //    state, never "failed".
 //
 // A fourth status, "needs_generation", is the essay-question feature's own:
 // an open-ended question WorkIt can offer to draft (never fill) until the
-// student opts in via the overlay's batch prompt — see content-script.js's
-// detection and overlay.js's promptForEssays.
+// student opts in via the overlay's batch prompt — see content-script.js and
+// overlay.js's promptForEssays.
 window.WIA = window.WIA || {};
 
 (function () {
@@ -56,11 +56,12 @@ window.WIA = window.WIA || {};
    * @param {string} key
    * @param {import("../shared/types.js").FieldStatus} status
    * @param {string} [reason]
+   * @param {string | string[]} [shows]  what a filled field shows now, as the engine read it back
    */
-  function setStatus(key, status, reason) {
+  function setStatus(key, status, reason, shows) {
     const existing = results.get(key);
     if (!existing) return;
-    results.set(key, { ...existing, status, reason });
+    results.set(key, { ...existing, status, reason, shows });
     notify();
   }
 

@@ -82,6 +82,8 @@ async def generate(llm: LLM, identity: Identity, request: EssayAnswerRequest, ba
     if not text:
         return None
     grounding, skills = bank_context(bank)
-    if invented(text, grounding, skills) or placeholders_in(text):
+    # The question, company and role are the request's own words, not facts the model added.
+    given = "\n".join(p for p in (grounding, request.question, request.company_name, request.job_title) if p)
+    if invented(text, given, skills) or placeholders_in(text):
         return None
     return text

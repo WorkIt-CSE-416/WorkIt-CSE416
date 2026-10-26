@@ -99,6 +99,9 @@ def test_row_becomes_the_feed_shape():
         "min_years_experience": None,
         "start_term": "Summer 2027",
         "sponsorship": dto.visa_sponsorship.sponsors,
+        # Not scored: no signed-in applicant viewed this listing.
+        "match": None,
+        "highlights": [],
         # Worked out from apply_url: jobs.example is no hiring system auto
         # apply fills (app/auto_apply/hosts.py).
         "auto_apply": False,

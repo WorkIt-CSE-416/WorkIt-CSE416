@@ -29,6 +29,8 @@ CUT_OFF = "Scout lost its connection mid-reply. Try asking again."
 
 
 INVALID = "The model's answer came back in the wrong shape. Try again."
+TOO_LARGE = "This is too long for the model to read. Try something shorter."
+TOO_LONG = "The model's answer ran past its length limit. Try again."
 
 
 class ScoutUnavailable(Exception):
@@ -39,19 +41,53 @@ class InvalidReply(ScoutUnavailable):
     """A structured reply that is not JSON or fails its schema."""
 
 
+class ReplyCutOff(InvalidReply):
+    """A structured reply the provider stopped at its token limit
+    (`finish_reason` "length"): its JSON is cut off, so it would only fail
+    the schema with a less helpful message."""
+
+
+class RequestTooLarge(ScoutUnavailable):
+    """The last endpoint tried found the request too large to read."""
+
+
+# How providers word "too large" on a 400: OpenAI and Groq send the code
+# `context_length_exceeded`, Gemini says the input token count exceeds the
+# maximum. Groq answers a request over its tokens-a-minute limit with 413.
+_TOO_LARGE_WORDS = ("context_length", "context length", "maximum context", "too large", "too long", "exceeds the maximum")
+
+
+def _too_large(exc: Exception) -> bool:
+    if not isinstance(exc, APIStatusError):
+        return False
+    if exc.status_code == 413:
+        return True
+    said = f"{exc.code or ''} {exc.message}".lower()
+    return exc.status_code == 400 and any(w in said for w in _TOO_LARGE_WORDS)
+
+
 def _worth_another_try(exc: Exception) -> bool:
     """
-    Down, unreachable or out of quota: another provider may well answer.
+    Down, unreachable, out of quota or too small for the request: another
+    provider may well answer (Gemini reads far more than Groq's free tier).
     Any other 4xx is a wrong key, model name or parameter — the fallback would
     get the same request, so stop and let the log say why.
     """
+    if _too_large(exc):
+        return True
     if isinstance(exc, APIStatusError):
         return isinstance(exc, RateLimitError) or exc.status_code >= 500
     return isinstance(exc, APIConnectionError)
 
 
 def _user_message(exc: Exception) -> str:
+    if _too_large(exc):
+        return TOO_LARGE
     return OUT_OF_QUOTA if isinstance(exc, RateLimitError) else OFFLINE
+
+
+def _unavailable(failure: str) -> ScoutUnavailable:
+    return RequestTooLarge(failure) if failure == TOO_LARGE else ScoutUnavailable(failure)
 
 
 def _effort(endpoint: Endpoint) -> dict[str, str]:
@@ -122,22 +158,28 @@ class LLM:
                 if not _worth_another_try(exc):
                     raise ScoutUnavailable(OFFLINE) from exc
                 failure = _user_message(exc)
-        raise ScoutUnavailable(failure)
+        raise _unavailable(failure)
 
     async def complete_json(
-        self, messages: Sequence[Message], schema: type[T], *, identity: Identity
+        self,
+        messages: Sequence[Message],
+        schema: type[T],
+        *,
+        identity: Identity,
+        max_tokens: int | None = None,
     ) -> T:
         """
         One whole reply, not streamed, as JSON checked against `schema`. Nothing
         reaches the user until it returns, so every endpoint in the chain may
         be tried. A reply that fails the check is rejected, not repaired: the
-        caller decides whether to ask again.
+        caller decides whether to ask again. `max_tokens` caps the reply,
+        reasoning included; a reply stopped at the cap raises `ReplyCutOff`.
         """
         messages = _deidentified(messages, identity)
         failure = OFFLINE
         for endpoint, client in self._endpoints:
             try:
-                text = await self._complete_json(client, endpoint, messages, schema)
+                text = await self._complete_json(client, endpoint, messages, schema, max_tokens)
             except (APIConnectionError, APIStatusError) as exc:
                 _log_failure(endpoint, exc)
                 if not _worth_another_try(exc):
@@ -149,7 +191,7 @@ class LLM:
             except ValidationError as exc:
                 _log_failure(endpoint, exc)
                 raise InvalidReply(INVALID) from exc
-        raise ScoutUnavailable(failure)
+        raise _unavailable(failure)
 
     async def _complete_json(
         self,
@@ -157,7 +199,11 @@ class LLM:
         endpoint: Endpoint,
         messages: Sequence[Message],
         schema: type[BaseModel],
+        max_tokens: int | None = None,
     ) -> str:
+        # `max_tokens`, not `max_completion_tokens`: Ollama, Groq and Gemini's
+        # compatibility endpoint all accept it. Sent only when set.
+        limit = {"max_tokens": max_tokens} if max_tokens else {}
         # Not strict: providers disagree on which schemas strict mode accepts,
         # and the check above is what decides anyway.
         response = await client.chat.completions.create(
@@ -171,8 +217,13 @@ class LLM:
                 },
             },
             **_effort(endpoint),
+            **limit,
         )
-        return response.choices[0].message.content or ""
+        choice = response.choices[0]
+        if choice.finish_reason == "length":
+            _log_failure(endpoint, ReplyCutOff(TOO_LONG))
+            raise ReplyCutOff(TOO_LONG)
+        return choice.message.content or ""
 
     async def _complete(
         self, client: AsyncOpenAI, endpoint: Endpoint, messages: Sequence[Message]

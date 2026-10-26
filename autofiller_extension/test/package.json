@@ -1,0 +1,11 @@
+{
+  "name": "workit-autofiller-tests",
+  "private": true,
+  "description": "Tests for the autofiller extension. The extension itself has no build step and no dependencies; only its tests do.",
+  "scripts": {
+    "test": "playwright test"
+  },
+  "devDependencies": {
+    "@playwright/test": "1.64.0"
+  }
+}

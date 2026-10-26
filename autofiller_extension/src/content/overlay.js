@@ -59,6 +59,7 @@ window.WIA = window.WIA || {};
       .dot { width: 8px; height: 8px; border-radius: 50%; margin-top: 4px; flex: none; }
       .label { font-weight: 500; }
       .reason { color: #dc2626; font-size: 11.5px; margin-top: 2px; }
+      .reason.note { color: #6b7280; }
       .empty { padding: 16px 12px; color: #6b7280; }
     `;
     return style;
@@ -73,11 +74,12 @@ window.WIA = window.WIA || {};
     const text = document.createElement("div");
     const label = document.createElement("div");
     label.className = "label";
-    label.textContent = field.label + (field.required ? "" : " (optional)");
+    // A row keyed "_..." is the overlay's own message (content-script.js's note), not a field.
+    label.textContent = field.label + (field.required || field.key.startsWith("_") ? "" : " (optional)");
     text.appendChild(label);
-    if (field.status === "failed" && field.reason) {
+    if ((field.status === "failed" || field.status === "skipped") && field.reason) {
       const reason = document.createElement("div");
-      reason.className = "reason";
+      reason.className = field.status === "failed" ? "reason" : "reason note";
       reason.textContent = field.reason;
       text.appendChild(reason);
     }

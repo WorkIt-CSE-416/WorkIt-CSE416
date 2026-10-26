@@ -19,10 +19,13 @@ the filters as they stand. Until KAN-288 these were two views, Recommended and
 All Jobs, behind a switcher (KAN-231); they drew the same filter row and cards,
 so students read them as one page. An old `?view=all` link opens Newest and
 `?view=recommended` opens Best Match (`readSort` in jobs/page.tsx). **Saved
-preferences apply on a fresh visit only**: bare /jobs redirects to
-`?sort=match` plus the saved filters, where the row shows them checked; from
-then on the URL is the truth, so Clear All clears rather than bringing the
-saved ones back. Load More pages whichever order drew the list (`FeedList`'s
+preferences apply on a fresh visit only**: a bare /jobs visit draws Best
+Match with the saved filters in the same response, where the row shows them
+checked, then writes that exact address into the address bar in place (a
+shallow replace, `jobs/canonical-url.tsx`; KAN-368). From then on the URL is
+the truth, so Clear All clears rather than bringing the saved ones back. A
+`redirect()` here made the sidebar's Jobs link pay two round trips with a
+blank panel between; do not bring it back. Load More pages whichever order drew the list (`FeedList`'s
 `source`).
 
 **Job Type and Experience Level never overlap (KAN-284).** Job Type says
@@ -270,13 +273,14 @@ a signed-in applicant who has not marked the job the same click opens
 "Did You Apply?" (below) behind it, its resume list starting on the one
 Pick a Resume would have picked (tailored, else the default). Yes, I
 Applied stays off, under "Loading your resumes…", until that list is in:
-before it, the pick is only a guess. **Sent a Different Resume?** under the
-lists is the dropzone the Resumes page had until KAN-362 (`ResumeUpload`) and upload
-(`uploadResume`, which reads it into Experiences as any upload does): the
-new resume is picked once the list reloads, and a duplicate picks the one
+before it, the pick is only a guess. **Upload Resume**, in the list's row
+beside the search and the Type filter (KAN-406), uploads the file the
+student sent (`uploadResume`, which reads it into Experiences as any
+upload does): the new resume is picked once the list reloads, under
+Uploaded, with the search and the filter cleared so nothing hides it, and a duplicate picks the one
 it matched, saying "Duplicate Resume found: <name>". **At the 5-upload
-limit** (`lib/resume-limits.ts`, the API's own) a file waits while the
-student picks an upload to replace, then Replace It runs Import Updated
+limit** (`lib/resume-limits.ts`, the API's own) a file waits under the
+row while the student picks an upload to replace, then Replace It runs Import Updated
 Resume (`replaceResume`) on that row: the old file's sent resumes keep a
 frozen copy, so past applications lose nothing. Yes, I Applied stays off
 while an upload runs or a file waits. The hidden
@@ -303,6 +307,13 @@ the header (`[jobId]/sent-note.tsx`, story 98), the last sent resume
 linked to this posting, its day in the viewer's zone. Only the job's own
 page refreshes on a send (`showsSent`): on a card a refresh reran the whole
 feed, Best Match scoring and all, to redraw nothing.
+A job's Key Requirements list is read with the page's other reads
+(`loadJobView`) and handed to the card, not fetched by the card after them
+(KAN-368); it still answers an empty list on any failure, so the page draws
+without the card, and the application page's description tab skips the read.
+The page has a `loading.tsx` whose header and Key Requirements skeletons
+stand at the height of what replaces them; Tailor has its own, so this one
+never stands in for it.
 The job's actions sit in one bar with Back, pinned at the top from md
 (`[jobId]/action-bar.tsx`, KAN-246): Save, a "…" menu, Ask Scout, Auto Apply,
 Tailor My Resume and Apply Now. Below md the bar scrolls away and wraps.
@@ -381,34 +392,40 @@ would change a moment after the page loads.
 When a signed-in applicant leaves for the employer's posting from Apply Now's
 dialog, by Open the Posting or Apply Without a Resume, the dialog stays open
 behind the new tab and asks "Did You Apply?". **It shows the resume they
-applied with** (KAN-267): the resume table (below), **Sent a Different
-Resume?** (the upload, below), then a full-width **No Resume** button, not
+applied with** (KAN-267): the resume list (below), whose row holds
+**Upload Resume** (above), then a full-width **No Resume** button, not
 a section: pressed (the brand fill, `aria-pressed`), it is the pick and
 every radio above clears; a radio pick unpresses it. The dialog is wide
 (`sm:max-w-3xl`, not the default `sm:max-w-sm`) and scrolls inside itself
 on a short window.
-**The resume table** (`ResumeLists` in `jobs/resume-picker.tsx`, KAN-360)
-is the one picker in all four resume dialogs: this one, Tailor's Pick a
-Resume to Tailor, Auto Apply's Choose a Resume and the Experiences view's
-Choose a Resume to Show (KAN-361, which builds its rows from the bank's
-resumes, with no posting). A switcher shows
-**Generated** (base and tailored resumes) or **Uploaded**, a search filters
-by name and by the posting a resume was tailored for, and one table
-scrolls under its own sticky head. Generated's columns are Resume, Type
-(Base or Tailored), Tailored For ("This Job" for this posting) and Last
-Edited; Uploaded's are Resume and Uploaded. The default resume carries
-the Resumes page's filled star and "Primary" (`PrimaryStar`): a badge's
-tint vanished on the picked row's. Each row starts with a radio; a click
-anywhere on the row picks it, and the arrow keys move the pick (one
-radio group). It opens on the view that holds the pick and follows a
-pick made outside it (an upload picks the new file, under Uploaded); the
-view and the search only filter, so the pick survives a switch. Names
-wrap, never truncate: two resumes tailored for one company differ only
-at the end of their names. Below `sm` the Type and Tailored For columns
-hide and their words sit under the name ("Tailored · Backend Intern at
-Initech"): with Type still shown, the name kept about 60px on a phone and
-broke mid-word (KAN-361). Two lists side by side came first, and the
-user found them ugly once a student had a few tailored resumes. It lists the resumes Pick a
+**The resume list** (`ResumeLists` in `jobs/resume-picker.tsx`, KAN-360,
+KAN-406) is the one picker in all four resume dialogs: this one, Tailor's
+Pick a Resume to Tailor, Auto Apply's Choose a Resume and the Experiences
+view's Choose a Resume to Show (KAN-361, which builds its rows from the
+bank's resumes, with no posting). It is the Resumes page's grouped list
+(`components/resume-list.tsx`): one row with a search by name and by the
+posting a resume was tailored for, the **Type** filter and, in Did You
+Apply? and Tailor, **Upload Resume** (as two even halves under the search
+below a 36rem row; no Sort or Generate Resume, which a dialog does not
+need), then **Uploaded**, **Generated** and **Tailored**
+under pill headings with counts, each heading folding its group for this
+opening, in one scroll five cards high. Each card is the Resumes page's
+box with a radio: the file mark, the name, one line ("Uploaded Oct 21",
+"Last edited Oct 21 · For Backend Intern at Initech", "Made Oct 21 · For
+This Job") and the Primary star. A group lists the resume tailored to this
+posting first, then the primary, then the newest. A click anywhere on a
+card picks it, and the arrow keys move the pick across every group (one
+radio group); the search only filters, so the pick survives it. Names
+wrap, never truncate: two resumes tailored for one company differ only at
+the end of their names. A table came before it (KAN-360): a Generated or
+Uploaded switch, then Type, Tailored For and Last Edited columns. Once the
+Resumes page took the grouped list (KAN-404) the two read as different
+apps, and the columns said what a card's one line says. Two lists side by
+side came before the table, and the user found them ugly once a student
+had a few tailored resumes. Did You Apply? and Tailor each had an upload
+section under the list ("Sent a Different Resume?", "Tailor a Different
+Resume?"), a dropzone that took more room than the list, until KAN-406
+moved Upload Resume into the row as the Resumes page has it. It lists the resumes Pick a
 Resume lists plus No Resume, starting on the one picked at Apply, or No
 Resume after Apply Without a Resume. The student can change it, since they
 may have attached another file on the employer's page. Yes, I Applied keeps
@@ -518,7 +535,12 @@ beside the text they squeezed the title to two words a line. The Jobs page's own
 were tried here first and were too tall for a glance: three filled the
 screen. With an empty bank it asks for the bank. It streams in its own
 `<Suspense>` with a skeleton in the same frame, so the numbers never wait on
-scoring. It replaced New Matches, the newest postings in posting order in
+scoring, and the page starts its four reads first, before its other awaits,
+or its two scoring calls run one whole call late (KAN-368). The page awaits
+only the account: the headline numbers (the Strong Matches count is a full
+scoring pass), Top Matches and Activity each stream over a skeleton of their
+shape, and `dashboard/loading.tsx` draws the same frame (`DashboardFrame`),
+so a prefetched click shows it at once and the page replaces it in place. It replaced New Matches, the newest postings in posting order in
 the same scrolling frame, which went when Strong Matches replaced New Roles
 and came back ordered by fit at the user's ask. The notes below that name
 New Matches describe the archived three-column layout.
@@ -867,7 +889,12 @@ opened. Analytics and explanations go on the Your Application tab only.
 closed posting, has no use for Apply, Tailor, Save or Ask Scout, so the bar
 shows the tabs beside Back instead. A saved job with an open posting keeps
 the job page's actions, and its tabs sit under the header. Two tabs, each a
-URL (`?tab=job` for the second):
+URL (`?tab=job` for the second) that moves in place (KAN-368,
+`applications/[jobId]/tab-panes.tsx`): the server draws both panes once and
+the tabs change `?tab=` with `useShallowParams`, as the Dashboard range does,
+so a click no longer draws the page again with the scored tracker read and
+the job's reads. The job's buttons take their stage and applied date from the
+tracker row, and the tab title comes from the posting's own read:
 
 - **Your Application**, the default. One card tinted by its stage
   (`STAGE_COLOR[stage].panel`: violet for Applied, grey for Saved), so it
@@ -982,7 +1009,7 @@ user removed: each queued job now shows and changes its own resume.
   and the cross. No sorting, since the order is the run's.
 - **The Resume cell is a button** (a bordered pill with a pencil): it
   opens the row's resume picker (`auto-apply/resume-dialog.tsx`), the
-  Apply dialog's own resume table (`jobs/resume-picker.tsx`, Job posting
+  Apply dialog's own resume list (`jobs/resume-picker.tsx`, Job posting
   page), opened on the row's resume. It links nowhere else: Tailor for
   This Job and Build a New Resume links under it went (KAN-360), since
   the job and Manage Resumes reach both. Use This Resume calls `chooseResume`
@@ -1264,7 +1291,9 @@ resumes read.
 `(seeker)/profile-cache.tsx` keeps the page's last state (the photo URL,
 the applicant profile fields and the Application Questions' answers) in a provider
 in `(seeker)/layout.tsx`. A
-return visit renders it at once and refetches in the background. Only
+return visit renders it at once and refetches in the background, through one
+server action (`getProfilePage`), since Next runs server actions one at a time
+(KAN-368). Only
 settled state is saved: not mid-load, not while a photo upload's `blob:`
 preview is on screen (that URL is revoked once the upload ends), and not
 after a failed load. It lives in the layout, not a module variable, because
@@ -1627,34 +1656,34 @@ in Docs (suggested answers in the chat, not a banner).
 
 ### Tailor (`/jobs/[jobId]/tailor`, KAN-217)
 
+The design is `../../docs/tailor_resume.md`: one click tailors and saves,
+with no proposals to accept and no Done (2026-10-25).
+
 - **Opened from "Tailor My Resume"** on the job posting page, which reads
   "Your Tailored Resume" once the student has one for that posting.
-- **The run waits for a click.** Each run spends one of today's 2 Tailor
-  runs, so loading the page never starts one.
-- **Tailor My Resume opens Pick a Resume to Tailor** (KAN-318): the
-  posting's resumes in "Did You Apply?"'s resume table (Generated or
-  Uploaded, a search, one radio group), starting on the resume tailored to
-  this job, else the default, and an upload with the same limit, replace
-  step and duplicate rule. The three resume dialogs share
-  `jobs/resume-picker.tsx`, so a rule changed there changes all three. The dialog's Tailor My Resume
-  closes it and runs; "Tailoring…" and errors show on the card. A pick
-  other than this job's tailored resume warns that Done replaces it. An
-  upload is read into the bank and tailored as its own entries; nothing
-  new appears under Generated. A run changes only what the picked
-  resume shows: it never proposes an entry or bullet that resume hides.
-- **The keyword match** shows "12 of 18" before, and again with what the
-  student has accepted, required keywords first. The second count adds
-  each accepted change's `keywords` and each Yes in the browser, with no
-  call; Done's response is the saved resume's own match. A posting with no
-  description shows the "weak match" notice.
-- **Every change has Accept and Reject**, plus Accept All; a new wording
-  shows beside the old one. Nothing saves until Done; Leave Without Saving
-  goes back to the posting. "Reorder bullets" names the entry with its
-  organization ("Software Intern, Acme"), since two jobs can share a title.
-- **"Have you used X?"** lists missing keywords that neither the picked
-  resume's entries nor any bank skill hold. Yes adds the skill to the bank
-  (it is saved at once, being true) and shows it on the tailored resume. It
-  no longer asks where the skill was used: skill links were removed.
+- **A posting is tailored once.** When it has a tailored resume, the screen
+  shows it with Open in Editor and offers no run; the API refuses a second
+  run (409), so no tokens are spent on it.
+- **The screen picks through the shared resume list** (KAN-318, KAN-406):
+  `ResumeLists` from `jobs/resume-picker.tsx`, as every resume dialog
+  does, with its search, Type filter and Upload Resume (the same limit,
+  replace step and duplicate rule) and the Uploaded, Generated and
+  Tailored groups. It starts on the resume tailored to this job, else the
+  primary unless that is tailored to another job, else the first resume
+  not tailored to any (`tailorFirst`): tailoring another job's tailored
+  resume starts from that job's changes. Use This Resume reads the
+  resume's keyword match (`matchTailor`); "Reading…" and errors show on
+  the card. An upload is read into the bank and tailored as its own
+  entries; a run changes only what the picked resume shows.
+- **The keyword match** shows "12 of 18", the matched keywords, and the
+  missing ones as toggle chips: the student picks those they have used,
+  to add as skills. A keyword not picked is never written in. A posting
+  with no description shows the "weak match" notice.
+- **Tailor Resume runs once** and saves the posting's tailored resume,
+  then opens it in the editor (`/resumes/[id]`). The run's record of
+  changes and its dropped count go to sessionStorage (`tailorEditsKey` in
+  `lib/local-drafts.ts`, cleared by Sign Out) for the editor's review
+  (Resume editor, below).
 - An empty bank (409) shows a link to the bank page, where intake starts.
 
 ## Resumes (`/resumes`)
@@ -1690,8 +1719,8 @@ every card acts alike once Import Updated Resume left the upload's card,
 and a student looking for their latest resume looked in three places.
 Generate Resume sat in the header, on every view though only generated
 resumes come from it, and the upload dropzone sat in a track beside the
-uploads. The resume picker (Job posting page) still splits Generated
-(base and tailored) from Uploaded. They sat in one "Your Resumes" card at the foot of the bank page
+uploads. The resume picker dialogs draw this same grouped list
+(KAN-406, Job posting page). They sat in one "Your Resumes" card at the foot of the bank page
 until KAN-249; the spec's "the resumes page" now means this view. The
 editor lives under it (`/resumes/[resumeId]`), so the sidebar keeps the row
 lit there and the phone editor's back arrow lands here. The page needs
@@ -1762,9 +1791,31 @@ shows "Your Resumes Aren't Loading Right Now" and a Try Again link.
   (`src/components/resume-upload.tsx`) is a pure dropzone + file preview —
   it knows nothing about upload logic or limits.
 - **The list** (`resumes/resume-list.tsx`) is one card that scrolls
-  inside itself at one height (`max-h-scroll-box`, about five cards), as
-  Top Matches and the resume picker do, so the search and the buttons
-  stay in view however many resumes a student keeps. Two table versions
+  inside itself, five cards high under a group heading (`FIVE_ROWS`,
+  351px; the shared `max-h-scroll-box` of Top Matches and the resume
+  picker showed three and a half once the headings came), so the
+  search and the buttons stay in view however many resumes a student
+  keeps. It is grouped by
+  type, as Notion's Group by (KAN-404): **Uploaded**, **Generated**, then
+  **Tailored**, each under a heading with its name in a pill (`Badge`,
+  brand, alike for all three) and its count, which sticks to the card's
+  top while its cards scroll and folds the group away on a click
+  (`ResumeGroup`; the folded groups ride in `?collapsed=`, with the type
+  and the order). The search, Type and Sort run over every row first; the
+  order then runs inside each group, the starred resume leads its own,
+  and a group with no row left hides. The list keeps one scroll, not one
+  per group, and every resume in a group shows: a Show N More after the
+  first 5, as Notion's load limit, was tried and dropped. Uploaded stays
+  open while a file uploads, and a Generate opens Generated. Uploads are capped at 5 and
+  Generate refuses a duplicate, but a student has one tailored resume per
+  job posting with no cap, so ungrouped by Last Edited the tailored ones
+  buried the uploads, and a student needed the Type filter to find their
+  own file. A teammate asked for the three stacked cards back; groups in
+  the one list kept the one search. A first version had two groups
+  (Uploaded and Generated, then Tailored) named in grey capitals. Below a
+  42rem row the filters are two even rows, Type and Sort over Upload
+  Resume and Generate Resume, and below 24rem those say only Upload and
+  Generate. Two table versions
   came first in KAN-362: one with Type and Last Edited columns and sort
   headings, then one with each row's icons in a `⋯` menu. The columns
   said what each card's line already says, and the menu hid the actions a
@@ -1837,7 +1888,8 @@ Make Primary (while it is not), Rename, Delete and **Download**, the
 page's main action, filled. Under it the PDF, drawn page by page with the
 editor's pdf.js preview (`PdfPages`, no click targets: an upload is read
 here, its facts are edited in Experiences). The server reads the file
-(`readResumePdf`), so the browser never opens the Storage link. A DOCX
+(`readUploadedResume`, which asks for the list and the file link together,
+KAN-368), so the browser never opens the Storage link. A DOCX
 cannot be drawn, so its place holds "This File Can't Be Shown Here" and
 Download. Rename turns the heading into the cards' Rename form; Delete
 asks under the bar, as on a card, and then returns to the Resumes view.
@@ -1907,7 +1959,20 @@ student who opened a resume from Experiences landed on another view.
   everything Fit hid (the response's `undo` body). A one-page resume shows
   no count: a green "1 page" said what the page itself shows, and stood
   apart from the rest of the bar. Undo is kept in sessionStorage per resume
-  (`fit-undo.ts`), so a reload in the same tab still offers it. The bar also
+  (`fit-undo.ts`), so a reload in the same tab still offers it.
+  **After a Tailor run, Review Tailor's Changes sits under the bar**
+  (`tailor-review.tsx`, `../../docs/tailor_resume.md`): each change the run
+  saved, with Revert, and Save, which ends the review. Changed lines are
+  tinted on the page, see-through so the PDF's text shows: a new wording
+  or an added skill green (`positive`), an entry's bullets in a new order
+  amber (`warning-fill`). Revert goes through the choices PATCH (the
+  wording back to the source's, the old order, the skill hidden), and any
+  later edit of a changed item through it drops that change's mark. The
+  card says how many wordings the truth rule left out. The run's record is
+  in sessionStorage (`tailorEditsKey`, under `lib/local-drafts.ts`'s
+  prefix, so Sign Out clears it): a reload in the same tab keeps the
+  review, and a new tab or device opens with none. The phone editor shows
+  the same card above the page and the same tints. The bar also
   says "Saving…" or the last round trip ("Saved, 412 ms"), the measure for
   the Vercel preview check. **Download** (PDF or Word) and Ask Scout end
   the bar whether or not a line is selected, so Download stays in reach down
@@ -1946,6 +2011,14 @@ student who opened a resume from Experiences landed on another view.
 - A failed render shows "This Resume Isn't Loading Right Now" with the API's
   message and a Try Again link; a failed save shows the API's message above
   the page and keeps the last PDF.
+- **The editor draws before its PDF compiles** (KAN-368). The page starts the
+  LaTeX render without awaiting it; `editor.tsx` reads it with `use()` inside
+  a `<Suspense>` around the page area only, over a Letter-sized skeleton with
+  its own error state, so Back, the title and the bar do not wait on the
+  compile. Line editing, Ask Scout and the tray stay off until it lands, and
+  "Click a line" is not offered when the first render failed. pdf.js starts
+  downloading as the editor mounts. The editor and an upload's page each have
+  a `loading.tsx` in their own frame.
 - **On a phone** (`phone.tsx`, the KAN-201 prototype's variant A), below
   40rem of window width, the editor's same state and saves take a different
   layout; `editor.tsx` only hands them over, so the two layouts never save
@@ -2158,7 +2231,12 @@ and closing goes back to that page. **A hard load or a reload of a
 Settings address opens it over the Dashboard** (`(seeker)/settings/layout.tsx`
 draws the Dashboard page under it), and closing goes to the Dashboard. A
 full Settings page came first; the user asked for the modal on every way
-in. Escape, the close button and a click outside all close.
+in. Escape, the close button and a click outside all close. **The modal opens
+before its sections have read** (KAN-368): Personal Details and Job
+Preferences stream in their own `<Suspense>` over section-shaped skeletons,
+so it no longer waits for the slowest of the profile, photo, preferences and
+role option reads. There is no `loading.tsx` for the modal: one drew a second
+modal and backdrop over the first.
 
 **Every section is drawn when the modal opens and stays mounted**
 (`settings/sections.tsx`), hidden when not shown, so switching is instant

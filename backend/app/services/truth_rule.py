@@ -6,12 +6,14 @@ student gave. One pure function, tested directly (tests/test_truth_rule.py):
 
 A bullet variant passes when the list is empty. It fails when it holds a
 **number** or a **tool** that is in neither its original bullet nor the
-experience bank's skills.
+`skills` the caller passes (Tailor: the skills the resume shows; the editor
+assistant and essay answers: the bank's).
 
 - **A number** is a run of digits ("40" in "40%", "1,200" read as "1200").
 - **A tool** is a word shaped like a product name: one with a capital after
   its first letter (TypeScript, AWS, iOS), a `+` or `#` (C++, C#), or a
   capital that does not start the sentence (Python, Docker in mid-bullet).
+  The pronoun "I" is never one: an essay answer is in the first person.
   The first word is skipped by shape, since a rewording may open with a new
   verb; `tools` (the posting's keywords) names words that count wherever
   they stand, so "Kubernetes clusters..." is still caught.
@@ -41,6 +43,8 @@ def _present(word: str, text: str) -> bool:
 
 
 def _shaped_like_a_tool(word: str, leads: bool) -> bool:
+    if word == "I":  # the pronoun, mid-sentence in a first-person essay answer
+        return False
     if "+" in word or "#" in word:
         return True
     if any(c.isupper() for c in word[1:]):

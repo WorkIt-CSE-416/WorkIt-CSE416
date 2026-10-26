@@ -51,7 +51,7 @@ async def ask(
     assert_applicant_owns(account, applicant_id)
     try:
         await built_resumes.get_resume(session, applicant_id, resume_id)
-        bank = await load_bank(session, applicant_id)
+        bank = await load_bank(session, applicant_id, local_to=[resume_id])
         choices = await built_resumes.load_choices(session, resume_id)
         line = assistant.selected_line(bank, choices, body)
     except NotFound:

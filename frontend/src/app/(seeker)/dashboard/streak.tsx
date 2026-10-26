@@ -2,6 +2,7 @@
 
 import { useEffect, useLayoutEffect, useMemo, useRef, useState, useSyncExternalStore } from "react";
 
+import { Skeleton } from "@/components/shadcn/skeleton";
 import { Badge } from "@/components/ui/badge";
 import { SegmentedToggle } from "@/components/ui/segmented-control";
 import { cn } from "@/lib/cn";
@@ -336,5 +337,46 @@ function Stat({ label, value, unit, sub }: StatBlock) {
         {sub}
       </Badge>
     </div>
+  );
+}
+
+/**
+ * Activity while the tracker loads (the Dashboard streams it in its own
+ * <Suspense>, and its loading.tsx draws it too): the heading, the view
+ * switch's pill, the heat map's room at its default 150px (--streak-h2's
+ * fallback, which the canvas resets to the map's own height on mount) and
+ * the four wells, each with its label, figure and dates pill as bars of
+ * those lines' heights. The section is the page's last, so a map a few
+ * pixels taller than 150 moves nothing under it.
+ */
+export function StreakSkeleton({ className }: { className?: string }) {
+  return (
+    <SectionCard
+      aria-labelledby="streak"
+      aria-busy="true"
+      className={cn("@container/streak", className)}
+    >
+      <div className="flex flex-wrap items-center justify-between gap-3">
+        <h2 id="streak" className="text-subtitle text-ink font-medium">
+          Activity
+        </h2>
+        <Skeleton className="h-9 w-20 rounded-full" />
+      </div>
+      <div aria-hidden="true" className="mt-3">
+        <Skeleton className="h-[150px] w-full" />
+        <div className="grid grid-cols-2 gap-3 pt-3 @2xl/streak:grid-cols-4">
+          {Array.from({ length: 4 }, (_, i) => (
+            <div
+              key={i}
+              className="bg-well rounded-card flex flex-col items-start gap-1.5 px-4 py-3"
+            >
+              <Skeleton className="bg-panel h-4 w-20" />
+              <Skeleton className="bg-panel h-8 w-14" />
+              <Skeleton className="bg-panel h-5 w-24 rounded-full" />
+            </div>
+          ))}
+        </div>
+      </div>
+    </SectionCard>
   );
 }

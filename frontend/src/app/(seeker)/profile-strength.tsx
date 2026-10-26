@@ -27,10 +27,15 @@ import { getCurrentAccount } from "@/lib/session";
  * resume. Hidden on the collapsed rail, which has no room for it.
  */
 export async function ProfileStrength() {
-  const account = await getCurrentAccount();
+  // All three at once: neither read waits on /auth/me's answer, and the card
+  // used to wait on it before asking for the other two. With no account the
+  // other answers are not used (both report their own errors, never throw).
+  const [account, resumes, avatar] = await Promise.all([
+    getCurrentAccount(),
+    listResumes(),
+    getAvatar(),
+  ]);
   if (!account) return null;
-
-  const [resumes, avatar] = await Promise.all([listResumes(), getAvatar()]);
   if (resumes.error != null || avatar.error != null) return null;
 
   const steps = [
