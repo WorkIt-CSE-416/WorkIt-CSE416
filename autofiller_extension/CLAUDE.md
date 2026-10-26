@@ -212,6 +212,16 @@ Submit button themselves, on the ATS's own page, after reviewing what got
 filled. `activeTab` also means no broad host-permission prompt for
 arbitrary websites at install time.
 
+**On a page WorkIt already filled, the popup offers Show WorkIt Panel
+first** (KAN-369, `popup.js`'s `panelOn`): it asks every frame of the tab
+for the panel's state (`overlay.state`: shown or closed, batch tab or not,
+the fill's phase), and where one answers, Show WorkIt Panel brings that
+frame's panel back as it was (`overlay.open`, no fill, no Plan), and
+Autofill This Page becomes the secondary **Fill Again**, which fills the
+same frame the same way (a batch tab stays a batch tab). While the fill
+still runs, only Show WorkIt Panel shows. The state lives in the page, so
+a reload or a new page is a fresh start: Autofill This Page again.
+
 **The one other trigger is the student's own Auto Apply click** (KAN-305,
 KAN-370): batch apply fills the tabs it opened for that click (below). It
 is still a click, never a page load, and it still never submits. It is why
@@ -648,6 +658,28 @@ waits for an opened tab's page and form (`waitForLoad`, `formShows`).
   student (failed, waiting, flagged), gone once resolved. Both sit in their
   own shadow host (`#workit-marks-host`), follow the field each frame while
   shown, and never take a click. A guess, shown once, gets the ring only.
+- **A panel row takes the student to its field** (KAN-369, `overlay.js`'s
+  `jump`): pressing a field's row (any row but a note; Enter on its label
+  too) runs the walk's own `show(key)` (`batch-tab.js`, as
+  `window.WIA.showField`, made for every fill, batch or popup): the field
+  scrolls to the middle, takes focus and gets the ring (and the dot while
+  it needs the student), and the row is marked current. A press on a
+  button, link or box inside the row, or anywhere in its row card, keeps
+  its own behaviour. A field the page doesn't show gets "WorkIt can't find
+  this field on the page." under its row for a few seconds; on Workday one
+  keyed to another step (keys start with the step) says "This is on
+  Workday's <step> step." (each step's fill starts the panel's rows again,
+  so this is rare). Workday's fields have no id `fieldOf` knows, so there
+  the row, like Next Thing, finds no field. Test:
+  `test/panel-reopen.extension.spec.ts`.
+- **The panel's ✕ hides it; it never goes** (KAN-369, `overlay.js`): its
+  rows, cards, answers, the Next Thing bar and any moment card stay as they
+  were in the page, and a small **WorkIt** tab (bottom right, the brand
+  pill, "Show WorkIt panel") brings the panel back at once, nothing filled
+  again. The toolbar popup does too (`overlay.open`, below). Only a new
+  fill on the page (Fill Again, the fill after a human check) removes the
+  last fill's panel: `overlay.js`, injected again, unmounts the one before
+  it first.
 - **A failed field gets a card** (KAN-369, `card-failed.js`, in the shared
   row card `row-card.js`): "We put X; the page shows Y.", why in plain words
   ("This field ended up empty on the page.", "This dropdown never committed

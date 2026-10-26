@@ -7,6 +7,9 @@ window.WIA = window.WIA || {};
 (function () {
   "use strict";
 
+  // Injected again (Fill Again, the fill after a human check): the last fill's panel, shown or closed, goes.
+  window.WIA.overlay?.unmount?.();
+
   // Each status's dot, in WorkIt's status colours (the tokens below): positive green
   // filled, danger red failed, advanced blue waiting to be written, grey otherwise.
   const STATUS_COLOR = {
@@ -61,6 +64,17 @@ window.WIA = window.WIA || {};
         background: var(--color-panel); color: var(--color-ink); border-radius: var(--radius-card);
         border: 1px solid var(--color-border); box-shadow: var(--shadow-lift); overflow: hidden;
       }
+      .panel[hidden] { display: none; }
+      /* What the panel's ✕ leaves on the page: the panel again, as it was, on a press. */
+      .reopen {
+        all: unset; position: fixed; bottom: 16px; right: 16px; z-index: 2147483647; cursor: pointer;
+        font: 600 var(--text-note) / var(--text-note--line-height) var(--font-sans);
+        padding: 6px 12px; border-radius: 9999px; box-shadow: var(--shadow-lift);
+        background: var(--color-brand); color: var(--color-on-brand);
+      }
+      .reopen[hidden] { display: none; }
+      .reopen:hover { background: var(--color-brand-hover); }
+      .reopen:focus-visible { outline: 2px solid var(--color-brand); outline-offset: 2px; }
       .header {
         display: flex; align-items: center; justify-content: space-between;
         padding: 10px 12px; background: var(--color-brand); color: var(--color-on-brand); font-weight: 600;
@@ -127,6 +141,10 @@ window.WIA = window.WIA || {};
       /* A guess (lib-status.js's source "guessed"): the student checks it before they submit. */
       .row[data-guessed] { background: var(--color-warning-tint); }
       .row[data-current] { box-shadow: inset 3px 0 0 var(--color-brand); background: var(--color-brand-tint); }
+      /* A row with a field: pressing it goes to the field (window.WIA.showField). */
+      .row[data-jump] { cursor: pointer; }
+      .row[data-jump]:hover .label { text-decoration: underline; }
+      .label:focus-visible { outline: 2px solid var(--color-brand); outline-offset: 2px; border-radius: var(--radius-control); }
       .dot { width: 8px; height: 8px; border-radius: 50%; margin-top: 4px; flex: none; }
       .text { flex: 1; min-width: 0; }
       .label { font-weight: 500; }
@@ -178,6 +196,12 @@ window.WIA = window.WIA || {};
     // A note row is the overlay's own message (content-script.js's note), not a field.
     label.textContent = field.label + (field.required || field.note ? "" : " (optional)");
     text.appendChild(label);
+    // A field's row (a note is not one) takes the student to the field: by mouse, or Enter on its label.
+    if (!field.note) {
+      el.dataset.jump = "";
+      label.tabIndex = 0;
+      label.title = "Go to this field";
+    }
     // Where a filled value came from; a guess is highlighted for the student to check.
     if (field.status === "filled" && SOURCE_LABEL[field.source]) {
       const source = document.createElement("span");
@@ -249,6 +273,29 @@ window.WIA = window.WIA || {};
       document.execCommand("copy");
       box.remove();
     });
+  }
+
+  /**
+   * A press on a row (not on a button, link or box in its card) goes to its
+   * field: scrolled to, focused and ringed (batch-tab.js's show, the same
+   * as Next Thing That Needs You's). A field the page doesn't show gets a
+   * line saying so; on Workday, one from another step names the step.
+   */
+  function jump(event) {
+    if (event.type === "keydown" && (event.key !== "Enter" || !event.target.matches(".label"))) return;
+    if (event.target.closest("button, a, input, textarea, select, label, [contenteditable], .row-card")) return;
+    const el = event.target.closest(".row[data-jump]");
+    if (!el || !window.WIA.showField) return;
+    const key = el.dataset.key;
+    if (window.WIA.showField(key)) return;
+    const step = key.split(" / ")[0];
+    const elsewhere = window.WIA.workday?.isWorkday && key.includes(" / ") && step !== window.WIA.workday.step?.();
+    const said = Object.assign(document.createElement("div"), {
+      className: "reason note",
+      textContent: elsewhere ? `This is on Workday's ${step} step.` : "WorkIt can't find this field on the page.",
+    });
+    root.querySelector(`.row[data-key="${CSS.escape(key)}"] .text`)?.appendChild(said);
+    setTimeout(() => said.remove(), 4000);
   }
 
   function render(summary) {
@@ -508,9 +555,18 @@ window.WIA = window.WIA || {};
       <div class="parts"></div>
       <div class="list"></div>
     `;
-    panel.querySelector("[data-close]").addEventListener("click", unmount);
+    // ✕ only hides the panel: its rows, cards and answers stay, for the WorkIt tab or the popup to bring back.
+    const reopen = Object.assign(document.createElement("button"), { type: "button", className: "reopen", hidden: true, textContent: "WorkIt" });
+    reopen.setAttribute("aria-label", "Show WorkIt panel");
+    reopen.addEventListener("click", open);
+    panel.querySelector("[data-close]").addEventListener("click", () => {
+      panel.hidden = true;
+      reopen.hidden = false;
+    });
+    panel.querySelector(".list").addEventListener("click", jump);
+    panel.querySelector(".list").addEventListener("keydown", jump);
     panel.querySelector("[data-skip]")?.addEventListener("click", onSkip);
-    shadow.appendChild(panel);
+    shadow.append(panel, reopen);
     root = shadow;
 
     document.documentElement.appendChild(host);
@@ -546,6 +602,24 @@ window.WIA = window.WIA || {};
     root = null;
   }
 
+  /** Shows the panel again after its ✕, as it was (no fill); false when this page has none. */
+  function open() {
+    if (!root) return false;
+    root.querySelector(".panel").hidden = false;
+    root.querySelector(".reopen").hidden = true;
+    return true;
+  }
+
+  /**
+   * What the popup asks a page (popup.js): null when WorkIt has no panel
+   * here, else whether it shows, whether the page is a batch tab, and the
+   * fill's phase ("filling" while it runs).
+   */
+  function state() {
+    if (!root) return null;
+    return { shown: !root.querySelector(".panel").hidden, batch: Boolean(window.WIA.batch), phase: window.WIA.phase ?? null };
+  }
+
   /**
    * Adds a part above the panel's list, from its own file (card-guess.js):
    * `css` for the panel's styles (tokens only), `panel(summary)` its node or
@@ -560,5 +634,5 @@ window.WIA = window.WIA || {};
   /** Draws the rows again, for a row card whose own state changed (row-card.js). */
   const refresh = () => render(window.WIA.status.summary());
 
-  window.WIA.overlay = { mount, unmount, promptForEssays, offerNext, setCurrent, refresh, addPart, askSelfId, offerClaude, askSamples, askWorkdayAccounts, momentCard, CLAUDE_TRIGGER };
+  window.WIA.overlay = { mount, unmount, open, state, promptForEssays, offerNext, setCurrent, refresh, addPart, askSelfId, offerClaude, askSamples, askWorkdayAccounts, momentCard, CLAUDE_TRIGGER };
 })();
