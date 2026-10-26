@@ -3,7 +3,14 @@
 import { useRouter } from "next/navigation";
 import { useCallback, useEffect, useState } from "react";
 
-import { ArrowLeftIcon, ArrowRightIcon, CheckIcon, SparkleIcon } from "@/components/icons";
+import {
+  ArrowLeftIcon,
+  ArrowRightIcon,
+  CheckIcon,
+  PlusIcon,
+  SparkleIcon,
+} from "@/components/icons";
+import { Dialog, DialogContent, DialogDescription, DialogTitle } from "@/components/shadcn/dialog";
 import { Skeleton } from "@/components/shadcn/skeleton";
 import { readEvents } from "@/components/scout/stream";
 import { Badge } from "@/components/ui/badge";
@@ -27,7 +34,7 @@ import { loadChoices, ResumeLists, type Choice } from "../../resume-picker";
 import { ResumePreviewDialog } from "./resume-preview";
 import { TailorSteps, type TailorStep } from "./tailor-steps";
 
-/** The run's phases, in order, as the Tailor step lists them, by the
+/** The run's phases, in order, as its loader lists them, by the
  *  streamed run's lines (`TailorStreamEvent`): Retrieving Info until the API
  *  sends `asking`, and Compiling Resume once `done` has come and the editor
  *  loads. */
@@ -56,8 +63,8 @@ function tailorFirst(choices: Choice[]): Choice | undefined {
 
 /**
  * The Tailor screen (KAN-217, docs/tailor_resume.md), one step at a time
- * under the step timeline (`TailorSteps`): Pick a Resume, Choose Keywords,
- * then Tailor, each its own view. The keyword match sat under the picker on
+ * under the step timeline (`TailorSteps`): Pick a Resume, then Choose
+ * Keywords, each its own view. The keyword match sat under the picker on
  * one page until 2026-10-26, so the student scrolled past the list to read
  * it. The step lives in this component, not the URL: a reload starts again
  * at the pick, which reads nothing the student would lose.
@@ -65,14 +72,16 @@ function tailorFirst(choices: Choice[]): Choice | undefined {
  * Pick a Resume: the student picks a generated or uploaded resume, or
  * uploads one with the Resumes page's rules (../../resume-picker, KAN-318);
  * a card's Preview opens it in a dialog (./resume-preview.tsx) without
- * picking it. Use This Resume reads its keyword match and moves on.
- * Choose Keywords: the match, and the missing keywords to add as skills.
+ * picking it. Use This Resume reads its keyword match and moves on. Choose
+ * Keywords: the match, and the missing keywords to add as skills
+ * (`KeywordCard`).
  * Back keeps the picks: the same resume picked again keeps its match and
  * its keywords, read once. Tailor Resume runs once and saves the posting's
- * one tailored resume with no confirmation; the Tailor step shows the run's
- * phases, then the tailored resume's editor opens on this route (Review
- * Changes, ./page.tsx). The run's record of changes goes to sessionStorage
- * (`tailorEditsKey`) for the editor; nothing else keeps it.
+ * one tailored resume with no confirmation, under a loader in the middle
+ * of the window (`TailorRunning`); then the tailored resume's editor opens
+ * on this route (Review Changes, ./page.tsx). The run's record of changes
+ * goes to sessionStorage (`tailorEditsKey`) for the editor; nothing else
+ * keeps it.
  */
 export function TailorScreen({ jobId }: { jobId: string }) {
   const router = useRouter();
@@ -163,10 +172,8 @@ export function TailorScreen({ jobId }: { jobId: string }) {
     setRunning(true);
     setError(null);
     setPhase("retrieving");
-    setStep("tailor");
     const failed = (message: string, status: number | null) => {
       setRunning(false);
-      setStep("keywords");
       setError({ message, status });
     };
     let result: TailorRunResult | null = null;
@@ -279,123 +286,218 @@ export function TailorScreen({ jobId }: { jobId: string }) {
         {step === "keywords" && (reading || !match) && <MatchWaiting />}
 
         {step === "keywords" && !reading && match && (
-          <Card as="section" aria-labelledby="tailor-match">
-            <h2 id="tailor-match" className="text-subtitle text-ink">
-              Keyword Match
-            </h2>
-            {matchedChoice && (
-              <p className="text-note text-ink-meta mt-1">For {matchedChoice.label}</p>
-            )}
-            {match.weak_match && (
-              <p role="note" className="text-note text-ink-muted mt-1">
-                Weak match: this posting has no description, so WorkIt read only its title.
-              </p>
-            )}
-            <div className="mt-2">
-              <MatchCount matched={match.matched} missing={match.missing} />
-            </div>
-            <KeywordList label="Matched" keywords={match.matched} />
-            {match.missing.length > 0 && (
-              <MissingKeywords
-                missing={match.missing}
-                picked={picked}
-                onToggle={toggle}
-                onSet={setPicked}
-              />
-            )}
-            <div className="mt-4 flex flex-wrap gap-2">
-              <Button
-                variant="secondary"
-                onClick={() => {
-                  setError(null);
-                  setStep("pick");
-                }}
-              >
-                <ArrowLeftIcon /> Back
-              </Button>
-              <Button onClick={run} disabled={running}>
-                <SparkleIcon /> Tailor Resume
-              </Button>
-            </div>
-            <TailorError error={error} />
-          </Card>
-        )}
-
-        {step === "tailor" && (
-          <TailorProgress phase={phase} resume={matchedChoice?.label} keywords={picked.size} />
+          <KeywordCard
+            match={match}
+            resume={matchedChoice?.label}
+            picked={picked}
+            onToggle={toggle}
+            onSet={setPicked}
+            onBack={() => {
+              setError(null);
+              setStep("pick");
+            }}
+            onRun={run}
+            running={running}
+            error={error}
+          />
         )}
       </div>
+      <TailorRunning
+        open={running}
+        phase={phase}
+        resume={matchedChoice?.label}
+        keywords={picked.size}
+      />
     </>
   );
 }
 
 /**
- * The Tailor step: the run's phases as the stream reports them, the done
- * ones checked and the current one live (`aria-live`). Each was the label
- * of the Tailor Resume button alone until the step views (2026-10-26). The
- * run cannot be stopped, so the step has no Back; a failed run goes back
- * to Choose Keywords with its error.
+ * Choose Keywords: one card, read top to bottom. The match as one line and
+ * a bar ("3 of 14 keywords matched"), the matched keywords as quiet tags,
+ * then the missing ones to add (`MissingKeywords`), and Back and Tailor
+ * Resume at its foot. It was a big "3 of 14", the matched tags in brand
+ * for the required ones, a checkbox drawn in every missing chip and Add
+ * All as a text link, which the user found overloaded (2026-10-26).
  */
-function TailorProgress({
+function KeywordCard({
+  match,
+  resume,
+  picked,
+  onToggle,
+  onSet,
+  onBack,
+  onRun,
+  running,
+  error,
+}: {
+  match: TailorMatch;
+  resume: string | undefined;
+  picked: Set<string>;
+  onToggle: (keyword: string) => void;
+  onSet: (next: Set<string>) => void;
+  onBack: () => void;
+  onRun: () => void;
+  running: boolean;
+  error: { message: string; status: number | null } | null;
+}) {
+  const total = match.matched.length + match.missing.length;
+  return (
+    <Card as="section" aria-labelledby="tailor-match" className="flex flex-col gap-5">
+      <div>
+        <div className="flex flex-wrap items-baseline justify-between gap-x-3 gap-y-1">
+          <h2 id="tailor-match" className="text-subtitle text-ink">
+            Keyword Match
+          </h2>
+          {resume && <p className="text-note text-ink-meta">{resume}</p>}
+        </div>
+        <MatchSummary matched={match.matched.length} total={total} />
+        {match.weak_match && (
+          <p role="note" className="text-note text-ink-muted mt-2">
+            Weak match: this posting has no description, so WorkIt read only its title.
+          </p>
+        )}
+        {match.matched.length > 0 && (
+          <ul role="list" aria-label="Matched" className="mt-3 flex flex-wrap gap-1.5">
+            {match.matched.map((k) => (
+              <li key={k.keyword}>
+                <Badge variant="tag" tone="neutral">
+                  {k.keyword}
+                  {k.kind === "required" && <span className="sr-only"> (required)</span>}
+                </Badge>
+              </li>
+            ))}
+          </ul>
+        )}
+      </div>
+
+      {match.missing.length > 0 && (
+        <MissingKeywords
+          missing={match.missing}
+          picked={picked}
+          onToggle={onToggle}
+          onSet={onSet}
+        />
+      )}
+
+      <div className="border-border-subtle flex flex-col gap-2 border-t pt-4">
+        <div className="flex flex-wrap justify-between gap-2">
+          <Button variant="secondary" onClick={onBack} disabled={running}>
+            <ArrowLeftIcon /> Back
+          </Button>
+          <Button onClick={onRun} disabled={running}>
+            <SparkleIcon /> Tailor Resume
+          </Button>
+        </div>
+        <TailorError error={error} />
+      </div>
+    </Card>
+  );
+}
+
+/** "3 of 14 keywords matched" over a bar of the same share. */
+function MatchSummary({ matched, total }: { matched: number; total: number }) {
+  if (total === 0) {
+    return <p className="text-body text-ink-muted mt-1">This posting names no keywords.</p>;
+  }
+  return (
+    <div className="mt-2">
+      <p className="text-body text-ink">
+        <span className="font-semibold">
+          {matched} of {total}
+        </span>{" "}
+        keywords matched
+      </p>
+      <div
+        role="meter"
+        aria-label="Keywords matched"
+        aria-valuemin={0}
+        aria-valuemax={total}
+        aria-valuenow={matched}
+        className="bg-brand-tint mt-2 h-2 overflow-hidden rounded-full"
+      >
+        {/* Drawn at full length and scaled from its left end
+            (docs/motion.md: transforms, never a width). */}
+        <div
+          className="bg-brand h-full origin-left rounded-full"
+          style={{ transform: `scaleX(${matched / total})` }}
+        />
+      </div>
+    </div>
+  );
+}
+
+/**
+ * The run, over Choose Keywords: a modal card in the middle of the window
+ * with a spinner and the run's phases as the stream reports them, the done
+ * ones checked. Tailor was a step of its own until 2026-10-26, a view that
+ * only waited, so the user had it folded into a loader. It cannot be
+ * closed (Esc and a click outside do nothing: a run cannot be stopped); a
+ * failed run closes it and shows its error on the card under it, and a
+ * finished one opens the tailored resume (Review Changes).
+ */
+function TailorRunning({
+  open,
   phase,
   resume,
   keywords,
 }: {
+  open: boolean;
   phase: Phase;
   resume: string | undefined;
   keywords: number;
 }) {
   const at = PHASES.indexOf(phase);
   return (
-    <Card as="section" aria-busy="true" aria-labelledby="tailor-progress">
-      <h2 id="tailor-progress" className="text-subtitle text-ink">
-        Tailoring Your Resume
-      </h2>
-      <p className="text-note text-ink-muted mt-1">
-        {resume
-          ? `WorkIt is rewriting ${resume} for this posting`
-          : "WorkIt is rewriting your resume for this posting"}
-        {keywords > 0 &&
-          `, adding the ${keywords === 1 ? "keyword" : `${keywords} keywords`} you picked`}
-        . Your tailored resume opens when it is done.
-      </p>
-      <ol role="list" className="mt-4 flex flex-col gap-3">
-        {PHASES.map((key, i) => {
-          const done = i < at;
-          const now = i === at;
-          return (
-            <li
-              key={key}
-              aria-current={now ? "step" : undefined}
-              className="flex items-center gap-3"
-            >
-              <span
-                aria-hidden="true"
-                className={cn(
-                  "flex size-6 shrink-0 items-center justify-center rounded-full border",
-                  done && "border-brand bg-brand text-on-brand",
-                  now && "border-brand bg-brand-tint",
-                  !done && !now && "border-border-subtle",
-                )}
+    <Dialog open={open}>
+      <DialogContent showCloseButton={false} className="gap-0 p-6 sm:max-w-sm">
+        <span
+          aria-hidden="true"
+          className="border-brand-tint border-t-brand mx-auto size-10 animate-spin rounded-full border-[3px] motion-reduce:animate-none"
+        />
+        <DialogTitle className="text-subtitle text-ink mt-4 text-center font-semibold">
+          Tailoring Your Resume
+        </DialogTitle>
+        <DialogDescription className="text-note text-ink-muted mt-1 text-center text-balance">
+          {resume ? `Rewriting ${resume}` : "Rewriting your resume"}
+          {keywords > 0 && ` with ${keywords === 1 ? "1 keyword" : `${keywords} keywords`}`}. It
+          opens when it is done.
+        </DialogDescription>
+        <ol role="list" className="mt-5 flex flex-col gap-2.5 self-center">
+          {PHASES.map((key, i) => {
+            const done = i < at;
+            const now = i === at;
+            return (
+              <li
+                key={key}
+                aria-current={now ? "step" : undefined}
+                className="flex items-center gap-2.5"
               >
-                {done ? (
-                  <CheckIcon className="size-3.5" />
-                ) : now ? (
-                  <span className="bg-brand size-2 animate-pulse rounded-full motion-reduce:animate-none" />
-                ) : null}
-              </span>
-              <span
-                className={cn("text-label", now ? "text-ink" : "text-ink-meta")}
-                aria-live={now ? "polite" : undefined}
-              >
-                {PHASE[key]}
-                {now && "…"}
-              </span>
-            </li>
-          );
-        })}
-      </ol>
-    </Card>
+                <span
+                  aria-hidden="true"
+                  className={cn(
+                    "flex size-5 shrink-0 items-center justify-center rounded-full border",
+                    done && "border-brand bg-brand text-on-brand",
+                    now && "border-brand bg-brand-tint",
+                    !done && !now && "border-border-subtle",
+                  )}
+                >
+                  {done && <CheckIcon className="size-3" />}
+                  {now && <span className="bg-brand size-1.5 rounded-full" />}
+                </span>
+                <span
+                  className={cn("text-label", done || now ? "text-ink" : "text-ink-meta")}
+                  aria-live={now ? "polite" : undefined}
+                >
+                  {PHASE[key]}
+                  {now && "…"}
+                </span>
+              </li>
+            );
+          })}
+        </ol>
+      </DialogContent>
+    </Dialog>
   );
 }
 
@@ -433,15 +535,15 @@ function MatchWaiting() {
 }
 
 /**
- * The missing keywords the student picks to add (KAN-408): required ones
- * first, under their own label, then the preferred. Picking one says the
- * student has it: the run adds it to this resume's skills, and the truth
- * rule then lets a rewording name it (`tailor.known`), so the note says so
- * and Add All asks first, on its own line, as Delete does on Resumes
- * (`DeleteConfirm`). Its label follows the picks: Clear All once every
- * keyword is picked. "(required)" was for screen readers only, and Add All
- * ticked every keyword at once, then read "Added All" even after one was
- * unticked.
+ * The missing keywords the student picks to add (KAN-408): toggle chips,
+ * required ones first under their own label, then the preferred, with a
+ * running count. Picking one says the student has it: the run adds it to
+ * this resume's skills, and the truth rule then lets a rewording name it
+ * (`tailor.known`), so the note says so and Select All asks first, on its
+ * own line, as Delete does on Resumes (`DeleteConfirm`). Select All and
+ * Clear are small buttons: as a text link Add All read as an afterthought
+ * (2026-10-26), and as one link that flipped to Clear All it changed under
+ * the pointer.
  */
 function MissingKeywords({
   missing,
@@ -455,35 +557,54 @@ function MissingKeywords({
   onSet: (next: Set<string>) => void;
 }) {
   const [confirming, setConfirming] = useState(false);
-  const all = missing.every((k) => picked.has(k.keyword));
+  const count = missing.filter((k) => picked.has(k.keyword)).length;
   const groups = [
     { label: "Required", keywords: missing.filter((k) => k.kind === "required") },
     { label: "Preferred", keywords: missing.filter((k) => k.kind !== "required") },
   ].filter((group) => group.keywords.length > 0);
 
   return (
-    <div className="mt-3">
-      <div className="flex flex-wrap items-baseline gap-x-3 gap-y-1">
-        <p className="text-label text-ink">Missing: Choose Which Skills to Add</p>
-        <Button
-          variant="link"
-          size="inline"
-          disabled={confirming}
-          onClick={() => (all ? onSet(new Set()) : setConfirming(true))}
-        >
-          {all ? "Clear All" : "Add All"}
-        </Button>
+    <div className="border-border-subtle border-t pt-4">
+      <div className="flex flex-wrap items-center justify-between gap-x-3 gap-y-2">
+        <div>
+          <h3 className="text-label text-ink">Add Missing Keywords</h3>
+          <p className="text-note text-ink-meta" aria-live="polite">
+            {count} of {missing.length} selected
+          </p>
+        </div>
+        <div className="flex gap-2">
+          {count > 0 && (
+            <Button size="sm" variant="ghost" onClick={() => onSet(new Set())}>
+              Clear
+            </Button>
+          )}
+          <Button
+            size="sm"
+            variant="secondary"
+            disabled={confirming || count === missing.length}
+            onClick={() => setConfirming(true)}
+          >
+            Select All
+          </Button>
+        </div>
       </div>
-      <p className="text-note text-ink-muted mt-1">
-        Pick only skills you have used. WorkIt adds each one to this resume&apos;s skills, and its
-        rewrites may name it in your bullets.
+      <p className="text-note text-ink-muted mt-2">
+        Pick only skills you have used. Each one joins this resume&apos;s skills, and WorkIt may
+        name it in your bullets.
       </p>
       {confirming && (
-        <div className="mt-2 flex flex-wrap items-center gap-x-3 gap-y-2">
-          <span className="text-note text-ink-muted">
-            Add all {missing.length}? Do this only if you have used every one.
+        <div
+          role="group"
+          aria-label="Select all keywords"
+          className="bg-brand-tint rounded-control mt-3 flex flex-wrap items-center justify-between gap-x-3 gap-y-2 px-3 py-2"
+        >
+          <span className="text-note text-ink">
+            Select all {missing.length}? Only if you have used every one.
           </span>
           <div className="flex gap-2">
+            <Button size="sm" variant="ghost" onClick={() => setConfirming(false)}>
+              Cancel
+            </Button>
             <Button
               size="sm"
               onClick={() => {
@@ -491,71 +612,29 @@ function MissingKeywords({
                 setConfirming(false);
               }}
             >
-              Add All {missing.length}
-            </Button>
-            <Button size="sm" variant="secondary" onClick={() => setConfirming(false)}>
-              Cancel
+              Select All {missing.length}
             </Button>
           </div>
         </div>
       )}
       {groups.map((group) => (
-        <div key={group.label} className="mt-3">
+        <div key={group.label} className="mt-4">
           <p className="text-note text-ink-meta">{group.label}</p>
-          <ul role="list" aria-label={group.label} className="mt-1 flex flex-wrap gap-2">
-            {group.keywords.map((k) => (
-              <li key={k.keyword}>
-                <Chip
-                  pressed={picked.has(k.keyword)}
-                  onClick={() => onToggle(k.keyword)}
-                  className="gap-2"
-                >
-                  <span
-                    aria-hidden="true"
-                    className={`flex size-4 shrink-0 items-center justify-center rounded-[4px] border ${
-                      picked.has(k.keyword)
-                        ? "border-brand bg-brand text-on-brand"
-                        : "border-ink-meta bg-panel text-transparent"
-                    }`}
-                  >
-                    <CheckIcon className="size-3" />
-                  </span>
-                  {k.keyword}
-                </Chip>
-              </li>
-            ))}
+          <ul role="list" aria-label={group.label} className="mt-2 flex flex-wrap gap-2">
+            {group.keywords.map((k) => {
+              const on = picked.has(k.keyword);
+              return (
+                <li key={k.keyword}>
+                  <Chip pressed={on} onClick={() => onToggle(k.keyword)}>
+                    {on ? <CheckIcon /> : <PlusIcon />}
+                    {k.keyword}
+                  </Chip>
+                </li>
+              );
+            })}
           </ul>
         </div>
       ))}
-    </div>
-  );
-}
-
-function MatchCount({ matched, missing }: { matched: Keyword[]; missing: Keyword[] }) {
-  const total = matched.length + missing.length;
-  return (
-    <p className="text-title text-ink font-medium">
-      {total === 0 ? "No keywords" : `${matched.length} of ${total}`}
-    </p>
-  );
-}
-
-function KeywordList({ label, keywords }: { label: string; keywords: Keyword[] }) {
-  if (keywords.length === 0) return null;
-  // Required keywords come first (the API sorts them so).
-  return (
-    <div className="mt-2">
-      <p className="text-note text-ink-meta">{label}</p>
-      <ul role="list" className="mt-1 flex flex-wrap gap-1.5">
-        {keywords.map((k) => (
-          <li key={k.keyword}>
-            <Badge variant="tag" tone={k.kind === "required" ? "brand" : "neutral"}>
-              {k.keyword}
-              {k.kind === "required" && <span className="sr-only"> (required)</span>}
-            </Badge>
-          </li>
-        ))}
-      </ul>
     </div>
   );
 }

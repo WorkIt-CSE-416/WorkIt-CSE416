@@ -1262,7 +1262,9 @@ the KAN-296 cutover.
   every view, the pick steps' and the tailored resume's page alike, and
   `TailorScreen` holds the step in state, so Back keeps the pick, the
   match and the picked keywords. A new step joins `TAILOR_STEPS` in
-  `tailor-steps.tsx` (`docs/screens.md`, Tailor).
+  `tailor-steps.tsx` (`docs/screens.md`, Tailor). A wait is never a step:
+  the run is a loader over Choose Keywords (`TailorRunning`), since a
+  Tailor step that only waited read as padding to the user.
 - **/search keeps the filter row, and shows what its words filter by**
   (KAN-308). A new search from the top bar sends only ?q, so it starts
   with no filters; the row stays on /search to narrow the results. The

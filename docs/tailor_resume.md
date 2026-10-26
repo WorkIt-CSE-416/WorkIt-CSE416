@@ -20,6 +20,11 @@ model tokens; the student changes the tailored resume in the editor.
 
 ## The flow
 
+The screen shows three steps (`TailorSteps`): Pick a Resume (1 below),
+Choose Keywords (3 and 4), and Review Changes (6). The run (5) is a
+loader over Choose Keywords, not a step: until 2026-10-26 it was a fourth
+step, Tailor, a view that only waited.
+
 1. **The student picks a resume** on the posting's Tailor screen, from the
    shared resume list every resume dialog uses (KAN-318, KAN-406): a built
    resume or an upload. It never starts on a resume tailored to another
@@ -28,15 +33,17 @@ model tokens; the student changes the tailored resume in the editor.
    later step reads this one view.
 3. **The keyword match.** The posting's keywords (`keywords.ensure`, KAN-215)
    are matched against the view (`keywords.match`). The screen shows the
-   matched and missing keywords, as today.
+   matched keywords and their share ("3 of 14 keywords matched", over a
+   bar) and the missing ones, on one card.
 4. **The student picks the missing keywords to add as skills.** A keyword
    the student does not pick is never written into the resume. A picked
    skill goes on the tailored resume only, never into the experience bank
    ("A picked skill belongs to the tailored resume", below). The missing
    keywords show Required, then Preferred. A note says a picked skill may
-   be named in the bullets. Add All, a text button beside the list, asks
-   first, then picks every missing keyword, and reads Clear All while all
-   are picked (KAN-408).
+   be named in the bullets. A count says how many are picked ("4 of 11
+   selected"). Select All, a small button, asks first, then picks every
+   missing keyword; Clear, beside it, drops every pick (KAN-408; one text
+   link, Add All then Clear All, until 2026-10-26).
 5. **The student clicks Tailor Resume.** One request does all of this,
    with no confirmation step:
    - places each picked skill in the resume's skills (group and position,
@@ -52,16 +59,19 @@ model tokens; the student changes the tailored resume in the editor.
    - answers with the tailored resume's id and the **changes**: what each
      change replaced (below).
 
-   While it waits, the button names the run's real phase. The screen runs
-   it through `/api/tailor`, which streams the API's `POST
-   .../tailor/stream` as NDJSON: the button says Retrieving Info until the
+   While it waits, a loader in the middle of the window (`TailorRunning`,
+   a modal that Esc and a click outside do not close) lists the run's
+   real phases, the done ones checked. The screen runs it through
+   `/api/tailor`, which streams the API's `POST .../tailor/stream` as
+   NDJSON: the loader says Retrieving Info until the
    `asking` line (the prompt has gone to the model), Asking AI until
    `generating` (its answer is back and the run applies and saves it),
    Generating Resume until `done`, then Compiling Resume while the editor
    loads. Every check before the model call (an empty bank, a posting
    already tailored) still answers as an HTTP status, since the route runs
    to the model call before it starts the stream; a failure after that is
-   an `error` line with the same status and message. `POST .../tailor`
+   an `error` line with the same status and message. A failure closes the
+   loader and shows its message on the Choose Keywords card. `POST .../tailor`
    answers the same run as one JSON body and stays for other callers.
 6. **The editor opens on the tailored resume**, compiled, under the run's
    keyword match before and after ("Keyword Match 3 of 14 → 9 of 14" and
