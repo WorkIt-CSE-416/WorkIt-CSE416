@@ -1523,7 +1523,28 @@ are in `docs/auth.md`.
   `revalidate`: Next would cache one applicant's list and serve it to all.
 - **Signup goes through `POST /auth/signup`**, not `supabase.auth.signUp()`,
   which can only write user-editable `user_metadata` and so cannot be trusted
-  with the account type.
+  with the account type. **Signup does not sign in** (KAN-293): it redirects
+  to `/signup/check-email`, and the user signs in after clicking the email
+  confirmation link that lands on `/auth/confirm`.
+- **Turnstile** (`components/turnstile.tsx`, KAN-293) is on the signup and
+  sign-in forms. It renders nothing when `NEXT_PUBLIC_TURNSTILE_SITE_KEY` is
+  unset (local dev). Signup sends the token to the API as `captchaToken`;
+  sign-in verifies it server-side in the Next action via `TURNSTILE_SECRET_KEY`.
+  **A form passes its action state as `resetKey`**: a token passes one check
+  only, and the form's reset after an action empties its input, so without a
+  widget reset every retry after a wrong password failed the CAPTCHA.
+- **`/auth/confirm`** (KAN-293) handles email links from Supabase in both
+  shapes: `token_hash` + `type` (the templates in `docs/auth.md`, through
+  `verifyOtp`) and `code` (the default templates, through
+  `exchangeCodeForSession`, whose `redirectType` marks a reset). A reset goes
+  to `/login/new-password` with a session active; anything else to `/login`.
+  A bad or used link goes to `/login?error=…`, which says so above the form.
+- **Password reset** (KAN-293): `/login/reset-password` sends a reset email
+  (always shows "Check your email"); the reset link lands on `/auth/confirm`,
+  which sets a session and redirects to `/login/new-password`;
+  `updateUser({ password })` sets the new password.
+- **Secure cookie flag** (KAN-293): `sessionCookieOptions` sets
+  `secure: process.env.NODE_ENV === "production"`.
 - **A key the API's Pydantic schema doesn't declare is dropped silently**, not
   rejected. A field added to a request body here does nothing until
   `backend/app/schemas/` declares it too.

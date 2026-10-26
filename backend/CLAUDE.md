@@ -986,19 +986,41 @@ why each rule exists.
   ("Database error deleting user"). Company accounts get a 403 until a
   company owner's delete is designed. Tests: `tests/test_delete_account.py`.
 
+- **Email verification is required** (KAN-293). Signup does not pass
+  `email_confirm: True`, and then asks Supabase for the confirmation email
+  itself (`auth.resend(type="signup")`): the admin `create_user` sends no
+  email of its own, so without that call no new account could ever sign in.
+  If the email can't be sent, signup deletes the auth user (the profile row
+  cascades) and answers 502, so a retry starts clean. The frontend
+  redirects to `/signup/check-email` after signup; the link lands on
+  `/auth/confirm`. A taken email returns 201 silently (same response
+  shape, dummy id, no profile row) and resends the email, which reaches
+  only an account still unconfirmed. Supabase's own CAPTCHA setting stays
+  off: its `/resend` would then want a Turnstile token, and signup has
+  already spent the one it got. Tests: `tests/test_signup.py`.
+- **Turnstile verification on signup** (KAN-293). The `captcha_token` field
+  in `SignupRequest` is verified server-side against `TURNSTILE_SECRET_KEY`
+  (`app/config.py`). When the key is `None` (local dev), verification is
+  skipped.
+- **Company signup is gated** (KAN-293). Both `signup()` and
+  `complete_oauth_account_type()` reject `AccountType.COMPANY` with 403.
+- **Password reset** is handled entirely by the frontend through Supabase's
+  `resetPasswordForEmail` and `updateUser`. No API route is involved.
+
 Still open:
 
-- Email verification and a forgotten-password reset: supported by Supabase,
-  not wired up. A signed-in seeker changes their password in Settings
-  (`frontend/src/lib/account-actions.ts`).
 - Deleting an account from the Supabase dashboard cascades its rows but
   leaves its Storage files; `DELETE /auth/me` removes both.
 - A company account cannot be deleted (403).
 - Joining an existing company: no endpoint; the form's Join tab is a
   placeholder.
-- Every signup `IntegrityError` answers "An account with this email already
-  exists", including a taken `company_profiles.contact_email`. Tell them apart
-  by constraint name in `exc.orig`.
 - Nothing sets a membership's `onboarding_completed_at`, so `/auth/me` always
   reports a company as not onboarded. Whatever builds company onboarding must
   set it.
+
+Accepted risks (KAN-293):
+
+- Per-IP rate limiting: Turnstile is the only bot protection for now. Per-IP
+  limiting is a follow-up after the Cloudflare cutover.
+- OAuth account linking: with email verification on, an attacker cannot
+  confirm someone else's email, so automatic linking is safe.
