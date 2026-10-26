@@ -159,6 +159,7 @@ window.WIA = window.WIA || {};
     }
 
     status.subscribe(report);
+    window.WIA.fieldOf = fieldOf; // the failed-field card reads the site's error by the field (card-failed.js)
     return { report, answerTheWalk, watchSubmit };
   }
 

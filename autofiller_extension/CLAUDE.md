@@ -530,6 +530,24 @@ waits for an opened tab's page and form (`waitForLoad`, `formShows`).
   system's own field id (`batch-tab.js`'s `fieldOf`); a tab nothing
   was filled in is one stop, the page itself. This is the only time the
   extension switches tabs on its own, and only on the student's press.
+- **A failed field gets a card** (KAN-369, `card-failed.js`, in the shared
+  row card `row-card.js`): "We put X; the page shows Y.", why in plain words
+  ("This field ended up empty on the page.", "This dropdown never committed
+  a choice.", "The site rejected this value.", "The page changed it."), and
+  the site's own error quoted when the page marked the field
+  `aria-invalid` (the element its `aria-errormessage`/`aria-describedby`
+  names, else the nearest alert or error-styled text). **Put mine back**
+  fills the planned answer again, alone, and reads it back; only on
+  Greenhouse, Lever, Ashby and Rippling (where the engine fills one field
+  alone safely), never for a value the site marked invalid, and not again
+  once it didn't take. **Keep the page's** takes what the page shows as the
+  student's own answer (Source "student"), so the row stops counting; an
+  empty optional one becomes "skipped", and an empty required one has no
+  Keep. A card shows on every failed field with a planned answer (not a
+  file); the fill hands each Plan to `window.WIA.failedCard.use`. The card
+  stores what the page showed on the row (`shows`), so the student's
+  later edit is a change from it: a click elsewhere no longer turns a
+  failed field showing a wrong value into "You answered this".
 - **The row card** (`row-card.js`, `window.WIA.rowCard`) is the one shape
   for every review state: a title, sentences, a quote, at most three
   buttons, tokens only. A feature adds `rowCard.add((field) => card | null)`;

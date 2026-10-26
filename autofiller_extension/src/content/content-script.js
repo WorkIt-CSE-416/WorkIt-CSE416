@@ -311,7 +311,8 @@
       for (const row of rows) {
         const shown = answer.shows[row.key];
         if (!isEmpty(shown)) {
-          if (row.status !== "filled" || JSON.stringify(shown) !== JSON.stringify(row.shows)) {
+          // A failed field still showing what it showed as it failed (card-failed.js read it) is not the student's answer.
+          if (JSON.stringify(shown) !== JSON.stringify(row.shows) || (row.status !== "filled" && row.shows === undefined)) {
             if (written.has(row.key) && typeof shown === "string") writing.edited(row, shown, byName.get(row.key));
             else status.setStatus(row.key, "filled", row.status === "filled" ? row.reason : "You answered this", shown, "student");
           }
@@ -333,6 +334,23 @@
     };
   }
 
+  /** The failed-field cards' view of a Plan (card-failed.js): read a field back, or fill its planned answer again, alone. */
+  const fixesOf = (prepared) => ({
+    site: prepared.site,
+    answers: prepared.answers,
+    questions: prepared.questions,
+    async read(names) {
+      const answer = await send({ type: "fill/read", site: prepared.site, questions: prepared.questions, names, state: prepared.state });
+      return answer.ok ? answer.shows : {};
+    },
+    async put(name) {
+      const answer = await send({
+        type: "fill/page", site: prepared.site, questions: prepared.questions, answers: { [name]: prepared.answers[name] }, accepted: prepared.plan.accepted, state: prepared.state,
+      });
+      return (answer.ok ? answer.results[name] : null) ?? { status: "failed", reason: answer.error ?? "WorkIt couldn't fill it." };
+    },
+  });
+
   const workday = window.WIA.workday;
   if (!workday.isWorkday) {
     // THE PANEL GOES ON THE PAGE ONCE THE FILL IS DONE, not before. Greenhouse's
@@ -344,6 +362,7 @@
     // for the form's start-up before it types, so by now it is over.
     const prepared = await fillShown();
     if (prepared) await flagEmptyRequired(prepared);
+    if (prepared) window.WIA.failedCard.use(fixesOf(prepared));
     overlay.mount(panel);
     window.WIA.phase = prepared ? "filled" : "stopped";
     window.WIA.running = false;
@@ -386,6 +405,7 @@
     note("_step", `Workday: ${step}`, last
       ? "This is the last step. Check the whole application, then submit it yourself."
       : "Check this step, then press Save and Continue. WorkIt fills the next step when it shows.");
+    window.WIA.failedCard.use(fixesOf(prepared));
     writing.offer(prepared);
     offerSelfId(prepared);
     const stopEdits = batch ? watchEdits(prepared) : null;
