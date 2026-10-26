@@ -1188,7 +1188,7 @@ def oracle(
             short = True
             break
         offset += ORACLE_PAGE
-    if served != len(rows) or len(rows) > expected or (len(rows) < expected and not short):
+    if len(rows) != expected and (served != len(rows) or len(rows) > expected or not short):
         raise Incomplete(f"read {len(rows):,} distinct requisitions of {expected:,}")
     site = "https://{pod}.oraclecloud.com/hcmUI/CandidateExperience/en/sites/{site}".format(**parts)
     return [
@@ -1417,10 +1417,12 @@ def successfactors(
             rows.setdefault(row[0], row)
         if not page:
             # Past the last posting. As on Oracle, the count can run over what the
-            # site serves (Hershey's: 328 counted, 326 served).
+            # site serves. Every posting seen is whole even if pages overlapped:
+            # postings with one title can still swap places between pages
+            # (Sonepar: 938 of 938 read, some twice).
             ended = True
             break
-    if served != len(rows) or len(rows) > expected or (len(rows) < expected and not ended):
+    if len(rows) != expected and (served != len(rows) or len(rows) > expected or not ended):
         raise Incomplete(f"read {len(rows):,} distinct postings of {expected:,}")
     return [
         Job(

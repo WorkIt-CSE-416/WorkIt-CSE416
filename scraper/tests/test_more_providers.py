@@ -209,6 +209,16 @@ class TestSuccessFactors:
         assert first.posted_at == "2026-10-26T00:00:00+00:00"
         assert first.page is None
 
+    def test_overlapping_pages_that_still_saw_every_posting_are_whole(self, monkeypatch) -> None:
+        # Sonepar, 2026-10-26: ties on one title swap between pages, so a posting
+        # can show twice; all 938 counted were still read.
+        page = fixture("successfactors-search.html")
+        rows = page.split('<tr class="data-row">')
+        first = page.replace('<tr class="data-row">' + rows[2], "")  # row 1 only
+        answers = iter([first, page])  # then rows 1 and 2: row 1 again, row 2 new
+        monkeypatch.setattr(providers, "_get_text", lambda url: next(answers))
+        assert len(providers.successfactors("jobs.grainger.com", "Grainger")) == 2
+
     def test_its_own_page_has_the_description(self, monkeypatch) -> None:
         job = providers.Job(
             ats="successfactors",

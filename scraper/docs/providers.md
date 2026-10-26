@@ -93,7 +93,9 @@ on that day's responses in `tests/fixtures/providers/`.
   by title: in its default order Hershey's repeated 8 postings across pages and
   left 8 out, and by title all 328 were read once. Its count can run over what it
   serves, as Oracle's does, so a read that reached an empty page with no overlap
-  is whole. Its robots.txt
+  is whole. On both, a read that saw every counted posting is whole even if pages
+  overlapped: postings tied on the sort can swap between pages (Sonepar: 938 of
+  938, some read twice; Oracle's ecvz.fa.us2: 1,418 of 1,418). Its robots.txt
   disallows the RSS feed (`/services/`), so the search page is the only list.
   A posting's id is its path, as on Workday: a bare id redirects to an error page.
 
