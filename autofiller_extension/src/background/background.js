@@ -12,9 +12,10 @@ import {
   writingSamples, writtenAnswers,
 } from "./api.js";
 import {
-  batchStatus, batchTabIds, forgetTab, inBatch, jobInTab, jobTypeInTab, markSubmitted, practiceStatus, resumeBatch, setTabState, setWriting,
+  batchStatus, batchTabIds, forgetTab, inBatch, jobInTab, jobTypeInTab, markSubmitted, unmarkSubmitted, practiceStatus, resumeBatch, setTabState, setWriting,
   showBatchTab, skipTab, startBatch, startPractice, submitPractice,
 } from "./batch.js";
+import { popupPage, reportTab, saveTabJob, webappOrigin } from "./panel-states.js";
 import { engineCaller, handleFill, jobOf, practiceJob, runEngine, submittedPage } from "./engine.js";
 import { claimMoment } from "./moments.js";
 import { nextNeedsYou, walkFrom } from "./next-needs-you.js";
@@ -295,6 +296,9 @@ async function handleMessage(message, sender) {
     // didn't show (detection missed it), marked applied on the student's word.
     case "batch/i-submitted":
       return { applied: (await markSubmitted(sender.tab.id)).batch };
+    // The panel's "I didn't submit this" (panel-states.js, KAN-401): the applied mark goes back.
+    case "batch/unsubmitted":
+      return unmarkSubmitted(sender.tab.id);
 
     // The first form that asks the self-identification (KAN-387): the tab
     // whose Plan found it asks whether to ask the student (once, in one
@@ -350,6 +354,17 @@ async function handleMessage(message, sender) {
     case "panel/site":
       return { site: await panelSite(sender.url ?? "", message.set) };
     // The panel's Autofill This Page and Fill Again: the fill, in the frame that asked (a batch tab stays one).
+    // Signed out (panel-states.js, KAN-401): the panel's Sign in to WorkIt opens the webapp's sign-in.
+    case "panel/sign-in":
+      await chrome.tabs.create({ url: `${await webappOrigin()}/login`, openerTabId: sender.tab?.id });
+      return {};
+    // The toolbar popup on a site WorkIt can't fill (popup.js, KAN-401).
+    case "popup/page":
+      return popupPage(message.tabId);
+    case "popup/save":
+      return saveTabJob(message.tabId);
+    case "popup/report":
+      return reportTab(message.tabId);
     case "panel/fill":
       await injectFill(sender.tab.id, { batch: Boolean(message.batch) && (await inBatch(sender.tab.id)), frameId: sender.frameId || undefined });
       return {};
@@ -507,7 +522,7 @@ async function panelSite(url, change) {
 }
 
 // What the panel's shell injects when the toolbar icon or Alt+W finds no panel on a job page yet.
-const SHELL_FILES = ["src/shared/tokens.js", "src/content/panel.js", "src/content/panel-top.js", "src/content/resume-tab.js", "src/content/panel-settings.js", "src/content/report.js"];
+const SHELL_FILES = ["src/shared/tokens.js", "src/content/panel.js", "src/content/panel-top.js", "src/content/resume-tab.js", "src/content/panel-settings.js", "src/content/report.js", "src/content/panel-states.js"];
 
 /**
  * The toolbar icon (a tab with no popup: a job page, panel/where) and
@@ -527,7 +542,7 @@ async function toolbarPressed(tab) {
       func: async () => {
         const panel = window.WIA.panel;
         await panel.ensure();
-        if (!window.WIA.overlay?.state?.()) panel.fillButton(panel.startLabel());
+        if (!window.WIA.overlay?.state?.()) await window.WIA.panelStates.start();
         panel.open();
       },
     });

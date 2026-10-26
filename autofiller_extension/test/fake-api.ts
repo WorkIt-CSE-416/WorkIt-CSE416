@@ -102,6 +102,8 @@ export class FakeApi {
 
   /** Whether the student's Claude has signed in to WorkIt's connector (GET .../connector). */
   connectorAdded = false;
+  /** How many reads of the Claude connection fail (a server error) before one answers. */
+  connectorDown = 0;
 
   /** `profile`: the student's profile fields that differ from STUDENT's. */
   constructor(private profile: Partial<Omit<typeof STUDENT, "answers">> & { answers?: Record<string, string | null> } = {}) {
@@ -116,6 +118,12 @@ export class FakeApi {
     this.postings.set(posting.id, posting);
     this.stages.set(posting.id, "applied");
     this.appliedAt.set(posting.id, at);
+    return this;
+  }
+
+  /** Postings in WorkIt's feed the student has no application for (Save to WorkIt finds them by link). */
+  listed(...postings: Posting[]): this {
+    for (const posting of postings) this.postings.set(posting.id, posting);
     return this;
   }
 
@@ -137,6 +145,15 @@ export class FakeApi {
     if (path === "/fill-reports" && method === "POST") {
       this.reports.push(JSON.parse(body.toString()));
       return { status: 201, json: { stored: true } };
+    }
+    if (path === "/jobs/saved-by-link" && method === "POST") {
+      // applications.py's Save to WorkIt by the page's link (KAN-401): the feed's job whose apply link it is.
+      const bare = (link: string) => link.split("#")[0].split("?")[0].replace(/\/+$/, "");
+      const { url: link } = JSON.parse(body.toString());
+      const found = [...this.postings.values()].find((posting) => bare(posting.apply_url) === bare(link));
+      if (!found) return { status: 404, json: { detail: "WorkIt doesn't list this job yet." } };
+      if (!this.stages.has(found.id)) this.stages.set(found.id, "saved");
+      return { json: { job_id: found.id, stage: this.stages.get(found.id) } };
     }
     if (path === "/auth/me") return { json: { id: STUDENT.id, email: STUDENT.email, full_name: STUDENT.full_name, account_type: "applicant" } };
 
@@ -181,6 +198,10 @@ export class FakeApi {
     if (route === "/connector" && method === "DELETE") {
       this.connectorAdded = false;
       return { status: 204, body: "" };
+    }
+    if (route === "/connector" && this.connectorDown > 0) {
+      this.connectorDown--;
+      return { status: 500, json: {} };
     }
     if (route === "/connector") return { json: { added: this.connectorAdded } };
     if (route === "/writing-samples" && method === "GET") return { json: { samples: this.samples, style_card: null } };
@@ -278,6 +299,13 @@ export class FakeApi {
       return { json: { id: `sent-${resume[1]}` } };
     }
     const finish = /^\/applications\/([^/]+)\/finish$/.exec(route);
+    if (finish && method === "POST" && JSON.parse(body.toString()).outcome === "unsubmitted") {
+      // pipeline.py's way back (KAN-401): only an applied application, to queued, its date cleared.
+      if (this.stages.get(finish[1]) !== "applied") return { status: 409, json: { detail: "That application wasn't marked applied." } };
+      this.stages.set(finish[1], "queued");
+      this.appliedAt.delete(finish[1]);
+      return { json: { job_id: finish[1], stage: "queued" } };
+    }
     if (finish && method === "POST") {
       const refused = this.refuseUnlessOpen(finish[1]);
       if (refused) return refused;

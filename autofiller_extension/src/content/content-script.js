@@ -79,8 +79,10 @@
   /** The student says they sent this application: it is marked applied, as a detected submit is. */
   async function markSentByHand() {
     const answer = await send({ type: "batch/i-submitted" }).catch((error) => ({ ok: false, error: error.message }));
-    if (answer?.ok && answer.applied) note("_submit", "Application sent", "WorkIt marked it Applied.", false, true);
-    else note("_submit", "WorkIt couldn't mark it Applied", `Try again, or mark it Applied on WorkIt's Auto Apply page. (${answer?.error ?? "No answer"})`, true);
+    if (answer?.ok && answer.applied) {
+      note("_submit", "Application sent", "WorkIt marked it Applied.", false, true);
+      window.WIA.panelStates?.sent(); // Sent, Next job, I didn't submit this (KAN-401)
+    } else note("_submit", "WorkIt couldn't mark it Applied", `Try again, or mark it Applied on WorkIt's Auto Apply page. (${answer?.error ?? "No answer"})`, true);
   }
   const sleep = (ms) => new Promise((done) => setTimeout(done, ms));
   /** A row that is the overlay's message, not a field. `done`: news that asks nothing of the student. */
@@ -430,6 +432,8 @@
 
   // Workday: each step as it shows, until the step whose button sends. Its
   // pages aren't hydrated, and the panel tells the student to sign in first.
+  // A step that came as a new page shows its line at once, not an empty panel, while it waits to fill (KAN-401).
+  if (workday.step()) note("_step", `Workday: ${workday.step()}`, "Filling this step…", false, true);
   overlay.mount(panel);
   answerTheWalk();
   if (!workday.step()) {
@@ -455,8 +459,10 @@
   for (;;) {
     await workday.quiet();
     const shownId = workday.stepId(); // told from a next step of the same name by its number
-    status.reset();
     window.WIA.phase = "filling";
+    status.reset();
+    // Never an empty panel between steps (KAN-401): the step's line at once, its rows as it fills.
+    note("_step", `Workday: ${step}`, "Filling this step…", false, true);
     const prepared = await fillShown(workday.filledBefore());
     if (!prepared) {
       window.WIA.phase = "stopped";

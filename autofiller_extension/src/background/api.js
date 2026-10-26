@@ -93,7 +93,8 @@ async function apiRequest(path, init = {}) {
 
 /**
  * An error answer's words: the route's own `detail`, or for a body FastAPI
- * refused (a 422 with a list of errors) each error's `msg`, never "[object Object]".
+ * refused (a 422 with a list of errors) each error's `msg`, never "[object Object]"
+ * or a bare status code.
  * @param {number} status
  * @param {{ detail?: string | { msg?: string }[] }} body
  */
@@ -102,7 +103,8 @@ export function errorMessage(status, body) {
   if (typeof detail === "string" && detail) return detail;
   if (typeof detail?.message === "string" && detail.message) return detail.message;
   if (Array.isArray(detail) && detail.length) return detail.map((e) => e?.msg ?? String(e)).join("; ");
-  return `Request failed (${status})`;
+  // No words from the route: a plain sentence, never the status code (KAN-401); the status stays on ApiError.
+  return "WorkIt's server couldn't do that just now.";
 }
 
 /**
@@ -628,6 +630,16 @@ export async function recordSentResume(applicantId, jobId, resume) {
  * @param {string} jobId
  * @param {"submitted" | "skipped" | "failed"} outcome
  */
+/**
+ * POST /jobs/saved-by-link: saves the feed's job whose apply link is the
+ * page at `url` (the popup's Save to WorkIt on a site WorkIt can't fill, KAN-401).
+ * @param {string} url
+ * @returns {Promise<{ job_id: string, stage: string }>}
+ */
+export async function saveJobByLink(url) {
+  return apiFetch("/jobs/saved-by-link", { method: "POST", body: JSON.stringify({ url }) });
+}
+
 export async function finishApplication(applicantId, jobId, outcome) {
   return apiFetch(`/applicants/${applicantId}/applications/${jobId}/finish`, { method: "POST", body: JSON.stringify({ outcome }) });
 }

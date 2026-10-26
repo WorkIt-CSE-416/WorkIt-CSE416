@@ -77,6 +77,8 @@ function renderSignedIn(profile) {
     root.querySelector(".batch-status").textContent = status?.ok ? batchLine(status) : "";
   });
 
+  void showUnsupported();
+
   root.querySelector("#open-workit-button").addEventListener("click", async () => {
     const base = await webappUrl();
     chrome.tabs.create({ url: `${base}/auto-apply` });
@@ -84,6 +86,71 @@ function renderSignedIn(profile) {
   });
   // The one email and password for every company's Workday (src/options/), kept only in this browser.
   root.querySelector("#workday-signup-button").addEventListener("click", () => chrome.runtime.openOptionsPage());
+}
+
+/** The tab the popup is for: the one its icon was pressed in (`?tab=`, which only the extension's own pages can open, for tests). */
+async function pageTabId() {
+  const asked = Number(new URLSearchParams(location.search).get("tab"));
+  if (asked) return asked;
+  return (await chrome.tabs.query({ active: true, currentWindow: true }))[0]?.id;
+}
+
+/**
+ * A web page WorkIt can't fill (KAN-401; background/panel-states.js): says
+ * so, with Save to WorkIt (the feed's job whose apply link the page is, to
+ * the student's Applications) and Report a problem (what it sends, then
+ * Send report). Nothing leaves on opening the popup.
+ */
+async function showUnsupported() {
+  const tabId = await pageTabId();
+  const page = tabId ? await sendMessage({ type: "popup/page", tabId }) : null;
+  if (!page?.ok || !page.unsupported) return;
+  const box = root.querySelector(".unsupported");
+  if (!box) return;
+  box.hidden = false;
+  const said = box.querySelector(".said");
+  const say = (text, error = false) => {
+    said.textContent = text;
+    said.hidden = false;
+    said.classList.toggle("error", error);
+  };
+  const save = box.querySelector("#save-button");
+  save.addEventListener("click", async () => {
+    save.disabled = true;
+    const answer = await sendMessage({ type: "popup/save", tabId });
+    save.disabled = false;
+    if (answer?.ok) {
+      save.hidden = true;
+      return say("Saved to your Applications.");
+    }
+    // The route's own sentence when it has one ("WorkIt doesn't list this job yet."), never a status code.
+    say(answer?.status === 404 ? answer.error : "WorkIt couldn't save this job. Try again.", true);
+  });
+  box.querySelector("#report-button").addEventListener("click", () => {
+    const list = box.querySelector(".report-parts");
+    const { job_system, posting_url, engine_version } = page.report;
+    list.replaceChildren(
+      ...[`Job system: ${job_system}`, `Link: ${posting_url}`, `Fill engine: ${engine_version}`].map((text) => Object.assign(document.createElement("li"), { textContent: text })),
+    );
+    box.querySelector(".report").hidden = false;
+  });
+  const send = box.querySelector("#send-report-button");
+  send.addEventListener("click", async () => {
+    send.disabled = true;
+    const answer = await sendMessage({ type: "popup/report", tabId });
+    send.disabled = false;
+    if (!answer?.ok) return say("WorkIt couldn't send the report. Try again.", true);
+    box.querySelector(".report").hidden = true;
+    say("Sent. Thanks for telling WorkIt.");
+  });
+}
+
+/** A request that failed: what didn't work, in a sentence, and Try again, which starts the popup over. */
+function renderFailed(sentence) {
+  const template = document.getElementById("failed-template");
+  root.replaceChildren(template.content.cloneNode(true));
+  root.querySelector(".failed").textContent = sentence;
+  root.querySelector("#try-again-button").addEventListener("click", () => init());
 }
 
 async function init() {
@@ -95,10 +162,9 @@ async function init() {
     return;
   }
   const profileResponse = await sendMessage({ type: "profile/get" });
-  if (!profileResponse.ok) {
-    renderLoginView(profileResponse.error);
-    return;
-  }
+  if (!profileResponse.ok && profileResponse.status === 401) return renderLoginView();
+  // Any other failed read (KAN-401): a plain sentence and Try again, never the request's status or words.
+  if (!profileResponse.ok) return renderFailed("WorkIt couldn't load your profile.");
   renderSignedIn(profileResponse.profile);
 }
 

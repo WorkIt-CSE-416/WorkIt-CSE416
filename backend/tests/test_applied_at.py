@@ -82,3 +82,19 @@ async def test_a_skipped_or_needs_you_row_shows_no_date(student, database):  # n
 
     await client.post(f"/applicants/{me}/applications/{job}/finish", json={"outcome": "skipped"})
     assert await _row(database, me, job) == ("skipped", None)
+
+
+async def test_unsubmitted_sets_an_applied_application_back_with_no_date(student, database):  # noqa: F811
+    # The panel's "I didn't submit this" (KAN-401): a submit WorkIt marked by mistake.
+    client, me = student
+    job = await _seed_posting(database)
+    await client.post(f"/applicants/{me}/applications", json={"job_id": job})
+    await client.post(f"/applicants/{me}/applications/{job}/finish", json={"outcome": "submitted"})
+
+    res = await client.post(f"/applicants/{me}/applications/{job}/finish", json={"outcome": "unsubmitted"})
+    assert res.status_code == 200 and res.json()["stage"] == "queued"
+    assert await _row(database, me, job) == ("queued", None)
+
+    # Only an applied application can be set back.
+    res = await client.post(f"/applicants/{me}/applications/{job}/finish", json={"outcome": "unsubmitted"})
+    assert res.status_code == 409

@@ -1436,7 +1436,11 @@ which sends `panel/toggle` to the tab (whichever frame has the shell
 answers). A job page with no shell yet gets one, open; any other tab gets
 its popup back and opened. Off job pages the popup shows who is signed in,
 the batch's status ("2 jobs in your batch · 1 ready · 1 needs you",
-`popup/batch`), Open WorkIt and Workday Sign-Up. `globalThis.workitToolbar`
+`popup/batch`), Open WorkIt and Workday Sign-Up. A failed profile read shows "WorkIt
+couldn't load your profile." with Try again (KAN-401), never the request's
+words; api.js's `errorMessage` says "WorkIt's server couldn't do that just
+now." for an error answer with no words of its own, never "Request failed
+(404)". `globalThis.workitToolbar`
 is the tests' press of the icon, which no page can press. A test can't
 press an extension command's keys either, so the Alt+W test checks only
 that Chrome bound it.
@@ -1544,6 +1548,51 @@ Tests: `test/panel-progress.extension.spec.ts` (the states in order with
 their counts on Anduril; Stop leaves the résumé unattached and says so; a
 held upload shows Skip after 5 s and lands under Needs you; Workday's
 stay-on-page notice shows and goes).
+
+## The panel's other states (KAN-401): signed out, sent, a site it can't fill, errors
+
+`src/content/panel-states.js` (`window.WIA.panelStates`, loaded after
+report.js everywhere it is: manifest, `CONTENT_SCRIPT_FILES`, background.js
+`SHELL_FILES`) and `src/background/panel-states.js`:
+
+- **Signed out**: `panelStates.start()` is what the launcher and the
+  toolbar call in place of `panel.fillButton` before a fill. Signed out
+  (`auth/status`), the panel shows the job card (panel-top.js reads the
+  names without an account) and **Sign in to WorkIt** only: the tabs give
+  way (`.panel[data-signed-out]`). The button opens the webapp's `/login`
+  (`panel/sign-in`; the local webapp when it answers, else WorkIt's site).
+  When the student comes back to the tab signed in, Autofill This Page.
+- **Sent**: once a batch tab's application is marked applied (a submit
+  WorkIt saw, or I submitted this), `panelStates.sent()` puts "Sent ·
+  Marked applied on WorkIt" over the fill's button (kept, hidden), with
+  **Next job →** (`panel/next-tab`) while another tab needs the student and
+  **I didn't submit this** (trusted clicks only, as I submitted this):
+  `batch/unsubmitted` (batch.js `unmarkSubmitted`) posts `finish` with
+  outcome `unsubmitted`, which sets an applied application back to queued
+  with no date (backend pipeline.py), and the tab to Ready, in its group.
+- **A site WorkIt can't fill**: every host the manifest lists is a job
+  system the Fill engine fills, so the panel never shows this; the toolbar
+  popup does, on a web page of any other host (not WorkIt's own), where the
+  icon's press lets it read the tab's link (activeTab). It says "WorkIt
+  can't fill this site yet" with **Save to WorkIt** (`popup/save`: `POST
+  /jobs/saved-by-link`, which saves the feed's job whose apply link the page
+  is, ignoring query, fragment and a trailing slash; "WorkIt doesn't list
+  this job yet." when there is none) and **Report a problem** (what it sends:
+  job system "unsupported", the link without its query, the engine; then
+  Send report, `popup/report`). Nothing leaves on opening the popup. Its
+  test opens popup.html with `?tab=<id>` and loads a copy of the extension
+  granted the fake host (`loadExtension`'s `grantHosts`), standing in for
+  activeTab, which no test can press.
+- **Between Workday steps**: the panel is never empty. When a step shows
+  (in the same page, or as a new page), the fill's loop resets the rows and
+  at once draws the step's line, "Workday: My Experience · Filling this
+  step…" (content-script.js), with the button at Filling…; the step's rows
+  follow as it fills.
+- **Errors**: every failed request the panel or popup makes is a plain
+  sentence with Try again (or the same button, which retries), never a
+  status code or the route's raw words.
+
+Tests: `test/panel-states.extension.spec.ts`.
 
 ## The panel's top (KAN-395): header, batch line, job card
 
@@ -1688,6 +1737,8 @@ its messages. The gear shows it in place of the tabs; Back returns.
   dialog). Signed out: "Sign in to WorkIt to connect your Claude." The
   state (`settings/read`, `GET .../connector`) is read again each time the
   gear opens the view and when the student comes back to the tab.
+  A read that fails says "WorkIt couldn't check your Claude." with **Try
+  again**, which reads it again (KAN-401).
 - **Open the panel by itself** (on by default): `panel_auto_open` in
   chrome.storage.local, given to panel.js by `panel/where` (`autoOpen`).
   Off, a batch tab's panel stays closed with its edge tab, as a kept
