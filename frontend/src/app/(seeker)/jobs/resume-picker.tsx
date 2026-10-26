@@ -1,13 +1,22 @@
 "use client";
 
-import { useEffect, useState, type ReactNode } from "react";
+import { TagIcon } from "@phosphor-icons/react/ssr";
+import { useEffect, useRef, useState, type ChangeEvent } from "react";
 
-import { StarIcon } from "@phosphor-icons/react/ssr";
-
-import { ResumeUpload } from "@/components/resume-upload";
+import { FieldFacet, type FacetOption } from "@/components/field-facet";
+import { PdfIcon, UploadIcon } from "@/components/icons";
+import {
+  matches,
+  RESUME_TYPES,
+  ResumeGroup,
+  ResumeScroll,
+  searchWords,
+  type ResumeType,
+} from "@/components/resume-list";
+import { PrimaryStar, RESUME_ROW } from "@/components/resume-row";
+import { RESUME_ACCEPT, resumeFileError } from "@/components/resume-upload";
 import { Button } from "@/components/ui/button";
 import { SearchField } from "@/components/ui/search-field";
-import { SegmentedToggle } from "@/components/ui/segmented-control";
 import { cn } from "@/lib/cn";
 import { listBuiltResumes } from "@/lib/built-resume-actions";
 import { listResumes, replaceResume, uploadResume, type ResumeItem } from "@/lib/resume-actions";
@@ -22,7 +31,7 @@ import { LocalDate } from "../local-time";
  * resume list and an upload with the Resumes page's rules (KAN-267), so
  * the three dialogs never drift apart on the limit, the replace step or a
  * duplicate. The Experiences view's Choose a Resume to Show
- * (../bank/resume-bar.tsx, KAN-361) shows its table too, with no job
+ * (../bank/resume-bar.tsx, KAN-361) shows its list too, with no job
  * posting: it builds its own `Choice` rows from the bank's resumes.
  */
 
@@ -31,14 +40,17 @@ import { LocalDate } from "../local-time";
 export type Choice = {
   key: string;
   label: string;
-  /** Base and Tailored are built resumes; the picker's Generated view. */
+  /** Base is a generated resume; Tailored is one tailored to a posting. */
   type: "Base" | "Tailored" | "Uploaded";
   /** Tailored to the job posting this picker is for. */
   forThisJob: boolean;
   /** The posting a tailored resume was made for, "Title at Company". */
   tailoredFor: string | null;
-  /** Last edited (built) or uploaded, for the table's date column. */
+  /** Last edited (built) or uploaded, for the card's line. */
   at: string | null;
+  /** When a built resume was made: its line says "Made" until its first
+   *  edit, as the Resumes page's card does. */
+  madeAt: string | null;
   source: Source;
   isDefault: boolean;
 };
@@ -66,6 +78,7 @@ export async function loadChoices(
           ? [r.posting_title, r.posting_company].filter(Boolean).join(" at ") || "A job posting"
           : null,
         at: r.edited_at,
+        madeAt: r.created_at,
         source: { builtResumeId: r.id },
         isDefault: r.is_default,
       })),
@@ -78,6 +91,7 @@ export async function loadChoices(
         forThisJob: false,
         tailoredFor: null,
         at: r.created_at,
+        madeAt: null,
         source: { uploadedResumeId: r.id },
         isDefault: r.is_default,
       })),
@@ -91,235 +105,252 @@ export function firstChoice(choices: Choice[]): Choice | undefined {
   return choices.find((c) => c.forThisJob) ?? choices.find((c) => c.isDefault) ?? choices[0];
 }
 
-type View = "built" | "uploaded";
+/** The group each kind of choice falls in. */
+const GROUP: Record<Choice["type"], ResumeType> = {
+  Uploaded: "uploaded",
+  Base: "generated",
+  Tailored: "tailored",
+};
 
-const VIEWS = [
-  { value: "built", label: "Generated" },
-  { value: "uploaded", label: "Uploaded" },
-];
+/** A group's order: the resume tailored to this job, then the primary,
+ *  then the newest. */
+const order = (a: Choice, b: Choice) =>
+  Number(b.forThisJob) - Number(a.forThisJob) ||
+  Number(b.isDefault) - Number(a.isDefault) ||
+  Date.parse(b.at ?? "0") - Date.parse(a.at ?? "0");
 
-const viewOf = (key: string | null): View | null =>
-  key?.startsWith("built:") ? "built" : key?.startsWith("uploaded:") ? "uploaded" : null;
+/** A pickable card: the Resumes page's card box (`RESUME_ROW`), tinted
+ *  while it holds the pick. The Experiences view's Not From an Upload row
+ *  draws itself with it too, since it sits in the same radio group. */
+export function pickRowClasses(picked: boolean) {
+  return cn(
+    RESUME_ROW,
+    "cursor-pointer transition-colors duration-150",
+    picked ? "border-brand bg-brand-tint" : "hover:border-brand/40 hover:bg-hover",
+  );
+}
+
+/** The Type filter's options: the list's groups, in their order. */
+const TYPES: FacetOption[] = [...RESUME_TYPES];
+
+/** What a dialog that takes an upload hands the list (KAN-267's rules):
+ *  the student's uploads, for the limit; `onUploaded` reads the list again
+ *  and picks the new file (or, on a duplicate, the one it matched);
+ *  `onBusyChange` says when a file is on its way or waiting to replace
+ *  one, so the dialog holds its own button. */
+export type PickerUpload = {
+  uploads: ResumeItem[];
+  onUploaded: (uploadedId: string) => Promise<void>;
+  onBusyChange: (busy: boolean) => void;
+};
 
 /**
- * The student's resumes as one table with a switcher (KAN-360): Generated
- * (base and tailored resumes) or Uploaded, a search over the names and the
- * postings they were tailored for, and one radio group, so a click on a
- * row or the arrow keys move the pick. Two lists side by side, the shape
- * before, ran long and read as a wall of boxes once a student had a few
- * tailored resumes.
+ * The student's resumes as the Resumes page lists them (KAN-406): one row
+ * with the search (names and the postings they were tailored for), the
+ * Type filter and, in a dialog that takes one, Upload Resume, then the
+ * Uploaded, Generated and Tailored groups (`ResumeGroup`, components/
+ * resume-list.tsx) in one scroll five cards high, each card the Resumes
+ * page's box with a radio. One radio group spans every group, so a click
+ * on a card or the arrow keys move the pick. A group folds away on its
+ * heading, for this opening only; a group with no match hides. Below a
+ * 36rem row the search takes its own line and the filter and the button
+ * share the next, as two even halves.
  *
- * It opens on the view that holds the pick, and follows the pick when the
- * dialog changes it (an upload picks the new file, under Uploaded). The
- * search and the view filter only what shows: the pick stays put, so
- * switching views never drops it.
+ * It has no Sort and no Generate Resume, which the Resumes page's row
+ * has: a dialog holds a few resumes, each group already puts the likely
+ * pick first, and a resume generated mid-dialog is not the file the
+ * student sent. Did You Apply? and Tailor had an upload section under the
+ * list ("Sent a Different Resume?", a dropzone) until KAN-406: it took
+ * more room than the list, and the Resumes page's button had replaced its
+ * own dropzone in KAN-362.
+ *
+ * It was a table with a Generated or Uploaded switch and Type, Tailored For
+ * and Last Edited columns (KAN-360) until the Resumes page took the grouped
+ * list (KAN-404): the two read as different apps, and the columns said what
+ * a card's one line says. The search and the filter only filter what
+ * shows: the pick stays put, so neither drops it.
  */
 export function ResumeLists({
   name,
   choices,
-  emptyBuilt,
-  emptyUploaded,
+  empty,
   picked,
   onPick,
+  upload,
 }: {
   name: string;
   choices: Choice[];
-  emptyBuilt: string;
-  emptyUploaded: string;
+  /** What the list says when the student has no resume at all. */
+  empty: string;
   picked: string | null;
   onPick: (key: string) => void;
+  /** Given, the row has Upload Resume. */
+  upload?: PickerUpload;
 }) {
-  const [view, setView] = useState<View>(
-    viewOf(picked) ?? (choices.some((c) => c.type !== "Uploaded") ? "built" : "uploaded"),
-  );
-  // A pick made outside the table moves the view with it, worked out while
-  // rendering (React's way to adjust state to a prop), not in an effect.
-  const [seen, setSeen] = useState(picked);
-  if (picked !== seen) {
-    setSeen(picked);
-    const next = viewOf(picked);
-    if (next) setView(next);
-  }
   const [query, setQuery] = useState("");
-
-  const inView = choices.filter((c) => (c.type === "Uploaded") === (view === "uploaded"));
-  const words = query.trim().toLowerCase().split(/\s+/).filter(Boolean);
-  const shown = inView.filter((c) => {
-    const text = `${c.label} ${c.tailoredFor ?? ""}`.toLowerCase();
-    return words.every((w) => text.includes(w));
+  const [types, setTypes] = useState<ResumeType[]>([]);
+  const [folded, setFolded] = useState<ResumeType[]>([]);
+  // A new upload is picked under Uploaded, so nothing may hide it.
+  const sending = useUploadButton(upload, () => {
+    setQuery("");
+    setTypes([]);
+    setFolded((all) => all.filter((g) => g !== "uploaded"));
   });
-  const built = view === "built";
+
+  const words = searchWords(query);
+  const shown = choices.filter(
+    (c) =>
+      (types.length === 0 || types.includes(GROUP[c.type])) &&
+      matches(`${c.label} ${c.tailoredFor ?? ""}`, words),
+  );
+  const toggle = (group: ResumeType) =>
+    setFolded((all) => (all.includes(group) ? all.filter((g) => g !== group) : [...all, group]));
 
   return (
-    <div className="flex min-w-0 flex-col gap-3">
-      <div className="flex flex-wrap items-center gap-3">
-        <SegmentedToggle
-          label="Resume Kind"
-          options={VIEWS}
-          value={view}
-          onValueChange={(v) => setView(v as View)}
-        />
+    <div className="@container flex min-w-0 flex-col gap-3">
+      <div className="grid grid-cols-2 items-center gap-2 @xl:flex">
         <SearchField
           id={`${name}-search`}
           label="Search resumes"
-          placeholder={built ? "Search by name or job" : "Search by file name"}
+          placeholder="Search by name or job"
           value={query}
           onChange={(e) => setQuery(e.target.value)}
-          className="min-w-48 flex-1"
+          className="col-span-2 @xl:min-w-48 @xl:flex-1"
         />
+        <FieldFacet
+          label="Type"
+          Icon={TagIcon}
+          options={TYPES}
+          values={types}
+          onChange={(values) => setTypes(values as ResumeType[])}
+          className={cn("min-w-36", !sending.button && "col-span-2 @xl:col-auto")}
+        />
+        {sending.button}
       </div>
-      {inView.length === 0 ? (
-        <p className="text-note text-ink-meta py-2">{built ? emptyBuilt : emptyUploaded}</p>
+      {sending.panel}
+      {choices.length === 0 ? (
+        <p className="text-note text-ink-meta py-2">{empty}</p>
+      ) : shown.length === 0 ? (
+        <p className="text-note text-ink-meta py-2">None of your resumes match these filters.</p>
       ) : (
-        // Its own scroll, so the table's head stays in view and the
-        // dialog's footer stays put under a long list.
-        <div className="border-border-subtle rounded-card max-h-scroll-box overflow-y-auto border">
-          <table className="w-full table-fixed border-collapse text-left">
-            <thead className="bg-well sticky top-0 z-1">
-              <tr>
-                <th scope="col" className={cn(TH, "w-10")}>
-                  <span className="sr-only">Pick</span>
-                </th>
-                <th scope="col" className={cn(TH, "pl-0")}>
-                  Resume
-                </th>
-                {built && (
-                  <>
-                    <th scope="col" className={cn(TH, "hidden w-24 sm:table-cell")}>
-                      Type
-                    </th>
-                    <th scope="col" className={cn(TH, "hidden w-48 sm:table-cell")}>
-                      Tailored For
-                    </th>
-                  </>
-                )}
-                <th scope="col" className={cn(TH, "w-28")}>
-                  {built ? "Last Edited" : "Uploaded"}
-                </th>
-              </tr>
-            </thead>
-            <tbody>
-              {shown.map((c) => (
-                <tr
-                  key={c.key}
-                  onClick={() => onPick(c.key)}
-                  className={cn(
-                    "border-border-subtle cursor-pointer border-t transition-colors duration-150",
-                    picked === c.key ? "bg-brand-tint" : "hover:bg-hover",
-                  )}
+        // Its own scroll, so the dialog's footer stays put under a long list.
+        <div className="border-border-subtle rounded-card bg-panel border">
+          <ResumeScroll label="Your resumes">
+            {RESUME_TYPES.map(({ value, label }) => {
+              const rows = shown.filter((c) => GROUP[c.type] === value).sort(order);
+              if (rows.length === 0) return null;
+              return (
+                <ResumeGroup
+                  key={value}
+                  label={label}
+                  count={rows.length}
+                  open={!folded.includes(value)}
+                  onToggle={() => toggle(value)}
                 >
-                  <td className={cn(TD, "pr-0")}>
-                    <input
-                      type="radio"
-                      name={name}
-                      value={c.key}
-                      checked={picked === c.key}
-                      onChange={() => onPick(c.key)}
-                      aria-labelledby={`${name}-${c.key}`}
-                      className="accent-brand block"
-                    />
-                  </td>
-                  <td className={cn(TD, "pl-0")}>
-                    {/* It wraps, never truncates: two resumes tailored for
-                        one company differ only at the end of their names. */}
-                    <span id={`${name}-${c.key}`} className="text-ink break-words">
-                      {c.label}
-                    </span>
-                    {c.isDefault && (
-                      // The Resumes page's mark for the default resume
-                      // (PrimaryStar), with its name.
-                      <span className="text-brand text-meta ml-2 inline-flex items-center gap-1 align-middle whitespace-nowrap">
-                        <StarIcon aria-hidden weight="fill" className="size-3.5" />
-                        Primary
-                      </span>
-                    )}
-                    {/* Below sm the Type and Tailored For columns hide; their
-                        words sit under the name instead. With Type shown, the
-                        name kept about 60px on a phone and broke mid-word
-                        (KAN-361). */}
-                    {built && (
-                      <span className="text-ink-meta mt-0.5 block break-words sm:hidden">
-                        {c.type}
-                        {c.tailoredFor && <> · {c.forThisJob ? <ThisJob /> : c.tailoredFor}</>}
-                      </span>
-                    )}
-                  </td>
-                  {built && (
-                    <>
-                      <td className={cn(TD, "hidden sm:table-cell")}>{c.type}</td>
-                      <td className={cn(TD, "hidden sm:table-cell")}>
-                        {c.forThisJob ? <ThisJob /> : <Cell>{c.tailoredFor}</Cell>}
-                      </td>
-                    </>
-                  )}
-                  <td className={cn(TD, "text-ink-meta")}>
-                    {c.at ? <LocalDate at={c.at} /> : "Unknown"}
-                  </td>
-                </tr>
-              ))}
-            </tbody>
-          </table>
-          {shown.length === 0 && (
-            <p className="text-note text-ink-meta border-border-subtle border-t px-4 py-3">
-              No resumes match &ldquo;{query.trim()}&rdquo;.
-            </p>
-          )}
+                  {rows.map((c) => (
+                    <li key={c.key}>
+                      <PickCard choice={c} name={name} picked={picked === c.key} onPick={onPick} />
+                    </li>
+                  ))}
+                </ResumeGroup>
+              );
+            })}
+          </ResumeScroll>
         </div>
       )}
     </div>
   );
 }
 
-const TH = "px-3 py-2 text-note text-ink-meta font-medium";
-const TD = "px-3 py-2.5 text-note text-ink align-middle";
+/** One resume as a pickable card: the Resumes page's file mark, name and
+ *  line ("Uploaded Oct 21", "Last edited Oct 21 · For …"), its primary
+ *  star, and a radio. The name wraps, never truncates: two resumes
+ *  tailored for one company differ only at the end of their names. */
+function PickCard({
+  choice: c,
+  name,
+  picked,
+  onPick,
+}: {
+  choice: Choice;
+  name: string;
+  picked: boolean;
+  onPick: (key: string) => void;
+}) {
+  const edited = c.madeAt != null && c.at != null && Date.parse(c.at) > Date.parse(c.madeAt);
+  const day = c.type === "Uploaded" || edited ? c.at : c.madeAt;
+  return (
+    <label className={pickRowClasses(picked)}>
+      <input
+        type="radio"
+        name={name}
+        value={c.key}
+        checked={picked}
+        onChange={() => onPick(c.key)}
+        className="accent-brand shrink-0"
+      />
+      <PdfIcon className="size-5 shrink-0" />
+      <span className="min-w-0 flex-1">
+        <span className="text-label text-ink block break-words">{c.label}</span>
+        <span className="text-note text-ink-meta block break-words">
+          {c.type === "Uploaded" ? "Uploaded" : edited ? "Last edited" : "Made"}
+          {day && (
+            <>
+              {" "}
+              <LocalDate at={day} />
+            </>
+          )}
+          {c.tailoredFor && (
+            <>
+              {" · For "}
+              {c.forThisJob ? <ThisJob /> : c.tailoredFor}
+            </>
+          )}
+        </span>
+      </span>
+      <PrimaryStar name={c.label} primary={c.isDefault} />
+    </label>
+  );
+}
 
 /** The posting this picker is for, in place of its own title. Words, not
- *  a badge: a badge's tint vanished on the picked row's. */
+ *  a badge: a badge's tint vanished on the picked card's. */
 function ThisJob() {
   return <span className="text-brand font-medium">This Job</span>;
 }
 
-/** A cell's text, or None where there is none. */
-function Cell({ children }: { children: ReactNode }) {
-  return children ? (
-    <span className="line-clamp-2 break-words">{children}</span>
-  ) : (
-    <span className="text-ink-meta">None</span>
-  );
-}
-
 /**
- * Upload a resume in a dialog, the Resumes page's way (KAN-267): under the
- * limit it uploads at once; at the limit it holds the file until the
- * student picks an upload to replace (Import Updated Resume: the old
- * file's sent resumes keep a frozen copy). `onUploaded` gets the new
- * upload's id, or on a duplicate the id of the resume it matched, to read
- * the list again and pick it. `onBusyChange` says when a file is on its way
- * or waiting, so the dialog holds its own button.
+ * Upload Resume in a dialog's list row, the Resumes page's way (KAN-267):
+ * under the limit the picked file uploads at once; at the limit it waits
+ * under the row (`panel`) until the student picks an upload to replace
+ * (Import Updated Resume: the old file's sent resumes keep a frozen copy),
+ * since a dialog cannot send them to Resumes to delete one. `onSent` runs
+ * once the list has the new file, so the list can clear what would hide
+ * it. With no `upload`, the row has no button.
  */
-export function UploadPick({
-  label,
-  uploads,
-  onUploaded,
-  onBusyChange,
-}: {
-  label: string;
-  uploads: ResumeItem[];
-  onUploaded: (uploadedId: string) => Promise<void>;
-  onBusyChange: (busy: boolean) => void;
-}) {
+function useUploadButton(upload: PickerUpload | undefined, onSent: () => void) {
   const [waiting, setWaiting] = useState<File | null>(null);
   const [replacing, setReplacing] = useState<string | null>(null);
   const [uploading, setUploading] = useState(false);
   const [note, setNote] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
+  const inputRef = useRef<HTMLInputElement>(null);
 
   const busy = uploading || waiting != null;
-  useEffect(() => onBusyChange(busy), [busy, onBusyChange]);
+  const onBusyChange = upload?.onBusyChange;
+  useEffect(() => onBusyChange?.(busy), [busy, onBusyChange]);
 
-  function pickFile(file: File) {
+  if (!upload) return { button: null, panel: null };
+  const { uploads, onUploaded } = upload;
+
+  function pickFile(event: ChangeEvent<HTMLInputElement>) {
+    const file = event.target.files?.[0];
+    event.target.value = "";
+    if (!file) return;
     setError(null);
     setNote(null);
+    const invalid = resumeFileError(file);
+    if (invalid) return setError(invalid);
     if (uploads.length >= MAX_UPLOADS) {
       setWaiting(file);
       setReplacing(uploads[0]?.id ?? null);
@@ -340,6 +371,7 @@ export function UploadPick({
       return setError(error ?? "Could not upload the resume.");
     }
     await onUploaded((resume?.id ?? duplicateOf) as string);
+    onSent();
     setUploading(false);
     setWaiting(null);
     setNote(
@@ -349,10 +381,24 @@ export function UploadPick({
     );
   }
 
-  return (
+  const button = (
+    <>
+      <Button
+        variant="secondary"
+        size="sm"
+        disabled={busy}
+        onClick={() => inputRef.current?.click()}
+        className="@xl:ml-auto"
+      >
+        <UploadIcon className="size-4" /> {uploading ? "Uploading…" : "Upload Resume"}
+      </Button>
+      <input ref={inputRef} type="file" accept={RESUME_ACCEPT} onChange={pickFile} hidden />
+    </>
+  );
+
+  const panel = (waiting || error || note) && (
     <div className="flex flex-col gap-2">
-      <p className="text-label text-ink">{label}</p>
-      {waiting ? (
+      {waiting && (
         // At the limit: which upload the new file replaces.
         <>
           <p className="text-note text-ink-muted">
@@ -388,8 +434,6 @@ export function UploadPick({
             </Button>
           </div>
         </>
-      ) : (
-        <ResumeUpload file={null} onFileChange={pickFile} onRemove={() => {}} busy={uploading} />
       )}
       {error && (
         <p role="alert" className="text-meta text-danger">
@@ -403,6 +447,8 @@ export function UploadPick({
       )}
     </div>
   );
+
+  return { button, panel };
 }
 
 /** One radio row per resume, by its name. */
@@ -428,14 +474,12 @@ export function ResumeChoices({
   // dialog's two columns a long resume name pushed Generated Resumes over
   // Uploaded Resumes instead of wrapping.
   return (
-    <fieldset className="flex min-w-0 flex-col gap-1">
+    <fieldset className="flex min-w-0 flex-col gap-2">
       <legend className={hideLegend ? "sr-only" : "text-label text-ink mb-1"}>{legend}</legend>
       {choices.length === 0 && empty && <p className="text-note text-ink-meta">{empty}</p>}
       {choices.map((c) => (
-        <label
-          key={c.key}
-          className="hover:bg-hover has-checked:border-brand border-border rounded-control flex cursor-pointer items-center gap-3 border px-3 py-2"
-        >
+        // Drawn as the list's cards are (`pickRowClasses`), siblings of theirs.
+        <label key={c.key} className={cn(pickRowClasses(picked === c.key), "mt-0")}>
           <input
             type="radio"
             name={name}
@@ -448,7 +492,7 @@ export function ResumeChoices({
               and a grey kind line under each name only repeated it. It
               wraps, never truncates: two resumes tailored for one company
               differ only at the end of their names. */}
-          <span className="text-body text-ink min-w-0 break-words">{c.label}</span>
+          <span className="text-label text-ink min-w-0 break-words">{c.label}</span>
         </label>
       ))}
     </fieldset>

@@ -20,7 +20,7 @@ import { FIELD_LABEL } from "@/components/ui/text-field";
 import type { BankResume } from "@/lib/bank-actions";
 import { cn } from "@/lib/cn";
 
-import { ResumeLists, type Choice } from "../jobs/resume-picker";
+import { pickRowClasses, ResumeLists, type Choice } from "../jobs/resume-picker";
 import { NONE, type Pick } from "./holdings";
 
 const TYPE = { uploaded: "Uploaded", base: "Base", tailored: "Tailored" } as const;
@@ -34,7 +34,7 @@ const NONE_NOTE = "What you added yourself, or what came from several uploads";
 const NAME =
   "text-label text-ink after:rounded-card focus-visible:after:ring-brand-ring block w-full cursor-pointer truncate text-left after:absolute after:inset-0 focus-visible:outline-none focus-visible:after:ring-2";
 
-/** The bank's resumes as the shared table's rows, in the API's order. */
+/** The bank's resumes as the shared list's cards. */
 function choicesOf(resumes: BankResume[]): Choice[] {
   return resumes.map((r) => ({
     key: keyOf(r),
@@ -43,6 +43,7 @@ function choicesOf(resumes: BankResume[]): Choice[] {
     forThisJob: false,
     tailoredFor: r.posting,
     at: r.edited_at,
+    madeAt: r.kind === "uploaded" ? null : r.created_at,
     source: r.kind === "uploaded" ? { uploadedResumeId: r.id } : { builtResumeId: r.id },
     isDefault: r.primary,
   }));
@@ -60,7 +61,7 @@ const keyOf = (r: BankResume) => `${r.kind === "uploaded" ? "uploaded" : "built"
  * Download, the star's Make Primary, Delete) stay on the Resumes view: this
  * card says what the page shows, and a delete from it would leave the page
  * on a resume that is gone. Change Resume opens the
- * resume table every resume dialog shares (../jobs/resume-picker, KAN-360),
+ * resume list every resume dialog shares (../jobs/resume-picker, KAN-406),
  * and Not From an Upload is a row of its own under that table while
  * anything no upload owns exists.
  *
@@ -160,10 +161,10 @@ export function ResumeBar({
 }
 
 /**
- * Choose a Resume to Show: the shared table, mounted only while open, so
+ * Choose a Resume to Show: the shared list, mounted only while open, so
  * each opening starts on the current pick (else the primary resume, else
- * the first). Not From an Upload is a row under the table, in the same
- * radio group, since it is no resume and the shared table holds resumes
+ * the first). Not From an Upload is a card under the list, in the same
+ * radio group, since it is no resume and the shared list holds resumes
  * only. A click or the arrow keys move the pick; nothing changes on the
  * page until Show Resume, so Cancel leaves it as it was.
  */
@@ -201,8 +202,7 @@ function ChooseResume({
         <ResumeLists
           name="bank-resume"
           choices={choices}
-          emptyBuilt="None yet. Build one on Resumes."
-          emptyUploaded="None yet. Upload one on Resumes."
+          empty="None yet. Generate or upload one on Resumes."
           picked={picked}
           onPick={setPicked}
         />
@@ -210,12 +210,9 @@ function ChooseResume({
             pick, so the dialog can always show it again. Every item must
             show under some pick (holdings.ts). */}
         {(unowned > 0 || value === NONE) && (
-          <label
-            className={cn(
-              "border-border-subtle rounded-card flex cursor-pointer items-center gap-3 border px-3 py-2.5 transition-colors duration-150",
-              none ? "bg-brand-tint" : "hover:bg-hover",
-            )}
-          >
+          // Drawn as the list's cards are (`pickRowClasses`): it is a
+          // pick in the same radio group, a sibling of theirs.
+          <label className={cn(pickRowClasses(none), "mt-0")}>
             <input
               type="radio"
               name="bank-resume"
@@ -225,7 +222,7 @@ function ChooseResume({
               className="accent-brand shrink-0"
             />
             <span className="min-w-0 flex-1">
-              <span className="text-note text-ink block">Not From an Upload</span>
+              <span className="text-label text-ink block">Not From an Upload</span>
               <span className="text-note text-ink-meta block">{NONE_NOTE}</span>
             </span>
             <span className="text-note text-ink-meta shrink-0">
