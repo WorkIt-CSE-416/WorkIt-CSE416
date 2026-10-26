@@ -1,11 +1,16 @@
 "use client";
 
+import { ArrowUUpLeftIcon } from "@phosphor-icons/react/ssr";
 import type { PDFDocumentProxy, RenderTask } from "pdfjs-dist";
 import { useEffect, useRef, useState, type ReactNode } from "react";
 
 import { Skeleton } from "@/components/shadcn/skeleton";
+import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/shadcn/tooltip";
+import { Button } from "@/components/ui/button";
 import type { RenderBox } from "@/lib/built-resume-actions";
 import { cn } from "@/lib/cn";
+
+import type { Mark, RevertTarget } from "./tailor-review";
 
 /**
  * The rendered PDF drawn with pdf.js, one canvas per page, with a click
@@ -16,8 +21,14 @@ import { cn } from "@/lib/cn";
  * percent of the page, so they need no redraw to follow the canvas's size.
  * `field` draws the selected line's text field over its first box (KAN-218);
  * each page is a size container, so the field's type can be set in `cqw` to
- * match the PDF's at any width.
+ * match the PDF's at any width. `marks` tints Tailor's changed lines and
+ * `reverts` gives each change an inline action (./tailor-review.tsx).
  */
+
+const MARK_TINT: Record<Mark, string> = {
+  changed: "bg-positive/35",
+  moved: "bg-warning-fill/25",
+};
 
 /** A box's identity across renders: its bank item and which part of it. */
 export const boxKey = (box: Pick<RenderBox, "item_id" | "kind">) => `${box.item_id}.${box.kind}`;
@@ -111,6 +122,9 @@ export function PdfPages({
   onDrawn,
   field,
   placeholder,
+  marks,
+  reverts,
+  onRevert,
 }: {
   /** base64, as the render response sends it */
   pdf: string;
@@ -124,6 +138,11 @@ export function PdfPages({
   /** Shown until pdf.js has read the PDF: the editor's PageSkeleton, so
    *  its skeleton holds until the canvas. A line of text by default. */
   placeholder?: ReactNode;
+  /** Tailor's changed lines, by box key, while their changes are untouched. */
+  marks?: Map<string, Mark>;
+  /** Tailor changes that can be reverted from their line. */
+  reverts?: Map<string, RevertTarget>;
+  onRevert?: (target: RevertTarget) => void;
 }) {
   const first = boxes.find((b) => boxKey(b) === selected);
   const typing = first && field?.(first);
@@ -191,25 +210,71 @@ export function PdfPages({
             .filter((box) => box.page === i + 1)
             .map((box) => {
               const key = boxKey(box);
+              const revert = reverts?.get(key);
+              const mark = marks?.get(key);
+              // A reworded bullet (green) shows the wording it replaced on hover
+              const before =
+                mark === "changed" && revert?.edit.kind === "reword" ? revert.edit.before : null;
+              const target = {
+                type: "button" as const,
+                "aria-label": `${kindLabel(box.kind)}, page ${box.page}`,
+                "aria-pressed": selected === key,
+                onClick: () => onSelect(key),
+                className: cn(
+                  "absolute inset-0 rounded-[2px] outline-offset-1 transition-colors",
+                  !mark && "hover:bg-brand/5",
+                  mark && MARK_TINT[mark],
+                  "focus-visible:outline-brand focus-visible:outline-2",
+                  selected === key &&
+                    (mark ? "outline-brand outline-2" : "bg-brand/10 outline-brand outline-2"),
+                ),
+              };
               return (
-                <button
+                <div
                   key={`${key}.${box.page}`}
-                  type="button"
-                  aria-label={`${kindLabel(box.kind)}, page ${box.page}`}
-                  aria-pressed={selected === key}
-                  onClick={() => onSelect(key)}
-                  className={cn(
-                    "absolute rounded-[2px] outline-offset-1 transition-colors",
-                    "hover:bg-brand/5 focus-visible:outline-brand focus-visible:outline-2",
-                    selected === key && "bg-brand/10 outline-brand outline-2",
-                  )}
+                  className="group/marked absolute"
                   style={{
                     left: `${(box.x0 / size.width) * 100}%`,
                     top: `${(box.y0 / size.height) * 100}%`,
                     width: `${((box.x1 - box.x0) / size.width) * 100}%`,
                     height: `${((box.y1 - box.y0) / size.height) * 100}%`,
                   }}
-                />
+                >
+                  {before ? (
+                    <Tooltip>
+                      <TooltipTrigger {...target} />
+                      <TooltipContent
+                        side="right"
+                        sideOffset={8}
+                        className="block max-w-[min(20rem,calc(100vw-2rem))] text-left break-words whitespace-normal"
+                      >
+                        <span className="mb-0.5 block font-semibold">Before</span>
+                        {before}
+                      </TooltipContent>
+                    </Tooltip>
+                  ) : (
+                    <button {...target} />
+                  )}
+                  {/* No Revert while a line is open: a click on one would throw
+                      away what the student is typing, and a hover elsewhere
+                      would crowd the line being edited. */}
+                  {revert && onRevert && selected === null && (
+                    <Button
+                      variant="secondary"
+                      size="xs"
+                      aria-label={`Revert Tailor's change to ${kindLabel(box.kind).toLowerCase()}`}
+                      onClick={() => onRevert(revert)}
+                      className={cn(
+                        "absolute right-0 bottom-full z-10 opacity-0 transition-opacity",
+                        "pointer-events-none group-hover/marked:pointer-events-auto",
+                        "group-focus-within/marked:pointer-events-auto group-hover/marked:opacity-100",
+                        "group-focus-within/marked:opacity-100",
+                      )}
+                    >
+                      <ArrowUUpLeftIcon aria-hidden /> Revert
+                    </Button>
+                  )}
+                </div>
               );
             })}
           {first?.page === i + 1 && typing && (

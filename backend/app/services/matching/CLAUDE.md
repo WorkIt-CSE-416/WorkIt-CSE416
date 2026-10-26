@@ -226,6 +226,3 @@ raises `EmptyBank`, which the route answers as a 404.
 - **Grad date vs start term** is not compared yet. The bank's expected
   graduation date reaches `eligibility()`, which only checks years of
   experience; comparing it is a scoring change, out of KAN-212's scope.
-- **Dropping `resumes.embedding`** (the contract half of KAN-212's move). The
-  model stopped mapping it; the drop migration is written and applied only
-  after this code is deployed (`../../models/CLAUDE.md`).

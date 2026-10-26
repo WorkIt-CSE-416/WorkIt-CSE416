@@ -132,9 +132,13 @@ async def _writing(session: AsyncSession) -> AsyncIterator[None]:
 @router.get("", response_model=BankResponse)
 async def get_bank(
     applicant_id: uuid.UUID = Depends(owned_applicant),
+    built_resume_id: uuid.UUID | None = None,
     session: AsyncSession = Depends(get_session),
 ) -> BankResponse:
-    bank = await service.load_bank(session, applicant_id)
+    """The bank, with `built_resume_id`'s own skills too when given (the
+    editor of that resume names them). The skills are the applicant's own
+    rows, so an id that is not theirs adds nothing."""
+    bank = await service.load_bank(session, applicant_id, local_to=[built_resume_id] if built_resume_id else [])
     return bank_response(bank, await service.load_holdings(session, applicant_id))
 
 

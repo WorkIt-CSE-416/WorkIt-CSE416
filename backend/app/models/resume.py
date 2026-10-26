@@ -27,6 +27,5 @@ class Resume(BaseModel):
     # with no text, and on every upload from before KAN-267: not backfilled.
     text_hash: Mapped[str | None]
     # The parser's reading goes into the experience bank, not here (ADR 0003).
-    # resumes.embedding still exists in the database but is no longer mapped:
-    # the embedding moved to experience_banks (KAN-212). Its drop is the
-    # contract half, applied after this code is deployed (models/CLAUDE.md).
+    # The embedding moved to experience_banks (KAN-212); `b9e2c4d6f8a1`
+    # dropped resumes.embedding.

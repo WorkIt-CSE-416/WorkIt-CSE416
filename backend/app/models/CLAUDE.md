@@ -286,7 +286,18 @@ change here must keep:
   and skills. Null means the student made it. A skill's name is unique
   per owner (`bank_skills_applicant_name_key`, `NULLS NOT DISTINCT`, so
   the student's own skills are one list). Built resumes need no owner
-  column: their shown choice rows say what they hold.
+  column for what they show from the bank: their shown choice rows say it.
+- **A skill can belong to one built resume instead**
+  (`bank_skills.built_resume_id`, `a3d7f1c9e2b4`,
+  `../../../docs/tailor_resume.md`): Tailor's picked skills, which show on
+  the tailored resume only and are not in the experience bank. It still
+  needs a `bank_skills` row, since `built_resume_skills.skill_id` points
+  there. At most one owner (`bank_skills_one_owner_check`); it cascades
+  with its resume; the name index includes it, so a resume's "Go" never
+  clashes with the bank's. `load_bank` leaves these rows out unless the
+  caller names their resume (`local_to`), so a new reader of skills that
+  forgets them still sees only the bank. The same pattern as
+  `bank_bullet_variants.built_resume_id` (below).
 
 ## Built resumes
 
@@ -859,15 +870,13 @@ produces no trigram and scans anyway. `title` had one too, dropped in
 searching company-posted jobs by employer needs a join or a copied name.
 
 **Job matching adds three columns (KAN-139):**
-- **`job_postings.embedding` and `resumes.embedding`** hold embedding vectors,
-  `vector(768)` from pgvector, sized by `dto.EMBEDDING_DIMENSIONS`.
-  **`resumes.embedding` is no longer mapped** (KAN-212 moved the embedding to
-  `experience_banks`): the column stays in the database until a contract
-  migration drops it, written and applied only after the code that stopped
-  mapping it is deployed, as with `824f0b2e3d84` below. Until then
-  `alembic revision --autogenerate` proposes `drop_column('resumes',
-  'embedding')`: delete that line from any migration that is not the drop
-  itself, or the drop ships before the deploy and old code's inserts fail.
+- **`job_postings.embedding`** holds an embedding vector, `vector(768)` from
+  pgvector, sized by `dto.EMBEDDING_DIMENSIONS`. **`resumes.embedding` is
+  gone**: KAN-212 moved the applicant's embedding to `experience_banks` and
+  stopped mapping it, and the contract migration `b9e2c4d6f8a1` dropped it
+  once that code was deployed (2026-10-25), as `824f0b2e3d84` did below.
+  Before the drop, autogenerate proposed `drop_column('resumes',
+  'embedding')` in every migration, and `alembic check` failed on it.
 - **`job_postings.fts`** is a generated `tsvector` of the title (weighted A)
   and description (weighted D), so anything that ranks with `ts_rank` puts a
   title match first (search itself doesn't rank: `@@` ignores weights), with
@@ -888,10 +897,13 @@ What writes them, and why, is `../services/matching/CLAUDE.md`.
 
 **Tailor's keywords are cached on the posting (KAN-215).** `keywords` (JSONB,
 at most 20 `{"keyword", "kind"}`) and `keywords_hash` (the SHA-256 of the
-description they came from), both `deferred`, from `e1c4a7b9d215`. A hash
-that differs from the description's means stale, so a company's edit is
-caught with no extra code; the feed import also clears both when it changes
-a description, so a stale list never sits in the table. Only
+title and the description's job part, `job_part`, which is all the model
+read), both `deferred`, from `e1c4a7b9d215`. A hash that differs means
+stale, so a company's edit to the job or its title is caught with no extra
+code, an edit to its perks
+alone keeps the cache, and a change to `job_part`'s headings refreshes the
+caches it changes. The feed import also clears both when it changes a
+description at all, so a stale list never sits in the table. Only
 `services/keywords.py` reads or writes them. Apply the migration before the
 deploy: the model maps them, so company job creation fails on a database
 without them (above).
