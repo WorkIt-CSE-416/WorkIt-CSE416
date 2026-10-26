@@ -164,6 +164,8 @@ export function Editor({
   initialBank,
   initialChoices,
   initialHeader,
+  onAsk,
+  phoneBar,
 }: {
   resumeId: string;
   /** The first render, started by the page and not awaited. */
@@ -171,6 +173,13 @@ export function Editor({
   initialBank: Bank;
   initialChoices: Choices;
   initialHeader: Header;
+  /** Called as the student opens Ask Scout on a desktop, so a page that
+   *  narrows the editor can give the docked assistant its room (Tailor's
+   *  before and after). */
+  onAsk?: () => void;
+  /** A row the phone layout's header shows under its buttons: the page's
+   *  own controls, which the full-screen phone editor would cover. */
+  phoneBar?: ReactNode;
 }) {
   // Null until the first render lands (FirstRenderPane hands it over).
   const [rendered, setRendered] = useState<RenderedPdf | null>(null);
@@ -579,6 +588,7 @@ export function Editor({
           error={error}
           fitUndo={fitUndo}
           download={download}
+          bar={phoneBar}
           actions={
             line && (
               <LineActions
@@ -631,7 +641,14 @@ export function Editor({
           onClose={() => select(null)}
           onFit={fit}
           onUndoFit={undoFit}
-          onAsk={asking ? undefined : () => setAsking(true)}
+          onAsk={
+            asking
+              ? undefined
+              : () => {
+                  setAsking(true);
+                  onAsk?.();
+                }
+          }
         />
         {error && (
           <p role="alert" className="text-note text-danger">

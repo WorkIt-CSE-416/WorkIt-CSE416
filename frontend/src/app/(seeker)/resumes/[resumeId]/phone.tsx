@@ -103,6 +103,7 @@ export function PhoneEditor({
   error,
   fitUndo,
   download,
+  bar,
   actions,
   assistant,
   onSelect,
@@ -133,6 +134,8 @@ export function PhoneEditor({
   fitUndo: ChoicesUpdate | null;
   /** The resume's downloads, the same as the desktop sticky bar's. */
   download: ResumeDownload;
+  /** The page's own row under the buttons (Tailor's Before and After). */
+  bar?: ReactNode;
   /** The selected line's actions, the same as the desktop sticky bar's. */
   actions: ReactNode;
   /** The editor assistant (KAN-221), shown in a sheet when asked for. */
@@ -228,6 +231,7 @@ export function PhoneEditor({
             </Button>
           </div>
         </div>
+        {bar}
         {error && (
           <p role="alert" className="text-note text-danger">
             {error}

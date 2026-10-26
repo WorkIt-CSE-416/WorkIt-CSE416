@@ -1700,6 +1700,14 @@ with no proposals to accept and no Done (2026-10-25).
   ("Keyword Match 3 of 14 → 9 of 14" and each keyword the run added,
   `tailor-score.tsx`); the run's before and after matches were not shown
   anywhere before. Like the marks, it lives in that tab only.
+- **The review is a before and after** (`tailor-compare.tsx`,
+  `../../docs/tailor_resume.md`, "Before and after"): the resume the run
+  tailored, read only, beside the editor, both in the page's one scroll.
+  Below 56rem, and on a phone in the phone editor's header, a Before /
+  After switch shows one at a time; on a desktop, Side by Side / After
+  Only, and Ask Scout switches to After Only. With no record (a new tab
+  or device) the editor shows alone, with a line saying the comparison
+  lives in the tab that ran Tailor.
 - An empty bank (409) shows a link to the bank page, where intake starts.
 
 ## Resumes (`/resumes`)
@@ -1988,7 +1996,10 @@ student who opened a resume from Experiences landed on another view.
   in sessionStorage (`tailorEditsKey`, under `lib/local-drafts.ts`'s
   prefix, so Sign Out clears it): a reload in the same tab keeps the
   review, and a new tab or device opens with none. The phone editor shows
-  the same card above the page and the same tints. The bar also
+  the same card above the page and the same tints. Two props serve a page
+  that narrows the editor (Tailor's before and after): `onAsk`, called as
+  Ask Scout opens on a desktop, and `phoneBar`, a row the phone layout's
+  header shows, since that layout covers the page. The bar also
   says "Saving…" or the last round trip ("Saved, 412 ms"), the measure for
   the Vercel preview check. **Download** (PDF or Word) and Ask Scout end
   the bar whether or not a line is selected, so Download stays in reach down
