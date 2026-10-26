@@ -1285,7 +1285,7 @@ form's option that says the same thing.
 The same bank holds the **Application answers** (KAN-369, My Profile's
 section of that name): `engineProfile`'s `applicationFacts` gives them as
 `logistics.*` (on-site, 40 h, start and end dates, terms, relocation, ranked
-`location_preferences` one place an area, `referrals` from `referred_at`),
+`location_preferences` one place an area (with its city alone), `referrals` from `referred_at`),
 `identity.home_address` (line 1 and zip over the location's city and state),
 `identity.summer_2027_location`, `identity.languages` (spoken and written)
 and `screeners.*` (relatives at a company, a relative who is a public

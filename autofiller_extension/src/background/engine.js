@@ -298,8 +298,10 @@ function applicationFacts(answers, place) {
       latest_end_date: answers.latest_end,
       available_terms: list(answers.available_terms),
       willing_to_relocate_for_summer: yes(answers.willing_to_relocate),
-      // Ranked, one place an area, as the engine's office rules read them.
-      location_preferences: list(answers.location_preferences)?.map((placeName) => [placeName]),
+      // Ranked, one place an area, as the engine's office rules read them; the city alone too,
+      // as offices are often named in full ("Seattle, Washington (Seattle Metro Area)" for "Seattle, WA").
+      location_preferences: list(answers.location_preferences)?.map((placeName) =>
+        [...new Set([placeName, placeName.split(",")[0].trim()])]),
       referrals: list(answers.referred_at),
     }),
     identity: present({

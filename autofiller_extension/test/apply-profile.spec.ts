@@ -169,7 +169,7 @@ test("the Application answers reach the engine, and the school year comes from t
 
   expect(profile.logistics).toEqual({
     onsite_5_days_ok: true, can_work_full_time_40h: false, earliest_start_date: "2027-05-24", latest_end_date: "2027-08-13",
-    available_terms: ["summer 2027"], willing_to_relocate_for_summer: true, location_preferences: [["Springfield, IL"], ["Remote"]],
+    available_terms: ["summer 2027"], willing_to_relocate_for_summer: true, location_preferences: [["Springfield, IL", "Springfield"], ["Remote"]],
     referrals: ["Initech"],
   });
   expect(profile.identity.home_address).toEqual({ line1: "1 Example Way", zip: "00000", city: "Springfield", state: "IL", country: "United States" });
