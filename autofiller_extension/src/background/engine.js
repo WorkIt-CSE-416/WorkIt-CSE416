@@ -522,14 +522,18 @@ const WRITTEN_LABEL_MAX = 2000;
  * "failed" with the engine's reason, including a field that shows something
  * other than its planned answer. `more`: questions the fill brought on
  * (Eightfold's follow-ups, Workday's new panels and follow-ups), to plan and
- * fill next; a field not filled yet then has no result.
- * @returns {Promise<{ results: Record<string, Result>, more?: object[], state?: object }>}
- * @typedef {{ status: "filled", shows: string | string[] } | { status: "skipped" | "failed", reason: string }} Result
+ * fill next; a field not filled yet then has no result. `events`: the
+ * panel's key for following the fill (content/progress.js, KAN-398): the
+ * engine says on the page how each field goes, stops when the student
+ * presses Stop autofill (`stopped`, and no result for the fields not
+ * reached) and leaves a field the student skipped as "left".
+ * @returns {Promise<{ results: Record<string, Result>, more?: object[], state?: object, stopped?: true }>}
+ * @typedef {{ status: "filled", shows: string | string[] } | { status: "skipped" | "failed" | "left", reason: string }} Result
  */
-export async function fillPage({ call, site, questions, answers, accepted, state, sections }) {
+export async function fillPage({ call, site, questions, answers, accepted, state, sections, events }) {
   try {
-    const filled = await call("fillEach", site, questions, answers, { accepted: accepted ?? {}, state, sections });
-    return { results: filled.results, ...(filled.moreQuestions ? { more: filled.moreQuestions } : {}), state: filled.state ?? state };
+    const filled = await call("fillEach", site, questions, answers, { accepted: accepted ?? {}, state, sections, ...(events ? { events } : {}) });
+    return { results: filled.results, ...(filled.moreQuestions ? { more: filled.moreQuestions } : {}), state: filled.state ?? state, ...(filled.stopped ? { stopped: true } : {}) };
   } catch (error) {
     const named = ["FillError", "Handoff", "NoForm"].includes(error.name);
     const reason = named ? error.message : `Fill failed: ${error.message}`;
