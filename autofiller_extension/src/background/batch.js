@@ -53,6 +53,7 @@ import { ApiError, finishApplication, getAutofillProfile, me, nextApplication, r
 import { formFor, jobOf, practiceJob } from "./engine.js";
 import { jobBoard } from "./job-boards.js";
 import { injectFill, injectHumanCheck } from "../shared/content-scripts.js";
+import { embeddedForm, embedsGreenhouse } from "./embedded-forms.js";
 import { liveBatch, load, save, serially } from "./batch-store.js";
 import { forgetWorkableDraft, formAfterHumanCheck, formShows, humanCheckShows, waitForLoad } from "./tab-load.js";
 import { markCheck, tryInFront } from "./human-checks.js";
@@ -252,6 +253,12 @@ async function openTab(batch, jobId, url, jobType = null) {
 async function startFill(tabId, url, again = false) {
   try {
     await waitForLoad(tabId);
+    // A careers page that embeds Greenhouse's form: filled in its iframe, the page itself untouched.
+    if (url && embedsGreenhouse(url)) {
+      const frameId = await embeddedForm(tabId, FORM_TIMEOUT_MS);
+      if (frameId === null || !(await formShows(tabId, FORM_TIMEOUT_MS, frameId))) throw new Error("no_form");
+      return await injectFill(tabId, { batch: true, frameId });
+    }
     const shown = (await chrome.tabs.get(tabId)).url ?? "";
     if (jobOf(shown)?.site === "workable") await forgetWorkableDraft(tabId);
     // A Workday posting shows no form until the student presses Apply and signs in: its fill waits for them.

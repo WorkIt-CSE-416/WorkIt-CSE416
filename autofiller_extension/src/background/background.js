@@ -20,6 +20,7 @@ import { claimMoment } from "./moments.js";
 import { nextNeedsYou, walkFrom } from "./next-needs-you.js";
 import { SELF_ID, checkedSelfId, unansweredSelfId } from "./self-id.js";
 import { forgetSubmits, submitHinted, watchSubmitRequests } from "./submit-proof.js";
+import { watchEmbeddedForms } from "./embedded-forms.js";
 import { injectFill } from "../shared/content-scripts.js";
 import { forgetShownWorkableDraft } from "./tab-load.js";
 import { allowForMe, forgetLogin, markCreated, markRefused, markSignedIn, sentSince, watchWorkdaySends, workdayLogin } from "./workday-logins.js";
@@ -364,6 +365,7 @@ async function rememberWorkdayTab(tabId) {
 // The job system's answer to a batch tab's submit request (submit-proof.js)
 // is what marks its application applied.
 watchSubmitRequests(markSubmitted);
+watchEmbeddedForms();
 watchWorkdaySends();
 
 // A batch tab that moves to a job system's page for a sent application

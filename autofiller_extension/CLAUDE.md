@@ -683,6 +683,20 @@ waits for an opened tab's page and form (`waitForLoad`, `formShows`).
   engine's `EIGHTFOLD_COMPANIES`) is listed by its host: without it, the
   job's names and text failed to fetch. `test/manifest.spec.ts` checks one
   link of each.
+- **A careers page that embeds Greenhouse is filled in its iframe**
+  (KAN-369). A `?gh_jid=` link on a company's own site (hosts.py takes
+  them, outside its `SKIP_EMBEDDING`) opens as it is, and the fill runs in
+  the page's `*.greenhouse.io/embed/job_app` frame only
+  (`embedded-forms.js`; `injectFill`'s and `formShows`'s `frameId`). The
+  extension has no host permission for the company's page: Chrome redacts
+  its URL from `chrome.tabs`, and `allFrames` refuses the whole tab, but a
+  frame on a permitted host takes a script by its frameId. That frameId is
+  read from the iframe's own request through `webRequest` (no new
+  permission, so no install warning; `webNavigation` would warn "Read your
+  browsing history") and kept per tab in `storage.session`. No embed frame
+  within 10 seconds, or no form in it, and the tab needs the student. The
+  panel shows inside the frame. Popup Autofill on such a page still names
+  the iframe's `src` (decision 633).
 - **Wait for the page, then the form, then fill.** `startFill` waits for
   the tab's `complete` status (30 seconds at most), injects `waitForForm`,
   which watches the DOM (never `requestAnimationFrame`: a hidden tab runs

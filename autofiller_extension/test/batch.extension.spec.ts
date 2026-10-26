@@ -175,6 +175,29 @@ test("a hosted Greenhouse job its company shows on its own site opens in its emb
   expect(forms.submissions).toEqual([]);
 });
 
+test("a company's careers page that embeds Greenhouse's form is filled in its iframe", async () => {
+  // A ?gh_jid= page on the company's own site (no host permission there): the form is Greenhouse's embed iframe.
+  const forms = new SavedForms(["greenhouse-coinbase"]);
+  const careers = "https://www.acme-robotics.example/careers/job?gh_jid=8175510";
+  const companyPage: Handler = ({ url }) =>
+    url.host === "www.acme-robotics.example"
+      ? { headers: { "content-type": "text/html" }, body: `<!doctype html><title>Careers</title><h1>Software Engineer</h1><iframe id="grnhse_iframe" width="100%" height="2000" src="${forms.url("greenhouse-coinbase")}"></iframe>` }
+      : undefined;
+  const api = new FakeApi().queue({ id: "job-0", apply_url: careers });
+  loaded = await loadExtension([api.handler, webapp, companyPage, forms.handler]);
+  await signIn(loaded.context);
+  const webappPage = loaded.context.pages()[0] ?? (await loaded.context.newPage());
+  await webappPage.goto("http://localhost:3000/auto-apply");
+
+  expect(await sendFromWebapp(webappPage, { type: "run/open" })).toMatchObject({ ok: true, opened: true });
+  await expect.poll(() => loaded.context.pages().some((p) => p.url() === careers), { timeout: 30_000 }).toBe(true);
+  const frame = () => loaded.context.pages().find((p) => p.url() === careers)!.frames().find((f) => f.url().includes("/embed/job_app"));
+  await expect.poll(async () => (await frame()?.locator("#first_name").inputValue().catch(() => "")) ?? "", { timeout: 60_000 }).toBe("Test");
+  // Coinbase's form asks something WorkIt has no answer for: the frame's fill reports it, as on Greenhouse's own page.
+  await expect.poll(() => api.stages.get("job-0"), { timeout: 60_000 }).toBe("needs_you");
+  expect(forms.submissions).toEqual([]);
+});
+
 /** `forms`' handler, with `script` added to the saved form `name`'s page: the form misbehaving as a live one may. */
 function withScript(forms: SavedForms, name: string, script: string): Handler {
   return async (request) => {
