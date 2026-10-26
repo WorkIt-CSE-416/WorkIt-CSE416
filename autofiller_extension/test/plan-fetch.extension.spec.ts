@@ -58,3 +58,32 @@ test("the profile's parts are asked at once, not one after another", async () =>
   const took = Math.max(...parts.map((p) => p.answered)) - Math.min(...parts.map((p) => p.asked));
   expect(took).toBeLessThan(4 * SLOW_MS);
 });
+
+test("a batch tab's job questions are asked as its tab opens, while its page is still loading, and once", async () => {
+  const forms = new SavedForms(["greenhouse-arc"]);
+  const form = forms.url("greenhouse-arc");
+  const api = new FakeApi().queue({ id: "job-0", apply_url: form });
+  // The form's page answers slowly, as a heavy careers page loads; when it was answered, and when the job's questions were asked.
+  let pageAnswered = Infinity;
+  const questionsAsked: number[] = [];
+  const slowPage: Handler = async (request) => {
+    if (request.url.host === "boards-api.greenhouse.io" && request.url.searchParams.has("questions")) questionsAsked.push(Date.now());
+    const reply = await forms.handler(request);
+    if (request.url.href === form) {
+      await new Promise((done) => setTimeout(done, 1_500));
+      pageAnswered = Math.min(pageAnswered, Date.now());
+    }
+    return reply;
+  };
+  loaded = await loadExtension([api.handler, webapp, slowPage]);
+  await signIn(loaded.context);
+  const app = loaded.context.pages()[0] ?? (await loaded.context.newPage());
+  await app.goto("http://localhost:3000/auto-apply");
+  await sendFromWebapp(app, { type: "run/open" });
+  const grouped = () => loaded.worker.evaluate(async () => (await chrome.tabGroups.query({})).length);
+  await expect.poll(grouped, { timeout: 60_000 }).toBeGreaterThan(0);
+  // Asked before its page came, and not again by its Plan.
+  expect(questionsAsked).toHaveLength(1);
+  expect(questionsAsked[0]).toBeLessThan(pageAnswered);
+  expect(forms.submissions).toEqual([]);
+});

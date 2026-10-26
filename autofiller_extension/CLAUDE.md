@@ -96,6 +96,15 @@ builds it: `dist/engine.js` is committed in the engine repo.
   and text (`readNames`) and the job's answer bank, which `planQuestions`
   waits for only to plan (it takes the bank as a promise). Each URL is
   still asked once per Plan (`once`), so the requests are the same ones.
+  A batch tab's job reads start sooner still: `openTab` asks the job's
+  questions, names and text as the tab opens (`plan-reads.js`'s
+  `readAhead`, the engine's same calls through `readJobAhead`), while the
+  page loads, and the tab's first Plan takes them (`planReads`): once, and
+  only within a minute (a tab held by a human check plans afresh). A read
+  that failed is asked again by the Plan. Never the answer bank (read fresh
+  for each Plan, KAN-379), nor a job whose questions only its open form
+  shows (Workday, Eightfold, practice forms); every later Plan of the tab
+  (a Workday step, an Eightfold follow-up) reads afresh.
 - **The engine fills the page and checks it.** `fill/page` calls the
   engine's `fillEach`, which fills in the engine's own order (files first
   where the job system parses the résumé into the form, Workable in one go,

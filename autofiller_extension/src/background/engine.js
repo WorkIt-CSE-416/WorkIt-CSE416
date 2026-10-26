@@ -447,6 +447,21 @@ function selfIdAsked(questions, profile, plan, planFor) {
   return names.length ? { keys, names } : null;
 }
 
+/**
+ * Starts asking the job system's public API for what a Plan of `url` will
+ * read with `fetchText` (its questions, names and text), before its page is
+ * open (plan-reads.js); nothing for a job whose questions only its open form
+ * shows (Workday, Eightfold, a practice form). Failures are left to the Plan.
+ * @returns {boolean} whether anything was asked
+ */
+export function readJobAhead(url, fetchText) {
+  const job = jobOf(url);
+  if (!job?.onForm || job.practice || job.site === "workday" || job.site === "eightfold") return false;
+  optional(() => engine.questionSet(url, fetchText), null);
+  readNames(url, fetchText);
+  return true;
+}
+
 /** The job's company and title and its text, both asked at once; each empty when the job system doesn't say. */
 async function readNames(url, fetchText) {
   const [names, html] = await Promise.all([

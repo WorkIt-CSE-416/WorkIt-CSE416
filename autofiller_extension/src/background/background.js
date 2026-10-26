@@ -25,6 +25,7 @@ import { injectFill } from "../shared/content-scripts.js";
 import { forgetShownWorkableDraft } from "./tab-load.js";
 import { allowForMe, forgetLogin, markCreated, markRefused, markSignedIn, sentSince, watchWorkdaySends, workdayLogin } from "./workday-logins.js";
 import { writeEarly } from "./write-early.js";
+import { fetchText, planReads } from "./plan-reads.js";
 
 /**
  * Calls the Fill engine in the frame that sent `sender`'s message: the
@@ -38,12 +39,6 @@ function engineIn(sender) {
     const [injection] = await chrome.scripting.executeScript({ target, world: "MAIN", func: runEngine, args: [request] });
     return injection?.result;
   });
-}
-
-async function fetchText(url, init) {
-  const response = await fetch(url, init && { ...init, headers: { "Content-Type": "application/json" } });
-  if (!response.ok) throw new Error(`${new URL(url).hostname} answered ${response.status}`);
-  return response.text();
 }
 
 // The nested prompts the engine read on each Workday tenant (fill/plan, fill/page), kept for its next fill.
@@ -122,7 +117,7 @@ async function handleMessage(message, sender) {
         : jobId ? answerBank(profile.id, jobId).catch(() => ({}))
         : (company) => anyFormAnswerBank(profile.id, company).catch(() => ({}));
       const answer = await handleFill(message, {
-        url: sender.url, profile, bank, today: today(), call: engineIn(sender), fetchText, trees: workdayTrees, jobType,
+        url: sender.url, profile, bank, today: today(), call: engineIn(sender), fetchText: plan ? planReads(sender.tab.id) : fetchText, trees: workdayTrees, jobType,
       });
       // Outside a batch, a Workable draft with entries is forgotten and the form filled again from empty (tab-load.js).
       if (message.type === "fill/plan" && !(await inBatch(sender.tab.id)) && (await forgetShownWorkableDraft(sender.tab.id, answer))) {
