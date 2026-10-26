@@ -67,3 +67,30 @@ async def test_the_clean_up_keeps_real_skills_and_never_touches_typed_ones(datab
         await session.commit()
         names = set(await session.scalars(select(Bank_Skill.name).where(Bank_Skill.applicant_id == student)))
     assert names == {*real, "C++", "Robotics degree"}
+
+
+async def test_the_clean_up_drops_read_skills_the_catalog_lacks_and_tailors_qualifications_on_request(database):
+    from tests.test_built_resumes import _seed_applicant
+
+    async with database() as session:
+        student = await _seed_applicant(session)
+        upload = uuid.uuid4()
+        session.add(Resume(id=upload, applicant_id=student, original_filename="r.pdf", storage_path="local:r.pdf"))
+        await session.flush()
+        for name in ["Python", "Teamwork", "Leadership"]:
+            session.add(Bank_Skill(id=uuid.uuid4(), applicant_id=student, resume_id=upload, name=name))
+        # No resume: what Tailor's "Have you used X?" Yes adds, and what the student types.
+        for name in ["Computer Science degree", "AI tools", "Public Speaking", "Docker"]:
+            session.add(Bank_Skill(id=uuid.uuid4(), applicant_id=student, name=name))
+        await session.commit()
+
+        await clean(session, student)
+        await session.commit()
+        names = set(await session.scalars(select(Bank_Skill.name).where(Bank_Skill.applicant_id == student)))
+        assert names == {"Python", "Computer Science degree", "AI tools", "Public Speaking", "Docker"}
+
+        report = await clean(session, student, typed=True)
+        await session.commit()
+        names = set(await session.scalars(select(Bank_Skill.name).where(Bank_Skill.applicant_id == student)))
+    assert names == {"Python", "Public Speaking", "Docker"}
+    assert sorted(report.removed) == ["AI tools", "Computer Science degree"]
