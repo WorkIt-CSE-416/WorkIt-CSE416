@@ -263,7 +263,11 @@ waits for an opened tab's page and form (`waitForLoad`, `formShows`).
   (`waitingChecks`); the fill puts up its own panel once the form shows.
   The walk's listener, added once per page, answers from the latest
   fill's rows (`window.WIA.walk`), as a passed check may draw the form in
-  the same page. The extension never solves a check. A form that never shows has failed,
+  the same page. No Chrome notification: the
+  `notifications` permission adds "Display notifications" to Chrome's
+  install warnings (and an update that adds a warning turns the installed
+  extension off until the student accepts), so the badge alone tells a
+  student elsewhere. The extension never solves a check. A form that never shows has failed,
   as any other. Tests: `test/batch.extension.spec.ts` ("a human check
   before the form", "a human check's page shows only the check", "a human check that
   passes on its own").
