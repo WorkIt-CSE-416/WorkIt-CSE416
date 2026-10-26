@@ -1107,7 +1107,8 @@ Real, not forgotten. Do not treat their absence as a decision already made.
   tables must keep having none — their id is the `auth.users` id.
 - `autofill_answers` (above) holds onboarding's nine questions and the
   Application answers (KAN-369: availability, start window, relocation,
-  address line and postal code, languages, screener facts). Those joined as
+  address line and postal code, languages, screener facts, age 18+, pay, the
+  EEO extras, role interests, an X link). Those joined as
   new keys in the same bank, with no migration. Dates are YYYY-MM-DD strings,
   terms "summer 2027", and an empty list is the student's own "none".
 - `applicant_profiles.location` and `company_profiles.industry` are absent.

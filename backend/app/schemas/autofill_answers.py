@@ -20,7 +20,9 @@ says. None is unanswered. The options follow real application forms:
   takes one of the EEO-1 categories, Two or More Races included; Hispanic
   or Latino is its own question, never a race (KAN-299).
 - Veteran status: the three answers of the VEVRAA self-identification on
-  U.S. forms.
+  U.S. forms, plus "never served" (not_veteran), which also answers "have
+  you ever served?" and its branch and status; "not a protected veteran"
+  says nothing of service.
 - Disability: the three answers of the OFCCP's Form CC-305, worded as the
   form words them.
 
@@ -33,11 +35,16 @@ window (dates as YYYY-MM-DD, terms as "summer 2027"), relocation and where
 the student would work, street address and postal code, languages, and the
 screener facts. A screener fact is always the student's own answer, never a
 default: an empty list ("relatives_at": []) is their "none", unlike None.
+Then age 18 or over, pay (an expected hourly figure and whether a posting's
+stated range is fine: the student's own, never a WorkIt default), the EEO
+extras (sexual orientation, transgender, pronouns, communities, each with a
+decline answer; communities [] is "none of these", ["declined"] a decline),
+the kinds of work they want (role interests) and an X profile link.
 """
 
 from typing import Annotated, Literal
 
-from pydantic import BaseModel, ConfigDict, StringConstraints, TypeAdapter, ValidationError
+from pydantic import BaseModel, ConfigDict, Field, StringConstraints, TypeAdapter, ValidationError
 
 YesNo = Literal["yes", "no"]
 WorkAuthorizationStatus = Literal[
@@ -57,7 +64,20 @@ Race = Literal[
     "two_or_more",
     "declined",
 ]
-VeteranStatus = Literal["protected_veteran", "not_protected_veteran", "declined"]
+VeteranStatus = Literal["protected_veteran", "not_protected_veteran", "not_veteran", "declined"]
+SexualOrientation = Literal[
+    "heterosexual", "gay", "lesbian", "bisexual", "asexual", "queer", "declined"
+]
+Pronouns = Literal["he_him", "she_her", "they_them", "declined"]
+Community = Literal[
+    "disability", "neurodiverse", "veteran", "parent", "refugee_immigrant",
+    "first_generation", "lgbtq", "declined",
+]
+RoleInterest = Literal[
+    "backend", "frontend", "full_stack", "mobile", "embedded", "ml",
+    "data", "infrastructure", "security", "robotics",
+]
+HourlyPay = Annotated[float, Field(gt=0, lt=1000)]
 DisabilityStatus = Literal["yes", "no", "declined"]
 Day = Annotated[str, StringConstraints(pattern=r"^\d{4}-\d{2}-\d{2}$")]
 Term = Annotated[str, StringConstraints(pattern=r"^(spring|summer|fall|winter) \d{4}$")]
@@ -104,6 +124,16 @@ class AutofillAnswers(BaseModel):
     prior_government_work: YesNo | None = None
     non_compete: YesNo | None = None
     pending_offers: list[Short] | None = None
+    # age, pay (dollars an hour), the EEO extras, interests and an X link
+    age_18_or_over: YesNo | None = None
+    expected_hourly_pay: HourlyPay | None = None
+    accept_posted_pay: YesNo | None = None
+    sexual_orientation: SexualOrientation | None = None
+    transgender: Literal["yes", "no", "declined"] | None = None
+    pronouns: Pronouns | None = None
+    communities: list[Community] | None = None
+    role_interests: list[RoleInterest] | None = None
+    x_url: Short | None = None
 
 
 def answers_from_bank(bank: dict) -> AutofillAnswers:
