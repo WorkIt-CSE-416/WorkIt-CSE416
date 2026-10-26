@@ -29,7 +29,8 @@ Jobs page** (`/jobs`), never a job board, so the two can't be confused.
  on Greenhouse, Lever, ──▶  reads, keeps, reads    ──▶    job_postings
  Ashby, Workable,           the facts                     job_locations
  BambooHR, Recruitee,
- Rippling, iCIMS, Workday   writes feed.json               ▲
+ Rippling, iCIMS, Oracle,
+ Workday                    writes feed.json               ▲
                                   │                        │
                                   └──── import script ─────┘
                                         (every 3 hours)
@@ -84,10 +85,11 @@ How the refresh behaves:
 | Recruitee | 2 | Small companies, mostly in Europe | One request, everything included |
 | Rippling | about 165 | Small and mid-size companies | One request, then each kept job posting's own record (the list has no description, date or pay) |
 | iCIMS | about 320 | Large employers, many in defense and government work | Its sitemap in one request (each job's URL only), then each kept job posting's own page |
+| Oracle Cloud | about 190 | Large employers: chips, banks, insurers, retailers | 200 job postings a request, so a run reads as many company job boards whole as fit in 12 minutes, the least recently read first, as Workday's; then each kept job posting's own record |
 | Workday | 1,700 | Large companies and most non-tech employers: banks, defense, chips, cars, retail, hospitals | 20 job postings a request, so a run reads as many company job boards whole as fit in 12 minutes, the least recently read first; then each kept job posting's own page |
 
 Workable, BambooHR and Recruitee were added in KAN-171, Workday in KAN-134, and
-Rippling and iCIMS in KAN-301.
+Rippling, iCIMS and Oracle Cloud in KAN-301.
 Recruitee has so few company job boards because the GitHub lists barely mention
 it. Workday is the opposite: nearly half the lists' apply links point at it.
 
@@ -445,7 +447,7 @@ browser can't restore your place by itself. The app does it instead:
 
 | Limit | Why | What would fix it |
 |---|---|---|
-| Nine hiring systems. The next biggest in the GitHub lists go unread: Oracle Cloud (about 3,100 apply links), SmartRecruiters (1,700) | Each hiring system needs its own reader, and SmartRecruiters' `robots.txt` disallows us | A reader per hiring system, where its `robots.txt` allows |
+| Ten hiring systems. The next biggest in the GitHub lists, SmartRecruiters (about 1,200 apply links), goes unread, and so do employers' own careers sites (TikTok, Apple, Amazon, Microsoft) | SmartRecruiters' `robots.txt` disallows us, and each employer's own site needs a reader of its own | Ask SmartRecruiters for access; a reader per large employer |
 | A Workday job posting can take about 12 hours to appear, or to leave | Its company job boards are read whole, about every fourth run each, within a 12-minute share of each run | More of each run for Workday, or more workers within the same pace |
 | The biggest Workday company job boards are skipped | Over 5,000 job postings, or capped at 2,000 with no filter to split them (Accenture, Walmart, Target, Airbus): 20 company job boards | Read a giant one over several runs, or split a capped one by two filters |
 | About 3 in 10 Workday cards have no logo | Workday's careers-page images are wide banners, so only the website a careers site links is used, and some link none | Find a square image Workday serves |

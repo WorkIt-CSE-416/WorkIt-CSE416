@@ -570,6 +570,151 @@ class TestIcims:
         assert tokens("https://www.icims.com/") == []
 
 
+class TestOracle:
+    """Real responses from 2026-10-26, trimmed (a page's `TotalJobsCount` is set to
+    the rows kept). Oracle pages 200 a request; the tests shrink the page, never
+    the data."""
+
+    TOKEN = "edbz.fa.us2/CX"  # Texas Instruments' external careers site.
+    ROWS = [
+        {
+            "Id": "25016380",
+            "Title": "Digital Design Verification Engineering Intern",
+            "PostedDate": "2026-10-23",
+            "PrimaryLocation": "Santa Clara, CA, United States",
+            "WorkplaceType": "",
+            "secondaryLocations": [],
+        },
+        {
+            "Id": "25019103",
+            "Title": "Software Engineering Intern - Compiler",
+            "PostedDate": "2026-10-22",
+            "PrimaryLocation": "United States",
+            "WorkplaceType": "",
+            "secondaryLocations": [{"Name": "Sugar Land, TX, United States", "CountryCode": "US"}],
+        },
+        {
+            # Jackson National's (ejko.fa.us2): its list states the work model.
+            "Id": "14790",
+            "Title": "Internship Actuarial",
+            "PostedDate": "2026-10-20",
+            "PrimaryLocation": "Lansing, MI, United States",
+            "WorkplaceType": "Remote",
+            "secondaryLocations": [],
+        },
+    ]
+    # Texas Instruments' design intern, from its own record.
+    DETAIL = {
+        "items": [
+            {
+                "Id": "25016380",
+                "Title": "Digital Design Verification Engineering Intern",
+                "ExternalPostedStartDate": "2026-10-23T20:17:59+00:00",
+                "ExternalDescriptionStr": "<p><b>Change the world. Love your job. </b><br />"
+                "As a Digital IC Design Engineering intern, you'll architect new TI products.</p>",
+                "ExternalQualificationsStr": "<p><strong>Minimum Requirements:</strong></p>"
+                "<ul><li>Currently pursuing an undergraduate or graduate degree in Electrical"
+                " Engineering</li></ul>",
+                "ExternalResponsibilitiesStr": "",
+                "CorporateDescriptionStr": "<div><b>Why TI?</b></div>",
+                "requisitionFlexFields": [
+                    {"Prompt": "Base Range", "Value": "$31.00 - $45.00 per hour"},
+                    {"Prompt": "ECL/GTC Required", "Value": "Yes"},
+                ],
+            }
+        ]
+    }
+
+    def pages(self, monkeypatch, rows: list[dict], total: int | None = None) -> list[str]:
+        """Answer each list request with its page of `rows`, as Oracle does."""
+        asked: list[str] = []
+        monkeypatch.setattr(providers, "ORACLE_PAGE", 2)
+
+        def answer(url: str) -> object:
+            asked.append(url)
+            offset = int(url.rsplit("offset=", 1)[1].split(",")[0])
+            page = rows[offset : offset + providers.ORACLE_PAGE]
+            count = len(rows) if total is None else total
+            return {"items": [{"TotalJobsCount": count, "requisitionList": page}]}
+
+        monkeypatch.setattr(providers, "_get_json", answer)
+        return asked
+
+    def test_a_board_is_read_page_by_page(self, monkeypatch) -> None:
+        asked = self.pages(monkeypatch, self.ROWS)
+        paced: list[str] = []
+        design, compiler, actuarial = providers.oracle(
+            self.TOKEN, "Texas Instruments", pace=paced.append
+        )
+        assert asked == [
+            "https://edbz.fa.us2.oraclecloud.com/hcmRestApi/resources/latest/"
+            "recruitingCEJobRequisitions?onlyData=true&expand=requisitionList.secondaryLocations"
+            f"&finder=findReqs;siteNumber=CX,sortBy=POSTING_DATES_DESC,limit=2,offset={offset}"
+            for offset in (0, 2)
+        ]
+        # The caller paces the first request; the reader each one after it.
+        assert len(paced) == 1
+        assert design.key == "oracle/edbz.fa.us2/CX#25016380"
+        assert design.apply_url == (
+            "https://edbz.fa.us2.oraclecloud.com/hcmUI/CandidateExperience/en/sites/CX/job/25016380"
+        )
+        assert design.posted_at == "2026-10-23T00:00:00+00:00"
+        assert design.location == "Santa Clara, CA, United States"
+        assert compiler.location == "United States; Sugar Land, TX, United States"
+        assert (design.work_style, actuarial.work_style) == (None, "Remote")
+        assert design.page is None
+
+    def test_one_job_short_of_the_count_is_still_whole(self, monkeypatch) -> None:
+        # A grocer's board (hdhe.fa.em3) counted 404 and listed 403 on every way of
+        # paging it, both sort orders and two page sizes: a job counted, never listed.
+        self.pages(monkeypatch, self.ROWS[:2], total=3)
+        assert len(providers.oracle(self.TOKEN, "Texas Instruments")) == 2
+
+    def test_more_missing_than_that_is_incomplete(self, monkeypatch) -> None:
+        self.pages(monkeypatch, self.ROWS[:1], total=3)
+        with pytest.raises(providers.Incomplete):
+            providers.oracle(self.TOKEN, "Texas Instruments")
+
+    def test_a_board_past_the_largest_read_is_too_large(self, monkeypatch) -> None:
+        self.pages(monkeypatch, self.ROWS)
+        monkeypatch.setattr(providers, "ORACLE_MAX", 2)
+        with pytest.raises(providers.TooLarge):
+            providers.oracle(self.TOKEN, "Texas Instruments")
+
+    def test_its_record_gives_text_date_and_pay(self, monkeypatch) -> None:
+        asked = serve(monkeypatch, self.DETAIL)
+        listed = Job(
+            ats="oracle",
+            token=self.TOKEN,
+            company="Texas Instruments",
+            external_id="25016380",
+            title="Digital Design Verification Engineering Intern",
+            apply_url="https://edbz.fa.us2.oraclecloud.com/hcmUI/CandidateExperience/en/sites/CX/job/25016380",
+            location="Santa Clara, CA, United States",
+            posted_at="2026-10-23T00:00:00+00:00",
+        )
+        job = providers.describe(listed)
+        assert asked == [
+            "https://edbz.fa.us2.oraclecloud.com/hcmRestApi/resources/latest/"
+            'recruitingCEJobRequisitionDetails?expand=all&onlyData=true&finder=ById;Id="25016380",siteNumber=CX'
+        ]
+        assert job.posted_at == "2026-10-23T20:17:59+00:00"
+        # The pay sits in a field of its own, read as a labelled line.
+        assert job.facts.pay == Pay("USD", 31, 45, "hour")
+        assert "you'll architect new TI products" in job.description
+        assert "Currently pursuing an undergraduate or graduate degree" in job.description
+
+    def test_an_apply_link_names_its_board(self) -> None:
+        from build_boards import tokens
+
+        link = (
+            "https://edbz.fa.us2.oraclecloud.com/hcmUI/CandidateExperience/en/sites/CX/job/25016380"
+        )
+        assert tokens(link) == [("oracle", "edbz.fa.us2/CX")]
+        honeywell = "https://ibqbjb.fa.ocs.oraclecloud.com/hcmUI/CandidateExperience/en-US/sites/Honeywell/job/1"
+        assert tokens(honeywell) == [("oracle", "ibqbjb.fa.ocs/Honeywell")]
+
+
 class TestWithPage:
     robots = SimpleNamespace(allows=lambda url: True, pace=lambda url: None)
 

@@ -71,6 +71,8 @@ reader needs together are tested (`TestProviderRecords`).
    - each company is its own subdomain: `subdomains`, so they share one pace,
      and `case_blind` if its paths are;
    - its boards cannot all be read in one run: `budget_s`;
+   - its list names a job only by its URL: `page_title` (iCIMS);
+   - its token's case matters: `keeps_case` (Oracle's site codes);
    - its board page has a square logo: `logo_page` and `logo_pattern`, and the
      image host in `frontend/next.config.ts` (see Logos). If it names only the
      company's website: `logo_page` and a rule in `logos.extract` (Workday).
@@ -83,11 +85,11 @@ fixture (`tests/conftest.py`): a `Provider` holds the function itself, so
 patching the module's `describe_greenhouse` no longer reaches it.
 
 Each reader's test is built from that day's real responses. Workable,
-Recruitee, BambooHR, Rippling and iCIMS quirks: `docs/providers.md`. Workday's, and
-how its boards are read over several runs: `docs/workday.md`.
+Recruitee, BambooHR, Rippling, iCIMS and Oracle quirks: `docs/providers.md`.
+Workday's, and how its boards are read over several runs: `docs/workday.md`.
 
-**Still open:** Rippling and iCIMS (KAN-301) are read but not on the landing
-page's `hiringSystems` yet: each needs its logo file in
+**Still open:** Rippling, iCIMS and Oracle (KAN-301) are read but not on the
+landing page's `hiringSystems` yet: each needs its logo file in
 `frontend/public/hiring-systems/` and a stream of real postings in `data.ts`.
 
 - **A 404 means the board does not exist; a 200 with an empty list means a
@@ -118,7 +120,7 @@ A posting's own text is one value, `providers.Page`: the description (its kept
 sections, cut to `DESCRIPTION_CHARS`), the card's `details.Facts`, and on Greenhouse
 its offices (on Workday, its places and requisition number). Lever, Ashby and
 Recruitee send it with the board's list. Greenhouse, Workable, BambooHR,
-Rippling, iCIMS and Workday do not (`Provider.job_url`): Greenhouse's `content=true`
+Rippling, iCIMS, Oracle and Workday do not (`Provider.job_url`): Greenhouse's `content=true`
 would send hundreds of megabytes a run to describe the ~2% we keep, and
 Workday's list has no description, exact date or places. So
 `__main__.with_page` reads each *kept* posting's page once, through the same
@@ -146,7 +148,7 @@ robots and pacing.
 - **Bump `providers.PAGE_VERSION` whenever a `Page` starts holding something
   new, or a fact's pattern changes**, or stored postings never get it.
   `with_page` re-reads any page under an older version, once per kept
-  Greenhouse, Workable, BambooHR, Rippling, iCIMS and Workday posting.
+  Greenhouse, Workable, BambooHR, Rippling, iCIMS, Oracle and Workday posting.
 - **Changing `DESCRIPTION_CHARS` does not re-cut stored Greenhouse
   descriptions.** Clear them so the next run fetches them again:
 
@@ -345,8 +347,8 @@ waited up to two days for the same number of requests. `RUN_EVERY` must match th
 cron in `.github/workflows/scrape.yml`; if they drift, quiet boards are still read
 on a third of runs, only less evenly spaced.
 
-**A lane can have a time budget** (`Provider.budget_s`; only Workday's,
-12 minutes). It starts boards from the front of `Store.to_read`'s order, least
+**A lane can have a time budget** (`Provider.budget_s`; Workday's and
+Oracle's, 12 minutes each, run side by side). It starts boards from the front of `Store.to_read`'s order, least
 recently read first, and once its time is up leaves the rest for a later run.
 `--full` keeps the budget: it un-rests quiet boards, it does not make a Workday
 sweep fit in one run. The page's "postings scanned" counts what this run read,

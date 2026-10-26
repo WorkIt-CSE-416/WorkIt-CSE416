@@ -119,3 +119,42 @@ connect pages; Charles Schwab's disallows everything, so it is skipped.
   run, as an unreachable robots.txt must be.
 - The first run reads every kept job's page once (102 at General Dynamics, 32 at
   Peraton), so it is longer than the runs after it.
+
+## Oracle Cloud (KAN-301)
+
+Added 2026-10-26. About 190 companies in the curated lists use Oracle Recruiting
+(2,777 apply links): Texas Instruments, Honeywell, JPMorgan Chase, insurers and
+retailers. Each company is a tenant with its own host, `{id}.fa.{dc}.oraclecloud.com`,
+and one or more careers sites (`CX`, `CX_1001`, `Honeywell`), so the token is
+`{host}/{site}`: `edbz.fa.us2/CX`. No tenant read that day had a robots.txt (a 404,
+no rules). JPMC's answers a firewall's 403 to some requests and lists 7,245 jobs,
+past `ORACLE_MAX`, so it is skipped.
+
+- **The list is `recruitingCEJobRequisitions`**, what the careers page reads, with
+  `finder=findReqs;siteNumber={site},...,limit=200,offset=n`. It answers at most
+  200 a request whatever `limit` asks, and its first page carries the count
+  (`TotalJobsCount`). A board is read whole like a Workday board, and like
+  Workday's lane, Oracle's has a 12-minute budget, least recently read first.
+- **The count can run one ahead of the list.** A grocer's board (`hdhe.fa.em3`)
+  counted 404 and listed 403 on every way of paging it: both sort orders and page
+  sizes of 100 and 200. Of the six boards read that day, four added up exactly and
+  one listed 2,541 of 2,543. So a read is whole when it reaches the count less one
+  in 500 (at least one); fewer is `Incomplete`.
+- **A careers site's code keeps its case.** The list answers `cx` as `CX`, and an
+  unknown code falls back to the tenant's default site, but a job's record leaves
+  out the employer's own fields for any spelling but the site's own. Texas
+  Instruments' pay is only there ("Base Range: $31.00 - $45.00 per hour"), so
+  `build_boards.py` keeps the code as the apply link writes it
+  (`Provider.keeps_case`). Two sites of one tenant list different jobs (Jackson's
+  `CX_3` and `CX_5`), so each is its own board.
+- **The list has the title, date, places and, where the employer fills it in, the
+  work model** (`WorkplaceType`: "Remote", "On-site", "Hybrid"); the record does
+  not repeat it, so it rides on `Job.work_style` as Rippling's does. The record
+  (`recruitingCEJobRequisitionDetails`, `finder=ById;Id="{id}",siteNumber={site}`)
+  has the description in parts (`ExternalDescriptionStr`, responsibilities,
+  qualifications, `CorporateDescriptionStr`), an exact posting time, and
+  `requisitionFlexFields`, each read as a "Prompt: Value" line so the pay reader
+  finds a stated range.
+- **No logo yet**: neither the list nor the record names an image or a website.
+- A tenant that does not exist has no host at all, so its robots.txt cannot be
+  reached and the board is skipped for the run, never read.
