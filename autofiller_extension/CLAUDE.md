@@ -708,7 +708,7 @@ waits for an opened tab's page and form (`waitForLoad`, `formShows`).
   required and still empty after the fill ("pending", or a written answer
   not yet asked of their Claude). A required "skipped" field (the form
   doesn't ask it) or one the form hides goes to the collapsed "N the form
-  isn't asking now" group; a guess is amber (Check these), never counted.
+  isn't asking now" group; a guess is amber (`toCheck`), never counted.
   Stop autofill leaves the fields it didn't reach "pending", not
   "skipped". Tests: `test/needs-you-rule.extension.spec.ts`.
 - **"Next Thing That Needs You" walks the batch** (KAN-375). Each batch
@@ -1556,8 +1556,8 @@ walk). One purple button, then a line, then Fill Again:
   on to the next tab). Tests press it with `globalThis.workitCommand`
   (`pressNextThing` in test/loaded-extension.ts).
 - Under the button: "Required 12 of 14 filled · 3 need you" (lib-status's
-  required counts; "need you" is the Autofill tab's Needs you group's count,
-  groups.js `groupOf`, so the two always agree: Check these' guesses are
+  required counts; "need you" is the count of the checklist's red rows,
+  lib-status.js `needsYou`, so the two always agree: the amber guesses are
   not in it, though Next Thing's count, which walks them too, is).
 - **Fill Again** (white) asks once inline, "This replaces what you changed
   on this page.", with Fill Again and Cancel; Cancel changes nothing.
@@ -1582,14 +1582,15 @@ required line against the form's own asterisks; Alt+N; Ready to submit
 rings Submit and sends nothing; Fill Again's Cancel; Fill this step on
 Workday; the embedded form).
 
-### Live progress (KAN-398): Scanning, Filling · N of M, Stop and Skip
+### Live progress (KAN-398): Scanning, Autofilling · N%, Cancel and Skip
 
 `src/content/progress.js` (`window.WIA.progress`, loaded just before
 content-script.js) covers the `primary` slot while a fill runs: the slot
 gets `data-progressing`, which hides its button, and a `[data-progress]`
 block shows "Scanning this page", then "N fields found" (the Question set
-the Plan read), then "Filling · 12 of 30 fields" over a bar, with a row per
-field as the engine reaches it (Filling…, Filled, Needs you). `fillShown`
+the Plan read), then "Autofilling · 37%" over a bar (its `aria-valuenow`
+counts the fields done), with **Cancel**. The fields themselves are the
+Autofill tab's checklist (groups.js, drawn from the start). `fillShown`
 calls `begin` (with `stay` on Workday, which adds "Stay on this page until
 WorkIt finishes this step."), `found`, `filling` before each `fill/page`
 (a fill that brings on questions adds to the total) and `end` when it
@@ -1603,15 +1604,15 @@ returns, so on Workday the notice goes with each step's fill.
   `fillengine:field:<key>` on `document` as each field starts and is done,
   and listens for `fillengine:stop:<key>` and `fillengine:skip:<key>`
   (detail: the field's name). See the engine README.
-- **Stop autofill** stops the fill before the engine's next field (the
+- **Cancel** (titled Stop autofill) stops the fill before the engine's next field (the
   field being filled finishes). The result comes back `stopped`; the fields
   not reached get "Not filled: you stopped the fill." (Needs you when
   required) and a "You stopped the fill" note, no more questions are
   planned, and a Workday walk ends at that step.
-- **Skip** shows on a row still filling after 5 s (`STUCK_AFTER`). The
+- **Skip** shows on a checklist row still filling after 5 s (`STUCK_AFTER`,
+  `progress.isStuck`, the row gets `data-stuck`; `progress.skip`). The
   engine stops waiting for it and goes on; the field comes back `left` and
-  shows as failed, "You skipped this. Answer it yourself.", under Needs
-  you. It isn't sent to a problem report as an engine error. The skipped
+  shows as failed, "You skipped this. Answer it yourself.", marked red. It isn't sent to a problem report as an engine error. The skipped
   fill's own work isn't cancelled in the page (the engine can't abort a
   filler mid-way), so a slow upload may still land later.
 - A batch tab off Workday has no shell until its fill is done (the
@@ -1620,7 +1621,7 @@ returns, so on Workday the notice goes with each step's fill.
 
 Tests: `test/panel-progress.extension.spec.ts` (the states in order with
 their counts on Anduril; Stop leaves the résumé unattached and says so; a
-held upload shows Skip after 5 s and lands under Needs you; Workday's
+held upload shows Skip on its row after 5 s and turns red; Workday's
 stay-on-page notice shows and goes).
 
 ## The panel's other states (KAN-401): signed out, sent, a site it can't fill, errors
@@ -1752,29 +1753,56 @@ preview, nothing sent until Send, the request the fake API receives equals
 the preview and holds no answer or page text, no second Send). Backend:
 `tests/test_fill_reports.py`.
 
-## The Autofill tab's groups (KAN-397)
+## The Autofill tab's checklist (KAN-397, KAN-369 Q1-Q3)
 
 `src/content/groups.js` (`window.WIA.groups`, loaded before overlay.js)
-draws the Autofill tab's rows by what they ask of the student, not in form
-order: **Needs you** (failed, a required field with no answer, a flag from
-the student's Claude's check, a human check or another "todo" note, a
-written answer no Claude is writing), **Check these** (guesses),
-**Waiting for your Claude**, **Filling** (rows not done yet), then
-**Filled** collapsed to "20 filled" and **N optional left empty**, both
-opened by a press (kept for the page's life). Each group's head shows its
-count; an empty group is left out; a "done" note sits above the groups.
-overlay.js's `render` asks `groups.render(fields, row)` and keeps its own
-`row` (cards, badges, row click), so every row card works in its group. A
-row in a collapsed group stays in sight while it has more than its label
-and badge (a card such as Saved for next time with Undo, a reason, See
-cover letter) or is the row Next Thing last went to. A test that presses a
-plain filled row opens Filled first (`.group[data-group="filled"]
-.group-head`).
+draws the Autofill tab as one checklist of every field the fill touches,
+in two sections, **Required** then **Optional** (`.section[data-section]`,
+head `.section-head`). Notes (content-script.js's) stand above them.
 
-Tests: `test/panel-tabs.extension.spec.ts` (Anduril's guess under Check
-these above "20 filled", opening Filled and a row's click to its field;
-Looks right and Undo moving the counts; the three tabs, and the choice
-kept across a reload), and the waiting group's count in
+- **Listed from the start (Q1).** progress.js's `begin` calls
+  `overlay.live()`, which draws the list in the shell before the fill
+  (only where the shell is up: the student pressed Autofill This Page; a
+  batch tab off Workday has none until its fill is done, the hydration
+  rule). The Plan registers every row before `fill/page`, so the whole list
+  shows at once; `overlay.mount` then adds the header actions and the
+  primary button to the list already drawn.
+- **Marks** (`groups.markOf`, set as `data-mark` on each `.row`): `filling`
+  (spinner, a pending row while `WIA.phase` is "filling"), `filled` (green
+  check), `check` (amber ?, lib-status.js `toCheck`), `needs-you` (red !,
+  lib-status.js `needsYou`, the one rule), `waiting` (blue, on the
+  student's Claude), `empty` (gray: optional left empty), `not-asked` (a
+  required question the form isn't asking now), `note`. A field the engine
+  reports filled (its `fillengine:field` done event) turns green at once;
+  the fill's answer then sets every row as WorkIt read it back.
+- **Order (Q2).** While the fill runs, the Plan's order; once it is done
+  (content-script.js refreshes the list when the phase changes), red and
+  then amber rows rise to the top of their section, the rest in the Plan's
+  order. Required questions the form isn't asking now close the Required
+  section, collapsed to "N the form isn't asking now"
+  (`.group[data-group="not-asked"]`).
+- **Repeated sections (Q3).** A field labelled "<Section> <n> / <part>"
+  (Workday's panels, and Greenhouse's Employment block, which the engine
+  labels the same way) or named "<part>--<n>" (Greenhouse's Education
+  block, fill-engine greenhouse.ts `EDUCATION`) belongs to entry n of that
+  section (`groups.entryOf`). A section is one row (`.entries[data-entries]`,
+  its head Workday's "(entries)" question's row when there is one, marked
+  with the worst of its fields) and under it a block per entry
+  (`.entry`), titled by its company or school as the form shows it
+  (`.entry-title`, "Work Experience 1" until filled), listing the entry's
+  fields with small dots (`.row.sub`). The section goes under Required when
+  any of its fields is required.
+- **Rows (Q4's row parts).** overlay.js's `row` keeps its cards, reasons and
+  click to the field. A question shows two lines until its row is opened
+  (`data-open`: the row the student last pressed, or Next Thing's), and its
+  source badge (`.source`) shows only then.
+
+Tests: `test/checklist.extension.spec.ts` (Anduril: every row listed and
+spinning when the progress first says 0%, then red and amber first;
+Coinbase with two made-up jobs: Work Experience and Education nested, titled
+Globex, Initech and the school; `CHECKLIST_SHOTS=<dir>` saves screenshots),
+`test/panel-tabs.extension.spec.ts` (the marks on Anduril, Looks right and
+Undo turning the guess green and back, the three tabs), the waiting mark in
 `test/waiting-card.extension.spec.ts`.
 
 ## The Answers tab (KAN-400)

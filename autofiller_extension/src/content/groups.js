@@ -1,15 +1,18 @@
-// The Autofill tab's groups (KAN-397): the panel's rows by what they ask
-// of the student, not in form order. Needs you (lib-status.js's one rule,
-// status.needsYou: a failed field, a required one with no answer, a flag
-// from the student's Claude's check, a human check or another "todo"
-// note), Check these (guesses), Waiting for your Claude, then Filled,
-// collapsed to "12 filled" until pressed, and the required questions the
-// form isn't asking now (hidden, not drawn yet), collapsed too. Each group
-// shows its count; an empty group is left out. A row keeps everything
-// overlay.js draws in it (its cards, its click to the field), and a filled
-// row with something still to say (a card such as Saved for next time with
-// Undo, a note, See cover letter) or the row Next Thing last went to stays
-// in sight while its group is collapsed. Loaded before overlay.js
+// The Autofill tab's checklist (KAN-369 Q1-Q3): every field the fill
+// touches, listed from the moment the fill starts (overlay.js's live list),
+// in two sections, Required then Optional. Each row has a mark (markOf):
+// a spinner while it waits to be filled, then a green check (filled), an
+// amber ? (a guess or an answer to check, lib-status.js's toCheck), a red !
+// (lib-status.js's one rule, status.needsYou), blue (waiting on the
+// student's Claude) or gray (left empty). While the fill runs the rows keep
+// the Plan's order; after it, red and then amber rows rise to the top of
+// their section. A repeated section (Work Experience, Education: any
+// "<Section> <n> / <part>" fields, entryOf) is one row with a block under it
+// per entry, titled by the entry's company or school, listing its fields
+// with small dots. Notes (content-script.js's) stand above the sections.
+// Required questions the form isn't asking now (hidden, not drawn yet)
+// close the Required section, collapsed. A row keeps everything overlay.js
+// draws in it (its cards, its click to the field). Loaded before overlay.js
 // (shared/content-scripts.js), as window.WIA.groups.
 window.WIA = window.WIA || {};
 
@@ -18,92 +21,201 @@ window.WIA = window.WIA || {};
 
   if (window.WIA.groups) return;
 
-  // In the order they show. `collapsed`: drawn as "N filled" until the student opens it.
-  const GROUPS = [
-    { id: "needs-you", name: "Needs you" },
-    { id: "check", name: "Check these" },
-    { id: "waiting", name: "Waiting for your Claude" },
-    { id: "filling", name: "Filling" },
-    { id: "filled", collapsed: (n) => `${n} filled` },
-    { id: "optional", collapsed: (n) => `${n} optional left empty` },
-    { id: "not-asked", collapsed: (n) => `${n} the form isn't asking now` },
-  ];
+  // "Work Experience 2 / Company": a field of one entry (Workday's panels; Greenhouse's Employment block, which the engine labels the same way).
+  const ENTRY = /^(.+?) (\d+) \/ (.+)$/;
+  // "Work Experience (entries)": Workday's question for how many entries a section has, the section's own row.
+  const SECTION = /^(.+) \(entries\)$/;
+  // Greenhouse's Education block names its parts "<part>--<n>" (fill-engine greenhouse.ts EDUCATION) and labels them bare ("School").
+  const SCHOOL_PART = /^(?:school|degree|discipline|start-month|start-year|end-month|end-year)--(\d+)$/;
+  // The part of an entry that names it: its block's title.
+  const NAMES_IT = /company|employer|organi[sz]ation|school|university|institution/i;
 
-  // The collapsed groups the student opened, for the page's life (every render draws the list anew).
-  const opened = new Set();
+  // The collapsed line of required questions the form isn't asking now, opened by the student for the page's life.
+  let notAskedOpen = false;
 
   /**
-   * A row's group, or null for news that asks nothing of the student (a
-   * "done" note), shown above the groups. Needs you is lib-status.js's one
-   * rule (status.needsYou, KAN-369 Q7); a required question the form doesn't
-   * ask now (hidden, not drawn, or "skipped") goes to its own collapsed group.
+   * A row's mark: "needs-you" (red), "check" (amber), "waiting" (on the
+   * student's Claude), "filling" (spinner), "filled" (green), "not-asked" (a
+   * required question the form isn't asking now) or "empty" (gray). A note's
+   * is "needs-you" when it asks something of the student, else "note".
    */
-  function groupOf(field) {
+  function markOf(field) {
     const { status } = window.WIA;
-    if (field.note) return field.note === "done" ? null : "needs-you";
+    if (field.note) return status.needsYou(field) ? "needs-you" : "note";
     if (status.needsYou(field)) return "needs-you";
+    if (status.toCheck(field)) return "check";
     if (field.status === "needs_generation" && field.claude) return "waiting";
-    if (field.status === "filled") return field.source === "guessed" ? "check" : "filled";
     if (field.status === "pending" && window.WIA.phase === "filling") return "filling";
-    return field.required ? "not-asked" : "optional";
+    if (field.status === "filled") return "filled";
+    return field.required ? "not-asked" : "empty";
   }
 
-  /** A row with more than its label and source badge: a card, a reason, a preview. */
-  const hasMore = (el) => el.dataset.current !== undefined || Boolean(el.querySelector(".text > :not(.label):not(.source)"));
+  /** Which entry of a repeated section a field is in: `{ section, n, part }`, `{ section, head: true }` for the section's own row, or null. */
+  function entryOf(field) {
+    if (field.note) return null;
+    const head = SECTION.exec(field.label ?? "");
+    if (head) return { section: head[1], head: true };
+    const entry = ENTRY.exec(field.label ?? "");
+    if (entry) return { section: entry[1], n: Number(entry[2]), part: entry[3] };
+    const school = SCHOOL_PART.exec(field.key);
+    if (school) return { section: "Education", n: Number(school[1]) + 1, part: field.label };
+    return null;
+  }
+
+  // Red first, then amber, then the rest (after the fill only).
+  const TIER = { "needs-you": 0, check: 1 };
+  const tierOf = (marks) => Math.min(...marks.map((m) => TIER[m] ?? 2));
+  // The worst of an entry block's marks shows on its section's row.
+  const WORST = ["needs-you", "check", "waiting", "filling", "not-asked", "empty", "filled"];
+  const worst = (marks) => WORST.find((m) => marks.includes(m)) ?? "empty";
+
+  /** What the entry's block is titled: its company or school as the form shows it, else "Work Experience 1". */
+  function titleOf(section, n, fields) {
+    const naming = fields.find((f) => NAMES_IT.test(entryOf(f).part) && f.shows && f.shows.length);
+    const shown = naming && (Array.isArray(naming.shows) ? naming.shows[0] : naming.shows);
+    return shown || `${section} ${n}`;
+  }
+
+  /** A repeated section's node: its own row (or one made for it), then a block per entry. */
+  function section(name, head, fields, row) {
+    const marks = [...(head ? [markOf(head)] : []), ...fields.map(markOf)];
+    const el = Object.assign(document.createElement("div"), { className: "entries" });
+    el.dataset.entries = name;
+    const top = head
+      ? row(head)
+      : Object.assign(document.createElement("div"), { className: "row", innerHTML: '<span class="dot"></span><div class="text"><div class="label"></div></div>' });
+    top.classList.add("entries-head");
+    top.dataset.mark = worst(marks);
+    top.querySelector(".label").textContent = name;
+    el.append(top);
+    const byEntry = new Map();
+    for (const f of fields) {
+      const { n } = entryOf(f);
+      if (!byEntry.has(n)) byEntry.set(n, []);
+      byEntry.get(n).push(f);
+    }
+    for (const [n, members] of [...byEntry].sort(([a], [b]) => a - b)) {
+      const block = Object.assign(document.createElement("div"), { className: "entry" });
+      block.append(Object.assign(document.createElement("div"), { className: "entry-title", textContent: titleOf(name, n, members) }));
+      for (const f of members) {
+        const r = row(f);
+        r.classList.add("sub");
+        r.dataset.mark = markOf(f);
+        r.querySelector(".label").textContent = entryOf(f).part + (f.required ? "" : " (optional)");
+        block.append(r);
+      }
+      el.append(block);
+    }
+    return { node: el, marks, required: [head, ...fields].some((f) => f?.required) };
+  }
 
   /**
    * The list's nodes: `fields` (lib-status.js's rows) drawn with `row`
-   * (overlay.js's), in their groups.
+   * (overlay.js's): notes, then Required, then Optional.
    */
   function render(fields, row) {
-    const news = [];
-    const byGroup = new Map(GROUPS.map((g) => [g.id, []]));
+    const notes = [];
+    // Each item: a field, or a repeated section, in the Plan's order (a section where its first field is).
+    const items = [];
+    const sections = new Map();
     for (const field of fields) {
-      const id = groupOf(field);
-      (id ? byGroup.get(id) : news).push(row(field));
-    }
-    const nodes = [...news];
-    for (const group of GROUPS) {
-      const rows = byGroup.get(group.id);
-      if (!rows.length) continue;
-      const el = Object.assign(document.createElement("section"), { className: "group" });
-      el.dataset.group = group.id;
-      let head;
-      if (group.collapsed) {
-        const open = opened.has(group.id);
-        head = Object.assign(document.createElement("button"), { type: "button", textContent: group.collapsed(rows.length) });
-        head.setAttribute("aria-expanded", String(open));
-        head.addEventListener("click", () => {
-          if (opened.has(group.id)) opened.delete(group.id);
-          else opened.add(group.id);
-          window.WIA.overlay?.refresh?.();
-        });
-        // A question the form isn't asking has nothing to show until it does: hidden whatever it says.
-        if (!open) for (const r of rows) r.hidden = group.id === "not-asked" || !hasMore(r);
-      } else {
-        head = document.createElement("h3");
-        const count = Object.assign(document.createElement("span"), { className: "count", textContent: String(rows.length) });
-        head.append(`${group.name} `, count);
+      if (field.note) {
+        const r = row(field);
+        r.dataset.mark = markOf(field);
+        notes.push(r);
+        continue;
       }
-      head.classList.add("group-head");
-      el.append(head, ...rows);
+      const entry = entryOf(field);
+      if (!entry) {
+        items.push({ field });
+        continue;
+      }
+      if (!sections.has(entry.section)) {
+        const item = { section: entry.section, head: null, fields: [] };
+        sections.set(entry.section, item);
+        items.push(item);
+      }
+      const item = sections.get(entry.section);
+      if (entry.head) item.head = field;
+      else item.fields.push(field);
+    }
+    const required = [];
+    const optional = [];
+    const notAsked = [];
+    for (const item of items) {
+      const field = item.field ?? (item.fields.length ? null : item.head);
+      if (field) {
+        // A field's row (a section's own row with no entry fields yet is one too).
+        const mark = markOf(field);
+        const node = row(field);
+        node.dataset.mark = mark;
+        if (mark === "not-asked") notAsked.push(node);
+        else (field.required ? required : optional).push({ node, tier: tierOf([mark]) });
+      } else {
+        const { node, marks, required: isRequired } = section(item.section, item.head, item.fields, row);
+        (isRequired ? required : optional).push({ node, tier: tierOf(marks) });
+      }
+    }
+    const settled = window.WIA.phase !== "filling";
+    const nodes = [...notes];
+    for (const [name, list, rest] of [["Required", required, notAsked], ["Optional", optional, []]]) {
+      if (!list.length && !rest.length) continue;
+      // Sorted stably: the Plan's order within each tier.
+      const ordered = settled ? [...list].sort((a, b) => a.tier - b.tier) : list;
+      const el = Object.assign(document.createElement("section"), { className: "section" });
+      el.dataset.section = name.toLowerCase();
+      el.append(Object.assign(document.createElement("h3"), { className: "section-head", textContent: name }), ...ordered.map((i) => i.node));
+      if (rest.length) el.append(notAskedGroup(rest));
       nodes.push(el);
     }
     return nodes;
   }
 
+  /** "N the form isn't asking now", collapsed: the student can open it, but nothing in it is theirs to do yet. */
+  function notAskedGroup(rows) {
+    const el = Object.assign(document.createElement("div"), { className: "group" });
+    el.dataset.group = "not-asked";
+    const head = Object.assign(document.createElement("button"), { type: "button", className: "group-head", textContent: `${rows.length} the form isn't asking now` });
+    head.setAttribute("aria-expanded", String(notAskedOpen));
+    head.addEventListener("click", () => {
+      notAskedOpen = !notAskedOpen;
+      window.WIA.overlay?.refresh?.();
+    });
+    for (const r of rows) r.hidden = !notAskedOpen;
+    el.append(head, ...rows);
+    return el;
+  }
+
   const css = `
-    .group + .group { border-top: 1px solid var(--color-border); }
-    .group-head {
-      display: flex; align-items: center; gap: 6px; margin: 0; padding: 8px 12px 4px;
-      font-size: var(--text-meta); font-weight: 600; color: var(--color-ink-meta);
+    .section + .section { border-top: 1px solid var(--color-border); }
+    .section-head { margin: 0; padding: 8px 12px 4px; font-size: var(--text-meta); font-weight: 600; color: var(--color-ink-meta); }
+    /* The marks (markOf): a 14 px badge on a row, a small dot on an entry's field. */
+    .row .dot {
+      width: 14px; height: 14px; margin-top: 2px; box-sizing: border-box; border-radius: 50%;
+      display: inline-flex; align-items: center; justify-content: center;
+      font-size: 10px; font-weight: 700; line-height: 1; color: var(--color-on-brand); background: var(--color-ink-subtle);
     }
-    .group-head .count {
-      font-size: var(--text-meta); padding: 0 6px; border-radius: 9999px;
-      background: var(--color-well); color: var(--color-ink-meta);
+    .row[data-mark="filled"] .dot { background: var(--color-positive); }
+    .row[data-mark="filled"] .dot::before { content: "✓"; }
+    .row[data-mark="check"] .dot { background: var(--color-warning); }
+    .row[data-mark="check"] .dot::before { content: "?"; }
+    .row[data-mark="needs-you"] .dot { background: var(--color-danger); }
+    .row[data-mark="needs-you"] .dot::before { content: "!"; }
+    .row[data-mark="waiting"] .dot { background: var(--color-advanced); }
+    .row[data-mark="empty"] .dot, .row[data-mark="not-asked"] .dot, .row[data-mark="note"] .dot { background: var(--color-panel); border: 1.5px solid var(--color-ink-subtle); }
+    .row[data-mark="filling"] .dot {
+      background: none; border: 2px solid var(--color-border); border-top-color: var(--color-ink-subtle);
+      animation: workit-spin 800ms linear infinite;
     }
-    .group[data-group="needs-you"] .group-head .count { background: var(--color-danger-tint); color: var(--color-danger); }
-    .group[data-group="check"] .group-head .count { background: var(--color-warning-tint); color: var(--color-warning); }
+    @keyframes workit-spin { to { transform: rotate(360deg); } }
+    @media (prefers-reduced-motion: reduce) { .row[data-mark="filling"] .dot { animation: none; } }
+    .entries .entry { margin: 0 12px 4px 34px; padding: 2px 0 4px 10px; border-left: 2px solid var(--color-border); }
+    .entry-title { padding: 4px 0 2px; font-size: var(--text-note); font-weight: 600; color: var(--color-ink); }
+    .row.sub { padding: 2px 0; font-size: var(--text-note); }
+    .row.sub .label { font-weight: 400; color: var(--color-ink-muted); }
+    .row.sub .dot { width: 7px; height: 7px; margin-top: 6px; border-width: 1px; }
+    .row.sub .dot::before { content: none !important; }
+    .group { border-top: 1px solid var(--color-border); }
     button.group-head { all: unset; box-sizing: border-box; width: 100%; cursor: pointer; display: flex; align-items: center; gap: 6px; padding: 8px 12px; font-size: var(--text-note); font-weight: 500; color: var(--color-ink-muted); }
     button.group-head:hover { background: var(--color-hover); }
     button.group-head:focus-visible { outline: 2px solid var(--color-brand); outline-offset: -2px; }
@@ -112,11 +224,9 @@ window.WIA = window.WIA || {};
       border-right: 1.5px solid currentColor; border-bottom: 1.5px solid currentColor; transform: rotate(45deg);
     }
     button.group-head[aria-expanded="true"]::after { transform: rotate(-135deg); }
-    .group .row[hidden] { display: none; }
-    /* Not a red row: its dot is gray, whatever its status (the one rule, lib-status.js). */
-    .group[data-group="not-asked"] .row .dot { background: var(--color-ink-subtle) !important; }
+    .row[hidden] { display: none; }
     .group[data-group="not-asked"] .row .reason { color: var(--color-ink-meta); }
   `;
 
-  window.WIA.groups = { render, css, groupOf };
+  window.WIA.groups = { render, css, markOf, entryOf };
 })();

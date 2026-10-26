@@ -190,7 +190,7 @@
       }
       if (Object.keys(left).length && progress.stopped()) return stoppedAt(prepared, left, written, state);
       if (Object.keys(left).length) {
-        const events = progress.filling(Object.keys(left).length, Object.fromEntries(Object.keys(left).map((name) => [name, byName.get(name)?.label ?? name])));
+        const events = progress.filling(Object.keys(left).length);
         const answer = await send({
           type: "fill/page", site: prepared.site, questions, answers: left, accepted: prepared.plan.accepted, state, sections: prepared.step?.sections, events,
         });
@@ -427,6 +427,7 @@
     overlay.mount(panel);
     if (prepared) window.WIA.answersTab?.use(prepared);
     window.WIA.phase = prepared ? "filled" : "stopped";
+    overlay.refresh(); // the checklist settles: red, then amber, first (groups.js)
     window.WIA.running = false;
     report();
     if (prepared) writing.offer(prepared);
@@ -500,6 +501,7 @@
     offerSelfId(prepared);
     const stopEdits = watchEdits(prepared);
     window.WIA.phase = last ? "last" : "step";
+    overlay.refresh(); // the checklist settles: red, then amber, first (groups.js)
     window.WIA.primary?.refresh();
     report();
     if (last || prepared.stopped) return;

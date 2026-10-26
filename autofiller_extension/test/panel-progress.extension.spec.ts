@@ -1,8 +1,8 @@
-// Live progress (KAN-398): while a form fills, the panel's button area says
-// "Scanning this page", then "N fields found", then "Filling · 12 of 30
-// fields" over a bar, with each field's row as it fills. Stop autofill halts
-// the fill between fields; a field stuck for 5 s shows Skip on its row, which
-// leaves it for the student under Needs you. Workday steps say "Stay on this
+// Live progress (KAN-398, KAN-369 Q1): while a form fills, the panel's button
+// area says "Scanning this page", then "N fields found", then "Autofilling ·
+// 37%" over a bar, with Cancel; the checklist under it lists every field.
+// Cancel halts the fill between fields; a field stuck for 5 s shows Skip on
+// its checklist row, which leaves it for the student, marked red. Workday steps say "Stay on this
 // page until WorkIt finishes this step." until the step is filled.
 import { expect, test, type Page } from "@playwright/test";
 import { FakeApi } from "./fake-api";
@@ -20,29 +20,36 @@ const hostOf = (page: Page) => page.locator("#workit-autofiller-overlay-host");
 const primaryOf = (page: Page) => hostOf(page).locator('[data-slot="primary"]');
 const progressOf = (page: Page) => primaryOf(page).locator("[data-progress]");
 const saidOf = (page: Page) => progressOf(page).locator("[data-progress-said]");
-const needsYou = (page: Page) => hostOf(page).locator('.group[data-group="needs-you"]');
+const listOf = (page: Page) => hostOf(page).locator('[data-tab="autofill"]');
 
 async function start(handlers: Handler[]): Promise<void> {
   loaded = await loadExtension([new FakeApi().handler, webapp, ...handlers]);
   await signIn(loaded.context);
 }
 
-/** Anduril's form opened by the student, with Autofill This Page pressed; returns the page and every progress line seen. */
-async function pressAutofill(forms: SavedForms): Promise<{ page: Page; lines: () => Promise<string[]> }> {
+/** Anduril's form opened by the student, with Autofill This Page pressed; returns the page, every progress line seen and the bar's every count. */
+async function pressAutofill(forms: SavedForms): Promise<{ page: Page; lines: () => Promise<string[]>; counts: () => Promise<number[]> }> {
   const page = await loaded.context.newPage();
   await page.goto(forms.url(ANDURIL));
   await hostOf(page).getByRole("button", { name: "Show WorkIt panel" }).click({ timeout: 15_000 });
   // Every line the progress shows, in order, recorded in the page as it changes.
   await page.evaluate(() => {
     const seen: string[] = ((window as any).progressLines = []);
+    const counts: number[] = ((window as any).progressCounts = []);
     const root = document.querySelector("#workit-autofiller-overlay-host")!.shadowRoot!;
     new MutationObserver(() => {
       const text = root.querySelector("[data-progress-said]")?.textContent ?? "";
       if (text && seen[seen.length - 1] !== text) seen.push(text);
-    }).observe(root, { subtree: true, childList: true, characterData: true });
+      const now = root.querySelector(".progress-bar")?.getAttribute("aria-valuenow");
+      if (now !== null && now !== undefined && counts[counts.length - 1] !== Number(now)) counts.push(Number(now));
+    }).observe(root, { subtree: true, childList: true, characterData: true, attributes: true });
   });
   await primaryOf(page).getByRole("button", { name: "Autofill This Page" }).click();
-  return { page, lines: () => page.evaluate(() => (window as any).progressLines as string[]) };
+  return {
+    page,
+    lines: () => page.evaluate(() => (window as any).progressLines as string[]),
+    counts: () => page.evaluate(() => (window as any).progressCounts as number[]),
+  };
 }
 
 /** Greenhouse's upload store, held for a minute: the résumé's field never settles. */
@@ -56,20 +63,20 @@ test("the scanning, found and filling states show in order with the right counts
   test.setTimeout(120_000);
   const forms = new SavedForms([ANDURIL]);
   await start([forms.handler]);
-  const { page, lines } = await pressAutofill(forms);
+  const { page, lines, counts } = await pressAutofill(forms);
 
   await expect(primaryOf(page).locator(".primary-button").first()).toContainText("Next Thing", { timeout: 60_000 });
   await expect(progressOf(page)).toHaveCount(0);
   const seen = await lines();
   expect(seen[0]).toBe("Scanning this page");
   expect(seen[1]).toMatch(/^\d+ fields found$/);
-  const filling = seen.filter((line) => line.startsWith("Filling"));
-  const total = Number(filling[0].match(/of (\d+) fields$/)?.[1]);
-  expect(total).toBeGreaterThan(3);
-  expect(filling[0]).toBe(`Filling · 0 of ${total} fields`);
-  expect(filling[filling.length - 1]).toBe(`Filling · ${total} of ${total} fields`);
+  const filling = seen.filter((line) => line.startsWith("Autofilling"));
+  expect(filling[0]).toBe("Autofilling · 0%");
+  expect(filling[filling.length - 1]).toBe("Autofilling · 100%");
   // Counted up one field at a time.
-  expect(filling.map((line) => Number(line.match(/· (\d+) of/)?.[1]))).toEqual([...Array(total + 1).keys()]);
+  const counted = await counts();
+  expect(counted.length).toBeGreaterThan(4);
+  expect(counted).toEqual([...Array(counted.length).keys()]);
   expect(forms.submissions).toEqual([]);
 });
 
@@ -79,35 +86,35 @@ test("Stop autofill leaves the later fields unfilled and the panel says the fill
   await start([forms.handler]);
   const { page } = await pressAutofill(forms);
 
-  await expect(saidOf(page)).toHaveText(/^Filling · [1-9]\d* of \d+ fields$/, { timeout: 60_000 });
-  const rowsAtStop = await progressOf(page).locator("[data-row]").count();
-  await progressOf(page).getByRole("button", { name: "Stop autofill" }).click();
+  await expect(saidOf(page)).toHaveText(/^Autofilling · [1-9]\d*%$/, { timeout: 60_000 });
+  const rowsAtStop = await listOf(page).locator('.row[data-mark="filled"]').count();
+  await progressOf(page).getByRole("button", { name: "Cancel" }).click();
 
-  await expect(needsYou(page).getByText("You stopped the fill", { exact: true })).toBeVisible({ timeout: 30_000 });
+  await expect(listOf(page).getByText("You stopped the fill", { exact: true })).toBeVisible({ timeout: 30_000 });
   await expect(progressOf(page)).toHaveCount(0);
   // The résumé (Greenhouse's files go last) was never reached.
   expect(await page.locator(".file-upload__filename").count()).toBe(0);
-  await expect(needsYou(page).getByText("Not filled: you stopped the fill.").first()).toBeVisible();
+  await expect(listOf(page).locator('.row[data-mark="needs-you"]').getByText("Not filled: you stopped the fill.").first()).toBeVisible();
   expect(rowsAtStop).toBeGreaterThan(0);
   expect(forms.submissions).toEqual([]);
 });
 
-test("a field that never settles shows Skip after 5 s; Skip moves on and lists it under Needs you", async () => {
+test("a field that never settles shows Skip on its row after 5 s; Skip moves on and marks it red", async () => {
   test.setTimeout(150_000);
   const forms = new SavedForms([ANDURIL]);
   await start([stuckUploads, forms.handler]);
   const { page } = await pressAutofill(forms);
 
-  const stuck = progressOf(page).locator('[data-row][data-stuck]');
+  const stuck = listOf(page).locator(".row[data-stuck]");
   await expect(stuck).toHaveCount(1, { timeout: 60_000 });
   const skip = stuck.getByRole("button", { name: "Skip" });
   await expect(skip).toBeVisible();
-  const label = (await stuck.locator(".progress-label").innerText()).trim();
+  const key = await stuck.getAttribute("data-key");
   await skip.click();
 
   await expect(primaryOf(page).locator(".primary-button").first()).toContainText("Next Thing", { timeout: 30_000 });
-  const row = needsYou(page).locator(".row").filter({ hasText: label });
-  await expect(row).toBeVisible();
+  const row = listOf(page).locator(`.row[data-key="${key}"]`);
+  await expect(row).toHaveAttribute("data-mark", "needs-you");
   await expect(row).toContainText("You skipped this. Answer it yourself.");
   expect(forms.submissions).toEqual([]);
 });

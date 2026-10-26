@@ -41,8 +41,7 @@ test("on Workday, pressing a row focuses and rings its field on the step shown",
   test.setTimeout(120_000);
   const { tab, workdays } = await workdayTab();
 
-  // A filled row: its group is collapsed to "N filled" until pressed (KAN-397).
-  await tab.locator('#workit-autofiller-overlay-host .group[data-group="filled"] .group-head').click();
+  // A filled row of the checklist.
   await tab.locator(`#workit-autofiller-overlay-host .row[data-key="${FIRST}"] .label`).click();
 
   await expect(tab.locator("[data-automation-id=formField-legalName--firstName] input")).toBeFocused();

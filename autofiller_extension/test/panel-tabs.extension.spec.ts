@@ -1,7 +1,6 @@
-// The panel's tabs and its grouped Autofill list (KAN-397): Autofill,
-// Résumé and Answers under the button, and the Autofill tab's rows grouped
-// by what they ask of the student (Needs you, Check these, Waiting for your
-// Claude, then Filled, collapsed to its count), not in form order.
+// The panel's tabs and its Autofill checklist (KAN-397, KAN-369 Q1-Q2):
+// Autofill, Résumé and Answers under the button, and every field of the
+// Autofill tab listed with its mark (red, amber ?, green check).
 // Anduril's saved Greenhouse form, filled as a batch tab: one guess (how
 // Anduril heard of the student), two questions WorkIt has no answer to, and
 // the rest filled.
@@ -31,45 +30,36 @@ async function anduril(): Promise<{ form: Page; forms: SavedForms }> {
 }
 
 const hostOf = (form: Page) => form.locator("#workit-autofiller-overlay-host");
-const groupOf = (form: Page, name: string) => hostOf(form).locator(`.group[data-group="${name}"]`);
+const marked = (form: Page, mark: string) => hostOf(form).locator(`[data-tab="autofill"] .row[data-key][data-mark="${mark}"]`);
 
-test("the guess is listed under Check these, above Filled collapsed to its count", async () => {
+test("the checklist marks the guess to check and the two empty questions red; every filled row shows and goes to its field", async () => {
   test.setTimeout(120_000);
   const { form, forms } = await anduril();
   const host = hostOf(form);
 
-  const groups = await host.locator(".group").evaluateAll((els) => els.map((el) => (el as HTMLElement).dataset.group));
-  expect(groups).toEqual(["needs-you", "check", "filled"]);
-  await expect(groupOf(form, "check").locator(".group-head")).toHaveText("Check these 1");
-  await expect(groupOf(form, "check").locator(`[data-key="${HEARD}"]`)).toBeVisible();
-  await expect(groupOf(form, "needs-you").locator(".group-head")).toHaveText("Needs you 2");
-
-  // Filled is collapsed to its count; a press opens it, and its rows still go to their fields.
-  const filled = groupOf(form, "filled");
-  const head = filled.locator(".group-head");
-  await expect(head).toHaveText("20 filled");
-  await expect(head).toHaveAttribute("aria-expanded", "false");
-  await expect(filled.locator('[data-key="first_name"]')).toBeHidden();
-  await head.click();
-  await expect(head).toHaveAttribute("aria-expanded", "true");
-  await filled.locator('[data-key="first_name"] .label').click();
+  await expect(host.locator('[data-tab="autofill"] .section-head')).toHaveText(["Required", "Optional"]);
+  await expect(marked(form, "check")).toHaveCount(1);
+  await expect(marked(form, "check")).toHaveAttribute("data-key", HEARD);
+  await expect(marked(form, "needs-you")).toHaveCount(2);
+  await expect(marked(form, "filled")).toHaveCount(20);
+  // Filled rows are listed, not collapsed, and still go to their fields.
+  await host.locator('[data-key="first_name"] .label').click();
   await expect(form.locator("#first_name")).toBeFocused();
   expect(forms.submissions).toEqual([]);
 });
 
-test("the counts follow the rows: a guess that looks right moves to Filled, its Undo still in sight", async () => {
+test("the marks follow the rows: a guess that looks right turns green, its Undo still in sight", async () => {
   test.setTimeout(120_000);
   const { form } = await anduril();
   const heard = hostOf(form).locator(`[data-key="${HEARD}"]`);
 
   await heard.getByRole("button", { name: "Looks right" }).click();
 
-  await expect(groupOf(form, "check")).toHaveCount(0);
-  await expect(groupOf(form, "filled").locator(".group-head")).toHaveText("21 filled");
-  await expect(groupOf(form, "filled").locator(`[data-key="${HEARD}"]`)).toBeVisible();
+  await expect(heard).toHaveAttribute("data-mark", "filled");
+  await expect(marked(form, "filled")).toHaveCount(21);
   await heard.getByRole("button", { name: "Undo" }).click();
-  await expect(groupOf(form, "check").locator(".group-head")).toHaveText("Check these 1");
-  await expect(groupOf(form, "filled").locator(".group-head")).toHaveText("20 filled");
+  await expect(heard).toHaveAttribute("data-mark", "check");
+  await expect(marked(form, "filled")).toHaveCount(20);
 });
 
 test("the three tabs switch, and the tab chosen is kept while the browser tab is open", async () => {

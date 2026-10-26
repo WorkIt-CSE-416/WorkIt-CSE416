@@ -10,16 +10,6 @@ window.WIA = window.WIA || {};
   // Injected again (Fill Again, the fill after a human check): the last fill's rows go; the shell stays.
   window.WIA.overlay?.unmount?.();
 
-  // Each status's dot, in WorkIt's status colours (the tokens below): positive green
-  // filled, danger red failed, advanced blue waiting to be written, grey otherwise.
-  const STATUS_COLOR = {
-    pending: "var(--color-ink-subtle)",
-    filled: "var(--color-positive)",
-    failed: "var(--color-danger)",
-    skipped: "var(--color-ink-subtle)",
-    needs_generation: "var(--color-advanced)",
-  };
-
   // Where a filled value came from (lib-status.js's `source`), as its badge reads.
   const SOURCE_LABEL = {
     profile: "Profile",
@@ -45,6 +35,10 @@ window.WIA = window.WIA || {};
   let style = null;
   // The row "Next Thing That Needs You" last went to.
   let current = null;
+  // The row the student last pressed: open, with its full question and source (KAN-369 Q4).
+  let opened = null;
+  // True while the list shows during a fill, before mount (live).
+  let early = false;
   let unsubscribe = null;
   // Parts other files add above the panel's list (addPart): their styles, and the part.
   const parts = [];
@@ -105,6 +99,15 @@ window.WIA = window.WIA || {};
       .dot { width: 8px; height: 8px; border-radius: 50%; margin-top: 4px; flex: none; }
       .text { flex: 1; min-width: 0; }
       .label { font-weight: 500; }
+      /* A long question shows two lines until its row is opened (pressed, or Next Thing's). */
+      .row:not([data-open]) .label { display: -webkit-box; -webkit-box-orient: vertical; -webkit-line-clamp: 2; overflow: hidden; }
+      .row:not([data-open]) .source { display: none; }
+      .row .skip {
+        all: unset; cursor: pointer; margin-top: 4px; display: inline-block; padding: 3px 8px; font-size: var(--text-note); font-weight: 500; color: var(--color-ink);
+        border: 1px solid var(--color-border-subtle); border-radius: var(--radius-control); background: var(--color-panel);
+      }
+      .row .skip:hover { background: var(--color-hover); }
+      .row .skip:focus-visible { outline: 2px solid var(--color-brand); outline-offset: 2px; }
       .source {
         display: inline-flex; align-items: center; gap: 3px; margin-top: 2px;
         font-size: var(--text-meta); font-weight: 600; padding: 1px 6px; border-radius: 9999px;
@@ -144,9 +147,12 @@ window.WIA = window.WIA || {};
     el.className = "row";
     el.dataset.key = field.key;
     if (field.key === current) el.dataset.current = "";
+    if (field.key === current || field.key === opened) el.dataset.open = "";
+    // Its mark (groups.js markOf): spinner, check, ?, ! or gray.
+    const mark = window.WIA.groups?.markOf(field);
+    if (mark) el.dataset.mark = mark;
     const dot = document.createElement("span");
     dot.className = "dot";
-    dot.style.background = STATUS_COLOR[field.status] ?? STATUS_COLOR.pending;
     const text = document.createElement("div");
     text.className = "text";
     const label = document.createElement("div");
@@ -200,6 +206,16 @@ window.WIA = window.WIA || {};
     // See cover letter (letter-preview.js): the written answer as the form has it.
     const letter = window.WIA.letterPreview?.render(field);
     if (letter) text.appendChild(letter);
+    // A field still filling after a while (progress.js): Skip leaves it for the student and the fill goes on.
+    if (window.WIA.progress?.isStuck?.(field.key)) {
+      el.dataset.stuck = "";
+      const skip = Object.assign(document.createElement("button"), { type: "button", className: "skip", textContent: "Skip" });
+      skip.addEventListener("click", window.WIA.ui.trusted(() => {
+        skip.disabled = true;
+        window.WIA.progress.skip(field.key);
+      }));
+      text.appendChild(skip);
+    }
     el.append(dot, text);
     return el;
   }
@@ -245,6 +261,8 @@ window.WIA = window.WIA || {};
     const el = event.target.closest(".row[data-jump]");
     if (!el || !window.WIA.showField) return;
     const key = el.dataset.key;
+    opened = key;
+    render(window.WIA.status.summary());
     if (window.WIA.showField(key)) return;
     const step = key.split(" / ")[0];
     const elsewhere = window.WIA.workday?.isWorkday && key.includes(" / ") && step !== window.WIA.workday.step?.();
@@ -468,11 +486,11 @@ window.WIA = window.WIA || {};
    * @param {{ onSkip?: () => void, onSubmitted?: () => void }} [options]
    */
   function mount({ onSkip, onSubmitted } = {}) {
-    if (root) return;
+    if (root && !early) return;
     const shell = window.WIA.panel;
     void shell.ensure();
-    root = shell.root;
-    style = shell.addCss(styles().textContent);
+    if (!early) draw();
+    early = false;
 
     const actions = shell.slot("header-actions");
     actions.innerHTML = `
@@ -482,6 +500,19 @@ window.WIA = window.WIA || {};
     actions.querySelector("[data-skip]")?.addEventListener("click", window.WIA.ui.trusted(onSkip));
     actions.querySelector("[data-submitted]")?.addEventListener("click", (event) => event.isTrusted && onSubmitted());
 
+    // The primary slot's button (primary.js, KAN-396): Next Thing, Ready to submit, and Fill Again under it.
+    if (window.WIA.primary) window.WIA.primary.mount();
+    else shell.fillButton("Fill Again", { secondary: true });
+
+    if (window.WIA.batch) void shell.autoOpen();
+    else shell.open();
+  }
+
+  /** The Autofill tab's list, drawn in the shell and kept up to date with the rows. */
+  function draw() {
+    const shell = window.WIA.panel;
+    root = shell.root;
+    style = shell.addCss(styles().textContent);
     const tab = shell.slot("tab:autofill");
     tab.innerHTML = `
       <div class="card fields">
@@ -494,14 +525,21 @@ window.WIA = window.WIA || {};
     `;
     tab.querySelector(".list").addEventListener("click", jump);
     tab.querySelector(".list").addEventListener("keydown", jump);
-    // The primary slot's button (primary.js, KAN-396): Next Thing, Ready to submit, and Fill Again under it.
-    if (window.WIA.primary) window.WIA.primary.mount();
-    else shell.fillButton("Fill Again", { secondary: true });
-
     unsubscribe = window.WIA.status.subscribe(render);
     render(window.WIA.status.summary());
-    if (window.WIA.batch) void shell.autoOpen();
-    else shell.open();
+  }
+
+  /**
+   * The checklist while a fill runs (KAN-369 Q1, progress.js's begin): every
+   * row as soon as the Plan registers it, each spinning until it is filled.
+   * Only on a page whose shell is up already (the student pressed Autofill
+   * This Page): a batch tab gets no panel before its fill is done (hydration,
+   * content-script.js). mount() then adds the rest.
+   */
+  function live() {
+    if (root || !window.WIA.panel?.root) return;
+    draw();
+    early = true;
   }
 
   /** Empties what the last fill put in the panel (a fill again draws it anew); the shell stays. */
@@ -515,6 +553,7 @@ window.WIA = window.WIA || {};
       window.WIA.panel.slot("header-actions")?.replaceChildren();
     }
     root = null;
+    early = false;
   }
 
   /** Shows the panel again after a collapse, as it was (no fill); false when this page has none. */
@@ -547,5 +586,5 @@ window.WIA = window.WIA || {};
   /** Draws the rows again, for a row card whose own state changed (row-card.js). */
   const refresh = () => render(window.WIA.status.summary());
 
-  window.WIA.overlay = { mount, unmount, open, state, promptForEssays, offerNext, setCurrent, refresh, addPart, askSelfId, offerClaude, askSamples, askWorkdayAccounts, momentCard, startClaude, CLAUDE_TRIGGER };
+  window.WIA.overlay = { live, mount, unmount, open, state, promptForEssays, offerNext, setCurrent, refresh, addPart, askSelfId, offerClaude, askSamples, askWorkdayAccounts, momentCard, startClaude, CLAUDE_TRIGGER };
 })();

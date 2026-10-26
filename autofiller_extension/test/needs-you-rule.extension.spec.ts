@@ -47,12 +47,11 @@ test("the list, every count line, Next Thing and the page's dots agree on what n
     below.after((0, eval)(box)(asked));
   }, [BOX, ASKED, GUESS]);
 
-  // The list: one red row, the asked question; the hidden one is not in Needs you. The guess is under Check these.
-  const red = host.locator('.group[data-group="needs-you"] .row[data-key]');
+  // The list: one red row, the asked question; the hidden one is not red. The guess is marked to check.
+  const red = host.locator('[data-tab="autofill"] .row[data-key][data-mark="needs-you"]');
   await expect(red).toHaveCount(1);
   await expect(red).toHaveAttribute("data-key", ASKED);
-  await expect(host.locator(`.group[data-group="check"] [data-key="${GUESS}"]`)).toHaveCount(1);
-  await expect(host.locator('.group[data-group="needs-you"] .count')).toHaveText("1");
+  await expect(host.locator(`[data-key="${GUESS}"]`)).toHaveAttribute("data-mark", "check");
   // The hidden question waits, out of sight, under "1 the form isn't asking now".
   await expect(host.locator('.group[data-group="not-asked"] .group-head')).toHaveText("1 the form isn't asking now");
   await expect(host.locator(`[data-key="${HIDDEN}"]`)).toBeHidden();
@@ -95,7 +94,7 @@ test("in a batch tab, the walk goes to every red row before the guess, and the c
     for (const id of red.reverse()) below.after((0, eval)(box)(id));
   }, [BOX, GUESS, ASKED, HIDDEN]);
 
-  await expect(host.locator('.group[data-group="needs-you"] .count')).toHaveText("2");
+  await expect(host.locator('[data-tab="autofill"] .row[data-key][data-mark="needs-you"]')).toHaveCount(2);
   await expect(host.locator('[data-slot="primary"] [data-required]')).toContainText("· 2 need you");
   await expect(host.locator(".summary")).toContainText("· 2 need you");
   await expect(mainButton(page)).toContainText("2 things need you");

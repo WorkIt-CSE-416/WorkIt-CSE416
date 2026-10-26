@@ -1,10 +1,12 @@
 // Live progress while a form fills (KAN-398), in the shell's "primary" slot
 // over its button: "Scanning this page", then "N fields found", then
-// "Filling · 12 of 30 fields" over a bar, with a row for each field as the
-// Fill engine reaches it. Stop autofill stops the fill before its next field;
-// a field still filling after 5 s shows Skip on its row, which leaves it for
-// the student. A Workday step adds "Stay on this page until WorkIt finishes
-// this step." It all goes once the fill is done (`end`).
+// "Autofilling · 37%" over a bar, with Cancel. The fields themselves are the
+// Autofill tab's checklist (KAN-369 Q1, overlay.js's live list, groups.js):
+// every field the Plan touches, listed at once, each spinning until the Fill
+// engine is done with it. Cancel stops the fill before its next field; a
+// field still filling after 5 s shows Skip on its row (isStuck), which
+// leaves it for the student. A Workday step adds "Stay on this page until
+// WorkIt finishes this step." It all goes once the fill is done (`end`).
 //
 // The engine runs in the page's world and this file in the extension's, so
 // they talk through the engine's events on `document` (fillengine:field /
@@ -30,19 +32,15 @@ window.WIA = window.WIA || {};
     .progress-bar > span { display: block; height: 100%; width: 0; background: var(--color-brand); transition: width 150ms; }
     .progress-stay { margin: 0; font-size: var(--text-note); color: var(--color-warning-strong); }
     .progress-stay[hidden] { display: none; }
-    .progress-rows { list-style: none; margin: 0; padding: 0; max-height: 168px; overflow-y: auto; }
-    .progress-rows li { display: flex; align-items: center; gap: 6px; padding: 3px 0; font-size: var(--text-note); color: var(--color-ink-muted); }
-    .progress-label { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-    .progress-state { color: var(--color-ink-meta); }
-    .progress-rows li[data-state="filled"] .progress-state { color: var(--color-positive-ink); }
-    .progress-rows li[data-state="needs-you"] .progress-state { color: var(--color-danger); }
+    .progress-top { display: flex; align-items: center; justify-content: space-between; gap: 8px; }
     .progress button {
       all: unset; cursor: pointer; padding: 3px 8px; font-size: var(--text-note); font-weight: 500; color: var(--color-ink);
       border: 1px solid var(--color-border-subtle); border-radius: var(--radius-control); background: var(--color-panel);
     }
     .progress button:hover { background: var(--color-hover); }
     .progress button:focus-visible { outline: 2px solid var(--color-brand); outline-offset: 2px; }
-    .progress .progress-stop { align-self: flex-start; }
+    .progress .progress-stop { all: unset; cursor: pointer; font-size: var(--text-note); font-weight: 500; color: var(--color-brand-ink); text-decoration: underline; }
+    .progress .progress-stop:disabled { cursor: default; color: var(--color-ink-meta); text-decoration: none; }
   `;
 
   let parts = null;
@@ -51,6 +49,8 @@ window.WIA = window.WIA || {};
   let count = 0;
   let stopped = false;
   const timers = new Map();
+  // The fields filling for longer than STUCK_AFTER: their rows offer Skip.
+  const stuck = new Set();
 
   const say = (text) => parts && (parts.said.textContent = text);
 
@@ -64,22 +64,23 @@ window.WIA = window.WIA || {};
     document.addEventListener(`fillengine:field:${key}`, onField);
     const place = window.WIA.panel?.slot("primary");
     if (!place) return;
+    window.WIA.overlay?.live?.();
     window.WIA.panel.addCss(STYLES);
     const el = Object.assign(document.createElement("div"), { className: "progress" });
     el.dataset.progress = "";
     el.innerHTML = `
-      <div class="progress-said" data-progress-said role="status"></div>
+      <div class="progress-top">
+        <div class="progress-said" data-progress-said role="status"></div>
+        <button type="button" class="progress-stop" title="Stop autofill">Cancel</button>
+      </div>
       <div class="progress-bar" role="progressbar" aria-label="Fields filled" hidden><span></span></div>
-      <p class="progress-stay" data-progress-stay hidden></p>
-      <button type="button" class="progress-stop">Stop autofill</button>
-      <ul class="progress-rows"></ul>`;
+      <p class="progress-stay" data-progress-stay hidden></p>`;
     parts = {
       el,
       said: el.querySelector(".progress-said"),
       bar: el.querySelector(".progress-bar"),
       stay: el.querySelector(".progress-stay"),
       stop: el.querySelector(".progress-stop"),
-      rows: el.querySelector(".progress-rows"),
     };
     parts.stay.textContent = STAY;
     parts.stay.hidden = !stay;
@@ -97,25 +98,24 @@ window.WIA = window.WIA || {};
   /**
    * A fill of `n` more fields starts (a fill that brings on questions fills
    * again): the key its fill/page passes the engine as `events`, so its
-   * fields' events reach here. `labels`: each field's label by name.
+   * fields' events reach here.
    */
-  function filling(n, labels) {
+  function filling(n) {
     total += n;
-    parts && (parts.labels = { ...(parts.labels ?? {}), ...labels });
     showCount();
     return key;
   }
 
   function showCount() {
     if (!parts) return;
-    say(`Filling · ${count} of ${total} fields`);
+    say(`Autofilling · ${total ? Math.round((count / total) * 100) : 0}%`);
     parts.bar.hidden = false;
     parts.bar.setAttribute("aria-valuemax", String(total));
     parts.bar.setAttribute("aria-valuenow", String(count));
     parts.bar.firstElementChild.style.width = `${total ? Math.round((count / total) * 100) : 0}%`;
   }
 
-  /** One of the engine's field events: a row for a field it starts, its state once it is done. */
+  /** One of the engine's field events: a field it starts (Skip after STUCK_AFTER), or one it is done with (the count). */
   function onField(event) {
     let at;
     try {
@@ -125,40 +125,28 @@ window.WIA = window.WIA || {};
     }
     clearTimeout(timers.get(at.name));
     timers.delete(at.name);
+    if (stuck.delete(at.name)) window.WIA.overlay?.refresh?.();
     if (at.phase === "start") {
-      if (!parts) return;
-      const row = Object.assign(document.createElement("li"), { innerHTML: `<span class="progress-label"></span><span class="progress-state">Filling…</span>` });
-      row.dataset.row = at.name;
-      row.dataset.state = "filling";
-      row.querySelector(".progress-label").textContent = parts.labels?.[at.name] ?? at.name;
-      parts.rows.querySelector(`[data-row="${CSS.escape(at.name)}"]`)?.remove();
-      parts.rows.append(row);
-      row.scrollIntoView?.({ block: "nearest" });
-      timers.set(at.name, setTimeout(() => offerSkip(row, at.name), STUCK_AFTER));
+      timers.set(at.name, setTimeout(() => {
+        timers.delete(at.name);
+        stuck.add(at.name);
+        window.WIA.overlay?.refresh?.();
+      }, STUCK_AFTER));
       return;
     }
     count = Math.min(total, count + 1);
     showCount();
-    const row = parts?.rows.querySelector(`[data-row="${CSS.escape(at.name)}"]`);
-    if (!row) return;
-    delete row.dataset.stuck;
-    row.querySelector("button")?.remove();
-    const ok = at.result?.status === "filled";
-    row.dataset.state = ok ? "filled" : "needs-you";
-    row.querySelector(".progress-state").textContent = ok ? "Filled" : at.result?.status === "skipped" ? "Not on the form" : "Needs you";
+    // A filled field's checklist row turns green at once; the fill's answer (content-script.js) then
+    // sets every row as WorkIt reads it back, a failed one with WorkIt's own reason.
+    if (at.result?.status === "filled") window.WIA.status.setStatus(at.name, "filled", undefined, at.result.shows);
   }
 
-  /** A field still filling after STUCK_AFTER: Skip leaves it for the student and the fill goes on. */
-  function offerSkip(row, name) {
-    timers.delete(name);
-    if (!row.isConnected || row.dataset.state !== "filling") return;
-    row.dataset.stuck = "";
-    const skip = Object.assign(document.createElement("button"), { type: "button", textContent: "Skip" });
-    skip.addEventListener("click", window.WIA.ui.trusted(() => {
-      skip.disabled = true;
-      document.dispatchEvent(new CustomEvent(`fillengine:skip:${key}`, { detail: name }));
-    }));
-    row.append(skip);
+  /** Whether the field `name` has been filling longer than STUCK_AFTER (its row offers Skip). */
+  const isStuck = (name) => stuck.has(name);
+
+  /** Skip on a stuck field's row: the engine leaves it for the student and the fill goes on. */
+  function skip(name) {
+    if (key) document.dispatchEvent(new CustomEvent(`fillengine:skip:${key}`, { detail: name }));
   }
 
   /** Stop autofill: the engine stops before its next field; the fill says so (content-script.js). */
@@ -175,6 +163,7 @@ window.WIA = window.WIA || {};
   function end() {
     for (const timer of timers.values()) clearTimeout(timer);
     timers.clear();
+    stuck.clear();
     if (key) document.removeEventListener(`fillengine:field:${key}`, onField);
     if (parts) {
       delete parts.el.parentElement?.dataset.progressing;
@@ -183,5 +172,5 @@ window.WIA = window.WIA || {};
     parts = null;
   }
 
-  window.WIA.progress = { begin, found, filling, end, stopped: () => stopped, STUCK_AFTER };
+  window.WIA.progress = { begin, found, filling, end, isStuck, skip, stopped: () => stopped, STUCK_AFTER };
 })();

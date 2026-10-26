@@ -49,8 +49,7 @@ test("an answer pasted in the waiting card is saved through WorkIt's checks and 
   const { name, form, card } = await openLumen(api);
   await expect(card.locator("[data-waited]")).toHaveText(/^Waiting (under a minute|\d+ min)$/);
   await expect(panelOf(form).locator(".summary")).toContainText("1 waiting on Claude");
-  const waiting = panelOf(form).locator('.group[data-group="waiting"]');
-  await expect(waiting.locator(".group-head")).toHaveText("Waiting for your Claude 1");
+  await expect(panelOf(form).locator('.row[data-key][data-mark="waiting"]')).toHaveCount(1);
 
   await card.getByRole("textbox", { name: "Paste an answer" }).fill(ANSWER);
   await card.getByRole("button", { name: "Save answer" }).click();
@@ -59,7 +58,7 @@ test("an answer pasted in the waiting card is saved through WorkIt's checks and 
   await expect(form.locator(`[name='${name}']`)).toHaveValue(ANSWER, { timeout: 5_000 });
   await expect(card).toHaveCount(0);
   await expect(panelOf(form).locator(".summary")).not.toContainText("waiting on Claude");
-  await expect(waiting).toHaveCount(0);
+  await expect(panelOf(form).locator('.row[data-key][data-mark="waiting"]')).toHaveCount(0);
 });
 
 test("a pasted answer WorkIt's checks refuse shows why, and the row keeps waiting", async () => {

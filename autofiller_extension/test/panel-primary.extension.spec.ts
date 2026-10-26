@@ -67,8 +67,8 @@ test("after a fill, Next Thing goes to what needs you, and the required line mat
   expect(open).toBeGreaterThan(0);
   const { total, filled } = await formCounts(page);
   expect(total).toBeGreaterThan(0);
-  // "N need you" is the Needs you group's count, never with Check these' guesses in it.
-  const needsYou = Number(await hostOf(page).locator('[data-group="needs-you"] .count').innerText());
+  // "N need you" counts the red rows, never the guesses to check.
+  const needsYou = await hostOf(page).locator('[data-tab="autofill"] .row[data-key][data-mark="needs-you"]').count();
   await expect(requiredLine(page)).toHaveText(`Required ${filled} of ${total} filled · ${needsYou} need you`);
 
   // Next Thing focuses a field of the form.
