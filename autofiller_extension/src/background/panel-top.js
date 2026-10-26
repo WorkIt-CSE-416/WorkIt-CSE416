@@ -42,6 +42,19 @@ function identity(url) {
 const sameJob = (pageId, listing) => [listing.form_url, listing.apply_url].some((url) => url && identity(url) === pageId);
 
 /**
+ * The student's application for this tab's job (as GET .../applications
+ * gives it: `job`, `stage`), or null: a batch tab's by its job id, any other
+ * tab's by its link. The Résumé tab's job too (resume-tab.js).
+ * @param {{ tabId: number, url: string }} where
+ */
+export async function applicationForTab({ tabId, url }) {
+  const jobId = (await load())?.tabs[tabId]?.jobId ?? null;
+  const pageId = identity(url);
+  const list = await applications().catch(() => []);
+  return (Array.isArray(list) ? list : []).find((a) => (jobId ? a.job.id === jobId : pageId && sameJob(pageId, a.job))) ?? null;
+}
+
+/**
  * The job card's job for this tab, or null when nothing names it.
  * @param {{ tabId: number, url: string }} where
  * @returns {Promise<null | { title: string, company: string, logo: string | null, location: string | null,
@@ -49,10 +62,8 @@ const sameJob = (pageId, listing) => [listing.form_url, listing.apply_url].some(
  *   match: number | null, appliedAt: string | null }>}
  */
 export async function jobForTab({ tabId, url }) {
-  const jobId = (await load())?.tabs[tabId]?.jobId ?? null;
+  const found = await applicationForTab({ tabId, url });
   const pageId = identity(url);
-  const list = await applications().catch(() => []);
-  const found = (Array.isArray(list) ? list : []).find((a) => (jobId ? a.job.id === jobId : pageId && sameJob(pageId, a.job)));
   if (found) {
     const job = found.job;
     const min = job.salary_min ?? job.salary ?? null;

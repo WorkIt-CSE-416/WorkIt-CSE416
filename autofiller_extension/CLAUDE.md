@@ -1386,7 +1386,7 @@ slot by name, `panel.slot(name)`, and adds its styles with
 | `batch-line` | the batch line ("Batch · 3 of 5 ready · Next tab →", Workday's step) | panel-top.js |
 | `job-card` | the job card (title, company, Match score) | panel-top.js |
 | `primary` | the one big button; `panel.setPrimary({ label, onPress, secondary })` or `panel.fillButton(label)` | Autofill This Page / Fill this step (launcher.js), then primary.js: Next Thing, Ready to submit, the required line, Fill Again |
-| `tab:<id>` | a tab's body; `panel.addTab({ id, label })` adds one, the strip shows from two | `tab:autofill`: overlay.js's summary, essay banner, moment cards, parts and rows; `tab:resume` and `tab:answers`: a placeholder (KAN-397); `tab:answers`: answers-tab.js (KAN-400), a placeholder until a fill |
+| `tab:<id>` | a tab's body; `panel.addTab({ id, label })` adds one, the strip shows from two | `tab:autofill`: overlay.js's summary, essay banner, moment cards, parts and rows; `tab:resume`: resume-tab.js (KAN-399); `tab:answers`: answers-tab.js (KAN-400), a placeholder until a fill |
 | `settings` | the settings view, shown by the header's gear in place of the tabs (`panel.showSettings`) | panel-settings.js: Claude connection, Open the panel by itself, Report a problem, Workday Sign-Up, Back |
 | `report` | Report a problem, shown in place of the tabs; open it with `window.WIA.reportCard.open()` | report.js: the preview, the note, Send report, Back |
 
@@ -1703,6 +1703,42 @@ Tests: `test/panel-settings.extension.spec.ts` (the Claude connection with
 Disconnect and Add to Claude; auto-open off keeps a batch tab's panel
 closed; the gear and Back, Report, Workday Sign-Up opening the options
 page and no password field in the panel).
+
+## The Résumé tab (KAN-399)
+
+`src/content/resume-tab.js` (loaded after panel-top.js wherever it is)
+fills `tab:resume` from `src/background/resume-tab.js` (`resume/tab`,
+`resume/file`, `resume/choose`, `resume/keywords`, `resume/tailor`):
+
+- **Attached**: the file this form gets, by its file name and kind
+  (Uploaded file, Built in WorkIt, Tailored for this job), with
+  **Preview** (the file, from the background, opens as a blob in a new tab).
+- **Keyword match** (GLOSSARY): a built résumé's "3 of 5 keywords" with the
+  matched ("On your résumé") and missing ones, exactly as `GET
+  .../built-resumes/{id}/keyword-match?job_posting_id=` gives them. Read the
+  first time the tab shows, not on every page: a posting read for the first
+  time spends one of the day's Tailor uses. An uploaded file has none
+  ("Keyword match is for résumés built in WorkIt").
+- **Tailor for this job** opens the website's `/jobs/{job}/tailor` on the
+  origin the student signed in on. Only for a job WorkIt has an
+  application for (`applicationForTab`, panel-top.js's lookup).
+- **Switch résumé**: every upload, the base built résumés and the one
+  tailored for this job, each with **Use this**. A switch keeps the file
+  for the tab (`resume_by_tab` in chrome.storage.session, dropped when the
+  tab closes), saves it as the application's sent resume when the
+  application is open (`PUT .../applications/{job}/resume`, the Auto Apply
+  page's own choice), and fills the form's résumé field again alone
+  through the Fill engine (content-script.js hands each fill's Plan over,
+  `resumeTab.use(fixesOf(prepared))`, the failed card's fill-one-field).
+  Every later Plan in the tab attaches the switched file
+  (background.js `withTabResume`), so a reload or Workday's next step keeps
+  it, and `markSubmitted` records it as sent. Greenhouse replaces an
+  attached file by pressing its Remove file first (engine, greenhouse.ts
+  `upload`).
+
+Tests: `test/panel-resume.extension.spec.ts` (the attached file, Preview,
+the others and Tailor; a switch saved, attached on the form, and its
+Keyword match). `fake-api.ts` has `builtResumes` (render, keyword-match).
 
 ## The overlay: honest per-field results
 

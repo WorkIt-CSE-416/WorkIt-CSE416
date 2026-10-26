@@ -252,6 +252,24 @@ const RESUME_MIME_TYPES = {
   docx: "application/vnd.openxmlformats-officedocument.wordprocessingml.document",
 };
 
+/** An uploaded resume (a GET .../resumes row) as the file the engine attaches, its bytes from this API's own origin. */
+async function uploadedResumeFile(applicantId, row) {
+  const buffer = await getResumeFileBytes(applicantId, row.id);
+  const ext = (row.original_filename?.split(".").pop() || "pdf").toLowerCase();
+  return {
+    filename: row.original_filename || `resume.${ext}`,
+    mimeType: RESUME_MIME_TYPES[ext] ?? "application/octet-stream",
+    base64: arrayBufferToBase64(buffer),
+    uploaded_resume_id: row.id,
+  };
+}
+
+/** A built resume (a GET .../built-resumes row) as the file the engine attaches: its PDF, rendered. */
+async function builtResumeFile(applicantId, row) {
+  const rendered = await getBuiltResumeRender(applicantId, row.id);
+  return { filename: `${row.name || "Resume"}.pdf`, mimeType: "application/pdf", base64: rendered.pdf, built_resume_id: row.id };
+}
+
 /**
  * Whichever resume My Profile calls the student's default — resolved all
  * the way to file bytes here, at profile-fetch time, rather than left as a
@@ -278,28 +296,11 @@ async function resolveResumeFile(applicantId) {
   try {
     const uploaded = await getResumes(applicantId);
     const defaultUpload = uploaded.find((r) => r.is_default);
-    if (defaultUpload) {
-      const buffer = await getResumeFileBytes(applicantId, defaultUpload.id);
-      const ext = (defaultUpload.original_filename?.split(".").pop() || "pdf").toLowerCase();
-      return {
-        filename: defaultUpload.original_filename || `resume.${ext}`,
-        mimeType: RESUME_MIME_TYPES[ext] ?? "application/octet-stream",
-        base64: arrayBufferToBase64(buffer),
-        uploaded_resume_id: defaultUpload.id,
-      };
-    }
+    if (defaultUpload) return await uploadedResumeFile(applicantId, defaultUpload);
 
     const built = await getBuiltResumes(applicantId);
     const defaultBuilt = built.find((r) => r.is_default);
-    if (defaultBuilt) {
-      const rendered = await getBuiltResumeRender(applicantId, defaultBuilt.id);
-      return {
-        filename: `${defaultBuilt.name || "Resume"}.pdf`,
-        mimeType: "application/pdf",
-        base64: rendered.pdf,
-        built_resume_id: defaultBuilt.id,
-      };
-    }
+    if (defaultBuilt) return await builtResumeFile(applicantId, defaultBuilt);
 
     // Neither list had an is_default row — a real "no resume" case, not a
     // failure, but logged anyway: silent here and a thrown error below were
@@ -693,4 +694,17 @@ export async function generateEssayAnswer(applicantId, { question, companyName, 
   });
 }
 
-export { ApiError, me };
+/**
+ * GET .../built-resumes/{id}/keyword-match?job_posting_id= — the Keyword
+ * match of one built resume against one job posting (`matched`, `missing`,
+ * required keywords first). A posting read for the first time spends one of
+ * today's Tailor uses (backend/app/routers/built_resumes.py).
+ * @param {string} applicantId
+ * @param {string} resumeId
+ * @param {string} jobId
+ */
+export async function keywordMatch(applicantId, resumeId, jobId) {
+  return apiFetch(`/applicants/${applicantId}/built-resumes/${resumeId}/keyword-match?job_posting_id=${encodeURIComponent(jobId)}`);
+}
+
+export { ApiError, me, getResumes as uploadedResumes, getBuiltResumes as builtResumes, uploadedResumeFile, builtResumeFile };

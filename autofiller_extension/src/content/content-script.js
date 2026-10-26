@@ -414,6 +414,7 @@
     const prepared = await fillShown();
     if (prepared) await flagEmptyRequired(prepared);
     if (prepared) window.WIA.failedCard.use(fixesOf(prepared));
+    if (prepared) window.WIA.resumeTab?.use(fixesOf(prepared));
     overlay.mount(panel);
     if (prepared) window.WIA.answersTab?.use(prepared);
     window.WIA.phase = prepared ? "filled" : "stopped";
@@ -471,6 +472,7 @@
       : "Check this step, then press Save and Continue. WorkIt fills the next step when it shows.");
     window.WIA.failedCard.use(fixesOf(prepared));
     window.WIA.answersTab?.use(prepared);
+    window.WIA.resumeTab?.use(fixesOf(prepared));
     writing.offer(prepared);
     offerSelfId(prepared);
     const stopEdits = watchEdits(prepared);
