@@ -511,9 +511,6 @@ function Suggestion({
               </span>
             </>
           )}
-          <span className="mt-1 flex">
-            <PlusMinus open={isOpen} />
-          </span>
         </button>
         {/* Accept and Reject as a check and a cross at the row's end, as
           Google Docs answers a suggestion: shown while the row is open,
@@ -552,12 +549,22 @@ function Suggestion({
             <XIcon aria-hidden weight="bold" />
           </Button>
         </span>
+        {/* The fold sign last, at the row's far right, as a section's caret
+            is; the row's own button above names the state for a screen
+            reader, so this one is a pointer target only */}
+        <button
+          type="button"
+          tabIndex={-1}
+          aria-hidden
+          onClick={onToggle}
+          className="text-ink-meta hover:text-ink mt-1.5 flex size-7 shrink-0 items-center justify-center pt-0.5"
+        >
+          <PlusMinus open={isOpen} />
+        </button>
       </div>
       {isOpen && (
         <div className="flex flex-col gap-2 px-3 pb-3 pl-[2.875rem]">
-          <div className="text-note text-ink bg-app rounded-lg p-2.5">
-            <ChangeBody change={change} bank={bank} choices={choices} />
-          </div>
+          <ChangeBody change={change} bank={bank} choices={choices} />
           {/* On a phone the sheet covers the page: this shows the line */}
           <Button variant="ghost" size="xs" className="self-start sm:hidden" onClick={onShow}>
             Show on Resume
@@ -585,50 +592,96 @@ function summary(change: Change, choices: Choices) {
   return change.group ? `${line} (${change.group})` : (line ?? "");
 }
 
+/**
+ * The open change as a white card with an outline, one row for each thing
+ * that changed, under a hairline: each moved bullet with its place before
+ * and after as an amber tag; a rewording's old and new lines, or one line
+ * with the changed words marked; an added or removed line. It was one grey
+ * box of all of it, which read as a chat message and ran three moves
+ * together as one.
+ */
 function ChangeBody({ change, bank, choices }: { change: Change; bank: Bank; choices: Choices }) {
   // An added or removed line in plain type: its badge and its row's name
   // already say which, and a highlight or a strike over the whole line
   // only made it harder to read. A rewording keeps its marks, which show
   // the words that changed
-  if (change.kind === "added") return change.after;
-  if (change.kind === "removed") return change.before;
+  if (change.kind === "added") return <ChangeCard rows={[{ key: "line", body: change.after }]} />;
+  if (change.kind === "removed")
+    return <ChangeCard rows={[{ key: "line", body: change.before }]} />;
   if (change.kind === "moved" && change.edit) {
     const entryId = change.edit.entry_id;
     const bullets = bank.entries.find((e) => e.id === entryId)?.bullets ?? [];
     return (
-      <span className="flex flex-col gap-1.5">
-        {movesOf(change.edit, choices).map(({ bulletId, from, to }) => {
+      <ChangeCard
+        rows={movesOf(change.edit, choices).map(({ bulletId, from, to }) => {
           const bullet = bullets.find((b) => b.id === bulletId);
-          return (
-            <span key={bulletId} className="block">
-              <span className="text-ink-meta">
-                {ordinal(from)} → {ordinal(to)}:{" "}
+          return {
+            key: bulletId,
+            tag: (
+              <span className="bg-warning-tint text-warning rounded-md px-1.5 py-0.5 text-xs font-semibold whitespace-nowrap tabular-nums">
+                <span className="sr-only">
+                  From {ordinal(from)} to {ordinal(to)}:{" "}
+                </span>
+                <span aria-hidden>
+                  {from} → {to}
+                </span>
               </span>
-              <span className="line-clamp-2">{bullet ? wording(choices, bullet) : ""}</span>
-            </span>
-          );
+            ),
+            body: <span className="line-clamp-2">{bullet ? wording(choices, bullet) : ""}</span>,
+          };
         })}
-      </span>
+      />
     );
   }
   const after = change.after ?? "";
   const before = change.before;
-  if (!before) return after;
+  if (!before) return <ChangeCard rows={[{ key: "line", body: after }]} />;
   const diff = wordDiff(before, after);
   if (diff) {
     return (
-      <>
-        {diff.head} {diff.removed && <Removed>{diff.removed}</Removed>}{" "}
-        {diff.added && <Added>{diff.added}</Added>} {diff.tail}
-      </>
+      <ChangeCard
+        rows={[
+          {
+            key: "line",
+            body: (
+              <>
+                {diff.head} {diff.removed && <Removed>{diff.removed}</Removed>}{" "}
+                {diff.added && <Added>{diff.added}</Added>} {diff.tail}
+              </>
+            ),
+          },
+        ]}
+      />
     );
   }
   return (
-    <span className="flex flex-col gap-1.5">
-      <Removed>{before}</Removed>
-      <Added>{after}</Added>
-    </span>
+    <ChangeCard
+      rows={[
+        { key: "before", tag: <RowLabel>Before</RowLabel>, body: <Removed>{before}</Removed> },
+        { key: "after", tag: <RowLabel>After</RowLabel>, body: <Added>{after}</Added> },
+      ]}
+    />
   );
+}
+
+function ChangeCard({ rows }: { rows: { key: string; tag?: ReactNode; body: ReactNode }[] }) {
+  return (
+    <ul
+      role="list"
+      className="bg-panel border-border-subtle divide-border-subtle text-note text-ink divide-y rounded-lg border"
+    >
+      {rows.map(({ key, tag, body }) => (
+        <li key={key} className="flex items-start gap-2.5 px-2.5 py-2">
+          {tag && <span className="mt-px flex shrink-0">{tag}</span>}
+          <span className="min-w-0 flex-1">{body}</span>
+        </li>
+      ))}
+    </ul>
+  );
+}
+
+function RowLabel({ children }: { children: ReactNode }) {
+  return <span className="text-ink-meta w-11 text-xs font-semibold">{children}</span>;
 }
 
 function Removed({ children }: { children: ReactNode }) {

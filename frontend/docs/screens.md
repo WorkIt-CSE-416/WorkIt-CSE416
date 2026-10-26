@@ -1792,8 +1792,10 @@ with no proposals to accept and no Done (2026-10-25).
   reworded blue, removed red, moved amber, and its count); under it one white section per resume entry, top to bottom
   as on the page, each heading with the entry's title, organization,
   count and a caret, and each suggestion a row with its type's badge and
-  a plus (a minus while open) that opens to its change, with a green ✓
-  and a red ✕ at its end while it is open or pointed at, and under the
+  a green ✓ and a red ✕ while it is open or pointed at, then at the far
+  right a plus (a minus while open) that opens to its change: a white
+  outlined card with one row per thing that changed (each moved bullet
+  with an amber "3 → 1" tag), and under the
   list Reject All and Accept All. Pointing at a row highlights its lines;
   only opening it scrolls the page to them. Sample changes of every type sit beside the run's for now
   (`demo-suggestions.ts`, temporary). On a phone the panel is a sheet opened by

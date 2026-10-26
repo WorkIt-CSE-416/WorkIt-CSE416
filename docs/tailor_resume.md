@@ -350,16 +350,20 @@ weight.
   heading with the entry's title, its organization, how many suggestions
   it holds and a caret. Under a hairline, each suggestion is a row with
   its type's round badge, its one line (the new or removed line, how many
-  bullets moved, a skill and its group) and a plus that turns to a minus
-  while open. Only a section folds with a caret: a caret on each row too
-  read as a second section heading under the section's own. Open, the row names the change ("Removed bullet") and a grey box
-  holds the words, in plain type for an added or removed line (its badge
-  and the row's name say which; a highlight or a strike over a whole line
-  only made it harder to read), and for a rewording the old struck and
-  the new highlighted (inline when
-  only a run in the middle changed, else the old line over the new one),
-  each moved bullet's place before and now ("2nd → 1st"). Accept and
-  Reject are a green check and a red cross at the row's end, as Google
+  bullets moved, a skill and its group) and, at its far right after
+  Accept and Reject, a plus that turns to a minus while open. Only a
+  section folds with a caret: a caret on each row too read as a second
+  section heading under the section's own. Open, the row names the change
+  ("Removed bullet") and a white card with an outline holds the words, one
+  row for each thing that changed under a hairline (`ChangeCard`): each
+  moved bullet with its place before and after as an amber tag ("3 → 1"),
+  a rewording's Before and After lines or one line with the changed words
+  marked (the old struck, the new highlighted), an added or removed line
+  in plain type (its badge and the row's name say which; a highlight or a
+  strike over a whole line only made it harder to read). It was one grey
+  box of all of it, which read as a chat message and ran three moves
+  together as one. Accept and Reject are a green check and a red cross at
+  the row's end, as Google
   Docs answers a suggestion, shown while the row is open, pointed at or
   focused (hidden, not removed, so the text keeps its width); they were
   full Accept and Reject buttons under the change, which read heavy. A
