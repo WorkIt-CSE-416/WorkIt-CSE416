@@ -489,7 +489,7 @@ async function toolbarPressed(tab) {
       func: async () => {
         const panel = window.WIA.panel;
         await panel.ensure();
-        if (!window.WIA.overlay?.state?.()) panel.fillButton("Autofill This Page");
+        if (!window.WIA.overlay?.state?.()) panel.fillButton(panel.startLabel());
         panel.open();
       },
     });
@@ -499,13 +499,22 @@ async function toolbarPressed(tab) {
   await chrome.action.openPopup().catch(() => {});
 }
 chrome.action.onClicked.addListener((tab) => void toolbarPressed(tab).catch((error) => console.warn("[panel] the toolbar press did nothing:", error.message)));
-chrome.commands.onCommand.addListener(async (command, tab) => {
-  if (command !== "toggle-panel") return;
+/**
+ * The extension's commands (manifest.json): Alt+W opens or closes the panel;
+ * Alt+N presses its Next Thing (KAN-396) in whichever frame has the button
+ * (primary.js answers "panel/next"; a page without one does nothing).
+ * @param {string} command
+ * @param {chrome.tabs.Tab} [tab]
+ */
+async function commandPressed(command, tab) {
   tab ??= (await chrome.tabs.query({ active: true, lastFocusedWindow: true }))[0];
-  await toolbarPressed(tab).catch((error) => console.warn("[panel] Alt+W did nothing:", error.message));
-});
-// The tests' way to press the toolbar icon, which Chrome gives no page a way to press.
+  if (command === "toggle-panel") await toolbarPressed(tab).catch((error) => console.warn("[panel] Alt+W did nothing:", error.message));
+  if (command === "next-thing" && tab?.id) await chrome.tabs.sendMessage(tab.id, { type: "panel/next" }).catch(() => null);
+}
+chrome.commands.onCommand.addListener((command, tab) => void commandPressed(command, tab));
+// The tests' way to press the toolbar icon and the commands' keys, which Chrome gives no page a way to press.
 globalThis.workitToolbar = toolbarPressed;
+globalThis.workitCommand = commandPressed;
 
 // Messages from the popup and the content script (same extension, so this
 // channel, not the External one below).

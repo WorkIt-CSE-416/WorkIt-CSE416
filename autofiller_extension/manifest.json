@@ -65,6 +65,10 @@
     "toggle-panel": {
       "suggested_key": { "default": "Alt+W" },
       "description": "Open or close the WorkIt panel"
+    },
+    "next-thing": {
+      "suggested_key": { "default": "Alt+N" },
+      "description": "Go to the next thing that needs you"
     }
   }
 }

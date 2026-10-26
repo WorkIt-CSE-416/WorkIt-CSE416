@@ -388,6 +388,14 @@ window.WIA = window.WIA || {};
   }
 
   /**
+   * The words of the button before a fill (KAN-396): Fill this step on a
+   * Workday step outside a batch (the fill fills the step shown; Fill to
+   * Review, workday-walk.js, goes on from there), else Autofill This Page.
+   */
+  const startLabel = () =>
+    /\.(myworkdayjobs|myworkdaysite)\.com$/.test(location.hostname) && !window.WIA.batch ? "Fill this step" : "Autofill This Page";
+
+  /**
    * Autofill This Page and Fill Again: the background injects the fill into
    * this frame (panel/fill); the panel shows the rows once it is done.
    */
@@ -439,7 +447,7 @@ window.WIA = window.WIA || {};
 
   const shell = {
     batch: false,
-    where, ensure, open, collapse, autoOpen, toggle, isOpen, showEdge, slot, addCss, addTab, selectTab, showSettings, setPrimary, fillButton,
+    where, ensure, open, collapse, autoOpen, toggle, isOpen, showEdge, slot, addCss, addTab, selectTab, showSettings, setPrimary, fillButton, startLabel,
     get root() {
       return root;
     },
