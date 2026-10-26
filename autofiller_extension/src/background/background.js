@@ -19,6 +19,7 @@ import { engineCaller, handleFill, jobOf, practiceJob, runEngine, submittedPage 
 import { claimMoment } from "./moments.js";
 import { nextNeedsYou, walkFrom } from "./next-needs-you.js";
 import { batchLine, jobForTab, showNextTab } from "./panel-top.js";
+import { addClaude, autoOpen, disconnectClaude, readSettings, setAutoOpen } from "./panel-settings.js";
 import { SELF_ID, checkedSelfId, unansweredSelfId } from "./self-id.js";
 import { forgetSubmits, submitHinted, watchSubmitRequests } from "./submit-proof.js";
 import { watchEmbeddedForms } from "./embedded-forms.js";
@@ -341,7 +342,7 @@ async function handleMessage(message, sender) {
       const url = sender.url ?? "";
       const job = Boolean(jobOf(url));
       if (job && sender.tab?.id !== undefined) await chrome.action.setPopup({ tabId: sender.tab.id, popup: "" });
-      return { job, batch: sender.tab ? await inBatch(sender.tab.id) : false, site: await panelSite(url) };
+      return { job, batch: sender.tab ? await inBatch(sender.tab.id) : false, site: await panelSite(url), autoOpen: await autoOpen() };
     }
     case "panel/site":
       return { site: await panelSite(sender.url ?? "", message.set) };
@@ -356,6 +357,15 @@ async function handleMessage(message, sender) {
       return { line: await batchLine(sender.tab.id), site: jobOf(sender.url ?? "")?.site ?? null };
     case "panel/next-tab":
       return showNextTab(sender.tab.id);
+    // The panel's settings view (panel-settings.js, KAN-402): the Claude connection and auto-open.
+    case "settings/read":
+      return readSettings();
+    case "settings/claude-add":
+      return addClaude(sender.tab?.id);
+    case "settings/claude-disconnect":
+      return disconnectClaude();
+    case "settings/auto-open":
+      return setAutoOpen(message.on);
     // The toolbar popup off job pages: the batch's status.
     case "popup/batch":
       return batchStatus();
@@ -477,7 +487,7 @@ async function panelSite(url, change) {
 }
 
 // What the panel's shell injects when the toolbar icon or Alt+W finds no panel on a job page yet.
-const SHELL_FILES = ["src/shared/tokens.js", "src/content/panel.js", "src/content/panel-top.js"];
+const SHELL_FILES = ["src/shared/tokens.js", "src/content/panel.js", "src/content/panel-top.js", "src/content/panel-settings.js"];
 
 /**
  * The toolbar icon (a tab with no popup: a job page, panel/where) and

@@ -155,6 +155,10 @@ export class FakeApi {
     if (route === "/documents/transcript/bytes" && this.transcript) {
       return { headers: { "content-type": "application/pdf" }, body: Buffer.from(this.transcript.base64, "base64") };
     }
+    if (route === "/connector" && method === "DELETE") {
+      this.connectorAdded = false;
+      return { status: 204, body: "" };
+    }
     if (route === "/connector") return { json: { added: this.connectorAdded } };
     if (route === "/writing-samples" && method === "GET") return { json: { samples: this.samples, style_card: null } };
 
