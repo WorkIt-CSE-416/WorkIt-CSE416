@@ -1413,6 +1413,30 @@ site; a kept collapse in the next batch tab; the toolbar and Alt+W; the
 popup elsewhere), `test/panel-reopen.extension.spec.ts` (Collapse, then
 the edge tab or the toolbar brings the same rows back, no fill).
 
+## The Autofill tab's groups (KAN-397)
+
+`src/content/groups.js` (`window.WIA.groups`, loaded before overlay.js)
+draws the Autofill tab's rows by what they ask of the student, not in form
+order: **Needs you** (failed, a required field with no answer, a flag from
+the student's Claude's check, a human check or another "todo" note, a
+written answer no Claude is writing), **Check these** (guesses),
+**Waiting for your Claude**, **Filling** (rows not done yet), then
+**Filled** collapsed to "20 filled" and **N optional left empty**, both
+opened by a press (kept for the page's life). Each group's head shows its
+count; an empty group is left out; a "done" note sits above the groups.
+overlay.js's `render` asks `groups.render(fields, row)` and keeps its own
+`row` (cards, badges, row click), so every row card works in its group. A
+row in a collapsed group stays in sight while it has more than its label
+and badge (a card such as Saved for next time with Undo, a reason, See
+cover letter) or is the row Next Thing last went to. A test that presses a
+plain filled row opens Filled first (`.group[data-group="filled"]
+.group-head`).
+
+Tests: `test/panel-tabs.extension.spec.ts` (Anduril's guess under Check
+these above "20 filled", opening Filled and a row's click to its field;
+Looks right and Undo moving the counts), and the waiting group's count in
+`test/waiting-card.extension.spec.ts`.
+
 ## The overlay: honest per-field results
 
 `lib-status.js` keeps one row per field and computes the headline only
