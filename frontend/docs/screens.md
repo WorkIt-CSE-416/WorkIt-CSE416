@@ -1681,9 +1681,16 @@ with no proposals to accept and no Done (2026-10-25).
   tailored as its own entries; a run changes only what the picked resume
   shows.
 - **The keyword match** shows "12 of 18", the matched keywords, and the
-  missing ones as toggle chips: the student picks those they have used,
-  to add as skills. A keyword not picked is never written in. A posting
-  with no description shows the "weak match" notice.
+  missing ones as toggle chips, Required then Preferred, each under its
+  own label (`MissingKeywords`, KAN-408): the student picks those they
+  have used, to add as skills. A note says a picked one goes into the
+  resume's skills and may be named in its bullets, since picking it lets
+  the truth rule pass it. Add All asks on its own line first ("Add all
+  11? Do this only if you have used every one."), and reads Clear All
+  while every keyword is picked. "(required)" was for screen readers
+  only, and Add All ticked everything at once, then read "Added All" even
+  after a keyword was unticked. A keyword not picked is never written in.
+  A posting with no description shows the "weak match" notice.
 - **Tailor Resume runs once** and saves the posting's tailored resume,
   then opens it in the editor (`/resumes/[id]`). The run's record of
   changes and its dropped count go to sessionStorage (`tailorEditsKey` in

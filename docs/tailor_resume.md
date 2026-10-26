@@ -32,9 +32,11 @@ model tokens; the student changes the tailored resume in the editor.
 4. **The student picks the missing keywords to add as skills.** A keyword
    the student does not pick is never written into the resume. A picked
    skill goes on the tailored resume only, never into the experience bank
-   ("A picked skill belongs to the tailored resume", below). Add All, a
-   text button beside the list, picks every missing keyword and then reads
-   Added All; unpicking a keyword after it changes nothing else.
+   ("A picked skill belongs to the tailored resume", below). The missing
+   keywords show Required, then Preferred. A note says a picked skill may
+   be named in the bullets. Add All, a text button beside the list, asks
+   first, then picks every missing keyword, and reads Clear All while all
+   are picked (KAN-408).
 5. **The student clicks Tailor Resume.** One request does all of this,
    with no confirmation step:
    - places each picked skill in the resume's skills (group and position,
