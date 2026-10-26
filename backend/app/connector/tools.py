@@ -32,6 +32,10 @@ whole view of WorkIt (auto-apply/architecture.md, 14.6):
   answer goes out with its version (a hash of its text) and save_review
   takes the versions back: an answer the student edited during the
   re-read is not marked reviewed, and a flag about its old text is dropped.
+  A flag may quote its sentence and mark a wrong company. The tab's flag
+  card can keep the answer (no review flags that text again) or send it
+  back: get_next_application then hands the question out again with the
+  flag (`rewrite`).
 - The prompt "Write my WorkIt answers" (app/connector/prompt.py): how to
   write them. The writing rules live there and only there: a tool's
   description says what the tool does, never how Claude should behave
@@ -73,6 +77,12 @@ from app.schemas.applications import ANSWER_MAX
 from app.services.essay_answer import bank_context
 
 
+class Rewrite(BaseModel):
+    reason: str = Field(description="What the pre-submit check found wrong with the answer.")
+    quote: str | None = Field(default=None, description="The sentence it meant, word for word.")
+    answer: str = Field(description="The answer it was about.")
+
+
 class Question(BaseModel):
     name: str = Field(description="The form field's name; save its answer under this name.")
     question: str
@@ -84,6 +94,9 @@ class Question(BaseModel):
         'joined by "; ".',
     )
     options: list[str] | None = Field(default=None, description="A choice's options, as the form words them.")
+    rewrite: Rewrite | None = Field(default=None, description=(
+        "Set when the student sent this question's answer back to be written again: what the pre-submit "
+        "check found wrong with it."))
 
 
 class NextApplication(BaseModel):
@@ -170,6 +183,9 @@ class ReviewTask(BaseModel):
 class Problem(BaseModel):
     name: str = Field(description="The question's name, from get_review_task.")
     reason: str = Field(min_length=1, max_length=500, description="What is wrong with the answer, for the student.")
+    quote: str | None = Field(default=None, max_length=2000, description=(
+        "The sentence that is wrong, copied word for word from the answer; the tab marks it in the field."))
+    wrong_company: bool = Field(default=False, description="True when the answer names a company other than the job's.")
 
 
 class Reviewed(BaseModel):
@@ -211,6 +227,7 @@ def register(server: MCPServer) -> None:
             research = found is not None and any(is_text(q.kind) for q in found.questions) \
                 and await briefs.needs_research(db, found.application.job.company)
             card, card_needed = await writing.card_state(db, student.id)
+            sent_back = await pipeline.rewrites(db, student.id, found.application.job.id) if found else {}
         if found is None:
             return NextApplication(job_id=None, chat=chat)
         cap = get_settings().connector_chat_cap
@@ -238,6 +255,7 @@ def register(server: MCPServer) -> None:
                 Question(
                     name=q.name, question=q.label, required=q.required, max_length=q.max_length,
                     kind="text" if is_text(q.kind) else q.kind, options=q.options,
+                    rewrite=Rewrite(**sent_back[q.name]) if q.name in sent_back else None,
                 )
                 for q in found.questions
             ],
@@ -337,7 +355,8 @@ def register(server: MCPServer) -> None:
             student = await account.current_student(db)
             try:
                 flagged, changed = await pipeline.save_review(
-                    db, student.id, job, {p.name: p.reason for p in problems}, versions)
+                    db, student.id, job,
+                    {p.name: pipeline.Flag(p.reason, p.quote, p.wrong_company) for p in problems}, versions)
             except pipeline.NotFound as exc:
                 raise ToolError("No such application. Use the job_id get_review_task gave.") from exc
             except (pipeline.WrongStage, pipeline.Refused) as exc:

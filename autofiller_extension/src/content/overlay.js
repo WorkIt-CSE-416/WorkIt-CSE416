@@ -156,6 +156,7 @@ window.WIA = window.WIA || {};
       .start .hint { font-size: var(--text-meta); color: var(--color-ink-meta); }
       .empty { padding: 16px 12px; color: var(--color-ink-meta); }
       ${window.WIA.rowCard?.css ?? ""}
+      ${window.WIA.flagCard?.STYLES ?? ""}
       ${window.WIA.waitingCard?.css ?? ""}
     `;
     return style;
@@ -202,7 +203,11 @@ window.WIA = window.WIA || {};
     if (card) text.appendChild(card);
     // The waiting card (card-waiting.js) carries Write with Claude, with a paste box and Write it myself.
     if (field.status === "needs_generation" && field.claude) text.appendChild(window.WIA.waitingCard?.card(field, startClaude) ?? startClaude());
-    if (field.flag) {
+    // The flag card (card-flag.js): the reason, the flagged sentence, Keep / Rewrite with Claude / Edit myself.
+    if (field.flag && window.WIA.flagCard) {
+      el.dataset.flagged = "";
+      text.appendChild(window.WIA.flagCard.render(field));
+    } else if (field.flag) {
       el.dataset.flagged = "";
       const reason = document.createElement("div");
       reason.className = "reason flag";

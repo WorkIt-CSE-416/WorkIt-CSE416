@@ -29,10 +29,14 @@ from app.auto_apply.resume import (  # noqa: F401 (re-exported: callers name the
     prepare_resume,
 )
 from app.auto_apply.review import (  # noqa: F401 (re-exported: callers name these steps as pipeline's)
+    Flag,
     ToReview,
     answer_version,
+    keep,
     next_to_review,
     reviewed_answers,
+    rewrite,
+    rewrites,
     save_review,
 )
 from app.auto_apply.rules import pick_batch

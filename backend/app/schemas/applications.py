@@ -162,11 +162,24 @@ class WrittenAnswer(WrittenQuestion):
     GET .../questions also says whether the student's Claude's pre-submit
     review read this answer (`reviewed`; always true for the student's own
     words, which it doesn't hold up) and, when it found it wrong, why
-    (`flag`): the tab shows that as needing the student (KAN-369)."""
+    (`flag`): the tab shows that as needing the student (KAN-369), with the
+    sentence it means (`flag_quote`) and whether it names the wrong company
+    (`flag_hard`)."""
 
     answer: str | None
     reviewed: bool = False
     flag: str | None = None
+    flag_quote: str | None = None
+    flag_hard: bool = False
+
+
+class FlagAnswer(BaseModel):
+    """POST .../review/keep and .../review/rewrite: the flagged answer the
+    student keeps, or sends back to their Claude (KAN-369)."""
+
+    model_config = ConfigDict(extra="forbid")
+
+    name: str = Field(min_length=1, max_length=200)
 
 
 class OwnAnswer(BaseModel):

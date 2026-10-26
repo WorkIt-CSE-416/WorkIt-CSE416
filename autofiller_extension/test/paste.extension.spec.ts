@@ -141,3 +141,71 @@ test("an edit of a reviewed answer shows its new verdict", async () => {
   await expect(row.locator(".reason")).toHaveText(`Your Claude's check: ${flag} Read it before you submit, and edit it if it's wrong.`, { timeout: 20_000 });
   await expect.poll(() => groupOf(loaded.worker, LUMEN), { timeout: 15_000 }).toBe("Needs you");
 });
+
+// The flag card (KAN-369): a flagged row shows Claude's reason and the sentence it means, with Keep,
+// Rewrite with Claude and Edit myself. The flagged sentence here names another company (a hard flag).
+const STRIPE = "I want to build data pipelines that help clinics call the right patients";
+const WRONG_COMPANY = { reason: "Names Stripe; this job is at Lumen Health.", quote: STRIPE, hard: true };
+
+async function flaggedLumen(api: FakeApi) {
+  api.connectorAdded = true;
+  const { name, form } = await filledLumen(api);
+  api.saveReview("job-0", { [name]: WRONG_COMPANY });
+  const row = form.locator(`#workit-autofiller-overlay-host [data-key="${name}"]`);
+  await expect(row.locator(".flag-card .quote")).toHaveText(`“${STRIPE}”`, { timeout: 20_000 });
+  await expect(row.locator(".flag-card")).toHaveAttribute("data-hard", "");
+  await expect.poll(() => groupOf(loaded.worker, LUMEN), { timeout: 15_000 }).toBe("Needs you");
+  return { name, form, row };
+}
+
+test("Edit myself marks the flagged sentence, and the flag holds until that sentence changes", async () => {
+  test.setTimeout(150_000);
+  const api = new FakeApi().queue({ id: "job-0", apply_url: LUMEN });
+  const { name, form, row } = await flaggedLumen(api);
+  const field = form.locator(`[name='${name}']`);
+
+  // Edit myself: the field is focused with the flagged sentence selected.
+  await row.getByRole("button", { name: "Edit myself" }).click();
+  await expect.poll(() => field.evaluate((box: HTMLTextAreaElement) => box.value.slice(box.selectionStart, box.selectionEnd))).toBe(STRIPE);
+
+  // An edit that keeps the sentence keeps the flag; one that changes it clears it.
+  await field.fill(`${ANSWER} I like data.`);
+  await expect.poll(() => api.own.length, { timeout: 15_000 }).toBe(1);
+  await expect(row.locator(".flag-card")).toHaveCount(1);
+  await field.fill("I want to build data pipelines for clinics.");
+  await expect(row.locator(".flag-card")).toHaveCount(0, { timeout: 15_000 });
+});
+
+test("Keep asks once, then clears the flag and records the student's choice", async () => {
+  test.setTimeout(150_000);
+  const api = new FakeApi().queue({ id: "job-0", apply_url: LUMEN });
+  const { name, row } = await flaggedLumen(api);
+
+  await row.getByRole("button", { name: "Keep", exact: true }).click();
+  expect(api.flagAnswers).toEqual([]);
+  await row.getByRole("button", { name: "Yes, keep it" }).click();
+  await expect.poll(() => api.flagAnswers).toEqual([{ jobId: "job-0", action: "keep", name }]);
+  await expect(row.locator(".flag-card")).toHaveCount(0);
+  await expect.poll(() => groupOf(loaded.worker, LUMEN), { timeout: 15_000 }).toBe("Ready");
+});
+
+test("Rewrite with Claude sends the answer back and fills the new one", async () => {
+  test.setTimeout(150_000);
+  const api = new FakeApi().queue({ id: "job-0", apply_url: LUMEN });
+  const { name, form, row } = await flaggedLumen(api);
+
+  await row.getByRole("button", { name: "Rewrite with Claude" }).click();
+  await expect.poll(() => api.flagAnswers).toEqual([{ jobId: "job-0", action: "rewrite", name }]);
+  // Waiting for the student's Claude: Write with Claude shows, and the tab still needs the student.
+  await expect(row.getByRole("link", { name: "Write with Claude" })).toBeVisible();
+  await expect(row.locator(".flag-card")).toContainText("Sent back to your Claude");
+  await new Promise((done) => setTimeout(done, 3_000)); // past the edit pause: the old text isn't taken as an edit
+  expect(api.own).toEqual([]);
+  await expect.poll(() => groupOf(loaded.worker, LUMEN)).toBe("Needs you");
+
+  const rewritten = "I want to help Lumen Health reach the patients who need care first.";
+  api.saveAnswer("job-0", name, rewritten);
+  await expect(form.locator(`[name='${name}']`)).toHaveValue(rewritten, { timeout: 20_000 });
+  await expect(row.locator(".flag-card")).toHaveCount(0);
+  await expect.poll(() => groupOf(loaded.worker, LUMEN), { timeout: 15_000 }).toBe("Ready");
+});

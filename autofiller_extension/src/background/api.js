@@ -545,6 +545,19 @@ export async function saveOwnAnswer(applicantId, jobId, answer) {
 }
 
 /**
+ * POST .../applications/{job_id}/review/keep|rewrite — the flag card's answer
+ * to a question the pre-submit review flagged (KAN-369): keep it as it
+ * stands, or send it back to the student's Claude to write again.
+ * @param {string} applicantId
+ * @param {string} jobId
+ * @param {"keep" | "rewrite"} action
+ * @param {string} name
+ */
+export async function answerFlag(applicantId, jobId, action, name) {
+  await apiRequest(`/applicants/${applicantId}/applications/${jobId}/review/${action}`, { method: "POST", body: JSON.stringify({ name }) });
+}
+
+/**
  * PUT .../applications/{job_id}/written-answers — an answer the student
  * pasted in a waiting row's card (KAN-369), saved as the Written Answers
  * page saves one (KAN-385): checked as their Claude's, saved by="student",

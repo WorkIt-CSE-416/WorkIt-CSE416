@@ -207,6 +207,10 @@ Find files with a directory listing; these are the rules for where code goes.
   version (`answer_version`, a hash of its text), and `save_review` keeps
   the answers whose version still matches, with each flag, as
   `job_applications.answer_review`; an answer edited meanwhile stays due.
+  A flag may quote its sentence and mark a wrong company; the tab's flag
+  card answers it with `keep` (recorded as `kept`, never flagged again as
+  it stands) or `rewrite` (the answer cleared, the flag kept as `rewrite`
+  for `get_next_application` to hand over with the question).
   Re-exported the same way; tests: `tests/test_connector_review.py`. A
   question asked in words (kind NULL, "text" to the connector) is
   `models/written_answers.is_text`, for a value or, given the column, in

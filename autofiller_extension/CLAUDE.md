@@ -66,7 +66,9 @@ builds it: `dist/engine.js` is committed in the engine repo.
   questions that need writing (their rows, Generate or the student's
   Claude, the student's edits of them) as `window.WIA.writtenAnswers`,
   and `batch-tab.js` a batch tab's side (`batch/state`, the walk's
-  `batch/flags` and `batch/focus`, the submit watch) as `window.WIA.batchTab`.
+  `batch/flags` and `batch/focus`, the submit watch) as `window.WIA.batchTab`,
+  and `card-flag.js` the flag card under a flagged row (after `overlay.js`,
+  which draws it and adds its styles) as `window.WIA.flagCard`.
   The content script reaches the engine through the background,
   which runs `engine.js`'s `runEngine` (the engine's own dispatcher,
   `FillEngine.call`) in the page's MAIN world with
@@ -428,6 +430,21 @@ waits for an opened tab's page and form (`waitForLoad`, `formShows`).
   answer whose verdict the tab showed, once saved (`batch/own-answer`),
   starts the poll again until the edit's verdict lands (their own words
   count as reviewed at once). Tests: `test/paste.extension.spec.ts`.
+  **The flag card** (`card-flag.js`, KAN-369) under a flagged row: the
+  reason, the flagged sentence quoted (`flag_quote`; a click focuses the
+  field with it selected, as does the walk's `show`), and three actions.
+  **Keep** asks once, then `batch/flag` → `POST .../review/keep` records it
+  as the student's choice (no later review flags that text) and the flag
+  clears. **Rewrite with Claude** (not on the student's own words) →
+  `POST .../review/rewrite` clears the answer, and `get_next_application`
+  hands the question to their Claude again with the flag; the row waits
+  (Write with Claude) and keeps its flag (`rewriting`, so the tab still
+  needs the student), the field's old text isn't taken as an edit, and
+  the new answer is filled when it lands (`writtenAnswers().rewrite`, via
+  `window.WIA.writing`). **Edit myself** focuses the field with the
+  sentence selected; an edit that leaves the sentence in keeps the flag.
+  A wrong-company flag (`flag_hard`) is drawn in the danger colour; like
+  every flag it keeps the tab out of Ready and in the walk until resolved.
   A hidden tab's timers slow to about once a minute after five minutes, so
   an answer can take that long to land. Tests:
   `test/connector.extension.spec.ts` (Ashby's Harvey form: no saved
