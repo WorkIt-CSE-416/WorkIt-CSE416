@@ -26,6 +26,11 @@ AUTO_APPLY_HOSTS = (
     "myworkdaysite.com",
     # Oracle Recruiting Cloud's candidate experience (the engine's oracle.ts).
     "oraclecloud.com",
+    # SAP SuccessFactors' career sites (the engine's successfactors.ts).
+    "successfactors.com",
+    "successfactors.eu",
+    "sapsf.com",
+    "sapsf.eu",
 )
 
 # Company careers sites whose embedded Greenhouse form doesn't fill in place

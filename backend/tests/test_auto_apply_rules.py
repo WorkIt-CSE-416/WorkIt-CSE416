@@ -59,6 +59,7 @@ def test_size_zero_or_empty_input():
     "https://acme.wd5.myworkdayjobs.com/en-US/Careers/job/Intern_R1",
     "https://wd3.myworkdaysite.com/recruiting/acme/Careers/job/Intern_R1",
     "https://fa-acme-saasfaprod1.fa.ocs.oraclecloud.com/hcmUI/CandidateExperience/en/sites/CX_1/job/27180",
+    "https://career4.successfactors.com/career?career_ns=job_listing&company=AcmeCo&career_job_req_id=16550",
     # A company's own careers page that embeds Greenhouse's form (filled in its iframe).
     "https://stripe.com/jobs/search?gh_jid=8257892",
     "https://www.databricks.com/company/careers/open-positions/job?utm=x&gh_jid=8805655002",
