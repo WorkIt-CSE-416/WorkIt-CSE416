@@ -31,7 +31,12 @@ them). Notes the scripts don't say:
   `npm ci` in a `node:22` container before pushing.
 - `typecheck` runs `next typegen` first because `LayoutProps`/`PageProps` are
   generated route types that do not exist on a fresh clone; bare `tsc` fails.
-- There is no test runner yet. When one is added, document it here.
+- **Tests are Node's own runner** (`node --test`, Node 24 strips the types),
+  for pure modules only: `npm test`, or one file with
+  `node --test src/lib/autofill-answers.test.ts`. A test sits beside its
+  module as `<name>.test.ts` and imports it with the `.ts` extension
+  (`allowImportingTsExtensions` in tsconfig), so the module under test must
+  use relative imports, not `@/`. There is no component or browser runner.
 - **To test a resume upload**, use a file from `frontend/public/resumes/`.
   The folder is git-ignored because it holds real people's resumes, so put
   your own there once, in the primary checkout: `npm run worktree` and every

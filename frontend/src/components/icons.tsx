@@ -61,7 +61,7 @@ import {
   UserTieIcon as UserTie,
 } from "@/components/custom-icons";
 
-import type { AutofillAnswers } from "@/lib/autofill-answers";
+import type { QuestionKey } from "@/lib/autofill-answers";
 
 type IconProps = { className?: string };
 
@@ -499,7 +499,7 @@ export function DisabilityIcon({ className }: IconProps) {
   return <PersonArmsSpread aria-hidden className={className} />;
 }
 
-const ANSWER_ICON: Record<keyof AutofillAnswers, typeof AuthorizationIcon> = {
+const ANSWER_ICON: Record<QuestionKey, typeof AuthorizationIcon> = {
   work_authorized_us: AuthorizationIcon,
   needs_sponsorship: VisaIcon,
   work_authorization_status: CitizenshipIcon,
@@ -515,7 +515,7 @@ const ANSWER_ICON: Record<keyof AutofillAnswers, typeof AuthorizationIcon> = {
  *  (lib/autofill-answers): onboarding's Profile step and My Profile's
  *  Application Questions draw the same one. Moved here from onboarding when
  *  My Profile became the second route to want them (KAN-269). */
-export function answerIcon(key: keyof AutofillAnswers) {
+export function answerIcon(key: QuestionKey) {
   return ANSWER_ICON[key];
 }
 
