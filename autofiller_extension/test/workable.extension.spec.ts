@@ -61,3 +61,27 @@ test("the student's own Autofill on a Workable form with a restored draft forget
   await expect((await tab())!.locator("[data-ui=experience] li")).toHaveCount(0);
   expect(form.server.submissions).toEqual([]);
 });
+
+test("a Workable form opened with no draft is filled without a reload", async () => {
+  // Every fresh Workable form writes an empty index ("evergreen-meta-peristence": {}), which is no draft:
+  // reloading for it was a second page load, about a second live.
+  test.setTimeout(90_000);
+  const form = new SavedWorkable("workable-perryhomes");
+  let loads = 0;
+  const counted: Handler = async (request) => {
+    if (request.method === "GET" && request.url.href === form.url) loads += 1;
+    return form.handler(request);
+  };
+  const api = new FakeApi().queue({ id: "job-0", apply_url: form.url });
+  loaded = await loadExtension([api.handler, webapp, counted]);
+  await signIn(loaded.context);
+  const webappPage = loaded.context.pages()[0] ?? (await loaded.context.newPage());
+  await webappPage.goto("http://localhost:3000/auto-apply");
+
+  await sendFromWebapp(webappPage, { type: "run/open" });
+  const tab = async () => loaded.context.pages().find((p) => p.url().startsWith(form.url));
+  await expect.poll(async () => (await tab())?.evaluate(() => (document.querySelector("#lastname") as HTMLInputElement | null)?.value).catch(() => null), { timeout: 60_000 })
+    .toBe("Person");
+  expect(loads).toBe(1);
+  expect(form.server.submissions).toEqual([]);
+});

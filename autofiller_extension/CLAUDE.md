@@ -924,7 +924,9 @@ waits for an opened tab's page and form (`waitForLoad`, `formShows`).
   restores an unsent draft from local storage (`evergreen-*`) as its form
   opens, and the engine won't add to entries a section already lists. A
   batch tab forgets the draft and reloads as it opens (`batch.js`'s
-  `startFill`); the student's own Autofill does so only when its first Plan
+  `startFill`), only when there was one: every fresh form writes an empty
+  index (`evergreen-meta-peristence` = `{}`), which is no draft, and the
+  reload costs a second page load (about a second live); the student's own Autofill does so only when its first Plan
   finds entries showing once the form's Submit shows (`tab-load.js`'s
   `forgetShownWorkableDraft`), then fills again, so what the student typed
   by hand on that form is lost (`test/workable.extension.spec.ts`). The

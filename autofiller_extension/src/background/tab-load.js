@@ -124,17 +124,23 @@ export function waitForLoad(tabId) {
  * form opens (an earlier fill's, or the student's own visit), and the
  * engine fills only an empty form ("the form already has entries"): the
  * engine forgets the draft (`forgetDrafts`), and the tab reloads, so the
- * form opens empty. Resolves once the reloaded page has loaded.
+ * form opens empty. With `onlyIfDraft` (a batch tab just opened) it reloads
+ * only when there was a draft: a fresh form's empty index is none, and the
+ * reload is a second page load (about a second live). Resolves once the
+ * reloaded page has loaded, or at once with no reload.
  * @param {number} tabId
+ * @param {{ onlyIfDraft?: boolean }} [options]
+ * @returns {Promise<boolean>} whether the tab was reloaded
  */
-export async function forgetWorkableDraft(tabId) {
+export async function forgetWorkableDraft(tabId, { onlyIfDraft = false } = {}) {
   await chrome.scripting.executeScript({ target: { tabId }, world: "MAIN", files: ENGINE_FILES });
-  await chrome.scripting.executeScript({ target: { tabId }, world: "MAIN", func: () => {
+  const [{ result: draft }] = await chrome.scripting.executeScript({ target: { tabId }, world: "MAIN", args: [onlyIfDraft], func: (onlyIfDraft) => {
+    const draft = globalThis.FillEngine.forgetDrafts("workable");
     // Workable may save the form again before the page goes (its draft of what it restored): forgotten then too.
-    const forget = () => globalThis.FillEngine.forgetDrafts("workable");
-    forget();
-    addEventListener("pagehide", forget);
+    if (draft || !onlyIfDraft) addEventListener("pagehide", () => globalThis.FillEngine.forgetDrafts("workable"));
+    return draft;
   } });
+  if (onlyIfDraft && !draft) return false;
   const loaded = new Promise((resolve) => {
     const onUpdated = (id, info) => {
       if (id !== tabId || info.status !== "complete") return;
@@ -145,6 +151,7 @@ export async function forgetWorkableDraft(tabId) {
   });
   await chrome.tabs.reload(tabId);
   await loaded;
+  return true;
 }
 
 // Tabs whose Workable draft the student's own Autofill just forgot: their next fill fills as the form shows.

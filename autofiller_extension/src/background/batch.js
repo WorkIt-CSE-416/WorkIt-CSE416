@@ -264,7 +264,7 @@ async function startFill(tabId, url, again = false) {
       return await injectFill(tabId, { batch: true, frameId });
     }
     const shown = (await chrome.tabs.get(tabId)).url ?? "";
-    if (jobOf(shown)?.site === "workable") await forgetWorkableDraft(tabId);
+    if (jobOf(shown)?.site === "workable") await forgetWorkableDraft(tabId, { onlyIfDraft: true });
     // A Workday posting shows no form until Apply is pressed (the fill presses it, workday.js) and the student signs in: its fill waits.
     const workday = isWorkday(shown);
     let found = await formShows(tabId, workday ? 0 : FORM_TIMEOUT_MS);
