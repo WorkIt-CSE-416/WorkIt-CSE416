@@ -1200,7 +1200,10 @@ leaves the brought one, so a screener or a self-identification answer WorkIt
 has no field for still fills. Policies go the other way (`enginePolicies`):
 the student's brought rules lie over WorkIt's `POLICIES`, since they say how
 that student applies (Apply's how-heard beats WorkIt's default). Its answer bank
-arrives through `GET .../answer-bank` with the rest. `test/apply-profile.spec.ts`.
+arrives through `GET .../answer-bank` with the rest. Each job WorkIt holds
+goes to the engine with its bullets, in their order, one a line, as its
+`description` (Workday's Role Description, as Apply gives it).
+`test/apply-profile.spec.ts`.
 
 **The email it fills is the profile's `contact_email`, else `/auth/me`'s
 sign-in email** (KAN-262). A seeker may apply with a different address than
