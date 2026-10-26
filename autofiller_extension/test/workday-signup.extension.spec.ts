@@ -4,9 +4,10 @@
 // the loaded extension, on the fake Workday tenants (fake-job-systems.ts).
 // Made-up credentials only. The password must never reach the WorkIt API:
 // every request to it is recorded and searched for the password.
-import { expect, test } from "@playwright/test";
+import { expect, test, type Page } from "@playwright/test";
 import { FakeApi } from "./fake-api";
-import { EXTENSION_ID, loadExtension, signIn, webapp, type Handler, type Loaded } from "./loaded-extension";
+import { FakeWorkdays } from "./fake-job-systems";
+import { EXTENSION_ID, loadExtension, sendFromWebapp, signIn, webapp, type Handler, type Loaded } from "./loaded-extension";
 
 let loaded: Loaded | undefined;
 test.afterEach(async () => {
@@ -17,6 +18,7 @@ test.afterEach(async () => {
 const SIGNUP_PAGE = `chrome-extension://${EXTENSION_ID}/src/options/options.html`;
 // Made up for these tests: no real account anywhere has it.
 const PASSWORD = "Fake-Tenant-Pass-42!";
+const overlay = (p: Page) => p.locator("#workit-autofiller-overlay-host");
 
 /** Every request to the fake WorkIt API (localhost:8000), as its URL and body, for the password check. */
 function recordApi(): { handler: Handler; sent: string[] } {
@@ -75,6 +77,51 @@ test("the sign-up page's checklist gates Save; Save and Clear keep the login in 
 
   await page.locator("#signup-clear").click();
   await expect.poll(stored).toBeNull();
+  expect(api.sent.length).toBeGreaterThan(0);
+  expect(api.sent.filter((s) => s.includes(PASSWORD))).toEqual([]);
+});
+
+test("a saved sign-up is used for Create Account and Sign In at every company, and never sent to WorkIt", async () => {
+  test.setTimeout(180_000);
+  const workdays = new FakeWorkdays(["workday-caci", "workday-xcel"]);
+  const api = recordApi();
+  const fake = new FakeApi().queue(
+    { id: "wd-0", apply_url: workdays.signInUrl(0) },
+    { id: "wd-1", apply_url: workdays.signInUrl(1, "signin") },
+    { id: "wd-2", apply_url: workdays.signInUrl(0, "signin") });
+  loaded = await loadExtension([api.handler, fake.handler, webapp, workdays.handler]);
+  await signIn(loaded.context);
+  await loaded.worker.evaluate(([password]) => chrome.storage.local.set({
+    workday_signup: { email: "made.up.student@example.org", password },
+    workday_accounts_for_me: true,
+  }), [PASSWORD]);
+  const app = loaded.context.pages()[0] ?? (await loaded.context.newPage());
+  await app.goto("http://localhost:3000/auto-apply");
+  await sendFromWebapp(app, { type: "run/open" });
+  const tab = async (url: string) => {
+    await expect.poll(() => loaded!.context.pages().some((p) => p.url() === url), { timeout: 30_000 }).toBe(true);
+    return loaded!.context.pages().find((p) => p.url() === url)!;
+  };
+
+  // A new company: Create Account with the saved login.
+  const caci = await tab(workdays.signInUrl(0));
+  await caci.waitForURL(workdays.url(0), { timeout: 30_000 });
+  // A new company opening on Sign In: nothing known there, so it makes the account with the saved login too.
+  await overlay(caci).locator("[data-skip]").click();
+  const xcel = await tab(workdays.signInUrl(1, "signin"));
+  await expect.poll(() => workdays.signIns.length, { timeout: 30_000 }).toBe(2);
+  // The first company again: Sign In with the saved login.
+  await overlay(xcel).locator("[data-skip]").click();
+  await tab(workdays.signInUrl(0, "signin"));
+  await expect.poll(() => workdays.signIns.length, { timeout: 30_000 }).toBe(3);
+
+  const login = { email: "made.up.student@example.org", password: PASSWORD };
+  expect(workdays.signIns).toEqual([
+    { host: "caci.wd1.myworkdayjobs.com", view: "create", ...login },
+    { host: "xcelenergy.wd1.myworkdayjobs.com", view: "create", ...login },
+    { host: "caci.wd1.myworkdayjobs.com", view: "signin", ...login },
+  ]);
+  expect(workdays.submissions).toEqual([]);
   expect(api.sent.length).toBeGreaterThan(0);
   expect(api.sent.filter((s) => s.includes(PASSWORD))).toEqual([]);
 });

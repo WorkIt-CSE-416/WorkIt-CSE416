@@ -360,6 +360,14 @@ waits for an opened tab's page and form (`waitForLoad`, `formShows`).
   carries it, the page never shows a saved password back, and it never
   reaches the API, a log or the webapp
   (`test/workday-signup.extension.spec.ts` checks every API request).
+  With one saved, `workdayLogin` gives a tenant with nothing saved that
+  login in place of a new password: Create Account copies it into the
+  tenant's `workday_logins` entry (`signup: true`, `made`, so it is pressed
+  as a new password is), and Sign In fills it as `fresh` (no account known
+  here), so it still switches to Create Account first, as with nothing
+  saved; with no switch link it presses Sign In with it, and a refusal saves
+  the copy `refused`. A tenant saved before keeps its own login. With none
+  set, everything is as below. Every press rule below holds unchanged.
 - **Workday sign-in (KAN-373).** On Workday's Create Account or Sign In
   form (`[data-automation-id=signInFormo]`; Workday's step bar calls it a
   step, which `workdayStep()` ignores), `workday.js` asks
