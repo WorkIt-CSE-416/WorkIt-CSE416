@@ -15,6 +15,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.auto_apply.hosts import refusal
 from app.auto_apply.queries import (
+    close_posting,
     fetch_applications,
     fetch_next_application,
     fetch_open_apply_url,
@@ -80,6 +81,9 @@ OUTCOME_STAGE = {
     "submitted": application_stage.applied,
     "skipped": application_stage.skipped,
     "failed": application_stage.needs_you,
+    # The job system says the job is closed: it leaves the queue (skipped)
+    # and its posting is marked closed (close_posting).
+    "closed": application_stage.skipped,
 }
 # Batch apply (KAN-370): how a tab's fill left the form, on the stage. A
 # ready tab waits for the student's submit, so it stays queued (the batch
@@ -271,7 +275,7 @@ async def finish_application(
     db: AsyncSession,
     applicant_id: uuid.UUID,
     job_id: uuid.UUID,
-    outcome: Literal["submitted", "skipped", "failed", "unsubmitted"],
+    outcome: Literal["submitted", "skipped", "failed", "closed", "unsubmitted"],
     state: Literal["ready", "needs_you"] | None = None,
 ) -> application_stage:
     """
@@ -300,5 +304,7 @@ async def finish_application(
         )
     new = OUTCOME_STAGE[outcome]
     await set_stage(db, applicant_id, job_id, new)
+    if outcome == "closed":
+        await close_posting(db, job_id)
     await db.commit()
     return new
