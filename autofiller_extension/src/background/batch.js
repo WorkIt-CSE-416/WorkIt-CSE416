@@ -55,6 +55,7 @@ import { jobBoard } from "./job-boards.js";
 import { clearHumanCheck, injectFill, injectHumanCheck } from "../shared/content-scripts.js";
 import { liveBatch, load, save, serially } from "./batch-store.js";
 import { forgetWorkableDraft, formAfterHumanCheck, formShows, humanCheckShows, waitForLoad } from "./tab-load.js";
+import { tryInFront } from "./human-checks.js";
 
 /** @typedef {import("./batch-store.js").Batch} Batch @typedef {import("./batch-store.js").TabState} TabState */
 
@@ -256,13 +257,17 @@ async function startFill(tabId, url, again = false) {
     // A Workday posting shows no form until the student presses Apply and signs in: its fill waits for them.
     const workday = isWorkday(shown);
     let found = await formShows(tabId, workday ? 0 : FORM_TIMEOUT_MS);
+    // No answer: a new page ended the look (a human check that passed on its own), so look in the new one.
+    if (found === null && !workday) found = await formAfterHumanCheck(tabId, FORM_TIMEOUT_MS);
     const now = (await chrome.tabs.get(tabId)).url ?? "";
     if (!again && url && jobOf(url)?.onForm && !jobOf(now)?.onForm) {
       await chrome.tabs.update(tabId, { url });
       return startFill(tabId, url, true);
     }
-    // A human check where the form should be needs the student; the fill runs once they pass it.
-    if (!found && !workday && (await humanCheckShows(tabId))) {
+    // A human check where the form should be: a short turn in front, where a managed one passes on its own;
+    // else it needs the student, and the fill runs once they pass it.
+    if (!found && !workday && (await humanCheckShows(tabId))) found = await tryInFront(tabId);
+    if (!found && !workday && (await humanCheckShows(tabId).catch(() => false))) {
       await setTabState(tabId, "needs_you");
       await injectHumanCheck(tabId);
       found = await formAfterHumanCheck(tabId);

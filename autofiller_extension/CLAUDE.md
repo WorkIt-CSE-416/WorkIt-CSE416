@@ -242,7 +242,16 @@ waits for an opened tab's page and form (`waitForLoad`, `formShows`).
 - **A human check where the form should be needs the student.** A tab
   whose form doesn't show within 10 s, on a page with a captcha
   (Cloudflare's Turnstile, hCaptcha, reCAPTCHA: its frame, or words such
-  as "Verify you are human", `humanCheckShows`), goes to Needs you and
+  as "Verify you are human", `humanCheckShows`), first gets a short turn
+  in front (`human-checks.js`'s `tryInFront`): Chrome holds back a tab no
+  one sees, and a managed check often passes on its own once seen. Only
+  when the student isn't in the tab's window (it isn't the focused window
+  that was focused last), so WorkIt never takes the tab they look at; the
+  window's own tab comes back after 5 s unless they switched meanwhile.
+  The cost: a student in another app or window sees their batch window
+  change tabs for 5 s. A check that passes during the first look (its page
+  loads anew: `formShows` answers null) is looked at again in the new page.
+  Still there, the tab goes to Needs you and
   keeps waiting up to 5 minutes for the form (`formAfterHumanCheck`, also
   across the new page a passed check loads); the fill runs once it shows.
   Meanwhile its panel (`human-check.js`, `injectHumanCheck`) says "Prove
@@ -252,7 +261,8 @@ waits for an opened tab's page and form (`waitForLoad`, `formShows`).
   fill's rows (`window.WIA.walk`), as a passed check may draw the form in
   the same page. The extension never solves a check. A form that never shows has failed,
   as any other. Tests: `test/batch.extension.spec.ts` ("a human check
-  before the form", "a human check's tab says").
+  before the form", "a human check's tab says", "a human check that
+  passes on its own").
 
 - **The URLs always come from the API, never the message.** `run/open`
   carries no body: a page on an allowed origin that could hand the worker

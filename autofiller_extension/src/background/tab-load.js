@@ -65,15 +65,16 @@ function isHumanCheck() {
 }
 
 /**
- * Waits, for up to HUMAN_CHECK_WAIT_MS, for the form behind a human check
+ * Waits, for up to `waitMs` (HUMAN_CHECK_WAIT_MS), for the form behind a human check
  * the student is passing. Passing one often loads a new page, which ends a
  * look in the old one: the wait then goes on in the new page. Resolves
  * whether the form showed; rejects when the tab closes.
  * @param {number} tabId
+ * @param {number} [waitMs]
  * @returns {Promise<boolean>}
  */
-export async function formAfterHumanCheck(tabId) {
-  const end = Date.now() + HUMAN_CHECK_WAIT_MS;
+export async function formAfterHumanCheck(tabId, waitMs = HUMAN_CHECK_WAIT_MS) {
+  const end = Date.now() + waitMs;
   while (Date.now() < end) {
     try {
       // Short looks: each one keeps the service worker awake.

@@ -210,6 +210,69 @@ function humanCheckFirst(forms: SavedForms, name: string): { handler: Handler; p
   return { handler, pass: () => { passed = true; } };
 }
 
+/**
+ * `forms`' handler, with a managed human check (Cloudflare's) where the saved form `name` should be, which passes on
+ * its own (`pass()`, or `after` ms after the page loads): the page then loads the form. A headless tab no one looks at
+ * still runs, so a check that passes only in front is passed by the test when the tab comes forward.
+ */
+function humanCheckPassingAlone(forms: SavedForms, name: string, after = 0): { handler: Handler; pass: () => void } {
+  let passed = false;
+  const PASSED = "/workit-test-check-passed";
+  const handler: Handler = (request) => {
+    if (request.url.pathname === PASSED) return { headers: { "content-type": "text/plain" }, body: String(passed) };
+    if (passed || request.method !== "GET" || request.url.href !== forms.url(name)) return forms.handler(request);
+    const script = `setInterval(() => fetch("${PASSED}").then((r) => r.text()).then((t) => t === "true" && location.reload()), 300);`;
+    if (after) setTimeout(() => (passed = true), after);
+    return {
+      headers: { "content-type": "text/html" },
+      body: `<!doctype html><title>Just a moment...</title><h1>Verify you are human</h1><script>${script}</script>`,
+    };
+  };
+  return { handler, pass: () => { passed = true; } };
+}
+
+/** Opens a batch of the saved form `name` behind `check`; the student works in another window meanwhile. */
+async function openBehindCheck(forms: SavedForms, name: string, check: Handler) {
+  const api = new FakeApi().queue({ id: "job-0", apply_url: forms.url(name) });
+  loaded = await loadExtension([api.handler, webapp, check]);
+  await signIn(loaded.context);
+  const webappPage = loaded.context.pages()[0] ?? (await loaded.context.newPage());
+  await webappPage.goto("http://localhost:3000/auto-apply");
+  const stages: string[] = [];
+  const watch = setInterval(() => stages.push(api.stages.get("job-0") ?? ""), 200);
+  await sendFromWebapp(webappPage, { type: "run/open" });
+  await loaded.worker.evaluate(() => chrome.windows.create({ url: "about:blank", focused: true }));
+  const groupOf = async () => (await tabs(loaded.worker)).find((t) => t.url === forms.url(name))?.group?.title;
+  return { api, stages, watch, groupOf };
+}
+
+test("a human check that passes on its own once its tab comes forward never asks the student", async () => {
+  const forms = new SavedForms(["greenhouse-arc"]);
+  const check = humanCheckPassingAlone(forms, "greenhouse-arc");
+  const { stages, watch, groupOf } = await openBehindCheck(forms, "greenhouse-arc", check.handler);
+  // The check passes once its tab is in front.
+  const arc = async () => (await tabs(loaded.worker)).find((t) => t.url === forms.url("greenhouse-arc"));
+  await expect.poll(async () => (await arc())?.active, { timeout: 60_000 }).toBe(true);
+  check.pass();
+
+  // The form filled: Ready, and the student was never asked; the window's own tab is in front again.
+  await expect.poll(groupOf, { timeout: 60_000 }).toBe("Ready");
+  clearInterval(watch);
+  expect(stages).not.toContain("needs_you");
+  expect((await arc())?.active).toBe(false);
+  expect(forms.submissions).toEqual([]);
+});
+
+test("a human check that passes on its own in a tab no one looks at fills its form", async () => {
+  const forms = new SavedForms(["greenhouse-arc"]);
+  const check = humanCheckPassingAlone(forms, "greenhouse-arc", 2_000);
+  const { stages, watch, groupOf } = await openBehindCheck(forms, "greenhouse-arc", check.handler);
+  await expect.poll(groupOf, { timeout: 60_000 }).toBe("Ready");
+  clearInterval(watch);
+  expect(stages).not.toContain("needs_you");
+  expect(forms.submissions).toEqual([]);
+});
+
 test("a human check before the form needs the student, and the form fills once they pass it", async () => {
   const forms = new SavedForms(["greenhouse-arc"]);
   const api = new FakeApi().queue({ id: "job-0", apply_url: forms.url("greenhouse-arc") });
