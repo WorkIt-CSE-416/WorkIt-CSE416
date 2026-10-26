@@ -184,9 +184,12 @@ function withScript(forms: SavedForms, name: string, script: string): Handler {
   };
 }
 
-// The name box silently rejects what is typed in it: the form's own code never hears of it, and the box stays empty.
-const DROPS_FIRST_NAME = `window.addEventListener("input", (e) => {
-  if (e.target.id !== "first_name") return;
+// The name box silently rejects what is typed in it: the form's own code never hears of it, and the box stays empty
+// (until the test sends "workit-test-stop-dropping", the student's own typing).
+const DROPS_FIRST_NAME = `let dropping = true;
+window.addEventListener("workit-test-stop-dropping", () => (dropping = false));
+window.addEventListener("input", (e) => {
+  if (!dropping || e.target.id !== "first_name") return;
   e.stopImmediatePropagation();
   e.target.value = "";
 }, true);`;
@@ -232,6 +235,36 @@ test("a human check before the form needs the student, and the form fills once t
   expect(forms.submissions).toEqual([]);
 });
 
+test("a human check's tab says what the student must do, and Next Thing takes them to it", async () => {
+  test.setTimeout(120_000);
+  const [ARC, ANDURIL] = ["greenhouse-arc", "greenhouse-anduril"];
+  const forms = new SavedForms([ARC, ANDURIL]);
+  const check = humanCheckFirst(forms, ARC);
+  const api = new FakeApi().queue({ id: "job-0", apply_url: forms.url(ARC) }, { id: "job-1", apply_url: forms.url(ANDURIL) });
+  loaded = await loadExtension([api.handler, webapp, check.handler]);
+  await signIn(loaded.context);
+  const webappPage = loaded.context.pages()[0] ?? (await loaded.context.newPage());
+  await webappPage.goto("http://localhost:3000/auto-apply");
+  await sendFromWebapp(webappPage, { type: "run/open" });
+  await expect.poll(() => [api.stages.get("job-0"), api.stages.get("job-1")], { timeout: 60_000 }).toEqual(["needs_you", "needs_you"]);
+
+  const row = page(forms.url(ARC)).locator('#workit-autofiller-overlay-host [data-key="_human_check"]');
+  await expect(row.locator(".label")).toHaveText("Prove you're human on this page");
+  await expect(row.locator(".reason")).toHaveText("WorkIt fills the form once it shows.");
+
+  // From Anduril's tab, the first thing is Arc's check (Arc opened first), then Anduril's own questions.
+  await expect(page(forms.url(ANDURIL)).locator("#workit-autofiller-overlay-host [data-key]").first()).toBeAttached({ timeout: 60_000 });
+  const { walked } = await walkToEnd(forms.url(ANDURIL), { most: 2 });
+  expect(walked).toEqual([[forms.url(ARC), "_human_check"], [forms.url(ANDURIL), "question_13130330007"]]);
+
+  // Passed, the form fills with its own panel in place of the check's.
+  check.pass();
+  await page(forms.url(ARC)).reload();
+  await expect(page(forms.url(ARC)).locator("#first_name")).toHaveValue("Test", { timeout: 60_000 });
+  await expect(page(forms.url(ARC)).locator("#workit-autofiller-overlay-host")).toHaveCount(1);
+  expect(forms.submissions).toEqual([]);
+});
+
 test("a field that silently rejects its answer is flagged, and its tab needs you", async () => {
   const forms = new SavedForms(["greenhouse-arc"]);
   const api = new FakeApi().queue({ id: "job-0", apply_url: forms.url("greenhouse-arc") });
@@ -252,41 +285,33 @@ test("a field that silently rejects its answer is flagged, and its tab needs you
   expect(forms.submissions).toEqual([]);
 });
 
-test("Next Thing That Needs You walks every flagged field across the tabs in batch order, then says none are left", async () => {
-  test.setTimeout(120_000);
-  const forms = new SavedForms(["greenhouse-arc", "greenhouse-anduril"]);
-  const api = new FakeApi().queue(
-    { id: "job-0", apply_url: forms.url("greenhouse-arc") },
-    { id: "job-1", apply_url: forms.url("greenhouse-anduril") },
-  );
-  loaded = await loadExtension([api.handler, webapp, withScript(forms, "greenhouse-arc", DROPS_FIRST_NAME)]);
-  await signIn(loaded.context);
-  const webappPage = loaded.context.pages()[0] ?? (await loaded.context.newPage());
-  await webappPage.goto("http://localhost:3000/auto-apply");
-  await sendFromWebapp(webappPage, { type: "run/open" });
-  const batchGroups = async () => (await tabs(loaded.worker)).filter((t) => t.url?.startsWith("https://")).map((t) => t.group?.title);
-  await expect.poll(batchGroups, { timeout: 90_000 }).toEqual(["Needs you", "Needs you"]);
+/**
+ * Presses "Next Thing That Needs You" in the tab `at` shows, then in whichever tab it went to, until it
+ * says nothing is left (at most `most` presses): each step's [tab link, row key], and what it said.
+ * `onStep` runs after each step, as the student would act on what it showed.
+ */
+/** The batch tab showing the form at `url`. */
+const page = (url: string) => loaded.context.pages().find((p) => p.url().startsWith(url.split("?")[0]))!;
 
-  const page = (url: string) => loaded.context.pages().find((p) => p.url() === url)!;
+async function walkToEnd(at: string, { most = 20, onStep = async (_url: string, _key: string) => {} } = {}) {
   const panel = (url: string) => page(url).locator("#workit-autofiller-overlay-host");
   const shownTab = async () => (await tabs(loaded.worker)).find((t) => t.active)!.url!;
-  // The student starts in the first tab and presses Next until nothing is left.
   const currentIn = async (url: string) => {
     const row = panel(url).locator("[data-current]");
     return (await row.count()) ? row.getAttribute("data-key") : null;
   };
-  let at = forms.url("greenhouse-arc");
   const walked: [string, string][] = [];
   let left = "";
-  for (let n = 0; n < 10 && !left; n++) {
+  for (let n = 0; n < most && !left; n++) {
+    const before = JSON.stringify(walked.at(-1));
     await panel(at).getByRole("button", { name: "Next Thing That Needs You" }).click();
-    // Either it says nothing is left, or a tab shows a field it hasn't shown yet.
+    // Either it says nothing is left, or a tab shows a field it hasn't just shown.
     const after = async () => {
       const said = panel(at).locator("[data-said]");
       if (await said.isVisible()) return `said: ${await said.innerText()}`;
       const url = await shownTab();
       const key = await currentIn(url);
-      return key && JSON.stringify([url, key]) !== JSON.stringify(walked.at(-1)) ? JSON.stringify([url, key]) : "waiting";
+      return key && JSON.stringify([url, key]) !== before ? JSON.stringify([url, key]) : "waiting";
     };
     await expect.poll(after).not.toBe("waiting");
     const step = await after();
@@ -297,17 +322,172 @@ test("Next Thing That Needs You walks every flagged field across the tabs in bat
     const [url, key] = JSON.parse(step);
     walked.push([url, key]);
     at = url;
-    // The field itself is brought into view and focused.
-    expect(await page(at).evaluate(() => document.activeElement?.id)).toBe(key);
+    await onStep(url, key);
   }
+  return { walked, left };
+}
 
-  // Arc's one flagged field (its name box rejected the answer), then Anduril's, in batch order.
+/** Opens a batch of `forms`' saved forms, in order, and waits until every tab is in a group. */
+async function startBatch(forms: SavedForms, names: string[], handlers: Handler[] = [forms.handler]) {
+  const api = new FakeApi().queue(...names.map((name, n) => ({ id: `job-${n}`, apply_url: forms.url(name) })));
+  loaded = await loadExtension([api.handler, webapp, ...handlers]);
+  await signIn(loaded.context);
+  const webappPage = loaded.context.pages()[0] ?? (await loaded.context.newPage());
+  await webappPage.goto("http://localhost:3000/auto-apply");
+  await sendFromWebapp(webappPage, { type: "run/open" });
+  const grouped = async () => (await tabs(loaded.worker)).filter((t) => t.url?.startsWith("https://") && t.group).length;
+  await expect.poll(grouped, { timeout: 90_000 }).toBe(names.length);
+  return api;
+}
+
+test("Next Thing That Needs You walks every flagged field across the tabs in batch order, then says none are left", async () => {
+  test.setTimeout(120_000);
+  const forms = new SavedForms(["greenhouse-arc", "greenhouse-anduril"]);
+  await startBatch(forms, ["greenhouse-arc", "greenhouse-anduril"], [withScript(forms, "greenhouse-arc", DROPS_FIRST_NAME)]);
+  const { walked, left } = await walkToEnd(forms.url("greenhouse-arc"), {
+    // The field itself is brought into view and focused.
+    onStep: async (url, key) => expect(await page(url).evaluate(() => document.activeElement?.id)).toBe(key),
+  });
+
+  // Arc's one flagged field (its name box rejected the answer), then Anduril's, in batch order,
+  // and Anduril's guess at how the student heard of it, once, for them to check.
   expect(walked).toEqual([
     [forms.url("greenhouse-arc"), "first_name"],
     [forms.url("greenhouse-anduril"), "question_13130330007"],
     [forms.url("greenhouse-anduril"), "question_13130331007"],
+    [forms.url("greenhouse-anduril"), "question_13130335007"],
   ]);
   expect(left).toBe("Nothing else needs you.");
+  expect(forms.submissions).toEqual([]);
+});
+
+test("Next Thing That Needs You passes over filled fields whose names start with an underscore (Ashby's own)", async () => {
+  test.setTimeout(120_000);
+  const HARVEY = "ashby-harvey";
+  const forms = new SavedForms([HARVEY]);
+  await startBatch(forms, [HARVEY]);
+  let locationFocused = false;
+  const { walked, left } = await walkToEnd(forms.url(HARVEY), {
+    onStep: async (url, key) => {
+      if (key === "_systemfield_location")
+        locationFocused = await page(url).evaluate(() => Boolean(document.activeElement?.closest('[data-field-path="_systemfield_location"]')));
+    },
+  });
+  const panelRow = (key: string) => page(forms.url(HARVEY)).locator(`#workit-autofiller-overlay-host [data-key="${key}"]`);
+
+  // Harvey's name, email and resume are Ashby's "_systemfield_" fields, filled from the profile: never walked.
+  for (const key of ["_systemfield_name", "_systemfield_email", "_systemfield_resume"]) {
+    await expect(panelRow(key).locator(".source")).toHaveText("Profile");
+    expect(walked.map(([, k]) => k)).not.toContain(key);
+  }
+  // Its location, which WorkIt has no answer for, is: a field, brought into view like any other.
+  expect(walked.map(([, k]) => k)).toContain("_systemfield_location");
+  expect(locationFocused).toBe(true);
+  expect(await panelRow("_systemfield_location").locator(".label").innerText()).toBe("Current Location");
+  expect(left).toBe("Nothing else needs you.");
+  expect(forms.submissions).toEqual([]);
+});
+
+test("Next Thing That Needs You goes on from where it was when the student answers that field and the one before", async () => {
+  test.setTimeout(120_000);
+  const HARVEY = "ashby-harvey";
+  const forms = new SavedForms([HARVEY]);
+  await startBatch(forms, [HARVEY]);
+  // Harvey's first four flagged fields, in page order: its location, a choice, a short question, then a written one.
+  const [INTERNSHIPS, LAST, WHY] = ["7f6c3046-8557-4f77-869a-9e874d3ead38", "dfa930a1-8ce3-4246-a520-e2df415622c5", "e4d88906-fe42-43c1-bebc-05e24a4c967d"];
+  const form = () => page(forms.url(HARVEY));
+  const { walked } = await walkToEnd(forms.url(HARVEY), {
+    most: 4,
+    onStep: async (_url, key) => {
+      if (key !== LAST) return;
+      // On the second one, the student answers it and the first.
+      await form().locator(`[data-field-path="${INTERNSHIPS}"] input`).first().check();
+      await form().locator(`[data-field-path="${LAST}"] input`).fill("A rail signalling company");
+      for (const name of [INTERNSHIPS, LAST]) {
+        await expect(form().locator(`#workit-autofiller-overlay-host [data-key="${name}"] .source`)).toHaveText("You", { timeout: 10_000 });
+      }
+    },
+  });
+
+  // The next press goes to the written question after them, not past it.
+  expect(walked.map(([, key]) => key)).toEqual(["_systemfield_location", INTERNSHIPS, LAST, WHY]);
+  expect(forms.submissions).toEqual([]);
+});
+
+// Anduril's form never shows its work authorization question (as a form hides a follow-up its answer
+// before doesn't call for): the question's box is taken off the page as soon as it is drawn.
+const HIDES_WORK_AUTHORIZATION = `new MutationObserver(() => {
+  document.getElementById("question_13130333007")?.closest(".select, .field-wrapper, fieldset")?.remove();
+}).observe(document, { childList: true, subtree: true });`;
+
+test("a required question the form doesn't show is left alone: Next Thing passes it over", async () => {
+  test.setTimeout(120_000);
+  const ANDURIL = "greenhouse-anduril";
+  const forms = new SavedForms([ANDURIL]);
+  await startBatch(forms, [ANDURIL], [withScript(forms, ANDURIL, HIDES_WORK_AUTHORIZATION)]);
+  const row = page(forms.url(ANDURIL)).locator('#workit-autofiller-overlay-host [data-key="question_13130333007"]');
+  await expect(row.locator(".reason")).toHaveText("The form didn't show this question");
+
+  const { walked, left } = await walkToEnd(forms.url(ANDURIL));
+  // Only the two questions WorkIt has no answer for, and its guess at how the student heard of Anduril.
+  expect(walked.map(([, key]) => key)).toEqual(["question_13130330007", "question_13130331007", "question_13130335007"]);
+  expect(left).toBe("Nothing else needs you.");
+  expect(forms.submissions).toEqual([]);
+});
+
+test("a dropdown the student answers with the mouse alone no longer needs them: Next Thing passes it over", async () => {
+  test.setTimeout(120_000);
+  const ANDURIL = "greenhouse-anduril";
+  const forms = new SavedForms([ANDURIL]);
+  await startBatch(forms, [ANDURIL]);
+  const form = page(forms.url(ANDURIL));
+  // A click opens the dropdown and a click picks its first option: no typing, so no input event.
+  await form.locator("#question_13130330007").click();
+  await form.getByRole("option").first().click();
+  const row = form.locator('#workit-autofiller-overlay-host [data-key="question_13130330007"]');
+  await expect(row.locator(".source")).toHaveText("You", { timeout: 10_000 });
+
+  const { walked } = await walkToEnd(forms.url(ANDURIL));
+  expect(walked.map(([, key]) => key)).toEqual(["question_13130331007", "question_13130335007"]);
+  expect(forms.submissions).toEqual([]);
+});
+
+test("once only fine rows are left, Next Thing says none are left, across the tabs in batch order", async () => {
+  test.setTimeout(150_000);
+  const [ARC, ANDURIL] = ["greenhouse-arc", "greenhouse-anduril"];
+  const forms = new SavedForms([ARC, ANDURIL]);
+  await startBatch(forms, [ARC, ANDURIL], [withScript(forms, ARC, DROPS_FIRST_NAME)]);
+  const rowOf = (url: string, key: string) => page(url).locator(`#workit-autofiller-overlay-host [data-key="${key}"]`);
+  // How Anduril heard of the student is a guess: the walk shows it once, for the student to check.
+  const HEARD = "question_13130335007";
+  await expect(rowOf(forms.url(ANDURIL), HEARD).locator(".source")).toHaveText("Guessed");
+
+  // The student answers each field the walk shows them, Arc's first name and Anduril's two questions.
+  const answer = async (url: string, key: string) => {
+    const form = page(url);
+    if (key === "first_name") {
+      // Arc's box dropped WorkIt's typing (DROPS_FIRST_NAME); it takes the student's.
+      await form.evaluate(() => window.dispatchEvent(new Event("workit-test-stop-dropping")));
+      await form.locator("#first_name").fill("Sam");
+    } else if (key !== HEARD) {
+      await form.locator(`#${key}`).click();
+      await form.getByRole("option").first().click();
+    } else return;
+    await expect(rowOf(url, key).locator(".source")).toHaveText("You", { timeout: 10_000 });
+  };
+  const first = await walkToEnd(forms.url(ARC), { onStep: answer });
+  expect(first.walked.map(([url, key]) => [url === forms.url(ARC) ? "arc" : "anduril", key])).toEqual([
+    ["arc", "first_name"],
+    ["anduril", "question_13130330007"],
+    ["anduril", "question_13130331007"],
+    ["anduril", HEARD],
+  ]);
+  expect(first.left).toBe("Nothing else needs you.");
+
+  // Pressed again, it starts over and finds nothing: every row left is filled and fine, the guess seen.
+  const again = await walkToEnd(forms.url(ANDURIL));
+  expect(again.walked).toEqual([]);
+  expect(again.left).toBe("Nothing else needs you.");
   expect(forms.submissions).toEqual([]);
 });
 

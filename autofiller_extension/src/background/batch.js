@@ -52,7 +52,7 @@
 import { ApiError, finishApplication, getAutofillProfile, me, nextApplication, recordFill, recordSentResume } from "./api.js";
 import { formFor, jobOf, practiceJob } from "./engine.js";
 import { jobBoard } from "./job-boards.js";
-import { injectFill } from "../shared/content-scripts.js";
+import { clearHumanCheck, injectFill, injectHumanCheck } from "../shared/content-scripts.js";
 import { liveBatch, load, save, serially } from "./batch-store.js";
 import { forgetWorkableDraft, formAfterHumanCheck, formShows, humanCheckShows, waitForLoad } from "./tab-load.js";
 
@@ -264,7 +264,9 @@ async function startFill(tabId, url, again = false) {
     // A human check where the form should be needs the student; the fill runs once they pass it.
     if (!found && !workday && (await humanCheckShows(tabId))) {
       await setTabState(tabId, "needs_you");
+      await injectHumanCheck(tabId);
       found = await formAfterHumanCheck(tabId);
+      if (found) await clearHumanCheck(tabId);
     }
     if (!found && !workday) throw new Error("no_form");
     await injectFill(tabId, { batch: true });

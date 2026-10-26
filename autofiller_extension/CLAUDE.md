@@ -245,9 +245,14 @@ waits for an opened tab's page and form (`waitForLoad`, `formShows`).
   as "Verify you are human", `humanCheckShows`), goes to Needs you and
   keeps waiting up to 5 minutes for the form (`formAfterHumanCheck`, also
   across the new page a passed check loads); the fill runs once it shows.
-  The extension never solves a check. A form that never shows has failed,
-  as any other. Test: `test/batch.extension.spec.ts` ("a human check
-  before the form").
+  Meanwhile its panel (`human-check.js`, `injectHumanCheck`) says "Prove
+  you're human on this page" (a "todo" note), with Skip and Next Thing,
+  which stops there; the fill takes it down first (`clearHumanCheck`).
+  The walk's listener, added once per page, answers from the latest
+  fill's rows (`window.WIA.walk`), as a passed check may draw the form in
+  the same page. The extension never solves a check. A form that never shows has failed,
+  as any other. Tests: `test/batch.extension.spec.ts` ("a human check
+  before the form", "a human check's tab says").
 
 - **The URLs always come from the API, never the message.** `run/open`
   carries no body: a page on an allowed origin that could hand the worker
@@ -373,7 +378,8 @@ waits for an opened tab's page and form (`waitForLoad`, `formShows`).
 - **The content script says when a tab is ready.** In a batch tab
   (`injectFill(tabId, { batch: true })` sets `window.WIA.batch`),
   `batch-tab.js` sends `batch/state` once the fill ends; `content-script.js` watches
-  the student's edits: the engine reads back (`fill/read`) every required
+  the student's edits (input, change, and click: a dropdown picked with the
+  mouse fires neither of the others): the engine reads back (`fill/read`) every required
   or failed field, so emptying one moves the tab to Needs you and answering
   the last one moves it to Ready.
 - **Never Ready while the form would refuse the submit.** After the fill
@@ -506,9 +512,18 @@ waits for an opened tab's page and form (`waitForLoad`, `formShows`).
 - **"Next Thing That Needs You" walks the batch** (KAN-375). Each batch
   tab's panel has the button. `next-needs-you.js`'s `nextNeedsYou` asks every batch
   tab, in the order the tabs opened, which of its rows need the student
-  (`batch/flags`: the rows that send a tab to Needs you, in page order,
-  notes last), goes to the first one after the last it went to (cursor in
-  `chrome.storage.session`, `workit_batch_next`), switches to its tab and
+  (`batch/flags`: the rows that send a tab to Needs you, in page order:
+  a note that asks something, a failed field, a required one still
+  waiting for its answer, a review flag; never a filled one or a required
+  one the form doesn't show or no longer calls for, "skipped"; and
+  each "Guessed" answer once, for the student to check, which doesn't
+  keep the tab from Ready;
+  notes last; a note is a row marked `note`, "todo" or "done" for news
+  like "Application sent", never a key starting "_": Ashby keys its own
+  fields `_systemfield_...`), goes to the first one after the last it went to (cursor in
+  `chrome.storage.session`, `workit_batch_next`: the tab's place in the
+  batch and the row's place among all the tab's rows, `batch/flags`'s
+  `order`, so it goes on after a row the student just answered), switches to its tab and
   has the content script scroll to and focus the field and mark its row
   (`batch/focus`). Past the last one the panel says "Nothing else needs
   you." and the next press starts again. A field is found by the job

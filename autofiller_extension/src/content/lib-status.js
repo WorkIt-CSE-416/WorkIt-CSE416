@@ -47,9 +47,11 @@ window.WIA = window.WIA || {};
    * @param {string} label
    * @param {boolean} required
    * @param {import("../shared/types.js").Source} [source]  where its planned answer comes from
+   * @param {"todo" | "done"} [note]  the row is the panel's message, not a field (content-script.js's note):
+   *   "todo" for something the student must do, "done" for news that asks nothing of them
    */
-  function register(key, label, required, source) {
-    results.set(key, { key, label, required, status: "pending", ...(source ? { source } : {}) });
+  function register(key, label, required, source, note) {
+    results.set(key, { key, label, required, status: "pending", ...(source ? { source } : {}), ...(note ? { note } : {}) });
     notify();
   }
 

@@ -75,9 +75,9 @@
   // The panel's options: a batch tab's panel has Skip.
   const panel = batch ? { onSkip: () => send({ type: "batch/skip" }).catch(() => {}) } : undefined;
   const sleep = (ms) => new Promise((done) => setTimeout(done, ms));
-  /** A row that is the overlay's message, not a field. */
-  function note(key, label, reason, failed = false) {
-    status.register(key, label, failed);
+  /** A row that is the overlay's message, not a field. `done`: news that asks nothing of the student. */
+  function note(key, label, reason, failed = false, done = false) {
+    status.register(key, label, failed, undefined, done ? "done" : "todo");
     status.setStatus(key, failed ? "failed" : "skipped", reason);
   }
 
@@ -276,7 +276,8 @@
 
   /**
    * After the fill, reads back (through the engine) the fields the tab's
-   * state rests on whenever the student edits the form: every required
+   * state rests on whenever the student edits the form (types, changes or
+   * clicks anything): every required
    * field and every failed one. One that now shows an answer is filled (by
    * the student); a required one now empty has failed, as has one the form
    * now requires (flagEmptyRequired). report() then moves
@@ -322,13 +323,13 @@
       clearTimeout(timer);
       timer = setTimeout(check, EDIT_PAUSE);
     };
-    document.addEventListener("input", edited, true);
-    document.addEventListener("change", edited, true);
+    // A click too: a dropdown answered with the mouse alone (Greenhouse's react-select) fires no input or change.
+    const EDITS = ["input", "change", "click"];
+    for (const type of EDITS) document.addEventListener(type, edited, true);
     return () => {
       stopped = true;
       clearTimeout(timer);
-      document.removeEventListener("input", edited, true);
-      document.removeEventListener("change", edited, true);
+      for (const type of EDITS) document.removeEventListener(type, edited, true);
     };
   }
 

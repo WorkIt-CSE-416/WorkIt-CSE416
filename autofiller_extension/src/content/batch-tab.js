@@ -12,8 +12,8 @@ window.WIA = window.WIA || {};
 
   /**
    * One fill's batch side. `batch`: the fill is one of batch apply's tabs
-   * (else report() does nothing). `note(key, label, reason, failed)`: puts
-   * a message row on the panel.
+   * (else report() does nothing). `note(key, label, reason, failed, done)`:
+   * puts a message row on the panel.
    * @param {{ batch: boolean, note: Function }} options
    */
   function batchTab({ batch, note }) {
@@ -26,8 +26,24 @@ window.WIA = window.WIA || {};
     const SUBMIT_KEY = crypto.randomUUID();
     const SUBMIT_EVENT = `fillengine:submit:${SUBMIT_KEY}`;
 
-    /** Whether a row needs the student: a note the Plan left them, a failed field, a required one unanswered, or an answer the review flagged. */
-    const needsYou = (r) => r.key.startsWith("_") || r.status === "failed" || (r.required && r.status !== "filled") || Boolean(r.flag);
+    /**
+     * Whether a row needs the student: a note that asks something of them
+     * (the Plan's, a Workday step, a failed fill or submit), a failed field,
+     * a required one still waiting for an answer (its fill, or a written
+     * answer), or an answer the review flagged. A required one "skipped" is
+     * not: the form doesn't show it, or the answer before it doesn't call
+     * for it (a required field the page shows empty has failed,
+     * flagEmptyRequired). A row is a note by its `note`, never by its key:
+     * Ashby's own fields are keyed "_systemfield_...".
+     */
+    const waiting = (r) => r.status === "pending" || r.status === "needs_generation";
+    const needsYou = (r) => (r.note ? r.note === "todo" : r.status === "failed" || (r.required && waiting(r)) || Boolean(r.flag));
+
+    // The guesses Next Thing That Needs You has shown the student, by key: once shown, a guess is theirs to
+    // have checked. Kept on the page, as the walk is (answerTheWalk).
+    const shownGuesses = (window.WIA.shownGuesses ??= new Set());
+    /** A filled answer WorkIt guessed (the panel's "Guessed") that the walk hasn't shown the student yet. */
+    const unchecked = (r) => !r.note && r.status === "filled" && r.source === "guessed" && !shownGuesses.has(r.key);
 
     /**
      * Whether this batch tab is "ready" (every field it needs shows an answer),
@@ -51,7 +67,7 @@ window.WIA = window.WIA || {};
      * a row that is not a field, or a field the page doesn't show.
      */
     function fieldOf(key) {
-      if (key.startsWith("_")) return null;
+      if (status.summary().fields.find((r) => r.key === key)?.note) return null;
       const name = CSS.escape(key);
       return (
         document.getElementById(key) ??
@@ -59,15 +75,27 @@ window.WIA = window.WIA || {};
       );
     }
 
-    /** The keys of the rows that need the student, in the order their fields stand on the page (notes last). */
+    /**
+     * The walk's view of this tab: `order`, every row's key in the order its
+     * field stands on the page (notes and fields the page doesn't show last),
+     * and `keys`, those of them that need the student, and the guesses the
+     * walk hasn't shown them (a guess doesn't keep the tab from Ready:
+     * the walk shows it once, for the student to check). The walk places a row
+     * it went to by `order`, so it goes on after it once the row is answered.
+     */
     function flagged() {
-      const rows = status.summary().fields.filter(needsYou).map((r) => ({ key: r.key, field: fieldOf(r.key) }));
+      const fields = status.summary().fields;
+      const rows = fields.map((r) => ({ key: r.key, field: fieldOf(r.key) }));
       const placed = rows.filter((r) => r.field).sort((a, b) => (a.field.compareDocumentPosition(b.field) & Node.DOCUMENT_POSITION_FOLLOWING ? -1 : 1));
-      return [...placed, ...rows.filter((r) => !r.field)].map((r) => r.key);
+      const order = [...placed, ...rows.filter((r) => !r.field)].map((r) => r.key);
+      const needing = new Set(fields.filter((r) => needsYou(r) || unchecked(r)).map((r) => r.key));
+      return { order, keys: order.filter((key) => needing.has(key)) };
     }
 
-    /** Brings a flagged row's field into view and focuses it, and marks its row on the panel. */
+    /** Brings a flagged row's field into view and focuses it, and marks its row on the panel. A guess is then seen. */
     function show(key) {
+      const row = status.summary().fields.find((r) => r.key === key);
+      if (row && unchecked(row)) shownGuesses.add(key);
       const field = fieldOf(key);
       if (field) {
         field.scrollIntoView({ block: "center" });
@@ -80,23 +108,26 @@ window.WIA = window.WIA || {};
     /**
      * Batch apply's "Next Thing That Needs You" (background/batch.js walks the
      * batch's tabs): this tab answers which of its rows need the student
-     * ("batch/flags") and shows one when it is next ("batch/focus"). Added
-     * once per page, though the fill may be injected again.
+     * ("batch/flags") and shows one when it is next ("batch/focus"). The
+     * listener is added once per page and answers from the latest fill's
+     * rows (`window.WIA.walk`): injected again (the fill after a human
+     * check, a second Autofill), the page has a new status and panel.
      */
     function answerTheWalk() {
-      if (window.WIA.walking) return;
-      window.WIA.walking = true;
-      chrome.runtime.onMessage.addListener((message, _sender, reply) => {
-        if (message?.type === "batch/flags") reply({ keys: window.WIA.phase === "filling" ? [] : flagged() });
-        else if (message?.type === "batch/focus") {
-          show(message.key);
-          reply({ shown: true });
-        }
-      });
+      window.WIA.walk = { flagged, show };
       overlay.offerNext(async () => {
         const answer = await send({ type: "batch/next" }).catch(() => null);
         if (!answer?.ok) return "WorkIt couldn't look through the batch. Try again.";
         return answer.done ? "Nothing else needs you." : null;
+      });
+      if (window.WIA.walking) return;
+      window.WIA.walking = true;
+      chrome.runtime.onMessage.addListener((message, _sender, reply) => {
+        if (message?.type === "batch/flags") reply(window.WIA.phase === "filling" ? { order: [], keys: [] } : window.WIA.walk.flagged());
+        else if (message?.type === "batch/focus") {
+          window.WIA.walk.show(message.key);
+          reply({ shown: true });
+        }
       });
     }
 
@@ -119,7 +150,7 @@ window.WIA = window.WIA || {};
           return;
         }
         const answer = await send({ type: "batch/submitted" }).catch((error) => ({ ok: false, error: error.message }));
-        if (answer?.ok && answer.applied) note("_submit", "Application sent", "WorkIt marked it Applied.");
+        if (answer?.ok && answer.applied) note("_submit", "Application sent", "WorkIt marked it Applied.", false, true);
         // The page said so, but WorkIt didn't see the job system take its submit request.
         else if (answer?.ok) note("_submit", "Did your application go out?", "WorkIt couldn't confirm it with the job system. If it was sent, mark it Applied on WorkIt's Applications page.", true);
         else note("_submit", "Application sent, but WorkIt didn't mark it Applied", `Mark it Applied on WorkIt's Applications page. (${answer?.error ?? "No answer"})`, true);
