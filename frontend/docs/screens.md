@@ -19,10 +19,13 @@ the filters as they stand. Until KAN-288 these were two views, Recommended and
 All Jobs, behind a switcher (KAN-231); they drew the same filter row and cards,
 so students read them as one page. An old `?view=all` link opens Newest and
 `?view=recommended` opens Best Match (`readSort` in jobs/page.tsx). **Saved
-preferences apply on a fresh visit only**: bare /jobs redirects to
-`?sort=match` plus the saved filters, where the row shows them checked; from
-then on the URL is the truth, so Clear All clears rather than bringing the
-saved ones back. Load More pages whichever order drew the list (`FeedList`'s
+preferences apply on a fresh visit only**: a bare /jobs visit draws Best
+Match with the saved filters in the same response, where the row shows them
+checked, then writes that exact address into the address bar in place (a
+shallow replace, `jobs/canonical-url.tsx`; KAN-368). From then on the URL is
+the truth, so Clear All clears rather than bringing the saved ones back. A
+`redirect()` here made the sidebar's Jobs link pay two round trips with a
+blank panel between; do not bring it back. Load More pages whichever order drew the list (`FeedList`'s
 `source`).
 
 **Job Type and Experience Level never overlap (KAN-284).** Job Type says
@@ -303,6 +306,13 @@ the header (`[jobId]/sent-note.tsx`, story 98), the last sent resume
 linked to this posting, its day in the viewer's zone. Only the job's own
 page refreshes on a send (`showsSent`): on a card a refresh reran the whole
 feed, Best Match scoring and all, to redraw nothing.
+A job's Key Requirements list is read with the page's other reads
+(`loadJobView`) and handed to the card, not fetched by the card after them
+(KAN-368); it still answers an empty list on any failure, so the page draws
+without the card, and the application page's description tab skips the read.
+The page has a `loading.tsx` whose header and Key Requirements skeletons
+stand at the height of what replaces them; Tailor has its own, so this one
+never stands in for it.
 The job's actions sit in one bar with Back, pinned at the top from md
 (`[jobId]/action-bar.tsx`, KAN-246): Save, a "…" menu, Ask Scout, Auto Apply,
 Tailor My Resume and Apply Now. Below md the bar scrolls away and wraps.
@@ -518,7 +528,12 @@ beside the text they squeezed the title to two words a line. The Jobs page's own
 were tried here first and were too tall for a glance: three filled the
 screen. With an empty bank it asks for the bank. It streams in its own
 `<Suspense>` with a skeleton in the same frame, so the numbers never wait on
-scoring. It replaced New Matches, the newest postings in posting order in
+scoring, and the page starts its four reads first, before its other awaits,
+or its two scoring calls run one whole call late (KAN-368). The page awaits
+only the account: the headline numbers (the Strong Matches count is a full
+scoring pass), Top Matches and Activity each stream over a skeleton of their
+shape, and `dashboard/loading.tsx` draws the same frame (`DashboardFrame`),
+so a prefetched click shows it at once and the page replaces it in place. It replaced New Matches, the newest postings in posting order in
 the same scrolling frame, which went when Strong Matches replaced New Roles
 and came back ordered by fit at the user's ask. The notes below that name
 New Matches describe the archived three-column layout.
@@ -660,7 +675,8 @@ empty year with a line saying the applications aren't loading.
 
 **Its name on screen is the Applications Tracker** (KAN-342): in the
 sidebar, the browser tab and its heading, and "Back to Applications
-Tracker" on an application's page. It was "Applications", the word the
+Tracker" on an application's page when the tracker opened it (its Back
+names the page that did, KAN-363). It was "Applications", the word the
 Dashboard also used for a count, so the page and the number read as one
 thing; then "Tracker" in the sidebar with "Application Tracker" as its
 heading, until the user named it Applications Tracker everywhere. The
@@ -706,7 +722,8 @@ the stage pill, which its ungrouped cards would otherwise lose.
 **The list is a table that scrolls sideways** (KAN-256), as a Notion table
 does, rather than dropping columns as the page narrows. In the order job
 trackers read: what and who (Role, with its company), where it stands (Status, Date
-Applied), how good it is (Match), the job's facts (Track, the job type;
+Applied), how good it is (Match), the job's facts (Job Type, as the Jobs
+page names it, though the code and `?track=` keep the older name Track;
 Location; Work Model; Pay Range), where and what was sent (Source, the
 hiring system the posting is on, named from its apply link in
 `applications/tracked.ts`, "Company Site" for any other host; Resume;
@@ -765,7 +782,7 @@ filtered.
 - **The filter row, laid out as the Jobs page's** (`applications/field-filters.tsx`,
   `filter-bar.tsx`; a plain dropdown is `components/field-facet.tsx`, which
   Auto Apply's Status filter shares): under the search, a row with a dropdown for Status
-  and one per field (Company, Track, Work Model, Source), each the Jobs
+  and one per field (Company, Job Type, Work Model, Source), each the Jobs
   page facet's look (glyph, label, chevron, brand tint while it holds a
   pick) over checkbox rows. Status lists the four stages, each with its
   stage's glyph in its colour; the fields list every value the tracked
@@ -773,7 +790,7 @@ filtered.
   list, as the Jobs page's Role dropdown does, since the list grows with
   every application; a pick keeps the search. The dropdowns step out one
   at a time from the right as the row narrows (Status from 440px of row,
-  Company 592, Track 744, Work Model 896, Source 1048); at
+  Company 592, Job Type 744, Work Model 896, Source 1048); at
   the right end, Clear Filters as an outlined cross (shown while anything
   is picked or searched; it hands focus to All Filters), All Filters, and
   Columns in the list view. A phone's row is All Filters and Columns.
@@ -783,7 +800,7 @@ filtered.
   chips' counts went with them, as the Jobs page's options carry none.
 - **All Filters** is a panel with every field, as on the Jobs page: Status
   (with the stages' glyphs), Company (a search
-  picker, since the list grows), then Track, Work Model and Source as
+  picker, since the list grows), then Job Type, Work Model and Source as
   option chips. Its picks are a draft until "Show 3 Applications", which
   counts the draft in the browser (the page hands the bar what each
   tracked application is filtered on); closing it drops the draft.
@@ -857,15 +874,20 @@ the header and the Job Description tab are the parts `/jobs/[jobId]` draws
 (`jobs/[jobId]/job-view.tsx`: `loadJobView`, `JobViewActions`,
 `JobViewHeader`, `JobViewBody`), so the two pages look the same and cannot
 drift apart. They share the job page's width too (`JOB_PAGE_WIDTH`, 1120px,
-KAN-279). Only Back differs (Back to Applications, `JobActionBar`'s
-`back` slot). No match rail, as on the job page: an earlier draft added the
+KAN-279). Only Back differs (to the page that opened it, else the
+tracker, `JobActionBar`'s `back` slot; `(seeker)/back-link.tsx`). No match rail, as on the job page: an earlier draft added the
 Jobs card's ring, which made the same job look different by how it was
 opened. Analytics and explanations go on the Your Application tab only.
 **The bar holds the tabs once there is nothing to do**: an applied job, or a
 closed posting, has no use for Apply, Tailor, Save or Ask Scout, so the bar
 shows the tabs beside Back instead. A saved job with an open posting keeps
 the job page's actions, and its tabs sit under the header. Two tabs, each a
-URL (`?tab=job` for the second):
+URL (`?tab=job` for the second) that moves in place (KAN-368,
+`applications/[jobId]/tab-panes.tsx`): the server draws both panes once and
+the tabs change `?tab=` with `useShallowParams`, as the Dashboard range does,
+so a click no longer draws the page again with the scored tracker read and
+the job's reads. The job's buttons take their stage and applied date from the
+tracker row, and the tab title comes from the posting's own read:
 
 - **Your Application**, the default. One card tinted by its stage
   (`STAGE_COLOR[stage].panel`: violet for Applied, grey for Saved), so it
@@ -1262,7 +1284,9 @@ resumes read.
 `(seeker)/profile-cache.tsx` keeps the page's last state (the photo URL,
 the applicant profile fields and the Application Questions' answers) in a provider
 in `(seeker)/layout.tsx`. A
-return visit renders it at once and refetches in the background. Only
+return visit renders it at once and refetches in the background, through one
+server action (`getProfilePage`), since Next runs server actions one at a time
+(KAN-368). Only
 settled state is saved: not mid-load, not while a photo upload's `blob:`
 preview is on screen (that URL is revoked once the upload ends), and not
 after a failed load. It lives in the layout, not a module variable, because
@@ -1306,7 +1330,11 @@ kept, once (`GLOSSARY.md`), and the only place they are edited: the
 Resumes view keeps the uploads, and its upload note links here.
 
 **Layout, top to bottom**: the shared header (above) with Fill With Scout,
-the Showing bar, the section nav, then the section cards and Skills.
+the Showing card (the picked resume, drawn as the Resumes page draws one,
+with Change Resume in it; a click on it opens the resume), the section
+nav, then the section cards and Skills. An entry's editor names the other
+built resumes a save changes too (KAN-363); a name in it shows that resume
+here.
 The section nav (KAN-349) is a row of links, one per card with its count
 under the current pick, held at the top of the page while the cards scroll
 under it: a click glides to that card, and the card in view is lit, so a
@@ -1408,7 +1436,7 @@ full form over the panel, with Back to Chat (Escape goes back too). The
 import card opens in the chat's place. A save
 reads the bank again, so the page behind updates at once. An empty bank
 gets no card of its own (removed in KAN-249): the title's Fill With Scout
-and each section's Add already say where to start, and the card only
+and each card's + already say where to start, and the card only
 repeated them. Any other page gets Scout's own
 chat back. Intake used to lead the page, with the card in a column beside
 the chat; onboarding still shows it that way.
@@ -1429,8 +1457,16 @@ in Docs (suggested answers in the chat, not a banner).
   Entries come back from the API ongoing first, then newest; the screen
   never sorts. After every change it reads the whole bank again, so the
   order shown is always the API's.
-- **Clear All empties a card** (KAN-352): beside Add on each section card
-  and on Skills, shown only while the card lists something. It deletes
+- **A card's heading is a + and a pencil** (KAN-363), as LinkedIn's
+  profile draws them: the + adds an entry (a skill on Skills), on every
+  card; the pencil, shown while the card lists something, opens that
+  card's edit mode, one card at a time. In edit mode each entry shows its
+  pencil (each skill its pencil and ×), and the heading's pencil gives way
+  to Clear All and Done. Outside it a card is its content alone. Each
+  heading held Clear All and Add as words, and every entry a pencil and a
+  trash, so a card read as a row of controls before what it holds.
+- **Clear All empties a card** (KAN-352): in the card's edit mode, on each
+  section card and on Skills. It deletes
   what the card shows in one call (`POST .../bank/entries/delete` or
   `.../skills/delete`, all or none), after a confirm (`bank/clear-all.tsx`)
   that names the count and the built resumes that show them
@@ -1439,8 +1475,14 @@ in Docs (suggested answers in the chat, not a banner).
   resume's pick the items belong to uploads (ADR 0005), so the confirm
   names the uploads that lose them too (`uploadsOwning`). It never deletes
   what the pick hides: a button on a card acts on what the card shows.
+- **An entry's row holds its dates, and its pencil in edit mode**
+  (KAN-363). Delete Entry sits at the foot of the editor the pencil opens
+  (`entry-editor.tsx`'s `onDelete`). A trash beside the pencil, under a
+  heading with Clear All and Add, put four controls in one corner, and a
+  student could not tell which acted on the section and which on the
+  entry.
 - **An entry's dates sit under its title below `@xl/main`**, beside the
-  edit and delete buttons above it. Beside them on a phone, the dates never
+  pencil above it. Beside them on a phone, the dates never
   shrank and left the title a column a few letters wide ("Universi / ty").
   An import draft does the same below `@sm` of its own width (each draft is
   a container, since Scout's panel is not).
@@ -1451,7 +1493,7 @@ in Docs (suggested answers in the chat, not a banner).
   them (Greenhouse, Lever, Ashby, Workday; settled 2026-10-14). It still saves; the warning says to add them before
   Generate.
 - **Deleting an entry confirms with how many built resumes show it**
-  (story 18): the trash button reads `GET .../entries/{id}/resumes` first,
+  (story 18): the editor's Delete Entry reads `GET .../entries/{id}/resumes` first,
   then asks. A resume that hides the entry is not counted.
 - **Bullets show their original wording only** (KAN-218). Wording typed on
   a resume in the editor is that resume's local variant and never shows
@@ -1810,13 +1852,15 @@ shows "Your Resumes Aren't Loading Right Now" and a Try Again link.
 
 KAN-366: an upload's own page, opened from its card on the Resumes view,
 so every resume opens inside WorkIt (a built one opens the editor, next).
-Back (to `/resumes`), the file's name as the heading, then a sticky bar in
+Back (to the page that opened it, such as Experiences, else `/resumes`;
+`(seeker)/back-link.tsx`), the file's name as the heading, then a sticky bar in
 the editor's look: "Uploaded Oct 21" and "★ Primary" on the primary, then
 Make Primary (while it is not), Rename, Delete and **Download**, the
 page's main action, filled. Under it the PDF, drawn page by page with the
 editor's pdf.js preview (`PdfPages`, no click targets: an upload is read
 here, its facts are edited in Experiences). The server reads the file
-(`readResumePdf`), so the browser never opens the Storage link. A DOCX
+(`readUploadedResume`, which asks for the list and the file link together,
+KAN-368), so the browser never opens the Storage link. A DOCX
 cannot be drawn, so its place holds "This File Can't Be Shown Here" and
 Download. Rename turns the heading into the cards' Rename form; Delete
 asks under the bar, as on a card, and then returns to the Resumes view.
@@ -1830,9 +1874,13 @@ phone the bar's buttons wrap and the pages take the width.
 view. KAN-209 proved the overlay; KAN-218 edits on it; KAN-219 adds the
 phone layout; KAN-221 adds the assistant. The page loads the render, the bank, the resume's choices and
 the profile (the header's fields), and shows the error state if any fails.
-A **Back** button above the title returns to the Resumes view, drawn as the
-job posting page's Back is; until KAN-258 the editor had no way back but
-the sidebar. The phone layout keeps its own back arrow.
+A **Back** button above the title returns to the page that opened the
+editor (KAN-363, `(seeker)/back-link.tsx`), such as Experiences, else the
+Resumes view (`[resumeId]/back.ts`), going back in history when that page
+is the one before. It is drawn as the job posting page's Back is; until
+KAN-258 the editor had no way back but the sidebar. The phone layout's
+back arrow goes the same way. Back went to Resumes from everywhere, so a
+student who opened a resume from Experiences landed on another view.
 
 - **The page is the PDF itself** (ADR 0002): the render response's PDF,
   drawn with pdf.js on one canvas per page, never an HTML copy. Each of the
@@ -1921,6 +1969,14 @@ the sidebar. The phone layout keeps its own back arrow.
 - A failed render shows "This Resume Isn't Loading Right Now" with the API's
   message and a Try Again link; a failed save shows the API's message above
   the page and keeps the last PDF.
+- **The editor draws before its PDF compiles** (KAN-368). The page starts the
+  LaTeX render without awaiting it; `editor.tsx` reads it with `use()` inside
+  a `<Suspense>` around the page area only, over a Letter-sized skeleton with
+  its own error state, so Back, the title and the bar do not wait on the
+  compile. Line editing, Ask Scout and the tray stay off until it lands, and
+  "Click a line" is not offered when the first render failed. pdf.js starts
+  downloading as the editor mounts. The editor and an upload's page each have
+  a `loading.tsx` in their own frame.
 - **On a phone** (`phone.tsx`, the KAN-201 prototype's variant A), below
   40rem of window width, the editor's same state and saves take a different
   layout; `editor.tsx` only hands them over, so the two layouts never save
@@ -2133,7 +2189,12 @@ and closing goes back to that page. **A hard load or a reload of a
 Settings address opens it over the Dashboard** (`(seeker)/settings/layout.tsx`
 draws the Dashboard page under it), and closing goes to the Dashboard. A
 full Settings page came first; the user asked for the modal on every way
-in. Escape, the close button and a click outside all close.
+in. Escape, the close button and a click outside all close. **The modal opens
+before its sections have read** (KAN-368): Personal Details and Job
+Preferences stream in their own `<Suspense>` over section-shaped skeletons,
+so it no longer waits for the slowest of the profile, photo, preferences and
+role option reads. There is no `loading.tsx` for the modal: one drew a second
+modal and backdrop over the first.
 
 **Every section is drawn when the modal opens and stays mounted**
 (`settings/sections.tsx`), hidden when not shown, so switching is instant

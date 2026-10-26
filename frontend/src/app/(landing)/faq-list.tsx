@@ -21,11 +21,14 @@ export function FaqList({
         <details
           key={item.question}
           name="faq"
-          className="group py-5"
+          className="group"
           // Its place in the list, for the home page's staggered rise.
           style={{ "--i": i } as CSSProperties}
         >
-          <summary className="text-ink flex cursor-pointer list-none items-center justify-between gap-6 text-lg font-medium [&::-webkit-details-marker]:hidden">
+          {/* The row's padding is the summary's, so a tap anywhere on the row
+              opens it: on the details it left a 28px strip that did
+              (KAN-368). */}
+          <summary className="text-ink flex cursor-pointer list-none items-center justify-between gap-6 py-5 text-lg font-medium [&::-webkit-details-marker]:hidden">
             {item.question}
             <span
               className="text-ink-meta relative size-4 shrink-0 before:absolute before:inset-x-0 before:top-1/2 before:h-0.5 before:-translate-y-1/2 before:rounded before:bg-current after:absolute after:inset-y-0 after:left-1/2 after:w-0.5 after:-translate-x-1/2 after:rounded after:bg-current after:transition-transform group-open:after:scale-y-0"
@@ -33,7 +36,7 @@ export function FaqList({
             />
           </summary>
           {/* Body copy, in the body colour: the meta grey read faint. */}
-          <p className="text-ink-muted mt-3 pr-10">{item.answer}</p>
+          <p className="text-ink-muted -mt-2 pr-10 pb-5">{item.answer}</p>
         </details>
       ))}
     </div>

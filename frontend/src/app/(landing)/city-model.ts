@@ -86,7 +86,17 @@ type Prim = {
   wire: Record<"wf" | "wl" | "we", P2[][]>;
 };
 
-export function buildCity(): City {
+/**
+ * The city for a panel `phone` wide (below sm) is its own build: drawn at
+ * about 1.7 times the scale below sm (landing.css), only the middle half
+ * shows, so it builds that half alone, keeps the skyline's shape (tall
+ * towards the sides, low in the middle) across it, lifts the caps that keep
+ * the desktop city clear of the text (on a phone the city sits under the
+ * buttons) and moves the wireframes in from the cropped sides. Scaled whole
+ * to a phone's width, the 1600px city drew at 23% as a 150px strip whose
+ * middle was bare ground, which read as too small (KAN-368).
+ */
+export function buildCity({ phone = false }: { phone?: boolean } = {}): City {
   let seed = 23;
   const rand = () => {
     seed = (seed * 9301 + 49297) % 233280;
@@ -632,6 +642,8 @@ export function buildCity(): City {
   // with a sharp corner at each step. Never above a step, so still clear.
   const SLOPE = 26;
   const ceiling = (d: number) => {
+    // No text over a phone's city: every column gets the sides' room.
+    if (phone) return step(Infinity);
     const a = Math.abs(d);
     let c = step(a);
     for (let b = 0; b <= 17; b += 1) c = Math.max(c, step(b) - SLOPE * Math.abs(a - b));
@@ -741,6 +753,24 @@ export function buildCity(): City {
     "-15,5": { rise: 215, shape: "box", delay: "0s" },
     "15,3": { rise: 200, shape: "round", delay: "-3s" },
   };
+  // On a phone the wireframes come in from the cropped sides to about half
+  // their distance from the middle, on a column of the row's parity (a
+  // cell exists only where s + d is even). Only the left side's towers
+  // send up a job there: the sides take turns 2.7s apart, and on a phone a
+  // card from each side, both shown at once, overlapped in the middle. One
+  // side's cards are 5.4s apart, longer than a card shows.
+  const towers = phone
+    ? Object.fromEntries(
+        Object.entries(special).map(([key, tower]) => {
+          const [d, s] = key.split(",").map(Number);
+          let near = Math.round(d * 0.55);
+          if ((near + s) % 2 !== 0) near += Math.sign(d);
+          return [`${near},${s}`, d > 0 ? { ...tower, job: undefined } : tower];
+        }),
+      )
+    : special;
+  /** The columns either side of the middle a phone's crop shows. */
+  const PHONE_REACH = 10;
 
   // A see-through wireframe tower, every edge drawn. Returns its tip.
   const wireTower = (c: Cell, shape: "box" | "round" | "taper", z1: number) => {
@@ -834,6 +864,7 @@ export function buildCity(): City {
     let last: Kind | "" = "";
     for (let d = -17; d <= 17; d += 1) {
       if ((s + d) % 2 !== 0) continue;
+      if (phone && Math.abs(d) > PHONE_REACH) continue;
       const i = (s + d) / 2;
       const j = (s - d) / 2;
       const c: Cell = {
@@ -845,7 +876,7 @@ export function buildCity(): City {
       const cap = maxHeight(d, s);
       // Distance haze on the back rows.
       cellOp = Math.round((0.55 + 0.45 * Math.min(1, s / 10)) * 100) / 100;
-      const sp = special[`${d},${s}`];
+      const sp = towers[`${d},${s}`];
       if (sp) {
         cellOp = 1;
         const top = Math.min(sp.rise, cap - 30);
@@ -871,7 +902,7 @@ export function buildCity(): City {
       // Under the buttons the cap leaves no room: leave the ground bare.
       if (cap < 10) continue;
       // Tall toward the edges, dipping in the middle, never into the text.
-      const e = Math.abs(d) / 18;
+      const e = phone ? Math.min(1, Math.abs(d) / (PHONE_REACH - 1)) : Math.abs(d) / 18;
       let want = 40 + rand() * 50 + Math.pow(e, 1.2) * (70 + rand() * 160);
       if (s < 6) want *= 1.15;
       const H = soft(want, cap, d, s);

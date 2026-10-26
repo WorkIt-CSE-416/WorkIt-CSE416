@@ -1,4 +1,28 @@
+import Link from "next/link";
+
 import { signInWithOAuth, type OAuthProvider } from "@/lib/oauth-actions";
+
+import { site } from "./data";
+
+/**
+ * The way in for a student with neither account, under every pair of
+ * social buttons: /signup takes an email and a password. With only Google
+ * and LinkedIn on the page, that way in was hidden behind the header's
+ * button (KAN-368). Its ::after widens the tap to about 44px.
+ */
+export function EmailSignUpLink() {
+  return (
+    <p className="text-ink-meta text-sm">
+      Or{" "}
+      <Link
+        href={site.primaryCta.href}
+        className="text-ink relative font-medium underline decoration-slate-300 underline-offset-4 after:absolute after:-inset-x-2 after:-inset-y-3 after:content-[''] hover:decoration-current"
+      >
+        sign up with email
+      </Link>
+    </p>
+  );
+}
 
 /**
  * "Sign up with Google / LinkedIn", following Google's sign-in branding

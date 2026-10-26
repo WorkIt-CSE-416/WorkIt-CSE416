@@ -1,7 +1,7 @@
 "use client";
 
 import { useRouter } from "next/navigation";
-import type { CSSProperties, MouseEvent, ReactNode } from "react";
+import { useTransition, type CSSProperties, type MouseEvent, type ReactNode } from "react";
 
 import { TableRow } from "@/components/shadcn/table";
 import { cn } from "@/lib/cn";
@@ -21,6 +21,13 @@ import { cn } from "@/lib/cn";
  *
  * `group/row` lets the frozen cells, which paint their own background so the
  * scrolled cells pass under them, follow the row's hover tint.
+ *
+ * THE ROW HOLDS ITS TINT UNTIL THE PAGE CHANGES. The push runs in a
+ * transition, and while it is pending the row is marked `data-pending` and
+ * keeps the hover tint (`bg-hover`, the tint both tables give their rows),
+ * every cell included, so the frozen ones too. A click on a page the router
+ * has not prefetched yet waits for the server, and the pointer may have
+ * left the row by then; without a mark the click looked ignored.
  */
 export function ClickableRow({
   href,
@@ -34,16 +41,25 @@ export function ClickableRow({
   children: ReactNode;
 }) {
   const router = useRouter();
+  const [pending, start] = useTransition();
 
   function open(event: MouseEvent<HTMLTableRowElement>) {
     if (event.defaultPrevented) return;
     if ((event.target as HTMLElement).closest("a, button")) return;
     if (event.metaKey || event.ctrlKey) window.open(href, "_blank", "noopener");
-    else router.push(href);
+    else start(() => router.push(href));
   }
 
   return (
-    <TableRow onClick={open} className={cn("group/row cursor-pointer", className)} style={style}>
+    <TableRow
+      onClick={open}
+      data-pending={pending || undefined}
+      className={cn(
+        "group/row data-pending:bg-hover data-pending:*:bg-hover cursor-pointer",
+        className,
+      )}
+      style={style}
+    >
       {children}
     </TableRow>
   );

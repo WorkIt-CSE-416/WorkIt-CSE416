@@ -3,12 +3,12 @@ import type { Metadata } from "next";
 import { notFound } from "next/navigation";
 import { connection } from "next/server";
 
-import { ArrowLeftIcon } from "@/components/icons";
-import { buttonClasses, ButtonLink } from "@/components/ui/button";
+import { buttonClasses } from "@/components/ui/button";
 import { EmptyState } from "@/components/ui/empty-state";
 import { cn } from "@/lib/cn";
-import { listResumes, readResumePdf } from "@/lib/resume-actions";
+import { readUploadedResume } from "@/lib/resume-queries";
 
+import { BackLink } from "../../../back-link";
 import { SEEKER_GUTTER } from "../../../gutter";
 import { UploadedViewer } from "./viewer";
 
@@ -16,44 +16,36 @@ export const metadata: Metadata = { title: "Resume" };
 
 /**
  * /resumes/uploaded/[id], an uploaded resume's own page (KAN-366), opened
- * from its card on the Resumes view. A built resume opens the editor
+ * from its card on the Resumes view or the Experiences view's Showing card,
+ * its Back returning to whichever opened it. A built resume opens the editor
  * (../../[resumeId]); an upload opened a short-lived Storage link in a new
  * tab until then, and a DOCX simply downloaded, so the three kinds of
  * resume acted three ways and an upload left the app. The static
  * `uploaded` segment wins over `[resumeId]`, so the editor's route is
  * untouched.
  *
- * The server reads the PDF (`readResumePdf`, base64) and the page draws it
- * with the editor's pdf.js preview (./viewer.tsx). A DOCX cannot be drawn
- * that way, so its page offers Download alone. An upload the student does
- * not have is a 404; a list or file that fails to load shows the error
- * state with Try Again, as the editor does.
+ * The server reads the PDF (`readUploadedResume`, base64) and the page
+ * draws it with the editor's pdf.js preview (./viewer.tsx). That one read
+ * starts the resume list and the file's link together and downloads the
+ * file only for a listed PDF, so an open waits for one API call and the
+ * Storage file, not three calls in a row. A DOCX cannot be drawn that way,
+ * so its page offers Download alone. An upload the student does not have
+ * (not in the list) is a 404; a list or file that fails to load shows the
+ * error state with Try Again, as the editor does.
  */
 export default async function UploadedResumePage({ params }: PageProps<"/resumes/uploaded/[id]">) {
   await connection();
   const { id } = await params;
-  const { resumes, error: listError } = await listResumes();
-  const resume = resumes.find((r) => r.id === id);
+  const { resume, pdf, listError, fileError } = await readUploadedResume(id);
   if (!listError && !resume) notFound();
-  const isPdf = resume?.storage_path.endsWith(".pdf") ?? false;
-  const file = resume && isPdf ? await readResumePdf(id) : { data: null, error: null };
-  const error = listError ?? file.error;
+  const error = listError ?? fileError;
 
   return (
     <div className={cn("max-w-app mx-auto w-full flex-1 py-6", SEEKER_GUTTER)}>
-      {/* Back to the list, drawn as the editor's Back is. */}
-      <ButtonLink
-        href="/resumes"
-        aria-label="Back to Resumes"
-        variant="secondary"
-        size="sm"
-        className="group/back mb-3"
-      >
-        <ArrowLeftIcon className="ease-glide size-3.5 transition-transform duration-200 group-hover/back:-translate-x-0.5" />
-        Back
-      </ButtonLink>
+      {/* Back to the page that opened it, else the list (../../../back-link.tsx). */}
+      <BackLink parent={{ href: "/resumes", name: "Resumes" }} />
       {resume && !error ? (
-        <UploadedViewer resume={resume} pdf={file.data} />
+        <UploadedViewer resume={resume} pdf={pdf} />
       ) : (
         <>
           <h1 className="text-heading text-ink">{resume?.original_filename ?? "Resume"}</h1>

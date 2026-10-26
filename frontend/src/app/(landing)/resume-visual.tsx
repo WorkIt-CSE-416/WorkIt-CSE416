@@ -126,7 +126,7 @@ function BankScene() {
         return (
           <motion.div
             key={entry.id}
-            className="absolute flex items-center gap-2 rounded-xl bg-white p-2 shadow-[0_10px_24px_-14px_rgb(16_48_94/0.5)] ring-1 ring-slate-900/5"
+            className="gloss-card absolute flex items-center gap-2 rounded-xl p-2"
             style={{ left, top, width: CARD_W, zIndex: i }}
             initial={{ opacity: 0, scale: 0.85, x: 0, y: 8, rotate: 0 }}
             animate={
@@ -535,7 +535,7 @@ function ResumeScene({ tailored }: { tailored: boolean }) {
           {tailored ? (
             <motion.div
               key="job"
-              className="absolute inset-0 flex items-center gap-2.5 rounded-xl bg-white/90 px-2.5 shadow-sm ring-1 ring-slate-900/5"
+              className="gloss-card absolute inset-0 flex items-center gap-2.5 rounded-xl px-2.5"
               initial={{ opacity: 0, y: -10 }}
               animate={{ opacity: 1, y: 0 }}
               exit={{ opacity: 0 }}
@@ -636,7 +636,7 @@ function WriteStatus({
   };
 
   return (
-    <div className="absolute inset-0 flex items-center gap-2.5 overflow-hidden rounded-xl bg-white/90 px-2.5 shadow-sm ring-1 ring-slate-900/5">
+    <div className="gloss-card absolute inset-0 flex items-center gap-2.5 overflow-hidden rounded-xl px-2.5">
       {/* The icon tile: a page with a ring spinning round it, then a check. */}
       <span className="relative grid size-7 shrink-0 place-items-center">
         <AnimatePresence mode="popLayout" initial={false}>
@@ -840,10 +840,7 @@ function SuggestionCard({
   const left = suggestion.side === "left";
   return (
     <motion.div
-      className={cn(
-        "absolute w-[86px] rounded-lg bg-white/90 p-1.5 shadow-[0_10px_24px_-14px_rgb(16_48_94/0.55)] ring-1 ring-slate-900/5",
-        left ? "left-1" : "right-1",
-      )}
+      className={cn("gloss-card absolute w-[86px] rounded-lg p-1.5", left ? "left-1" : "right-1")}
       // The title row sits level with the line's first row.
       style={{ top: Math.max(0, top - 6) }}
       initial={{ opacity: 0, x: left ? -10 : 10 }}

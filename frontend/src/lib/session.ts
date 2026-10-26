@@ -3,7 +3,7 @@ import "server-only";
 import { redirect } from "next/navigation";
 import { cache } from "react";
 
-import { apiFetch, homePath, type AuthenticatedAccount } from "@/lib/auth";
+import { apiFetch, homePath, type AccountType, type AuthenticatedAccount } from "@/lib/auth";
 import { createSupabaseServerClient } from "@/lib/supabase/server";
 
 /**
@@ -34,14 +34,33 @@ export async function getAccessToken(): Promise<string | null> {
  *  decides whether to render on it (see "The token travels server-side" in
  *  frontend/CLAUDE.md). It carries the email but not the name, which only
  *  the API's profile row holds, so it is also the bar's fallback when
- *  /auth/me cannot be reached. cache() so a shell asks once per render. */
+ *  /auth/me cannot be reached. cache() so a shell asks once per render.
+ *
+ *  `accountType` is the token's `app_metadata.account_type`, the same claim
+ *  the API authorizes on (backend/app/deps.py), which only the API's
+ *  service-role key can write (at signup, or when an OAuth sign-in picks its
+ *  type). Null when the token has none yet: an OAuth sign-in still choosing.
+ *  It lets a page ask "is this an applicant" with no request at all, where
+ *  /auth/me cost an API call on every soft navigation, because the layout
+ *  that would have shared its answer does not render again then. An account
+ *  whose type changed keeps the old claim until its token refreshes (an
+ *  hour at most); the API still checks every call it makes. */
 export const getSessionUser = cache(
-  async (): Promise<{ id: string; email: string | null } | null> => {
+  async (): Promise<{
+    id: string;
+    email: string | null;
+    accountType: AccountType | null;
+  } | null> => {
     const supabase = await createSupabaseServerClient();
     const { data } = await supabase.auth.getClaims();
     const claims = data?.claims;
     if (!claims?.sub) return null;
-    return { id: claims.sub, email: typeof claims.email === "string" ? claims.email : null };
+    const type: unknown = claims.app_metadata?.account_type;
+    return {
+      id: claims.sub,
+      email: typeof claims.email === "string" ? claims.email : null,
+      accountType: type === "applicant" || type === "company" ? type : null,
+    };
   },
 );
 

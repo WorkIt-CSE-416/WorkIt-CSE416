@@ -16,7 +16,7 @@ import { HiringSystemsSection } from "./hiring-pipeline";
 import { backdrop } from "./features/catalog";
 import { CONTAINER, PANEL, PANEL_INSET, SectionHeading } from "./layout-parts";
 import { ProductTour } from "./product-tour";
-import { SocialSignUpButton } from "./social-sign-up";
+import { EmailSignUpLink, SocialSignUpButton } from "./social-sign-up";
 import { Statement } from "./statement";
 import { Testimonial } from "./testimonial";
 
@@ -64,17 +64,23 @@ export default function LandingPage() {
             </p>
             <div
               data-hero-box
-              className="hero-rise mt-[34px] flex flex-col items-center justify-center gap-3 sm:flex-row"
+              className="hero-rise mt-[34px] flex flex-col flex-wrap items-center justify-center gap-3 sm:flex-row"
               style={{ "--rd": ".65s" } as CSSProperties}
             >
               <SocialSignUpButton provider="google" />
               <SocialSignUpButton provider="linkedin_oidc" />
+              <div className="w-full text-center sm:basis-full">
+                <EmailSignUpLink />
+              </div>
             </div>
           </div>
           {/* Below lg the city is scaled to the panel and sits under the
                 text; from lg up it is full size and its edge towers rise
                 beside the text. */}
-          <div aria-hidden="true" className="h-[40cqw] shrink-0 lg:h-[max(245px,17.6cqw)]" />
+          <div
+            aria-hidden="true"
+            className="h-[70cqw] shrink-0 sm:h-[40cqw] lg:h-[max(245px,17.6cqw)]"
+          />
         </div>
       </section>
 
@@ -113,14 +119,29 @@ export default function LandingPage() {
       )}
 
       {/* FAQ: the questions rise in one after another once the list is on
-          screen, in time (FocusIn, landing.css). */}
+          screen, in time (FocusIn, landing.css). From lg up the heading
+          holds on the left while the questions pass on the right, so the
+          section after the centred applications heading opens its own way
+          (KAN-368). */}
       <section id="faq" className="py-20 sm:py-28">
-        <div className={CONTAINER}>
+        <div
+          className={cn(
+            CONTAINER,
+            "lg:grid lg:grid-cols-[minmax(0,2fr)_minmax(0,3fr)] lg:items-start lg:gap-16",
+          )}
+        >
+          <div className="lg:sticky lg:top-32">
+            <FocusIn>
+              <SectionHeading
+                align="left"
+                className="max-lg:mx-auto max-lg:text-center"
+                eyebrow="FAQ"
+                title="Questions, answered."
+              />
+            </FocusIn>
+          </div>
           <FocusIn>
-            <SectionHeading eyebrow="FAQ" title="Questions, answered." />
-          </FocusIn>
-          <FocusIn>
-            <FaqList items={faqs} className="faq-rise mt-12" />
+            <FaqList items={faqs} className="faq-rise mt-12 lg:mt-0 lg:max-w-none" />
           </FocusIn>
         </div>
       </section>

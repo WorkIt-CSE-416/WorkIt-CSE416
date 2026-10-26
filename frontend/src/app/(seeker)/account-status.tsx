@@ -53,7 +53,11 @@ const MENU_ITEMS: AccountMenuItem[] = [
 ];
 
 export async function SeekerAccount() {
-  const account = await getCurrentAccount();
+  // Both at once: the photo does not depend on /auth/me's answer, and asked
+  // one after the other the chip waited on two API calls in a row on every
+  // hard load and every router.refresh(). getAvatar never throws (it returns
+  // its error), and with no account its answer is simply not used.
+  const [account, avatar] = await Promise.all([getCurrentAccount(), getAvatar()]);
 
   if (!account) {
     const user = await getSessionUser();
@@ -76,8 +80,6 @@ export async function SeekerAccount() {
       </AccountMenu>
     );
   }
-
-  const avatar = await getAvatar();
 
   return (
     <AccountMenu
