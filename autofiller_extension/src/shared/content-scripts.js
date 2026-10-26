@@ -12,7 +12,7 @@
 // here is what makes the globals exist.
 export const ENGINE_FILES = ["fill-engine/dist/engine.js"];
 
-export const CONTENT_SCRIPT_FILES = ["src/content/lib-status.js", "src/shared/tokens.js", "src/content/row-card.js", "src/content/overlay.js", "src/content/card-flag.js", "src/content/card-waiting.js", "src/content/card-guess.js", "src/content/workday.js", "src/content/written-answers.js", "src/content/batch-tab.js", "src/content/marks.js", "src/content/card-failed.js", "src/content/submit-warning.js", "src/content/content-script.js"];
+export const CONTENT_SCRIPT_FILES = ["src/content/lib-status.js", "src/shared/tokens.js", "src/content/row-card.js", "src/content/overlay.js", "src/content/card-flag.js", "src/content/card-waiting.js", "src/content/card-guess.js", "src/content/captured-notice.js", "src/content/workday.js", "src/content/written-answers.js", "src/content/batch-tab.js", "src/content/marks.js", "src/content/card-failed.js", "src/content/submit-warning.js", "src/content/content-script.js"];
 
 /**
  * Loads the engine into the tab, then starts the fill there. With `batch`,

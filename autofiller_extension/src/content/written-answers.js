@@ -309,12 +309,15 @@ window.WIA = window.WIA || {};
      */
     function keepOwn(question, answer, own) {
       if (!batch || !answer.trim() || answer.length > ANSWER_MAX) return;
+      // Taken back with the captured notice's Undo (captured-notice.js): not saved again on this page.
+      if (own && window.WIA.capturedNotice?.undone(question.name)) return;
       clearTimeout(ownTimers.get(question.name));
       ownTimers.set(question.name, setTimeout(async () => {
         ownTimers.delete(question.name);
         const saved = await send({ type: "batch/own-answer", name: question.name.slice(0, FIELD_NAME_MAX), label: question.label.slice(0, LABEL_MAX), answer, own })
           .catch((error) => ({ ok: false, error: error.message }));
         if (saved?.ok && reviewedNames.has(question.name)) awaitReview();
+        if (saved?.ok && own) window.WIA.capturedNotice?.saved(question.name);
         if (!saved?.ok && !own) status.setStatus(question.name, "failed", `WorkIt didn't keep your edit: ${saved?.error ?? "no answer"}`, answer, workitFilled.get(question.name)?.source);
       }, OWN_PAUSE));
     }
