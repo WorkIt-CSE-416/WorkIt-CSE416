@@ -530,6 +530,13 @@ waits for an opened tab's page and form (`waitForLoad`, `formShows`).
   system's own field id (`batch-tab.js`'s `fieldOf`); a tab nothing
   was filled in is one stop, the page itself. This is the only time the
   extension switches tabs on its own, and only on the student's press.
+- **Where the walk lands, the page is marked** (KAN-369, `marks.js`,
+  `window.WIA.marks`): the field scrolls to the middle and gets a ring in
+  the brand colour for 3 seconds, and a small orange dot
+  (`--color-warning-strong`) that stays on it while its row still needs the
+  student (failed, waiting, flagged), gone once resolved. Both sit in their
+  own shadow host (`#workit-marks-host`), follow the field each frame while
+  shown, and never take a click. A guess, shown once, gets the ring only.
 - **A failed field gets a card** (KAN-369, `card-failed.js`, in the shared
   row card `row-card.js`): "We put X; the page shows Y.", why in plain words
   ("This field ended up empty on the page.", "This dropdown never committed

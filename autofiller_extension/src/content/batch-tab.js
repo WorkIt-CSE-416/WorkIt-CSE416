@@ -99,6 +99,9 @@ window.WIA = window.WIA || {};
       const field = fieldOf(key);
       if (field) {
         field.scrollIntoView({ block: "center" });
+        // A ring for a few seconds, and a dot on the field while it still needs the student (marks.js).
+        window.WIA.marks?.ring(field);
+        if (row && needsYou(row)) window.WIA.marks?.dot(key, field, () => status.summary().fields.some((r) => r.key === key && needsYou(r)));
         const control = field.matches("input, select, textarea, button, [tabindex]") ? field : field.querySelector("input, select, textarea, button, [tabindex]");
         control?.focus({ preventScroll: true });
       }

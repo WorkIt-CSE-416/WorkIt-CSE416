@@ -1,8 +1,9 @@
 // The failed-field card (KAN-369): a field whose page doesn't show the answer
 // WorkIt put says what it put and what the page shows, quotes the site's own
-// error, and offers Put mine back (fill it again) and Keep the page's. Arc's
-// saved Greenhouse form, with a script that makes its name box misbehave the
-// way a live form's code can.
+// error, and offers Put mine back (fill it again) and Keep the page's. Next
+// Thing That Needs You rings the field it lands on and leaves a dot on it
+// until it is resolved. Arc's saved Greenhouse form, with a script that makes
+// its name box misbehave the way a live form's code can.
 import { expect, test, type Page } from "@playwright/test";
 import { FakeApi } from "./fake-api";
 import { SavedForms } from "./fake-job-systems";
@@ -95,4 +96,19 @@ test("Keep the page's takes what the page shows as the student's, quoting the si
   await expect(form.locator("#first_name")).toHaveValue("Pat");
   await expect.poll(() => api.stages.get("job-0")).toBe("queued"); // the tab is Ready again
   expect(forms.submissions).toEqual([]);
+});
+
+test("Next Thing rings the field it lands on for a few seconds and leaves a dot on it until it is fixed", async () => {
+  const { form } = await arcWith(DROPS_FIRST_NAME);
+  const marks = form.locator("#workit-marks-host");
+  await form.locator("#workit-autofiller-overlay-host").getByRole("button", { name: "Next Thing That Needs You" }).click();
+
+  await expect(marks.locator(".ring")).toBeVisible();
+  await expect(marks.locator('.dot[data-key="first_name"]')).toBeVisible();
+  await expect(marks.locator(".ring")).toHaveCount(0, { timeout: 5_000 });
+  await expect(marks.locator('.dot[data-key="first_name"]')).toBeVisible();
+
+  await form.evaluate(() => window.dispatchEvent(new Event("workit-test-stop-dropping")));
+  await rowOf(form, "first_name").getByRole("button", { name: "Put mine back" }).click();
+  await expect(marks.locator('.dot[data-key="first_name"]')).toHaveCount(0);
 });
