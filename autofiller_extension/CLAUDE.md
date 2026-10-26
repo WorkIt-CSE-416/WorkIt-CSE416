@@ -1418,7 +1418,7 @@ the edge tab or the toolbar brings the same rows back, no fill).
 ## The panel's top (KAN-395): header, batch line, job card
 
 The header (panel.js) is WorkIt's mark (logo.tsx's figure, in ink: the
-header is neutral), Report a problem (a placeholder card until its ticket),
+header is neutral), Report a problem (a ⚑ button, named so; a placeholder card until its ticket),
 the gear and Collapse. `src/content/panel-top.js` fills two slots, loaded
 after panel.js everywhere panel.js is (manifest, `CONTENT_SCRIPT_FILES`,
 background.js `SHELL_FILES`):

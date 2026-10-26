@@ -46,11 +46,11 @@ window.WIA = window.WIA || {};
     .header-actions, [data-slot="header-actions"] { display: flex; align-items: center; gap: 4px; }
     .header button {
       all: unset; cursor: pointer; font-size: var(--text-note); font-weight: 500; color: var(--color-ink-muted);
-      padding: 4px 8px; border-radius: var(--radius-control);
+      padding: 4px 8px; border-radius: var(--radius-control); white-space: nowrap;
     }
     .header button:hover { background: var(--color-hover); }
     .header button:focus-visible { outline: 2px solid var(--color-brand); outline-offset: 1px; }
-    .header button[data-collapse], .header button[data-settings] { font-size: var(--text-body); padding: 2px 8px; }
+    .header button[data-collapse], .header button[data-settings], .header button[data-report] { font-size: var(--text-body); padding: 2px 8px; }
     .scroll { flex: 1; min-height: 0; overflow-y: auto; display: flex; flex-direction: column; gap: 8px; padding: 8px; }
     .card { background: var(--color-panel); border: 1px solid var(--color-border); border-radius: var(--radius-card); }
     [data-slot="batch-line"] { padding: 6px 10px; font-size: var(--text-note); color: var(--color-ink-meta); }
@@ -137,7 +137,7 @@ window.WIA = window.WIA || {};
         <span class="brand">${LOGO}<span aria-hidden="true">WorkIt</span></span>
         <span class="header-actions">
           <span data-slot="header-actions"></span>
-          <button type="button" data-report>Report a problem</button>
+          <button type="button" data-report aria-label="Report a problem" title="Report a problem">⚑</button>
           <button type="button" data-settings aria-label="Settings" title="Settings">⚙</button>
           <button type="button" data-collapse data-close aria-label="Collapse" title="Collapse">›</button>
         </span>
