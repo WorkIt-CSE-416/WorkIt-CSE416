@@ -22,6 +22,8 @@ window.WIA = window.WIA || {};
   // The same, ending in a link to the webapp's Written Answers page (KAN-385), where a student without Claude pastes answers.
   const WAIT_OR_PASTE = `Waiting for your Claude: run "${TRIGGER}" in Claude, write it yourself, or paste it in`;
   const NOT_NEEDED = "Not needed: your answer to the question before it doesn't call for it.";
+  // How the API opens a fact the student's Claude asks for (KAN-369, backend written.py's ASK).
+  const ASK = "Essay fact: ";
   // How often a batch tab asks whether the student's Claude saved an answer (KAN-377).
   const ANSWER_POLL = 10_000;
   // How many polls a tab waits for the pre-submit review's verdict (KAN-369): 30 minutes, then it stops asking.
@@ -103,6 +105,29 @@ window.WIA = window.WIA || {};
       return true;
     }
 
+    // The fact each waiting row's question shows (KAN-369), by field: what the student's Claude asked, or "" for none.
+    const asked = new Map();
+
+    /**
+     * A waiting row whose answer needs a fact only the student can give
+     * (KAN-369, an Essay fact: their Claude asked rather than invent it)
+     * says what it asked, with the Written Answers link where they answer
+     * it; once they have, the row waits for their Claude again.
+     */
+    function showAsk(name, ask) {
+      if ((asked.get(name) ?? "") === (ask ?? "") || rowStatus(name) !== "needs_generation") return;
+      asked.set(name, ask ?? "");
+      if (!ask) {
+        if (answersPage) status.setStatus(name, "needs_generation", WAIT_OR_PASTE, undefined, undefined, answersPage, true);
+        else status.setStatus(name, "needs_generation", WAIT_FOR_CLAUDE, undefined, undefined, undefined, true);
+        return;
+      }
+      const question = ask.startsWith(ASK) ? ask.slice(ASK.length) : ask;
+      const reason = `Your Claude needs a fact from you first: ${question}`;
+      if (answersPage) status.setStatus(name, "needs_generation", `${reason} Answer it on`, undefined, undefined, answersPage, true);
+      else status.setStatus(name, "needs_generation", `${reason} Answer it on WorkIt's Written Answers page, or write this answer yourself.`, undefined, undefined, undefined, true);
+    }
+
     /** The current status of one row, or undefined. */
     const rowStatus = (key) => status.summary().fields.find((r) => r.key === key)?.status;
 
@@ -138,7 +163,8 @@ window.WIA = window.WIA || {};
       let answered = false;
       for (;;) {
         const rows = reply.ok ? reply.questions : [];
-        for (const { name, answer } of rows) {
+        for (const { name, answer, ask } of rows) {
+          if (!answer && waiting.has(name)) showAsk(name, ask);
           if (!answer || !waiting.has(name)) continue;
           waiting.delete(name);
           if (rowStatus(name) !== "filled") {

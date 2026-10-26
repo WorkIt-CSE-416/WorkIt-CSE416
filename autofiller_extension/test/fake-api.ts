@@ -13,6 +13,8 @@ export type Written = {
   name: string; label: string; required: boolean; max_length: number | null; answer: string | null;
   // The pre-submit review (backend/app/auto_apply/review.py): whether it read this answer, and why it flagged it.
   reviewed?: boolean; flag?: string | null; flag_quote?: string | null; flag_hard?: boolean;
+  // A fact the student's Claude asked the student for (KAN-369), and the experience entry it joins.
+  ask?: string | null; ask_about?: string | null;
 };
 /** One flag save_review gives: its reason, or the reason with the sentence it means and whether it names the wrong company. */
 export type Flag = string | { reason: string; quote?: string; hard?: boolean };
@@ -46,6 +48,13 @@ export class FakeApi {
   readonly events: string[] = [];
 
   /** The connector's save (backend/app/connector/tools.py): the student's Claude answered one question. */
+  /** The student's Claude asks the student for a fact one question's answer needs (KAN-369, save_fact_question). */
+  askFact(jobId: string, name: string, ask: string | null, about: string | null = null): void {
+    const question = this.written.get(jobId)?.find((q) => q.name === name);
+    if (!question) throw new Error(`Job ${jobId} has no question ${name}`);
+    Object.assign(question, { ask, ask_about: about });
+  }
+
   saveAnswer(jobId: string, name: string, answer: string): void {
     const question = this.written.get(jobId)?.find((q) => q.name === name);
     if (!question) throw new Error(`Job ${jobId} has no question ${name}`);

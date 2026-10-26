@@ -510,6 +510,14 @@ waits for an opened tab's page and form (`waitForLoad`, `formShows`).
   an answer can take that long to land. Tests:
   `test/connector.extension.spec.ts` (Ashby's Harvey form: no saved
   Greenhouse form has an essay the Plan sends to Claude).
+  **A row whose answer needs a fact only the student can give says so**
+  (KAN-369, an Essay fact): when their Claude asks rather than invents
+  one (`save_fact_question`), `GET .../questions` gives the row `ask`, and
+  each poll turns its waiting line into "Your Claude needs a fact from you
+  first: <question>" with the Written Answers link, where the student
+  answers it (`showAsk`); once they have, `ask` is gone and the row waits
+  for their Claude again. The extension never answers it itself. Test:
+  `test/connector.extension.spec.ts`.
   **A follow-up is decided again once its parent is answered**: a parent
   question sent to Claude ("Are you currently working with Amplify?")
   has no answer at plan time, so its follow-up ("If a contingent worker,
