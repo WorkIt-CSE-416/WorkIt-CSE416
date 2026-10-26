@@ -251,8 +251,9 @@ waits for an opened tab's page and form (`waitForLoad`, `formShows`).
   The cost: a student in another app or window sees their batch window
   change tabs for 5 s. A check that passes during the first look (its page
   loads anew: `formShows` answers null) is looked at again in the new page.
-  Still there, the tab goes to Needs you and
-  keeps waiting up to 5 minutes for the form (`formAfterHumanCheck`, also
+  Still there, the tab goes to Needs you, the toolbar's badge counts the
+  checks waiting (`markCheck`, titled "A job needs you to prove you're
+  human"), and it keeps waiting up to 5 minutes for the form (`formAfterHumanCheck`, also
   across the new page a passed check loads); the fill runs once it shows.
   Meanwhile its panel (`human-check.js`, `injectHumanCheck`) says "Prove
   you're human on this page" (a "todo" note), with Skip and Next Thing,

@@ -55,7 +55,7 @@ import { jobBoard } from "./job-boards.js";
 import { clearHumanCheck, injectFill, injectHumanCheck } from "../shared/content-scripts.js";
 import { liveBatch, load, save, serially } from "./batch-store.js";
 import { forgetWorkableDraft, formAfterHumanCheck, formShows, humanCheckShows, waitForLoad } from "./tab-load.js";
-import { tryInFront } from "./human-checks.js";
+import { markCheck, tryInFront } from "./human-checks.js";
 
 /** @typedef {import("./batch-store.js").Batch} Batch @typedef {import("./batch-store.js").TabState} TabState */
 
@@ -269,8 +269,13 @@ async function startFill(tabId, url, again = false) {
     if (!found && !workday && (await humanCheckShows(tabId))) found = await tryInFront(tabId);
     if (!found && !workday && (await humanCheckShows(tabId).catch(() => false))) {
       await setTabState(tabId, "needs_you");
+      await markCheck(tabId, true);
       await injectHumanCheck(tabId);
-      found = await formAfterHumanCheck(tabId);
+      try {
+        found = await formAfterHumanCheck(tabId);
+      } finally {
+        await markCheck(tabId, false);
+      }
       if (found) await clearHumanCheck(tabId);
     }
     if (!found && !workday) throw new Error("no_form");

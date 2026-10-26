@@ -287,6 +287,10 @@ test("a human check before the form needs the student, and the form fills once t
   const state = async () => (await sendFromWebapp(webappPage, { type: "run/status" })).jobs[0]?.state;
   await expect.poll(state, { timeout: 30_000 }).toBe("needs_you");
   await expect.poll(() => api.stages.get("job-0")).toBe("needs_you");
+  // The toolbar's badge counts the checks waiting for the student.
+  const badge = () => loaded.worker.evaluate(() => chrome.action.getBadgeText({}));
+  await expect.poll(badge).toBe("1");
+  expect(await loaded.worker.evaluate(() => chrome.action.getTitle({}))).toBe("A job needs you to prove you're human");
 
   // The student passes it, and the page loads the form: it fills, and Arc's form takes every answer.
   check.pass();
@@ -295,6 +299,7 @@ test("a human check before the form needs the student, and the form fills once t
   const groupOfArc = async () => (await tabs(loaded.worker)).find((t) => t.url === forms.url("greenhouse-arc"))?.group?.title;
   await expect.poll(groupOfArc, { timeout: 60_000 }).toBe("Ready");
   await expect(form.locator("#first_name")).toHaveValue("Test");
+  await expect.poll(badge).toBe("");
   expect(forms.submissions).toEqual([]);
 });
 
