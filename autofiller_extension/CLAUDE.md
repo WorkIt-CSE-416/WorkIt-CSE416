@@ -518,7 +518,10 @@ waits for an opened tab's page and form (`waitForLoad`, `formShows`).
   (`batch/questions` → `PUT .../applications/{job}/questions`), shows each
   as waiting for the student's Claude, and asks for the saved answers every
   10 seconds (`batch/answers` → `GET .../questions`) until none is left,
-  filling each through the engine; its group follows. The background takes
+  every 2 seconds in the first minute (KAN-369: Claude often saves one
+  soon, write early having sent most questions before the tab opened; a
+  Rewrite with Claude's wait does the same), filling each through the
+  engine; its group follows. The review's polls keep 10 seconds. The background takes
   the job from the batch's own record of the tab (`jobInTab`), never from
   the message. A question the student answered first keeps their answer;
   one Claude's answer fills is labelled Claude (KAN-375's sources). A
