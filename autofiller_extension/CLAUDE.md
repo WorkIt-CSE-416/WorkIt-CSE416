@@ -243,8 +243,9 @@ builds it: `dist/engine.js` is committed in the engine repo.
   A closed job on a system it covers is told apart (`closedPosting` in
   content-script.js): Greenhouse sends it to its board with `?error=true`,
   Workable to the account with `?not_found=true`, others say so on the
-  page ("no longer accepting applications"); the overlay then says This
-  job is closed instead.
+  page ("no longer accepting applications"; TikTok's and ByteDance's "404
+  Page not found", where the engine's `NoForm` or the posting's link is
+  checked too); the overlay then says This job is closed instead.
 - **Tests**: `test/extension.ts` runs the fill as Chrome does, minus
   Chrome: `ENGINE_FILES` and `CONTENT_SCRIPT_FILES` evaluated in a saved
   form's page (served by the engine repo's own fakes and fixtures, through

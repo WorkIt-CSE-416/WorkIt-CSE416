@@ -102,9 +102,10 @@
    * student's saved answers).
    */
   // Where a job system WorkIt fills sends a closed job (live, 2026-10-26): Greenhouse to its board with
-  // ?error=true, Workable to the account with ?not_found=true; others say so on the page.
-  const CLOSED_HOSTS = /(^|\.)(greenhouse\.io|workable\.com|lever\.co|ashbyhq\.com|rippling\.com|myworkdayjobs\.com|myworkdaysite\.com|eightfold\.ai)$/;
-  const CLOSED_WORDS = /no longer (accepting applications|open|available)|this (job|position|posting) (is|has been) (closed|filled)|job not found|couldn't find anything here/i;
+  // ?error=true, Workable to the account with ?not_found=true; others say so on the page (TikTok's and
+  // ByteDance's closed job is their "404 Page not found", the engine's NoForm there).
+  const CLOSED_HOSTS = /(^|\.)(greenhouse\.io|workable\.com|lever\.co|ashbyhq\.com|rippling\.com|myworkdayjobs\.com|myworkdaysite\.com|eightfold\.ai|lifeattiktok\.com|careers\.tiktok\.com|jobs\.bytedance\.com|joinbytedance\.com)$/;
+  const CLOSED_WORDS = /no longer (accepting applications|open|available)|this (job|position|posting) (is|has been) (closed|filled)|job not found|couldn't find anything here|404 page not found/i;
 
   /** Whether this page is a covered job system's word that the job is closed, not a job it can't fill. */
   function closedPosting() {
@@ -131,6 +132,11 @@
       prepared = await send({ type: "fill/plan", extra, state });
       if (!prepared.ok && window.WIA.workday.isWorkday) {
         return { unplanned: prepared.status === 401 ? "Sign in from the extension popup first. " : "" };
+      }
+      // A closed job on a covered job system's own page: the engine finds no form there (NoForm), or the page is the posting's.
+      if ((!prepared.ok || prepared.openForm) && closedPosting()) {
+        note("_closed", "This job is closed", "It is no longer accepting applications, so there is nothing to fill. Pick another job.");
+        return null;
       }
       if (!prepared.ok) {
         note("_error", prepared.error || "Could not plan this application", prepared.status === 401 ? "Sign in from the extension popup first." : prepared.error, true);

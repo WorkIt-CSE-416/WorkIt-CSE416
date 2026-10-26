@@ -24,6 +24,8 @@ const SIGN_IN_PAGE = `<!doctype html><html><head><title>Sign in</title></head><b
 /** A fake lifeattiktok.com: the form shows once `signedIn`, else the site sends the tab to its sign-in. Every POST is kept and refused. */
 class FakeTikTok {
   signedIn = false;
+  /** The job closed: its pages are the site's "404 Page not found". */
+  closed = false;
   readonly submissions: string[] = [];
   readonly handler: Handler = ({ url, method }) => {
     if (url.host !== "lifeattiktok.com") return undefined;
@@ -36,6 +38,7 @@ class FakeTikTok {
       return { headers: { "content-type": "text/javascript" }, body: readFileSync(join(ENGINE_TEST, "fake-tiktok-widgets.js"), "utf8") };
     }
     if (url.pathname === "/login") return html(SIGN_IN_PAGE);
+    if (this.closed) return html("<!doctype html><p>404 Page not found</p><p>Oops! We can't find your page.</p>");
     if (url.pathname === `/resume/${JOB}/apply`) {
       return html(this.signedIn ? readFileSync(join(FIXTURE, "form.html"), "utf8") : `<script>location.replace(${JSON.stringify(SIGN_IN)})</script>`);
     }
@@ -99,3 +102,21 @@ test("Autofill on TikTok's sign-in, outside a batch, says to sign in and fills n
   expect(tiktok.submissions).toEqual([]);
 });
 
+test("a closed TikTok job says it is closed, not that the fill failed", async () => {
+  test.setTimeout(90_000);
+  const tiktok = new FakeTikTok();
+  tiktok.signedIn = true;
+  tiktok.closed = true;
+  loaded = await loadExtension([new FakeApi().handler, webapp, tiktok.handler]);
+  await signIn(loaded.context);
+  const page = await loaded.context.newPage();
+  await page.goto(FORM);
+  await loaded.worker.evaluate(async ([engine, scripts, url]) => {
+    const [{ id }] = await chrome.tabs.query({ url: `${url}*` });
+    await chrome.scripting.executeScript({ target: { tabId: id! }, world: "MAIN", files: engine });
+    void chrome.scripting.executeScript({ target: { tabId: id! }, files: scripts });
+  }, [ENGINE_FILES, CONTENT_SCRIPT_FILES, FORM] as const);
+
+  await expect.poll(() => panelText(page), { timeout: 30_000 }).toContain("This job is closed");
+  expect(tiktok.submissions).toEqual([]);
+});
