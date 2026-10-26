@@ -99,14 +99,9 @@ jobs:
           DATABASE_URL: ${{ secrets.DATABASE_URL }}
           GEMINI_API_KEY: ${{ secrets.GEMINI_API_KEY }}
           # The model the keyword pass reads (scout/CLAUDE.md): the small
-          # chain, then the default chain (a chain, or one endpoint named by
-          # the other four).
+          # chain, then the default chain after it.
           SCOUT_ENDPOINTS_SMALL: ${{ secrets.SCOUT_ENDPOINTS_SMALL }}
           SCOUT_ENDPOINTS: ${{ secrets.SCOUT_ENDPOINTS }}
-          SCOUT_BASE_URL: ${{ secrets.SCOUT_BASE_URL }}
-          SCOUT_MODEL: ${{ secrets.SCOUT_MODEL }}
-          SCOUT_API_KEY: ${{ secrets.SCOUT_API_KEY }}
-          SCOUT_REASONING_EFFORT: ${{ secrets.SCOUT_REASONING_EFFORT }}
           DRY_RUN: ${{ (github.event_name == 'pull_request' || inputs.dry_run) && '--dry-run' || '' }}
         run: |
           if [ -z "$DATABASE_URL" ]; then
@@ -114,11 +109,11 @@ jobs:
             exit 1
           fi
           # A missing secret arrives as "", which is not unset: Scout's
-          # settings refuse "" as a list and take it as an empty URL.
-          for name in SCOUT_ENDPOINTS_SMALL SCOUT_ENDPOINTS SCOUT_BASE_URL SCOUT_MODEL SCOUT_API_KEY SCOUT_REASONING_EFFORT; do
+          # settings refuse "" as a list.
+          for name in SCOUT_ENDPOINTS_SMALL SCOUT_ENDPOINTS; do
             if [ -z "${!name}" ]; then unset "$name"; fi
           done
-          if [ -z "$SCOUT_ENDPOINTS_SMALL" ] && [ -z "$SCOUT_ENDPOINTS" ] && [ -z "$SCOUT_BASE_URL" ]; then
-            echo "::warning::No SCOUT_ENDPOINTS_SMALL, SCOUT_ENDPOINTS or SCOUT_BASE_URL secret; this run extracts no keywords."
+          if [ -z "$SCOUT_ENDPOINTS_SMALL" ] && [ -z "$SCOUT_ENDPOINTS" ]; then
+            echo "::warning::No SCOUT_ENDPOINTS_SMALL or SCOUT_ENDPOINTS secret; this run extracts no keywords."
           fi
           uv run python -m app.scripts.import_jobs ../scraper/feed.json ${DRY_RUN:+"$DRY_RUN"}
