@@ -1364,7 +1364,7 @@ slot by name, `panel.slot(name)`, and adds its styles with
 | `job-card` | the job card (title, company, Match score) | panel-top.js |
 | `primary` | the one big button; `panel.setPrimary({ label, onPress, secondary })` or `panel.fillButton(label)` | Autofill This Page (launcher.js), Fill Again (overlay.js) |
 | `tab:<id>` | a tab's body; `panel.addTab({ id, label })` adds one, the strip shows from two | `tab:autofill`: overlay.js's summary, Next Thing That Needs You, essay banner, moment cards, parts and rows |
-| `settings` | the settings view, shown by the header's gear in place of the tabs (`panel.showSettings`) | Workday Sign-Up (opens the options page), Back |
+| `settings` | the settings view, shown by the header's gear in place of the tabs (`panel.showSettings`) | panel-settings.js: Claude connection, Open the panel by itself, Report a problem, Workday Sign-Up, Back |
 | `report` | Report a problem, shown by the header's button in place of the tabs (`panel.showView("report", true)`) | a placeholder ("Nothing is sent yet"), Back |
 
 `batch-line`, `job-card` and `settings` are cards hidden while empty: a
@@ -1448,6 +1448,37 @@ background.js `SHELL_FILES`):
 Tests: `test/panel-header.extension.spec.ts` (a batch's line, card, ring and
 Next tab; an own tab's header, Report placeholder and applied card; a
 Workday tab's step line).
+
+## The panel's settings (KAN-402): Claude, auto-open, report, Workday
+
+`src/content/panel-settings.js` fills the `settings` slot (loaded after
+panel-top.js everywhere it is: manifest, `CONTENT_SCRIPT_FILES`,
+background.js `SHELL_FILES`); `src/background/panel-settings.js` answers
+its messages. The gear shows it in place of the tabs; Back returns.
+
+- **Claude**: "Your Claude is connected." with **Disconnect** (`DELETE
+  /applicants/{id}/connector`, which revokes the sign-in at once, as the
+  webapp's Settings > Connected Apps does), or "Your Claude isn't
+  connected." with **Add to Claude** (a new tab on the webapp's
+  `/connect/claude/add`, which goes on to Claude's Add Custom Connector
+  dialog). Signed out: "Sign in to WorkIt to connect your Claude." The
+  state (`settings/read`, `GET .../connector`) is read again each time the
+  gear opens the view and when the student comes back to the tab.
+- **Open the panel by itself** (on by default): `panel_auto_open` in
+  chrome.storage.local, given to panel.js by `panel/where` (`autoOpen`).
+  Off, a batch tab's panel stays closed with its edge tab, as a kept
+  collapse does; the student opens it. Outside a batch nothing opens by
+  itself anyway.
+- **Report a problem**: opens the report view (`panel.showView("report",
+  true)`), the same entry point as the header's ⚑; KAN-403 fills that slot.
+- **Workday Sign-Up**: opens the extension's options page
+  (`workday/signup-open`). No password field is ever in the panel: it
+  lives in the employer's page.
+
+Tests: `test/panel-settings.extension.spec.ts` (the Claude connection with
+Disconnect and Add to Claude; auto-open off keeps a batch tab's panel
+closed; the gear and Back, Report, Workday Sign-Up opening the options
+page and no password field in the panel).
 
 ## The overlay: honest per-field results
 
