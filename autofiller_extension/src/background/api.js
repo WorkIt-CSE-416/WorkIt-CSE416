@@ -474,6 +474,18 @@ export async function recordFill(applicantId, jobId, state) {
 }
 
 /**
+ * POST /fill-reports — a problem report the student sent from the panel
+ * (KAN-403, background report.js): the job system, posting link, engine
+ * version, each failed field's kind, label shape and error name, and their
+ * note. Never an answer or the page's text.
+ * @param {{ job_system: string, posting_url: string, engine_version: string,
+ *   fields: { kind: string, label_shape: string, error: string }[], note: string | null }} report
+ */
+export async function sendFillReport(report) {
+  return apiFetch("/fill-reports", { method: "POST", body: JSON.stringify(report) });
+}
+
+/**
  * PUT .../applications/{job_id}/questions — the questions a batch tab's form
  * needs written (KAN-377), for the student's own Claude to answer through
  * the connector. Answers every question the application has, with any
@@ -626,6 +638,16 @@ export async function finishApplication(applicantId, jobId, outcome) {
  */
 export async function connectorAdded(applicantId) {
   return (await apiFetch(`/applicants/${applicantId}/connector`)).added;
+}
+
+/**
+ * DELETE .../connector — revokes the student's Claude's sign-in to WorkIt at
+ * once (the webapp's Settings > Connected Apps Disconnect; the panel's
+ * settings, KAN-402). Answers 204, no body.
+ * @param {string} applicantId
+ */
+export async function disconnectConnector(applicantId) {
+  await apiRequest(`/applicants/${applicantId}/connector`, { method: "DELETE" });
 }
 
 /**

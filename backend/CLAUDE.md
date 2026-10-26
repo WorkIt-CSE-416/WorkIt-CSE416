@@ -274,6 +274,16 @@ Find files with a directory listing; these are the rules for where code goes.
   **Each listed answer carries `answered_at`** (KAN-369), when it was last
   saved: the page marks the student's own answers (captured from a form)
   New by it until they have seen them. Tests: `tests/test_captured_answers.py`.
+  **Problem reports from the extension's panel** (KAN-403,
+  `routers/fill_reports.py`, table `fill_reports`): `POST /fill-reports`
+  stores what the student previewed and sent (job system, the posting's
+  link with no query or fragment, Fill engine version, each failed field's
+  kind, label shape and error name, their note). The row names no
+  account, though sending needs a sign-in. Every model forbids other keys
+  and the label shape holds only letters, `#` and spaces, so an answer or
+  the page's text is refused (422), never stored. It feeds the team's
+  engine repair loop; nothing reads it in the app. Tests:
+  `tests/test_fill_reports.py`.
   **A student's writing samples and style card** (KAN-384) are
   `queries/writing.py`, behind `routers/writing_samples.py` (the student's
   add, replace, remove) and the connector's tools (their Claude reads the

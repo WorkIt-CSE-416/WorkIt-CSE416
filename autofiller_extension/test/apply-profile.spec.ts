@@ -106,6 +106,18 @@ test("jobs go most recently started first, as the student lists them, a job held
   expect(history.map((j: any) => j.employer)).toEqual(["Globex", "Initech", "Acme"]);
 });
 
+test("a job's bullets, in order and one a line, are its description (Workday's Role Description)", () => {
+  const bullets = [{ id: "b2", position: 1, text: "Cut a report's run time by half." }, { id: "b1", position: 0, text: "Built a made-up dashboard." }];
+  const job = (id: string, bullets: object[]) => ({
+    id, section: "experience", title: "Intern", organization: "Acme", location: null, start_month: "2025-06", end_month: "2025-08", end_kind: "month", bullets,
+  });
+  const bank = { entries: [job("j1", bullets), job("j2", [])], skills: [] };
+
+  const history = engineProfile({ ...STUDENT, bank }).experience_facts.employment_history;
+
+  expect(history.map((j: any) => j.description ?? null)).toEqual(["Built a made-up dashboard.\nCut a report's run time by half.", null]);
+});
+
 test("the bank's skills (languages first) and earlier schools reach the engine; an empty list keeps what was brought", () => {
   const skill = (name: string, group: string | null) => ({ id: name, name, group });
   const school = (id: string, title: string, degree: string, end_month: string) => ({

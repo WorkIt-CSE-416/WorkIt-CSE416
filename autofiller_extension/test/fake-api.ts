@@ -48,6 +48,8 @@ export class FakeApi {
   readonly pasted: { jobId: string; name: string; answer: string }[] = [];
   /** Set to refuse the next pastes with these reasons, as WorkIt's checks do (422, reasons by question). */
   refusePastes: string[] | null = null;
+  /** The problem reports the extension sent (POST /fill-reports, KAN-403), each as its body, in order. */
+  readonly reports: unknown[] = [];
   /** In order: "next:<job>" when GET .../applications/next hands a job out (its tab opens), "questions:<job>" when its questions arrive. */
   readonly events: string[] = [];
 
@@ -127,6 +129,10 @@ export class FakeApi {
     this.calls.push(`${method} ${path}${url.search}`);
     if (path === "/health") return { json: { status: "ok" } };
     if (headers.authorization !== "Bearer test-access-token") return { status: 401, json: { detail: "Not signed in" } };
+    if (path === "/fill-reports" && method === "POST") {
+      this.reports.push(JSON.parse(body.toString()));
+      return { status: 201, json: { stored: true } };
+    }
     if (path === "/auth/me") return { json: { id: STUDENT.id, email: STUDENT.email, full_name: STUDENT.full_name, account_type: "applicant" } };
 
     const me = `/applicants/${STUDENT.id}`;
@@ -154,6 +160,10 @@ export class FakeApi {
     if (route === "/documents") return { json: this.transcript ? [{ kind: "transcript", original_filename: this.transcript.filename }] : [] };
     if (route === "/documents/transcript/bytes" && this.transcript) {
       return { headers: { "content-type": "application/pdf" }, body: Buffer.from(this.transcript.base64, "base64") };
+    }
+    if (route === "/connector" && method === "DELETE") {
+      this.connectorAdded = false;
+      return { status: 204, body: "" };
     }
     if (route === "/connector") return { json: { added: this.connectorAdded } };
     if (route === "/writing-samples" && method === "GET") return { json: { samples: this.samples, style_card: null } };

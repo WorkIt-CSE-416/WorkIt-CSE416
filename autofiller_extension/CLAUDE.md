@@ -47,6 +47,9 @@ repo `WorkIt-CSE-416/fill-engine` and sits here as the submodule
 `fill-engine/`, **pinned to a tag**. A person moves the pin (`git -C
 autofiller_extension/fill-engine checkout vX.Y.Z`, commit the gitlink), so
 a change to the engine reaches students only when someone here chooses it.
+Moving the pin also means changing `ENGINE_VERSION` in
+`src/background/report.js` (what a problem report names);
+`test/report.extension.spec.ts` fails until it matches `git describe --tags`.
 **A checkout needs `git submodule update --init` once**, or Chrome can't
 load `fill-engine/dist/engine.js` and every fill fails. The extension never
 builds it: `dist/engine.js` is committed in the engine repo.
@@ -111,7 +114,14 @@ builds it: `dist/engine.js` is committed in the engine repo.
   application (a batch tab starts it itself, below); the content script fills each step as it shows (sections
   first, then each field, then reads the step again for follow-ups), then
   waits. The student checks the step and presses Save and Continue; the
-  next step is filled when Workday shows it. The extension never presses
+  next step is filled when Workday shows it: a step is told from the last
+  by its name and its number in the bar, since a tenant may name two steps
+  alike (a second "Application Questions"). A step the tab filled before
+  (the student went back to it, or it loaded again; `workday.filledBefore`,
+  session storage) gets only its empty fields filled, so the student's
+  saved answers stay. A fill whose step is left while it fills stops
+  planning there (`workday.stepId`), so the step shown next is the step
+  loop's to fill. The extension never presses
   Submit. **Fill to Review** (KAN-369, `workday-walk.js`, Apply's walk): in
   a batch tab, and outside one once the student presses the panel's Fill to
   Review (kept for the tab in sessionStorage), a filled step with nothing
@@ -123,10 +133,15 @@ builds it: `dist/engine.js` is committed in the engine repo.
   row needs the student (failed, unanswered, a written answer still coming,
   a guessed answer, a flag, the Plan's note), a required field shows
   nothing (`fill/required`, asked on Workday only here), or the
-  self-identification card waits. The button is pressed at most once a
-  step (its name and path, kept for the tab), never again after Workday
-  shows an error that stays 5 s or after 30 s with no new step; then the
-  student presses it. Tests: `test/workday-review.extension.spec.ts`. A
+  self-identification card waits. The button is pressed on a step once
+  (its name, its number in Workday's bar and the path, kept for the tab,
+  so a second "Application Questions" on a link that doesn't change is a
+  step of its own). A press Workday drops (in 3 s the button never
+  disabled, no error, the same step) is made again on the same button, 3
+  presses in all, as Apply's `_next` (Applied Materials, live). It is
+  never pressed again after Workday shows an error that stays 5 s, its
+  "Something went wrong" page, or 30 s with no new step; then the student
+  presses it. Tests: `test/workday-review.extension.spec.ts`. A
   step that loads as a new page drops the
   content script, so the background remembers the tab
   (`workday_fill_tabs`, session storage) and injects the fill again when
@@ -135,6 +150,10 @@ builds it: `dist/engine.js` is committed in the engine repo.
   them. Its own How Did You Hear About Us? is never read: the engine
   searches it for each source in turn (WorkIt, LinkedIn, then the rest) and
   takes the first found.
+  `test/workday-steps.extension.spec.ts` walks a whole application (Apply's
+  fake Workday steps, as new pages and drawn in place) from Create Account
+  to Review, Fill to Review saving each step it can and the test answering
+  and saving, as the student, each step where the walk stops.
 - **A job's page is not always its form.** A Lever, Ashby, Rippling,
   Workable or Eightfold posting shows the job on one page and the form on
   another (`jobOf`'s `form`). On the job's page the overlay names the
@@ -156,7 +175,9 @@ builds it: `dist/engine.js` is committed in the engine repo.
   engine's `homePlace` reads it: a city with a US state ("Stony Brook, NY")
   or a city, region and country; anything less certain is left out, so the
   form's location questions and phone country stay the student's. Never
-  parse the location here. Anything else (pay, relocation, a home address, consent boxes,
+  parse the location here. With no street address, Workday's City, State,
+  Country and Country Phone Code come from the home; "previously worked
+  here" is read from the bank's jobs (by whole words of the employer). Anything else (pay, relocation, a home address, consent boxes,
   start dates) stays the student's: the Plan lists it as a Missing fact and
   the overlay says "WorkIt has no answer for this". `POLICIES` holds no
   student's choice; "How did you hear?" is WorkIt in a text box; a list
@@ -1144,7 +1165,9 @@ checking the student owns the application: a tab's state (`PUT
 .../questions`), the student's edits (`PUT .../answers`), the answer bank
 (`GET .../answer-bank`), the sent resume and finish (`PUT .../resume`,
 `POST .../finish`), and whether Claude is connected (`GET
-.../connector`). The rest are older:
+.../connector`). Report a problem (KAN-403) sends `POST /fill-reports`
+(`routers/fill_reports.py`): no applicant in the path and no account in
+the row, the report's parts only. The rest are older:
 
 `src/background/api.js` mostly calls endpoints that already exist for the
 webapp: `GET /auth/me`, `GET /applicants/{id}/profile`, `GET
@@ -1364,8 +1387,8 @@ slot by name, `panel.slot(name)`, and adds its styles with
 | `job-card` | the job card (title, company, Match score) | panel-top.js |
 | `primary` | the one big button; `panel.setPrimary({ label, onPress, secondary })` or `panel.fillButton(label)` | Autofill This Page (launcher.js), Fill Again (overlay.js) |
 | `tab:<id>` | a tab's body; `panel.addTab({ id, label })` adds one, the strip shows from two | `tab:autofill`: overlay.js's summary, Next Thing That Needs You, essay banner, moment cards, parts and rows; `tab:resume`: a placeholder (KAN-397); `tab:answers`: answers-tab.js (KAN-400), a placeholder until a fill |
-| `settings` | the settings view, shown by the header's gear in place of the tabs (`panel.showSettings`) | Workday Sign-Up (opens the options page), Back |
-| `report` | Report a problem, shown by the header's button in place of the tabs (`panel.showView("report", true)`) | a placeholder ("Nothing is sent yet"), Back |
+| `settings` | the settings view, shown by the header's gear in place of the tabs (`panel.showSettings`) | panel-settings.js: Claude connection, Open the panel by itself, Report a problem, Workday Sign-Up, Back |
+| `report` | Report a problem, shown in place of the tabs; open it with `window.WIA.reportCard.open()` | report.js: the preview, the note, Send report, Back |
 
 **Tabs (KAN-397).** The shell makes three: Autofill, Résumé and Answers.
 Résumé and Answers hold a one-line placeholder (`.tab-placeholder`) until
@@ -1428,7 +1451,7 @@ the edge tab or the toolbar brings the same rows back, no fill).
 ## The panel's top (KAN-395): header, batch line, job card
 
 The header (panel.js) is WorkIt's mark (logo.tsx's figure, in ink: the
-header is neutral), Report a problem (a ⚑ button, named so; a placeholder card until its ticket),
+header is neutral), Report a problem (a ⚑ button, named so; report.js's card, below),
 the gear and Collapse. `src/content/panel-top.js` fills two slots, loaded
 after panel.js everywhere panel.js is (manifest, `CONTENT_SCRIPT_FILES`,
 background.js `SHELL_FILES`):
@@ -1458,6 +1481,47 @@ background.js `SHELL_FILES`):
 Tests: `test/panel-header.extension.spec.ts` (a batch's line, card, ring and
 Next tab; an own tab's header, Report placeholder and applied card; a
 Workday tab's step line).
+
+## Report a problem (KAN-403): a preview, then Send
+
+`src/content/report.js` (loaded after panel-top.js everywhere it is)
+fills the `report` slot. **`window.WIA.reportCard.open()`** opens it: the
+header's ⚑ calls it (a second press closes it), and the settings view and
+the unsupported-site state call the same function. The card lists exactly
+what Send sends, and Send sends just that:
+
+- the job system (the Fill engine's `jobOf` site, "unsupported" when it
+  fills none there), the posting's link (the page's address without query
+  or fragment, which can carry the student's ids), the Fill engine version
+  (`ENGINE_VERSION` in `background/report.js`, the submodule's pin);
+- each failed field: its kind (the Question set's), its label's shape
+  (`labelShape`: lower case, quoted names, emails and links out, digits as
+  `#`, only letters and spaces kept) and its error's name: Readback (it
+  shows something other than its answer), FillError (the engine couldn't
+  fill it), Handoff, NoForm, NoAnswer (WorkIt had none), Error;
+- the student's note, optional.
+
+**Never an answer, a reason or what the page shows**: a failed reason can
+quote both. The content script tells report.js each question's kind
+(`window.WIA.report.track`) and each failed field's error name
+(`window.WIA.report.failed`); `engine.js`'s `fillPage` puts the error's
+name on a whole-fill failure. The background (`report/preview`,
+`report/send`) names the page's parts itself from the tab's URL and keeps
+only the allowed parts of each field, so a page's script can add nothing.
+`POST /fill-reports` (backend `routers/fill_reports.py`) stores it with no
+account and refuses any other key (422).
+
+**Nothing is sent but on Send**, one report per press: once sent, the card
+says "Sent. Thanks for telling WorkIt." with Back and no second Send; a
+new report means opening it again. Signed out, Send says "Sign in to WorkIt
+to send a report." **The Web Store listing's privacy practices must declare
+it** (the posting link and the student's note leave the extension): for
+Lisul, before release.
+
+Tests: `test/report.extension.spec.ts` (a batch tab's failed field: the
+preview, nothing sent until Send, the request the fake API receives equals
+the preview and holds no answer or page text, no second Send). Backend:
+`tests/test_fill_reports.py`.
 
 ## The Autofill tab's groups (KAN-397)
 
@@ -1511,6 +1575,36 @@ Tests: `test/panel-answers.extension.spec.ts` (Lumen's practice question
 waiting, then written by the student's Claude, with Write with Claude only
 while it waits and See answer the form's text; Yours; Pasted; Workable's
 cover letter box listed, no "No cover letter field").
+## The panel's settings (KAN-402): Claude, auto-open, report, Workday
+
+`src/content/panel-settings.js` fills the `settings` slot (loaded after
+panel-top.js everywhere it is: manifest, `CONTENT_SCRIPT_FILES`,
+background.js `SHELL_FILES`); `src/background/panel-settings.js` answers
+its messages. The gear shows it in place of the tabs; Back returns.
+
+- **Claude**: "Your Claude is connected." with **Disconnect** (`DELETE
+  /applicants/{id}/connector`, which revokes the sign-in at once, as the
+  webapp's Settings > Connected Apps does), or "Your Claude isn't
+  connected." with **Add to Claude** (a new tab on the webapp's
+  `/connect/claude/add`, which goes on to Claude's Add Custom Connector
+  dialog). Signed out: "Sign in to WorkIt to connect your Claude." The
+  state (`settings/read`, `GET .../connector`) is read again each time the
+  gear opens the view and when the student comes back to the tab.
+- **Open the panel by itself** (on by default): `panel_auto_open` in
+  chrome.storage.local, given to panel.js by `panel/where` (`autoOpen`).
+  Off, a batch tab's panel stays closed with its edge tab, as a kept
+  collapse does; the student opens it. Outside a batch nothing opens by
+  itself anyway.
+- **Report a problem**: opens the report card
+  (`window.WIA.reportCard.open()`, report.js), as the header's ⚑ does.
+- **Workday Sign-Up**: opens the extension's options page
+  (`workday/signup-open`). No password field is ever in the panel: it
+  lives in the employer's page.
+
+Tests: `test/panel-settings.extension.spec.ts` (the Claude connection with
+Disconnect and Add to Claude; auto-open off keeps a batch tab's panel
+closed; the gear and Back, Report, Workday Sign-Up opening the options
+page and no password field in the panel).
 
 ## The overlay: honest per-field results
 
