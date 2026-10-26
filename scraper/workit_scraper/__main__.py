@@ -32,13 +32,6 @@ JOBS_JSON = ROOT / "jobs.json"
 PAGE_HTML = ROOT / "internships.html"
 FEED_JSON = ROOT / "feed.json"
 MAX_IN_FLIGHT = 8
-#: How long a lane may keep starting boards. Only Workday has one: it pages 20
-#: postings a request, and its ~1,470 readable boards hold ~430,000 postings,
-#: ~22,000 requests, close to an hour at its pace. So each run reads boards whole,
-#: least recently read first, until this runs out (~440 boards on 2026-10-10); the
-#: rest wait for a later run, which proves nothing about them either way. A board
-#: started in time is finished. 12 minutes keeps a run near 15 of its 30.
-LANE_BUDGET_S = {"workday": 12 * 60}
 
 
 class Outcome(Enum):
@@ -65,8 +58,8 @@ def load_boards(path: Path) -> list[Board]:
 
 
 def _scrape_one(board: Board, robots: Robots) -> tuple[Outcome, list[Job]]:
-    fetcher = providers.FETCHERS.get(board.ats)
-    if fetcher is None:
+    provider = providers.PROVIDERS.get(board.ats)
+    if provider is None:
         print(f"  ?  {board.key}: no fetcher for this provider", file=sys.stderr)
         return Outcome.SKIPPED, []
     url = providers.listing_url(board.ats, board.token)
@@ -75,10 +68,10 @@ def _scrape_one(board: Board, robots: Robots) -> tuple[Outcome, list[Job]]:
         return Outcome.SKIPPED, []
     robots.pace(url)
     try:
-        if board.ats in providers.PAGED:
-            jobs = fetcher(board.token, board.company, pace=robots.pace)
+        if provider.paged:
+            jobs = provider.read(board.token, board.company, pace=robots.pace)
         else:
-            jobs = fetcher(board.token, board.company)
+            jobs = provider.read(board.token, board.company)
     except BoardNotFound:
         print(f"  x  {board.key}: no such board")
         return Outcome.MISSING, []
@@ -97,8 +90,9 @@ def _lane(boards: list[Board], robots: Robots, before: dict[str, Job]):
     (`with_page`) -- so Greenhouse's page reads start when its boards are done,
     not after Lever's. Order is kept, so each board gets its own jobs back.
 
-    A lane with a budget (`LANE_BUDGET_S`) starts no board once it has run out."""
-    budget = LANE_BUDGET_S.get(boards[0].ats) if boards else None
+    A lane with a budget (`Provider.budget_s`) starts no board once it has run out."""
+    provider = providers.PROVIDERS.get(boards[0].ats) if boards else None
+    budget = provider.budget_s if provider else None
     deadline = time.monotonic() + budget if budget is not None else None
 
     def read(board: Board) -> tuple[Outcome, list[Job]]:
@@ -163,7 +157,8 @@ def with_page(job: Job, robots: Robots) -> Job:
     asked for. A page that fails or is disallowed leaves the posting without one.
     """
     current = job.page is not None and job.page.version == providers.PAGE_VERSION
-    if job.ats not in providers.JOB_URL or current or not classify(job.title):
+    provider = providers.PROVIDERS.get(job.ats)
+    if provider is None or provider.job_url is None or current or not classify(job.title):
         return job
     url = providers.job_url(job.ats, job.token, job.external_id)
     if not robots.allows(url):
@@ -198,7 +193,7 @@ def main(argv: list[str] | None = None) -> int:
         boards = load_boards(args.boards)
         if previous:
             # Least recently read first, even with --full: Workday's lane reads
-            # from the front until its time is up (LANE_BUDGET_S).
+            # from the front until its time is up (`Provider.budget_s`).
             due = previous.to_read(boards, now, everything=args.full)
             rest = "" if args.full else " (quiet ones rest; --full reads all)"
             print(f"scraping {len(due)} of {len(boards)} boards{rest}\n")
@@ -206,12 +201,12 @@ def main(argv: list[str] | None = None) -> int:
         else:
             print(f"scraping {len(boards)} boards\n")
         # Every origin a run touches, so robots.txt is read once, up front. A
-        # posting's own page shares its board list's origin (`providers.JOB_URL`).
+        # posting's own page shares its board list's origin (`Provider.job_url`).
         # Not Workday's: one host per company, read as its lane reaches each.
         robots = Robots(
             url
             for board in boards
-            if board.ats in providers.FETCHERS and board.ats not in LANE_BUDGET_S
+            if (provider := providers.PROVIDERS.get(board.ats)) and provider.budget_s is None
             for url in providers.robots_urls(board.ats, board.token)
         )
         before = {job.key: job for job in previous.jobs} if previous else {}
@@ -225,13 +220,13 @@ def main(argv: list[str] | None = None) -> int:
         run = store.update(previous, fresh, read, stats, now)
         # Only boards with a job on the page need a logo, and each is read once --
         # except that a newer reader reads the ones that had none again, once.
-        # Recruitee has none we read (`logos.PAGE`).
+        # Recruitee has none we read (`Provider.logo_page`).
         run = store.reread_missing_logos(run, logos.VERSION)
         unread = sorted(
             {
                 (j.ats, j.token, j.company)
                 for j in run.jobs
-                if run.is_listed(j) and j.board_key not in run.logos and j.ats in logos.PAGE
+                if run.is_listed(j) and j.board_key not in run.logos and logos.reads_logo(j.ats)
             }
         )
         print(f"\nreading {len(unread)} board pages for logos")

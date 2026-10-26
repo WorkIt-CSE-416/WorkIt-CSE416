@@ -5,7 +5,7 @@ the hosts of the URLs the caller is about to fetch -- so `Robots` reads those
 robots.txt files up front on the calling thread. An origin it was not given is read
 the first time a worker asks about it, once, paced like any other request: Workday
 gives each company its own host, ~1,500 of them, and a run reads only some of their
-boards (`__main__.LANE_BUDGET_S`), so reading all of them up front would cost
+boards (`Provider.budget_s`), so reading all of them up front would cost
 minutes for files the run never needs.
 """
 
@@ -19,23 +19,21 @@ from urllib.parse import urlsplit
 from urllib.robotparser import RobotFileParser
 
 from workit_scraper import web
+from workit_scraper.providers import PROVIDERS
 
 #: Minimum gap between requests to one origin when its robots.txt names no Crawl-delay.
 DEFAULT_DELAY_S = 0.1
 
-#: Providers that give each company its own subdomain (`acme.bamboohr.com`): one
-#: origin, and one robots.txt, per board, but one provider's servers behind them
-#: all. Their origins share one pace, so a lane of eight workers reads BambooHR
-#: as gently as it reads Greenhouse's single host, not eight hosts' worth.
-#: Workday (`nvidia.wd5.myworkdayjobs.com`) is one pace across all its data
-#: centres, the cautious reading: ten requests a second to Workday as a whole.
-SHARED_PACE = ("bamboohr.com", "recruitee.com", "myworkdayjobs.com")
+#: Providers that give each company its own subdomain (`acme.bamboohr.com`,
+#: `Provider.subdomains`): one origin, and one robots.txt, per board, but one
+#: provider's servers behind them all. Their origins share one pace, so a lane of
+#: eight workers reads BambooHR as gently as it reads Greenhouse's single host,
+#: not eight hosts' worth.
+SHARED_PACE = tuple(p.subdomains for p in PROVIDERS.values() if p.subdomains)
 
-#: Hosts whose paths are case-insensitive, so their robots.txt is too. Workday
-#: serves `/NVIDIAExternalCareerSite/` and `/nvidiaexternalcareersite/` alike, and
-#: `build_boards.py` lower-cases every slug, so a rule written `Disallow:
-#: /CaterpillarCareers/` must still stop a request for `/caterpillarcareers/`.
-FOLD_CASE = ("myworkdayjobs.com",)
+#: Hosts whose paths are case-insensitive, so their robots.txt is too
+#: (`Provider.case_blind`: Workday).
+FOLD_CASE = tuple(p.subdomains for p in PROVIDERS.values() if p.subdomains and p.case_blind)
 
 
 def _pace_key(origin: str) -> str:

@@ -80,7 +80,9 @@ class TestLanes:
         assert read == [b.key for b in boards]
         assert stats.boards_ok == 3
 
-    def test_greenhouse_pages_already_read_are_not_read_again(self, monkeypatch) -> None:
+    def test_greenhouse_pages_already_read_are_not_read_again(
+        self, monkeypatch, swap_provider
+    ) -> None:
         gh = board("greenhouse", "cloudflare")
         known = replace(job(gh, "1"), page=Page(providers.PAGE_VERSION, "Old.", Facts()))
         fetched: list[str] = []
@@ -92,14 +94,14 @@ class TestLanes:
         monkeypatch.setattr(
             run, "_scrape_one", lambda b, robots: (run.Outcome.OK, [job(b, "1"), job(b, "2")])
         )
-        monkeypatch.setattr(providers, "describe_greenhouse", describe_greenhouse)
+        swap_provider("greenhouse", describe=describe_greenhouse)
         robots = SimpleNamespace(allows=lambda url: True, pace=lambda url: None)
         scanned, _, _ = run.scrape([gh], robots, {known.key: known})
         assert fetched == ["2"]
         # The page read before still speaks for posting 1.
         assert {j.external_id: j.description for j in scanned} == {"1": "Old.", "2": None}
 
-    def test_postings_we_do_not_keep_have_no_page_read(self, monkeypatch) -> None:
+    def test_postings_we_do_not_keep_have_no_page_read(self, monkeypatch, swap_provider) -> None:
         gh = board("greenhouse", "stripe")
         monkeypatch.setattr(
             run,
@@ -107,7 +109,7 @@ class TestLanes:
             lambda b, robots: (run.Outcome.OK, [job(b, "9", title="Account Executive")]),
         )
         fetched: list[Job] = []
-        monkeypatch.setattr(providers, "describe_greenhouse", fetched.append)
+        swap_provider("greenhouse", describe=fetched.append)
         run.scrape([gh], SimpleNamespace(allows=lambda url: True, pace=lambda url: None), {})
         assert fetched == []
 

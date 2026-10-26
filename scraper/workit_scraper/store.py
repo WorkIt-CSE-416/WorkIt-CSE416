@@ -39,7 +39,7 @@ class RunStats:
     boards_missing: int = 0
     boards_skipped: int = 0
     boards_failed: int = 0
-    #: Left for a later run when a lane's time ran out (`__main__.LANE_BUDGET_S`).
+    #: Left for a later run when a lane's time ran out (`Provider.budget_s`).
     boards_deferred: int = 0
 
 

@@ -1,7 +1,8 @@
 """Talk to one job board and return its postings.
 
-One function per applicant tracking system, registered in `FETCHERS`. Each one
-makes a single GET and maps the response onto `Job`. Explicit functions rather
+One function per applicant tracking system, registered in `PROVIDERS` with
+everything else the scraper knows about that system. Each one makes a single GET
+and maps the response onto `Job`. Explicit functions rather
 than a shared field-map table: a teammate reading `lever()` should see Lever's
 actual field names, not a DSL that encodes them.
 
@@ -78,28 +79,6 @@ class Incomplete(Exception):
     overlapped. Treated as a failed read, so it is evidence of nothing."""
 
 
-# One place both the fetchers and the robots.txt check read the URL from, so a board
-# can never be checked at one address and then fetched at another.
-LISTING_URL = {
-    "greenhouse": "https://boards-api.greenhouse.io/v1/boards/{token}/jobs",
-    # Pay is left out of Ashby's list unless asked for.
-    "ashby": "https://api.ashbyhq.com/posting-api/job-board/{token}?includeCompensation=true",
-    "lever": "https://api.lever.co/v0/postings/{token}?mode=json",
-    # The careers-page widget's feed, which Workable documents for embedding a
-    # board. Without `details=true`: the description comes from a kept posting's
-    # own page, which also has the work model and pay the widget leaves out.
-    "workable": "https://apply.workable.com/api/v1/widget/accounts/{token}",
-    # Recruitee and BambooHR give each company its own subdomain, so its own
-    # origin and robots.txt; `polite` still paces each provider as one host.
-    "recruitee": "https://{token}.recruitee.com/api/offers/",
-    "bamboohr": "https://{token}.bamboohr.com/careers/list",
-    # What a Workday careers page itself calls: a POST of a search, answered 20
-    # postings at a time. Not a documented public API (an accepted risk, like
-    # Workable's per-posting page). `token` is "{tenant}.{wd}/{site}".
-    "workday": "https://{tenant}.{wd}.myworkdayjobs.com/wday/cxs/{tenant}/{site}/jobs",
-}
-
-
 def _parts(ats: str, token: str) -> dict[str, str]:
     """A Workday token's three parts: "nvidia.wd5/nvidiaexternalcareersite" is the
     tenant `nvidia`, on data centre `wd5`, careers site `nvidiaexternalcareersite`.
@@ -112,47 +91,23 @@ def _parts(ats: str, token: str) -> dict[str, str]:
 
 
 def listing_url(ats: str, token: str) -> str:
-    return LISTING_URL[ats].format(token=token, **_parts(ats, token))
+    return PROVIDERS[ats].listing_url.format(token=token, **_parts(ats, token))
 
 
 def robots_urls(ats: str, token: str) -> list[str]:
-    """Every URL robots.txt must allow before a board is read. A Workday tenant's
-    robots.txt names its careers sites, not the API path under them: Caterpillar's
-    disallows `/CaterpillarCareers/`, and reading that site's postings through the
-    API would be reading what the employer asked crawlers to leave alone."""
+    """Every URL robots.txt must allow before a board is read: its list, and its
+    `careers_site` where it has one."""
     urls = [listing_url(ats, token)]
-    if ats == "workday":
-        urls.append("https://{tenant}.{wd}.myworkdayjobs.com/{site}/".format(**_parts(ats, token)))
+    if site := PROVIDERS[ats].careers_site:
+        urls.append(site.format(**_parts(ats, token)))
     return urls
 
 
-# A kept posting's own page, for the providers whose list leaves it out. Each is on
-# its list's origin, so the robots.txt read for the board covers it too.
-JOB_URL = {
-    # Greenhouse's list leaves descriptions out unless asked with `content=true`,
-    # which sends every posting's full HTML -- hundreds of megabytes across all
-    # boards to describe the ~1% we keep. So a kept Greenhouse posting is fetched
-    # on its own, once: the store carries what it says forward after that.
-    # `pay_transparency` adds the pay ranges a board entered in Greenhouse's own
-    # pay fields.
-    "greenhouse": (
-        "https://boards-api.greenhouse.io/v1/boards/{token}/jobs/{job_id}?pay_transparency=true"
-    ),
-    # What Workable's own careers page reads: the description, requirements and
-    # benefits, plus `workplace` (hybrid included) and a salary, neither of which
-    # the widget carries. Six of 14 sampled postings had a salary (2026-10-10).
-    "workable": "https://apply.workable.com/api/v2/accounts/{token}/jobs/{job_id}",
-    # BambooHR's list has no description, no date and no pay.
-    "bamboohr": "https://{token}.bamboohr.com/careers/{job_id}/detail",
-    # Workday's list has the title, the place and a relative date; the
-    # description, the exact date and the job type are on the posting's own
-    # record. `job_id` is the posting's path ("/job/China-Shanghai/..._JR2024692").
-    "workday": "https://{tenant}.{wd}.myworkdayjobs.com/wday/cxs/{tenant}/{site}{job_id}",
-}
-
-
 def job_url(ats: str, token: str, job_id: str) -> str:
-    return JOB_URL[ats].format(token=token, job_id=job_id, **_parts(ats, token))
+    """A kept posting's own page; only for a provider with a `job_url`."""
+    template = PROVIDERS[ats].job_url
+    assert template is not None, f"{ats} has no page to read"
+    return template.format(token=token, job_id=job_id, **_parts(ats, token))
 
 
 @dataclass(frozen=True, slots=True)
@@ -220,7 +175,7 @@ class Job:
     location: str | None = None
     department: str | None = None
     posted_at: str | None = None
-    #: None only for a posting whose own page is not read yet (`JOB_URL`).
+    #: None only for a posting whose own page is not read yet (`Provider.job_url`).
     page: Page | None = None
     # None until `store.update` stamps them; every job read back from jobs.json has both.
     first_seen_at: str | None = None
@@ -1108,27 +1063,206 @@ def _greenhouse_pay(ranges: list[dict]) -> details.Pay | None:
     return details.Pay.from_amounts(currencies.pop(), min(cents) / 100, max(cents) / 100, titles)
 
 
-FETCHERS: dict[str, Callable[[str, str], list[Job]]] = {
-    "greenhouse": greenhouse,
-    "ashby": ashby,
-    "lever": lever,
-    "workable": workable,
-    "recruitee": recruitee,
-    "bamboohr": bamboohr,
-    "workday": workday,
-}
+@dataclass(frozen=True, slots=True)
+class Provider:
+    """Everything the scraper knows about one hiring system, in one place, so a new
+    one is its reader and one entry in `PROVIDERS` (scraper/CLAUDE.md, "Adding a
+    provider"). Its key there is the `ats` of boards.csv."""
 
-#: Providers whose reader makes more than one request per board, and so takes the
-#: run's `pace` to space them (`__main__._scrape_one`).
-PAGED = frozenset({"workday"})
+    #: The board's list. Both the reader and the robots.txt check read it, so a board
+    #: is never checked at one address and then fetched at another.
+    listing_url: str
+    #: Reads one board, `(token, company) -> list[Job]`; with `pace=` when `paged`.
+    read: Callable[..., list[Job]]
+    #: What an apply link in the curated lists names a board by (build_boards.py):
+    #: its groups, joined by "/", are the token.
+    apply_link: re.Pattern[str]
+    #: A kept posting's own page, when the list leaves out what it says, and the
+    #: function that reads it (`describe`). On the list's origin, so the robots.txt
+    #: read for the board covers it too.
+    job_url: str | None = None
+    describe: Callable[[Job], Job] | None = None
+    #: More than one request per board: `read` takes the run's `pace` and calls it
+    #: before each request after the first (`__main__._scrape_one`).
+    paged: bool = False
+    #: Another URL robots.txt must allow before a board is read (`robots_urls`).
+    careers_site: str | None = None
+    #: Each company is its own subdomain of this domain, one provider's servers
+    #: behind them all: they share one pace (`polite.SHARED_PACE`).
+    subdomains: str | None = None
+    #: Its paths are case-blind, so its robots.txt is read case-blind too
+    #: (`polite.FOLD_CASE`). Read by its `subdomains`, which it needs.
+    case_blind: bool = False
+    #: How long its lane may keep starting boards, in seconds (`__main__._lane`).
+    budget_s: int | None = None
+    #: Its board page, for the logo (logos.py); None when no logo is read.
+    logo_page: str | None = None
+    #: The logo on that page. Each accepts only its own image host, and
+    #: frontend/next.config.ts allows exactly these hosts: with the optimizer on,
+    #: next/image throws -- failing the whole page -- on any other; it is off on
+    #: Cloudflare (KAN-169) but stays one line from coming back, so a logo from
+    #: anywhere else must stay out of the feed. None reads only a website (logos.py).
+    logo_pattern: re.Pattern[str] | None = None
+
+
+PROVIDERS: dict[str, Provider] = {
+    "greenhouse": Provider(
+        listing_url="https://boards-api.greenhouse.io/v1/boards/{token}/jobs",
+        read=greenhouse,
+        # An EU board (job-boards.eu.greenhouse.io) is answered by the same
+        # boards-api.greenhouse.io as a US one, so it is the same kind of board.
+        apply_link=re.compile(
+            r"(?:boards|job-boards)(?:\.eu)?\.greenhouse\.io/(?:embed/job_app\?for=)?([a-z0-9_-]+)",
+            re.I,
+        ),
+        # Greenhouse's list leaves descriptions out unless asked with `content=true`,
+        # which sends every posting's full HTML -- hundreds of megabytes across all
+        # boards to describe the ~1% we keep. So a kept Greenhouse posting is fetched
+        # on its own, once: the store carries what it says forward after that.
+        # `pay_transparency` adds the pay ranges a board entered in Greenhouse's own
+        # pay fields.
+        job_url=(
+            "https://boards-api.greenhouse.io/v1/boards/{token}/jobs/{job_id}?pay_transparency=true"
+        ),
+        describe=describe_greenhouse,
+        # `job-boards.`, not `boards.greenhouse.io`: the latter redirects there, and
+        # `web.get` refuses a cross-origin redirect.
+        logo_page="https://job-boards.greenhouse.io/{}",
+        logo_pattern=re.compile(
+            r'"(https://[\w-]*recruiting\.cdn\.greenhouse\.io/external_greenhouse_job_boards/logos/[^"]+)"'
+        ),
+    ),
+    "ashby": Provider(
+        # Pay is left out of Ashby's list unless asked for.
+        listing_url="https://api.ashbyhq.com/posting-api/job-board/{token}?includeCompensation=true",
+        read=ashby,
+        apply_link=re.compile(r"jobs\.ashbyhq\.com/([a-z0-9_.-]+)", re.I),
+        logo_page="https://jobs.ashbyhq.com/{}",
+        # The square mark, not `logoWordmarkImageUrl`: the card's tile is square.
+        logo_pattern=re.compile(
+            r'"logoSquareImageUrl":"(https://app\.ashbyhq\.com/api/images/[^"]+)"'
+        ),
+    ),
+    "lever": Provider(
+        listing_url="https://api.lever.co/v0/postings/{token}?mode=json",
+        read=lever,
+        apply_link=re.compile(r"jobs\.lever\.co/([a-z0-9_.-]+)", re.I),
+        logo_page="https://jobs.lever.co/{}",
+        # The header logo, not `og:image` -- Lever's is a 1200x630 banner with a
+        # tagline. Older uploads use the bucket's dash host, `s3-us-west-2` (Daniels
+        # Health).
+        logo_pattern=re.compile(
+            r'class="main-header-logo"[^>]*>\s*<img[^>]*\ssrc="'
+            r'(https://lever-client-logos\.s3(?:[.-]us-west-2)?\.amazonaws\.com/[^"]+)"'
+        ),
+    ),
+    "workable": Provider(
+        # The careers-page widget's feed, which Workable documents for embedding a
+        # board. Without `details=true`: the description comes from a kept posting's
+        # own page, which also has the work model and pay the widget leaves out.
+        listing_url="https://apply.workable.com/api/v1/widget/accounts/{token}",
+        read=workable,
+        # apply.workable.com/{account}/j/{shortcode}/. A bare apply.workable.com/j/...
+        # names no account, so `j` (and the `api`) is never one.
+        apply_link=re.compile(r"apply\.workable\.com/(?!(?:j|api)/)([a-z0-9_-]+)", re.I),
+        # What Workable's own careers page reads: the description, requirements and
+        # benefits, plus `workplace` (hybrid included) and a salary, neither of which
+        # the widget carries. Six of 14 sampled postings had a salary (2026-10-10).
+        job_url="https://apply.workable.com/api/v2/accounts/{token}/jobs/{job_id}",
+        describe=describe_workable,
+        # The account behind the board, as JSON: what Workable's careers page draws
+        # its header from, and the company's website besides.
+        logo_page="https://apply.workable.com/api/v1/accounts/{}",
+        # The account logo, not `open_graph_logo`. 120px tall: 8 of the first 25 read
+        # were squares, the rest wordmarks up to 720 wide, which the card letterboxes.
+        logo_pattern=re.compile(
+            r'"logo":"(https://workablehr\.s3\.amazonaws\.com/uploads/account/logo/[^"]+)"'
+        ),
+    ),
+    "recruitee": Provider(
+        # Recruitee and BambooHR give each company its own subdomain, so its own
+        # origin and robots.txt; `polite` still paces each provider as one host.
+        listing_url="https://{token}.recruitee.com/api/offers/",
+        read=recruitee,
+        # One subdomain per company: {company}.recruitee.com/o/{offer}. `www` is
+        # the vendor's own site.
+        apply_link=re.compile(r"//(?!www\.)([a-z0-9-]+)\.recruitee\.com", re.I),
+        subdomains="recruitee.com",
+        # No logo yet: it sits inside a 1 MB board page, for the one board we read.
+        # Its cards show initials.
+    ),
+    "bamboohr": Provider(
+        listing_url="https://{token}.bamboohr.com/careers/list",
+        read=bamboohr,
+        # One subdomain per company: {company}.bamboohr.com/careers/{id}.
+        apply_link=re.compile(r"//(?!www\.)([a-z0-9-]+)\.bamboohr\.com", re.I),
+        # BambooHR's list has no description, no date and no pay.
+        job_url="https://{token}.bamboohr.com/careers/{job_id}/detail",
+        describe=describe_bamboohr,
+        subdomains="bamboohr.com",
+        # The careers page carries its header logo as JSON (`poData`).
+        logo_page="https://{}.bamboohr.com/careers",
+        # The uploaded header logo, slashes JSON-escaped. Mostly
+        # `images7.bamboohr.com`, some on the company's own subdomain or
+        # `pandabox.bamboohr.com`: next.config.ts allows `*.bamboohr.com`. Served as
+        # application/octet-stream, but next/image sniffs the bytes (PNGs, all 41
+        # read on 2026-10-19). 36 to 120px tall, mostly wordmarks, which the card
+        # letterboxes.
+        logo_pattern=re.compile(
+            r'"logo":\{[^}]*"url":"(https:\\/\\/[\w-]+\.bamboohr\.com\\/[^"]+)"'
+        ),
+    ),
+    "workday": Provider(
+        # What a Workday careers page itself calls: a POST of a search, answered 20
+        # postings at a time. Not a documented public API (an accepted risk, like
+        # Workable's per-posting page). `token` is "{tenant}.{wd}/{site}".
+        listing_url="https://{tenant}.{wd}.myworkdayjobs.com/wday/cxs/{tenant}/{site}/jobs",
+        read=workday,
+        # {tenant}.wd{N}.myworkdayjobs.com/{locale}/{site}/job/..., whose token is
+        # "{tenant}.wd{N}/{site}": all three are needed to reach the board. The
+        # locale ("en-US") is optional, and a site can be two letters itself
+        # (Boeing's "DA"), so a locale is only skipped when a site follows it.
+        # build_boards.WORKDAY_SITE reads Workday's other address.
+        apply_link=re.compile(
+            r"//([a-z0-9-]+\.wd\d+)\.myworkdayjobs\.com/(?:[a-z]{2}(?:-[a-z]{2})?/)?"
+            r"(?!(?:job|details|wday)/)([a-z0-9_-]+)",
+            re.I,
+        ),
+        # Workday's list has the title, the place and a relative date; the
+        # description, the exact date and the job type are on the posting's own
+        # record. `job_id` is the posting's path ("/job/China-Shanghai/..._JR2024692").
+        job_url="https://{tenant}.{wd}.myworkdayjobs.com/wday/cxs/{tenant}/{site}{job_id}",
+        describe=describe_workday,
+        paged=True,
+        # A Workday tenant's robots.txt names its careers sites, not the API path
+        # under them: Caterpillar's disallows `/CaterpillarCareers/`, and reading that
+        # site's postings through the API would be reading what the employer asked
+        # crawlers to leave alone.
+        careers_site="https://{tenant}.{wd}.myworkdayjobs.com/{site}/",
+        # One pace across all its data centres (`nvidia.wd5.myworkdayjobs.com`), the
+        # cautious reading: ten requests a second to Workday as a whole.
+        subdomains="myworkdayjobs.com",
+        # It serves `/NVIDIAExternalCareerSite/` and `/nvidiaexternalcareersite/`
+        # alike, and build_boards.py lower-cases every slug, so a rule written
+        # `Disallow: /CaterpillarCareers/` must still stop `/caterpillarcareers/`.
+        case_blind=True,
+        # It pages 20 postings a request, and its ~1,470 readable boards hold
+        # ~430,000 postings, ~22,000 requests, close to an hour at its pace. So each
+        # run reads boards whole, least recently read first, until this runs out
+        # (~440 boards on 2026-10-10); the rest wait for a later run, which proves
+        # nothing about them either way. A board started in time is finished. 12
+        # minutes keeps a run near 15 of its 30.
+        budget_s=12 * 60,
+        # The careers site's settings, as JSON: what its header draws from. Its logo
+        # (`/{site}/assets/logo`) is the site's banner, not a square -- NVIDIA's is
+        # 1200x627 -- so only the website it names is read (no `logo_pattern`).
+        logo_page="https://{tenant}.{wd}.myworkdayjobs.com/wday/cxs/{tenant}/{site}/approot",
+    ),
+}
 
 
 def describe(job: Job) -> Job:
-    """`job` with its own page read; only for a provider in `JOB_URL`."""
-    # Looked up per call rather than kept in a table, so a test can swap one.
-    return {
-        "greenhouse": describe_greenhouse,
-        "workable": describe_workable,
-        "bamboohr": describe_bamboohr,
-        "workday": describe_workday,
-    }[job.ats](job)
+    """`job` with its own page read; only for a provider with a `describe`."""
+    reader = PROVIDERS[job.ats].describe
+    assert reader is not None, f"{job.ats} has no page to read"
+    return reader(job)

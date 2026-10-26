@@ -22,7 +22,7 @@ full run takes about 10 minutes. `--offline` re-renders in seconds from
 ## How it fits together
 
 ```
-boards.csv ─▶ __main__ ─▶ polite.Robots ─▶ providers.FETCHERS ─▶ store.update ─▶ jobs.json
+boards.csv ─▶ __main__ ─▶ polite.Robots ─▶ providers.PROVIDERS ─▶ store.update ─▶ jobs.json
                                                                                    │
                            report.write_html ◀─ shortlist.pick ◀─ Store.is_listed ◀┘
                            feed.write ◀────────────┘  (feed.json ─▶ backend import ─▶ Supabase)
@@ -50,24 +50,37 @@ runs pytest where the package is not installed.
 Read the provider's `robots.txt` before writing anything. SmartRecruiters is
 absent because it disallows us, and that is the whole reason.
 
-1. A function in `providers.py` taking `(token, company)` and returning `list[Job]`.
-   One that makes more than one request per board goes in `PAGED` too, takes
-   `pace` and calls it before each request after the first (Workday's `workday`).
-2. Its URL template in `LISTING_URL`, which both the fetcher and the robots
-   check read, so a board is never checked at one address and fetched at another.
-   Anything else robots.txt must allow goes in `robots_urls` (Workday's careers site).
-3. Its name in `FETCHERS`.
-4. Its apply-URL pattern in `build_boards.PATTERNS`, or none of its boards ever
-   reaches `boards.csv`.
-5. If its list leaves out the description or a fact the posting's own page
-   has: the page's URL in `JOB_URL` and a `describe_<ats>` in `describe`'s table.
-6. If its board page has a square logo: `logos.PAGE` and `logos.PATTERN`, and
-   the image host in `frontend/next.config.ts` (see Logos). If it names only the
-   company's website: `logos.PAGE` and a rule in `logos.extract` (Workday).
-7. If each company is its own subdomain: its domain in `polite.SHARED_PACE`.
-8. Its name and domain in `hiringSystems` in
+**Everything the scraper knows about a hiring system is one `Provider` in
+`providers.PROVIDERS`**, keyed by its `ats`. It used to be eight tables in four
+files (`LISTING_URL`, `JOB_URL`, `FETCHERS`, `PAGED`, `build_boards.PATTERNS`,
+`logos.PAGE`, `logos.PATTERN`, `polite.SHARED_PACE`), and a provider missing from
+one failed silently: the `.eu.` that `PATTERNS` missed dropped 26 companies.
+`polite.SHARED_PACE` and `FOLD_CASE` are now read off the records. Field pairs a
+reader needs together are tested (`TestProviderRecords`).
+
+1. A reader in `providers.py` taking `(token, company)` and returning `list[Job]`.
+   One that makes more than one request per board sets `paged`, takes `pace` and
+   calls it before each request after the first (Workday's `workday`).
+2. Its `Provider`: `listing_url` (which the reader and the robots check both
+   read, so a board is never checked at one address and fetched at another),
+   `read`, and `apply_link`, or none of its boards ever reaches `boards.csv`.
+   Then what applies:
+   - its list leaves out the description or a fact the posting's own page has:
+     `job_url` and a `describe_<ats>` as `describe`;
+   - robots.txt must allow another URL first: `careers_site` (Workday's);
+   - each company is its own subdomain: `subdomains`, so they share one pace,
+     and `case_blind` if its paths are;
+   - its boards cannot all be read in one run: `budget_s`;
+   - its board page has a square logo: `logo_page` and `logo_pattern`, and the
+     image host in `frontend/next.config.ts` (see Logos). If it names only the
+     company's website: `logo_page` and a rule in `logos.extract` (Workday).
+3. Its name and domain in `hiringSystems` in
    `frontend/src/app/(landing)/data.ts`: the landing page lists the hiring
-   systems WorkIt reads, and that list must match `LISTING_URL`.
+   systems WorkIt reads, and that list must match `PROVIDERS`.
+
+Tests that fake a provider's function swap its field with the `swap_provider`
+fixture (`tests/conftest.py`): a `Provider` holds the function itself, so
+patching the module's `describe_greenhouse` no longer reaches it.
 
 Each reader's test is built from that day's real responses. Workable,
 Recruitee and BambooHR quirks: `docs/providers.md`. Workday's, and how its
@@ -101,7 +114,7 @@ A posting's own text is one value, `providers.Page`: the description (its kept
 sections, cut to `DESCRIPTION_CHARS`), the card's `details.Facts`, and on Greenhouse
 its offices (on Workday, its places and requisition number). Lever, Ashby and
 Recruitee send it with the board's list. Greenhouse, Workable, BambooHR and
-Workday do not (`providers.JOB_URL`): Greenhouse's `content=true` would send
+Workday do not (`Provider.job_url`): Greenhouse's `content=true` would send
 hundreds of megabytes a run to describe the ~2% we keep, and Workday's list
 has no description, exact date or places. So `__main__.with_page` reads each
 *kept* posting's page once, through the same robots and pacing.
@@ -305,7 +318,7 @@ waited up to two days for the same number of requests. `RUN_EVERY` must match th
 cron in `.github/workflows/scrape.yml`; if they drift, quiet boards are still read
 on a third of runs, only less evenly spaced.
 
-**A lane can have a time budget** (`__main__.LANE_BUDGET_S`; only Workday's,
+**A lane can have a time budget** (`Provider.budget_s`; only Workday's,
 12 minutes). It starts boards from the front of `Store.to_read`'s order, least
 recently read first, and once its time is up leaves the rest for a later run.
 `--full` keeps the budget: it un-rests quiet boards, it does not make a Workday
@@ -325,7 +338,7 @@ uses); postings are always scraped from the employer.
   `boards.csv` now and then.
 - **A board on a provider's second host is still its board.** Greenhouse's EU
   boards (`job-boards.eu.greenhouse.io`) answer on the same
-  `boards-api.greenhouse.io`, but `PATTERNS` missed the `.eu.` and dropped 26
+  `boards-api.greenhouse.io`, but its apply-link pattern missed the `.eu.` and dropped 26
   companies' links until 2026-10-26. A pattern that misses says nothing, so
   check the links no pattern takes, grouped by host, when a list changes.
 - **The internship lists are renamed each season** (`Summer2026-Internships` →
@@ -351,7 +364,7 @@ database.
 ## Logos
 
 Read once per board from its board page and kept in `jobs.json`.
-**`logos.PATTERN` accepts only each ATS's own image host, and those hosts must
+**`Provider.logo_pattern` accepts only each ATS's own image host, and those hosts must
 match `frontend/next.config.ts`'s `images.remotePatterns` exactly**: `next/image`
 throws on any other host, which fails the whole Jobs page. Workday has no
 pattern: its logo is a wide banner, so its cards show the favicon of the website

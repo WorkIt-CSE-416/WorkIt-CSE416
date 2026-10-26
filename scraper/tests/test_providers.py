@@ -356,7 +356,7 @@ class TestWithPage:
             apply_url=f"https://example.test/{ats}/1",
         )
 
-    def test_workable_and_bamboohr_pages_are_read_recruitee_never(self, monkeypatch) -> None:
+    def test_workable_and_bamboohr_pages_are_read_recruitee_never(self, swap_provider) -> None:
         read: list[str] = []
 
         def describe(job: Job) -> Job:
@@ -364,7 +364,7 @@ class TestWithPage:
             return replace(job, page=Page(providers.PAGE_VERSION, "Read.", Facts()))
 
         for ats in ("workable", "bamboohr"):
-            monkeypatch.setattr(providers, f"describe_{ats}", describe)
+            swap_provider(ats, describe=describe)
         for ats in ("workable", "bamboohr", "recruitee"):
             run.with_page(self.job(ats), self.robots)
         assert read == ["workable", "bamboohr"]
@@ -381,3 +381,21 @@ class TestSharedPace:
         assert polite._pace_key("https://apply.workable.com") == "https://apply.workable.com"
         # Not a subdomain of bamboohr.com.
         assert polite._pace_key("https://notbamboohr.com") == "https://notbamboohr.com"
+
+
+class TestProviderRecords:
+    """A field one reader needs without its partner fails nowhere loudly: a page URL
+    with no reader is never read, a logo pattern with no page never matches."""
+
+    def test_a_page_url_comes_with_its_reader(self) -> None:
+        for ats, provider in providers.PROVIDERS.items():
+            assert (provider.job_url is None) == (provider.describe is None), ats
+
+    def test_a_logo_pattern_comes_with_its_page(self) -> None:
+        for ats, provider in providers.PROVIDERS.items():
+            assert provider.logo_page or not provider.logo_pattern, ats
+
+    def test_case_blind_names_its_domain(self) -> None:
+        for ats, provider in providers.PROVIDERS.items():
+            assert provider.subdomains or not provider.case_blind, ats
+        assert polite.FOLD_CASE == ("myworkdayjobs.com",)

@@ -42,7 +42,7 @@ from datetime import UTC, datetime
 from workit_scraper import web
 from workit_scraper.__main__ import BOARDS_CSV, load_boards
 from workit_scraper.polite import Robots
-from workit_scraper.providers import Board
+from workit_scraper.providers import PROVIDERS, Board
 
 SOURCES = [
     "https://raw.githubusercontent.com/SimplifyJobs/Summer2027-Internships/dev/.github/scripts/listings.json",
@@ -50,33 +50,8 @@ SOURCES = [
     "https://raw.githubusercontent.com/vanshb03/Summer2027-Internships/dev/.github/scripts/listings.json",
 ]
 
-PATTERNS = {
-    # An EU board (job-boards.eu.greenhouse.io) is answered by the same
-    # boards-api.greenhouse.io as a US one, so it is the same kind of board.
-    "greenhouse": re.compile(
-        r"(?:boards|job-boards)(?:\.eu)?\.greenhouse\.io/(?:embed/job_app\?for=)?([a-z0-9_-]+)",
-        re.I,
-    ),
-    "lever": re.compile(r"jobs\.lever\.co/([a-z0-9_.-]+)", re.I),
-    "ashby": re.compile(r"jobs\.ashbyhq\.com/([a-z0-9_.-]+)", re.I),
-    # apply.workable.com/{account}/j/{shortcode}/. A bare apply.workable.com/j/...
-    # names no account, so `j` (and the `api`) is never one.
-    "workable": re.compile(r"apply\.workable\.com/(?!(?:j|api)/)([a-z0-9_-]+)", re.I),
-    # One subdomain per company: {company}.recruitee.com/o/{offer},
-    # {company}.bamboohr.com/careers/{id}. `www` is the vendor's own site.
-    "recruitee": re.compile(r"//(?!www\.)([a-z0-9-]+)\.recruitee\.com", re.I),
-    "bamboohr": re.compile(r"//(?!www\.)([a-z0-9-]+)\.bamboohr\.com", re.I),
-    # {tenant}.wd{N}.myworkdayjobs.com/{locale}/{site}/job/..., whose token is
-    # "{tenant}.wd{N}/{site}": all three are needed to reach the board. The
-    # locale ("en-US") is optional, and a site can be two letters itself (Boeing's
-    # "DA"), so a locale is only skipped when a site follows it.
-    "workday": re.compile(
-        r"//([a-z0-9-]+\.wd\d+)\.myworkdayjobs\.com/(?:[a-z]{2}(?:-[a-z]{2})?/)?"
-        r"(?!(?:job|details|wday)/)([a-z0-9_-]+)",
-        re.I,
-    ),
-}
-# The same boards under Workday's other address,
+# Each provider names its boards' apply links (`Provider.apply_link`). These are the
+# same Workday boards under Workday's other address,
 # wd{N}.myworkdaysite.com/recruiting/{tenant}/{site}: each answers on its tenant's
 # own myworkdayjobs.com host too (Snap's, Magna's), which has the robots.txt.
 WORKDAY_SITE = re.compile(
@@ -90,8 +65,8 @@ def tokens(link: str) -> list[tuple[str, str]]:
     every provider, Workday's sites included."""
     found = [
         (ats, "/".join(match.groups()).lower())
-        for ats, pattern in PATTERNS.items()
-        for match in pattern.finditer(link)
+        for ats, provider in PROVIDERS.items()
+        for match in provider.apply_link.finditer(link)
     ]
     found += [
         ("workday", f"{tenant}.{wd}/{site}".lower())

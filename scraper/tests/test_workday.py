@@ -648,25 +648,27 @@ class TestScrapeOne:
         )
         assert run._scrape_one(self.board, robots) == (run.Outcome.SKIPPED, [])
 
-    def test_too_large_is_skipped_and_incomplete_failed(self, monkeypatch) -> None:
+    def test_too_large_is_skipped_and_incomplete_failed(self, swap_provider) -> None:
         robots = SimpleNamespace(allows=lambda url: True, pace=lambda url: None)
         for error, outcome in ((TooLarge, run.Outcome.SKIPPED), (Incomplete, run.Outcome.FAILED)):
 
             def fail(token: str, company: str, *, pace, error=error) -> list[Job]:
                 raise error("x")
 
-            monkeypatch.setitem(providers.FETCHERS, "workday", fail)
+            swap_provider("workday", read=fail)
             assert run._scrape_one(self.board, robots) == (outcome, [])
 
 
 class TestBudget:
-    def test_a_lane_out_of_time_defers_its_boards_and_reads_none(self, monkeypatch) -> None:
+    def test_a_lane_out_of_time_defers_its_boards_and_reads_none(
+        self, monkeypatch, swap_provider
+    ) -> None:
         boards = [
             providers.Board("workday", "a.wd1/x", "A"),
             providers.Board("lever", "b", "B"),
             providers.Board("workday", "c.wd5/y", "C"),
         ]
-        monkeypatch.setitem(run.LANE_BUDGET_S, "workday", -1)
+        swap_provider("workday", budget_s=-1)
         monkeypatch.setattr(run, "_scrape_one", lambda b, robots: (run.Outcome.OK, []))
         _, stats, read = run.scrape(boards, SimpleNamespace(), {})
         assert read == ["lever/b"]
