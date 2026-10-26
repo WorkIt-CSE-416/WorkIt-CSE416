@@ -459,7 +459,12 @@ export function OnboardingForm({
             thin bar and 14px grey "Step 1 of 2" at the foot of the left
             panel, the screen's smallest type, and went unnoticed (KAN-259). */}
         <div className="mx-auto w-full max-w-2xl px-6 pt-6 lg:pt-10">
-          <Stepper size="lg" steps={ONBOARDING_STEPS} current={step} />
+          <Stepper
+            size="lg"
+            steps={ONBOARDING_STEPS}
+            // Availability is Profile's second page on the rail (./steps.ts).
+            current={step > PROFILE ? step - 1 : step}
+          />
         </div>
 
         {/* Keyed on the step so each step's fields rise in. */}

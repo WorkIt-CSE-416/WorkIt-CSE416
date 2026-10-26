@@ -2145,7 +2145,7 @@ only the jobs that name one, which a new-grad role rarely does. Preference Tags,
 
 **One step rail counts the whole journey (KAN-259).** The wizard heads its
 fields with the shared `components/stepper.tsx` at `size="lg"`: Role,
-Resume, Profile, Availability, Extension, Practice (`onboarding/applicant/steps.ts`;
+Resume, Profile, Extension, Practice (`onboarding/applicant/steps.ts`; Availability, KAN-369, is Profile's second page on the rail;
 Resume was last until KAN-372, Profile until KAN-378). It replaced a thin bar and
 a 14px grey "Step 1 of 2" at the foot of the left half: the smallest type on
 the screen, far from the fields, and wrong, since intake then opened six more
