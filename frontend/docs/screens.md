@@ -1670,20 +1670,16 @@ with no proposals to accept and no Done (2026-10-25).
   inside the picker card until 2026-10-26, as the card's heading and a
   paragraph; the user wanted the card to hold the list alone.
 - **One step at a time** (2026-10-26): the step timeline (`TailorSteps`,
-  four even columns, each label under its circle, so a phone keeps one
-  row) shows Pick a Resume, Choose Keywords, Tailor and Review Changes,
-  and each step is its own view under it (`TailorScreen` keeps the step in
-  state; a reload starts at the pick). The keyword match appeared under
-  the picker on one page before, so the student scrolled past the list to
-  read it. Pick a Resume shows the list beside the picked resume's
-  preview (`ResumePreview`; under it below a 56rem column). Choose
-  Keywords has Back and Tailor Resume. Back never loses a pick: the same
-  resume picked again keeps its match and its picked keywords, with no
-  second read. Tailor lists the run's phases as they stream (Retrieving
-  Info, Asking AI, Generating Resume, Compiling Resume), the done ones
-  checked; it has no Back, since a run cannot be stopped, and a failed
-  run returns to Choose Keywords with its error. Review Changes is the
-  tailored resume's own page.
+  even columns, each label under its circle, so a phone keeps one row)
+  shows Pick a Resume, Choose Keywords and Review Changes, and each step
+  is its own view under it (`TailorScreen` keeps the step in state; a
+  reload starts at the pick). The keyword match appeared under the picker
+  on one page before, so the student scrolled past the list to read it.
+  Choose Keywords has Back and Tailor Resume. Back never loses a pick:
+  the same resume picked again keeps its match and its picked keywords,
+  with no second read. Review Changes is the tailored resume's own page.
+  The run was a fourth step, Tailor, until later the same day; it only
+  waited, so the user had it folded into a loader (below).
 - **A posting is tailored once.** When it has a tailored resume, the screen
   shows it with Open in Editor and offers no run; the API refuses a second
   run (409), so no tokens are spent on it.
@@ -1717,19 +1713,30 @@ with no proposals to accept and no Done (2026-10-25).
   one line with Try Again; no pick says "Pick a resume to preview it."
   Its pages scroll inside one fixed height from lg up, beside the list;
   below lg it stacks and stops at 70% of the screen's height.
-- **The keyword match** shows "12 of 18", the matched keywords, and the
-  missing ones as toggle chips, Required then Preferred, each under its
-  own label (`MissingKeywords`, KAN-408): the student picks those they
-  have used, to add as skills. A note says a picked one goes into the
-  resume's skills and may be named in its bullets, since picking it lets
-  the truth rule pass it. Add All asks on its own line first ("Add all
-  11? Do this only if you have used every one."), and reads Clear All
-  while every keyword is picked. "(required)" was for screen readers
-  only, and Add All ticked everything at once, then read "Added All" even
-  after a keyword was unticked. A keyword not picked is never written in.
-  A posting with no description shows the "weak match" notice.
-- **Tailor Resume runs once** and saves the posting's tailored resume,
-  then opens it in the editor on this route (`?resumeId=`). The run's record of
+- **The keyword match is one calm card** (`KeywordCard`, 2026-10-26):
+  "3 of 14 keywords matched" over a bar of the same share, the matched
+  keywords as quiet tags, then Add Missing Keywords: the missing ones as
+  toggle chips (+ when off, a check when on), Required then Preferred,
+  each under its own label (`MissingKeywords`, KAN-408), with a count
+  ("4 of 11 selected"). The student picks those they have used, to add
+  as skills. A short note says a picked one goes into the resume's skills
+  and may be named in its bullets, since picking it lets the truth rule
+  pass it. Select All is a small secondary button and asks first on a
+  tinted line ("Select all 11? Only if you have used every one."); Clear
+  shows beside it once anything is picked. Back and Tailor Resume sit at
+  the card's foot. The user found the card before overloaded: a big
+  "12 of 18", required matched keywords in brand, a checkbox drawn in
+  every chip, and Add All as a text link that turned into Clear All. A
+  keyword not picked is never written in. A posting with no description
+  shows the "weak match" notice.
+- **Tailor Resume runs once** under a loader in the middle of the window
+  (`TailorRunning`, a modal over Choose Keywords that Esc and a click
+  outside do not close, since a run cannot be stopped): a spinner, the
+  resume's name and the keyword count, and the run's phases as they
+  stream (Retrieving Info, Asking AI, Generating Resume, Compiling
+  Resume), the done ones checked. A failed run closes it and shows its
+  error on the card. It saves the posting's tailored resume, then opens
+  it in the editor on this route (`?resumeId=`). The run's record of
   changes and its dropped count go to sessionStorage (`tailorEditsKey` in
   `lib/local-drafts.ts`, cleared by Sign Out) for the editor's review
   (Resume editor, below), with the keyword match before and after
