@@ -407,6 +407,8 @@
 
   // Workday: each step as it shows, until the step whose button sends. Its
   // pages aren't hydrated, and the panel tells the student to sign in first.
+  // A step that came as a new page shows its line at once, not an empty panel, while it waits to fill (KAN-401).
+  if (workday.step()) note("_step", `Workday: ${workday.step()}`, "Filling this step…", false, true);
   overlay.mount(panel);
   answerTheWalk();
   if (!workday.step()) {
@@ -432,8 +434,10 @@
   for (;;) {
     await workday.quiet();
     const shownId = workday.stepId(); // told from a next step of the same name by its number
-    status.reset();
     window.WIA.phase = "filling";
+    status.reset();
+    // Never an empty panel between steps (KAN-401): the step's line at once, its rows as it fills.
+    note("_step", `Workday: ${step}`, "Filling this step…", false, true);
     const prepared = await fillShown(workday.filledBefore());
     if (!prepared) {
       window.WIA.phase = "stopped";

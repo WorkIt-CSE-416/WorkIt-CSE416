@@ -4,7 +4,8 @@
 // forms and the fake API only; nothing is ever submitted.
 import { expect, test, type Page } from "@playwright/test";
 import { FakeApi } from "./fake-api";
-import { SavedForms } from "./fake-job-systems";
+import { STEPS } from "../fill-engine/test/fake-workday";
+import { FakeWorkdays, SavedForms } from "./fake-job-systems";
 import { EXTENSION_ID, loadExtension, sendFromWebapp, signIn, webapp, type Loaded } from "./loaded-extension";
 
 const ANDURIL = "greenhouse-anduril";
@@ -145,4 +146,37 @@ test("on a site WorkIt can't fill, the toolbar popup says so, Save to WorkIt sav
   await popup.getByRole("button", { name: "Send report" }).click();
   await expect(popup.getByText("Sent. Thanks for telling WorkIt.")).toBeVisible();
   expect(api.reports).toEqual([{ job_system: "unsupported", posting_url: CAREERS, engine_version: expect.any(String), fields: [], note: null }]);
+});
+
+test("between Workday steps the panel keeps something to show: never an empty Autofill tab", async () => {
+  test.setTimeout(240_000);
+  // My Experience, then Application Questions: nothing left to the student, so the batch tab saves each itself.
+  const steps = [STEPS[1], STEPS[2]];
+  const workdays = new FakeWorkdays(["workday-caci"], steps);
+  workdays.inPlace.add("caci.wd1.myworkdayjobs.com");
+  const api = new FakeApi().queue({ id: "wd-0", apply_url: workdays.signInUrl(0) });
+  loaded = await loadExtension([api.handler, webapp, workdays.handler]);
+  await signIn(loaded.context);
+  const app = await loaded.context.newPage();
+  await app.goto("http://localhost:3000/auto-apply");
+  await sendFromWebapp(app, { type: "run/open" });
+  await expect.poll(() => loaded.context.pages().some((p) => p.url() === workdays.signInUrl(0)), { timeout: 30_000 }).toBe(true);
+  const tab = loaded.context.pages().find((p) => p.url() === workdays.signInUrl(0))!;
+  await hostOf(tab).locator(".moment.workday-accounts [data-allow]").click({ timeout: 30_000 });
+  await tab.waitForURL(workdays.url(0), { timeout: 30_000 });
+  const firstLabel = (steps[0][1].find((f) => "label" in f) as { label: string }).label;
+  await expect(hostOf(tab).locator(".row").filter({ hasText: firstLabel }).first()).toBeAttached({ timeout: 60_000 });
+
+  // From here on, every time the panel changes: how many rows its Autofill tab shows.
+  await tab.evaluate(() => {
+    const root = document.querySelector("#workit-autofiller-overlay-host")!.shadowRoot!;
+    const seen: number[] = ((window as any).__rowCounts = []);
+    new MutationObserver(() => seen.push(root.querySelectorAll('[data-tab="autofill"] .row').length)).observe(root, { childList: true, subtree: true });
+  });
+  const nextLabel = (steps[1][1].find((f) => "label" in f) as { label: string }).label;
+  await expect(hostOf(tab).locator(".row").filter({ hasText: nextLabel }).first()).toBeAttached({ timeout: 90_000 });
+  const counts: number[] = await tab.evaluate(() => (window as any).__rowCounts);
+  expect(counts.length).toBeGreaterThan(0);
+  expect(Math.min(...counts)).toBeGreaterThan(0);
+  expect(workdays.submissions).toEqual([]);
 });

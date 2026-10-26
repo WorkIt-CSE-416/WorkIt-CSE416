@@ -1544,6 +1544,14 @@ report.js everywhere it is: manifest, `CONTENT_SCRIPT_FILES`, background.js
   test opens popup.html with `?tab=<id>` and loads a copy of the extension
   granted the fake host (`loadExtension`'s `grantHosts`), standing in for
   activeTab, which no test can press.
+- **Between Workday steps**: the panel is never empty. When a step shows
+  (in the same page, or as a new page), the fill's loop resets the rows and
+  at once draws the step's line, "Workday: My Experience · Filling this
+  step…" (content-script.js), with the button at Filling…; the step's rows
+  follow as it fills.
+- **Errors**: every failed request the panel or popup makes is a plain
+  sentence with Try again (or the same button, which retries), never a
+  status code or the route's raw words.
 
 Tests: `test/panel-states.extension.spec.ts`.
 
