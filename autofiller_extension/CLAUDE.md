@@ -185,7 +185,8 @@ builds it: `dist/engine.js` is committed in the engine repo.
   to Review, Fill to Review saving each step it can and the test answering
   and saving, as the student, each step where the walk stops.
 - **Stepped systems share one loop (`steps.js`).** `window.WIA.steps` is
-  the stepped job system on the page (Workday's `workday.js`), the extension's side of the engine's Stepper seam
+  the stepped job system on the page (Workday's `workday.js`, Oracle's
+  `oracle.js`), the extension's side of the engine's Stepper seam
   (fill-engine `src/steps.ts`, README "Stepped forms"). The step loop
   (content-script.js), Fill to Review (`workday-walk.js`), the checklist's
   field lookup (batch-tab.js `fieldOf`) and the primary button use only its
@@ -195,6 +196,20 @@ builds it: `dist/engine.js` is committed in the engine repo.
   review, goesOn, banner, wentWrong()}. A new stepped system (iCIMS,
   SuccessFactors) is one more script giving it, loaded before `steps.js`
   (shared/content-scripts.js), plus its name in `steps.js`'s list.
+- **Oracle Recruiting Cloud** (`oracle.js`, KAN-369). The manifest runs on
+  `*.oraclecloud.com/hcmUI/CandidateExperience/*`. Oracle's Apply opens an
+  email gate (Email Address, a terms box, a hidden honeypot; a returning
+  candidate may get a one-time code): it is the student's. WorkIt never
+  types into it or presses its Next; the panel says "Enter your email to
+  start" and tells them to enter it and continue. Each section (Personal
+  Info, Job Application Questions, Experience, More About You) then fills
+  as it shows, in the same page, its line "Oracle: <section>", and Fill to
+  Review presses Oracle's Next on each section with nothing for the
+  student, stopping at Summary (its Submit is the student's). A profile
+  item's inline form (Add Education, Add Experience) isn't filled. The
+  sections' markup comes from Simplify's and Jobright's selectors, not a
+  live read: live-check before relying on it. Tests:
+  `test/oracle.extension.spec.ts` (the engine's fake Oracle page).
 - **A job's page is not always its form.** A Lever, Ashby, Rippling,
   Workable or Eightfold posting shows the job on one page and the form on
   another (`jobOf`'s `form`). On the job's page the overlay names the
