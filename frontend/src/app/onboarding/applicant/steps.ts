@@ -10,6 +10,10 @@
  * of 2" on its last question, and intake then opened six more sections, so
  * a seeker who thought they were done was not.
  *
+ * Availability (KAN-369), the wizard's fourth page, has no mark of its own:
+ * it sits under Profile, the second half of the questions, since six labels
+ * cut each other short on a laptop's rail ("Res…", "Pro…").
+ *
  * The second was "Pay & Visa" until KAN-283 moved pay to Role and made it
  * the questions every application asks.
  */
