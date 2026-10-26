@@ -2135,15 +2135,17 @@ Experience Level, Location and Salary Range, Experience Level after Job Type
 (KAN-284); step 2 is Resume (KAN-275), read and confirmed before it is
 saved (KAN-372); step 3, Profile, is the questions every application asks
 (KAN-283, all optional), right after the resume (KAN-372); step 4,
-Extension, and step 5, Practice, add the WorkIt extension and run a
-practice batch (KAN-378). Start Date shows only once
+Availability, asks on-site and full time, the earliest start and terms, and
+the screener facts card, all optional with Skip (KAN-369; the rest of the
+Application answers are on My Profile); step 5, Extension, and step 6,
+Practice, add the WorkIt extension and run a practice batch (KAN-378). Start Date shows only once
 Internship is picked, and unpicking Internship clears it: a saved season keeps
 only the jobs that name one, which a new-grad role rarely does. Preference Tags, free-text skills, were dropped
 (KAN-231): the feed has no filter for them.
 
 **One step rail counts the whole journey (KAN-259).** The wizard heads its
 fields with the shared `components/stepper.tsx` at `size="lg"`: Role,
-Resume, Profile, Extension, Practice (`onboarding/applicant/steps.ts`;
+Resume, Profile, Availability, Extension, Practice (`onboarding/applicant/steps.ts`;
 Resume was last until KAN-372, Profile until KAN-378). It replaced a thin bar and
 a 14px grey "Step 1 of 2" at the foot of the left half: the smallest type on
 the screen, far from the fields, and wrong, since intake then opened six more
