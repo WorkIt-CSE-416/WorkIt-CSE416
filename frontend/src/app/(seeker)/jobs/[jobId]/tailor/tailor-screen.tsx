@@ -19,12 +19,7 @@ import {
   type TailorSource,
 } from "@/lib/tailor-actions";
 
-import {
-  firstChoice,
-  loadChoices,
-  UploadPick,
-  type Choice,
-} from "../../resume-picker";
+import { firstChoice, loadChoices, UploadPick, type Choice } from "../../resume-picker";
 
 /**
  * The Tailor screen (KAN-217, docs/tailor_resume.md). The student picks a
@@ -35,13 +30,7 @@ import {
  * then opens its editor on this route. The run's record of changes goes to
  * sessionStorage (`tailorEditsKey`) for the editor; nothing else keeps it.
  */
-export function TailorScreen({
-  jobId,
-  title,
-}: {
-  jobId: string;
-  title: string;
-}) {
+export function TailorScreen({ jobId, title }: { jobId: string; title: string }) {
   const router = useRouter();
   const [source, setSource] = useState<TailorSource | null>(null);
   const [match, setMatch] = useState<TailorMatch | null>(null);
