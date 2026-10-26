@@ -112,7 +112,22 @@ builds it: `dist/engine.js` is committed in the engine repo.
   first, then each field, then reads the step again for follow-ups), then
   waits. The student checks the step and presses Save and Continue; the
   next step is filled when Workday shows it. The extension never presses
-  Save and Continue or Submit. A step that loads as a new page drops the
+  Submit. **Fill to Review** (KAN-369, `workday-walk.js`, Apply's walk): in
+  a batch tab, and outside one once the student presses the panel's Fill to
+  Review (kept for the tab in sessionStorage), a filled step with nothing
+  for the student is saved with Workday's own Save and Continue
+  (`pageFooterNextButton` or `bottom-navigation-next-button`, only when it
+  reads Save and Continue, Continue or Next), so every step fills up to
+  Review, where the panel says "Check everything on Workday's Review page,
+  then press Submit." A step stops the walk, and the panel says why, when a
+  row needs the student (failed, unanswered, a written answer still coming,
+  a guessed answer, a flag, the Plan's note), a required field shows
+  nothing (`fill/required`, asked on Workday only here), or the
+  self-identification card waits. The button is pressed at most once a
+  step (its name and path, kept for the tab), never again after Workday
+  shows an error that stays 5 s or after 30 s with no new step; then the
+  student presses it. Tests: `test/workday-review.extension.spec.ts`. A
+  step that loads as a new page drops the
   content script, so the background remembers the tab
   (`workday_fill_tabs`, session storage) and injects the fill again when
   it loads. Workday's nested prompts are slow to read, so each tenant's
