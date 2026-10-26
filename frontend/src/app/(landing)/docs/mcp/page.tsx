@@ -87,8 +87,15 @@ export default function McpDocsPage() {
             stops to ask at every answer.
           </li>
           <li>
-            <strong>Write my WorkIt answers</strong> (prompt): how Claude writes the answers: only
-            from your own experiences, in your voice, and about the company only from the posting.
+            <code>save_fact_question</code> (writes): when an answer needs a fact your experiences
+            don&apos;t hold, Claude asks you for it instead of making it up. The question shows on
+            Written Answers and in the application&apos;s tab, and your answer is added to the
+            experience it is about.
+          </li>
+          <li>
+            <strong>Write my WorkIt answers</strong> (prompt): how Claude writes the answers: it
+            plans each one from passages it quotes from your own experiences, the posting and the
+            company&apos;s brief, which WorkIt checks, then writes it in your voice from those alone.
           </li>
         </ul>
 

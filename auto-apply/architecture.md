@@ -244,7 +244,10 @@ backend/app/auto_apply/
     stages.py       layer 2:        the checks every step starts with (open_application, get_application),
                                     NotFound, WrongStage
     written.py      layer 2:        written answers: ask_questions, save_answers, save_own_answer, answer_bank,
-                                    next_to_write, unanswered_questions
+                                    next_to_write, unanswered_questions; Essay facts (KAN-369): ask_fact,
+                                    answer_fact; story rotation: led_before
+    plans.py        layer 1 (pure): the Essay plan's checks (KAN-369): check, fold
+    question_types.py layer 1 (pure): the 15 Question types and their guides in type_guides/ (KAN-369)
     review.py       layer 2:        the pre-submit review of written answers (KAN-369): next_to_review,
                                     save_review, reviewed_answers, keep, rewrite, rewrites
     resume.py       layer 2:        the resume an application sends: choose_resume, prepare_resume
@@ -924,8 +927,10 @@ One row per question an application's form needs written, primary key
 open tab knows where an answer goes; `label`, `required`, `max_length` (the
 form's own limit) and `position` (the form's order) come from the tab;
 `answer` and `answered_at` from the connector's save (14.6), with its
-`review` (KAN-369: the review's last rating and the claims the claim check
-cut; NULL for a choice, a paste or the student's edit), or from the
+`review` (KAN-369: the Essay plan the answer was written from and the
+claims the claim check cut, `{plan, unsupported}`; on an unanswered row,
+`{ask}`, the fact the student's Claude asked the student for; NULL for a
+choice, a paste or the student's edit), or from the
 same save when the student pastes an answer on the Written Answers page
 (KAN-385), or from the student's own edit in the tab, which sets `own`
 (KAN-379): their Claude's save never overwrites it, and later forms reuse
@@ -1133,27 +1138,35 @@ ids and plain data.
 
 | Name | Kind | Does |
 |---|---|---|
-| `get_next_application` | tool, `readOnlyHint` | The oldest open application (queued or needs_you, posting open) with a written question unanswered (`next_to_write`): its job id, company, title, the posting's description, its unanswered questions (`name`, `question`, `required`, `max_length`), and the student's experience bank and skills (`bank_context`, no links). Only that application's material. `job_id: null` when none is left. Takes and answers a `chat` value (the job ids this chat was given, below); past `CONNECTOR_CHAT_CAP` it answers `start_new_chat: true`, a `message` for the student, and no application |
-| `save_answers` | tool, a write (not destructive) | `{job_id, answers: [{name, answer, review: {rating, unsupported}}]}` (`save_answers`; `review` on a written answer only, KAN-369): all or none; refuses a written answer with no review, rated under 8, or still holding a claim its review lists; refuses a name the application doesn't ask, an empty answer, or one that fails a check in code (`app/auto_apply/checks.py`, KAN-380: machine-made words, a run of 5 words copied from the student's writing samples, a number not in the bank, posting or question, another application's company unless the student worked or studied there (an entry's organization or school; a skill or bullet naming it doesn't count), a sentence over 30 words, a placeholder, or over the form's `max_length`, else 10,000; and Apply's editor checks: words that say how it was written, talk of the posting, time counted from today, "Hence" or more than one signpost word, more than 2 numbers (years aside), low-level detail, a course credited with what the student did; prose checks skip a choice), with every failing answer's reasons, each saying what to change, as one tool error for Claude to fix. Answers `{saved, left, read_first}`: `read_first` names the saved answers the student reads before Submit (`checks.high_stakes`: a question about this company or role, or about what isn't on their resume), WorkIt's form of Apply's high-stakes hold |
+| `get_next_application` | tool, `readOnlyHint` | The oldest open application (queued or needs_you, posting open) with a written question unanswered (`next_to_write`): its job id, company, title, the posting's description, its unanswered questions (`name`, `question`, `required`, `max_length`, and for one in words its Question `type` and, when the form states no length, its `default_length`; KAN-369), `guides` (each of those types' company link, slots and guidance text, `app/auto_apply/type_guides/`), `other_types` (every other type in a line), `led_before` (by type, the stories the student's sent answers at other companies led with, the 3 newest), and the student's experience bank and skills (`bank_context`, no links). A question waiting on an Essay fact is not handed out. Only that application's material. `job_id: null` when none is left. Takes and answers a `chat` value (the job ids this chat was given, below); past `CONNECTOR_CHAT_CAP` it answers `start_new_chat: true`, a `message` for the student, and no application |
+| `save_answers` | tool, a write (not destructive) | `{job_id, answers: [{name, answer, plan: {type, story, company_fact, angle, slots: [{slot, quotes}]}, unsupported}]}` (`save_answers`; `plan` and `unsupported` on a written answer only, KAN-369): all or none; refuses a written answer with no plan or claim list, still holding a listed claim, or whose plan fails `plans.check` (a quote not word for word in the experience, skills, posting, brief or the application's other answers, or under 20 characters; a required slot with no quote; a story not in the experience or leading another answer on the application; a company fact not the brief's, or on a type that never links the company); an optional slot with no quote is dropped; the plan's company fact is the named fact when the answer names none; refuses a name the application doesn't ask, an empty answer, or one that fails a check in code (`app/auto_apply/checks.py`, KAN-380: machine-made words, a run of 5 words copied from the student's writing samples, a number not in the bank, posting or question, another application's company unless the student worked or studied there (an entry's organization or school; a skill or bullet naming it doesn't count), a sentence over 30 words, a placeholder, or over the form's `max_length`, else 10,000; and Apply's editor checks: words that say how it was written, talk of the posting, time counted from today, "Hence" or more than one signpost word, more than 2 numbers (years aside), low-level detail, a course credited with what the student did; prose checks skip a choice), with every failing answer's reasons, each saying what to change, as one tool error for Claude to fix. Answers `{saved, left, read_first}`: `read_first` names the saved answers the student reads before Submit (`checks.high_stakes`: a question about this company or role, or about what isn't on their resume), WorkIt's form of Apply's high-stakes hold |
+| `save_fact_question` | tool, a write (not destructive) | `{job_id, name, question, about}` (`ask_fact`, KAN-369, Apply's Missing fact): the fact a required slot needs that nothing of the student's states, as a question ("Essay fact: ...") about the experience entry whose heading line `about` copies. Kept on the unanswered row; the question then shows on the Written Answers page and in the tab, and is not handed out again until the student answers (`PUT .../essay-facts`, `answer_fact`: their answer joins that entry as a bullet). Refuses a question the application doesn't ask in words, one already answered, or an `about` no entry has. Answers `{left}` |
 | `get_writing_samples` | tool, `readOnlyHint` | `app/connector/style.py` (KAN-384): the student's writing samples, word for word, and the style card saved from them, if any |
 | `save_style_card` | tool, a write (not destructive) | `{card}`: adds or replaces the student's style card; refuses one when the student has no samples, or an empty one or one over 4,000 characters |
 | `get_review_task` | tool, `readOnlyHint` | `app/auto_apply/review.py` (KAN-369, Apply's pre-submit check): the oldest open application whose written questions are all answered and that has an answer not the student's own its saved review didn't read as it stands: its job id, company, title, posting, each question with its answer, `own` and a choice's options, the student's experience and skills, and the company brief. `job_id: null` when none waits |
 | `save_review` | tool, a write (not destructive) | `{job_id, problems: [{name, reason, quote?, wrong_company?}]}`: replaces the application's one review (`job_applications.answer_review`: the answers it read and each flag). Refuses a name that isn't an answered question, an empty reason, or a quote not in the answer. Never flags an answer the student kept as it stands (the tab's flag card, POST .../review/keep); an answer sent back (POST .../review/rewrite) is cleared, and `get_next_application` hands its question out with `rewrite: {reason, quote, answer}`. A flag holds while its answer is the one read, so an edit or a new save clears it and the application is offered again. Answers `{flagged}` |
 | "Write my WorkIt answers" | prompt | `app/connector/prompt.py`. The loop (next application, research its company if `get_research_task` names it (KAN-382), write, save, until the tool says to start a new chat) and the writing rules. **The rules live here only**; tool descriptions say what a tool does (Anthropic's review refuses descriptions that steer Claude) |
 
-**The writing rules (KAN-381)** are Apply's pipeline, made general for any
-student: a draft by Apply's rules for plain, concrete answers and its
-shapes by question type (under 180 words, 220 for a two-part question,
-within the form's `max_length`); a review as a recruiter, a hiring manager
-and a founder would read it, rewritten until rated 8 of 10, at most two
-rounds; a check that lists every claim the sources don't support; and an
-edit of all of the application's answers together. Apply runs these as
-separate model calls; the prompt has the student's Claude run them as
-separate passes, each as a fresh reader, and save each written answer with
-its last rating and the claims the check listed (KAN-369), which the save
-refuses without, under 8, or with a listed claim left in. An answer still
-under 8 after two rounds is left for the student. Facts come only from
-the student's experience bank and the posting. Apply's own facts, examples
+**The writing rules (KAN-381)** are Apply's evidence-first essay writer
+(KAN-369), made general for any student. Each question in words has one of
+15 Question types or the general fallback (`question_types.classify`),
+and each type a guide (`type_guides/<type>.md`: its company link, default
+length, slots, yes/no rules and judged weak-to-strong examples) that
+`get_next_application` hands out and the prompt says to follow. Four
+passes, each as a fresh reader: a **plan** of every answer on the
+application (type, story, company fact, an angle away from the typical
+applicant's answer, and the type's slots, each backed by quotes copied
+word for word from the sources, steering off `led_before`); one **draft**
+per question from the plan's slots only; a **check** that lists every
+claim the sources don't support; and an **edit** of all the answers
+together. Each written answer is saved with its plan and the check's
+claims, and the save checks the plan in code (`plans.check`). A required
+slot nothing backs is never invented: the student's Claude asks the
+student (`save_fact_question`), and their answer joins their experience
+for the next plan to quote. Apply dropped its 1-10 reader review (it
+raised unsupported claims from 8 to 13) and its two candidates with a
+pairwise pick; so does WorkIt. Facts come only from the student's
+experience bank and the posting. Apply's own facts, examples
 and its owner's preferences are left out; a question the sources can't
 answer (a preference, a reference, something only the student knows) is
 left for the student, never guessed. Banned words stay out of the prompt,

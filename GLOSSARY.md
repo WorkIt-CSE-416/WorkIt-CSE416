@@ -108,8 +108,12 @@ A question the student must answer themselves whatever WorkIt knows, with the re
 _Avoid_: skipped field, manual field, error
 
 **Missing fact**:
-A question the student's data doesn't answer, left for the student to fill in.
+A question the student's data doesn't answer, left for the student to fill in. An essay fact is one too.
 _Avoid_: unknown field, blank, unanswered
+
+**Essay fact**:
+A fact a written answer's essay plan needs for a required slot that nothing in the student's experience states, such as what they do differently since a release slipped. Their Claude asks for it ("Essay fact: ...") rather than invent it; the question shows on the Written Answers page and in the batch tab, and the student's answer joins the experience entry it is about as a bullet, so the next plan can quote it. A fact that belongs to no entry stays a question for the student.
+_Avoid_: missing info, follow-up question, gap
 
 **Batch apply**:
 The extension filling the student's queued Applications in background tabs, at most five at once, the next opening as one finishes. It never submits.
@@ -134,6 +138,14 @@ _Avoid_: company research, company profile, company notes
 **Written answer**:
 A batch tab's answer to a question its form needs written, such as "Why this company?", or to a one-off choice no rule or saved answer fills, such as "Which teams interest you?", which comes with its options and takes only them. The student's Claude saves it through the connector, and the open tab fills it.
 _Avoid_: essay (for the saved answer), AI answer, generated answer
+
+**Question type**:
+The kind of answer a written question asks for: one of 15 (why this company, what you'd build, values, why this role, a preference, your best project, a named area, a failure, something not on your resume, AI tools, an opinion, why this field, about you, anything else, a cover letter) or the general fallback. Each has a guide: its slots, its default length, whether the company belongs in the answer, rules and judged examples. The student's Claude follows the guide of each question's type.
+_Avoid_: question category, prompt type, shape
+
+**Essay plan**:
+What one written answer will say, decided before it is written: its question type, the story from the student's experience it leads with, the company brief fact it ties to them (if any), its angle (a point away from the typical applicant's answer), and its type's slots, each backed by passages quoted word for word from the student's experience, the posting, the company brief or their earlier answers. The answer says only what the quotes back. WorkIt checks every quote when the answer is saved; a required slot with nothing to quote becomes an essay fact, and an optional one is left out. No story leads two answers on one application, and each plan steers off the stories the student's sent answers led with lately.
+_Avoid_: outline, essay brief, strategy
 
 **Named fact**:
 The company brief fact a written answer uses, which the student's Claude names when it saves the answer and WorkIt confirms is one of the brief's facts. The Written Answers page shows it with the answer, linked to its page, so the student can read up on it before an interview.
