@@ -14,14 +14,18 @@ export const TAILOR_STEPS: { value: TailorStep; label: string }[] = [
 
 /**
  * The timeline over every Tailor view: the four steps, the done ones
- * checked, the current one named for screen readers (`aria-current`). It
- * only shows where the student is; moving between steps is each view's.
+ * checked and the line after them in brand, the current one named for
+ * screen readers (`aria-current`). It only shows where the student is;
+ * moving between steps is each view's. Four even columns, each label under
+ * its circle, so it holds one row at every width: as one wrapping row of
+ * circle, label and line, a phone broke it over three rows with lines
+ * hanging at their ends.
  */
 export function TailorSteps({ current }: { current: TailorStep }) {
   const at = TAILOR_STEPS.findIndex((s) => s.value === current);
   return (
     <nav aria-label="Tailor steps" className="mt-4">
-      <ol role="list" className="flex flex-wrap items-center gap-x-2 gap-y-2">
+      <ol role="list" className="grid grid-cols-4">
         {TAILOR_STEPS.map((step, i) => {
           const done = i < at;
           const now = i === at;
@@ -29,24 +33,29 @@ export function TailorSteps({ current }: { current: TailorStep }) {
             <li
               key={step.value}
               aria-current={now ? "step" : undefined}
-              className="flex items-center gap-2"
+              className="flex min-w-0 flex-col gap-1.5"
             >
-              <span
-                className={cn(
-                  "text-note flex size-6 shrink-0 items-center justify-center rounded-full border font-semibold tabular-nums",
-                  done && "border-brand bg-brand text-on-brand",
-                  now && "border-brand text-brand bg-brand-tint",
-                  !done && !now && "border-border-subtle text-ink-meta",
+              <div className="flex items-center">
+                <span
+                  className={cn(
+                    "text-note flex size-6 shrink-0 items-center justify-center rounded-full border font-semibold tabular-nums",
+                    done && "border-brand bg-brand text-on-brand",
+                    now && "border-brand text-brand bg-brand-tint",
+                    !done && !now && "border-border-subtle text-ink-meta",
+                  )}
+                >
+                  {done ? <CheckIcon className="size-3.5" /> : i + 1}
+                </span>
+                {i < TAILOR_STEPS.length - 1 && (
+                  <span
+                    aria-hidden="true"
+                    className={cn("mx-2 h-px flex-1", done ? "bg-brand" : "bg-border-subtle")}
+                  />
                 )}
-              >
-                {done ? <CheckIcon className="size-3.5" /> : i + 1}
-              </span>
-              <span className={cn("text-label", now ? "text-ink" : "text-ink-meta")}>
+              </div>
+              <span className={cn("text-label pr-2", now ? "text-ink" : "text-ink-meta")}>
                 {step.label}
               </span>
-              {i < TAILOR_STEPS.length - 1 && (
-                <span aria-hidden="true" className="bg-border-subtle mx-1 h-px w-6 sm:w-10" />
-              )}
             </li>
           );
         })}

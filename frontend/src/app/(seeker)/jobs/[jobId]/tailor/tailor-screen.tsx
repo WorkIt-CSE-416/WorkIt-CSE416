@@ -3,13 +3,14 @@
 import { useRouter } from "next/navigation";
 import { useCallback, useEffect, useState } from "react";
 
-import { CheckIcon, SparkleIcon } from "@/components/icons";
+import { ArrowLeftIcon, ArrowRightIcon, CheckIcon, SparkleIcon } from "@/components/icons";
 import { Skeleton } from "@/components/shadcn/skeleton";
 import { readEvents } from "@/components/scout/stream";
 import { Badge } from "@/components/ui/badge";
 import { Button, ButtonLink } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
 import { Chip } from "@/components/ui/chip";
+import { cn } from "@/lib/cn";
 import { tailorEditsKey, writeSessionDraft } from "@/lib/local-drafts";
 import type { ResumeItem } from "@/lib/resume-actions";
 import {
@@ -23,16 +24,21 @@ import {
 
 import type { MatchShift, TailorReviewRecord } from "../../../resumes/[resumeId]/tailor-review";
 import { loadChoices, ResumeLists, type Choice } from "../../resume-picker";
+import { ResumePreview } from "./resume-preview";
+import { TailorSteps, type TailorStep } from "./tailor-steps";
 
-/** What Tailor Resume says while a run waits, by the streamed run's lines
- *  (`TailorStreamEvent`): Retrieving Info until the API sends `asking`, and
- *  Compiling Resume once `done` has come and the editor loads. */
+/** The run's phases, in order, as the Tailor step lists them, by the
+ *  streamed run's lines (`TailorStreamEvent`): Retrieving Info until the API
+ *  sends `asking`, and Compiling Resume once `done` has come and the editor
+ *  loads. */
 const PHASE = {
-  retrieving: "Retrieving Info…",
-  asking: "Asking AI…",
-  generating: "Generating Resume…",
-  compiling: "Compiling Resume…",
+  retrieving: "Retrieving Info",
+  asking: "Asking AI",
+  generating: "Generating Resume",
+  compiling: "Compiling Resume",
 } as const;
+type Phase = keyof typeof PHASE;
+const PHASES = Object.keys(PHASE) as Phase[];
 
 /** Tailor's first pick: the resume tailored to this posting, else the
  *  primary unless it is tailored to another posting, else the first one
@@ -49,22 +55,35 @@ function tailorFirst(choices: Choice[]): Choice | undefined {
 }
 
 /**
- * The Tailor screen (KAN-217, docs/tailor_resume.md). The student picks a
- * generated or uploaded resume, or uploads one with the Resumes page's rules
- * (../../resume-picker, KAN-318); WorkIt reads its keyword match, and the
- * student picks which missing keywords to add as skills. Tailor Resume runs
- * once and saves the posting's one tailored resume with no confirmation,
- * then opens its editor on this route. The run's record of changes goes to
- * sessionStorage (`tailorEditsKey`) for the editor; nothing else keeps it.
+ * The Tailor screen (KAN-217, docs/tailor_resume.md), one step at a time
+ * under the step timeline (`TailorSteps`): Pick a Resume, Choose Keywords,
+ * then Tailor, each its own view. The keyword match sat under the picker on
+ * one page until 2026-10-26, so the student scrolled past the list to read
+ * it. The step lives in this component, not the URL: a reload starts again
+ * at the pick, which reads nothing the student would lose.
+ *
+ * Pick a Resume: the student picks a generated or uploaded resume, or
+ * uploads one with the Resumes page's rules (../../resume-picker, KAN-318),
+ * beside its preview. Use This Resume reads its keyword match and moves on.
+ * Choose Keywords: the match, and the missing keywords to add as skills.
+ * Back keeps the picks: the same resume picked again keeps its match and
+ * its keywords, read once. Tailor Resume runs once and saves the posting's
+ * one tailored resume with no confirmation; the Tailor step shows the run's
+ * phases, then the tailored resume's editor opens on this route (Review
+ * Changes, ./page.tsx). The run's record of changes goes to sessionStorage
+ * (`tailorEditsKey`) for the editor; nothing else keeps it.
  */
-export function TailorScreen({ jobId, title }: { jobId: string; title: string }) {
+export function TailorScreen({ jobId }: { jobId: string }) {
   const router = useRouter();
+  const [step, setStep] = useState<Exclude<TailorStep, "review">>("pick");
   const [source, setSource] = useState<TailorSource | null>(null);
   const [match, setMatch] = useState<TailorMatch | null>(null);
+  /** The choice the match was read for, so Back and the same pick keep it. */
+  const [matchedKey, setMatchedKey] = useState<string | null>(null);
   const [picked, setPicked] = useState<Set<string>>(new Set());
   const [reading, setReading] = useState(false);
   const [running, setRunning] = useState(false);
-  const [phase, setPhase] = useState<string>(PHASE.retrieving);
+  const [phase, setPhase] = useState<Phase>("retrieving");
   const [error, setError] = useState<{ message: string; status: number | null } | null>(null);
   const [choices, setChoices] = useState<Choice[] | null>(null);
   const [uploads, setUploads] = useState<ResumeItem[]>([]);
@@ -79,6 +98,7 @@ export function TailorScreen({ jobId, title }: { jobId: string; title: string })
     setChoiceError(result.error);
     setSource(null);
     setMatch(null);
+    setMatchedKey(null);
     setSelected(tailorFirst(result.choices)?.key ?? null);
     return result.choices;
   }, [jobId]);
@@ -97,13 +117,26 @@ export function TailorScreen({ jobId, title }: { jobId: string; title: string })
     };
   }, [jobId]);
 
-  async function read(next: TailorSource) {
-    setReading(true);
+  const pickedChoice = choices?.find((c) => c.key === selected) ?? null;
+  const matchedChoice = choices?.find((c) => c.key === matchedKey) ?? null;
+
+  /** Use This Resume: on to Choose Keywords, reading the match only for a
+   *  resume it has not read. A failed read comes back to the pick with its
+   *  error; a posting already tailored opens that resume (the API's 409). */
+  async function next(choice: Choice) {
     setError(null);
+    setStep("keywords");
+    if (match && matchedKey === choice.key) return;
+    const next = toSource(choice);
+    setReading(true);
     setMatch(null);
+    setMatchedKey(null);
     const { data, error, status } = await matchTailor(jobId, next);
     setReading(false);
-    if (!data) return setError({ message: error ?? "WorkIt couldn't read that resume.", status });
+    if (!data) {
+      setStep("pick");
+      return setError({ message: error ?? "WorkIt couldn't read that resume.", status });
+    }
     if (data.tailored_resume_id) {
       return router.push(
         `/jobs/${encodeURIComponent(jobId)}/tailor?resumeId=${encodeURIComponent(data.tailored_resume_id)}`,
@@ -111,6 +144,7 @@ export function TailorScreen({ jobId, title }: { jobId: string; title: string })
     }
     setSource(next);
     setMatch(data);
+    setMatchedKey(choice.key);
     setPicked(new Set());
   }
 
@@ -123,9 +157,11 @@ export function TailorScreen({ jobId, title }: { jobId: string; title: string })
     if (!source) return;
     setRunning(true);
     setError(null);
-    setPhase(PHASE.retrieving);
+    setPhase("retrieving");
+    setStep("tailor");
     const failed = (message: string, status: number | null) => {
       setRunning(false);
+      setStep("keywords");
       setError({ message, status });
     };
     let result: TailorRunResult | null = null;
@@ -145,7 +181,7 @@ export function TailorScreen({ jobId, title }: { jobId: string; title: string })
         return failed(typeof message === "string" ? message : "Tailor failed.", res.status);
       }
       for await (const event of readEvents<TailorStreamEvent>(res.body)) {
-        if (event.type === "phase") setPhase(PHASE[event.phase]);
+        if (event.type === "phase") setPhase(event.phase);
         else if (event.type === "error") return failed(event.message, event.status);
         else result = event.result;
       }
@@ -154,7 +190,7 @@ export function TailorScreen({ jobId, title }: { jobId: string; title: string })
     }
     // A stream that ends with no last line lost its connection mid-run.
     if (!result) return failed("Tailor stopped before it finished. Try again.", null);
-    setPhase(PHASE.compiling);
+    setPhase("compiling");
     const had = new Set(result.matched.map((k) => k.keyword));
     const match: MatchShift = {
       before: result.matched.length,
@@ -178,90 +214,176 @@ export function TailorScreen({ jobId, title }: { jobId: string; title: string })
     });
 
   return (
-    <div className="mt-4 flex flex-col gap-4">
-      <Card as="section">
-        <h2 className="text-subtitle text-ink">Tailor Your Resume to {title}</h2>
-        <p className="text-body text-ink-muted mt-1">
-          Pick a resume, then the keywords you want on it. WorkIt rewrites its bullets for this
-          posting and opens the result in the editor, where you can undo any change. WorkIt never
-          adds a number or tool you did not give.
-        </p>
-        <div className="mt-3 flex flex-col gap-3">
-          {choices == null ? (
-            <p className="text-note text-ink-muted">Loading your resumes…</p>
-          ) : (
-            <>
-              <ResumeLists
-                name="tailor-from"
-                choices={choices}
-                empty="None yet. Upload one, or generate one on Resumes & Experiences."
-                picked={selected}
-                onPick={(key) => {
-                  setSelected(key);
-                  setSource(null);
-                  setMatch(null);
-                  setError(null);
-                }}
-                upload={{ uploads, onUploaded: uploaded, onBusyChange: onUploadBusy }}
-              />
-              <Button
-                className="self-start"
-                onClick={() => {
-                  const choice = choices.find((item) => item.key === selected);
-                  if (choice) void read(toSource(choice));
-                }}
-                disabled={!selected || reading || running || uploading}
-              >
-                <SparkleIcon />{" "}
-                {reading ? "Matching Keywords…" : match ? "Use Another Resume" : "Use This Resume"}
-              </Button>
-            </>
-          )}
-          {choiceError && (
-            <p role="alert" className="text-note text-danger">
-              {choiceError}
-            </p>
-          )}
-        </div>
-        {/* KAN-319: the Tailor limit is lifted for now, so the cost is hidden.
-        <p className="text-note text-ink-meta mt-2">
-          Each run uses one of today&apos;s 2 Tailor runs.
-        </p>
-        */}
-        {!match && <TailorError error={error} />}
-      </Card>
-
-      {reading && <MatchWaiting />}
-
-      {match && (
-        <Card as="section" aria-labelledby="tailor-match">
-          <h2 id="tailor-match" className="text-subtitle text-ink">
-            Keyword Match
-          </h2>
-          {match.weak_match && (
-            <p role="note" className="text-note text-ink-muted mt-1">
-              Weak match: this posting has no description, so WorkIt read only its title.
-            </p>
-          )}
-          <div className="mt-2">
-            <MatchCount matched={match.matched} missing={match.missing} />
+    <>
+      <TailorSteps current={step} />
+      <div className="mt-4">
+        {step === "pick" && (
+          // Beside the list from a 56rem column (the preview is a page,
+          // so it needs the room); under it below that.
+          <div className="grid items-start gap-4 @4xl/main:grid-cols-[3fr_2fr]">
+            <Card as="section" aria-label="Pick a Resume" className="flex min-w-0 flex-col gap-3">
+              {choices == null ? (
+                <p className="text-note text-ink-muted">Loading your resumes…</p>
+              ) : (
+                <>
+                  <ResumeLists
+                    name="tailor-from"
+                    choices={choices}
+                    empty="None yet. Upload one, or generate one on Resumes & Experiences."
+                    picked={selected}
+                    onPick={(key) => {
+                      setSelected(key);
+                      setError(null);
+                    }}
+                    upload={{ uploads, onUploaded: uploaded, onBusyChange: onUploadBusy }}
+                  />
+                  <Button
+                    className="self-start"
+                    onClick={() => pickedChoice && void next(pickedChoice)}
+                    disabled={!pickedChoice || reading || uploading}
+                  >
+                    Use This Resume <ArrowRightIcon />
+                  </Button>
+                </>
+              )}
+              {choiceError && (
+                <p role="alert" className="text-note text-danger">
+                  {choiceError}
+                </p>
+              )}
+              {/* KAN-319: the Tailor limit is lifted for now, so the cost is hidden.
+              <p className="text-note text-ink-meta">
+                Each run uses one of today&apos;s 2 Tailor runs.
+              </p>
+              */}
+              <TailorError error={error} />
+            </Card>
+            <div className="min-w-0 @4xl/main:sticky @4xl/main:top-4">
+              <ResumePreview choice={pickedChoice} />
+            </div>
           </div>
-          <KeywordList label="Matched" keywords={match.matched} />
-          {match.missing.length > 0 && (
-            <MissingKeywords
-              missing={match.missing}
-              picked={picked}
-              onToggle={toggle}
-              onSet={setPicked}
-            />
-          )}
-          <Button className="mt-4" onClick={run} disabled={running}>
-            <SparkleIcon /> <span aria-live="polite">{running ? phase : "Tailor Resume"}</span>
-          </Button>
-          <TailorError error={error} />
-        </Card>
-      )}
-    </div>
+        )}
+
+        {step === "keywords" && (reading || !match) && <MatchWaiting />}
+
+        {step === "keywords" && !reading && match && (
+          <Card as="section" aria-labelledby="tailor-match">
+            <h2 id="tailor-match" className="text-subtitle text-ink">
+              Keyword Match
+            </h2>
+            {matchedChoice && (
+              <p className="text-note text-ink-meta mt-1">For {matchedChoice.label}</p>
+            )}
+            {match.weak_match && (
+              <p role="note" className="text-note text-ink-muted mt-1">
+                Weak match: this posting has no description, so WorkIt read only its title.
+              </p>
+            )}
+            <div className="mt-2">
+              <MatchCount matched={match.matched} missing={match.missing} />
+            </div>
+            <KeywordList label="Matched" keywords={match.matched} />
+            {match.missing.length > 0 && (
+              <MissingKeywords
+                missing={match.missing}
+                picked={picked}
+                onToggle={toggle}
+                onSet={setPicked}
+              />
+            )}
+            <div className="mt-4 flex flex-wrap gap-2">
+              <Button
+                variant="secondary"
+                onClick={() => {
+                  setError(null);
+                  setStep("pick");
+                }}
+              >
+                <ArrowLeftIcon /> Back
+              </Button>
+              <Button onClick={run} disabled={running}>
+                <SparkleIcon /> Tailor Resume
+              </Button>
+            </div>
+            <TailorError error={error} />
+          </Card>
+        )}
+
+        {step === "tailor" && (
+          <TailorProgress phase={phase} resume={matchedChoice?.label} keywords={picked.size} />
+        )}
+      </div>
+    </>
+  );
+}
+
+/**
+ * The Tailor step: the run's phases as the stream reports them, the done
+ * ones checked and the current one live (`aria-live`). Each was the label
+ * of the Tailor Resume button alone until the step views (2026-10-26). The
+ * run cannot be stopped, so the step has no Back; a failed run goes back
+ * to Choose Keywords with its error.
+ */
+function TailorProgress({
+  phase,
+  resume,
+  keywords,
+}: {
+  phase: Phase;
+  resume: string | undefined;
+  keywords: number;
+}) {
+  const at = PHASES.indexOf(phase);
+  return (
+    <Card as="section" aria-busy="true" aria-labelledby="tailor-progress">
+      <h2 id="tailor-progress" className="text-subtitle text-ink">
+        Tailoring Your Resume
+      </h2>
+      <p className="text-note text-ink-muted mt-1">
+        {resume
+          ? `WorkIt is rewriting ${resume} for this posting`
+          : "WorkIt is rewriting your resume for this posting"}
+        {keywords > 0 &&
+          `, adding the ${keywords === 1 ? "keyword" : `${keywords} keywords`} you picked`}
+        . Your tailored resume opens when it is done.
+      </p>
+      <ol role="list" className="mt-4 flex flex-col gap-3">
+        {PHASES.map((key, i) => {
+          const done = i < at;
+          const now = i === at;
+          return (
+            <li
+              key={key}
+              aria-current={now ? "step" : undefined}
+              className="flex items-center gap-3"
+            >
+              <span
+                aria-hidden="true"
+                className={cn(
+                  "flex size-6 shrink-0 items-center justify-center rounded-full border",
+                  done && "border-brand bg-brand text-on-brand",
+                  now && "border-brand bg-brand-tint",
+                  !done && !now && "border-border-subtle",
+                )}
+              >
+                {done ? (
+                  <CheckIcon className="size-3.5" />
+                ) : now ? (
+                  <span className="bg-brand size-2 animate-pulse rounded-full motion-reduce:animate-none" />
+                ) : null}
+              </span>
+              <span
+                className={cn("text-label", now ? "text-ink" : "text-ink-meta")}
+                aria-live={now ? "polite" : undefined}
+              >
+                {PHASE[key]}
+                {now && "…"}
+              </span>
+            </li>
+          );
+        })}
+      </ol>
+    </Card>
   );
 }
 
