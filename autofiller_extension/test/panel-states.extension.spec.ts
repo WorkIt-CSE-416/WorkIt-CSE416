@@ -115,3 +115,34 @@ test("a batch tab's submit shows Sent with Next job, and I didn't submit this se
   await primary.getByRole("button", { name: "Next job →" }).click();
   await expect.poll(() => loaded.worker.evaluate(async () => (await chrome.tabs.query({ active: true, lastFocusedWindow: true }))[0]?.url)).toContain("greenhouse");
 });
+
+test("on a site WorkIt can't fill, the toolbar popup says so, Save to WorkIt saves the job, and Report a problem sends the site", async () => {
+  const CAREERS = "https://careers.example-corp.com/jobs/42";
+  const careers = ({ url }: { url: URL }) =>
+    url.host === "careers.example-corp.com" ? { headers: { "content-type": "text/html" }, body: "<!doctype html><title>Intern</title><h1>Software Intern</h1><button>Apply</button>" } : undefined;
+  const api = new FakeApi().listed({ id: "job-9", apply_url: `${CAREERS}?source=feed` });
+  loaded = await loadExtension([api.handler, webapp, careers], { grantHosts: ["https://careers.example-corp.com/*"] });
+  await signIn(loaded.context);
+  const page = await loaded.context.newPage();
+  await page.goto(`${CAREERS}?ref=mail`);
+  // Nothing on the page itself: the manifest doesn't list the host.
+  await page.waitForTimeout(1_500);
+  await expect(hostOf(page)).toHaveCount(0);
+
+  // The popup for that tab (the toolbar icon's, which no test can press).
+  const tabId = await loaded.worker.evaluate(async (url) => (await chrome.tabs.query({ url }))[0].id, page.url());
+  const popup = await loaded.context.newPage();
+  await popup.goto(`chrome-extension://${EXTENSION_ID}/src/popup/popup.html?tab=${tabId}`);
+  await expect(popup.getByText("WorkIt can't fill this site yet")).toBeVisible();
+
+  await popup.getByRole("button", { name: "Save to WorkIt" }).click();
+  await expect(popup.getByText("Saved to your Applications.")).toBeVisible();
+  expect(api.stages.get("job-9")).toBe("saved");
+
+  await popup.getByRole("button", { name: "Report a problem" }).click();
+  await expect(popup.locator(".unsupported")).toContainText("careers.example-corp.com/jobs/42");
+  expect(api.reports).toEqual([]);
+  await popup.getByRole("button", { name: "Send report" }).click();
+  await expect(popup.getByText("Sent. Thanks for telling WorkIt.")).toBeVisible();
+  expect(api.reports).toEqual([{ job_system: "unsupported", posting_url: CAREERS, engine_version: expect.any(String), fields: [], note: null }]);
+});

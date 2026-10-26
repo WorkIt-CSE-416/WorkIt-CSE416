@@ -116,6 +116,12 @@ export class FakeApi {
     return this;
   }
 
+  /** Postings in WorkIt's feed the student has no application for (Save to WorkIt finds them by link). */
+  listed(...postings: Posting[]): this {
+    for (const posting of postings) this.postings.set(posting.id, posting);
+    return this;
+  }
+
   /** Queues the postings in this order, as Start Auto Apply or the job cards do. */
   queue(...postings: Posting[]): this {
     for (const posting of postings) {
@@ -134,6 +140,15 @@ export class FakeApi {
     if (path === "/fill-reports" && method === "POST") {
       this.reports.push(JSON.parse(body.toString()));
       return { status: 201, json: { stored: true } };
+    }
+    if (path === "/jobs/saved-by-link" && method === "POST") {
+      // applications.py's Save to WorkIt by the page's link (KAN-401): the feed's job whose apply link it is.
+      const bare = (link: string) => link.split("#")[0].split("?")[0].replace(/\/+$/, "");
+      const { url: link } = JSON.parse(body.toString());
+      const found = [...this.postings.values()].find((posting) => bare(posting.apply_url) === bare(link));
+      if (!found) return { status: 404, json: { detail: "WorkIt doesn't list this job yet." } };
+      if (!this.stages.has(found.id)) this.stages.set(found.id, "saved");
+      return { json: { job_id: found.id, stage: this.stages.get(found.id) } };
     }
     if (path === "/auth/me") return { json: { id: STUDENT.id, email: STUDENT.email, full_name: STUDENT.full_name, account_type: "applicant" } };
 

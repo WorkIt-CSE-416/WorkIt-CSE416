@@ -15,7 +15,7 @@ import {
   batchStatus, batchTabIds, forgetTab, inBatch, jobInTab, jobTypeInTab, markSubmitted, unmarkSubmitted, practiceStatus, resumeBatch, setTabState, setWriting,
   showBatchTab, skipTab, startBatch, startPractice, submitPractice,
 } from "./batch.js";
-import { webappOrigin } from "./panel-states.js";
+import { popupPage, reportTab, saveTabJob, webappOrigin } from "./panel-states.js";
 import { engineCaller, handleFill, jobOf, practiceJob, runEngine, submittedPage } from "./engine.js";
 import { claimMoment } from "./moments.js";
 import { nextNeedsYou, walkFrom } from "./next-needs-you.js";
@@ -356,6 +356,13 @@ async function handleMessage(message, sender) {
     case "panel/sign-in":
       await chrome.tabs.create({ url: `${await webappOrigin()}/login`, openerTabId: sender.tab?.id });
       return {};
+    // The toolbar popup on a site WorkIt can't fill (popup.js, KAN-401).
+    case "popup/page":
+      return popupPage(message.tabId);
+    case "popup/save":
+      return saveTabJob(message.tabId);
+    case "popup/report":
+      return reportTab(message.tabId);
     case "panel/fill":
       await injectFill(sender.tab.id, { batch: Boolean(message.batch) && (await inBatch(sender.tab.id)), frameId: sender.frameId || undefined });
       return {};

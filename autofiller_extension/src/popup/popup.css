@@ -117,3 +117,14 @@ button:disabled {
 @media (prefers-reduced-motion: reduce) {
   button { transition: none; }
 }
+
+/* A site WorkIt can't fill (KAN-401). */
+.unsupported {
+  margin: 8px 0;
+  padding: 10px;
+  border: 1px solid var(--color-border-subtle);
+  border-radius: var(--radius-card);
+}
+.unsupported-line { margin: 0 0 8px; font-weight: 600; }
+.report-parts { margin: 4px 0 8px; padding-left: 16px; font-size: var(--text-note); overflow-wrap: anywhere; }
+.said { margin: 8px 0 0; font-size: var(--text-note); }

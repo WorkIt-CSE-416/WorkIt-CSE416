@@ -39,6 +39,17 @@
         <p class="name"></p>
         <p class="email muted"></p>
       </div>
+      <section class="unsupported" hidden>
+        <p class="unsupported-line">WorkIt can't fill this site yet</p>
+        <button type="button" id="save-button">Save to WorkIt</button>
+        <button type="button" id="report-button" class="secondary">Report a problem</button>
+        <div class="report" hidden>
+          <p class="muted">Send report sends only this:</p>
+          <ul class="report-parts muted"></ul>
+          <button type="button" id="send-report-button">Send report</button>
+        </div>
+        <p class="said muted" role="status" hidden></p>
+      </section>
       <p class="batch-status"></p>
       <button type="button" id="open-workit-button">Open WorkIt</button>
       <p class="hint muted">

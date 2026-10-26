@@ -629,6 +629,16 @@ export async function recordSentResume(applicantId, jobId, resume) {
  * @param {string} jobId
  * @param {"submitted" | "skipped" | "failed"} outcome
  */
+/**
+ * POST /jobs/saved-by-link: saves the feed's job whose apply link is the
+ * page at `url` (the popup's Save to WorkIt on a site WorkIt can't fill, KAN-401).
+ * @param {string} url
+ * @returns {Promise<{ job_id: string, stage: string }>}
+ */
+export async function saveJobByLink(url) {
+  return apiFetch("/jobs/saved-by-link", { method: "POST", body: JSON.stringify({ url }) });
+}
+
 export async function finishApplication(applicantId, jobId, outcome) {
   return apiFetch(`/applicants/${applicantId}/applications/${jobId}/finish`, { method: "POST", body: JSON.stringify({ outcome }) });
 }

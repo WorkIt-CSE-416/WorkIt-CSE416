@@ -10,7 +10,7 @@
 // request from the extension's service worker, nor the first load of a tab the
 // extension opens (checked 2026-10-25, Playwright 1.64). The existing page
 // tests (extension.ts) block service workers; this harness must not.
-import { mkdtempSync, rmSync } from "node:fs";
+import { cpSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from "node:fs";
 import { createServer as createHttp, type IncomingHttpHeaders, type IncomingMessage, type ServerResponse } from "node:http";
 import { createServer as createHttps } from "node:https";
 import type { AddressInfo } from "node:net";
@@ -51,7 +51,7 @@ export type FakeNet = {
  * other host over HTTPS. Each request goes to the handlers in turn; one no
  * handler answers gets a 404.
  */
-export async function startFakeNet(handlers: Handler[]): Promise<FakeNet> {
+export async function startFakeNet(handlers: Handler[], extension = EXTENSION): Promise<FakeNet> {
   const asked: string[] = [];
   const serve = (scheme: string) => async (incoming: IncomingMessage, response: ServerResponse) => {
     const body = await new Promise<Buffer>((done) => {
@@ -84,8 +84,8 @@ export async function startFakeNet(handlers: Handler[]): Promise<FakeNet> {
   const [httpPort, httpsPort] = [await port(http), await port(https)];
   return {
     args: [
-      `--disable-extensions-except=${EXTENSION}`,
-      `--load-extension=${EXTENSION}`,
+      `--disable-extensions-except=${extension}`,
+      `--load-extension=${extension}`,
       `--host-resolver-rules=MAP localhost 127.0.0.1:${httpPort}, MAP * 127.0.0.1:${httpsPort}`,
       "--ignore-certificate-errors",
       // Every host now resolves to this machine: let public pages reach it.
@@ -108,9 +108,16 @@ export async function startFakeNet(handlers: Handler[]): Promise<FakeNet> {
  */
 export async function loadExtension(
   handlers: Handler[],
-  { focused = false, headless = !process.env.HEADED, profile: kept = undefined as string | undefined, args = [] as string[] } = {},
+  {
+    focused = false,
+    headless = !process.env.HEADED,
+    profile: kept = undefined as string | undefined,
+    args = [] as string[],
+    grantHosts = [] as string[],
+  } = {},
 ): Promise<Loaded> {
-  const net = await startFakeNet(handlers);
+  const copy = grantHosts.length ? grantedCopy(grantHosts) : null;
+  const net = await startFakeNet(handlers, copy ?? EXTENSION);
   // `profile`: a Chromium profile folder to start (again) with, which the caller keeps; else a new one, removed on close.
   const profile = kept ?? mkdtempSync(join(tmpdir(), "workit-extension-"));
   const context = await chromium.launchPersistentContext(profile, {
@@ -136,8 +143,23 @@ export async function loadExtension(
       await context.close();
       net.close();
       if (!kept) rmSync(profile, { recursive: true, force: true });
+      if (copy) rmSync(copy, { recursive: true, force: true });
     },
   };
+}
+
+/**
+ * A copy of the extension that may read `hosts` too: what activeTab grants
+ * when the student presses the toolbar icon on a page outside the manifest's
+ * hosts, which a test can't press. Same key, so the same extension id.
+ */
+function grantedCopy(hosts: string[]): string {
+  const dir = mkdtempSync(join(tmpdir(), "workit-extension-copy-"));
+  for (const part of ["src", "icons", "fonts", "fill-engine/dist"]) cpSync(join(EXTENSION, part), join(dir, part), { recursive: true });
+  const manifest = JSON.parse(readFileSync(join(EXTENSION, "manifest.json"), "utf8"));
+  manifest.host_permissions.push(...hosts);
+  writeFileSync(join(dir, "manifest.json"), JSON.stringify(manifest));
+  return dir;
 }
 
 /** The webapp's Supabase session cookie, as background/webapp-session.js reads it, for a fake token. */
