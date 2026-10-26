@@ -194,9 +194,9 @@ test("fills a Workday application step by step as the student moves on, and subm
     const { phase, rows } = await settled(page);
     const step = rows.find((r) => r.key === "_step")!.label.replace("Workday: ", "");
     steps[step] = shown(rows);
-    // Workday's search names the major its own way: shown, but failed, so the student checks it.
-    expect(failed(rows), step).toEqual(step === "My Experience"
-      ? { "Education 1 / Field of Study": "meant 'Computer Science', page shows 'Computer and Information Science'" } : {});
+    // Workday's search names the major its own way ("Computer and Information Science"): the fill picked
+    // that result because it names the answer, so it reads back as filled, not failed.
+    expect(failed(rows), step).toEqual({});
     if (phase === "last") break;
     expect(phase).toBe("step");
     // The student checks the step and moves on; the step loads as a new page, where the background injects the fill again.
@@ -213,6 +213,7 @@ test("fills a Workday application step by step as the student moves on, and subm
       "My Experience / Education": "1", // how many entries: the new panel is planned and filled next
       "My Experience / Education 1 / School or University": "Example State University",
       "My Experience / Education 1 / Degree": "Bachelor's Degree",
+      "My Experience / Education 1 / Field of Study": "Computer and Information Science",
       "My Experience / Education 1 / From (YYYY)": "2024",
       "My Experience / Resume/CV": "resume.pdf",
       "My Experience / LinkedIn": "https://www.linkedin.com/in/test-person",
