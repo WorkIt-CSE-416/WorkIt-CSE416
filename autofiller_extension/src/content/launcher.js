@@ -11,6 +11,8 @@ window.WIA = window.WIA || {};
   "use strict";
 
   if (window.WIA.launched) return;
+  // iCIMS's frame inside its own top page: the panel is the top page's (icims.js).
+  if (window.top !== window && /(^|\.)icims\.com$/.test(location.hostname) && (() => { try { return parent.location.hostname === location.hostname; } catch { return false; } })()) return;
   window.WIA.launched = true;
   const panel = window.WIA.panel;
   // After the page's own start-up: a node Greenhouse's React didn't render, drawn while it starts, makes it

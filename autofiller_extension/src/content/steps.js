@@ -11,6 +11,7 @@
 //   page where the walk stops, the button's words that go on, an error's
 //   words, the system's error page).
 // SuccessFactors (successfactors.js) gives the same face, its sign-in as its gate.
-// Loaded after workday.js, oracle.js and successfactors.js, as window.WIA.steps.
+// An optional doc() is the document the steps are drawn in (iCIMS's frame).
+// Loaded after workday.js, oracle.js, successfactors.js and icims.js, as window.WIA.steps.
 window.WIA = window.WIA || {};
-window.WIA.steps = [window.WIA.workday, window.WIA.oracle, window.WIA.successfactors].find((system) => system?.isOn) ?? null;
+window.WIA.steps = [window.WIA.workday, window.WIA.oracle, window.WIA.successfactors, window.WIA.icims].find((system) => system?.isOn) ?? null;

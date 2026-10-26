@@ -140,7 +140,7 @@
         return null;
       }
       if (!prepared.covered) {
-        note("_uncovered", "WorkIt can't fill this job system yet", "Nothing on this page was filled. WorkIt fills Greenhouse, Lever, Ashby, Rippling, Workable, Eightfold, SmartRecruiters, Workday, Oracle, SuccessFactors, Waymo and TikTok applications.");
+        note("_uncovered", "WorkIt can't fill this job system yet", "Nothing on this page was filled. WorkIt fills Greenhouse, Lever, Ashby, Rippling, Workable, Eightfold, SmartRecruiters, Workday, Oracle, SuccessFactors, iCIMS, Waymo and TikTok applications.");
         return null;
       }
       // TikTok's and ByteDance's form is behind the site's own sign-in, which is the student's: WorkIt
@@ -164,8 +164,8 @@
         return new Promise(() => {}); // the page is going; nothing to report from it
       }
       if (prepared.step) sessionStorage.removeItem(reloaded);
-      // A gate is the student's (Oracle's email, SuccessFactors' sign-in): nothing on it is filled.
-      if (prepared.step?.gate) return { unplanned: `${window.WIA.steps?.waiting?.title ?? "Enter your email on Oracle's page first"}. ` };
+      // A gate is the student's (Oracle's email, SuccessFactors' and iCIMS's sign-in): nothing on it is filled.
+      if (prepared.step?.gate) return { unplanned: window.WIA.steps?.gateFirst ?? `${window.WIA.steps?.waiting?.title ?? "Enter your email on Oracle's page first"}. ` };
       if (prepared.step?.wentWrong) {
         note("_error", "Workday showed an error page", "Reload the page. WorkIt fills the step when it shows.", true);
         return null;

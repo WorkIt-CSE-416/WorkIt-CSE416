@@ -67,6 +67,7 @@ def test_size_zero_or_empty_input():
     "https://joinbytedance.com/search/7678450462765254965",
     "https://jobs.smartrecruiters.com/Acme/744000000000001-field-technician",
     "https://career4.successfactors.com/career?career_ns=job_listing&company=AcmeCo&career_job_req_id=16550",
+    "https://careers-acme.icims.com/jobs/1234/software-intern/job",
     # A company's own careers page that embeds Greenhouse's form (filled in its iframe).
     "https://stripe.com/jobs/search?gh_jid=8257892",
     "https://www.databricks.com/company/careers/open-positions/job?utm=x&gh_jid=8805655002",

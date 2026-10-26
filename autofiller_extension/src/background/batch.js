@@ -286,7 +286,8 @@ async function startFill(tabId, url, again = false) {
     const shown = (await chrome.tabs.get(tabId)).url ?? "";
     if (jobOf(shown)?.site === "workable") await forgetWorkableDraft(tabId, { onlyIfDraft: true });
     // A Workday posting shows no form until Apply is pressed (the fill presses it, workday.js) and the student signs in: its fill waits.
-    const workday = isWorkday(shown);
+    // iCIMS draws its sign-in and steps in its own frame, never this page: its fill waits for them (icims.js).
+    const workday = isWorkday(shown) || jobOf(shown)?.site === "icims";
     // TikTok's form behind its sign-in: the fill shows the student the sign-in line (needs you), and the
     // background fills the form once the tab reaches it (background.js). Opening the form again only signs in again.
     if (signInFirst(shown)) return await injectFill(tabId, { batch: true });

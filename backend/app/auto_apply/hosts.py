@@ -40,6 +40,8 @@ AUTO_APPLY_HOSTS = (
     "successfactors.eu",
     "sapsf.com",
     "sapsf.eu",
+    # iCIMS career sites, the form in their own iframe (the engine's icims.ts).
+    "icims.com",
 )
 
 # The host is one of AUTO_APPLY_HOSTS or a subdomain of it
