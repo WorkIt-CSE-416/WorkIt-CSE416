@@ -30,18 +30,28 @@ POST /applicants/{id}/tailor        TailorRun {job_posting_id, source, skills} -
      counted, and uses_left is always the cap. 404 as above; 409 an empty
      bank (send the student to intake) or an upload read as nothing; 503
      when the model fails or answers out of schema (nothing saved).
+POST /applicants/{id}/tailor/stream TailorRun -> NDJSON
+     The same run, streamed so the Tailor screen can name its phase. Every
+     check before the model call answers as above, as an HTTP status. Then
+     one JSON object per line: {"type": "phase", "phase": "asking"} as the
+     prompt goes to the model, {"type": "phase", "phase": "generating"}
+     once its answer is back, then {"type": "done", "result":
+     TailorRunResult} or {"type": "error", "status", "message"} with the
+     JSON route's status and message for a failure after the first line.
 """
 
 import logging
 import uuid
+from collections.abc import AsyncIterator
 
 from fastapi import APIRouter, Depends, HTTPException
+from fastapi.responses import StreamingResponse
 from sqlalchemy.exc import IntegrityError, SQLAlchemyError
 from sqlalchemy.ext.asyncio import AsyncSession
 from workit_scout.llm import LLM, ScoutUnavailable
 
 from app.config import get_settings
-from app.db import get_session
+from app.db import get_session, get_sessionmaker
 from app.deps import assert_applicant_owns, get_current_account
 from app.models.built_resume import Built_Resume
 from app.models.jobs import Job_Post
@@ -49,8 +59,11 @@ from app.routers.scout import get_llm
 from app.schemas.auth import AuthenticatedAccount
 from app.schemas.built_resume import BuiltResumeResponse
 from app.schemas.tailor import (
+    TailorDone,
+    TailorFailed,
     TailorMatch,
     TailorMatchRequest,
+    TailorPhase,
     TailorReading,
     TailorRun,
     TailorRunResult,
@@ -148,6 +161,64 @@ async def run(
     session: AsyncSession = Depends(get_session),
 ) -> TailorRunResult:
     assert_applicant_owns(account, applicant_id)
+    async for step in _steps(session, applicant_id, account, llm, body):
+        if isinstance(step, TailorRunResult):
+            return step
+    raise AssertionError("a run always ends with its result")
+
+
+@router.post("/stream")
+async def run_streamed(
+    body: TailorRun,
+    applicant_id: uuid.UUID,
+    account: AuthenticatedAccount = Depends(get_current_account),
+    llm: LLM = Depends(get_llm),
+) -> StreamingResponse:
+    assert_applicant_owns(account, applicant_id)
+    # Its own session: the request's may be closed once streaming starts.
+    session = get_sessionmaker()()
+    steps = _steps(session, applicant_id, account, llm, body)
+    try:
+        # Every check before the model call runs here, so a refusal (404,
+        # 409, a keyword extraction's 503) is still an HTTP status.
+        first = await anext(steps)
+    except BaseException:
+        await session.close()
+        raise
+    return StreamingResponse(_ndjson(_streamed(first, steps, session)), media_type="application/x-ndjson")
+
+
+async def _streamed(
+    first: TailorPhase, steps: AsyncIterator[TailorPhase | TailorRunResult], session: AsyncSession
+) -> AsyncIterator[TailorPhase | TailorDone | TailorFailed]:
+    """The run's lines after its checks passed: each phase, then `done` with
+    the result, or `error` with what the JSON route would have answered."""
+    try:
+        yield first
+        try:
+            async for step in steps:
+                yield TailorDone(result=step) if isinstance(step, TailorRunResult) else step
+        except HTTPException as exc:
+            detail = exc.detail
+            message = detail if isinstance(detail, str) else detail.get("message", "Tailor failed.")
+            yield TailorFailed(status=exc.status_code, message=message)
+    finally:
+        # A reader who leaves mid-run stops the run before its session goes.
+        await steps.aclose()
+        await session.close()
+
+
+async def _ndjson(events: AsyncIterator[TailorPhase | TailorDone | TailorFailed]) -> AsyncIterator[bytes]:
+    async for event in events:
+        yield event.model_dump_json().encode() + b"\n"
+
+
+async def _steps(
+    session: AsyncSession, applicant_id: uuid.UUID, account: AuthenticatedAccount, llm: LLM, body: TailorRun
+) -> AsyncIterator[TailorPhase | TailorRunResult]:
+    """One run: a phase line before and after the model call, then the
+    result. Raises HTTPException as the JSON route answers; the stream turns
+    one raised after its first line into an `error` line."""
     # KAN-319: the Tailor limit is lifted for now. Check before anything else
     # left = await uses_left(session, applicant_id, Feature.TAILOR)
     # if left <= 0:
@@ -184,12 +255,14 @@ async def run(
     picked = [k.keyword for k in missing if k.keyword.casefold() in asked]
 
     identity = await load_identity(session, account)
+    yield TailorPhase(phase="asking")
     try:
         reading = await llm.complete_json(
             tailor.prompt(job, found, view, ranks, picked), TailorReading,
             identity=identity, max_tokens=tailor.REPLY_TOKENS)
     except ScoutUnavailable as exc:
         raise HTTPException(503, AI.failure(exc)) from exc
+    yield TailorPhase(phase="generating")
     # What the truth rule takes as said: the resume's skills, the picks and
     # the keywords the resume already shows. Propose and the save read one list.
     known = tailor.known(view, picked, matched)
@@ -227,7 +300,7 @@ async def run(
     tailored = await load_bank(session, applicant_id, local_to=[resume.id])
     after_matched, after_missing = keywords.match(build_view(tailored, choices), found)
     default_id = await built_resumes.default_built_id(session, applicant_id)
-    return TailorRunResult(
+    yield TailorRunResult(
         resume=BuiltResumeResponse(
             id=resume.id, name=resume.name, template=resume.template, job_posting_id=resume.job_posting_id,
             is_default=resume.id == default_id, created_at=resume.created_at,

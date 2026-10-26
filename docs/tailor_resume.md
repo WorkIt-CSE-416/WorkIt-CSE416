@@ -43,6 +43,18 @@ model tokens; the student changes the tailored resume in the editor.
    - saves the result as the posting's one tailored resume,
    - answers with the tailored resume's id and the **changes**: what each
      change replaced (below).
+
+   While it waits, the button names the run's real phase. The screen runs
+   it through `/api/tailor`, which streams the API's `POST
+   .../tailor/stream` as NDJSON: the button says Retrieving Info until the
+   `asking` line (the prompt has gone to the model), Asking AI until
+   `generating` (its answer is back and the run applies and saves it),
+   Generating Resume until `done`, then Compiling Resume while the editor
+   loads. Every check before the model call (an empty bank, a posting
+   already tailored) still answers as an HTTP status, since the route runs
+   to the model call before it starts the stream; a failure after that is
+   an `error` line with the same status and message. `POST .../tailor`
+   answers the same run as one JSON body and stays for other callers.
 6. **The editor opens on the tailored resume**, compiled. Each change shows
    on the resume itself. Changed lines use a darker green; changed bullets,
    skills and reordered bullets offer Revert on hover or focus. A reworded

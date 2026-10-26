@@ -126,6 +126,14 @@ class Student:
         return await self.post(
             "/tailor", {"job_posting_id": posting, **(source or built(self.base)), "skills": list(skills)})
 
+    async def stream(self, posting: str, skills: list[str] = ()) -> tuple[int, list[dict]]:
+        """A streamed run from the base resume: its status and its lines."""
+        res = await self.post(
+            "/tailor/stream", {"job_posting_id": posting, **built(self.base), "skills": list(skills)})
+        if res.status_code != 200:
+            return res.status_code, [res.json()]
+        return 200, [json.loads(line) for line in res.text.splitlines() if line.strip()]
+
     async def match(self, posting: str, source: dict | None = None) -> httpx.Response:
         return await self.post("/tailor/match", {"job_posting_id": posting, **(source or built(self.base))})
 
@@ -716,6 +724,50 @@ async def test_a_failed_model_saves_nothing(student, database, use_model):
 
     assert (await student.tailor(posting, skills=["Go"])).status_code == 503
     assert [r["job_posting_id"] for r in await student.resumes()] == [None]
+
+
+# --- A streamed run ---------------------------------------------------------
+
+
+async def test_a_streamed_run_names_each_phase_then_answers_what_the_run_does(student, database, use_model):
+    posting = await _seed_posting(database)
+    use_model(reply(rewords=[("b2", "Built Python billing services")]))
+
+    status, lines = await student.stream(posting)
+
+    assert status == 200
+    assert [line["type"] for line in lines] == ["phase", "phase", "done"]
+    assert [line["phase"] for line in lines[:2]] == ["asking", "generating"]
+    result = lines[2]["result"]
+    assert "reword" in _kinds(result)
+    assert "Built Python billing services" in await student.words(result["resume"]["id"])
+
+
+async def test_a_streamed_run_whose_model_fails_ends_with_an_error_line_and_saves_nothing(
+    student, database, use_model
+):
+    posting = await _seed_posting(database)
+    use_model(rate_limited())
+
+    status, lines = await student.stream(posting)
+
+    assert status == 200
+    assert [line["type"] for line in lines] == ["phase", "error"]
+    assert lines[1]["status"] == 503 and lines[1]["message"]
+    assert [r["job_posting_id"] for r in await student.resumes()] == [None]
+
+
+async def test_a_streamed_run_refused_before_the_model_is_an_http_status(student, database, use_model):
+    posting = await _seed_posting(database)
+    use_model(reply())
+    first = (await student.tailor(posting)).json()["resume"]
+    fake = use_model(reply())
+
+    status, [body] = await student.stream(posting)
+
+    assert status == 409
+    assert body["detail"]["tailored_resume_id"] == first["id"]
+    assert fake.prompts == []
 
 
 # --- When a posting row goes ----------------------------------------------

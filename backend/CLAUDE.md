@@ -559,7 +559,13 @@ Find files with a directory listing; these are the rules for where code goes.
   Accept and Reject, Done (`.../tailor/done`) and "Have you used X?" were
   removed on 2026-10-25. It answers with `edits`, each change and what it
   replaced, which the editor marks and can revert until Save; the API keeps
-  no record of them. Rules, each with a test in `tests/test_tailor.py`:
+  no record of them. **The Tailor screen runs it streamed**, `POST
+  .../tailor/stream`: the same steps (`_steps`, one generator both routes
+  read) as NDJSON lines, `asking` before the model call, `generating` after
+  it, then `done` or `error`. It opens its own session, since the
+  request's may close once streaming starts, and runs to the first line
+  before it answers, so every refusal before the model call stays an
+  HTTP status. Rules, each with a test in `tests/test_tailor.py`:
   - **One tailored resume per posting, made once.** A run on a posting that
     has one answers 409 `{detail: {message, tailored_resume_id}}` before
     any model call, so it spends no tokens; the student edits that resume

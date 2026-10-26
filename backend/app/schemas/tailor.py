@@ -141,3 +141,28 @@ class TailorRunResult(BaseModel):
     edits: list[TailorEdit]
     dropped: int
     uses_left: int
+
+
+class TailorPhase(BaseModel):
+    """A streamed run's progress line: `asking` once the run sends its
+    prompt to the model, `generating` once the model's answer is back and
+    the run applies and saves it."""
+
+    type: Literal["phase"] = "phase"
+    phase: Literal["asking", "generating"]
+
+
+class TailorDone(BaseModel):
+    """A streamed run's last line when it saved: what `POST .../tailor` answers."""
+
+    type: Literal["done"] = "done"
+    result: TailorRunResult
+
+
+class TailorFailed(BaseModel):
+    """A streamed run's last line when it failed after its first line: the
+    status and message the JSON route would have answered."""
+
+    type: Literal["error"] = "error"
+    status: int
+    message: str

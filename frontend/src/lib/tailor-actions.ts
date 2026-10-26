@@ -5,7 +5,8 @@ import type { BuiltResume } from "@/lib/built-resume-actions";
 
 /**
  * Tailor (backend/app/routers/tailor.py, docs/tailor_resume.md), as server
- * actions. Types mirror backend/app/schemas/tailor.py. Every action returns
+ * actions. Types mirror backend/app/schemas/tailor.py. A run streams its
+ * phases, so it goes through the route handler `/api/tailor`, not an action. Every action returns
  * `error: string | null` and never throws; `status` lets the screen tell an
  * empty bank or an already tailored posting (409) from the daily limit (429).
  */
@@ -59,6 +60,16 @@ export type TailorRunResult = {
   uses_left: number;
 };
 
+/** One line of a streamed run (`/api/tailor`, the API's `POST
+ *  .../tailor/stream`): `asking` as the prompt goes to the model,
+ *  `generating` once its answer is back, then `done` or `error`. Mirrors
+ *  `TailorPhase`, `TailorDone` and `TailorFailed` in
+ *  backend/app/schemas/tailor.py; change both or neither. */
+export type TailorStreamEvent =
+  | { type: "phase"; phase: "asking" | "generating" }
+  | { type: "done"; result: TailorRunResult }
+  | { type: "error"; status: number; message: string };
+
 function post<T>(path: string, body: unknown): Promise<Result<T>> {
   return applicantCall<T>(`/tailor${path}`, { method: "POST", body: JSON.stringify(body) });
 }
@@ -70,15 +81,4 @@ export async function matchTailor(
   source: TailorSource,
 ): Promise<Result<TailorMatch>> {
   return post<TailorMatch>("/match", { job_posting_id: postingId, ...source });
-}
-
-/** One run: rewrites, orders and adds `skills` (picked missing keywords),
- *  and saves the posting's one tailored resume. A posting that has one
- *  already answers 409 before any model call. */
-export async function runTailor(
-  postingId: string,
-  source: TailorSource,
-  skills: string[],
-): Promise<Result<TailorRunResult>> {
-  return post<TailorRunResult>("", { job_posting_id: postingId, ...source, skills });
 }

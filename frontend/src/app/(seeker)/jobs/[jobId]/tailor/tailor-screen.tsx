@@ -4,6 +4,7 @@ import { useRouter } from "next/navigation";
 import { useCallback, useEffect, useState } from "react";
 
 import { CheckIcon, SparkleIcon } from "@/components/icons";
+import { readEvents } from "@/components/scout/stream";
 import { Badge } from "@/components/ui/badge";
 import { Button, ButtonLink } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
@@ -13,13 +14,24 @@ import { tailorEditsKey, writeSessionDraft } from "@/lib/local-drafts";
 import type { ResumeItem } from "@/lib/resume-actions";
 import {
   matchTailor,
-  runTailor,
   type Keyword,
   type TailorMatch,
+  type TailorRunResult,
   type TailorSource,
+  type TailorStreamEvent,
 } from "@/lib/tailor-actions";
 
 import { firstChoice, loadChoices, UploadPick, type Choice } from "../../resume-picker";
+
+/** What Tailor Resume says while a run waits, by the streamed run's lines
+ *  (`TailorStreamEvent`): Retrieving Info until the API sends `asking`, and
+ *  Compiling Resume once `done` has come and the editor loads. */
+const PHASE = {
+  retrieving: "Retrieving Info…",
+  asking: "Asking AI…",
+  generating: "Generating Resume…",
+  compiling: "Compiling Resume…",
+} as const;
 
 /**
  * The Tailor screen (KAN-217, docs/tailor_resume.md). The student picks a
@@ -39,6 +51,7 @@ export function TailorScreen({ jobId, title }: { jobId: string; title: string })
   const [addedAll, setAddedAll] = useState(false);
   const [reading, setReading] = useState(false);
   const [running, setRunning] = useState(false);
+  const [phase, setPhase] = useState<string>(PHASE.retrieving);
   const [error, setError] = useState<{ message: string; status: number | null } | null>(null);
   const [choices, setChoices] = useState<Choice[] | null>(null);
   const [uploads, setUploads] = useState<ResumeItem[]>([]);
@@ -97,14 +110,41 @@ export function TailorScreen({ jobId, title }: { jobId: string; title: string })
     if (!source) return;
     setRunning(true);
     setError(null);
-    const { data, error, status } = await runTailor(jobId, source, [...picked]);
-    if (!data) {
+    setPhase(PHASE.retrieving);
+    const failed = (message: string, status: number | null) => {
       setRunning(false);
-      return setError({ message: error ?? "Tailor failed.", status });
+      setError({ message, status });
+    };
+    let result: TailorRunResult | null = null;
+    try {
+      const res = await fetch("/api/tailor", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ job_posting_id: jobId, ...source, skills: [...picked] }),
+      });
+      // A refusal before the model call (an empty bank, a posting already
+      // tailored) is an HTTP status with the API's detail, as the action's was.
+      if (!res.ok || !res.body) {
+        const body: unknown = await res.json().catch(() => null);
+        const detail = (body as { detail?: unknown } | null)?.detail;
+        const message =
+          typeof detail === "string" ? detail : (detail as { message?: unknown } | null)?.message;
+        return failed(typeof message === "string" ? message : "Tailor failed.", res.status);
+      }
+      for await (const event of readEvents<TailorStreamEvent>(res.body)) {
+        if (event.type === "phase") setPhase(PHASE[event.phase]);
+        else if (event.type === "error") return failed(event.message, event.status);
+        else result = event.result;
+      }
+    } catch {
+      return failed("Tailor couldn't reach WorkIt. Try again in a minute.", null);
     }
-    writeSessionDraft(tailorEditsKey(data.resume.id), { edits: data.edits });
+    // A stream that ends with no last line lost its connection mid-run.
+    if (!result) return failed("Tailor stopped before it finished. Try again.", null);
+    setPhase(PHASE.compiling);
+    writeSessionDraft(tailorEditsKey(result.resume.id), { edits: result.edits });
     router.push(
-      `/jobs/${encodeURIComponent(jobId)}/tailor?resumeId=${encodeURIComponent(data.resume.id)}`,
+      `/jobs/${encodeURIComponent(jobId)}/tailor?resumeId=${encodeURIComponent(result.resume.id)}`,
     );
   }
 
@@ -243,7 +283,7 @@ export function TailorScreen({ jobId, title }: { jobId: string; title: string })
             </div>
           )}
           <Button className="mt-4" onClick={run} disabled={running}>
-            <SparkleIcon /> {running ? "Tailoring…" : "Tailor Resume"}
+            <SparkleIcon /> <span aria-live="polite">{running ? phase : "Tailor Resume"}</span>
           </Button>
           <TailorError error={error} />
         </Card>
