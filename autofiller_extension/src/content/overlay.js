@@ -25,6 +25,7 @@ window.WIA = window.WIA || {};
     guessed: "Guessed",
     claude: "Claude",
     ai: "AI",
+    pasted: "Pasted",
   };
   // Phosphor's Sparkle (fill), the mark WorkIt puts on everything AI wrote (frontend/src/components/icons.tsx).
   const SPARKLE =
@@ -115,6 +116,8 @@ window.WIA = window.WIA || {};
       .moment [data-secondary]:hover { background: var(--color-hover); }
       .moment button:focus-visible, .moment a:focus-visible, .moment select:focus-visible { outline: 2px solid var(--color-brand); outline-offset: 2px; }
       .moment .error { color: var(--color-danger); }
+      .moment ul { margin: 0 0 8px; padding-left: 16px; font-size: var(--text-note); color: var(--color-ink-muted); }
+      .moment li span { color: var(--color-ink-meta); }
       .list { overflow-y: auto; padding: 4px 0; }
       .row {
         display: flex; align-items: flex-start; gap: 8px; padding: 6px 12px;
@@ -153,6 +156,7 @@ window.WIA = window.WIA || {};
       .start .hint { font-size: var(--text-meta); color: var(--color-ink-meta); }
       .empty { padding: 16px 12px; color: var(--color-ink-meta); }
       ${window.WIA.rowCard?.css ?? ""}
+      ${window.WIA.waitingCard?.css ?? ""}
     `;
     return style;
   }
@@ -196,7 +200,8 @@ window.WIA = window.WIA || {};
       text.appendChild(reason);
     }
     if (card) text.appendChild(card);
-    if (field.status === "needs_generation" && field.claude) text.appendChild(startClaude());
+    // The waiting card (card-waiting.js) carries Write with Claude, with a paste box and Write it myself.
+    if (field.status === "needs_generation" && field.claude) text.appendChild(window.WIA.waitingCard?.card(field, startClaude) ?? startClaude());
     if (field.flag) {
       el.dataset.flagged = "";
       const reason = document.createElement("div");
@@ -239,6 +244,8 @@ window.WIA = window.WIA || {};
 
   function render(summary) {
     if (!root) return;
+    // A kept card's box (card-waiting.js) is moved, not rebuilt: it keeps the student's focus.
+    const focused = root.activeElement;
     root.querySelector(".list").replaceChildren(
       ...(summary.fields.length
         ? summary.fields.map(row)
@@ -249,6 +256,10 @@ window.WIA = window.WIA || {};
         ? "No required fields detected"
         : `${summary.requiredFilled}/${summary.requiredTotal} required fields filled` +
           (summary.failedCount > 0 ? ` · ${summary.failedCount} need attention` : "");
+    // Rows waiting for the student's Claude, apart: nothing for the student to fix yet (the walk visits them last).
+    const onClaude = summary.fields.filter((r) => r.status === "needs_generation" && r.claude).length;
+    if (onClaude) root.querySelector(".summary").textContent += ` · ${onClaude} waiting on Claude`;
+    if (focused?.isConnected && root.activeElement !== focused) focused.focus({ preventScroll: true });
   }
 
   /**
@@ -524,5 +535,5 @@ window.WIA = window.WIA || {};
   /** Draws the rows again, for a row card whose own state changed (row-card.js). */
   const refresh = () => render(window.WIA.status.summary());
 
-  window.WIA.overlay = { mount, unmount, promptForEssays, offerNext, setCurrent, refresh, askSelfId, offerClaude, askSamples, askWorkdayAccounts, CLAUDE_TRIGGER };
+  window.WIA.overlay = { mount, unmount, promptForEssays, offerNext, setCurrent, refresh, askSelfId, offerClaude, askSamples, askWorkdayAccounts, momentCard, CLAUDE_TRIGGER };
 })();

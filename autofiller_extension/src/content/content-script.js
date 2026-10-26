@@ -245,6 +245,8 @@
   // This tab's side of batch apply: its state for the background, Next Thing That Needs You, the student's submit.
   const { report, answerTheWalk, watchSubmit } = window.WIA.batchTab({ batch, note });
   if (batch) watchSubmit();
+  // Holds the student's Submit while something on the page is still open, and says what (submit-warning.js).
+  if (batch) window.WIA.submitWarning();
 
   const REQUIRED_EMPTY = "The form needs this before it sends. Answer it yourself.";
 
