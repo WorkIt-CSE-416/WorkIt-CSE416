@@ -205,7 +205,14 @@ export function ScreenerCard({ answers, set }: { answers: AutofillAnswers; set: 
           size="sm"
           variant="secondary"
           disabled={!unanswered}
-          onClick={() => set(noneOfTheseApply(answers))}
+          onClick={() =>
+            // A Yes still waiting for its companies is the student's answer too.
+            set(
+              Object.fromEntries(
+                Object.entries(noneOfTheseApply(answers)).filter(([key]) => !yesHeld.has(key)),
+              ),
+            )
+          }
         >
           None of These Apply
         </Button>
