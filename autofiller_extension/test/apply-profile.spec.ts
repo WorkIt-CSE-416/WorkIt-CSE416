@@ -157,3 +157,37 @@ test("a queued full-time job's start date is the day the student graduates, not 
   expect(prepared.posting.job_type).toBe("full_time");
   expect(prepared.plan.answers.date_available).toBe("2028-05-15"); // the bank's graduation, on the day brought from Apply
 });
+
+test("the Application answers reach the engine, and the school year comes from the education entry", () => {
+  const answers = {
+    ...STUDENT.answers, onsite_ok: "yes", full_time_40h: "no", earliest_start: "2027-05-24", latest_end: "2027-08-13",
+    available_terms: ["summer 2027"], willing_to_relocate: "yes", location_preferences: ["Springfield, IL", "Remote"],
+    internship_location: "Springfield, IL", address_line1: "1 Example Way", postal_code: "00000", languages: ["English", "Spanish"],
+    relatives_at: [], relative_public_official: "no", referred_at: ["Initech"], prior_government_work: "no", non_compete: "yes", pending_offers: [],
+  };
+  const profile = engineProfile({ ...STUDENT, location: "Springfield, IL", answers }, "2026-10-26");
+
+  expect(profile.logistics).toEqual({
+    onsite_5_days_ok: true, can_work_full_time_40h: false, earliest_start_date: "2027-05-24", latest_end_date: "2027-08-13",
+    available_terms: ["summer 2027"], willing_to_relocate_for_summer: true, location_preferences: [["Springfield, IL", "Springfield"], ["Remote"]],
+    referrals: ["Initech"],
+  });
+  expect(profile.identity.home_address).toEqual({ line1: "1 Example Way", zip: "00000", city: "Springfield", state: "IL", country: "United States" });
+  expect(profile.identity.summer_2027_location).toBe("Springfield, IL");
+  expect(profile.identity.languages).toEqual([
+    { language: "English", spoken: true, written: true }, { language: "Spanish", spoken: true, written: true }]);
+  // A screener is the student's own answer: an empty list is their "none".
+  expect(profile.screeners).toEqual({
+    relatives_at: [], relative_of_public_official: false, prior_us_government_employment: false,
+    non_compete_or_conflicting_agreements: true, pending_offers: [],
+  });
+  // STUDENT graduates in May 2028: a junior this year, back at school after an August internship.
+  expect(profile.education.class_year).toBe("3rd Year Undergrad (Junior)");
+  expect(profile.education.returning_to_school_after_internship).toBe(true);
+
+  // Nothing answered: no fact, never a default.
+  const unanswered = engineProfile(STUDENT, "2026-10-26");
+  expect(unanswered.screeners ?? {}).toEqual({});
+  expect(unanswered.logistics ?? {}).toEqual({});
+  expect(unanswered.education.returning_to_school_after_internship).toBeUndefined();
+});

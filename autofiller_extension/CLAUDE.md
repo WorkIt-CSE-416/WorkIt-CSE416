@@ -1297,6 +1297,19 @@ read (yes/no as true/false, "declined" as "decline", the rest in
 `frontend/src/lib/autofill-answers.ts`'s own words). The engine picks the
 form's option that says the same thing.
 
+The same bank holds the **Application answers** (KAN-369, My Profile's
+section of that name): `engineProfile`'s `applicationFacts` gives them as
+`logistics.*` (on-site, 40 h, start and end dates, terms, relocation, ranked
+`location_preferences` one place an area (with its city alone), `referrals` from `referred_at`),
+`identity.home_address` (line 1 and zip over the location's city and state),
+`identity.summer_2027_location`, `identity.languages` (spoken and written)
+and `screeners.*` (relatives at a company, a relative who is a public
+official, prior government work, non-compete, pending offers). A screener is
+only the student's own answer, never a default; an empty list is their
+"none". `schoolYear` derives `education.class_year` and
+`returning_to_school_after_internship` from the latest education entry's
+end month (`engineProfile(profile, today)`), with no new input.
+
 - **`work_authorized_us`/`needs_sponsorship` fall back to the onboarding
   "Visa Sponsorship" job-search filter** (`applicant_preferences.visa`,
   KAN-231) when a student hasn't answered KAN-283's questions yet —

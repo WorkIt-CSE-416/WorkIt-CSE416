@@ -15,6 +15,15 @@
  * Latino, race, veteran and disability are voluntary self-identification, so
  * each has its own "decline" answer, which is an answer to fill in, unlike
  * null (not answered).
+ *
+ * THE APPLICATION ANSWERS (KAN-369) are the rest of the bank: the facts
+ * screening questions ask (availability, the start window, relocation, the
+ * street address, languages and the screener facts). My Profile's section of
+ * that name shows them all; onboarding's Availability step asks the first
+ * three groups' core and the screener facts. A list answer of [] is the
+ * student's "none", unlike null. A screener fact is always the student's own
+ * answer: nothing here pre-selects one, and None of These Apply
+ * (noneOfTheseApply) answers only when the student presses it.
  */
 
 export type YesNo = "yes" | "no";
@@ -45,7 +54,44 @@ export type AutofillAnswers = {
     | null;
   veteran_status: "protected_veteran" | "not_protected_veteran" | "declined" | null;
   disability_status: "yes" | "no" | "declined" | null;
+
+  // The Application answers (KAN-369).
+  onsite_ok: YesNo | null;
+  full_time_40h: YesNo | null;
+  /** "YYYY-MM-DD". */
+  earliest_start: string | null;
+  latest_end: string | null;
+  /** "summer 2027", the API's spelling (termLabel shows it). */
+  available_terms: string[] | null;
+  willing_to_relocate: YesNo | null;
+  /** Places, best first ("New York, NY"). */
+  location_preferences: string[] | null;
+  /** Where they will live during the internship, city and state. */
+  internship_location: string | null;
+  /** The city and state are the profile's location. */
+  address_line1: string | null;
+  postal_code: string | null;
+  /** The languages they speak and write fluently. */
+  languages: string[] | null;
+  relatives_at: string[] | null;
+  relative_public_official: YesNo | null;
+  referred_at: string[] | null;
+  prior_government_work: YesNo | null;
+  non_compete: YesNo | null;
+  pending_offers: string[] | null;
 };
+
+/** The questions the Profile step and Application Questions ask. */
+export type QuestionKey =
+  | "work_authorized_us"
+  | "needs_sponsorship"
+  | "work_authorization_status"
+  | "security_clearance"
+  | "gender"
+  | "hispanic_latino"
+  | "race"
+  | "veteran_status"
+  | "disability_status";
 
 export const NO_ANSWERS: AutofillAnswers = {
   work_authorized_us: null,
@@ -57,9 +103,26 @@ export const NO_ANSWERS: AutofillAnswers = {
   race: null,
   veteran_status: null,
   disability_status: null,
+  onsite_ok: null,
+  full_time_40h: null,
+  earliest_start: null,
+  latest_end: null,
+  available_terms: null,
+  willing_to_relocate: null,
+  location_preferences: null,
+  internship_location: null,
+  address_line1: null,
+  postal_code: null,
+  languages: null,
+  relatives_at: null,
+  relative_public_official: null,
+  referred_at: null,
+  prior_government_work: null,
+  non_compete: null,
+  pending_offers: null,
 };
 
-type Options<K extends keyof AutofillAnswers> = {
+type Options<K extends QuestionKey> = {
   value: NonNullable<AutofillAnswers[K]>;
   label: string;
 }[];
@@ -142,7 +205,7 @@ export const DISABILITY_OPTIONS: Options<"disability_status"> = [
  *  them (KAN-387): the extension asks the first time a form does, with the
  *  same options (autofiller_extension/src/background/self-id.js copies them:
  *  change both together), and saves them through the same PATCH. */
-export const SELF_ID_KEYS: (keyof AutofillAnswers)[] = [
+export const SELF_ID_KEYS: QuestionKey[] = [
   "gender",
   "hispanic_latino",
   "race",
@@ -153,7 +216,7 @@ export const SELF_ID_KEYS: (keyof AutofillAnswers)[] = [
 /** One of the Profile step's questions: its key in the bank, the heading
  *  the step shows, and the question as forms ask it. */
 export type ProfileQuestion = {
-  key: keyof AutofillAnswers;
+  key: QuestionKey;
   label: string;
   /** The question as forms word it, shown under the heading. Only here: the
    *  bank stores the answer alone (backend models/CLAUDE.md, "No question
@@ -236,3 +299,169 @@ export const PROFILE_QUESTIONS: ProfileQuestion[] = [
     columns: 1,
   },
 ];
+
+/** Availability's two yes/no questions, as forms word them. */
+export const AVAILABILITY: {
+  key: "onsite_ok" | "full_time_40h";
+  label: string;
+  question: string;
+}[] = [
+  {
+    key: "onsite_ok",
+    label: "On-Site Work",
+    question: "Can you work on-site as a posting asks?",
+  },
+  {
+    key: "full_time_40h",
+    label: "Full Time",
+    question: "Can you work full time, 40 hours a week, during an internship?",
+  },
+];
+
+/** The language My Profile lists until the student says otherwise: a
+ *  suggestion they can remove, not a saved answer. */
+export const SUGGESTED_LANGUAGES = ["English"];
+
+export type ScreenerKey =
+  | "relatives_at"
+  | "relative_public_official"
+  | "referred_at"
+  | "prior_government_work"
+  | "non_compete"
+  | "pending_offers";
+
+/** A screener fact: a yes/no, or a list of companies whose Yes asks which
+ *  (`companies`, the follow-up's label). */
+export type Screener = {
+  key: ScreenerKey;
+  label: string;
+  question: string;
+  companies?: string;
+};
+
+/** The screener facts, in the order forms tend to ask them. */
+export const SCREENERS: Screener[] = [
+  {
+    key: "relatives_at",
+    label: "Relatives at a Company",
+    question: "Does a relative of yours work at a company you might apply to?",
+    companies: "Which companies?",
+  },
+  {
+    key: "relative_public_official",
+    label: "Relative in Public Office",
+    question: "Is a close relative of yours a government or public official?",
+  },
+  {
+    key: "referred_at",
+    label: "Referrals",
+    question: "Did an employee of a company refer you?",
+    companies: "Which companies?",
+  },
+  {
+    key: "prior_government_work",
+    label: "Government Work",
+    question: "Have you ever worked for a government or a government agency?",
+  },
+  {
+    key: "non_compete",
+    label: "Non-Compete",
+    question: "Are you bound by a non-compete or a similar agreement?",
+  },
+  {
+    key: "pending_offers",
+    label: "Pending Offers",
+    question: "Do you hold an offer from another employer that is still open?",
+    companies: "Which employers?",
+  },
+];
+
+/** A screener fact as yes, no or unanswered: a list reads as no when empty
+ *  ([] is the student's "none") and yes when it names a company. */
+export function screenerChoice(answers: AutofillAnswers, key: ScreenerKey): YesNo | null {
+  const value = answers[key];
+  if (value == null) return null;
+  if (Array.isArray(value)) return value.length ? "yes" : "no";
+  return value;
+}
+
+/** None of These Apply: every screener fact still unanswered set to no, or
+ *  [] for a list. Only what the student pressed it for; an answered one
+ *  keeps its answer. */
+export function noneOfTheseApply(answers: AutofillAnswers): Partial<AutofillAnswers> {
+  const change: Partial<AutofillAnswers> = {};
+  for (const s of SCREENERS) {
+    if (answers[s.key] != null) continue;
+    Object.assign(change, { [s.key]: s.companies ? [] : "no" });
+  }
+  return change;
+}
+
+/** The answers that differ from `base`, lists compared by value: what a
+ *  Save sends, since the API merges only the keys it is sent. */
+export function changedAnswers(
+  draft: AutofillAnswers,
+  base: AutofillAnswers,
+): Partial<AutofillAnswers> {
+  return Object.fromEntries(
+    Object.entries(draft).filter(
+      ([key, value]) =>
+        JSON.stringify(value) !== JSON.stringify(base[key as keyof AutofillAnswers]),
+    ),
+  );
+}
+
+/** A typed list ("Acme, Globex") as its names: trimmed, blanks dropped, a
+ *  name repeated in another case kept once. */
+export function parseList(text: string): string[] {
+  const seen = new Set<string>();
+  return text
+    .split(",")
+    .map((part) => part.trim())
+    .filter((part) => {
+      const folded = part.toLowerCase();
+      if (!part || seen.has(folded)) return false;
+      seen.add(folded);
+      return true;
+    });
+}
+
+const SEASONS = ["winter", "spring", "summer", "fall"] as const;
+
+/** The season a month (0-11) falls in: winter Jan-Feb, spring Mar-May,
+ *  summer Jun-Aug, fall Sep-Dec. */
+function seasonOf(month: number) {
+  return month < 2 ? 0 : month < 5 ? 1 : month < 8 ? 2 : 3;
+}
+
+/** The next `count` terms after the one `today` is in, as the API spells
+ *  them ("summer 2027"). */
+export function upcomingTerms(today: Date, count: number): string[] {
+  let season = seasonOf(today.getMonth());
+  let year = today.getFullYear();
+  const terms: string[] = [];
+  while (terms.length < count) {
+    season += 1;
+    if (season === SEASONS.length) {
+      season = 0;
+      year += 1;
+    }
+    terms.push(`${SEASONS[season]} ${year}`);
+  }
+  return terms;
+}
+
+/** A term as a screen shows it: "summer 2027" as "Summer 2027". */
+export function termLabel(term: string) {
+  return term.charAt(0).toUpperCase() + term.slice(1);
+}
+
+/** The last day of a term, "YYYY-MM-DD", for working out what follows it. */
+export function termEnd(term: string): string | null {
+  const match = /^(winter|spring|summer|fall) (\d{4})$/.exec(term);
+  if (!match) return null;
+  const end = { winter: "02-28", spring: "05-31", summer: "08-31", fall: "12-31" }[
+    match[1] as (typeof SEASONS)[number]
+  ];
+  return `${match[2]}-${end}`;
+}

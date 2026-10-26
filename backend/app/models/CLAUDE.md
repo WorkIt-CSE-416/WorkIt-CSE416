@@ -1105,8 +1105,11 @@ Real, not forgotten. Do not treat their absence as a decision already made.
 - Only `company_profiles.id` has a UUID default (Python `uuid4` plus
   `gen_random_uuid()`); every other insert must supply `id`. The account
   tables must keep having none — their id is the `auth.users` id.
-- `autofill_answers` (above) holds only onboarding's nine questions. The
-  rest that forms repeat (availability, relocation) have no key yet.
+- `autofill_answers` (above) holds onboarding's nine questions and the
+  Application answers (KAN-369: availability, start window, relocation,
+  address line and postal code, languages, screener facts). Those joined as
+  new keys in the same bank, with no migration. Dates are YYYY-MM-DD strings,
+  terms "summer 2027", and an empty list is the student's own "none".
 - `applicant_profiles.location` and `company_profiles.industry` are absent.
 - `company_profiles.contact_email` is unique, which forbids two companies sharing
   an HR inbox — plausible for subsidiaries. Probably wrong; confirm it is

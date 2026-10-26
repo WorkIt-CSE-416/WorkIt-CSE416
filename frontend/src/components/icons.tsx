@@ -1,4 +1,5 @@
 import {
+  AirplaneTiltIcon as AirplaneTilt,
   ArrowLeftIcon as ArrowLeft,
   ArrowRightIcon as ArrowRight,
   ArrowSquareOutIcon as ArrowSquareOut,
@@ -46,6 +47,7 @@ import {
   SparkleIcon as Sparkle,
   StarIcon as Star,
   TargetIcon as Target,
+  TranslateIcon as Translate,
   TrashIcon as Trash,
   TrendDownIcon as TrendDown,
   TrendUpIcon as TrendUp,
@@ -61,7 +63,7 @@ import {
   UserTieIcon as UserTie,
 } from "@/components/custom-icons";
 
-import type { AutofillAnswers } from "@/lib/autofill-answers";
+import type { QuestionKey } from "@/lib/autofill-answers";
 
 type IconProps = { className?: string };
 
@@ -499,7 +501,7 @@ export function DisabilityIcon({ className }: IconProps) {
   return <PersonArmsSpread aria-hidden className={className} />;
 }
 
-const ANSWER_ICON: Record<keyof AutofillAnswers, typeof AuthorizationIcon> = {
+const ANSWER_ICON: Record<QuestionKey, typeof AuthorizationIcon> = {
   work_authorized_us: AuthorizationIcon,
   needs_sponsorship: VisaIcon,
   work_authorization_status: CitizenshipIcon,
@@ -515,9 +517,21 @@ const ANSWER_ICON: Record<keyof AutofillAnswers, typeof AuthorizationIcon> = {
  *  (lib/autofill-answers): onboarding's Profile step and My Profile's
  *  Application Questions draw the same one. Moved here from onboarding when
  *  My Profile became the second route to want them (KAN-269). */
-export function answerIcon(key: keyof AutofillAnswers) {
+export function answerIcon(key: QuestionKey) {
   return ANSWER_ICON[key];
 }
+
+/** My Profile's Application answers groups (KAN-369), shared with
+ *  onboarding's Availability step: one glyph a group, by its name. */
+export const ANSWER_GROUP_ICON = {
+  availability: ({ className }: IconProps) => <Clock aria-hidden className={className} />,
+  startWindow: ({ className }: IconProps) => <CalendarBlank aria-hidden className={className} />,
+  relocation: ({ className }: IconProps) => <AirplaneTilt aria-hidden className={className} />,
+  address: ({ className }: IconProps) => <House aria-hidden className={className} />,
+  languages: ({ className }: IconProps) => <Translate aria-hidden className={className} />,
+  screeners: ({ className }: IconProps) => <ListChecks aria-hidden className={className} />,
+  schoolYear: ({ className }: IconProps) => <GraduationCap aria-hidden className={className} />,
+};
 
 /** The sidebar's pin (KAN-300, components/hover-sidebar.tsx): a pin to pin
  *  the panel open, crossed out to unpin it. Not PinIcon, which is a place. */
