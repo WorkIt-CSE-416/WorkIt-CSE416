@@ -18,18 +18,20 @@ import type { TailorSource } from "@/lib/tailor-actions";
 import { loadPdfjs, PageSkeleton, PdfPages } from "../../../resumes/[resumeId]/pdf-pages";
 
 /**
- * A resume shown in a dialog, read-only: Tailor's step 1 opens it from a
- * card's Preview button (`onPreview` on `ResumeLists`), so the student sees
- * what they are about to tailor without picking it, and the review step
- * opens it for View Original. It draws with the editor's `PdfPages` and no
- * click targets, as an upload's own page does. A DOCX cannot be drawn by
- * pdf.js, so it gets a note and Download, as its own page does.
+ * A resume shown read-only: in a dialog for Tailor's step 1, which opens
+ * it from a card's Preview button (`onPreview` on `ResumeLists`), so the
+ * student sees what they are about to tailor without picking it; and
+ * inline on the review step, where the toolbar's View Original sets the
+ * source resume beside the tailored one (`OriginalResume`). It draws with
+ * the editor's `PdfPages` and no click targets, as an upload's own page
+ * does. A DOCX cannot be drawn by pdf.js, so it gets a note and Download,
+ * as its own page does.
  *
  * The PDF comes from /api/resume-preview (a built resume rendered, an
  * upload's file read), a route handler so a slow render never queues the
  * screen's server actions behind it. A built resume renders as it is now.
  *
- * Each answer is kept by its source while the dialog stays mounted, so a
+ * Each answer is kept by its source for the page's life (`answered`), so a
  * resume shows only its own answer, however late an older one arrives, and
  * a resume opened again shows at once. A failed one says so in a line, with
  * Try Again. Step 1 held the preview as a column beside the list until the
@@ -43,6 +45,94 @@ const keyOf = (source: TailorSource) =>
     ? `built=${encodeURIComponent(source.built_resume_id)}`
     : `uploaded=${encodeURIComponent(source.uploaded_resume_id)}`;
 
+/** Answers that drew, kept across the dialog's and the pane's mounts. */
+const answered = new Map<string, Preview>();
+
+/** The source's preview, asked for once `enabled`, and a retry for a
+ *  failed one. */
+function useResumePreview(source: TailorSource, enabled: boolean) {
+  const [previews, setPreviews] = useState<Record<string, Preview>>({});
+  // Sources asked for and not yet answered, so one opened away and back
+  // is not asked for twice.
+  const asking = useRef(new Set<string>());
+  const key = keyOf(source);
+  const preview = previews[key] ?? answered.get(key);
+  const have = preview !== undefined;
+
+  useEffect(() => {
+    if (!enabled || have || asking.current.has(key)) return;
+    asking.current.add(key);
+    // pdf.js downloads while the server draws the PDF, as in the editor.
+    loadPdfjs().catch(() => {});
+    const keep = (answer: Preview) => {
+      asking.current.delete(key);
+      if (!answer.error) answered.set(key, answer);
+      setPreviews((all) => ({ ...all, [key]: answer }));
+    };
+    fetch(`/api/resume-preview?${key}`)
+      .then(async (res) => {
+        const body = (await res.json()) as Partial<Preview>;
+        keep({
+          pdf: body.pdf ?? null,
+          error: res.ok ? null : (body.error ?? "The preview failed."),
+        });
+      })
+      .catch(() => keep({ pdf: null, error: "Could not reach the server." }));
+  }, [enabled, key, have]);
+
+  function retry() {
+    answered.delete(key);
+    setPreviews((all) => {
+      const rest = { ...all };
+      delete rest[key];
+      return rest;
+    });
+  }
+
+  return { key, preview, retry };
+}
+
+/** The preview's pages, or its skeleton, its failure or a DOCX's note. */
+function PreviewPages({
+  source,
+  label,
+  enabled,
+}: {
+  source: TailorSource;
+  label: string;
+  enabled: boolean;
+}) {
+  const { key, preview, retry } = useResumePreview(source, enabled);
+  if (!preview) return <PageSkeleton />;
+  if (preview.error) {
+    return (
+      <p role="alert" className="text-body text-danger">
+        The preview could not be shown.{" "}
+        <Button variant="link" onClick={retry}>
+          Try Again
+        </Button>
+      </p>
+    );
+  }
+  if (preview.pdf) {
+    // Keyed by the source: PdfPages keeps its old document on screen until
+    // a new one is read, which would show the last resume.
+    return (
+      <PdfPages
+        key={key}
+        pdf={preview.pdf}
+        boxes={[]}
+        selected={null}
+        onSelect={() => {}}
+        placeholder={<PageSkeleton />}
+      />
+    );
+  }
+  return "uploaded_resume_id" in source ? (
+    <DocxNote id={source.uploaded_resume_id} label={label} />
+  ) : null;
+}
+
 export function ResumePreviewDialog({
   open,
   onOpenChange,
@@ -55,42 +145,6 @@ export function ResumePreviewDialog({
   label: string;
   source: TailorSource;
 }) {
-  const [previews, setPreviews] = useState<Record<string, Preview>>({});
-  // Sources asked for and not yet answered, so one opened away and back
-  // is not asked for twice.
-  const asking = useRef(new Set<string>());
-  const key = keyOf(source);
-  const preview = previews[key];
-  const have = preview !== undefined;
-
-  useEffect(() => {
-    if (!open || have || asking.current.has(key)) return;
-    asking.current.add(key);
-    // pdf.js downloads while the server draws the PDF, as in the editor.
-    loadPdfjs().catch(() => {});
-    const keep = (answer: Preview) => {
-      asking.current.delete(key);
-      setPreviews((all) => ({ ...all, [key]: answer }));
-    };
-    fetch(`/api/resume-preview?${key}`)
-      .then(async (res) => {
-        const body = (await res.json()) as Partial<Preview>;
-        keep({
-          pdf: body.pdf ?? null,
-          error: res.ok ? null : (body.error ?? "The preview failed."),
-        });
-      })
-      .catch(() => keep({ pdf: null, error: "Could not reach the server." }));
-  }, [open, key, have]);
-
-  function retry() {
-    setPreviews((all) => {
-      const rest = { ...all };
-      delete rest[key];
-      return rest;
-    });
-  }
-
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
       {/* Tall, so a page reads at once; its pages scroll under the title. */}
@@ -102,34 +156,24 @@ export function ResumePreviewDialog({
           <DialogDescription className="sr-only">A preview of this resume.</DialogDescription>
         </DialogHeader>
         <div className="bg-canvas rounded-card min-h-0 flex-1 overflow-y-auto p-3 sm:p-4">
-          {!preview ? (
-            <PageSkeleton />
-          ) : preview.error ? (
-            <p role="alert" className="text-body text-danger">
-              The preview could not be shown.{" "}
-              <Button variant="link" onClick={retry}>
-                Try Again
-              </Button>
-            </p>
-          ) : preview.pdf ? (
-            // Keyed by the source: PdfPages keeps its old document on screen
-            // until a new one is read, which would show the last resume.
-            <PdfPages
-              key={key}
-              pdf={preview.pdf}
-              boxes={[]}
-              selected={null}
-              onSelect={() => {}}
-              placeholder={<PageSkeleton />}
-            />
-          ) : (
-            "uploaded_resume_id" in source && (
-              <DocxNote id={source.uploaded_resume_id} label={label} />
-            )
-          )}
+          <PreviewPages source={source} label={label} enabled={open} />
         </div>
       </DialogContent>
     </Dialog>
+  );
+}
+
+/** The resume Tailor started from, read-only, beside the tailored one on
+ *  the review step (the toolbar's View Original). The record keeps the
+ *  source's id, not its name, so it is labelled for what it is. */
+export function OriginalResume({ source }: { source: TailorSource }) {
+  return (
+    <section aria-labelledby="original-heading" className="flex flex-col gap-2">
+      <h2 id="original-heading" className="text-label text-ink-meta font-semibold">
+        Original Resume
+      </h2>
+      <PreviewPages source={source} label="Original Resume" enabled />
+    </section>
   );
 }
 

@@ -238,11 +238,16 @@ weight.
   ("RESUME · <name>", "SUGGESTIONS · 6") until the user found them muted.
   The page bar over both holds only Back and "Step 3 of 3": the job's
   logo, title and company beside Back crowded it. The editor's toolbar is its
-  slim row here (`compact`), in two states with only what each needs.
+  slim row here (`compact`), under the resume's name and across the page
+  and the column beside it, so it has room for every tool; over the page
+  alone it had none to spare. It has two states with only what each
+  needs. Both open with Undo and Redo, which are UI only for now: the
+  editor keeps no history yet, so both stay disabled (2026-10-26).
   Idle: the page count as an amber chip with a warning sign and a caret
   ("⚠ 2 pages ⌄", over one page only), so it reads as a problem to open,
   whose click offers Fit to One Page; Undo after a fit; "Click a line to
-  edit it." only while the pointer is over the page; then Suggestions,
+  edit it." only while the pointer is over the page; then View Original
+  (below); then Suggestions,
   which shows and hides the panel and carries its count (its glyph a
   pencil over a line, `PencilSimpleLine`, since ListChecks is the
   Applications Tracker's), and Download in
@@ -265,16 +270,21 @@ weight.
   click on a dot or on a changed line opens its suggestion (and its
   section). Dots and cards were numbered until 2026-10-26: the numbers
   read as an order to follow, so each section counts its own instead.
-- **The panel's top**, pinned while the cards scroll: View Original (a
-  white button with a file glyph; as a bare brand link it read as stray
-  text by the heading) and a
+- **View Original sets the source resume beside the tailored one**, in
+  place of the panel, the two at one width under "Tailored Resume" and
+  "Original Resume", so a line reads against its twin. The source (the
+  record's `source`) draws read-only through step 1's preview loader
+  (`OriginalResume` in `resume-preview.tsx`), kept for the page's life so
+  a second look shows at once; the record keeps the source's id, not its
+  name, so it is labelled for what it is. Suggestions and View Original
+  each show their column or hide it, one at a time (`side` in the
+  editor). It was a link in the panel's top, then a white button there,
+  and opened the Preview dialog; the user wanted the two side by side.
+- **The panel's top**, pinned while the cards scroll: a
   "…" menu (Accept All, Reject All), then the keyword match as one thin
   row over a hairline meter ("Keyword match 3 → 9 of 14", the keywords
   added under it). When the run matched no new keyword it says "3 of 14 ·
   No new keywords matched": an arrow to the same number read as a fault.
-  View Original opens the source resume (the record's `source`) read-only
-  in step 1's Preview dialog (`ResumePreviewDialog`), titled "Original
-  Resume" since the record keeps the source's id, not its name.
 - **A brand-tint panel of white sections.** The panel is the brand tint
   with its pale ring, the editor's bar's colour, so the two read as one
   review and its white sections stand apart; it was grey (`app`) until

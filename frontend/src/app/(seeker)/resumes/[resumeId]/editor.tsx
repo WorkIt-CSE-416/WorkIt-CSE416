@@ -3,10 +3,12 @@
 import {
   ArrowDownIcon,
   ArrowUUpLeftIcon,
+  ArrowUUpRightIcon,
   ArrowUpIcon,
   CloudSlashIcon,
   CursorClickIcon,
   EyeSlashIcon,
+  FileMagnifyingGlassIcon,
   PencilSimpleLineIcon,
   ScissorsIcon,
   WarningIcon,
@@ -178,6 +180,7 @@ export function Editor({
   suggestions,
   compact = false,
   heading,
+  original,
 }: {
   resumeId: string;
   /** The first render, started by the page and not awaited. */
@@ -190,13 +193,18 @@ export function Editor({
    *  only there are changes tinted: a mark with no card to act on would
    *  mean nothing. */
   suggestions?: (api: SuggestionsApi) => ReactNode;
-  /** The slim toolbar (Tailor's review): the page count as a warning chip
-   *  that offers Fit to One Page, "Click a line to edit it" only while the
-   *  pointer is over the page, Suggestions and Download (`SlimBar`). The
-   *  editor's own page keeps the full bar. */
+  /** The slim toolbar (Tailor's review), across the page and the column
+   *  beside it: Undo and Redo, the page count as a warning chip that offers
+   *  Fit to One Page, "Click a line to edit it" only while the pointer is
+   *  over the page, View Original, Suggestions and Download (`SlimBar`).
+   *  The editor's own page keeps the full bar over the page. */
   compact?: boolean;
-  /** A title over the page's column (Tailor's `ResumeTitle`). */
+  /** A title over the page (Tailor's `ResumeTitle`); over the toolbar when
+   *  it is `compact`. */
   heading?: ReactNode;
+  /** The resume Tailor started from, read-only, which the toolbar's View
+   *  Original sets beside the page in place of the Suggestions panel. */
+  original?: ReactNode;
   /** A row the phone layout's header shows under its buttons: the page's
    *  own controls, which the full-screen phone editor would cover. */
   phoneBar?: ReactNode;
@@ -262,9 +270,10 @@ export function Editor({
   // The pointer is over the page: the slim bar shows its hint then
   const [overPage, setOverPage] = useState(false);
   const [suggestionsOpen, setSuggestionsOpen] = useState(false);
-  // Tailor's panel beside the page, shown and hidden from the toolbar; the
-  // page takes the room while it is hidden
-  const [panelOpen, setPanelOpen] = useState(true);
+  // What Tailor's review sets beside the page, picked on the toolbar: the
+  // Suggestions panel, the original resume, or nothing, when the page
+  // takes the room
+  const [side, setSide] = useState<"suggestions" | "original" | null>("suggestions");
 
   /** Starts a request; the returned check stays true while it is the latest. */
   const begin = useCallback(() => {
@@ -636,7 +645,18 @@ export function Editor({
     });
   // Beside the page, the toolbar's Suggestions shows and hides the panel;
   // the phone opens it as a sheet from its own button
-  const shownPanel = panelOpen && panel;
+  const shownPanel = side === "suggestions" && panel;
+  const shownOriginal = side === "original" && original;
+  /** The toolbar's Suggestions and View Original: each shows its column or
+   *  hides it. A hidden panel leaves no line highlighted for a card out of
+   *  sight. */
+  const toggleSide = (to: "suggestions" | "original") => {
+    if (side === "suggestions") {
+      setActive(null);
+      setFocused(null);
+    }
+    setSide(side === to ? null : to);
+  };
 
   if (phone) {
     const start = line && startText(line);
@@ -706,57 +726,71 @@ export function Editor({
     );
   }
 
-  return (
+  const bar = (
+    <Bar
+      compact={compact}
+      overPage={overPage}
+      line={line}
+      box={box}
+      bank={bank}
+      choices={choices}
+      header={header}
+      rendered={rendered}
+      hint={!(firstFailed && !rendered)}
+      saving={saving}
+      elapsed={elapsed}
+      fitUndo={fitUndo}
+      download={download}
+      onApply={apply}
+      onSaveHeader={saveHeader}
+      onClose={() => select(null)}
+      onFit={fit}
+      onUndoFit={undoFit}
+      onAsk={asking ? undefined : () => setAsking(true)}
+      review={
+        reviewing && {
+          count: reviewing.edits.length,
+          side,
+          onSuggestions: () => toggleSide("suggestions"),
+          onOriginal: original ? () => toggleSide("original") : undefined,
+        }
+      }
+    />
+  );
+  // The column beside the page sticks under the slim toolbar, which sticks
+  // over the whole width
+  const sideColumn = cn(
+    "overflow-y-auto overscroll-contain @4xl/main:sticky",
+    compact
+      ? "@4xl/main:top-[3.75rem] @4xl/main:max-h-[calc(100dvh-10rem)]"
+      : "@4xl/main:top-2 @4xl/main:max-h-[calc(100dvh-8rem)]",
+  );
+
+  const grid = (
     <div
       className={cn(
-        "mt-4 grid items-start gap-5",
+        "grid items-start gap-5",
+        !compact && "mt-4",
         asking && "@4xl/main:grid-cols-[minmax(0,1fr)_22rem]",
         shownPanel && !asking && "@4xl/main:grid-cols-[minmax(0,1fr)_22.5rem]",
+        // The two resumes at one width, so a line reads against its twin
+        shownOriginal && !asking && "@4xl/main:grid-cols-2",
       )}
     >
       <div className={cn("flex min-w-0 flex-col", compact ? "gap-2" : "gap-4")}>
-        {heading}
-        <Bar
-          compact={compact}
-          overPage={overPage}
-          line={line}
-          box={box}
-          bank={bank}
-          choices={choices}
-          header={header}
-          rendered={rendered}
-          hint={!(firstFailed && !rendered)}
-          saving={saving}
-          elapsed={elapsed}
-          fitUndo={fitUndo}
-          download={download}
-          onApply={apply}
-          onSaveHeader={saveHeader}
-          onClose={() => select(null)}
-          onFit={fit}
-          onUndoFit={undoFit}
-          onAsk={asking ? undefined : () => setAsking(true)}
-          review={
-            reviewing && {
-              count: reviewing.edits.length,
-              open: panelOpen,
-              // A hidden panel leaves no line highlighted for a card out of sight
-              onToggle: () => {
-                if (panelOpen) {
-                  setActive(null);
-                  setFocused(null);
-                }
-                setPanelOpen(!panelOpen);
-              },
-            }
-          }
-        />
+        {!compact && heading}
+        {!compact && bar}
         {error && (
           <p role="alert" className="text-note text-danger">
             {error}
           </p>
         )}
         <DownloadNotes download={download} />
+        {/* Named as its twin is (`OriginalResume`), so the two pages start
+            level and each says which it is */}
+        {shownOriginal && !asking && (
+          <h2 className="text-label text-ink-meta font-semibold">Tailored Resume</h2>
+        )}
         <div
           ref={pages}
           data-keeps-selection
@@ -801,15 +835,24 @@ export function Editor({
       {shownPanel && !asking && (
         <div
           data-keeps-selection
-          className={cn(
-            "max-h-scroll-box -order-1 overflow-y-auto overscroll-contain",
-            "@4xl/main:sticky @4xl/main:top-2 @4xl/main:order-none @4xl/main:max-h-[calc(100dvh-8rem)]",
-          )}
+          className={cn(sideColumn, "max-h-scroll-box -order-1 @4xl/main:order-none")}
         >
           {shownPanel}
         </div>
       )}
+      {/* The original beside the page; under it on a narrow screen */}
+      {shownOriginal && !asking && <div className={sideColumn}>{shownOriginal}</div>}
       {fitToast}
+    </div>
+  );
+  if (!compact) return grid;
+  // The slim toolbar spans the page and the column beside it, so it has
+  // room for every tool; over the page alone it had none to spare
+  return (
+    <div className="mt-4 flex flex-col gap-2">
+      {heading}
+      {bar}
+      {grid}
     </div>
   );
 }
@@ -870,9 +913,8 @@ function Bar({
   onUndoFit: () => void;
   /** Opens the assistant; absent while it is open. */
   onAsk?: () => void;
-  /** Tailor's Suggestions panel: its count, and whether it shows beside the
-   *  page (the slim bar's toggle). */
-  review?: SuggestionsToggle | null;
+  /** Tailor's review tools on the slim bar: Suggestions and View Original. */
+  review?: ReviewTools | null;
 }) {
   if (compact) {
     return (
@@ -989,28 +1031,59 @@ function Bar({
   );
 }
 
-/** The slim bar's Suggestions toggle: the changes left and whether the
- *  panel shows beside the page. */
-type SuggestionsToggle = { count: number; open: boolean; onToggle: () => void };
+/** The slim bar's review tools: the changes left, which column shows
+ *  beside the page, and the toggles for each. */
+type ReviewTools = {
+  count: number;
+  side: "suggestions" | "original" | null;
+  onSuggestions: () => void;
+  /** Absent when the run's record names no source resume. */
+  onOriginal?: () => void;
+};
 
 /** The slim bar's box: a quiet white row, not the brand-tinted bar. */
 const SLIM_BAR =
   "bg-panel/95 ring-border-subtle sticky top-2 z-20 flex min-h-10 flex-wrap items-center gap-2 rounded-xl px-2 py-1 ring-1 backdrop-blur";
 
+/** A toggle on the slim bar, in the brand tint while its column shows. */
+const PRESSED = "aria-pressed:bg-brand-tint aria-pressed:border-brand-pale aria-pressed:text-brand";
+
 /**
- * The slim bar (Tailor's review), in two states, each with only what that
- * moment needs. Idle: the page count as a chip that offers Fit to One Page
- * (over one page only), Undo after a fit, the hint while the pointer is
- * over the page, then Suggestions (on Tailor's review: shows and hides the
- * panel, with its count) and Download in the brand fill. Editing a line
- * (`editing`): its kind, its
- * moves first, then Hide and the line's own choices, and "Esc when done"
- * in place of a Done button, since Escape or a click off the page already
- * saves and closes. No Ask Scout here: the Suggestions panel holds the
- * column the assistant would open in, and a second AI entry beside it
- * split the page's attention. Download goes while a line is open, which is
- * not the moment to save a file. The panel folded to a rail of its own (»)
- * until the user found it dated; Download was an outlined glyph.
+ * Undo and Redo, first on the slim bar in both its states. UI only for now
+ * (2026-10-26): the editor keeps no history yet, so both stay disabled
+ * until it does. Undo Fit stays its own button after a fit.
+ */
+function History() {
+  return (
+    <div className="flex items-center gap-0.5">
+      <Button variant="ghost" size="icon-sm" aria-label="Undo" title="Undo" disabled>
+        <ArrowUUpLeftIcon aria-hidden />
+      </Button>
+      <Button variant="ghost" size="icon-sm" aria-label="Redo" title="Redo" disabled>
+        <ArrowUUpRightIcon aria-hidden />
+      </Button>
+      <span aria-hidden className="bg-border-subtle mx-1 h-5 w-px" />
+    </div>
+  );
+}
+
+/**
+ * The slim bar (Tailor's review), across the page and the column beside
+ * it, in two states, each with only what that moment needs. Both open with
+ * Undo and Redo (`History`). Idle: the page count as a chip that offers
+ * Fit to One Page (over one page only), Undo Fit after a fit, the hint
+ * while the pointer is over the page, then View Original (the source
+ * resume beside the page, in place of the panel), Suggestions (shows and
+ * hides the panel, with its count) and Download in the brand fill. Editing
+ * a line (`editing`): its kind, its moves first, then Hide and the line's
+ * own choices, and "Esc when done" in place of a Done button, since Escape
+ * or a click off the page already saves and closes. No Ask Scout here: the
+ * Suggestions panel holds the column the assistant would open in, and a
+ * second AI entry beside it split the page's attention. Download goes
+ * while a line is open, which is not the moment to save a file. The bar
+ * sat over the page alone until it needed room for more tools; the panel
+ * folded to a rail of its own (») until the user found it dated; Download
+ * was an outlined glyph; View Original was a link in the panel.
  */
 function SlimBar({
   overPage,
@@ -1034,7 +1107,7 @@ function SlimBar({
   download: ResumeDownload;
   onFit: () => void;
   onUndoFit: () => void;
-  review?: SuggestionsToggle | null;
+  review?: ReviewTools | null;
   /** The open line's label and actions, or nothing while idle. */
   editing: ReactNode;
 }) {
@@ -1053,6 +1126,7 @@ function SlimBar({
           if ((e.target as HTMLElement).closest("button")) e.preventDefault();
         }}
       >
+        <History />
         {editing}
         <div className="ml-auto flex items-center gap-2">
           {status}
@@ -1065,6 +1139,7 @@ function SlimBar({
   }
   return (
     <div data-keeps-selection className={SLIM_BAR}>
+      <History />
       {rendered && rendered.page_count > 1 && (
         <PagesChip
           pages={rendered.page_count}
@@ -1089,13 +1164,24 @@ function SlimBar({
       </span>
       <div className="ml-auto flex items-center gap-2">
         {status}
+        {review?.onOriginal && (
+          <Button
+            variant="secondary"
+            size="sm"
+            aria-pressed={review.side === "original"}
+            onClick={review.onOriginal}
+            className={PRESSED}
+          >
+            <FileMagnifyingGlassIcon aria-hidden /> View Original
+          </Button>
+        )}
         {review && (
           <Button
             variant="secondary"
             size="sm"
-            aria-pressed={review.open}
-            onClick={review.onToggle}
-            className="aria-pressed:bg-brand-tint aria-pressed:border-brand-pale aria-pressed:text-brand"
+            aria-pressed={review.side === "suggestions"}
+            onClick={review.onSuggestions}
+            className={PRESSED}
           >
             <PencilSimpleLineIcon aria-hidden /> Suggestions
             <span className="bg-brand text-on-brand flex h-5 min-w-5 items-center justify-center rounded-full px-1.5 text-xs font-semibold tabular-nums">

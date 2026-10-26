@@ -1761,20 +1761,22 @@ with no proposals to accept and no Done (2026-10-25).
   resume's name over the page (`ResumeTitle`: plain text that shows a
   faint outline and a pencil when pointed at, and a click makes it a field
   in the same box; Enter or a click away saves, Esc cancels), the
-  editor's slim toolbar under it, and "Suggestions" with its count in a
+  editor's slim toolbar under it across the page and the panel, and
+  "Suggestions" with its count in a
   filled pill over a 360px panel in the brand tint (the editor's bar's
   colour) of white sections that sticks and scrolls on its own. The
-  toolbar, idle, shows the page count when over one page as an amber
-  chip with a warning sign and a caret (its click offers Fit to One
-  Page), then Suggestions with its count, which shows and hides the
-  panel (hidden, the page takes the width), and Download in the brand
-  fill; while a line is open, its moves, Hide and its choices with "Esc
+  toolbar opens with Undo and Redo (UI only for now, disabled); idle, it
+  shows the page count when over one page as an amber chip with a
+  warning sign and a caret (its click offers Fit to One Page), then View
+  Original, which sets the source resume beside the tailored one at one
+  width in place of the panel, then Suggestions with its count, which
+  shows and hides the panel (hidden, the page takes the width), and
+  Download in the brand fill; while a line is open, its moves, Hide and its choices with "Esc
   when done"; no Ask Scout and no Done. Each changed line has a small
   plain dot in the page's margin and is highlighted (its tint, a 1px dark
   border, rounded, after Quinncia) only while its suggestion is pointed
-  at or open; a dot or a changed line opens it. The panel's top holds
-  View Original (a white button with a file glyph), a "…" menu (Accept
-  All, Reject All) and the keyword
+  at or open; a dot or a changed line opens it. The panel's top holds a
+  "…" menu (Accept All, Reject All) and the keyword
   match as one thin row ("No new keywords matched" when it did not
   move); under it one white section per kind, Reworded Bullets, Reordered
   Bullets and Added Skills,

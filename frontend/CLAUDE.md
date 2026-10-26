@@ -1435,7 +1435,7 @@ the KAN-296 cutover.
   `(seeker)/resumes/uploaded/[id]`, which draws through the same
   `PdfPages`) and Tailor's page (`(seeker)/jobs/[jobId]/tailor`: the
   editor and a resume card's Preview dialog, `resume-preview.tsx`, which
-  the review's View Original reuses), through `import("pdfjs-dist")` inside an effect in
+  the review's View Original sets beside the page, `OriginalResume`), through `import("pdfjs-dist")` inside an effect in
   `(seeker)/resumes/[resumeId]/pdf-pages.tsx`: about 110 KB gzip plus a
   290 KB worker, which every other page would otherwise pay for, and its
   module touches browser globals, so a top-level import breaks the server

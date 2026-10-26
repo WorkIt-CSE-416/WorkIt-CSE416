@@ -1,11 +1,6 @@
 "use client";
 
-import {
-  CaretDownIcon,
-  CheckIcon,
-  FileMagnifyingGlassIcon,
-  XIcon,
-} from "@phosphor-icons/react/ssr";
+import { CaretDownIcon, CheckIcon, XIcon } from "@phosphor-icons/react/ssr";
 import { useEffect, useRef, useState, type ComponentProps, type ReactNode } from "react";
 
 import { EllipsisIcon } from "@/components/icons";
@@ -19,7 +14,7 @@ import { Button } from "@/components/ui/button";
 import type { Bank } from "@/lib/bank-actions";
 import type { Choices } from "@/lib/built-resume-actions";
 import { cn } from "@/lib/cn";
-import type { TailorEdit, TailorSource } from "@/lib/tailor-actions";
+import type { TailorEdit } from "@/lib/tailor-actions";
 
 import { Editor } from "../../../resumes/[resumeId]/editor";
 import { wording } from "../../../resumes/[resumeId]/model";
@@ -30,21 +25,22 @@ import {
   useTailorReview,
   type SuggestionsApi,
 } from "../../../resumes/[resumeId]/tailor-review";
-import { ResumePreviewDialog } from "./resume-preview";
+import { OriginalResume } from "./resume-preview";
 import { ResumeTitle } from "./resume-title";
 import { TailorScore } from "./tailor-score";
 
 /**
  * Tailor's review step (docs/tailor_resume.md, "Suggestions"), kept quiet
  * after Quinncia's resume review: the tailored resume under its name and
- * the editor's slim toolbar (`compact`), and the Suggestions panel, which
- * the toolbar shows and hides. Each changed line has a small dot in the
- * page's margin and is highlighted only while its suggestion is pointed
- * at, focused or open. The panel has a section per kind (Reworded
- * Bullets, Reordered Bullets, Added Skills), each counting its suggestions, and each suggestion is a row that
- * opens to its before and after with Accept, which keeps the saved change,
- * and Reject, which undoes it. The editor owns the state and lays the
- * panel out (`suggestions`); this file draws it.
+ * the editor's slim toolbar (`compact`), and beside it the Suggestions
+ * panel or, from the toolbar's View Original, the source resume
+ * (`original`). Each changed line has a small dot in the page's margin and
+ * is highlighted only while its suggestion is pointed at, focused or open.
+ * The panel has a section per kind (Reworded Bullets, Reordered Bullets,
+ * Added Skills), each counting its suggestions, and each suggestion is a
+ * row that opens to its before and after with Accept, which keeps the
+ * saved change, and Reject, which undoes it. The editor owns the state and
+ * lays the panel out (`suggestions`); this file draws it.
  *
  * The record lives in this tab's sessionStorage, so a new tab or device has
  * no suggestions: the editor shows alone, with a line that says why.
@@ -76,31 +72,9 @@ export function TailorReview({
         {...editor}
         compact
         heading={<ResumeTitle resumeId={editor.resumeId} name={name} />}
+        original={record?.source && <OriginalResume source={record.source} />}
         phoneBar={noRecord}
         suggestions={(api) => <SuggestionsPanel {...api} />}
-      />
-    </>
-  );
-}
-
-/** The resume Tailor started from, read-only in step 1's Preview dialog:
- *  the panel's way to the original, in place of the side-by-side Before
- *  column the user found too much at once. The record keeps the source's
- *  id, not its name, so the dialog is titled for what it is. */
-function ViewOriginal({ source }: { source: TailorSource }) {
-  const [open, setOpen] = useState(false);
-  return (
-    <>
-      {/* A white button on the panel's tint, with its glyph: as a bare
-          brand link it read as stray text beside the heading */}
-      <Button variant="secondary" size="xs" onClick={() => setOpen(true)}>
-        <FileMagnifyingGlassIcon aria-hidden /> View Original
-      </Button>
-      <ResumePreviewDialog
-        open={open}
-        onOpenChange={setOpen}
-        label="Original Resume"
-        source={source}
       />
     </>
   );
@@ -192,7 +166,6 @@ function SuggestionsPanel({
           >
             Suggestions <Count n={edits.length} />
           </h2>
-          {record.source && <ViewOriginal source={record.source} />}
           <DropdownMenu>
             <DropdownMenuTrigger
               disabled={saving || edits.length === 0}
