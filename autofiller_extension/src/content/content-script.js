@@ -167,6 +167,8 @@
 
       const sources = prepared.plan.sources ?? {};
       for (const name of Object.keys(answers)) {
+        // An entry's company or school titles its checklist block before the field fills (groups.js).
+        window.WIA.groups?.planned(name, byName.get(name)?.label ?? name, answers[name]);
         if (isNew(name)) status.register(name, byName.get(name)?.label ?? name, byName.get(name)?.required ?? false, sources[name] ?? "guessed");
       }
       // Outside a batch tab only the essay route writes (Generate): a choice or a one-line draft is the student's there.

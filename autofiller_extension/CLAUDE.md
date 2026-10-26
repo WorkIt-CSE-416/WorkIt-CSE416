@@ -1846,9 +1846,12 @@ head `.section-head`). Notes (content-script.js's) stand above them.
   required question the form isn't asking now), `note`. A field the engine
   reports filled (its `fillengine:field` done event) turns green at once;
   the fill's answer then sets every row as WorkIt read it back.
-- **Order (Q2).** While the fill runs, the Plan's order; once it is done
+- **Order (Q2).** The page's order: each row (a section by its first
+  field) is placed where `window.WIA.fieldOf` finds its field, and rows
+  whose field the page doesn't show yet come after, as registered
+  (`groups.inPageOrder`; KAN-369, decision 1971). Once the fill is done
   (content-script.js refreshes the list when the phase changes), red and
-  then amber rows rise to the top of their section, the rest in the Plan's
+  then amber rows rise to the top of their section, the rest in page
   order. Required questions the form isn't asking now close the Required
   section, collapsed to "N the form isn't asking now"
   (`.group[data-group="not-asked"]`).
@@ -1859,8 +1862,10 @@ head `.section-head`). Notes (content-script.js's) stand above them.
   section (`groups.entryOf`). A section is one row (`.entries[data-entries]`,
   its head Workday's "(entries)" question's row when there is one, marked
   with the worst of its fields) and under it a block per entry
-  (`.entry`), titled by its company or school as the form shows it
-  (`.entry-title`, "Work Experience 1" until filled), listing the entry's
+  (`.entry`), titled by its company or school as the form shows it, else
+  as the Plan fills it (the profile entry's; content-script.js hands each
+  planned answer to `groups.planned`, which keeps only an entry's naming
+  field), else "Work Experience 1" (`.entry-title`), listing the entry's
   fields with small dots (`.row.sub`). The section goes under Required when
   any of its fields is required.
 - **Rows (Q4's row parts).** overlay.js's `row` keeps its cards, reasons and
