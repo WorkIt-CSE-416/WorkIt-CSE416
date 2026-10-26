@@ -21,6 +21,7 @@ from app.deps import get_current_account
 from app.main import app
 from app.models.built_resume import Built_Resume_Skill
 from app.models.jobs import Job_Post
+from app.routers import tailor as tailor_router
 from app.routers.scout import get_llm
 from app.schemas.auth import AccountType, AuthenticatedAccount
 from app.schemas.tailor import Placement
@@ -662,7 +663,7 @@ async def test_a_run_saves_the_tailored_resume_and_leaves_the_source(student, da
     body = res.json()
     tailored = body["resume"]
     assert tailored["job_posting_id"] == posting
-    assert tailored["name"] == "Acme – Backend Intern"
+    assert tailored["name"] == "Sam Seeker Acme Backend Intern Resume"
     assert _words(body["after_matched"]) == ["Python", "Docker", "Kubernetes"]
     shown = await student.words(tailored["id"])
     assert "Built Python billing services packaged with Docker" in shown
@@ -823,6 +824,21 @@ SKILLS = _view(("Python", "Languages"), ("Java", "Languages"), ("Git", "Tools"),
 
 def _placed(view: ResumeView, picked: list[str], *placements: dict) -> list[tuple[str, str | None]]:
     return [(p.name, p.group) for p in tailor.place_skills(view, picked, [Placement(**p) for p in placements])]
+
+
+@pytest.mark.parametrize(("title", "company", "name"), [
+    ("Software Engineer (Seattle WA)", "Adobe", "Sam Seeker Adobe Software Engineer Resume"),
+    ("Software Engineer, Product (Co-op)", "Bree", "Sam Seeker Bree Software Engineer, Product Resume"),
+    ("Intern [Remote] {2027} - Backend", None, "Sam Seeker Intern - Backend Resume"),
+    ("(Seattle)", "Acme", "Sam Seeker Acme (Seattle) Resume"),
+])
+def test_a_tailored_resume_is_named_for_the_student_company_and_title_without_brackets(title, company, name):
+    assert tailor_router._name("Sam Seeker", Job_Post(title=title, company_name=company)) == name
+
+
+def test_a_long_tailored_name_cuts_the_title_and_keeps_resume():
+    name = tailor_router._name("Sam Seeker", Job_Post(title="Engineer " * 20, company_name="Acme"))
+    assert len(name) <= 80 and name.startswith("Sam Seeker Acme Engineer") and name.endswith(" Resume")
 
 
 def test_a_skill_goes_after_the_numbered_skill_in_its_group():

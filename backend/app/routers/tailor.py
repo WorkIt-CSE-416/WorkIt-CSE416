@@ -41,6 +41,7 @@ POST /applicants/{id}/tailor/stream TailorRun -> NDJSON
 """
 
 import logging
+import re
 import uuid
 from collections.abc import AsyncIterator
 
@@ -270,7 +271,7 @@ async def _steps(
 
     # Saved with no confirmation: the editor marks each change and reverts it.
     resume = Built_Resume(
-        id=uuid.uuid4(), applicant_id=applicant_id, name=_name(job), template=template, job_posting_id=job.id)
+        id=uuid.uuid4(), applicant_id=applicant_id, name=_name(account.full_name, job), template=template, job_posting_id=job.id)
     session.add(resume)
     await session.flush()
     try:
@@ -317,5 +318,18 @@ async def _steps(
     )
 
 
-def _name(job: Job_Post) -> str:
-    return f"{job.company_name} – {job.title}"[:80] if job.company_name else job.title[:80]
+# A bracketed part of a title, with the space before it: "(Seattle, WA)",
+# "[Remote]", "{2027}". Basic on purpose: a nested or unclosed bracket stays.
+_BRACKETED = re.compile(r"\s*(\([^()]*\)|\[[^\[\]]*\]|\{[^{}]*\})")
+# The name's cap: what Rename accepts (`schemas/built_resume.py`'s `Name`).
+_NAME_LIMIT = 80
+
+
+def _name(student: str, job: Job_Post) -> str:
+    """The tailored resume's default name, "{student} {company} {title}
+    Resume", the title without its bracketed parts. Over the cap, the title
+    is cut, so the name still ends in "Resume"."""
+    title = " ".join(_BRACKETED.sub("", job.title).split()) or job.title.strip()
+    lead = " ".join(part for part in (student.strip(), (job.company_name or "").strip()) if part)
+    room = _NAME_LIMIT - len(" Resume") - (len(lead) + 1 if lead else 0)
+    return " ".join(part for part in (lead, title[: max(room, 0)].rstrip(), "Resume") if part)

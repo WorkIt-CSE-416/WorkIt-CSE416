@@ -40,7 +40,11 @@ model tokens; the student changes the tailored resume in the editor.
    - rewrites the bullets the posting cares about (the model, under the
      truth rule),
    - orders each entry's bullets by rank (Postgres text search, as today),
-   - saves the result as the posting's one tailored resume,
+   - saves the result as the posting's one tailored resume, named
+     "{student's name} {company} {title} Resume" (`routers/tailor.py`'s
+     `_name`): the title loses any bracketed part ("(Seattle, WA)",
+     "[Remote]"), and a name over Rename's 80 characters cuts the title,
+     never "Resume",
    - answers with the tailored resume's id and the **changes**: what each
      change replaced (below).
 
@@ -167,7 +171,7 @@ response lists each change with what it replaced, by handle and id:
 
 ```json
 {
-  "resume": {"id": "...", "name": "Acme – Backend Intern"},
+  "resume": {"id": "...", "name": "Sam Seeker Acme Backend Intern Resume"},
   "edits": [
     {"kind": "reword", "bullet_id": "...", "text": "Built Python billing services",
      "before": "Wrote billing services in python", "before_variant_id": null},
