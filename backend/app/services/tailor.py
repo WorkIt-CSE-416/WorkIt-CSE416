@@ -39,7 +39,7 @@ from app.models.jobs import Job_Post
 from app.models.resume import Resume
 from app.schemas.keywords import Keyword
 from app.schemas.tailor import TailorChange, TailorReading
-from app.services import bank_import
+from app.services import bank_import, skill_catalog
 from app.services import keywords as kw
 from app.services.bank import (
     Bank,
@@ -250,13 +250,20 @@ def match(bank: Bank, choices: Choices, keywords: Sequence[Keyword]) -> tuple[li
     return kw.match(build_view(bank, choices), list(keywords))
 
 
-def questions(bank: Bank, keywords: Sequence[Keyword], missing: Sequence[Keyword]) -> list[Keyword]:
+def questions(
+    bank: Bank, keywords: Sequence[Keyword], missing: Sequence[Keyword], removed: Iterable[str] = (),
+) -> list[Keyword]:
     """The missing keywords that neither the resume's entries nor any bank
     skill hold (`bank` is `on_resume`'s): "Have you used X?". A hidden
-    entry's words do not count: a run never brings that entry back."""
+    entry's words do not count: a run never brings that entry back. Only a
+    skill the catalog knows is asked (`skill_catalog`, KAN-369): Yes adds it
+    to the bank, and a degree or "AI tools" is no skill. Nor is one the
+    student removed (`removed`, catalog keys): they said no already."""
     _, nowhere = match(bank, all_chosen(bank), keywords)
     absent = {k.keyword for k in nowhere}
-    return [k for k in missing if k.keyword in absent]
+    removed = set(removed)
+    return [k for k in missing if k.keyword in absent and skill_catalog.is_skill(k.keyword)
+            and skill_catalog.key(k.keyword) not in removed]
 
 
 def _clean(text: str | None) -> str:

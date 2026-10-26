@@ -1,0 +1,722 @@
+# WorkIt's skills catalog (KAN-369, services/skill_catalog.py): the tools,
+# languages, frameworks and hard skills a resume reading or Tailor may add
+# to a bank. One skill a line, its other spellings after a "|". Matching
+# ignores case, spaces versus hyphens, a ".js" ending and a final plural
+# "s", so "ReactJS", "React.js" and "react" are one line. No soft skills,
+# degrees or vague phrases ("AI tools"): those are what the catalog keeps out.
+# Written for WorkIt; add a line when a real skill is missing.
+
+# Programming languages
+Python
+Java
+JavaScript | JS | ECMAScript | ES6
+TypeScript | TS
+C
+C++ | CPP
+C/C++
+C# | C Sharp
+Go | Golang
+Rust
+Kotlin
+Swift
+Objective-C
+Ruby
+PHP
+Perl
+Scala
+Haskell
+OCaml
+F#
+Elixir
+Erlang
+Clojure
+Lisp
+Scheme
+Racket
+Prolog
+Dart
+Lua
+R
+Julia
+MATLAB
+Octave
+SAS
+Stata
+SPSS
+Fortran
+COBOL
+Ada
+Assembly | Assembly Language | x86 Assembly | ARM Assembly | MIPS | RISC-V
+Verilog | SystemVerilog
+VHDL
+Bash | Shell | Shell Scripting | Bash Scripting
+Zsh
+PowerShell
+SQL
+PL/SQL
+T-SQL
+GraphQL
+HTML | HTML5
+CSS | CSS3
+Sass | SCSS
+Less
+LaTeX
+Markdown
+YAML
+JSON
+XML
+Solidity
+Groovy
+Visual Basic | VB.NET | VBA
+Apex
+ABAP
+Zig
+Nim
+Elm
+CUDA
+OpenCL
+GLSL
+HLSL
+WebAssembly | Wasm
+Arduino
+LabVIEW
+Simulink
+G-code
+
+# Web, mobile and backend frameworks and libraries
+React | ReactJS | React.js
+React Native
+Next.js | NextJS
+Remix
+Gatsby
+Vue | Vue.js | VueJS
+Nuxt
+Angular | AngularJS
+Svelte | SvelteKit
+Solid
+Ember
+Backbone
+jQuery
+Redux
+Zustand
+MobX
+RxJS
+Tailwind CSS | Tailwind | TailwindCSS
+Bootstrap
+Material UI | MUI
+Chakra UI
+shadcn/ui
+Styled Components
+Three.js
+D3 | D3.js
+Chart.js
+Node.js | Node | NodeJS
+Express | Express.js | ExpressJS
+NestJS
+Fastify
+Koa
+Deno
+Bun
+Django
+Django REST Framework | DRF
+Flask
+FastAPI
+Pydantic
+SQLAlchemy
+Alembic
+Celery
+Spring | Spring Framework
+Spring Boot
+Hibernate
+JPA
+Maven
+Gradle
+Ruby on Rails | Rails
+Sinatra
+Laravel
+Symfony
+ASP.NET | ASP.NET Core
+.NET | .NET Core | dotnet
+Entity Framework
+Blazor
+Gin
+Echo
+Phoenix
+Flutter
+SwiftUI
+UIKit
+Jetpack Compose
+Android | Android SDK | Android Development
+iOS | iOS Development
+Xamarin
+Ionic
+Electron
+Tauri
+Qt
+GTK
+Tkinter
+PyQt
+JavaFX
+Swing
+Unity
+Unreal Engine | Unreal
+Godot
+OpenGL
+Vulkan
+DirectX
+WebGL
+SDL
+Socket.IO
+WebSockets | WebSocket
+gRPC
+Protocol Buffers | Protobuf
+Apache Thrift
+tRPC
+Prisma
+Drizzle
+Mongoose
+Sequelize
+TypeORM
+Knex
+Supabase
+Firebase
+Appwrite
+Clerk
+Auth0
+Stripe
+Twilio
+Vite
+Webpack
+Babel
+esbuild
+Rollup
+Parcel
+Turborepo
+npm
+Yarn
+pnpm
+pip
+uv
+Poetry
+Conda | Anaconda
+Homebrew
+Storybook
+Figma
+Sketch
+Adobe XD
+Framer
+InVision
+Zeplin
+Adobe Photoshop | Photoshop
+Adobe Illustrator | Illustrator
+Adobe InDesign | InDesign
+Adobe Premiere Pro | Premiere Pro
+Adobe After Effects | After Effects
+Adobe Lightroom | Lightroom
+Adobe Creative Suite | Adobe Creative Cloud
+Canva
+Blender
+Maya
+Cinema 4D
+Final Cut Pro
+DaVinci Resolve
+Procreate
+
+# Testing
+Jest
+Vitest
+Mocha
+Chai
+Jasmine
+Cypress
+Playwright
+Puppeteer
+Selenium
+WebdriverIO
+Testing Library | React Testing Library
+pytest | PyTest
+unittest
+JUnit
+TestNG
+Mockito
+RSpec
+Postman
+Insomnia
+JMeter
+k6
+Locust
+Unit Testing
+Integration Testing
+End-to-End Testing | E2E Testing
+Test-Driven Development | TDD
+Behavior-Driven Development | BDD
+Cucumber
+Appium
+XCTest
+Espresso
+
+# Data, ML and AI
+Machine Learning | ML
+Deep Learning
+Artificial Intelligence | AI
+Generative AI | GenAI
+Large Language Models | LLM | LLMs
+Natural Language Processing | NLP
+Computer Vision | CV
+Reinforcement Learning | RL
+Prompt Engineering
+Retrieval-Augmented Generation | RAG
+Neural Networks
+Transformers
+Hugging Face | HuggingFace
+LangChain
+LlamaIndex
+OpenAI API
+Anthropic API | Claude API
+Model Context Protocol | MCP
+TensorFlow
+Keras
+PyTorch
+JAX
+scikit-learn | sklearn | Scikit Learn
+XGBoost
+LightGBM
+CatBoost
+OpenCV
+YOLO
+spaCy
+NLTK
+Gensim
+NumPy
+pandas
+Polars
+SciPy
+SymPy
+Matplotlib
+Seaborn
+Plotly
+Bokeh
+Streamlit
+Gradio
+Dash
+Jupyter | Jupyter Notebook | JupyterLab
+Google Colab | Colab
+MLflow
+Weights & Biases | W&B | wandb
+Kubeflow
+SageMaker | Amazon SageMaker
+Vertex AI
+Ollama
+vLLM
+ONNX
+TensorRT
+Data Analysis
+Data Science
+Data Visualization
+Data Engineering
+Data Mining
+Data Modeling
+Data Structures
+Data Structures and Algorithms | DSA
+Algorithms
+Statistics
+Statistical Analysis
+Probability
+Linear Algebra
+Calculus
+Discrete Mathematics | Discrete Math
+Regression Analysis | Regression
+Time Series Analysis
+A/B Testing
+Feature Engineering
+ETL
+ELT
+Big Data
+Apache Spark | Spark | PySpark
+Hadoop
+Apache Kafka | Kafka
+Apache Flink | Flink
+Apache Airflow | Airflow
+Apache Beam
+Dagster
+Prefect
+dbt
+Snowflake
+Databricks
+BigQuery
+Redshift | Amazon Redshift
+Tableau
+Power BI
+Looker
+Excel | Microsoft Excel
+Google Sheets
+Pivot Tables
+VLOOKUP
+Alteryx
+Master Data Management | MDM
+Data Warehousing
+
+# Databases
+PostgreSQL | Postgres
+MySQL
+MariaDB
+SQLite
+Microsoft SQL Server | SQL Server | MSSQL
+Oracle | Oracle Database
+MongoDB
+Redis
+Memcached
+Cassandra
+DynamoDB
+Couchbase
+CouchDB
+Neo4j
+Elasticsearch
+OpenSearch
+Solr
+InfluxDB
+TimescaleDB
+ClickHouse
+CockroachDB
+Firestore
+pgvector
+Pinecone
+Weaviate
+Chroma | ChromaDB
+FAISS
+Milvus
+NoSQL
+Relational Databases
+Database Design
+
+# Cloud, DevOps and infrastructure
+Amazon Web Services | AWS
+AWS Lambda | Lambda
+Amazon EC2 | EC2
+Amazon S3 | S3
+Amazon RDS | RDS
+Amazon ECS | ECS
+Amazon EKS | EKS
+CloudFormation
+AWS CDK
+Google Cloud Platform | GCP | Google Cloud
+Google Kubernetes Engine | GKE
+Cloud Run
+Microsoft Azure | Azure
+Azure DevOps
+Cloudflare
+Cloudflare Workers
+Vercel
+Netlify
+Heroku
+Render
+Fly.io
+DigitalOcean
+Linode
+Oracle Cloud
+IBM Cloud
+Docker
+Docker Compose
+Kubernetes | K8s
+Helm
+OpenShift
+Podman
+Terraform
+Pulumi
+Ansible
+Chef
+Puppet
+Vagrant
+Packer
+Nginx
+Apache HTTP Server | Apache
+HAProxy
+Envoy
+Istio
+Consul
+Vault
+Prometheus
+Grafana
+Datadog
+New Relic
+Splunk
+ELK Stack | ELK
+Kibana
+Logstash
+Sentry
+PagerDuty
+OpenTelemetry
+Jaeger
+CI/CD | CI/CD Tools | CI/CD Pipelines | Continuous Integration | Continuous Deployment | Continuous Delivery
+GitHub Actions
+GitLab CI | GitLab CI/CD
+Jenkins
+CircleCI
+Travis CI
+Argo CD | ArgoCD
+Bitbucket Pipelines
+Serverless
+Microservices
+Linux
+Unix
+Ubuntu
+Debian
+Red Hat | RHEL
+CentOS
+Fedora
+Arch Linux
+Windows
+Windows Server
+macOS
+Active Directory
+DNS
+TCP/IP
+HTTP
+REST | REST APIs | RESTful APIs | RESTful | REST API Design
+SOAP
+OAuth | OAuth 2.0
+OpenID Connect | OIDC
+JWT
+SAML
+SSO
+Networking | Computer Networking | Computer Networks
+Load Balancing
+Caching
+Message Queues
+RabbitMQ
+Amazon SQS | SQS
+Amazon SNS | SNS
+Google Pub/Sub | Pub/Sub
+NATS
+ZeroMQ
+MQTT
+Site Reliability Engineering | SRE
+DevOps
+Infrastructure as Code | IaC
+Observability
+Monitoring
+
+# Security
+Cybersecurity
+Information Security
+Network Security
+Application Security | AppSec
+Penetration Testing
+Vulnerability Assessment
+Cryptography
+Wireshark
+Burp Suite
+Metasploit
+Nmap
+Kali Linux
+OWASP
+SIEM
+Incident Response
+Threat Modeling
+Reverse Engineering
+Ghidra
+IDA Pro
+
+# Software engineering practice
+Git
+GitHub
+GitLab
+Bitbucket
+Subversion | SVN
+Mercurial
+Object-Oriented Programming | OOP
+Functional Programming
+Design Patterns
+System Design
+Software Architecture
+Distributed Systems
+Concurrency | Multithreading
+Parallel Computing | Parallel Programming
+High-Performance Computing | HPC
+Operating Systems
+Compilers
+Computer Architecture
+Embedded Systems
+Real-Time Systems
+Systems Programming
+Software Development
+Software Engineering
+Web Development
+Full-Stack Development | Full Stack Development
+Frontend Development | Front-End Development | Front End Development
+Backend Development | Back-End Development | Back End Development
+Mobile Development
+Game Development
+API Design
+API Development
+Responsive Design
+Accessibility | Web Accessibility | WCAG
+Search Engine Optimization | SEO
+Web Scraping
+Beautiful Soup | BeautifulSoup
+Scrapy
+Agile
+Scrum
+Scrum Master
+Kanban
+Waterfall
+Jira
+Confluence
+Trello
+Asana
+Notion
+Linear
+Slack
+Microsoft Teams
+Code Review
+Debugging
+Technical Writing
+Documentation
+Requirements Analysis
+UML
+Version Control
+Visual Studio Code | VS Code | VSCode
+Visual Studio
+IntelliJ IDEA | IntelliJ
+PyCharm
+Eclipse
+Xcode
+Android Studio
+Vim | Neovim
+Emacs
+Chrome Developer Tools | Chrome DevTools
+GDB
+Valgrind
+CMake
+Make | Makefile
+Bazel
+LLVM
+Clang
+GCC
+
+# Hardware, embedded and engineering tools
+Raspberry Pi
+Raspberry Pi Pico | Pi Pico
+ESP32
+STM32
+Microcontrollers
+FPGA
+Xilinx Vivado | Vivado
+Quartus
+PCB Design
+KiCad
+Altium Designer | Altium
+Eagle
+Circuit Design
+Digital Logic
+Signal Processing | Digital Signal Processing | DSP
+Control Systems
+PID Control
+Robotics
+ROS | Robot Operating System | ROS 2
+Gazebo
+SLAM
+Sensor Fusion
+Motor Control
+I2C
+SPI
+UART
+CAN Bus | CAN
+RTOS | FreeRTOS
+Oscilloscope
+Multimeter
+Soldering
+SolidWorks
+AutoCAD
+Fusion 360
+CATIA
+Creo
+Onshape
+ANSYS
+COMSOL
+3D Printing
+CAD
+CNC Machining | CNC
+LTspice
+SPICE | PSpice
+Cadence
+Multisim
+
+# Office, product and business tools
+Microsoft Office | Microsoft Office Tools | MS Office | Microsoft 365 | Office 365
+Microsoft Word | Word
+Microsoft PowerPoint | PowerPoint
+Microsoft Outlook | Outlook
+Microsoft Access
+Microsoft Project
+Microsoft Visio | Visio
+Google Workspace | G Suite
+Google Docs
+Google Slides
+Google Analytics
+Google Ads
+HubSpot
+Salesforce
+SAP
+Oracle NetSuite | NetSuite
+QuickBooks
+Workday
+ServiceNow
+Zendesk
+Mailchimp
+Shopify
+WordPress
+Wix
+Squarespace
+Zapier
+Airtable
+Miro
+Lucidchart
+Smartsheet
+Monday.com
+User Experience | UX | UX Design | User Experience Design
+User Interface Design | UI Design | UI/UX | UX/UI
+User Research
+Wireframing
+Prototyping
+Product Management
+Project Management
+Financial Modeling
+Bloomberg Terminal | Bloomberg
+Accounting
+Six Sigma | Lean Six Sigma
+GIS | ArcGIS
+QGIS
+
+# Spoken languages
+English
+Spanish
+French
+German
+Italian
+Portuguese
+Russian
+Arabic
+Hindi
+Bengali
+Urdu
+Punjabi
+Tamil
+Telugu
+Sinhala
+Mandarin | Mandarin Chinese | Chinese
+Cantonese
+Japanese
+Korean
+Vietnamese
+Tagalog | Filipino
+Thai
+Turkish
+Persian | Farsi
+Hebrew
+Greek
+Polish
+Ukrainian
+Dutch
+Swahili
+American Sign Language | ASL

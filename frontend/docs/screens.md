@@ -1734,7 +1734,8 @@ in Docs (suggested answers in the chat, not a banner).
   goes back to the posting. "Reorder bullets" names the entry with its
   organization ("Software Intern, Acme"), since two jobs can share a title.
 - **"Have you used X?"** lists missing keywords that neither the picked
-  resume's entries nor any bank skill hold. Yes adds the skill to the bank
+  resume's entries nor any bank skill hold, and only those the skills
+  catalog knows (KAN-369: never a degree or "AI tools"). Yes adds the skill to the bank
   (it is saved at once, being true) and shows it on the tailored resume. It
   no longer asks where the skill was used: skill links were removed.
 - An empty bank (409) shows a link to the bank page, where intake starts.
@@ -2219,7 +2220,10 @@ way on without one. **The student sees the reading before it is saved
 (KAN-372, ADR 0006; `onboarding/applicant/resume-step.tsx`).** Read Resume
 sends the file to `POST .../resumes/preview`, which saves nothing, and the
 step shows what it found: each entry by section (title, organization and
-dates, bullets), then the skills. An entry an earlier upload already holds
+dates, bullets), then the skills, each a tag with a × (Remove <name>,
+KAN-369). A skill taken out goes with the upload as `removed_skills`: it is
+not saved, and no later reading or Tailor adds it again. The skills shown
+are only those the skills catalog knows. An entry an earlier upload already holds
 carries Replaces Earlier Copy, and the note above counts them. Save Resume
 uploads the same file with `?replace=matching`, so the earlier copies are
 replaced, not doubled, then opens Profile; Choose Another File drops the

@@ -232,6 +232,36 @@ async def test_the_keyword_match_before_and_a_missing_keyword_is_asked_not_writt
     assert body["weak_match"] is False
 
 
+async def test_a_missing_keyword_that_is_no_catalog_skill_is_never_asked(student, database, use_model):
+    posting = await _seed_posting(database)
+    async with database() as session:
+        await session.execute(
+            text("UPDATE job_postings SET keywords = CAST(:k AS jsonb) WHERE id = :id"),
+            {"k": json.dumps([*KEYWORDS, {"keyword": "Computer Science degree", "kind": "required"},
+                              {"keyword": "AI tools", "kind": "preferred"},
+                              {"keyword": "Teamwork", "kind": "preferred"}]), "id": posting},
+        )
+        await session.commit()
+    use_model(reply())
+
+    body = (await student.tailor(posting)).json()
+
+    assert "Computer Science degree" in _words(body["missing"])
+    assert _words(body["questions"]) == ["Go", "Kubernetes"]
+
+
+async def test_a_skill_the_student_deleted_is_never_asked_again(student, database, use_model):
+    kubernetes = await student.skill("Kubernetes")
+    res = await student.client.delete(f"/applicants/{student.id}/bank/skills/{kubernetes['id']}")
+    assert res.status_code == 204
+    posting = await _seed_posting(database)
+    use_model(reply())
+
+    body = (await student.tailor(posting)).json()
+
+    assert _words(body["questions"]) == ["Go"]
+
+
 async def test_a_bank_skill_left_off_the_resume_is_proposed_not_asked(student, database, use_model):
     kubernetes = await student.skill("Kubernetes")
     posting = await _seed_posting(database)

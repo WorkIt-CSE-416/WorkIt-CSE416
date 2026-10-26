@@ -38,6 +38,9 @@ class Experience_Bank(BaseModel):
         ForeignKey("applicant_profiles.id", ondelete="CASCADE"), primary_key=True)
     embedding: Mapped[list[float] | None] = mapped_column(VECTOR(EMBEDDING_DIMENSIONS), deferred=True)
     embedded_at: Mapped[datetime.datetime | None] = mapped_column(DateTime(timezone=True))
+    # The catalog keys (services/skill_catalog.py) of skills the student
+    # deleted (KAN-369): a reading or Tailor never adds them again.
+    removed_skills: Mapped[list[str]] = mapped_column(ARRAY(Text), server_default=text("'{}'"))
 
 
 class Bank_Entry(BaseModel):
