@@ -95,9 +95,11 @@ class QueueRequest(BaseModel):
 class FinishRequest(BaseModel):
     """POST .../applications/{job_id}/finish: how the fill ended. submitted:
     the student clicked Submitted. skipped: Skip, or the tab was closed.
-    failed: the form could not be filled (no form, sign-in needed)."""
+    failed: the form could not be filled (no form, sign-in needed).
+    unsubmitted: the panel's "I didn't submit this", for a submit marked by
+    mistake (KAN-401): an applied application goes back to queued."""
 
-    outcome: Literal["submitted", "skipped", "failed"]
+    outcome: Literal["submitted", "skipped", "failed", "unsubmitted"]
 
 
 class FillRequest(BaseModel):

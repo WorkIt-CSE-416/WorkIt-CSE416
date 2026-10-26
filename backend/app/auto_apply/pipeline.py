@@ -271,16 +271,24 @@ async def finish_application(
     db: AsyncSession,
     applicant_id: uuid.UUID,
     job_id: uuid.UUID,
-    outcome: Literal["submitted", "skipped", "failed"],
+    outcome: Literal["submitted", "skipped", "failed", "unsubmitted"],
 ) -> application_stage:
     """
     Records how a fill ended (OUTCOME_STAGE) and answers the new stage.
     Only a queued or needs_you application can finish: raises NotFound when
     there is none, WrongStage when it is skipped or applied already.
+    "unsubmitted" (the panel's I didn't submit this, KAN-401) is the one way
+    back: only an applied application, to queued, its date cleared.
     """
     stage = await fetch_stage(db, applicant_id, job_id)
     if stage is None:
         raise NotFound("No application for that job. Queue it first.")
+    if outcome == "unsubmitted":
+        if stage != application_stage.applied:
+            raise WrongStage(f"That application is {stage}, so it wasn't marked applied.")
+        await set_stage(db, applicant_id, job_id, application_stage.queued)
+        await db.commit()
+        return application_stage.queued
     if stage not in FINISHABLE:
         raise WrongStage(
             f"That application is {stage}, so it can't be finished. Queue a new job instead."
