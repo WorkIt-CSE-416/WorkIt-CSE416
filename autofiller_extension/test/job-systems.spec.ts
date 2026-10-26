@@ -228,6 +228,21 @@ test("fills a Workday application step by step as the student moves on, and subm
   expect(workday.submissions).toEqual([]);
 });
 
+test("Workday's How Did You Hear About Us? gets WorkIt, else LinkedIn, searched for without opening its categories", async ({ context }) => {
+  const tree: [string, string[]][] = [["University", ["Career Fair"]], ["Website", ["Company Website"]], ["Job Board", ["Indeed", "LinkedIn"]], ["Other", []]];
+  const workday = new FakeWorkday("workday-caci", { liveEvents: true,
+    steps: [["My Information", [{ key: "source", label: "How Did You Hear About Us?", kind: "prompt", required: true, tree }]]] });
+  const page = await workday.open(context);
+  await bridge(page, api({}));
+
+  await inject(page);
+  const { rows } = await settled(page);
+
+  expect(failed(rows)).toEqual({});
+  expect(shown(rows)).toMatchObject({ "My Information / How Did You Hear About Us?": "LinkedIn" });
+  expect(await page.evaluate(() => Number(sessionStorage.categoriesOpened || 0))).toBe(0);
+});
+
 test("a Workday degree list of kinds gets the student's own: B.S. is BS", async ({ context }) => {
   // Xcel's (seen live) lists kinds, not levels: the profile's "B.S." is the type it picks by.
   const kinds = { ...EDUCATION, panels: 0, fields: EDUCATION.fields.map((f) => (f.key === "degree" ? { ...f, options: ["BA", "BS", "MS"] } : f)) };
