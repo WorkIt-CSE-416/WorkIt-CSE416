@@ -78,11 +78,11 @@ test("a batch asks who is signed in once, not before each of its calls", async (
   expect(forms.submissions).toEqual([]);
 });
 
-test("the profile is asked as the batch starts, while its tab opens, not once the page has loaded", async () => {
-  const { log, forms, pages } = await batchOfOne();
+test("the profile is asked once the batch has its first application, never ahead of it (decision 1851)", async () => {
+  const { log, forms } = await batchOfOne();
   const asked = (pattern: RegExp) => Math.min(...log.filter((l) => pattern.test(l.call)).map((l) => l.asked));
-  const tabOpened = pages[0];
-  expect(asked(/^GET \/applicants\/[^/]+\/bank$/)).toBeLessThan(tabOpened);
+  await expect.poll(() => log.some((l) => /^GET \/applicants\/[^/]+\/bank$/.test(l.call)), { timeout: 30_000 }).toBe(true);
+  expect(asked(/^GET \/applicants\/[^/]+\/bank$/)).toBeGreaterThanOrEqual(asked(/\/applications\/next$/));
   expect(forms.submissions).toEqual([]);
 });
 
