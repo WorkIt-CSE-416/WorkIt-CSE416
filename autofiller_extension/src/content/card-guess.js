@@ -9,8 +9,9 @@
 // theirs too; the row offers Save for next time, one click. When two or more
 // consent boxes are guessed, the panel offers Looks right ×N for them at
 // once; never for self-identification, legal or work-authorization
-// questions, which the student confirms one at a time. Loaded after
-// overlay.js (shared/content-scripts.js), as window.WIA.guessCard.
+// questions, which the student confirms one at a time. The row's card is
+// row-card.js's. Loaded after overlay.js (shared/content-scripts.js), as
+// window.WIA.guessCard.
 window.WIA = window.WIA || {};
 
 (function () {
@@ -84,26 +85,18 @@ window.WIA = window.WIA || {};
     overlay.refresh();
   }
 
-  function card(text, button, onClick) {
-    const el = document.createElement("div");
-    el.className = "guess-card";
-    if (text) el.append(Object.assign(document.createElement("span"), { textContent: text }));
-    if (button) {
-      const b = Object.assign(document.createElement("button"), { type: "button", textContent: button });
-      b.addEventListener("click", onClick);
-      el.append(b);
-    }
-    return el;
-  }
+  /** A row card (row-card.js): its one sentence, and a button when there is something to press. */
+  const card = (line, label, onClick) => ({ lines: [line], buttons: label ? [{ label, primary: true, onClick }] : [] });
 
-  /** The part under a row: Looks right on a guess, what came of it, or the offer to save a change. */
+  /** The card under a row: Looks right on a guess, what came of it, or the offer to save a change. */
   function row(r) {
+    if (r.status !== "filled") return null; // a field emptied or failed since has another card
     const done = confirmed.get(r.key);
     if (done === "saved") return card("Looks right. We'll use this next time.");
     if (done === "kept") return card(batch() ? "Looks right. WorkIt couldn't save it for next time." : "Looks right.");
     if (done) return null;
     if (isGuess(r)) return card("WorkIt guessed this. Check it on the form.", "Looks right", () => confirm(r));
-    if (!batch() || !wasGuessed.has(r.key) || r.status !== "filled" || r.source !== "student" || !shown(r)) return null;
+    if (!batch() || !wasGuessed.has(r.key) || r.source !== "student" || !shown(r)) return null;
     const kept = saved.get(r.key);
     if (kept === "saved") return card("Saved. We'll use this next time.");
     if (kept === "saving") return null;
@@ -114,23 +107,14 @@ window.WIA = window.WIA || {};
   function panel(summary) {
     const boxes = summary.fields.filter(isConsent);
     if (boxes.length < 2) return null;
-    const el = card(`WorkIt ticked ${boxes.length} consent boxes for you.`, `Looks right ×${boxes.length}`, () => boxes.forEach(confirm));
+    const el = window.WIA.rowCard.make(card(`WorkIt ticked ${boxes.length} consent boxes for you.`, `Looks right ×${boxes.length}`, () => boxes.forEach(confirm)));
     el.classList.add("guess-batch");
     return el;
   }
 
+  window.WIA.rowCard.add(row);
   overlay.addPart({
-    css: `
-      .guess-card { display: flex; flex-wrap: wrap; align-items: center; gap: 4px 8px; margin-top: 4px; font-size: var(--text-note); color: var(--color-ink-meta); }
-      .guess-card button {
-        all: unset; cursor: pointer; font-size: var(--text-note); font-weight: 500; padding: 4px 8px; border-radius: var(--radius-control);
-        background: var(--color-panel); color: var(--color-ink); border: 1px solid var(--color-border-subtle);
-      }
-      .guess-card button:hover { background: var(--color-hover); }
-      .guess-card button:focus-visible { outline: 2px solid var(--color-brand); outline-offset: 2px; }
-      .guess-batch { margin: 0; padding: 8px 12px; background: var(--color-warning-tint); border-bottom: 1px solid var(--color-border); color: var(--color-ink); }
-    `,
-    row,
+    css: ".guess-batch { margin: 8px 12px; background: var(--color-warning-tint); }",
     panel,
   });
 

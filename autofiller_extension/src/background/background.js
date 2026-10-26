@@ -8,7 +8,7 @@
 
 import { getSession } from "./auth.js";
 import {
-  answerBank, anyFormAnswerBank, getAutofillProfile, generateEssayAnswer, ApiError, askQuestions, connectorAdded, me, saveAutofillAnswers, saveOwnAnswer,
+  answerBank, anyFormAnswerBank, getAutofillProfile, generateEssayAnswer, ApiError, askQuestions, connectorAdded, me, saveAutofillAnswers, saveOwnAnswer, savePastedAnswer,
   writingSamples, writtenAnswers,
 } from "./api.js";
 import {
@@ -17,7 +17,7 @@ import {
 } from "./batch.js";
 import { engineCaller, handleFill, jobOf, practiceJob, runEngine, submittedPage } from "./engine.js";
 import { claimMoment } from "./moments.js";
-import { nextNeedsYou } from "./next-needs-you.js";
+import { nextNeedsYou, walkFrom } from "./next-needs-you.js";
 import { SELF_ID, checkedSelfId, unansweredSelfId } from "./self-id.js";
 import { forgetSubmits, submitHinted, watchSubmitRequests } from "./submit-proof.js";
 import { injectFill } from "../shared/content-scripts.js";
@@ -219,9 +219,29 @@ async function handleMessage(message, sender) {
       return {};
     }
 
+    // An answer the student pasted in a waiting row's card (KAN-369, card-waiting.js): saved through the
+    // Written Answers page's route, so it passes the same checks. A refusal is an answer, not an error:
+    // its reasons show in the card. The job is the batch's own for that tab, never the message's.
+    case "batch/paste": {
+      const jobId = await jobInTab(sender.tab.id);
+      if (!jobId) throw new Error("This tab isn't one of the batch's");
+      const { id } = await me();
+      try {
+        const { left } = await savePastedAnswer(id, jobId, message.name, message.answer);
+        return { saved: true, left };
+      } catch (error) {
+        if (!(error instanceof ApiError) || error.status !== 422) throw error;
+        return { saved: false, reasons: error.reasons?.[message.name] ?? [], error: error.message };
+      }
+    }
+
     // A batch tab's "Next Thing That Needs You" (content-script.js): batch.js goes to it, across the tabs.
     case "batch/next":
       return nextNeedsYou();
+
+    // The submit warning's Show me (content/submit-warning.js): the walk starts at the tab's first open row.
+    case "batch/walk-from":
+      return { shown: await walkFrom(sender.tab.id, message.key) };
 
     // A batch tab's page watches for the student's own submit (KAN-374):
     // the engine, in the page, reads the job system's answer to it and its

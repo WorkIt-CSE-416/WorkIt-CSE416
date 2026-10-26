@@ -6,13 +6,13 @@
 // engine (the fill-engine submodule, pinned to a tag) must see the page's
 // React state and wrap its fetch (Ashby), which an extension's isolated world
 // can't. CONTENT_SCRIPT_FILES run in the isolated world, where chrome.runtime
-// is: lib-status/tokens/overlay/card-guess/workday/written-answers/batch-tab populate window.WIA and content-script.js (last)
+// is: lib-status/tokens/row-card/overlay/card-waiting/card-guess/workday/written-answers/batch-tab/marks/card-failed/submit-warning populate window.WIA and content-script.js (last)
 // runs the fill, reaching the engine through the background
 // (background/engine.js). Content scripts can't be ES modules, so the order
 // here is what makes the globals exist.
 export const ENGINE_FILES = ["fill-engine/dist/engine.js"];
 
-export const CONTENT_SCRIPT_FILES = ["src/content/lib-status.js", "src/shared/tokens.js", "src/content/overlay.js", "src/content/card-guess.js", "src/content/workday.js", "src/content/written-answers.js", "src/content/batch-tab.js", "src/content/content-script.js"];
+export const CONTENT_SCRIPT_FILES = ["src/content/lib-status.js", "src/shared/tokens.js", "src/content/row-card.js", "src/content/overlay.js", "src/content/card-waiting.js", "src/content/card-guess.js", "src/content/workday.js", "src/content/written-answers.js", "src/content/batch-tab.js", "src/content/marks.js", "src/content/card-failed.js", "src/content/submit-warning.js", "src/content/content-script.js"];
 
 /**
  * Loads the engine into the tab, then starts the fill there. With `batch`,
@@ -36,7 +36,7 @@ export async function injectFill(tabId, { batch = false } = {}) {
 }
 
 // A batch tab's panel at a human check before the form (KAN-369): the panel's parts, then human-check.js.
-export const HUMAN_CHECK_FILES = ["src/content/lib-status.js", "src/shared/tokens.js", "src/content/overlay.js", "src/content/batch-tab.js", "src/content/human-check.js"];
+export const HUMAN_CHECK_FILES = ["src/content/lib-status.js", "src/shared/tokens.js", "src/content/row-card.js", "src/content/overlay.js", "src/content/batch-tab.js", "src/content/marks.js", "src/content/human-check.js"];
 
 /**
  * Puts the panel on a batch tab that shows a human check where its form

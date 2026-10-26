@@ -281,7 +281,7 @@ test("a field that silently rejects its answer is flagged, and its tab needs you
 
   const form = loaded.context.pages().find((p) => p.url() === forms.url("greenhouse-arc"))!;
   const row = form.locator('#workit-autofiller-overlay-host [data-key="first_name"]');
-  await expect(row.locator(".reason")).toHaveText("meant 'Test', page shows ''");
+  await expect(row.locator(".row-card")).toContainText("We put Test; the page shows (empty).");
   expect(forms.submissions).toEqual([]);
 });
 

@@ -150,7 +150,7 @@ How a student writes, as their own Claude described it from their writing sample
 _Avoid_: voice profile, persona, tone settings
 
 **Source**:
-Where a filled answer came from, shown beside it: Profile, Saved Answer, Claude (or AI, the essay route), You (the student's own answer or edit) or Guessed (WorkIt's default, or no fact of the student's). A guessed answer is highlighted for the student to check, with Looks right: once they confirm it (or change it), it is theirs (You) and saved for the next form that asks it.
+Where a filled answer came from, shown beside it: Profile, Saved Answer, Claude (or AI, the essay route), You (the student's own answer or edit), Pasted (an answer the student pasted in a waiting row's card, checked as Claude's) or Guessed (WorkIt's default, or no fact of the student's). A guessed answer is highlighted for the student to check, with Looks right: once they confirm it (or change it), it is theirs (You) and saved for the next form that asks it.
 _Avoid_: origin, provenance (in copy), confidence
 
 ## Tracking
