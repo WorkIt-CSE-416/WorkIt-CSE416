@@ -1551,7 +1551,8 @@ what Send sends, and Send sends just that:
 - the job system (the Fill engine's `jobOf` site, "unsupported" when it
   fills none there), the posting's link (the page's address without query
   or fragment, which can carry the student's ids), the Fill engine version
-  (`ENGINE_VERSION` in `background/report.js`, the submodule's pin);
+  (`FillEngine.version`, which the engine's build stamps into
+  `dist/engine.js`; `ENGINE_VERSION` in `background/engine.js`);
 - each failed field: its kind (the Question set's), its label's shape
   (`labelShape`: lower case, quoted names, emails and links out, digits as
   `#`, only letters and spaces kept) and its error's name: Readback (it
