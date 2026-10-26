@@ -158,6 +158,11 @@ export class FakeWorkdays {
   /** How long, in ms, each tenant host takes to answer a Create Account or Sign In it was sent. */
   readonly answerDelay: Record<string, number> = {};
 
+  /** What the n-th tenant saved from the steps' Save and Continue, by field key (a batch tab saves each step it filled, Fill to Review). */
+  saved(n: number): Record<string, unknown> {
+    return this.tenants[n].saved;
+  }
+
   /** Every submit any tenant received (the extension must never send one). */
   get submissions(): unknown[] {
     return this.tenants.flatMap((t) => t.submissions);
