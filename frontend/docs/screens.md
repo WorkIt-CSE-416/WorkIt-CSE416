@@ -1225,6 +1225,20 @@ that page. The photo, name and headline are shown here and edited in
 Settings' Personal Details (KAN-326): the identity band's Edit is a link
 there.
 
+**Application Answers (KAN-369)** is an open section under Application
+Questions, edited the same way (Edit at the top right; Cancel and Save under
+the fields; Escape cancels; Save sends only what changed). Its groups:
+Availability (on-site, full time), Start Window (earliest start, latest end,
+the next six terms as chips), Relocation (willing, places ranked best first
+as numbered chips, where they'll live), Address (street and ZIP; city and
+state are the profile's location), Languages (English shown as a suggestion
+until saved) and Screener Facts, one card with Yes and No each and a None of
+These Apply button that answers only the unanswered ones; a Yes on a list
+question asks which companies. School Year (class year, back to school after
+the internship) is worked out from the latest education entry's end month
+(`lib/school-year.ts`) and only shown, with "From your education: ...". The
+same controls are `components/answer-fields.tsx`, shared with onboarding.
+
 **Contact & Links (KAN-262)** is an open section between the identity band
 and Resumes & Experiences. It lists all six fields under visible labels, two
 columns where the page is wide: Contact Email, Phone, LinkedIn, GitHub,
