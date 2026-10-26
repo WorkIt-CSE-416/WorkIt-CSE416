@@ -32,21 +32,15 @@ import {
  * (../../resume-picker, KAN-318); WorkIt reads its keyword match, and the
  * student picks which missing keywords to add as skills. Tailor Resume runs
  * once and saves the posting's one tailored resume with no confirmation,
- * then opens it in the editor, which marks each change and can revert it
- * until Save. The run's record of changes goes to sessionStorage
- * (`tailorEditsKey`) for the editor; nothing else keeps it.
- *
- * A posting has one tailored resume, made once: when it has one, the screen
- * opens it instead of running, and the API refuses a second run (409).
+ * then opens its editor on this route. The run's record of changes goes to
+ * sessionStorage (`tailorEditsKey`) for the editor; nothing else keeps it.
  */
 export function TailorScreen({
   jobId,
   title,
-  tailored,
 }: {
   jobId: string;
   title: string;
-  tailored: { id: string; name: string } | null;
 }) {
   const router = useRouter();
   const [source, setSource] = useState<TailorSource | null>(null);
@@ -73,23 +67,8 @@ export function TailorScreen({
   }, [jobId]);
 
   useEffect(() => {
-    if (!tailored) void refreshChoices();
-  }, [refreshChoices, tailored]);
-
-  if (tailored) {
-    return (
-      <Card as="section" className="mt-4">
-        <h2 className="text-subtitle text-ink">You Tailored a Resume for {title}</h2>
-        <p className="text-body text-ink-muted mt-1">
-          {tailored.name} is this posting&apos;s tailored resume. Change it in the editor; WorkIt
-          tailors each posting once.
-        </p>
-        <ButtonLink href={`/resumes/${encodeURIComponent(tailored.id)}`} size="sm" className="mt-3">
-          Open in Editor
-        </ButtonLink>
-      </Card>
-    );
-  }
+    void refreshChoices();
+  }, [refreshChoices]);
 
   async function read(next: TailorSource) {
     setReading(true);
@@ -97,7 +76,11 @@ export function TailorScreen({
     const { data, error, status } = await matchTailor(jobId, next);
     setReading(false);
     if (!data) return setError({ message: error ?? "WorkIt couldn't read that resume.", status });
-    if (data.tailored_resume_id) return router.push(`/resumes/${data.tailored_resume_id}`);
+    if (data.tailored_resume_id) {
+      return router.push(
+        `/jobs/${encodeURIComponent(jobId)}/tailor?resumeId=${encodeURIComponent(data.tailored_resume_id)}`,
+      );
+    }
     setSource(next);
     setMatch(data);
     setPicked(new Set());
@@ -118,7 +101,9 @@ export function TailorScreen({
       return setError({ message: error ?? "Tailor failed.", status });
     }
     writeSessionDraft(tailorEditsKey(data.resume.id), { edits: data.edits, dropped: data.dropped });
-    router.push(`/resumes/${encodeURIComponent(data.resume.id)}`);
+    router.push(
+      `/jobs/${encodeURIComponent(jobId)}/tailor?resumeId=${encodeURIComponent(data.resume.id)}`,
+    );
   }
 
   const toggle = (keyword: string) =>
