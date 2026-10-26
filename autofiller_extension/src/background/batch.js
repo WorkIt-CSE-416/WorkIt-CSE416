@@ -58,6 +58,7 @@ import { embeddedForm, embedsGreenhouse } from "./embedded-forms.js";
 import { liveBatch, load, save, serially } from "./batch-store.js";
 import { forgetWorkableDraft, formAfterHumanCheck, formShows, humanCheckShows, waitForLoad } from "./tab-load.js";
 import { markCheck, tryInFront } from "./human-checks.js";
+import { readAhead } from "./plan-reads.js";
 
 /** @typedef {import("./batch-store.js").Batch} Batch @typedef {import("./batch-store.js").TabState} TabState */
 
@@ -231,6 +232,8 @@ function workdayOpen(batch) {
  */
 async function openTab(batch, jobId, url, jobType = null) {
   const tab = await chrome.tabs.create({ url, active: false, windowId: batch.windowId });
+  // Its job's questions, names and text need no page: asked while the page loads (plan-reads.js).
+  readAhead(tab.id, url);
   // Memory Saver must never throw away a form the student hasn't reviewed.
   await chrome.tabs.update(tab.id, { autoDiscardable: false });
   batch.windowId = tab.windowId;

@@ -420,7 +420,7 @@ async function readQuestions({ job, url, call, fetchText, state }) {
  * job's page that isn't its form, `openForm`. On Workday it is the step
  * shown, with `step` and the engine's `state`.
  * @param {{
- *   url: string, profile: import("../shared/types.js").AutofillProfile, bank?: object, today: string,
+ *   url: string, profile: import("../shared/types.js").AutofillProfile, bank?: object | Promise<object> | Function, today: string,
  *   call: (name: string, ...args: unknown[]) => Promise<any>,
  *   fetchText: (url: string, init?: { method: string, body: string }) => Promise<string>,
  *   extra?: object[], state?: object, jobType?: string | null,
@@ -432,12 +432,14 @@ export async function planFill({ url, profile, bank = {}, today, call, fetchText
   const { site } = job;
   if (!job.onForm) return { covered: true, site, openForm: job.form };
   const fetchOnce = once(fetchText);
+  // The job's names and text need no question: asked beside the questions, not after them.
+  const reading = readNames(url, fetchOnce);
   const read = await readQuestions({ job, url, call, fetchText: fetchOnce, state });
   const known = new Set(read.questions.map((q) => q.name));
   // Each text field's own limit, as the form on the page sets it (KAN-380): a written answer is checked against it before it is saved.
   const asked = [...read.questions, ...extra.filter((q) => !known.has(q.name))];
   const questions = await optional(() => call("limits", asked), asked);
-  const { posting, plan, planFor } = await planQuestions({ job, url, questions, profile, bank, today, fetchText: fetchOnce, jobType });
+  const { posting, plan, planFor } = await planQuestions({ job, url, questions, profile, bank, today, fetchText: fetchOnce, jobType, reading });
   const answers = withFiles(plan.answers, profile);
   const prepared = { covered: true, site, posting, questions, plan, answers, applicantId: profile.id, step: read.step, state: read.state };
   return { ...prepared, rows: planRows(prepared), selfId: selfIdAsked(questions, profile, plan, planFor) };
@@ -462,18 +464,42 @@ function selfIdAsked(questions, profile, plan, planFor) {
 }
 
 /**
+ * Starts asking the job system's public API for what a Plan of `url` will
+ * read with `fetchText` (its questions, names and text), before its page is
+ * open (plan-reads.js); nothing for a job whose questions only its open form
+ * shows (Workday, Eightfold, a practice form). Failures are left to the Plan.
+ * @returns {boolean} whether anything was asked
+ */
+export function readJobAhead(url, fetchText) {
+  const job = jobOf(url);
+  if (!job?.onForm || job.practice || job.site === "workday" || job.site === "eightfold") return false;
+  optional(() => engine.questionSet(url, fetchText), null);
+  readNames(url, fetchText);
+  return true;
+}
+
+/** The job's company and title and its text, both asked at once; each empty when the job system doesn't say. */
+async function readNames(url, fetchText) {
+  const [names, html] = await Promise.all([
+    optional(() => engine.jobNames(url, fetchText), { company: "", title: "" }),
+    optional(() => engine.jobDescription(url, fetchText), ""),
+  ]);
+  return { names, text: engine.textOf(html) };
+}
+
+/**
  * The engine's Plan for a job's questions, with the job's names and text
  * read for it. `bank`: the saved answers this job's form may reuse
  * (GET .../applications/{job}/answer-bank, KAN-379), the engine's Answer bank, which fills a question answered
- * before, and says where it may be reused; or a function of the page's company that answers them (a form
- * outside a batch, GET .../answer-bank?company=).
+ * before, and says where it may be reused, or a promise of them (still being fetched while the questions are read);
+ * or a function of the page's company that answers them (a form outside a batch, GET .../answer-bank?company=).
+ * `reading`: the job's names and text (readNames), when already asked.
  */
-async function planQuestions({ job, url, questions, profile, bank, today, fetchText, jobType = null }) {
-  const names = await optional(() => engine.jobNames(url, fetchText), { company: "", title: "" });
-  const text = engine.textOf(await optional(() => engine.jobDescription(url, fetchText), ""));
+async function planQuestions({ job, url, questions, profile, bank, today, fetchText, jobType = null, reading = readNames(url, fetchText) }) {
+  const { names, text } = await reading;
   // job_type: WorkIt's own for the job (full_time, internship, ...), unknown outside a batch.
   const posting = { id: String(job.job ?? job.shortcode ?? job.pid ?? url), ...names, url, job_type: jobType };
-  if (typeof bank === "function") bank = questions.length ? await bank(names.company) : {};
+  bank = typeof bank === "function" ? (questions.length ? await bank(names.company) : {}) : await bank;
   // `planFor`: the same Plan for another profile (the self-identification's probe, KAN-387).
   const planFor = (someone) => engine.plan(questions, engineProfile(someone), enginePolicies(someone), bank ?? {}, { posting, today, postingText: text, employerText: text });
   const plan = questions.length

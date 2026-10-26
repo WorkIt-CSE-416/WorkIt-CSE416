@@ -94,6 +94,20 @@ builds it: `dist/engine.js` is committed in the engine repo.
   fails. It then asks the engine's `plan` for answers from the WorkIt
   profile (`engineProfile`) and `POLICIES`. No job system's URLs, queries,
   parsing or company names live here: change them in the engine repo.
+  A Plan asks what needs no other answer at once (KAN-369): the profile and
+  the batch's record of the tab, then the job's questions beside its names
+  and text (`readNames`) and the job's answer bank, which `planQuestions`
+  waits for only to plan (it takes the bank as a promise). Each URL is
+  still asked once per Plan (`once`), so the requests are the same ones.
+  A batch tab's job reads start sooner still: `openTab` asks the job's
+  questions, names and text as the tab opens (`plan-reads.js`'s
+  `readAhead`, the engine's same calls through `readJobAhead`), while the
+  page loads, and the tab's first Plan takes them (`planReads`): once, and
+  only within a minute (a tab held by a human check plans afresh). A read
+  that failed is asked again by the Plan. Never the answer bank (read fresh
+  for each Plan, KAN-379), nor a job whose questions only its open form
+  shows (Workday, Eightfold, practice forms); every later Plan of the tab
+  (a Workday step, an Eightfold follow-up) reads afresh.
 - **The engine fills the page and checks it.** `fill/page` calls the
   engine's `fillEach`, which fills in the engine's own order (files first
   where the job system parses the résumé into the form, Workable in one go,
@@ -524,7 +538,10 @@ waits for an opened tab's page and form (`waitForLoad`, `formShows`).
   (`batch/questions` → `PUT .../applications/{job}/questions`), shows each
   as waiting for the student's Claude, and asks for the saved answers every
   10 seconds (`batch/answers` → `GET .../questions`) until none is left,
-  filling each through the engine; its group follows. The background takes
+  every 2 seconds in the first minute (KAN-369: Claude often saves one
+  soon, write early having sent most questions before the tab opened; a
+  Rewrite with Claude's wait does the same), filling each through the
+  engine; its group follows. The review's polls keep 10 seconds. The background takes
   the job from the batch's own record of the tab (`jobInTab`), never from
   the message. A question the student answered first keeps their answer;
   one Claude's answer fills is labelled Claude (KAN-375's sources). A
@@ -1181,6 +1198,20 @@ existed only for this extension — essay-answer generation and `GET
 with why no existing endpoint was safe/usable from here. A third is batch
 apply's `PUT .../applications/{job_id}/fill` (KAN-370): the stage is the
 API's record of each tab, and no route set `needs_you` back to `queued`.
+
+**The profile is fetched once at a time.** `getAutofillProfile` keeps the
+fetch under way and hands it to every caller that comes meanwhile: write
+early (`write-early.js`) fetches it as a batch starts, and a fast-loading
+tab's Plan used to ask the whole profile (eight calls, the resume's bytes
+among them) a second time beside it (KAN-369, seen on Rippling). A forced
+fetch (`force`, after an edit) never joins one under way, which may have
+started before the edit. It is not a longer cache: the 10 min TTL is
+unchanged. Its parts (profile, bank, preferences, autofill answers, the
+resume, the transcript, the brought fill profile) are asked at once after
+`/auth/me`, not one after another: none needs another's answer, and the
+transcript waits for the resume only to tell their names apart. Live, at a
+few hundred ms a call, that is about three round trips instead of eight.
+`test/plan-fetch.extension.spec.ts`.
 
 **What a student brought from Apply lies under WorkIt's fields.** `GET
 /applicants/{id}/fill-profile` (KAN-369) is the Fill engine's own profile

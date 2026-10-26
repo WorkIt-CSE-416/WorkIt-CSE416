@@ -24,6 +24,12 @@ window.WIA = window.WIA || {};
   const NOT_NEEDED = "Not needed: your answer to the question before it doesn't call for it.";
   // How often a batch tab asks whether the student's Claude saved an answer (KAN-377).
   const ANSWER_POLL = 10_000;
+  // Sooner while the answers are new (KAN-369): the student's Claude often saves one within a minute of the
+  // questions (write early sent most before the tab opened), so the tab asks every ANSWER_POLL_SOON ms for SOON_FOR ms.
+  const ANSWER_POLL_SOON = 2_000;
+  const SOON_FOR = 60_000;
+  /** How long to wait before asking again, for a wait that began at `since`. */
+  const answerPoll = (since) => (Date.now() - since < SOON_FOR ? ANSWER_POLL_SOON : ANSWER_POLL);
   // How many polls a tab waits for the pre-submit review's verdict (KAN-369): 30 minutes, then it stops asking.
   const REVIEW_POLLS = 180;
   // The connector's limits on a question and an answer (backend/app/schemas/applications.py).
@@ -112,7 +118,7 @@ window.WIA = window.WIA || {};
     /**
      * A batch tab's questions that need writing (KAN-377): sent to WorkIt for
      * the student's own Claude, which saves its answers through the connector.
-     * The tab then asks for the saved answers every ANSWER_POLL ms and fills
+     * The tab then asks for the saved answers every ANSWER_POLL ms (sooner in the first minute) and fills
      * each new one through the engine, until none is left; the tab's group
      * follows (report()). A question the student answered first keeps their
      * answer. It then asks on until the student's Claude's pre-submit review
@@ -139,6 +145,7 @@ window.WIA = window.WIA || {};
       window.WIA.waitingCard?.onSave((name, answer) => paste(prepared, name, answer));
       let byClaude = false;
       let answered = false;
+      const since = Date.now();
       for (;;) {
         const rows = reply.ok ? reply.questions : [];
         for (const { name, answer } of rows) {
@@ -161,7 +168,7 @@ window.WIA = window.WIA || {};
           awaitReview(reply);
           return;
         }
-        await sleep(ANSWER_POLL);
+        await sleep(answerPoll(since));
         reply = await send({ type: "batch/answers" }).catch((error) => ({ ok: false, error: error.message }));
       }
     }
@@ -369,7 +376,7 @@ window.WIA = window.WIA || {};
      * The flag card's Rewrite with Claude (card-flag.js), once WorkIt has
      * cleared the answer for the student's Claude: the row waits for it
      * (Write with Claude) and keeps its flag, so the tab still needs the
-     * student, and the tab asks every ANSWER_POLL ms for the new answer and
+     * student, and the tab asks every ANSWER_POLL ms (sooner in the first minute) for the new answer and
      * fills it. It stops if the student writes the answer first.
      */
     async function rewrite(name) {
@@ -379,8 +386,9 @@ window.WIA = window.WIA || {};
       status.setStatus(name, "needs_generation", WAIT_FOR_CLAUDE, row.shows, undefined, undefined, true);
       status.flag(name, row.flag, { quote: row.flagQuote, hard: row.flagHard, rewriting: true });
       try {
+        const since = Date.now();
         while (rowStatus(name) === "needs_generation") {
-          await sleep(ANSWER_POLL);
+          await sleep(answerPoll(since));
           const reply = await send({ type: "batch/answers" }).catch((error) => ({ ok: false, error: error.message }));
           const answer = reply.ok ? reply.questions.find((q) => q.name === name)?.answer : null;
           if (!answer || rowStatus(name) !== "needs_generation") continue;

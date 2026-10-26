@@ -23,6 +23,8 @@ const CACHE_KEY = "workit_autofill_profile";
 // Re-fetch after this long even on a cache hit, so a profile edit made in
 // the webapp shows up here without an explicit "refresh" click.
 const CACHE_TTL_MS = 10 * 60 * 1000;
+/** The profile fetch under way, if any (getAutofillProfile): its callers share it. */
+let fetching = null;
 
 /** Resolved once per service-worker lifetime, not on every call. */
 let devApiReachable = null;
@@ -326,7 +328,7 @@ async function resolveResumeFile(applicantId) {
  * from the resume when both files share a name, since a planned file is
  * matched to its bytes by name (engine.js's withFiles).
  * @param {string} applicantId
- * @param {{ filename: string } | null} resume
+ * @param {Promise<{ filename: string } | null>} resume the resume being resolved (resolveResumeFile, which never rejects)
  * @returns {Promise<{ filename: string, mimeType: string, base64: string } | null>}
  */
 async function resolveTranscriptFile(applicantId, resume) {
@@ -338,7 +340,7 @@ async function resolveTranscriptFile(applicantId, resume) {
     const ext = (transcript.original_filename?.split(".").pop() || "pdf").toLowerCase();
     const name = transcript.original_filename || `transcript.${ext}`;
     return {
-      filename: name === resume?.filename ? `Transcript_${name}` : name,
+      filename: name === (await resume)?.filename ? `Transcript_${name}` : name,
       mimeType: RESUME_MIME_TYPES[ext] ?? "application/octet-stream",
       base64: arrayBufferToBase64(buffer),
     };
@@ -380,14 +382,18 @@ async function fetchAutofillProfile() {
     throw new Error("WorkIt Autofiller is for applicant accounts. Signed in as a company account.");
   }
 
-  const profile = await getApplicantProfile(account.id);
-  const bank = await getBank(account.id);
-  const preferences = await getPreferences(account.id);
-  const answers = await getAutofillAnswers(account.id);
-  const resume = await resolveResumeFile(account.id);
-  const transcript = await resolveTranscriptFile(account.id, resume);
-  // Best effort, like the resume: without it the fill uses WorkIt's fields alone.
-  const fill = await getFillProfile(account.id).catch(() => null);
+  // The parts are asked at once: none needs another's answer (the transcript only the resume's name, once both are in).
+  const resuming = resolveResumeFile(account.id);
+  const [profile, bank, preferences, answers, resume, transcript, fill] = await Promise.all([
+    getApplicantProfile(account.id),
+    getBank(account.id),
+    getPreferences(account.id),
+    getAutofillAnswers(account.id),
+    resuming,
+    resolveTranscriptFile(account.id, resuming),
+    // Best effort, like the resume: without it the fill uses WorkIt's fields alone.
+    getFillProfile(account.id).catch(() => null),
+  ]);
   const fallback = inferredAnswers(preferences.visa);
   // A real saved answer always wins; the job-search filter only fills the
   // two questions it can confidently speak to, and only while they're
@@ -447,9 +453,19 @@ export async function getAutofillProfile({ force = false } = {}) {
     return cached;
   }
 
-  const fresh = await fetchAutofillProfile();
-  await chrome.storage.local.set({ [CACHE_KEY]: fresh });
-  return fresh;
+  // A fetch already under way (write early's, another tab's Plan) is waited for, not asked again;
+  // a forced one starts afresh, since it may follow an edit the one under way began before.
+  if (!force && fetching) return fetching;
+  const run = fetchAutofillProfile().then(async (fresh) => {
+    await chrome.storage.local.set({ [CACHE_KEY]: fresh });
+    return fresh;
+  });
+  fetching = run;
+  try {
+    return await run;
+  } finally {
+    if (fetching === run) fetching = null;
+  }
 }
 
 /**
