@@ -139,7 +139,7 @@
         return null;
       }
       if (!prepared.covered) {
-        note("_uncovered", "WorkIt can't fill this job system yet", "Nothing on this page was filled. WorkIt fills Greenhouse, Lever, Ashby, Rippling, Workable, Eightfold, Workday and Oracle applications.");
+        note("_uncovered", "WorkIt can't fill this job system yet", "Nothing on this page was filled. WorkIt fills Greenhouse, Lever, Ashby, Rippling, Workable, Eightfold, Workday, Oracle and SuccessFactors applications.");
         return null;
       }
       if (prepared.openForm) {
@@ -155,8 +155,8 @@
         return new Promise(() => {}); // the page is going; nothing to report from it
       }
       if (prepared.step) sessionStorage.removeItem(reloaded);
-      // Oracle's email gate is the student's (oracle.js): nothing on it is filled.
-      if (prepared.step?.gate) return { unplanned: "Enter your email on Oracle's page first. " };
+      // A gate is the student's (Oracle's email, SuccessFactors' sign-in): nothing on it is filled.
+      if (prepared.step?.gate) return { unplanned: `${window.WIA.steps?.waiting?.title ?? "Enter your email on Oracle's page first"}. ` };
       if (prepared.step?.wentWrong) {
         note("_error", "Workday showed an error page", "Reload the page. WorkIt fills the step when it shows.", true);
         return null;
