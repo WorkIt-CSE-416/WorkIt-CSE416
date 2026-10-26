@@ -255,7 +255,10 @@ export function PdfPages({
                   ) : (
                     <button {...target} />
                   )}
-                  {revert && onRevert && (
+                  {/* No Revert while a line is open: a click on one would throw
+                      away what the student is typing, and a hover elsewhere
+                      would crowd the line being edited. */}
+                  {revert && onRevert && selected === null && (
                     <Button
                       variant="secondary"
                       size="xs"
@@ -266,7 +269,6 @@ export function PdfPages({
                         "pointer-events-none group-hover/marked:pointer-events-auto",
                         "group-focus-within/marked:pointer-events-auto group-hover/marked:opacity-100",
                         "group-focus-within/marked:opacity-100",
-                        selected === key && "pointer-events-auto opacity-100",
                       )}
                     >
                       <ArrowUUpLeftIcon aria-hidden /> Revert

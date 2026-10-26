@@ -61,7 +61,10 @@ model tokens; the student changes the tailored resume in the editor.
    answers the same run as one JSON body and stays for other callers.
 6. **The editor opens on the tailored resume**, compiled. Each change shows
    on the resume itself. Changed lines use a darker green; changed bullets,
-   skills and reordered bullets offer Revert on hover or focus. A reworded
+   skills and reordered bullets offer Revert on hover or focus, but no
+   line does while one is open for editing: a Revert then would throw away
+   what the student is typing. Escape or a click off the page saves the
+   edit and brings Revert back where a mark remains. A reworded
    bullet also shows its before wording in a tooltip to its right on hover
    or focus (the shared tooltip, so it flips or shifts to stay inside the
    window and wraps long text). The student edits directly, and editing a
