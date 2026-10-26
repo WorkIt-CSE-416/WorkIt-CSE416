@@ -162,7 +162,7 @@ export function TailorScreen({ jobId, title }: { jobId: string; title: string })
       total: result.after_matched.length + result.after_missing.length,
       added: result.after_matched.filter((k) => !had.has(k.keyword)),
     };
-    const record: TailorReviewRecord = { edits: result.edits, match };
+    const record: TailorReviewRecord = { edits: result.edits, match, source };
     writeSessionDraft(tailorEditsKey(result.resume.id), record);
     router.push(
       `/jobs/${encodeURIComponent(jobId)}/tailor?resumeId=${encodeURIComponent(result.resume.id)}`,

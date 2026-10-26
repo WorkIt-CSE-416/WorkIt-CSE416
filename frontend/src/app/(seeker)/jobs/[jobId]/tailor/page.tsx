@@ -16,6 +16,7 @@ import { ListingsError } from "../../listing-card";
 import { getJobListing } from "../../listings";
 import { BackToJobs } from "../page-actions";
 import { TailorScore } from "./tailor-score";
+import { TailorSteps } from "./tailor-steps";
 import { TailorScreen } from "./tailor-screen";
 
 export async function generateMetadata({
@@ -68,6 +69,7 @@ export default async function TailorPage({
     return (
       <div className={cn("max-w-app mx-auto w-full flex-1 py-6", SEEKER_GUTTER)}>
         <BackToJobs />
+        <TailorSteps current="review" />
         <h1 className="text-heading text-ink">{resume.name}</h1>
         <p className="text-body text-ink-meta mt-1">
           Tailored for {job.title} at {job.company}

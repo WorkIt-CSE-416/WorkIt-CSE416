@@ -4,7 +4,7 @@ import { useCallback, useEffect, useState } from "react";
 
 import type { Choices, ChoicesUpdate } from "@/lib/built-resume-actions";
 import { readSessionDraft, tailorEditsKey, writeSessionDraft } from "@/lib/local-drafts";
-import type { Keyword, TailorEdit } from "@/lib/tailor-actions";
+import type { Keyword, TailorEdit, TailorSource } from "@/lib/tailor-actions";
 
 /**
  * Tailor's review in the editor (docs/tailor_resume.md, "Marking and
@@ -23,8 +23,9 @@ import type { Keyword, TailorEdit } from "@/lib/tailor-actions";
  *  (../../jobs/[jobId]/tailor/tailor-score.tsx). */
 export type MatchShift = { before: number; after: number; total: number; added: Keyword[] };
 
-/** What the Tailor screen stores: the run's changes, and its match. */
-export type TailorReviewRecord = { edits: TailorEdit[]; match?: MatchShift };
+/** What the Tailor screen stores: the run's changes, its match, and the
+ *  resume it tailored (`source`), for the review's before and after. */
+export type TailorReviewRecord = { edits: TailorEdit[]; match?: MatchShift; source?: TailorSource };
 
 /** A line's mark: `changed` (a new wording or an added skill, green) or
  *  `moved` (an entry's bullets put in a new order, amber). */
@@ -60,7 +61,9 @@ function readable(stored: unknown): TailorReviewRecord | null {
   if (Array.isArray(stored)) return stored.length ? { edits: stored } : null;
   if (stored && typeof stored === "object" && Array.isArray((stored as TailorReviewRecord).edits)) {
     const record = stored as TailorReviewRecord;
-    return record.edits.length ? { edits: record.edits, match: record.match } : null;
+    return record.edits.length
+      ? { edits: record.edits, match: record.match, source: record.source }
+      : null;
   }
   return null;
 }
