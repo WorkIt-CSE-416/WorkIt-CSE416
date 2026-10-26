@@ -155,7 +155,10 @@
  * @property {string | string[]} [shows]  What a filled field shows now, as the engine read it back
  * @property {Source} [source]  Where the value came from, shown beside it (overlay.js)
  * @property {string} [flag]  Why the student's Claude's pre-submit review found a filled answer wrong
- *   (KAN-369): the row needs the student until they edit it
+ *   (KAN-369): the row needs the student until they keep it, send it back, or edit it (card-flag.js)
+ * @property {string} [flagQuote]  The flagged sentence, word for word from the answer
+ * @property {boolean} [flagHard]  The flag says the answer names the wrong company
+ * @property {boolean} [rewriting]  The flagged answer is with the student's Claude to write again
  * @property {"todo" | "done"} [note]  The row is the panel's message, not a field (content-script.js's
  *   note): "todo" asks something of the student, "done" is news that asks nothing. A field's own key
  *   may start with "_" too (Ashby's "_systemfield_name"), so only this marks a message.

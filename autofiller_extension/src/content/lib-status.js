@@ -68,7 +68,7 @@ window.WIA = window.WIA || {};
     const existing = results.get(key);
     if (!existing) return;
     // A new status is a new state of the field: a review's flag on what it showed before no longer holds.
-    results.set(key, { ...existing, status, reason, shows, link, claude, flag: undefined, ...(source ? { source } : {}) });
+    results.set(key, { ...existing, status, reason, shows, link, claude, flag: undefined, flagQuote: undefined, flagHard: false, rewriting: false, ...(source ? { source } : {}) });
     notify();
   }
 
@@ -76,14 +76,19 @@ window.WIA = window.WIA || {};
    * Marks a filled row with what the student's Claude's pre-submit review
    * found wrong in its answer (KAN-369), or clears it (no `reason`). The
    * row keeps its status and value; the flag lasts until its next setStatus
-   * (the student's edit).
+   * (the student's edit). `details`: the sentence it means (`quote`),
+   * whether it names the wrong company (`hard`), and whether the answer is
+   * with the student's Claude to rewrite (`rewriting`; card-flag.js).
    * @param {string} key
    * @param {string} [reason]
+   * @param {{ quote?: string | null, hard?: boolean, rewriting?: boolean }} [details]
    */
-  function flag(key, reason) {
+  function flag(key, reason, details = {}) {
     const existing = results.get(key);
-    if (!existing || existing.flag === reason) return;
-    results.set(key, { ...existing, flag: reason });
+    if (!existing) return;
+    const next = { flag: reason, flagQuote: (reason && details.quote) || undefined, flagHard: Boolean(reason && details.hard), rewriting: Boolean(reason && details.rewriting) };
+    if (Object.entries(next).every(([k, v]) => existing[k] === v || (!existing[k] && !v))) return;
+    results.set(key, { ...existing, ...next });
     notify();
   }
 

@@ -8,7 +8,7 @@
 
 import { getSession } from "./auth.js";
 import {
-  answerBank, anyFormAnswerBank, getAutofillProfile, generateEssayAnswer, ApiError, askQuestions, connectorAdded, me, saveAutofillAnswers, saveOwnAnswer,
+  answerBank, answerFlag, anyFormAnswerBank, getAutofillProfile, generateEssayAnswer, ApiError, askQuestions, connectorAdded, me, saveAutofillAnswers, saveOwnAnswer,
   writingSamples, writtenAnswers,
 } from "./api.js";
 import {
@@ -216,6 +216,16 @@ async function handleMessage(message, sender) {
       if (!jobId) throw new Error("This tab isn't one of the batch's");
       const { id } = await me();
       await saveOwnAnswer(id, jobId, { name: message.name, label: message.label, answer: message.answer, own: message.own === true });
+      return {};
+    }
+
+    // A batch tab's flag card (card-flag.js): Keep or Rewrite with Claude on an answer the pre-submit review flagged.
+    case "batch/flag": {
+      const jobId = await jobInTab(sender.tab.id);
+      if (!jobId) throw new Error("This tab isn't one of the batch's");
+      if (message.action !== "keep" && message.action !== "rewrite") throw new Error("Unknown flag answer");
+      const { id } = await me();
+      await answerFlag(id, jobId, message.action, message.name);
       return {};
     }
 

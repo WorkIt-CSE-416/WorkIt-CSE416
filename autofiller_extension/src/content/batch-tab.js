@@ -101,6 +101,8 @@ window.WIA = window.WIA || {};
         field.scrollIntoView({ block: "center" });
         const control = field.matches("input, select, textarea, button, [tabindex]") ? field : field.querySelector("input, select, textarea, button, [tabindex]");
         control?.focus({ preventScroll: true });
+        // A flagged answer's sentence is selected in its field (card-flag.js).
+        window.WIA.flagCard?.select(control, row);
       }
       overlay.setCurrent(key);
     }

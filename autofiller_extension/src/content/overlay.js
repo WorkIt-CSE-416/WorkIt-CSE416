@@ -152,6 +152,7 @@ window.WIA = window.WIA || {};
       .start svg { width: 12px; height: 12px; color: var(--color-brand); }
       .start .hint { font-size: var(--text-meta); color: var(--color-ink-meta); }
       .empty { padding: 16px 12px; color: var(--color-ink-meta); }
+      ${window.WIA.flagCard?.STYLES ?? ""}
     `;
     return style;
   }
@@ -193,7 +194,11 @@ window.WIA = window.WIA || {};
       text.appendChild(reason);
     }
     if (field.status === "needs_generation" && field.claude) text.appendChild(startClaude());
-    if (field.flag) {
+    // The flag card (card-flag.js): the reason, the flagged sentence, Keep / Rewrite with Claude / Edit myself.
+    if (field.flag && window.WIA.flagCard) {
+      el.dataset.flagged = "";
+      text.appendChild(window.WIA.flagCard.render(field));
+    } else if (field.flag) {
       el.dataset.flagged = "";
       const reason = document.createElement("div");
       reason.className = "reason flag";

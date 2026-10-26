@@ -541,6 +541,19 @@ export async function saveOwnAnswer(applicantId, jobId, answer) {
 }
 
 /**
+ * POST .../applications/{job_id}/review/keep|rewrite — the flag card's answer
+ * to a question the pre-submit review flagged (KAN-369): keep it as it
+ * stands, or send it back to the student's Claude to write again.
+ * @param {string} applicantId
+ * @param {string} jobId
+ * @param {"keep" | "rewrite"} action
+ * @param {string} name
+ */
+export async function answerFlag(applicantId, jobId, action, name) {
+  await apiRequest(`/applicants/${applicantId}/applications/${jobId}/review/${action}`, { method: "POST", body: JSON.stringify({ name }) });
+}
+
+/**
  * PUT .../applications/{job_id}/resume — keeps the resume an application
  * went out with as its sent resume (the route's `built_resume_id` or
  * `uploaded_resume_id`, from the profile's resume file).

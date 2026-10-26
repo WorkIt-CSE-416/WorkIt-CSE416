@@ -12,8 +12,10 @@ export type Posting = { id: string; apply_url: string; form_url?: string | null;
 export type Written = {
   name: string; label: string; required: boolean; max_length: number | null; answer: string | null;
   // The pre-submit review (backend/app/auto_apply/review.py): whether it read this answer, and why it flagged it.
-  reviewed?: boolean; flag?: string | null;
+  reviewed?: boolean; flag?: string | null; flag_quote?: string | null; flag_hard?: boolean;
 };
+/** One flag save_review gives: its reason, or the reason with the sentence it means and whether it names the wrong company. */
+export type Flag = string | { reason: string; quote?: string; hard?: boolean };
 
 const RESUME_ID = "00000000-0000-0000-0000-0000000000r1";
 
@@ -48,13 +50,19 @@ export class FakeApi {
   }
 
   /** The connector's save_review: the student's Claude re-read the job's answers and found `flags` wrong (by name). */
-  saveReview(jobId: string, flags: Record<string, string>): void {
+  saveReview(jobId: string, flags: Record<string, Flag>): void {
     for (const q of this.written.get(jobId) ?? []) {
       if (q.answer === null) continue;
+      const flag = typeof flags[q.name] === "string" ? { reason: flags[q.name] as string } : (flags[q.name] as Exclude<Flag, string>);
       q.reviewed = true;
-      q.flag = flags[q.name] ?? null;
+      q.flag = flag?.reason ?? null;
+      q.flag_quote = flag?.quote ?? null;
+      q.flag_hard = Boolean(flag?.hard);
     }
   }
+
+  /** The tabs' flag cards' answers (POST .../review/keep|rewrite, review.py), in order. */
+  readonly flagAnswers: { jobId: string; action: string; name: string }[] = [];
 
   /** The student's autofill answers (GET and PATCH .../autofill-answers), STUDENT's unless `profile` names others. */
   readonly answers: Record<string, string | null>;
@@ -148,6 +156,17 @@ export class FakeApi {
       const question = this.written.get(own[1])?.find((q) => q.name === name);
       if (question) Object.assign(question, { answer, reviewed: isOwn, flag: null });
       return { json: { answer, own: isOwn } };
+    }
+    // The flag card (review.py keep / rewrite): Keep clears the flag; Rewrite with Claude clears the answer for Claude.
+    const flagged = /^\/applications\/([^/]+)\/review\/(keep|rewrite)$/.exec(route);
+    if (flagged && method === "POST") {
+      const { name } = JSON.parse(body.toString());
+      const question = this.written.get(flagged[1])?.find((q) => q.name === name);
+      if (!question?.answer) return { status: 422, json: { detail: "That answer isn't flagged." } };
+      this.flagAnswers.push({ jobId: flagged[1], action: flagged[2], name });
+      if (flagged[2] === "keep") Object.assign(question, { flag: null, flag_quote: null, flag_hard: false });
+      else Object.assign(question, { answer: null, reviewed: false, flag: null, flag_quote: null, flag_hard: false });
+      return { status: 204, body: "" };
     }
     const fill = /^\/applications\/([^/]+)\/fill$/.exec(route);
     if (fill && method === "PUT") {
