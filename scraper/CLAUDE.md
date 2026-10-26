@@ -5,7 +5,7 @@ The scraper's design and the rules for changing it; repo-wide rules are in
 
 ```sh
 cd scraper
-python3 -m workit_scraper              # scrape, then write the page and feed.json
+python3 -m workit_scraper              # scrape, then write the page, feed.json and metrics.json
 python3 -m workit_scraper --full       # the same, quiet boards included
 python3 -m workit_scraper --offline    # no network; rewrite both from jobs.json
 python3 build_boards.py                # add the boards the curated lists name now
@@ -427,8 +427,23 @@ store, the `first_seen_at` history, the per-board read ledger and the offline
 fallback, and it is gitignored: megabytes per run. Each machine keeps its own
 history; the scheduled run keeps its own in the Actions cache. A fresh clone's
 first live run counts nothing as new, and `--offline` refuses to run until a
-live run has written the file. `internships.html` and `feed.json` are
-gitignored output.
+live run has written the file. `internships.html`, `feed.json` and
+`metrics.json` are gitignored output.
+
+## Measure a change by provider
+
+Every live run writes `metrics.json` and prints the same as a table: the run's
+totals, and for each provider its boards by outcome, postings scanned, postings
+kept this run, roles on the page, pages read and the lane's seconds
+(`RunStats.by_provider`, `__main__.write_metrics`). The scheduled run keeps it a
+week beside `feed.json`, so a change to one provider is judged run against run,
+not by the one summary line. `--offline` writes none: it reads nothing.
+
+`build_boards.py` prints the hosts of the apply links no provider's pattern takes,
+most first (`unread_hosts`). That list is where a new reader pays off: iCIMS and
+Oracle topped it before KAN-301. Common Crawl is no way round the curated lists:
+its index API and its data host both disallow every bot in robots.txt
+(2026-10-26), and no hiring system read serves a sitemap of its boards.
 
 Limits marked in the code with `ponytail:` comments: nothing is ever closed;
 the whole store is loaded and rewritten each run; only matching postings are

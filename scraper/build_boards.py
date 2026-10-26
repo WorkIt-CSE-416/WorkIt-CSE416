@@ -37,7 +37,10 @@ from __future__ import annotations
 import csv
 import json
 import re
+from collections import Counter
+from collections.abc import Iterable
 from datetime import UTC, datetime
+from urllib.parse import urlsplit
 
 from workit_scraper import web
 from workit_scraper.__main__ import BOARDS_CSV, load_boards
@@ -129,21 +132,34 @@ def fetch(url: str, robots: Robots) -> list[dict]:
     return payload if isinstance(payload, list) else []
 
 
+def unread_hosts(links: Iterable[str]) -> Counter[str]:
+    """The hosts of the apply links no provider's pattern takes, counted: where a
+    new reader would add the most (iCIMS and Oracle topped it before KAN-301)."""
+    return Counter(urlsplit(link).hostname or "" for link in links if link and not tokens(link))
+
+
 def harvest() -> dict[tuple[str, str], str]:
-    """Map (ats, token) -> company name, from every apply URL in the curated lists."""
+    """Map (ats, token) -> company name, from every apply URL in the curated lists,
+    and print the hosts of the links it could not use."""
     boards: dict[tuple[str, str], str] = {}
+    links: list[str] = []
     robots = Robots(SOURCES)
     for url in SOURCES:
         rows = fetch(url, robots)
         print(f"  {len(rows):>6,} listings  {url.split('/')[4]}")
         for row in rows:
             link = row.get("url") or ""
+            links.append(link)
             company = (row.get("company_name") or row.get("company") or "").strip()
             for key in tokens(link):
                 # First name wins; later duplicates are the same company.
                 if company and key not in boards:
                     boards[key] = company
                 boards.setdefault(key, key[1])
+    unread = unread_hosts(links)
+    print(f"\n  {sum(unread.values()):,} apply links no reader takes; the most by host:")
+    for host, count in unread.most_common(15):
+        print(f"  {count:>6,}  {host}")
     return boards
 
 

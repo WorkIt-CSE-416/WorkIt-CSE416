@@ -85,6 +85,7 @@ jobs:
           path: |
             scraper/feed.json
             scraper/internships.html
+            scraper/metrics.json
           retention-days: 7
 
       - uses: astral-sh/setup-uv@v3

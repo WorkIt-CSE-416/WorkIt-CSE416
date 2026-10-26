@@ -41,6 +41,9 @@ class RunStats:
     boards_failed: int = 0
     #: Left for a later run when a lane's time ran out (`Provider.budget_s`).
     boards_deferred: int = 0
+    #: Each provider's share of the run, keyed by `ats` (`__main__.scrape`): its
+    #: boards by outcome, postings scanned, pages read and lane seconds.
+    by_provider: dict[str, dict[str, float]] = field(default_factory=dict)
 
 
 @dataclass(frozen=True, slots=True)

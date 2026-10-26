@@ -88,7 +88,9 @@ only writes the rows that changed. Twelve of those minutes are Workday's (KAN-13
 its boards are read for a fixed share of each run and take about four runs to go
 round, which keeps the job well inside its 30-minute timeout (`scraper/CLAUDE.md`).
 **A change to the cron changes `RUN_EVERY` in `scraper/workit_scraper/store.py`
-too**: quiet boards take turns by that slot.
+too**: quiet boards take turns by that slot. Each run keeps `feed.json`,
+`internships.html` and `metrics.json` (each provider's share of the run) as an
+artifact for a week.
 
 It was every six hours until KAN-166. GitHub started those runs up to five hours
 late and skipped some outright (2026-10-08 to 10-09), so a posting could wait

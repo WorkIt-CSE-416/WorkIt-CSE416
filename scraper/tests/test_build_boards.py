@@ -8,7 +8,7 @@ from __future__ import annotations
 
 import pytest
 
-from build_boards import tokens
+from build_boards import tokens, unread_hosts
 
 
 def slugs(link: str) -> list[tuple[str, str]]:
@@ -56,3 +56,18 @@ def test_an_apply_link_names_its_board(link: str, board: tuple[str, str]) -> Non
 )
 def test_links_that_name_no_board(link: str) -> None:
     assert slugs(link) == []
+
+
+def test_unread_links_are_counted_by_host() -> None:
+    # Where the next reader would pay off: links no pattern takes, by host.
+    links = [
+        "https://jobs.smartrecruiters.com/Visa/744000089542455",
+        "https://jobs.smartrecruiters.com/ServiceNow/744000090109135",
+        "https://jobs.apple.com/en-us/details/200620000",
+        "https://jobs.lever.co/palantir/abc",
+        "",
+    ]
+    assert unread_hosts(links).most_common() == [
+        ("jobs.smartrecruiters.com", 2),
+        ("jobs.apple.com", 1),
+    ]

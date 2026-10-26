@@ -7,6 +7,7 @@ could silently drop or misreport a board.
 
 from __future__ import annotations
 
+import json
 from dataclasses import replace
 from types import SimpleNamespace
 
@@ -144,6 +145,53 @@ class TestVanishedBoards:
         monkeypatch.setattr(run, "_scrape_one", lambda b, robots: (run.Outcome.FAILED, []))
         _, _, read = run.scrape([self.gone], SimpleNamespace(), {listed.key: listed})
         assert read == []
+
+
+class TestMetrics:
+    """Each provider's share of a run, so a change to one can be measured: what it
+    read, what it kept, what it cost."""
+
+    def test_each_provider_counts_its_own_boards_and_pages(
+        self, monkeypatch, swap_provider
+    ) -> None:
+        boards = [board("lever", "a"), board("greenhouse", "b"), board("lever", "gone")]
+
+        def scrape_one(b: Board, robots) -> tuple:
+            if b.token == "gone":
+                return run.Outcome.MISSING, []
+            return run.Outcome.OK, [job(b, "1"), job(b, "2", title="Account Executive")]
+
+        monkeypatch.setattr(run, "_scrape_one", scrape_one)
+        swap_provider("greenhouse", describe=lambda j: replace(j, page=Page(1, "Read.", Facts())))
+        robots = SimpleNamespace(allows=lambda url: True, pace=lambda url: None)
+        _, stats, _ = run.scrape(boards, robots, {})
+        lever, greenhouse = stats.by_provider["lever"], stats.by_provider["greenhouse"]
+        assert (lever["boards"], lever["ok"], lever["missing"], lever["postings"]) == (2, 1, 1, 2)
+        # Only the kept Greenhouse posting's page is read; Lever sends it with the list.
+        assert (greenhouse["pages"], lever["pages"]) == (1, 0)
+        assert lever["seconds"] >= 0
+
+    def test_metrics_file_adds_what_each_provider_kept(self, tmp_path) -> None:
+        stats = RunStats(
+            postings=3,
+            kept=2,
+            boards_ok=1,
+            by_provider={"lever": {"boards": 1, "ok": 1, "postings": 3, "pages": 0}},
+        )
+        kept = [job(board("lever", "a")), job(board("lever", "a"), "2")]
+        path = tmp_path / "metrics.json"
+        run.write_metrics(stats, kept, {"lever": 1}, MONDAY, path)
+        written = json.loads(path.read_text(encoding="utf-8"))
+        assert written["scraped_at"] == MONDAY
+        assert written["totals"]["postings"] == 3
+        assert written["by_provider"]["lever"] == {
+            "boards": 1,
+            "ok": 1,
+            "postings": 3,
+            "pages": 0,
+            "kept": 2,
+            "roles": 1,
+        }
 
 
 def test_carry_brings_the_page_forward() -> None:

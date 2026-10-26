@@ -11,11 +11,12 @@ from __future__ import annotations
 
 import argparse
 import csv
+import json
 import sys
 import time
 from collections import Counter
 from concurrent.futures import ThreadPoolExecutor
-from dataclasses import replace
+from dataclasses import asdict, replace
 from datetime import UTC, datetime
 from enum import Enum, auto
 from pathlib import Path
@@ -31,6 +32,7 @@ BOARDS_CSV = ROOT / "boards.csv"
 JOBS_JSON = ROOT / "jobs.json"
 PAGE_HTML = ROOT / "internships.html"
 FEED_JSON = ROOT / "feed.json"
+METRICS_JSON = ROOT / "metrics.json"
 MAX_IN_FLIGHT = 8
 
 
@@ -90,10 +92,13 @@ def _lane(boards: list[Board], robots: Robots, before: dict[str, Job]):
     (`with_page`) -- so Greenhouse's page reads start when its boards are done,
     not after Lever's. Order is kept, so each board gets its own jobs back.
 
-    A lane with a budget (`Provider.budget_s`) starts no board once it has run out."""
+    A lane with a budget (`Provider.budget_s`) starts no board once it has run out.
+    Also returns how long the lane took and how many pages it read, for the run's
+    metrics."""
+    started = time.monotonic()
     provider = providers.PROVIDERS.get(boards[0].ats) if boards else None
     budget = provider.budget_s if provider else None
-    deadline = time.monotonic() + budget if budget is not None else None
+    deadline = started + budget if budget is not None else None
 
     def read(board: Board) -> tuple[Outcome, list[Job]]:
         if deadline is not None and time.monotonic() > deadline:
@@ -103,8 +108,12 @@ def _lane(boards: list[Board], robots: Robots, before: dict[str, Job]):
     with ThreadPoolExecutor(MAX_IN_FLIGHT) as pool:
         results = list(pool.map(read, boards))
         listed = [store.carry(job, before) for _, jobs in results for job in jobs]
-        paged = iter(pool.map(lambda job: with_page(job, robots), listed))
-    return [(outcome, [next(paged) for _ in jobs]) for outcome, jobs in results]
+        paged = list(pool.map(lambda job: with_page(job, robots), listed))
+    # `with_page` hands back the same posting when it reads nothing.
+    pages = sum(1 for was, now in zip(listed, paged, strict=True) if now is not was)
+    described = iter(paged)
+    results = [(outcome, [next(described) for _ in jobs]) for outcome, jobs in results]
+    return results, time.monotonic() - started, pages
 
 
 def scrape(
@@ -124,7 +133,7 @@ def scrape(
         by_lane = list(pool.map(lambda lane: _lane(lane, robots, before), lanes.values()))
     outcome_of = {
         board.key: result
-        for lane, results in zip(lanes.values(), by_lane, strict=True)
+        for lane, (results, _, _) in zip(lanes.values(), by_lane, strict=True)
         for board, result in zip(lane, results, strict=True)
     }
     results = [outcome_of[board.key] for board in boards]
@@ -137,6 +146,18 @@ def scrape(
         boards_skipped=outcomes[Outcome.SKIPPED],
         boards_failed=outcomes[Outcome.FAILED],
         boards_deferred=outcomes[Outcome.DEFERRED],
+        by_provider={
+            ats: {
+                "boards": len(lane),
+                **Counter(outcome.name.lower() for outcome, _ in lane_results),
+                "postings": sum(len(jobs) for _, jobs in lane_results),
+                "pages": pages,
+                "seconds": round(seconds, 1),
+            }
+            for (ats, lane), (lane_results, seconds, pages) in zip(
+                lanes.items(), by_lane, strict=True
+            )
+        },
     )
     # A board we hold postings from that now says it does not exist has nothing
     # open: read in full, with none. Not one never read (a typo has nothing to
@@ -242,6 +263,10 @@ def main(argv: list[str] | None = None) -> int:
     roles = pick([job for job in run.jobs if run.is_listed(job)], is_new=run.is_new)
     report.write_html(roles, run.stats, PAGE_HTML, run.scraped_at, counts_new=run.counts_new)
     feed.write(roles, run.logos, FEED_JSON)
+    if not args.offline:
+        by_ats = Counter(role.ats for role in roles)
+        write_metrics(run.stats, fresh, by_ats, run.scraped_at, METRICS_JSON)
+        print_metrics(run.stats, fresh, by_ats)
 
     print(
         f"\n{run.stats.postings:,} postings -> {len(roles)} distinct roles"
@@ -253,6 +278,42 @@ def main(argv: list[str] | None = None) -> int:
     )
     print(f"wrote {PAGE_HTML} and {FEED_JSON.name}")
     return 0
+
+
+def _per_provider(stats: RunStats, kept: list[Job], roles: Counter[str]) -> dict[str, dict]:
+    """Each provider's counts from the scrape, with the postings it kept this run
+    and the roles it has on the page now."""
+    kept_by = Counter(job.ats for job in kept)
+    return {
+        ats: {**counts, "kept": kept_by[ats], "roles": roles.get(ats, 0)}
+        for ats, counts in stats.by_provider.items()
+    }
+
+
+def write_metrics(
+    stats: RunStats, kept: list[Job], roles: Counter[str] | dict[str, int], at: str, path: Path
+) -> None:
+    """metrics.json: the run's totals and each provider's share, so a change to one
+    provider can be measured run against run (the scheduled run keeps it a week)."""
+    totals = {key: value for key, value in asdict(stats).items() if key != "by_provider"}
+    payload = {
+        "scraped_at": at,
+        "totals": totals,
+        "by_provider": _per_provider(stats, kept, Counter(roles)),
+    }
+    path.write_text(json.dumps(payload, indent=1, sort_keys=True) + "\n", encoding="utf-8")
+
+
+def print_metrics(stats: RunStats, kept: list[Job], roles: Counter[str]) -> None:
+    columns = ("boards", "ok", "missing", "skipped", "failed", "deferred")
+    print(f"\n{'provider':11s}" + "".join(f"{c:>9s}" for c in columns), end="")
+    print(f"{'postings':>10s}{'kept':>7s}{'roles':>7s}{'pages':>7s}{'seconds':>9s}")
+    for ats, row in sorted(_per_provider(stats, kept, roles).items()):
+        print(f"{ats:11s}" + "".join(f"{row.get(c, 0):>9,}" for c in columns), end="")
+        print(
+            f"{row['postings']:>10,}{row['kept']:>7,}{row['roles']:>7,}"
+            f"{row['pages']:>7,}{row['seconds']:>9,.0f}"
+        )
 
 
 if __name__ == "__main__":
