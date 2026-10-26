@@ -379,11 +379,11 @@ weight.
   with that type's badge, and its menu lists All Types and each type
   present, each with its badge and count. The types were a two-by-two
   legend of coloured pills, which took four rows' height.
-- **Sample changes, TEMPORARY** (`demo-suggestions.ts`, 2026-10-26): six
-  sample changes of every type, built from the resume's own entries, sit
-  beside a run's real ones so the panel's design can be judged; Accept or
-  Reject only drops them, and the toolbar's count includes them. Remove
-  the file and its two uses before this branch opens a PR.
+- **Added bullets and removed lines are drawn but not yet made.** The
+  run makes rewordings, moves and added skills only; the panel's added
+  and removed types were designed against sample changes, removed before
+  this shipped. A run that adds or drops a line needs its `TailorEdit`
+  kind, its `changesOf` mapping and its revert (`revertOf`).
 - **Accept keeps the change** (it is saved already): the card and its
   dots go. **Reject undoes it** through the choices PATCH (`revertOf`,
   above) and drops it. Reject All is one PATCH (`revertAll`), each

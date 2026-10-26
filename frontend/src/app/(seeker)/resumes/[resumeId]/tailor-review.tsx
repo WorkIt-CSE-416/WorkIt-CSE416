@@ -74,15 +74,15 @@ export type ChangeKind = "added" | "reworded" | "removed" | "moved";
 /**
  * One suggestion as the panel shows it: its type, the resume entry it sits
  * in (`where`: an entry's id, or "skills"), and its words before and after.
- * A run's change carries its `edit`, which Accept and Reject act on. A
- * sample change has none (./demo-suggestions.ts, temporary): the run makes
- * no added bullet or removed line yet, and the panel's design needed them.
+ * It carries the run's `edit`, which Accept and Reject act on. The run
+ * makes no added bullet or removed line yet; the types are ready for when
+ * it does (sample changes of each stood in while the panel was designed).
  */
 export type Change = {
   key: string;
   kind: ChangeKind;
   where: string;
-  edit?: TailorEdit;
+  edit: TailorEdit;
   before?: string;
   after?: string;
   /** A skill's group ("Languages"). */

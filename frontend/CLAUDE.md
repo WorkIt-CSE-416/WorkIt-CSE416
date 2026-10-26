@@ -1265,9 +1265,7 @@ the KAN-296 cutover.
   the pick steps; the tailored resume's page has the slim
   `TailorReviewBar` instead (Back to Choose Keywords, `TailorBack`, the
   step, and Finish; the job in an sr-only h1), so the resume starts near the top, under its own name
-  renamed in place (`ResumeTitle`). Its Suggestions panel shows sample
-  changes from `resumes/[resumeId]/demo-suggestions.ts` for now: remove
-  that file and its two uses before the branch opens a PR.
+  renamed in place (`ResumeTitle`).
   `TailorScreen` holds the step in state, so Back keeps the pick, the
   match and the picked keywords; `?step=keywords&source=<picker key>`
   opens it at Choose Keywords (the review's Back), and a run then

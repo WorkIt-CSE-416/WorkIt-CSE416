@@ -1796,8 +1796,7 @@ with no proposals to accept and no Done (2026-10-25).
   fold): a white outlined card with one row per thing that changed (each
   moved bullet with an amber "3 → 1" tag), and under the
   list Reject All and Accept All. Pointing at a row highlights its lines;
-  only a click on its name scrolls the page to them. Sample changes of every type sit beside the run's for now
-  (`demo-suggestions.ts`, temporary). On a phone the panel is a sheet opened by
+  only a click on its name scrolls the page to them. On a phone the panel is a sheet opened by
   "Suggestions (n)". With no record (a new tab or device) the editor
   shows alone, with a line saying the suggestions live in the tab that ran
   Tailor. A before and after side by side came first (2026-10-26) and was

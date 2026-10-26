@@ -28,7 +28,6 @@ import { cn } from "@/lib/cn";
 
 import { Editor } from "../../../resumes/[resumeId]/editor";
 import { wording } from "../../../resumes/[resumeId]/model";
-import { dismissDemo, useDemoChanges } from "../../../resumes/[resumeId]/demo-suggestions";
 import {
   changesOf,
   movesOf,
@@ -170,9 +169,7 @@ function SuggestionsPanel({
   active,
 }: SuggestionsApi) {
   const list = useRef<HTMLDivElement>(null);
-  // TEMPORARY: sample changes of every type beside the run's own
-  const demo = useDemoChanges(bank, (id) => pageOrder(`${id}.title`) !== Number.POSITIVE_INFINITY);
-  const changes = [...changesOf(record.edits, bank), ...demo];
+  const changes = changesOf(record.edits, bank);
   const [only, setOnly] = useState<ChangeKind | null>(null);
   const shown = only ? changes.filter((c) => c.kind === only) : changes;
   const groups = groupsOf(shown, bank, pageOrder);
@@ -213,7 +210,6 @@ function SuggestionsPanel({
     else next.add(where);
     setClosed(next);
   };
-  const demoKeys = demo.map((c) => c.key);
 
   return (
     // In the brand tint with its ring, as the editor's bar above the page,
@@ -292,12 +288,8 @@ function SuggestionsPanel({
                           saving={saving}
                           onFocus={focus}
                           onShow={() => show(change.key)}
-                          onAccept={() =>
-                            change.edit ? accept(change.edit) : dismissDemo([change.key])
-                          }
-                          onReject={() =>
-                            change.edit ? reject(change.edit) : dismissDemo([change.key])
-                          }
+                          onAccept={() => accept(change.edit)}
+                          onReject={() => reject(change.edit)}
                         />
                       </li>
                     ))}
@@ -317,24 +309,10 @@ function SuggestionsPanel({
           keeps, as on each row */}
       {changes.length > 0 && (
         <div className="grid shrink-0 grid-cols-2 gap-2 pt-1">
-          <Button
-            variant="decline"
-            disabled={saving}
-            onClick={() => {
-              dismissDemo(demoKeys);
-              rejectAll();
-            }}
-          >
+          <Button variant="decline" disabled={saving} onClick={rejectAll}>
             <XIcon aria-hidden /> Reject All
           </Button>
-          <Button
-            variant="positive"
-            disabled={saving}
-            onClick={() => {
-              dismissDemo(demoKeys);
-              acceptAll();
-            }}
-          >
+          <Button variant="positive" disabled={saving} onClick={acceptAll}>
             <CheckIcon aria-hidden /> Accept All
           </Button>
         </div>
