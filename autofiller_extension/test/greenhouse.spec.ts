@@ -67,6 +67,40 @@ test("each filled field says where its answer came from, and a guess is marked f
   expect(pure.submissions).toEqual([]);
 });
 
+test("Looks right ×N confirms the guessed consent boxes at once, never a self-identification or legal one", async ({ context }) => {
+  const coinbase = new FakeJobServer("greenhouse-coinbase");
+  const page = await coinbase.open(context);
+  const job = readFileSync(join(FORMS, "greenhouse-coinbase", "questions.json"), "utf8");
+  const saved = new Map(loadHar("greenhouse-coinbase").log.entries.map((e: any) => [e.request.url, e.response.content.text ?? ""]));
+  // A student whose policies (brought from Apply) tick a consent box that is true: WorkIt's own leave it to them.
+  const ticks = { ...STUDENT, fill: { policies: { tick_consent_when_true: true } } };
+  await bridge(page, async (url) => (url.startsWith("https://boards-api.greenhouse.io/") ? job : saved.get(url) ?? ""), ticks);
+  await inject(page);
+  await settled(page);
+  // Two more guesses, as another form's would be: a consent box, and a self-identification question.
+  await page.evaluate(() => {
+    const { status } = (window as any).WIA;
+    for (const [key, label, shows] of [["ack", "I acknowledge the candidate privacy notice.", "Yes"], ["gender", "Gender: I consent to share my gender identity", "Decline To Self Identify"]]) {
+      status.register(key, label, true, "guessed");
+      status.setStatus(key, "filled", undefined, shows);
+    }
+  });
+  const panel = page.locator("#workit-autofiller-overlay-host");
+  const source = (label: string) => panel.locator(".row", { hasText: label }).locator(".source");
+  const ARBITRATION = "Please confirm receipt of the above linked Global Data Privacy Notice and US Arbitration Agreement.";
+  const AI_TOOLS = "I understand that Coinbase may use AI tools to assist in the application and interview process.";
+  await expect(source(AI_TOOLS)).toHaveText("Guessed");
+  await expect(source(ARBITRATION)).toHaveText("Guessed");
+
+  // Coinbase's AI-tools box and the privacy notice; not the arbitration agreement (legal), Gender or How did you hear.
+  await panel.getByRole("button", { name: "Looks right ×2" }).click();
+  await expect(source(AI_TOOLS)).toHaveText("You");
+  await expect(source("I acknowledge the candidate privacy notice.")).toHaveText("You");
+  for (const label of [ARBITRATION, "Gender: I consent", "How did you hear about this job?"]) await expect(source(label)).toHaveText("Guessed");
+  await expect(panel.getByRole("button", { name: /Looks right ×/ })).toHaveCount(0);
+  expect(coinbase.submissions).toEqual([]);
+});
+
 test("leaves a job system the engine doesn't cover alone", async () => {
   const prepared = await planFill({
     url: "https://example.com/careers/apply/123", profile: STUDENT, today: "2026-10-22",
@@ -174,7 +208,7 @@ test("on a job system the engine doesn't cover, the overlay says so, not as an o
   await bridge(page, async () => { throw new Error("a job API was fetched"); });
 
   await inject(page);
-  await settled(page);
+  console.log(JSON.stringify((await settled(page)).rows.map((r) => [r.label.slice(0, 50), r.status, r.source, r.reason])));
 
   const text = await page.evaluate(() => document.getElementById("workit-autofiller-overlay-host")!.shadowRoot!.querySelector(".list")!.textContent);
   expect(text).toContain("WorkIt can't fill this job system yet");
@@ -192,7 +226,7 @@ test("a company's careers page that embeds a Greenhouse form points the student 
   await bridge(page, async () => { throw new Error("a job API was fetched"); });
 
   await inject(page);
-  await settled(page);
+  console.log(JSON.stringify((await settled(page)).rows.map((r) => [r.label.slice(0, 50), r.status, r.source, r.reason])));
 
   const text = await page.evaluate(() => document.getElementById("workit-autofiller-overlay-host")!.shadowRoot!.querySelector(".list")!.textContent);
   expect(text).toContain(`Open the application form (${form}&gh_jid=123)`);

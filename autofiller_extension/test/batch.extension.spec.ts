@@ -452,17 +452,17 @@ test("a dropdown the student answers with the mouse alone no longer needs them: 
   expect(forms.submissions).toEqual([]);
 });
 
-test("once only fine rows are left, Next Thing says none are left, across the tabs in batch order", async () => {
+test("a guess stays in the walk until the student says it looks right, which saves it as their own", async () => {
   test.setTimeout(150_000);
   const [ARC, ANDURIL] = ["greenhouse-arc", "greenhouse-anduril"];
   const forms = new SavedForms([ARC, ANDURIL]);
-  await startBatch(forms, [ARC, ANDURIL], [withScript(forms, ARC, DROPS_FIRST_NAME)]);
+  const api = await startBatch(forms, [ARC, ANDURIL], [withScript(forms, ARC, DROPS_FIRST_NAME)]);
   const rowOf = (url: string, key: string) => page(url).locator(`#workit-autofiller-overlay-host [data-key="${key}"]`);
-  // How Anduril heard of the student is a guess: the walk shows it once, for the student to check.
+  // How Anduril heard of the student is a guess, for the student to check.
   const HEARD = "question_13130335007";
   await expect(rowOf(forms.url(ANDURIL), HEARD).locator(".source")).toHaveText("Guessed");
 
-  // The student answers each field the walk shows them, Arc's first name and Anduril's two questions.
+  // The student answers each field the walk shows them, Arc's first name and Anduril's two questions, but not the guess.
   const answer = async (url: string, key: string) => {
     const form = page(url);
     if (key === "first_name") {
@@ -484,10 +484,45 @@ test("once only fine rows are left, Next Thing says none are left, across the ta
   ]);
   expect(first.left).toBe("Nothing else needs you.");
 
-  // Pressed again, it starts over and finds nothing: every row left is filled and fine, the guess seen.
+  // Pressed again, it starts over: the guess the student saw but didn't confirm is still theirs to check.
   const again = await walkToEnd(forms.url(ANDURIL));
-  expect(again.walked).toEqual([]);
-  expect(again.left).toBe("Nothing else needs you.");
+  expect(again.walked).toEqual([[forms.url(ANDURIL), HEARD]]);
+
+  // Looks right: the answer is the student's now, saved as theirs for the next form that asks it.
+  const heard = rowOf(forms.url(ANDURIL), HEARD);
+  await heard.getByRole("button", { name: "Looks right" }).click();
+  await expect(heard.locator(".source")).toHaveText("You");
+  await expect(heard).toContainText("Looks right. We'll use this next time.");
+  await expect.poll(() => api.own).toEqual([
+    { jobId: "job-1", name: HEARD, label: "How did you hear about Anduril?", answer: "Anduril Website", own: true },
+  ]);
+  const last = await walkToEnd(forms.url(ANDURIL));
+  expect(last.walked).toEqual([]);
+  expect(last.left).toBe("Nothing else needs you.");
+  expect(forms.submissions).toEqual([]);
+});
+
+test("a guess the student changes is theirs: the walk passes it over, and one click saves it for next time", async () => {
+  test.setTimeout(120_000);
+  const ANDURIL = "greenhouse-anduril";
+  const forms = new SavedForms([ANDURIL]);
+  const api = await startBatch(forms, [ANDURIL]);
+  const form = page(forms.url(ANDURIL));
+  const HEARD = "question_13130335007";
+  const heard = form.locator(`#workit-autofiller-overlay-host [data-key="${HEARD}"]`);
+  await expect(heard.locator(".source")).toHaveText("Guessed");
+
+  await form.locator(`#${HEARD}`).click();
+  await form.getByRole("option", { name: "Handshake" }).click();
+  await expect(heard.locator(".source")).toHaveText("You", { timeout: 10_000 });
+  // Nothing is saved until the student says so.
+  expect(api.own).toEqual([]);
+  await heard.getByRole("button", { name: "Save for next time" }).click();
+  await expect(heard).toContainText("Saved. We'll use this next time.");
+  expect(api.own).toEqual([{ jobId: "job-0", name: HEARD, label: "How did you hear about Anduril?", answer: "Handshake", own: true }]);
+
+  const { walked } = await walkToEnd(forms.url(ANDURIL));
+  expect(walked.map(([, key]) => key)).not.toContain(HEARD);
   expect(forms.submissions).toEqual([]);
 });
 

@@ -304,7 +304,7 @@
     let timer;
     const check = async () => {
       if (writing.busy() || stopped) return;
-      const rows = status.summary().fields.filter((r) => byName.has(r.key) && (r.required || r.status === "failed" || written.has(r.key)));
+      const rows = status.summary().fields.filter((r) => byName.has(r.key) && (r.required || r.status === "failed" || written.has(r.key) || window.WIA.guessCard?.watched(r.key)));
       if (!rows.length) return required();
       const answer = await send({ type: "fill/read", site: prepared.site, questions: prepared.questions, names: rows.map((r) => r.key), state: prepared.state });
       if (!answer.ok || writing.busy() || stopped) return;

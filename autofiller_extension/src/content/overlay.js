@@ -45,6 +45,8 @@ window.WIA = window.WIA || {};
   let current = null;
   let unsubscribe = null;
   let keeper = null;
+  // Cards other files add to the panel (addPart): their styles, a part under a row, a part above the list.
+  const parts = [];
 
   function styles() {
     const style = document.createElement("style");
@@ -152,6 +154,7 @@ window.WIA = window.WIA || {};
       .start svg { width: 12px; height: 12px; color: var(--color-brand); }
       .start .hint { font-size: var(--text-meta); color: var(--color-ink-meta); }
       .empty { padding: 16px 12px; color: var(--color-ink-meta); }
+      ${parts.map((part) => part.css ?? "").join("\n")}
     `;
     return style;
   }
@@ -200,6 +203,10 @@ window.WIA = window.WIA || {};
       reason.textContent = `Your Claude's check: ${field.flag} Read it before you submit, and edit it if it's wrong.`;
       text.appendChild(reason);
     }
+    for (const part of parts) {
+      const extra = part.row?.(field);
+      if (extra) text.appendChild(extra);
+    }
     el.append(dot, text);
     return el;
   }
@@ -240,6 +247,7 @@ window.WIA = window.WIA || {};
         ? summary.fields.map(row)
         : [Object.assign(document.createElement("div"), { className: "empty", textContent: "No fields detected yet." })]),
     );
+    root.querySelector(".parts").replaceChildren(...parts.map((part) => part.panel?.(summary)).filter(Boolean));
     root.querySelector(".summary").textContent =
       summary.requiredTotal === 0
         ? "No required fields detected"
@@ -477,6 +485,7 @@ window.WIA = window.WIA || {};
       </div>
       <div class="essay-banner" hidden></div>
       <div class="moments"></div>
+      <div class="parts"></div>
       <div class="list"></div>
     `;
     panel.querySelector("[data-close]").addEventListener("click", unmount);
@@ -517,5 +526,21 @@ window.WIA = window.WIA || {};
     root = null;
   }
 
-  window.WIA.overlay = { mount, unmount, promptForEssays, offerNext, setCurrent, askSelfId, offerClaude, askSamples, askWorkdayAccounts, CLAUDE_TRIGGER };
+  /**
+   * Adds a card to the panel, from its own file (card-guess.js): `css` for
+   * the panel's styles (tokens only), `row(field)` a part under a row's
+   * text, `panel(summary)` a part above the list. Each answers a node or
+   * null, and is asked again at every render. Added before the panel mounts.
+   * @param {{ css?: string, row?: (field: object) => Node | null, panel?: (summary: object) => Node | null }} part
+   */
+  function addPart(part) {
+    parts.push(part);
+  }
+
+  /** Draws the panel again: a part's own state changed. */
+  function refresh() {
+    render(window.WIA.status.summary());
+  }
+
+  window.WIA.overlay = { mount, unmount, promptForEssays, offerNext, setCurrent, askSelfId, offerClaude, askSamples, askWorkdayAccounts, addPart, refresh, CLAUDE_TRIGGER };
 })();
