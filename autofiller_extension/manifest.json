@@ -29,6 +29,11 @@
       "world": "MAIN",
       "run_at": "document_start",
       "all_frames": true
+    },
+    {
+      "matches": ["https://*.greenhouse.io/*", "https://*.lever.co/*", "https://*.ashbyhq.com/*", "https://*.rippling.com/*", "https://*.workable.com/*", "https://*.eightfold.ai/*", "https://explore.jobs.netflix.net/*", "https://*.myworkdayjobs.com/*", "https://*.myworkdaysite.com/*"],
+      "js": ["src/shared/tokens.js", "src/content/panel.js", "src/content/launcher.js"],
+      "run_at": "document_idle"
     }
   ],
   "permissions": ["storage", "activeTab", "scripting", "cookies", "tabGroups", "webRequest"],

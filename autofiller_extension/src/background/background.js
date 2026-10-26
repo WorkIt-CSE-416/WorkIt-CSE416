@@ -333,7 +333,21 @@ async function handleMessage(message, sender) {
       return { added: await connectorAdded(id) };
     }
 
-    // The panel's font (overlay.js's loadFont), as base64: the page can't
+    // The panel's shell (panel.js, KAN-394): whether this page is a job page WorkIt
+    // covers, whether the tab is a batch's, and the site's kept choices.
+    case "panel/where": {
+      const url = sender.url ?? "";
+      const job = Boolean(jobOf(url));
+      return { job, batch: sender.tab ? await inBatch(sender.tab.id) : false, site: await panelSite(url) };
+    }
+    case "panel/site":
+      return { site: await panelSite(sender.url ?? "", message.set) };
+    // The panel's Autofill This Page and Fill Again: the fill, in the frame that asked (a batch tab stays one).
+    case "panel/fill":
+      await injectFill(sender.tab.id, { batch: Boolean(message.batch) && (await inBatch(sender.tab.id)), frameId: sender.frameId || undefined });
+      return {};
+
+    // The panel's font (panel.js's loadFont), as base64: the page can't
     // load the extension's own files, which aren't web-accessible.
     case "overlay/font": {
       const bytes = new Uint8Array(await (await fetch(chrome.runtime.getURL("fonts/PlusJakartaSans-latin.woff2"))).arrayBuffer());
@@ -432,6 +446,22 @@ function resumeOnce() {
 }
 chrome.runtime.onStartup.addListener(resumeOnce);
 resumeOnce();
+
+// The panel's choices per site (panel.js): { top, collapsed, hidden }, by host name.
+const PANEL_SITES_KEY = "panel_sites";
+async function panelSite(url, change) {
+  let site;
+  try {
+    site = new URL(url).hostname;
+  } catch {
+    return {};
+  }
+  const sites = (await chrome.storage.local.get(PANEL_SITES_KEY))[PANEL_SITES_KEY] ?? {};
+  if (!change) return sites[site] ?? {};
+  sites[site] = { ...sites[site], ...change };
+  await chrome.storage.local.set({ [PANEL_SITES_KEY]: sites });
+  return sites[site];
+}
 
 // Messages from the popup and the content script (same extension, so this
 // channel, not the External one below).

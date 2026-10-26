@@ -1,5 +1,5 @@
-// The panel after the student closes it (KAN-369): its ✕ leaves a small
-// WorkIt tab on the page, and the toolbar's popup, on a page WorkIt already
+// The panel after the student closes it (KAN-369): its Collapse leaves the
+// edge tab on the page, and the toolbar's popup, on a page WorkIt already
 // filled, offers Show WorkIt Panel (the same rows, nothing filled again)
 // before Fill Again. And a panel row takes the student to its field.
 // Anduril's saved Greenhouse form, filled as a batch tab.
@@ -55,13 +55,13 @@ async function popupOver(form: Page): Promise<Page> {
 
 const panelOf = (form: Page) => form.locator("#workit-autofiller-overlay-host .panel");
 
-test("after ✕, the popup's Show WorkIt Panel brings back the same rows without filling again", async () => {
+test("after Collapse, the popup's Show WorkIt Panel brings back the same rows without filling again", async () => {
   test.setTimeout(120_000);
   const { form, forms } = await anduril();
   const plans = await countPlans();
   const rows = await panelOf(form).locator(".row").allTextContents();
 
-  await form.locator("#workit-autofiller-overlay-host").getByRole("button", { name: "Close" }).click();
+  await form.locator("#workit-autofiller-overlay-host").getByRole("button", { name: "Collapse" }).click();
   await expect(panelOf(form)).toBeHidden();
 
   const popup = await popupOver(form);
@@ -74,13 +74,13 @@ test("after ✕, the popup's Show WorkIt Panel brings back the same rows without
   expect(forms.submissions).toEqual([]);
 });
 
-test("after ✕, the WorkIt tab left on the page brings the panel back", async () => {
+test("after Collapse, the edge tab left on the page brings the panel back", async () => {
   test.setTimeout(120_000);
   const { form } = await anduril();
   const plans = await countPlans();
   const host = form.locator("#workit-autofiller-overlay-host");
 
-  await host.getByRole("button", { name: "Close" }).click();
+  await host.getByRole("button", { name: "Collapse" }).click();
   await host.getByRole("button", { name: "Show WorkIt panel" }).click();
 
   await expect(panelOf(form)).toBeVisible();
