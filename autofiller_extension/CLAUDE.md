@@ -1324,6 +1324,16 @@ only the student's own answer, never a default; an empty list is their
 "none". `schoolYear` derives `education.class_year` and
 `returning_to_school_after_internship` from the latest education entry's
 end month (`engineProfile(profile, today)`), with no new input.
+The rest of the section reaches the engine as `identity.age_18_or_over`,
+`identity.pronouns`, `voluntary_self_id.{sexual_orientation, transgender,
+communities}` (decline as "decline"; communities [] is "none of these"),
+`experience_facts.role_interests` and `links.x_twitter_url`. Pay is the
+student's own answer, laid over the policies by `enginePolicies`:
+`compensation.fallback_hourly` (their hourly figure) and
+`accept_stated_rate` (with "Open to the posted range" as the words). From
+the bank, with no new input: `experience_facts.prior_internships_count`
+(jobs titled intern or co-op; unknown while the bank holds no job) and
+`identity.current_company` (the job held now).
 
 - **`work_authorized_us`/`needs_sponsorship` fall back to the onboarding
   "Visa Sponsorship" job-search filter** (`applicant_preferences.visa`,
@@ -2108,13 +2118,11 @@ openness covers:
   `experience_facts.skills`, a "Languages" group first. WorkIt holds no place
   the student lives, so Greenhouse's Country picker beside Phone is left for
   the student.
-- **No "not a veteran" answer.** WorkIt's `veteran_status` is
-  protected_veteran, not_protected_veteran or declined. Since the engine's
-  fix (KAN-329), "I am not a protected veteran" answers only
-  protected-status questions; a plain "Are you a veteran?" or military
-  service question is the student's (a Missing fact). Answering it needs a
-  new value such as `not_veteran`, mapped to "I am not a veteran"; never
-  map not_protected_veteran to false.
+- **"Never served" is its own answer.** WorkIt's `veteran_status` adds
+  `not_veteran` ("I am not a veteran"), which answers "Are you a veteran?",
+  "have you ever served?" (No) and a branch or status (N/A).
+  not_protected_veteran still answers only protected-status questions; never
+  map it to false.
 - **A profile saved before the name split** (KAN-326) has only
   `full_name`, so its first/last name is the first word and the rest:
   wrong for a multi-word given name or a middle name. Once My Profile

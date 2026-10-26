@@ -51,6 +51,7 @@ export const SELF_ID = [
     options: [
       { value: "protected_veteran", label: "I identify as one or more of the classifications of protected veteran" },
       { value: "not_protected_veteran", label: "I am not a protected veteran" },
+      { value: "not_veteran", label: "I have never served in the military" },
       { value: "declined", label: "I don't wish to answer" },
     ],
   },
