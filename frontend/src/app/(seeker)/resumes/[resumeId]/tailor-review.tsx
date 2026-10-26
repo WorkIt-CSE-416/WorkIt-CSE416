@@ -56,11 +56,13 @@ export type SuggestionsApi = {
   open: (key: string | null) => void;
 };
 
-/** The panel's groups, in its order. */
+/** The panel's sections, in its order, each named for what it holds. They
+ *  were Wording, Order and Skills until 2026-10-26: "Order 5" read as a
+ *  position, not as five reordered entries. */
 export const GROUPS = [
-  { kind: "reword", title: "Wording" },
-  { kind: "order", title: "Order" },
-  { kind: "skill", title: "Skills" },
+  { kind: "reword", title: "Reworded Bullets" },
+  { kind: "order", title: "Reordered Bullets" },
+  { kind: "skill", title: "Added Skills" },
 ] as const;
 
 /** A line's mark: `changed` (a new wording or an added skill, green) or

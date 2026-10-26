@@ -1,6 +1,11 @@
 "use client";
 
-import { CaretDownIcon, CheckIcon, XIcon } from "@phosphor-icons/react/ssr";
+import {
+  CaretDownIcon,
+  CheckIcon,
+  FileMagnifyingGlassIcon,
+  XIcon,
+} from "@phosphor-icons/react/ssr";
 import { useEffect, useRef, useState, type ComponentProps, type ReactNode } from "react";
 
 import { EllipsisIcon } from "@/components/icons";
@@ -35,8 +40,8 @@ import { TailorScore } from "./tailor-score";
  * the editor's slim toolbar (`compact`), and the Suggestions panel, which
  * the toolbar shows and hides. Each changed line has a small dot in the
  * page's margin and is highlighted only while its suggestion is pointed
- * at, focused or open. The panel has a section per kind (Wording, Order,
- * Skills), each counting its suggestions, and each suggestion is a row that
+ * at, focused or open. The panel has a section per kind (Reworded
+ * Bullets, Reordered Bullets, Added Skills), each counting its suggestions, and each suggestion is a row that
  * opens to its before and after with Accept, which keeps the saved change,
  * and Reject, which undoes it. The editor owns the state and lays the
  * panel out (`suggestions`); this file draws it.
@@ -86,8 +91,10 @@ function ViewOriginal({ source }: { source: TailorSource }) {
   const [open, setOpen] = useState(false);
   return (
     <>
-      <Button variant="ghost" size="xs" onClick={() => setOpen(true)}>
-        View Original
+      {/* A white button on the panel's tint, with its glyph: as a bare
+          brand link it read as stray text beside the heading */}
+      <Button variant="secondary" size="xs" onClick={() => setOpen(true)}>
+        <FileMagnifyingGlassIcon aria-hidden /> View Original
       </Button>
       <ResumePreviewDialog
         open={open}
@@ -299,8 +306,8 @@ function Chevron({ open }: { open: boolean }) {
 
 /**
  * One suggestion, a row in its section: its one line and a caret; open, it
- * shows where it is, the change, and ✕ Reject and ✓ Accept. Tinted while
- * pointed at, focused or open, as its lines are on the page. Each was a
+ * shows where it is, the change, and ✕ Reject and ✓ Accept. Grey while
+ * pointed at or focused; its lines on the page are highlighted then. Each was a
  * card of its own with a numbered dot until 2026-10-26: the numbers read as
  * an order to follow, and the cards did not say they open.
  */
@@ -342,7 +349,9 @@ function Suggestion({
         if (!e.currentTarget.contains(e.relatedTarget)) onFocus(null);
       }}
       // Clear of the panel's pinned top when scrolled to
-      className={cn("scroll-mt-28 transition-colors", (isOpen || lit) && "bg-brand-tint/60")}
+      // Grey while pointed at, never brand: an open row in purple read as
+      // selected rather than open
+      className={cn("scroll-mt-28 transition-colors", lit && !isOpen && "bg-ink/[0.03]")}
     >
       <button
         type="button"

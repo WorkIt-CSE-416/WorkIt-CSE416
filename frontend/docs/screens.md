@@ -1773,9 +1773,11 @@ with no proposals to accept and no Done (2026-10-25).
   plain dot in the page's margin and is highlighted (its tint, a 1px dark
   border, rounded, after Quinncia) only while its suggestion is pointed
   at or open; a dot or a changed line opens it. The panel's top holds
-  View Original, a "…" menu (Accept All, Reject All) and the keyword
+  View Original (a white button with a file glyph), a "…" menu (Accept
+  All, Reject All) and the keyword
   match as one thin row ("No new keywords matched" when it did not
-  move); under it one white section per kind, Wording, Order and Skills,
+  move); under it one white section per kind, Reworded Bullets, Reordered
+  Bullets and Added Skills,
   each heading with a colour swatch, its count and a caret, and each
   suggestion a row with a caret that opens to its change with a red ✕
   Reject and a green ✓ Accept. On a phone the panel is a sheet opened by
@@ -2026,10 +2028,11 @@ student who opened a resume from Experiences landed on another view.
   this page only), at the line's size, weight and slant, with its baseline
   on the PDF's, so its text covers the printed glyphs and wraps where the
   PDF does; before this, a wider fallback serif wrapped early and the field
-  covered the lines below. Its 2px ring is the line's only outline while
-  it is open: the line's own selected outline sat a few pixels off the
-  field, and with the field's drop shadow it showed as extra lines under
-  the ring, so both go while the field shows. It opens with the caret where the press landed
+  covered the lines below. Its 1.5px ring (2px read too thick over the
+  page's fine type) is the line's only outline while it is open: the
+  line's own selected outline sat a few pixels off the field, and with the
+  field's drop shadow it showed as extra lines under the ring, so both go
+  while the field shows, as does a Tailor highlight's border. It opens with the caret where the press landed
   (`caretPositionFromPoint`, measured from the pages' top left, because the
   bar can change height in the same render). It saves after a 700 ms
   pause, on blur, on Enter, or when another line is selected; then the PDF

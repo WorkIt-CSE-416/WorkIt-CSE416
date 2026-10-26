@@ -24,15 +24,23 @@ import type { Mark } from "./tailor-review";
  * `focus` brings the first of them into view (./tailor-review.tsx).
  */
 
-/** A marked line's highlight, as Quinncia draws one: the tint, carried
- *  1px past the line by a spread shadow so the text does not touch the
- *  edge, then a 1px border in the mark's dark shade, rounded. A flat tint
- *  with square corners read as a smear (2026-10-26). */
+/** A marked line's highlight, as Quinncia draws one: the tint, rounded
+ *  (`MARK_TINT`), and its edge (`MARK_EDGE`), the tint carried 1px past the
+ *  line by a spread shadow so the text does not touch the edge, then a 1px
+ *  border in the mark's dark shade at half strength. A flat tint with
+ *  square corners read as a smear; the border at full strength read too
+ *  thick (2026-10-26). A line being typed in keeps the tint only: the
+ *  field's ring is its one outline. */
 const MARK_TINT: Record<Mark, string> = {
+  changed: "rounded-[4px] bg-positive/20",
+  moved: "rounded-[4px] bg-warning-fill/20",
+};
+
+const MARK_EDGE: Record<Mark, string> = {
   changed:
-    "rounded-[4px] bg-positive/20 shadow-[0_0_0_1px_color-mix(in_oklab,var(--color-positive)_20%,transparent),0_0_0_2px_var(--color-positive-ink)]",
+    "shadow-[0_0_0_1px_color-mix(in_oklab,var(--color-positive)_20%,transparent),0_0_0_2px_color-mix(in_oklab,var(--color-positive-ink)_50%,transparent)]",
   moved:
-    "rounded-[4px] bg-warning-fill/20 shadow-[0_0_0_1px_color-mix(in_oklab,var(--color-warning-fill)_20%,transparent),0_0_0_2px_var(--color-warning-strong)]",
+    "shadow-[0_0_0_1px_color-mix(in_oklab,var(--color-warning-fill)_20%,transparent),0_0_0_2px_color-mix(in_oklab,var(--color-warning-strong)_50%,transparent)]",
 };
 
 /** A margin dot's fill, by the line's mark: the highlight's dark shade. */
@@ -256,6 +264,7 @@ export function PdfPages({
                     "absolute rounded-[2px] outline-offset-1 transition-colors",
                     !mark && "hover:bg-brand/5",
                     mark && MARK_TINT[mark],
+                    mark && !(selected === key && typing) && MARK_EDGE[mark],
                     "focus-visible:outline-brand focus-visible:outline-2",
                     // While its line is typed in, the field's ring is the one
                     // outline: this box sits a few pixels off the field, and its

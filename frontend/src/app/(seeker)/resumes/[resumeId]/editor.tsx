@@ -7,7 +7,7 @@ import {
   CloudSlashIcon,
   CursorClickIcon,
   EyeSlashIcon,
-  ListChecksIcon,
+  PencilSimpleLineIcon,
   ScissorsIcon,
   WarningIcon,
 } from "@phosphor-icons/react/ssr";
@@ -509,8 +509,9 @@ export function Editor({
         latinModern.className,
         // A negative margin puts the side padding outside the text, so the
         // text lands on the PDF's own glyphs. The ring alone outlines it: a
-        // shadow read as a soft second edge under the line.
-        "bg-panel text-ink ring-brand -mx-[0.4cqw] block resize-none overflow-hidden rounded-[2px] px-[0.4cqw] ring-2 outline-none",
+        // shadow read as a soft second edge under the line. 1.5px: at 2px
+        // the user found it too thick over the page's fine type.
+        "bg-panel text-ink ring-brand -mx-[0.4cqw] block resize-none overflow-hidden rounded-[2px] px-[0.4cqw] ring-[1.5px] outline-none",
         "field-sizing-content",
         look.bold && "font-bold",
         look.italic && "italic",
@@ -1096,7 +1097,7 @@ function SlimBar({
             onClick={review.onToggle}
             className="aria-pressed:bg-brand-tint aria-pressed:border-brand-pale aria-pressed:text-brand"
           >
-            <ListChecksIcon aria-hidden /> Suggestions
+            <PencilSimpleLineIcon aria-hidden /> Suggestions
             <span className="bg-brand text-on-brand flex h-5 min-w-5 items-center justify-center rounded-full px-1.5 text-xs font-semibold tabular-nums">
               {review.count}
             </span>

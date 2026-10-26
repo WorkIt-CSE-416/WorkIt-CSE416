@@ -243,7 +243,9 @@ weight.
   ("⚠ 2 pages ⌄", over one page only), so it reads as a problem to open,
   whose click offers Fit to One Page; Undo after a fit; "Click a line to
   edit it." only while the pointer is over the page; then Suggestions,
-  which shows and hides the panel and carries its count, and Download in
+  which shows and hides the panel and carries its count (its glyph a
+  pencil over a line, `PencilSimpleLine`, since ListChecks is the
+  Applications Tracker's), and Download in
   the brand fill. Download was an outlined glyph and the panel folded to a
   rail of its own (»), which the user found dated.
   Editing a line: its kind, Move Up and Move Down first, then Hide and the
@@ -256,11 +258,16 @@ weight.
   moved bullet; dots on one line (skills) stack like coins. A line is
   highlighted only while its suggestion is pointed at, focused or open,
   as Quinncia draws one: the tint carried 1px past the line, a 1px border
-  in the mark's dark shade (`positive-ink`, `warning-strong`), rounded. A
+  in the mark's dark shade (`positive-ink`, `warning-strong`) at half
+  strength, rounded; at full strength it read too thick. A line being
+  typed in keeps only its tint, so the field's 1.5px ring is its one
+  outline. A
   click on a dot or on a changed line opens its suggestion (and its
   section). Dots and cards were numbered until 2026-10-26: the numbers
   read as an order to follow, so each section counts its own instead.
-- **The panel's top**, pinned while the cards scroll: View Original and a
+- **The panel's top**, pinned while the cards scroll: View Original (a
+  white button with a file glyph; as a bare brand link it read as stray
+  text by the heading) and a
   "…" menu (Accept All, Reject All), then the keyword match as one thin
   row over a hairline meter ("Keyword match 3 → 9 of 14", the keywords
   added under it). When the run matched no new keyword it says "3 of 14 ·
@@ -278,12 +285,15 @@ weight.
   the editor, which owns the grid). Hidden, the page takes the whole
   width and no line stays highlighted. A phone opens the panel as a sheet
   from its own button.
-- **A section per kind**, Wording, Order and Skills: a heading with the
+- **A section per kind**, Reworded Bullets, Reordered Bullets and Added
+  Skills (they were Wording, Order and Skills, and "Order 5" read as a
+  position): a heading with the
   kind's colour swatch, its name, how many suggestions it holds and a
   caret, open at first only with three or fewer. Under a hairline, each
   suggestion is a row with its one line (the new wording, the entry and
   how many of its bullets moved, or the skill) and a caret that turns up
-  while open. A row is tinted while pointed at, focused or open. Open, it
+  while open. A row turns faint grey while pointed at, never brand: an
+  open row in purple read as selected. Open, it
   shows where the change is ("In <entry>"; a skill's group), then the
   change in a white box: the old words struck and the new ones
   highlighted (inline when only a run in the middle changed, else the old
