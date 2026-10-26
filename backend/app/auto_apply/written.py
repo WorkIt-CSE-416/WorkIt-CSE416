@@ -22,6 +22,7 @@ from app.auto_apply.queries import (
     drop_written,
     fetch_answered,
     fetch_application_companies,
+    fetch_ask,
     fetch_brought_answers,
     fetch_company_names,
     fetch_next_to_write,
@@ -34,6 +35,7 @@ from app.auto_apply.queries import (
     put_questions,
     save_own_written,
     save_written,
+    set_ask,
 )
 from app.auto_apply.stages import NotFound, get_application, open_application
 from app.models.written_answers import is_text
@@ -46,9 +48,11 @@ from app.schemas.applications import (
     PostingAnswers,
     PostingQuestions,
     SavedAnswer,
+    SavedFact,
     WrittenAnswer,
     WrittenQuestion,
 )
+from app.services import bank as experience
 from app.services.bank import Bank, load_bank
 from app.services.essay_answer import bank_context
 
@@ -158,7 +162,7 @@ async def next_to_write(
     if found is None:
         return None
     job_id, posting = found
-    questions = [q for q in await fetch_written(db, applicant_id, job_id) if q.answer is None]
+    questions = [q for q in await fetch_written(db, applicant_id, job_id) if q.answer is None and q.ask is None]
     return ToWrite(
         application=await get_application(db, applicant_id, job_id),
         posting=posting,
@@ -282,6 +286,86 @@ async def _plan_sources(
     earlier = [q.answer for name, q in questions.items() if q.answer and name not in saving]
     held = "\n".join([experience, *skills, company or "", title or "", posting or "", *facts, *earlier])
     return plans.Sources(plans.fold(held), plans.fold(experience), {plans.fold(f).strip() for f in facts})
+
+
+# Opens a question for the student that an Essay plan's required slot,
+# with no passage of theirs to quote, puts on the Written Answers page and
+# in the batch tab (a Missing fact), as in Apply.
+ASK = "Essay fact: "
+
+
+async def ask_fact(
+    db: AsyncSession, applicant_id: uuid.UUID, job_id: uuid.UUID, name: str, question: str, about: str,
+) -> None:
+    """
+    Keeps the fact the student's Claude asks the student for (KAN-369):
+    an Essay plan's required slot that nothing of theirs states, for one
+    unanswered question in words, `question` opened by ASK. `about` names
+    the experience entry it is about by its heading line, as the connector
+    gave it ("Software Intern, Acme"), so the student's answer can join
+    that entry as a bullet (answer_fact) and later plans can quote it.
+    Until then the question is not handed to their Claude again. Raises
+    NotFound / WrongStage for an application that isn't open, Refused for
+    a question that isn't an unanswered one in words, an empty question,
+    or an `about` no entry's heading matches.
+    """
+    await open_application(db, applicant_id, job_id)
+    q = {q.name: q for q in await fetch_written(db, applicant_id, job_id)}.get(name)
+    if q is None or not is_text(q.kind):
+        raise Refused(f"The application has no question in words named {name!r}. Use the names "
+                      "get_next_application gave.", {name: ["The application has no such question."]})
+    if q.answer is not None:
+        raise Refused(f"The question {name!r} is answered already.", {name: ["It is answered already."]})
+    asked = " ".join(question.split()).removeprefix(ASK.strip()).strip()
+    if not asked:
+        raise Refused("The question for the student is empty.", {name: ["The question is empty."]})
+    entries = {plans.fold(_heading(e)): e for e in (await load_bank(db, applicant_id)).entries}
+    entry = entries.get(plans.fold(about))
+    if entry is None:
+        raise Refused(
+            f"{about!r} is not the heading line of an entry in the experience. Copy the heading of the entry "
+            "the fact is about, as get_next_application gave it.", {name: ["No experience entry has that heading."]})
+    await set_ask(db, applicant_id, job_id, name, {
+        "question": ASK + asked, "entry_id": str(entry.row.id), "entry": _heading(entry),
+    })
+    await db.commit()
+
+
+async def answer_fact(
+    db: AsyncSession, applicant_id: uuid.UUID, job_id: uuid.UUID, name: str, answer: str,
+) -> SavedFact:
+    """
+    The student's answer to the fact their Claude asked for (ask_fact),
+    on the Written Answers page: added to the experience entry it was
+    about as a bullet, through services/bank.py, so their Claude can quote
+    it, and the question goes back to their Claude to write. Raises
+    NotFound with no application, Refused when the question waits on no
+    fact, the answer is empty, or the entry is gone.
+    """
+    if await fetch_stage(db, applicant_id, job_id) is None:
+        raise NotFound("No application for that job.")
+    ask = await fetch_ask(db, applicant_id, job_id, name)
+    text = " ".join(answer.split())
+    if ask is None:
+        raise Refused("That question waits on no fact from you.", {name: ["It waits on no fact."]})
+    if not text:
+        raise Refused("The answer is empty.", {name: ["The answer is empty."]})
+    try:
+        await experience.add_bullet(db, applicant_id, uuid.UUID(ask["entry_id"]), text)
+    except (experience.NotFound, ValueError, KeyError) as exc:
+        await set_ask(db, applicant_id, job_id, name, None)
+        await db.commit()
+        raise Refused(f"The experience entry it was about ({ask.get('entry')}) is gone. Your Claude will plan "
+                      "this answer again.", {name: ["The experience entry is gone."]}) from exc
+    await set_ask(db, applicant_id, job_id, name, None)
+    await db.commit()
+    return SavedFact(entry=ask.get("entry") or "", bullet=text)
+
+
+def _heading(entry) -> str:
+    """An entry's heading line as the connector's experience writes it
+    (services/essay_answer.bank_context)."""
+    return ", ".join(p for p in (entry.row.title, entry.row.organization) if p)
 
 
 def _claim_problems(answer: str, unsupported: list[str] | None) -> list[str]:

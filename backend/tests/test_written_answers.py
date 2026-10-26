@@ -27,7 +27,8 @@ async def test_a_tab_sends_its_questions_and_reads_them_back_unanswered(student,
 
     assert res.status_code == 200, res.text
     back = (await client.get(f"{me}/applications/{job}/questions")).json()
-    written = {"kind": None, "options": None, "answer": None, "reviewed": False, "flag": None, "flag_quote": None, "flag_hard": False}
+    written = {"kind": None, "options": None, "answer": None, "reviewed": False, "flag": None, "flag_quote": None, "flag_hard": False,
+               "ask": None, "ask_about": None}
     assert back == [{**WHY, **written}, {**PROUD, **written}]
 
 

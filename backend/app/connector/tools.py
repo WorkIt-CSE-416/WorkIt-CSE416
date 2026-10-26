@@ -26,6 +26,13 @@ whole view of WorkIt (auto-apply/architecture.md, 14.6):
   edit cut (KAN-369), kept with it. Each answer
   may name the company brief fact it uses (`named_fact`), which must be one
   of the brief's, for the Written Answers page to show with it.
+- `save_fact_question` (a write, KAN-369): the fact an Essay plan's
+  required slot needs that nothing of the student's states (a Missing
+  fact), as a question for the student, with the experience entry it is
+  about. It shows on the Written Answers page and in the batch tab; the
+  student's answer joins that entry as a bullet, and the question comes
+  back to their Claude. Until then get_next_application doesn't hand it
+  out.
 - `get_writing_samples` and `save_style_card` (app/connector/style.py,
   KAN-384): the student's writing samples, and the style card their Claude
   builds from them, which get_next_application then gives (`style_card`,
@@ -181,6 +188,10 @@ class Answer(BaseModel):
     named_fact: str | None = Field(default=None, max_length=400, description=(
         "The company_brief fact the answer uses, copied as get_next_application gave it, so the student "
         "can read up on it; leave it out when the answer uses none."))
+
+
+class Asked(BaseModel):
+    left: int = Field(description="How many of the application's questions are still unanswered.")
 
 
 class Saved(BaseModel):
@@ -341,6 +352,39 @@ def register(server: MCPServer) -> None:
             except (pipeline.WrongStage, pipeline.Refused) as exc:
                 raise ToolError(str(exc)) from exc
         return Saved(saved=len(answers), left=left, read_first=first)
+
+    @server.tool(
+        title="Ask the student for a fact",
+        description=(
+            "Saves a question for the student about a fact one written question's answer needs, for one "
+            "WorkIt application: the student sees it on WorkIt's Written Answers page and in the "
+            "application's tab, and their answer is added to the experience entry it is about. The "
+            "question is not given by get_next_application again until they answer. Refuses a question "
+            "the application doesn't have, one already answered, or an entry the experience doesn't have."
+        ),
+        annotations=ToolAnnotations(readOnlyHint=False, destructiveHint=False, idempotentHint=True, openWorldHint=False),
+    )
+    async def save_fact_question(
+        job_id: str,
+        name: Annotated[str, Field(description="The question's name, from get_next_application.")],
+        question: Annotated[str, Field(min_length=1, max_length=300, description="The question for the student.")],
+        about: Annotated[str, Field(min_length=1, max_length=400, description=(
+            "The heading line of the experience entry the fact is about, as experience gives it."))],
+    ) -> Asked:
+        try:
+            job = uuid.UUID(job_id)
+        except ValueError as exc:
+            raise ToolError("job_id is not one get_next_application gave.") from exc
+        async with get_sessionmaker()() as db:
+            student = await account.current_student(db)
+            try:
+                await pipeline.ask_fact(db, student.id, job, name, question, about)
+                left = sum(1 for q in await pipeline.written_answers(db, student.id, job) if q.answer is None)
+            except pipeline.NotFound as exc:
+                raise ToolError("No such application. Use the job_id get_next_application gave.") from exc
+            except (pipeline.WrongStage, pipeline.Refused) as exc:
+                raise ToolError(str(exc)) from exc
+        return Asked(left=left)
 
     @server.tool(
         title="Get a review task",

@@ -267,8 +267,21 @@ Find files with a directory listing; these are the rules for where code goes.
   answer on the application (anything-else and cover letters may reuse
   one), the company fact one of the brief's on a type that links the
   company; a plan's company fact is the answer's named fact when it names
-  none. The save refuses one without the plan or the list, failing the
-  plan, or still holding a listed claim; a choice and a paste take none, and the
+  none. **A required slot nothing backs is asked, never invented**
+  (Apply's Missing fact): their Claude calls `save_fact_question`
+  (`written.ask_fact`), which keeps `{"ask": {question, entry_id,
+  entry}}` in the unanswered row's `review`, the question opened by
+  "Essay fact: " and the entry matched by its heading line as
+  `bank_context` writes it. A row waiting on one is not handed to their
+  Claude (`queries._not_asked`), and `GET .../questions` and the Written
+  Answers page show it as `ask` and `ask_about`. The student's answer
+  (`PUT .../essay-facts`, `written.answer_fact`) joins that entry as a
+  bullet through `services/bank.py` and clears the ask, so the question
+  goes back to their Claude with a fact to quote. A fact that belongs to
+  no entry (a favorite book) stays a question for the student, as
+  before. Tests: `tests/test_essay_facts.py`. The save refuses one
+  without the plan or the list, failing the plan, or still holding a
+  listed claim; a choice and a paste take none, and the
   student's edit clears it (the check was of Claude's text). The server
   can't redo the check; this makes skipping it a refusal, not silence.
   There is no reader's 1-10 rating any more: Apply dropped it, since it

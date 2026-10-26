@@ -15,7 +15,8 @@ that:
 - every quote is at least QUOTED characters once folded (one line, any
   case, no markdown emphasis, straight quotes), and appears in the sources;
 - every required slot (and every "asked" slot the plan gives) has a quote;
-  without one the answer is refused, for the student to give the fact;
+  without one the answer is refused, and the student is asked for the
+  fact instead (written.ask_fact);
 - an optional slot with no quote is dropped from the plan as kept;
 - the story is a line of the student's experience, and no other answer on
   the application leads with it (an anything-else answer and a cover
@@ -121,7 +122,7 @@ def check(plan: Plan, sources: Sources, led: Mapping[str, str] | None = None) ->
             kept.append(Backed(slot.name, backing))
         elif not wrong and (slot.required is True or (slot.required == "asked" and slot.name in given)):
             found.append(f"Slot {slot.name} ({slot.holds}) has no quote backing it: quote the passage that states "
-                         "it, or leave this answer out and tell the student the fact it needs.")
+                         "it, or ask the student for the fact with save_fact_question and leave this answer out.")
     return Plan(plan.type, plan.story.strip(), plan.company_fact.strip(), plan.angle.strip(), tuple(kept)), found
 
 

@@ -26,6 +26,16 @@ PUT  /applicants/{id}/applications/{job_id}/written-answers
      {"message", "reasons": {name: [reason, ...]}}; 404 with no
      application, 409 when its form is no longer open.
 
+PUT  /applicants/{id}/applications/{job_id}/essay-facts
+     {"name", "answer"}
+     The student's answer to the fact their Claude asked for one question
+     (KAN-369, an Essay fact: GET .../written-questions gives it as the
+     question's `ask`, and `ask_about` the experience entry it is about).
+     Saved as a bullet of that entry (services/bank.py), and the question
+     goes back to their Claude. Answers {"entry", "bullet"}. 422 when the
+     question waits on no fact, the answer is empty or the entry is gone,
+     with detail {"message", "reasons"}; 404 with no application.
+
 Not the student's own edit in a tab (KAN-379's PUT .../answers, kept
 unchecked as their own words): text pasted here may come from any AI, so it
 is checked as Claude's is, but for copying the student's own writing
@@ -44,10 +54,12 @@ from app.auto_apply import pipeline
 from app.db import get_session
 from app.deps import assert_applicant_owns, get_current_account
 from app.schemas.applications import (
+    FactAnswer,
     PastedAnswers,
     PostingAnswers,
     PostingQuestions,
     SavedAnswers,
+    SavedFact,
 )
 from app.schemas.auth import AuthenticatedAccount
 
@@ -94,3 +106,21 @@ async def save_pasted_answers(
             status.HTTP_422_UNPROCESSABLE_CONTENT, {"message": str(exc), "reasons": exc.reasons}
         ) from exc
     return SavedAnswers(saved=len(answers), left=left)
+
+
+@router.put("/applications/{job_id}/essay-facts", response_model=SavedFact)
+async def save_essay_fact(
+    applicant_id: uuid.UUID,
+    job_id: uuid.UUID,
+    body: FactAnswer,
+    account: AuthenticatedAccount = Depends(get_current_account),
+    db: AsyncSession = Depends(get_session),
+) -> SavedFact:
+    """Saves the student's answer to an Essay fact into their experience bank."""
+    assert_applicant_owns(account, applicant_id)
+    try:
+        return await pipeline.answer_fact(db, applicant_id, job_id, body.name, body.answer)
+    except pipeline.Refused as exc:
+        raise HTTPException(
+            status.HTTP_422_UNPROCESSABLE_CONTENT, {"message": str(exc), "reasons": exc.reasons}
+        ) from exc

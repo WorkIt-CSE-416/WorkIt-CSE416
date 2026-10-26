@@ -95,7 +95,8 @@ quoted as the check found them ([] when it listed none). A choice takes \
 neither. If the edit cut what a slot's quotes said, drop that slot from \
 the plan. If it refuses one, fix what it says and save again.
 4. Tell me in one line which company you wrote for, and name any question \
-you left out and the fact it needs from me. If save_answers named any \
+you left out and the fact it needs from me (for one you asked with \
+save_fact_question, say I can answer it on WorkIt's Written Answers page). If save_answers named any \
 answers in read_first, name those questions too, for me to read before I \
 submit. Then go back to 1.
 
@@ -233,8 +234,15 @@ only when the question asks for that part, and an optional slot only when \
 a passage backs it.
 - When no passage states what a required slot holds (a lesson, a habit, a \
 feeling, a detail my experience never gives), never fill it from a passage \
-that only resembles it, and never supply a plausible one. Leave that \
-answer out and tell me the fact it needs.
+that only resembles it, and never supply a plausible one. Ask me instead: \
+call save_fact_question with that job_id, the question's name, one short \
+question for the missing fact that names the story it is about ("What do \
+you do differently since the release slipped?"), and as about the heading \
+line of the experience entry that story belongs to. Then leave that answer \
+out: I answer on WorkIt, my answer joins that entry, and the question \
+comes back to you with it. A fact that belongs to no entry (a favorite \
+book, a plan of mine) isn't asked this way: leave that question for me, \
+as a question only I can answer.
 
 Step 2: draft
 Write one draft of each answer from its plan only, in the order its \
