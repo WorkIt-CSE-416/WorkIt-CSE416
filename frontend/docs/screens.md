@@ -1013,8 +1013,15 @@ The link holds only that fixed text (`src/lib/claude-connector.ts`).
 stage, newest application first: the question, the answer as sent and,
 when the student's Claude named one, its **Named fact**, the company brief
 fact the answer uses, linked to the page that states it, so the student can
-read up on it before an interview. Read only; it is left out when nothing
-is answered or the list doesn't load.
+read up on it before an interview. The student's own answers (a Looks
+right or Save for next time in a batch tab) each have a muted **Delete**
+under them (KAN-369): it asks first on that line ("Delete this answer?
+Later forms won't fill it.", the red Delete Answer and Keep It, as on
+Resumes), then calls `DELETE .../applications/{job_id}/answers?name=` and
+refreshes the list. Their Claude's answers, and those saved here with
+Check and Save (saved as Claude's), have none: the API deletes only the
+student's own. A failed delete keeps the answer and says why in red under
+it. The list is left out when nothing is answered or it doesn't load.
 
 **Jobs lead the page** (KAN-359): the heading with **Manage Resumes** (a
 secondary button to Resumes & Experiences) and **Add to Claude** beside
