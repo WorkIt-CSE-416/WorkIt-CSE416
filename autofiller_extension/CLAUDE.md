@@ -68,7 +68,7 @@ builds it: `dist/engine.js` is committed in the engine repo.
   and `batch-tab.js` a batch tab's side (`batch/state`, the walk's
   `batch/flags` and `batch/focus`, the submit watch) as `window.WIA.batchTab`,
   and `card-flag.js` the flag card under a flagged row (after `overlay.js`,
-  which draws it and adds its styles) as `window.WIA.flagCard`.
+  which draws it; a row card, `row-card.js`) as `window.WIA.flagCard`.
   The content script reaches the engine through the background,
   which runs `engine.js`'s `runEngine` (the engine's own dispatcher,
   `FillEngine.call`) in the page's MAIN world with
@@ -448,7 +448,7 @@ waits for an opened tab's page and form (`waitForLoad`, `formShows`).
   answer whose verdict the tab showed, once saved (`batch/own-answer`),
   starts the poll again until the edit's verdict lands (their own words
   count as reviewed at once). Tests: `test/paste.extension.spec.ts`.
-  **The flag card** (`card-flag.js`, KAN-369) under a flagged row: the
+  **The flag card** (`card-flag.js`, KAN-369, a row card) under a flagged row: the
   reason, the flagged sentence quoted (`flag_quote`; a click focuses the
   field with it selected, as does the walk's `show`), and three actions.
   **Keep** asks once, then `batch/flag` → `POST .../review/keep` records it
@@ -499,8 +499,8 @@ waits for an opened tab's page and form (`waitForLoad`, `formShows`).
   it uses that constant. Never put the student's data in the link: it
   lands in browser history. Test: `test/claude-start.extension.spec.ts`.
 - **A row waiting for the student's Claude carries the waiting card**
-  (KAN-369, `src/content/card-waiting.js`, `window.WIA.waitingCard`; the
-  overlay asks it for each such row's card and adds its CSS). It shows how
+  (KAN-369, `src/content/card-waiting.js`, `window.WIA.waitingCard`, a row
+  card; the overlay asks it for each such row's card). It shows how
   long the row has waited on this page ("Waiting 4 min"), Write with
   Claude, a paste box and Write it myself (the walk's `show`: scrolls to
   and focuses the field; what the student types there is theirs, as
@@ -611,10 +611,17 @@ waits for an opened tab's page and form (`waitForLoad`, `formShows`).
   later edit is a change from it: a click elsewhere no longer turns a
   failed field showing a wrong value into "You answered this".
 - **The row card** (`row-card.js`, `window.WIA.rowCard`) is the one shape
-  for every review state: a title, sentences, a quote, at most three
-  buttons, tokens only. A feature adds `rowCard.add((field) => card | null)`;
-  the panel draws the first card for a row in place of its reason, and
-  `overlay.refresh()` draws again when a card's own state changes.
+  for every review state (failed, guessed, flagged, waiting on Claude): a
+  title, sentences, a quote, the answer's highlighted sentence, a slot for
+  the card's own elements (the waiting card's paste box), at most three
+  buttons, and a tone (warning, danger) for its edge; tokens only. A
+  feature adds `rowCard.add((field) => card | null)`; the panel draws the
+  first card for a row in place of its reason, and `overlay.refresh()`
+  draws again when a card's own state changes. The flag and waiting cards
+  build theirs with `rowCard.make` and the overlay draws them itself (a
+  waiting card is kept across renders for its draft). The submit warning
+  is a moment card at the top of the panel, not a row's, so it stays an
+  `overlay.momentCard`.
 - **The submit warning holds a Submit while something is open** (KAN-369,
   `src/content/submit-warning.js`, `window.WIA.submitWarning`, batch tabs
   only). When the student presses the employer's Submit (a button or
