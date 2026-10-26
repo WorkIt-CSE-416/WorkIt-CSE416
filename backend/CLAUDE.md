@@ -236,7 +236,15 @@ Find files with a directory listing; these are the rules for where code goes.
   `next_application`'s `skip` passes over the jobs the extension already
   has open. A new stage value would be an `ALTER TYPE` and a coordinated
   deploy; add one only when a state must outlive its tab.
-  Tests: `tests/test_batch_apply.py`. **A batch tab's essay questions are
+  **The panel's I didn't submit this** (KAN-401, `POST .../finish
+  {"outcome": "unsubmitted", "state"}`) undoes a submit: only an applied
+  application, its date cleared, back to the stage its tab had in
+  `PUT .../fill`'s words (ready → `queued`, needs_you → `needs_you`). With
+  no `state` it goes to `needs_you`, never `queued`: a queued application
+  is the batch's next fill, so only a tab the extension says was Ready
+  goes back into it. No column keeps the stage before applied; the
+  extension, which held the tab, says it (tested in
+  `tests/test_applied_at.py`). Tests: `tests/test_batch_apply.py`. **A batch tab's essay questions are
   rows in `written_answers`** (KAN-377): the tab sends the questions its
   form needs written (`PUT .../questions`), the student's own Claude saves
   each answer through the connector, and the tab reads them back

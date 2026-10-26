@@ -272,13 +272,17 @@ async def finish_application(
     applicant_id: uuid.UUID,
     job_id: uuid.UUID,
     outcome: Literal["submitted", "skipped", "failed", "unsubmitted"],
+    state: Literal["ready", "needs_you"] | None = None,
 ) -> application_stage:
     """
     Records how a fill ended (OUTCOME_STAGE) and answers the new stage.
     Only a queued or needs_you application can finish: raises NotFound when
     there is none, WrongStage when it is skipped or applied already.
     "unsubmitted" (the panel's I didn't submit this, KAN-401) is the one way
-    back: only an applied application, to queued, its date cleared.
+    back: only an applied application, its date cleared, to the stage its
+    batch tab had before in FILL_STAGE's words (`state`: ready is queued),
+    needs_you when `state` is None. Never queued unless the extension says
+    the tab was Ready: a queued application is the batch's next fill.
     """
     stage = await fetch_stage(db, applicant_id, job_id)
     if stage is None:
@@ -286,9 +290,10 @@ async def finish_application(
     if outcome == "unsubmitted":
         if stage != application_stage.applied:
             raise WrongStage(f"That application is {stage}, so it wasn't marked applied.")
-        await set_stage(db, applicant_id, job_id, application_stage.queued)
+        back = FILL_STAGE[state or "needs_you"]
+        await set_stage(db, applicant_id, job_id, back)
         await db.commit()
-        return application_stage.queued
+        return back
     if stage not in FINISHABLE:
         raise WrongStage(
             f"That application is {stage}, so it can't be finished. Queue a new job instead."

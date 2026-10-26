@@ -86,15 +86,41 @@ async def test_a_skipped_or_needs_you_row_shows_no_date(student, database):  # n
 
 async def test_unsubmitted_sets_an_applied_application_back_with_no_date(student, database):  # noqa: F811
     # The panel's "I didn't submit this" (KAN-401): a submit WorkIt marked by mistake.
+    # The tab was Ready (queued), as the extension says, so it goes back to queued.
     client, me = student
     job = await _seed_posting(database)
     await client.post(f"/applicants/{me}/applications", json={"job_id": job})
     await client.post(f"/applicants/{me}/applications/{job}/finish", json={"outcome": "submitted"})
 
-    res = await client.post(f"/applicants/{me}/applications/{job}/finish", json={"outcome": "unsubmitted"})
+    res = await client.post(
+        f"/applicants/{me}/applications/{job}/finish", json={"outcome": "unsubmitted", "state": "ready"}
+    )
     assert res.status_code == 200 and res.json()["stage"] == "queued"
     assert await _row(database, me, job) == ("queued", None)
 
     # Only an applied application can be set back.
     res = await client.post(f"/applicants/{me}/applications/{job}/finish", json={"outcome": "unsubmitted"})
     assert res.status_code == 409
+
+
+async def test_unsubmitted_never_queues_an_application_the_extension_didnt_say_was_ready(student, database):  # noqa: F811
+    # A queued application is the next one the batch fills, so only a tab the
+    # extension says was Ready goes back there: one that needed the student
+    # (or says nothing) goes back to needs_you.
+    client, me = student
+    for state in ("needs_you", None):
+        job = await _seed_posting(database)
+        await client.post(f"/applicants/{me}/applications", json={"job_id": job})
+        await client.put(f"/applicants/{me}/applications/{job}/fill", json={"state": "needs_you"})
+        await client.post(f"/applicants/{me}/applications/{job}/finish", json={"outcome": "submitted"})
+
+        body = {"outcome": "unsubmitted"} | ({"state": state} if state else {})
+        res = await client.post(f"/applicants/{me}/applications/{job}/finish", json=body)
+        assert res.status_code == 200 and res.json()["stage"] == "needs_you"
+        assert await _row(database, me, job) == ("needs_you", None)
+
+    # The state belongs to unsubmitted only.
+    res = await client.post(
+        f"/applicants/{me}/applications/{job}/finish", json={"outcome": "submitted", "state": "ready"}
+    )
+    assert res.status_code == 422
