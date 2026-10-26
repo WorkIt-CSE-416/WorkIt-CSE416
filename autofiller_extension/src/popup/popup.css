@@ -23,8 +23,9 @@ header {
   align-items: center;
   gap: 8px;
   padding: 12px;
-  background: var(--color-brand);
-  color: var(--color-on-brand);
+  background: var(--color-panel);
+  color: var(--color-ink);
+  border-bottom: 1px solid var(--color-border);
   font-weight: 600;
 }
 

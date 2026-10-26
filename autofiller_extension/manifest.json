@@ -29,6 +29,12 @@
       "world": "MAIN",
       "run_at": "document_start",
       "all_frames": true
+    },
+    {
+      "matches": ["https://*.greenhouse.io/*", "https://*.lever.co/*", "https://*.ashbyhq.com/*", "https://*.rippling.com/*", "https://*.workable.com/*", "https://*.eightfold.ai/*", "https://explore.jobs.netflix.net/*", "https://*.myworkdayjobs.com/*", "https://*.myworkdaysite.com/*"],
+      "js": ["src/shared/tokens.js", "src/content/panel.js", "src/content/panel-top.js", "src/content/panel-settings.js", "src/content/report.js", "src/content/launcher.js"],
+      "run_at": "document_idle",
+      "all_frames": true
     }
   ],
   "permissions": ["storage", "activeTab", "scripting", "cookies", "tabGroups", "webRequest"],
@@ -55,5 +61,15 @@
       "https://workitjobs.ai/*",
       "https://workit-web-gamma.vercel.app/*"
     ]
+  },
+  "commands": {
+    "toggle-panel": {
+      "suggested_key": { "default": "Alt+W" },
+      "description": "Open or close the WorkIt panel"
+    },
+    "next-thing": {
+      "suggested_key": { "default": "Alt+N" },
+      "description": "Go to the next thing that needs you"
+    }
   }
 }

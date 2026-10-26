@@ -8,7 +8,7 @@ import { expect, test, type Page, type Worker } from "@playwright/test";
 import { PRACTICE_JOBS, practiceFormUrl, practicePage } from "../../frontend/src/lib/practice-form";
 import { FakeApi } from "./fake-api";
 import { SavedForms } from "./fake-job-systems";
-import { loadExtension, sendFromWebapp, signIn, type Handler, type Loaded } from "./loaded-extension";
+import { loadExtension, sendFromWebapp, signIn, type Handler, type Loaded, pressNextThing } from "./loaded-extension";
 
 const WEB = "http://localhost:3000";
 const LUMEN = practiceFormUrl(WEB, PRACTICE_JOBS[1]);
@@ -49,6 +49,8 @@ test("an answer pasted in the waiting card is saved through WorkIt's checks and 
   const { name, form, card } = await openLumen(api);
   await expect(card.locator("[data-waited]")).toHaveText(/^Waiting (under a minute|\d+ min)$/);
   await expect(panelOf(form).locator(".summary")).toContainText("1 waiting on Claude");
+  const waiting = panelOf(form).locator('.group[data-group="waiting"]');
+  await expect(waiting.locator(".group-head")).toHaveText("Waiting for your Claude 1");
 
   await card.getByRole("textbox", { name: "Paste an answer" }).fill(ANSWER);
   await card.getByRole("button", { name: "Save answer" }).click();
@@ -57,6 +59,7 @@ test("an answer pasted in the waiting card is saved through WorkIt's checks and 
   await expect(form.locator(`[name='${name}']`)).toHaveValue(ANSWER, { timeout: 5_000 });
   await expect(card).toHaveCount(0);
   await expect(panelOf(form).locator(".summary")).not.toContainText("waiting on Claude");
+  await expect(waiting).toHaveCount(0);
 });
 
 test("a pasted answer WorkIt's checks refuse shows why, and the row keeps waiting", async () => {
@@ -118,7 +121,7 @@ async function walk(at: string, most = 12): Promise<[string, string][]> {
   const walked: [string, string][] = [];
   for (let n = 0; n < most; n++) {
     const before = JSON.stringify(walked.at(-1) ?? null);
-    await panelOf(page(at)).getByRole("button", { name: "Next Thing That Needs You" }).click();
+    await pressNextThing(loaded, panelOf(page(at)));
     await expect.poll(async () => { const s = await shown(); return s === before ? "waiting" : s; }).not.toBe("waiting");
     const step = await shown();
     if (step === "done") return walked;

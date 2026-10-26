@@ -6,7 +6,6 @@
 // every time the popup closes).
 
 import { DEV_WEB_URL, PROD_SITES } from "../shared/config.js";
-import { injectFill } from "../shared/content-scripts.js";
 
 const root = document.getElementById("root");
 
@@ -47,72 +46,44 @@ function renderLoginView(errorText) {
 }
 
 /**
- * WorkIt's panel on the tab, if a fill left one there (overlay.js's state,
- * asked in every frame: an embedded form's panel is in its frame): its
- * frame, whether it shows, whether the tab is a batch tab, and the phase.
- * Null when nothing was filled, or WorkIt can't run on the page.
+ * The batch's status in a line (background.js popup/batch): how many jobs
+ * are in it and how many are ready or need the student.
+ * @param {{ jobs: { state: string }[] }} status
  */
-async function panelOn(tabId) {
-  const frames = await chrome.scripting
-    .executeScript({ target: { tabId, allFrames: true }, func: () => window.WIA?.overlay?.state?.() ?? null })
-    .catch(() => []);
-  const found = frames.find((frame) => frame.result);
-  return found ? { frameId: found.frameId, ...found.result } : null;
+function batchLine({ jobs }) {
+  if (!jobs.length) return "No batch running.";
+  const count = (state) => jobs.filter((job) => job.state === state).length;
+  const parts = [`${jobs.length} job${jobs.length === 1 ? "" : "s"} in your batch`];
+  const filling = count("filling");
+  const ready = count("ready");
+  const needs = count("needs_you") + count("failed");
+  if (filling) parts.push(`${filling} filling`);
+  if (ready) parts.push(`${ready} ready`);
+  if (needs) parts.push(`${needs} need${needs === 1 ? "s" : ""} you`);
+  return parts.join(" · ");
 }
 
+/**
+ * The popup shows only off job pages (on one, the toolbar icon opens the
+ * panel, KAN-394): who is signed in, the batch's status and Open WorkIt.
+ */
 function renderSignedIn(profile) {
   const template = document.getElementById("signed-in-template");
   root.replaceChildren(template.content.cloneNode(true));
 
   root.querySelector(".name").textContent = profile.full_name;
   root.querySelector(".email").textContent = profile.email;
-  root.querySelector(".bank-status").textContent = profile.bank
-    ? "Experience bank has data"
-    : "Your experience bank is empty — add entries in WorkIt first";
+  sendMessage({ type: "popup/batch" }).then((status) => {
+    root.querySelector(".batch-status").textContent = status?.ok ? batchLine(status) : "";
+  });
 
+  root.querySelector("#open-workit-button").addEventListener("click", async () => {
+    const base = await webappUrl();
+    chrome.tabs.create({ url: `${base}/auto-apply` });
+    window.close();
+  });
   // The one email and password for every company's Workday (src/options/), kept only in this browser.
   root.querySelector("#workday-signup-button").addEventListener("click", () => chrome.runtime.openOptionsPage());
-
-  // A page WorkIt already filled (KAN-369): its panel comes back as it was, no fill; Fill Again starts over.
-  let panel = null;
-  const autofill = root.querySelector("#autofill-button");
-  const showPanel = root.querySelector("#show-panel-button");
-  chrome.tabs.query({ active: true, currentWindow: true }).then(async ([tab]) => {
-    panel = tab?.id ? await panelOn(tab.id) : null;
-    if (!panel) return;
-    showPanel.hidden = false;
-    autofill.textContent = "Fill Again";
-    autofill.classList.add("secondary");
-    autofill.hidden = panel.phase === "filling";
-    root.querySelector(".hint").textContent =
-      panel.phase === "filling" ? "WorkIt is filling this page now." : "WorkIt already filled this page. Show its panel, or fill the page again from the start.";
-    showPanel.addEventListener("click", async () => {
-      await chrome.scripting.executeScript({ target: { tabId: tab.id, frameIds: [panel.frameId] }, func: () => window.WIA?.overlay?.open?.() });
-      window.close();
-    });
-  });
-
-  autofill.addEventListener("click", async (event) => {
-    const button = event.currentTarget;
-    const label = button.textContent;
-    button.disabled = true;
-    button.textContent = "Filling…";
-    try {
-      const [tab] = await chrome.tabs.query({ active: true, currentWindow: true });
-      if (!tab?.id) throw new Error("No active tab");
-      // Filled again where it was filled: a batch tab stays one, an embedded form's frame is filled alone.
-      await injectFill(tab.id, panel ? { batch: panel.batch, frameId: panel.frameId || undefined } : undefined);
-      window.close(); // the on-page overlay takes over from here
-    } catch (error) {
-      button.textContent = label;
-      button.disabled = false;
-      const hint = root.querySelector(".hint");
-      hint.textContent =
-        error instanceof Error && error.message.includes("Cannot access")
-          ? "Can't run on this page (browser settings or an extension gallery page)."
-          : "Something went wrong starting autofill. Try reloading the page.";
-    }
-  });
 }
 
 async function init() {

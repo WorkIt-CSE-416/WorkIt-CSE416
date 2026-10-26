@@ -18,6 +18,9 @@ import {
 import { engineCaller, handleFill, jobOf, practiceJob, runEngine, submittedPage } from "./engine.js";
 import { claimMoment } from "./moments.js";
 import { nextNeedsYou, walkFrom } from "./next-needs-you.js";
+import { batchLine, jobForTab, showNextTab } from "./panel-top.js";
+import { addClaude, autoOpen, disconnectClaude, readSettings, setAutoOpen } from "./panel-settings.js";
+import { reportOf, sendReport } from "./report.js";
 import { SELF_ID, checkedSelfId, unansweredSelfId } from "./self-id.js";
 import { forgetSubmits, submitHinted, watchSubmitRequests } from "./submit-proof.js";
 import { watchEmbeddedForms } from "./embedded-forms.js";
@@ -334,7 +337,48 @@ async function handleMessage(message, sender) {
       return { added: await connectorAdded(id) };
     }
 
-    // The panel's font (overlay.js's loadFont), as base64: the page can't
+    // The panel's shell (panel.js, KAN-394): whether this page is a job page WorkIt
+    // covers, whether the tab is a batch's, and the site's kept choices. On a job
+    // page the toolbar icon opens and closes the panel, so the tab has no popup.
+    case "panel/where": {
+      const url = sender.url ?? "";
+      const job = Boolean(jobOf(url));
+      if (job && sender.tab?.id !== undefined) await chrome.action.setPopup({ tabId: sender.tab.id, popup: "" });
+      return { job, batch: sender.tab ? await inBatch(sender.tab.id) : false, site: await panelSite(url), autoOpen: await autoOpen() };
+    }
+    case "panel/site":
+      return { site: await panelSite(sender.url ?? "", message.set) };
+    // The panel's Autofill This Page and Fill Again: the fill, in the frame that asked (a batch tab stays one).
+    case "panel/fill":
+      await injectFill(sender.tab.id, { batch: Boolean(message.batch) && (await inBatch(sender.tab.id)), frameId: sender.frameId || undefined });
+      return {};
+    // The panel's top (panel-top.js, KAN-395): the job card's job, and the batch line.
+    case "panel/job":
+      return { job: await jobForTab({ tabId: sender.tab.id, url: sender.url ?? "" }) };
+    case "panel/batch-line":
+      return { line: await batchLine(sender.tab.id), site: jobOf(sender.url ?? "")?.site ?? null };
+    case "panel/next-tab":
+      return showNextTab(sender.tab.id);
+    // Report a problem (report.js, KAN-403): what the card previews, and its Send.
+    case "report/preview":
+      return reportOf(sender.url ?? "");
+    case "report/send":
+      await sendReport(sender.url ?? "", message.report);
+      return {};
+    // The panel's settings view (panel-settings.js, KAN-402): the Claude connection and auto-open.
+    case "settings/read":
+      return readSettings();
+    case "settings/claude-add":
+      return addClaude(sender.tab?.id);
+    case "settings/claude-disconnect":
+      return disconnectClaude();
+    case "settings/auto-open":
+      return setAutoOpen(message.on);
+    // The toolbar popup off job pages: the batch's status.
+    case "popup/batch":
+      return batchStatus();
+
+    // The panel's font (panel.js's loadFont), as base64: the page can't
     // load the extension's own files, which aren't web-accessible.
     case "overlay/font": {
       const bytes = new Uint8Array(await (await fetch(chrome.runtime.getURL("fonts/PlusJakartaSans-latin.woff2"))).arrayBuffer());
@@ -433,6 +477,70 @@ function resumeOnce() {
 }
 chrome.runtime.onStartup.addListener(resumeOnce);
 resumeOnce();
+
+// The panel's choices per site (panel.js): { top, collapsed, hidden }, by host name.
+const PANEL_SITES_KEY = "panel_sites";
+async function panelSite(url, change) {
+  let site;
+  try {
+    site = new URL(url).hostname;
+  } catch {
+    return {};
+  }
+  const sites = (await chrome.storage.local.get(PANEL_SITES_KEY))[PANEL_SITES_KEY] ?? {};
+  if (!change) return sites[site] ?? {};
+  sites[site] = { ...sites[site], ...change };
+  await chrome.storage.local.set({ [PANEL_SITES_KEY]: sites });
+  return sites[site];
+}
+
+// What the panel's shell injects when the toolbar icon or Alt+W finds no panel on a job page yet.
+const SHELL_FILES = ["src/shared/tokens.js", "src/content/panel.js", "src/content/panel-top.js", "src/content/panel-settings.js", "src/content/report.js"];
+
+/**
+ * The toolbar icon (a tab with no popup: a job page, panel/where) and
+ * Alt+W: open or close the panel in whichever frame has it. A job page whose
+ * edge tab isn't drawn yet gets the shell, open; any other page gets the
+ * popup (the batch's status), as a tab with a popup would.
+ * @param {chrome.tabs.Tab} tab
+ */
+async function toolbarPressed(tab) {
+  if (!tab?.id) return;
+  const answer = await chrome.tabs.sendMessage(tab.id, { type: "panel/toggle" }).catch(() => null);
+  if (answer?.toggled) return;
+  if (jobOf(tab.url ?? "")) {
+    await chrome.scripting.executeScript({ target: { tabId: tab.id }, files: SHELL_FILES });
+    await chrome.scripting.executeScript({
+      target: { tabId: tab.id },
+      func: async () => {
+        const panel = window.WIA.panel;
+        await panel.ensure();
+        if (!window.WIA.overlay?.state?.()) panel.fillButton(panel.startLabel());
+        panel.open();
+      },
+    });
+    return;
+  }
+  await chrome.action.setPopup({ tabId: tab.id, popup: chrome.runtime.getManifest().action.default_popup });
+  await chrome.action.openPopup().catch(() => {});
+}
+chrome.action.onClicked.addListener((tab) => void toolbarPressed(tab).catch((error) => console.warn("[panel] the toolbar press did nothing:", error.message)));
+/**
+ * The extension's commands (manifest.json): Alt+W opens or closes the panel;
+ * Alt+N presses its Next Thing (KAN-396) in whichever frame has the button
+ * (primary.js answers "panel/next"; a page without one does nothing).
+ * @param {string} command
+ * @param {chrome.tabs.Tab} [tab]
+ */
+async function commandPressed(command, tab) {
+  tab ??= (await chrome.tabs.query({ active: true, lastFocusedWindow: true }))[0];
+  if (command === "toggle-panel") await toolbarPressed(tab).catch((error) => console.warn("[panel] Alt+W did nothing:", error.message));
+  if (command === "next-thing" && tab?.id) await chrome.tabs.sendMessage(tab.id, { type: "panel/next" }).catch(() => null);
+}
+chrome.commands.onCommand.addListener((command, tab) => void commandPressed(command, tab));
+// The tests' way to press the toolbar icon and the commands' keys, which Chrome gives no page a way to press.
+globalThis.workitToolbar = toolbarPressed;
+globalThis.workitCommand = commandPressed;
 
 // Messages from the popup and the content script (same extension, so this
 // channel, not the External one below).
