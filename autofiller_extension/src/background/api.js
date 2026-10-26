@@ -93,7 +93,8 @@ async function apiRequest(path, init = {}) {
 
 /**
  * An error answer's words: the route's own `detail`, or for a body FastAPI
- * refused (a 422 with a list of errors) each error's `msg`, never "[object Object]".
+ * refused (a 422 with a list of errors) each error's `msg`, never "[object Object]"
+ * or a bare status code.
  * @param {number} status
  * @param {{ detail?: string | { msg?: string }[] }} body
  */
@@ -102,7 +103,8 @@ export function errorMessage(status, body) {
   if (typeof detail === "string" && detail) return detail;
   if (typeof detail?.message === "string" && detail.message) return detail.message;
   if (Array.isArray(detail) && detail.length) return detail.map((e) => e?.msg ?? String(e)).join("; ");
-  return `Request failed (${status})`;
+  // No words from the route: a plain sentence, never the status code (KAN-401); the status stays on ApiError.
+  return "WorkIt's server couldn't do that just now.";
 }
 
 /**

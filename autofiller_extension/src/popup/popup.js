@@ -86,6 +86,14 @@ function renderSignedIn(profile) {
   root.querySelector("#workday-signup-button").addEventListener("click", () => chrome.runtime.openOptionsPage());
 }
 
+/** A request that failed: what didn't work, in a sentence, and Try again, which starts the popup over. */
+function renderFailed(sentence) {
+  const template = document.getElementById("failed-template");
+  root.replaceChildren(template.content.cloneNode(true));
+  root.querySelector(".failed").textContent = sentence;
+  root.querySelector("#try-again-button").addEventListener("click", () => init());
+}
+
 async function init() {
   root.replaceChildren(Object.assign(document.createElement("p"), { className: "muted", textContent: "Checking…" }));
 
@@ -95,10 +103,9 @@ async function init() {
     return;
   }
   const profileResponse = await sendMessage({ type: "profile/get" });
-  if (!profileResponse.ok) {
-    renderLoginView(profileResponse.error);
-    return;
-  }
+  if (!profileResponse.ok && profileResponse.status === 401) return renderLoginView();
+  // Any other failed read (KAN-401): a plain sentence and Try again, never the request's status or words.
+  if (!profileResponse.ok) return renderFailed("WorkIt couldn't load your profile.");
   renderSignedIn(profileResponse.profile);
 }
 

@@ -1436,7 +1436,11 @@ which sends `panel/toggle` to the tab (whichever frame has the shell
 answers). A job page with no shell yet gets one, open; any other tab gets
 its popup back and opened. Off job pages the popup shows who is signed in,
 the batch's status ("2 jobs in your batch · 1 ready · 1 needs you",
-`popup/batch`), Open WorkIt and Workday Sign-Up. `globalThis.workitToolbar`
+`popup/batch`), Open WorkIt and Workday Sign-Up. A failed profile read shows "WorkIt
+couldn't load your profile." with Try again (KAN-401), never the request's
+words; api.js's `errorMessage` says "WorkIt's server couldn't do that just
+now." for an error answer with no words of its own, never "Request failed
+(404)". `globalThis.workitToolbar`
 is the tests' press of the icon, which no page can press. A test can't
 press an extension command's keys either, so the Alt+W test checks only
 that Chrome bound it.

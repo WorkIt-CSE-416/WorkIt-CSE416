@@ -5,7 +5,7 @@
 import { expect, test, type Page } from "@playwright/test";
 import { FakeApi } from "./fake-api";
 import { SavedForms } from "./fake-job-systems";
-import { loadExtension, signIn, webapp, type Loaded } from "./loaded-extension";
+import { EXTENSION_ID, loadExtension, signIn, webapp, type Loaded } from "./loaded-extension";
 
 const ANDURIL = "greenhouse-anduril";
 
@@ -36,4 +36,20 @@ test("the settings view's Claude read that fails says so in a sentence, and Try 
   await claude.getByRole("button", { name: "Try again" }).click();
   await expect(claude).toContainText("Your Claude is connected.");
   await expect(claude.getByRole("button", { name: "Disconnect" })).toBeVisible();
+});
+
+test("the toolbar popup's failed profile read is a sentence with Try again, which reads it again", async () => {
+  const api = new FakeApi();
+  api.profileDown = true;
+  loaded = await loadExtension([api.handler, webapp]);
+  await signIn(loaded.context);
+  const popup = await loaded.context.newPage();
+  await popup.goto(`chrome-extension://${EXTENSION_ID}/src/popup/popup.html`);
+
+  await expect(popup.getByText("WorkIt couldn't load your profile.")).toBeVisible();
+  await expect(popup.locator("#root")).not.toContainText(STATUS_CODE);
+  await expect(popup.locator("#root")).not.toContainText("Internal Server Error");
+  api.profileDown = false;
+  await popup.getByRole("button", { name: "Try again" }).click();
+  await expect(popup.getByRole("button", { name: "Open WorkIt" })).toBeVisible();
 });

@@ -9,7 +9,7 @@ test("a validation error shows its message, not [object Object]", () => {
   expect(errorMessage(422, body)).toBe("Input should be less than or equal to 5000");
 });
 
-test("a route's own error shows as it says it, and one with no words says the status", () => {
+test("a route's own error shows as it says it, and one with no words is a plain sentence, never its status", () => {
   expect(errorMessage(422, { detail: "Couldn't draft an answer." })).toBe("Couldn't draft an answer.");
-  expect(errorMessage(500, {})).toBe("Request failed (500)");
+  expect(errorMessage(404, {})).toBe("WorkIt's server couldn't do that just now.");
 });
