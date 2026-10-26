@@ -119,14 +119,29 @@ export default function LandingPage() {
       )}
 
       {/* FAQ: the questions rise in one after another once the list is on
-          screen, in time (FocusIn, landing.css). */}
+          screen, in time (FocusIn, landing.css). From lg up the heading
+          holds on the left while the questions pass on the right, so the
+          section after the centred applications heading opens its own way
+          (KAN-368). */}
       <section id="faq" className="py-20 sm:py-28">
-        <div className={CONTAINER}>
+        <div
+          className={cn(
+            CONTAINER,
+            "lg:grid lg:grid-cols-[minmax(0,2fr)_minmax(0,3fr)] lg:items-start lg:gap-16",
+          )}
+        >
+          <div className="lg:sticky lg:top-32">
+            <FocusIn>
+              <SectionHeading
+                align="left"
+                className="max-lg:mx-auto max-lg:text-center"
+                eyebrow="FAQ"
+                title="Questions, answered."
+              />
+            </FocusIn>
+          </div>
           <FocusIn>
-            <SectionHeading eyebrow="FAQ" title="Questions, answered." />
-          </FocusIn>
-          <FocusIn>
-            <FaqList items={faqs} className="faq-rise mt-12" />
+            <FaqList items={faqs} className="faq-rise mt-12 lg:mt-0 lg:max-w-none" />
           </FocusIn>
         </div>
       </section>
