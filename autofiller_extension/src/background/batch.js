@@ -174,7 +174,10 @@ async function resume(batch, windowId) {
 /**
  * Opens the next queued applications until WINDOW tabs are filling or the
  * queue is empty. Each tab opens hidden beside the others, kept from being
- * discarded, and its fill starts once it loads (not awaited here).
+ * discarded, and its fill starts once it loads (not awaited here). Each
+ * application's form link is looked up (formFor) while the next one is
+ * asked, and the tabs then open in the queue's order: one round trip a tab,
+ * not two or more.
  * @param {Batch} batch
  * @param {string} applicantId
  */
@@ -183,35 +186,50 @@ async function topUp(batch, applicantId) {
   if (!(await chrome.windows.get(batch.windowId).catch(() => null))) return;
   const filling = () => Object.values(batch.tabs).filter((t) => t.state === "filling").length;
   batch.held ??= [];
-  while (filling() < WINDOW) {
-    if (!batch.practice && batch.held.length && !workdayOpen(batch)) {
-      const { jobId, url, jobType } = batch.held.shift();
+  /** @type {{ jobId: string, jobType: string | null, url: Promise<string> | string }[]} */
+  const opening = [];
+  // Whether a Workday application in `opening` takes the batch's one Workday slot.
+  let workdayOpening = false;
+  const workdayBusy = () => workdayOpening || workdayOpen(batch);
+  try {
+    while (filling() + opening.length < WINDOW) {
+      if (!batch.practice && batch.held.length && !workdayBusy()) {
+        const { jobId, url, jobType } = batch.held.shift();
+        batch.opened.push(jobId);
+        opening.push({ jobId, url, jobType });
+        workdayOpening = true;
+        continue;
+      }
+      const application = batch.practice
+        ? nextPractice(batch)
+        : await nextApplication(applicantId, [...batch.opened, ...batch.held.map((h) => h.jobId)]);
+      if (!application) break;
+      const jobId = application.job.id;
+      const jobType = application.job.job_type ?? null;
+      // The employer's form the API names (a job board's posting is taken only through it, KAN-376).
+      const link = application.job.form_url ?? application.job.apply_url;
+      if (jobBoard(link)) {
+        // Never a job board's page, whatever the API says: this batch passes it over.
+        console.warn(`[batch] not opened: ${jobBoard(link)} is a job board, and batch apply opens only an employer's own form`);
+        batch.opened.push(jobId);
+        continue;
+      }
+      // The form, not the job's page, where the two differ (a Lever posting's form is at .../apply):
+      // looked up while the next application is asked. Its lookup never turns a link into Workday's or out of it.
+      const url = formFor(link);
+      url.catch(() => {}); // awaited below, in order
+      if (isWorkday(link)) {
+        if (workdayBusy()) {
+          batch.held.push({ jobId, url: await url, jobType });
+          continue;
+        }
+        workdayOpening = true;
+      }
       batch.opened.push(jobId);
-      await openTab(batch, jobId, url, jobType);
-      continue;
+      opening.push({ jobId, url, jobType });
     }
-    const application = batch.practice
-      ? nextPractice(batch)
-      : await nextApplication(applicantId, [...batch.opened, ...batch.held.map((h) => h.jobId)]);
-    if (!application) break;
-    const jobId = application.job.id;
-    const jobType = application.job.job_type ?? null;
-    // The employer's form the API names (a job board's posting is taken only through it, KAN-376).
-    const link = application.job.form_url ?? application.job.apply_url;
-    if (jobBoard(link)) {
-      // Never a job board's page, whatever the API says: this batch passes it over.
-      console.warn(`[batch] not opened: ${jobBoard(link)} is a job board, and batch apply opens only an employer's own form`);
-      batch.opened.push(jobId);
-      continue;
-    }
-    // The form, not the job's page, where the two differ (a Lever posting's form is at .../apply).
-    const url = await formFor(link);
-    if (isWorkday(url) && workdayOpen(batch)) {
-      batch.held.push({ jobId, url, jobType });
-      continue;
-    }
-    batch.opened.push(jobId);
-    await openTab(batch, jobId, url, jobType);
+  } finally {
+    for (const { jobId, url, jobType } of opening) await openTab(batch, jobId, await url, jobType);
   }
   await save(batch);
 }

@@ -302,7 +302,11 @@ covers a tab the extension opened.
 and a job card's Auto Apply once it queues the job, send `run/open` over
 `externally_connectable`; the batch opens the queued applications, each in
 its own background tab in the window that asked, **at most `WINDOW` (5)
-filling at once**, and opens the next one as soon as one finishes. A
+filling at once**, and opens the next one as soon as one finishes. The
+tabs open together: each application's form link (`formFor`, a Job Board
+API read for Greenhouse) is looked up while the next application is asked,
+then the tabs open in the queue's order (`topUp`; one round trip a tab, not
+two or more; `test/plan-fetch.extension.spec.ts`). A
 finished tab goes into the **"Ready"** tab group (green: every field it
 needs shows an answer) or **"Needs you"** (orange: anything unfilled, a
 note the Plan left the student, a Workday step, or a job system with no

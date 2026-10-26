@@ -138,3 +138,36 @@ test("a batch tab's job questions are asked as its tab opens, while its page is 
   expect(questionsAsked[0]).toBeLessThan(pageAnswered);
   expect(forms.submissions).toEqual([]);
 });
+
+test("a batch's tabs open together: each form's link is looked up while the next application is asked", async () => {
+  // One after another, each tab waited for its application and then its Job Board API lookup (formFor)
+  // before the next was asked: the fourth opened about six round trips after the first.
+  const names = ["greenhouse-arc", "greenhouse-datacor", "greenhouse-anduril", "greenhouse-purestorage"];
+  const forms = new SavedForms(names);
+  const api = new FakeApi().queue(...names.map((name, i) => ({ id: `job-${i}`, apply_url: forms.url(name) })));
+  const slowed = slow(api.handler);
+  const boards: Handler = async (request) => {
+    const reply = await forms.handler(request);
+    if (reply && request.url.hostname === "boards-api.greenhouse.io") await new Promise((done) => setTimeout(done, SLOW_MS));
+    return reply;
+  };
+  loaded = await loadExtension([slowed.handler, webapp, boards]);
+  await signIn(loaded.context);
+  const app = loaded.context.pages()[0] ?? (await loaded.context.newPage());
+  await app.goto("http://localhost:3000/auto-apply");
+  await loaded.worker.evaluate(() => {
+    (globalThis as any).created = [];
+    chrome.tabs.onCreated.addListener((tab) => (globalThis as any).created.push({ at: Date.now(), url: tab.pendingUrl || tab.url }));
+  });
+  await sendFromWebapp(app, { type: "run/open" });
+  const created = () => loaded.worker.evaluate(() => (globalThis as any).created as { at: number; url: string }[]);
+  await expect.poll(async () => (await created()).length, { timeout: 30_000 }).toBe(4);
+  const tabs = await created();
+  const pages = tabs.map((t) => t.at);
+
+  // Each next application is one round trip; the lookups overlap them.
+  expect(pages[3] - pages[0]).toBeLessThan(4.5 * SLOW_MS);
+  // The tabs keep the queue's order.
+  expect(tabs.map((t) => t.url)).toEqual(names.map((name) => forms.url(name)));
+  expect(forms.submissions).toEqual([]);
+});
