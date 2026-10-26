@@ -132,7 +132,8 @@ export function useResumeUpload({
         disabled={uploading !== null}
         onClick={() => inputRef.current?.click()}
       >
-        <UploadIcon className="size-4" /> {uploading ? "Uploading…" : "Upload Resume"}
+        <UploadIcon className="size-4" />
+        {uploading ? "Uploading…" : <ShortLabel verb="Upload" />}
       </Button>
       <input ref={inputRef} type="file" accept={RESUME_ACCEPT} onChange={handleSelect} hidden />
     </>
@@ -180,6 +181,22 @@ export function useResumeUpload({
   );
 
   return { button, notes, pending, uploading: uploading !== null };
+}
+
+/**
+ * "Upload Resume" and "Generate Resume" (./built-resumes.tsx), which say
+ * only the verb where their row is under 24rem (a phone's two even
+ * buttons): there "Generate Resume" needed 161px of a 158px button and
+ * broke onto two lines. "Resume" stays for screen readers, so the name
+ * never changes.
+ */
+export function ShortLabel({ verb }: { verb: string }) {
+  return (
+    <span>
+      {verb}
+      <span className="sr-only @sm:not-sr-only"> Resume</span>
+    </span>
+  );
 }
 
 /** One uploaded resume: the shared row, or Rename's form in its place,

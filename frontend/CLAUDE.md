@@ -1546,11 +1546,13 @@ are in `docs/auth.md`.
   AI" (KAN-222) runs only on a click, never on its own, and shows only
   while `uses_left` is above 0; a failed reading writes nothing and says
   why.
-- **The Resumes view is one list of every resume** (KAN-362,
+- **The Resumes view is one list of every resume** (KAN-362, KAN-404,
   `(seeker)/resumes/built-resumes.tsx`): uploaded, generated and tailored,
   newest first, each as its card (`components/resume-row.tsx`'s box, star
   and icons: star, Rename, Download, Delete), in one card that scrolls
-  inside itself at `max-h-scroll-box` (`resume-list.tsx`). **It is laid
+  inside itself, five cards high under a heading (`FIVE_ROWS` in
+  `resume-list.tsx`, 351px, not the shared `max-h-scroll-box`: with group
+  headings, 320px showed three and a half cards). **It is laid
   out as the Applications Tracker is**, so keep the two alike: the search
   on its own row, then the Type filter (`FieldFacet`, the Applications
   list's dropdown, in `?type=`) and the Sort dropdown (Last Edited, the
@@ -1565,8 +1567,30 @@ are in `docs/auth.md`.
   the menu hid the actions students use. Three views behind pills, then
   tabs, came before that: each split one list though every card acts
   alike, and a student had to look in three places for their latest
-  resume. The resume picker still splits Generated (base and tailored)
-  from Uploaded; whether it takes a Type filter too is open.
+  resume. **The list is grouped by type, as Notion's Group by**
+  (KAN-404): Uploaded, Generated, then Tailored, the Type filter's order,
+  each under a sticky heading with its name in a `Badge` pill and its
+  count, which folds it (`ResumeGroup`, `?collapsed=`). The search, Type
+  and Sort still run over every row; the groups only split what they
+  leave, the order runs inside each group, and the starred resume leads
+  its own. **Keep one scroll for the list, never a scroll box per group
+  and no Show N More**: nested, the wheel and a finger get caught in the
+  inner box, and a per-group limit with Show N More (Notion's) was built
+  and turned down by the user, who wants the list to scroll on. The
+  heading sits on z-20, over the cards' z-10 icons, which bled over it on
+  the same layer. Uploads are capped at 5 and Generate refuses duplicates, but
+  tailored resumes have no cap (one per job posting), so ungrouped they
+  buried the uploads and a student needed the Type filter to find their
+  own file. A first version had two groups, Uploaded and Generated, then
+  Tailored, with grey capitals for names; the user wanted one group per
+  type and the names in pills, which stand out from the grey cards.
+  **Below a 42rem row the filters are two even rows** (Type and Sort,
+  then the two buttons), and below 24rem the buttons say only Upload and
+  Generate (`ShortLabel`, "Resume" kept for screen readers): wrapped as
+  one row the buttons sat alone at the right, and "Generate Resume"
+  broke onto two lines on a phone. The resume picker still splits
+  Generated (base and tailored) from Uploaded; whether it takes a Type
+  filter too is open.
 - **Every resume opens a page of WorkIt's own** (KAN-366): a built resume
   the editor (`(seeker)/resumes/[resumeId]`), an upload its view page
   (`(seeker)/resumes/uploaded/[id]`, the static segment winning over
