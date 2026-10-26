@@ -8,7 +8,7 @@ import { Button } from "@/components/ui/button";
 import type { Bank } from "@/lib/bank-actions";
 import type { Choices } from "@/lib/built-resume-actions";
 import { cn } from "@/lib/cn";
-import type { TailorEdit } from "@/lib/tailor-actions";
+import type { TailorEdit, TailorSource } from "@/lib/tailor-actions";
 
 import { Editor } from "../../../resumes/[resumeId]/editor";
 import { wording } from "../../../resumes/[resumeId]/model";
@@ -18,6 +18,7 @@ import {
   useTailorReview,
   type SuggestionsApi,
 } from "../../../resumes/[resumeId]/tailor-review";
+import { ResumePreviewDialog } from "./resume-preview";
 import { TailorScore } from "./tailor-score";
 
 /**
@@ -66,6 +67,27 @@ export function TailorReview(editor: ComponentProps<typeof Editor>) {
   );
 }
 
+/** The resume Tailor started from, read-only in step 1's Preview dialog:
+ *  the panel's way to the original, in place of the side-by-side Before
+ *  column the user found too much at once. The record keeps the source's
+ *  id, not its name, so the dialog is titled for what it is. */
+function ViewOriginal({ source }: { source: TailorSource }) {
+  const [open, setOpen] = useState(false);
+  return (
+    <>
+      <Button variant="secondary" size="sm" className="ml-auto" onClick={() => setOpen(true)}>
+        View Original
+      </Button>
+      <ResumePreviewDialog
+        open={open}
+        onOpenChange={setOpen}
+        label="Original Resume"
+        source={source}
+      />
+    </>
+  );
+}
+
 function SuggestionsPanel({
   record,
   bank,
@@ -103,9 +125,7 @@ function SuggestionsPanel({
           <h2 id="suggestions-heading" className="text-title text-ink max-sm:sr-only">
             Suggestions
           </h2>
-          {/* TODO: View Original here: ResumePreviewDialog({ open, onOpenChange,
-              label, source }) from ./resume-preview.tsx, with `record.source`,
-              once it lands (the merging session wires it). */}
+          {record.source && <ViewOriginal source={record.source} />}
         </div>
         {match && <TailorScore match={match} />}
         {edits.length > 0 && (

@@ -229,8 +229,10 @@ once, with the changes and their Revert controls hard to follow.
 - **The panel's top** holds the keyword match ("3 → 5 of 8" and the
   keywords the run added, `tailor-score.tsx`), the count ("5
   Suggestions"), and Reject All and Accept All. It stays in view while
-  the cards scroll under it. A slot for View Original (the source resume
-  in a dialog) waits beside the heading.
+  the cards scroll under it. **View Original**, beside the heading,
+  opens the source resume (the record's `source`) read-only in step 1's
+  Preview dialog (`ResumePreviewDialog`), titled "Original Resume" since
+  the record keeps the source's id, not its name.
 - **One card per change**: a new wording shows the old words struck and
   the new ones highlighted, inline when only a run in the middle changed,
   else the old line over the new one; a new order names the entry and each
