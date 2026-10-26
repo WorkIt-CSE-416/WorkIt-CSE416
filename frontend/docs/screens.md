@@ -1668,13 +1668,18 @@ with no proposals to accept and no Done (2026-10-25).
   `ResumeLists` from `jobs/resume-picker.tsx`, as every resume dialog
   does, with its search, Type filter and Upload Resume (the same limit,
   replace step and duplicate rule) and the Uploaded, Generated and
-  Tailored groups. It starts on the resume tailored to this job, else the
-  primary unless that is tailored to another job, else the first resume
-  not tailored to any (`tailorFirst`): tailoring another job's tailored
-  resume starts from that job's changes. Use This Resume reads the
-  resume's keyword match (`matchTailor`); "Reading…" and errors show on
-  the card. An upload is read into the bank and tailored as its own
-  entries; a run changes only what the picked resume shows.
+  Tailored groups. A dropdown and a dropzone under it stood here first;
+  the dropzone took more room than the list. It starts on the resume
+  tailored to this job, else the primary unless that is tailored to
+  another job, else the first resume not tailored to any (`tailorFirst`):
+  tailoring another job's tailored resume starts from that job's changes.
+  Use This Resume reads the resume's keyword match (`matchTailor`); while
+  it reads, the button says "Matching Keywords…" and the Keyword Match
+  card's place says what WorkIt is doing, over the card's shape
+  (`MatchWaiting`), not made-up stages: the read is one call with none to
+  report. Errors show on the card. An upload is read into the bank and
+  tailored as its own entries; a run changes only what the picked resume
+  shows.
 - **The keyword match** shows "12 of 18", the matched keywords, and the
   missing ones as toggle chips: the student picks those they have used,
   to add as skills. A keyword not picked is never written in. A posting
@@ -1683,7 +1688,11 @@ with no proposals to accept and no Done (2026-10-25).
   then opens it in the editor (`/resumes/[id]`). The run's record of
   changes and its dropped count go to sessionStorage (`tailorEditsKey` in
   `lib/local-drafts.ts`, cleared by Sign Out) for the editor's review
-  (Resume editor, below).
+  (Resume editor, below), with the keyword match before and after
+  (`MatchShift`). The tailored resume's page shows that over the editor
+  ("Keyword Match 3 of 14 → 9 of 14" and each keyword the run added,
+  `tailor-score.tsx`); the run's before and after matches were not shown
+  anywhere before. Like the marks, it lives in that tab only.
 - An empty bank (409) shows a link to the bank page, where intake starts.
 
 ## Resumes (`/resumes`)

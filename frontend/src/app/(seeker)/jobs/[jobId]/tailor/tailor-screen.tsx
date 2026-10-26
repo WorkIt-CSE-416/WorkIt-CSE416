@@ -4,6 +4,7 @@ import { useRouter } from "next/navigation";
 import { useCallback, useEffect, useState } from "react";
 
 import { CheckIcon, SparkleIcon } from "@/components/icons";
+import { Skeleton } from "@/components/shadcn/skeleton";
 import { readEvents } from "@/components/scout/stream";
 import { Badge } from "@/components/ui/badge";
 import { Button, ButtonLink } from "@/components/ui/button";
@@ -20,6 +21,7 @@ import {
   type TailorStreamEvent,
 } from "@/lib/tailor-actions";
 
+import type { MatchShift, TailorReviewRecord } from "../../../resumes/[resumeId]/tailor-review";
 import { loadChoices, ResumeLists, type Choice } from "../../resume-picker";
 
 /** What Tailor Resume says while a run waits, by the streamed run's lines
@@ -100,6 +102,7 @@ export function TailorScreen({ jobId, title }: { jobId: string; title: string })
   async function read(next: TailorSource) {
     setReading(true);
     setError(null);
+    setMatch(null);
     const { data, error, status } = await matchTailor(jobId, next);
     setReading(false);
     if (!data) return setError({ message: error ?? "WorkIt couldn't read that resume.", status });
@@ -155,7 +158,15 @@ export function TailorScreen({ jobId, title }: { jobId: string; title: string })
     // A stream that ends with no last line lost its connection mid-run.
     if (!result) return failed("Tailor stopped before it finished. Try again.", null);
     setPhase(PHASE.compiling);
-    writeSessionDraft(tailorEditsKey(result.resume.id), { edits: result.edits });
+    const had = new Set(result.matched.map((k) => k.keyword));
+    const match: MatchShift = {
+      before: result.matched.length,
+      after: result.after_matched.length,
+      total: result.after_matched.length + result.after_missing.length,
+      added: result.after_matched.filter((k) => !had.has(k.keyword)),
+    };
+    const record: TailorReviewRecord = { edits: result.edits, match };
+    writeSessionDraft(tailorEditsKey(result.resume.id), record);
     router.push(
       `/jobs/${encodeURIComponent(jobId)}/tailor?resumeId=${encodeURIComponent(result.resume.id)}`,
     );
@@ -205,7 +216,7 @@ export function TailorScreen({ jobId, title }: { jobId: string; title: string })
                 disabled={!selected || reading || running || uploading}
               >
                 <SparkleIcon />{" "}
-                {reading ? "Reading…" : match ? "Use Another Resume" : "Use This Resume"}
+                {reading ? "Matching Keywords…" : match ? "Use Another Resume" : "Use This Resume"}
               </Button>
             </>
           )}
@@ -222,6 +233,8 @@ export function TailorScreen({ jobId, title }: { jobId: string; title: string })
         */}
         {!match && <TailorError error={error} />}
       </Card>
+
+      {reading && <MatchWaiting />}
 
       {match && (
         <Card as="section" aria-labelledby="tailor-match">
@@ -292,6 +305,34 @@ const toSource = (choice: Choice): TailorSource =>
   "builtResumeId" in choice.source
     ? { built_resume_id: choice.source.builtResumeId }
     : { uploaded_resume_id: choice.source.uploadedResumeId };
+
+/**
+ * The Keyword Match card's place while the match is read: what WorkIt is
+ * doing, in one sentence, over the card's shape. The read has no phases to
+ * report (one server action: the posting's keywords, extracted once and
+ * cached, then the match), so it names the work, not a made-up stage. It
+ * was "Reading…" on the button alone for the 15 to 20 seconds a first
+ * extraction takes, with nothing on the page.
+ */
+function MatchWaiting() {
+  return (
+    <Card as="section" aria-busy="true" aria-labelledby="tailor-match-waiting">
+      <h2 id="tailor-match-waiting" className="text-subtitle text-ink">
+        Keyword Match
+      </h2>
+      <p className="text-note text-ink-muted mt-1" aria-live="polite">
+        WorkIt is reading the posting&apos;s keywords and looking for each one in this resume. A
+        posting read for the first time takes longer.
+      </p>
+      <Skeleton aria-hidden="true" className="mt-3 h-7 w-24" />
+      <div aria-hidden="true" className="mt-3 flex flex-wrap gap-1.5">
+        {[16, 20, 14, 24, 18, 12].map((w, i) => (
+          <Skeleton key={i} className="h-6 rounded-md" style={{ width: `${w * 4}px` }} />
+        ))}
+      </div>
+    </Card>
+  );
+}
 
 function MatchCount({ matched, missing }: { matched: Keyword[]; missing: Keyword[] }) {
   const total = matched.length + missing.length;

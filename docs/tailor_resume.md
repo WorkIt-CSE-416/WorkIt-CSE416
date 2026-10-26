@@ -20,8 +20,10 @@ model tokens; the student changes the tailored resume in the editor.
 
 ## The flow
 
-1. **The student picks a resume** on the posting's Tailor screen: a built
-   resume or an upload (KAN-318, as today).
+1. **The student picks a resume** on the posting's Tailor screen, from the
+   shared resume list every resume dialog uses (KAN-318, KAN-406): a built
+   resume or an upload. It never starts on a resume tailored to another
+   posting, which would carry that job's changes in.
 2. **The API builds the view** of that resume once (`build_view`). Every
    later step reads this one view.
 3. **The keyword match.** The posting's keywords (`keywords.ensure`, KAN-215)
@@ -59,7 +61,9 @@ model tokens; the student changes the tailored resume in the editor.
    to the model call before it starts the stream; a failure after that is
    an `error` line with the same status and message. `POST .../tailor`
    answers the same run as one JSON body and stays for other callers.
-6. **The editor opens on the tailored resume**, compiled. Each change shows
+6. **The editor opens on the tailored resume**, compiled, under the run's
+   keyword match before and after ("Keyword Match 3 of 14 → 9 of 14" and
+   the keywords it added; `tailor-score.tsx`). Each change shows
    on the resume itself. Changed lines use a darker green; changed bullets,
    skills and reordered bullets offer Revert on hover or focus, but no
    line does while one is open for editing: a Revert then would throw away

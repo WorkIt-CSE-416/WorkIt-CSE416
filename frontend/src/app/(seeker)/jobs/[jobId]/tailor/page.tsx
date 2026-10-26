@@ -15,6 +15,7 @@ import { Editor } from "../../../resumes/[resumeId]/editor";
 import { ListingsError } from "../../listing-card";
 import { getJobListing } from "../../listings";
 import { BackToJobs } from "../page-actions";
+import { TailorScore } from "./tailor-score";
 import { TailorScreen } from "./tailor-screen";
 
 export async function generateMetadata({
@@ -71,6 +72,7 @@ export default async function TailorPage({
         <p className="text-body text-ink-meta mt-1">
           Tailored for {job.title} at {job.company}
         </p>
+        <TailorScore resumeId={resume.id} />
         {bank.data && choices.data && profile ? (
           <Editor
             resumeId={resume.id}
