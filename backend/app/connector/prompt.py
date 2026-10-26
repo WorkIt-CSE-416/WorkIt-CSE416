@@ -75,7 +75,9 @@ review, check, edit. Run them as separate passes, in that order, each over \
 all the answers, and come to each pass as a fresh reader: judge only the \
 text in front of you, never what you meant it to say. Don't show me \
 drafts. For each written answer, keep the rating its last review round \
-gave it and the claims the check listed.
+gave it and the claims the check listed. A question with a rewrite is one \
+I sent back from the pre-submit check: write it fresh, so that what its \
+reason says is wrong (in its quote, if it has one) isn't in the new answer.
 3. Call save_answers with that job_id and the edited answers, each under \
 its question's name. With an answer that uses a company_brief fact, pass \
 that fact's sentence as its named_fact. Give each written answer its \
@@ -107,7 +109,10 @@ report it only if it doesn't answer its question. Report only what you \
 can show is wrong: an answer nothing given lets you check is fine.
 3. Call save_review with that job_id, the versions of the answers it \
 gave, and each wrong answer under its question's name, with one short \
-sentence to me on what is wrong, or with no problems. Don't rewrite \
+sentence to me on what is wrong, or with no problems. Give each one, \
+when you can, the sentence that is wrong as its quote, copied word for \
+word from the answer, and set wrong_company when it names a company other \
+than this application's. Don't rewrite \
 answers here: I fix them in the tab before I submit. Then go back to 1.
 4. At the end, tell me in one line each answer you reported, and its \
 company.
