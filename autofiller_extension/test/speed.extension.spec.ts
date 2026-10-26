@@ -9,7 +9,9 @@
 //
 // SPEED_ONLY=greenhouse,lever picks systems. SPEED_API_MS=150 answers every
 // API call (a JSON reply: WorkIt's API, the job system's) that much later, as
-// a live API's round trip would; the fakes answer in 1-3 ms otherwise. Each system writes
+// a live API's round trip would; the fakes answer in 1-3 ms otherwise. SPEED_HIDDEN=1
+// runs the job system page's timers as a hidden tab's (1 s alignment, HIDDEN_TIMERS in
+// speed-probe.ts); headless tabs are never hidden, so this is the background-tab view. Each system writes
 // <SPEED_OUT>/<prefix>-<system>.json (every run's numbers, and the last run's
 // field values and panel rows, to diff "same fields, same values" against
 // another prefix); the last test writes <prefix>-summary.md.
@@ -24,13 +26,14 @@ import { FakeRippling } from "../fill-engine/test/fake-rippling";
 import { FakeEightfold } from "../fill-engine/test/fake-eightfold";
 import { STEPS } from "../fill-engine/test/fake-workday";
 import { loadExtension, sendFromWebapp, signIn, webapp, type Handler, type Loaded, type Reply, type Request } from "./loaded-extension";
-import { MAIN_PROBE, covered, median, sourceOf, timersBySite, workerProbe, type Timer } from "./speed-probe";
+import { HIDDEN_TIMERS, MAIN_PROBE, covered, median, sourceOf, timersBySite, workerProbe, type Timer } from "./speed-probe";
 
 const OUT = process.env.SPEED_OUT ?? join(__dirname, "test-results", "speed");
 const PREFIX = process.env.SPEED_PREFIX ?? "baseline";
 const RUNS = Number(process.env.SPEED_RUNS ?? 5);
 const ONLY = process.env.SPEED_ONLY?.split(",");
 const API_MS = Number(process.env.SPEED_API_MS ?? 0);
+const HIDDEN = !!process.env.SPEED_HIDDEN;
 
 /** `handler` with its JSON replies (API calls, not pages or their files) answered API_MS later. */
 const slowApi = (handler: Handler): Handler => async (request) => {
@@ -122,6 +125,7 @@ async function runOnce(name: string): Promise<Raw> {
   const loaded: Loaded = await loadExtension([slowApi(api.handler), webapp, slowApi(system.handler)]);
   try {
     await signIn(loaded.context);
+    if (HIDDEN) await loaded.context.addInitScript(HIDDEN_TIMERS);
     await loaded.context.addInitScript(MAIN_PROBE);
     const app = loaded.context.pages()[0] ?? (await loaded.context.newPage());
     await app.goto("http://localhost:3000/auto-apply");
@@ -318,7 +322,7 @@ for (const name of systems) {
       untilInject: stat((r) => r.pageWait.untilInject), plan: stat((r) => r.plan.ms), api: stat((r) => r.api.ms), fieldsSum: stat((r) => r.fields.sumMs),
       waitsTook: stat((r) => r.waits.tookMs), fillPage: stat((r) => r.messages["fill/page"]?.ms ?? 0),
     };
-    writeFileSync(join(OUT, `${PREFIX}-${name}.json`), JSON.stringify({ system: name, prefix: PREFIX, runs: RUNS, apiMs: API_MS, at: new Date().toISOString(), summary, perRun: runs, values: last!.values, rows: last!.rows }, null, 2));
+    writeFileSync(join(OUT, `${PREFIX}-${name}.json`), JSON.stringify({ system: name, prefix: PREFIX, runs: RUNS, apiMs: API_MS, hidden: HIDDEN, at: new Date().toISOString(), summary, perRun: runs, values: last!.values, rows: last!.rows }, null, 2));
     expect(runs.every((r) => !r.timedOut && Number.isFinite(r.firstField))).toBe(true);
   });
 }

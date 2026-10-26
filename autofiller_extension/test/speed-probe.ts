@@ -84,6 +84,29 @@ export const MAIN_PROBE = `(() => {
  * (the engine calls among them, by name), fetches, timers and new tabs. The
  * originals stay at globalThis.__speedOrig for the harness's own reads.
  */
+/**
+ * SPEED_HIDDEN=1: the page's main world (a job system's page, not the webapp) runs its timers as
+ * Chrome runs a hidden tab's: each setTimeout, and each setInterval tick, fires no sooner than the
+ * first whole second (of the wall clock) at or after it is due. MutationObserver and MessageChannel
+ * are left alone, as Chrome leaves them. Added before MAIN_PROBE, which then wraps these.
+ */
+export const HIDDEN_TIMERS = `(() => {
+  if (window.__speedHidden || location.host === "localhost:3000") return;
+  window.__speedHidden = true;
+  const set = window.setTimeout, clear = window.clearTimeout;
+  const wait = (ms) => { const due = Date.now() + Math.max(0, Number(ms) || 0); return Math.ceil(due / 1000) * 1000 - Date.now(); };
+  window.setTimeout = function (fn, ms, ...rest) { return set.call(window, fn, wait(ms), ...rest); };
+  const ticks = new Map();
+  let next = -1;
+  window.setInterval = function (fn, ms, ...rest) {
+    const id = next--;
+    const tick = () => { ticks.set(id, set.call(window, () => { tick(); typeof fn === "function" ? fn.apply(window, rest) : undefined; }, wait(ms))); };
+    tick();
+    return id;
+  };
+  window.clearInterval = function (id) { if (ticks.has(id)) { clear.call(window, ticks.get(id)); ticks.delete(id); } else clear.call(window, id); };
+})();`;
+
 export function workerProbe(): void {
   const g = globalThis as any;
   if (g.__speed) return;
