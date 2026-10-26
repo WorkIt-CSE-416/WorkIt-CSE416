@@ -28,13 +28,7 @@ import {
   type TailorSource,
 } from "@/lib/tailor-actions";
 
-import {
-  firstChoice,
-  loadChoices,
-  ResumeLists,
-  UploadPick,
-  type Choice,
-} from "../../resume-picker";
+import { firstChoice, loadChoices, ResumeLists, type Choice } from "../../resume-picker";
 
 /**
  * The Tailor screen (KAN-217). Tailor My Resume opens Pick a Resume to
@@ -334,22 +328,14 @@ function PickResume({
           {choices == null ? (
             <p className="text-note text-ink-muted">Loading your resumes…</p>
           ) : (
-            <>
-              <ResumeLists
-                name="tailor-from"
-                choices={choices}
-                emptyBuilt="None yet. Generate Resume on Resumes & Experiences makes one."
-                emptyUploaded="None yet. Upload one below."
-                picked={picked}
-                onPick={setPicked}
-              />
-              <UploadPick
-                label="Tailor a Different Resume?"
-                uploads={uploads}
-                onUploaded={uploaded}
-                onBusyChange={onUploadBusy}
-              />
-            </>
+            <ResumeLists
+              name="tailor-from"
+              choices={choices}
+              empty="None yet. Upload one, or generate one on Resumes & Experiences."
+              picked={picked}
+              onPick={setPicked}
+              upload={{ uploads, onUploaded: uploaded, onBusyChange: onUploadBusy }}
+            />
           )}
           {tailored && choice && choice.key !== tailored.key && (
             <p className="text-note text-warning">

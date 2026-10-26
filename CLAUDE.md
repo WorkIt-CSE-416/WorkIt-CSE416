@@ -164,8 +164,8 @@ with the failure it prevents.
   0005: each upload owns its own entries and skills (no merge, no
   duplicate check across resumes; an import replaces what the upload
   owned), and the Experiences view's Showing card picks one resume from
-  the shared resume table (KAN-361), showing what the picked one owns or
-  shows, with Not From an Upload as a row of its own under that table
+  the shared resume list (KAN-361, KAN-406), showing what the picked one
+  owns or shows, with Not From an Upload as a card of its own under it
   (KAN-363). Add saves into the picked resume.
   Read it before changing import, the bank's API shape or the Experiences
   view.

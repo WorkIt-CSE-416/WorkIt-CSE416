@@ -4,6 +4,13 @@ import { ArrowsDownUpIcon, FileTextIcon, TagIcon } from "@phosphor-icons/react/s
 import { useState } from "react";
 
 import { FacetLabel, facetClasses, FieldFacet, type FacetOption } from "@/components/field-facet";
+import {
+  matches,
+  RESUME_TYPES,
+  ResumeGroup,
+  searchWords,
+  type ResumeType,
+} from "@/components/resume-list";
 import { ChevronDownIcon, SearchIcon } from "@/components/icons";
 import {
   DropdownMenu,
@@ -22,17 +29,11 @@ import { listResumes, type ResumeItem } from "@/lib/resume-actions";
 import { BuiltResumeRow } from "./built-resume-row";
 import { DuplicateResumeDialog } from "./duplicate-resume-dialog";
 import { ResumesHeader } from "./header";
-import { matches, ResumeGroup, ResumeList, searchWords } from "./resume-list";
+import { ResumeList } from "./resume-list";
 import { ShortLabel, UploadedRow, useResumeUpload } from "./upload-resume";
 
-type ResumeType = "uploaded" | "generated" | "tailored";
-
-/** The Type filter's options. */
-const TYPES: FacetOption[] = [
-  { value: "uploaded", label: "Uploaded" },
-  { value: "generated", label: "Generated" },
-  { value: "tailored", label: "Tailored" },
-];
+/** The Type filter's options: the list's groups, in their order. */
+const TYPES: FacetOption[] = [...RESUME_TYPES];
 
 /** `?type=uploaded,tailored`: the picked types, in the options' order;
  *  none (or none valid) is every type. */

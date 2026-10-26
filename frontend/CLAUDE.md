@@ -1252,9 +1252,10 @@ the KAN-296 cutover.
   names; the extension does not read it yet (`docs/screens.md`, Auto
   Apply).
   Every resume dialog (Did You Apply?, Tailor's Pick a Resume, Up Next's
-  Choose a Resume) picks through one table, `ResumeLists` in
-  `jobs/resume-picker.tsx` (KAN-360): change it there, never per dialog
-  (`docs/screens.md`, Job posting page).
+  Choose a Resume) picks through one list, `ResumeLists` in
+  `jobs/resume-picker.tsx` (KAN-360; grouped as the Resumes page since
+  KAN-406): change it there, never per dialog (`docs/screens.md`, Job
+  posting page).
   `docs/screens.md`, Applications, has the rest.
 - **/search keeps the filter row, and shows what its words filter by**
   (KAN-308). A new search from the top bar sends only ?q, so it starts
@@ -1406,8 +1407,11 @@ the KAN-296 cutover.
   full-page table (the Applications list, Up Next) shows every row and the
   page scrolls. A list or table inside a dialog or a tile scrolls inside
   itself at one height, the `--spacing-scroll-box` token (`max-h-scroll-box`
-  or `h-scroll-box`, 320px): the resume picker, Add Jobs and Top Matches.
-  Each picked its own height before, and Add Jobs grew to 90% of the window.
+  or `h-scroll-box`, 320px): Add Jobs and Top Matches. Each picked its
+  own height before, and Add Jobs grew to 90% of the window. The grouped
+  resume list (the Resumes page and every resume picker) is the one
+  exception: five cards under a group heading (`ResumeScroll`,
+  `components/resume-list.tsx`), since 320px showed three and a half.
 - **A filter whose rows the page already holds moves the URL in place**
   (`useShallowPush`, `docs/motion.md`): Live Activity's Status and sort
   (KAN-285). A tick passes `{ replace: true }`, so ticks are not steps of
@@ -1598,9 +1602,20 @@ are in `docs/auth.md`.
   then the two buttons), and below 24rem the buttons say only Upload and
   Generate (`ShortLabel`, "Resume" kept for screen readers): wrapped as
   one row the buttons sat alone at the right, and "Generate Resume"
-  broke onto two lines on a phone. The resume picker still splits
-  Generated (base and tailored) from Uploaded; whether it takes a Type
-  filter too is open.
+  broke onto two lines on a phone. **Every resume picker dialog draws
+  the same grouped list** (KAN-406): `components/resume-list.tsx` holds
+  the groups, the heading (`ResumeGroup`) and the five-card scroll
+  (`ResumeScroll`), and each screen draws its own cards in it, the
+  Resumes page's with their actions, a picker's with a radio. A change
+  to how the list groups or scrolls goes there, so the page and the
+  dialogs never drift apart again. The picker's row is the page's row
+  cut down: the search, the Type filter and, where the dialog takes a
+  file (Did You Apply?, Tailor), Upload Resume, which at the 5-upload
+  limit asks which upload the file replaces, under the row. No Sort and
+  no Generate Resume: a dialog holds a few resumes with the likely pick
+  first, and a resume generated mid-dialog is not the file a student
+  sent. The dialogs' dropzone sections went with KAN-406, as the
+  Resumes page's had in KAN-362.
 - **Every resume opens a page of WorkIt's own** (KAN-366): a built resume
   the editor (`(seeker)/resumes/[resumeId]`), an upload its view page
   (`(seeker)/resumes/uploaded/[id]`, the static segment winning over
@@ -1616,9 +1631,10 @@ are in `docs/auth.md`.
 - **The Experiences view shows one resume at a time** (KAN-343, ADR 0005,
   `../docs/bank_by_resume.md`): a Showing card names the pick, drawn as
   the Resumes page draws a resume (KAN-363), and its Change Resume opens
-  the shared resume table (KAN-361, `(seeker)/bank/resume-bar.tsx` over
-  `(seeker)/jobs/resume-picker.tsx`'s `ResumeLists`), with Not From an
-  Upload as a row under the table, in its radio group, while anything no
+  the shared resume list (KAN-361, KAN-406, `(seeker)/bank/resume-bar.tsx`
+  over `(seeker)/jobs/resume-picker.tsx`'s `ResumeLists`), with Not From an
+  Upload as a card under the list (`pickRowClasses`, drawn as its
+  cards), in its radio group, while anything no
   upload owns exists or while it is the pick. The page opens on
   `?resume=`, else the starred resume, else the newest. A pick applies on Show Resume, never on a row
   click, so the arrow keys can move it. The dropdown it replaced had no
