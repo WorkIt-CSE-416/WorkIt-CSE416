@@ -1680,6 +1680,20 @@ with no proposals to accept and no Done (2026-10-25).
   report. Errors show on the card. An upload is read into the bank and
   tailored as its own entries; a run changes only what the picked resume
   shows.
+- **A preview shows the picked resume** (`resume-preview.tsx`), so the
+  student sees what they are about to tailor. A built resume's PDF is
+  rendered and an upload's PDF is read, then drawn page by page with the
+  editor's `PdfPages`, read-only, with no click targets. A DOCX upload
+  gets a note and Download, as its own page does: pdf.js cannot draw one.
+  The PDF comes from `GET /api/resume-preview?built=<id>` or
+  `?uploaded=<id>`, a route handler, not a server action: Next runs a
+  client's actions one at a time, so each pick's render would hold back
+  Use This Resume. Each answer is kept by the pick's key, so a late
+  answer for an older pick never shows, and a pick made again shows at
+  once. The page's skeleton shows while it loads; a failure says so in
+  one line with Try Again; no pick says "Pick a resume to preview it."
+  Its pages scroll inside one fixed height from lg up, beside the list;
+  below lg it stacks and stops at 70% of the screen's height.
 - **The keyword match** shows "12 of 18", the matched keywords, and the
   missing ones as toggle chips, Required then Preferred, each under its
   own label (`MissingKeywords`, KAN-408): the student picks those they
