@@ -129,3 +129,27 @@ export async function chooseResume(
     return { sent: null, error: UNREACHABLE };
   }
 }
+
+/** "Mark applied" on a Live Activity row (KAN-369): the student sent this
+ *  application and WorkIt's extension didn't see it. Finishes it as
+ *  submitted (POST .../applications/{job_id}/finish), which dates it now.
+ *  One already applied or skipped answers the API's 409, which says why. */
+export async function markSubmitted(jobId: string): Promise<{ error: string | null }> {
+  let session;
+  try {
+    session = await getApplicantSession();
+  } catch {
+    return { error: SIGNED_OUT };
+  }
+  try {
+    const res = await apiFetch(
+      `/applicants/${session.id}/applications/${encodeURIComponent(jobId)}/finish`,
+      { method: "POST", body: JSON.stringify({ outcome: "submitted" }) },
+      session.token,
+    );
+    if (res.ok) return { error: null };
+    return { error: await extractErrorMessage(res) };
+  } catch {
+    return { error: UNREACHABLE };
+  }
+}

@@ -1119,6 +1119,14 @@ one client step over the server's rows), in flight.
   open (`components/clickable-row.tsx`, the Applications list's), leaving
   clicks on links and buttons alone; the role is the real link. A closed
   one links nowhere.
+- **Mark applied** (KAN-369, `auto-apply/mark-applied.tsx`): every row not
+  yet applied or skipped has a briefcase (the Applied stage's icon),
+  tooltip "I submitted this: mark applied", for an application the student
+  sent that the extension's submit detection missed. It finishes the
+  application as submitted (`markSubmitted`, POST
+  `.../applications/{job_id}/finish`, which dates it now), refreshes the
+  route so the row shows Applied, and toasts "<role> is marked Applied.".
+  The batch panel's "I submitted this" is the same from the job's tab.
 - **Actions**: icon buttons only, to save width. A queued row has a cross,
   "Remove from queue" in its tooltip (`auto-apply/remove-from-queue.tsx`),
   alone in the Actions column: beside the badge, before KAN-285, it read as
