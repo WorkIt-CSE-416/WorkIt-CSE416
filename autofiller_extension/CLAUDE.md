@@ -435,6 +435,15 @@ waits for an opened tab's page and form (`waitForLoad`, `formShows`).
   so the student can press it again. **Closing a tab is not Skip**: a
   window closed, or Chrome quitting, closes every tab, and the student may
   close a tab only to come back to the job later; it just leaves the batch.
+- **A closed job leaves by itself (KAN-369).** A batch tab whose job system
+  says the job is closed (`content/closed-posting.js`: Greenhouse's
+  `?error=true` board, Workable's `?not_found=true`, or "no longer
+  accepting applications" on a covered host) is skipped the way Skip is,
+  with the outcome `closed` (`closeClosedTab`): the API marks it skipped and
+  its scraped posting closed, so it is neither applied nor failed, its tab
+  closes and the next job opens. Two ways in: the fill's "This job is
+  closed" note sends `batch/closed`, and `startFill` asks the same check
+  when the page shows no form at all (Workable's closed page).
 - **One Workday application at a time (KAN-373).** A Workday application
   runs over many pages, each waiting on the student (sign-in, then Save
   and Continue), and Chrome throttles hidden tabs, so the batch holds one
@@ -1243,7 +1252,9 @@ checking the student owns the application: a tab's state (`PUT
 `POST .../finish`), and whether Claude is connected (`GET
 .../connector`). Report a problem (KAN-403) sends `POST /fill-reports`
 (`routers/fill_reports.py`): no applicant in the path and no account in
-the row, the report's parts only. The rest are older:
+the row, the report's parts only. The popup's Request this job system
+(KAN-369) sends `POST /job-system-requests` (`routers/job_system_requests.py`):
+the host alone, no account in the row. The rest are older:
 
 `src/background/api.js` mostly calls endpoints that already exist for the
 webapp: `GET /auth/me`, `GET /applicants/{id}/profile`, `GET
@@ -1734,7 +1745,14 @@ report.js everywhere it is: manifest, `CONTENT_SCRIPT_FILES`, background.js
   is, ignoring query, fragment and a trailing slash; "WorkIt doesn't list
   this job yet." when there is none) and **Report a problem** (what it sends:
   job system "unsupported", the posting link as below, the engine, and an
-  optional note, `NOTE_MAX` long; then Send report, `popup/report`). Nothing leaves on opening the popup. Its
+  optional note, `NOTE_MAX` long; then Send report, `popup/report`), and
+  between them **Request this job system** (KAN-369, `popup/request`:
+  `POST /job-system-requests {"host"}`, the page's host and nothing else;
+  "Requested. WorkIt adds the job systems students ask for most."). The
+  hosts asked are kept in chrome.storage.local `requested_job_systems`, so
+  each is sent once from a browser and the popup then says "You requested
+  this job system." instead of the button (test:
+  `request-system.extension.spec.ts`). Nothing leaves on opening the popup. Its
   test opens popup.html with `?tab=<id>` and loads a copy of the extension
   granted the fake host (`loadExtension`'s `grantHosts`), standing in for
   activeTab, which no test can press.
@@ -1850,9 +1868,12 @@ head `.section-head`). Notes (content-script.js's) stand above them.
   required question the form isn't asking now), `note`. A field the engine
   reports filled (its `fillengine:field` done event) turns green at once;
   the fill's answer then sets every row as WorkIt read it back.
-- **Order (Q2).** While the fill runs, the Plan's order; once it is done
+- **Order (Q2).** The page's order: each row (a section by its first
+  field) is placed where `window.WIA.fieldOf` finds its field, and rows
+  whose field the page doesn't show yet come after, as registered
+  (`groups.inPageOrder`; KAN-369, decision 1971). Once the fill is done
   (content-script.js refreshes the list when the phase changes), red and
-  then amber rows rise to the top of their section, the rest in the Plan's
+  then amber rows rise to the top of their section, the rest in page
   order. Required questions the form isn't asking now close the Required
   section, collapsed to "N the form isn't asking now"
   (`.group[data-group="not-asked"]`).
@@ -1863,8 +1884,10 @@ head `.section-head`). Notes (content-script.js's) stand above them.
   section (`groups.entryOf`). A section is one row (`.entries[data-entries]`,
   its head Workday's "(entries)" question's row when there is one, marked
   with the worst of its fields) and under it a block per entry
-  (`.entry`), titled by its company or school as the form shows it
-  (`.entry-title`, "Work Experience 1" until filled), listing the entry's
+  (`.entry`), titled by its company or school as the form shows it, else
+  as the Plan fills it (the profile entry's; content-script.js hands each
+  planned answer to `groups.planned`, which keeps only an entry's naming
+  field), else "Work Experience 1" (`.entry-title`), listing the entry's
   fields with small dots (`.row.sub`). The section goes under Required when
   any of its fields is required.
 - **Rows (Q4's row parts).** overlay.js's `row` keeps its cards, reasons and

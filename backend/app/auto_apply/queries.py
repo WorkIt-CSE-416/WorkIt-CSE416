@@ -31,7 +31,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.models.applications import Job_Application
 from app.models.built_resume import Built_Resume
-from app.models.dto import application_stage
+from app.models.dto import application_stage, job_post_status
 from app.models.jobs import Job_Post
 from app.models.profiles import Applicant_Profile, Company_Profile
 from app.models.resume import Resume
@@ -225,6 +225,22 @@ async def set_stage(
             Job_Application.job_id == job_id,
         )
         .values(**values)
+    )
+
+
+async def close_posting(db: AsyncSession, job_id: uuid.UUID) -> None:
+    """Marks a listed scraped job posting closed, as the import does for one
+    gone from the feed: a batch tab found the job system saying the job is
+    closed (KAN-369). An employer's own posting is theirs to close, so it is
+    left alone; a job still in the feed is published again by the next import."""
+    now = func.now()
+    await db.execute(
+        update(Job_Post)
+        .where(Job_Post.id == job_id, LISTED)
+        .values(
+            status=job_post_status.closed,
+            closes_at=func.least(func.coalesce(Job_Post.closes_at, now), now),
+        )
     )
 
 

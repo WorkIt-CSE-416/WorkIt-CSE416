@@ -83,3 +83,28 @@ async def test_fill_takes_only_a_tabs_end_states(student, database):
     res = await client.put(f"{me}/applications/{job}/fill", json={"state": "filling"})
 
     assert res.status_code == 422
+
+
+async def test_a_closed_posting_leaves_the_queue_marked_closed(student, database):
+    client, me = student
+    first, second = await _queue(client, me, database, 2)
+
+    res = await client.post(f"{me}/applications/{first}/finish", json={"outcome": "closed"})
+
+    # Not applied and not needs_you: the job is gone, so the queue goes on past it for good.
+    assert (res.status_code, res.json()) == (200, {"job_id": first, "stage": "skipped"})
+    application = (await client.get(f"{me}/applications/{first}")).json()
+    assert (application["stage"], application["open"]) == ("skipped", False)
+    assert await _next(client, me) == second
+
+
+async def test_closed_finishes_only_an_open_application(student, database):
+    client, me = student
+    (job,) = await _queue(client, me, database, 1)
+    assert (await client.post(f"{me}/applications/{job}/finish", json={"outcome": "submitted"})).status_code == 200
+
+    res = await client.post(f"{me}/applications/{job}/finish", json={"outcome": "closed"})
+
+    # An applied application's posting stays as it was: a student only closes a job they had open.
+    assert res.status_code == 409
+    assert (await client.get(f"{me}/applications/{job}")).json()["open"] is True
