@@ -231,9 +231,15 @@ weight.
 
 - **Two quiet columns** under small capitals: "Resume · <name>" over the
   page and "Suggestions · 6" over the panel. The editor's toolbar is its
-  slim row here (`compact`): icon buttons for Download and Ask Scout, the
-  page count as a chip ("2 pages") whose click offers Fit to One Page, and
-  "Click a line to edit it." only while the pointer is over the page.
+  slim row here (`compact`), in two states with only what each needs.
+  Idle: the page count as a chip ("2 pages", over one page only) whose
+  click offers Fit to One Page, Undo after a fit, "Click a line to edit
+  it." only while the pointer is over the page, and Download as an icon.
+  Editing a line: its kind, Move Up and Move Down first, then Hide and the
+  line's own choices (a bullet's wordings, Education's GPA), and "Esc when
+  done" in place of a Done button. No Ask Scout on this page: the panel
+  holds the column the assistant opens in, and a second AI entry beside it
+  split the page. No Download while a line is open.
 - **Dots, not tints.** Each changed line has a small numbered dot in the
   page's left margin, green for a new wording or skill, amber for a moved
   bullet; dots on one line (skills) stack like coins. A card's number is
@@ -248,6 +254,12 @@ weight.
   View Original opens the source resume (the record's `source`) read-only
   in step 1's Preview dialog (`ResumePreviewDialog`), titled "Original
   Resume" since the record keeps the source's id, not its name.
+- **A grey panel of white cards.** The panel is a grey card (`app`), so
+  its white cards stand apart from the white resume; the cards have no
+  outline and lift (`shadow-lift`) while pointed at or open. On a phone the
+  sheet is white and the cards grey. Reject is the danger tint with red
+  text (Button `decline`) and Accept the green fill (`positive`), so the
+  two read apart at a glance.
 - **Cards fold in groups**, Wording, Order and Skills, each with its
   count, open at first only with three cards or fewer. A closed card shows
   its number and one line: the new wording, the entry reordered, or the

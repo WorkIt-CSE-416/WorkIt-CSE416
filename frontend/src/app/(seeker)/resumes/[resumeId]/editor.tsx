@@ -17,7 +17,6 @@ import { Popover, PopoverContent, PopoverTrigger } from "@/components/shadcn/pop
 import { Skeleton } from "@/components/shadcn/skeleton";
 import { Button, buttonClasses } from "@/components/ui/button";
 import { EmptyState } from "@/components/ui/empty-state";
-import { IconButton } from "@/components/ui/icon-button";
 import { TextLink } from "@/components/ui/text-link";
 import { updateEntry, type Bank } from "@/lib/bank-actions";
 import {
@@ -866,7 +865,7 @@ function Bar({
   /** Opens the assistant; absent while it is open. */
   onAsk?: () => void;
 }) {
-  if (compact && !(line && box)) {
+  if (compact) {
     return (
       <SlimBar
         overPage={overPage}
@@ -878,14 +877,35 @@ function Bar({
         download={download}
         onFit={onFit}
         onUndoFit={onUndoFit}
-        onAsk={onAsk}
+        editing={
+          line &&
+          box && (
+            <>
+              <span className="text-note text-ink-meta font-semibold">{kindLabel(box.kind)}</span>
+              <LineActions
+                movesFirst
+                line={line}
+                choices={choices}
+                header={header}
+                onApply={onApply}
+                onSaveHeader={onSaveHeader}
+                onHide={(changes) => {
+                  onApply(changes);
+                  onClose();
+                }}
+                up={move(bank, choices, line, -1)}
+                down={move(bank, choices, line, 1)}
+              />
+            </>
+          )
+        }
       />
     );
   }
   return (
     <div
       data-keeps-selection
-      className={compact ? SLIM_BAR : BAR}
+      className={BAR}
       // A press on a button keeps focus in the field, so it does not blur and save first
       onMouseDown={(e) => {
         if ((e.target as HTMLElement).closest("button")) e.preventDefault();
@@ -963,9 +983,18 @@ function Bar({
 const SLIM_BAR =
   "bg-panel/95 ring-border-subtle sticky top-2 z-20 flex min-h-10 flex-wrap items-center gap-2 rounded-xl px-2 py-1 ring-1 backdrop-blur";
 
-/** The slim bar with no line selected: the hint while the pointer is over
- *  the page, the page count as a chip that offers Fit to One Page, and
- *  Download and Ask Scout as icon buttons. */
+/**
+ * The slim bar (Tailor's review), in two states, each with only what that
+ * moment needs. Idle: the page count as a chip that offers Fit to One Page
+ * (over one page only), Undo after a fit, the hint while the pointer is
+ * over the page, and Download. Editing a line (`editing`): its kind, its
+ * moves first, then Hide and the line's own choices, and "Esc when done"
+ * in place of a Done button, since Escape or a click off the page already
+ * saves and closes. No Ask Scout here: the Suggestions panel holds the
+ * column the assistant would open in, and a second AI entry beside it
+ * split the page's attention. Download goes while a line is open, which is
+ * not the moment to save a file.
+ */
 function SlimBar({
   overPage,
   rendered,
@@ -976,7 +1005,7 @@ function SlimBar({
   download,
   onFit,
   onUndoFit,
-  onAsk,
+  editing,
 }: {
   overPage: boolean;
   rendered: RenderedPdf | null;
@@ -987,8 +1016,34 @@ function SlimBar({
   download: ResumeDownload;
   onFit: () => void;
   onUndoFit: () => void;
-  onAsk?: () => void;
+  /** The open line's label and actions, or nothing while idle. */
+  editing: ReactNode;
 }) {
+  const status = (
+    <span className="text-note text-ink-meta pr-1" aria-live="polite">
+      {saving ? "Saving…" : elapsed != null ? `Saved, ${elapsed} ms` : ""}
+    </span>
+  );
+  if (editing) {
+    return (
+      <div
+        data-keeps-selection
+        className={SLIM_BAR}
+        // A press on a button keeps focus in the field, so it does not blur and save first
+        onMouseDown={(e) => {
+          if ((e.target as HTMLElement).closest("button")) e.preventDefault();
+        }}
+      >
+        {editing}
+        <div className="ml-auto flex items-center gap-2">
+          {status}
+          <span className="text-note text-ink-meta">
+            <kbd className="bg-ink/5 rounded-xs px-1 font-sans">Esc</kbd> when done
+          </span>
+        </div>
+      </div>
+    );
+  }
   return (
     <div data-keeps-selection className={SLIM_BAR}>
       {rendered && rendered.page_count > 1 && (
@@ -1014,21 +1069,8 @@ function SlimBar({
         Click a line to edit it.
       </span>
       <div className="ml-auto flex items-center gap-1">
-        <span className="text-note text-ink-meta pr-1" aria-live="polite">
-          {saving ? "Saving…" : elapsed != null ? `Saved, ${elapsed} ms` : ""}
-        </span>
+        {status}
         <DownloadMenu download={download} iconOnly />
-        {onAsk && (
-          <IconButton
-            label="Ask Scout"
-            variant="outline"
-            className="text-brand size-8"
-            onClick={onAsk}
-            disabled={!rendered}
-          >
-            <SparkleIcon />
-          </IconButton>
-        )}
       </div>
     </div>
   );
@@ -1075,6 +1117,7 @@ function PagesChip({
 }
 
 function LineActions({
+  movesFirst = false,
   line,
   choices,
   header,
@@ -1084,6 +1127,8 @@ function LineActions({
   up,
   down,
 }: {
+  /** Up and down lead, before Hide (the slim bar's order). */
+  movesFirst?: boolean;
   line: Line;
   choices: Choices;
   header: Header;
@@ -1157,6 +1202,7 @@ function LineActions({
     let tailored = 0;
     return (
       <>
+        {movesFirst && moves}
         <Button
           variant="secondary"
           size="sm"
@@ -1164,7 +1210,7 @@ function LineActions({
         >
           <EyeSlashIcon aria-hidden /> Hide
         </Button>
-        {moves}
+        {!movesFirst && moves}
         {versions.length > 0 &&
           [null, ...versions].map((v) => {
             const on = current === (v?.id ?? null);
@@ -1191,6 +1237,7 @@ function LineActions({
   const choice = choices.entries.find((c) => c.entry_id === entry.id);
   return (
     <>
+      {movesFirst && moves}
       <Button
         variant="secondary"
         size="sm"
@@ -1198,7 +1245,7 @@ function LineActions({
       >
         <EyeSlashIcon aria-hidden /> Hide Entry
       </Button>
-      {moves}
+      {!movesFirst && moves}
       {entry.section === "education" && choice && (
         <>
           <Button

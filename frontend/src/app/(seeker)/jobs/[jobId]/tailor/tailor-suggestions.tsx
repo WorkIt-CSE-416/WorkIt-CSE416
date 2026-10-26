@@ -173,9 +173,14 @@ function SuggestionsPanel({
   };
 
   return (
-    <section aria-labelledby="suggestions-heading" className="flex flex-col gap-2">
+    // A grey panel, so its white cards stand apart from the white resume
+    // beside it; bare in the phone's sheet, which is its own panel
+    <section
+      aria-labelledby="suggestions-heading"
+      className="sm:bg-app flex flex-col gap-2 sm:rounded-2xl sm:p-3"
+    >
       {/* The top stays in view while the cards scroll under it */}
-      <div className="bg-panel sticky top-0 z-10 flex flex-col gap-2 pb-2">
+      <div className="bg-panel sm:bg-app sticky top-0 z-10 flex flex-col gap-2 pb-2 sm:-mx-3 sm:-mt-3 sm:rounded-t-2xl sm:px-3 sm:pt-3">
         <div className="flex min-h-8 items-center gap-1">
           <ColumnLabel id="suggestions-heading" className="mr-auto max-sm:sr-only">
             Suggestions · {edits.length}
@@ -321,24 +326,26 @@ function Card({
         if (!e.currentTarget.contains(e.relatedTarget)) onFocus(null);
       }}
       className={cn(
-        // Clear of the panel's pinned top when scrolled to
-        "scroll-mt-24 rounded-lg transition-colors",
-        isOpen ? "bg-panel ring-border-subtle shadow-sm ring-1" : lit && "bg-panel",
+        // White on the grey panel (grey on the phone's white sheet), lifted
+        // while pointed at or open; no outline. Clear of the panel's pinned
+        // top when scrolled to.
+        "bg-panel max-sm:bg-app scroll-mt-28 rounded-xl transition-shadow",
+        (isOpen || lit) && "shadow-lift",
       )}
     >
       <button
         type="button"
         aria-expanded={isOpen}
         onClick={onToggle}
-        className="focus-visible:outline-brand flex w-full items-center gap-2 rounded-lg px-2 py-1.5 text-left focus-visible:outline-2"
+        className="focus-visible:outline-brand flex w-full items-center gap-2 rounded-xl px-3 py-2 text-left focus-visible:outline-2"
       >
         <NumberDot n={n} kind={edit.kind} />
         <span className="sr-only">{KIND_TITLES[edit.kind]}: </span>
         <span className="text-note text-ink min-w-0 flex-1 truncate">{summary(edit)}</span>
       </button>
       {isOpen && (
-        <div className="flex flex-col gap-2 px-2 pb-2 pl-8">
-          <p className="text-caption text-ink-meta truncate">
+        <div className="flex flex-col gap-2.5 px-3 pb-3 pl-9">
+          <p className="text-note text-ink-meta truncate">
             {KIND_TITLES[edit.kind]}
             {where(edit, bank) && ` · ${where(edit, bank)}`}
           </p>
@@ -350,16 +357,11 @@ function Card({
             <Button variant="ghost" size="xs" className="mr-auto sm:hidden" onClick={onShow}>
               Show on Resume
             </Button>
-            <Button
-              variant="ghost"
-              size="xs"
-              className="ml-auto"
-              disabled={saving}
-              onClick={onReject}
-            >
+            {/* Red undoes, green keeps: the pair reads at a glance */}
+            <Button variant="decline" className="ml-auto" disabled={saving} onClick={onReject}>
               <XIcon aria-hidden /> Reject
             </Button>
-            <Button variant="secondary" size="xs" disabled={saving} onClick={onAccept}>
+            <Button variant="positive" disabled={saving} onClick={onAccept}>
               <CheckIcon aria-hidden /> Accept
             </Button>
           </div>
