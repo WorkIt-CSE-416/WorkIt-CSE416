@@ -164,3 +164,25 @@ async def unsave_job(
             Job_Application.job_id == job_id,
         )
     )
+
+
+def _bare_link(link):
+    """a link without its query, fragment or trailing slash, the part that names the posting"""
+    return func.rtrim(func.split_part(func.split_part(link, "#", 1), "?", 1), "/")
+
+
+async def listed_job_by_link(db: AsyncSession, url: str) -> uuid.UUID | None:
+    '''
+    the feed's job whose apply link is the page at `url` (the toolbar popup's
+    Save to WorkIt, KAN-401), the same link first, else the same page
+    without its query, fragment or trailing slash; None when the feed has none
+    '''
+    exact = await db.scalar(select(Job_Post.id).where(Job_Post.apply_url == url, LISTED))
+    if exact is not None:
+        return exact
+    return await db.scalar(
+        select(Job_Post.id)
+        .where(_bare_link(Job_Post.apply_url) == _bare_link(url), LISTED)
+        .order_by(Job_Post.id)
+        .limit(1)
+    )

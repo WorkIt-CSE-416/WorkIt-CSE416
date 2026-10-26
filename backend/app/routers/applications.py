@@ -52,12 +52,19 @@ from app.deps import get_current_account
 from app.queries.applications import (
     KEEP,
     fetch_applied,
+    listed_job_by_link,
     mark_applied,
     save_job,
     sent_to_job,
     unsave_job,
 )
-from app.schemas.applications import JobApplied, JobSaved, MarkApplied
+from app.schemas.applications import (
+    JobApplied,
+    JobSaved,
+    JobSavedByLink,
+    MarkApplied,
+    SaveByLink,
+)
 from app.schemas.auth import AccountType, AuthenticatedAccount
 
 router = APIRouter(prefix="/jobs", tags=["applications"])
@@ -99,6 +106,22 @@ async def post_applied(
     if await mark_applied(db, applicant_id, job_id, sent_resume_id) is None:
         raise HTTPException(status.HTTP_404_NOT_FOUND, "That job isn't open any more.")
     return JobApplied(**(await fetch_applied(db, applicant_id, job_id))._asdict())
+
+
+@router.post("/saved-by-link", response_model=JobSavedByLink)
+async def post_saved_by_link(
+    body: SaveByLink,
+    account: AuthenticatedAccount = Depends(get_current_account),
+    db: AsyncSession = Depends(get_session),
+) -> JobSavedByLink:
+    """Saves the job whose apply link is the page the student is on: the
+    extension's Save to WorkIt on a site it can't fill (KAN-401)."""
+    applicant_id = _applicant_only(account)
+    job_id = await listed_job_by_link(db, body.url)
+    stage = job_id and await save_job(db, applicant_id, job_id)
+    if not stage:
+        raise HTTPException(status.HTTP_404_NOT_FOUND, "WorkIt doesn't list this job yet.")
+    return JobSavedByLink(job_id=job_id, stage=stage)
 
 
 @router.post("/{job_id}/saved", response_model=JobSaved)

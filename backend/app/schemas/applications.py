@@ -26,6 +26,19 @@ class MarkApplied(BaseModel):
     sent_resume_id: uuid.UUID | None = None
 
 
+class SaveByLink(BaseModel):
+    """POST /jobs/saved-by-link: the page the student is on (KAN-401)."""
+
+    url: str = Field(max_length=2048)
+
+
+class JobSavedByLink(BaseModel):
+    """POST /jobs/saved-by-link: the job the link is, and its stage after the save."""
+
+    job_id: uuid.UUID
+    stage: application_stage
+
+
 class JobSaved(BaseModel):
     """POST /jobs/{job_id}/saved: the job's stage after the save. saved, or
     the stage it already had (queued, applied...), which saving keeps."""
