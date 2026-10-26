@@ -1784,9 +1784,31 @@ shows "Your Resumes Aren't Loading Right Now" and a Try Again link.
   (`src/components/resume-upload.tsx`) is a pure dropzone + file preview —
   it knows nothing about upload logic or limits.
 - **The list** (`resumes/resume-list.tsx`) is one card that scrolls
-  inside itself at one height (`max-h-scroll-box`, about five cards), as
-  Top Matches and the resume picker do, so the search and the buttons
-  stay in view however many resumes a student keeps. Two table versions
+  inside itself, five cards high under a group heading (`FIVE_ROWS`,
+  351px; the shared `max-h-scroll-box` of Top Matches and the resume
+  picker showed three and a half once the headings came), so the
+  search and the buttons stay in view however many resumes a student
+  keeps. It is grouped by
+  type, as Notion's Group by (KAN-404): **Uploaded**, **Generated**, then
+  **Tailored**, each under a heading with its name in a pill (`Badge`,
+  brand, alike for all three) and its count, which sticks to the card's
+  top while its cards scroll and folds the group away on a click
+  (`ResumeGroup`; the folded groups ride in `?collapsed=`, with the type
+  and the order). The search, Type and Sort run over every row first; the
+  order then runs inside each group, the starred resume leads its own,
+  and a group with no row left hides. The list keeps one scroll, not one
+  per group, and every resume in a group shows: a Show N More after the
+  first 5, as Notion's load limit, was tried and dropped. Uploaded stays
+  open while a file uploads, and a Generate opens Generated. Uploads are capped at 5 and
+  Generate refuses a duplicate, but a student has one tailored resume per
+  job posting with no cap, so ungrouped by Last Edited the tailored ones
+  buried the uploads, and a student needed the Type filter to find their
+  own file. A teammate asked for the three stacked cards back; groups in
+  the one list kept the one search. A first version had two groups
+  (Uploaded and Generated, then Tailored) named in grey capitals. Below a
+  42rem row the filters are two even rows, Type and Sort over Upload
+  Resume and Generate Resume, and below 24rem those say only Upload and
+  Generate. Two table versions
   came first in KAN-362: one with Type and Last Edited columns and sort
   headings, then one with each row's icons in a `⋯` menu. The columns
   said what each card's line already says, and the menu hid the actions a
