@@ -97,6 +97,8 @@ export class FakeApi {
 
   /** Whether the student's Claude has signed in to WorkIt's connector (GET .../connector). */
   connectorAdded = false;
+  /** How many reads of the Claude connection fail (a server error) before one answers. */
+  connectorDown = 0;
 
   /** `profile`: the student's profile fields that differ from STUDENT's. */
   constructor(private profile: Partial<Omit<typeof STUDENT, "answers">> & { answers?: Record<string, string | null> } = {}) {
@@ -164,6 +166,10 @@ export class FakeApi {
     if (route === "/connector" && method === "DELETE") {
       this.connectorAdded = false;
       return { status: 204, body: "" };
+    }
+    if (route === "/connector" && this.connectorDown > 0) {
+      this.connectorDown--;
+      return { status: 500, json: {} };
     }
     if (route === "/connector") return { json: { added: this.connectorAdded } };
     if (route === "/writing-samples" && method === "GET") return { json: { samples: this.samples, style_card: null } };

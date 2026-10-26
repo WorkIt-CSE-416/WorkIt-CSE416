@@ -102,11 +102,12 @@ window.WIA = window.WIA || {};
     state.toggleAttribute("data-connected", claude === true);
     if (!signedIn) state.textContent = "Sign in to WorkIt to connect your Claude.";
     else if (error) state.textContent = error;
-    else if (claude === null) state.textContent = "WorkIt couldn't check your Claude. Open settings again to retry.";
+    else if (claude === null) state.textContent = "WorkIt couldn't check your Claude.";
     else state.textContent = claude ? "Your Claude is connected." : "Your Claude isn't connected.";
-    button.hidden = !signedIn || claude === null;
+    // A read that failed (KAN-401): Try again reads it again.
+    button.hidden = !signedIn;
     button.disabled = false;
-    button.textContent = claude ? "Disconnect" : "Add to Claude";
+    button.textContent = claude === null ? "Try again" : claude ? "Disconnect" : "Add to Claude";
   }
 
   async function read() {
@@ -118,6 +119,10 @@ window.WIA = window.WIA || {};
 
   async function pressClaude(event) {
     const button = event.currentTarget;
+    if (connected === null) {
+      button.disabled = true;
+      return void read();
+    }
     if (!connected) return void send({ type: "settings/claude-add" });
     button.disabled = true;
     const answer = await send({ type: "settings/claude-disconnect" });

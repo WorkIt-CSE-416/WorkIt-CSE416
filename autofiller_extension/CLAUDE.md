@@ -1648,6 +1648,8 @@ its messages. The gear shows it in place of the tabs; Back returns.
   dialog). Signed out: "Sign in to WorkIt to connect your Claude." The
   state (`settings/read`, `GET .../connector`) is read again each time the
   gear opens the view and when the student comes back to the tab.
+  A read that fails says "WorkIt couldn't check your Claude." with **Try
+  again**, which reads it again (KAN-401).
 - **Open the panel by itself** (on by default): `panel_auto_open` in
   chrome.storage.local, given to panel.js by `panel/where` (`autoOpen`).
   Off, a batch tab's panel stays closed with its edge tab, as a kept
