@@ -34,6 +34,8 @@ const RUNS = Number(process.env.SPEED_RUNS ?? 5);
 const ONLY = process.env.SPEED_ONLY?.split(",");
 const API_MS = Number(process.env.SPEED_API_MS ?? 0);
 const HIDDEN = !!process.env.SPEED_HIDDEN;
+// How long one run may take before it counts as timed out (SPEED_CAP_MS; a slow hidden-tab fill can need more).
+const CAP_MS = Number(process.env.SPEED_CAP_MS ?? 75_000);
 
 /** `handler` with its JSON replies (API calls, not pages or their files) answered API_MS later. */
 const slowApi = (handler: Handler): Handler => async (request) => {
@@ -153,7 +155,7 @@ async function runOnce(name: string): Promise<Raw> {
     const main = async (): Promise<any> => page!.evaluate(() => (window as any).__speed ?? {}).catch(() => ({}));
 
     // Settled: the fill reached its last phase and no panel row or field has changed for QUIET_MS.
-    const deadline = Date.now() + 75_000;
+    const deadline = Date.now() + CAP_MS;
     let timedOut = false;
     let settled = t0;
     for (;;) {
@@ -304,7 +306,7 @@ mkdirSync(OUT, { recursive: true });
 
 for (const name of systems) {
   test(`${name}: fill timing over ${RUNS} runs`, async () => {
-    test.setTimeout((RUNS + 1) * 120_000);
+    test.setTimeout((RUNS + 1) * (CAP_MS + 45_000));
     const runs: ReturnType<typeof measure>[] = [];
     let last: Raw | undefined;
     // A first run warms Chromium's caches (the first launch after a while took 7-37 s to open its tab): not counted.
