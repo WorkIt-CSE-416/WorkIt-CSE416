@@ -20,19 +20,22 @@ export const CONTENT_SCRIPT_FILES = ["src/content/lib-status.js", "src/shared/to
  * essays and reports whether the tab is ready or needs the student
  * (content-script.js). Resolves once the fill has started, not when it ends
  * (the content script's own promise would hold this until then).
+ * With `frameId`, the fill runs in that frame only (a careers page's embedded
+ * Greenhouse form, background/embedded-forms.js), else in the top frame.
  * @param {number} tabId
- * @param {{ batch?: boolean }} [options]
+ * @param {{ batch?: boolean, frameId?: number }} [options]
  */
-export async function injectFill(tabId, { batch = false } = {}) {
-  await chrome.scripting.executeScript({ target: { tabId }, world: "MAIN", files: ENGINE_FILES });
+export async function injectFill(tabId, { batch = false, frameId = undefined } = {}) {
+  const target = frameId === undefined ? { tabId } : { tabId, frameIds: [frameId] };
+  await chrome.scripting.executeScript({ target, world: "MAIN", files: ENGINE_FILES });
   await chrome.scripting.executeScript({
-    target: { tabId },
+    target,
     func: (batch) => {
       window.WIA = { ...window.WIA, batch };
     },
     args: [batch],
   });
-  void chrome.scripting.executeScript({ target: { tabId }, files: CONTENT_SCRIPT_FILES }).catch((error) => console.warn("[fill] the fill stopped:", error));
+  void chrome.scripting.executeScript({ target, files: CONTENT_SCRIPT_FILES }).catch((error) => console.warn("[fill] the fill stopped:", error));
 }
 
 // A batch tab at a human check before the form (KAN-369): the panel's parts (never shown there), then human-check.js.

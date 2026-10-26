@@ -26,15 +26,25 @@ AUTO_APPLY_HOSTS = (
     "myworkdaysite.com",
 )
 
+# Company careers sites whose embedded Greenhouse form doesn't fill in place
+# (Simplify leaves Waymo's two out the same way; research
+# open-decisions-forms.md, section 2). Their ?gh_jid= pages stay out.
+SKIP_EMBEDDING = ("waymo.com", "withwaymo.com")
+
 # The host is one of AUTO_APPLY_HOSTS or a subdomain of it
-# (job-boards.greenhouse.io, boards.eu.greenhouse.io). Only the host counts:
-# a company's own careers page with ?gh_jid= in its query is not Greenhouse's
-# form. Written for both Python's re and Postgres's ~* (filters.py), so the
-# SQL and the listing's flag agree.
+# (job-boards.greenhouse.io, boards.eu.greenhouse.io), or the link is a
+# company's own careers page that embeds Greenhouse's form, named by ?gh_jid=
+# in its query (the extension fills the form in its iframe there, KAN-369),
+# on a host outside SKIP_EMBEDDING. Written for both Python's re and
+# Postgres's ~* (filters.py), so the SQL and the listing's flag agree: one
+# capture-free alternation, lookahead only.
 AUTO_APPLY_URL_PATTERN = (
-    r"^https?://([a-z0-9-]+\.)*("
+    r"^https?://(?:[a-z0-9-]+\.)*(?:"
     + "|".join(re.escape(host) for host in AUTO_APPLY_HOSTS)
-    + r")([/:?#]|$)"
+    + r")(?:[/:?#]|$)"
+    + r"|^https?://(?!(?:[a-z0-9-]+\.)*(?:"
+    + "|".join(re.escape(host) for host in SKIP_EMBEDDING)
+    + r")(?:[/:?#]|$))[^/?#]+[^?#]*\?(?:[^#]*&)?gh_jid=[0-9]+(?:[&#]|$)"
 )
 _AUTO_APPLY_URL = re.compile(AUTO_APPLY_URL_PATTERN, re.IGNORECASE)
 

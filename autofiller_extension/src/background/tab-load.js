@@ -8,13 +8,15 @@ const LOAD_TIMEOUT_MS = 30_000;
 
 /**
  * Whether a form field shows in the tab within `timeoutMs` (waitForForm,
- * run in the page).
+ * run in the page, or in the frame `frameId`).
  * @param {number} tabId
  * @param {number} timeoutMs
+ * @param {number} [frameId]
  * @returns {Promise<boolean>}
  */
-export async function formShows(tabId, timeoutMs) {
-  const [{ result }] = await chrome.scripting.executeScript({ target: { tabId }, func: waitForForm, args: [timeoutMs] });
+export async function formShows(tabId, timeoutMs, frameId = undefined) {
+  const target = frameId === undefined ? { tabId } : { tabId, frameIds: [frameId] };
+  const [{ result }] = await chrome.scripting.executeScript({ target, func: waitForForm, args: [timeoutMs] });
   return result;
 }
 

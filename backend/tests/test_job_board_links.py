@@ -75,7 +75,7 @@ async def test_a_company_page_is_not_followed_through_its_text(student, database
     client, me = student
     # Only a job board's posting is followed: a company's own careers page
     # holds its form in an iframe, which a named link elsewhere may not be.
-    job = await _seed(database, "https://stripe.com/jobs/search?gh_jid=8257892", f'<a href="{LEVER_FORM}">x</a>')
+    job = await _seed(database, "https://stripe.com/jobs/listing/software-engineer/8257892", f'<a href="{LEVER_FORM}">x</a>')
 
     res = await client.post(f"{me}/applications", json={"job_id": job})
 
