@@ -54,3 +54,21 @@ export async function nextNeedsYou() {
   if (next.key !== null) await chrome.tabs.sendMessage(next.tabId, { type: "batch/focus", key: next.key }).catch(() => {});
   return { done: false, tabId: next.tabId, key: next.key };
 }
+
+/**
+ * Starts "Next Thing That Needs You" at one of a tab's rows (the submit
+ * warning's Show me, content/submit-warning.js): the tab shows it, and the
+ * next press goes on after it. Answers false outside a batch.
+ * @param {number} tabId
+ * @param {string} key
+ */
+export async function walkFrom(tabId, key) {
+  const batch = await liveBatch();
+  const tab = batch?.tabs?.[tabId];
+  if (!tab) return false;
+  const answer = await chrome.tabs.sendMessage(tabId, { type: "batch/flags" }).catch(() => null);
+  const rank = answer?.order.indexOf(key) ?? -1;
+  await chrome.storage.session.set({ [CURSOR_KEY]: { tabId, place: batch.opened.indexOf(tab.jobId), key, rank, late: Boolean(answer?.late?.includes(key)) } });
+  await chrome.tabs.sendMessage(tabId, { type: "batch/focus", key }).catch(() => {});
+  return true;
+}

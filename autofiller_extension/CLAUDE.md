@@ -550,6 +550,22 @@ waits for an opened tab's page and form (`waitForLoad`, `formShows`).
   system's own field id (`batch-tab.js`'s `fieldOf`); a tab nothing
   was filled in is one stop, the page itself. This is the only time the
   extension switches tabs on its own, and only on the student's press.
+- **The submit warning holds a Submit while something is open** (KAN-369,
+  `src/content/submit-warning.js`, `window.WIA.submitWarning`, batch tabs
+  only). When the student presses the employer's Submit (a button or
+  submit input whose words start with "Submit", on every job system; Next,
+  Save and Continue and a job page's Apply never count) and the tab has a
+  failed field, a required one still waiting, or a review flag (fields
+  only, never a note), a capture-phase listener on `window` cancels that
+  press before the page's own handlers see it, and the panel shows a card
+  (`overlay.momentCard`, role `alertdialog`): "N things still need you",
+  each with a few words why, then **Show me** (`batch/walk-from`:
+  `next-needs-you.js`'s `walkFrom` starts the walk's cursor at the first
+  and focuses it) and **Submit anyway**, which re-sends nothing: it lets
+  every later press on this page through and says "Press Submit again".
+  Enter on the button arrives as its click; a form sent with no button is
+  held from its `submit` event. A tab with nothing open is never held.
+  Tests: `test/submit-warning.extension.spec.ts`.
 - **The tabs fill hidden; the student is never taken to one.** KAN-305's
   runner showed its tab before the fill, because hidden fills by the
   pre-engine filler left most dropdowns empty. The Fill engine does not
