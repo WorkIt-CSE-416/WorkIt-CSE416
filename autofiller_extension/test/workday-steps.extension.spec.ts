@@ -28,8 +28,9 @@ async function filled(tab: Page, [name, fields]: Step, n: number, of: number): P
   // Step n of the bar is active: a step named as the one before it is another step.
   await expect(tab.locator("[data-automation-id=progressBarActiveStep]")).toContainText(`step ${n} of ${of}`, { timeout: 30_000 });
   // The panel lists this step's fields (not the last step's, a step of the same name).
+  // Attached, not visible: a filled row sits in the collapsed Filled group (decision 1161).
   const first = fields.find((f) => "label" in f) as Field;
-  await expect(overlay(tab).locator(".row").filter({ hasText: first.label }).first()).toBeVisible({ timeout: 60_000 });
+  await expect(overlay(tab).locator(".row").filter({ hasText: first.label }).first()).toBeAttached({ timeout: 60_000 });
 }
 
 /**
@@ -162,7 +163,7 @@ for (const inPlace of [false, true]) {
     await first.fill("Tess");
     await tab.locator("[data-automation-id=pageFooterNextButton]").click();
     await tab.waitForURL(workdays.url(0, 2), { timeout: 30_000 });
-    await expect(overlay(tab).locator(".row").filter({ hasText: "Resume/CV" }).first()).toBeVisible({ timeout: 60_000 });
+    await expect(overlay(tab).locator(".row").filter({ hasText: "Resume/CV" }).first()).toBeAttached({ timeout: 60_000 });
     // Back on My Information (Workday shows what was saved): WorkIt doesn't put its own answer back.
     if (inPlace) await tab.evaluate((url) => (window as any).__fakeGo(url), workdays.url(0));
     else await tab.goto(workdays.url(0));

@@ -19,6 +19,9 @@ import { unansweredSelfId } from "./self-id.js";
 /** The engine's own copy here, for what needs no page. */
 const engine = globalThis.FillEngine;
 
+/** The Fill engine this extension ships, as its bundle names itself (fill-engine build.mjs: package.json version + a hash of src/). */
+export const ENGINE_VERSION = engine.version;
+
 /**
  * The job system and job an application page belongs to, when the engine
  * covers it; null on any other page, which the extension leaves alone (the
