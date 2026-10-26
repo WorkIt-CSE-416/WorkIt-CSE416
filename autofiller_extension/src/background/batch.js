@@ -49,6 +49,7 @@
 // that reaches the job's /thanks page is submitted (background.js).
 // Starting a real batch ends a practice one.
 
+import { tabResume } from "./resume-tab.js";
 import { ApiError, finishApplication, getAutofillProfile, me, nextApplication, recordFill, recordSentResume } from "./api.js";
 import { formFor, jobOf, practiceJob } from "./engine.js";
 import { jobBoard } from "./job-boards.js";
@@ -346,7 +347,8 @@ export function markSubmitted(tabId) {
     // A practice form is no application (its submit is submitPractice's).
     if (!tab || batch.practice || tab.state === "applied") return { batch: Boolean(tab) };
     const account = await me();
-    const resume = (await getAutofillProfile().catch(() => null))?.resume;
+    // The résumé the student switched the tab to (resume-tab.js), else the profile's.
+    const resume = (await tabResume(tabId)) ?? (await getAutofillProfile().catch(() => null))?.resume;
     const sent = resume?.uploaded_resume_id ? { uploaded_resume_id: resume.uploaded_resume_id } : resume?.built_resume_id ? { built_resume_id: resume.built_resume_id } : null;
     if (sent) await recordSentResume(account.id, tab.jobId, sent).catch((error) => console.warn("[batch] the sent resume wasn't recorded:", error.message));
     await finishApplication(account.id, tab.jobId, "submitted");

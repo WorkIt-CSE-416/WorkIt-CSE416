@@ -93,6 +93,11 @@ export class FakeApi {
   /** What the student brought from Apply (GET .../fill-profile, profiles.py), when set: a 404 otherwise. */
   fillProfile: { profile: object; policies: object } | null = null;
 
+  /** The student's built resumes (GET .../built-resumes), each with its PDF (.../render, base64) and its Keyword match
+   * against any posting (.../keyword-match), as keywords. */
+  readonly builtResumes: { id: string; name: string; job_posting_id: string | null; is_default?: boolean; pdf: string;
+    match?: { matched: string[]; missing: string[] } }[] = [];
+
   /** Whether the student's Claude has signed in to WorkIt's connector (GET .../connector). */
   connectorAdded = false;
 
@@ -150,7 +155,19 @@ export class FakeApi {
     }
     if (route === "/resumes") return { json: [{ id: RESUME_ID, is_default: true, original_filename: STUDENT.resume.filename }] };
     if (route === `/resumes/${RESUME_ID}/bytes`) return { headers: { "content-type": "application/pdf" }, body: Buffer.from(STUDENT.resume.base64, "base64") };
-    if (route === "/built-resumes") return { json: [] };
+    if (route === "/built-resumes") {
+      return { json: this.builtResumes.map(({ pdf: _pdf, match: _match, ...r }) => ({ template: "classic", is_default: false, ...r })) };
+    }
+    const built = /^\/built-resumes\/([^/]+)\/(render|keyword-match)$/.exec(route);
+    const builtResume = built && this.builtResumes.find((r) => r.id === built[1]);
+    if (built && !builtResume) return { status: 404, json: { detail: "Resume not found" } };
+    if (built && built[2] === "render") return { json: { pdf: builtResume!.pdf, missing_glyphs: [] } };
+    if (built) {
+      const posting = url.searchParams.get("job_posting_id") ?? builtResume!.job_posting_id;
+      const kind = (keyword: string) => ({ keyword, kind: "required" });
+      const match = builtResume!.match ?? { matched: [], missing: [] };
+      return { json: { job_posting_id: posting, matched: match.matched.map(kind), missing: match.missing.map(kind), uses_left: 5 } };
+    }
     if (route === "/documents") return { json: this.transcript ? [{ kind: "transcript", original_filename: this.transcript.filename }] : [] };
     if (route === "/documents/transcript/bytes" && this.transcript) {
       return { headers: { "content-type": "application/pdf" }, body: Buffer.from(this.transcript.base64, "base64") };

@@ -19,6 +19,7 @@ import { engineCaller, handleFill, jobOf, practiceJob, runEngine, submittedPage 
 import { claimMoment } from "./moments.js";
 import { nextNeedsYou, walkFrom } from "./next-needs-you.js";
 import { batchLine, jobForTab, showNextTab } from "./panel-top.js";
+import { attachedFile, chooseResume, keywordsFor, openTailor, resumeTab, withTabResume } from "./resume-tab.js";
 import { SELF_ID, checkedSelfId, unansweredSelfId } from "./self-id.js";
 import { forgetSubmits, submitHinted, watchSubmitRequests } from "./submit-proof.js";
 import { watchEmbeddedForms } from "./embedded-forms.js";
@@ -101,7 +102,8 @@ async function handleMessage(message, sender) {
     case "fill/read":
     case "fill/moot":
     case "fill/required": {
-      const profile = await getAutofillProfile();
+      // The résumé the student switched this tab to (resume-tab.js) in place of the default.
+      const profile = await withTabResume(await getAutofillProfile(), sender.tab?.id);
       if (message.type === "fill/plan" && jobOf(sender.url)?.site === "workday") {
         await rememberWorkdayTab(sender.tab.id);
         // An application step shows: the saved login (if any) signs in to this tenant.
@@ -356,6 +358,17 @@ async function handleMessage(message, sender) {
       return { line: await batchLine(sender.tab.id), site: jobOf(sender.url ?? "")?.site ?? null };
     case "panel/next-tab":
       return showNextTab(sender.tab.id);
+    // The panel's Résumé tab (resume-tab.js, KAN-399).
+    case "resume/tab":
+      return resumeTab({ tabId: sender.tab.id, url: sender.url ?? "" });
+    case "resume/file":
+      return { file: await attachedFile(sender.tab.id) };
+    case "resume/choose":
+      return chooseResume({ tabId: sender.tab.id, url: sender.url ?? "", key: message.key });
+    case "resume/keywords":
+      return keywordsFor({ tabId: sender.tab.id, url: sender.url ?? "", key: message.key });
+    case "resume/tailor":
+      return openTailor({ tabId: sender.tab.id, url: sender.url ?? "" });
     // The toolbar popup off job pages: the batch's status.
     case "popup/batch":
       return batchStatus();
@@ -477,7 +490,7 @@ async function panelSite(url, change) {
 }
 
 // What the panel's shell injects when the toolbar icon or Alt+W finds no panel on a job page yet.
-const SHELL_FILES = ["src/shared/tokens.js", "src/content/panel.js", "src/content/panel-top.js"];
+const SHELL_FILES = ["src/shared/tokens.js", "src/content/panel.js", "src/content/panel-top.js", "src/content/resume-tab.js"];
 
 /**
  * The toolbar icon (a tab with no popup: a job page, panel/where) and
