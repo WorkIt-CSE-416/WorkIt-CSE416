@@ -251,12 +251,76 @@ function home(location) {
  * (`profile.fill`): WorkIt's own fields win where both hold a value.
  * @param {import("../shared/types.js").AutofillProfile} profile
  */
-export function engineProfile(profile) {
-  return layered(profile.fill?.profile, workitProfile(profile));
+export function engineProfile(profile, today = new Date().toISOString().slice(0, 10)) {
+  return layered(profile.fill?.profile, workitProfile(profile, today));
+}
+
+/** A yes/no answer as the engine's boolean; unanswered stays undefined. */
+const yes = (answer) => (answer === "yes" ? true : answer === "no" ? false : undefined);
+
+/** "2028-05" as a month count, null when it isn't one. */
+function monthIndex(text) {
+  const m = /^(\d{4})-(\d{2})/.exec(text ?? "");
+  return m ? Number(m[1]) * 12 + Number(m[2]) - 1 : null;
+}
+
+const CLASS_YEARS = ["4th Year Undergrad (Senior)", "3rd Year Undergrad (Junior)", "2nd Year Undergrad (Sophomore)", "1st Year Undergrad (Freshman)"];
+
+/**
+ * The school-year facts the latest education entry implies, no new input: an undergraduate's
+ * class year this academic year (July to June; a December graduate is a senior that fall), and
+ * whether they go back to school after the internship (graduation after its last month: the
+ * Application answers' end date, else three months after the start).
+ */
+function schoolYear(school, answers, today) {
+  const graduation = school && school.end_kind !== "present" ? monthIndex(school.end_month) : null;
+  if (graduation === null) return {};
+  const now = monthIndex(today);
+  const classOf = Math.floor(graduation / 12) + (graduation % 12 >= 7 ? 1 : 0);
+  const yearEnds = Math.floor(now / 12) + (now % 12 >= 6 ? 1 : 0);
+  const start = monthIndex(answers.earliest_start);
+  const end = monthIndex(answers.latest_end) ?? (start === null ? null : start + 3);
+  return present({
+    class_year: levelNow(school) === "Undergraduate" ? CLASS_YEARS[classOf - yearEnds] : undefined,
+    returning_to_school_after_internship: end === null ? undefined : graduation > end,
+  });
+}
+
+/** The Application answers (My Profile's section, KAN-369) as the engine's logistics, home address,
+ * languages and screeners. A screener is only ever the student's own answer: an empty list is their "none". */
+function applicationFacts(answers, place) {
+  const list = (value) => (Array.isArray(value) ? value : undefined);
+  return {
+    logistics: present({
+      onsite_5_days_ok: yes(answers.onsite_ok),
+      can_work_full_time_40h: yes(answers.full_time_40h),
+      earliest_start_date: answers.earliest_start,
+      latest_end_date: answers.latest_end,
+      available_terms: list(answers.available_terms),
+      willing_to_relocate_for_summer: yes(answers.willing_to_relocate),
+      // Ranked, one place an area, as the engine's office rules read them.
+      location_preferences: list(answers.location_preferences)?.map((placeName) => [placeName]),
+      referrals: list(answers.referred_at),
+    }),
+    identity: present({
+      home_address: answers.address_line1 || answers.postal_code
+        ? present({ line1: answers.address_line1, zip: answers.postal_code, city: place?.city, state: place?.state, country: place?.country })
+        : undefined,
+      summer_2027_location: answers.internship_location,
+      languages: list(answers.languages)?.map((language) => ({ language, spoken: true, written: true })),
+    }),
+    screeners: present({
+      relatives_at: list(answers.relatives_at),
+      relative_of_public_official: yes(answers.relative_public_official),
+      prior_us_government_employment: yes(answers.prior_government_work),
+      non_compete_or_conflicting_agreements: yes(answers.non_compete),
+      pending_offers: list(answers.pending_offers),
+    }),
+  };
 }
 
 /** The engine profile from WorkIt's own fields alone. */
-function workitProfile(profile) {
+function workitProfile(profile, today) {
   // The profile's own name parts where it has them, so a middle name never joins the last name.
   const [first, ...rest] = (profile.full_name ?? "").trim().split(/\s+/);
   const named = Boolean(profile.first_name && profile.last_name);
@@ -264,14 +328,19 @@ function workitProfile(profile) {
   const [school, ...earlier] = latest(entries, "education");
   const skills = skillNames(profile.bank?.skills ?? []);
   const answers = profile.answers ?? {};
+  const place = home(profile.location);
+  const facts = applicationFacts(answers, place);
   return {
+    logistics: facts.logistics,
+    screeners: facts.screeners,
     identity: present({
+      ...facts.identity,
       legal_first_name: (named ? profile.first_name : first) || null,
       legal_middle_name: named ? profile.middle_name || null : null,
       legal_last_name: (named ? profile.last_name : rest.join(" ")) || null,
       email: profile.email, phone: profile.phone_number,
       // Where the student lives, as they typed it (KAN-372), read by the engine; one it can't read is left out.
-      current_location: home(profile.location),
+      current_location: place,
     }),
     links: present({ linkedin_url: profile.linkedin_url, github_url: profile.github_url, portfolio_url: profile.portfolio_url ?? profile.other_url }),
     // The engine's names for the files it plans (rules.ts): the resume and the unofficial transcript (KAN-369).
@@ -292,6 +361,7 @@ function workitProfile(profile) {
           past_schools: earlier.length
             ? earlier.map((e) => present({ school: e.title, degree: e.degree, end: e.end_kind === "present" ? null : e.end_month }))
             : null,
+          ...schoolYear(school, answers, today),
         })
       : {},
     experience_facts: present({
@@ -501,7 +571,7 @@ async function planQuestions({ job, url, questions, profile, bank, today, fetchT
   const posting = { id: String(job.job ?? job.shortcode ?? job.pid ?? url), ...names, url, job_type: jobType };
   bank = typeof bank === "function" ? (questions.length ? await bank(names.company) : {}) : await bank;
   // `planFor`: the same Plan for another profile (the self-identification's probe, KAN-387).
-  const planFor = (someone) => engine.plan(questions, engineProfile(someone), enginePolicies(someone), bank ?? {}, { posting, today, postingText: text, employerText: text });
+  const planFor = (someone) => engine.plan(questions, engineProfile(someone, today ?? undefined), enginePolicies(someone), bank ?? {}, { posting, today, postingText: text, employerText: text });
   const plan = questions.length
     ? planFor(profile)
     : { answers: {}, essays: [], drafts: [], missing: [], handoffs: [], accepted: {}, sources: {} };

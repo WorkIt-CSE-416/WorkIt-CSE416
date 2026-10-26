@@ -79,6 +79,24 @@
  * @property {"american_indian_alaska_native" | "asian" | "black_african_american" | "native_hawaiian_pacific_islander" | "white" | "two_or_more" | "declined" | null} race
  * @property {"protected_veteran" | "not_protected_veteran" | "declined" | null} veteran_status
  * @property {"yes" | "no" | "declined" | null} disability_status
+ * The Application answers (KAN-369), each null until answered; a list's [] is the student's "none":
+ * @property {"yes" | "no" | null} [onsite_ok]
+ * @property {"yes" | "no" | null} [full_time_40h]
+ * @property {string | null} [earliest_start]  YYYY-MM-DD
+ * @property {string | null} [latest_end]  YYYY-MM-DD
+ * @property {string[] | null} [available_terms]  "summer 2027"
+ * @property {"yes" | "no" | null} [willing_to_relocate]
+ * @property {string[] | null} [location_preferences]  ranked places
+ * @property {string | null} [internship_location]
+ * @property {string | null} [address_line1]
+ * @property {string | null} [postal_code]
+ * @property {string[] | null} [languages]
+ * @property {string[] | null} [relatives_at]
+ * @property {"yes" | "no" | null} [relative_public_official]
+ * @property {string[] | null} [referred_at]
+ * @property {"yes" | "no" | null} [prior_government_work]
+ * @property {"yes" | "no" | null} [non_compete]
+ * @property {string[] | null} [pending_offers]
  */
 
 /**
