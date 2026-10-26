@@ -10,10 +10,11 @@ import { RememberFeed } from "./[jobId]/page-actions";
 import { BankPrompt } from "./bank-prompt";
 import { CanonicalUrl } from "./canonical-url";
 import { FeedHeader } from "./feed-header";
+import { FeedFallback } from "./feed-fallback";
 import { FeedList } from "./feed-list";
 import { FeedTransition, PendingFeed } from "./feed-transition";
 import { JobFilters } from "./filters";
-import { ListingsError, ListingsSkeleton } from "./listing-card";
+import { ListingsError } from "./listing-card";
 import {
   filterEntries,
   filtersQuery,
@@ -104,7 +105,8 @@ function paramsOf(href: string): Record<string, string[]> {
 /**
  * The live feed and the states that stand in for it. Its own async component
  * so the page can stream: the heading and filter row paint at once and this
- * fills in behind <ListingsSkeleton>, where awaiting the fetch in the page held
+ * fills in behind <FeedFallback> (the last first page drawn, or the skeleton),
+ * where awaiting the fetch in the page held
  * the whole screen (about 840ms locally) with the previous page still showing.
  * A Suspense boundary here rather than a route loading.tsx, which would also
  * cover /jobs/[jobId].
@@ -301,9 +303,22 @@ export default async function JobsPage({ searchParams }: PageProps<"/jobs">) {
 
         {/* Keyed by the order and filters, so a new pick shows the skeleton
             straight away instead of holding the old list until the narrowed
-            one arrives. */}
+            one arrives. The fallback draws this query's last first page
+            (./feed-fallback), or the skeleton when there is none. */}
         <PendingFeed>
-          <Suspense key={`${sort}${filtersQuery(filters)}`} fallback={<ListingsSkeleton />}>
+          <Suspense
+            key={`${sort}${filtersQuery(filters)}`}
+            fallback={
+              <FeedFallback
+                query={
+                  sort === "match"
+                    ? sortHref("match", filters).slice("/jobs".length)
+                    : filtersQuery(filters)
+                }
+                altQuery={sort === "match" ? filtersQuery(filters) : undefined}
+              />
+            }
+          >
             <Feed
               filters={filters}
               sort={sort}

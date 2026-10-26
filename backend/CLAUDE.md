@@ -84,6 +84,16 @@ module docstring has the steps.
   `job_role_tags`, resolved from its title (KAN-155).
 - A `--dry-run` writes and rolls back, leaving dead rows until autovacuum, so
   table sizes read right after one are inflated.
+- **After it commits, it extracts keywords** (KAN-392) for published scraped
+  jobs with none (`_extract_keywords`, through `keywords.read` and Scout's
+  `SCOUT_*` chain): new jobs, and changed ones, whose keywords the upsert
+  cleared. At most `--keywords-limit` model calls a run (default
+  `KEYWORDS_PER_RUN`, 100; 0 skips), so the backlog spreads over runs and
+  quotas; `--keywords-only` runs the pass alone. Each job commits on its
+  own and no transaction stays open across a model call. It reads past the
+  last id tried, never "still NULL": a job whose reply fails its schema
+  stays NULL, and a NULL query read it again forever. It stops at the first
+  `ScoutUnavailable` (no model answers) and counts no student's use.
 
 ### Tests
 
@@ -234,11 +244,13 @@ Find files with a directory listing; these are the rules for where code goes.
   embedding (`app/services/matching/CLAUDE.md`); Scout's facts come from
   the bank's API shape (`routers/bank.py`'s `bank_response`) through
   `workit_scout.facts`. An uploaded resume only feeds import.
-- **A job's match score comes from `fetch_recommended` only**, wherever it
-  shows. The Applications page's cards (KAN-256) get theirs through
-  `GET .../applications?scored=true`, which narrows it to the tracked job
-  postings with `JobFilters.job_ids`. A second scoring path would let a
-  card and the Jobs page show two numbers for one job.
+- **A job's match score comes from `score_jobs`**, the same path everywhere.
+  `GET /jobs` enriches each listing with `match` and `highlights` when the
+  viewer is a signed-in applicant with a non-empty bank (KAN-309);
+  `GET /jobs/recommended` uses `fetch_recommended` (which calls `score_jobs`);
+  the Applications page's cards (KAN-256) get theirs through
+  `GET .../applications?scored=true`, which narrows it with
+  `JobFilters.job_ids`. One scoring path, one number per job.
 - **A student reaches only the postings the Jobs page lists**
   (`services/postings.py`'s `LISTED`: published and scraped). Tailor (run
   and its match), the keyword match and Apply load a posting through
@@ -547,9 +559,20 @@ Find files with a directory listing; these are the rules for where code goes.
   (KAN-217) reads them through the same `keywords.ensure` (the cache, else
   an extraction stored on the posting) and counts its run once, not once
   more for the extraction. Which use an extraction spends stays in each
-  router. Tests:
+  router. **Most postings are read before any student asks** (KAN-392):
+  the feed import's keyword pass (The feed import, above), and for a
+  company job, a background task after a save that leaves it published
+  (`company_jobs._fill_keywords`, in its own session after the response,
+  so the composer never waits on a model). A draft is not read: no student
+  sees it and its text keeps changing. Either failure only logs, and
+  `ensure` stays the fallback. **The import and `cached` hash with one
+  function, `posting_text_hash`**: the import's pass (KAN-392) and the
+  title-and-job-part hash (KAN-343) landed separately, the import hashing
+  the description alone, which left every cache it filled stale to
+  Tailor and spent each extraction twice. Tests:
   `tests/test_keyword_match.py` (the cache, its clearing by the import and
-  by the hash, an invalid or failed reply counts nothing, the cap).
+  by the hash, an invalid or failed reply counts nothing, the cap, the
+  import's pass and the company job's task).
 - **Tailor** (KAN-217, `../docs/tailor_resume.md`) is `routers/tailor.py`
   over `services/tailor.py`. `POST .../tailor/match` gives the picked
   source's keyword match (and the posting's tailored resume, if any) for
@@ -1051,19 +1074,41 @@ why each rule exists.
   ("Database error deleting user"). Company accounts get a 403 until a
   company owner's delete is designed. Tests: `tests/test_delete_account.py`.
 
+- **Email verification is required** (KAN-293). Signup does not pass
+  `email_confirm: True`, and then asks Supabase for the confirmation email
+  itself (`auth.resend(type="signup")`): the admin `create_user` sends no
+  email of its own, so without that call no new account could ever sign in.
+  If the email can't be sent, signup deletes the auth user (the profile row
+  cascades) and answers 502, so a retry starts clean. The frontend
+  redirects to `/signup/check-email` after signup; the link lands on
+  `/auth/confirm`. A taken email returns 201 silently (same response
+  shape, dummy id, no profile row) and resends the email, which reaches
+  only an account still unconfirmed. Supabase's own CAPTCHA setting stays
+  off: its `/resend` would then want a Turnstile token, and signup has
+  already spent the one it got. Tests: `tests/test_signup.py`.
+- **Turnstile verification on signup** (KAN-293). The `captcha_token` field
+  in `SignupRequest` is verified server-side against `TURNSTILE_SECRET_KEY`
+  (`app/config.py`). When the key is `None` (local dev), verification is
+  skipped.
+- **Company signup is gated** (KAN-293). Both `signup()` and
+  `complete_oauth_account_type()` reject `AccountType.COMPANY` with 403.
+- **Password reset** is handled entirely by the frontend through Supabase's
+  `resetPasswordForEmail` and `updateUser`. No API route is involved.
+
 Still open:
 
-- Email verification and a forgotten-password reset: supported by Supabase,
-  not wired up. A signed-in seeker changes their password in Settings
-  (`frontend/src/lib/account-actions.ts`).
 - Deleting an account from the Supabase dashboard cascades its rows but
   leaves its Storage files; `DELETE /auth/me` removes both.
 - A company account cannot be deleted (403).
 - Joining an existing company: no endpoint; the form's Join tab is a
   placeholder.
-- Every signup `IntegrityError` answers "An account with this email already
-  exists", including a taken `company_profiles.contact_email`. Tell them apart
-  by constraint name in `exc.orig`.
 - Nothing sets a membership's `onboarding_completed_at`, so `/auth/me` always
   reports a company as not onboarded. Whatever builds company onboarding must
   set it.
+
+Accepted risks (KAN-293):
+
+- Per-IP rate limiting: Turnstile is the only bot protection for now. Per-IP
+  limiting is a follow-up after the Cloudflare cutover.
+- OAuth account linking: with email verification on, an attacker cannot
+  confirm someone else's email, so automatic linking is safe.

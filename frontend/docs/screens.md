@@ -273,13 +273,14 @@ a signed-in applicant who has not marked the job the same click opens
 "Did You Apply?" (below) behind it, its resume list starting on the one
 Pick a Resume would have picked (tailored, else the default). Yes, I
 Applied stays off, under "Loading your resumes…", until that list is in:
-before it, the pick is only a guess. **Sent a Different Resume?** under the
-lists is the dropzone the Resumes page had until KAN-362 (`ResumeUpload`) and upload
-(`uploadResume`, which reads it into Experiences as any upload does): the
-new resume is picked once the list reloads, and a duplicate picks the one
+before it, the pick is only a guess. **Upload Resume**, in the list's row
+beside the search and the Type filter (KAN-406), uploads the file the
+student sent (`uploadResume`, which reads it into Experiences as any
+upload does): the new resume is picked once the list reloads, under
+Uploaded, with the search and the filter cleared so nothing hides it, and a duplicate picks the one
 it matched, saying "Duplicate Resume found: <name>". **At the 5-upload
-limit** (`lib/resume-limits.ts`, the API's own) a file waits while the
-student picks an upload to replace, then Replace It runs Import Updated
+limit** (`lib/resume-limits.ts`, the API's own) a file waits under the
+row while the student picks an upload to replace, then Replace It runs Import Updated
 Resume (`replaceResume`) on that row: the old file's sent resumes keep a
 frozen copy, so past applications lose nothing. Yes, I Applied stays off
 while an upload runs or a file waits. The hidden
@@ -391,34 +392,40 @@ would change a moment after the page loads.
 When a signed-in applicant leaves for the employer's posting from Apply Now's
 dialog, by Open the Posting or Apply Without a Resume, the dialog stays open
 behind the new tab and asks "Did You Apply?". **It shows the resume they
-applied with** (KAN-267): the resume table (below), **Sent a Different
-Resume?** (the upload, below), then a full-width **No Resume** button, not
+applied with** (KAN-267): the resume list (below), whose row holds
+**Upload Resume** (above), then a full-width **No Resume** button, not
 a section: pressed (the brand fill, `aria-pressed`), it is the pick and
 every radio above clears; a radio pick unpresses it. The dialog is wide
 (`sm:max-w-3xl`, not the default `sm:max-w-sm`) and scrolls inside itself
 on a short window.
-**The resume table** (`ResumeLists` in `jobs/resume-picker.tsx`, KAN-360)
-is the one picker in all four resume dialogs: this one, Tailor's Pick a
-Resume to Tailor, Auto Apply's Choose a Resume and the Experiences view's
-Choose a Resume to Show (KAN-361, which builds its rows from the bank's
-resumes, with no posting). A switcher shows
-**Generated** (base and tailored resumes) or **Uploaded**, a search filters
-by name and by the posting a resume was tailored for, and one table
-scrolls under its own sticky head. Generated's columns are Resume, Type
-(Base or Tailored), Tailored For ("This Job" for this posting) and Last
-Edited; Uploaded's are Resume and Uploaded. The default resume carries
-the Resumes page's filled star and "Primary" (`PrimaryStar`): a badge's
-tint vanished on the picked row's. Each row starts with a radio; a click
-anywhere on the row picks it, and the arrow keys move the pick (one
-radio group). It opens on the view that holds the pick and follows a
-pick made outside it (an upload picks the new file, under Uploaded); the
-view and the search only filter, so the pick survives a switch. Names
-wrap, never truncate: two resumes tailored for one company differ only
-at the end of their names. Below `sm` the Type and Tailored For columns
-hide and their words sit under the name ("Tailored · Backend Intern at
-Initech"): with Type still shown, the name kept about 60px on a phone and
-broke mid-word (KAN-361). Two lists side by side came first, and the
-user found them ugly once a student had a few tailored resumes. It lists the resumes Pick a
+**The resume list** (`ResumeLists` in `jobs/resume-picker.tsx`, KAN-360,
+KAN-406) is the one picker in all four resume dialogs: this one, Tailor's
+Pick a Resume to Tailor, Auto Apply's Choose a Resume and the Experiences
+view's Choose a Resume to Show (KAN-361, which builds its rows from the
+bank's resumes, with no posting). It is the Resumes page's grouped list
+(`components/resume-list.tsx`): one row with a search by name and by the
+posting a resume was tailored for, the **Type** filter and, in Did You
+Apply? and Tailor, **Upload Resume** (as two even halves under the search
+below a 36rem row; no Sort or Generate Resume, which a dialog does not
+need), then **Uploaded**, **Generated** and **Tailored**
+under pill headings with counts, each heading folding its group for this
+opening, in one scroll five cards high. Each card is the Resumes page's
+box with a radio: the file mark, the name, one line ("Uploaded Oct 21",
+"Last edited Oct 21 · For Backend Intern at Initech", "Made Oct 21 · For
+This Job") and the Primary star. A group lists the resume tailored to this
+posting first, then the primary, then the newest. A click anywhere on a
+card picks it, and the arrow keys move the pick across every group (one
+radio group); the search only filters, so the pick survives it. Names
+wrap, never truncate: two resumes tailored for one company differ only at
+the end of their names. A table came before it (KAN-360): a Generated or
+Uploaded switch, then Type, Tailored For and Last Edited columns. Once the
+Resumes page took the grouped list (KAN-404) the two read as different
+apps, and the columns said what a card's one line says. Two lists side by
+side came before the table, and the user found them ugly once a student
+had a few tailored resumes. Did You Apply? and Tailor each had an upload
+section under the list ("Sent a Different Resume?", "Tailor a Different
+Resume?"), a dropzone that took more room than the list, until KAN-406
+moved Upload Resume into the row as the Resumes page has it. It lists the resumes Pick a
 Resume lists plus No Resume, starting on the one picked at Apply, or No
 Resume after Apply Without a Resume. The student can change it, since they
 may have attached another file on the employer's page. Yes, I Applied keeps
@@ -1002,7 +1009,7 @@ user removed: each queued job now shows and changes its own resume.
   and the cross. No sorting, since the order is the run's.
 - **The Resume cell is a button** (a bordered pill with a pencil): it
   opens the row's resume picker (`auto-apply/resume-dialog.tsx`), the
-  Apply dialog's own resume table (`jobs/resume-picker.tsx`, Job posting
+  Apply dialog's own resume list (`jobs/resume-picker.tsx`, Job posting
   page), opened on the row's resume. It links nowhere else: Tailor for
   This Job and Build a New Resume links under it went (KAN-360), since
   the job and Manage Resumes reach both. Use This Resume calls `chooseResume`
@@ -1657,12 +1664,14 @@ with no proposals to accept and no Done (2026-10-25).
 - **A posting is tailored once.** When it has a tailored resume, the screen
   shows it with Open in Editor and offers no run; the API refuses a second
   run (409), so no tokens are spent on it.
-- **Pick a Resume opens Pick a Resume to Tailor** (KAN-318): the posting's
-  resumes in "Did You Apply?"'s resume table (Generated or Uploaded, a
-  search, one radio group), starting on the resume tailored to this job,
-  else the default, and an upload with the same limit, replace step and
-  duplicate rule. The three resume dialogs share `jobs/resume-picker.tsx`,
-  so a rule changed there changes all three. Its Use This Resume reads the
+- **The screen picks through the shared resume list** (KAN-318, KAN-406):
+  `ResumeLists` from `jobs/resume-picker.tsx`, as every resume dialog
+  does, with its search, Type filter and Upload Resume (the same limit,
+  replace step and duplicate rule) and the Uploaded, Generated and
+  Tailored groups. It starts on the resume tailored to this job, else the
+  primary unless that is tailored to another job, else the first resume
+  not tailored to any (`tailorFirst`): tailoring another job's tailored
+  resume starts from that job's changes. Use This Resume reads the
   resume's keyword match (`matchTailor`); "Reading…" and errors show on
   the card. An upload is read into the bank and tailored as its own
   entries; a run changes only what the picked resume shows.
@@ -1710,8 +1719,8 @@ every card acts alike once Import Updated Resume left the upload's card,
 and a student looking for their latest resume looked in three places.
 Generate Resume sat in the header, on every view though only generated
 resumes come from it, and the upload dropzone sat in a track beside the
-uploads. The resume picker (Job posting page) still splits Generated
-(base and tailored) from Uploaded. They sat in one "Your Resumes" card at the foot of the bank page
+uploads. The resume picker dialogs draw this same grouped list
+(KAN-406, Job posting page). They sat in one "Your Resumes" card at the foot of the bank page
 until KAN-249; the spec's "the resumes page" now means this view. The
 editor lives under it (`/resumes/[resumeId]`), so the sidebar keeps the row
 lit there and the phone editor's back arrow lands here. The page needs
@@ -1782,9 +1791,31 @@ shows "Your Resumes Aren't Loading Right Now" and a Try Again link.
   (`src/components/resume-upload.tsx`) is a pure dropzone + file preview —
   it knows nothing about upload logic or limits.
 - **The list** (`resumes/resume-list.tsx`) is one card that scrolls
-  inside itself at one height (`max-h-scroll-box`, about five cards), as
-  Top Matches and the resume picker do, so the search and the buttons
-  stay in view however many resumes a student keeps. Two table versions
+  inside itself, five cards high under a group heading (`FIVE_ROWS`,
+  351px; the shared `max-h-scroll-box` of Top Matches and the resume
+  picker showed three and a half once the headings came), so the
+  search and the buttons stay in view however many resumes a student
+  keeps. It is grouped by
+  type, as Notion's Group by (KAN-404): **Uploaded**, **Generated**, then
+  **Tailored**, each under a heading with its name in a pill (`Badge`,
+  brand, alike for all three) and its count, which sticks to the card's
+  top while its cards scroll and folds the group away on a click
+  (`ResumeGroup`; the folded groups ride in `?collapsed=`, with the type
+  and the order). The search, Type and Sort run over every row first; the
+  order then runs inside each group, the starred resume leads its own,
+  and a group with no row left hides. The list keeps one scroll, not one
+  per group, and every resume in a group shows: a Show N More after the
+  first 5, as Notion's load limit, was tried and dropped. Uploaded stays
+  open while a file uploads, and a Generate opens Generated. Uploads are capped at 5 and
+  Generate refuses a duplicate, but a student has one tailored resume per
+  job posting with no cap, so ungrouped by Last Edited the tailored ones
+  buried the uploads, and a student needed the Type filter to find their
+  own file. A teammate asked for the three stacked cards back; groups in
+  the one list kept the one search. A first version had two groups
+  (Uploaded and Generated, then Tailored) named in grey capitals. Below a
+  42rem row the filters are two even rows, Type and Sort over Upload
+  Resume and Generate Resume, and below 24rem those say only Upload and
+  Generate. Two table versions
   came first in KAN-362: one with Type and Last Edited columns and sort
   headings, then one with each row's icons in a `⋯` menu. The columns
   said what each card's line already says, and the menu hid the actions a

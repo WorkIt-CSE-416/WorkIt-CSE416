@@ -9,7 +9,6 @@ import { Badge } from "@/components/ui/badge";
 import { Button, ButtonLink } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
 import { Chip } from "@/components/ui/chip";
-import { SelectField } from "@/components/ui/select-field";
 import { tailorEditsKey, writeSessionDraft } from "@/lib/local-drafts";
 import type { ResumeItem } from "@/lib/resume-actions";
 import {
@@ -21,7 +20,7 @@ import {
   type TailorStreamEvent,
 } from "@/lib/tailor-actions";
 
-import { firstChoice, loadChoices, UploadPick, type Choice } from "../../resume-picker";
+import { loadChoices, ResumeLists, type Choice } from "../../resume-picker";
 
 /** What Tailor Resume says while a run waits, by the streamed run's lines
  *  (`TailorStreamEvent`): Retrieving Info until the API sends `asking`, and
@@ -32,6 +31,20 @@ const PHASE = {
   generating: "Generating Resume…",
   compiling: "Compiling Resume…",
 } as const;
+
+/** Tailor's first pick: the resume tailored to this posting, else the
+ *  primary unless it is tailored to another posting, else the first one
+ *  not tailored to any. A resume tailored to another posting is the
+ *  picker's primary (KAN-268), but tailoring it again starts from another
+ *  job's changes, so it is never picked for the student. */
+function tailorFirst(choices: Choice[]): Choice | undefined {
+  return (
+    choices.find((c) => c.forThisJob) ??
+    choices.find((c) => c.isDefault && c.type !== "Tailored") ??
+    choices.find((c) => c.type !== "Tailored") ??
+    choices[0]
+  );
+}
 
 /**
  * The Tailor screen (KAN-217, docs/tailor_resume.md). The student picks a
@@ -66,7 +79,7 @@ export function TailorScreen({ jobId, title }: { jobId: string; title: string })
     setChoiceError(result.error);
     setSource(null);
     setMatch(null);
-    setSelected(firstChoice(result.choices)?.key ?? null);
+    setSelected(tailorFirst(result.choices)?.key ?? null);
     return result.choices;
   }, [jobId]);
 
@@ -77,7 +90,7 @@ export function TailorScreen({ jobId, title }: { jobId: string; title: string })
       setChoices(result.choices);
       setUploads(result.uploads);
       setChoiceError(result.error);
-      setSelected(firstChoice(result.choices)?.key ?? null);
+      setSelected(tailorFirst(result.choices)?.key ?? null);
     });
     return () => {
       cancelled = true;
@@ -170,35 +183,18 @@ export function TailorScreen({ jobId, title }: { jobId: string; title: string })
             <p className="text-note text-ink-muted">Loading your resumes…</p>
           ) : (
             <>
-              <SelectField
-                id="tailor-resume"
-                label="Pick a Resume"
-                value={selected ?? ""}
-                onValueChange={(key) => {
+              <ResumeLists
+                name="tailor-from"
+                choices={choices}
+                empty="None yet. Upload one, or generate one on Resumes & Experiences."
+                picked={selected}
+                onPick={(key) => {
                   setSelected(key);
                   setSource(null);
                   setMatch(null);
                   setError(null);
                 }}
-                placeholder="Choose a resume"
-                options={choices.map((choice) => ({
-                  value: choice.key,
-                  label: `${choice.label} · ${choice.type}${
-                    choice.tailoredFor ? ` · ${choice.tailoredFor}` : ""
-                  }`,
-                }))}
-                className="max-w-2xl"
-              />
-              {choices.length === 0 && (
-                <p className="text-note text-ink-meta">
-                  No resumes yet. Generate one below or upload a resume.
-                </p>
-              )}
-              <UploadPick
-                label="Upload a Resume"
-                uploads={uploads}
-                onUploaded={uploaded}
-                onBusyChange={onUploadBusy}
+                upload={{ uploads, onUploaded: uploaded, onBusyChange: onUploadBusy }}
               />
               <Button
                 className="self-start"

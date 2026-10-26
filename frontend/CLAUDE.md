@@ -220,16 +220,27 @@ the KAN-296 cutover.
   visible one selected a hidden one. The six then stack into one under
   the four steps, which light in turn ("And it helps with every step of
   the search": "every step after that" put Matching after the match), and as the
-  tour comes up those four pills fly into its tab bar (`TabFlight`,
-  mounted by `PinnedTour` with the pin's entry progress). The flight marks
-  `<html>` with `data-tab-flight` (idle, flying, landed), and landing.css
-  hides the bridge's pills while they fly and the tour's tab bar until
-  they land, so each pill is drawn once; with no flight the attribute is
-  absent and the tabs show. The flying pills leave with the bridge pills'
-  colour rings and land looking as the tabs do (the first white, the rest
-  clear with grey labels), and the tab bar shows with no fade: drawn
-  plain, the four rings vanished at take-off, and a fade made the pills
-  blink as they landed. With reduced motion it is a still block, no pin.
+  tour comes up the tour's own tabs take off from those four pills and
+  fly into its tab bar (`useTabFlight`, used by `PinnedTour` with the
+  pin's entry progress; KAN-368): once the tour has risen to `TAKE_OFF`
+  each tab jumps to its pill's place, looking as the pill does (white,
+  with its colour ring), and flies to the bar in time, one after another,
+  shedding the ring and, but for the first, the white fill; below
+  `FLY_BACK` they fly back. The tabs live in the tour's panel, so they
+  move with the page as the browser scrolls it (the panel is not clipped,
+  its backdrops are, so the tabs can start above it). Two earlier
+  versions placed copies on a fixed layer by script on every scroll:
+  between the two ends through an ease, they sank past the rising bar and
+  came back up with it; held still and then carried by the bar, they
+  bunched with their rings touching over the panel's edge. Both trailed
+  the page by a frame once the wheel went native, which read as a glitch.
+  A flight runs once each way, and only the latest one settles: started
+  again on each scroll step, an older run's end settled the tabs mid
+  flight. The flight marks `<html>` with `data-tab-flight` (idle, flying,
+  landed); landing.css hides the bar until the tabs take off and the
+  bridge's pills once they have, so each pill is drawn once, and keeps
+  the bar bare (no fill, no ring) while they fly; with no flight the
+  attribute is absent and the tabs show. With reduced motion it is a still block, no pin.
   **Below lg it is its own scene, `ScrolledBridge`** (KAN-368): the same
   three lines, one at a time, over a 330px stage on a short pin (150svh),
   the scroll cueing each phase through `useScrollCue` (`scene-time.ts`):
@@ -323,7 +334,11 @@ the KAN-296 cutover.
   pin's end (a hand-off for the card's flight into the applications
   section), it still read as driven by the scroll, and the bars sat close
   over the gate's red chip, so the team had the bars, the pin and the
-  hand-off taken out on 2026-10-22. A beat lasts about four seconds (`RATE`), so the page, its
+  hand-off taken out on 2026-10-22. A dark panel that opened out to the
+  window's edges as it came up (a scroll-linked clip path) was tried on
+  2026-10-25, to set this section apart from the light ones round it; the
+  team found its background and transition odd, and it went back to the
+  light panel. A beat lasts about four seconds (`RATE`), so the page, its
   marks, its notes and its verdict hold together for over a second, the
   evidence its caption names: at three seconds they shared the screen for
   a quarter of one. The team found
@@ -391,7 +406,10 @@ the KAN-296 cutover.
   today: one list, each job's match score and the resume each
   application went out with. A board, a next step and a deadline per card,
   and a follow-up day are not built, so no line promises them, and
-  Interview and Job Offers say "Coming soon". Its eyebrow is the
+  Interview and Job Offers say "Coming soon". Its heading is centred over
+  the route, and the FAQ after it holds its heading on the left while the
+  questions pass on the right (lg up), so neighbouring sections open
+  differently (KAN-368). Its eyebrow is the
   feature's name, "Application tracker": "For applicants" said nothing
   once the whole site was for applicants. A tilted board of glass cards over
   blobs in the four stages' colours, with a stage list whose glass
@@ -413,7 +431,7 @@ the KAN-296 cutover.
   hiring system carries job postings from real employers on that system
   in `scraper/boards.csv` (`streams` in `data.ts`) into WorkIt's mark: a
   senior role is struck through and falls away, an internship or new-grad
-  role goes in and comes out as a glass card on the Jobs page side,
+  role goes in and comes out as a glossy card on the Jobs page side,
   sorted by Best Match. Below lg it runs top to bottom in two or three
   columns. The lines under the mark are pipeline steps, so each is a
   claim. The team dropped the two cards that sat under it (Autofill for
@@ -476,7 +494,26 @@ the KAN-296 cutover.
   The hero's backdrop is an animated SVG city (`city-model.ts` draws it,
   `hero-city.tsx` renders it after hydration, since server-rendered its path
   data would add hundreds of KB to the page): New York-style towers, six of
-  which rise as violet wireframes with a job tag. The strip's viewBox starts
+  which rise as violet wireframes with a job tag. **It is drawn as layers**
+  (`getLayers`, KAN-368): each run of still buildings is one image (an SVG
+  document as a blob URL, made once per build), and the pieces that move
+  (the six towers and the two pulsing wireframes) are small inline SVGs
+  between them, split where they fall in the draw order, so every building
+  in front of a tower stays in front; the ground, streaks and pools are
+  one inline SVG under them all. One inline SVG of some 5,700 paths made
+  Chrome's per-frame re-layering of the page take 12 to 20ms on an M1
+  wherever the city was within reach of the screen (the hero, the bridge,
+  the tour), so the main thread was 69 to 99% busy at rest and frames fell
+  to 25 to 40 a second; an image is one item to it, and re-layering is now
+  0.6ms, the main thread 12 to 24% busy at rest, and a trackpad scroll
+  down the page holds 60 frames a second. The buildings' colours and line
+  weights are `LOOK` in hero-city.tsx, written into each image (which
+  landing.css cannot reach) and into the page for the live layers; keep
+  them there. The city shows once its images have loaded
+  (`data-ready`), so the towers never stand alone on bare ground. The
+  images snap to whole device pixels and inline SVG does not, so a still
+  building can sit up to one device pixel from where one inline SVG drew
+  it; the towers and ground match exactly. The strip's viewBox starts
   100px above the ground's origin (`STRIP_TOP`): the tallest side towers
   reach there and were once cut flat at the top. The ground grid runs ten
   rows behind the back row of buildings and fades out towards the text, so
@@ -507,7 +544,7 @@ the KAN-296 cutover.
   runs, not elements: a block line's box spans the full width. The cards are
   frosted glass (`.glass-card` in `landing.css`, a `backdrop-filter` over
   the towers; the page's one glass look, shared with the tour's scene
-  titles and the board's cards). Their fade runs on the tag's children, never the tag itself:
+  titles). Their fade runs on the tag's children, never the tag itself:
   an ancestor below full opacity is a backdrop root, so the blur would see
   nothing behind it and snap on only when the fade ended. Two cards on one
   side of the city once stacked on each other: a card now shows for less
@@ -748,11 +785,18 @@ the KAN-296 cutover.
   changes its words or side while it can be seen. One caption that
   swapped both glitched: the card's stage changes at the landing, and
   that caption had already faded back in with the old words, then
-  swapped them and jumped sides in view. The piles hold each stage's count (24, 12, 4, 1) from one
-  list, `LOGOS`, furthest first, so every logo that reaches a stop came
-  from the pile before and the last one is the followed application. A
-  logo going on waits on the pile before, exactly over its twin so it
-  cannot be seen, until that pile is reached, then flies on an arc; the
+  swapped them and jumped sides in view. The logos come from one list,
+  `LOGOS`, furthest first: the first `count` of each stage (24, 12, 4, 1)
+  reach it, so every logo that reaches a stop came from the pile before
+  and the last one is the followed application. **Each logo is drawn once
+  and moves** (`MovingTile`, KAN-368): as the card glides to a stop, the
+  logos going on fly there from the pile before on an arc, and the ones
+  that went no further close up behind them, so at the offer the piles
+  hold 12, 8, 3 and 1, each role in one place. A copy once flew on from
+  over its twin and left the twin behind, so every role that went on sat
+  in two piles, which the team read as duplicates. The stage chips keep
+  the totals that passed through (24 roles, 12 sent). The stops ahead show
+  dashed slots where their logos will land, gone once they have. The
   piles' places are plain arithmetic from the stops, nothing measured but
   the route's width. One violet runs the route; the stage colour shows
   only in the card's chip and ring: the team found the old four-colour
@@ -764,9 +808,10 @@ the KAN-296 cutover.
   lines at Saved it stood taller and its top dropped as it moved on. Its
   new words come in as the old ones finish going (`swap`'s delay):
   `popLayout` ran both at once, and two lines showed through each other.
-  Below lg the stops are a still list, each pile's first seven logos and a
-  "+N" (`STILL_PILE`; the full piles, 24 and 12 tiles, read as noise on a
-  phone), and the card at its offer.
+  Below lg the stops are a still list, each with the logos left there at
+  the route's end (`leftAt`), seven at most and a "+N" (`STILL_PILE`; the
+  full piles, 24 and 12 tiles, read as noise on a phone), and the card at
+  its offer.
   **Headings come into
   focus** through `FocusIn` (`focus-in.tsx`): an observer marks the
   wrapper and a CSS transition ends at the element's own `filter: none`.
@@ -787,7 +832,21 @@ the KAN-296 cutover.
   where the postings come from, the proof behind the bridge's flood and
   Matching, and it names the systems whose filter is the statement's
   first beat. At the page's end it read as an afterthought, just above
-  the FAQ's "Where do the jobs come from?". It pins for 220vh in a grey
+  the FAQ's "Where do the jobs come from?". **It slides up over the
+  tour** (KAN-368): the tour keeps its last stop pinned for
+  `TOUR_COVER_VH` more (`layout-parts.tsx`), and this section starts that
+  far up the page, so its panel rises over the tour's while the tour sinks
+  back (scaled to 0.94, shaded by a layer over it, since a filter would
+  stop its glass blurring) and fades as the cover ends: once unpinned it
+  scrolled away in the strip above this section's panel. The panel casts
+  a soft shadow on the tour as it comes (a blurred ellipse under its top
+  edge, faded as it pins): without it the grey edge barely showed and the
+  cover read as a fog. The tour reads the cover's progress from a box
+  the cover's height at the foot of its pin: a box of no height gave the
+  browser's view timeline nothing to measure, it stood at its end, and
+  the tour vanished at once and left the screen blank, which read as an
+  abrupt cut. Both read the one constant; with reduced motion neither
+  moves. It pins for 220vh in a grey
   panel: the seven hiring systems
   come in as thick coins (CSS 3D: a face, three stacked discs for the
   edge, a back, under the stage's `perspective`; seven discs read the
@@ -821,7 +880,11 @@ the KAN-296 cutover.
   (KAN-368): started at the pipe's end with the systems in turn, only one
   posting could come out, behind the coins, and the first one cleared
   them 7.1 s after the scroll's cue (now 1.5 to 1.9 s, then one about
-  every 2.7 s). The flow's clock runs as soon as the pipe has formed
+  every 2.7 s). Where a place is compared with the coupling it starts
+  on, the test allows a pixel (`EPS`): the first place starts exactly on
+  the last coupling, and rounding put it a hair past on some frames and not
+  on others, so the first posting flickered on and off all the way down
+  the pipe. The flow's clock runs as soon as the pipe has formed
   (`PIPE_IN`'s end), in view and in a visible tab. The pipe starts just behind the first coupling, whose coin
   hides its end: an open-end ellipse there, and later the bare rounded
   end, read as a stray circle. WorkIt's mark is plain glass on the grey,
@@ -905,10 +968,10 @@ the KAN-296 cutover.
     wholly below the screen, with a second observer: one observer that
     reset at the arrival line undid reveals in full view whenever the
     reader scrolled back a little.
-  - Still scroll-linked, by design: the flight that carries the bridge's
-    step pills into the tour's tabs (both ends move with the page), and
-    entrances that track their section's position (the tour panel's and
-    `GrowIn`'s scale).
+  - Still scroll-linked, by design: entrances and exits that track their
+    section's position (the tour panel's and `GrowIn`'s scale, the tour
+    sinking under the hiring-systems section). The bridge's hand-off to the tour's
+    tabs is cued by the scroll and plays in time.
   - Timeline values from `useSceneTime` are animated by script, so their
     transforms run on the main thread while a phase plays and cost
     nothing at rest; the array-range rule below matters for what is
@@ -961,6 +1024,15 @@ the KAN-296 cutover.
   move when the new page's start is already on screen, so a short page
   opened from the footer stayed at its foot; and the browser restored a
   place before the home page had grown, so Back stopped short.
+- **A solid card on the marketing pages is `.gloss-card`** (landing.css,
+  KAN-368): a white body shading to a pale violet at its foot under a top
+  sheen, a hairline lit from above and a stack of soft shadows. It
+  replaced `bg-white` with a 5% ring and one shadow, which the team found
+  flat ("basic white cards with borders"). Glass (`.glass-card`) is for a
+  card over colour, where its blur has something to show; over a grey or
+  white panel it read as that same flat card. An element with it carries
+  no `ring-*` or `shadow-*` utility, which would replace its shadows, and
+  paper (a resume page, the statement's pages) stays flat paper.
 - **Type on the marketing pages.** Plus Jakarta Sans is 1.26em tall
   (ascent 1.038, descent 0.222), taller than any display line, so a
   wrapped heading's lines overlap by a few pixels. The selection
@@ -1019,6 +1091,11 @@ the KAN-296 cutover.
     landing.css: the Resumes loader's ring and sheen, the Updates scan
     and typing dots), never a motion `repeat: Infinity`, which runs
     script on every frame it shows.
+  - Keep big vector art out of the DOM when it does not move: Chrome
+    re-layers the whole page's paint on every frame anything repaints, and
+    each element within reach of the screen adds to it, so thousands of
+    SVG paths slowed every frame of the hero, the bridge and the tour, even
+    paused (the hero city, above). Draw the still part as an image.
   - Loops stop off screen: the hero city's 67 SVG animations pause through
     `data-paused` (an IntersectionObserver, with `!important` over each
     piece's `animation` shorthand). The city's wireframe glow stays an SVG
@@ -1175,9 +1252,10 @@ the KAN-296 cutover.
   names; the extension does not read it yet (`docs/screens.md`, Auto
   Apply).
   Every resume dialog (Did You Apply?, Tailor's Pick a Resume, Up Next's
-  Choose a Resume) picks through one table, `ResumeLists` in
-  `jobs/resume-picker.tsx` (KAN-360): change it there, never per dialog
-  (`docs/screens.md`, Job posting page).
+  Choose a Resume) picks through one list, `ResumeLists` in
+  `jobs/resume-picker.tsx` (KAN-360; grouped as the Resumes page since
+  KAN-406): change it there, never per dialog (`docs/screens.md`, Job
+  posting page).
   `docs/screens.md`, Applications, has the rest.
 - **/search keeps the filter row, and shows what its words filter by**
   (KAN-308). A new search from the top bar sends only ?q, so it starts
@@ -1221,6 +1299,16 @@ the KAN-296 cutover.
   list do, and ages by `LIST_FRESH_FOR`. The rail checks its list's age on
   every job opened, not once: checked on mount only, it sat on its skeleton
   for good once the list passed half an hour, since it stays mounted.
+- **The feed's loading state is its last first page** (KAN-287,
+  `jobs/feed-fallback.tsx`): `FeedList` keeps the first page it drew as a
+  snapshot (`jobs/feed-pages.ts`), and the Suspense fallback draws it while
+  the server fetches the fresh one, so any visit to /jobs paints cards at
+  once; the skeleton shows only without a snapshot for the query. A return
+  adds the kept Load More pages; a fresh arrival still drops those and shows
+  the first page alone (asked for 2026-10-10). The snapshot lives apart from
+  the kept pages so that dropping one never drops the other, and only a
+  fetched page dates either: a rewrite on every mount would restart
+  `LIST_FRESH_FOR` and keep stale pages alive for good.
 - **Promote to `src/components` on the second consumer**, not in anticipation;
   anything used by one route stays beside it (the per-route `icons.tsx`).
 - **`src/components/ui` is hand-written and is what screens import.**
@@ -1319,8 +1407,11 @@ the KAN-296 cutover.
   full-page table (the Applications list, Up Next) shows every row and the
   page scrolls. A list or table inside a dialog or a tile scrolls inside
   itself at one height, the `--spacing-scroll-box` token (`max-h-scroll-box`
-  or `h-scroll-box`, 320px): the resume picker, Add Jobs and Top Matches.
-  Each picked its own height before, and Add Jobs grew to 90% of the window.
+  or `h-scroll-box`, 320px): Add Jobs and Top Matches. Each picked its
+  own height before, and Add Jobs grew to 90% of the window. The grouped
+  resume list (the Resumes page and every resume picker) is the one
+  exception: five cards under a group heading (`ResumeScroll`,
+  `components/resume-list.tsx`), since 320px showed three and a half.
 - **A filter whose rows the page already holds moves the URL in place**
   (`useShallowPush`, `docs/motion.md`): Live Activity's Status and sort
   (KAN-285). A tick passes `{ replace: true }`, so ticks are not steps of
@@ -1432,7 +1523,28 @@ are in `docs/auth.md`.
   `revalidate`: Next would cache one applicant's list and serve it to all.
 - **Signup goes through `POST /auth/signup`**, not `supabase.auth.signUp()`,
   which can only write user-editable `user_metadata` and so cannot be trusted
-  with the account type.
+  with the account type. **Signup does not sign in** (KAN-293): it redirects
+  to `/signup/check-email`, and the user signs in after clicking the email
+  confirmation link that lands on `/auth/confirm`.
+- **Turnstile** (`components/turnstile.tsx`, KAN-293) is on the signup and
+  sign-in forms. It renders nothing when `NEXT_PUBLIC_TURNSTILE_SITE_KEY` is
+  unset (local dev). Signup sends the token to the API as `captchaToken`;
+  sign-in verifies it server-side in the Next action via `TURNSTILE_SECRET_KEY`.
+  **A form passes its action state as `resetKey`**: a token passes one check
+  only, and the form's reset after an action empties its input, so without a
+  widget reset every retry after a wrong password failed the CAPTCHA.
+- **`/auth/confirm`** (KAN-293) handles email links from Supabase in both
+  shapes: `token_hash` + `type` (the templates in `docs/auth.md`, through
+  `verifyOtp`) and `code` (the default templates, through
+  `exchangeCodeForSession`, whose `redirectType` marks a reset). A reset goes
+  to `/login/new-password` with a session active; anything else to `/login`.
+  A bad or used link goes to `/login?error=…`, which says so above the form.
+- **Password reset** (KAN-293): `/login/reset-password` sends a reset email
+  (always shows "Check your email"); the reset link lands on `/auth/confirm`,
+  which sets a session and redirects to `/login/new-password`;
+  `updateUser({ password })` sets the new password.
+- **Secure cookie flag** (KAN-293): `sessionCookieOptions` sets
+  `secure: process.env.NODE_ENV === "production"`.
 - **A key the API's Pydantic schema doesn't declare is dropped silently**, not
   rejected. A field added to a request body here does nothing until
   `backend/app/schemas/` declares it too.
@@ -1469,11 +1581,13 @@ are in `docs/auth.md`.
   AI" (KAN-222) runs only on a click, never on its own, and shows only
   while `uses_left` is above 0; a failed reading writes nothing and says
   why.
-- **The Resumes view is one list of every resume** (KAN-362,
+- **The Resumes view is one list of every resume** (KAN-362, KAN-404,
   `(seeker)/resumes/built-resumes.tsx`): uploaded, generated and tailored,
   newest first, each as its card (`components/resume-row.tsx`'s box, star
   and icons: star, Rename, Download, Delete), in one card that scrolls
-  inside itself at `max-h-scroll-box` (`resume-list.tsx`). **It is laid
+  inside itself, five cards high under a heading (`FIVE_ROWS` in
+  `resume-list.tsx`, 351px, not the shared `max-h-scroll-box`: with group
+  headings, 320px showed three and a half cards). **It is laid
   out as the Applications Tracker is**, so keep the two alike: the search
   on its own row, then the Type filter (`FieldFacet`, the Applications
   list's dropdown, in `?type=`) and the Sort dropdown (Last Edited, the
@@ -1488,8 +1602,41 @@ are in `docs/auth.md`.
   the menu hid the actions students use. Three views behind pills, then
   tabs, came before that: each split one list though every card acts
   alike, and a student had to look in three places for their latest
-  resume. The resume picker still splits Generated (base and tailored)
-  from Uploaded; whether it takes a Type filter too is open.
+  resume. **The list is grouped by type, as Notion's Group by**
+  (KAN-404): Uploaded, Generated, then Tailored, the Type filter's order,
+  each under a sticky heading with its name in a `Badge` pill and its
+  count, which folds it (`ResumeGroup`, `?collapsed=`). The search, Type
+  and Sort still run over every row; the groups only split what they
+  leave, the order runs inside each group, and the starred resume leads
+  its own. **Keep one scroll for the list, never a scroll box per group
+  and no Show N More**: nested, the wheel and a finger get caught in the
+  inner box, and a per-group limit with Show N More (Notion's) was built
+  and turned down by the user, who wants the list to scroll on. The
+  heading sits on z-20, over the cards' z-10 icons, which bled over it on
+  the same layer. Uploads are capped at 5 and Generate refuses duplicates, but
+  tailored resumes have no cap (one per job posting), so ungrouped they
+  buried the uploads and a student needed the Type filter to find their
+  own file. A first version had two groups, Uploaded and Generated, then
+  Tailored, with grey capitals for names; the user wanted one group per
+  type and the names in pills, which stand out from the grey cards.
+  **Below a 42rem row the filters are two even rows** (Type and Sort,
+  then the two buttons), and below 24rem the buttons say only Upload and
+  Generate (`ShortLabel`, "Resume" kept for screen readers): wrapped as
+  one row the buttons sat alone at the right, and "Generate Resume"
+  broke onto two lines on a phone. **Every resume picker dialog draws
+  the same grouped list** (KAN-406): `components/resume-list.tsx` holds
+  the groups, the heading (`ResumeGroup`) and the five-card scroll
+  (`ResumeScroll`), and each screen draws its own cards in it, the
+  Resumes page's with their actions, a picker's with a radio. A change
+  to how the list groups or scrolls goes there, so the page and the
+  dialogs never drift apart again. The picker's row is the page's row
+  cut down: the search, the Type filter and, where the dialog takes a
+  file (Did You Apply?, Tailor), Upload Resume, which at the 5-upload
+  limit asks which upload the file replaces, under the row. No Sort and
+  no Generate Resume: a dialog holds a few resumes with the likely pick
+  first, and a resume generated mid-dialog is not the file a student
+  sent. The dialogs' dropzone sections went with KAN-406, as the
+  Resumes page's had in KAN-362.
 - **Every resume opens a page of WorkIt's own** (KAN-366): a built resume
   the editor (`(seeker)/resumes/[resumeId]`), an upload its view page
   (`(seeker)/resumes/uploaded/[id]`, the static segment winning over
@@ -1505,9 +1652,10 @@ are in `docs/auth.md`.
 - **The Experiences view shows one resume at a time** (KAN-343, ADR 0005,
   `../docs/bank_by_resume.md`): a Showing card names the pick, drawn as
   the Resumes page draws a resume (KAN-363), and its Change Resume opens
-  the shared resume table (KAN-361, `(seeker)/bank/resume-bar.tsx` over
-  `(seeker)/jobs/resume-picker.tsx`'s `ResumeLists`), with Not From an
-  Upload as a row under the table, in its radio group, while anything no
+  the shared resume list (KAN-361, KAN-406, `(seeker)/bank/resume-bar.tsx`
+  over `(seeker)/jobs/resume-picker.tsx`'s `ResumeLists`), with Not From an
+  Upload as a card under the list (`pickRowClasses`, drawn as its
+  cards), in its radio group, while anything no
   upload owns exists or while it is the pick. The page opens on
   `?resume=`, else the starred resume, else the newest. A pick applies on Show Resume, never on a row
   click, so the arrow keys can move it. The dropdown it replaced had no

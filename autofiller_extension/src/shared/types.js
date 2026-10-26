@@ -61,8 +61,8 @@
  * Shape matches backend/app/schemas/autofill_answers.py's AutofillAnswers
  * exactly — the same JSON GET /applicants/{id}/autofill-answers returns,
  * each value one of the option keys `frontend/src/lib/autofill-answers.ts`
- * defines (never the label shown on screen; `field-map.js` holds the label
- * text for each). `work_authorized_us` and `needs_sponsorship` are filled
+ * defines (never the label shown on screen; background/engine.js maps each to the
+ * words the Fill engine's rules read). `work_authorized_us` and `needs_sponsorship` are filled
  * in by background/api.js's fetchAutofillProfile when they're still
  * unanswered here, inferred from the onboarding "Visa Sponsorship"
  * job-search filter — a real saved answer always wins over that inference.
@@ -120,7 +120,7 @@
  * empty optional field is a non-event, not a red flag. "needs_generation"
  * is its own fourth state: an open-ended question WorkIt could draft an
  * answer for but hasn't, pending the student's one opt-in click in the
- * overlay (content-script.js's essay-question detection,
+ * overlay (the Fill engine's Plan, content-script.js,
  * overlay.js's promptForEssays) — never "pending", since nothing in the
  * normal fill pass is ever going to resolve it on its own.
  * @typedef {"pending" | "filled" | "failed" | "skipped" | "needs_generation"} FieldStatus
@@ -139,4 +139,5 @@
  * @property {FieldStatus} status
  * @property {string} [reason]      Shown on hover when status is "failed" —
  *   e.g. "No matching option for \"SUNY Korea\""
+ * @property {string | string[]} [shows]  What a filled field shows now, as the engine read it back
  */

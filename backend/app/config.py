@@ -70,6 +70,10 @@ class Settings(BaseSettings):
     supabase_url: str | None = None
     supabase_service_key: str | None = None
 
+    # Cloudflare Turnstile secret key for bot protection on signup.
+    # None = skip verification (local dev without Turnstile).
+    turnstile_secret_key: str | None = None
+
     gemini_api_key: str | None = None
     embedding_provider: Literal["gemini", "ollama"] = "ollama"
     ollama_embedding_url: str = "http://localhost:11434"

@@ -4,6 +4,13 @@ import { ArrowsDownUpIcon, FileTextIcon, TagIcon } from "@phosphor-icons/react/s
 import { useState } from "react";
 
 import { FacetLabel, facetClasses, FieldFacet, type FacetOption } from "@/components/field-facet";
+import {
+  matches,
+  RESUME_TYPES,
+  ResumeGroup,
+  searchWords,
+  type ResumeType,
+} from "@/components/resume-list";
 import { ChevronDownIcon, SearchIcon } from "@/components/icons";
 import {
   DropdownMenu,
@@ -22,17 +29,11 @@ import { listResumes, type ResumeItem } from "@/lib/resume-actions";
 import { BuiltResumeRow } from "./built-resume-row";
 import { DuplicateResumeDialog } from "./duplicate-resume-dialog";
 import { ResumesHeader } from "./header";
-import { matches, ResumeList, searchWords } from "./resume-list";
-import { UploadedRow, useResumeUpload } from "./upload-resume";
+import { ResumeList } from "./resume-list";
+import { ShortLabel, UploadedRow, useResumeUpload } from "./upload-resume";
 
-type ResumeType = "uploaded" | "generated" | "tailored";
-
-/** The Type filter's options. */
-const TYPES: FacetOption[] = [
-  { value: "uploaded", label: "Uploaded" },
-  { value: "generated", label: "Generated" },
-  { value: "tailored", label: "Tailored" },
-];
+/** The Type filter's options: the list's groups, in their order. */
+const TYPES: FacetOption[] = [...RESUME_TYPES];
 
 /** `?type=uploaded,tailored`: the picked types, in the options' order;
  *  none (or none valid) is every type. */
@@ -58,13 +59,22 @@ function parseSort(raw: string | null): Sort {
 
 /** One resume of either kind, as the list orders and filters it. */
 type Row =
-  | { key: string; type: "uploaded"; name: string; at: string; text: string; upload: ResumeItem }
+  | {
+      key: string;
+      type: "uploaded";
+      name: string;
+      at: string;
+      text: string;
+      primary: boolean;
+      upload: ResumeItem;
+    }
   | {
       key: string;
       type: "generated" | "tailored";
       name: string;
       at: string;
       text: string;
+      primary: boolean;
       built: BuiltResume;
     };
 
@@ -77,6 +87,18 @@ type Row =
  * inside itself (./resume-list.tsx). Every card acts alike, so one list
  * holds them all; each says what it is in its own line ("Uploaded …",
  * "Last edited …", "For <posting>").
+ *
+ * The list is grouped by type, as Notion's Group by draws one (KAN-404):
+ * Uploaded, Generated, then Tailored, the Type filter's order, each under
+ * a heading with its name in a pill and its count, which folds it away
+ * (`?collapsed=`). Search, Type and Sort apply to every row first, then
+ * each row falls into its group, the order runs inside each group, the
+ * starred resume leads its own, and a group with no row left hides. The
+ * list is one scroll, five cards high (./resume-list.tsx): no scroll box
+ * per group and no Show N More, which the user turned down. Ungrouped,
+ * the 5 uploads sank under the tailored resumes, which have no cap, and a
+ * student needed the Type filter to find their own file; three stacked
+ * cards (below) had no search over all.
  *
  * It is laid out as the Applications Tracker is (../applications/page.tsx
  * and filter-bar.tsx), so the two read as one app: a search over the
@@ -101,7 +123,8 @@ type Row =
  *
  * Generate makes a base resume from the whole bank in Jake's Resume, named
  * "Resume #N" by the API until the student renames it; a Type filter that
- * would hide it is cleared, so it shows at the top. Generate has no limit:
+ * would hide it is cleared and Generated opens, so it shows at the top
+ * of Generated, under the starred resume if that is there. Generate has no limit:
  * only uploads count toward the 5 (KAN-268). A failed Generate or reload
  * shows its error under the filter row. A Generate or an upload that would
  * make a resume the student already has (the API's 409, KAN-267) makes
@@ -125,15 +148,21 @@ export function BuiltResumes({
   const push = useShallowPush();
   const types = parseTypes(params.get("type"));
   const sort = parseSort(params.get("sort"));
+  // `?collapsed=tailored`: the folded groups (KAN-404), named as the
+  // types are; none is every group open.
+  const collapsed = parseTypes(params.get("collapsed"));
 
-  // The type and the sort ride in the URL together, each left out at its
-  // default, replacing the entry so a tick is not a step of Back.
-  function move(next: { types?: ResumeType[]; sort?: Sort }) {
+  // The type, the sort and the folded groups ride in the URL together,
+  // each left out at its default, replacing the entry so a tick is not a
+  // step of Back.
+  function move(next: { types?: ResumeType[]; sort?: Sort; collapsed?: ResumeType[] }) {
     const search = new URLSearchParams();
     const t = next.types ?? types;
     const o = next.sort ?? sort;
+    const c = next.collapsed ?? collapsed;
     if (t.length > 0) search.set("type", t.join(","));
     if (o !== "edited") search.set("sort", o);
+    if (c.length > 0) search.set("collapsed", c.join(","));
     const qs = search.toString();
     push(qs ? `/resumes?${qs}` : "/resumes", undefined, { replace: true });
   }
@@ -157,7 +186,20 @@ export function BuiltResumes({
     if (status === 409) return setDuplicate(error);
     if (error) return setError(error);
     await reload();
-    if (types.length > 0 && !types.includes("generated")) setTypes([]);
+    // The new resume shows: a Type filter that hides it is cleared, and its
+    // group opens.
+    const hidden = types.length > 0 && !types.includes("generated");
+    if (hidden || collapsed.includes("generated")) {
+      move({ types: hidden ? [] : types, collapsed: collapsed.filter((g) => g !== "generated") });
+    }
+  }
+
+  function toggle(group: ResumeType) {
+    move({
+      collapsed: collapsed.includes(group)
+        ? collapsed.filter((g) => g !== group)
+        : [...collapsed, group],
+    });
   }
 
   const rows: Row[] = [
@@ -167,6 +209,7 @@ export function BuiltResumes({
       name: r.original_filename ?? "Resume",
       at: r.created_at ?? "",
       text: r.original_filename ?? "Resume",
+      primary: r.is_default,
       upload: r,
     })),
     ...resumes.map((r) => ({
@@ -175,6 +218,7 @@ export function BuiltResumes({
       name: r.name,
       at: r.edited_at,
       text: `${r.name} ${r.posting_title ?? ""} ${r.posting_company ?? ""}`,
+      primary: r.is_default,
       built: r,
     })),
   ];
@@ -182,10 +226,13 @@ export function BuiltResumes({
   const shown = rows
     .filter((row) => types.length === 0 || types.includes(row.type))
     .filter((row) => matches(row.text, words))
-    .sort((a, b) =>
-      sort === "name"
-        ? a.name.localeCompare(b.name, undefined, { sensitivity: "base", numeric: true })
-        : (Date.parse(b.at || "0") - Date.parse(a.at || "0")) * (sort === "oldest" ? -1 : 1),
+    .sort(
+      (a, b) =>
+        // The starred resume leads its group, whatever the order.
+        Number(b.primary) - Number(a.primary) ||
+        (sort === "name"
+          ? a.name.localeCompare(b.name, undefined, { sensitivity: "base", numeric: true })
+          : (Date.parse(b.at || "0") - Date.parse(a.at || "0")) * (sort === "oldest" ? -1 : 1)),
     );
 
   const filtered = types.length > 0 || words.length > 0;
@@ -205,22 +252,27 @@ export function BuiltResumes({
           onChange={(event) => setQuery(event.target.value)}
           className="w-full @lg/main:w-64"
         />
-        <div className="flex flex-wrap items-center gap-2">
-          <FieldFacet
-            label="Type"
-            Icon={TagIcon}
-            options={TYPES}
-            values={types}
-            onChange={(values) => setTypes(values as ResumeType[])}
-            className="min-w-36"
-          />
-          <SortMenu value={sort} onChange={(next) => move({ sort: next })} />
-          <div className="ml-auto flex items-center gap-2">
-            {upload.button}
-            <Button size="sm" onClick={generate} disabled={generating}>
-              <FileTextIcon aria-hidden className="size-4" />
-              {generating ? "Generating…" : "Generate Resume"}
-            </Button>
+        {/* Below 42rem the row is two even rows, the dropdowns, then the
+            buttons; wrapped as one flex row it left the buttons at the
+            right of a line of their own. */}
+        <div className="@container">
+          <div className="grid grid-cols-2 items-center gap-2 @2xl:flex">
+            <FieldFacet
+              label="Type"
+              Icon={TagIcon}
+              options={TYPES}
+              values={types}
+              onChange={(values) => setTypes(values as ResumeType[])}
+              className="min-w-36"
+            />
+            <SortMenu value={sort} onChange={(next) => move({ sort: next })} />
+            <div className="col-span-2 grid grid-cols-2 gap-2 @2xl:ml-auto @2xl:flex">
+              {upload.button}
+              <Button size="sm" onClick={generate} disabled={generating}>
+                <FileTextIcon aria-hidden className="size-4" />
+                {generating ? "Generating…" : <ShortLabel verb="Generate" />}
+              </Button>
+            </div>
           </div>
         </div>
         {error && (
@@ -261,14 +313,31 @@ export function BuiltResumes({
         </EmptyState>
       ) : (
         <ResumeList>
-          {upload.pending}
-          {shown.map((row) =>
-            row.type === "uploaded" ? (
-              <UploadedRow key={row.key} resume={row.upload} reload={reload} />
-            ) : (
-              <BuiltResumeRow key={row.key} resume={row.built} reload={reload} />
-            ),
-          )}
+          {TYPES.map(({ value, label }) => {
+            // The file in flight is the first card of its group, which
+            // stays open while it uploads.
+            const pending = value === "uploaded" && upload.pending;
+            const rows = shown.filter((row) => row.type === value);
+            if (rows.length === 0 && !pending) return null;
+            return (
+              <ResumeGroup
+                key={value}
+                label={label}
+                count={rows.length}
+                open={!collapsed.includes(value as ResumeType) || Boolean(pending)}
+                onToggle={() => toggle(value as ResumeType)}
+              >
+                {pending}
+                {rows.map((row) =>
+                  row.type === "uploaded" ? (
+                    <UploadedRow key={row.key} resume={row.upload} reload={reload} />
+                  ) : (
+                    <BuiltResumeRow key={row.key} resume={row.built} reload={reload} />
+                  ),
+                )}
+              </ResumeGroup>
+            );
+          })}
         </ResumeList>
       )}
       <DuplicateResumeDialog message={duplicate} onClose={() => setDuplicate(null)} />

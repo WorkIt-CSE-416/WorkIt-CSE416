@@ -25,12 +25,19 @@ signup   Next action ──POST /auth/signup──▶ FastAPI ──admin API─
                                               │ creates auth.users row with
                                               │ app_metadata.account_type,
                                               │ then the profile row, same id
-                                              │ (company: the company row and
-                                              │ its owner's membership)
-         Next action ──signInWithPassword──▶ Supabase Auth  (sets sb-* cookies)
+                                              │ (Turnstile verified server-side
+                                              │ before creating the user)
+         redirect to /signup/check-email  (user clicks email confirm link)
+         /auth/confirm ──verifyOtp(signup)──▶ Supabase Auth
+         redirect to /login
 
-login    Next action ──signInWithPassword──▶ Supabase Auth  (sets sb-* cookies)
+login    Turnstile verified in Next server action
+         Next action ──signInWithPassword──▶ Supabase Auth  (sets sb-* cookies)
          Next action ──GET /auth/me, Bearer──▶ FastAPI  (role check, redirect)
+
+reset    /login/reset-password ──resetPasswordForEmail──▶ Supabase Auth (email)
+         /auth/confirm ──verifyOtp(recovery)──▶ Supabase Auth (session set)
+         /login/new-password ──updateUser({password})──▶ Supabase Auth
 
 request  Browser ──sb-* cookie──▶ Next (src/proxy.ts refreshes the session)
          Server code ──Authorization: Bearer <access token>──▶ FastAPI
@@ -54,9 +61,19 @@ request  Browser ──sb-* cookie──▶ Next (src/proxy.ts refreshes the ses
   for an applicant, so the route never checks.
 - **Login** is checked by Supabase Auth; the Next action then calls `/auth/me`
   for the account type and onboarding state.
-- **Signup creates the user already confirmed** (`email_confirm=True`).
-  Turning on email verification means dropping that flag and adding a
-  confirmation route on the frontend.
+- **Signup requires email verification** (KAN-293). The API creates the user
+  without `email_confirm`, then asks Supabase to send the confirmation email
+  (`auth.resend`), since the admin `create_user` sends none. The frontend
+  redirects to `/signup/check-email`. The confirm link lands on
+  `/auth/confirm`, which signs the user in and redirects to `/login` (and
+  from there home).
+- **A taken email returns 201 silently** (KAN-293). Signup for an address
+  that already has an account returns the same 201 response with a dummy id
+  and no profile row. The frontend always redirects to check-email, so an
+  attacker cannot tell whether the address is registered.
+- **Company signup is gated** (KAN-293). Both `signup()` and
+  `complete_oauth_account_type()` reject `AccountType.COMPANY` with 403
+  until the business side ships.
 
 ## Dashboard settings (live nowhere in code)
 
@@ -78,6 +95,18 @@ Auth directly. Set these on any new Supabase project:
   Google Cloud Console for `google`, and from a LinkedIn Developer app with
   "Sign In with LinkedIn using OpenID Connect" for `linkedin_oidc` (the older
   `linkedin` provider is deprecated).
+- **Email (KAN-293)**: Providers → Email → "Confirm email" ON; a custom SMTP
+  provider (the built-in one sends a handful an hour); Attack Protection's
+  CAPTCHA OFF (the app checks Turnstile itself); each origin's
+  `/auth/confirm` in URL Configuration's redirect list.
+- **Email templates (KAN-293)**, as Supabase's SSR guide gives them, so a
+  link works in any browser: "Confirm signup" links to
+  `{{ .SiteURL }}/auth/confirm?token_hash={{ .TokenHash }}&type=email` and
+  "Reset Password" to
+  `{{ .SiteURL }}/auth/confirm?token_hash={{ .TokenHash }}&type=recovery`.
+  With the default templates the links still work, through `?code=`
+  (`/auth/confirm` takes both), but a reset link then opens only in the
+  browser that asked for it, and a signup link lands on the Site URL.
 
 ## How a token is verified
 
@@ -167,3 +196,46 @@ Every action is in `frontend/src/lib/account-actions.ts`.
   account gets a 204, not a 401. Supabase ends the user's sessions with the
   user; the Next action then clears the cookies with a local sign-out (a
   global one would fail on the revoked session).
+
+## Turnstile bot protection (KAN-293)
+
+Cloudflare Turnstile (Managed mode) on password signup and password sign-in.
+Not on OAuth, which has its own challenge.
+
+- **Signup**: the frontend sends `captchaToken` in the request body. The API
+  verifies it server-side against `TURNSTILE_SECRET_KEY` before creating the
+  user. When the secret is unset (local dev), verification is skipped.
+- **Sign-in**: the Next server action verifies the token server-side (POST to
+  Turnstile `/siteverify`) before calling `signInWithPassword`. The secret
+  is `TURNSTILE_SECRET_KEY` in the frontend's env.
+- **The widget** (`frontend/src/components/turnstile.tsx`) loads the Turnstile
+  script via `next/script` with `render=explicit`, renders a `<div>`, and
+  Turnstile fills its hidden `cf-turnstile-response` input. When
+  `NEXT_PUBLIC_TURNSTILE_SITE_KEY` is unset, the component renders nothing.
+
+## Password reset (KAN-293)
+
+- `/login/reset-password`: email input, calls `resetPasswordForEmail` with a
+  redirect to `/auth/confirm`. Always shows "Check your email" — never
+  reveals whether the address is registered.
+- `/auth/confirm?type=recovery`: verifies the OTP, sets a session, redirects
+  to `/login/new-password`.
+- `/login/new-password`: new password form, calls `updateUser({ password })`,
+  redirects to the dashboard.
+
+## Secure cookie flag (KAN-293)
+
+`sessionCookieOptions` in `frontend/src/lib/supabase/cookies.ts` sets
+`secure: process.env.NODE_ENV === "production"`, so sb-* cookies are
+Secure in production and plain HTTP in local dev.
+
+## Accepted risks (KAN-293)
+
+- **Per-IP rate limiting**: not implemented. Turnstile is the bot protection
+  for now. Per-IP limiting is a follow-up after the Cloudflare cutover, where
+  Cloudflare's own rate limiting can be used.
+- **OAuth account linking with email identity**: Supabase's "Automatic linking"
+  is on. A password signup for an email that later uses Google sign-in links
+  both. With email verification on, an attacker cannot register someone
+  else's email first, because the real owner's address is never confirmed
+  for the attacker.

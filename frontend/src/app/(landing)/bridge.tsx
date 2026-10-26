@@ -1,12 +1,12 @@
 "use client";
 
 import * as React from "react";
-import { createPortal } from "react-dom";
 import {
+  animate,
   AnimatePresence,
   motion,
+  motionValue,
   useInView,
-  useMotionValue,
   useMotionValueEvent,
   useReducedMotion,
   useScroll,
@@ -34,8 +34,8 @@ import { TOUR_TABS, type TourTab } from "./tour-tabs";
  * ("Thousands of internships open every season"), the few that fit are
  * kept and sorted ("WorkIt finds the ones that fit you"), they stack into
  * one with the four steps under it ("Then it helps with every step after
- * that"), and as the tour comes up those four steps fly into its tab bar
- * (`TabFlight`). Below lg, and with reduced motion, it is a still version
+ * that"), and as the tour comes up its tabs fly in from those four steps
+ * (`useTabFlight`). Below lg, and with reduced motion, it is a still version
  * with no pin. Postings name real employers from the board and Matching,
  * with their scores there; the fit six are the ones the tour and board
  * already show scoring highest.
@@ -315,7 +315,7 @@ function PostingCard({
           (`data-sorted`). */}
       <div
         className={cn(
-          "bridge-float flex items-center gap-2.5 rounded-xl bg-white p-2.5 shadow-[0_14px_30px_-18px_rgb(16_48_94/0.5)] ring-1 ring-slate-900/5",
+          "bridge-float gloss-card flex items-center gap-2.5 rounded-xl p-2.5",
           fit && "bridge-fit",
         )}
         style={{ "--float-delay": `${-(index * 0.7) % 6}s` } as React.CSSProperties}
@@ -633,7 +633,7 @@ function LoopCard({
         delay: phase === 0 ? index * 0.06 : fit ? posting.fit * 0.08 : 0,
       }}
     >
-      <div className="flex h-full items-center gap-1.5 rounded-xl bg-white px-1.5 shadow-[0_14px_30px_-18px_rgb(16_48_94/0.5)] ring-1 ring-slate-900/5">
+      <div className="gloss-card flex h-full items-center gap-1.5 rounded-xl px-1.5">
         <FaviconLogo domain={posting.domain} eager className="size-6 shrink-0 rounded-md" />
         <span className="min-w-0 flex-1">
           {/* Two lines for the title, so it is read whole, not cut short;
@@ -685,7 +685,7 @@ function StillBridge() {
         {fit.slice(0, 3).map((posting) => (
           <div
             key={posting.company}
-            className="flex items-center gap-2.5 rounded-xl bg-white p-2.5 shadow-[0_14px_30px_-18px_rgb(16_48_94/0.5)] ring-1 ring-slate-900/5"
+            className="gloss-card flex items-center gap-2.5 rounded-xl p-2.5"
           >
             <FaviconLogo domain={posting.domain} className="size-8 rounded-lg" />
             <span className="min-w-0 flex-1">
@@ -714,116 +714,215 @@ function StillBridge() {
   );
 }
 
-// --- The handoff: the four steps fly into the tour's tab bar ---
+// --- The handoff: the tour's tabs fly in from the four steps ---
 
-const noSubscribe = () => () => {};
+/** A tour tab's flight, in the tab bar's own space: its offset from its
+ * place in the bar (`x`, `y`), its size against the bar's (`scale`), and
+ * how much of the bridge pill's look it still has (`ring`, its colour
+ * ring; `fill`, its white fill, which the clear tabs shed). */
+export type TabPose = {
+  x: MotionValue<number>;
+  y: MotionValue<number>;
+  scale: MotionValue<number>;
+  ring: MotionValue<number>;
+  fill: MotionValue<number>;
+};
+
+/** The tour's rise (`entry`, 0 to 1 as its top comes up the screen) at
+ * which the tabs take off from the bridge, and below which they fly back:
+ * apart, so a reader resting on the line does not set them going to and
+ * fro. At the cue the steps are about a third down the screen and the
+ * bar about three quarters, so the flight plays mid-screen. */
+const TAKE_OFF = 0.38;
+const FLY_BACK = 0.32;
+const FLY_S = 0.75;
+const STAGGER_S = 0.07;
+const SETTLE: [number, number, number, number] = [0.22, 1, 0.36, 1];
+
+const lift = (value: MotionValue<number>, to: number, delay: number, duration: number) =>
+  animate(value, to, { duration, delay, ease: SETTLE });
 
 /**
- * Mounted by the pinned tour. `progress` runs 0 to 1 as the tour scrolls
- * up from the screen's foot to its pin; each frame every pill sits between
- * its place under the bridge's stack (`[data-bridge-pill]`) and its tab
- * (`#tour-tab-<id>`), both measured live since both move. It marks the
- * page while it runs (`data-tab-flight` on <html>: idle, flying, landed),
- * and landing.css hides the bridge's own pills while they fly and the
- * tour's tab bar until they land, so each pill is drawn once. With no
- * flight (below lg, reduced motion, no bridge on the page) the attribute
- * is absent and the tabs simply show.
+ * The hand-off from the bridge's four steps to the tour's tab bar, for
+ * the pinned tour (from lg up, with motion; `on`). Once the tour has risen
+ * to `TAKE_OFF` the tabs themselves take off from where the steps are,
+ * looking as the steps do, and fly to their places in the bar in time,
+ * one after another, shedding the steps' rings and white fills; below
+ * `FLY_BACK` they fly back and the steps show again. The tabs live in the
+ * tour's panel, so they move with the page as the browser scrolls it.
+ * Copies on a fixed layer, placed between the two ends by script on each
+ * scroll, trailed the page by a frame once the wheel went native, and,
+ * placed by the scroll through an ease, sank past the bar and came back
+ * up with it (KAN-368). The state is marked on <html> (`data-tab-flight`:
+ * idle, flying, landed), and landing.css hides the steps while the tabs
+ * are away from them and the tab bar's tabs until they leave, so each
+ * pill is drawn once. With no flight the attribute is absent and the tabs
+ * simply show.
  */
-export function TabFlight({ progress }: { progress: MotionValue<number> }) {
-  const reduceMotion = useReducedMotion();
-  const mounted = React.useSyncExternalStore(
-    noSubscribe,
-    () => true,
-    () => false,
+export function useTabFlight(entry: MotionValue<number>, on: boolean): TabPose[] {
+  const poses = React.useMemo<TabPose[]>(
+    () =>
+      TOUR_TABS.map(() => ({
+        x: motionValue(0),
+        y: motionValue(0),
+        scale: motionValue(1),
+        ring: motionValue(0),
+        fill: motionValue(0),
+      })),
+    [],
   );
+  const state = React.useRef<"idle" | "flying" | "landed">("idle");
+  // Which way the tabs are going: out to the bar, or back to the steps. A
+  // flight runs once each way; each scroll step that set it going again
+  // restarted it, and a stopped run's end settled the tabs too soon.
+  const heading = React.useRef<"out" | "back">("back");
+  const run = React.useRef({ id: 0, moves: [] as { stop: () => void }[] });
 
-  const mark = React.useCallback(
-    (p: number) => {
+  const settle = React.useCallback(
+    (next: "idle" | "flying" | "landed") => {
+      state.current = next;
       const root = document.documentElement;
-      if (reduceMotion || !document.querySelector("[data-bridge-pill]")) {
-        delete root.dataset.tabFlight;
-        return;
-      }
-      const state = p <= 0.01 ? "idle" : p >= 0.985 ? "landed" : "flying";
       // Only on a change: a write every frame restyled the page each time.
-      if (root.dataset.tabFlight !== state) root.dataset.tabFlight = state;
+      if (root.dataset.tabFlight !== next) root.dataset.tabFlight = next;
+      if (next === "flying") return;
+      heading.current = next === "landed" ? "out" : "back";
+      for (const pose of poses) {
+        pose.x.set(0);
+        pose.y.set(0);
+        pose.scale.set(1);
+        pose.ring.set(0);
+        pose.fill.set(0);
+      }
     },
-    [reduceMotion],
+    [poses],
   );
-  useMotionValueEvent(progress, "change", mark);
+
+  // Each tab's offset from its place in the bar to its step, in the bar's
+  // own space (the panel grows into place, so it is drawn smaller).
+  const startsAt = React.useCallback(
+    () =>
+      TOUR_TABS.map((tab, i) => {
+        const step = document.querySelector(`[data-bridge-pill="${tab.id}"]`);
+        const el = document.getElementById(`tour-tab-${tab.id}`);
+        if (!step || !el) return null;
+        const from = step.getBoundingClientRect();
+        const now = el.getBoundingClientRect();
+        const s = now.width / el.offsetWidth || 1;
+        const k = s / poses[i].scale.get();
+        // Where the tab's corner sits with no flight, on screen.
+        const left = now.left - poses[i].x.get() * k;
+        const top = now.top - poses[i].y.get() * k;
+        return { x: (from.left - left) / k, y: (from.top - top) / k, scale: 1 / k, from };
+      }),
+    [poses],
+  );
+
+  /** Plays one flight, and settles in `end` once all of it has played,
+   * unless another flight has started since. */
+  const fly = React.useCallback(
+    (
+      end: "idle" | "landed",
+      to: (i: number) => { x: number; y: number; scale: number; look: number },
+      timing: (i: number) => { delay: number; move: number; lookDelay: number; look: number },
+    ) => {
+      run.current.moves.forEach((move) => move.stop());
+      const id = run.current.id + 1;
+      run.current = { id, moves: [] };
+      heading.current = end === "landed" ? "out" : "back";
+      settle("flying");
+      const done = poses.flatMap((pose, i) => {
+        const target = to(i);
+        const t = timing(i);
+        const moves = [
+          lift(pose.x, target.x, t.delay, t.move),
+          lift(pose.y, target.y, t.delay, t.move),
+          lift(pose.scale, target.scale, t.delay, t.move),
+          lift(pose.ring, target.look, t.lookDelay, t.look),
+          // The first tab is the selected one, white with its own fill.
+          lift(pose.fill, i === 0 ? 0 : target.look, t.lookDelay, t.look),
+        ];
+        run.current.moves.push(...moves);
+        return moves.map((move) => new Promise<void>((resolve) => move.then(resolve)));
+      });
+      Promise.all(done).then(() => {
+        if (run.current.id === id) settle(end);
+      });
+    },
+    [poses, settle],
+  );
+
+  const takeOff = React.useCallback(() => {
+    // From the steps, or turning round on the way back to them.
+    if (state.current === "idle") {
+      const starts = startsAt();
+      // Steps off screen (a jump down the page): no flight to see.
+      if (starts.some((start) => !start || start.from.bottom < 0)) return settle("landed");
+      starts.forEach((start, i) => {
+        const pose = poses[i];
+        pose.x.set(start!.x);
+        pose.y.set(start!.y);
+        pose.scale.set(start!.scale);
+        pose.ring.set(1);
+        pose.fill.set(1);
+      });
+    }
+    fly(
+      "landed",
+      () => ({ x: 0, y: 0, scale: 1, look: 0 }),
+      // The look changes over the end of the move, as the tab arrives.
+      (i) => ({
+        delay: i * STAGGER_S,
+        move: FLY_S,
+        lookDelay: i * STAGGER_S + FLY_S * 0.45,
+        look: FLY_S * 0.55,
+      }),
+    );
+  }, [fly, poses, settle, startsAt]);
+
+  const flyBack = React.useCallback(() => {
+    const starts = startsAt();
+    if (starts.some((start) => !start)) return settle("idle");
+    fly(
+      "idle",
+      (i) => ({ x: starts[i]!.x, y: starts[i]!.y, scale: starts[i]!.scale, look: 1 }),
+      (i) => {
+        const delay = (starts.length - 1 - i) * STAGGER_S * 0.6;
+        return { delay, move: FLY_S * 0.7, lookDelay: delay, look: FLY_S * 0.35 };
+      },
+    );
+  }, [fly, settle, startsAt]);
+
+  useMotionValueEvent(entry, "change", (v) => {
+    if (!on || !document.querySelector("[data-bridge-pill]")) return;
+    if (v >= TAKE_OFF && heading.current === "back") takeOff();
+    else if (v < FLY_BACK && heading.current === "out") flyBack();
+  });
+
   React.useEffect(() => {
-    mark(progress.get());
-    return () => {
-      delete document.documentElement.dataset.tabFlight;
+    const root = document.documentElement;
+    delete root.dataset.tabFlight;
+    if (!on) return;
+    // A load or a return part way down the page starts landed. The steps
+    // mount a moment after the tour (the bridge waits for its media query),
+    // so it waits for them: settled only if they were there at once, the
+    // tab bar showed its tabs while the steps did, and they jumped up to
+    // the steps at take-off.
+    const start = () => {
+      if (!document.querySelector("[data-bridge-pill]")) return false;
+      settle(entry.get() >= TAKE_OFF ? "landed" : "idle");
+      return true;
     };
-  }, [mark, progress]);
+    const watch = start() ? null : new MutationObserver(() => start() && watch?.disconnect());
+    watch?.observe(document.body, { childList: true, subtree: true });
+    const live = run;
+    return () => {
+      watch?.disconnect();
+      // Stopped, and no late end to settle it.
+      live.current.moves.forEach((move) => move.stop());
+      live.current = { id: live.current.id + 1, moves: [] };
+      delete root.dataset.tabFlight;
+    };
+  }, [entry, on, settle]);
 
-  if (!mounted || reduceMotion) return null;
-  return createPortal(
-    <>
-      {TOUR_TABS.map((tab, i) => (
-        <FlyingPill key={tab.id} progress={progress} tab={tab} index={i} />
-      ))}
-    </>,
-    document.body,
-  );
-}
-
-function FlyingPill({
-  progress,
-  tab,
-  index,
-}: {
-  progress: MotionValue<number>;
-  tab: TourTab;
-  index: number;
-}) {
-  const x = useMotionValue(0);
-  const y = useMotionValue(0);
-  const opacity = useMotionValue(0);
-  // It leaves with the bridge pill's ring and lands as the tour's tab: the
-  // first one selected (white), the others clear with grey labels. Drawn
-  // plain, the four rings vanished at take-off, and the three clear tabs
-  // swapped in for white pills at landing.
-  const ring = useMotionValue(1);
-  const fill = useMotionValue(1);
-  const color = useTransform(fill, [0, 1], ["#596980", "#121a28"]);
-
-  const place = React.useCallback(
-    (p: number) => {
-      const flying = p > 0.01 && p < 0.985 && !!document.querySelector("[data-bridge-pill]");
-      opacity.set(flying ? 1 : 0);
-      if (!flying) return;
-      const from = document
-        .querySelector(`[data-bridge-pill="${tab.id}"]`)
-        ?.getBoundingClientRect();
-      const to = document.getElementById(`tour-tab-${tab.id}`)?.getBoundingClientRect();
-      if (!from || !to) return;
-      // A small stagger, so they arrive one after another, and a lift in
-      // the middle, so they arc rather than slide.
-      const t = ease(clamp((p - index * 0.05) / 0.85));
-      x.set(lerp(from.left, to.left, t));
-      y.set(lerp(from.top, to.top, t) - Math.sin(Math.PI * t) * 40);
-      ring.set(1 - t);
-      fill.set(index === 0 ? 1 : 1 - clamp((t - 0.75) / 0.25));
-    },
-    [fill, index, opacity, ring, tab.id, x, y],
-  );
-  useMotionValueEvent(progress, "change", place);
-  React.useEffect(() => place(progress.get()), [place, progress]);
-
-  return (
-    <motion.span
-      aria-hidden="true"
-      className="pointer-events-none fixed top-0 left-0 z-40 will-change-transform"
-      style={{ x, y, opacity }}
-    >
-      <Pill tab={tab} fill={fill} color={color} />
-      <motion.span
-        aria-hidden="true"
-        className="pointer-events-none absolute inset-0 rounded-full"
-        style={{ opacity: ring, boxShadow: `0 0 0 2px ${tab.glow}` }}
-      />
-    </motion.span>
-  );
+  return poses;
 }

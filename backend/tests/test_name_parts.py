@@ -145,7 +145,7 @@ async def test_signup_stores_the_parts(database, monkeypatch):
             return SimpleNamespace(user=SimpleNamespace(id=str(created_id)))
 
     class Supabase:
-        auth = SimpleNamespace(admin=Admin())
+        auth = SimpleNamespace(admin=Admin(), resend=lambda credentials: None)
 
     async with database() as s:
         await s.execute(text("INSERT INTO auth.users (id) VALUES (:id)"), {"id": created_id})

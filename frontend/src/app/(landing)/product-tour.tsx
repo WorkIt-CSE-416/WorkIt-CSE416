@@ -20,11 +20,11 @@ import { backdrop as featureBackdrop, FEATURES } from "./features/catalog";
 import { FeatureIcon } from "./features/feature-icon";
 import { Fit } from "./fit";
 import { useMediaQuery } from "./hooks";
-import { TabFlight } from "./bridge";
+import { useTabFlight } from "./bridge";
 import { TOUR_TABS, type TourTab } from "./tour-tabs";
 import MatchingVisual from "./matching-visual";
 import ResumeVisual from "./resume-visual";
-import { SoonChip } from "./layout-parts";
+import { SoonChip, TOUR_COVER_VH } from "./layout-parts";
 import { scrollPageTo } from "./smooth-scroll";
 import UpdatesVisual from "./updates-visual";
 
@@ -82,15 +82,38 @@ export function ProductTour() {
 function PinnedTour() {
   const ref = useRef<HTMLDivElement>(null);
   const boxRef = useRef<HTMLDivElement>(null);
+  const coverRef = useRef<HTMLDivElement>(null);
   const reduceMotion = useReducedMotion();
   const [index, setIndex] = useState(0);
+  // After the last stop the card stays pinned while the hiring-systems
+  // section slides up over it (`TOUR_COVER_VH`); with reduced motion that
+  // section is still, so no pin is kept for it.
+  const cover = reduceMotion ? 0 : TOUR_COVER_VH;
+  const stopsVh = (features.length - 1) * STOP_VH;
 
   // 0 when the section's top meets the screen's top, 1 when its bottom
-  // meets the screen's bottom: the stretch where the card is pinned.
+  // meets the screen's bottom: the stretch where the card is pinned. The
+  // stops share all of it but the cover.
   const { scrollYProgress } = useScroll({ target: ref, offset: ["start start", "end end"] });
   useMotionValueEvent(scrollYProgress, "change", (progress) => {
-    setIndex(Math.min(features.length - 1, Math.max(0, Math.floor(progress * features.length))));
+    const stops = Math.min(1, (progress * (stopsVh + cover)) / stopsVh);
+    setIndex(Math.min(features.length - 1, Math.max(0, Math.floor(stops * features.length))));
   });
+
+  // As the next section covers it, the card sinks back: smaller, and
+  // shaded by a layer over it (a filter on the card would stop its glass
+  // blurring). Transform strings and opacity over a plain offset, so the
+  // browser runs both.
+  const { scrollYProgress: covered } = useScroll({
+    target: coverRef,
+    offset: ["start end", "start start"],
+  });
+  const recede = useTransform(covered, [0, 1], ["scale(1)", "scale(0.94)"]);
+  const shade = useTransform(covered, [0, 1], [0, 0.22]);
+  // Gone by the time it is covered: once its pin ends it scrolls away
+  // behind the next section, and showed in the strip above that section's
+  // panel and in its side gutters.
+  const fadeOut = useTransform(covered, [0.8, 1], [1, 0]);
 
   // The panel grows into place as it scrolls up to the top.
   const { scrollYProgress: entry } = useScroll({
@@ -106,12 +129,15 @@ function PinnedTour() {
     const section = ref.current;
     if (!section) return;
     const top = section.getBoundingClientRect().top + window.scrollY;
-    const span = section.offsetHeight - window.innerHeight;
+    const span = section.offsetHeight - window.innerHeight * (1 + cover / 100);
     // The middle of the stop's stretch, so a small scroll does not leave it.
     // Through Lenis while it runs (smooth-scroll.tsx): a native smooth
     // scroll under it fought its glide.
     scrollPageTo(top + ((stop + 0.5) / features.length) * span, { instant: !!reduceMotion });
   };
+
+  // The tabs fly in from the bridge's four steps (bridge.tsx).
+  const flight = useTabFlight(entry, !reduceMotion);
 
   const active = features[index];
   const { Visual } = STOPS[active.id];
@@ -119,47 +145,66 @@ function PinnedTour() {
   return (
     <div
       ref={ref}
-      className="hidden lg:block"
-      style={{ height: `calc(100dvh + ${(features.length - 1) * STOP_VH}vh)` }}
+      data-tour-pin=""
+      className="relative hidden lg:block"
+      style={{ height: `calc(100dvh + ${stopsVh + cover}vh)` }}
     >
-      <TabFlight progress={entry} />
+      {/* The cover's stretch: its top is the next section's top. It has
+          the stretch's height, not none: the browser's view timeline of a
+          box with no height stood at its end, so the tour vanished the
+          moment the cover began and left the screen blank. */}
+      <div
+        ref={coverRef}
+        aria-hidden="true"
+        className="pointer-events-none absolute inset-x-0 bottom-0"
+        style={{ height: `${cover}vh` }}
+      />
       {/* The card takes whatever height is left inside the panel's padding,
           so the switcher and the card keep their room at any window height.
           A fixed height from the window's (100dvh minus the chrome) left the
           panel 8px to spare: the switcher sat on its top edge and the card
           ran into its bottom one. */}
-      <div className="sticky top-0 flex h-dvh flex-col px-6 pt-24 pb-6">
+      <motion.div
+        className="sticky top-0 flex h-dvh flex-col px-6 pt-24 pb-6"
+        style={reduceMotion ? undefined : { transform: recede, opacity: fadeOut }}
+      >
         <motion.div
           style={{ transform: reduceMotion ? "none" : grow }}
           // Tighter on a short window (a laptop's), so the stories keep
           // their design size: at a 790px window Resumes was drawn at 0.9,
           // its smallest text 8px.
-          className="relative isolate flex min-h-0 flex-1 flex-col items-center justify-center gap-5 overflow-hidden rounded-[3rem] px-10 py-6 xl:px-14 [@media(max-height:50rem)]:gap-3 [@media(max-height:50rem)]:py-4"
+          // Not clipped itself: the tabs fly in from above it. Its
+          // backdrops are clipped to its corners instead.
+          className="relative isolate flex min-h-0 flex-1 flex-col items-center justify-center gap-5 rounded-[3rem] px-10 py-6 xl:px-14 [@media(max-height:50rem)]:gap-3 [@media(max-height:50rem)]:py-4"
         >
           {/* One backdrop per stop, crossfading, so the colour shift is smooth. */}
-          {features.map((feature, i) => (
-            <div
-              key={feature.id}
-              aria-hidden="true"
-              className="absolute inset-0 -z-10 transition-opacity duration-700 ease-out motion-reduce:transition-none"
-              style={{ background: backdrop(feature.id), opacity: i === index ? 1 : 0 }}
-            />
-          ))}
+          <div aria-hidden="true" className="absolute inset-0 -z-10 overflow-hidden rounded-[3rem]">
+            {features.map((feature, i) => (
+              <div
+                key={feature.id}
+                className="absolute inset-0 transition-opacity duration-700 ease-out motion-reduce:transition-none"
+                style={{ background: backdrop(feature.id), opacity: i === index ? 1 : 0 }}
+              />
+            ))}
+          </div>
 
           {/* Labelled tabs in one pill, so the row reads as the tour's steps
               rather than as loose dots above the card. */}
           <div
             role="tablist"
             aria-label="Features"
-            // tour-tabs: hidden while the bridge's pills fly in (landing.css).
+            // tour-tabs: hidden until the tabs take off from the bridge, and
+            // bare while they fly (landing.css).
             className="tour-tabs flex shrink-0 gap-1 rounded-full bg-white/50 p-1 ring-1 ring-white/70"
           >
             {features.map((feature, i) => {
-              const { icon: Icon, label } = STOPS[feature.id];
+              const { icon: Icon, label, glow } = STOPS[feature.id];
               const selected = i === index;
+              const pose = flight[i];
               return (
-                <button
+                <motion.button
                   key={feature.id}
+                  style={{ x: pose.x, y: pose.y, scale: pose.scale, transformOrigin: "0 0" }}
                   type="button"
                   role="tab"
                   id={`tour-tab-${feature.id}`}
@@ -179,9 +224,23 @@ function PinnedTour() {
                       className="absolute inset-0 -z-10 rounded-full bg-white shadow-md"
                     />
                   )}
+                  {/* While it flies in it still looks like the bridge's step
+                      it left: white, with the step's colour ring. */}
+                  {!selected && (
+                    <motion.span
+                      aria-hidden="true"
+                      className="absolute inset-0 -z-10 rounded-full bg-white shadow-md ring-1 ring-slate-900/5"
+                      style={{ opacity: pose.fill }}
+                    />
+                  )}
+                  <motion.span
+                    aria-hidden="true"
+                    className="pointer-events-none absolute inset-0 rounded-full"
+                    style={{ opacity: pose.ring, boxShadow: `0 0 0 2px ${glow}` }}
+                  />
                   <Icon className="size-4" aria-hidden="true" />
                   {label}
-                </button>
+                </motion.button>
               );
             })}
           </div>
@@ -250,8 +309,13 @@ function PinnedTour() {
               </AnimatePresence>
             </div>
           </div>
+          <motion.div
+            aria-hidden="true"
+            className="pointer-events-none absolute inset-0 z-20 rounded-[3rem] bg-[#0d1220]"
+            style={{ opacity: reduceMotion ? 0 : shade }}
+          />
         </motion.div>
-      </div>
+      </motion.div>
     </div>
   );
 }

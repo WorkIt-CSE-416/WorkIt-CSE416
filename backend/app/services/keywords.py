@@ -11,6 +11,11 @@ too, an edit to Benefits alone costs no call, and a change to `job_part`'s
 rules refreshes every cache it touches. The feed import still clears both when it changes a
 description at all.
 
+Extraction runs ahead of any student where it can: the feed import fills
+scraped postings with no keywords after it commits, and a company job is
+read in the background once it is saved as published. `ensure` is the
+fallback for a posting neither has reached yet.
+
 The match is pure: a keyword matches when it appears, ignoring case, as a
 whole word or phrase in the text the built resume shows (the view) or in its
 shown skills.
@@ -48,14 +53,22 @@ soft skills ("team player"),no degree names, no benefits, no company names, and 
 """
 
 
-def _posting(job: Job_Post) -> str:
+def _text(title: str, description: str | None) -> str:
     """What the model reads of a posting: its title and its job part, cut to size."""
-    description = job_part(job.description, keep_headings=True)[:MAX_DESCRIPTION_CHARS]
-    return f"{job.title}\n\n{description}".strip()
+    part = job_part(description, keep_headings=True)[:MAX_DESCRIPTION_CHARS]
+    return f"{title}\n\n{part}".strip()
+
+
+def posting_text_hash(title: str, description: str | None) -> str:
+    """The cache's hash: of the text the model reads. The feed import stores
+    it on Core rows and `cached` checks it on a posting, so the two always
+    agree; an import that hashed the description alone left every cache it
+    filled stale to Tailor."""
+    return hashlib.sha256(_text(title, description).encode()).hexdigest()
 
 
 def posting_hash(job: Job_Post) -> str:
-    return hashlib.sha256(_posting(job).encode()).hexdigest()
+    return posting_text_hash(job.title, job.description)
 
 
 def cached(job: Job_Post) -> list[Keyword] | None:
@@ -78,15 +91,22 @@ def _cleaned(reading: KeywordReading) -> list[Keyword]:
     return out[:MAX_KEYWORDS]
 
 
-async def extract(job: Job_Post, llm: LLM) -> list[Keyword]:
-    """The model's keywords for the posting. A posting with no description
-    is read from its title. Raises `ScoutUnavailable` (or `InvalidReply`)
-    when no model answers or the answer fails the schema. The posting is no
-    student's text, so the seam gets an empty Identity, which still removes
-    any email, URL or phone. It reads the job's own sections (`job_part`), not
-    the perks or the company's pitch kept after them."""
-    prompt = [{"role": "system", "content": PROMPT}, {"role": "user", "content": _posting(job)}]
+async def read(title: str, description: str | None, llm: LLM) -> list[Keyword]:
+    """The model's keywords for a posting with this title and description.
+    A posting with no description is read from its title. Raises
+    `ScoutUnavailable` (or `InvalidReply`) when no model answers or the
+    answer fails the schema. The posting is no student's text, so the seam
+    gets an empty Identity, which still removes any email, URL or phone. It
+    reads the job's own sections (`job_part`), not the perks or the
+    company's pitch kept after them. Takes plain values, so the feed import
+    can call it on Core rows."""
+    prompt = [{"role": "system", "content": PROMPT}, {"role": "user", "content": _text(title, description)}]
     return _cleaned(await llm.complete_json(prompt, KeywordReading, identity=Identity()))
+
+
+async def extract(job: Job_Post, llm: LLM) -> list[Keyword]:
+    """The model's keywords for the posting. Raises like `read`."""
+    return await read(job.title, job.description, llm)
 
 
 def store(job: Job_Post, keywords: list[Keyword]) -> None:

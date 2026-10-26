@@ -6,10 +6,18 @@ job_role_tags.
     uv run python -m app.scripts.import_jobs path/to/feed.json
     uv run python -m app.scripts.import_jobs --dry-run        do it all, then roll back
     uv run python -m app.scripts.import_jobs --embeddings-only --embed-limit 100
+    uv run python -m app.scripts.import_jobs --keywords-only --keywords-limit 50
 
 --embeddings-only skips the feed entirely and fills missing scraped-job
 vectors using DATABASE_URL. It never imports or closes postings. Omit
 --embed-limit to process all missing vectors; completed batches survive failures.
+
+After a committed import (never a dry run), the run also extracts Tailor's
+keywords (services/keywords.py) for published scraped jobs that have none:
+new ones, and changed ones, whose keywords step 3 cleared. One model call a
+job, through Scout's SCOUT_* chain, at most --keywords-limit a run (default
+KEYWORDS_PER_RUN; 0 skips it), so later runs work through a backlog.
+--keywords-only does just that, with no feed.
 
 The default feed is the one GET /jobs reads: scraper/feed.json when a local
 scraper run has written one, else data/feed.json (app/config.py).
@@ -73,6 +81,7 @@ from sqlalchemy import (
 )
 from sqlalchemy.dialects.postgresql import ARRAY, insert
 from sqlalchemy.ext.asyncio import AsyncConnection
+from workit_scout.llm import LLM, InvalidReply, ScoutUnavailable
 
 from app.config import get_settings
 from app.db import get_engine
@@ -80,12 +89,14 @@ from app.models import dto
 from app.models.job_roles import Job_Role, Job_Role_Tag
 from app.models.jobs import Job_Location, Job_Post
 from app.models.locations import Country, State
+from app.routers.scout import get_llm
 from app.schemas.jobs import JobListing
+from app.services import keywords
 from app.services.location_resolver import LocationResolver, Place, Resolution
 from app.services.matching.embeddings import BATCH_SIZE, embed, job_text
+from app.services.role_resolver import RoleResolver
 
 logger = logging.getLogger(__name__)
-from app.services.role_resolver import RoleResolver
 
 _FEED = TypeAdapter(list[JobListing])
 _jobs = Job_Post.__table__
@@ -106,6 +117,10 @@ _CHUNK = 1000
 _MASS_CLOSE_SHARE = 0.5
 # ...unless there are this few, as on a first import or a test database.
 _MASS_CLOSE_FLOOR = 20
+# Keyword extractions a run makes by default: one model call each, so a
+# first run's backlog of thousands spreads over many runs instead of
+# spending the day's quota, or the job's 30 minutes, in one.
+KEYWORDS_PER_RUN = 100
 
 
 class ImportRefused(Exception):
@@ -139,6 +154,7 @@ class Report:
     unchanged: int = 0
     closed: int = 0
     embedded: int = 0
+    keywords: int = 0
     locations_changed: int = 0
     roles_changed: int = 0
     duplicates: int = 0
@@ -480,10 +496,71 @@ async def _embed_jobs(conn: AsyncConnection, *, limit: int | None = None) -> int
     return count
 
 
+async def _extract_keywords(conn: AsyncConnection, llm: LLM, *, limit: int) -> int:
+    '''
+    extract and store keywords for published scraped jobs with none, at most
+    `limit` model calls. Requires a connection with no active transaction:
+    no transaction stays open across a model call, and each job's keywords
+    commit on their own, so a failure keeps the ones already written.
+    '''
+    count = 0
+    attempted = 0
+    after = None
+    while attempted < limit:
+        async with conn.begin():
+            query = (
+                select(_jobs.c.id, _jobs.c.title, _jobs.c.description)
+                .where(
+                    _jobs.c.company_id.is_(None),
+                    _jobs.c.status == dto.job_post_status.published,
+                    _jobs.c.keywords.is_(None),
+                )
+                .order_by(_jobs.c.id)
+                .limit(min(BATCH_SIZE, limit - attempted))
+            )
+            # Past the last job tried, not OFFSET or "still NULL": a job
+            # whose reply failed stays NULL and would be read again forever.
+            if after is not None:
+                query = query.where(_jobs.c.id > after)
+            batch = (await conn.execute(query)).all()
+        if not batch:
+            break
+        for row in batch:
+            after = row.id
+            attempted += 1
+            try:
+                found = await keywords.read(row.title, row.description, llm)
+            except InvalidReply:
+                # This job's reply only; the next run tries it again.
+                logger.warning("Keyword reply for job %s failed its schema", row.id)
+                continue
+            except ScoutUnavailable:
+                # No model answers (down or out of quota); the next run goes on.
+                logger.warning("No model answered; stopping keyword extraction", exc_info=True)
+                return count
+            async with conn.begin():
+                # Only if the description is the one read: a company never
+                # edits these, but the next import may have.
+                result = await conn.execute(
+                    update(_jobs)
+                    .where(
+                        _jobs.c.id == row.id,
+                        _jobs.c.description.is_not_distinct_from(row.description),
+                    )
+                    .values(
+                        keywords=[k.model_dump() for k in found],
+                        keywords_hash=keywords.posting_text_hash(row.title, row.description),
+                    )
+                )
+            count += result.rowcount
+    return count
+
+
 def _print_report(report: Report, *, dry_run: bool) -> None:
     print(f"{'DRY RUN, rolled back — ' if dry_run else ''}{report.feed_rows} rows in the feed")
     print(f"  inserted {report.inserted}, updated {report.updated}, unchanged {report.unchanged}")
     print(f"  embedded {report.embedded}")
+    print(f"  keywords extracted {report.keywords}")
     print(f"  closed (no longer in the feed) {report.closed}")
     print(f"  jobs whose locations changed {report.locations_changed}")
     print(f"  jobs whose job_role_tags changed {report.roles_changed}")
@@ -499,7 +576,8 @@ def _print_report(report: Report, *, dry_run: bool) -> None:
 
 
 async def _run(
-    path: Path, *, dry_run: bool, allow_mass_close: bool, embed_limit: int | None = None
+    path: Path, *, dry_run: bool, allow_mass_close: bool, embed_limit: int | None = None,
+    keywords_limit: int = KEYWORDS_PER_RUN,
 ) -> Report:
     listings = _FEED.validate_json(path.read_bytes())
     engine = get_engine()
@@ -519,6 +597,11 @@ async def _run(
                     report.embedded = await _embed_jobs(conn, limit=embed_limit)
                 except Exception:
                     logger.warning("Embedding failed after import committed", exc_info=True)
+                if keywords_limit:
+                    try:
+                        report.keywords = await _extract_keywords(conn, get_llm(), limit=keywords_limit)
+                    except Exception:
+                        logger.warning("Keyword extraction failed after import committed", exc_info=True)
             return report
     finally:
         await engine.dispose()
@@ -533,6 +616,15 @@ async def _run_embeddings_only(*, limit: int | None = None) -> int:
         await engine.dispose()
 
 
+async def _run_keywords_only(*, limit: int) -> int:
+    engine = get_engine()
+    try:
+        async with engine.connect() as conn:
+            return await _extract_keywords(conn, get_llm(), limit=limit)
+    finally:
+        await engine.dispose()
+
+
 def main(argv: list[str] | None = None) -> int:
     parser = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
     parser.add_argument("feed", nargs="?", type=Path, help="feed.json to import (default: the one GET /jobs reads)")
@@ -540,9 +632,23 @@ def main(argv: list[str] | None = None) -> int:
     parser.add_argument("--allow-mass-close", action="store_true", help="close however many jobs left the feed")
     parser.add_argument("--embed-limit", type=int, help="embed at most this many jobs; does not limit feed imports")
     parser.add_argument("--embeddings-only", action="store_true", help="fill missing scraped-job vectors without reading or importing a feed")
+    parser.add_argument("--keywords-limit", type=int, default=KEYWORDS_PER_RUN,
+                        help=f"extract keywords for at most this many jobs (default {KEYWORDS_PER_RUN}; 0 skips)")
+    parser.add_argument("--keywords-only", action="store_true", help="fill missing scraped-job keywords without reading or importing a feed")
     args = parser.parse_args(argv)
     if args.embed_limit is not None and args.embed_limit < 1:
         parser.error("--embed-limit must be a positive integer")
+    if args.keywords_limit < 0:
+        parser.error("--keywords-limit must be 0 or more")
+    if args.embeddings_only and args.keywords_only:
+        parser.error("--embeddings-only and --keywords-only cannot be combined")
+
+    if args.keywords_only:
+        if args.feed is not None or args.dry_run or args.allow_mass_close:
+            parser.error("--keywords-only cannot be combined with a feed, --dry-run, or --allow-mass-close")
+        count = asyncio.run(_run_keywords_only(limit=args.keywords_limit))
+        print(f"extracted keywords for {count} scraped jobs; no feed imported")
+        return 0
 
     if args.embeddings_only:
         if args.feed is not None or args.dry_run or args.allow_mass_close:
@@ -555,7 +661,7 @@ def main(argv: list[str] | None = None) -> int:
     try:
         report = asyncio.run(_run(
             path, dry_run=args.dry_run, allow_mass_close=args.allow_mass_close,
-            embed_limit=args.embed_limit,
+            embed_limit=args.embed_limit, keywords_limit=args.keywords_limit,
         ))
     except FileNotFoundError:
         print(f"No feed at {path}. Run `python3 -m workit_scraper` in scraper/ first.", file=sys.stderr)
