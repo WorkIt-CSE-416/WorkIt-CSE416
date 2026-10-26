@@ -8,7 +8,7 @@ import { expect, test, type Page } from "@playwright/test";
 import { FakeApi } from "./fake-api";
 import { FakeWorkdays } from "./fake-job-systems";
 import { CONTENT_SCRIPT_FILES, ENGINE_FILES } from "../src/shared/content-scripts.js";
-import { loadExtension, sendFromWebapp, signIn, webapp, type Loaded } from "./loaded-extension";
+import { loadExtension, sendFromWebapp, signIn, webapp, type Handler, type Loaded } from "./loaded-extension";
 
 let loaded: Loaded | undefined;
 test.afterEach(async () => {
@@ -24,9 +24,9 @@ const NAME = [
 const REVIEW_NOTE = "Check everything on Workday's Review page, then press Submit.";
 
 /** Starts a batch of one Workday application on `workdays`' first tenant: its tab. */
-async function batchTab(workdays: FakeWorkdays): Promise<Page> {
+async function batchTab(workdays: FakeWorkdays, first: Handler[] = []): Promise<Page> {
   const api = new FakeApi().queue({ id: "wd-0", apply_url: workdays.url(0) });
-  loaded = await loadExtension([api.handler, webapp, workdays.handler]);
+  loaded = await loadExtension([...first, api.handler, webapp, workdays.handler]);
   await signIn(loaded.context);
   const app = loaded.context.pages()[0] ?? (await loaded.context.newPage());
   await app.goto("http://localhost:3000/auto-apply");
@@ -95,5 +95,65 @@ test("outside a batch, walks to Review only once the student presses Fill to Rev
   await tab.waitForURL(workdays.url(0, 3), { timeout: 90_000 });
   await expect(overlay(tab)).toContainText(REVIEW_NOTE, { timeout: 60_000 });
   await tab.waitForTimeout(3_000);
+  expect(workdays.submissions).toEqual([]);
+});
+
+// Apply's walk (resume-2027 apply workday.py _next), as live Workday answers a press.
+test("presses Save and Continue again when Workday drops the press, as Applied Materials' did live", async () => {
+  test.setTimeout(180_000);
+  // Each step drops its first press: the button never disables, nothing changes.
+  const workdays = new FakeWorkdays(["workday-caci"], [["My Information", [...NAME]], ["Application Questions", [...NAME]]], [{ droppedSaves: 1 }]);
+  const tab = await batchTab(workdays);
+
+  // Well inside the 30 s a single press would wait, per step.
+  await tab.waitForURL(workdays.url(0, 3), { timeout: 40_000 });
+  await expect(overlay(tab)).toContainText(REVIEW_NOTE, { timeout: 30_000 });
+  await tab.waitForTimeout(3_000);
+  expect(workdays.submissions).toEqual([]);
+});
+
+test("walks on when Workday flashes an error mid-save and then shows the next step, as Adobe's did live", async () => {
+  test.setTimeout(180_000);
+  const workdays = new FakeWorkdays(["workday-caci"], [["My Information", [...NAME]], ["Application Questions", [...NAME]]], [{ flashesError: true }]);
+  const tab = await batchTab(workdays);
+
+  await tab.waitForURL(workdays.url(0, 3), { timeout: 90_000 });
+  await expect(overlay(tab)).toContainText(REVIEW_NOTE, { timeout: 30_000 });
+  await expect(overlay(tab)).not.toContainText("Workday didn't take this step");
+  expect(workdays.submissions).toEqual([]);
+});
+
+test("saves two steps of one name drawn in place on a link that never changes, each once", async () => {
+  test.setTimeout(180_000);
+  const workdays = new FakeWorkdays(["workday-caci"], [
+    ["My Information", [...NAME]],
+    ["Application Questions", [...NAME]],
+    ["Application Questions", [{ key: "preferredName", label: "Preferred First Name", kind: "text" }, ...NAME]],
+  ]);
+  workdays.inPlace.add("caci.wd1.myworkdayjobs.com");
+  workdays.samePath.add("caci.wd1.myworkdayjobs.com");
+  const tab = await batchTab(workdays);
+
+  // Review shows on the first step's link, the two Application Questions each saved by the walk without a 30 s wait.
+  await expect(tab.locator("[data-automation-id=applyFlowReviewPage]")).toBeVisible({ timeout: 60_000 });
+  await expect(overlay(tab)).toContainText(REVIEW_NOTE, { timeout: 30_000 });
+  expect(tab.url()).toBe(workdays.url(0));
+  expect(workdays.submissions).toEqual([]);
+});
+
+test("stops at once, saying so, when Workday shows Something went wrong after the press", async () => {
+  test.setTimeout(180_000);
+  const workdays = new FakeWorkdays(["workday-caci"], [["My Information", [...NAME]], ["Application Questions", [...NAME]]]);
+  workdays.inPlace.add("caci.wd1.myworkdayjobs.com");
+  // The first step's save draws Workday's error page in its place (Salesforce's, live), its step bar gone.
+  const wrong: Handler = (request) => {
+    if (request.method === "POST" && request.url.pathname === "/__fake__/apply/1") return { json: { next: "/__fake__/wrong" } };
+    if (request.url.pathname === "/__fake__/wrong") return { headers: { "content-type": "text/html" }, body: "<!doctype html><body><h2>Something went wrong</h2><p>Please refresh the page and then try again.</p></body>" };
+    return undefined;
+  };
+  const tab = await batchTab(workdays, [wrong]);
+
+  // Well inside the 30 s the walk waits for a step that never shows.
+  await expect(overlay(tab)).toContainText("Workday showed \"Something went wrong\"", { timeout: 25_000 });
   expect(workdays.submissions).toEqual([]);
 });

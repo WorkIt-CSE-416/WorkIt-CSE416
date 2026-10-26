@@ -212,13 +212,53 @@ window.WIA = window.WIA || {};
     });
   }
 
-  /** Resolves with Workday's step once it shows and isn't `from`. Watches the page; never times out. */
+  /**
+   * The number of Workday's step shown, from its bar ("current step 4 of 8"),
+   * or "" if the bar gives none. Two steps may have one name (a tenant's
+   * second questionnaire is "Application Questions" again): their numbers differ.
+   */
+  function stepNumber() {
+    return /\bstep (\d+) of \d+/i.exec(document.querySelector(WORKDAY_STEP)?.innerText ?? "")?.[1] ?? "";
+  }
+
+  // This tab's steps filled before, kept across its page loads: "<application path> <step>#<number>".
+  const FILLED_STEPS = "workit-workday-filled";
+
+  /**
+   * Whether this tab filled the step shown before (the student went back to
+   * it, or the page loaded again), and marks it filled. A step filled before
+   * gets only its empty fields filled: what shows is what the student saved.
+   */
+  function filledBefore() {
+    const key = `${location.pathname.replace(/\/apply(\/.*)?$/, "")} ${window.WIA.workday.stepId()}`;
+    let filled = [];
+    try {
+      filled = JSON.parse(sessionStorage.getItem(FILLED_STEPS) ?? "[]");
+    } catch {}
+    if (filled.includes(key)) return true;
+    try {
+      sessionStorage.setItem(FILLED_STEPS, JSON.stringify([...filled, key]));
+    } catch {}
+    return false;
+  }
+
+  // The number of the step stepAfter last resolved with.
+  let resolvedNumber = "";
+
+  /**
+   * Resolves with Workday's step once it shows and isn't `from` (the step
+   * stepAfter last resolved with): another name, or the same name at another
+   * number. Watches the page; never times out.
+   */
   function stepAfter(from) {
+    const fromNumber = from ? resolvedNumber : "";
     return new Promise((resolve) => {
       const check = () => {
         const step = workdayStep();
-        if (!step || step === from) return false;
+        const number = stepNumber();
+        if (!step || (step === from && number === fromNumber)) return false;
         observer.disconnect();
+        resolvedNumber = number;
         resolve(step);
         return true;
       };
@@ -483,5 +523,8 @@ window.WIA = window.WIA || {};
     watchStart,
     quiet,
     stepAfter,
+    filledBefore,
+    // The step shown, told from a step of the same name: "<step>#<number>".
+    stepId: () => `${workdayStep()}#${stepNumber()}`,
   };
 })();

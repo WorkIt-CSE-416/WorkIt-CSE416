@@ -114,7 +114,14 @@ builds it: `dist/engine.js` is committed in the engine repo.
   application (a batch tab starts it itself, below); the content script fills each step as it shows (sections
   first, then each field, then reads the step again for follow-ups), then
   waits. The student checks the step and presses Save and Continue; the
-  next step is filled when Workday shows it. The extension never presses
+  next step is filled when Workday shows it: a step is told from the last
+  by its name and its number in the bar, since a tenant may name two steps
+  alike (a second "Application Questions"). A step the tab filled before
+  (the student went back to it, or it loaded again; `workday.filledBefore`,
+  session storage) gets only its empty fields filled, so the student's
+  saved answers stay. A fill whose step is left while it fills stops
+  planning there (`workday.stepId`), so the step shown next is the step
+  loop's to fill. The extension never presses
   Submit. **Fill to Review** (KAN-369, `workday-walk.js`, Apply's walk): in
   a batch tab, and outside one once the student presses the panel's Fill to
   Review (kept for the tab in sessionStorage), a filled step with nothing
@@ -126,10 +133,15 @@ builds it: `dist/engine.js` is committed in the engine repo.
   row needs the student (failed, unanswered, a written answer still coming,
   a guessed answer, a flag, the Plan's note), a required field shows
   nothing (`fill/required`, asked on Workday only here), or the
-  self-identification card waits. The button is pressed at most once a
-  step (its name and path, kept for the tab), never again after Workday
-  shows an error that stays 5 s or after 30 s with no new step; then the
-  student presses it. Tests: `test/workday-review.extension.spec.ts`. A
+  self-identification card waits. The button is pressed on a step once
+  (its name, its number in Workday's bar and the path, kept for the tab,
+  so a second "Application Questions" on a link that doesn't change is a
+  step of its own). A press Workday drops (in 3 s the button never
+  disabled, no error, the same step) is made again on the same button, 3
+  presses in all, as Apply's `_next` (Applied Materials, live). It is
+  never pressed again after Workday shows an error that stays 5 s, its
+  "Something went wrong" page, or 30 s with no new step; then the student
+  presses it. Tests: `test/workday-review.extension.spec.ts`. A
   step that loads as a new page drops the
   content script, so the background remembers the tab
   (`workday_fill_tabs`, session storage) and injects the fill again when
@@ -138,6 +150,10 @@ builds it: `dist/engine.js` is committed in the engine repo.
   them. Its own How Did You Hear About Us? is never read: the engine
   searches it for each source in turn (WorkIt, LinkedIn, then the rest) and
   takes the first found.
+  `test/workday-steps.extension.spec.ts` walks a whole application (Apply's
+  fake Workday steps, as new pages and drawn in place) from Create Account
+  to Review, Fill to Review saving each step it can and the test answering
+  and saving, as the student, each step where the walk stops.
 - **A job's page is not always its form.** A Lever, Ashby, Rippling,
   Workable or Eightfold posting shows the job on one page and the form on
   another (`jobOf`'s `form`). On the job's page the overlay names the
@@ -159,7 +175,9 @@ builds it: `dist/engine.js` is committed in the engine repo.
   engine's `homePlace` reads it: a city with a US state ("Stony Brook, NY")
   or a city, region and country; anything less certain is left out, so the
   form's location questions and phone country stay the student's. Never
-  parse the location here. Anything else (pay, relocation, a home address, consent boxes,
+  parse the location here. With no street address, Workday's City, State,
+  Country and Country Phone Code come from the home; "previously worked
+  here" is read from the bank's jobs (by whole words of the employer). Anything else (pay, relocation, a home address, consent boxes,
   start dates) stays the student's: the Plan lists it as a Missing fact and
   the overlay says "WorkIt has no answer for this". `POLICIES` holds no
   student's choice; "How did you hear?" is WorkIt in a text box; a list

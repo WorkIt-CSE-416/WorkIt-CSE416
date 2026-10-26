@@ -293,7 +293,11 @@ function workitProfile(profile) {
       : {},
     experience_facts: present({
       employment_history: newest(entries, "experience").map((e) =>
-        present({ employer: e.organization, title: e.title, start: e.start_month, end: e.end_kind === "present" ? null : e.end_month, location: e.location }),
+        present({
+          employer: e.organization, title: e.title, start: e.start_month, end: e.end_kind === "present" ? null : e.end_month, location: e.location,
+          // A Role Description (Workday's Work Experience) is the job's bullets, one a line, as Apply gives it.
+          description: [...(e.bullets ?? [])].sort((a, b) => a.position - b.position).map((b) => b.text).join("\n") || null,
+        }),
       ),
       // Workday's "Type to Add Skills" and "languages most comfortable" read these.
       skills: skills.length ? skills : null,
