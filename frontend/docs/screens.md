@@ -1670,7 +1670,7 @@ with no proposals to accept and no Done (2026-10-25).
   paragraph; the user wanted the card to hold the list alone.
 - **The review step's header is one slim row** (`TailorReviewBar`,
   2026-10-26), so the resume starts near the top: Back (`BackToJobs`),
-  "Tailor Resume" over "Step 3 of 3 · Review Changes" in the middle, and
+  "Review Changes · Step 3 of 3" on one line in the middle, and
   Finish (filled, to the job posting's page) at the right. The page's h1, "Tailor for
   <title> at <company>", is for screen readers only. Under it the
   resume's name leads, renamed in place (`ResumeTitle`, below). The step
@@ -1781,15 +1781,13 @@ with no proposals to accept and no Done (2026-10-25).
   purple dot in the page's margin and is highlighted (its tint, a 1px dark
   border, rounded, after Quinncia) only while its suggestion is pointed
   at or open; a dot or a changed line opens it. The panel's top holds a
-  "…" menu (Accept All, Reject All) and the keyword
-  match as one thin row ("No new keywords matched" when it did not
-  move), and a type filter in the heading row (a dropdown of All Types
+  type filter in the heading row (a dropdown of All Types
   and each change type, each with its coloured badge, added green,
   reworded blue, removed red, moved amber, and its count); under it one white section per resume entry, top to bottom
   as on the page, each heading with the entry's title, organization,
   count and a caret, and each suggestion a row with its type's badge and
   a plus (a minus while open) that opens to its change with a red ✕ Reject and a green ✓
-  Accept. Sample changes of every type sit beside the run's for now
+  Accept, and under the list Reject All and Accept All. Sample changes of every type sit beside the run's for now
   (`demo-suggestions.ts`, temporary). On a phone the panel is a sheet opened by
   "Suggestions (n)". With no record (a new tab or device) the editor
   shows alone, with a line saying the suggestions live in the tab that ran

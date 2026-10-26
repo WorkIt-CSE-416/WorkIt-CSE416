@@ -75,9 +75,10 @@ step, Tailor, a view that only waited.
    answers the same run as one JSON body and stays for other callers.
 6. **The review opens on the tailored resume**, compiled, in the editor
    on Tailor's page, with a Suggestions panel beside it (below,
-   "Suggestions"): the run's keyword match before and after ("Keyword
-   Match 3 of 14 → 9 of 14" and the keywords it added), then one card per
-   change to accept or reject. Each change's line is tinted on the resume
+   "Suggestions"): one row per change to accept or reject, with Accept
+   All and Reject All under them. The run's keyword match before and after
+   is kept with the record but not shown: Choose Keywords already showed
+   the match. Each change's line is tinted on the resume
    until its card is handled. The student edits directly, and editing a
    changed item removes its mark and card.
 
@@ -232,7 +233,8 @@ weight.
 - **The page's top row**, in the brand tint with its ring and rounded,
   as the panel is, so the page's frame stands apart from the content
   under it: Back at the left, the flow and its step in the
-  middle ("Tailor Resume", "Step 3 of 3 · Review Changes"), and Finish at
+  middle on one line ("Review Changes · Step 3 of 3"; the flow's name
+  over the step, two lines, said more than the row needs), and Finish at
   the right, which leaves for the job posting's page, where the student
   applies. Download sat beside Finish for a day; it is back on the
   toolbar with the page's tools. Every change is saved as it is made, so
@@ -312,11 +314,12 @@ weight.
   scrolls) and the section list scrolls inside, so the scroll bar starts
   under the top and the panel keeps its corners. The column itself
   scrolled until 2026-10-26, which carried the rounded corners off with
-  the list. The top holds a
-  "…" menu (Accept All, Reject All), then the keyword match as one thin
-  row over a hairline meter ("Keyword match 3 → 9 of 14", the keywords
-  added under it). When the run matched no new keyword it says "3 of 14 ·
-  No new keywords matched": an arrow to the same number read as a fault.
+  the list. The top holds the title, its count and the type filter.
+  Under the list, Reject All and Accept All, red and green as on each
+  row, in reach rather than in a "…" menu at the top, where nobody found
+  them. The top showed the run's keyword match as a thin row over a
+  meter until 2026-10-26; it repeated Choose Keywords' match, and the
+  meter read as a progress bar.
 - **A brand-tint panel of white sections.** The panel is the brand tint
   with its pale ring, the editor's bar's colour, so the two read as one
   review and its white sections stand apart; it was grey (`app`) until
@@ -359,8 +362,7 @@ weight.
   brand-tinted while it holds a pick): its button names the type shown
   with that type's badge, and its menu lists All Types and each type
   present, each with its badge and count. The types were a two-by-two
-  legend of coloured pills under the keyword match, which took four rows'
-  height.
+  legend of coloured pills, which took four rows' height.
 - **Sample changes, TEMPORARY** (`demo-suggestions.ts`, 2026-10-26): six
   sample changes of every type, built from the resume's own entries, sit
   beside a run's real ones so the panel's design can be judged; Accept or

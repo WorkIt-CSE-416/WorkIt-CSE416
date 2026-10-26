@@ -23,8 +23,9 @@ import type { Keyword, TailorEdit, TailorSource } from "@/lib/tailor-actions";
 
 /** The run's keyword match before and after: how many of `total` the
  *  source resume matched, how many the tailored one does, and the
- *  keywords it added. The Suggestions panel shows it at its top
- *  (../../jobs/[jobId]/tailor/tailor-score.tsx). */
+ *  keywords it added. Kept with the record, which it keeps alive once
+ *  every change is handled; the review no longer shows it: the panel's
+ *  meter repeated Choose Keywords' match (2026-10-26). */
 export type MatchShift = { before: number; after: number; total: number; added: Keyword[] };
 
 /** What the Tailor screen stores: the run's changes, its match, and the

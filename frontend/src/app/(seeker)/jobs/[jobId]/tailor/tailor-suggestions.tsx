@@ -13,11 +13,10 @@ import {
 import { useEffect, useRef, useState, type ComponentProps, type ReactNode } from "react";
 
 import { facetClasses } from "@/components/field-facet";
-import { ChevronDownIcon, EllipsisIcon, FilterIcon } from "@/components/icons";
+import { ChevronDownIcon, FilterIcon } from "@/components/icons";
 import {
   DropdownMenu,
   DropdownMenuContent,
-  DropdownMenuItem,
   DropdownMenuRadioGroup,
   DropdownMenuRadioItem,
   DropdownMenuTrigger,
@@ -40,7 +39,6 @@ import {
 } from "../../../resumes/[resumeId]/tailor-review";
 import { OriginalResume } from "./resume-preview";
 import { ResumeTitle } from "./resume-title";
-import { TailorScore } from "./tailor-score";
 
 /**
  * Tailor's review step (docs/tailor_resume.md, "Suggestions"), kept quiet
@@ -172,7 +170,6 @@ function SuggestionsPanel({
   active,
   open,
 }: SuggestionsApi) {
-  const { match } = record;
   const list = useRef<HTMLDivElement>(null);
   // TEMPORARY: sample changes of every type beside the run's own
   const demo = useDemoChanges(bank, (id) => pageOrder(`${id}.title`) !== Number.POSITIVE_INFINITY);
@@ -229,35 +226,7 @@ function SuggestionsPanel({
             Suggestions <Count n={changes.length} />
           </h2>
           {changes.length > 0 && <TypeFilter only={only} counts={counts} onChange={setOnly} />}
-          <DropdownMenu>
-            <DropdownMenuTrigger
-              disabled={saving || changes.length === 0}
-              aria-label="More Actions"
-              render={<Button variant="ghost" size="icon-sm" />}
-            >
-              <EllipsisIcon className="size-4" />
-            </DropdownMenuTrigger>
-            <DropdownMenuContent align="end">
-              <DropdownMenuItem
-                onClick={() => {
-                  dismissDemo(demoKeys);
-                  acceptAll();
-                }}
-              >
-                Accept All
-              </DropdownMenuItem>
-              <DropdownMenuItem
-                onClick={() => {
-                  dismissDemo(demoKeys);
-                  rejectAll();
-                }}
-              >
-                Reject All
-              </DropdownMenuItem>
-            </DropdownMenuContent>
-          </DropdownMenu>
         </div>
-        {match && <TailorScore match={match} />}
       </div>
       {changes.length > 0 ? (
         <div
@@ -334,6 +303,33 @@ function SuggestionsPanel({
         <p className="text-note text-ink-meta">
           You handled every suggestion. Edit anything else on the resume.
         </p>
+      )}
+      {/* Every change at once, in reach under the list rather than in a
+          "…" menu at the top, where nobody found them. Red undoes, green
+          keeps, as on each row */}
+      {changes.length > 0 && (
+        <div className="grid shrink-0 grid-cols-2 gap-2 pt-1">
+          <Button
+            variant="decline"
+            disabled={saving}
+            onClick={() => {
+              dismissDemo(demoKeys);
+              rejectAll();
+            }}
+          >
+            <XIcon aria-hidden /> Reject All
+          </Button>
+          <Button
+            variant="positive"
+            disabled={saving}
+            onClick={() => {
+              dismissDemo(demoKeys);
+              acceptAll();
+            }}
+          >
+            <CheckIcon aria-hidden /> Accept All
+          </Button>
+        </div>
       )}
     </section>
   );

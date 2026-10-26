@@ -107,8 +107,7 @@ function TailorJobCard({ job }: { job: JobListing }) {
 /**
  * The review step's whole header (./page.tsx), one slim row so the resume
  * starts near the top, in three parts: Back (the job page's `BackToJobs`),
- * the flow and its step in the middle ("Tailor Resume", "Step 3 of 3 ·
- * Review Changes"), and Finish at the right, which leaves for the job
+ * the step in the middle on one line ("Review Changes · Step 3 of 3"), and Finish at the right, which leaves for the job
  * posting's page, where the student applies. Download sat beside Finish
  * for a day; it is back on the editor's toolbar, with the page's tools. Every change is saved as it is made, so
  * Finish saves nothing; suggestions not yet handled stay as the run made
@@ -132,12 +131,14 @@ export function TailorReviewBar({ job }: { job: JobListing }) {
         Tailor for {job.title} at {job.company}
       </h1>
       <BackToJobs className="group/back justify-self-start" />
-      <div className="flex flex-col items-center text-center">
-        <p className="text-label text-ink font-semibold">Tailor Resume</p>
-        <p className="text-note text-ink-meta">
-          Step {TAILOR_STEPS.length} of {TAILOR_STEPS.length} · {last.label}
-        </p>
-      </div>
+      {/* One line: the flow's name over the step, two lines, said more
+          than this row needs */}
+      <p className="text-label text-ink truncate text-center font-semibold">
+        {last.label}{" "}
+        <span className="text-ink-meta font-normal">
+          · Step {TAILOR_STEPS.length} of {TAILOR_STEPS.length}
+        </span>
+      </p>
       <ButtonLink
         href={`/jobs/${encodeURIComponent(job.id)}`}
         size="sm"
