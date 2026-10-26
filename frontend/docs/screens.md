@@ -1661,6 +1661,29 @@ with no proposals to accept and no Done (2026-10-25).
 
 - **Opened from "Tailor My Resume"** on the job posting page, which reads
   "Your Tailored Resume" once the student has one for that posting.
+- **Every view opens the same way** (`TailorHeader`, `tailor-header.tsx`):
+  the page title ("Tailor Your Resume to <job title>", or the tailored
+  resume's name on its page), one line on what Tailor does, then a job
+  card: the employer's logo and name, the title (a link to the job
+  posting's page) and the facts the posting states, the job page's header
+  made small, with no second h1 and no empty fact slots. The intro sat
+  inside the picker card until 2026-10-26, as the card's heading and a
+  paragraph; the user wanted the card to hold the list alone.
+- **One step at a time** (2026-10-26): the step timeline (`TailorSteps`,
+  four even columns, each label under its circle, so a phone keeps one
+  row) shows Pick a Resume, Choose Keywords, Tailor and Review Changes,
+  and each step is its own view under it (`TailorScreen` keeps the step in
+  state; a reload starts at the pick). The keyword match appeared under
+  the picker on one page before, so the student scrolled past the list to
+  read it. Pick a Resume shows the list beside the picked resume's
+  preview (`ResumePreview`; under it below a 56rem column). Choose
+  Keywords has Back and Tailor Resume. Back never loses a pick: the same
+  resume picked again keeps its match and its picked keywords, with no
+  second read. Tailor lists the run's phases as they stream (Retrieving
+  Info, Asking AI, Generating Resume, Compiling Resume), the done ones
+  checked; it has no Back, since a run cannot be stopped, and a failed
+  run returns to Choose Keywords with its error. Review Changes is the
+  tailored resume's own page.
 - **A posting is tailored once.** When it has a tailored resume, the screen
   shows it with Open in Editor and offers no run; the API refuses a second
   run (409), so no tokens are spent on it.
@@ -1673,11 +1696,11 @@ with no proposals to accept and no Done (2026-10-25).
   tailored to this job, else the primary unless that is tailored to
   another job, else the first resume not tailored to any (`tailorFirst`):
   tailoring another job's tailored resume starts from that job's changes.
-  Use This Resume reads the resume's keyword match (`matchTailor`); while
-  it reads, the button says "Matching Keywords…" and the Keyword Match
-  card's place says what WorkIt is doing, over the card's shape
-  (`MatchWaiting`), not made-up stages: the read is one call with none to
-  report. Errors show on the card. An upload is read into the bank and
+  Use This Resume moves to Choose Keywords and reads the resume's keyword
+  match (`matchTailor`); while it reads, the Keyword Match card's place
+  says what WorkIt is doing, over the card's shape (`MatchWaiting`), not
+  made-up stages: the read is one call with none to report. A failed
+  read returns to the pick with its error on the card. An upload is read into the bank and
   tailored as its own entries; a run changes only what the picked resume
   shows.
 - **The keyword match** shows "12 of 18", the matched keywords, and the
@@ -1692,7 +1715,7 @@ with no proposals to accept and no Done (2026-10-25).
   after a keyword was unticked. A keyword not picked is never written in.
   A posting with no description shows the "weak match" notice.
 - **Tailor Resume runs once** and saves the posting's tailored resume,
-  then opens it in the editor (`/resumes/[id]`). The run's record of
+  then opens it in the editor on this route (`?resumeId=`). The run's record of
   changes and its dropped count go to sessionStorage (`tailorEditsKey` in
   `lib/local-drafts.ts`, cleared by Sign Out) for the editor's review
   (Resume editor, below), with the keyword match before and after

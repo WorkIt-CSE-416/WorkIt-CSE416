@@ -15,6 +15,7 @@ import { Editor } from "../../../resumes/[resumeId]/editor";
 import { ListingsError } from "../../listing-card";
 import { getJobListing } from "../../listings";
 import { BackToJobs } from "../page-actions";
+import { TailorHeader } from "./tailor-header";
 import { TailorScore } from "./tailor-score";
 import { TailorSteps } from "./tailor-steps";
 import { TailorScreen } from "./tailor-screen";
@@ -30,7 +31,9 @@ export async function generateMetadata({
 /**
  * /jobs/[jobId]/tailor, Tailor (KAN-217, docs/tailor_resume.md): opened
  * from "Tailor My Resume" on a job posting's page. It loads the posting and
- * shows the tailored resume's editor on this route once one exists.
+ * draws the title, its line and the job card (`TailorHeader`) over every
+ * step: the pick views (`TailorScreen`) until the posting has a tailored
+ * resume, then that resume's editor, Review Changes, on this route.
  */
 export default async function TailorPage({
   params,
@@ -69,11 +72,10 @@ export default async function TailorPage({
     return (
       <div className={cn("max-w-app mx-auto w-full flex-1 py-6", SEEKER_GUTTER)}>
         <BackToJobs />
+        <TailorHeader job={job} title={resume.name}>
+          Your resume, tailored for this posting. Edit anything before you send it.
+        </TailorHeader>
         <TailorSteps current="review" />
-        <h1 className="text-heading text-ink">{resume.name}</h1>
-        <p className="text-body text-ink-meta mt-1">
-          Tailored for {job.title} at {job.company}
-        </p>
         <TailorScore resumeId={resume.id} />
         {bank.data && choices.data && profile ? (
           <Editor
@@ -109,11 +111,11 @@ export default async function TailorPage({
   return (
     <div className={cn("max-w-app mx-auto w-full flex-1 py-6", SEEKER_GUTTER)}>
       <BackToJobs />
-      <h1 className="text-heading text-ink">Tailor</h1>
-      <p className="text-body text-ink-meta mt-1">
-        {job.title} at {job.company}
-      </p>
-      <TailorScreen jobId={job.id} title={job.title} />
+      <TailorHeader job={job} title={`Tailor Your Resume to ${job.title}`}>
+        Pick a resume and the keywords you have used. WorkIt rewrites its bullets for this posting
+        and never adds a number or tool you did not give; you can undo any change.
+      </TailorHeader>
+      <TailorScreen jobId={job.id} />
     </div>
   );
 }
