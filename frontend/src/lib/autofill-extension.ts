@@ -55,7 +55,8 @@ function sendToExtension(message: {
  * gets: batch apply's three messages below (start or top up the batch,
  * which jobs its tabs show, switch to one of them;
  * autofiller_extension/src/background/batch.js), onboarding's two for the
- * practice batch, and `ping`. Never the profile itself;
+ * practice batch, Settings' `workday/signup-open` (opens the extension's
+ * Workday Sign-Up page; its password never crosses), and `ping`. Never the profile itself;
  * see autofiller_extension/src/background/background.js's own comment on
  * why that line is drawn where it is. */
 
@@ -151,6 +152,17 @@ export function useBrowserJobs(): ReadonlySet<string> {
     () => browserJobs,
     () => NONE,
   );
+}
+
+/**
+ * Opens the extension's Workday Sign-Up page (KAN-369), where the student
+ * sets one email and password for every company's Workday. The password is
+ * typed there and kept in the browser only, so this page never sees it.
+ * False when there is no extension to open it.
+ */
+export async function openWorkdaySignup(): Promise<boolean> {
+  const r = (await sendToExtension({ type: "workday/signup-open" })) as { ok: boolean } | undefined;
+  return Boolean(r?.ok);
 }
 
 /** What onboarding's install step reads (KAN-378): whether the extension is

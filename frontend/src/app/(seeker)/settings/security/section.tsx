@@ -16,6 +16,7 @@ import { PasswordDialog } from "./password-form";
 import { ProviderButton } from "./provider-button";
 import { DeleteAccount } from "./delete-account";
 import { SignOutButton } from "./sign-out-button";
+import { WorkdaySignupButton } from "./workday-signup-button";
 
 /** The OAuth providers a seeker can link, in the order sign-in shows them. */
 const PROVIDERS: {
@@ -145,6 +146,13 @@ export async function SecuritySection() {
             {claude.added != null && (
               <ClaudeButton connected={claude.added} claudeLink={claudeConnectorLink()} />
             )}
+          </Row>
+          <Row
+            Icon={LockIcon}
+            label="Workday Sign-Up"
+            value="One email and password for every company's Workday. Your password stays in this browser. WorkIt never sends or saves it anywhere else."
+          >
+            <WorkdaySignupButton />
           </Row>
         </ul>
       </Card>
