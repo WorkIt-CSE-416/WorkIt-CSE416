@@ -286,6 +286,11 @@ async function handleMessage(message, sender) {
     case "batch/submitted":
       return { applied: await submitHinted(sender.tab.id, markSubmitted, jobOf(sender.url)?.site) };
 
+    // The panel's "I submitted this" (the student's own click): a submit the job system's answer
+    // didn't show (detection missed it), marked applied on the student's word.
+    case "batch/i-submitted":
+      return { applied: (await markSubmitted(sender.tab.id)).batch };
+
     // The first form that asks the self-identification (KAN-387): the tab
     // whose Plan found it asks whether to ask the student (once, in one
     // tab: moments.js), then saves their answers to the profile, and every

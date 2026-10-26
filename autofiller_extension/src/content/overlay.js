@@ -479,9 +479,12 @@ window.WIA = window.WIA || {};
   /**
    * Puts the panel on the page. `onSkip`: a batch tab's Skip (the job leaves
    * the batch, and its tab closes), shown as a button in the header.
-   * @param {{ onSkip?: () => void }} [options]
+   * `onSubmitted`: a batch tab's "I submitted this", for a submit WorkIt
+   * didn't see; it answers only the student's own click (`isTrusted`), never
+   * one a page script makes on this open shadow root.
+   * @param {{ onSkip?: () => void, onSubmitted?: () => void }} [options]
    */
-  function mount({ onSkip } = {}) {
+  function mount({ onSkip, onSubmitted } = {}) {
     if (host) return;
     host = document.createElement("div");
     host.id = "workit-autofiller-overlay-host";
@@ -494,6 +497,7 @@ window.WIA = window.WIA || {};
       <div class="header">
         <span>WorkIt Autofiller</span>
         <span class="actions">
+          ${onSubmitted ? '<button type="button" data-submitted title="You sent this application: mark it Applied">I submitted this</button>' : ""}
           ${onSkip ? '<button type="button" data-skip title="Leave this job out of the batch">Skip</button>' : ""}
           <button type="button" aria-label="Close" data-close>✕</button>
         </span>
@@ -510,6 +514,7 @@ window.WIA = window.WIA || {};
     `;
     panel.querySelector("[data-close]").addEventListener("click", unmount);
     panel.querySelector("[data-skip]")?.addEventListener("click", onSkip);
+    panel.querySelector("[data-submitted]")?.addEventListener("click", (event) => event.isTrusted && onSubmitted());
     shadow.appendChild(panel);
     root = shadow;
 

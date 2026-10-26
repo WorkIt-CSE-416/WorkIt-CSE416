@@ -1,6 +1,7 @@
 // Batch apply (KAN-369): the student's submit on Workable and on an Ashby
 // posting with no survey forms marks the application applied, also after the
-// panel is closed. Each job system's submit is faked as its own page sends it (Ashby's
+// panel is closed, and the panel's "I submitted this" marks it when detection
+// misses. Each job system's submit is faked as its own page sends it (Ashby's
 // GraphQL mutation by fetch, Workable's apply by XHR, as its axios does), then
 // its page's notice of a sent application, answered by the fake network; no
 // real job system is reached.
@@ -88,4 +89,20 @@ test("a submit made after the student closed the panel still marks it applied", 
   await ashbySubmits(page);
 
   await expect.poll(() => api.stages.get("job-0"), { timeout: 20_000 }).toBe("applied");
+});
+
+test("the panel's I submitted this marks the application applied when no submit was seen", async () => {
+  const forms = new SavedForms(["ashby-cohere"]);
+  const api = new FakeApi();
+  const page = await batchOf(api, forms.url("ashby-cohere"), [forms.handler]);
+
+  // A click the page makes itself (a script on the employer's page) is not the student's.
+  await panel(page).locator("[data-submitted]").evaluate((button: HTMLElement) => button.click());
+  await page.waitForTimeout(1_500);
+  expect(api.calls.filter((c) => c.endsWith("/finish"))).toEqual([]);
+
+  await panel(page).locator("[data-submitted]").click();
+
+  await expect.poll(() => api.stages.get("job-0"), { timeout: 15_000 }).toBe("applied");
+  await expect(panel(page).getByText("WorkIt marked it Applied.")).toBeVisible();
 });

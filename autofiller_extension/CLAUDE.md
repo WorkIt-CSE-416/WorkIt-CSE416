@@ -862,6 +862,17 @@ waits for an opened tab's page and form (`waitForLoad`, `formShows`).
   moves the tab to Needs you; the application stays unapplied. A practice
   batch (KAN-378) is left out: its forms are no applications, and their
   submit is their own `/thanks` page (`submitPractice`).
+- **"I submitted this"** (KAN-369): a batch tab's panel header has it, for a
+  submit detection missed. It answers only the student's own click
+  (`isTrusted`: the panel's shadow root is open, so a page script could
+  click it), says `batch/i-submitted`, and the worker marks the application
+  applied with `markSubmitted`, as a detected submit. A detected submit
+  says "Application sent / WorkIt marked it Applied." on the panel, the tab
+  leaves its group, and the Auto Apply page shows the row Applied. The
+  student's submit is caught also after the panel is closed (the watch is
+  the page's, not the panel's) and after a refill (the engine keeps its
+  first watch and key, whose listener stays). Tests:
+  `test/submit-detect.extension.spec.ts`.
 - **Tests** (`test/batch.extension.spec.ts`; KAN-373's resume, Skip,
   Workday slot and sign-in in `test/batch-sessions.extension.spec.ts`,
   with fake Workday tenants and sign-in pages in `fake-job-systems.ts`;
