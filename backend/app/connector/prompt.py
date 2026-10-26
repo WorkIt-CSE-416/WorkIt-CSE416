@@ -213,7 +213,11 @@ owned, the clearest result. Between stories that show about as much, take \
 the one closer to this role's work. Each answer on the application leads \
 with its own story, so together they show my range; only an anything-else \
 answer or a cover letter may reuse one, and a story another answer leads \
-with gets at most a clause.
+with gets at most a clause. led_before lists, under each type, the stories \
+my answers of that type at other companies led with lately, most recent \
+first: lead with another story of about as much weight when there is one, \
+so the same story doesn't lead at every company, but never a weaker one \
+for that alone.
 - company_fact: when the type's company link is same-kind, one fact from \
 company_brief, copied as given, that is the same kind of problem as the \
 story (the same domain, constraint or user); else leave it empty. A type \

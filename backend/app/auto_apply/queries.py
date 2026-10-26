@@ -548,6 +548,28 @@ async def fetch_ask(db: AsyncSession, applicant_id: uuid.UUID, job_id: uuid.UUID
     return ask if isinstance(ask, dict) else None
 
 
+async def fetch_sent_plans(db: AsyncSession, applicant_id: uuid.UUID) -> list[tuple[str | None, dict]]:
+    """The Essay plan of every answer of the student's Claude on an
+    application they sent (applied), newest first, each with its posting's
+    company (KAN-369, story rotation)."""
+    rows = await db.execute(
+        select(Job_Post.company_name, Written_Answer.review["plan"])
+        .join(
+            Job_Application,
+            and_(Job_Application.applicant_id == Written_Answer.applicant_id, Job_Application.job_id == Written_Answer.job_id),
+        )
+        .join(Job_Post, Job_Post.id == Written_Answer.job_id)
+        .where(
+            Written_Answer.applicant_id == applicant_id,
+            Written_Answer.answer.is_not(None),
+            Written_Answer.review.has_key("plan"),
+            Job_Application.stage == application_stage.applied,
+        )
+        .order_by(Written_Answer.answered_at.desc(), Written_Answer.job_id, Written_Answer.name)
+    )
+    return [(company, plan) for company, plan in rows if isinstance(plan, dict)]
+
+
 async def fetch_plans(db: AsyncSession, applicant_id: uuid.UUID, job_id: uuid.UUID) -> dict[str, dict]:
     """The Essay plan each answer of the student's Claude on this
     application was saved with (KAN-369), by question name."""

@@ -59,6 +59,7 @@ from app.auto_apply.written import (  # noqa: F401 (re-exported: callers name th
     ask_fact,
     ask_questions,
     drop_own_answer,
+    led_before,
     next_to_write,
     read_first,
     save_answers,

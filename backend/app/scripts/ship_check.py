@@ -169,6 +169,9 @@ def stub(folder: Path, chat: int) -> Iterator[tools.MCPServer]:
     async def no_plans(db, applicant_id, job_id):
         return {}
 
+    async def nothing_sent(db, applicant_id):
+        return []
+
     async def sample_texts(db, applicant_id):
         return samples
 
@@ -200,6 +203,7 @@ def stub(folder: Path, chat: int) -> Iterator[tools.MCPServer]:
             (written, "_check_material", check_material),
             (written, "_plan_sources", plan_sources),
             (written, "fetch_plans", no_plans),
+            (written, "fetch_sent_plans", nothing_sent),
             (writing, "sample_texts", sample_texts),
             (writing, "fetch_style_card", style_card),
             (writing, "card_state", card_state),

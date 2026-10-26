@@ -8,7 +8,10 @@ whole view of WorkIt (auto-apply/architecture.md, 14.6):
   and the student's experience bank. Each question in words carries its
   Question type and, when the form states no length, the type's default
   (app/auto_apply/question_types.py), and `guides` holds the guide of each
-  type the application asks; the prompt says to follow it. A job id of null when
+  type the application asks; the prompt says to follow it. `led_before`
+  gives, by type, the stories the student's sent answers at other
+  companies led with lately (KAN-369, story rotation), for the plan to
+  steer off. A job id of null when
   nothing is left, or when this chat has had its share of applications
   (KAN-381, below).
 - `get_research_task` and `save_company_brief`: the shared company
@@ -151,6 +154,9 @@ class NextApplication(BaseModel):
         "The guide of each Question type this application's questions have, by type: its company link, its "
         "slots (each with whether it is required) and its guidance text."))
     other_types: dict[str, str] = Field(default={}, description="Every other Question type, in one line each.")
+    led_before: dict[str, list[str]] = Field(default={}, description=(
+        "By Question type, the stories the student's sent answers of that type at other companies led with, "
+        "most recent first."))
 
 
 def typed(questions: list) -> tuple[list[tuple[str | None, str | None]], dict[str, dict], dict[str, str]]:
@@ -276,6 +282,10 @@ def register(server: MCPServer) -> None:
             research = found is not None and any(is_text(q.kind) for q in found.questions) \
                 and await briefs.needs_research(db, found.application.job.company)
             card, card_needed = await writing.card_state(db, student.id)
+            led = await pipeline.led_before(
+                db, student.id, found.application.job.company,
+                {question_types.classify(q.label) for q in found.questions if is_text(q.kind)},
+            ) if found else {}
             sent_back = await pipeline.rewrites(db, student.id, found.application.job.id) if found else {}
         if found is None:
             return NextApplication(job_id=None, chat=chat)
@@ -317,6 +327,7 @@ def register(server: MCPServer) -> None:
             style_card_needed=card_needed,
             guides=guides,
             other_types=other_types,
+            led_before=led,
         )
 
     @server.tool(

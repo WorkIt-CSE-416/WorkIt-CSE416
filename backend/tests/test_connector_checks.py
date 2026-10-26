@@ -284,3 +284,31 @@ async def test_the_plans_company_fact_is_the_answers_named_fact(running, applica
         named = (await session.execute(text(
             "SELECT named_fact FROM written_answers WHERE job_id = :j AND name = 'question_7'"), {"j": job})).scalar_one()
     assert named == {"fact": fact, "url": "https://initech.example/news"}
+
+
+async def test_the_plan_is_told_the_stories_sent_answers_led_with_at_other_companies(running, applicant, database):  # noqa: F811
+    me, (sent, mine, same) = await _student_queues(database, applicant, 3)
+    async with database() as session:
+        await session.execute(text("UPDATE job_postings SET company_name = 'Globex', description = :d WHERE id = :id"),
+                              {"d": "Globex builds fast payment pages for small shops.", "id": sent})
+        await session.execute(text("UPDATE job_postings SET company_name = 'Acme' WHERE id IN (:a, :b)"), {"a": mine, "b": same})
+        await session.commit()
+    why = {**WHY, "label": "Why do you want to work at our company?"}
+    for job in (sent, mine, same):
+        await _tab_asks(me, job, why)
+    plan = {"type": "why-company", "story": "Cut page load time by 30%", "slots": [
+        {"slot": "company-fact", "quotes": ["builds fast payment pages for small shops"]},
+        {"slot": "own-match", "quotes": ["Cut page load time by 30%"]}]}
+
+    async with claude(applicant) as client:
+        saved = await client.call_tool("save_answers", {"job_id": sent, "answers": [
+            {"name": "question_7", "answer": "Fast payment pages matter, and at Acme I cut page load time by 30%.",
+             "plan": plan, "unsupported": []}]})
+        assert saved.is_error is False, saved.content
+        async with database() as session:  # the student sent it
+            await session.execute(text("UPDATE job_applications SET stage = 'applied', applied_at = now() WHERE job_id = :j"), {"j": sent})
+            await session.commit()
+        got = (await client.call_tool("get_next_application", {})).structured_content
+
+    assert got["job_id"] == mine
+    assert got["led_before"] == {"why-company": ["Cut page load time by 30%"]}

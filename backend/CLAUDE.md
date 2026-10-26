@@ -279,7 +279,12 @@ Find files with a directory listing; these are the rules for where code goes.
   bullet through `services/bank.py` and clears the ask, so the question
   goes back to their Claude with a fact to quote. A fact that belongs to
   no entry (a favorite book) stays a question for the student, as
-  before. Tests: `tests/test_essay_facts.py`. The save refuses one
+  before. Tests: `tests/test_essay_facts.py`. **Story rotation**
+  (Apply's decision 13): `get_next_application`'s `led_before` gives, by
+  Question type, the stories the student's sent (applied) answers at
+  other companies led with, the 3 newest each (`written.led_before`, read
+  from the plans in `review`), and the prompt steers the plan off them;
+  an answer saved before plans existed steers nothing. The save refuses one
   without the plan or the list, failing the plan, or still holding a
   listed claim; a choice and a paste take none, and the
   student's edit clears it (the check was of Claude's text). The server

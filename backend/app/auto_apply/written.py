@@ -29,6 +29,7 @@ from app.auto_apply.queries import (
     fetch_plans,
     fetch_posting_text,
     fetch_saved_answers,
+    fetch_sent_plans,
     fetch_stage,
     fetch_unanswered,
     fetch_written,
@@ -286,6 +287,33 @@ async def _plan_sources(
     earlier = [q.answer for name, q in questions.items() if q.answer and name not in saving]
     held = "\n".join([experience, *skills, company or "", title or "", posting or "", *facts, *earlier])
     return plans.Sources(plans.fold(held), plans.fold(experience), {plans.fold(f).strip() for f in facts})
+
+
+# How many recent stories of each Question type the plan steers off (Apply's decision 13).
+LED_BEFORE = 3
+
+
+async def led_before(
+    db: AsyncSession, applicant_id: uuid.UUID, company: str | None, kinds: Collection[str],
+) -> dict[str, list[str]]:
+    """
+    The stories the student's sent answers of each type in `kinds` led
+    with at other companies, the LED_BEFORE most recent each, newest first
+    (KAN-369, Apply's story rotation): their Claude's plan leads with
+    another story of about as much weight, so the same story doesn't lead
+    at every company. Read from the plans kept with each answer
+    (`written_answers.review`); an answer saved without one steers nothing.
+    """
+    here = briefs.company_key(company or "")
+    led: dict[str, list[str]] = {}
+    for theirs, plan in await fetch_sent_plans(db, applicant_id):
+        kind, story = plan.get("type"), str(plan.get("story") or "").strip()
+        if kind not in kinds or not story or briefs.company_key(theirs or "") == here:
+            continue
+        stories = led.setdefault(kind, [])
+        if story not in stories and len(stories) < LED_BEFORE:
+            stories.append(story)
+    return led
 
 
 # Opens a question for the student that an Essay plan's required slot,
