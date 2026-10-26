@@ -105,6 +105,10 @@
     let prepared;
     // A Workday step left while it fills (the student went back, or on): the next step is the loop's, not this fill's.
     const begun = window.WIA.workday.isWorkday ? window.WIA.workday.stepId() : "";
+    // Live progress in the panel (KAN-398): Scanning, N fields found, Filling · N of M, Stop and Skip.
+    const progress = window.WIA.progress;
+    progress.begin({ stay: window.WIA.workday.isWorkday });
+    try {
     for (;;) {
       if (prepared && begun && window.WIA.workday.stepId() !== begun) return { ...prepared, written: [...written.values()], state };
       prepared = await send({ type: "fill/plan", extra, state });
@@ -142,6 +146,7 @@
       }
       state = prepared.state;
       const { questions, answers, rows } = prepared;
+      if (!extra.length) progress.found(questions.length);
       const byName = new Map(questions.map((q) => [q.name, q]));
       window.WIA.report?.track(questions);
       const isNew = (name) => !shown.has(name) && shown.add(name);
@@ -175,9 +180,11 @@
           status.setStatus(name, "filled", "Saved on Workday before. WorkIt left it as it is.", shown);
         }
       }
+      if (Object.keys(left).length && progress.stopped()) return stoppedAt(prepared, left, written, state);
       if (Object.keys(left).length) {
+        const events = progress.filling(Object.keys(left).length, Object.fromEntries(Object.keys(left).map((name) => [name, byName.get(name)?.label ?? name])));
         const answer = await send({
-          type: "fill/page", site: prepared.site, questions, answers: left, accepted: prepared.plan.accepted, state, sections: prepared.step?.sections,
+          type: "fill/page", site: prepared.site, questions, answers: left, accepted: prepared.plan.accepted, state, sections: prepared.step?.sections, events,
         });
         if (!answer.ok) {
           for (const name of Object.keys(left)) {
@@ -190,10 +197,13 @@
           for (const [name, result] of Object.entries(answer.results)) {
             done.add(name);
             filledAny = true;
-            status.setStatus(name, result.status, result.reason, result.shows);
+            // A field the student skipped while it was stuck (Skip, progress.js) is theirs now, not an engine error.
+            if (result.status === "left") status.setStatus(name, "failed", "You skipped this. Answer it yourself.");
+            else status.setStatus(name, result.status, result.reason, result.shows);
             if (result.status === "failed") window.WIA.report?.failed(name, result);
           }
           more = answer.more ?? null;
+          if (answer.stopped) return stoppedAt(prepared, Object.fromEntries(Object.entries(left).filter(([name]) => !answer.results[name])), written, state);
         }
       }
       if (more) {
@@ -206,6 +216,20 @@
       }
       return { ...prepared, written: [...written.values()], state };
     }
+    } finally {
+      progress.end();
+    }
+  }
+
+  /**
+   * The student pressed Stop autofill: the fields not reached are left
+   * empty for them and the panel says the fill stopped. The Plan is kept, so
+   * the rows and cards show as after any fill; `stopped` ends a Workday walk.
+   */
+  function stoppedAt(prepared, left, written, state) {
+    for (const name of Object.keys(left)) status.setStatus(name, "skipped", "Not filled: you stopped the fill.");
+    note("_stopped", "You stopped the fill", "WorkIt left the rest of this page for you.");
+    return { ...prepared, written: [...written.values()], state, stopped: true };
   }
 
   /** The current status of one row, or undefined. */
@@ -453,7 +477,7 @@
     window.WIA.phase = last ? "last" : "step";
     window.WIA.primary?.refresh();
     report();
-    if (last) return;
+    if (last || prepared.stopped) return;
     const goOn = async () => {
       await flagEmptyRequired(prepared);
       const why = await toReview.leave(shownId, { fields: status.summary().fields, selfIdWaits: Boolean(selfIdWaiting) });

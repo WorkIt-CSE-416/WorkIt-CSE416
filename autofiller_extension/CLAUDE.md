@@ -1506,6 +1506,45 @@ required line against the form's own asterisks; Alt+N; Ready to submit
 rings Submit and sends nothing; Fill Again's Cancel; Fill this step on
 Workday; the embedded form).
 
+### Live progress (KAN-398): Scanning, Filling · N of M, Stop and Skip
+
+`src/content/progress.js` (`window.WIA.progress`, loaded just before
+content-script.js) covers the `primary` slot while a fill runs: the slot
+gets `data-progressing`, which hides its button, and a `[data-progress]`
+block shows "Scanning this page", then "N fields found" (the Question set
+the Plan read), then "Filling · 12 of 30 fields" over a bar, with a row per
+field as the engine reaches it (Filling…, Filled, Needs you). `fillShown`
+calls `begin` (with `stay` on Workday, which adds "Stay on this page until
+WorkIt finishes this step."), `found`, `filling` before each `fill/page`
+(a fill that brings on questions adds to the total) and `end` when it
+returns, so on Workday the notice goes with each step's fill.
+
+- **The engine's events.** The engine runs in the page's world, so
+  `filling` returns a key that `fill/page` hands the engine's `fillEach` as
+  `events` (engine.js `fillPage`). The engine dispatches
+  `fillengine:field:<key>` on `document` as each field starts and is done,
+  and listens for `fillengine:stop:<key>` and `fillengine:skip:<key>`
+  (detail: the field's name). See the engine README.
+- **Stop autofill** stops the fill before the engine's next field (the
+  field being filled finishes). The result comes back `stopped`; the fields
+  not reached get "Not filled: you stopped the fill." (Needs you when
+  required) and a "You stopped the fill" note, no more questions are
+  planned, and a Workday walk ends at that step.
+- **Skip** shows on a row still filling after 5 s (`STUCK_AFTER`). The
+  engine stops waiting for it and goes on; the field comes back `left` and
+  shows as failed, "You skipped this. Answer it yourself.", under Needs
+  you. It isn't sent to a problem report as an engine error. The skipped
+  fill's own work isn't cancelled in the page (the engine can't abort a
+  filler mid-way), so a slow upload may still land later.
+- A batch tab off Workday has no shell until its fill is done (the
+  hydration rule above), so it shows no progress and nothing can be
+  stopped there.
+
+Tests: `test/panel-progress.extension.spec.ts` (the states in order with
+their counts on Anduril; Stop leaves the résumé unattached and says so; a
+held upload shows Skip after 5 s and lands under Needs you; Workday's
+stay-on-page notice shows and goes).
+
 ## The panel's top (KAN-395): header, batch line, job card
 
 The header (panel.js) is WorkIt's mark (logo.tsx's figure, in ink: the
