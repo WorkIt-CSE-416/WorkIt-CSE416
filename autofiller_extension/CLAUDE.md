@@ -57,7 +57,14 @@ builds it: `dist/engine.js` is committed in the engine repo.
   world can see. The overlay and `content-script.js` run in the isolated
   world, where `chrome.runtime` is. `src/shared/content-scripts.js`'s
   `injectFill` loads both, engine first, for the popup and batch apply
-  alike. The isolated world's files are classic scripts, not modules: each
+  alike. It first claims the page (`window.WIA.running`, set in one step)
+  and injects nothing into a page whose fill is running: a batch tab
+  opened on a Workday step is injected twice as it loads (`batch.js`'s
+  `startFill` and `background.js`'s per-page-load Workday fill), and two
+  copies of the panel scripts side by side left no panel (KAN-369,
+  `test/workday-show.extension.spec.ts`). Its "Frame with ID 0 was
+  removed" only means the filled page went (a Workday fill's script lasts
+  as long as its page), so it isn't logged. The isolated world's files are classic scripts, not modules: each
   sets its part of `window.WIA` and `content-script.js`, loaded last, runs
   the fill with them, so `CONTENT_SCRIPT_FILES`' order matters. Beside the
   status rows (`lib-status.js`) and the panel (`overlay.js`),

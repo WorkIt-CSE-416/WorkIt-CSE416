@@ -53,10 +53,9 @@
 (async function () {
   "use strict";
 
-  // One fill per page: a second injection (a second click, or the background
-  // starting a Workday step's fill again) leaves the running one alone.
-  if (window.WIA.running) return;
-  window.WIA.running = true;
+  // One fill per page: injectFill (shared/content-scripts.js) set
+  // `window.WIA.running` before injecting this, and injects nothing while it
+  // is set, so a second click, or a second injector, leaves this fill alone.
 
   const { status, overlay } = window.WIA;
   // How long to let an answer bring up a follow-up on Workday before reading the step again.

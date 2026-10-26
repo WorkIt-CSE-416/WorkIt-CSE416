@@ -27,15 +27,32 @@ export const CONTENT_SCRIPT_FILES = ["src/content/lib-status.js", "src/shared/to
  */
 export async function injectFill(tabId, { batch = false, frameId = undefined } = {}) {
   const target = frameId === undefined ? { tabId } : { tabId, frameIds: [frameId] };
-  await chrome.scripting.executeScript({ target, world: "MAIN", files: ENGINE_FILES });
-  await chrome.scripting.executeScript({
+  // One fill per page, claimed in one step before anything is injected. A batch tab opened on a Workday step
+  // is injected twice as its page loads (batch.js's startFill and background.js's per-page-load fill): run
+  // side by side, the second's panel scripts replaced the first fill's panel, and no panel showed.
+  const [{ result: claimed }] = await chrome.scripting.executeScript({
     target,
     func: (batch) => {
-      window.WIA = { ...window.WIA, batch };
+      if (window.WIA?.running) return false;
+      window.WIA = { ...window.WIA, batch, running: true };
+      return true;
     },
     args: [batch],
   });
-  void chrome.scripting.executeScript({ target, files: CONTENT_SCRIPT_FILES }).catch((error) => console.warn("[fill] the fill stopped:", error));
+  if (!claimed) return;
+  const release = () => chrome.scripting.executeScript({ target, func: () => void (window.WIA.running = false) }).catch(() => {});
+  try {
+    await chrome.scripting.executeScript({ target, world: "MAIN", files: ENGINE_FILES });
+  } catch (error) {
+    await release();
+    throw error;
+  }
+  // The script's promise is the whole fill: on Workday it lasts as long as the page, so a page that goes ends it.
+  void chrome.scripting.executeScript({ target, files: CONTENT_SCRIPT_FILES }).catch((error) => {
+    if (/Frame with ID \d+ was removed|No tab with id/.test(error.message)) return;
+    console.warn("[fill] the fill stopped:", error);
+    void release();
+  });
 }
 
 // A batch tab at a human check before the form (KAN-369): the panel's parts (never shown there), then human-check.js.
