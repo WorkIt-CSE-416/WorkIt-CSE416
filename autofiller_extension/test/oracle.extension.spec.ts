@@ -83,3 +83,21 @@ test("Fill to Review presses Oracle's Next on each section with nothing for the 
   await tab.waitForTimeout(3_000);
   expect(await tab.evaluate(() => (window as any).__fakeOracleSubmitted)).toBeNull();
 });
+
+test("a closed Oracle job says so instead of waiting for the email", async () => {
+  test.setTimeout(120_000);
+  const closed: Handler = ({ url }) => (url.hostname === ORACLE_HOST && !url.pathname.includes("hcmRestApi")
+    ? { headers: { "content-type": "text/html" }, body: "<!doctype html><html><body><h1>This job is no longer available.</h1></body></html>" } : undefined);
+  loaded = await loadExtension([new FakeApi().handler, webapp, closed]);
+  await signIn(loaded.context);
+  const tab = await loaded.context.newPage();
+  await tab.goto(ORACLE_JOB);
+  await loaded.worker.evaluate(async ([engine, scripts]) => {
+    const [{ id }] = await chrome.tabs.query({ url: "https://*.oraclecloud.com/*" });
+    await chrome.scripting.executeScript({ target: { tabId: id! }, func: () => void ((window as any).WIA = { running: true }) });
+    await chrome.scripting.executeScript({ target: { tabId: id! }, world: "MAIN", files: engine });
+    void chrome.scripting.executeScript({ target: { tabId: id! }, files: scripts });
+  }, [ENGINE_FILES, CONTENT_SCRIPT_FILES]);
+
+  await expect(overlay(tab)).toContainText("This job is closed", { timeout: 30_000 });
+});

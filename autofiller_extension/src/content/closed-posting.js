@@ -10,7 +10,7 @@ window.WIA = window.WIA || {};
 
   // Where a job system WorkIt fills sends a closed job (live, 2026-10-26): Greenhouse to its board with
   // ?error=true, Workable to the account with ?not_found=true; others say so on the page.
-  const CLOSED_HOSTS = /(^|\.)(greenhouse\.io|workable\.com|lever\.co|ashbyhq\.com|rippling\.com|myworkdayjobs\.com|myworkdaysite\.com|eightfold\.ai)$/;
+  const CLOSED_HOSTS = /(^|\.)(greenhouse\.io|workable\.com|lever\.co|ashbyhq\.com|rippling\.com|myworkdayjobs\.com|myworkdaysite\.com|eightfold\.ai|oraclecloud\.com)$/;
   const CLOSED_WORDS = /no longer (accepting applications|open|available)|this (job|position|posting) (is|has been) (closed|filled)|job not found|couldn't find anything here/i;
 
   window.WIA.closedPosting = function closedPosting() {

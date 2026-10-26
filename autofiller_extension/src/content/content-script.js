@@ -457,6 +457,14 @@
   if (workday.step()) note("_step", `${workday.name}: ${workday.step()}`, "Filling this step…", false, true);
   overlay.mount(panel);
   answerTheWalk();
+  // Oracle's closed job says so on its page, where no application starts (closed-posting.js).
+  if (!workday.step() && workday !== window.WIA.workday && window.WIA.closedPosting?.()) {
+    note("_closed", "This job is closed", "It is no longer accepting applications, so there is nothing to fill. Pick another job.");
+    window.WIA.phase = "stopped";
+    window.WIA.running = false;
+    report();
+    return;
+  }
   if (!workday.step()) {
     note("_step", workday.waiting.title, workday.waiting.reason);
     window.WIA.phase = "step";

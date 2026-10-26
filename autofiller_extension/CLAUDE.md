@@ -205,7 +205,9 @@ builds it: `dist/engine.js` is committed in the engine repo.
   Info, Job Application Questions, Experience, More About You) then fills
   as it shows, in the same page, its line "Oracle: <section>", and Fill to
   Review presses Oracle's Next on each section with nothing for the
-  student, stopping at Summary (its Submit is the student's). A profile
+  student, stopping at Summary (its Submit is the student's). A closed
+  Oracle job (its page says it is no longer available) gets "This job is
+  closed" (closed-posting.js) instead of the wait for the email. A profile
   item's inline form (Add Education, Add Experience) isn't filled. The
   sections' markup comes from Simplify's and Jobright's selectors, not a
   live read: live-check before relying on it. Tests:
