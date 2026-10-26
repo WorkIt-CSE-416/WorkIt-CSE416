@@ -1457,10 +1457,19 @@ walk). One purple button, then a line, then Fill Again:
 - While a Workday step fills, the button reads "Filling…", disabled; the
   Workday loop calls `primary.refresh()` once the step's phase is set.
 
+**Embedded Greenhouse forms.** The launcher's static content script runs in
+every frame (`all_frames`) of the listed hosts, so a company careers page
+that embeds Greenhouse's form (`boards.greenhouse.io/embed/job_app` in an
+iframe) gets the edge tab and the panel inside the iframe, and its Autofill
+This Page fills that frame (`panel/fill` uses `sender.frameId`). The
+company page itself, like any host the manifest doesn't list, gets
+nothing: no edge tab, and the toolbar icon opens the popup, which has no
+fill controls since KAN-394.
+
 Tests: `test/panel-primary.extension.spec.ts` (Next Thing and the
 required line against the form's own asterisks; Alt+N; Ready to submit
 rings Submit and sends nothing; Fill Again's Cancel; Fill this step on
-Workday).
+Workday; the embedded form).
 
 ## The overlay: honest per-field results
 

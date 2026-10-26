@@ -162,3 +162,23 @@ test("on a Workday step outside a batch, the button reads Fill this step", async
   expect(page.url()).toBe(workdays.url(0)); // the step only: nothing pressed
   expect(workdays.submissions).toEqual([]);
 });
+
+test("a company careers page that embeds Greenhouse's form: Autofill This Page works in its iframe", async () => {
+  test.setTimeout(120_000);
+  const forms = new SavedForms(["greenhouse-coinbase"]);
+  const careers = "https://www.acme-robotics.example/careers/job?gh_jid=8175510";
+  const companyPage: Handler = ({ url }) =>
+    url.host === "www.acme-robotics.example"
+      ? { headers: { "content-type": "text/html" }, body: `<!doctype html><title>Careers</title><h1>Software Engineer</h1><iframe id="grnhse_iframe" width="100%" height="2000" src="${forms.url("greenhouse-coinbase")}"></iframe>` }
+      : undefined;
+  await start([companyPage, forms.handler]);
+  const page = await loaded.context.newPage();
+  await page.goto(careers);
+  const frame = () => page.frames().find((f) => f.url().includes("/embed/job_app"))!;
+  await expect.poll(() => Boolean(frame())).toBe(true);
+  await hostOf(frame()).getByRole("button", { name: "Show WorkIt panel" }).click({ timeout: 20_000 });
+  await mainButton(frame()).click();
+  await expect(frame().locator("#first_name")).toHaveValue("Test", { timeout: 60_000 });
+  await expect(mainButton(frame())).not.toHaveText("Autofill This Page", { timeout: 30_000 });
+  expect(forms.submissions).toEqual([]);
+});
