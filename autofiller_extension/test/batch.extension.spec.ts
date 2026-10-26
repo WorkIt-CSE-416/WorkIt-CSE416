@@ -235,6 +235,36 @@ test("a human check before the form needs the student, and the form fills once t
   expect(forms.submissions).toEqual([]);
 });
 
+test("a human check's tab says what the student must do, and Next Thing takes them to it", async () => {
+  test.setTimeout(120_000);
+  const [ARC, ANDURIL] = ["greenhouse-arc", "greenhouse-anduril"];
+  const forms = new SavedForms([ARC, ANDURIL]);
+  const check = humanCheckFirst(forms, ARC);
+  const api = new FakeApi().queue({ id: "job-0", apply_url: forms.url(ARC) }, { id: "job-1", apply_url: forms.url(ANDURIL) });
+  loaded = await loadExtension([api.handler, webapp, check.handler]);
+  await signIn(loaded.context);
+  const webappPage = loaded.context.pages()[0] ?? (await loaded.context.newPage());
+  await webappPage.goto("http://localhost:3000/auto-apply");
+  await sendFromWebapp(webappPage, { type: "run/open" });
+  await expect.poll(() => [api.stages.get("job-0"), api.stages.get("job-1")], { timeout: 60_000 }).toEqual(["needs_you", "needs_you"]);
+
+  const row = page(forms.url(ARC)).locator('#workit-autofiller-overlay-host [data-key="_human_check"]');
+  await expect(row.locator(".label")).toHaveText("Prove you're human on this page");
+  await expect(row.locator(".reason")).toHaveText("WorkIt fills the form once it shows.");
+
+  // From Anduril's tab, the first thing is Arc's check (Arc opened first), then Anduril's own questions.
+  await expect(page(forms.url(ANDURIL)).locator("#workit-autofiller-overlay-host [data-key]").first()).toBeAttached({ timeout: 60_000 });
+  const { walked } = await walkToEnd(forms.url(ANDURIL), { most: 2 });
+  expect(walked).toEqual([[forms.url(ARC), "_human_check"], [forms.url(ANDURIL), "question_13130330007"]]);
+
+  // Passed, the form fills with its own panel in place of the check's.
+  check.pass();
+  await page(forms.url(ARC)).reload();
+  await expect(page(forms.url(ARC)).locator("#first_name")).toHaveValue("Test", { timeout: 60_000 });
+  await expect(page(forms.url(ARC)).locator("#workit-autofiller-overlay-host")).toHaveCount(1);
+  expect(forms.submissions).toEqual([]);
+});
+
 test("a field that silently rejects its answer is flagged, and its tab needs you", async () => {
   const forms = new SavedForms(["greenhouse-arc"]);
   const api = new FakeApi().queue({ id: "job-0", apply_url: forms.url("greenhouse-arc") });

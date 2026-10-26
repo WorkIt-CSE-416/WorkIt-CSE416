@@ -245,9 +245,14 @@ waits for an opened tab's page and form (`waitForLoad`, `formShows`).
   as "Verify you are human", `humanCheckShows`), goes to Needs you and
   keeps waiting up to 5 minutes for the form (`formAfterHumanCheck`, also
   across the new page a passed check loads); the fill runs once it shows.
-  The extension never solves a check. A form that never shows has failed,
-  as any other. Test: `test/batch.extension.spec.ts` ("a human check
-  before the form").
+  Meanwhile its panel (`human-check.js`, `injectHumanCheck`) says "Prove
+  you're human on this page" (a "todo" note), with Skip and Next Thing,
+  which stops there; the fill takes it down first (`clearHumanCheck`).
+  The walk's listener, added once per page, answers from the latest
+  fill's rows (`window.WIA.walk`), as a passed check may draw the form in
+  the same page. The extension never solves a check. A form that never shows has failed,
+  as any other. Tests: `test/batch.extension.spec.ts` ("a human check
+  before the form", "a human check's tab says").
 
 - **The URLs always come from the API, never the message.** `run/open`
   carries no body: a page on an allowed origin that could hand the worker

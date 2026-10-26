@@ -108,23 +108,26 @@ window.WIA = window.WIA || {};
     /**
      * Batch apply's "Next Thing That Needs You" (background/batch.js walks the
      * batch's tabs): this tab answers which of its rows need the student
-     * ("batch/flags") and shows one when it is next ("batch/focus"). Added
-     * once per page, though the fill may be injected again.
+     * ("batch/flags") and shows one when it is next ("batch/focus"). The
+     * listener is added once per page and answers from the latest fill's
+     * rows (`window.WIA.walk`): injected again (the fill after a human
+     * check, a second Autofill), the page has a new status and panel.
      */
     function answerTheWalk() {
-      if (window.WIA.walking) return;
-      window.WIA.walking = true;
-      chrome.runtime.onMessage.addListener((message, _sender, reply) => {
-        if (message?.type === "batch/flags") reply(window.WIA.phase === "filling" ? { order: [], keys: [] } : flagged());
-        else if (message?.type === "batch/focus") {
-          show(message.key);
-          reply({ shown: true });
-        }
-      });
+      window.WIA.walk = { flagged, show };
       overlay.offerNext(async () => {
         const answer = await send({ type: "batch/next" }).catch(() => null);
         if (!answer?.ok) return "WorkIt couldn't look through the batch. Try again.";
         return answer.done ? "Nothing else needs you." : null;
+      });
+      if (window.WIA.walking) return;
+      window.WIA.walking = true;
+      chrome.runtime.onMessage.addListener((message, _sender, reply) => {
+        if (message?.type === "batch/flags") reply(window.WIA.phase === "filling" ? { order: [], keys: [] } : window.WIA.walk.flagged());
+        else if (message?.type === "batch/focus") {
+          window.WIA.walk.show(message.key);
+          reply({ shown: true });
+        }
       });
     }
 
