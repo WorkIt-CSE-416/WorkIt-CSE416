@@ -331,6 +331,14 @@ Find files with a directory listing; these are the rules for where code goes.
   mark a test `research_gate` to keep the real rule, and stub
   `needs_research` with the other brief calls wherever they are stubbed
   (`scripts/ship_check.py`).
+  **Every written question has a Question type** (KAN-369, Apply's
+  essay writer made general): `auto_apply/question_types.py` classifies a
+  question into one of 15 types or `general`, and each type's guide is a
+  file in `auto_apply/type_guides/` whose front matter code reads (its
+  summary, company link, default length, match patterns and slots) and
+  whose body is guidance the connector hands out as data. A guide names
+  no student and lists no banned word; change its slots and the save's
+  plan check changes with them. Tests: `tests/test_question_types.py`.
   **Every saved answer passes the checks in code first**
   (`app/auto_apply/checks.py`, KAN-380; pure, `tests/test_answer_checks.py`):
   machine-made words, a run copied from the student's writing samples, a
