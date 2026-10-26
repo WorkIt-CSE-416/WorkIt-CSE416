@@ -148,6 +148,10 @@ async function handleMessage(message, sender) {
     case "workday/allow":
       return allowForMe();
 
+    // The consent card's Set One Password (overlay.js): the Workday Sign-Up page (src/options/).
+    case "workday/signup-open":
+      return chrome.runtime.openOptionsPage();
+
     // Workday refused a Create Account the extension pressed: its new password made no account.
     case "workday/forget": {
       const job = jobOf(sender.url);
@@ -461,6 +465,11 @@ const RUNNER_MESSAGES = {
   "run/show": (message) => showBatchTab(message),
   "practice/open": (message, sender) => startPractice(sender, message),
   "practice/status": () => practiceStatus(),
+  // The webapp's Settings > Connected Apps: opens the Workday Sign-Up page, which keeps its password in this browser.
+  "workday/signup-open": async () => {
+    await chrome.runtime.openOptionsPage();
+    return {};
+  },
 };
 
 /** Whether the student pinned the extension to the toolbar; null where Chrome can't say. */

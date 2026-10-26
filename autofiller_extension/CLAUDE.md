@@ -171,7 +171,9 @@ here:
   autofill-extension.ts`), using Chrome's `externally_connectable` to ask
   batch apply to open (and fill) the queued applications, which jobs its
   tabs show, and to switch to one of them, and onboarding's practice batch
-  and install check (`ping`, KAN-378) — nothing more. The job cards'
+  and install check (`ping`, KAN-378), and Settings' link to the Workday
+  Sign-Up page (`workday/signup-open`, which only opens it: no login
+  crosses) — nothing more. The job cards'
   "Autofill ready" badge, `ping`'s first caller, was removed (KAN-278).
   The extension's core function
   never depends on this bridge: it works from its own popup on whatever
@@ -350,6 +352,27 @@ waits for an opened tab's page and form (`waitForLoad`, `formShows`).
   synthetic press (`press`) works on both, Apply's popup shows Apply
   Manually a moment after, and it loads `/apply/applyManually`, then
   Create Account/Sign In (NVIDIA's social-first, with Sign in with email).
+- **Workday Sign-Up (KAN-369).** The extension's options page
+  (`src/options/`, opened from the popup's Workday Sign-Up button) lets the
+  student set one registration email (prefilled from their WorkIt profile,
+  `profile/get`) and one password for every company's Workday, as Jobright's
+  "Sign-up Information" does. A live checklist (12+ characters, upper, lower,
+  number, special) gates Save; Show/Hide and Clear. **The page writes the
+  login straight to `chrome.storage.local` (`workday_signup`)**: no message
+  carries it, the page never shows a saved password back, and it never
+  reaches the API, a log or the webapp
+  (`test/workday-signup.extension.spec.ts` checks every API request).
+  With one saved, `workdayLogin` gives a tenant with nothing saved that
+  login in place of a new password: Create Account copies it into the
+  tenant's `workday_logins` entry (`signup: true`, `made`, so it is pressed
+  as a new password is), and Sign In fills it as `fresh` (no account known
+  here), so it still switches to Create Account first, as with nothing
+  saved; with no switch link it presses Sign In with it, and a refusal saves
+  the copy `refused`. A tenant saved before keeps its own login. With none
+  set, everything is as below. Every press rule below holds unchanged.
+  The page opens from the popup, the consent card's Set One Password
+  (`workday/signup-open`) and the webapp's Settings > Connected Apps (the
+  same message over `externally_connectable`; it only opens the page).
 - **Workday sign-in (KAN-373).** On Workday's Create Account or Sign In
   form (`[data-automation-id=signInFormo]`; Workday's step bar calls it a
   step, which `workdayStep()` ignores), `workday.js` asks

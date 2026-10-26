@@ -107,7 +107,7 @@ window.WIA = window.WIA || {};
         color: var(--color-ink); background: var(--color-panel);
         border: 1px solid var(--color-border-control); border-radius: var(--radius-control);
       }
-      .moment .actions { display: flex; gap: 8px; margin-top: 4px; }
+      .moment .actions { display: flex; flex-wrap: wrap; gap: 8px; margin-top: 4px; }
       .moment button, .moment a {
         all: unset; cursor: pointer; font-size: var(--text-note); font-weight: 500; padding: 6px 10px; border-radius: var(--radius-control);
       }
@@ -412,14 +412,17 @@ window.WIA = window.WIA || {};
   function askWorkdayAccounts({ onAllow }) {
     const card = momentCard("workday-accounts", `
       <h2>Let WorkIt Sign You In to Workday</h2>
-      <p>Each company's Workday asks you to make an account. WorkIt can make it and sign you in, here and at every company from now on. It fills your email and a new password made for that company alone, kept only in this browser. It ticks the box that you agree to the company's terms and privacy notice, and presses Create Account or Sign In. Each time, the panel names the box it ticked.</p>
+      <p>Each company's Workday asks you to make an account. WorkIt can make it and sign you in, here and at every company from now on. It fills your email and a new password made for that company alone, or the one password you set in Workday Sign-Up, kept only in this browser. It ticks the box that you agree to the company's terms and privacy notice, and presses Create Account or Sign In. Each time, the panel names the box it ticked.</p>
       <div class="actions">
         <button type="button" data-primary data-allow>Sign Me In</button>
         <button type="button" data-secondary data-dismiss>Not Now</button>
+        <button type="button" data-secondary data-signup>Set One Password</button>
       </div>
     `);
     if (!card) return;
     card.querySelector("[data-dismiss]").addEventListener("click", () => card.remove());
+    // The extension's Workday Sign-Up page (src/options/), in a tab of its own; the card stays for the answer.
+    card.querySelector("[data-signup]").addEventListener("click", () => chrome.runtime.sendMessage({ type: "workday/signup-open" }));
     card.querySelector("[data-allow]").addEventListener("click", () => {
       card.remove();
       onAllow();

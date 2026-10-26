@@ -246,6 +246,8 @@ window.WIA = window.WIA || {};
           noted = view;
           onView(!login.ok
             ? "Sign in yourself. WorkIt fills each step once you're signed in."
+            : create && login.made && login.signup
+              ? "WorkIt filled your Workday sign-up email and password, kept only in this browser. Press Create Account, then open the link Workday emails you. WorkIt fills each step once you're signed in."
             : create && login.made
               ? "WorkIt filled your email and a new password for this company's Workday, kept only in this browser. Press Create Account, then open the link Workday emails you. WorkIt fills each step once you're signed in."
               : create
@@ -292,8 +294,8 @@ window.WIA = window.WIA || {};
         onView((create && ticked ? `WorkIt ticked "${ticked}" for you. ` : "") + refusal(view, shown));
         return true;
       }
-      // Nothing saved here: make the account. A login that signed in before, or made the account: sign in with it.
-      const other = create ? login.signedIn || login.created : !login.password;
+      // Nothing saved here (or only the sign-up's login): make the account. A login that signed in before, or made the account: sign in with it.
+      const other = create ? login.signedIn || login.created : !login.password || login.fresh;
       if (other && !switched.has(view)) {
         const link = document.querySelector(SWITCH[view]);
         if (link) {
@@ -326,7 +328,7 @@ window.WIA = window.WIA || {};
         if (!ticks(box)) {
           // Not ticked: Create Account isn't pressed, and the password stays saved for the student's own press.
           untickable = true;
-          onView(`WorkIt filled your email and a new password for this company's Workday, kept only in this browser, but couldn't tick ${terms ? `"${terms}"` : "the terms box"}. Tick it yourself, then press Create Account. ${SIGNED_IN}`);
+          onView(`WorkIt filled your email and ${login.signup ? "your Workday sign-up password" : "a new password for this company's Workday"}, kept only in this browser, but couldn't tick ${terms ? `"${terms}"` : "the terms box"}. Tick it yourself, then press Create Account. ${SIGNED_IN}`);
           return true;
         }
       }

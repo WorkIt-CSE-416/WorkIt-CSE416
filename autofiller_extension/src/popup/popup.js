@@ -56,6 +56,9 @@ function renderSignedIn(profile) {
     ? "Experience bank has data"
     : "Your experience bank is empty — add entries in WorkIt first";
 
+  // The one email and password for every company's Workday (src/options/), kept only in this browser.
+  root.querySelector("#workday-signup-button").addEventListener("click", () => chrome.runtime.openOptionsPage());
+
   root.querySelector("#autofill-button").addEventListener("click", async (event) => {
     const button = event.currentTarget;
     button.disabled = true;

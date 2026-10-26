@@ -25,9 +25,17 @@
 // request to a Workday host outside its /wday/ API (watchWorkdaySends). A
 // press is made again only when none went (sentSince), never after one did:
 // a second Create Account would find the account made.
+//
+// The student may instead set ONE registration email and password for every
+// company (`workday_signup`, the extension's Workday Sign-Up page,
+// src/options/), as Jobright does. Then a tenant with nothing saved gets that
+// login, copied into `workday_logins` when its Create Account is filled, in
+// place of a new password. A tenant already saved keeps its own login (its
+// account was made with it). Clearing the sign-up leaves the copies.
 
 const LOGINS_KEY = "workday_logins";
 const FOR_ME_KEY = "workday_accounts_for_me";
+const SIGNUP_KEY = "workday_signup";
 const PASSWORD_LENGTH = 20;
 // One of each kind at least, which every Workday password rule seen asks for.
 const KINDS = ["ABCDEFGHJKLMNPQRSTUVWXYZ", "abcdefghijkmnopqrstuvwxyz", "23456789", "!#$%&*+-=?@^_~"];
@@ -45,9 +53,10 @@ function serially(change) {
 /** Reads the saved logins, lets `change` edit them, and saves them when it answers true. */
 function changeLogins(change) {
   return serially(async () => {
-    const stored = await chrome.storage.local.get([LOGINS_KEY, FOR_ME_KEY]);
+    const stored = await chrome.storage.local.get([LOGINS_KEY, FOR_ME_KEY, SIGNUP_KEY]);
     const logins = stored[LOGINS_KEY] ?? {};
-    const answer = await change(logins, stored[FOR_ME_KEY] === true);
+    const signup = stored[SIGNUP_KEY]?.password ? stored[SIGNUP_KEY] : null;
+    const answer = await change(logins, stored[FOR_ME_KEY] === true, signup);
     if (answer?.save) await chrome.storage.local.set({ [LOGINS_KEY]: logins });
     return answer?.value;
   });
@@ -55,30 +64,37 @@ function changeLogins(change) {
 
 /**
  * The login to fill on a tenant's Workday: the saved one, else, for Create
- * Account (`create`), a new password, saved before it is filled so the
- * account the student makes with it can always be signed in to again. On
- * Sign In with nothing saved, `password` is null (the student made that
- * account without WorkIt).
+ * Account (`create`), the student's Workday sign-up if set, else a new
+ * password, saved before it is filled so the account the student makes with
+ * it can always be signed in to again. On Sign In with nothing saved, the
+ * sign-up (`fresh`: no account is known here), else `password` is null (the
+ * student made that account without WorkIt).
  * @param {string} tenant the engine's Workday tenant (jobOf(url).tenant)
  * @param {string} email the student's email
  * @param {{ create: boolean }} options
- * `made`: the password is new, made by this call. `signedIn`: it has signed
+ * `made`: the login is new here, made (or copied from the sign-up) by this call. `signup`: it is the sign-up's.
+ * `fresh`: Sign In with nothing saved here, filled with the sign-up's login. `signedIn`: it has signed
  * in here. `created`: Workday made the account with it, pending the
  * student's verification. `refused`: Workday refused a Sign In the extension pressed with
  * it. `forMe`: the student allowed the extension to press the buttons.
- * @returns {Promise<{ email: string, password: string | null, made: boolean, signedIn: boolean, created: boolean, refused: boolean, forMe: boolean }>}
+ * @returns {Promise<{ email: string, password: string | null, made: boolean, signup: boolean, fresh: boolean, signedIn: boolean, created: boolean, refused: boolean, forMe: boolean }>}
  */
 export function workdayLogin(tenant, email, { create }) {
-  return changeLogins((logins, forMe) => {
-    const answer = (login, made) => ({
-      email: login.email, password: login.password, made, signedIn: Boolean(login.signedIn), created: Boolean(login.created),
-      refused: Boolean(login.refused), forMe,
+  return changeLogins((logins, forMe, signup) => {
+    const answer = (login, made, fresh = false) => ({
+      email: login.email, password: login.password, made, signup: Boolean(login.signup), fresh, signedIn: Boolean(login.signedIn),
+      created: Boolean(login.created), refused: Boolean(login.refused), forMe,
     });
     if (logins[tenant]) return { value: answer(logins[tenant], false) };
-    if (!create) return { value: answer({ email, password: null }, false) };
-    logins[tenant] = { email, password: newPassword() };
+    if (!create) return { value: signup ? answer(fromSignup(signup), false, true) : answer({ email, password: null }, false) };
+    logins[tenant] = signup ? fromSignup(signup) : { email, password: newPassword() };
     return { value: answer(logins[tenant], true), save: true };
   });
+}
+
+/** A tenant's login copied from the student's Workday sign-up. */
+function fromSignup(signup) {
+  return { email: signup.email, password: signup.password, signup: true };
 }
 
 /** The student allowed the extension to make and sign in to their Workday accounts, at every company. */
@@ -117,10 +133,12 @@ export function markCreated(tenant) {
 /**
  * Workday refused a Sign In the extension pressed with the saved login: it
  * is kept, but never pressed with again (each try counts toward Workday's
- * lockout), on any page, until the student signs in (markSignedIn).
+ * lockout), on any page, until the student signs in (markSignedIn). A
+ * sign-up's login refused where nothing was saved is saved there, refused.
  */
 export function markRefused(tenant) {
-  return changeLogins((logins) => {
+  return changeLogins((logins, _forMe, signup) => {
+    if (!logins[tenant] && signup) logins[tenant] = fromSignup(signup);
     if (!logins[tenant] || logins[tenant].refused) return;
     logins[tenant] = { ...logins[tenant], refused: true };
     return { save: true };
