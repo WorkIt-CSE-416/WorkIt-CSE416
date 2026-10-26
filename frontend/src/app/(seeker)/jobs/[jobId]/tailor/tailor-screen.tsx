@@ -3,7 +3,7 @@
 import { useRouter } from "next/navigation";
 import { useCallback, useEffect, useState } from "react";
 
-import { SparkleIcon } from "@/components/icons";
+import { CheckIcon, SparkleIcon } from "@/components/icons";
 import { Badge } from "@/components/ui/badge";
 import { Button, ButtonLink } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
@@ -216,15 +216,25 @@ export function TailorScreen({
           <KeywordList label="Matched" keywords={match.matched} />
           {match.missing.length > 0 && (
             <div className="mt-3">
-              <p className="text-note text-ink-meta">Missing: Pick the Ones to Add as Skills</p>
-              <p className="text-note text-ink-muted">
-                Pick only what you have used. WorkIt adds each to this resume&apos;s skills and may
-                name it in a bullet.
-              </p>
-              <ul role="list" className="mt-2 flex flex-wrap gap-1.5">
+              <p className="text-note text-ink-meta">Missing: choose which skills to add</p>
+              <ul role="list" className="mt-2 flex flex-wrap gap-2">
                 {match.missing.map((k) => (
                   <li key={k.keyword}>
-                    <Chip pressed={picked.has(k.keyword)} onClick={() => toggle(k.keyword)}>
+                    <Chip
+                      pressed={picked.has(k.keyword)}
+                      onClick={() => toggle(k.keyword)}
+                      className="gap-2 rounded-control"
+                    >
+                      <span
+                        aria-hidden="true"
+                        className={`flex size-4 shrink-0 items-center justify-center rounded-[4px] border ${
+                          picked.has(k.keyword)
+                            ? "border-brand bg-brand text-on-brand"
+                            : "border-ink-meta bg-panel text-transparent"
+                        }`}
+                      >
+                        <CheckIcon className="size-3" />
+                      </span>
                       {k.keyword}
                       {k.kind === "required" && <span className="sr-only"> (required)</span>}
                     </Chip>
