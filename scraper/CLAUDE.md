@@ -317,6 +317,11 @@ uses); postings are always scraped from the employer.
   before anything is written, and the step is `continue-on-error`. Those
   additions live only in that run, so re-run `build_boards.py` and commit
   `boards.csv` now and then.
+- **A board on a provider's second host is still its board.** Greenhouse's EU
+  boards (`job-boards.eu.greenhouse.io`) answer on the same
+  `boards-api.greenhouse.io`, but `PATTERNS` missed the `.eu.` and dropped 26
+  companies' links until 2026-10-26. A pattern that misses says nothing, so
+  check the links no pattern takes, grouped by host, when a list changes.
 - **The internship lists are renamed each season** (`Summer2026-Internships` →
   `Summer2027-Internships`). GitHub serves the old address too, but update
   `SOURCES` each season: a list that starts a new repo instead would go unread.

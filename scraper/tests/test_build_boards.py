@@ -30,6 +30,13 @@ def slugs(link: str) -> list[tuple[str, str]]:
         ),
         ("https://nexthopai.bamboohr.com/careers/24", ("bamboohr", "nexthopai")),
         ("https://specteraerospace.bamboohr.com/careers/121/", ("bamboohr", "specteraerospace")),
+        # Greenhouse's EU host (seen 2026-10-26): the same board, which the US
+        # boards-api answers. Missing `.eu.` dropped 26 companies.
+        (
+            "https://job-boards.eu.greenhouse.io/stubhubinc/jobs/4794786101",
+            ("greenhouse", "stubhubinc"),
+        ),
+        ("https://job-boards.greenhouse.io/stripe/jobs/7012345", ("greenhouse", "stripe")),
     ],
 )
 def test_an_apply_link_names_its_board(link: str, board: tuple[str, str]) -> None:

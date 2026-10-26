@@ -51,8 +51,11 @@ SOURCES = [
 ]
 
 PATTERNS = {
+    # An EU board (job-boards.eu.greenhouse.io) is answered by the same
+    # boards-api.greenhouse.io as a US one, so it is the same kind of board.
     "greenhouse": re.compile(
-        r"(?:boards|job-boards)\.greenhouse\.io/(?:embed/job_app\?for=)?([a-z0-9_-]+)", re.I
+        r"(?:boards|job-boards)(?:\.eu)?\.greenhouse\.io/(?:embed/job_app\?for=)?([a-z0-9_-]+)",
+        re.I,
     ),
     "lever": re.compile(r"jobs\.lever\.co/([a-z0-9_.-]+)", re.I),
     "ashby": re.compile(r"jobs\.ashbyhq\.com/([a-z0-9_.-]+)", re.I),
