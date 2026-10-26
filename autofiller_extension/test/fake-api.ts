@@ -84,6 +84,9 @@ export class FakeApi {
   /** The student's transcript (GET .../documents, .../documents/transcript/bytes, KAN-369), or none. */
   transcript: { filename: string; base64: string } | null = null;
 
+  /** What the student brought from Apply (GET .../fill-profile, profiles.py), when set: a 404 otherwise. */
+  fillProfile: { profile: object; policies: object } | null = null;
+
   /** Whether the student's Claude has signed in to WorkIt's connector (GET .../connector). */
   connectorAdded = false;
 
@@ -118,6 +121,7 @@ export class FakeApi {
       return { json: { contact_email: null, phone_number, headline, linkedin_url, portfolio_url, github_url, other_url } };
     }
     if (route === "/bank") return { json: STUDENT.bank };
+    if (route === "/fill-profile" && this.fillProfile) return { json: this.fillProfile };
     if (route === "/preferences") return { json: { visa: null } };
     if (route === "/autofill-answers") {
       if (method === "PATCH") {
