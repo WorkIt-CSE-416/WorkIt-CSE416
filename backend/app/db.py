@@ -4,6 +4,7 @@ builds necessary tools from SQLAlchemy to talk with database
 import datetime
 from collections.abc import AsyncIterator
 from functools import lru_cache
+from uuid import uuid4
 
 from sqlalchemy import DateTime, func
 from sqlalchemy.ext.asyncio import (
@@ -43,10 +44,26 @@ def get_engine() -> AsyncEngine:
     '''
     settings = get_settings()
 
+    # A long-lived process (the container) keeps a few connections open; a
+    # short-lived one (a Vercel Function) opens one per request
+    pool = (
+        {"poolclass": NullPool}
+        if settings.db_pool_size == 0
+        # pre_ping and recycle replace a connection Supavisor has dropped.
+        # Overflow as large as the pool: a burst may double it, never more,
+        # so the instances' total stays a known number of Supavisor clients.
+        else {
+            "pool_size": settings.db_pool_size,
+            "max_overflow": settings.db_pool_size,
+            "pool_pre_ping": True,
+            "pool_recycle": 300,
+        }
+    )
+
     # establish the connection to talk with Postgres
     return create_async_engine(
         settings.app_url,
-        poolclass=NullPool, # open as new connection
+        **pool,
         # A database error's text carries the statement's values, and every
         # route logs it with logger.exception: without this, a failed save
         # wrote a student's answers, resume text or phone into the logs.
@@ -54,6 +71,11 @@ def get_engine() -> AsyncEngine:
         connect_args={  # connect with Supabase
             "statement_cache_size": 0,
             "prepared_statement_cache_size": 0,
+            # asyncpg still prepares each statement under a name; numbered
+            # names restart per connection, so on a transaction pooler two
+            # client connections can collide on one backend. A unique name
+            # per statement cannot.
+            "prepared_statement_name_func": lambda: f"__asyncpg_{uuid4()}__",
         },
     )
 

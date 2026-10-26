@@ -2,7 +2,7 @@
 Import (KAN-211, ADR 0003): turn the heuristic parser's reading of an
 uploaded resume into entries and skills for the bank. Model parsing (KAN-222)
 does the same from the model's reading. No database, no HTTP: the caller
-writes the result with `services/bank.py`'s `merge_import`.
+writes the result with `services/bank.py`'s `import_upload` (ADR 0005).
 
 Drafts keep the resume's words. The only changes are the ones a draft must
 pass to be a valid entry: text clipped to the field's length, at most 30

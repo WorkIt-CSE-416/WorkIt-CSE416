@@ -100,14 +100,19 @@ export async function renderResumePdf(resumeId: string): Promise<Result<Rendered
 /** A file to save, base64, under the name it saves as. */
 export type ResumeFile = { data: string; contentType: string; fileName: string };
 
-/** The Word file, for the editor's Download Word. Kept nowhere (KAN-267). */
-export async function downloadWordResume(resumeId: string): Promise<Result<ResumeFile>> {
-  return call<ResumeFile>(`/${id(resumeId)}/docx`, undefined, async (res) => ({
+/** The Word file (`docx`) or the PDF's LaTeX source (`tex`), for the
+ *  editor's Download. Kept nowhere (KAN-267). */
+export async function downloadResumeFile(
+  resumeId: string,
+  format: "docx" | "tex",
+): Promise<Result<ResumeFile>> {
+  return call<ResumeFile>(`/${id(resumeId)}/${format}`, undefined, async (res) => ({
     data: Buffer.from(await res.arrayBuffer()).toString("base64"),
     contentType: res.headers.get("content-type") ?? "application/octet-stream",
     // The API names it (Content-Disposition), header-safe already.
     fileName:
-      /filename="([^"]+)"/.exec(res.headers.get("content-disposition") ?? "")?.[1] ?? "Resume.docx",
+      /filename="([^"]+)"/.exec(res.headers.get("content-disposition") ?? "")?.[1] ??
+      `Resume.${format}`,
   }));
 }
 

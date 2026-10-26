@@ -33,10 +33,19 @@ the page's right edge to its middle, wrapped the Calendar's view switch, and
 turned the Week into seven columns. The container is `--panel-gain`
 narrower than the `<main>`, a registered length that eases over the panel's
 own 200ms linear, so the page holds its width through the animation; keep
-the two durations equal. A layout that splits into columns uses
+the two durations equal. **`--panel-gain` does not inherit** (KAN-368): the
+inherited version restyled about 4,258 elements on every frame of a pin, so
+only 6 to 8 frames of 24 to 54 ms were drawn. Each reader (`[data-scout-page]`,
+the Applications wrapper, the job rail's frame and aside) carries its own
+`transition-[--panel-gain] duration-200 ease-linear` and the
+`md:in-data-[pinned=false]:[--panel-gain:calc(...)]` override
+(`CLAUDE.md`, the sidebar bullet has the exact classes); a new reader without
+them reads 0px and never moves. A layout that splits into columns uses
 `@3xl/main:` and friends, a card that rearranges itself (the job card) is
 its own `@container`, and both see the same width whether the panel is open
-or not. **One page takes the freed room back: Applications** (KAN-256). Its
+or not. **Two pages take the freed room back: Applications** (KAN-256)
+and a job posting's page, whose rail of jobs grows by the gain while the job
+keeps its width (KAN-297, `docs/screens.md`, Job posting page). Applications'
 list is a table that scrolls sideways, so more width only shows more
 columns. The page has no width cap and a negative margin of half
 `--panel-gain` on each side, which widens it with the panel's own easing
@@ -89,10 +98,14 @@ Below md the panel is shadcn's sheet, which has no hover, and works as
 before. `components/hover-sidebar.tsx` wraps shadcn's provider rather than
 editing the vendored one: it opens the provider when pinned or hovering.
 **Size anything by the pinned width with `useSidebarPin`, never shadcn's
-`state`**: a hover sets that to "expanded", and the company bar's corner
+`state`**; in CSS, key on the `data-pinned="true"|"false"` that
+`HoverSidebarProvider` writes on the wrapper, for the same reason (KAN-368): a hover sets that to "expanded", and the company bar's corner
 cell, sized by it, widened and pushed the bar on every hover. On the seeker
-shell a hovering panel covers the bar's toggle, so pinning from a hover is
-Ctrl or Cmd+B, or the toggle once the panel closes.
+shell a hovering panel runs the window's height and covers the bar's
+toggle, so the open panel carries its own pin at its header's right, beside
+the logo (`app-sidebar.tsx`, PanelBrand): the same toggle, a pin to pin and
+a crossed-out pin to unpin. The company bar's toggle is never covered, so
+its panel has none.
 
 Shared shell parts in `src/components`: `app-sidebar.tsx` (the left panel both
 shells use: shadcn's Sidebar with WorkIt's row spacing and current-item
@@ -137,22 +150,55 @@ a half per size, `<LogoLockup>` is the seeker shell's pair. The figure is
 violet and the word ink everywhere, the shells included (2026-10-20, KAN-300;
 the shells drew it all in ink before). There are no logo
 image files; `public/workit-icon.svg` is the favicon's source (`npm run
-favicon`). `components/icons.tsx` holds glyphs used by more than one route, as
-thin wrappers over Lucide at its default stroke (the brand marks stay drawn);
-every per-route `icons.tsx` is the same kind of wrapper. Draw no new glyph by
-hand while Lucide has one. A glyph it lacks (RoleIcon's person in a suit,
-KAN-252) is drawn on Lucide's 24-unit grid with `createLucideIcon`, never as
-a bare `<svg>`, so it takes the same stroke and sizing. `components/hero-arcs.tsx`
-is the corner arcs on the company Dashboard's violet hero.
+favicon`). Every glyph is **Phosphor's** (`@phosphor-icons/react`, KAN-350), at
+its regular weight. It replaced Lucide, which reads as the default set of
+every shadcn app and AI builder; the user reviewed each swap side by side
+before the change. `components/icons.tsx` holds glyphs used by more than one
+route, as thin wrappers over Phosphor (the brand marks stay drawn); every
+per-route `icons.tsx` is the same kind of wrapper.
+
+- **Import from `@phosphor-icons/react/ssr`**, never the main entry, whose
+  icons read a React context that a server component cannot; the lint
+  refuses it. Types (`Icon`) may come from the main entry. Use the `*Icon`
+  names (`CheckIcon`); the bare names are deprecated.
+- **Every glyph is a touch heavier than Phosphor draws it** (KAN-365). Its
+  regular line is 1px at `size-4`, and after Lucide's 2px every icon read
+  thin, so one rule in `globals.css` (`svg[viewBox="0 0 256 256"]`, in
+  base) outlines each glyph's shape by 5 units: about a 2px line, with
+  Phosphor's shapes kept. Phosphor has no weight between regular and bold,
+  and bold read chunkier than Lucide had. `custom-icons.tsx` strokes its
+  glyphs to match (`STROKE`, 2 at regular); change the two together.
+- **Sizes stay classes** (`size-4`): Phosphor's own default is 1em. Inside a
+  Button, Chip or shadcn menu an icon with no size class takes the parent's.
+- **Weight carries state.** Regular everywhere; `weight="fill"` for a
+  selected or filled state (a saved bookmark, the starred resume) and
+  `weight="bold"` where Lucide's stroke was raised for a small check or
+  cross. Never a `fill` prop or a `fill-*` or `stroke-*` class: a Phosphor
+  glyph is filled shapes, so either one paints all of it. A white pointer
+  with a dark edge (the landing tour) is two glyphs stacked.
+- **Pass `aria-hidden`** on a decorative icon: Phosphor does not add it, as
+  Lucide did.
+- Draw no new glyph by hand while Phosphor has one. A glyph it lacks is drawn
+  in `components/custom-icons.tsx` on a 24-unit grid with Phosphor's props
+  and all its weights, never as a bare `<svg>`: Auto Apply's rounded bolt
+  (`LightningRoundedIcon`), the Role filter's person in a suit and tie
+  (`UserTieIcon`, KAN-252), a checked clipboard and file, a chat with a plus,
+  a scan with a magnifier and a folder with a branch.
+- Meanings stay apart: the Offer stage is `Medal` and Veteran
+  `MedalMilitary`; Company is `Building` and On-Site `BuildingOffice`;
+  `CalendarBlank`, not `Calendar`, which prints a date.
+
+`components/hero-arcs.tsx` is the corner arcs on the company Dashboard's
+violet hero.
 
 **Scout and every AI action share one mark** (KAN-257): `SparkleIcon`,
-Lucide's Sparkles, on the top bar's launcher, Ask Scout, Fill With Scout,
+Phosphor's sparkle, on the top bar's launcher, Ask Scout, Fill With Scout,
 Tailor My Resume and Read It Again with AI, and inside Scout's
 mark (`components/scout/chat.tsx`), the gradient tile beside every
 assistant line and in Scout's panel header. The bar and the panel drew a
 filled sparkle by hand while the chat and the AI buttons drew Lucide's, so
-the assistant wore two marks. An ESLint rule refuses `Sparkles` imported
-from lucide-react anywhere but `icons.tsx`.
+the assistant wore two marks. An ESLint rule refuses Phosphor's
+`SparkleIcon` imported anywhere but `icons.tsx`.
 
 ## Colour
 
@@ -190,6 +236,25 @@ the done green;
 the draft's "Ready to save" is words, so it takes `--color-positive-ink`,
 and "Still needed" takes `--color-warning`, as the bank's own warnings do.
 `globals.css` has the numbers.
+
+## Type weights
+
+Four weights, each with one job, shown on `/design-kit/type` (Weights):
+450 to read (body copy, helper text, typed values), 500 for anything a
+student clicks or picks (buttons, chips, segmented controls, menu rows,
+select and filter options, field labels), 600 to name a block (card and
+dialog titles, a job's title, captions), 700 to name a page. A token that
+carries a weight already sets it; a size with none of its own (body, note)
+takes the weight of its job. shadcn's menu, select and combobox rows set no
+weight and drew at 400, so the account menu read thinner than the Jobs
+page's filters; `globals.css` sets them to 500 by `data-slot`, in base so a
+row that asks for another weight still gets it (KAN-365). The filters' own
+option rows (`filter-controls.tsx`) set theirs and are left alone: a nested
+option is regular under its medium parent. Regular is 450, not 400
+(`--font-weight-normal`, KAN-365): Plus Jakarta Sans loads as a variable
+font, and its 400 read thin in small grey text such as a job card's facts
+and dates. `font-normal`, the body's default and `--text-hero` all read it,
+so never write a literal 400.
 
 ## Components
 
@@ -256,7 +321,7 @@ the shadcn docs composes without edits and still looks like WorkIt.
 Every variant at a size is one box (sm 36px, default 42px, lg 48px), a
 text-only one included, and the Button sizes its glyphs to keep it so: an
 icon with no `size-*` class is 16px (14px at `inline`, `xs` and
-`section`). Lucide's own 24px stretched about 30 sm buttons to 38px, so the
+`section`). Lucide's own 24px once stretched about 30 sm buttons to 38px, so the
 bank's My Resumes button stood taller than Fill With Scout beside it
 (KAN-249); give an icon a size only when it must differ. `shadcn/button.tsx` is a re-export pointing back at it, and an
 ESLint rule keeps app code on the canonical path, as it does for `badge`

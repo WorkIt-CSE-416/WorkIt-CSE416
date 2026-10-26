@@ -1,6 +1,7 @@
 "use server";
 
 import { apiFetch, extractErrorMessage } from "@/lib/auth";
+import type { SentResume } from "@/lib/sent-resume-actions";
 import { getApplicantSession } from "@/lib/session";
 
 /**
@@ -92,5 +93,39 @@ export async function startBatch(): Promise<
     return { queued: ((await res.json()) as { queued: string[] }).queued.length, error: null };
   } catch {
     return { queued: null, error: UNREACHABLE };
+  }
+}
+
+/** Up Next's resume picker (KAN-359): the resume one queued job goes out
+ *  with, in place of the rule's pick (PUT .../applications/{job_id}/resume).
+ *  The API keeps it as a sent resume the application names, which the run's
+ *  resume step sends. */
+export async function chooseResume(
+  jobId: string,
+  source: { builtResumeId: string } | { uploadedResumeId: string },
+): Promise<{ sent: SentResume; error: null } | { sent: null; error: string }> {
+  let session;
+  try {
+    session = await getApplicantSession();
+  } catch {
+    return { sent: null, error: SIGNED_OUT };
+  }
+  try {
+    const res = await apiFetch(
+      `/applicants/${session.id}/applications/${encodeURIComponent(jobId)}/resume`,
+      {
+        method: "PUT",
+        body: JSON.stringify(
+          "builtResumeId" in source
+            ? { built_resume_id: source.builtResumeId }
+            : { uploaded_resume_id: source.uploadedResumeId },
+        ),
+      },
+      session.token,
+    );
+    if (!res.ok) return { sent: null, error: await extractErrorMessage(res) };
+    return { sent: (await res.json()) as SentResume, error: null };
+  } catch {
+    return { sent: null, error: UNREACHABLE };
   }
 }

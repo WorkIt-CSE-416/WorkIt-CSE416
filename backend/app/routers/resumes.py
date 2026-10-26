@@ -3,8 +3,8 @@
 Upload (POST) extracts text from a PDF or DOCX into `raw_text`, always from
 the file (the client never sends parsed content), reads it with the
 heuristic parser and writes what it read into the experience bank with
-`services/bank.py`'s `merge_import`, in the same transaction as the row
-(ADR 0003). The response's `bank` says what it wrote (`ImportResult`); the
+`services/bank.py`'s `import_upload`, as entries and skills the upload owns
+(ADR 0005), in the same transaction as the row. The response's `bank` says what it wrote (`ImportResult`); the
 parser's reading is not kept anywhere else. The model never reads an upload
 by itself: the student asks for that through Import Again
 (`POST /applicants/{id}/bank/import`). `GET .../{resume_id}` returns one
@@ -23,8 +23,10 @@ old one, which is removed only when nothing uses it. **Replace and delete
 freeze first** (KAN-267, `sent_resumes.freeze_upload`): the sent resumes
 that point at the old file become a snapshot of its text, in the same
 commit, so the file is no longer in use and goes; one with no readable
-text keeps the file. It merges, so an entry
-the new version dropped stays in the bank. It answers what upload answers.
+text keeps the file. It replaces the
+upload's entries and skills with the new reading (ADR 0005), so what the
+old file held goes, with the student's edits to it. It answers what upload
+answers.
 `PATCH .../{resume_id}` ({"name"}) renames it (KAN-268): the name is the
 row's `original_filename`, which every screen shows and a DOCX downloads
 under, so it keeps the stored file's extension. Import Updated Resume
@@ -39,22 +41,22 @@ student already has 5 uploads; generated resumes do not count (KAN-268,
 `GET .../{resume_id}/file` returns a 5-minute signed URL: inline for a PDF, a
 download under the original filename for a DOCX. `?download=true` makes a PDF
 download too: the row's Download button (KAN-268).
+`GET .../{resume_id}/bytes` returns the file itself from this API's own
+origin, for the Chrome autofiller (`autofiller_extension/`) to attach to an
+ATS's resume field — signed URLs go to Storage's own domain, which the
+extension's `host_permissions` doesn't cover.
 `DELETE .../{resume_id}` removes the row, and its stored file unless a sent
 resume still uses it (`app/services/sent_resumes.py`, KAN-208).
 """
 import asyncio
 import hashlib
 import logging
-import re
-import statistics
 import unicodedata
 import uuid
-import zipfile
 from datetime import UTC, datetime
-from io import BytesIO
 from pathlib import PurePosixPath
 
-from fastapi import APIRouter, Depends, HTTPException, Query, UploadFile
+from fastapi import APIRouter, Depends, HTTPException, Query, Response, UploadFile
 from sqlalchemy import select
 from sqlalchemy.exc import IntegrityError, SQLAlchemyError
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -68,148 +70,18 @@ from app.schemas.auth import AuthenticatedAccount
 from app.schemas.bank import ImportResult
 from app.schemas.resume import ResumeRename
 from app.services import bank, bank_import, built_resumes, sent_resumes
+from app.services.text_extraction import UploadRejected
+from app.services.text_extraction import extract as _extract
+from app.services.text_extraction import read_upload as _read_upload
 from app.services.usage import Feature, uses_left
-from app.utils.resume_parser import count_sections
 
 router = APIRouter()
 logger = logging.getLogger(__name__)
 
-
-# Extract resume text
-def _extract_pdf_text(data: bytes) -> str | None:
-    '''Extract text from PDF, picking between pypdf's two extraction modes.
-
-    Layout mode rebuilds lines from glyph positions, so PDFs that place each
-    word as its own text object (e.g. Google Docs exports) don't come out one
-    word per line. But it reads straight across the page, so a two-column
-    resume gets both columns merged into each line and its section headers
-    buried mid-line. Plain mode follows content-stream order, which for those
-    is column by column. Take plain when it exposes more section headers and
-    isn't fragmented — one word per line puts body words like "experience"
-    on lines of their own, where they count as headers.
-    '''
-    from pypdf import PdfReader
-    try:
-        pages = PdfReader(BytesIO(data)).pages
-        layout = _join_pages(pages, "layout")
-        plain = _join_pages(pages, "plain")
-    except Exception:
-        logger.warning("PDF text extraction failed", exc_info=True)
-        return None
-    use_plain = (_median_words_per_line(plain) >= MIN_MEDIAN_WORDS_PER_LINE
-                 and count_sections(plain) > count_sections(layout))
-    return (plain if use_plain else layout) or None
-
-
-# Fragmented extraction sits at ~1 word per line; real resume text at 5+
-MIN_MEDIAN_WORDS_PER_LINE = 3
-
-
-def _median_words_per_line(text: str) -> float:
-    counts = [len(line.split()) for line in text.splitlines() if line.strip()]
-    return statistics.median(counts) if counts else 0
-
-
-def _join_pages(pages, mode: str) -> str:
-    return _tidy_lines("\n".join(p.extract_text(extraction_mode=mode) or "" for p in pages))
-
-
-def _tidy_lines(text: str) -> str:
-    text = text.replace("\x00", "")  # Postgres text/jsonb rejects NUL bytes
-    # PDF layout mode pads columns with runs of spaces, and Word separates
-    # them with tabs. Turn each gap into two spaces rather than one, because
-    # the parser uses that gap to tell a right-aligned location apart from
-    # the title before it.
-    lines = (re.sub(r"[ \t]{2,}|\t", "  ", line).strip() for line in text.splitlines())
-    return "\n".join(lines).strip()
-
-
-def _extract_docx_text(data: bytes) -> str | None:
-    from docx import Document
-    try:
-        lines = list(_docx_lines(Document(BytesIO(data))))
-    except Exception:
-        logger.warning("DOCX text extraction failed", exc_info=True)
-        return None
-    return _tidy_lines("\n".join(lines)) or None
-
-
-def _docx_lines(container):
-    """Paragraph and table text in document order. Resume templates often lay
-    out headers with tables, which `Document.paragraphs` skips entirely."""
-    from docx.table import Table
-    for block in container.iter_inner_content():
-        if not isinstance(block, Table):
-            yield _docx_paragraph_text(block)
-            continue
-        for row in block.rows:
-            # Merged cells appear once per grid column they span
-            cells = list({id(c._tc): c for c in row.cells}.values())
-            texts = [c.text.strip() for c in cells]
-            if all("\n" not in t for t in texts):
-                # Single-line cells read as one row: "Company | Dates"
-                yield "  ".join(t for t in texts if t)
-            else:
-                for cell in cells:
-                    yield from _docx_lines(cell)
-
-
-def _docx_paragraph_text(paragraph) -> str:
-    # Word stores list bullets as numbering properties, not characters, so
-    # `text` has none — restore one so the parser can tell bullets apart from
-    # entry headers. Numbering comes from the paragraph or its style.
-    ppr = paragraph._p.pPr
-    is_list = (ppr is not None and ppr.numPr is not None) or (
-        paragraph.style is not None and paragraph.style.name.startswith("List"))
-    return f"• {paragraph.text}" if is_list and paragraph.text.strip() else paragraph.text
-
-
-def _is_docx(data: bytes) -> bool:
-    """DOCX is a ZIP containing [Content_Types].xml with a Word content type.
-    Tightens the check around file type"""
-    try:
-        with zipfile.ZipFile(BytesIO(data)) as z:
-            if "[Content_Types].xml" not in z.namelist():
-                return False
-            ct = z.read("[Content_Types].xml").decode("utf-8", errors="ignore")
-            return "wordprocessingml" in ct
-    except zipfile.BadZipFile:
-        return False
-
-
-MAX_SIZE = 5 * 1024 * 1024
 BUCKET = "Resume"
 # The preview link is opened the moment it is made; this only has to outlast
 # the browser's PDF viewer loading a 5 MB file.
 FILE_URL_TTL_SECONDS = 5 * 60
-PDF_MAGIC = b"%PDF"
-DOCX_MAGIC = b"PK\x03\x04"
-
-
-async def _read_upload(file: UploadFile) -> tuple[bytes, str, str]:
-    """Size and type checks for an upload. Returns the bytes,
-    extension and MIME type."""
-    # check size metadata
-    if file.size is not None and file.size > MAX_SIZE:
-        raise HTTPException(413, "File must be under 5 MB")
-
-    contents = await file.read(MAX_SIZE + 1)
-
-    if len(contents) > MAX_SIZE:
-        raise HTTPException(413, "File must be under 5 MB")
-
-    # validate magic bytes — content_type is client-supplied and untrustworthy
-    if contents.startswith(PDF_MAGIC):
-        return contents, ".pdf", "application/pdf"
-    if contents.startswith(DOCX_MAGIC) and _is_docx(contents):
-        return contents, ".docx", (
-            "application/vnd.openxmlformats-officedocument.wordprocessingml.document")
-    raise HTTPException(400, "Only PDF and DOCX files are accepted")
-
-
-async def _extract(contents: bytes, ext: str) -> str | None:
-    extract = _extract_pdf_text if ext == ".pdf" else _extract_docx_text
-    return await asyncio.to_thread(extract, contents)
 
 
 def text_hash(raw_text: str | None) -> str | None:
@@ -259,7 +131,10 @@ async def upload_resume(
 ):
     assert_applicant_owns(account, applicant_id)
 
-    contents, ext, mime = await _read_upload(file)
+    try:
+        contents, ext, mime = await _read_upload(file)
+    except UploadRejected as exc:
+        raise HTTPException(exc.status, str(exc)) from exc
     # raw_text always comes from the file, never from the client. Read before
     # the Storage upload, so a duplicate leaves no file behind.
     raw_text = await _extract(contents, ext)
@@ -308,7 +183,10 @@ async def upload_resume(
     # The row and what it adds to the bank commit together (ADR 0003).
     try:
         session.add(resume)
-        merged = await bank.merge_import(session, applicant_id, entries, skills)
+        # The bank's entries point at the resume, and no relationship()
+        # orders the inserts (models/CLAUDE.md).
+        await session.flush()
+        imported = await bank.import_upload(session, applicant_id, resume.id, entries, skills)
         left = await uses_left(session, applicant_id, Feature.PARSING)
         await built_resumes.default_if_only(session, applicant_id)
         default_id = await _default_id(session, applicant_id)
@@ -320,7 +198,7 @@ async def upload_resume(
         await _raise_if_raced(session, exc, applicant_id, digest)
         raise HTTPException(500, "Failed to save resume record")
 
-    return _imported(resume, resume.id == default_id, entries, skills, merged, left)
+    return _imported(resume, resume.id == default_id, entries, skills, imported, left)
 
 
 async def _raise_if_raced(
@@ -349,7 +227,10 @@ async def replace_resume(
     a student swaps the file."""
     assert_applicant_owns(account, applicant_id)
     resume = await _get_owned_resume(session, applicant_id, resume_id)
-    contents, ext, mime = await _read_upload(file)
+    try:
+        contents, ext, mime = await _read_upload(file)
+    except UploadRejected as exc:
+        raise HTTPException(exc.status, str(exc)) from exc
     raw_text = await _extract(contents, ext)
     digest = text_hash(raw_text)
     if (same := await _duplicate_of(session, applicant_id, digest, besides=resume.id)) is not None:
@@ -392,7 +273,8 @@ async def replace_resume(
     resume.created_at = datetime.now(UTC)
 
     try:
-        merged = await bank.merge_import(session, applicant_id, entries, skills)
+        # A newer file: its reading replaces what the old one held (ADR 0005).
+        imported = await bank.import_upload(session, applicant_id, resume.id, entries, skills)
         left = await uses_left(session, applicant_id, Feature.PARSING)
         default_id = await _default_id(session, applicant_id)
         await session.commit()
@@ -405,7 +287,7 @@ async def replace_resume(
     if old_path and not await sent_resumes.file_in_use(session, old_path):
         await _remove_file(client, old_path, "Failed to remove replaced resume file from Storage")
 
-    return _imported(resume, resume.id == default_id, entries, skills, merged, left)
+    return _imported(resume, resume.id == default_id, entries, skills, imported, left)
 
 
 async def _remove_file(client, storage_path: str, message: str) -> None:
@@ -416,7 +298,7 @@ async def _remove_file(client, storage_path: str, message: str) -> None:
         logger.exception(message, extra={"storage_path": storage_path})
 
 
-def _imported(resume: Resume, is_default: bool, entries, skills, merged, left: int) -> dict:
+def _imported(resume: Resume, is_default: bool, entries, skills, imported, left: int) -> dict:
     """An uploaded file's row and what its reading wrote into the bank."""
     return {
         "id": str(resume.id),
@@ -429,9 +311,8 @@ def _imported(resume: Resume, is_default: bool, entries, skills, merged, left: i
         "created_at": resume.created_at.isoformat() if resume.created_at else None,
         "bank": ImportResult(
             found=len(entries) + len(skills),
-            entries_added=merged.entries_added,
-            entries_updated=merged.entries_updated,
-            skills_added=merged.skills_added,
+            entries_added=imported.entries_added,
+            skills_added=imported.skills_added,
             uses_left=left,
         ).model_dump(),
     }
@@ -579,6 +460,50 @@ async def get_resume_file_url(
         logger.exception("Failed to sign resume URL", extra={"storage_path": resume.storage_path})
         raise HTTPException(502, "Could not open the resume")
     return {"url": signed.get("signedUrl")}
+
+
+RESUME_MIME_TYPES = {
+    ".pdf": "application/pdf",
+    ".doc": "application/msword",
+    ".docx": "application/vnd.openxmlformats-officedocument.wordprocessingml.document",
+}
+
+
+@router.get("/applicants/{applicant_id}/resumes/{resume_id}/bytes")
+async def get_resume_file_bytes(
+    applicant_id: uuid.UUID,
+    resume_id: uuid.UUID,
+    account: AuthenticatedAccount = Depends(get_current_account),
+    session: AsyncSession = Depends(get_session),
+) -> Response:
+    """The file itself, from this API's own origin — for the Chrome
+    autofiller (`autofiller_extension/`), which cannot rely on a signed
+    Storage URL the way the webapp's preview link above does: its
+    `manifest.json` host_permissions cover this API's origins, never
+    Storage's, so a fetch to a signed URL is subject to whatever CORS
+    policy the Storage bucket happens to have, not this app's. Routing the
+    bytes through here instead needs no such assumption, at the cost of a
+    server round trip through Storage and this app at attach-time instead of
+    a direct browser-to-Storage fetch."""
+    assert_applicant_owns(account, applicant_id)
+    resume = await _get_owned_resume(session, applicant_id, resume_id)
+    if not resume.storage_path:
+        raise HTTPException(404, "Resume file not found")
+    try:
+        data = await asyncio.to_thread(
+            get_supabase().storage.from_(BUCKET).download, resume.storage_path,
+        )
+    except Exception:
+        logger.exception("Failed to download resume file", extra={"storage_path": resume.storage_path})
+        raise HTTPException(502, "Could not open the resume")
+    ext = PurePosixPath(resume.storage_path).suffix.lower()
+    media_type = RESUME_MIME_TYPES.get(ext, "application/octet-stream")
+    filename = resume.original_filename or f"resume{ext}"
+    return Response(
+        data,
+        media_type=media_type,
+        headers={"Content-Disposition": f'attachment; filename="{filename}"'},
+    )
 
 
 @router.delete("/applicants/{applicant_id}/resumes/{resume_id}")

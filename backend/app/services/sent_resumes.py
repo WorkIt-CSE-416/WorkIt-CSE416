@@ -79,17 +79,27 @@ class SentFile:
     original_text: str | None = None
 
 
+def _identity(identity: HeaderIdentity) -> dict:
+    """The header's fields as stored and hashed. `us_citizen` is left out
+    while false, so a resume sent before the field existed still hashes the
+    same and a repeat still finds it; an old snapshot reads it as false."""
+    data = dataclasses.asdict(identity)
+    if not data["us_citizen"]:
+        del data["us_citizen"]
+    return data
+
+
 def content_hash(view: ResumeView, identity: HeaderIdentity, template: str) -> str:
     """Everything the PDF is made from, before it is made. Dataclasses
     serialize field by field in a fixed order; dates and decimals by str.
     Word files were kept with "format" in this payload until KAN-267; a PDF
     never had it, so a repeat still matches a sent resume kept before."""
-    payload = {"template": template, "identity": dataclasses.asdict(identity), "view": dataclasses.asdict(view)}
+    payload = {"template": template, "identity": _identity(identity), "view": dataclasses.asdict(view)}
     return hashlib.sha256(json.dumps(payload, sort_keys=True, default=str).encode()).hexdigest()
 
 
 def _snapshot(view: ResumeView, identity: HeaderIdentity, template: str, **more: Any) -> dict:
-    return {"v": SNAPSHOT_VERSION, "template": template, "identity": dataclasses.asdict(identity),
+    return {"v": SNAPSHOT_VERSION, "template": template, "identity": _identity(identity),
             "view": dataclasses.asdict(view), **more}
 
 

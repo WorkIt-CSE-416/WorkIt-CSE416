@@ -1,6 +1,6 @@
 "use client";
 
-import { CircleHelp, Settings } from "lucide-react";
+import { GearIcon, QuestionIcon } from "@phosphor-icons/react/ssr";
 import { useState } from "react";
 
 import { AccountMenu, type AccountMenuItem } from "@/components/account-menu";
@@ -27,6 +27,7 @@ import {
   DropdownMenuSeparator,
   DropdownMenuTrigger,
 } from "@/components/shadcn/dropdown-menu";
+import { Switch } from "@/components/shadcn/switch";
 import { Button } from "@/components/ui/button";
 import { SelectField } from "@/components/ui/select-field";
 import { useToast } from "@/components/ui/toast";
@@ -64,6 +65,19 @@ export function DialogSpecimen() {
         </DialogFooter>
       </DialogContent>
     </Dialog>
+  );
+}
+
+/** An on/off setting (Settings' Notifications draws them, KAN-326): on, off,
+ *  and disabled. */
+export function SwitchSpecimen() {
+  const [on, setOn] = useState(true);
+  return (
+    <div className="flex items-center gap-6">
+      <Switch checked={on} onCheckedChange={setOn} aria-label="Example switch" />
+      <Switch checked={false} aria-label="Off" />
+      <Switch checked disabled aria-label="Disabled" />
+    </div>
   );
 }
 
@@ -193,8 +207,8 @@ export function ResumeUploadSpecimen() {
 }
 
 const ACCOUNT_ROWS: AccountMenuItem[] = [
-  { href: "/settings", label: "Settings", icon: <Settings aria-hidden className="size-4" /> },
-  { href: "/help", label: "Help", icon: <CircleHelp aria-hidden className="size-4" /> },
+  { href: "/settings", label: "Settings", icon: <GearIcon aria-hidden className="size-4" /> },
+  { href: "/help", label: "Help", icon: <QuestionIcon aria-hidden className="size-4" /> },
 ];
 
 /** Signing out from the kit would end a real session, so its row does nothing. */

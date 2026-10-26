@@ -1,9 +1,8 @@
 /**
  * The windows the Dashboard reports on, and how ?range= names them. Its own
- * module, free of the fixtures, because the browser reads the range too: the
- * switch, the headline numbers and the chart all follow ?range= in place
- * (./range-switch.tsx), and ./data.ts pulls in the tracker's server-side
- * fixture.
+ * module because the browser reads the range too: the switch and the
+ * headline numbers follow ?range= in place (./range-switch.tsx), and
+ * ./data.ts pulls in the tracker's server-only read.
  */
 export type RangeKey = "week" | "month" | "season";
 

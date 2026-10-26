@@ -105,7 +105,7 @@ modeled at all (doesn't exist as code).
 | `company_memberships` | `app/models/profiles.py` | Yes | `/auth/me`, for an account created some other way. `id` → `auth.users.id` |
 | `auth.users` | `app/models/auth_users.py` (stub) | Owned by Supabase | Only as the account tables' FK target |
 | `resumes` | `app/models/resume.py` | Yes | No — no resume endpoint exists yet |
-| `experience_banks`, `bank_entries`, `bank_bullets`, `bank_skills`, `bank_skill_links` | `app/models/bank.py` | Yes | `/applicants/{id}/bank` (`app/routers/bank.py`); the experience bank, `docs/resume.md` |
+| `experience_banks`, `bank_entries`, `bank_bullets`, `bank_skills` | `app/models/bank.py` | Yes | `/applicants/{id}/bank` (`app/routers/bank.py`); the experience bank, `docs/resume.md` |
 | `built_resumes`, `built_resume_entries`, `built_resume_bullets`, `built_resume_skills` | `app/models/built_resume.py` | Yes | `/applicants/{id}/built-resumes` (`app/routers/built_resumes.py`): Generate, PDF and Word; `docs/resume.md` |
 | `sent_resumes` | `app/models/sent_resume.py` | Yes | `/applicants/{id}/sent-resumes` (`app/routers/sent_resumes.py`): each PDF download, kept; `docs/resume.md` |
 | `job_postings` | `app/models/jobs.py` | **No** | No |
@@ -139,7 +139,7 @@ Next.js 16 (App Router, Turbopack) · React 19 · TypeScript · Tailwind v4.
 | Charts | `recharts` | Company dashboard stat tiles/trends |
 | Class merging | `clsx` + `tailwind-merge` (via `cn()`) | `src/lib/cn.ts` — every dynamic className goes through this |
 | Dates | `date-fns`, `react-day-picker` | Composer/calendar UI |
-| Icons | `lucide-react` | Vendored shadcn components only |
+| Icons | `@phosphor-icons/react` | Every glyph, imported from its `/ssr` entry; wrappers in `src/components/icons.tsx` |
 | Server-only guard | `server-only` | Marks `src/lib/auth.ts` as never bundled to the client |
 | Auth session | `@supabase/ssr`, `@supabase/supabase-js` | `src/lib/supabase/server.ts`, `src/proxy.ts` — sign-in, cookies, refresh |
 

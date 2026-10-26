@@ -4,6 +4,7 @@ main file for the backend app
 
 import logging
 import math
+import time
 
 from fastapi import FastAPI, Request
 from fastapi.encoders import jsonable_encoder
@@ -21,6 +22,7 @@ from app.routers.avatars import router as avatar_router
 from app.routers.bank import router as bank_router
 from app.routers.built_resumes import router as built_resumes_router
 from app.routers.company_jobs import router as company_jobs_router
+from app.routers.essay_answer import router as essay_answer_router
 from app.routers.intake import router as intake_router
 from app.routers.jobs import router as jobs_router
 from app.routers.notifications import router as notifications_router
@@ -55,6 +57,7 @@ app.include_router(assistant_router)
 app.include_router(preferences_router)
 app.include_router(autofill_answers_router)
 app.include_router(notifications_router)
+app.include_router(essay_answer_router)
 
 
 @app.exception_handler(RequestValidationError)
@@ -79,13 +82,24 @@ async def health() -> dict[str, str]:
 
 
 @app.get("/health/db")
-async def health_db() -> JSONResponse:
+async def health_db(timing: bool = False) -> JSONResponse:
     '''
-    check the health of the database
+    check the health of the database. One query, and only the status, unless
+    ?timing=true asks for the pool and the split wait: the route is public,
+    so the extra query and the numbers are opt-in.
     '''
     try:
+        # Splits the wait, timed in-process: "first" includes taking (or
+        # opening) a connection, "again" is one round trip on it. A header
+        # would not do: Cloudflare drops Server-Timing on api.workitjobs.ai
+        start = time.perf_counter()
         async with get_sessionmaker()() as session:
             await session.execute(text("select 1"))
+            first = time.perf_counter()
+            if timing:
+                await session.execute(text("select 1"))
+                again = time.perf_counter()
+                pool = type(session.bind.pool).__name__
     except Exception as exc:
         logger.exception("Database health check failed")
 
@@ -98,4 +112,11 @@ async def health_db() -> JSONResponse:
             },
         )
 
-    return JSONResponse(content={"status": "ok", "database": "reachable"})
+    body = {"status": "ok", "database": "reachable"}
+    if timing:
+        body |= {
+            "pool": pool,
+            "first_ms": round((first - start) * 1000),
+            "again_ms": round((again - first) * 1000),
+        }
+    return JSONResponse(content=body)

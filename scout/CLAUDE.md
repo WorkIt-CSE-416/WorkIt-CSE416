@@ -123,7 +123,10 @@ reply with `Schema.model_validate_json`. A reply that fails the check raises
 `InvalidReply` and is not repaired or retried down the chain: the caller
 decides whether to ask again, and it does not count as a use. No text reaches
 the student before it returns, so a 429, 5xx or dead endpoint moves down the
-whole chain.
+whole chain. `max_tokens=` caps the reply, reasoning included, and is sent
+only when given (as `max_tokens`, which Ollama, Groq and Gemini all accept);
+a reply the provider stops at its cap (`finish_reason` "length") raises
+`ReplyCutOff`, an `InvalidReply`, since its JSON is cut off.
 
 ## How a failure behaves
 
@@ -132,7 +135,12 @@ when one is rate-limited (429), erroring (5xx) or unreachable **before it has
 sent any text**. Once text has reached the user a retry would repeat it, so a
 failure mid-reply ends the reply with an `error` event. A 4xx other than 429 is
 misconfiguration — wrong key, model name or parameter — and is not retried; the
-server log says which endpoint failed. Every failure reaches the panel as one
+server log says which endpoint failed. **A request too large for one endpoint
+moves down the chain too**: a 413 (Groq's answer to a request over its
+tokens-a-minute limit), or a 400 whose code or message says the context
+length is exceeded (`_too_large`). Gemini reads far more than Groq's free
+tier, so it can answer what Groq refused. When the last endpoint tried
+refused it as too large, the call raises `RequestTooLarge`. Every failure reaches the panel as one
 `error` event with a message written for the user, on a 200 response.
 
 ## What Scout knows, and where it comes from
@@ -229,10 +237,11 @@ address or a friend's link goes too. Rules:
 `tests/test_scout.py` runs Scout against `ScriptedLLM`, which takes one script
 per endpoint in the chain (`ScriptedLLM(rate_limited(), ["reply"])`), records
 every prompt as the model received it, and joins a script's pieces as the
-answer to a structured call. It covers: moving down the chain on 429, 5xx and
-a dead endpoint, no move on misconfiguration or mid-reply, the structured call
-(checked object, chain, rejected replies, no identity data), the request body
-(a JSON schema, never `tool_choice`), the chain read from env, the reply cap
+answer to a structured call. It covers: moving down the chain on 429, 5xx,
+a dead endpoint and a request too large, no move on misconfiguration or mid-reply, the structured call
+(checked object, chain, rejected replies, no identity data, a reply cut off
+at its cap), the request body (a JSON schema, never `tool_choice`,
+`max_tokens` only when asked), the chain read from env, the reply cap
 and the privacy mapping (`facts.py`). Tests of the system prompt's wording
 and the facts block's text were removed on purpose (2026-10-18); do not add
 them back. The tests that no identity data reaches the model stay.

@@ -1,239 +1,297 @@
 "use client";
 
-import { Check, X } from "lucide-react";
-import { useState } from "react";
+import { useRouter } from "next/navigation";
+import { useCallback, useEffect, useState } from "react";
 
-import { SparkleIcon } from "@/components/icons";
+import { CheckIcon, SparkleIcon } from "@/components/icons";
+import { readEvents } from "@/components/scout/stream";
 import { Badge } from "@/components/ui/badge";
 import { Button, ButtonLink } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
-import { addSkill, getBank, linkSkill, type BankEntry } from "@/lib/bank-actions";
-import { cn } from "@/lib/cn";
+import { Chip } from "@/components/ui/chip";
+import { tailorEditsKey, writeSessionDraft } from "@/lib/local-drafts";
+import type { ResumeItem } from "@/lib/resume-actions";
 import {
-  finishTailor,
-  runTailor,
+  matchTailor,
   type Keyword,
-  type TailorChange,
-  type TailorProposal,
-  type TailorResult,
+  type TailorMatch,
+  type TailorRunResult,
+  type TailorSource,
+  type TailorStreamEvent,
 } from "@/lib/tailor-actions";
 
+import { loadChoices, ResumeLists, type Choice } from "../../resume-picker";
+
+/** What Tailor Resume says while a run waits, by the streamed run's lines
+ *  (`TailorStreamEvent`): Retrieving Info until the API sends `asking`, and
+ *  Compiling Resume once `done` has come and the editor loads. */
+const PHASE = {
+  retrieving: "Retrieving Info…",
+  asking: "Asking AI…",
+  generating: "Generating Resume…",
+  compiling: "Compiling Resume…",
+} as const;
+
+/** Tailor's first pick: the resume tailored to this posting, else the
+ *  primary unless it is tailored to another posting, else the first one
+ *  not tailored to any. A resume tailored to another posting is the
+ *  picker's primary (KAN-268), but tailoring it again starts from another
+ *  job's changes, so it is never picked for the student. */
+function tailorFirst(choices: Choice[]): Choice | undefined {
+  return (
+    choices.find((c) => c.forThisJob) ??
+    choices.find((c) => c.isDefault && c.type !== "Tailored") ??
+    choices.find((c) => c.type !== "Tailored") ??
+    choices[0]
+  );
+}
+
 /**
- * The Tailor screen (KAN-217). Run spends one of today's Tailor runs and
- * proposes changes; the student accepts or rejects each, answers "Have you
- * used X?" for missing keywords, and Done saves the accepted ones on the
- * posting's one tailored resume. Nothing is saved before Done, except a
- * skill added by answering Yes (it goes into the bank, which is the point).
- *
- * The keyword match ("12 of 18") is the API's for the starting resume; the
- * "after" count adds each accepted change's keywords and each Yes, with no
- * AI call. Done's response is the saved resume's own match.
+ * The Tailor screen (KAN-217, docs/tailor_resume.md). The student picks a
+ * generated or uploaded resume, or uploads one with the Resumes page's rules
+ * (../../resume-picker, KAN-318); WorkIt reads its keyword match, and the
+ * student picks which missing keywords to add as skills. Tailor Resume runs
+ * once and saves the posting's one tailored resume with no confirmation,
+ * then opens its editor on this route. The run's record of changes goes to
+ * sessionStorage (`tailorEditsKey`) for the editor; nothing else keeps it.
  */
-
-type Decision = "accepted" | "rejected";
-
-export function TailorScreen({
-  jobId,
-  title,
-  tailoredName,
-}: {
-  jobId: string;
-  title: string;
-  tailoredName: string | null;
-}) {
+export function TailorScreen({ jobId, title }: { jobId: string; title: string }) {
+  const router = useRouter();
+  const [source, setSource] = useState<TailorSource | null>(null);
+  const [match, setMatch] = useState<TailorMatch | null>(null);
+  const [picked, setPicked] = useState<Set<string>>(new Set());
+  // Add All only picks every missing keyword; unpicking one after keeps the label
+  const [addedAll, setAddedAll] = useState(false);
+  const [reading, setReading] = useState(false);
   const [running, setRunning] = useState(false);
-  const [proposal, setProposal] = useState<TailorProposal | null>(null);
-  const [decisions, setDecisions] = useState<Record<number, Decision>>({});
-  // Skills added by answering Yes, as accepted show_skill changes.
-  const [added, setAdded] = useState<TailorChange[]>([]);
-  const [answered, setAnswered] = useState<Record<string, "yes" | "no">>({});
-  const [saving, setSaving] = useState(false);
-  const [result, setResult] = useState<TailorResult | null>(null);
+  const [phase, setPhase] = useState<string>(PHASE.retrieving);
   const [error, setError] = useState<{ message: string; status: number | null } | null>(null);
+  const [choices, setChoices] = useState<Choice[] | null>(null);
+  const [uploads, setUploads] = useState<ResumeItem[]>([]);
+  const [choiceError, setChoiceError] = useState<string | null>(null);
+  const [uploading, setUploading] = useState(false);
+  const [selected, setSelected] = useState<string | null>(null);
+  const onUploadBusy = useCallback((busy: boolean) => setUploading(busy), []);
+  const refreshChoices = useCallback(async (): Promise<Choice[]> => {
+    const result = await loadChoices(jobId);
+    setChoices(result.choices);
+    setUploads(result.uploads);
+    setChoiceError(result.error);
+    setSource(null);
+    setMatch(null);
+    setSelected(tailorFirst(result.choices)?.key ?? null);
+    return result.choices;
+  }, [jobId]);
+
+  useEffect(() => {
+    let cancelled = false;
+    void loadChoices(jobId).then((result) => {
+      if (cancelled) return;
+      setChoices(result.choices);
+      setUploads(result.uploads);
+      setChoiceError(result.error);
+      setSelected(tailorFirst(result.choices)?.key ?? null);
+    });
+    return () => {
+      cancelled = true;
+    };
+  }, [jobId]);
+
+  async function read(next: TailorSource) {
+    setReading(true);
+    setError(null);
+    const { data, error, status } = await matchTailor(jobId, next);
+    setReading(false);
+    if (!data) return setError({ message: error ?? "WorkIt couldn't read that resume.", status });
+    if (data.tailored_resume_id) {
+      return router.push(
+        `/jobs/${encodeURIComponent(jobId)}/tailor?resumeId=${encodeURIComponent(data.tailored_resume_id)}`,
+      );
+    }
+    setSource(next);
+    setMatch(data);
+    setPicked(new Set());
+    setAddedAll(false);
+  }
+
+  async function uploaded(id: string) {
+    const refreshed = await refreshChoices();
+    setSelected(refreshed.find((choice) => choice.key === `uploaded:${id}`)?.key ?? null);
+  }
 
   async function run() {
+    if (!source) return;
     setRunning(true);
     setError(null);
-    const { data, error, status } = await runTailor(jobId);
-    setRunning(false);
-    if (!data) return setError({ message: error ?? "Tailor failed.", status });
-    setProposal(data);
-    setDecisions({});
-    setAdded([]);
-    setAnswered({});
-    setResult(null);
-  }
-
-  async function done() {
-    if (!proposal) return;
-    setSaving(true);
-    setError(null);
-    const accepted = [...proposal.changes.filter((_, i) => decisions[i] === "accepted"), ...added];
-    const { data, error, status } = await finishTailor(jobId, proposal.source_resume_id, accepted);
-    setSaving(false);
-    if (!data) return setError({ message: error ?? "Saving failed.", status });
-    setResult(data);
-  }
-
-  if (result) {
-    return (
-      <Card as="section" className="mt-4">
-        <h2 className="text-subtitle text-ink">Saved: {result.resume.name}</h2>
-        <MatchCount matched={result.matched} missing={result.missing} />
-        <p className="text-body text-ink-muted mt-2">
-          Your tailored resume is under Resumes, in Tailored Resumes. Open it there to download it
-          as a PDF or a Word file.
-        </p>
-        <div className="mt-3 flex gap-3">
-          <ButtonLink href="/resumes" size="sm">
-            Go to Resumes
-          </ButtonLink>
-          <ButtonLink href={`/jobs/${encodeURIComponent(jobId)}`} variant="secondary" size="sm">
-            Back to the Job
-          </ButtonLink>
-        </div>
-      </Card>
+    setPhase(PHASE.retrieving);
+    const failed = (message: string, status: number | null) => {
+      setRunning(false);
+      setError({ message, status });
+    };
+    let result: TailorRunResult | null = null;
+    try {
+      const res = await fetch("/api/tailor", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ job_posting_id: jobId, ...source, skills: [...picked] }),
+      });
+      // A refusal before the model call (an empty bank, a posting already
+      // tailored) is an HTTP status with the API's detail, as the action's was.
+      if (!res.ok || !res.body) {
+        const body: unknown = await res.json().catch(() => null);
+        const detail = (body as { detail?: unknown } | null)?.detail;
+        const message =
+          typeof detail === "string" ? detail : (detail as { message?: unknown } | null)?.message;
+        return failed(typeof message === "string" ? message : "Tailor failed.", res.status);
+      }
+      for await (const event of readEvents<TailorStreamEvent>(res.body)) {
+        if (event.type === "phase") setPhase(PHASE[event.phase]);
+        else if (event.type === "error") return failed(event.message, event.status);
+        else result = event.result;
+      }
+    } catch {
+      return failed("Tailor couldn't reach WorkIt. Try again in a minute.", null);
+    }
+    // A stream that ends with no last line lost its connection mid-run.
+    if (!result) return failed("Tailor stopped before it finished. Try again.", null);
+    setPhase(PHASE.compiling);
+    writeSessionDraft(tailorEditsKey(result.resume.id), { edits: result.edits });
+    router.push(
+      `/jobs/${encodeURIComponent(jobId)}/tailor?resumeId=${encodeURIComponent(result.resume.id)}`,
     );
   }
 
-  if (!proposal) {
-    return (
-      <Card as="section" className="mt-4">
-        <h2 className="text-subtitle text-ink">Tailor your resume to {title}</h2>
-        <p className="text-body text-ink-muted mt-1">
-          WorkIt compares your resume with this posting and proposes changes. You approve each one.
-          WorkIt never adds a fact you did not give: when a keyword is missing, it asks you.
-        </p>
-        {tailoredName && (
-          <p className="text-note text-ink-meta mt-2">
-            You already have a tailored resume for this posting ({tailoredName}). A new run starts
-            from it.
-          </p>
-        )}
-        <Button className="mt-3" onClick={run} disabled={running}>
-          <SparkleIcon /> {running ? "Tailoring…" : "Tailor My Resume"}
-        </Button>
-        <p className="text-note text-ink-meta mt-2">
-          Each run uses one of today&apos;s 2 Tailor runs.
-        </p>
-        <TailorError error={error} />
-      </Card>
-    );
-  }
-
-  const decide = (i: number, d: Decision) => setDecisions((all) => ({ ...all, [i]: d }));
-  const acceptAll = () =>
-    setDecisions(Object.fromEntries(proposal.changes.map((_, i) => [i, "accepted" as const])));
-  const gained = new Set([
-    ...proposal.changes.flatMap((c, i) => (decisions[i] === "accepted" ? c.keywords : [])),
-    ...added.flatMap((c) => c.keywords),
-  ]);
-  const after = proposal.missing.filter((k) => gained.has(k.keyword));
+  const toggle = (keyword: string) =>
+    setPicked((all) => {
+      const next = new Set(all);
+      if (next.has(keyword)) next.delete(keyword);
+      else next.add(keyword);
+      return next;
+    });
 
   return (
     <div className="mt-4 flex flex-col gap-4">
-      <Card as="section" aria-labelledby="tailor-match">
-        <h2 id="tailor-match" className="text-subtitle text-ink">
-          Keyword Match
-        </h2>
-        {proposal.weak_match && (
-          <p role="note" className="text-note text-ink-muted mt-1">
-            Weak match: this posting has no description, so WorkIt read only its title.
-          </p>
-        )}
-        <div className="mt-2 flex flex-wrap gap-6">
-          <div>
-            <p className="text-note text-ink-meta">Before</p>
-            <MatchCount matched={proposal.matched} missing={proposal.missing} />
-          </div>
-          <div>
-            <p className="text-note text-ink-meta">With What You Accept</p>
-            <MatchCount
-              matched={[...proposal.matched, ...after]}
-              missing={proposal.missing.filter((k) => !gained.has(k.keyword))}
-            />
-          </div>
-        </div>
-        <KeywordList label="Matched" keywords={[...proposal.matched, ...after]} />
-        <KeywordList
-          label="Missing"
-          keywords={proposal.missing.filter((k) => !gained.has(k.keyword))}
-        />
-        <p className="text-note text-ink-meta mt-2">
-          {proposal.uses_left} Tailor {proposal.uses_left === 1 ? "run" : "runs"} left today.
+      <Card as="section">
+        <h2 className="text-subtitle text-ink">Tailor Your Resume to {title}</h2>
+        <p className="text-body text-ink-muted mt-1">
+          Pick a resume, then the keywords you want on it. WorkIt rewrites its bullets for this
+          posting and opens the result in the editor, where you can undo any change. WorkIt never
+          adds a number or tool you did not give.
         </p>
-      </Card>
-
-      {proposal.questions.length > 0 && (
-        <Card as="section" aria-labelledby="tailor-questions">
-          <h2 id="tailor-questions" className="text-subtitle text-ink">
-            Have You Used These?
-          </h2>
-          <p className="text-note text-ink-meta mt-1">
-            Your bank does not mention them, so WorkIt will not write them in. Say Yes only if you
-            have used it.
-          </p>
-          <ul role="list" className="divide-border-subtle mt-2 flex flex-col divide-y">
-            {proposal.questions.map((k) => (
-              <Question
-                key={k.keyword}
-                keyword={k}
-                answer={answered[k.keyword]}
-                onAnswer={(answer, change) => {
-                  setAnswered((all) => ({ ...all, [k.keyword]: answer }));
-                  if (change) setAdded((all) => [...all, change]);
+        <div className="mt-3 flex flex-col gap-3">
+          {choices == null ? (
+            <p className="text-note text-ink-muted">Loading your resumes…</p>
+          ) : (
+            <>
+              <ResumeLists
+                name="tailor-from"
+                choices={choices}
+                empty="None yet. Upload one, or generate one on Resumes & Experiences."
+                picked={selected}
+                onPick={(key) => {
+                  setSelected(key);
+                  setSource(null);
+                  setMatch(null);
+                  setError(null);
                 }}
+                upload={{ uploads, onUploaded: uploaded, onBusyChange: onUploadBusy }}
               />
-            ))}
-          </ul>
-        </Card>
-      )}
-
-      <Card as="section" aria-labelledby="tailor-changes">
-        <div className="flex items-baseline justify-between gap-3">
-          <h2 id="tailor-changes" className="text-subtitle text-ink">
-            Proposed Changes
-          </h2>
-          {proposal.changes.length > 1 && (
-            <Button variant="ghost" size="inline" onClick={acceptAll}>
-              Accept All
-            </Button>
+              <Button
+                className="self-start"
+                onClick={() => {
+                  const choice = choices.find((item) => item.key === selected);
+                  if (choice) void read(toSource(choice));
+                }}
+                disabled={!selected || reading || running || uploading}
+              >
+                <SparkleIcon />{" "}
+                {reading ? "Reading…" : match ? "Use Another Resume" : "Use This Resume"}
+              </Button>
+            </>
+          )}
+          {choiceError && (
+            <p role="alert" className="text-note text-danger">
+              {choiceError}
+            </p>
           )}
         </div>
-        {proposal.dropped > 0 && (
-          <p className="text-note text-ink-meta mt-1">
-            WorkIt dropped {proposal.dropped} {proposal.dropped === 1 ? "wording" : "wordings"} that
-            added a number or tool your bank does not hold.
-          </p>
-        )}
-        {proposal.changes.length === 0 ? (
-          <p className="text-body text-ink-muted mt-2">No changes to propose.</p>
-        ) : (
-          <ul role="list" className="divide-border-subtle mt-2 flex flex-col divide-y">
-            {proposal.changes.map((change, i) => (
-              <ChangeRow
-                key={i}
-                change={change}
-                decision={decisions[i]}
-                onDecide={(d) => decide(i, d)}
-              />
-            ))}
-          </ul>
-        )}
+        {/* KAN-319: the Tailor limit is lifted for now, so the cost is hidden.
+        <p className="text-note text-ink-meta mt-2">
+          Each run uses one of today&apos;s 2 Tailor runs.
+        </p>
+        */}
+        {!match && <TailorError error={error} />}
       </Card>
 
-      <div className="flex flex-wrap items-center gap-3">
-        <Button onClick={done} disabled={saving}>
-          <Check /> {saving ? "Saving…" : "Done"}
-        </Button>
-        <ButtonLink href={`/jobs/${encodeURIComponent(jobId)}`} variant="secondary">
-          Leave Without Saving
-        </ButtonLink>
-      </div>
-      <TailorError error={error} />
+      {match && (
+        <Card as="section" aria-labelledby="tailor-match">
+          <h2 id="tailor-match" className="text-subtitle text-ink">
+            Keyword Match
+          </h2>
+          {match.weak_match && (
+            <p role="note" className="text-note text-ink-muted mt-1">
+              Weak match: this posting has no description, so WorkIt read only its title.
+            </p>
+          )}
+          <div className="mt-2">
+            <MatchCount matched={match.matched} missing={match.missing} />
+          </div>
+          <KeywordList label="Matched" keywords={match.matched} />
+          {match.missing.length > 0 && (
+            <div className="mt-3">
+              <div className="flex flex-wrap items-baseline gap-x-3 gap-y-1">
+                <p className="text-note text-ink-meta">Missing: choose which skills to add</p>
+                <Button
+                  variant="link"
+                  size="inline"
+                  onClick={() => {
+                    setPicked(new Set(match.missing.map((k) => k.keyword)));
+                    setAddedAll(true);
+                  }}
+                >
+                  {addedAll ? "Added All" : "Add All"}
+                </Button>
+              </div>
+              <ul role="list" className="mt-2 flex flex-wrap gap-2">
+                {match.missing.map((k) => (
+                  <li key={k.keyword}>
+                    <Chip
+                      pressed={picked.has(k.keyword)}
+                      onClick={() => toggle(k.keyword)}
+                      className="gap-2"
+                    >
+                      <span
+                        aria-hidden="true"
+                        className={`flex size-4 shrink-0 items-center justify-center rounded-[4px] border ${
+                          picked.has(k.keyword)
+                            ? "border-brand bg-brand text-on-brand"
+                            : "border-ink-meta bg-panel text-transparent"
+                        }`}
+                      >
+                        <CheckIcon className="size-3" />
+                      </span>
+                      {k.keyword}
+                      {k.kind === "required" && <span className="sr-only"> (required)</span>}
+                    </Chip>
+                  </li>
+                ))}
+              </ul>
+            </div>
+          )}
+          <Button className="mt-4" onClick={run} disabled={running}>
+            <SparkleIcon /> <span aria-live="polite">{running ? phase : "Tailor Resume"}</span>
+          </Button>
+          <TailorError error={error} />
+        </Card>
+      )}
     </div>
   );
 }
+
+const toSource = (choice: Choice): TailorSource =>
+  "builtResumeId" in choice.source
+    ? { built_resume_id: choice.source.builtResumeId }
+    : { uploaded_resume_id: choice.source.uploadedResumeId };
 
 function MatchCount({ matched, missing }: { matched: Keyword[]; missing: Keyword[] }) {
   const total = matched.length + missing.length;
@@ -261,170 +319,6 @@ function KeywordList({ label, keywords }: { label: string; keywords: Keyword[] }
         ))}
       </ul>
     </div>
-  );
-}
-
-const WHAT: Record<TailorChange["kind"], string> = {
-  reword: "New wording",
-  show_entry: "Bring back",
-  show_skill: "Show skill",
-  order: "Reorder bullets",
-};
-
-function ChangeRow({
-  change,
-  decision,
-  onDecide,
-}: {
-  change: TailorChange;
-  decision: Decision | undefined;
-  onDecide: (d: Decision) => void;
-}) {
-  return (
-    <li className={cn("py-3", decision === "rejected" && "opacity-60")}>
-      <div className="flex flex-wrap items-start justify-between gap-3">
-        <div className="min-w-0 flex-1">
-          <p className="text-note text-ink-meta">
-            {WHAT[change.kind]}
-            {change.label ? `: ${change.label}` : ""}
-          </p>
-          {change.kind === "reword" && (
-            <div className="mt-1 grid gap-1 @lg/main:grid-cols-2">
-              <p className="text-body text-ink-muted">
-                <span className="sr-only">Old wording: </span>
-                {change.original}
-              </p>
-              <p className="text-body text-ink">
-                <span className="sr-only">New wording: </span>
-                {change.text}
-              </p>
-            </div>
-          )}
-          {change.keywords.length > 0 && (
-            <p className="text-note text-positive-ink mt-1">Adds {change.keywords.join(", ")}</p>
-          )}
-        </div>
-        <div className="flex shrink-0 gap-2">
-          <Button
-            size="sm"
-            variant={decision === "accepted" ? "positive" : "secondary"}
-            aria-pressed={decision === "accepted"}
-            onClick={() => onDecide("accepted")}
-          >
-            <Check /> Accept
-          </Button>
-          <Button
-            size="sm"
-            variant="secondary"
-            aria-pressed={decision === "rejected"}
-            onClick={() => onDecide("rejected")}
-          >
-            <X /> Reject
-          </Button>
-        </div>
-      </div>
-    </li>
-  );
-}
-
-/** "Have you used X?" Yes adds X to the bank as a skill and shows it on
- *  the tailored resume (an accepted change), then offers to link it to the
- *  entry where it was used. No AI call. */
-function Question({
-  keyword,
-  answer,
-  onAnswer,
-}: {
-  keyword: Keyword;
-  answer: "yes" | "no" | undefined;
-  onAnswer: (answer: "yes" | "no", change?: TailorChange) => void;
-}) {
-  const [busy, setBusy] = useState(false);
-  const [error, setError] = useState<string | null>(null);
-  const [skillId, setSkillId] = useState<string | null>(null);
-  const [entries, setEntries] = useState<BankEntry[]>([]);
-  const [linked, setLinked] = useState<string | null>(null);
-
-  async function yes() {
-    setBusy(true);
-    setError(null);
-    const { data, error } = await addSkill(keyword.keyword, null);
-    if (!data) {
-      setBusy(false);
-      return setError(error);
-    }
-    setSkillId(data.id);
-    onAnswer("yes", {
-      kind: "show_skill",
-      skill_id: data.id,
-      bullet_id: null,
-      entry_id: null,
-      bullet_ids: [],
-      text: null,
-      original: null,
-      label: data.name,
-      keywords: [keyword.keyword],
-    });
-    const bank = await getBank();
-    setEntries(bank.data?.entries ?? []);
-    setBusy(false);
-  }
-
-  async function link(entryId: string) {
-    if (!skillId || !entryId) return;
-    const { error } = await linkSkill(skillId, entryId);
-    if (error) return setError(error);
-    setLinked(entryId);
-  }
-
-  return (
-    <li className="py-3">
-      <div className="flex flex-wrap items-center justify-between gap-3">
-        <p className="text-body text-ink">
-          Have you used <strong>{keyword.keyword}</strong>?
-          {keyword.kind === "required" && (
-            <span className="text-note text-ink-meta"> The posting requires it.</span>
-          )}
-        </p>
-        {answer == null ? (
-          <div className="flex gap-2">
-            <Button size="sm" variant="secondary" onClick={yes} disabled={busy}>
-              Yes, Add It
-            </Button>
-            <Button size="sm" variant="secondary" onClick={() => onAnswer("no")} disabled={busy}>
-              No
-            </Button>
-          </div>
-        ) : (
-          <p className="text-note text-ink-meta">
-            {answer === "yes" ? "Added to your skills" : "Left out"}
-          </p>
-        )}
-      </div>
-      {answer === "yes" && entries.length > 0 && (
-        <label className="text-note text-ink-muted mt-2 flex flex-wrap items-center gap-2">
-          Where Did You Use It?
-          <select
-            className="border-border-subtle bg-surface text-body rounded-control border px-2 py-1"
-            value={linked ?? ""}
-            onChange={(e) => link(e.target.value)}
-          >
-            <option value="">Choose an Entry (Optional)</option>
-            {entries.map((e) => (
-              <option key={e.id} value={e.id}>
-                {e.title}
-                {e.organization ? `, ${e.organization}` : ""}
-              </option>
-            ))}
-          </select>
-        </label>
-      )}
-      {error && (
-        <p role="alert" className="text-note text-danger mt-1">
-          {error}
-        </p>
-      )}
-    </li>
   );
 }
 

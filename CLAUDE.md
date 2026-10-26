@@ -34,7 +34,9 @@ none.
   touches the database; runs with `python3 -m workit_scraper`, tests under
   `uvx pytest`.
 - `autofiller_extension/` — the ATS autofiller (KAN-164): a Manifest V3
-  Chrome extension, no build step, no dependency manifest. Adds no backend
+  Chrome extension, no build step, no dependency manifest. It fills through
+  the Fill engine, the git submodule `autofiller_extension/fill-engine`
+  pinned to a tag (`git submodule update --init` once per checkout). Adds no backend
   routes or schema; reads the same endpoints the webapp already has.
 - `.github/` — CI and the scheduled scrape-and-import (KAN-160).
 - `docs/` — team prose that spans the repo (below).
@@ -98,6 +100,15 @@ shells into it.
 CI runs on every PR to `main`; merge only on a green check. The jobs, the
 scheduled scrape and its gotchas are in `.github/CLAUDE.md`.
 
+**Both halves are moving to Cloudflare Workers Paid** (KAN-169,
+`docs/adr/0004-host-on-cloudflare.md`): the app on Workers through OpenNext at
+https://workitjobs.ai, the API in a Container at https://api.workitjobs.ai,
+both deployed by `.github/workflows/deploy.yml` with no Cloudflare login on
+anyone's machine. The Cloudflare account is owned by the team Gmail, never one
+person's login; teammates are members with Developer Platform Admin on the
+account and Administrator on the `workitjobs.ai` zone only. Until the cutover
+(KAN-296) Vercel stays production, as described next.
+
 Both halves deploy to **Vercel as two projects from this repo** (Root
 Directory `frontend` and `backend`, the API as one Vercel Function).
 Production is https://workit-web-gamma.vercel.app (app) and
@@ -144,13 +155,27 @@ with the failure it prevents.
 - `docs/job_posting.md`, `resume.md`, `avatar.md`, `auth.md` — design
   rationale: the schema notes and the auth flow. Alembic stays the source of
   truth for what the schema is.
-- `docs/sent_resume.md` — the plan for KAN-267, partly built (the
-  duplicate checks at upload and Generate): the resume each application
-  went out with (an uploaded resume's file, frozen as parsed JSON once the
-  upload is replaced or deleted; a gzipped snapshot of a built resume
-  rendered again on view), and downloads that keep nothing. Read it before
-  changing sent resumes, resume upload or delete, Generate or the editor's
-  Download.
+- `docs/sent_resume.md` — KAN-267's design, built: each application names
+  the sent resume it went out with (`job_applications.sent_resume_id`); a
+  sent resume is an uploaded resume's file (frozen as parsed JSON once the
+  upload is replaced or deleted) or a gzipped snapshot of a built resume,
+  rendered again on view; downloads keep nothing; uploads and Generate
+  refuse duplicates. Read it before changing sent resumes, applications,
+  resume upload or delete, Generate or the editor's Download.
+- `docs/bank_by_resume.md` — KAN-343's design, built, as revised by ADR
+  0005: each upload owns its own entries and skills (no merge, no
+  duplicate check across resumes; an import replaces what the upload
+  owned), and the Experiences view's Showing card picks one resume from
+  the shared resume list (KAN-361, KAN-406), showing what the picked one
+  owns or shows, with Not From an Upload as a card of its own under it
+  (KAN-363). Add saves into the picked resume.
+  Read it before changing import, the bank's API shape or the Experiences
+  view.
+- `docs/tailor_resume.md` — Tailor's redesign, built (2026-10-25): the student picks a resume and the missing keywords to
+  add, one click rewrites and saves the posting's tailored resume with no
+  proposals and no Done, and the editor marks each change and reverts it.
+  Holds the skill placement rule. Read it before changing Tailor or its
+  screen.
 - `docs/search.md` — how the Jobs page's search reads a query.
 - `docs/architecture.md` — how the halves fit together, for a reader new to
   the repo.

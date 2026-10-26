@@ -5,23 +5,10 @@
 // where state actually has to live (popup.js's own state is thrown away
 // every time the popup closes).
 
-import { DEV_WEB_URL, PROD_WEB_URL } from "../shared/config.js";
+import { DEV_WEB_URL, PROD_SITES } from "../shared/config.js";
+import { injectFill } from "../shared/content-scripts.js";
 
 const root = document.getElementById("root");
-
-// Injected in this exact order — lib-dom/lib-fill/lib-status/field-map
-// populate window.WIA, overlay.js reads from it, and content-script.js
-// (last) is the only one that expects everything above it to already
-// exist. See content-script.js's own comment for why these can't be ES
-// modules instead.
-const CONTENT_SCRIPT_FILES = [
-  "src/content/lib-dom.js",
-  "src/content/lib-fill.js",
-  "src/content/lib-status.js",
-  "src/content/field-map.js",
-  "src/content/overlay.js",
-  "src/content/content-script.js",
-];
 
 /** @param {{ type: string, [key: string]: any }} message */
 function sendMessage(message) {
@@ -38,7 +25,7 @@ async function webappUrl() {
   } catch {
     // dev server isn't running — fall through to prod
   }
-  return PROD_WEB_URL;
+  return PROD_SITES[0].web;
 }
 
 function renderLoginView(errorText) {
@@ -65,9 +52,9 @@ function renderSignedIn(profile) {
 
   root.querySelector(".name").textContent = profile.full_name;
   root.querySelector(".email").textContent = profile.email;
-  root.querySelector(".resume-status").textContent = profile.resume
-    ? "Resume on file"
-    : "No resume on file yet — add one in WorkIt first";
+  root.querySelector(".bank-status").textContent = profile.bank
+    ? "Experience bank has data"
+    : "Your experience bank is empty — add entries in WorkIt first";
 
   root.querySelector("#autofill-button").addEventListener("click", async (event) => {
     const button = event.currentTarget;
@@ -76,7 +63,7 @@ function renderSignedIn(profile) {
     try {
       const [tab] = await chrome.tabs.query({ active: true, currentWindow: true });
       if (!tab?.id) throw new Error("No active tab");
-      await chrome.scripting.executeScript({ target: { tabId: tab.id }, files: CONTENT_SCRIPT_FILES });
+      await injectFill(tab.id);
       window.close(); // the on-page overlay takes over from here
     } catch (error) {
       button.textContent = "Autofill This Page";

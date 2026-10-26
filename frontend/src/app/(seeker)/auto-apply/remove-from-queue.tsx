@@ -1,6 +1,6 @@
 "use client";
 
-import { X } from "lucide-react";
+import { XIcon } from "@phosphor-icons/react/ssr";
 import { useRouter } from "next/navigation";
 import { useRef, useTransition } from "react";
 
@@ -83,7 +83,7 @@ export function RemoveFromQueue({
         });
       }}
     >
-      <X aria-hidden className="size-4" />
+      <XIcon aria-hidden className="size-4" />
     </IconButton>
   );
 }

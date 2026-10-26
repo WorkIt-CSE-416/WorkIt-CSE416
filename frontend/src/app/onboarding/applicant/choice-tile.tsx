@@ -49,7 +49,12 @@ export function ChoiceTile({
           <span className={cn("bg-on-brand size-1.5 rounded-full", !pressed && "opacity-0")} />
         )}
       </span>
-      {Icon && <Icon className={cn("size-4 shrink-0 lg:size-5", !pressed && "text-ink-meta")} />}
+      {Icon && (
+        <Icon
+          aria-hidden
+          className={cn("size-4 shrink-0 lg:size-5", !pressed && "text-ink-meta")}
+        />
+      )}
       <span className="min-w-0 flex-1">{children}</span>
     </button>
   );

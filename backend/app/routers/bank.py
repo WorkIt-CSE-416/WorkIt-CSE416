@@ -11,31 +11,36 @@ entries of other sections, or the request answers 422.
 
 GET    /applicants/{id}/bank                     -> BankResponse
 POST   /applicants/{id}/bank/entries             EntryCreate -> 201 EntryResponse
+       ?resume_id= saves it into the resume the Experiences view shows: an
+       upload owns it (ADR 0005); a built resume shows it, at the end of its
+       section. Without one, it is the student's own. 404 for a resume that
+       is not the applicant's.
        409 {detail, duplicate: EntryResponse} when section, title and
-       organization match an entry, ignoring case; ?allow_duplicate=true
-       saves it anyway ("Save as new").
+       organization match an entry of the same owner, ignoring case;
+       ?allow_duplicate=true saves it anyway ("Save as new").
 PATCH  /applicants/{id}/bank/entries/{entry_id}  EntryUpdate -> EntryResponse
 DELETE /applicants/{id}/bank/entries/{entry_id}  -> 204 (its bullets too)
+POST   /applicants/{id}/bank/entries/delete      DeleteMany -> 204
+       Clear All (KAN-352): the entries a section shows, all or none. One
+       id that is not the applicant's answers 404 and deletes nothing.
 GET    /applicants/{id}/bank/entries/{entry_id}/resumes -> {"built_resumes": n}
        how many built resumes show the entry, for the delete confirm (story 18)
 POST   /applicants/{id}/bank/entries/{entry_id}/bullets  BulletCreate -> 201 BulletResponse (appended)
 PATCH  /applicants/{id}/bank/bullets/{bullet_id} BulletUpdate -> BulletResponse
 DELETE /applicants/{id}/bank/bullets/{bullet_id} -> 204
-POST   /applicants/{id}/bank/skills              SkillCreate -> 201 SkillResponse (409 if the name exists)
+POST   /applicants/{id}/bank/skills              SkillCreate -> 201 SkillResponse
+       ?resume_id= as for entries; 409 if the owner has the name already
 PATCH  /applicants/{id}/bank/skills/{skill_id}   SkillUpdate -> SkillResponse (409 if the name exists)
-DELETE /applicants/{id}/bank/skills/{skill_id}   -> 204 (its links too)
-PUT    /applicants/{id}/bank/skills/{skill_id}/entries/{entry_id} -> 204
-       link the skill to the entry (KAN-216); linking twice is a no-op.
-DELETE /applicants/{id}/bank/skills/{skill_id}/entries/{entry_id} -> 204
-       (404 when there is no such link)
+DELETE /applicants/{id}/bank/skills/{skill_id}   -> 204
+POST   /applicants/{id}/bank/skills/delete       DeleteMany -> 204, as entries/delete
 POST   /applicants/{id}/bank/import              ImportRequest -> ImportResponse
-       Import Again (ADR 0003): reads one uploaded resume (resume_id, else
-       the default resume, else the newest) with the heuristic parser and
-       writes it into the bank with `merge_import`, as upload does: an entry
-       the bank lacks is added, one it has gains only its empty fields and
-       missing bullets. Answers what it wrote (`entries_added`,
-       `entries_updated`, `skills_added`). A resume the parser cannot read
-       writes nothing; no uploaded resume (or another student's) answers 404.
+       Import Again: reads one uploaded resume (resume_id, else the default
+       resume, else the newest) with the heuristic parser and writes it into
+       the bank with `import_upload`, as upload does: the reading replaces
+       the entries and skills the upload owns (ADR 0005). Answers what it
+       wrote (`entries_added`, `skills_added`). A resume the parser cannot
+       read leaves the upload with nothing; no uploaded resume (or another
+       student's) answers 404.
        Model parsing (KAN-222): `read_with_ai: true` ("Read It With AI")
        reads the resume with the model instead. Only the student asks for
        it; the API never falls back to the model by itself. A reading counts
@@ -44,7 +49,11 @@ POST   /applicants/{id}/bank/import              ImportRequest -> ImportResponse
        and `uses_left`. It answers 429 at the limit and 503 when the model
        is down or answers in the wrong shape, and then writes nothing.
 
-A SkillResponse carries `entry_ids`: its linked entries, in bank order.
+GET /bank also sends `resumes` (every uploaded, base and tailored resume,
+with `kind`, `name`, a tailored one's `posting`, the starred one's
+`primary` and `edited_at`, the resume table's date) and, on each entry
+and skill, `resume_ids`: the upload that owns it, if any, then the built
+resumes that show it (KAN-343, ADR 0005).
 """
 
 import logging
@@ -56,15 +65,14 @@ from fastapi import APIRouter, Depends, HTTPException, Response
 from fastapi.exceptions import RequestValidationError
 from fastapi.responses import JSONResponse
 from pydantic import ValidationError
-from sqlalchemy import select
 from sqlalchemy.exc import SQLAlchemyError
 from sqlalchemy.ext.asyncio import AsyncSession
 from workit_scout.llm import LLM, ScoutUnavailable
 
 from app.db import get_session
 from app.deps import get_current_account, owned_applicant
-from app.models.profiles import Applicant_Profile
 from app.models.resume import Resume
+from app.queries.bank import owned_upload_id
 from app.routers.scout import get_llm
 from app.schemas.auth import AuthenticatedAccount
 from app.schemas.bank import (
@@ -72,6 +80,7 @@ from app.schemas.bank import (
     BulletCreate,
     BulletResponse,
     BulletUpdate,
+    DeleteMany,
     DuplicateEntry,
     EntryCreate,
     EntryResponse,
@@ -85,7 +94,7 @@ from app.schemas.bank import (
 from app.services import bank as service
 from app.services import built_resumes
 from app.services.ai_messages import AIMessages
-from app.services.bank import bank_response, entry_response, skill_response
+from app.services.bank import bank_response, entry_response
 from app.services.bank_import import (
     model_drafts,
     model_skills,
@@ -123,9 +132,29 @@ async def _writing(session: AsyncSession) -> AsyncIterator[None]:
 @router.get("", response_model=BankResponse)
 async def get_bank(
     applicant_id: uuid.UUID = Depends(owned_applicant),
+    built_resume_id: uuid.UUID | None = None,
     session: AsyncSession = Depends(get_session),
 ) -> BankResponse:
-    return bank_response(await service.load_bank(session, applicant_id))
+    """The bank, with `built_resume_id`'s own skills too when given (the
+    editor of that resume names them). The skills are the applicant's own
+    rows, so an id that is not theirs adds nothing."""
+    bank = await service.load_bank(session, applicant_id, local_to=[built_resume_id] if built_resume_id else [])
+    return bank_response(bank, await service.load_holdings(session, applicant_id))
+
+
+async def _target(
+    session: AsyncSession, applicant_id: uuid.UUID, resume_id: uuid.UUID | None
+) -> tuple[uuid.UUID | None, uuid.UUID | None]:
+    """Where an Add under a resume pick goes: (the upload that will own the
+    item, the built resume that will show it), at most one of them. Raises
+    NotFound for a resume that is not the applicant's."""
+    if resume_id is None:
+        return None, None
+    upload = await owned_upload_id(session, applicant_id, resume_id)
+    if upload is not None:
+        return upload, None
+    await built_resumes.get_resume(session, applicant_id, resume_id)
+    return None, resume_id
 
 
 @router.post(
@@ -137,20 +166,27 @@ async def get_bank(
 async def create_entry(
     body: EntryCreate,
     allow_duplicate: bool = False,
+    resume_id: uuid.UUID | None = None,
     applicant_id: uuid.UUID = Depends(owned_applicant),
     session: AsyncSession = Depends(get_session),
 ):
     try:
         async with _writing(session):
+            owner, built = await _target(session, applicant_id, resume_id)
             entry = await service.create_entry(
-                session, applicant_id, body, body.bullets, allow_duplicate=allow_duplicate
+                session, applicant_id, body, body.bullets, resume_id=owner, allow_duplicate=allow_duplicate
             )
+            if built is not None:
+                await built_resumes.update_choices(
+                    session, applicant_id, built, entries=[{"entry_id": entry.row.id, "shown": True}]
+                )
     except service.DuplicateEntryError as exc:
         # Built before the rollback, which expires the loaded rows.
         payload = DuplicateEntry(detail=str(exc), duplicate=entry_response(exc.existing))
         await session.rollback()
         return JSONResponse(status_code=409, content=payload.model_dump(mode="json"))
-    return entry_response(entry)
+    # The pick holds it now, so the page shows it there at once.
+    return entry_response(entry, [i for i in (owner, built) if i is not None])
 
 
 @router.patch("/entries/{entry_id}", response_model=EntryResponse)
@@ -175,6 +211,17 @@ async def delete_entry(
 ) -> Response:
     async with _writing(session):
         await service.delete_entry(session, applicant_id, entry_id)
+    return Response(status_code=204)
+
+
+@router.post("/entries/delete", status_code=204)
+async def delete_entries(
+    body: DeleteMany,
+    applicant_id: uuid.UUID = Depends(owned_applicant),
+    session: AsyncSession = Depends(get_session),
+) -> Response:
+    async with _writing(session):
+        await service.delete_entries(session, applicant_id, body.ids)
     return Response(status_code=204)
 
 
@@ -231,12 +278,18 @@ async def delete_bullet(
 @router.post("/skills", status_code=201, response_model=SkillResponse)
 async def add_skill(
     body: SkillCreate,
+    resume_id: uuid.UUID | None = None,
     applicant_id: uuid.UUID = Depends(owned_applicant),
     session: AsyncSession = Depends(get_session),
 ) -> SkillResponse:
     async with _writing(session):
-        skill = await service.add_skill(session, applicant_id, body.name, body.group)
-    return SkillResponse.model_validate(skill)
+        owner, built = await _target(session, applicant_id, resume_id)
+        skill = await service.add_skill(session, applicant_id, body.name, body.group, resume_id=owner)
+        if built is not None:
+            await built_resumes.update_choices(
+                session, applicant_id, built, skills=[{"skill_id": skill.id, "shown": True}]
+            )
+    return service.skill_response(skill, [i for i in (owner, built) if i is not None])
 
 
 @router.patch("/skills/{skill_id}", response_model=SkillResponse)
@@ -250,8 +303,7 @@ async def update_skill(
         skill = await service.update_skill(
             session, applicant_id, skill_id, body.model_dump(include=body.model_fields_set)
         )
-        entry_ids = await service.linked_entry_ids(session, skill.id)
-    return skill_response(skill, entry_ids)
+    return SkillResponse.model_validate(skill)
 
 
 @router.delete("/skills/{skill_id}", status_code=204)
@@ -265,16 +317,20 @@ async def delete_skill(
     return Response(status_code=204)
 
 
+@router.post("/skills/delete", status_code=204)
+async def delete_skills(
+    body: DeleteMany,
+    applicant_id: uuid.UUID = Depends(owned_applicant),
+    session: AsyncSession = Depends(get_session),
+) -> Response:
+    async with _writing(session):
+        await service.delete_skills(session, applicant_id, body.ids)
+    return Response(status_code=204)
+
+
 async def _resume_to_import(session: AsyncSession, applicant_id: uuid.UUID, resume_id: uuid.UUID | None) -> Resume:
-    mine = select(Resume).where(Resume.applicant_id == applicant_id)
-    if resume_id is not None:
-        resume = await session.scalar(mine.where(Resume.id == resume_id))
-    else:
-        default_id = await session.scalar(
-            select(Applicant_Profile.default_resume_id).where(Applicant_Profile.id == applicant_id)
-        )
-        resume = default_id and await session.scalar(mine.where(Resume.id == default_id))
-        resume = resume or await session.scalar(mine.order_by(Resume.created_at.desc()).limit(1))
+    from app.queries.bank import resume_to_import
+    resume = await resume_to_import(session, applicant_id, resume_id)
     if resume is None:
         raise HTTPException(404, "Upload a resume to import it")
     return resume
@@ -320,38 +376,14 @@ async def import_resume(
         entries, skills, read_by = model_drafts(reading), skill_pairs(model_skills(reading)), "model"
 
     async with _writing(session):
-        merged = await service.merge_import(session, applicant_id, entries, skills)
+        imported = await service.import_upload(session, applicant_id, resume.id, entries, skills)
     return ImportResponse(
         resume_id=resume.id,
         filename=resume.original_filename,
         found=len(entries) + len(skills),
-        entries_added=merged.entries_added,
-        entries_updated=merged.entries_updated,
-        skills_added=merged.skills_added,
+        entries_added=imported.entries_added,
+        skills_added=imported.skills_added,
         read_by=read_by,
         uses_left=left,
     )
 
-
-@router.put("/skills/{skill_id}/entries/{entry_id}", status_code=204)
-async def link_skill(
-    skill_id: uuid.UUID,
-    entry_id: uuid.UUID,
-    applicant_id: uuid.UUID = Depends(owned_applicant),
-    session: AsyncSession = Depends(get_session),
-) -> Response:
-    async with _writing(session):
-        await service.link_skill(session, applicant_id, skill_id, entry_id)
-    return Response(status_code=204)
-
-
-@router.delete("/skills/{skill_id}/entries/{entry_id}", status_code=204)
-async def unlink_skill(
-    skill_id: uuid.UUID,
-    entry_id: uuid.UUID,
-    applicant_id: uuid.UUID = Depends(owned_applicant),
-    session: AsyncSession = Depends(get_session),
-) -> Response:
-    async with _writing(session):
-        await service.unlink_skill(session, applicant_id, skill_id, entry_id)
-    return Response(status_code=204)

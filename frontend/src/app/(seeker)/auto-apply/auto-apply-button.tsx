@@ -1,6 +1,7 @@
 "use client";
 
-import { AppWindow, Zap } from "lucide-react";
+import { AppWindowIcon } from "@phosphor-icons/react/ssr";
+import { LightningRoundedIcon } from "@/components/custom-icons";
 import { useRef, useState, useTransition } from "react";
 
 import { CheckIcon } from "@/components/icons";
@@ -92,7 +93,7 @@ export function AutoApplyButton({
   if (stage === "queued" && inBrowser) {
     return (
       <Button variant="secondary" size="sm" title="Go to the tab" onClick={() => void showRunTab()}>
-        <AppWindow className="size-4" />
+        <AppWindowIcon aria-hidden className="size-4" />
         Working in Browser
       </Button>
     );
@@ -154,7 +155,11 @@ export function AutoApplyButton({
           });
         }}
       >
-        {queued ? <CheckIcon className="size-4" /> : <Zap className="size-4" />}
+        {queued ? (
+          <CheckIcon className="size-4" />
+        ) : (
+          <LightningRoundedIcon aria-hidden className="size-4" />
+        )}
         {queued ? STAGE_LABEL.queued : "Auto Apply"}
       </Button>
     </>

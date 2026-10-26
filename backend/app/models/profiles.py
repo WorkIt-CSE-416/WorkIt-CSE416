@@ -23,6 +23,13 @@ class Profile(BaseModel):
                         primary_key=True)
     email: Mapped[str] = mapped_column(String(100), unique=True)
     full_name: Mapped[str] =mapped_column(String(50))
+    # The name as parts (KAN-326); full_name is always them joined
+    # (app/services/names.py). Nullable: an OAuth name may be one word, and
+    # a row written before the split has only full_name until its owner
+    # saves the parts.
+    first_name: Mapped[str | None] = mapped_column(String(50))
+    middle_name: Mapped[str | None] = mapped_column(String(50))
+    last_name: Mapped[str | None] = mapped_column(String(50))
     phone_number: Mapped[str | None] = mapped_column(String(30))
     # same design as resume, use a path to the supabase bucket
     # do not store the original url 

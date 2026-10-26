@@ -1,6 +1,6 @@
 "use client";
 
-import { Flag, Link2 } from "lucide-react";
+import { FlagIcon, LinkSimpleIcon } from "@phosphor-icons/react/ssr";
 import { usePathname, useRouter, useSearchParams } from "next/navigation";
 import { useEffect, useState, useSyncExternalStore } from "react";
 
@@ -18,7 +18,8 @@ import { formatDate } from "@/lib/format-date";
 import { cameFrom, restoreScrollOn } from "../../scroll-memory";
 
 /** The page a job's page was last opened from this session: the feed,
- *  filters and all, the Auto Apply page, or the Resumes page. */
+ *  filters and all, the Auto Apply page, the Resumes page, or the Dashboard
+ *  (its Top Matches). */
 const FEED_KEY = "workit:feed";
 /** Where /jobs itself was last seen, for clearing a search (rememberedJobs). */
 const JOBS_KEY = "workit:jobs";
@@ -49,7 +50,8 @@ export function RememberFeed() {
 /**
  * Remembers `href` as where a job's page goes Back to, from a link that
  * opens a job's page from a page that is not a list: a tailored resume's
- * card on /resumes (KAN-268). Set on the click, not on the visit, as
+ * card on /resumes (KAN-268), or a Top Matches row on the Dashboard
+ * (KAN-342). Set on the click, not on the visit, as
  * RememberFeed does for lists: a visit to /resumes followed by a job opened
  * from elsewhere would otherwise go Back to /resumes.
  */
@@ -78,7 +80,7 @@ export function rememberedJobs(): string {
 function rememberedFeed(): string {
   try {
     const feed = sessionStorage.getItem(FEED_KEY);
-    if (feed && /^\/(jobs|search|auto-apply|resumes)(\?|$)/.test(feed)) return feed;
+    if (feed && /^\/(jobs|search|auto-apply|resumes|dashboard)(\?|$)/.test(feed)) return feed;
   } catch {
     /* storage off: plain /jobs */
   }
@@ -88,8 +90,8 @@ function rememberedFeed(): string {
 const noSubscription = () => () => {};
 
 /** "Back", to the page the seeker came from: the feed with its filters still
- *  applied, or the Auto Apply page (RememberFeed), or the Resumes page
- *  (rememberReturnTo), else /jobs, scrolled back to where they left it
+ *  applied, or the Auto Apply page (RememberFeed), or the Resumes page or the
+ *  Dashboard (rememberReturnTo), else /jobs, scrolled back to where they left it
  *  (restoreScrollOn, ../../scroll-memory). The server renders /jobs and the
  *  browser swaps in the remembered list after hydration (useSyncExternalStore,
  *  as PostedDate does), so the two never disagree; the label is one word for
@@ -175,11 +177,11 @@ export function MoreActions({ title }: { title: string }) {
                 .catch(() => setSaid("Couldn't copy the link"))
             }
           >
-            <Link2 className="text-ink-meta size-4" />
+            <LinkSimpleIcon aria-hidden className="text-ink-meta size-4" />
             Copy Link
           </DropdownMenuItem>
           <DropdownMenuItem>
-            <Flag className="text-ink-meta size-4" />
+            <FlagIcon aria-hidden className="text-ink-meta size-4" />
             Report
           </DropdownMenuItem>
         </DropdownMenuContent>

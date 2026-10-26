@@ -12,17 +12,119 @@ the "Custom ATS Autofiller Build Plan" doc, built directly on
 A third kind of project in this repo, alongside `frontend/` and `backend/`:
 no server, no build step, no dependency manifest. It's loaded into Chrome
 as an unpacked extension and talks to the **existing** WorkIt backend over
-HTTP — it adds no new backend routes, no new database tables, no new
-migration. Every value it fills comes from `applicant_profiles` and
-`resumes.parsed_json`, the same rows the webapp's own profile screen reads
-and writes.
+HTTP. Nearly everything it fills is read-only against data that already
+had an endpoint: `applicant_profiles`, the **experience bank** (`GET
+/applicants/{id}/bank`, KAN-212), the onboarding **job preferences** (`GET
+/applicants/{id}/preferences`, KAN-231), and the **autofill answer bank**
+(`GET /applicants/{id}/autofill-answers`, KAN-283) — the same rows the
+Experience Bank and onboarding screens read and write, never an uploaded
+resume's `parsed_json`. Same rule the recommender and Scout follow
+(`backend/CLAUDE.md`): the bank, not a resume, is the source of truth for
+what the student has done. `src/background/engine.js` maps the school and
+the jobs it gives the Fill engine from the bank's `entries` by `section`,
+not from a `ParsedResume`.
+
+**One exception**: essay-question generation (below) is the first feature
+here that needed a genuinely new backend route,
+`POST /applicants/{id}/essay-answer`, because it's the first one that calls
+a model — and an extension can't hold a model API key client-side without
+exposing it. Every other value this folder fills still comes from an
+endpoint that already existed for the webapp.
 
 **No npm, no TypeScript compiler, no bundler.** Every file here is the file
 Chrome actually loads — plain ES2020+ JavaScript, JSDoc `@typedef`s in
-`src/shared/types.js` standing in for compile-time types. This was a
-deliberate choice for a first prototype that needed to be reviewable and
-loadable without a toolchain, not a position that a build step should never
-be added — see Open Items.
+`src/shared/types.js` standing in for compile-time types. The Fill engine
+comes the same way: a git submodule whose committed bundle is loaded as it
+is (below). Only `test/` has a `package.json`, for its test runner; nothing
+the extension loads depends on it.
+
+## The Fill engine (KAN-329, KAN-340): what fills the form
+
+The form is filled by the **Fill engine**, the TypeScript engine Apply
+(Lisul's autopilot) fills with too: one copy of every job system's filler
+and of the answer rules, so a fix lands in both. It lives in the private
+repo `WorkIt-CSE-416/fill-engine` and sits here as the submodule
+`fill-engine/`, **pinned to a tag**. A person moves the pin (`git -C
+autofiller_extension/fill-engine checkout vX.Y.Z`, commit the gitlink), so
+a change to the engine reaches students only when someone here chooses it.
+**A checkout needs `git submodule update --init` once**, or Chrome can't
+load `fill-engine/dist/engine.js` and every fill fails. The extension never
+builds it: `dist/engine.js` is committed in the engine repo.
+
+- **Two worlds.** The bundle runs in the page's own JavaScript world
+  (`world: "MAIN"`): it waits for React's state on the form's nodes, and on
+  Ashby wraps the page's `fetch`, neither of which an extension's isolated
+  world can see. The overlay and `content-script.js` run in the isolated
+  world, where `chrome.runtime` is. `src/shared/content-scripts.js`'s
+  `injectFill` loads both, engine first, for the popup and the runner
+  alike. The content script reaches the engine through the background,
+  which runs `engine.js`'s `runEngine` (the engine's own dispatcher,
+  `FillEngine.call`) in the page's MAIN world with
+  `chrome.scripting.executeScript` (`fill/plan`, `fill/page`, both answered
+  by `engine.js`'s `handleFill`). The background also imports the bundle
+  itself, for what needs no page: reading the job and planning.
+- **The engine reads the job.** `fill/plan` gets the job's Question set,
+  company, role and text from the engine (`jobOf`, `questionSet`,
+  `jobNames`, `jobDescription`, `textOf`), which asks each job system's
+  public API with the background's `fetchText`: the same URLs and queries
+  Apply asks. Eightfold's and Workday's questions are read off the open form
+  by the engine (`readQuestions`), and Ashby's form too when its query
+  fails. It then asks the engine's `plan` for answers from the WorkIt
+  profile (`engineProfile`) and `POLICIES`. No job system's URLs, queries,
+  parsing or company names live here: change them in the engine repo.
+- **The engine fills the page and checks it.** `fill/page` calls the
+  engine's `fillEach`, which fills in the engine's own order (files first
+  where the job system parses the résumé into the form, Workable in one go,
+  Workday's repeating sections first) and says how each field went:
+  filled, failed with the engine's reason, or skipped when the form never
+  showed it. One field the engine can't fill doesn't stop the rest. A field
+  that shows something other than its planned answer (or a wording the
+  Plan accepts) is failed with what the page shows, so the student checks
+  it.
+- **More questions mean a new plan.** A fill that brings on questions
+  (Eightfold's follow-ups, Workday's new panels) answers `more`; the
+  content script plans again with them (`extra`) and fills what is new.
+- **Workday, a step at a time.** The student signs in and starts the
+  application; the content script fills each step as it shows (sections
+  first, then each field, then reads the step again for follow-ups), then
+  waits. The student checks the step and presses Save and Continue; the
+  next step is filled when Workday shows it. The extension never presses
+  Save and Continue or Submit. A step that loads as a new page drops the
+  content script, so the background remembers the tab
+  (`workday_fill_tabs`, session storage) and injects the fill again when
+  it loads. Workday's nested prompts (its own How Did You Hear About Us?)
+  are slow to read, so each tenant's are kept in `chrome.storage.local`
+  (`workday_trees`), as Apply keeps them.
+- **A job's page is not always its form.** A Lever, Ashby, Rippling,
+  Workable or Eightfold posting shows the job on one page and the form on
+  another (`jobOf`'s `form`). On the job's page the overlay names the
+  form's link and fills nothing; the runner opens the form itself
+  (`formUrl`).
+- **The profile adapter gives only what WorkIt holds.** Name, email,
+  phone, links, the default resume, the latest school and the jobs from the
+  bank, and the nine autofill answers, in the words the engine's rules
+  read. Anything else (pay, relocation, a phone country, consent boxes,
+  start dates) stays the student's: the Plan lists it as a Missing fact and
+  the overlay says "WorkIt has no answer for this". `POLICIES` holds no
+  student's choice; "How did you hear?" is WorkIt, or the form's "Job
+  Board". The engine's own rules decide everything else; change a rule in
+  the engine repo, not here.
+- **Only job systems the engine covers are filled.** `engine.js`'s `jobOf`
+  names them (Greenhouse, Lever, Ashby, Rippling, Workable, Eightfold and
+  Workday). On any other page the overlay says
+  WorkIt can't fill this job system yet and nothing is touched: there is
+  no generic filler any more (the old label-matching one filled most forms
+  wrong, and was deleted with its Greenhouse adapter in KAN-340).
+- **Tests**: `test/extension.ts` runs the fill as Chrome does, minus
+  Chrome: `ENGINE_FILES` and `CONTENT_SCRIPT_FILES` evaluated in a saved
+  form's page (served by the engine repo's own fakes and fixtures, through
+  the submodule), the content script's messages answered by `handleFill`.
+  `greenhouse.spec.ts` and `job-systems.spec.ts` fill one saved form of each
+  job system (Workday step by step, the student's Save and Continue played
+  by the test) from a WorkIt-shaped profile, checking what each field shows
+  and that nothing was submitted. Run: `npm --prefix autofiller_extension/test ci`,
+  then `npm --prefix autofiller_extension/test test` (Chromium:
+  `npx playwright install chromium` once).
 
 ## Two surfaces, one engine
 
@@ -36,8 +138,8 @@ here:
   and solves it the same way.
 - **The webapp's role is a thin, optional bridge** (`frontend/src/lib/
   autofill-extension.ts`), using Chrome's `externally_connectable` to ask
-  the runner to open the next queued application, which job its tab shows,
-  and to switch to that tab — nothing more. The job cards' "Autofill ready"
+  the runner to open (and fill) the next queued application, which job its
+  tab shows, and to switch to that tab — nothing more. The job cards' "Autofill ready"
   badge, the bridge's one use of `ping`, was removed (KAN-278); the
   background script still answers `ping`, with no webapp caller. The extension's core function
   never depends on this bridge: it works from its own popup on whatever
@@ -45,8 +147,8 @@ here:
 
 **`externally_connectable.matches` takes exact origins, never a glued
 prefix+wildcard.** `manifest.json` lists `http://localhost:3000/*` and the
-one known Vercel preview origin
-(`https://workit-web-gamma.vercel.app/*`) by exact hostname —
+deployed webapp origins (`https://workitjobs.ai/*`,
+`https://workit-web-gamma.vercel.app/*`) by exact hostname —
 `https://workit-web*.vercel.app/*` looks like it should mean "any preview
 of this project" but Chrome refuses to even load the manifest over it
 ("Invalid host wildcard"). A match pattern's wildcard can only be an
@@ -72,15 +174,22 @@ Submit button themselves, on the ATS's own page, after reviewing what got
 filled. `activeTab` also means no broad host-permission prompt for
 arbitrary websites at install time.
 
-## The auto-apply runner (KAN-223): opens the next queued application
+**The one other trigger is the student's own Auto Apply click** (KAN-305):
+the runner fills the application tab it opened for that click (below). It
+is still a click, never a page load, and it still never submits. It is why
+`host_permissions` lists `https://*.greenhouse.io/*`: `activeTab` never
+covers a tab the runner opened.
+
+## The auto-apply runner (KAN-223, KAN-305): opens and fills the next queued application
 
 `src/background/runner.js` is the runner's first step
-(`auto-apply/architecture.md`, "The run"). The Auto Apply page's Start,
-and a job card's Auto Apply once it queues the job, send `run/open` over
-`externally_connectable`; the runner reads the oldest queued application
-from `GET .../applications/next` and opens its `job.apply_url`. It fills
-nothing yet: injecting the fill, Submitted/Skip and `POST .../finish` are
-the next steps. Two more messages serve the webapp's "Working in
+(`auto-apply/architecture.md`, "The run" and "The first fill"). The Auto
+Apply page's Start, and a job card's Auto Apply once it queues the job,
+send `run/open` over `externally_connectable`; the runner reads the oldest
+queued application from `GET .../applications/next`, opens its
+`job.apply_url`, and starts the fill there. Submitted/Skip and `POST
+.../finish` are the next steps; until then the application stays
+`queued`. Two more messages serve the webapp's "Working in
 Browser": `run/status` answers which job posting the run's tab shows
 (null once the student closes it), and `run/show` switches to that tab.
 
@@ -101,24 +210,78 @@ Browser": `run/status` answers which job posting the run's tab shows
 - **The run's tab is never discarded.** It is set
   `autoDiscardable: false`, so Memory Saver can't throw away a
   half-filled form in a tab the student has not looked at yet.
-- **No new permission.** `chrome.tabs.create`, `chrome.tabs.update`
-  (`autoDiscardable` too), `chrome.windows.update` and a tab's load
-  `status` need none (only url, title and favicon need `tabs`).
-  Injecting the fill into these tabs will: `activeTab` doesn't cover a tab
-  the runner opened, so that step adds hiring-system `host_permissions`.
-- **`run/open` never reloads the application already open.** When the
-  run's tab shows the next application's job posting, it is left as it
-  is: a second click (another card, Start again) would otherwise throw
-  away what the student typed. The saved job id is what's compared, not
+- **Opening needs no permission; filling needs the host.**
+  `chrome.tabs.create`, `chrome.tabs.update` (`autoDiscardable` too),
+  `chrome.windows.update` and a tab's load `status` need none (only url,
+  title and favicon need `tabs`). Injecting the fill does: `activeTab`
+  doesn't cover a tab the runner opened, so `host_permissions` lists each
+  hiring system auto apply takes, the same hosts as
+  `backend/app/auto_apply/hosts.py` (Greenhouse only). A host added there
+  is added to `manifest.json` in the same change, or its fills answer
+  `not_allowed`. After pulling a manifest change, reload the unpacked
+  extension in `chrome://extensions`. The manifest also lists the six
+  other job systems the extension fills (KAN-341), which auto apply
+  doesn't take yet: the background fetches their job APIs, and injects
+  Workday's fill again on its next page. An Eightfold board on a
+  company's own domain (Netflix's `explore.jobs.netflix.net`, the
+  engine's `EIGHTFOLD_COMPANIES`) is listed by its host: without it, the
+  job's names and text failed to fetch. `test/manifest.spec.ts` checks one
+  link of each.
+- **The fill is the popup's fill.** Both call `injectFill`
+  (`src/shared/content-scripts.js`); `content-script.js` runs on
+  injection, so injecting is starting. The resume is the profile's default
+  (`resolveResumeFile`), not yet `prepare_resume`'s, so a tailored resume
+  is not attached and no sent resume is kept.
+- **Wait for the form, not for the fill.** The runner first injects `waitForForm`, which watches
+  the DOM (never `requestAnimationFrame`: a hidden tab runs none) for up
+  to 10 seconds. Then it injects the engine and answers `run/open`
+  without awaiting the fill.
+- **The student is taken to the run's tab for the fill, and stays there.**
+  Filled hidden, the text fields filled but most dropdowns did not, even
+  with the waits below fixed: Chrome treats a hidden page differently (no
+  redraws, timers about once a second, no focus), and react-select's menus
+  need some of that. So `startFill` makes the run's tab active once the
+  form is ready, and the dropdowns fill (confirmed live). Switching back
+  to the WorkIt tab after the fill was built and dropped: it didn't help,
+  since the student reviews this form next anyway.
+- **The overlay puts itself back when the page removes it.** Once the
+  runner showed the tab and filled at once, the fields filled but the
+  panel never appeared: the fill landed as Greenhouse's React app took
+  over the document (hydration), which drops nodes it didn't render.
+  `overlay.js`'s `keepAttached` watches the whole document and appends the
+  same host again, to whichever `<html>` exists. Anything else this
+  extension adds to a page needs the same guard.
+- **`run/open` never reloads or refills the application already open.**
+  When the run's tab shows the next application's job posting, it is left
+  as it is (`fill: "kept"`): a second click (another card, Start again)
+  would otherwise throw away what the student typed, and a second fill
+  would mount a second overlay. A student who reloads the tab by hand
+  fills it from the popup. The saved job id is what's compared, not
   the URL, which the form's own steps change.
-- **`run/open` answers once the page loads** (`status: "complete"`, 30
-  seconds at most) or with why nothing opened: `queue_empty`,
-  `signed_out`, or an error such as a closed tab. Greenhouse and Ashby draw
-  their form after `complete`; the fill step must wait for fields itself.
+- **`run/open` answers once the fill has started** (the page's `status:
+  "complete"`, 30 seconds at most, then the form, 10 seconds at most), with
+  `fill: "started" | "kept" | "failed"` (`reason`: `no_form`,
+  `not_allowed`, or the error's message), or with why nothing opened:
+  `queue_empty`, `signed_out`, or an error such as a closed tab. No answer
+  at all means no extension, or one turned off: that is the webapp's
+  "is the extension active?" check. The webapp shows no failed fill yet.
 
-Still open: a Lever `apply_url` opens the job posting, not the form (that
-is at `.../apply`). Whether a Greenhouse form fills in a hidden tab
-(dropdowns, file upload) is untested. A tab closed within a second or two
+- **Nothing here waits on a redraw.** The first runner fill (before the
+  Fill engine) filled the name fields, then reported "No options appeared"
+  on every dropdown: its waits polled with `requestAnimationFrame`, which a
+  hidden tab never runs. A new wait in `src/` watches the DOM
+  (`MutationObserver`) with a `setTimeout` limit. The engine polls with
+  `setTimeout`, which a hidden tab slows to about once a second, one more
+  reason the run's tab is shown before the fill. The test browser tool
+  can't check hidden-tab timing: Chrome keeps a tab it drives visible and
+  focused, so test with the real runner.
+
+The runner opens a job's form, not its page (`formUrl`: a Lever
+`apply_url` opens the posting, and the form is at `.../apply`). Still
+open: why a hidden tab's dropdowns stay empty is not pinned
+down (focus is the likeliest); if found, the fill could stay hidden. With
+the student's Chrome window behind another app, macOS may still count the
+shown tab as hidden. A tab closed within a second or two
 of opening should be reported as that, not as the student's Skip.
 
 ## Auth: inherits the webapp's session, has no sign-in of its own
@@ -189,13 +352,36 @@ refreshes it) rather than this extension trying to fix it quietly. See
 Open Items for what a from-scratch refresh story would need to look like
 if this turns out to be too conservative in practice.
 
-## No backend changes, and why that's safe
+**Two host families until the KAN-296 cutover.** Production runs on
+Cloudflare (`workitjobs.ai`, `api.workitjobs.ai`) and on Vercel
+(`workit-web-gamma.vercel.app`, `workit-api.vercel.app`) at the same time.
+Both share one Supabase project and database. `config.js`'s `PROD_SITES`
+pairs each webapp origin with its API, Cloudflare first.
+`webapp-session.js` reads the cookie from localhost, then each pair in
+order, and tags the session with the origin it came from. `api.js` then
+calls the API paired with that origin, so a student who signed in on
+Vercel stays on Vercel. A localhost session with no local API uses the
+first pair. The popup's sign-in link opens the first pair's webapp. A
+host in `PROD_SITES` must also be in `manifest.json`'s `host_permissions`
+(and, for a webapp origin, `externally_connectable.matches`); without it,
+the cookie read and the site's Auto Apply message fail silently. Drop the
+Vercel pair and its manifest entries at the cutover. **A new
+`host_permissions` entry makes Chrome disable the extension on update
+until each installed user approves the new hosts**, so add hosts in
+batches, not one at a time.
 
-`src/background/api.js` calls endpoints that already exist for the
+## No backend changes, and why that's safe (almost always)
+
+`src/background/api.js` mostly calls endpoints that already exist for the
 webapp: `GET /auth/me`, `GET /applicants/{id}/profile`, `GET
-/applicants/{id}/resumes[/...]`, and the runner's `GET
-/applicants/{id}/applications/next`. All were already reachable with a
-Bearer token before the extension called them.
+/applicants/{id}/bank`, `GET /applicants/{id}/preferences`, `GET
+/applicants/{id}/autofill-answers`, `GET /applicants/{id}/resumes`, `GET
+/applicants/{id}/built-resumes` (plus `.../built-resumes/{id}/render`), and
+the runner's `GET /applicants/{id}/applications/next`. All were already
+reachable with a Bearer token before the extension called them. Two routes
+exist only for this extension — essay-answer generation and `GET
+.../resumes/{resume_id}/bytes` — each explained in its own section below,
+with why no existing endpoint was safe/usable from here.
 
 **The email it fills is the profile's `contact_email`, else `/auth/me`'s
 sign-in email** (KAN-262). A seeker may apply with a different address than
@@ -210,111 +396,131 @@ server to opt in. This is standard, documented Chrome extension behavior,
 not something this prototype had to build. See Open Items for the one
 caveat (this is unverified against a live Chrome instance — see below).
 
-## Field engine — fixing JobRight's three bugs by construction
+## Work authorization, visa, clearance and EEO self-identification questions
 
-`src/content/` is organized around the three concrete failures the
-"JobRight Autofiller Findings" doc caught, each fixed at a specific layer
-rather than patched after the fact:
+KAN-283's `autofill_answers` (`backend/app/models/autofill_answers.py`) holds
+the nine answers hiring systems repeat on every form:
+`work_authorized_us`, `needs_sponsorship`, `work_authorization_status`,
+`security_clearance`, `gender`, `hispanic_latino`, `race`,
+`veteran_status`, `disability_status`. Onboarding's Profile step and My
+Profile write it; the extension only reads it, and `engine.js`'s
+`engineProfile` turns each option key into the fact the engine's rules
+read (yes/no as true/false, "declined" as "decline", the rest in
+`frontend/src/lib/autofill-answers.ts`'s own words). The engine picks the
+form's option that says the same thing.
 
-- **Dropdown no-match left silently blank** → `lib-fill.js`'s `fillSelect`/
-  `fillCombobox` return an explicit `{ ok: false, reason }` the moment a
-  typed value matches nothing, instead of leaving the field untouched with
-  no signal.
-- **A dishonest rollup percentage** (two failed sub-fields hidden inside
-  one "done" parent) → `lib-status.js` never creates a parent entry for a
-  repeated section (an education or experience entry) at all. Every
-  sub-field is tracked as its own independent leaf, so the required-field
-  percentage is computed only from leaves — there's no higher-level number
-  that can disagree with what's actually filled.
-- **An optional field flagged red for being empty** → `field-map.js`'s
-  `isRequired()` reads the field's own `required`/`aria-required`/asterisk
-  signal; `content-script.js` only ever marks a field `"failed"` when it's
-  both required and empty or mis-filled. An empty optional field is
-  `"skipped"` — present in the overlay, not alarming.
+- **`work_authorized_us`/`needs_sponsorship` fall back to the onboarding
+  "Visa Sponsorship" job-search filter** (`applicant_preferences.visa`,
+  KAN-231) when a student hasn't answered KAN-283's questions yet —
+  `background/api.js`'s `inferredAnswers`. `null` ("I Don't Need One")
+  means authorized and no sponsorship needed; `"sponsors"` means
+  sponsorship will be needed (it says nothing about current work
+  authorization, so that one stays unanswered). A real saved answer always
+  wins.
+- **An unanswered question is the student's, never a guess** — a wrong
+  answer on a legal-eligibility or self-identification question is worse
+  than one the student fills in. The Plan lists it as a Missing fact; the
+  overlay marks it failed when the form requires it, skipped when not.
 
-## Repeated sections: clicking "Add" and filling every entry, not just the first
+## Attaching the student's resume file
 
-Found live on a real Workday application (not the sample form): a second
-education/experience block doesn't exist in the DOM at all until the page's
-own "Add Another Education"/"Add Another Work Experience" control is
-clicked, and even once it exists, the old `field-map.js` always returned
-`education[0]`/`experience[0]` no matter which block a field belonged to —
-so a second block just got the first entry's data stamped on it again.
-Fixed at both layers:
+Greenhouse's "Resume/CV" field is a stable `input#resume`, `type="file"`,
+`accept=".pdf,.doc,.docx,.txt,.rtf"` — confirmed live (The Trade Desk's
+posting), sitting behind styled "Attach"/"Enter manually" buttons but the
+real file input is directly targetable underneath both.
 
-- **`content-script.js`'s `ensureRepeatedBlocks`** runs before field
-  discovery, once per group (`education`, `experience`). It counts existing
-  blocks by counting fields matching that group's one always-present-once-
-  per-block synonym (`institution` for education, `company`/`employer` for
-  experience), then clicks `dom.findAddButton` until the block count
-  reaches the resume's actual entry count, polling after each click
-  (`dom.waitUntil`) since there's no completion event for a block
-  finishing its render. A form that already shows enough blocks (the
-  common case: one resume entry, one default block) never calls
-  `findAddButton` at all. Only ever registers a status row on *failure* (no
-  button found, or a click that didn't grow the block count) — so this
-  stays invisible in the overlay on the path that already worked before
-  this feature existed.
-- **`dom.findAddButton(specificPattern, sectionPattern)`** tries the
-  button's own wording first (a regex like "Add Another Education" against
-  its text/value/aria-label). Found on a real Workday form: some of its
-  sections instead give every "Add" control the exact same bare `"Add"`
-  wording, with the section name only ever appearing once, in that
-  section's own heading — nothing on the button itself to match against.
-  For that case `findAddButton` falls back to every generic `/^\+?\s*add/i`
-  control on the page: returned outright if it's the only one (nothing to
-  disambiguate), otherwise resolved by walking up from whichever heading
-  matches `sectionPattern` (e.g. `/education/i`) to find the smallest
-  ancestor containing one of those generic buttons, preferring the one
-  that comes *after* the heading in document order. This is DOM proximity,
-  not real semantic section-scoping — it depends on `walkAllElements`
-  actually returning elements in document order, which turned out not to
-  be true before this feature needed it (see the fix in that function's
-  own comment in `lib-dom.js`: its old stack-based traversal reversed
-  sibling order past the first nesting level, which `findAddButton`'s
-  "first candidate after the heading" logic would have silently gotten
-  wrong on anything but a flat page like the sample form).
-- **`field-map.js`'s `matchLabel`** takes a third argument, `occurrences` —
-  a `Map` the caller owns and passes back in on every call, counting how
-  many times each repeated template (`"education.institution"`,
-  `"experience.company"`, ...) has matched so far. The *n*th field matching
-  a template resolves to resume entry *n*: the first "School" field found
-  in DOM order is `education[0]`, the second is `education[1]`. This is
-  occurrence-counting, not real container-boundary detection — there's no
-  attempt to find each block's actual DOM subtree. It holds as long as a
-  form's repeated blocks render their sub-fields in the same relative
-  order block-to-block (block 1's School before block 2's School, not
-  interleaved) — true of every ATS looked at so far, but a structural
-  assumption, not a guarantee. A field beyond the resume's entry count
-  (page has 3 blocks, resume has 2) is matched, counted, and then left
-  alone — `matchLabel` returns `null` once `occurrence >= values.length`,
-  the same "not something WorkIt has an opinion about" path an unrelated
-  field takes.
+- **Resolved to file bytes at profile-fetch time, not a pointer.**
+  `background/api.js`'s `resolveResumeFile` runs as part of every
+  `fetchAutofillProfile`: it reads My Profile's one default resume — an
+  upload (`GET /applicants/{id}/resumes`, `is_default`) or a built resume
+  (`GET /applicants/{id}/built-resumes`, `is_default`; the two are never
+  both set, `backend/app/models/CLAUDE.md`'s "Built resumes") — and fetches
+  the actual bytes right there, base64-encoded onto the cached
+  `AutofillProfile.resume`. A built resume reads straight from the API:
+  `GET .../built-resumes/{id}/render` already returns its PDF base64 in the
+  response body (`backend/app/routers/built_resumes.py`'s
+  `RenderResponse.pdf`), the same render the resume editor's own preview
+  uses.
+- **A second new backend route, after essay-answer.** An uploaded resume's
+  first implementation read `GET .../resumes/{id}/file`, the webapp
+  preview's 5-minute signed Storage URL, and fetched it directly from the
+  background worker. That shipped, was reasoned as safe (MV3 background
+  workers bypass CORS for `manifest.json`'s listed `host_permissions`,
+  which cover this API's origins), and was even checked live: a
+  cross-origin `fetch()` to this project's `/storage/v1/object/sign/...`
+  endpoint from the webapp's own tab came back `type: "cors"` — a real,
+  readable response, not the `TypeError: Failed to fetch` a true CORS
+  block throws. **It still didn't attach from inside a real loaded
+  extension** — the one check that manual test couldn't stand in for.
+  Signed Storage URLs live on Storage's own domain, outside this
+  extension's `host_permissions` entirely, so that fetch answers to
+  whatever CORS policy the Storage bucket itself has — and the live
+  failure says that policy allows the webapp's own origin (which my manual
+  test used) without necessarily allowing a `chrome-extension://` one. The
+  fix was the one this section used to name as a fallback: `GET
+  /applicants/{id}/resumes/{resume_id}/bytes`
+  (`backend/app/routers/resumes.py`'s `get_resume_file_bytes`) downloads
+  the file server-side (Supabase's Python client, no browser CORS
+  involved) and returns the raw bytes from this API's own origin instead
+  — an origin `host_permissions` already trusts, so there is no third
+  party's CORS policy left to depend on. `background/api.js`'s
+  `apiFetch`/`apiFetchBinary` now share one `apiRequest` helper (session
+  check, Bearer header, base URL) so this one binary-response endpoint
+  didn't need its own copy of that logic.
+- **Best-effort, like the visa-filter fallback above.** No resume, or any
+  fetch failure along the way, collapses to the same thing — `resume:
+  null` — rather than failing the whole profile load over one field. The
+  Plan then lists the resume as a Missing fact (failed only when the form
+  requires it).
+- **The engine attaches it**, from `{ file, type, base64 }`, through a
+  `DataTransfer` and the events a file picker fires, and waits for
+  Greenhouse's uploader to show the file.
 
-**`test/sample-form.html`'s Education and Experience sections** are the
-runnable check for this — both give their "Add" button the exact same bare
-`"Add"` wording on purpose, so the page has two identical, ambiguous
-add-like controls, exercising `findAddButton`'s section-heading fallback
-specifically (not just its direct-wording match, which a differently-worded
-button would have shortcut around without ever reaching the fallback).
-Clicking either clones a second block via plain JS. Only actually exercises
-`ensureRepeatedBlocks` at all when the signed-in applicant's resume has 2+
-entries in that group; with exactly one, the default block already
-satisfies `neededCount` and no button is clicked — correctly.
+## Essay-question generation: the one opt-in, model-backed feature
 
-Still open: `findAddButton`'s patterns (`buttonPattern`/`sectionPattern` in
-`content-script.js`'s `REPEATED_GROUPS`) are untested against Workday's
-actual wording beyond what prompted this fix — a button phrased some other
-way (an icon-only "+" with no matching aria-label and no nearby heading at
-all, say) won't be found, and `ensureRepeatedBlocks` reports that as a
-failure row rather than silently giving up. The section-heading fallback
-also assumes a real heading element (`h1`–`h6`, `legend`, or
-`[role="heading"]`) actually exists for each section — a form that
-labels a section with plain styled text and no heading semantics defeats
-`nearestToSectionHeading` the same honest way: not found, reported, not
-guessed at. Still only the FIRST occurrence of a `simpleFieldRules` field
-(name, email, phone, ...) is handled — those were never repeated-section
-fields and aren't affected by any of this.
+Open-ended questions ("Why do you want to work here?") have no fixed
+answer. The Fill engine's Plan says which questions need a written answer
+(its essays, and its drafts in a text area; `engine.js`'s `planRows`), and
+the overlay lists each as "needs_generation" (`lib-status.js`).
+
+- **One blanket opt-in, never per-question.** After the fill, the overlay's
+  `promptForEssays` asks once: "N essay question(s) found — generate
+  answers with AI from your experience bank?" Nothing is sent anywhere
+  until the student clicks **Generate**. **Not Now** marks each one
+  "skipped" (never "failed": the student chose to answer it).
+- **AI traps and bans stay the student's.** A form or posting that bans
+  AI-written answers, or a posting that speaks to AI agents, makes the Plan
+  hand those questions off instead: they never reach the essay route, and
+  the overlay lists the Plan's reason under "Left for you". A draft that is
+  a choice (a dropdown) or one line ("Nick Name") is the student's too: a
+  written answer can't pick an option, and the essay route writes
+  sentences.
+- **Generation is sequential** (`content-script.js`'s `onGenerate`), one
+  `essay/generate` per question: each is its own counted AI use, and the
+  overlay shows each row as it lands. The answer is then filled through the
+  engine like any other. The box's own `maxlength` goes with the question,
+  capped at the route's 5000: Workable's cover letter takes 200000, and the
+  route answered that with a 422.
+- **Company name and job title come from the job system's API** (the Job
+  Board API's `company_name` and `title`), not the page's title.
+- **The model call is `POST /applicants/{id}/essay-answer`**
+  (`backend/app/routers/essay_answer.py`): grounded in the whole
+  experience bank, checked against the truth rule, never given identity
+  data. The question, company and role count as given, so an answer may
+  name them (before that, every live answer was refused: "Cloudflare" and
+  the pronoun "I" read as invented tools). A 429/503/422 becomes the row's "failed" reason verbatim (a 422
+  that lists errors, as their messages: `api.js`'s `errorMessage`); there is
+  no retry.
+- **Nothing is persisted.** The question and the generated answer are
+  never saved.
+
+## The overlay: honest per-field results
+
+`lib-status.js` keeps one row per field and computes the headline only
+from rows the form marks required, so an optional field left empty is
+"skipped", never red, and no parent row can hide a failed one (the two
+JobRight bugs the research caught). The overlay shows a failed row's
+reason in red and a skipped row's in gray.
 
 ## Conventions
 
@@ -323,8 +529,11 @@ fields and aren't affected by any of this.
   .executeScript`'s `files` array) don't support ES modules, so these files
   attach to `window.WIA` instead of using `import`/`export`. The load order
   that makes this work lives in exactly one place —
-  `src/popup/popup.js`'s `CONTENT_SCRIPT_FILES` array — and has to be kept
-  in sync by hand if a new content file is added.
+  `src/shared/content-scripts.js` (`ENGINE_FILES` in the MAIN world, then
+  `CONTENT_SCRIPT_FILES`), which the popup and the runner both use through
+  `injectFill` — and a new content file is added there by hand.
+- **`src/background/engine.js` uses no `chrome.*` API at import time**, so
+  the test imports it as it is. Keep `chrome.*` calls in `background.js`.
 - **`src/background/` and `src/popup/` do use ES modules** (`"type":
   "module"` in the manifest's `background` key; `popup.html`'s `<script
   type="module">`) — only the on-demand-injected content scripts can't.
@@ -340,20 +549,18 @@ Flagged here rather than silently deferred — the user asked for a
 prototype open to reorganization, and this is the honest list of what that
 openness covers:
 
-- **Live-tested, but only against one real ATS so far.** Signed-in-session
-  reading (Auth section above) and basic field-filling, including the new
-  repeated-sections mechanism, have been confirmed working against a real
-  signed-in WorkIt account and a real Workday application. Greenhouse,
-  Lever, and any other ATS remain untested — `field-map.js`'s synonym list
-  and `findAddButton`'s button-text patterns were only ever checked against
-  what Workday actually renders, and real forms vary. The dropdown timing
-  heuristics and the label-pairing proximity walk are likewise only as
-  tested as what came up along the way, not independently verified. Load
-  it unpacked (`chrome://extensions` → Developer mode → Load unpacked) and
-  try it against a real Greenhouse or Lever posting next. If the webapp
-  session ever stops being found, check the background service worker's
-  console (`chrome://extensions` → this extension → "service worker") for
-  `webapp-session.js` warnings first.
+- **The loaded extension's round trip is not yet confirmed live
+  (KAN-340).** The engine path (`engine.js`'s `planFill`, `fillOrder`,
+  `fieldResult`, with the bundle from `ENGINE_FILES`) filled live
+  Greenhouse forms (Arc Boat Company's, Pure Storage's, 2026-10-22) with a
+  dummy profile and sent nothing; what no test reaches is the Chrome glue:
+  `injectFill`'s MAIN-world load, `fill/plan` and `fill/field` through
+  `executeScript`, the essay round trip (`essay/generate` → the live API →
+  the filled field), and the resume's `.../bytes` fetch. Load it unpacked,
+  sign in as a test student, run it on a Greenhouse posting with an essay
+  question, and never press Submit. If a fill stops, the background
+  service worker's console (`chrome://extensions` → this extension →
+  "service worker") shows the error first.
 - **No session at all if `@supabase/ssr` or `@supabase/supabase-js` get
   upgraded.** The cookie name, the `base64-` prefix, and the chunking
   threshold are that package's internal implementation, not a published
@@ -369,21 +576,23 @@ openness covers:
   refreshing it already does (`src/proxy.ts`) and this extension only
   ever reading, never writing, the cookie — not independent refresh logic
   here.
-- **One generic classifier, not per-ATS adapters.** `field-map.js` is the
-  build plan doc's v1 starting point — a synonym-matching heuristic, not
-  Greenhouse- or Lever-specific selectors. Expect it to do well on simple
-  forms and need real adapter work (per the build plan's Phase 2) on
-  anything more custom.
-- **Repeated sections beyond what's been live-tested.** Filling a 2nd/3rd
-  education or experience entry (clicking a form's own "Add another"
-  control, mapping the *n*th matching field to resume entry *n*) is now
-  built — see "Repeated sections" above — but confirmed only against the
-  one real Workday application that prompted it and the sample form's own
-  demo. `findAddButton`'s button-text regex, and the assumption that a
-  form renders repeated blocks' sub-fields in consistent relative order,
-  are both still only as tested as that.
-- **First/last name is `full_name.split(" ")`**, first and last token —
-  wrong for anyone with a multi-word family name. WorkIt's own database
+- **Six job systems not yet checked live through the loaded extension
+  (KAN-341).** Lever, Ashby, Rippling, Workable and Eightfold filled live
+  forms through this fill path in a test browser, not the loaded
+  extension; Workday was not filled live at all (it needs a signed-in
+  student). Auto apply still takes Greenhouse only (`hosts.py`).
+- **One school, and no phone country.** The adapter gives the engine the
+  latest education entry only, and WorkIt holds no place the student lives,
+  so Greenhouse's Country picker beside Phone is left for the student.
+- **No "not a veteran" answer.** WorkIt's `veteran_status` is
+  protected_veteran, not_protected_veteran or declined. Since the engine's
+  fix (KAN-329), "I am not a protected veteran" answers only
+  protected-status questions; a plain "Are you a veteran?" or military
+  service question is the student's (a Missing fact). Answering it needs a
+  new value such as `not_veteran`, mapped to "I am not a veteran"; never
+  map not_protected_veteran to false.
+- **First/last name is the first word and the rest** of `full_name` —
+  wrong for anyone with a multi-word given name. WorkIt's own database
   has no separate first/last name fields to read instead
   (`backend/app/models/profiles.py`'s `Profile.full_name` is one column).
 - **No packaging/publishing path yet.** The `key` in `manifest.json` pins a

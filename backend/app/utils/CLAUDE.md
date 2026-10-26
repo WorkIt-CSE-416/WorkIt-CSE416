@@ -167,7 +167,7 @@ only when the student asks ("Read It With AI", Import Again's
   schema has no `link` field and a field holding a placeholder is emptied.
   Project links come only from this parser.
 - Either reading goes straight into the experience bank through
-  `services/bank.py`'s `merge_import`; nothing keeps the reading itself
+  `services/bank.py`'s `import_upload`; nothing keeps the reading itself
   (`resumes.parsed_json` was dropped in KAN-240).
 
 ## Text extraction (lives in `app/routers/resumes.py`, not here)

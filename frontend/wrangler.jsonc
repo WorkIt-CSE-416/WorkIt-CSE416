@@ -1,0 +1,33 @@
+// The app's Worker (KAN-294, ADR 0004). `opennextjs-cloudflare build` writes
+// .open-next/; `opennextjs-cloudflare deploy` uploads it with this config.
+// account_id is left out on purpose: CI passes CLOUDFLARE_ACCOUNT_ID.
+{
+  "$schema": "node_modules/wrangler/config-schema.json",
+  "name": "workit-web",
+  "main": ".open-next/worker.js",
+  "compatibility_date": "2026-09-01",
+  "compatibility_flags": ["nodejs_compat", "global_fetch_strictly_public"],
+  // Workers Logs: without it a failed request leaves no trace to read
+  "observability": { "enabled": true },
+  "assets": {
+    "directory": ".open-next/assets",
+    "binding": "ASSETS",
+  },
+  "services": [
+    {
+      // OpenNext's self-reference binding; the service must match "name".
+      // See https://opennext.js.org/cloudflare/caching
+      "binding": "WORKER_SELF_REFERENCE",
+      "service": "workit-web",
+    },
+  ],
+  "routes": [{ "pattern": "workitjobs.ai", "custom_domain": true }],
+  // Served on the custom domain only. The account has no workers.dev
+  // subdomain yet, and the CI token cannot read one.
+  "workers_dev": false,
+  // Server-only and not secret. NEXT_PUBLIC_* do not belong here: Next
+  // inlines them at build time, so they must be set where the build runs.
+  "vars": {
+    "API_URL": "https://api.workitjobs.ai",
+  },
+}

@@ -12,7 +12,7 @@ import {
   startOfMonth,
   startOfWeek,
 } from "date-fns";
-import { ChevronLeft, ChevronRight } from "lucide-react";
+import { CaretLeftIcon, CaretRightIcon } from "@phosphor-icons/react/ssr";
 import { ViewTransition, type ReactNode } from "react";
 
 import { ShallowLink } from "@/components/shallow-routing";
@@ -206,7 +206,7 @@ function Calendar({
             aria-label={`Previous ${span.unit}`}
             className={cn(ARROW, "hover:[&>svg]:-translate-x-0.5")}
           >
-            <ChevronLeft aria-hidden className="size-4" />
+            <CaretLeftIcon aria-hidden className="size-4" />
           </ShallowLink>
           <ShallowLink
             href={calendarHref({ view, date: dayKey(span.next) })}
@@ -214,7 +214,7 @@ function Calendar({
             aria-label={`Next ${span.unit}`}
             className={cn(ARROW, "hover:[&>svg]:translate-x-0.5")}
           >
-            <ChevronRight aria-hidden className="size-4" />
+            <CaretRightIcon aria-hidden className="size-4" />
           </ShallowLink>
         </div>
       </div>

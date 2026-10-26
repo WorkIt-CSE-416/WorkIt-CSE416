@@ -20,6 +20,11 @@ and /jobs/recommended then leave out the jobs that applicant marked as applied
 (job_applications, routers/applications.py). Without a token, or with one
 that isn't an applicant's, every job is listed (get_signed_in_applicant_id).
 
+GET /jobs also enriches each listing with `match` and `highlights` when the
+viewer is a signed-in applicant whose experience bank is non-empty, using the
+same `score_jobs` path as GET /jobs/recommended. A scoring failure is logged
+and swallowed: the feed still loads, just without scores.
+
 This file is the HTTP layer only: the routes, their query parameters and
 read_filters, which turns those into JobFilters. What each filter matches
 and how the database is asked live in app/queries/jobs/ (filters.py has the
@@ -57,9 +62,15 @@ by that filter, as one with no location is by ?location=.
 word in the job's text (queries/jobs/search.py has the four parts;
 docs/search.md the design). A search orders nothing: results are newest
 first, as the feed is. Ranking is the recommendations' job, not search's.
+
+GET /jobs/search-facts?q= lists the facts a search's words name that the
+filter row also offers (an experience level, a work style, a start term),
+each with the search its words leave out: /search shows them beside the
+row, so a filter the words set is never invisible (KAN-308).
 """
 
 import datetime
+import logging
 import uuid
 from typing import Annotated, Literal
 
@@ -70,6 +81,7 @@ from app.db import get_session
 from app.deps import (
     assert_applicant_owns,
     get_current_account,
+    get_signed_in_applicant,
     get_signed_in_applicant_id,
 )
 from app.models import dto
@@ -93,11 +105,15 @@ from app.schemas.jobs import (
     PlaceCode,
     RoleSlug,
     ScoredJob,
+    SearchFact,
     SeasonKey,
 )
 from app.schemas.requirements import JobRequirement
 from app.services import postings, requirements
 from app.services.bank import load_bank
+from app.services.search_facts import without_words
+
+logger = logging.getLogger(__name__)
 
 router = APIRouter(prefix="/jobs", tags=["jobs"])
 
@@ -188,10 +204,30 @@ async def list_jobs(
     # drops by id, or skip one it shows next visit.
     offset: int = Query(0, ge=0, le=100_000),
     filters: JobFilters = Depends(read_filters),
+    account: AuthenticatedAccount | None = Depends(get_signed_in_applicant),
     db: AsyncSession = Depends(get_session),
 ) -> list[JobListing]:
-    """Newest roles first. Empty until the first import has run."""
-    return await fetch_listings(db, limit, filters, offset)
+    """Newest roles first, with match scores when the viewer is a signed-in
+    applicant with a non-empty experience bank. Empty until the first import
+    has run."""
+    listings = await fetch_listings(db, limit, filters, offset)
+    if account is not None and listings:
+        try:
+            bank = await load_bank(db, account.id)
+            if bank.entries or bank.skills:
+                scored = await score_jobs(
+                    db, account, bank,
+                    JobFilters(job_ids=[uuid.UUID(j.id) for j in listings]),
+                )
+                by_id = {s.id: s for s in scored}
+                for listing in listings:
+                    hit = by_id.get(listing.id)
+                    if hit is not None:
+                        listing.match = hit.match
+                        listing.highlights = hit.highlights
+        except Exception:
+            logger.exception("Scoring failed for applicant %s", account.id)
+    return listings
 
 
 @router.get("/count", response_model=JobCount)
@@ -202,6 +238,22 @@ async def count_jobs(
     """How many jobs GET /jobs would list for the same filters, uncapped: the
     All Filters panel's "Show 128 jobs"."""
     return JobCount(jobs=await fetch_count(db, filters))
+
+
+@router.get("/search-facts", response_model=list[SearchFact])
+async def search_facts(
+    q: str = Query(max_length=200),
+    db: AsyncSession = Depends(get_session),
+) -> list[SearchFact]:
+    """The filters a search's words set, in the order typed, each once: a
+    fact named twice ("remote remote") is one, and dropping it drops both."""
+    at: dict[tuple[str, str], list[int]] = {}
+    for fact in (await read_search(db, q)).facts:
+        at.setdefault((fact.facet, fact.value), []).extend(fact.at)
+    return [
+        SearchFact(facet=facet, value=value, without=without_words(q, places))
+        for (facet, value), places in at.items()
+    ]
 
 
 @router.get("/roles", response_model=list[JobRoleOption])

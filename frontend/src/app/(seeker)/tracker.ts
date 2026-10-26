@@ -56,7 +56,7 @@ export type Application = {
   location?: string | null;
   /** Remote, Hybrid or On-Site; null when the posting doesn't say. */
   workModel?: string | null;
-  /** Its job type, Internship or Full-Time and so on: the list's Track
+  /** Its job type, Internship or Full-Time and so on: the list's Job Type
    *  column (KAN-256); null when unstated. */
   track?: string | null;
   /** The hiring system its posting is on (Greenhouse, Workday...), named
@@ -70,6 +70,9 @@ export type Application = {
   /** The name of the resume last sent to its job posting (Apply or auto
    *  apply); null when none was sent through WorkIt. */
   resume?: string | null;
+  /** That sent resume, for View Resume (KAN-267): its id, its name and its
+   *  file's kind ("pdf", or "docx" for an uploaded Word file). */
+  sentResume?: { id: string; name: string; format: string } | null;
   stage: StageKey;
   /** Where it stands within its stage, in the employer's words: "Round 3". */
   status?: string;
@@ -153,10 +156,14 @@ export function nextEvent(app: Application, now: Date): TrackerEvent | undefined
 /** One step on an application's timeline, in the detail panel. */
 export type TimelineStep = {
   id: string;
-  /** "saved" is the day it was saved; the rest are its tracker events. */
-  kind: EventKind | "saved";
+  /** "saved" is the day it was saved, "sent" a resume sent on its own (one
+   *  sent with the application is the Applied step's note); the rest are its
+   *  tracker events. */
+  kind: EventKind | "saved" | "sent";
   title: string;
   at: string;
+  /** A line under the date: what else happened at that step. */
+  note?: string;
   /** Behind, the one it is waiting on, or further ahead. Worked out on the
    *  server against the request's time, so the panel hydrates to the same
    *  marks it rendered with. */

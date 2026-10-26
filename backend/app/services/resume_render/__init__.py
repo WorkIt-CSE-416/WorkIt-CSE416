@@ -4,7 +4,9 @@ Built resumes as Jake's Resume, compiled by Tectonic (ADR 0002, KAN-204).
     render(view, identity, template)  a built resume view -> Rendered
                         (PDF bytes, page count, characters the font lacks,
                         a box for each marked line)
+    latex(view, identity, template)   the same resume as a .tex source, unmarked
     escape(text)        the one way applicant text enters the LaTeX
+    pdf_title(text)     the PDF's Title, as hex digits only
     jakes_document(b)   Jake's preamble, byte for byte, around body b
     MARKS, mark(id, kind, latex)  position markers a template's body uses
     line_count(boxes)   the distinct lines of text some boxes sit on
@@ -120,6 +122,8 @@ class HeaderIdentity:
     email: str | None = None
     phone: str | None = None
     links: tuple[tuple[str, str], ...] = ()
+    # Prints "U.S. Citizen" after the links (My Profile's check box)
+    us_citizen: bool = False
 
 
 @dataclass(frozen=True)
@@ -182,13 +186,51 @@ def render(view, identity: HeaderIdentity, template: str) -> Rendered:
     Raises ValueError for a template id it does not know, and
     TectonicUnavailable when the compile cannot run or fails.
     '''
+    return compile_document(_document(view, identity, template, marks=True))
+
+
+def latex(view, identity: HeaderIdentity, template: str) -> str:
+    '''
+    The LaTeX source `render` compiles, without the position markers, so the
+    student can take it to Overleaf. Raises ValueError like `render`.
+    '''
+    return _document(view, identity, template, marks=False)
+
+
+def _document(view, identity: HeaderIdentity, template: str, *, marks: bool) -> str:
     # Imported here: the template modules import escape() from this one
     from app.services.resume_render import jakes
 
-    templates = {"jakes": lambda v, i: jakes_document(jakes.body(v, i))}
+    # The Title goes in a compiled PDF only: the Overleaf source leaves it
+    # out, since pdfLaTeX (Overleaf's default) ignores an xdvipdfmx special
+    # and warns about it.
+    title = _titled(identity) if marks else ""
+    templates = {"jakes": lambda v, i: jakes_document(title + jakes.body(v, i, marks=marks))}
     if template not in templates:
         raise ValueError(f"unknown template {template!r}")
-    return compile_document(templates[template](view, identity))
+    return templates[template](view, identity)
+
+
+def _titled(identity: HeaderIdentity) -> str:
+    '''The Title line every template's body starts with: "Jane Doe Resume".
+    The person's name, not the resume's: it is in every render's identity
+    with no new argument, and it is what an employer should read in the
+    file the student sends. With no Title a viewer shows the file's URL,
+    a random id for the in-app dialog's blob: link (KAN-317).'''
+    name = identity.name.strip()
+    return pdf_title(f"{name} Resume" if name else "Resume") + "\n"
+
+
+def pdf_title(text: str) -> str:
+    '''
+    The PDF's Title (its Info dictionary), as XeTeX's driver writes it.
+    The text goes in as UTF-16 hex digits, so it never meets the TeX parser
+    or PDF string syntax and needs no escape(): nothing in it can close the
+    special or start a command. A \\special is a whatsit, which neither moves
+    the page nor reaches its content stream.
+    '''
+    hex_text = "FEFF" + text.replace("\r", " ").replace("\n", " ").encode("utf-16-be").hex().upper()
+    return rf"\special{{pdf:docinfo<</Title<{hex_text}>>>}}"
 
 
 def escape(text: str) -> str:

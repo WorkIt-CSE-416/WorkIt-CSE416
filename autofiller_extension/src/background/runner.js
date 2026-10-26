@@ -1,13 +1,16 @@
 // The auto-apply runner's first step (auto-apply/architecture.md, "The
 // run"): take the next queued application from the API and open its
-// apply_url in the run's own tab. Nothing is filled yet — the fill, the
-// student's Submitted/Skip and recording the outcome come next.
+// apply_url in the run's own tab, then start the extension's fill there
+// (architecture.md, "The first fill"): the same files the popup injects.
+// The student's Submitted/Skip and recording the outcome come next.
 //
 // The URL always comes from the API, never from the message that asked
 // for it: a page on an externally_connectable origin that could hand this
 // worker any URL could make it open any site.
 
 import { ApiError, me, nextApplication } from "./api.js";
+import { injectFill } from "../shared/content-scripts.js";
+import { formUrl } from "./engine.js";
 
 // The run's tab and the job posting open in it, kept in
 // chrome.storage.session rather than a variable: Chrome stops this worker
@@ -15,16 +18,22 @@ import { ApiError, me, nextApplication } from "./api.js";
 // lasts until the browser closes.
 const RUN_TAB_KEY = "workit_run_tab";
 const LOAD_TIMEOUT_MS = 30_000;
+const FORM_TIMEOUT_MS = 10_000;
 
 /**
- * Opens the next queued application's apply_url. When the run's tab
- * already shows that application, it is left as it is: reloading it would
- * throw away whatever the student typed. Nothing finishes an application
- * yet, so the next one stays the same until the student closes the tab
- * or takes it out of the queue.
+ * Opens the next queued application's apply_url and starts the fill in it.
+ * When the run's tab already shows that application, it is left as it is
+ * (`fill: "kept"`): reloading or filling it again would throw away whatever
+ * the student typed. Nothing finishes an application yet, so the next one
+ * stays the same until the student closes the tab or takes it out of the
+ * queue.
  * @param {chrome.runtime.MessageSender} sender the WorkIt tab that asked;
  *   a new run tab opens beside it
- * @returns {Promise<{ opened: true, jobId: string, url: string } | { opened: false, reason: "queue_empty" | "signed_out" }>}
+ * @returns {Promise<
+ *   | { opened: true, jobId: string, url: string, fill: "started" | "kept" }
+ *   | { opened: true, jobId: string, url: string, fill: "failed", reason: string }
+ *   | { opened: false, reason: "queue_empty" | "signed_out" }
+ * >}
  */
 export async function openNextApplication(sender) {
   let account;
@@ -43,9 +52,74 @@ export async function openNextApplication(sender) {
   }
 
   const jobId = application.job.id;
-  const url = application.job.apply_url;
-  if (saved?.jobId !== jobId) await openApplicationTab(saved, jobId, url, sender.tab);
-  return { opened: true, jobId, url };
+  // The form, not the job's page, where the two differ (a Lever posting's form is at .../apply).
+  const url = formUrl(application.job.apply_url);
+  if (saved?.jobId === jobId) return { opened: true, jobId, url, fill: "kept" };
+  const tabId = await openApplicationTab(saved, jobId, url, sender.tab);
+  return { opened: true, jobId, url, ...(await startFill(tabId)) };
+}
+
+/**
+ * Injects the fill engine into the run's tab, as the popup's "Autofill
+ * This Page" does. content-script.js reads the fields once, when it runs,
+ * so this waits for the form first. It answers once the fill has started,
+ * not when it ends; the overlay in the tab shows what was filled.
+ *
+ * THE STUDENT IS TAKEN TO THE TAB FOR THE FILL, and stays there. Filled
+ * hidden, the text fields filled but most dropdowns did not: Chrome treats
+ * a hidden page differently (no redraws, slowed timers, no focus) and
+ * react-select's menus need some of that. Switching back to the WorkIt tab
+ * afterwards was tried and dropped: the student reviews this form next
+ * anyway.
+ * @param {number} tabId
+ * @returns {Promise<{ fill: "started" } | { fill: "failed", reason: string }>}
+ */
+async function startFill(tabId) {
+  const target = { tabId };
+  let found;
+  try {
+    [{ result: found }] = await chrome.scripting.executeScript({
+      target,
+      func: waitForForm,
+      args: [FORM_TIMEOUT_MS],
+    });
+  } catch (error) {
+    // No host permission for this site: activeTab never covers a tab the
+    // runner opened, so manifest.json lists each hiring system auto apply
+    // takes.
+    const reason = /cannot access|permission/i.test(error.message) ? "not_allowed" : error.message;
+    return { fill: "failed", reason };
+  }
+  if (!found) return { fill: "failed", reason: "no_form" };
+
+  await chrome.tabs.update(tabId, { active: true });
+  injectFill(tabId).catch((error) => console.warn("[runner] the fill stopped:", error));
+  return { fill: "started" };
+}
+
+/**
+ * Runs in the application's page, so it must not read anything outside
+ * itself. Resolves true once a form field exists, false after `timeoutMs`.
+ * Greenhouse can draw its form after the load's `complete`. It watches the
+ * DOM, never requestAnimationFrame, which a hidden tab does not run
+ * (architecture.md, "Hidden tabs run slowly").
+ * @param {number} timeoutMs
+ */
+function waitForForm(timeoutMs) {
+  const FIELD = "#first_name, form input:not([type=hidden]), form select, form textarea";
+  return new Promise((resolve) => {
+    if (document.querySelector(FIELD)) return resolve(true);
+    const observer = new MutationObserver(() => {
+      if (document.querySelector(FIELD)) done(true);
+    });
+    const timer = setTimeout(() => done(false), timeoutMs);
+    function done(found) {
+      observer.disconnect();
+      clearTimeout(timer);
+      resolve(found);
+    }
+    observer.observe(document.documentElement, { childList: true, subtree: true });
+  });
 }
 
 /**
@@ -95,8 +169,8 @@ function saveRunTab(saved) {
  * own Space, and macOS switches to it), and `focused: false` can't stop
  * that. A background tab is hidden, so Chrome slows its timers and stops
  * its redraws (architecture.md, "Hidden tabs run slowly"), and it is kept
- * from being discarded, which would lose a half-filled form. Resolves once
- * the page has loaded.
+ * from being discarded, which would lose a half-filled form. Resolves to
+ * the tab's id once the page has loaded.
  * @param {{ tabId: number } | null} saved runTab()'s answer
  * @param {string} jobId
  * @param {string} url
@@ -108,7 +182,8 @@ async function openApplicationTab(saved, jobId, url, opener) {
     // Listen before navigating, so a fast load can't finish unseen.
     const loaded = waitForLoad(saved.tabId);
     await chrome.tabs.update(saved.tabId, { url });
-    return loaded;
+    await loaded;
+    return saved.tabId;
   }
 
   // The student closed the run's tab (or this is the first open).
@@ -120,7 +195,8 @@ async function openApplicationTab(saved, jobId, url, opener) {
   });
   await chrome.tabs.update(created.id, { autoDiscardable: false });
   await saveRunTab({ tabId: created.id, jobId });
-  return waitForLoad(created.id);
+  await waitForLoad(created.id);
+  return created.id;
 }
 
 /**

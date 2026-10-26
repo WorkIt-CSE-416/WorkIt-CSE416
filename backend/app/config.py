@@ -56,6 +56,11 @@ class Settings(BaseSettings):
     # the transaction pooler of Supabase, same as DATABASE_URL
     database_url: str | None = None
 
+    # Connections the API keeps open; 0 opens one per request (NullPool).
+    # The container sets 5 (Dockerfile): it lives for minutes, and opening a
+    # connection there took ~1 s, the most of every request (2026-10-21).
+    db_pool_size: int = Field(default=0, ge=0)
+
     # The session pooler for alembic to use for migrations
     direct_url: str | None = None
 
@@ -64,6 +69,10 @@ class Settings(BaseSettings):
     # verifies access tokens is published.
     supabase_url: str | None = None
     supabase_service_key: str | None = None
+
+    # Cloudflare Turnstile secret key for bot protection on signup.
+    # None = skip verification (local dev without Turnstile).
+    turnstile_secret_key: str | None = None
 
     gemini_api_key: str | None = None
     embedding_provider: Literal["gemini", "ollama"] = "ollama"
@@ -79,14 +88,17 @@ class Settings(BaseSettings):
     ai_intake_cap: int = 15
     ai_tailor_cap: int = 2
     ai_parsing_cap: int = 1
-    # The editor assistant (KAN-221): its share is on top of the spec's four,
-    # which already sum to the pool, so a busy day can overshoot it by 10%.
+    # The editor assistant (KAN-221) and the autofiller's essay-answer
+    # generation (KAN-164): each share is on top of the spec's four, which
+    # already sum to the pool, so a busy day can overshoot it by 20%.
     ai_assistant_cap: int = 10
+    ai_essay_cap: int = 5
     ai_tailor_share: float = 0.4
     ai_intake_share: float = 0.3
     ai_scout_share: float = 0.2
     ai_parsing_share: float = 0.1
     ai_assistant_share: float = 0.1
+    ai_essay_share: float = 0.1
 
     # The scraper's output, which app/scripts/import_jobs.py loads into the
     # database by default. Data — nothing from scraper/ is imported, so it

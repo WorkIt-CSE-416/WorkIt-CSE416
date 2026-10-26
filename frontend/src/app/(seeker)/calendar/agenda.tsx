@@ -79,7 +79,7 @@ export function Agenda({
                           look.fill,
                         )}
                       >
-                        <Icon className="size-3.5" />
+                        <Icon aria-hidden className="size-3.5" />
                       </span>
                       <span className="min-w-0 flex-1">
                         <span className="text-label text-ink block truncate font-semibold">

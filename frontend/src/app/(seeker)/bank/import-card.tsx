@@ -18,8 +18,8 @@ import { importSummary } from "@/lib/import-summary";
  * fixes them there. Each write reads the bank again through `onSaved`.
  *
  * Model parsing (KAN-222) runs only on the student's click: "Read It With
- * AI" while they have an AI reading left today. Its entries merge into the
- * bank like any import; a failed reading leaves the bank as it was and shows
+ * AI" while they have an AI reading left today. Its entries replace what the
+ * upload owned, like any import (ADR 0005); a failed reading leaves the bank as it was and shows
  * why.
  *
  * It opens inside intake's chat: Continue hands the space back, and the walk

@@ -1,17 +1,16 @@
 "use client";
 
-import { Plus, X } from "lucide-react";
-import { useId, useState, type FormEvent } from "react";
+import { PlusIcon, TrashIcon, XIcon } from "@phosphor-icons/react/ssr";
+import { useId, useState, type FormEvent, type ReactNode } from "react";
 
 import { Button } from "@/components/ui/button";
 import { IconButton } from "@/components/ui/icon-button";
 import { SelectField } from "@/components/ui/select-field";
 import { FIELD_CONTROL, FIELD_LABEL, TextField } from "@/components/ui/text-field";
-import type { BankEntry, EndKind, Skill } from "@/lib/bank-actions";
+import type { BankEntry, EndKind } from "@/lib/bank-actions";
 import { cn } from "@/lib/cn";
 
 import { savable, sectionOf, type EntryDraft } from "./sections";
-import { SkillLinksField } from "./skill-links";
 
 /**
  * The one entry editor (spec: one screen for forms, intake and import). It
@@ -21,9 +20,6 @@ import { SkillLinksField } from "./skill-links";
  * Education its degree, field of study, GPA and scale, coursework and honors;
  * Projects a link; Certifications an issuer; Awards one date in place of the
  * start and end.
- *
- * Given `skills`, it also shows "Skills Used Here" and hands the linked
- * skill ids to `onSave` beside the draft (KAN-216).
  *
  * Only the title is required, so a student can save an entry with a section
  * and a title and add the rest later. The API checks everything again.
@@ -58,13 +54,13 @@ export function EntryEditor({
   error,
   duplicate,
   onSaveAsNew,
-  skills,
-  linkedSkillIds = [],
   onChange,
+  onDelete,
+  note,
   cancelLabel = "Cancel",
 }: {
   initial: EntryDraft;
-  onSave: (draft: EntryDraft, skillIds: string[]) => void;
+  onSave: (draft: EntryDraft) => void;
   onCancel: () => void;
   saving?: boolean;
   error?: string | null;
@@ -73,18 +69,21 @@ export function EntryEditor({
    *  <entry>" and offers Save as New, which hands the draft to
    *  `onSaveAsNew`, or Cancel. */
   duplicate?: Pick<BankEntry, "title" | "organization"> | null;
-  onSaveAsNew?: (draft: EntryDraft, skillIds: string[]) => void;
-  /** The bank's skills, to link to this entry; omitted, no links show. */
-  skills?: Skill[];
-  /** The skills linked to this entry when the editor opens. */
-  linkedSkillIds?: string[];
+  onSaveAsNew?: (draft: EntryDraft) => void;
   /** Every edit, as the whole draft: intake sends the card's edits back to
    *  the model with each turn. */
   onChange?: (draft: EntryDraft) => void;
+  /** An entry already in the bank: Delete Entry at the foot's left, which
+   *  the caller confirms (KAN-363). A row showed its own trash beside the
+   *  pencil, under a section heading that already held Clear All and Add,
+   *  so four controls in one corner did not say which acted on what. */
+  onDelete?: () => void;
+  /** A line over the foot's buttons: the bank's names the other resumes a
+   *  save changes too (KAN-363). */
+  note?: ReactNode;
   cancelLabel?: string;
 }) {
   const [draft, setDraft] = useState(initial);
-  const [skillIds, setSkillIds] = useState(linkedSkillIds);
   const uid = useId();
   const section = sectionOf(draft.section);
   const set = (changes: Partial<EntryDraft>) => {
@@ -106,7 +105,7 @@ export function EntryEditor({
 
   function submit(event: FormEvent) {
     event.preventDefault();
-    onSave(savable(draft), skillIds);
+    onSave(savable(draft));
   }
 
   const education = draft.section === "education";
@@ -346,7 +345,7 @@ export function EntryEditor({
                 className="mt-1.25 size-8"
                 onClick={() => set({ bullets: draft.bullets.filter((_, j) => j !== i) })}
               >
-                <X className="size-4" />
+                <XIcon aria-hidden className="size-4" />
               </IconButton>
             </div>
           ))}
@@ -359,15 +358,13 @@ export function EntryEditor({
                 "text-ink-meta hover:border-brand hover:text-brand flex min-w-0 flex-1 items-center gap-2 border-dashed px-3.5 py-2.5 text-left transition-colors",
               )}
             >
-              <Plus aria-hidden className="size-4 shrink-0" /> Add Bullet Point
+              <PlusIcon aria-hidden className="size-4 shrink-0" /> Add Bullet Point
             </button>
             {/* Keeps the box as wide as the bullets above, beside their × */}
             {draft.bullets.length > 0 && <span aria-hidden className="size-8 shrink-0" />}
           </div>
         </div>
       </div>
-
-      {skills && <SkillLinksField skills={skills} value={skillIds} onChange={setSkillIds} />}
 
       {duplicate && (
         <div role="alert" className="rounded-control bg-warning-tint text-note text-ink p-3">
@@ -376,22 +373,30 @@ export function EntryEditor({
           Save it as a new entry anyway?
         </div>
       )}
+      {note}
       {error && (
         <p role="alert" className="text-note text-danger">
           {error}
         </p>
       )}
 
-      <div className="flex justify-end gap-2">
+      <div className="flex items-center justify-end gap-2">
+        {onDelete && (
+          <Button
+            type="button"
+            variant="section"
+            className="mr-auto"
+            onClick={onDelete}
+            disabled={saving}
+          >
+            <TrashIcon aria-hidden /> Delete Entry
+          </Button>
+        )}
         <Button type="button" variant="secondary" onClick={onCancel} disabled={saving}>
           {cancelLabel}
         </Button>
         {duplicate && onSaveAsNew ? (
-          <Button
-            type="button"
-            disabled={saving}
-            onClick={() => onSaveAsNew(savable(draft), skillIds)}
-          >
+          <Button type="button" disabled={saving} onClick={() => onSaveAsNew(savable(draft))}>
             {saving ? "Saving…" : "Save as New"}
           </Button>
         ) : (

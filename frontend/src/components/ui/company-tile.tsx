@@ -53,7 +53,7 @@ export function CompanyTile({ Icon, size = "md", tone = "brand", className }: Co
 
   return (
     <span className={cn("flex shrink-0 items-center justify-center", box, TONES[tone], className)}>
-      <Icon className={icon} />
+      <Icon aria-hidden className={icon} />
     </span>
   );
 }

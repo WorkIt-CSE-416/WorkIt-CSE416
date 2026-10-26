@@ -274,11 +274,30 @@ change here must keep:
 - **Bullet positions are 0..n-1 within an entry.** The service renumbers on
   every move and delete; there is no unique constraint on them, because a
   reorder would then have to dodge its own rows mid-update.
-- **`bank_skill_links` joins a skill to an entry of the same applicant**
-  (KAN-216), keyed by the pair, cascading from either side. The table has
-  no applicant column, so it cannot check that both sides share an owner:
-  `services/bank.py`'s `link_skill` does, and a link written any other way
-  can join two students' rows.
+- **A skill is one list per applicant, never tied to an entry.** KAN-216's
+  `bank_skill_links` (a skill to the entries that showed it, meant as
+  proof for Tailor) was removed in `9e4b2d7a5c18`: no upload wrote a link,
+  and nothing but the bank screen read one. Do not add it back without a
+  reader that needs it.
+- **An entry or skill belongs to at most one upload** (`resume_id`, ADR
+  0005, `../../../docs/bank_by_resume.md`): uploads never merge, so one
+  column holds the truth and the link tables of KAN-343 were dropped
+  (`c8f2a4e6b913`). It cascades: deleting an upload deletes its entries
+  and skills. Null means the student made it. A skill's name is unique
+  per owner (`bank_skills_applicant_name_key`, `NULLS NOT DISTINCT`, so
+  the student's own skills are one list). Built resumes need no owner
+  column for what they show from the bank: their shown choice rows say it.
+- **A skill can belong to one built resume instead**
+  (`bank_skills.built_resume_id`, `a3d7f1c9e2b4`,
+  `../../../docs/tailor_resume.md`): Tailor's picked skills, which show on
+  the tailored resume only and are not in the experience bank. It still
+  needs a `bank_skills` row, since `built_resume_skills.skill_id` points
+  there. At most one owner (`bank_skills_one_owner_check`); it cascades
+  with its resume; the name index includes it, so a resume's "Go" never
+  clashes with the bank's. `load_bank` leaves these rows out unless the
+  caller names their resume (`local_to`), so a new reader of skills that
+  forgets them still sees only the bank. The same pattern as
+  `bank_bullet_variants.built_resume_id` (below).
 
 ## Built resumes
 
@@ -751,13 +770,23 @@ Application Questions shows and edits them (KAN-269).
   is. Questions with no fixed key (a company's own screening question)
   will need their text stored, but only once the extension records what a
   student types into a form; they get their own part of the bank then,
-  with no migration, since the column is JSONB.
+  with no migration, since the column is JSONB. **Still true as of the
+  essay-answer feature** (`routers/essay_answer.py`, KAN-164): that route
+  reads the question's literal text from the extension's request and never
+  writes it anywhere — it's exactly the "extension records what a student
+  types" moment this note anticipated, and persisting it is a deliberate,
+  deferred follow-up, not an oversight.
 - **Written per key, never replaced whole.** `PATCH` merges in the database
   (`answers || new - cleared`), so a tab holding an old copy can't erase an
   answer it never loaded. The frontend sends only the answers the seeker
   changed.
 - **A key or option the code no longer knows reads as unanswered**
   (`answers_from_bank`), so the bank outlives any one version of the questions.
+- **The resume header reads one answer:** `work_authorization_status`
+  `us_citizen` prints "U.S. Citizen" (`built_resumes.load_header_identity`).
+  A profile check box for it was built and removed the same day
+  (2026-10-21): it asked the student the same question twice, and the two
+  answers could disagree. Read citizenship from the bank, never a copy.
 - **The self-identification answers are sensitive** (gender, Hispanic or
   Latino, race, veteran, disability). Only their owner reads them
   (`owned_applicant`), and they never go to a model.
@@ -773,6 +802,20 @@ Application Questions shows and edits them (KAN-269).
   the student edits My Profile, and auto apply would fill the old one in.
 - **Its migration is `a7d3e5c1b942`** (RLS on). It must be on the database
   before the API that maps it deploys.
+
+## Names: parts and one line (KAN-326)
+
+Both account tables keep `first_name`, `middle_name` and `last_name`, which
+signup and Settings ask for, and `full_name`, the line every other reader
+prints (the bar, resume headers, the Chrome autofiller). **`full_name` is
+always the parts joined**, through `app/services/names.py`: every writer
+sets the four together with `name_columns`. A writer with only a line (an
+OAuth sign-in, the resume editor's header sending `full_name`) has it split:
+the first word, the words between, the last word. The parts are nullable: a
+one-word name has no last name, and a row written by code that predates
+them has `full_name` alone, which `ApplicantProfileResponse` answers split.
+A first and a last name are required on every PATCH that sends parts, as at
+signup, and the joined line must fit `full_name`'s 50.
 
 ## job_postings holds company-posted and scraped jobs
 
@@ -827,15 +870,13 @@ produces no trigram and scans anyway. `title` had one too, dropped in
 searching company-posted jobs by employer needs a join or a copied name.
 
 **Job matching adds three columns (KAN-139):**
-- **`job_postings.embedding` and `resumes.embedding`** hold embedding vectors,
-  `vector(768)` from pgvector, sized by `dto.EMBEDDING_DIMENSIONS`.
-  **`resumes.embedding` is no longer mapped** (KAN-212 moved the embedding to
-  `experience_banks`): the column stays in the database until a contract
-  migration drops it, written and applied only after the code that stopped
-  mapping it is deployed, as with `824f0b2e3d84` below. Until then
-  `alembic revision --autogenerate` proposes `drop_column('resumes',
-  'embedding')`: delete that line from any migration that is not the drop
-  itself, or the drop ships before the deploy and old code's inserts fail.
+- **`job_postings.embedding`** holds an embedding vector, `vector(768)` from
+  pgvector, sized by `dto.EMBEDDING_DIMENSIONS`. **`resumes.embedding` is
+  gone**: KAN-212 moved the applicant's embedding to `experience_banks` and
+  stopped mapping it, and the contract migration `b9e2c4d6f8a1` dropped it
+  once that code was deployed (2026-10-25), as `824f0b2e3d84` did below.
+  Before the drop, autogenerate proposed `drop_column('resumes',
+  'embedding')` in every migration, and `alembic check` failed on it.
 - **`job_postings.fts`** is a generated `tsvector` of the title (weighted A)
   and description (weighted D), so anything that ranks with `ts_rank` puts a
   title match first (search itself doesn't rank: `@@` ignores weights), with
@@ -856,10 +897,13 @@ What writes them, and why, is `../services/matching/CLAUDE.md`.
 
 **Tailor's keywords are cached on the posting (KAN-215).** `keywords` (JSONB,
 at most 20 `{"keyword", "kind"}`) and `keywords_hash` (the SHA-256 of the
-description they came from), both `deferred`, from `e1c4a7b9d215`. A hash
-that differs from the description's means stale, so a company's edit is
-caught with no extra code; the feed import also clears both when it changes
-a description, so a stale list never sits in the table. Only
+title and the description's job part, `job_part`, which is all the model
+read), both `deferred`, from `e1c4a7b9d215`. A hash that differs means
+stale, so a company's edit to the job or its title is caught with no extra
+code, an edit to its perks
+alone keeps the cache, and a change to `job_part`'s headings refreshes the
+caches it changes. The feed import also clears both when it changes a
+description at all, so a stale list never sits in the table. Only
 `services/keywords.py` reads or writes them. Apply the migration before the
 deploy: the model maps them, so company job creation fails on a database
 without them (above).
@@ -923,7 +967,23 @@ a `NOT EXISTS`); auto apply's matches leave out every stage, `saved` too
 - **Apply `c0467afe819c` right after merging.** Until then the deployed
   code's queue routes and stage filters fail on the missing column; the
   Applied button keeps working either way.
-- The resume sent and an undo are not built. The tracker's later stages
+- **`sent_resume_id` names the resume it went out with** (KAN-267,
+  `3aa342c5a064`): "Did You Apply?" sets it through `POST
+  /jobs/{id}/applied`, auto apply's resume step through `link_resume`.
+  NULL means none was sent, or the sent resume was deleted since. **Its
+  foreign key is composite**, `(sent_resume_id, applicant_id)` to
+  `sent_resumes (id, applicant_id)` (`sent_resumes_id_applicant_key`), so
+  the database refuses a link to another applicant's sent resume; that it
+  was sent to this job posting is checked in Python (`sent_to_job`), since
+  `sent_resumes.job_posting_id` is nulled when a posting goes. **Deletion:**
+  deleting the sent resume clears the link alone (`ON DELETE SET NULL
+  (sent_resume_id)`, Postgres 15: a plain SET NULL would null
+  `applicant_id`, a primary key column, and fail), and the application
+  stays; deleting the application (unsave, dequeue) leaves the sent
+  resume; the job posting or the account cascades both. The migration
+  backfilled each applied application with its posting's last sent
+  resume, which the tracker showed until then.
+- An undo is not built. The tracker's later stages
   (interviewing, offer) are Out of scope below.
 
 ## notifications — the top bar's bell (KAN-298)
@@ -985,8 +1045,11 @@ What that means for the account tables:
   foreign key. `alembic/env.py`'s filters keep autogenerate from ever creating
   or dropping it. Do not add columns to it or query through it.
 - **`email` is a copy** of `auth.users.email`, kept for display and joins.
-  Supabase signs in with its own copy. Nothing changes an email yet; whatever
-  first does must update both.
+  Supabase signs in with its own copy. Settings' Change Email (KAN-326)
+  changes Supabase's; `get_current_account` (`app/deps.py`) copies it onto
+  the row on the account's next request, when the token's email differs.
+  Copied there, not by the confirm link's callback, which runs only in the
+  browser that opens the link.
 - **`contact_email` is the email employers see** (KAN-262,
   `applicant_profiles` only): resume headers and the autofiller print it.
   NULL means the sign-in `email`, so read it through the model's

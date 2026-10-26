@@ -41,6 +41,9 @@ uv run python -m app.scripts.intake_test_set   intake's fixed test set against t
 python3 scripts/fetch_tectonic.py              Tectonic + warm cache into vendor/ (resume PDFs; once per checkout)
 ```
 
+The container image builds from the repo root, not here (Deployment):
+`docker build --platform linux/amd64 -f backend/Dockerfile -t workit-api .`
+
 Migrations: read `alembic/CLAUDE.md` before writing one; it has the offline
 `--sql` check that needs no credentials. Never run `alembic init` again: it
 overwrites `alembic/env.py` and its schema filters.
@@ -81,6 +84,16 @@ module docstring has the steps.
   `job_role_tags`, resolved from its title (KAN-155).
 - A `--dry-run` writes and rolls back, leaving dead rows until autovacuum, so
   table sizes read right after one are inflated.
+- **After it commits, it extracts keywords** (KAN-392) for published scraped
+  jobs with none (`_extract_keywords`, through `keywords.read` and Scout's
+  `SCOUT_*` chain): new jobs, and changed ones, whose keywords the upsert
+  cleared. At most `--keywords-limit` model calls a run (default
+  `KEYWORDS_PER_RUN`, 100; 0 skips), so the backlog spreads over runs and
+  quotas; `--keywords-only` runs the pass alone. Each job commits on its
+  own and no transaction stays open across a model call. It reads past the
+  last id tried, never "still NULL": a job whose reply fails its schema
+  stays NULL, and a NULL query read it again forever. It stops at the first
+  `ScoutUnavailable` (no model answers) and counts no student's use.
 
 ### Tests
 
@@ -189,7 +202,11 @@ Find files with a directory listing; these are the rules for where code goes.
   resume step (`prepare_resume`) keeps the file through
   `services/sent_resumes.py`, never Storage or the renderer itself, so a
   resume auto apply sends is a sent resume under Apply's rules (the repeat
-  hash, the file kept while a row uses it). **Which job postings it takes is
+  hash, the file kept while a row uses it). **A student's own pick of a queued
+  job's resume** (`choose_resume`, `PUT .../applications/{job_id}/resume`,
+  KAN-359) is kept the same way, as the sent resume the application names,
+  and `prepare_resume` sends it in place of `pick_resume`'s (`chosen_resume`):
+  no column of its own. Tests: `tests/test_auto_apply_resume.py`. **Which job postings it takes is
   one list, `app/auto_apply/hosts.py`** (Greenhouse for now): the matches
   and `queue_applications` require its SQL form (`AUTO_APPLY_SUPPORTED` in
   `queries/jobs/filters.py`) and `JobListing.auto_apply` its Python form,
@@ -203,26 +220,40 @@ Find files with a directory listing; these are the rules for where code goes.
   session, flushes and never commits, so the router owns the transaction and
   one request can make many changes atomically (an import saving many
   entries).
+- **A resume-local skill is not in the bank** (`docs/tailor_resume.md`):
+  `load_bank` leaves out every skill a built resume owns
+  (`bank_skills.built_resume_id`) unless the caller names that resume in
+  `local_to`. Every reader of one built resume names it: `load_view` (the
+  PDF, Word, LaTeX, keyword match, Fit, sent resumes), the choices PATCH,
+  the editor assistant, Tailor's built source, Generate's duplicate check
+  (all resumes), and `GET /bank?built_resume_id=` (the editor page).
+  Nothing else does, so Scout, the recommender, Generate and the
+  Experiences view never see one. `add_local_skill` writes one and leaves
+  the bank's embedding alone. Tests: `tests/test_tailor.py`, "Resume-local
+  skills".
 - **The experience bank is written only through `services/bank.py`.** It
   holds the ownership scoping, the duplicate check and the clearing of the
-  bank embedding on every entry, bullet or skill change (a skill link is
-  not one: the embedding text never says which skill goes with which
-  entry); a route or script
+  bank embedding on every entry, bullet or skill change; a route or script
   that writes `bank_*` rows itself leaves the recommender on a stale
   embedding. Schema rationale: `../docs/resume.md`, "The experience bank".
+  Clear All (KAN-352) is `delete_entries` / `delete_skills`: all or none,
+  a 404 when any id is not the applicant's, and the same cascades as one
+  delete (bullets, built resumes' choice rows), in one statement.
 - **The recommender and Scout read the bank, never an uploaded resume**
   (KAN-212). `GET /jobs/recommended` scores against the bank and its
   embedding (`app/services/matching/CLAUDE.md`); Scout's facts come from
   the bank's API shape (`routers/bank.py`'s `bank_response`) through
   `workit_scout.facts`. An uploaded resume only feeds import.
-- **A job's match score comes from `fetch_recommended` only**, wherever it
-  shows. The Applications page's cards (KAN-256) get theirs through
-  `GET .../applications?scored=true`, which narrows it to the tracked job
-  postings with `JobFilters.job_ids`. A second scoring path would let a
-  card and the Jobs page show two numbers for one job.
+- **A job's match score comes from `score_jobs`**, the same path everywhere.
+  `GET /jobs` enriches each listing with `match` and `highlights` when the
+  viewer is a signed-in applicant with a non-empty bank (KAN-309);
+  `GET /jobs/recommended` uses `fetch_recommended` (which calls `score_jobs`);
+  the Applications page's cards (KAN-256) get theirs through
+  `GET .../applications?scored=true`, which narrows it with
+  `JobFilters.job_ids`. One scoring path, one number per job.
 - **A student reaches only the postings the Jobs page lists**
   (`services/postings.py`'s `LISTED`: published and scraped). Tailor (run
-  and Done), the keyword match and Apply load a posting through
+  and its match), the keyword match and Apply load a posting through
   `postings.listed`, so a company's draft or a closed posting answers 404
   and its text never reaches a model. The one exception: a tailored
   resume's keyword match against its own posting, which still works after
@@ -236,28 +267,38 @@ Find files with a directory listing; these are the rules for where code goes.
 - **An upload fills the bank** (KAN-240, `../docs/adr/0003-upload-fills-the-experience-bank.md`).
   `POST .../resumes` extracts `raw_text`, reads it with the heuristic
   parser (`services/bank_import.py`'s `read`, pure) and writes it with
-  `services/bank.py`'s `merge_import`, in the same transaction as the
+  `services/bank.py`'s `import_upload`, in the same transaction as the
   resume row: if the commit fails, nothing is kept and the Storage file is
   removed. The parser's reading is stored nowhere else (`parsed_json` is
-  gone). The response's `bank` says what went in, with `found` (what the
-  reading found, written or not) so the screen can tell "read nothing"
-  from "already in your bank". A reading never fails an upload: a parser
-  crash reads as nothing.
-- **Import merges, never copies.** `merge_import` adds an entry the bank
-  lacks; one that `find_duplicate` matches gains only the fields it has
-  empty and the bullets it lacks (ignoring case and spacing), so what the
-  student fixed stays fixed and several resumes add up to one bank. Dates
-  fill only as a set, when the bank entry has none: a merge never pairs one
-  resume's start with another's end. A fill that clashes with a kept field
-  (a GPA above the bank's scale) is dropped, and the bullets still go in.
-- **Import Again** is `POST /applicants/{id}/bank/import`: the same read and
-  merge on a stored upload, from intake's Use One I Uploaded and the Jobs
-  page's empty-bank card. It re-reads `raw_text`, so a resume uploaded
-  before a parser fix gets the fix. It can bring back a bullet the student
-  deleted; that is the student's explicit click.
+  gone). The response's `bank` says what went in (`found`,
+  `entries_added`, `skills_added`). A reading never fails an upload: a
+  parser crash reads as nothing.
+- **Each upload owns its entries and skills; uploads never merge** (ADR
+  0005, `../docs/bank_by_resume.md`). `import_upload` deletes what the
+  upload owns (`bank_entries.resume_id`, `bank_skills.resume_id`), then
+  writes the whole reading as the upload's own, with no `find_duplicate`
+  across resumes: the same job on two uploads is two rows, and Generate,
+  Tailor's ranking, Scout and the recommender read both (accepted). A
+  re-read replaces, so the student's edits to that upload's entries and
+  their places on built resumes go, with no warning. Deleting an upload
+  deletes its rows (cascade). Upload flushes the `Resume` row first (the
+  rows point at it). An item with no owner was made by the student, by
+  intake or by Tailor's "Have you used X?" (removed). Add (`POST .../bank/entries`
+  and `.../skills`) takes `?resume_id=`: an upload owns the new item, a
+  built resume gets a shown choice row; its duplicate check and the skill
+  name index (`NULLS NOT DISTINCT`) look at one owner only. `GET /bank`
+  sends each item's `resume_ids` (the owner, then the built resumes that
+  show it, `load_holdings`) and `resumes`; other `bank_response` callers
+  (Scout) send none. Tests: `tests/test_bank_import.py`, "owners" and
+  "Add under a resume pick".
+- **Import Again** is `POST /applicants/{id}/bank/import`: the same read on
+  a stored upload, replacing what it owns, from intake's Use One I
+  Uploaded, the Jobs page's empty-bank card and the Experiences view's
+  prompt for an upload that owns nothing. It re-reads `raw_text`, so a
+  resume uploaded before a parser fix gets the fix.
 - **Import Updated Resume** is `PUT /applicants/{id}/resumes/{resume_id}`
   with a file, from an upload's row on the Resumes view: a newer version replaces the row's
-  file and is read and merged as an upload is. The row keeps its id and
+  file and is read as an upload is, replacing what the upload owned. The row keeps its id and
   primary star, and its `created_at` becomes now, the upload date the row
   shows. The file goes to a new Storage path: a sent resume may point at the
   old one, and a sent resume's file never changes, so the old file goes only
@@ -320,7 +361,8 @@ Find files with a directory listing; these are the rules for where code goes.
   `tests/test_resume_editor.py`.
 - **Only a send is a sent resume; a download keeps nothing** (KAN-267).
   The editor's Download takes `GET .../built-resumes/{rid}/render` (the PDF,
-  base64, with its `file_name`) or `.../docx` and stores nothing. Every
+  base64, with its `file_name`), `.../docx` or `.../tex` (the PDF's LaTeX
+  source) and stores nothing. Every
   download was kept as a sent resume (KAN-208) until then, PDF or Word,
   which filled the bucket with files no employer saw. **Apply** (KAN-220)
   is `POST /applicants/{id}/sent-resumes` with `job_posting_id`, now
@@ -509,49 +551,130 @@ Find files with a directory listing; these are the rules for where code goes.
   script before a new endpoint joins the chain.
 - **The keyword match** (KAN-215) is `GET .../built-resumes/{rid}/keyword-match`
   over `services/keywords.py`: a job posting's keywords, extracted once by
-  the model and cached on the posting with a hash of its description, and
+  the model and cached on the posting with a hash of its title and the
+  description's job part (`job_part`), all the model read, and
   the pure count of those the built resume view shows (text and skills,
   whole words, ignoring case). **Only an extraction spends a use, and it
   counts under `TAILOR`**; a cached match is free, for every student. Tailor
   (KAN-217) reads them through the same `keywords.ensure` (the cache, else
   an extraction stored on the posting) and counts its run once, not once
   more for the extraction. Which use an extraction spends stays in each
-  router. Tests:
+  router. **Most postings are read before any student asks** (KAN-392):
+  the feed import's keyword pass (The feed import, above), and for a
+  company job, a background task after a save that leaves it published
+  (`company_jobs._fill_keywords`, in its own session after the response,
+  so the composer never waits on a model). A draft is not read: no student
+  sees it and its text keeps changing. Either failure only logs, and
+  `ensure` stays the fallback. **The import and `cached` hash with one
+  function, `posting_text_hash`**: the import's pass (KAN-392) and the
+  title-and-job-part hash (KAN-343) landed separately, the import hashing
+  the description alone, which left every cache it filled stale to
+  Tailor and spent each extraction twice. Tests:
   `tests/test_keyword_match.py` (the cache, its clearing by the import and
-  by the hash, an invalid or failed reply counts nothing, the cap).
-- **Tailor** (KAN-217) is `routers/tailor.py` over `services/tailor.py`.
-  A run (`POST .../tailor`) proposes changes and saves nothing but the
-  count; Done (`POST .../tailor/done`) saves the accepted ones on the
-  posting's one tailored resume, approved wordings as bullet variants for
-  the posting. Rules, each with a test in `tests/test_tailor.py`:
+  by the hash, an invalid or failed reply counts nothing, the cap, the
+  import's pass and the company job's task).
+- **Tailor** (KAN-217, `../docs/tailor_resume.md`) is `routers/tailor.py`
+  over `services/tailor.py`. `POST .../tailor/match` gives the picked
+  source's keyword match (and the posting's tailored resume, if any) for
+  the student to pick the missing keywords to add. A run (`POST
+  .../tailor`) then rewrites, orders and adds those skills and **saves the
+  posting's tailored resume itself, with no confirmation**: proposals,
+  Accept and Reject, Done (`.../tailor/done`) and "Have you used X?" were
+  removed on 2026-10-25. It answers with `edits`, each change and what it
+  replaced, which the editor marks and can revert until Save; the API keeps
+  no record of them. **The Tailor screen runs it streamed**, `POST
+  .../tailor/stream`: the same steps (`_steps`, one generator both routes
+  read) as NDJSON lines, `asking` before the model call, `generating` after
+  it, then `done` or `error`. It opens its own session, since the
+  request's may close once streaming starts, and runs to the first line
+  before it answers, so every refusal before the model call stays an
+  HTTP status. Rules, each with a test in `tests/test_tailor.py`:
+  - **One tailored resume per posting, made once.** A run on a posting that
+    has one answers 409 `{detail: {message, tailored_resume_id}}` before
+    any model call, so it spends no tokens; the student edits that resume
+    instead. Two runs at once: the loser's commit fails on
+    `built_resumes_applicant_posting_key` and answers 409.
+  - **The student picks the source** (KAN-318): the match and the run each
+    take exactly one of `built_resume_id` or `uploaded_resume_id` (422
+    otherwise; 404 for one not the applicant's). A built resume gives its
+    choices (and its own skills: a tailored resume can be a source). An
+    upload gives the entries and skills it owns (`tailor.upload_source`,
+    ADR 0005), built in memory, never saved; every other entry and skill
+    waits hidden. It never reads an upload that owns something again: a
+    reading replaces what it owns, which would drop those entries. One
+    that owns nothing is read into the bank first. An upload the parser
+    reads nothing from answers 409. The source never changes.
   - **The truth rule is one pure function**, `services/truth_rule.py`'s
     `invented` (tested directly, `tests/test_truth_rule.py`): a wording
-    with a number or tool in neither its original bullet nor the bank's
-    skills is dropped from the proposals and refused (422) at Done, since
-    the browser can send any text. Change what counts as a tool there and
+    with a number or tool in neither its original bullet nor what the
+    student has already said (`tailor.known`: the resume's skills, the
+    picked missing keywords, and the posting's keywords the resume already
+    shows anywhere, coursework included) is dropped and counted in
+    `dropped`. A missing keyword the student did not pick is in none of
+    these, so "backend" on a designer's bullet is dropped while
+    "algorithms", in the resume's coursework, passes: in the first live run
+    (2026-10-25) the posting-keyword check dropped both rewordings, the
+    second for "algorithms" alone. `propose` and `save_variants` read one
+    `known` list.
+    Both read every bank skill before 2026-10-25, so a wording could bring
+    in another upload's skill. Change what counts as a tool there and
     nowhere else.
-  - **A missing keyword that is nowhere in the bank is a question**
-    ("Have you used X?"), never words. Yes adds the skill through the
-    bank's own routes and shows it, with no AI call.
+  - **A run tailors only what the picked resume shows, read once as its
+    view** (KAN-318): the router builds `build_view(bank, choices)` once,
+    and the rank, the prompt, the handles, the changes, the keyword match
+    and the record of edits all read it. So the model sees the resume the
+    student sees: its shown entries and bullets in the resume's own order
+    and wording, and only its shown skills. `prompt` and `propose` number
+    the handles from the same view, or b3 would name two bullets. A run
+    never adds an entry or bullet the resume hides, so a pick keeps its
+    focus and length. `on_resume`, the bank cut to what shows, was a
+    second copy of the view's rule and is gone.
+  - **A keyword the student does not pick is never written in.** Picked
+    skills (`skills` in the run's body; only missing keywords count, any
+    other name is ignored) go on the tailored resume only, as its own
+    skills (`bank_skills.built_resume_id`, `place_on`), never into the
+    experience bank. The prompt numbers the resume's skills by group
+    (`skill_numbers`) and lists the picked ones to place; the model answers
+    a group and `after` (a number it copies, 0 for first in the group) for
+    each, and `place_skills` checks each placement alone and builds the
+    order (the group wins over the number; at most two new groups;
+    positions come from code, never the model). A hidden bank skill that
+    holds a keyword is no longer offered: it was a card per skill, two
+    when two uploads owned one name.
   - **The model sees handles (b1, e1), never ids**, and no links: an
     entry's link field is left out and the seam removes identity data.
     Postgres text search (`ts_rank`, the posting's words OR'd) ranks the
-    bullets: the best 40 go to the model, and the rank proposes each
-    entry's bullet order. A posting with no description is read by its
-    title, with `weak_match`.
-  - **An entry brought back is never a copy of one shown** (`bank.py`'s
-    `copy_key`: section, title and organization ignoring case, and the
-    same months, which Generate and intake's bank match also use), and it takes its date-order place among its
-    section's shown entries (`_bring_back`), not the end. A change names
-    its entry with the organization ("Software Intern, Acme"). An import
-    saved "as new" left a second Software Engineer Intern at Clever Devices
-    off a resume; Tailor offered "Bring back: Software Engineer Intern",
-    showed the job twice below an older one, and ran to 2 pages
-    (2026-10-14).
-  - **One run is one `TAILOR` use**, counted after the model answers and
-    the proposals are built; a keyword extraction inside the run is not a
-    second use. A run with no base resume generates one first (saved with
-    the count).
+    resume's bullets, and a run orders each entry's bullets by it. A
+    posting with no description is read by its title, with `weak_match`.
+  - **A run fits Groq's free tier** (8,000 tokens a minute for
+    gpt-oss-120b, prompt and reply together): the prompt is estimated at
+    four characters a token, and over `PROMPT_TOKENS` (5,000) it leaves out
+    the lowest-ranked bullets, keeping every entry's line; the reply asks
+    for `REPLY_TOKENS` (3,000) at most. A request a provider still finds too
+    large moves down the chain (Scout's `RequestTooLarge`); a reply stopped
+    at its cap is `ReplyCutOff`. Each has its own line in
+    `services/ai_messages.py`. There is no cap on how many bullets the model
+    rewords.
+  - **A rewording must keep its bullet** (`keeps_its_bullet`): a third of
+    the original's words (three letters or more; a shared start of four
+    letters counts) must be in it, or it is dropped and counted in
+    `dropped`. The model copies handles, and one copied wrong puts a
+    rewording on another bullet; the truth rule passes it when it adds no
+    number or tool.
+  - **A failed run saves nothing.** The tailored resume, its variants, its
+    choices and its own skills go in one commit after the model answers;
+    only the posting's keyword cache, and what reading an upload wrote,
+    are committed earlier, since they are not the run's.
+  - **An order edit names its entry with the organization** ("Software
+    Intern, Acme"), since two jobs can share a title.
+  - **One run is one `TAILOR` use**, counted after the model answers; a
+    keyword extraction inside the run or the match is not a second use.
+    **Lifted for now (KAN-319):** the route's `uses_left` check and
+    `count_use` are commented out, it answers `uses_left` as the cap, the
+    Tailor screen hides its "Each run uses one of today's 2 Tailor runs"
+    line, and the three cap tests in `test_tailor.py` are skipped. Restore
+    them together. The keyword match in `routers/built_resumes.py` still
+    spends `TAILOR` uses.
 - **The editor assistant** (KAN-221) is `routers/assistant.py` (`POST
   .../built-resumes/{rid}/assistant`) over `services/assistant.py`. The
   model only **reads** the student's message into one action (fit, hide,
@@ -586,6 +709,26 @@ Find files with a directory listing; these are the rules for where code goes.
   email) is caught and counted, never stopping the run; `--dry-run` builds
   and reports every digest, writing and sending nothing. Tests:
   `tests/test_job_alerts.py`, `tests/test_notifications.py`.
+- **The autofiller's essay-answer generation** (KAN-164) is
+  `routers/essay_answer.py` (`POST /applicants/{id}/essay-answer`) over
+  `services/essay_answer.py` — the first route `autofiller_extension/`
+  needed, since the extension cannot hold a model key itself. The Chrome
+  extension reads an open-ended application question straight off the ATS
+  page's own DOM (no `job_posting_id`: the posting may not be one WorkIt
+  has scraped or a company has posted) and sends the literal question text,
+  plus whatever company name/job title it could read from the page and the
+  field's own HTML `maxlength`. The model drafts a short paragraph grounded
+  in the whole bank (not a ranked subset — a student's bank is small enough
+  to use whole, unlike Tailor's posting-ranked bullets); a draft that fails
+  `truth_rule.invented` against the whole bank's bullets and skills, or
+  holds an identity placeholder, answers 422 and counts nothing — there is
+  no safe fallback text to show instead, the way the assistant's `none`
+  action has one. Nothing is stored: the question text is never saved
+  (`models/CLAUDE.md`'s "autofill_answers" section explains why, and
+  already anticipates this feature as the reason a company's own question
+  would eventually get its own JSONB-backed slot). One `ESSAY` use per
+  generated answer (cap 5, share 10%: on top of the spec's four shares plus
+  the assistant's, following the same accepted-overshoot precedent).
 - **Utils** (`app/utils/`): the resume parser; `app/utils/CLAUDE.md`.
 - **Scripts** (`app/scripts/`): commands run by hand,
   `uv run python -m app.scripts.<name>`.
@@ -611,7 +754,19 @@ Find files with a directory listing; these are the rules for where code goes.
   lazy loading fails in async code with `MissingGreenlet`: load relationships
   explicitly with `selectinload()`.
 - **Comments explain why.** A non-obvious setting gets a sentence on what
-  breaks without it.
+  breaks without it. Moving code to another layer moves its comments with
+  it: KAN-260's move out of the routers dropped about twenty, put back in
+  a follow-up.
+- **A PR that removes imports is checked against today's main before it
+  merges.** CI runs on the PR's own head: KAN-260 dropped `select` from
+  `routers/bank.py`, KAN-343 added a use of it, each passed alone, and the
+  merged `main` raised NameError on every Add under a resume pick
+  (2026-10-24). Merge `main` into the branch and run `uv run ruff check .`
+  first; F821 catches it. The same goes the other way: two fixes for that
+  bug merged ten seconds apart, one restoring the import and one moving
+  the query out (`queries/bank.py`'s `owned_upload_id`), and `main` then
+  failed lint on the unused import (F401). Check `main` once more right
+  before pressing Merge.
 - **The app starts with no credentials.** `/health` works without the root
   `.env`; only `/health/db` and routes that read real data need it. That lets
   someone work on one half without the other, and makes a failure point at one
@@ -642,11 +797,16 @@ Find files with a directory listing; these are the rules for where code goes.
   given (`config.py` rewrites them to `postgresql+asyncpg://`), URL-encoding a
   password containing `@`, `/`, `:` or `#`; otherwise the URL parses wrong and
   the error does not say why.
-- **Engine settings are not optional.** `app/db.py` sets `NullPool` because
-  Supavisor already pools, and `statement_cache_size=0` plus
+- **Engine settings are not optional.** `app/db.py` sets `NullPool` (unless
+  `DB_POOL_SIZE` is set; Deployment) because Supavisor already pools, and
+  `statement_cache_size=0` plus
   `prepared_statement_cache_size=0` because the transaction pooler hands each
   statement to any free backend: a prepared statement made on one is absent on
   the next, and queries fail intermittently under load, never in development.
+  asyncpg still names each statement it prepares, and its numbered names
+  restart per connection, so `prepared_statement_name_func` gives each a
+  `uuid4` name: with a pool, two client connections could otherwise collide
+  on one backend (SQLAlchemy's advice for pgbouncer-style poolers).
   Both cache settings go in `connect_args`; passed to `create_async_engine()`
   they raise `TypeError: Invalid argument(s)`. `hide_parameters=True` keeps
   the values a statement sent out of its error's text, which every route's
@@ -661,12 +821,77 @@ Find files with a directory listing; these are the rules for where code goes.
 
 ## Deployment
 
-Vercel, its own project (Root Directory `backend`), the whole app one Vercel
-Function (`[tool.vercel] entrypoint` in `pyproject.toml`; Vercel installs from
-`uv.lock`). Chosen in KAN-146 over Render (free tier sleeps and takes ~1 minute
-to wake, so sign-in looked broken), Railway, Fly.io and Cloud Run (no usable
-free tier). Render with a Dockerfile is the fallback.
+**The target is a Cloudflare Container** at `api.workitjobs.ai` (ADR 0004,
+KAN-295): `Dockerfile` here, behind the small Worker in `cloudflare/`, on
+Workers Paid. **Vercel stays live until the KAN-296 cutover**: its project
+(Root Directory `backend`, the app one Vercel Function from `[tool.vercel]
+entrypoint` and `vercel.json`) still serves production, and both files are
+removed at cutover, not before. Until then a change must work on both.
 
+- **The image builds from the repo root**, `docker build --platform
+  linux/amd64 -f backend/Dockerfile -t workit-api .`, because `../scout` is a
+  path dependency and a build context of `backend/` cannot reach it.
+  `wrangler.jsonc` sets `image_build_context` to `../..` for the same reason.
+  **Every `COPY` names its paths** (`backend/app`, `scout/workit_scout`...),
+  never a whole folder: `wrangler deploy` pipes the Dockerfile in on stdin
+  (`-f -`), so BuildKit never reads `Dockerfile.dockerignore`, and a
+  `COPY backend ./` put a laptop's macOS `.venv` over the image's (the first
+  dry run failed with `.venv/bin/python: not found`). That ignore file only
+  speeds up a plain local `docker build`; there is no root `.dockerignore`,
+  since the root holds no tooling. A new folder the API reads at runtime
+  needs its own `COPY`. Cloudflare runs linux/amd64 only: build that
+  platform on an Apple Silicon Mac. The image is about 450 MB on disk (185 MB
+  compressed): the venv 188 MB, Tectonic and its cache 71 MB.
+- **A `docker build` that hangs at "load metadata for ghcr.io/..." on a Mac
+  is Docker Desktop's keychain credential helper** waiting on a prompt no
+  one sees. Build with `DOCKER_CONFIG` pointing at a folder whose
+  `config.json` has no `credsStore` (both images are public). Never run
+  `docker buildx history ls` while a build runs: on Docker Desktop 4.55 it
+  panicked dockerd and stopped every container (2026-10-20).
+- **The image uses the base image's Python 3.12, not a uv-managed one**
+  (`UV_PYTHON_PREFERENCE=only-system`), installs with `uv sync --frozen
+  --no-dev`, and starts the venv's `uvicorn` directly on :8080: `uv run`
+  would re-check the lock on every cold start.
+- **The image fetches Tectonic at build time** (`scripts/fetch_tectonic.py`)
+  and gives `vendor/` to the non-root `api` user, so the warm cache is
+  writable in place and no render copies it to `/tmp`. A build that cannot
+  fetch it fails (`app/services/resume_render/CLAUDE.md`).
+- **The Worker (`cloudflare/`) holds no logic.** It forwards each request to
+  one of 3 instances, picked at random (as the library's `getRandom`, until
+  Cloudflare ships autoscaling): the API is stateless, so any instance serves
+  any request, and three let renders run side by side on `basic`'s 1/4 vCPU.
+  `max_instances` in `wrangler.jsonc` is twice `INSTANCES` in `src/index.ts`:
+  after a rename (below) the old containers stay awake for `sleepAfter` and
+  still count, so an equal cap could refuse the new ones. The cost: each instance cold-starts on its own first request, and
+  each stays billed for `sleepAfter` (10 minutes) after its last one.
+  Shorter saves memory-hours; longer means fewer cold starts.
+- **The containers run in eastern North America, beside the database**
+  (Supabase is us-east-1): `constraints.regions: ["ENAM"]` in
+  `wrangler.jsonc`. Unconstrained, Cloudflare placed them on the West Coast
+  (traffic left at LAX and PDX), each database round trip took 150 ms, and
+  pages took 3–9 s (2026-10-21). A location hint on the Durable Object does
+  not move its container: the two need not share a location. The Worker
+  still gives the objects `locationHint: "enam"`, so the hop to the
+  container stays short; a hint places an object only when it is first
+  made, so changing it needs new names (now `enam-N`).
+- **Secrets are Worker secrets set by CI** (`wrangler secret bulk` with
+  `CLOUDFLARE_API_TOKEN`), never `wrangler.jsonc`, which is committed. The
+  Worker's `Api` class copies the names in its `FORWARDED` list into the
+  container's environment, skipping any the Worker lacks so the code's
+  default applies. **A new setting the API reads must join `FORWARDED`**, or
+  the container never sees it. **A container keeps the environment it
+  started with**, and an `Api` object that finds its container running
+  attaches to it as it is, so after a secret change one instance went on
+  answering with the old values (2026-10-21). `Api.fetch` therefore stores
+  the Worker version (`version_metadata`) its container started under and
+  destroys a container from any other version before serving: the first
+  request to each instance after a deploy pays a cold start. The swap runs in
+  `blockConcurrencyWhile`: `destroy()` is not a storage call, so without it a
+  second request read the old version mid-swap and destroyed the container
+  again. CI deploys with `npm ci && npm run deploy`
+  in `cloudflare/`; `npx wrangler deploy --dry-run` there checks the config
+  and builds the image without deploying. Nobody runs `wrangler login` or a
+  real deploy from a laptop.
 - **Production env vars:** `DATABASE_URL`, `SUPABASE_URL`,
   `SUPABASE_SERVICE_KEY`, and Scout's `SCOUT_*` (`../scout/CLAUDE.md`, "Which
   model, where"); without `SCOUT_*` every Scout reply is "offline". The
@@ -676,7 +901,8 @@ free tier). Render with a Dockerfile is the fallback.
   `nomic-embed-text:v1.5` by default; see `app/services/matching/CLAUDE.md`.
   **Still open:** the deployed API has no Ollama, so until the Vercel project
   sets `EMBEDDING_PROVIDER=gemini` and `GEMINI_API_KEY`, recommendations
-  score without the semantic part.
+  score without the semantic part. The Worker forwards both names when set,
+  and sets neither itself: `gemini` without a key would fail matching.
 - **`GET /jobs` reads `job_postings`**, filled by the import on a schedule
   (`../.github/CLAUDE.md`). A deploy changes no jobs, and an empty table is an
   empty feed, not an error.
@@ -701,15 +927,63 @@ free tier). Render with a Dockerfile is the fallback.
   CHECK. Deployed first is worse: the new `JobPreferences` refuses a saved
   `not_ruled_out`, so every such seeker's Jobs page answers 500 until the
   migration runs.
+- **`3aa342c5a064` (`job_applications.sent_resume_id`, KAN-267) goes on
+  before the deploy that writes it**, after `5a6e419367b8`: the model maps
+  the column, so deployed first, every application insert answers 500. It
+  only adds a nullable column, a unique key and a foreign key (and fills
+  the column for applied rows), so applying it early is safe. **It reached
+  the shared database on 2026-10-21 before its file was committed**, by
+  the shell slip `alembic/CLAUDE.md` records: until the file is on `main`,
+  Alembic against the shared database fails for anyone without it.
 - **Apply `5a6e419367b8` (`resume_snapshots`, KAN-267) before the deploy
   that writes it**, after `d642d93fcfbc`. The model maps
   `sent_resumes.snapshot_id`, so deployed first, every Apply and auto apply
   resume answers 500. It only adds a table, a nullable column and a CHECK
   the existing rows meet, so applying it early is safe.
+- **Apply `7c2e9a4b1f63` (`bank_entry_sources`, `bank_skill_sources`,
+  KAN-343) before the deploy that writes them.** The models map both
+  tables, so deployed first, every upload, Import Again and `GET /bank`
+  answers 500. It only adds two tables, so applying it early is safe.
+- **`b9e2c4d6f8a1` drops `resumes.embedding`**, the contract half of
+  KAN-212: apply it only where the code that stopped mapping the column
+  (`d89a4ef`, on `main` since KAN-212) is deployed. Applied first, an older
+  deploy's upload INSERT names the column and fails.
+- **Apply `a3d7f1c9e2b4` (`bank_skills.built_resume_id`, resume-local
+  skills) before the deploy that maps it.** Every skill insert names the
+  column, so deployed first, uploads, Import Again and Add skill answer
+  500. It only adds a nullable column, a check every row meets and
+  indexes, so applying it early is safe. It sits on `c8f2a4e6b913`, which
+  goes on after ADR 0005's deploy (below), so apply both in that order.
+- **ADR 0005 is two migrations around one deploy.** Apply `b5e1c3a7d920`
+  (adds `resume_id` to `bank_entries` and `bank_skills`, fills it from
+  single-source rows, swaps the skill name index) before the deploy: the
+  models map the column, so deployed first, every bank read and upload
+  answers 500. Then merge and deploy, then `uv run alembic upgrade head`
+  for `c8f2a4e6b913`, which drops the source tables; applied before the
+  deploy, the running code's `GET /bank` and uploads answer 500. An entry
+  that came from several uploads stays unowned and shows under no upload
+  until Import Again.
+- **`9e4b2d7a5c18` (drops `bank_skill_links`, KAN-216's skill links) goes
+  on only AFTER the deploy that stopped reading it.** The code before it
+  queries the table on every bank load, so applying it first makes the
+  Experiences page, Generate, Tailor and Scout answer 500. The order:
+  `uv run alembic upgrade 7c2e9a4b1f63`, merge and deploy, then `uv run
+  alembic upgrade head`. Skill links were removed because nothing used
+  them: an upload never wrote one, and Tailor, the resume view, Generate,
+  Scout, the recommender and the embedding all ignored them. A skill is
+  one list per student.
 - **Apply `d642d93fcfbc` (`resumes.text_hash`, KAN-267) before the deploy
   that writes it.** The model maps the column, so every upload's INSERT
   names it: deployed first, every upload answers 500. It only adds a
   nullable column and an index, so applying it early is safe.
+- **Apply `0457dddf041a` (name parts, KAN-326) before the deploy that maps
+  them**. The model selects `first_name`,
+  `middle_name` and `last_name` with every account row, so deployed first,
+  every signed-in request fails, `get_current_account` included. It only
+  adds nullable columns and fills them from `full_name`, so applying it
+  early is safe. A branch with these models cannot run against the shared
+  database until it is applied, so merge the migration to `main` in its own
+  PR first, then apply it, then test the branch.
 - **Apply `a7d3e5c1b942` (`autofill_answers`, KAN-283) before the deploy
   that reads it.** It sits on KAN-262's `9d3f6b1e4a72`
   (`applicant_profiles.contact_email`), which sits on `c785e96ac011`. It
@@ -751,16 +1025,28 @@ free tier). Render with a Dockerfile is the fallback.
 - **`vercel.json`'s build command fetches Tectonic** (pinned, SHA-256
   checked) and warms its cache into `vendor/`, which the function bundles.
   A build that cannot fetch it fails rather than shipping without TeX
-  (`app/services/resume_render/CLAUDE.md`).
-- **`../scout` is bundled as a non-editable path source.** uv copies it into
+  (`app/services/resume_render/CLAUDE.md`). Removed at the KAN-296 cutover.
+- **`../scout` is installed as a non-editable path source.** uv copies it into
   site-packages at build time; an editable install would point at a folder the
-  function lacks.
-- **`NullPool` makes serverless safe**: each invocation opens one connection
-  through Supavisor's transaction pooler, so scale-out cannot exhaust Postgres.
-  It costs ~0.5 s per `/jobs` request (measured 2026-10-07); cache the
-  response if the feed must be faster.
-- **Still open:** the 4.5 MB request-body limit against the 5 MB upload cap
-  (`../frontend/CLAUDE.md`, Deployment).
+  function (or the image's final layout) need not have.
+- **The container keeps 5 connections open; Vercel opens one per
+  request.** `DB_POOL_SIZE` (`app/config.py`) is 0 by default, which is
+  `NullPool`, and the Dockerfile sets 5. Under `NullPool` in the container
+  every request spent ~1 s opening its connection, and pages took 3–9 s
+  (2026-10-21). A Vercel Function is short-lived, so it keeps `NullPool`.
+  `max_overflow` equals the pool size, so three instances hold at most 30
+  Supavisor clients, which still pools them onto a few Postgres backends. `pool_pre_ping` and
+  `pool_recycle` replace a connection Supavisor has dropped.
+- **`/health/db?timing=true` reports `pool`, `first_ms` and `again_ms`**
+  (plain `/health/db` runs one query and returns only the status, since the
+  route is public), timed
+  in-process: `again_ms` is one database round trip from wherever the API
+  runs (8–30 ms from ENAM; 150 ms from the West Coast). Read it first when
+  the deployed API turns slow. They are in the body because Cloudflare drops
+  a `Server-Timing` header.
+- **Still open, closes at the KAN-296 cutover:** Vercel's 4.5 MB request-body
+  limit against the 5 MB upload cap (`../frontend/CLAUDE.md`, Deployment).
+  Cloudflare accepts 100 MB bodies.
 
 ## Auth
 
@@ -780,7 +1066,10 @@ why each rule exists.
   unsupported on purpose: it can mint tokens.
 - **Access decisions read the profile row and `app_metadata`**, never
   `user_metadata`, which the user can edit. `company_id` and onboarding state
-  come from the row, never the token.
+  come from the row, never the token. The one value copied the other way is
+  the sign-in email: `get_current_account` writes the token's onto the row
+  when they differ (Settings' Change Email, KAN-326), and keeps the old copy
+  if another row holds the new address. Tests: `tests/test_sign_in_email.py`.
 - **Derive identity from the verified token**, never from a client-supplied
   `company_id`, `profile_id` or role. Company-scoped endpoints check for an
   active membership; role checks are Python guards.
@@ -792,17 +1081,52 @@ why each rule exists.
   Next, so every endpoint checks for itself.
 - **"Allow new users to sign up" stays ON** in the Supabase dashboard, or
   first-time OAuth sign-in fails with `signup_disabled` (`../docs/auth.md`).
+- **Deleting an account is `DELETE /auth/me`** (KAN-326, Settings' Delete
+  Account): every file under `<applicant_id>/` in each bucket of
+  `ACCOUNT_BUCKETS` (`routers/auth.py`), sub-folders included (the
+  pre-KAN-267 `sent/`), then the auth user, whose foreign keys cascade to
+  every row. Files go first because Storage has no cascade. **A new bucket
+  keyed by the account joins `ACCOUNT_BUCKETS`**, or deleted accounts leave
+  its files behind. Every foreign key to `applicant_profiles` or
+  `auth.users` must cascade or set null, or Supabase refuses the delete
+  ("Database error deleting user"). Company accounts get a 403 until a
+  company owner's delete is designed. Tests: `tests/test_delete_account.py`.
+
+- **Email verification is required** (KAN-293). Signup does not pass
+  `email_confirm: True`, and then asks Supabase for the confirmation email
+  itself (`auth.resend(type="signup")`): the admin `create_user` sends no
+  email of its own, so without that call no new account could ever sign in.
+  If the email can't be sent, signup deletes the auth user (the profile row
+  cascades) and answers 502, so a retry starts clean. The frontend
+  redirects to `/signup/check-email` after signup; the link lands on
+  `/auth/confirm`. A taken email returns 201 silently (same response
+  shape, dummy id, no profile row) and resends the email, which reaches
+  only an account still unconfirmed. Supabase's own CAPTCHA setting stays
+  off: its `/resend` would then want a Turnstile token, and signup has
+  already spent the one it got. Tests: `tests/test_signup.py`.
+- **Turnstile verification on signup** (KAN-293). The `captcha_token` field
+  in `SignupRequest` is verified server-side against `TURNSTILE_SECRET_KEY`
+  (`app/config.py`). When the key is `None` (local dev), verification is
+  skipped.
+- **Company signup is gated** (KAN-293). Both `signup()` and
+  `complete_oauth_account_type()` reject `AccountType.COMPANY` with 403.
+- **Password reset** is handled entirely by the frontend through Supabase's
+  `resetPasswordForEmail` and `updateUser`. No API route is involved.
 
 Still open:
 
-- Email verification and password reset: supported by Supabase, not wired up.
-- Deleting an account cascades its rows but not its Storage objects
-  (`Resume/<id>/`, `Avatar/<id>/`).
+- Deleting an account from the Supabase dashboard cascades its rows but
+  leaves its Storage files; `DELETE /auth/me` removes both.
+- A company account cannot be deleted (403).
 - Joining an existing company: no endpoint; the form's Join tab is a
   placeholder.
-- Every signup `IntegrityError` answers "An account with this email already
-  exists", including a taken `company_profiles.contact_email`. Tell them apart
-  by constraint name in `exc.orig`.
 - Nothing sets a membership's `onboarding_completed_at`, so `/auth/me` always
   reports a company as not onboarded. Whatever builds company onboarding must
   set it.
+
+Accepted risks (KAN-293):
+
+- Per-IP rate limiting: Turnstile is the only bot protection for now. Per-IP
+  limiting is a follow-up after the Cloudflare cutover.
+- OAuth account linking: with email verification on, an attacker cannot
+  confirm someone else's email, so automatic linking is safe.

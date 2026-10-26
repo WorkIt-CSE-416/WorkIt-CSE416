@@ -1,6 +1,6 @@
 import { NextResponse, type NextRequest } from "next/server";
 
-import { apiFetch, type OAuthStatus } from "@/lib/auth";
+import { apiFetch, homePath, type OAuthStatus } from "@/lib/auth";
 import { createSupabaseServerClient } from "@/lib/supabase/server";
 
 /**
@@ -22,9 +22,27 @@ function bounceToLogin(origin: string, reason: string, detail?: unknown): NextRe
   return NextResponse.redirect(`${origin}/login?error=oauth&reason=${reason}`);
 }
 
+/**
+ * `?next=` sends a signed-in account back to Settings instead of its home:
+ * linking Google or LinkedIn and confirming a new sign-in email both come
+ * through here (KAN-326, lib/account-actions.ts). Only a path under
+ * /settings/ is followed, so the parameter cannot send anyone off the site.
+ */
+function settingsPath(next: string | null): string | null {
+  return next?.startsWith("/settings/") && !next.includes("//") ? next : null;
+}
+
 export async function GET(request: NextRequest) {
   const code = request.nextUrl.searchParams.get("code");
   const origin = request.nextUrl.origin;
+  const next = settingsPath(request.nextUrl.searchParams.get("next"));
+
+  if (!code && next && request.nextUrl.searchParams.get("message")) {
+    // Supabase's secure email change: the first of the two confirm links
+    // (one to each address) answers with a message and no code. The change
+    // waits for the second link.
+    return NextResponse.redirect(`${origin}/settings/security?notice=email-pending`);
+  }
 
   if (!code) {
     // Google/LinkedIn append ?error=... instead of ?code=... when the user
@@ -68,16 +86,11 @@ export async function GET(request: NextRequest) {
     return NextResponse.redirect(`${origin}/signup/choose-account-type`);
   }
 
-  // A returning sign-in: the same destination login/actions.ts sends a
-  // password account to, onboarding for an applicant who hasn't finished it
-  // and the Dashboard after. A first sign-in went to choose-account-type
-  // above, which starts an applicant on onboarding.
-  const account = oauthStatus.account;
-  const destination =
-    account?.account_type === "company"
-      ? "/company"
-      : account && !account.onboarding_completed
-        ? "/onboarding/applicant"
-        : "/dashboard";
+  if (next && oauthStatus.account) return NextResponse.redirect(`${origin}${next}`);
+
+  // A returning sign-in. A first sign-in went to choose-account-type above,
+  // which starts an applicant on onboarding. With no account the API said
+  // nothing useful, so the Dashboard's own sign-in check takes it from there.
+  const destination = oauthStatus.account ? homePath(oauthStatus.account) : "/dashboard";
   return NextResponse.redirect(`${origin}${destination}`);
 }

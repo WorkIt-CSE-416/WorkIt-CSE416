@@ -1,17 +1,17 @@
 "use client";
 
-import { Pause, Play, Zap } from "lucide-react";
+import { PauseIcon, PlayIcon } from "@phosphor-icons/react/ssr";
+import { LightningRoundedIcon } from "@/components/custom-icons";
 import { useRouter } from "next/navigation";
 import { useRef, useState, useTransition, type ReactNode } from "react";
 
-import { Button } from "@/components/ui/button";
-import { SectionHeading } from "@/components/ui/section-heading";
+import { FileIcon } from "@/components/icons";
+import { Button, ButtonLink } from "@/components/ui/button";
 import { openNextApplication } from "@/lib/autofill-extension";
 import { cn } from "@/lib/cn";
 
 import { startBatch } from "./actions";
 import { openedNote } from "./opened-note";
-import { ResumeList, useResumes } from "./resume-list";
 
 /** Whether auto apply is on: never started, running, or paused after a run. */
 export type RunState = "idle" | "running" | "paused";
@@ -21,17 +21,26 @@ export type RunState = "idle" | "running" | "paused";
  *  fill again. */
 const RUN_BUTTON: Record<
   RunState,
-  { label: string; variant: "default" | "secondary"; Icon: typeof Zap }
+  { label: string; variant: "default" | "secondary"; Icon: typeof LightningRoundedIcon }
 > = {
-  idle: { label: "Start Auto Apply", variant: "default", Icon: Zap },
-  running: { label: "Pause Auto Apply", variant: "secondary", Icon: Pause },
-  paused: { label: "Resume Auto Apply", variant: "default", Icon: Play },
+  idle: { label: "Start Auto Apply", variant: "default", Icon: LightningRoundedIcon },
+  running: { label: "Pause Auto Apply", variant: "secondary", Icon: PauseIcon },
+  paused: { label: "Resume Auto Apply", variant: "default", Icon: PlayIcon },
 };
 
 /**
- * The Auto Apply page under its heading, and the one piece of state its parts
- * share. `children` is Live Activity, drawn on the server (./page.tsx) and
- * passed through, since this half is a client component.
+ * The Auto Apply page's heading with its two actions, Manage Resumes and the
+ * run button. `children` is the page's sections, Up Next and History, drawn
+ * on the server (./page.tsx) and passed through, since this half is a
+ * client component.
+ *
+ * MANAGE RESUMES (KAN-359) took the place of the Resume List table, which
+ * opened the page with every resume the seeker has, and then of a line
+ * naming the default resume, which the user removed: the page is about
+ * which jobs go out, each queued job shows and changes its own resume in Up
+ * Next, and resumes are built and starred on Resumes & Experiences, which
+ * the button opens. It is the bordered secondary beside the brand-filled
+ * run button, the one action that starts work.
  *
  * THE RUN BUTTON SITS IN THE PAGE'S HEADER (KAN-285), at the top right. It
  * is sm (36px), a header action's size (docs/design.md), and as wide as its
@@ -42,8 +51,7 @@ const RUN_BUTTON: Record<
  * other primary buttons, and a Not Started / Live / Paused word beside it
  * only repeated the label, so both went (asked for 2026-10-20). On a
  * phone it drops under the title at full width. It is off until there is a
- * resume (the Resume List's, read here by useResumes), and while a batch is
- * queueing. The note on what happened sits under the header.
+ * resume (`hasResume`, read on the server), and while a batch is queueing. The note on what happened sits under the header.
  *
  * START QUEUES A BATCH, THEN OPENS THE FIRST APPLICATION. From idle, the
  * button asks the API for the seeker's best matches (./actions, startBatch:
@@ -58,9 +66,15 @@ const RUN_BUTTON: Record<
  * (`auto-apply/architecture.md`, "The run"). The state is the page's own,
  * so a return visit starts idle, and Start queues another batch.
  */
-export function AutoApplyPanel({ children }: { children: ReactNode }) {
+export function AutoApplyPanel({
+  hasResume,
+  children,
+}: {
+  /** The seeker has at least one resume: Start is off without one. */
+  hasResume: boolean;
+  children: ReactNode;
+}) {
   const router = useRouter();
-  const resumes = useResumes();
   const [run, setRun] = useState<RunState>("idle");
   const [note, setNote] = useState<{ text: string; error: boolean } | null>(null);
   const [pending, start] = useTransition();
@@ -108,7 +122,6 @@ export function AutoApplyPanel({ children }: { children: ReactNode }) {
   }
 
   const button = RUN_BUTTON[run];
-  const resumeCount = resumes.built.length + resumes.uploaded.length;
 
   return (
     <>
@@ -120,16 +133,22 @@ export function AutoApplyPanel({ children }: { children: ReactNode }) {
           </p>
         </div>
 
-        <Button
-          variant={button.variant}
-          size="sm"
-          disabled={resumeCount === 0 || pending}
-          onClick={toggle}
-          className="w-full shrink-0 @2xl/main:w-44"
-        >
-          <button.Icon aria-hidden />
-          {button.label}
-        </Button>
+        <div className="flex shrink-0 flex-col gap-2 @md/main:flex-row">
+          <ButtonLink href="/resumes" variant="secondary" size="sm">
+            <FileIcon className="size-4" />
+            Manage Resumes
+          </ButtonLink>
+          <Button
+            variant={button.variant}
+            size="sm"
+            disabled={!hasResume || pending}
+            onClick={toggle}
+            className="@2xl/main:w-44"
+          >
+            <button.Icon aria-hidden />
+            {button.label}
+          </Button>
+        </div>
       </div>
 
       {note && (
@@ -144,12 +163,7 @@ export function AutoApplyPanel({ children }: { children: ReactNode }) {
         </p>
       )}
 
-      <ResumeList resumes={resumes} />
-
-      <section aria-labelledby="live-activity" className="mt-10">
-        <SectionHeading id="live-activity">Live Activity</SectionHeading>
-        {children}
-      </section>
+      {children}
     </>
   );
 }

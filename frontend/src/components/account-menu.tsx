@@ -1,6 +1,6 @@
 "use client";
 
-import { LogIn } from "lucide-react";
+import { SignInIcon } from "@phosphor-icons/react/ssr";
 import Link from "next/link";
 import type { ReactNode } from "react";
 
@@ -187,7 +187,7 @@ export function AccountMenu({
             {items.length > 0 && <DropdownMenuSeparator />}
             <DropdownMenuItem render={<Link href="/login" />}>
               <span className="text-ink-meta flex shrink-0">
-                <LogIn aria-hidden className="size-4" />
+                <SignInIcon aria-hidden className="size-4" />
               </span>
               Sign In
             </DropdownMenuItem>

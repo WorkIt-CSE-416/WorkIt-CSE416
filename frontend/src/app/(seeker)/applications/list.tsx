@@ -71,11 +71,12 @@ import {
 } from "./column-layout";
 import { applicationHref, applicationsHref, type Sort } from "./query";
 import { useApplicationsQuery } from "./view-switcher";
+import { ViewResumeButton } from "./view-resume";
 
 /**
  * The applications as a table, one row each, in the order job trackers read
  * (KAN-256): what and who (Role, with its company under it), where it stands (Status, Date
- * Applied), how good it is (Match), the job's facts (Track, the job type;
+ * Applied), how good it is (Match), the job's facts (Job Type;
  * Location; Work Model; Pay Range), where and what was sent (Source, the
  * hiring system its posting is on; Resume; Posting, open or not), and Notes /
  * Next Step last, the widest and least scanned. Role stays frozen at the
@@ -242,14 +243,13 @@ const CELL: Record<ColumnId, (app: Application) => ReactNode> = {
   ),
   pay: (app) => <FactValue Icon={CoinIcon} value={app.pay} missing="Not listed" />,
   source: (app) => <FactValue Icon={ExternalLinkIcon} value={app.source} missing="Unknown" />,
-  resume: (app) => (
-    <FactValue
-      Icon={FileIcon}
-      value={app.resume}
-      missing="Not sent"
-      title={app.resume ?? undefined}
-    />
-  ),
+  // View Resume (KAN-267): the button names the resume, filling the cell.
+  resume: (app) =>
+    app.sentResume ? (
+      <ViewResumeButton resume={app.sentResume} className="w-full" />
+    ) : (
+      <FactValue Icon={FileIcon} value={null} missing="Not sent" />
+    ),
   // A pill: positive is the badge's tone for a live posting, inert for one
   // that is over.
   posting: (app) =>
@@ -387,6 +387,14 @@ export function ApplicationsList({ applications }: { applications: Application[]
                   return (
                     <TableCell
                       key={cell.id}
+                      // A click in the resume cell around View Resume is a
+                      // near miss, not a wish to open the application:
+                      // ClickableRow leaves a prevented click alone.
+                      onClick={
+                        id === "resume" && row.original.sentResume
+                          ? (event) => event.preventDefault()
+                          : undefined
+                      }
                       className={cn(
                         TD,
                         "overflow-hidden",

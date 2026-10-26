@@ -1,5 +1,4 @@
 import type { Metadata } from "next";
-import { redirect } from "next/navigation";
 import { Suspense } from "react";
 
 import { BriefcaseIcon } from "@/components/icons";
@@ -9,11 +8,13 @@ import { cn } from "@/lib/cn";
 
 import { RememberFeed } from "./[jobId]/page-actions";
 import { BankPrompt } from "./bank-prompt";
+import { CanonicalUrl } from "./canonical-url";
 import { FeedHeader } from "./feed-header";
+import { FeedFallback } from "./feed-fallback";
 import { FeedList } from "./feed-list";
 import { FeedTransition, PendingFeed } from "./feed-transition";
 import { JobFilters } from "./filters";
-import { ListingsError, ListingsSkeleton } from "./listing-card";
+import { ListingsError } from "./listing-card";
 import {
   filterEntries,
   filtersQuery,
@@ -60,12 +61,20 @@ export const metadata: Metadata = {
  * ?view=all link opens Newest; ?view=recommended opens Best Match.
  *
  * SAVED PREFERENCES APPLY ON A FRESH VISIT ONLY. /jobs with no query at all
- * (the sidebar's link, onboarding's Start Matching) redirects to Best Match
- * with the seeker's saved preferences written into the URL, where the filter
- * row shows them checked and can loosen them. From then on the URL is the
- * truth: Clear All leaves ?sort=, which is "no filters", rather than bringing
- * the saved ones back as it would if an empty filter set meant "use the
- * saved ones". */
+ * (the sidebar's link, onboarding's Start Matching) draws Best Match with the
+ * seeker's saved preferences, where the filter row shows them checked and can
+ * loosen them, and writes them into the URL in place (./canonical-url). From
+ * then on the URL is the truth: Clear All leaves ?sort=, which is "no
+ * filters", rather than bringing the saved ones back as it would if an empty
+ * filter set meant "use the saved ones".
+ *
+ * IN ONE ROUND TRIP. This was a redirect() to that URL, so the sidebar's
+ * most used link cost two: the first answer (after the preferences read)
+ * held only the redirect, and the router then asked for the page again. Now
+ * the page draws the redirect's target itself, from the address that target
+ * would have (`shown` below), so every part of it (the Sort By links, the
+ * filter row, the list's query and Load More's key) is exactly what that
+ * address draws on a reload. */
 
 type Sort = "match" | "newest";
 
@@ -82,21 +91,44 @@ function sortHref(sort: Sort, filters: FeedFilters): string {
   return `/jobs?${new URLSearchParams([["sort", sort], ...filterEntries(filters)])}`;
 }
 
+/** A URL's query in the shape a page's searchParams take, so the page can
+ *  read an address it did not arrive at the way it reads its own. Every
+ *  value is a list, which readSort and readFilters both take. */
+function paramsOf(href: string): Record<string, string[]> {
+  const params: Record<string, string[]> = {};
+  for (const [key, value] of new URL(href, "http://n").searchParams) {
+    (params[key] ??= []).push(value);
+  }
+  return params;
+}
+
 /**
  * The live feed and the states that stand in for it. Its own async component
  * so the page can stream: the heading and filter row paint at once and this
- * fills in behind <ListingsSkeleton>, where awaiting the fetch in the page held
+ * fills in behind <FeedFallback> (the last first page drawn, or the skeleton),
+ * where awaiting the fetch in the page held
  * the whole screen (about 840ms locally) with the previous page still showing.
  * A Suspense boundary here rather than a route loading.tsx, which would also
  * cover /jobs/[jobId].
+ *
+ * `stages`, `tailored` and `applicant` are the seeker's applications, tailored
+ * resumes and account type, for the cards' Auto Apply, Tailor and Apply Now
+ * buttons. The page starts them before anything else (they do not depend on
+ * the filters), and this awaits them with whichever page is drawn.
  */
-async function Feed({ filters, sort }: { filters: FeedFilters; sort: Sort }) {
-  // The seeker's applications and tailored resumes beside the first page,
-  // for the cards' Auto Apply and Tailor buttons: started now, awaited with
-  // whichever page is drawn.
-  const stages = getApplicationStages();
-  const tailored = getTailoredJobIds();
-  const applicant = isApplicant();
+async function Feed({
+  filters,
+  sort,
+  stages,
+  tailored,
+  applicant,
+}: {
+  filters: FeedFilters;
+  sort: Sort;
+  stages: Promise<Record<string, ApplicationStage>>;
+  tailored: Promise<string[]>;
+  applicant: Promise<boolean>;
+}) {
   if (sort === "match") {
     const [page, byJob, tailoredIds, canMarkApplied] = await Promise.all([
       getRecommendedPage(filtersQuery(filters), 0),
@@ -205,19 +237,32 @@ function Results({
 }
 
 export default async function JobsPage({ searchParams }: PageProps<"/jobs">) {
+  // Everything the filters don't decide, started before the one read they
+  // might wait on (a fresh visit's saved preferences), so that read no longer
+  // holds them back. None is awaited here: the filter row paints at once and
+  // the Location and Role facets fill in when their options land, and Feed
+  // awaits the rest with its first page.
+  const locations = getJobLocations();
+  const facets = getJobFacets();
+  const stages = getApplicationStages();
+  const tailored = getTailoredJobIds();
+  const applicant = isApplicant();
+
   const params = await searchParams;
+  // A fresh visit with saved preferences draws the address it stands for,
+  // which ./canonical-url then puts in the address bar.
+  let canonical: string | null = null;
   if (Object.keys(params).length === 0) {
     const saved = await getSavedFilters();
-    if (saved && isFiltered(saved)) redirect(sortHref("match", saved));
+    if (saved && isFiltered(saved)) canonical = sortHref("match", saved);
   }
-  const sort = readSort(params);
-  const filters = readFilters(params);
-  // Not awaited: the filter row paints at once and the Location facet fills
-  // in when its options land.
-  const locations = getJobLocations();
+  const shown = canonical ? paramsOf(canonical) : params;
+  const sort = readSort(shown);
+  const filters = readFilters(shown);
 
   return (
     <div className={cn("max-w-app mx-auto w-full flex-1 py-6", SEEKER_GUTTER)}>
+      {canonical && <CanonicalUrl href={canonical} />}
       {/* So a job's page can go back to this list, filters and all. */}
       <RememberFeed />
       {/* One transition for a filter change, so the feed dims the moment the
@@ -247,7 +292,7 @@ export default async function JobsPage({ searchParams }: PageProps<"/jobs">) {
             </div>
           }
         >
-          <JobFilters locations={locations} facets={getJobFacets()} filters={filters} />
+          <JobFilters locations={locations} facets={facets} filters={filters} />
         </FeedHeader>
 
         {/* An empty bank's prompt to fill or import (./bank-prompt). Its own
@@ -258,10 +303,29 @@ export default async function JobsPage({ searchParams }: PageProps<"/jobs">) {
 
         {/* Keyed by the order and filters, so a new pick shows the skeleton
             straight away instead of holding the old list until the narrowed
-            one arrives. */}
+            one arrives. The fallback draws this query's last first page
+            (./feed-fallback), or the skeleton when there is none. */}
         <PendingFeed>
-          <Suspense key={`${sort}${filtersQuery(filters)}`} fallback={<ListingsSkeleton />}>
-            <Feed filters={filters} sort={sort} />
+          <Suspense
+            key={`${sort}${filtersQuery(filters)}`}
+            fallback={
+              <FeedFallback
+                query={
+                  sort === "match"
+                    ? sortHref("match", filters).slice("/jobs".length)
+                    : filtersQuery(filters)
+                }
+                altQuery={sort === "match" ? filtersQuery(filters) : undefined}
+              />
+            }
+          >
+            <Feed
+              filters={filters}
+              sort={sort}
+              stages={stages}
+              tailored={tailored}
+              applicant={applicant}
+            />
           </Suspense>
         </PendingFeed>
       </FeedTransition>

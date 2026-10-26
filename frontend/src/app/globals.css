@@ -29,6 +29,12 @@
   /* Fonts — the faces themselves are loaded by next/font in app/layout.tsx. */
   --font-sans: var(--font-jakarta-sans);
   --font-mono: var(--font-geist-mono);
+  /* Regular is 450, not 400 (KAN-365). Plus Jakarta Sans's 400 is light, and
+   * small grey text at it (a job card's facts, dates, helper lines) read
+   * thin. next/font loads the face as a variable font, so any weight from
+   * 200 to 800 draws true. This sets `font-normal`, the body's default and
+   * --text-hero's weight; medium (500) stays a step above. */
+  --font-weight-normal: 450;
 
   /* Surfaces ------------------------------------------------------------
    * NEUTRALISED, the same way the app roles below were and for the same
@@ -101,6 +107,12 @@
 
   /* Layout --------------------------------------------------------------- */
   --container-auth: 22.5rem; /* 360px: the auth card, 310px of content inside p-6 and a 1px border */
+  /* 320px: every list or table that scrolls inside a dialog or a tile (the
+   * resume picker, Add Jobs, Top Matches), as `max-h-scroll-box` or
+   * `h-scroll-box`, so those boxes stop at one height. Each picked its own
+   * until KAN-360: Add Jobs grew to 90% of the window. A full-page table
+   * never takes it; the page scrolls. */
+  --spacing-scroll-box: 20rem;
 
   /* -------------------------------------------------------------------------
    * App shell — added for the KAN-43 profile mockup
@@ -252,7 +264,7 @@
    * one line on the screen, set large and regular with its key words bold. */
   --text-hero: 2.5rem; /* 40px */
   --text-hero--line-height: 3rem;
-  --text-hero--font-weight: 400;
+  --text-hero--font-weight: var(--font-weight-normal);
   --text-hero--letter-spacing: -0.02em;
 
   /* -------------------------------------------------------------------------
@@ -465,7 +477,7 @@
   /* Board type -----------------------------------------------------------
    * A step above --text-title, which the board still uses for its column
    * headings — so the page name and the column names cannot be confused. */
-  --text-heading: 1.625rem; /* 26px — "My Applications" */
+  --text-heading: 1.625rem; /* 26px — "Applications Tracker" */
   --text-heading--line-height: 2rem;
   --text-heading--font-weight: 700;
   --text-heading--letter-spacing: -0.02em;
@@ -711,10 +723,19 @@
 /* What collapsing the seeker panel frees, eased over the panel's own 200ms
  * linear (see (seeker)/layout.tsx, "A PAGE KEEPS THE WIDTH"). Registered as a
  * <length> so it can transition at all: an unregistered custom property
- * swaps at once, and the page would narrow for the length of the collapse. */
+ * swaps at once, and the page would narrow for the length of the collapse.
+ *
+ * NOT INHERITED, so every element that reads var(--panel-gain) sets it and
+ * eases it itself, and an element that reads it without doing so gets 0px.
+ * It used to inherit, eased once on the column above the bar and the page:
+ * every frame of a pin or unpin then changed the computed style of every
+ * element under it, and Chrome restyled the whole page about twelve times a
+ * glide (4,258 elements a frame on a 50-card Jobs page, 25-28ms frames, 125ms
+ * and more on a slower CPU). Set on its readers only, a toggle restyles a
+ * few dozen elements. */
 @property --panel-gain {
   syntax: "<length>";
-  inherits: true;
+  inherits: false;
   initial-value: 0px;
 }
 
@@ -897,6 +918,7 @@ body {
   background: var(--color-canvas);
   color: var(--color-ink);
   font-family: var(--font-sans), system-ui, sans-serif;
+  font-weight: var(--font-weight-normal);
 }
 
 /* The canvas — the strip a rubber-band scroll exposes past the top or bottom of
@@ -1210,6 +1232,38 @@ body:has([data-skyline]) {
 
   ::file-selector-button {
     cursor: pointer;
+  }
+
+  /* Phosphor's glyphs, a touch heavier (KAN-365). Its regular line is 16 on
+   * a 256 grid, 1px at size-4, and after the switch from Lucide (2 on 24)
+   * every icon read thin. Phosphor has no weight between regular and bold,
+   * so each glyph's filled shape gets a 5-unit outline in its own colour:
+   * about Lucide's 2px line, with Phosphor's shapes kept. Phosphor draws on
+   * a 256 grid and nothing else in the app does, which is what the selector
+   * reads. custom-icons.tsx strokes its own glyphs to match (STROKE); change
+   * the two together. In base, so a utility on one icon can still undo it. */
+  svg[viewBox="0 0 256 256"] {
+    stroke: currentColor;
+    stroke-width: 5;
+    stroke-linejoin: round;
+  }
+
+  /* A menu's, a select's or a combobox's rows are medium (500), as every
+   * control a student clicks or picks is: a button, a chip, a segmented
+   * control, the filters' options. shadcn's rows set no weight, so they drew
+   * at 400 and the account menu read thinner than the Jobs page's filters
+   * (KAN-365). In base, so a row that asks for another weight still gets it,
+   * and by data-slot rather than role, so the filters' own option rows keep
+   * the weights they set. */
+  :is(
+    [data-slot="dropdown-menu-item"],
+    [data-slot="dropdown-menu-checkbox-item"],
+    [data-slot="dropdown-menu-radio-item"],
+    [data-slot="dropdown-menu-sub-trigger"],
+    [data-slot="select-item"],
+    [data-slot="combobox-item"]
+  ) {
+    font-weight: 500;
   }
 }
 

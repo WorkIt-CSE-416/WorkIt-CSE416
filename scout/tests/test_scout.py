@@ -11,6 +11,7 @@ import httpx
 import pytest
 from openai import (
     APIConnectionError,
+    APIStatusError,
     AsyncOpenAI,
     BadRequestError,
     InternalServerError,
@@ -49,6 +50,19 @@ def server_error() -> InternalServerError:
 def bad_request() -> BadRequestError:
     return BadRequestError(
         "bad model", response=httpx.Response(400, request=_REQUEST), body=None
+    )
+
+
+def too_large() -> APIStatusError:
+    return APIStatusError(
+        "Request too large", response=httpx.Response(413, request=_REQUEST), body=None
+    )
+
+
+def context_too_long() -> BadRequestError:
+    body = {"code": "context_length_exceeded", "message": "maximum context length"}
+    return BadRequestError(
+        "maximum context length", response=httpx.Response(400, request=_REQUEST), body=body
     )
 
 
@@ -97,6 +111,17 @@ def test_misconfiguration_does_not_fall_back():
     fake = ScriptedLLM(bad_request(), ["should not run"])
     assert collect(fake, "hello") == [ErrorEvent(message=llm_module.OFFLINE)]
     assert len(fake.prompts) == 1
+
+
+@pytest.mark.parametrize("error", [too_large, context_too_long])
+def test_a_request_too_large_moves_down_the_chain(error):
+    fake = ScriptedLLM(error(), ["from a bigger model"])
+    assert reply(collect(fake, "hello")) == "from a bigger model"
+
+
+def test_a_request_too_large_for_every_endpoint_says_so():
+    with pytest.raises(llm_module.RequestTooLarge, match="too long"):
+        ask_json(ScriptedLLM(rate_limited(), too_large()))
 
 
 def test_failure_mid_reply_is_not_retried():
@@ -174,8 +199,10 @@ def test_a_structured_call_sends_no_identity_data():
     assert fake.prompts == [[{"role": "user", "content": "[name] at [email]"}]]
 
 
-def test_requests_carry_a_json_schema_and_never_tool_choice():
-    sent = []
+def mocked(sent: list, finish_reason: str = "stop") -> LLM:
+    """A real LLM whose one endpoint is a fake HTTP server: it records each
+    request body in `sent` and ends each structured reply with
+    `finish_reason`."""
 
     def answer(request: httpx.Request) -> httpx.Response:
         body = json.loads(request.content)
@@ -188,6 +215,7 @@ def test_requests_carry_a_json_schema_and_never_tool_choice():
                 200, text=text, headers={"content-type": "text/event-stream"}
             )
         message = {"role": "assistant", "content": content}
+        choice = {"index": 0, "message": message, "finish_reason": finish_reason}
         return httpx.Response(
             200,
             json={
@@ -195,7 +223,7 @@ def test_requests_carry_a_json_schema_and_never_tool_choice():
                 "object": "chat.completion",
                 "created": 0,
                 "model": "m",
-                "choices": [{"index": 0, "message": message, "finish_reason": "stop"}],
+                "choices": [choice],
             },
         )
 
@@ -211,6 +239,12 @@ def test_requests_carry_a_json_schema_and_never_tool_choice():
         )
         for endpoint, _ in model._endpoints
     ]
+    return model
+
+
+def test_requests_carry_a_json_schema_and_never_tool_choice():
+    sent = []
+    model = mocked(sent)
     assert ask_json(model).title == "T"
     assert reply(collect(model, "hello")) == "hi"
 
@@ -220,6 +254,20 @@ def test_requests_carry_a_json_schema_and_never_tool_choice():
         Entry.model_json_schema()
     )
     assert "tool_choice" not in structured and "tool_choice" not in streamed
+    # No cap asked for, none sent: not every caller wants one.
+    assert "max_tokens" not in structured
+
+
+def test_a_reply_cap_is_sent_and_a_reply_stopped_at_it_is_cut_off():
+    sent = []
+    messages = [{"role": "user", "content": "draft it"}]
+    with pytest.raises(llm_module.ReplyCutOff):
+        asyncio.run(
+            mocked(sent, finish_reason="length").complete_json(
+                messages, Entry, identity=Identity(), max_tokens=500
+            )
+        )
+    assert sent[0]["max_tokens"] == 500
 
 
 # --- configuration ----------------------------------------------------------------
@@ -260,7 +308,7 @@ def _entry(section, title, **fields):
 
 def test_bank_facts_carry_every_section_and_the_original_bullets():
     bank = {
-        "skills": [{"name": "Python", "group": "Languages", "entry_ids": []}],
+        "skills": [{"name": "Python", "group": "Languages"}],
         "entries": [
             _entry(
                 "education", "Stony Brook University", degree="BS", field_of_study="CS",
@@ -293,6 +341,19 @@ def test_bank_facts_carry_every_section_and_the_original_bullets():
     assert facts.awards == ["Dean's List at Stony Brook (2024)"]
     assert facts.certifications == ["AWS Cloud Practitioner from Amazon (2025)"]
     assert "github.com" not in facts.model_dump_json()
+
+
+def test_bank_facts_ignore_which_resumes_hold_an_entry():
+    # GET /bank's KAN-343 fields: resume names are the student's file names,
+    # and they never become facts.
+    bank = {
+        "entries": [_entry("projects", "WorkIt", resume_ids=["r1"])],
+        "skills": [{"name": "Python", "resume_ids": ["r1"]}],
+        "resumes": [{"id": "r1", "kind": "uploaded", "name": "jane-doe-resume.pdf", "primary": True}],
+    }
+    facts = bank_facts(bank, has_upload=True)
+    assert (facts.projects, facts.skills) == (["WorkIt"], ["Python"])
+    assert "jane-doe" not in facts.model_dump_json()
 
 
 def test_a_long_entry_is_one_short_line():

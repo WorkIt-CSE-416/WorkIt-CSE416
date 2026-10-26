@@ -11,9 +11,14 @@
 //    number can disagree with its own children's.
 // 2. Minor(s) marked failed/red despite the form never marking it
 //    required. `required` here always comes from the field itself
-//    (field-map.js reads the DOM's own required/aria-required/asterisk
-//    signal) — an unfilled optional field renders as "skipped", a neutral
+//    (the Question set the job system's own API gives, read by the Fill
+//    engine) — an unfilled optional field renders as "skipped", a neutral
 //    state, never "failed".
+//
+// A fourth status, "needs_generation", is the essay-question feature's own:
+// an open-ended question WorkIt can offer to draft (never fill) until the
+// student opts in via the overlay's batch prompt — see content-script.js and
+// overlay.js's promptForEssays.
 window.WIA = window.WIA || {};
 
 (function () {
@@ -51,11 +56,12 @@ window.WIA = window.WIA || {};
    * @param {string} key
    * @param {import("../shared/types.js").FieldStatus} status
    * @param {string} [reason]
+   * @param {string | string[]} [shows]  what a filled field shows now, as the engine read it back
    */
-  function setStatus(key, status, reason) {
+  function setStatus(key, status, reason, shows) {
     const existing = results.get(key);
     if (!existing) return;
-    results.set(key, { ...existing, status, reason });
+    results.set(key, { ...existing, status, reason, shows });
     notify();
   }
 
@@ -75,12 +81,19 @@ window.WIA = window.WIA || {};
     const required = all.filter((r) => r.required);
     const filled = required.filter((r) => r.status === "filled");
     const failed = all.filter((r) => r.status === "failed");
+    // A required one of these still counts toward requiredTotal above (and
+    // stays un-filled in the percent) until the student generates an
+    // answer or dismisses the batch prompt — same honesty rule as every
+    // other required-but-unresolved field, just with a third way to
+    // resolve it besides WorkIt already having the data.
+    const essay = all.filter((r) => r.status === "needs_generation");
 
     return {
       total: all.length,
       requiredTotal: required.length,
       requiredFilled: filled.length,
       failedCount: failed.length,
+      essayCount: essay.length,
       // No required fields at all → treat as complete rather than 0/0.
       percent: required.length === 0 ? 100 : Math.round((filled.length / required.length) * 100),
       fields: all,

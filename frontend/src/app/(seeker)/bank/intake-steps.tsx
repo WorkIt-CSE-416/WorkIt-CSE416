@@ -1,17 +1,17 @@
 "use client";
 
+import type { Icon as PhosphorIcon } from "@phosphor-icons/react";
 import {
-  BadgeCheck,
-  Briefcase,
-  Check,
-  ChevronLeft,
-  GraduationCap,
-  Lightbulb,
-  Minus,
-  Trophy,
-  Users,
-  type LucideIcon,
-} from "lucide-react";
+  BriefcaseMetalIcon,
+  CaretLeftIcon,
+  CheckIcon,
+  GraduationCapIcon,
+  LightbulbIcon,
+  MinusIcon,
+  SealCheckIcon,
+  TrophyIcon,
+  UsersIcon,
+} from "@phosphor-icons/react/ssr";
 import type { CSSProperties } from "react";
 
 import type { Section } from "@/lib/bank-actions";
@@ -70,13 +70,13 @@ export const WALK: readonly Section[] = [
 
 /** Each section's glyph: its step chip, the chat's chapter line, the draft
  *  form's header and the sections Scout offers to start. */
-export const ICONS: Record<Section, LucideIcon> = {
-  education: GraduationCap,
-  experience: Briefcase,
-  projects: Lightbulb,
-  leadership: Users,
-  awards: Trophy,
-  certifications: BadgeCheck,
+export const ICONS: Record<Section, PhosphorIcon> = {
+  education: GraduationCapIcon,
+  experience: BriefcaseMetalIcon,
+  projects: LightbulbIcon,
+  leadership: UsersIcon,
+  awards: TrophyIcon,
+  certifications: SealCheckIcon,
 };
 
 const HEAD_START = 25;
@@ -200,7 +200,7 @@ export function StepBar({
           onClick={() => previous && onJump(previous)}
           className="text-brand hover:bg-brand-tint disabled:text-brand-pale focus-visible:ring-brand-ring -mt-0.5 flex size-9 shrink-0 items-center justify-center rounded-full transition-colors focus-visible:ring-2 focus-visible:outline-none disabled:hover:bg-transparent"
         >
-          <ChevronLeft aria-hidden className="size-5" strokeWidth={2.5} />
+          <CaretLeftIcon aria-hidden className="size-5" weight="bold" />
         </button>
 
         <div className="min-w-0 flex-1">{chips}</div>
@@ -243,7 +243,7 @@ function StepChip({
 }: {
   label: string;
   short?: string;
-  icon: LucideIcon;
+  icon: PhosphorIcon;
   state: State;
   /** Where the walk is: the brand fill and ring, over the state's badge. */
   current?: boolean;
@@ -294,9 +294,9 @@ function StepChip({
                 )}
               >
                 {state === "done" ? (
-                  <Check className="size-2.5" strokeWidth={3.5} />
+                  <CheckIcon aria-hidden className="size-2.5" weight="bold" />
                 ) : (
-                  <Minus className="size-2.5" strokeWidth={3.5} />
+                  <MinusIcon aria-hidden className="size-2.5" weight="bold" />
                 )}
               </span>
             )}

@@ -5,7 +5,7 @@ import { connection } from "next/server";
 import { apiGet } from "@/lib/api";
 import { extractErrorMessage } from "@/lib/auth";
 import { listBuiltResumes } from "@/lib/built-resume-actions";
-import { getAccessToken, getApplicantSession, getCurrentAccount } from "@/lib/session";
+import { getAccessToken, getApplicantSession, getSessionUser } from "@/lib/session";
 
 import type { ExperienceLevel, Highlight, JobType, WorkStyle } from "./data";
 import {
@@ -21,8 +21,8 @@ import {
  * The live feed: scraped roles from the API's `GET /jobs`, which reads the
  * imported job_postings rows (backend/app/routers/jobs.py). Mirrors
  * backend/app/schemas/jobs.py field for field. Read by /jobs, by /search (which
- * sends its words as `q`), by their Load More (./actions) a page at a time, and
- * by the Dashboard's New Matches.
+ * sends its words as `q`), and by their Load More (./actions) a page at a
+ * time. The Dashboard's Strong Matches reads the Best Match scores here too.
  *
  * NOT IN ./data.ts, THOUGH THAT IS THE USUAL SEAM. Client components import
  * ./data's types (`filters.tsx`, `filter-query.ts`), and `apiGet` is
@@ -170,6 +170,68 @@ export async function getRecommendedPage(query: string, offset: number): Promise
   }
 }
 
+/**
+ * The seeker's `count` best-scoring open jobs, best first: the Dashboard's Top
+ * Matches (KAN-342), from the same scores as Best Match. No score floor, so a
+ * new seeker whose bank only gives weak matches still sees their best ones.
+ * "empty" when there is nothing to score against (the API's 404 for an empty
+ * bank, or 403 for a company account); null when the API can't say.
+ */
+export async function getTopMatches(
+  count: number,
+  { autoApplyOnly = false }: { autoApplyOnly?: boolean } = {},
+): Promise<JobListing[] | "empty" | null> {
+  try {
+    const { id, token } = await getApplicantSession();
+    const params = new URLSearchParams({ limit: String(count) });
+    // Only the job postings auto apply can fill: Top Matches' picking mode.
+    if (autoApplyOnly) params.set("auto_apply", "true");
+    const res = await apiGet(`/jobs/recommended/${id}?${params}`, token);
+    if (res.status === 404 || res.status === 403) return "empty";
+    if (!res.ok) return null;
+    return (await res.json()) as JobListing[];
+  } catch {
+    return null;
+  }
+}
+
+/** The most GET /jobs/recommended returns at once. */
+const RECOMMENDED_MAX = 500;
+
+/**
+ * When each job posting from the last `days` days that scores at least
+ * `minMatch` for the seeker went up: the Dashboard's Strong Matches (KAN-342),
+ * from the same scores as Best Match. "empty" when there is nothing to score
+ * against (the API's 404 for an empty bank, or 403 for a company account);
+ * null when the API can't say. Pages on past the API's limit, since
+ * `min_match` drops the weak ones before the page is cut.
+ */
+export async function getMatchDates(
+  days: number,
+  minMatch: number,
+): Promise<string[] | "empty" | null> {
+  try {
+    const { id, token } = await getApplicantSession();
+    const dates: string[] = [];
+    for (let offset = 0; ; offset += RECOMMENDED_MAX) {
+      const params = new URLSearchParams({
+        posted_within: String(days),
+        min_match: String(minMatch),
+        limit: String(RECOMMENDED_MAX),
+        offset: String(offset),
+      });
+      const res = await apiGet(`/jobs/recommended/${id}?${params}`, token);
+      if (res.status === 404 || res.status === 403) return "empty";
+      if (!res.ok) return null;
+      const jobs = (await res.json()) as JobListing[];
+      dates.push(...jobs.flatMap((job) => (job.posted_at ? [job.posted_at] : [])));
+      if (jobs.length < RECOMMENDED_MAX) return dates;
+    }
+  } catch {
+    return null;
+  }
+}
+
 /** The seeker's saved preferences as the feed's filters, or null when they
  *  have saved none or the API can't say: a fresh visit's starting filters
  *  (./page). */
@@ -197,6 +259,27 @@ export async function getJobCount(filters: FeedFilters, q = ""): Promise<number 
     return ((await res.json()) as { jobs: number }).jobs;
   } catch {
     return null;
+  }
+}
+
+/** A filter a search's words set, as GET /jobs/search-facts reads it:
+ *  "remote" is the Remote work style, "intern" the internships, "summer 2027"
+ *  a start term. `without` is the search with those words taken out. */
+export type SearchFact = {
+  facet: "level" | "work_style" | "start_term";
+  value: string;
+  without: string;
+};
+
+/** The filters `q`'s own words set, for /search to show beside the row
+ *  (KAN-308). Empty when the API can't be reached: the results below report
+ *  the error themselves, and a missing chip hides nothing the list shows. */
+export async function getSearchFacts(q: string): Promise<SearchFact[]> {
+  try {
+    const res = await apiGet(`/jobs/search-facts?${new URLSearchParams([["q", q]])}`);
+    return res.ok ? ((await res.json()) as SearchFact[]) : [];
+  } catch {
+    return [];
   }
 }
 
@@ -263,23 +346,6 @@ export async function getJobFacets(): Promise<JobFacets> {
   }
 }
 
-/**
- * How many open jobs were posted in the last `days` days: the Dashboard's
- * New Roles. Cached like the facets above, since the figure only moves when
- * the scheduled import lands. Null when the API can't answer.
- */
-export async function countJobsPostedWithin(days: number): Promise<number | null> {
-  try {
-    const res = await apiGet(`/jobs/count?posted_within=${days}`, undefined, {
-      revalidate: COUNTS_TTL,
-    });
-    if (!res.ok) return null;
-    return ((await res.json()) as { jobs: number }).jobs;
-  } catch {
-    return null;
-  }
-}
-
 /** One open scraped job with its description, for its own page, from
  *  `GET /jobs/{id}`. `null` when the API says it isn't open (closed, a
  *  company's own, or no such job): the page shows its not-found. */
@@ -294,7 +360,11 @@ export async function getJobListing(
   // API's other named routes answer 200 with something that isn't one.
   if (!UUID.test(id)) return { job: null, error: null };
   try {
-    const res = await apiGet(`/jobs/${encodeURIComponent(id)}`);
+    // Kept for a minute: it carries no token, so its answer is the same for
+    // everyone, and since the job page has a loading.tsx a prefetch of each
+    // job link in view runs its generateMetadata, which reads this (KAN-368).
+    // Uncached, one Jobs page of 50 cards cost about 100 API calls.
+    const res = await apiGet(`/jobs/${encodeURIComponent(id)}`, undefined, { revalidate: 60 });
     if (res.status === 404) return { job: null, error: null };
     if (!res.ok) return { job: null, error: await extractErrorMessage(res) };
     return { job: (await res.json()) as JobListing, error: null };
@@ -322,10 +392,17 @@ export async function getApplied(id: string): Promise<{ appliedAt: string | null
 /** Whether the viewer is an applicant, whom Apply Now's dialog may ask "Did
  *  You Apply?": the job page's rule (`getApplied` answers an applicant only)
  *  for a list of cards. A company account can open /jobs and /search too.
- *  Read from the account the shell already asked for (cached per render), so
- *  it costs no request. False when the API can't be read. */
+ *  Read from the verified token's account type (getSessionUser), so it costs
+ *  no request. It used to read /auth/me, on the belief that the shell had
+ *  already asked for the account in the same render; that holds only on a
+ *  hard load, since a soft navigation renders the page without the layout,
+ *  so every /jobs and /search visit from the sidebar paid one more API call
+ *  just for this. False when signed out. With the API down it is still true
+ *  for an applicant: the dialog then asks, and marking the job says it could
+ *  not reach the server, as any other action would. */
 export async function isApplicant(): Promise<boolean> {
-  return (await getCurrentAccount())?.account_type === "applicant";
+  const user = await getSessionUser().catch(() => null);
+  return user?.accountType === "applicant";
 }
 
 /** The job ids the seeker has a tailored resume for, so each card's Tailor

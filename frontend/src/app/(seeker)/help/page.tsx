@@ -1,4 +1,4 @@
-import { CircleHelp } from "lucide-react";
+import { QuestionIcon } from "@phosphor-icons/react/ssr";
 import type { Metadata } from "next";
 
 import { ButtonLink } from "@/components/ui/button";
@@ -28,7 +28,7 @@ export default function HelpPage() {
       </p>
 
       <EmptyState
-        Icon={CircleHelp}
+        Icon={QuestionIcon}
         title="Help Is on the Way"
         className="mt-4"
         action={

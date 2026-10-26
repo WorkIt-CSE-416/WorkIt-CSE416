@@ -1,5 +1,7 @@
+import { ChatTextIcon } from "@phosphor-icons/react/ssr";
+import type { ReactNode } from "react";
+
 import { FileIcon } from "@/components/icons";
-import { Badge } from "@/components/ui/badge";
 import { Card } from "@/components/ui/card";
 import { Section } from "@/components/ui/section";
 import { cn } from "@/lib/cn";
@@ -11,10 +13,11 @@ import { LocalDate } from "../../local-time";
 import { STAGE_COLOR, STAGE_ICON, STAGE_LABEL } from "../../stage-colors";
 import { sortKey, type Application, type TimelineStep } from "../../tracker";
 import { Timeline } from "../timeline";
+import { SentResumeRow } from "../view-resume";
 
 const DAY_MS = 24 * 60 * 60 * 1000;
 
-/** The strip's columns from 448px of card, by how many counts it has: a
+/** The strip's columns from 448px of card, by how many cards it has: a
  *  literal class each, so Tailwind sees them. */
 const COLUMNS: Record<number, string> = {
   1: "@md:grid-cols-1",
@@ -34,15 +37,20 @@ function daysBetween(from: string, to: string | Date) {
 /**
  * The Your Application tab (KAN-256): one card, built as the Jobs page card
  * is (the status, the facts and the timeline on the left, the match rail
- * flush on the right, the day counts as a ruled strip along the foot), then
- * what the seeker sent, from what the API already keeps. No new
- * table: the stage and its dates are the application's row, the resumes are
- * the sent resumes linked to the job posting.
+ * flush on the right, the next-step cards along the foot), then what the
+ * seeker sent, from what the API already keeps. No new table: the stage and
+ * its dates are the application's row, the resumes are the sent resumes
+ * linked to the job posting.
  *
- * THE NUMBERS ARE ELAPSED DAYS, worked out on the server against the
- * request's time (`getNow`): how long the posting was up before the seeker
- * applied, how long from saving to applying, and how long they have been
- * waiting. Each shows only when both its dates exist.
+ * TWO CARDS, FACTS ONLY (KAN-286), worked out on the server against the
+ * request's time (`getNow`). First whether the posting is still open, then
+ * how long: since the seeker applied, or, for a saved job, since the
+ * posting went up (the sooner they apply, the fewer applicants are ahead).
+ * They replaced counts that read 0 for every Apply ("save to apply": Apply
+ * saves and applies at once) or told the student only about the past
+ * ("posted before you applied"). A suggested follow-up day was tried and
+ * dropped: any fixed number of days is a guess. The total applicant count
+ * would fit here, but no hiring system WorkIt reads publishes it.
  */
 export function YourApplication({
   app,
@@ -56,29 +64,40 @@ export function YourApplication({
   sent: SentResume[];
   now: Date;
 }) {
-  const stats: { label: string; days: number }[] = [];
-  if (app.appliedOn) {
-    stats.push({ label: "Days waiting to hear back", days: daysBetween(app.appliedOn, now) });
-    stats.push({ label: "Days from save to apply", days: daysBetween(app.savedOn, app.appliedOn) });
-    if (job?.posted_at) {
-      stats.push({
-        label: "Days posted before you applied",
-        days: daysBetween(job.posted_at, app.appliedOn),
-      });
-    }
-  } else {
-    stats.push({ label: "Days since you saved it", days: daysBetween(app.savedOn, now) });
-    if (job?.posted_at) {
-      stats.push({ label: "Days since it was posted", days: daysBetween(job.posted_at, now) });
-    }
+  const cards: { label: string; value: string | number }[] = [];
+  // Every live application has `open`; the type leaves it optional.
+  if (app.open != null) {
+    cards.push(
+      app.open
+        ? {
+            label: app.appliedOn ? "Still taking applications" : "Apply while it's open",
+            value: "Open",
+          }
+        : {
+            label: app.appliedOn ? "No longer taking applications" : "You can no longer apply",
+            value: "Closed",
+          },
+    );
   }
-  const closed = app.open === false;
+  if (app.appliedOn) {
+    const days = daysBetween(app.appliedOn, now);
+    cards.push({
+      label: days === 1 ? "Day since you applied" : "Days since you applied",
+      value: days,
+    });
+  } else if (job?.posted_at) {
+    const days = daysBetween(job.posted_at, now);
+    cards.push({
+      label: days === 1 ? "Day since it was posted" : "Days since it was posted",
+      value: days,
+    });
+  }
   const StageIcon = STAGE_ICON[app.stage];
 
   return (
     <>
       {/* ONE TINTED CARD for the seeker's record, holding rounded white
-          boxes: the status and timeline on the left with the day counts
+          boxes: the status and timeline on the left with the two cards
           under them, one box each, and the match in a box of its own on the
           right (side by side from 576px of card, stacked under it). The
           boxes are the app's rounded cards on white, so the figures stand
@@ -114,32 +133,30 @@ export function YourApplication({
               <span className={cn("text-label font-semibold", STAGE_COLOR[app.stage].onTint)}>
                 {STAGE_LABEL[app.stage]}
               </span>
-              {closed && <Badge tone="inert">Posting Closed</Badge>}
             </div>
             <h2 className="text-title text-ink mt-3 font-bold">
               {app.appliedOn ? "Waiting to Hear Back" : "Not Applied Yet"}
             </h2>
+            {/* No applied date here: the days-since card and the timeline
+                both carry it. */}
             <p className="text-body text-ink-meta mt-1">
-              {app.appliedOn ? (
-                <>
-                  You applied on <LocalDate at={app.appliedOn} />
-                </>
-              ) : (
+              {!app.appliedOn && (
                 <>
                   You saved it on <LocalDate at={app.savedOn} />
+                  {" · "}
                 </>
               )}
-              {" · "}
               {app.resume ? <>Sent {app.resume}</> : "No resume sent through WorkIt"}
             </p>
 
             <Timeline steps={timeline(app, sent)} horizontal className="mt-5" />
 
-            {/* The counts: a figure over its words, a rounded white box
-                each. justify-end puts the figure at the top (the column is
-                reversed), so the figures line up when one label wraps. */}
-            <dl className={cn("mt-5 grid gap-3", COLUMNS[stats.length])}>
-              {stats.map(({ label, days }) => (
+            {/* The cards: a figure over its words, a rounded white
+                box each. justify-end puts the figure at the top (the column
+                is reversed), so the figures line up when one label wraps.
+                A closed posting says so here only, not in a badge too. */}
+            <dl className={cn("mt-5 grid gap-3", COLUMNS[cards.length])}>
+              {cards.map(({ label, value }) => (
                 // The figure first to the eye, the words first to a screen
                 // reader (a <dt> leads its <dd>).
                 <Card
@@ -149,7 +166,7 @@ export function YourApplication({
                   className="flex flex-col-reverse justify-end"
                 >
                   <dt className="text-note text-ink-meta mt-0.5">{label}</dt>
-                  <dd className="text-title text-ink font-bold tabular-nums">{days}</dd>
+                  <dd className="text-title text-ink font-bold tabular-nums">{value}</dd>
                 </Card>
               ))}
             </dl>
@@ -168,54 +185,108 @@ export function YourApplication({
         </div>
       </Card>
 
+      {/* WHAT YOU SENT (KAN-317): the resume as the Resumes view draws its
+          rows, then the answers the application asked for. Answers are not
+          stored yet; the dashed slot holds their place so the section's
+          shape does not change when they arrive. Both empty slots are the
+          upload dropzone's dashed outline, as the empty resume list's was. */}
       <Section title="What You Sent">
+        <h3 className="text-label text-ink mt-3 font-semibold">Resume</h3>
         {sent.length > 0 ? (
-          <ul className="mt-3 flex flex-col gap-2">
+          <ul>
             {sent.map((resume) => (
-              <li key={resume.id} className="text-body text-ink flex flex-wrap items-center gap-2">
-                <span className="font-medium">{resume.name}</span>
-                <Badge tone="inert">{resume.format.toUpperCase()}</Badge>
-                <span className="text-note text-ink-meta">
-                  Sent <LocalDate at={resume.created_at} />
-                </span>
-              </li>
+              <SentResumeRow
+                key={resume.id}
+                resume={resume}
+                appliedWith={app.sentResume?.id === resume.id}
+              />
             ))}
           </ul>
         ) : (
-          // A placeholder in the upload dropzone's dashed outline: the slot a
-          // sent resume fills, rather than a paragraph about why it's empty.
-          <div className="border-border-strong bg-well rounded-card mt-3 flex flex-col items-center gap-2 border border-dashed px-4 py-7">
-            <FileIcon className="text-ink-meta size-5" />
-            <p className="text-body text-ink-meta">No resume sent yet</p>
-          </div>
+          <EmptySlot icon={<FileIcon className="text-ink-meta size-5" />}>
+            No resume sent yet
+          </EmptySlot>
         )}
+
+        <h3 className="text-label text-ink mt-5 font-semibold">Answers</h3>
+        <EmptySlot icon={<ChatTextIcon aria-hidden className="text-ink-meta size-5" />}>
+          Your answers to this application&apos;s questions will show here.
+        </EmptySlot>
       </Section>
     </>
   );
 }
 
-/** Saved, each resume sent, then applied, oldest first. All behind it: the
- *  tracker stores nothing still to come (../../tracker.ts). A sent resume
- *  wears Applied's violet, as the applied date does. */
+/** An empty slot in the upload dropzone's dashed outline: the place a sent
+ *  resume or the answers fill, rather than a paragraph about why it's
+ *  empty. */
+function EmptySlot({ icon, children }: { icon: ReactNode; children: ReactNode }) {
+  return (
+    <div className="border-border-strong bg-well rounded-card mt-2 flex flex-col items-center gap-2 border border-dashed px-4 py-7">
+      {icon}
+      <p className="text-body text-ink-meta text-center">{children}</p>
+    </div>
+  );
+}
+
+/** A resume sent closer than this to applying went with the application:
+ *  "Did You Apply?"'s Yes sends the resume and applies within a second or
+ *  two. */
+const ONE_ACTION_MS = 2 * 60 * 1000;
+
+/** A save closer than this to applying came from the same click: Yes on a
+ *  job never saved writes both in one statement, at one time. Two minutes
+ *  here once hid a real save made a minute before applying. */
+const SAME_CLICK_MS = 5 * 1000;
+
+/** The order of steps from one action, whatever their milliseconds say. */
+const RANK: Partial<Record<TimelineStep["kind"], number>> = { saved: 0, sent: 1, applied: 2 };
+
+/**
+ * Saved, each resume sent, then applied, oldest first. All behind it: the
+ * tracker stores nothing still to come (../../tracker.ts).
+ *
+ * WHAT ONE ACTION WROTE IS ONE STEP (KAN-317). Apply writes the save, the
+ * sent resume and the application within a second, in no fixed order, so
+ * sorting by the millisecond once drew Sent, Saved, Applied, all at 3:02
+ * PM: a resume sent before the job was saved. Now a resume sent with the
+ * application is the Applied step's note, and a save from the same click
+ * is left out, since the student never saved the job first. The save's
+ * window is seconds, the resume's minutes: a student who saves and applies
+ * a minute later did two things. Steps further apart keep their own dot;
+ * a tie still sorts Saved, Sent, Applied.
+ */
 function timeline(app: Application, sent: SentResume[]): TimelineStep[] {
-  const steps: TimelineStep[] = [
-    { id: "saved", kind: "saved", title: "Saved", at: app.savedOn, state: "done" },
-    ...sent.map((resume) => ({
+  const applied = app.appliedOn ? sortKey(app.appliedOn) : null;
+  const withApplying = (at: string, within = ONE_ACTION_MS) =>
+    applied != null && Math.abs(sortKey(at) - applied) <= within;
+
+  const steps: TimelineStep[] = [];
+  if (!withApplying(app.savedOn, SAME_CLICK_MS)) {
+    steps.push({ id: "saved", kind: "saved", title: "Saved", at: app.savedOn, state: "done" });
+  }
+  const alone = sent.filter((resume) => !withApplying(resume.created_at));
+  for (const resume of alone) {
+    steps.push({
       id: resume.id,
-      kind: "applied" as const,
-      title: `Sent ${resume.name}`,
+      kind: "sent",
+      title: "Sent a Resume",
       at: resume.created_at,
-      state: "done" as const,
-    })),
-  ];
+      state: "done",
+    });
+  }
   if (app.appliedOn) {
     steps.push({
       id: "applied",
       kind: "applied",
       title: "Applied",
       at: app.appliedOn,
+      // What You Sent, under this card, names the resume.
+      note: alone.length < sent.length ? "Resume sent" : undefined,
       state: "done",
     });
   }
-  return steps.sort((a, b) => sortKey(a.at) - sortKey(b.at));
+  return steps.sort(
+    (a, b) => sortKey(a.at) - sortKey(b.at) || (RANK[a.kind] ?? 0) - (RANK[b.kind] ?? 0),
+  );
 }

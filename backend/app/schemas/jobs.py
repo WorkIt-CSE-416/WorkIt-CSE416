@@ -92,6 +92,10 @@ class JobListing(BaseModel):
     # it sponsors, it doesn't, or US citizens only. None when it says nothing,
     # which is most postings. Defaulted so an older feed.json still parses.
     sponsorship: dto.visa_sponsorship | None = None
+    # Match score (0-100) and highlights, filled when a signed-in applicant
+    # with a non-empty bank views the feed; None/[] for everyone else.
+    match: int | None = None
+    highlights: list["Highlight"] = []
     # No roles field: a job's roles are job_role_tags, which the import
     # resolves from the title (KAN-155). The scraper's own "roles" keys in
     # feed.json (KAN-172) are ignored, as any key this model doesn't declare
@@ -173,6 +177,20 @@ class ScoredJob(JobListing):
     match: int  # 0-100
     score_breakdown: ScoreBreakdown
     highlights: list[Highlight] = []
+
+
+class SearchFact(BaseModel):
+    """GET /jobs/search-facts: a filter a search's words set ("intern",
+    "remote", "summer 2027"), which /search shows so the seeker can see and
+    drop it (KAN-308, docs/search.md)."""
+
+    facet: Literal["level", "work_style", "start_term"]
+    # The filter's own key: "student", "new_grad", "remote", "summer-2027",
+    # or a bare year ("2027").
+    value: str
+    # The search as typed with this fact's words taken out: the ?q= its ×
+    # goes to. Empty when the words were the whole search.
+    without: str
 
 
 class JobCount(BaseModel):

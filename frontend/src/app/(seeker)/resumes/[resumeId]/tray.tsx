@@ -1,6 +1,6 @@
 "use client";
 
-import { Plus } from "lucide-react";
+import { PlusIcon } from "@phosphor-icons/react/ssr";
 
 import { Button } from "@/components/ui/button";
 import type { Bank } from "@/lib/bank-actions";
@@ -37,7 +37,7 @@ export function Tray({
               className="max-w-full"
               onClick={() => onPutBack(putBack(item))}
             >
-              <Plus />
+              <PlusIcon aria-hidden />
               <span className="truncate">{label(item)}</span>
             </Button>
           </li>

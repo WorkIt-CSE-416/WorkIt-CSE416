@@ -1,45 +1,53 @@
 import type { Metadata } from "next";
 import { Suspense } from "react";
 
-import { cn } from "@/lib/cn";
 import { getCurrentAccount } from "@/lib/session";
 
 import { Greeting } from "../greeting";
-import { SEEKER_GUTTER } from "../gutter";
-import { appliedDays, getHeadline } from "./data";
-import { Headline } from "./headline";
-import { NewMatches, NewMatchesSkeleton } from "./new-matches";
-import { RangeSwitch } from "./range-switch";
-import { Streak } from "./streak";
+import { getAppliedTimes, getHeadline } from "./data";
+import { DashboardFrame } from "./frame";
+import { Headline, HeadlineSkeleton } from "./headline";
+import { Streak, StreakSkeleton } from "./streak";
+import { loadTopMatches, TopMatches, TopMatchesSkeleton } from "./top-matches";
 
 export const metadata: Metadata = {
   title: "Dashboard",
   description: "Where your job search stands.",
 };
 
-/**
- * Where each tile under the numbers sits: one column at every width, New
- * Matches across the page and Activity under it.
- *
- * NEW MATCHES GETS ITS OWN HEIGHT FROM @4xl/main. The tile is built to add no
- * height of its own there (`h-0 min-h-full`, ./new-matches.tsx) and fill a
- * row its neighbours sized; alone on a row it would collapse to nothing. So
- * the page sets a fixed height (24rem, about six rows) and lets its list
- * scroll inside it, as it did beside Next Up. Below @4xl/main it shows five
- * rows and sets no height.
- *
+/*
  * NEXT UP, UP NEXT AND WAITING ARE ARCHIVED FOR NOW (KAN-261), their code
  * kept. Next Up and Up Next went with the Calendar: the tracker stores no
  * dated events yet, so both only ever said "nothing scheduled". Waiting's
- * buckets were a fixture with no tracker data behind them. They stood in a
- * third column (Next Up over Up Next, Waiting under them), New Matches
- * spanning the first two columns and two rows, Activity across two beside
- * Waiting. To bring them back, render <NextUpHero> and <UpNext> from
- * getUpNext(), and <Waiting>, again, and restore that grid from git.
+ * buckets are a fixture with no tracker data behind them. They stood in a
+ * third column (Next Up over Up Next, Waiting under them), with a list of
+ * the newest jobs spanning the first two columns and two rows, Activity
+ * across two beside Waiting. To bring them back, render <NextUpHero> and
+ * <UpNext> from getUpNext(), and <Waiting>, again, and restore that grid
+ * from git.
+ *
+ * TOP MATCHES UNDER THE NUMBERS (KAN-342, ./top-matches.tsx): the
+ * seeker's twelve best-scoring jobs as flat rows that scroll inside one
+ * tile, with no score floor. New Matches, the
+ * newest postings in posting order, sat there until Strong Matches replaced
+ * New Roles; the user asked for a list back, ordered by fit, since a new
+ * seeker can have only weak matches and still needs their best ones. It
+ * streams in its own <Suspense>, so the numbers never wait on its scoring,
+ * and its reads start with the page (loadTopMatches), so it never waits on
+ * the numbers' reads either.
+ *
+ * ONLY THE GREETING WAITS (KAN-368). The page awaits the account alone, one
+ * plain read the bar makes too (cached per render), and draws the header;
+ * the numbers, Top Matches and Activity each stream in a <Suspense> of their
+ * own over a skeleton of their own shape (HeadlineSkeleton, TopMatches-
+ * Skeleton, StreakSkeleton). Every read is started before that one await,
+ * so none waits on another. The page awaited the numbers too, and the
+ * Strong Matches count is a full scoring pass, so sign-in's landing page,
+ * and every visit to it, showed nothing until that pass was done; on a hard
+ * load not even the shell's first byte left before it. ./loading.tsx draws
+ * the same frame with those skeletons, for the moment before the account
+ * arrives, so the page that replaces it moves nothing.
  */
-const PLACE = {
-  matches: "@4xl/main:h-96 @4xl/main:min-h-0",
-};
 
 /**
  * /dashboard — the seeker's home, first in the panel and where sign-in lands.
@@ -54,27 +62,25 @@ const PLACE = {
  * ground under them read as muted beside the shell's white panels, and open
  * sections separated only by whitespace read as cluttered and fit little.
  *
- * From @4xl/main, left to right is apply, then manage. The numbers run four
- * across the top in their own grid; under them is a grid of three columns:
+ * From @4xl/main the numbers run four across the top in their own grid,
+ * and Activity runs the full width under them:
  *
- *   Applications (violet)   New Roles       Interviews   Saved
- *   New Matches, the full width
+ *   Strong Matches (violet)   Saved   Applied   Interviewing
+ *   Top Matches, a scrolling list of rows, See More Matches at its right
  *   Activity, the full width
  *
- * Next Up, Up Next and Waiting are archived for now (PLACE above says why
- * and how to bring them back); the notes below still describe them, for that
- * day.
+ * Next Up, Up Next and Waiting are archived for now (the note above says
+ * why and how to bring them back); the notes below still describe them, for
+ * that day.
  *
- * The first number is the one filled tile. Next Up is a reminder: its
- * commitment in violet over one filled button. The tiles are placed by row and
- * column (PLACE above). From @3xl/main they pair up two by two; stacked, the
- * numbers come first, then Next Up.
+ * Strong Matches is the one filled tile (./data.ts says why). Next Up is a reminder: its
+ * commitment in violet over one filled button. Below @4xl/main the numbers
+ * pair up two by two.
  *
  * THREE COLUMNS UNDER THE NUMBERS, NOT FOUR. Four put Next Up, Up Next and
  * Waiting in columns 184px wide on a 13-inch laptop: Up Next cut off every
- * row, and New Matches, held to the height of its row, showed three jobs.
- * A third of the width gives the narrow tiles about 264px, and New Matches
- * the height of Next Up and Up Next together.
+ * row, and the jobs list then beside them, held to the height of its row,
+ * showed three jobs. A third of the width gave the narrow tiles about 264px.
  *
  * FOUR COLUMNS OF NUMBERS FROM @4xl/main (896px), not 1024px. A 13-inch
  * laptop at 100% zoom gives the page about 1010px, just under 1024, and fell
@@ -86,7 +92,7 @@ const PLACE = {
  * at its right.
  *
  * There is no pipeline section. A funnel of Applied, Heard Back,
- * Interviewing and Offer counts sat between the lists and New Matches, and
+ * Interviewing and Offer counts sat between the lists and the jobs list, and
  * it restated the headline numbers at the top in a second shape; the board
  * at /applications is where stages are worked.
  *
@@ -96,55 +102,75 @@ const PLACE = {
  * year of days does. The range is read in the browser (./range-switch.tsx):
  * this page hands the headline every range's figures, and a switch redraws
  * them in place without asking the server for the page again. Next Up, Up
- * Next, New Matches and Waiting are about now.
+ * Next and Waiting are about now.
  *
- * Most of it is fixtures (./data.ts) until the application tracker stores
- * stages past applied; New Roles and New Matches are the live feed, and
- * Saved the live tracker (KAN-261).
+ * Nothing shown is a fixture (KAN-342): Strong Matches is the seeker's Best
+ * Match scores, and Saved, Applied and Activity the live tracker.
+ * Interviewing is a dash, "Not tracked yet", until the tracker stores stages
+ * past applied (./data.ts).
  *
  * The grid breaks on @container/main, the page's own width, since the panel
  * takes 256px of the window when open. Up Next moves its dates at
  * @md/upnext, keyed to its own tile.
  */
 export default async function DashboardPage() {
-  // New Roles and Saved read the API; asked for alongside the account, not
-  // after.
-  const [account, stats] = await Promise.all([getCurrentAccount(), getHeadline()]);
+  // Every read starts here, before the one await below, so none waits on
+  // another: Top Matches' two scoring calls run beside the Strong Matches
+  // one, not after it. None of these promises rejects (each answers null or
+  // "empty" on a failure; ./top-matches.tsx, loadTopMatches, says why that
+  // matters). getTracker caches the one tracker read the numbers and
+  // Activity share.
+  const topMatches = loadTopMatches();
+  const stats = getHeadline();
+  const applied = getAppliedTimes();
+
+  // Only the greeting waits: one plain read, which the bar makes too.
+  const account = await getCurrentAccount();
   const firstName = account?.full_name.split(" ")[0];
 
   return (
-    <div className={cn("max-w-dashboard mx-auto w-full flex-1 py-6", SEEKER_GUTTER)}>
-      <header className="flex flex-wrap items-end justify-between gap-4">
-        <div>
-          {firstName ? (
-            <Greeting
-              as="h1"
-              firstName={firstName}
-              className="text-heading text-ink font-semibold"
-            />
-          ) : (
-            <h1 className="text-heading text-ink font-semibold">Dashboard</h1>
-          )}
-          <p className="text-body text-ink-meta mt-1">Here&apos;s where your search stands.</p>
-        </div>
-
-        {/* Find Jobs sat beside it until KAN-261: the sidebar's Jobs row and
-            New Matches' Newest Jobs already lead there. */}
-        <RangeSwitch />
-      </header>
-
-      {/* The numbers, in a grid of their own: four across, while the tiles
-          under them are one column. */}
-      <div className="mt-6 grid grid-cols-2 gap-4 @4xl/main:grid-cols-4">
-        <Headline stats={stats} />
-      </div>
-
-      <div className="mt-4 grid grid-cols-1 gap-4">
-        <Suspense fallback={<NewMatchesSkeleton className={PLACE.matches} />}>
-          <NewMatches className={PLACE.matches} />
+    <DashboardFrame
+      heading={
+        firstName ? (
+          <Greeting as="h1" firstName={firstName} className="text-heading text-ink font-semibold" />
+        ) : (
+          <h1 className="text-heading text-ink font-semibold">Dashboard</h1>
+        )
+      }
+      tiles={
+        <Suspense fallback={<HeadlineSkeleton />}>
+          <HeadlineTiles stats={stats} />
         </Suspense>
-        <Streak days={appliedDays()} />
-      </div>
-    </div>
+      }
+      topMatches={
+        <Suspense fallback={<TopMatchesSkeleton className="mt-4" />}>
+          <TopMatches data={topMatches} className="mt-4" />
+        </Suspense>
+      }
+      activity={
+        <Suspense fallback={<StreakSkeleton className="mt-4" />}>
+          <Activity applied={applied} className="mt-4" />
+        </Suspense>
+      }
+    />
   );
+}
+
+/** The four numbers once the scores and the tracker are in. The range
+ *  switch still moves them in place: Headline is handed every range's
+ *  figures and reads ?range= itself (./range-switch.tsx). */
+async function HeadlineTiles({ stats }: { stats: ReturnType<typeof getHeadline> }) {
+  return <Headline stats={await stats} />;
+}
+
+/** Activity once the tracker is in, which it alone waits on: never on the
+ *  scores the numbers need. */
+async function Activity({
+  applied,
+  className,
+}: {
+  applied: ReturnType<typeof getAppliedTimes>;
+  className?: string;
+}) {
+  return <Streak applied={await applied} className={className} />;
 }

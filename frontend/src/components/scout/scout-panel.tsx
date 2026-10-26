@@ -1,6 +1,6 @@
 "use client";
 
-import { MessageCircle, SlidersHorizontal, Star } from "lucide-react";
+import { ChatCircleIcon, SlidersHorizontalIcon, StarIcon } from "@phosphor-icons/react/ssr";
 import { useEffect, useRef, useState, type ReactNode } from "react";
 
 import { ArrowRightIcon, CloseIcon } from "@/components/icons";
@@ -217,21 +217,21 @@ function Suggestions({ onPick, disabled }: { onPick: (text: string) => void; dis
     <div className="bg-surface rounded-2xl p-2">
       <p className="text-label text-ink px-2 pt-1 pb-1.5 font-semibold">Tasks I can help with</p>
       <Suggestion
-        icon={<SlidersHorizontal className="size-4" />}
+        icon={<SlidersHorizontalIcon aria-hidden className="size-4" />}
         title="Adjust current preference"
         description="Fine-tune your job search criteria."
         disabled={disabled}
         onClick={() => onPick("Help me adjust my job search preferences.")}
       />
       <Suggestion
-        icon={<Star className="size-4" />}
+        icon={<StarIcon aria-hidden className="size-4" />}
         title="Top Match jobs"
         description="Explore jobs where you shine as a top candidate."
         disabled={disabled}
         onClick={() => onPick("Which jobs am I a top match for?")}
       />
       <p className="text-note text-ink-meta flex items-start gap-2 px-2 pt-2 pb-1">
-        <MessageCircle aria-hidden className="mt-0.5 size-3.5 shrink-0" />
+        <ChatCircleIcon aria-hidden className="mt-0.5 size-3.5 shrink-0" />
         Click &ldquo;Ask Scout&rdquo; on any job for insights on that role.
       </p>
     </div>

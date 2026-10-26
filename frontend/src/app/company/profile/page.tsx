@@ -1,5 +1,5 @@
 import type { Metadata } from "next";
-import { Building2, ChartColumn, Info } from "lucide-react";
+import { BuildingOfficeIcon, ChartBarIcon, InfoIcon } from "@phosphor-icons/react/ssr";
 
 import { PencilIcon, PinIcon } from "@/components/icons";
 import { Button } from "@/components/ui/button";
@@ -58,7 +58,7 @@ export default function CompanyProfilePage() {
       <div className="mt-5 grid grid-cols-1 items-stretch gap-5 lg:grid-cols-[minmax(0,2fr)_minmax(0,1fr)]">
         <Card as="section" padding="md" aria-labelledby="about-us">
           <SectionHeading as="h2" id="about-us" className="flex items-center gap-2">
-            <Info className="text-brand size-4.5 shrink-0" />
+            <InfoIcon aria-hidden className="text-brand size-4.5 shrink-0" />
             About Us
           </SectionHeading>
 
@@ -87,7 +87,7 @@ export default function CompanyProfilePage() {
 
         <Card as="section" padding="md" aria-labelledby="overview" className="flex flex-col">
           <SectionHeading as="h2" id="overview" className="flex items-center gap-2">
-            <ChartColumn className="text-brand size-4.5 shrink-0" />
+            <ChartBarIcon aria-hidden className="text-brand size-4.5 shrink-0" />
             Overview
           </SectionHeading>
 
@@ -164,7 +164,7 @@ function Hero() {
             truncating: at 375px the 96px tile left the name 173px, which cut
             even an 18-character company to "TechNova …". */}
         <CompanyTile
-          Icon={Building2}
+          Icon={BuildingOfficeIcon}
           size="xl"
           tone="outline"
           className="shadow-panel max-sm:rounded-control max-sm:size-16 max-sm:[&>svg]:size-7"

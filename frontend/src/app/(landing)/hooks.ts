@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react";
+import { useEffect, useState, type RefObject } from "react";
 
 /**
  * Whether a CSS media query matches. Null in the server-rendered HTML and
@@ -29,4 +29,43 @@ export function usePageHidden(): boolean {
     return () => document.removeEventListener("visibilitychange", update);
   }, []);
   return hidden;
+}
+
+/**
+ * Whether `ref` has come up into view: true once it is well on screen
+ * (inside `margin`, with `threshold` of it showing), and false again only
+ * once it is wholly below the screen, so a reveal plays again after the
+ * reader scrolls back above it, never as they scroll on past it or back a
+ * little. Two observers: one leaving at the arrival line undid reveals in
+ * full view (the footer wordmark emptied after one notch back up). A
+ * reveal that plays in time, not scrubbed by the scroll, so it never rests
+ * half done (scene-time.ts). Always true when not `enabled`: the still
+ * versions show the finished frame.
+ */
+export function useArrived(
+  ref: RefObject<Element | null>,
+  enabled: boolean,
+  { margin = "0px 0px -15% 0px", threshold = 0 }: { margin?: string; threshold?: number } = {},
+): boolean {
+  const [arrived, setArrived] = useState(false);
+  useEffect(() => {
+    const el = ref.current;
+    if (!el || !enabled) return;
+    const arrive = new IntersectionObserver(
+      ([entry]) => {
+        if (entry.isIntersecting && entry.intersectionRatio >= threshold) setArrived(true);
+      },
+      { rootMargin: margin, threshold },
+    );
+    const leave = new IntersectionObserver(([entry]) => {
+      if (!entry.isIntersecting && entry.boundingClientRect.top > 0) setArrived(false);
+    });
+    arrive.observe(el);
+    leave.observe(el);
+    return () => {
+      arrive.disconnect();
+      leave.disconnect();
+    };
+  }, [ref, enabled, margin, threshold]);
+  return !enabled || arrived;
 }

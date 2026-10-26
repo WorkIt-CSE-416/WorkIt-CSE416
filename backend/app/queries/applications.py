@@ -1,12 +1,13 @@
 """
 job_applications' queries, behind routers/applications.py: when an applicant
-marked a job as applied, and marking it; saving a job and taking it back out
-(KAN-261). Auto apply's queue reads and writes the same rows
-(auto_apply/queries.py).
+marked a job as applied and with which sent resume (KAN-267), and marking
+it; saving a job and taking it back out (KAN-261). Auto apply's queue reads
+and writes the same rows (auto_apply/queries.py).
 """
 
 import datetime
 import uuid
+from typing import Any, NamedTuple
 
 from sqlalchemy import delete, func, select
 from sqlalchemy.dialects.postgresql import insert
@@ -15,7 +16,16 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from app.models.applications import Job_Application
 from app.models.dto import application_stage
 from app.models.jobs import Job_Post
+from app.models.sent_resume import Sent_Resume
 from app.queries.jobs.filters import LISTED
+
+# mark_applied's default: leave the application's sent resume as it is.
+KEEP: Any = object()
+
+
+class AppliedMark(NamedTuple):
+    applied_at: datetime.datetime | None
+    sent_resume_id: uuid.UUID | None
 
 
 async def fetch_applied_at(
@@ -31,28 +41,60 @@ async def fetch_applied_at(
     )
 
 
+async def fetch_applied(db: AsyncSession, applicant_id: uuid.UUID, job_id: uuid.UUID) -> AppliedMark:
+    '''when this applicant marked this job as applied and the sent resume it
+    names; both None with no application'''
+    row = (await db.execute(
+        select(Job_Application.applied_at, Job_Application.sent_resume_id).where(
+            Job_Application.applicant_id == applicant_id,
+            Job_Application.job_id == job_id,
+        )
+    )).first()
+    return AppliedMark(*row) if row else AppliedMark(None, None)
+
+
+async def sent_to_job(
+    db: AsyncSession, applicant_id: uuid.UUID, job_id: uuid.UUID, sent_resume_id: uuid.UUID
+) -> bool:
+    '''whether the sent resume is this applicant's and was sent to this job
+    posting: the only one its application may name. The foreign key backs
+    the first half; the posting is checked here'''
+    return await db.scalar(select(Sent_Resume.id).where(
+        Sent_Resume.id == sent_resume_id,
+        Sent_Resume.applicant_id == applicant_id,
+        Sent_Resume.job_posting_id == job_id,
+    )) is not None
+
+
 async def mark_applied(
-    db: AsyncSession, applicant_id: uuid.UUID, job_id: uuid.UUID
+    db: AsyncSession, applicant_id: uuid.UUID, job_id: uuid.UUID, sent_resume_id: Any = KEEP
 ) -> datetime.datetime | None:
     '''
     marks this job as applied and answers when, or None for a job that isn't
     in the feed: the same jobs GET /jobs/{job_id} shows, since a seeker can't
-    apply to the rest
+    apply to the rest. With `sent_resume_id` (checked by `sent_to_job`
+    first), the application names that sent resume, or none for None; the
+    default leaves what it names as it is
     '''
     listed = await db.scalar(select(Job_Post.id).where(Job_Post.id == job_id, LISTED))
     if listed is None:
         return None
     # A job queued, skipped or left to the applicant by auto apply becomes
-    # applied. One already applied keeps its first date: the WHERE leaves a
-    # second click (or two tabs at once) changing nothing.
-    applied = {"stage": application_stage.applied, "applied_at": func.now()}
+    # applied. One already applied keeps its first date (coalesce), so a
+    # second click, or two tabs at once, never moves the day; only the
+    # resume it names can change.
+    link = {} if sent_resume_id is KEEP else {"sent_resume_id": sent_resume_id}
     await db.execute(
         insert(Job_Application)
-        .values(applicant_id=applicant_id, job_id=job_id, **applied)
+        .values(applicant_id=applicant_id, job_id=job_id, stage=application_stage.applied,
+                applied_at=func.now(), **link)
         .on_conflict_do_update(
             index_elements=["applicant_id", "job_id"],
-            set_=applied,
-            where=Job_Application.applied_at.is_(None),
+            set_={
+                "stage": application_stage.applied,
+                "applied_at": func.coalesce(Job_Application.applied_at, func.now()),
+                **link,
+            },
         )
     )
     await db.commit()

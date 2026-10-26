@@ -9,7 +9,12 @@ export type ApplicantProfile = {
   email: string;
   /** The email employers see; null means `email`, the sign-in email. */
   contact_email: string | null;
+  /** The parts joined (KAN-326); the API keeps the four in step. */
   full_name: string;
+  first_name: string;
+  middle_name: string | null;
+  /** Null only for a one-word name never split by its owner. */
+  last_name: string | null;
   phone_number: string | null;
   headline: string | null;
   linkedin_url: string | null;

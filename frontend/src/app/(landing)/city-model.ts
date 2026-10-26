@@ -38,9 +38,10 @@ export type JobTag = {
   delay: string;
   title: string;
   company: string;
-  score: string;
-  tint: string;
-  ink: string;
+  /** Match score in percent; its colour band is in hero-city.tsx. */
+  score: number;
+  /** The company's site, for its favicon (hero-city.tsx). */
+  domain: string;
 };
 
 export type City = {
@@ -85,7 +86,17 @@ type Prim = {
   wire: Record<"wf" | "wl" | "we", P2[][]>;
 };
 
-export function buildCity(): City {
+/**
+ * The city for a panel `phone` wide (below sm) is its own build: drawn at
+ * about 1.7 times the scale below sm (landing.css), only the middle half
+ * shows, so it builds that half alone, keeps the skyline's shape (tall
+ * towards the sides, low in the middle) across it, lifts the caps that keep
+ * the desktop city clear of the text (on a phone the city sits under the
+ * buttons) and moves the wireframes in from the cropped sides. Scaled whole
+ * to a phone's width, the 1600px city drew at 23% as a 150px strip whose
+ * middle was bare ground, which read as too small (KAN-368).
+ */
+export function buildCity({ phone = false }: { phone?: boolean } = {}): City {
   let seed = 23;
   const rand = () => {
     seed = (seed * 9301 + 49297) % 233280;
@@ -619,19 +630,49 @@ export function buildCity(): City {
   // The text above the city as a ceiling per column, in hero-panel px at the
   // design scale (a 720px panel whose strip starts at y 260): a building's
   // top stays below it.
-  const ceiling = (d: number) => {
-    const a = Math.abs(d);
+  const step = (a: number) => {
     if (a <= 5) return 500; // behind the buttons, which span about ±194px
     if (a <= 9) return 425; // under the subtitle
     if (a <= 11) return 318; // under the headline's ends
     return 120; // clear of the text
+  };
+  // The steps above as a slope: the room may grow by only SLOPE px per
+  // column away from a lower step, so the skyline eases down into the
+  // middle. Capped at the steps alone, the towers stood in flat terraces
+  // with a sharp corner at each step. Never above a step, so still clear.
+  const SLOPE = 26;
+  const ceiling = (d: number) => {
+    // No text over a phone's city: every column gets the sides' room.
+    if (phone) return step(Infinity);
+    const a = Math.abs(d);
+    let c = step(a);
+    for (let b = 0; b <= 17; b += 1) c = Math.max(c, step(b) - SLOPE * Math.abs(a - b));
+    return c;
+  };
+  // Eases a height into its limit instead of cutting it flat: below the
+  // knee a tower keeps its height; above, it closes on the limit ever more
+  // slowly and stops short by a per-cell amount, so neighbours near the
+  // limit end at different heights. Never above the limit.
+  const soft = (want: number, limit: number, d: number, s: number) => {
+    const knee = limit * 0.45;
+    if (want <= knee) return Math.round(want);
+    const room = limit - knee;
+    const eased = knee + room * (1 - Math.exp(-(want - knee) / room));
+    const jitter = 0.7 + ((((d * 7 + s * 13) % 10) + 10) % 10) / 33;
+    return Math.round(knee + (eased - knee) * jitter);
   };
   const maxHeight = (d: number, s: number) =>
     Math.max(6, Math.floor((260 + OY + (s + 1) * P * S - ceiling(d)) / K));
 
   // Towers that rise as a taller wireframe and send up a job, and two that
   // stay wireframe. Keyed by "d,s": column across, row deep. Placed so each
-  // tag clears the panel's sides and the text.
+  // tag clears the panel's sides and the text. The delays alternate sides,
+  // so two tags on one side are 5.4s apart, longer than a card shows
+  // (hero-city-tag-fade in landing.css): they never show together. Each
+  // company is a real employer on scraper/boards.csv, each from a
+  // different field, and every title is intern or new-grad, the only
+  // roles the scraper keeps. The scores run green, amber, red in the order
+  // the tags rise, so no two cards in a row share a colour.
   const special: Record<
     string,
     {
@@ -646,11 +687,12 @@ export function buildCity(): City {
       shape: "box",
       delay: "0s",
       job: {
-        title: "Frontend Intern",
-        company: "Nimbus Cloud",
-        score: "92%",
-        tint: "#e3ebff",
-        ink: "#2f5fd6",
+        // The job the page follows into the tour (followedJob in
+        // feature-data.ts), so its score matches Matching's.
+        title: "Software Engineer Intern",
+        company: "Stripe",
+        score: 91,
+        domain: "stripe.com",
       },
     },
     "13,7": {
@@ -658,11 +700,10 @@ export function buildCity(): City {
       shape: "round",
       delay: "-2.7s",
       job: {
-        title: "Backend Engineer",
-        company: "Tempo",
-        score: "91%",
-        tint: "#fce9eb",
-        ink: "#a01f81",
+        title: "Product Design Intern",
+        company: "Figma",
+        score: 81,
+        domain: "figma.com",
       },
     },
     "-12,10": {
@@ -670,11 +711,10 @@ export function buildCity(): City {
       shape: "taper",
       delay: "-5.4s",
       job: {
-        title: "Data Analyst",
-        company: "Orbit Analytics",
-        score: "88%",
-        tint: "#efeaff",
-        ink: "#5b30c0",
+        title: "Data Science Intern",
+        company: "Spotify",
+        score: 67,
+        domain: "spotify.com",
       },
     },
     "12,12": {
@@ -682,11 +722,10 @@ export function buildCity(): City {
       shape: "box",
       delay: "-8.1s",
       job: {
-        title: "Full-Stack Engineer",
-        company: "DataForge",
-        score: "89%",
-        tint: "#e3f7f0",
-        ink: "#107a52",
+        title: "New Grad Software Engineer",
+        company: "Databricks",
+        score: 89,
+        domain: "databricks.com",
       },
     },
     "-11,15": {
@@ -694,11 +733,10 @@ export function buildCity(): City {
       shape: "taper",
       delay: "-10.8s",
       job: {
-        title: "Product Designer",
-        company: "Learnly",
-        score: "85%",
-        tint: "#fdf0d9",
-        ink: "#8a5a00",
+        title: "Machine Learning Intern",
+        company: "Duolingo",
+        score: 76,
+        domain: "duolingo.com",
       },
     },
     "11,13": {
@@ -706,16 +744,33 @@ export function buildCity(): City {
       shape: "round",
       delay: "-13.5s",
       job: {
-        title: "UI Developer",
-        company: "FinTech Corp",
-        score: "90%",
-        tint: "#fce9eb",
-        ink: "#a01f81",
+        title: "Game Engineer Intern",
+        company: "Roblox",
+        score: 58,
+        domain: "roblox.com",
       },
     },
     "-15,5": { rise: 215, shape: "box", delay: "0s" },
     "15,3": { rise: 200, shape: "round", delay: "-3s" },
   };
+  // On a phone the wireframes come in from the cropped sides to about half
+  // their distance from the middle, on a column of the row's parity (a
+  // cell exists only where s + d is even). Only the left side's towers
+  // send up a job there: the sides take turns 2.7s apart, and on a phone a
+  // card from each side, both shown at once, overlapped in the middle. One
+  // side's cards are 5.4s apart, longer than a card shows.
+  const towers = phone
+    ? Object.fromEntries(
+        Object.entries(special).map(([key, tower]) => {
+          const [d, s] = key.split(",").map(Number);
+          let near = Math.round(d * 0.55);
+          if ((near + s) % 2 !== 0) near += Math.sign(d);
+          return [`${near},${s}`, d > 0 ? { ...tower, job: undefined } : tower];
+        }),
+      )
+    : special;
+  /** The columns either side of the middle a phone's crop shows. */
+  const PHONE_REACH = 10;
 
   // A see-through wireframe tower, every edge drawn. Returns its tip.
   const wireTower = (c: Cell, shape: "box" | "round" | "taper", z1: number) => {
@@ -809,6 +864,7 @@ export function buildCity(): City {
     let last: Kind | "" = "";
     for (let d = -17; d <= 17; d += 1) {
       if ((s + d) % 2 !== 0) continue;
+      if (phone && Math.abs(d) > PHONE_REACH) continue;
       const i = (s + d) / 2;
       const j = (s - d) / 2;
       const c: Cell = {
@@ -820,7 +876,7 @@ export function buildCity(): City {
       const cap = maxHeight(d, s);
       // Distance haze on the back rows.
       cellOp = Math.round((0.55 + 0.45 * Math.min(1, s / 10)) * 100) / 100;
-      const sp = special[`${d},${s}`];
+      const sp = towers[`${d},${s}`];
       if (sp) {
         cellOp = 1;
         const top = Math.min(sp.rise, cap - 30);
@@ -846,10 +902,10 @@ export function buildCity(): City {
       // Under the buttons the cap leaves no room: leave the ground bare.
       if (cap < 10) continue;
       // Tall toward the edges, dipping in the middle, never into the text.
-      const e = Math.abs(d) / 18;
+      const e = phone ? Math.min(1, Math.abs(d) / (PHONE_REACH - 1)) : Math.abs(d) / 18;
       let want = 40 + rand() * 50 + Math.pow(e, 1.2) * (70 + rand() * 160);
       if (s < 6) want *= 1.15;
-      const H = Math.min(Math.round(want), cap);
+      const H = soft(want, cap, d, s);
       // Towers wherever the height allows, landmarks where it is tallest.
       const pool = H >= 120 ? TALL : H >= 50 ? MID : LOW;
       let kind = pick(pool);
@@ -858,7 +914,8 @@ export function buildCity(): City {
       if ((kind === "empire" || kind === "chrysler") && H < 100) kind = "setback";
       // The cap covers the spire, mast or antenna too, not just the roof.
       const [mul, add] = REACH[kind] ?? [1, 0];
-      kinds[kind](c, Math.max(6, Math.min(H, Math.floor((cap - add) / mul))));
+      const limit = Math.floor((cap - add) / mul);
+      kinds[kind](c, Math.max(6, H <= limit ? H : soft(want, limit, d, s)));
     }
   }
 

@@ -156,6 +156,9 @@ class EntryResponse(EntryFields):
     gpa: float | None = None
     gpa_scale: float | None = None
     bullets: list[BulletResponse] = []
+    resume_ids: list[UUID] = []
+    """The resumes that hold this entry (KAN-343): uploads whose import
+    found it, and built resumes that show it."""
 
 
 class SkillCreate(BaseModel):
@@ -170,22 +173,50 @@ class SkillUpdate(BaseModel):
     group: Name | None = None
 
 
+class DeleteMany(BaseModel):
+    """Clear All's body (KAN-352): the entries or skills a section shows."""
+
+    ids: list[UUID] = Field(min_length=1, max_length=500)
+
+
 class SkillResponse(BaseModel):
     model_config = ConfigDict(from_attributes=True)
 
     id: UUID
     name: str
     group: str | None
-    entry_ids: list[UUID] = []
-    """The entries this skill is linked to, in bank order (KAN-216)."""
+    resume_ids: list[UUID] = []
+    """The resumes that hold this skill, as an entry's `resume_ids`."""
+
+
+class BankResume(BaseModel):
+    """One resume in the Experiences view's resume table (KAN-343, KAN-361)."""
+
+    id: UUID
+    kind: Literal["uploaded", "base", "tailored"]
+    name: str
+    # A tailored resume's posting, "Backend Intern at Initech".
+    posting: str | None = None
+    # The resume the student starred, of either kind.
+    primary: bool = False
+    # When it was uploaded or made: the page opens on the newest when none
+    # is starred.
+    created_at: datetime.datetime
+    # The table's date (KAN-361): a built resume's last edit, an upload's
+    # upload time (Import Updated Resume resets it).
+    edited_at: datetime.datetime
 
 
 class BankResponse(BaseModel):
     """The whole bank: entries in section order, ongoing first and then
-    newest, each with its bullets in order; skills by group, then name."""
+    newest, each with its bullets in order; skills by group, then name.
+    `resumes` lists every uploaded, base and tailored resume (uploads, then
+    base, then tailored, each newest first); only GET /bank fills it and the
+    `resume_ids` (KAN-343)."""
 
     entries: list[EntryResponse]
     skills: list[SkillResponse]
+    resumes: list[BankResume] = []
 
 
 class DuplicateEntry(BaseModel):
@@ -206,7 +237,7 @@ class ImportRequest(BaseModel):
 
 
 class DraftEntry(EntryCreate):
-    """One entry as an import read it, before the merge writes it: the body
+    """One entry as an import read it, before the import writes it: the body
     POST /entries takes, with the GPA as a plain number."""
 
     gpa: float | None = None
@@ -214,15 +245,13 @@ class DraftEntry(EntryCreate):
 
 
 class ImportResult(BaseModel):
-    """What one import wrote into the bank (ADR 0003): the upload's own
-    reading, or an Import Again."""
+    """What one import wrote into the bank: the upload's own reading, or an
+    Import Again, each replacing what the upload owned (ADR 0005)."""
 
     # Entries and skills the reading found, written or not: 0 means it read
     # nothing, which "already in your bank" (nothing written) is not.
     found: int
     entries_added: int
-    # Entries the bank had already that gained a field or a bullet.
-    entries_updated: int
     skills_added: int
     # Who read the resume: the heuristic parser, or the model (KAN-222).
     read_by: Literal["parser", "model"] = "parser"

@@ -101,12 +101,38 @@ import { SeekerSidebar } from "./seeker-sidebar";
  * still reflowing. --panel-gain is a registered <length> (globals.css) that
  * eases over the same 200ms linear as the panel's own width, so the page
  * holds its width through the whole animation and only glides to its new
- * centre; change one duration and change the other. Scout's panel is another
- * matter: open, it takes real room beside the page, and the page does fit
- * itself to what is left.
+ * centre; change one duration and change the other. It follows the pin
+ * (data-pinned, which components/hover-sidebar.tsx writes on the shell's
+ * wrapper), not shadcn's open state, so it is the collapsed gain whenever the
+ * panel is unpinned, peeking or not: a peek opens over the page and must not
+ * move it. Scout's panel is another matter: open, it takes real room beside
+ * the page, and the page does fit itself to what is left.
+ *
+ * EVERY READER OF --panel-gain CARRIES ITS OWN. The property does not inherit
+ * (globals.css says why), so each element that reads var(--panel-gain) sets
+ * and eases its own copy with the same classes the page's container below
+ * carries: `transition-[--panel-gain] duration-200 ease-linear` and the
+ * md:in-data-[pinned=false] value. Today that is the container, the
+ * Applications page's wrapper, and the job posting rail's frame and aside
+ * (jobs/jobs-rail.tsx); an element that reads it without them silently gets
+ * 0px. All of them flip in the frame the pin does and run the same 200ms
+ * linear, so they stay in step with each other and with the panel. They key
+ * on the pin with an in-data-* variant, which makes Chrome restyle only the
+ * elements that carry the class. Never key one on a group-* variant of the
+ * shell's wrapper: Tailwind compiles that to `:is(:where(.group) *)`, and
+ * the peek variant that used to live here made Chrome restyle the whole app
+ * (4,265 elements, against 245 without it) on every peek open and close.
  */
 
-export default async function AppLayout({ children }: { children: React.ReactNode }) {
+export default async function AppLayout({
+  children,
+  modal,
+}: {
+  children: React.ReactNode;
+  /** The @modal slot: a route opened as a modal over the page, Settings for
+   *  now (KAN-364, @modal/(.)settings), or nothing (@modal/default.tsx). */
+  modal: React.ReactNode;
+}) {
   // Request time, not build time. The sign-in check below needs the Supabase
   // keys, and `next build` prerenders any page that has not yet asked for a
   // request: CI has no keys, so /applications failed its build with "must
@@ -158,12 +184,10 @@ export default async function AppLayout({ children }: { children: React.ReactNod
         }
       />
 
-      {/* --panel-gain: what a collapse frees, eased in step with the panel's
-          own 200ms linear width (see "A PAGE KEEPS THE WIDTH" above). A
-          hover peek opens the panel over the page, so it keeps the collapsed
-          gain too: the page does not move while the panel is only peeking
-          (components/hover-sidebar.tsx). */}
-      <div className="flex min-w-0 flex-1 flex-col gap-2 p-2 transition-[--panel-gain] duration-200 ease-linear sm:gap-3 sm:p-3 md:pl-0 md:group-data-[peek=true]/sidebar-wrapper:[--panel-gain:calc(var(--sidebar-width)_-_var(--sidebar-width-icon))] md:peer-data-[state=collapsed]:[--panel-gain:calc(var(--sidebar-width)_-_var(--sidebar-width-icon))]">
+      {/* The bar and the page. It holds no --panel-gain: eased here, above
+          everything, it restyled the whole page on every frame of a pin
+          (see "EVERY READER OF --panel-gain CARRIES ITS OWN" above). */}
+      <div className="flex min-w-0 flex-1 flex-col gap-2 p-2 sm:gap-3 sm:p-3 md:pl-0">
         <header className="bg-panel border-rail-border shadow-panel rounded-shell flex h-16 shrink-0 items-center gap-3 border px-3 sm:gap-4 sm:px-4">
           <SidebarPinToggle className="text-ink-meta hover:text-ink hover:bg-app size-10 shrink-0 rounded-full [&_svg]:size-4" />
 
@@ -219,10 +243,11 @@ export default async function AppLayout({ children }: { children: React.ReactNod
             className="bg-panel border-rail-border shadow-panel rounded-shell min-h-0 min-w-0 flex-1 overflow-x-clip overflow-y-auto overscroll-contain border focus:outline-none"
           >
             {/* The page, as wide as the <main> is with the panel open (see "A
-                PAGE KEEPS THE WIDTH" above), and the container it breaks on. */}
+                PAGE KEEPS THE WIDTH" above), and the container it breaks on.
+                It is the first reader of --panel-gain and carries its own. */}
             <div
               data-scout-page
-              className="@container/main mx-auto flex w-[calc(100%_-_var(--panel-gain))] flex-1 flex-col"
+              className="@container/main mx-auto flex w-[calc(100%_-_var(--panel-gain))] flex-1 flex-col transition-[--panel-gain] duration-200 ease-linear md:in-data-[pinned=false]:[--panel-gain:calc(var(--sidebar-width)_-_var(--sidebar-width-icon))]"
             >
               {/* Outlives a single page so My Profile renders at once on a
                   return visit; see profile-cache.tsx for why it lives here.
@@ -230,7 +255,42 @@ export default async function AppLayout({ children }: { children: React.ReactNod
                   controls and the Calendar's arrows, is held by
                   ShallowRouting. */}
               <ProfileCacheProvider>
-                <ShallowRouting>{children}</ShallowRouting>
+                <ShallowRouting>
+                  {/* THE PAGE STREAMS IN BEHIND THE SHELL on a hard load (a
+                      sign-in landing, a reload, a new tab). Without this
+                      boundary the page was part of React's shell, so no byte
+                      of the panel or the bar left the server until the page's
+                      slowest read had answered: on the Dashboard, a whole
+                      scoring pass. Now the shell goes out at once and the page
+                      follows it in the same response. A soft navigation is
+                      unchanged: the boundary is already showing a page, and a
+                      navigation is a transition, which keeps the old page up
+                      until the new one is ready, so the fallback never shows
+                      there. It is empty, for that moment of a hard load only.
+                      It wraps the page slot only, never {modal}, so a modal
+                      never waits on the page under it.
+                      What a page that answers after the shell gives up: a
+                      redirect() or notFound() in it can no longer set the
+                      status, so the response is a 200 and the browser follows
+                      the redirect (a meta refresh without JavaScript) or draws
+                      the not-found page itself; and React reveals a streamed
+                      boundary no sooner than 300ms after the shell's first
+                      frame, so a page that answers inside that window lands up
+                      to that much later than it did riding with the shell.
+                      THE contents DIV KEEPS PAGE-ENTER TO SOFT NAVIGATIONS.
+                      React plays a <ViewTransition>'s enter on a Suspense
+                      reveal only when no DOM element sits between the boundary
+                      and it, so without this div a hard load's page rose in
+                      with the template's page-enter whenever it streamed in
+                      (checked in Chromium on a copy of this tree), where it
+                      used to simply be there. A soft navigation remounts the
+                      template below the div, so its enter and exit still run.
+                      display: contents leaves no box, so the page is still the
+                      container's flex child. */}
+                  <Suspense fallback={null}>
+                    <div className="contents">{children}</div>
+                  </Suspense>
+                </ShallowRouting>
               </ProfileCacheProvider>
             </div>
           </SidebarInset>
@@ -239,6 +299,7 @@ export default async function AppLayout({ children }: { children: React.ReactNod
           <ScrollMemory />
           <ScoutPanel />
         </div>
+        {modal}
       </div>
     </HoverSidebarProvider>
   );

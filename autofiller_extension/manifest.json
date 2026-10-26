@@ -21,13 +21,25 @@
   "permissions": ["storage", "activeTab", "scripting", "cookies"],
   "host_permissions": [
     "http://localhost:8000/*",
+    "https://api.workitjobs.ai/*",
     "https://workit-api.vercel.app/*",
     "http://localhost:3000/*",
-    "https://workit-web-gamma.vercel.app/*"
+    "https://workitjobs.ai/*",
+    "https://workit-web-gamma.vercel.app/*",
+    "https://*.greenhouse.io/*",
+    "https://*.lever.co/*",
+    "https://*.ashbyhq.com/*",
+    "https://*.rippling.com/*",
+    "https://*.workable.com/*",
+    "https://*.eightfold.ai/*",
+    "https://explore.jobs.netflix.net/*",
+    "https://*.myworkdayjobs.com/*",
+    "https://*.myworkdaysite.com/*"
   ],
   "externally_connectable": {
     "matches": [
       "http://localhost:3000/*",
+      "https://workitjobs.ai/*",
       "https://workit-web-gamma.vercel.app/*"
     ]
   }

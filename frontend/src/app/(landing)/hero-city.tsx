@@ -1,19 +1,124 @@
 "use client";
 
-import { useEffect, useRef, useState, useSyncExternalStore, type CSSProperties } from "react";
+import Image from "next/image";
+import { useEffect, useRef, useState, type CSSProperties } from "react";
 
 import { cn } from "@/lib/cn";
 
-import { buildCity, STRIP_HEIGHT, STRIP_TOP, STRIP_WIDTH, type City } from "./city-model";
+import {
+  buildCity,
+  STRIP_HEIGHT,
+  STRIP_TOP,
+  STRIP_WIDTH,
+  type City,
+  type Piece,
+} from "./city-model";
+import { useMediaQuery } from "./hooks";
+import { scoreTone } from "./score-tone";
 
-// Built once per page load: the model is deterministic, so every render
-// draws the same city.
-let cached: City | null = null;
-const getCity = () => (cached ??= buildCity());
+// Below Tailwind's sm a phone gets its own, larger city (city-model.ts,
+// buildCity's `phone`, and the width in landing.css).
+const PHONE_QUERY = "(width < 40rem)";
 
-const noSubscribe = () => () => {};
+// Each build once per page load: the model is deterministic, so every
+// render draws the same city.
+const cached = new Map<boolean, City>();
+const getCity = (phone: boolean) => {
+  let city = cached.get(phone);
+  if (!city) cached.set(phone, (city = buildCity({ phone })));
+  return city;
+};
 
 const vars = (values: Record<string, string | number>) => values as CSSProperties;
+
+const VIEW_BOX = `0 ${STRIP_TOP} ${STRIP_WIDTH} ${STRIP_HEIGHT}`;
+
+/**
+ * The buildings' look: their colours and line weights. One source for both
+ * kinds of layer below: written into each still image, which landing.css
+ * cannot reach (an image is a document of its own), and into the page
+ * under `.hero-city` for the live layers. The live-only parts (the ground
+ * grid, streaks, pools and wireframes) and every animation stay in
+ * landing.css.
+ */
+const LOOK: [selector: string, rules: string][] = [
+  [
+    "",
+    "--top:#fff;--left:#e1d9f6;--right:#eee9fd;--edge:rgb(76 39 163/.17);--hi:rgb(109 63 216/.32);--floor:rgb(76 39 163/.09);--pier:rgb(76 39 163/.16);--spire:#aaa4b8;--holo:#6d3fd8",
+  ],
+  [".tone-stone", "--top:#fffdf9;--left:#e6dee9;--right:#f3eef4"],
+  [".tone-peri", "--top:#f8f8ff;--left:#d6d8f5;--right:#e7e9fd"],
+  [".tone-glass", "--top:#f5f4fb;--left:#d6d2ea;--right:#e7e4f4"],
+  [".tone-deep", "--top:#f3f0f5;--left:#d8d1df;--right:#e7e2ec"],
+  [".t", "fill:var(--top)"],
+  [".l", "fill:var(--left)"],
+  [".r", "fill:var(--right)"],
+  [".fl", "fill:none;stroke:var(--floor);stroke-width:.8"],
+  [".pi", "fill:none;stroke:var(--pier);stroke-width:1"],
+  [".e", "fill:none;stroke:var(--edge);stroke-width:1;stroke-linejoin:round"],
+  [".hi", "fill:none;stroke:var(--hi);stroke-width:1"],
+  [".sp", "fill:none;stroke:var(--spire);stroke-width:1.4;stroke-linecap:round"],
+];
+const lookCss = (scope: string) =>
+  LOOK.map(([selector, rules]) => `${scope}${selector ? ` ${selector}` : ""}{${rules}}`).join("");
+
+/** A building's solid parts, back to front. */
+const SOLID = ["l", "r", "t", "fl", "pi", "e", "hi", "sp"] as const;
+
+/** Still pieces as one SVG document, for an image. */
+function stillSvg(pieces: Piece[]) {
+  const body = pieces
+    .map(
+      (piece) =>
+        `<g class="tone-${piece.tone}"${piece.op < 1 ? ` opacity="${piece.op}"` : ""}>${SOLID.map(
+          (part) => (piece[part] ? `<path class="${part}" d="${piece[part]}"/>` : ""),
+        ).join("")}</g>`,
+    )
+    .join("");
+  return `<svg xmlns="http://www.w3.org/2000/svg" viewBox="${VIEW_BOX}"><style>${lookCss("svg")}</style>${body}</svg>`;
+}
+
+/**
+ * The city as layers, back to front: runs of still pieces, each drawn as
+ * one image, and between them the pieces that move (the towers that turn
+ * into wireframes, and the pulsing wireframes), live. Split where they move
+ * in the draw order, so every building in front of a tower stays in front.
+ * One SVG of some 5,700 paths made every repaint of the page slow (Chrome
+ * re-layers the page's whole paint each frame, about 12ms on an M1 while
+ * the city was within reach of the screen); an image is one item to it,
+ * whatever it draws (KAN-368). Blob URLs, made once per build and kept for
+ * the page's life, like the build.
+ */
+type Layer = { still: string } | { live: { piece: Piece; index: number }[] };
+const layersCache = new Map<boolean, Layer[]>();
+function getLayers(phone: boolean) {
+  const known = layersCache.get(phone);
+  if (known) return known;
+  const layers: Layer[] = [];
+  let still: Piece[] = [];
+  let live: { piece: Piece; index: number }[] = [];
+  const flush = () => {
+    if (still.length) {
+      const blob = new Blob([stillSvg(still)], { type: "image/svg+xml" });
+      layers.push({ still: URL.createObjectURL(blob) });
+    }
+    if (live.length) layers.push({ live });
+    still = [];
+    live = [];
+  };
+  getCity(phone).pieces.forEach((piece, index) => {
+    if (piece.mode) {
+      if (still.length) flush();
+      live.push({ piece, index });
+    } else {
+      if (live.length) flush();
+      still.push(piece);
+    }
+  });
+  flush();
+  layersCache.set(phone, layers);
+  return layers;
+}
 
 /** Room kept between a job card and the panel's sides, and the text. */
 const EDGE = 16;
@@ -76,21 +181,21 @@ function placeCards(root: HTMLElement, panel: HTMLElement) {
 }
 
 /**
- * The hero's animated city (city-model.ts). One SVG of about a thousand
- * small pieces, drawn only after hydration: rendered on the server it would
- * add hundreds of KB of path data to the page. The job tags are HTML over
- * the SVG, placed in percent of the strip so they track it as it scales,
- * and shown only where they fit (placeCards). Styles and animations are the
- * .hero-city rules in landing.css.
+ * The hero's animated city (city-model.ts): the ground, then the layers of
+ * `getLayers`, drawn only after hydration: rendered on the server it would
+ * add hundreds of KB of path data to the page. It shows once its images
+ * have loaded, so the towers never stand alone on bare ground. The job tags
+ * are HTML over it, placed in percent of the strip so they track it as it
+ * scales, and shown only where they fit (placeCards). Styles and animations
+ * are `LOOK` and the .hero-city rules in landing.css.
  */
 export function HeroCity() {
-  const mounted = useSyncExternalStore(
-    noSubscribe,
-    () => true,
-    () => false,
-  );
+  // Null on the server and until the first effect, so the city still draws
+  // only after hydration, and a phone never builds the wide one first.
+  const phone = useMediaQuery(PHONE_QUERY);
   const rootRef = useRef<HTMLDivElement>(null);
   const [placement, setPlacement] = useState<Record<string, number | null>>({});
+  const [loaded, setLoaded] = useState<ReadonlySet<string>>(() => new Set());
 
   useEffect(() => {
     const root = rootRef.current;
@@ -103,19 +208,28 @@ export function HeroCity() {
     window.addEventListener("resize", place);
     // Again once the text has finished rising into place.
     const settle = window.setTimeout(place, 1000);
+    // Its loops stop while it is off screen (landing.css).
+    const seen = new IntersectionObserver(([entry]) =>
+      root.toggleAttribute("data-paused", !entry.isIntersecting),
+    );
+    seen.observe(root);
     return () => {
+      seen.disconnect();
       observer.disconnect();
       window.removeEventListener("resize", place);
       window.clearTimeout(settle);
     };
-  }, [mounted]);
+  }, [phone]);
 
-  if (!mounted) return null;
-  const city = getCity();
+  if (phone === null) return null;
+  const city = getCity(phone);
+  const layers = getLayers(phone);
+  const ready = layers.every((layer) => !("still" in layer) || loaded.has(layer.still));
 
   return (
-    <div ref={rootRef} className="hero-city" aria-hidden="true">
-      <svg viewBox={`0 ${STRIP_TOP} ${STRIP_WIDTH} ${STRIP_HEIGHT}`}>
+    <div ref={rootRef} className="hero-city" data-ready={ready ? "" : undefined} aria-hidden="true">
+      <style>{lookCss(".hero-city")}</style>
+      <svg viewBox={VIEW_BOX}>
         <defs>
           {/* The ground fades out towards the text above it. */}
           <linearGradient
@@ -148,6 +262,7 @@ export function HeroCity() {
             <stop offset="0" stopColor="#6d3fd8" stopOpacity="0.5" />
             <stop offset="1" stopColor="#6d3fd8" stopOpacity="0" />
           </radialGradient>
+          {/* The wireframes' glow, for every live layer below. */}
           <filter id="hero-city-glow" x="-60%" y="-10%" width="220%" height="120%">
             <feGaussianBlur stdDeviation="3" result="blur" />
             <feMerge>
@@ -182,32 +297,42 @@ export function HeroCity() {
             style={vars({ "--md": glow.delay })}
           />
         ))}
-
-        {city.pieces.map((piece, i) => (
-          <g
-            // The model is fixed, so a piece's index is a stable key.
-            key={i}
-            className={cn(`tone-${piece.tone}`, piece.mode)}
-            style={vars({ opacity: piece.op, "--md": piece.delay })}
-          >
-            {piece.l && <path className="l" d={piece.l} />}
-            {piece.r && <path className="r" d={piece.r} />}
-            {piece.t && <path className="t" d={piece.t} />}
-            {piece.fl && <path className="fl" d={piece.fl} />}
-            {piece.pi && <path className="pi" d={piece.pi} />}
-            {piece.e && <path className="e" d={piece.e} />}
-            {piece.hi && <path className="hi" d={piece.hi} />}
-            {piece.sp && <path className="sp" d={piece.sp} />}
-            {piece.we && (
-              <g className="wire" filter="url(#hero-city-glow)">
-                <path className="wf" d={piece.wf} />
-                <path className="wl" d={piece.wl} />
-                <path className="we" d={piece.we} pathLength={1} />
-              </g>
-            )}
-          </g>
-        ))}
       </svg>
+
+      {layers.map((layer) =>
+        "still" in layer ? (
+          // eslint-disable-next-line @next/next/no-img-element -- a blob URL of an SVG made in the browser, which next/image cannot load
+          <img
+            key={layer.still}
+            src={layer.still}
+            alt=""
+            draggable={false}
+            onLoad={() => setLoaded((had) => new Set(had).add(layer.still))}
+          />
+        ) : (
+          <svg key={layer.live[0].index} viewBox={VIEW_BOX}>
+            {layer.live.map(({ piece, index }) => (
+              <g
+                // The model is fixed, so a piece's index is a stable key.
+                key={index}
+                className={cn(`tone-${piece.tone}`, piece.mode)}
+                style={vars({ opacity: piece.op, "--md": piece.delay })}
+              >
+                {SOLID.map((part) =>
+                  piece[part] ? <path key={part} className={part} d={piece[part]} /> : null,
+                )}
+                {piece.we && (
+                  <g className="wire" filter="url(#hero-city-glow)">
+                    <path className="wf" d={piece.wf} />
+                    <path className="wl" d={piece.wl} />
+                    <path className="we" d={piece.we} pathLength={1} />
+                  </g>
+                )}
+              </g>
+            ))}
+          </svg>
+        ),
+      )}
 
       {/* Hidden (but still measured) where a card does not fit. Until the
           first measurement, none shows. */}
@@ -226,24 +351,35 @@ export function HeroCity() {
             <div
               data-card
               style={{ transform: `translateX(${placement[tag.company] ?? 0}px)` }}
-              className="text-ink flex items-center gap-2.5 rounded-[10px] bg-white py-2 pr-2.5 pl-2 whitespace-nowrap shadow-[inset_0_0_0_1px_rgba(76,39,163,0.16),0_12px_28px_-12px_rgba(20,10,50,0.45)]"
+              className="glass-card text-ink flex items-center gap-2.5 rounded-xl py-2 pr-2.5 pl-2 whitespace-nowrap"
             >
-              <span
-                className="flex size-[26px] items-center justify-center rounded-[7px] text-xs font-bold"
-                style={{ background: tag.tint, color: tag.ink }}
-              >
-                {tag.company[0]}
+              {/* The company's own logo, from the favicon service the
+                  hiring-system tiles use. */}
+              <span className="flex size-[26px] items-center justify-center rounded-[7px] bg-white shadow-[inset_0_0_0_1px_rgba(76,39,163,0.12)]">
+                <Image
+                  src={`https://www.google.com/s2/favicons?domain=${tag.domain}&sz=64`}
+                  alt=""
+                  unoptimized
+                  width={18}
+                  height={18}
+                  className="size-[18px] rounded-[4px]"
+                />
               </span>
               <span className="flex flex-col text-left">
                 <span className="text-xs font-semibold">{tag.title}</span>
-                <span className="text-ink-meta text-[11px]">{tag.company}</span>
+                <span className="text-ink-muted text-[11px]">{tag.company}</span>
               </span>
-              <span className="bg-landing-brand-100 text-landing-brand-700 rounded-md px-[7px] py-0.5 text-[11px] font-bold shadow-[inset_0_0_0_1px_rgba(124,92,240,0.3)]">
-                {tag.score}
+              <span
+                className={cn(
+                  "rounded-md px-[7px] py-0.5 text-[11px] font-bold shadow-[inset_0_1px_0_rgb(255_255_255/0.8)] ring-1 ring-inset",
+                  scoreTone(tag.score),
+                )}
+              >
+                {tag.score}%
               </span>
             </div>
             <span className="h-[22px] w-px bg-linear-to-b from-[#6d3fd8] to-transparent" />
-            <span className="size-[5px] rounded-full bg-[#6d3fd8] shadow-[0_0_8px_2px_rgba(109,63,216,0.5)]" />
+            <span className="size-[5px] rounded-full bg-[#6d3fd8]" />
           </div>
         </div>
       ))}

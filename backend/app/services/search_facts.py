@@ -7,11 +7,11 @@ Pure: no database.
 
 import difflib
 import re
-from collections.abc import Sequence
+from collections.abc import Iterable, Sequence
 from dataclasses import dataclass
 
 from app.models import dto
-from app.services.role_resolver import ALIASES, raw_words
+from app.services.role_resolver import ALIASES, raw_word_spans, raw_words
 from app.services.start_terms import MONTHS, SEASONS, season_of
 
 # Words in a search that name a fact a column holds, read as that column's
@@ -72,6 +72,21 @@ class QueryFacts:
     season_phrases: tuple[str, ...] = ()
     remote_phrases: tuple[str, ...] = ()
     used: frozenset[int] = frozenset()
+    # Each fact with the words that named it, for the search page to show
+    # and let the seeker drop (GET /jobs/search-facts).
+    found: tuple["FoundFact", ...] = ()
+
+
+@dataclass(frozen=True)
+class FoundFact:
+    '''one fact a search named: its filter, the value, and its words' positions'''
+    # The filter row's name for it: "level" (experience), "work_style" or
+    # "start_term".
+    facet: str
+    # The value as that filter's own key: "student", "remote", "summer-2027",
+    # or a bare year ("2027") for any start that year.
+    value: str
+    at: tuple[int, ...]
 
 
 def query_facts(words: Sequence[str]) -> QueryFacts:
@@ -87,35 +102,56 @@ def query_facts(words: Sequence[str]) -> QueryFacts:
     season_phrases: list[str] = []
     remote_phrases: list[str] = []
     used: set[int] = set()
+    found: list[FoundFact] = []
 
-    def take(phrase: tuple[str, ...]) -> bool:
+    def take(phrase: tuple[str, ...], at: range) -> bool:
         typed = " ".join(phrase)
         # A pair as its month or season would be spelt: "summe 2027" is
         # "summer 2027". As corrected for the title match too.
         spelled = " ".join(map(season_word, phrase))
         if phrase in _LEVEL_WORDS:
             levels.append(_LEVEL_WORDS[phrase])
+            found.append(FoundFact("level", _LEVEL_WORDS[phrase], tuple(at)))
         elif phrase in _WORK_STYLE_WORDS:
             styles.append(_WORK_STYLE_WORDS[phrase])
+            found.append(FoundFact("work_style", _WORK_STYLE_WORDS[phrase].value, tuple(at)))
             if _WORK_STYLE_WORDS[phrase] == dto.work_style.remote:
                 remote_phrases.append(typed)
         elif len(phrase) == 2 and "-" in (season_of(spelled) or ""):
             seasons.append(season_of(spelled))
             season_phrases.append(spelled)
+            found.append(FoundFact("start_term", season_of(spelled), tuple(at)))
         elif len(phrase) == 1 and _YEAR.match(phrase[0]):
             seasons.extend([*(f"{season}-{phrase[0]}" for season in SEASONS), phrase[0]])
             season_phrases.append(typed)
+            found.append(FoundFact("start_term", phrase[0], tuple(at)))
         else:
             return False
         return True
 
     i = 0
     while i < len(words):
-        span = next((n for n in (2, 1) if i + n <= len(words) and take(tuple(words[i:i + n]))), 0)
+        span = next((n for n in (2, 1) if i + n <= len(words) and take(tuple(words[i:i + n]), range(i, i + n))), 0)
         used.update(range(i, i + span))
         i += span or 1
     return QueryFacts(
         tuple(dict.fromkeys(levels)), tuple(dict.fromkeys(styles)),
         tuple(dict.fromkeys(seasons)), tuple(dict.fromkeys(season_phrases)),
-        tuple(dict.fromkeys(remote_phrases)), frozenset(used),
+        tuple(dict.fromkeys(remote_phrases)), frozenset(used), tuple(found),
     )
+
+
+def without_words(text: str, at: Iterable[int]) -> str:
+    '''
+    text with the words at these positions (as raw_words counts them) taken
+    out, the rest as typed: "Remote C++ intern" without 0 is "C++ intern".
+    What a fact's × on /search leaves of the search (GET /jobs/search-facts)
+    '''
+    spans = raw_word_spans(text)
+    cut = sorted(spans[i] for i in set(at) if i < len(spans))
+    left, start = [], 0
+    for begin, end in cut:
+        left.append(text[start:begin])
+        start = end
+    left.append(text[start:])
+    return " ".join("".join(left).split())

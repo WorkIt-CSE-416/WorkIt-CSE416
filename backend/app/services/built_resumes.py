@@ -34,6 +34,7 @@ from collections.abc import Awaitable, Callable
 from sqlalchemy import delete, func, select, update
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from app.models.autofill_answers import Autofill_Answers
 from app.models.bank import Bank_Bullet_Variant
 from app.models.built_resume import (
     Built_Resume,
@@ -44,6 +45,7 @@ from app.models.built_resume import (
 from app.models.jobs import Job_Post
 from app.models.profiles import Applicant_Profile
 from app.models.resume import Resume
+from app.schemas.autofill_answers import answers_from_bank
 from app.schemas.built_resume import (
     BulletChoiceResponse,
     ChoicesResponse,
@@ -228,15 +230,6 @@ async def tailored_postings(session: AsyncSession, applicant_id: uuid.UUID) -> d
     return {r.id: TailoredPosting(r.title, r.company_name, not r.listed) for r in rows}
 
 
-async def latest_base(session: AsyncSession, applicant_id: uuid.UUID) -> Built_Resume | None:
-    return await session.scalar(
-        select(Built_Resume)
-        .where(Built_Resume.applicant_id == applicant_id, Built_Resume.job_posting_id.is_(None))
-        .order_by(Built_Resume.created_at.desc(), Built_Resume.id)
-        .limit(1)
-    )
-
-
 async def tailored_for(session: AsyncSession, applicant_id: uuid.UUID, posting_id: uuid.UUID) -> Built_Resume | None:
     """The applicant's one tailored resume for the posting, if any."""
     return await session.scalar(
@@ -345,6 +338,9 @@ async def same_resume(
     an equal content hash would say, without hashing either."""
     resumes = await list_resumes(session, applicant_id)
     choices = await _choices_of(session, [r.id for r in resumes])
+    # Each resume as it prints, its own skills included: without them a
+    # tailored resume could read as equal to a new base resume.
+    bank = await load_bank(session, applicant_id, local_to=[r.id for r in resumes])
     return next((r for r in resumes if r.template == template and build_view(bank, choices[r.id]) == view), None)
 
 
@@ -364,7 +360,7 @@ async def update_choices(
     siblings; an entry brought onto the resume brings its row-less bullets
     with it, or it would show with none."""
     await get_resume(session, applicant_id, resume_id)
-    bank = await load_bank(session, applicant_id)
+    bank = await load_bank(session, applicant_id, local_to=[resume_id])
     entry_of = {b.id: e.row.id for e in bank.entries for b in e.bullets}
     original = {b.id: b.text for e in bank.entries for b in e.bullets}
     section_of = {e.row.id: str(e.row.section) for e in bank.entries}
@@ -429,7 +425,7 @@ async def load_view(
     session: AsyncSession, applicant_id: uuid.UUID, resume_id: uuid.UUID
 ) -> tuple[Built_Resume, ResumeView]:
     resume = await get_resume(session, applicant_id, resume_id)
-    bank = await load_bank(session, applicant_id)
+    bank = await load_bank(session, applicant_id, local_to=[resume.id])
     return resume, build_view(bank, await load_choices(session, resume.id))
 
 
@@ -562,12 +558,15 @@ async def fit_to_one_page(
 
 
 async def load_header_identity(session: AsyncSession, applicant_id: uuid.UUID) -> HeaderIdentity:
-    """The profile's identity fields a resume's header prints. Not
+    """The profile's identity fields a resume's header prints, and "U.S.
+    Citizen" when Application Questions' citizenship answer says so. Not
     `services/identity.py`'s `load_identity`, which loads the same fields
     for removal before a model sees text; this one is for display."""
     profile = await session.get(Applicant_Profile, applicant_id)
     if profile is None:
         raise NotFound
+    bank = await session.get(Autofill_Answers, applicant_id)
+    answers = answers_from_bank(bank.answers if bank else {})
     return HeaderIdentity(
         name=profile.full_name,
         email=profile.email_for_employers,
@@ -577,6 +576,7 @@ async def load_header_identity(session: AsyncSession, applicant_id: uuid.UUID) -
             for field in ("linkedin_url", "github_url", "portfolio_url", "other_url")
             if (url := getattr(profile, field))
         ),
+        us_citizen=answers.work_authorization_status == "us_citizen",
     )
 
 

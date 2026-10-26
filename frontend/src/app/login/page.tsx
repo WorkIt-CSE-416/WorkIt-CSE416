@@ -1,10 +1,13 @@
+import { WarningCircleIcon } from "@phosphor-icons/react/ssr";
 import type { Metadata } from "next";
+import { connection } from "next/server";
 
 import { AccountTypeSwitcher } from "@/components/account-type-switcher";
 import { AuthAlternatives } from "@/components/auth-alternatives";
 import { Logo } from "@/components/logo";
 import { SkylineBackdrop } from "@/components/skyline";
 import { TextLink } from "@/components/ui/text-link";
+import { redirectIfSignedIn } from "@/lib/session";
 
 import { LoginForm } from "./login-form";
 
@@ -28,7 +31,15 @@ const FORM_ID = "sign-in";
  * every time its height changed, and the control just clicked slid out from
  * under the pointer.
  */
-export default function LoginPage() {
+export default async function LoginPage({ searchParams }: PageProps<"/login">) {
+  // Request time, not build time: the session check needs the Supabase keys,
+  // which CI's build has none of (the seeker layout's rule).
+  await connection();
+  await redirectIfSignedIn();
+  // Set by /auth/confirm when an email link was bad, expired or used.
+  const { error } = await searchParams;
+  const badLink = error === "confirm_failed" || error === "invalid_link";
+
   return (
     <main className="flex flex-1 items-start justify-center p-6 lg:pt-[12vh]">
       <SkylineBackdrop />
@@ -40,6 +51,17 @@ export default function LoginPage() {
         <p className="text-body text-ink-muted mt-1 text-center">
           Sign in to find your next career move
         </p>
+
+        {badLink && (
+          <p
+            role="alert"
+            className="text-label text-danger bg-danger-tint rounded-control mt-4 flex items-start gap-2 px-3 py-2"
+          >
+            <WarningCircleIcon className="mt-px size-4 shrink-0" aria-hidden />
+            That email link has expired or was already used. Sign in, or get a new link from Forgot
+            Password or Create Account.
+          </p>
+        )}
 
         {/* It sits above the form rather than inside it, so its value
             reaches the submission through its hidden input's `form`. */}

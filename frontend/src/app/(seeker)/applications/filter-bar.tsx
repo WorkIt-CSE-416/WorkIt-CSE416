@@ -134,7 +134,7 @@ export function FilterBar({
           all, stays at every width. Each dropdown is at least 144px; the
           cross, All Filters and Columns take about 280px with their gaps, so
           this row (its own @container) fits Status from 440px, Company from
-          592, Track from 744, Work Model from 896 and Source from 1048. A
+          592, Job Type from 744, Work Model from 896 and Source from 1048. A
           phone's row is All Filters and Columns. The cross's room is kept
           whether or not it shows, so a pick never pushes a dropdown out. */}
       <div className="@container flex items-center gap-2">
@@ -156,7 +156,7 @@ export function FilterBar({
           onChange={(values) => setField("company", values)}
           className="hidden min-w-36 @min-[37rem]:flex"
         />
-        {facet("track", "Track", "hidden min-w-36 @min-[46.5rem]:flex")}
+        {facet("track", "Job Type", "hidden min-w-36 @min-[46.5rem]:flex")}
         {facet("workModel", "Work Model", "hidden min-w-36 @min-[56rem]:flex")}
         {facet("source", "Source", "hidden min-w-36 @min-[65.5rem]:flex")}
 
