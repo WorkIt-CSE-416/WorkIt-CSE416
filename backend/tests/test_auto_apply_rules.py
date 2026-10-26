@@ -61,6 +61,9 @@ def test_size_zero_or_empty_input():
     # A company's own careers page that embeds Greenhouse's form (filled in its iframe).
     "https://stripe.com/jobs/search?gh_jid=8257892",
     "https://www.databricks.com/company/careers/open-positions/job?utm=x&gh_jid=8805655002",
+    # Waymo's careers site, whose own form the Fill engine fills.
+    "https://careers.withwaymo.com/jobs?gh_jid=8257660",
+    "https://waymo.com/joinus/8257660?gh_jid=8257660",
 ])
 def test_auto_apply_takes_every_hiring_system_the_fill_engine_fills(url):
     assert auto_apply_supported(url)
@@ -72,9 +75,7 @@ def test_auto_apply_takes_every_hiring_system_the_fill_engine_fills(url):
     "https://www.linkedin.com/jobs/view/1",
     "https://www.indeed.com/viewjob?jk=1",
     "https://jobs.smartrecruiters.com/acme/1",
-    # A careers page whose embedded form doesn't fill in place (SKIP_EMBEDDING), or a gh_jid that isn't the query's.
-    "https://careers.withwaymo.com/jobs?gh_jid=8257660",
-    "https://waymo.com/joinus/8257660?gh_jid=8257660",
+    # A gh_jid that isn't the query's.
     "https://example.com/jobs#gh_jid=1",
     "https://example.com/jobs?not_gh_jid=1",
     "https://example.com/?next=https://boards.greenhouse.io/acme",
