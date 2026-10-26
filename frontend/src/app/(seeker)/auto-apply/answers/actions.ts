@@ -56,12 +56,13 @@ export async function saveWrittenAnswer(
 export type DeleteResult = { error: string | null };
 
 /**
- * Takes back the student's own answer `name` on one application, so later
- * forms no longer fill it. The API touches only their own words, never
- * their Claude's, and answers 204 also when nothing was saved. The name is
+ * Takes back the saved answer `name` on one application, whoever wrote it
+ * (`own_only=false`): the student's own, one pasted with Check and Save, or
+ * their Claude's, so later forms no longer fill it. Not own limits reuse,
+ * not removal. The API answers 204 also when nothing was saved. The name is
  * a query parameter: form field names can hold slashes and brackets.
  */
-export async function deleteOwnAnswer(jobId: string, name: string): Promise<DeleteResult> {
+export async function deleteAnswer(jobId: string, name: string): Promise<DeleteResult> {
   let session;
   try {
     session = await getApplicantSession();
@@ -70,7 +71,7 @@ export async function deleteOwnAnswer(jobId: string, name: string): Promise<Dele
   }
   try {
     const res = await apiFetch(
-      `/applicants/${encodeId(session.id)}/applications/${encodeId(jobId)}/answers?name=${encodeURIComponent(name)}`,
+      `/applicants/${encodeId(session.id)}/applications/${encodeId(jobId)}/answers?name=${encodeURIComponent(name)}&own_only=false`,
       { method: "DELETE" },
       session.token,
     );

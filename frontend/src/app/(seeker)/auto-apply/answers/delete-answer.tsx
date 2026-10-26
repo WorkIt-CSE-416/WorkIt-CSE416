@@ -6,20 +6,17 @@ import { useRef, useState, useTransition } from "react";
 import { Button } from "@/components/ui/button";
 
 import { DeleteConfirm } from "../../resumes/delete-confirm";
-import { deleteOwnAnswer } from "./actions";
+import { deleteAnswer } from "./actions";
 
 /**
- * Delete under one of the student's own answers in Your Answers (KAN-369):
- * a Looks right or Save for next time they pressed in a batch tab. It asks
+ * Delete under every answer in Your Answers (KAN-369): the student's own (a
+ * Looks right or Save for next time in a batch tab), one pasted with Check
+ * and Save, or their Claude's. Not own limits reuse, not removal. It asks
  * first, on the line under the answer (DeleteConfirm, as Resumes does),
- * then takes the answer back (deleteOwnAnswer) and refreshes the route so
+ * then takes the answer back (deleteAnswer) and refreshes the route so
  * the server draws the list without it. Later forms no longer fill it; a
  * question the tab still asks comes back above, unanswered, for their
- * Claude or for them.
- *
- * Only their own answers have one: the API never deletes their Claude's,
- * and an answer saved with Check and Save is saved as Claude's is (it may
- * come from any AI). A failed delete keeps the answer and says why.
+ * Claude or for them. A failed delete keeps the answer and says why.
  * `busy` (a ref) holds a second press: `pending` lands a render late.
  */
 export function DeleteAnswer({ jobId, name }: { jobId: string; name: string }) {
@@ -35,7 +32,7 @@ export function DeleteAnswer({ jobId, name }: { jobId: string; name: string }) {
     setError(null);
     start(async () => {
       try {
-        const result = await deleteOwnAnswer(jobId, name);
+        const result = await deleteAnswer(jobId, name);
         if (result.error) {
           setError(`WorkIt couldn't delete it. ${result.error}`);
           return;
