@@ -136,8 +136,8 @@ builds it: `dist/engine.js` is committed in the engine repo.
   step of its own). A press Workday drops (in 3 s the button never
   disabled, no error, the same step) is made again on the same button, 3
   presses in all, as Apply's `_next` (Applied Materials, live). It is
-  never pressed again after Workday shows an error that stays 5 s or
-  after 30 s with no new step; then the student
+  never pressed again after Workday shows an error that stays 5 s, its
+  "Something went wrong" page, or 30 s with no new step; then the student
   presses it. Tests: `test/workday-review.extension.spec.ts`. A
   step that loads as a new page drops the
   content script, so the background remembers the tab

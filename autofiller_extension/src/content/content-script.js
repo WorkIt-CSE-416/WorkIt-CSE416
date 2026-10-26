@@ -449,7 +449,7 @@
     const goOn = async () => {
       await flagEmptyRequired(prepared);
       const why = await toReview.leave(shownId, { fields: status.summary().fields, selfIdWaits: Boolean(selfIdWaiting) });
-      if (!why || workday.stepId() !== shownId) return;
+      if (!why || (workday.step() && workday.stepId() !== shownId)) return; // another step shows (none, as on Workday's error page, isn't one)
       note("_step", toReview.STOPPED, why);
       report();
     };

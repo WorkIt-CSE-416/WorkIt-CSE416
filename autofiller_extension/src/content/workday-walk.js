@@ -34,6 +34,7 @@ window.WIA = window.WIA || {};
   const GOES_ON = /^(save and continue|continue|next)$/i;
   const SENDS = /\b(submit|send|apply|finish|complete|confirm)\b/i;
   const BANNER = "[data-automation-id=errorHeading], [data-automation-id=errorBanner], [data-automation-id=errorMessage]";
+  const WENT_WRONG = /something went wrong/i; // Workday's error page, which asks for a refresh
   // This tab's choice (Fill to Review pressed) and the steps pressed in it, kept across Workday's page loads.
   const OPTED = "workit-fill-to-review";
   const PRESSED = "workit-fill-to-review-pressed";
@@ -96,6 +97,8 @@ window.WIA = window.WIA || {};
   }
 
   const banner = () => [...document.querySelectorAll(BANNER)].find((b) => b.checkVisibility() && b.innerText.trim());
+  // Workday's error page in place of the step: its words, and no field of the step showing.
+  const wentWrong = () => WENT_WRONG.test(document.body.innerText) && ![...document.querySelectorAll('[data-automation-id^="formField-"]')].some((f) => f.checkVisibility());
   const shown = () => [...document.querySelectorAll(NEXT)].find((b) => b.checkVisibility());
 
   /**
@@ -129,7 +132,9 @@ window.WIA = window.WIA || {};
     const why = blocker(fields, selfIdWaits);
     if (why) return why;
     if (document.querySelector(REVIEW_PAGE)) return null;
-    const button = shown();
+    // The footer may draw a moment after the step's fields.
+    const button = shown() ?? (await until(shown, ENABLED_WAIT));
+    if (stepNow() !== step) return null;
     if (!button) return "WorkIt found no Save and Continue button on this step. Check it, then go on yourself.";
     const words = (button.innerText || button.getAttribute("aria-label") || "").trim();
     if (!GOES_ON.test(words) || SENDS.test(`${words} ${button.getAttribute("aria-label") ?? ""}`)) {
@@ -156,9 +161,10 @@ window.WIA = window.WIA || {};
       if (stepNow() !== step || !button.isConnected || !button.checkVisibility() || button.disabled) break;
     }
     if (after !== "left" && after !== "error") {
-      after = await until(() => (left() ? "left" : banner() ? "error" : null), LEAVE_WAIT);
+      after = await until(() => (left() ? "left" : banner() ? "error" : wentWrong() ? "wrong" : null), LEAVE_WAIT);
     }
     if (after === "left") return null;
+    if (after === "wrong") return "Workday showed \"Something went wrong\" after WorkIt pressed Save and Continue. Reload the page, check the step, then go on yourself.";
     if (after === "error" && (await until(left, ERROR_WAIT))) return null;
     if (after === "error") {
       return `Workday didn't take this step: "${banner()?.innerText.replace(/\s+/g, " ").trim().slice(0, 300) ?? ""}" Fix it, then press Save and Continue yourself. WorkIt won't press it again here.`;
