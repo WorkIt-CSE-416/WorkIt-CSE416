@@ -61,3 +61,28 @@ test("a field the page shows otherwise than its planned answer is failed, with w
   expect(rows.find((r) => r.key === "email")).toMatchObject({ status: "filled" });
   expect(immuta.submissions).toEqual([]);
 });
+
+test("a Plan asks for the job's questions, names and text at once, while the saved answers are still coming", async () => {
+  const { readFileSync } = await import("node:fs");
+  const { join } = await import("node:path");
+  const { FORMS } = await import("../fill-engine/test/fake-job-server");
+  const job = readFileSync(join(FORMS, "greenhouse-arc", "questions.json"), "utf8");
+  let release!: () => void;
+  const answered = new Promise<void>((done) => (release = done));
+  const asked: string[] = [];
+  const fetchText = async (url: string) => {
+    asked.push(url);
+    await answered;
+    return job;
+  };
+  // The job's saved answers (GET .../answer-bank), still on their way.
+  const bank = answered.then(() => ({}));
+  const planning = planFill({ url: "https://boards.greenhouse.io/example/jobs/1", profile: STUDENT, bank, today: "2026-10-26", call: noQuestions, fetchText });
+  await new Promise((done) => setTimeout(done, 50));
+  // Before any answer: the questions and the job's text are both asked (the names come from the questions' answer).
+  expect(asked.some((u) => /questions=true/.test(u))).toBe(true);
+  expect(asked.some((u) => /\/jobs\/1$/.test(u))).toBe(true);
+  release();
+  const prepared: any = await planning;
+  expect(prepared.questions.length).toBeGreaterThan(0);
+});

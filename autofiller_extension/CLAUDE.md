@@ -91,6 +91,11 @@ builds it: `dist/engine.js` is committed in the engine repo.
   fails. It then asks the engine's `plan` for answers from the WorkIt
   profile (`engineProfile`) and `POLICIES`. No job system's URLs, queries,
   parsing or company names live here: change them in the engine repo.
+  A Plan asks what needs no other answer at once (KAN-369): the profile and
+  the batch's record of the tab, then the job's questions beside its names
+  and text (`readNames`) and the job's answer bank, which `planQuestions`
+  waits for only to plan (it takes the bank as a promise). Each URL is
+  still asked once per Plan (`once`), so the requests are the same ones.
 - **The engine fills the page and checks it.** `fill/page` calls the
   engine's `fillEach`, which fills in the engine's own order (files first
   where the job system parses the résumé into the form, Workable in one go,

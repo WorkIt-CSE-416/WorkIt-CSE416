@@ -100,7 +100,16 @@ async function handleMessage(message, sender) {
     case "fill/read":
     case "fill/moot":
     case "fill/required": {
-      const profile = await getAutofillProfile();
+      const plan = message.type === "fill/plan";
+      // A Plan's profile and batch reads are asked at once; the job's saved answers are fetched while
+      // the engine reads the job's questions (planFill waits for them only to plan).
+      const [profile, jobId, typed] = await Promise.all([
+        getAutofillProfile(),
+        plan ? jobInTab(sender.tab.id) : null,
+        // Its job type picks the start date: a full-time role's is graduation, an internship's its start.
+        plan ? jobTypeInTab(sender.tab.id) : null,
+      ]);
+      const jobType = jobId ? typed : null;
       if (message.type === "fill/plan" && jobOf(sender.url)?.site === "workday") {
         await rememberWorkdayTab(sender.tab.id);
         // An application step shows: the saved login (if any) signs in to this tenant.
@@ -109,11 +118,8 @@ async function handleMessage(message, sender) {
       // A Plan uses the answers the student saved (KAN-379), read fresh for each Plan: one saved a
       // moment ago in another tab counts. A batch tab's are its application's; any other page has no
       // application, so it gets the bank for the page's company, once the engine has read it.
-      const jobId = message.type === "fill/plan" ? await jobInTab(sender.tab.id) : null;
-      // Its job type picks the start date: a full-time role's is graduation, an internship's its start.
-      const jobType = jobId ? await jobTypeInTab(sender.tab.id) : null;
-      const bank = message.type !== "fill/plan" ? {}
-        : jobId ? await answerBank(profile.id, jobId).catch(() => ({}))
+      const bank = !plan ? {}
+        : jobId ? answerBank(profile.id, jobId).catch(() => ({}))
         : (company) => anyFormAnswerBank(profile.id, company).catch(() => ({}));
       const answer = await handleFill(message, {
         url: sender.url, profile, bank, today: today(), call: engineIn(sender), fetchText, trees: workdayTrees, jobType,
