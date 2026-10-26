@@ -164,7 +164,7 @@ response lists each change with what it replaced, by handle and id:
 | Change | Revert | Through |
 |---|---|---|
 | A new wording | Show the `before` wording again | The editor's choices PATCH: `variant_id` = `before_variant_id` (null: the bank's own wording) |
-| A new bullet order | Put that one bullet back after the last bullet that stayed put before it, shifting its siblings | The choices PATCH: the entry's positions |
+| A new bullet order | Put that one bullet back at its place in `before_ids`, shifting its siblings | The choices PATCH: the entry's positions |
 | A picked skill | Take it off the resume | The choices PATCH: `shown` false (the skill row goes with the resume) |
 
 - **Not in the server's memory.** The API runs as several instances that
@@ -254,11 +254,12 @@ them:
    skill, amber a moved bullet); `revertsOf` offers each change's Revert on
    hover or focus; `revertOf` builds the choices PATCH; `untouched` drops a
    change the student's own PATCH touches, and `reverted` drops a reverted
-   one. An order is read against the current choices: the bullets in the
-   longest run that keeps the before order stayed put, and only the others
-   are marked moved, so a bullet nudged by a neighbour's move carries no
-   mark. Each moved bullet reverts on its own, and the order change goes
-   once no bullet is out of place. The screen stores `{edits}` in
+   one. An order is read against the current choices: every bullet at
+   another place than in `before_ids` is marked moved, even one a
+   sibling's move pushed there. Each one reverts on its own to its before
+   place, its siblings shifting around it, so a revert can put another
+   bullet out of place again; the order change goes once no bullet is out
+   of place. The screen stores `{edits}` in
    sessionStorage.
 5. **Clean up.** Remove the questions, `show_skill`, `TailorChange` and the
    proposal schemas; update `backend/CLAUDE.md` and `frontend/CLAUDE.md`.

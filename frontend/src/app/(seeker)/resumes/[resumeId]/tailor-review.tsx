@@ -60,33 +60,14 @@ function readable(stored: unknown): TailorReviewRecord | null {
 }
 
 /** An order change as it stands on `choices`: its entry's shown bullets in
- *  their current order, and the ones still out of place. The bullets of the
- *  longest run that keeps the before order stayed put, and every other one
- *  moved past them, so a bullet only nudged by a neighbour's move is never
- *  marked. */
+ *  their current order and in their before order, and the ones out of
+ *  place. A bullet is out of place whenever it sits at another place than
+ *  before, even when a sibling's move pushed it there. */
 function placing(edit: TailorEdit, choices: Choices) {
   const at = new Map(choices.bullets.map((choice) => [choice.bullet_id, choice]));
-  const order = edit.before_ids
-    .filter((id) => at.get(id)?.shown)
-    .sort((a, b) => at.get(a)!.position - at.get(b)!.position);
-  const rank = order.map((id) => edit.before_ids.indexOf(id));
-  // The longest increasing run of `rank`, by the plain quadratic search:
-  // an entry has a handful of bullets.
-  const length = rank.map(() => 1);
-  const previous = rank.map(() => -1);
-  let last = -1;
-  rank.forEach((r, i) => {
-    for (let j = 0; j < i; j++) {
-      if (rank[j] < r && length[j] + 1 > length[i]) {
-        length[i] = length[j] + 1;
-        previous[i] = j;
-      }
-    }
-    if (last < 0 || length[i] > length[last]) last = i;
-  });
-  const stayed = new Set<string>();
-  for (let i = last; i >= 0; i = previous[i]) stayed.add(order[i]);
-  return { order, moved: new Set(order.filter((id) => !stayed.has(id))), stayed };
+  const before = edit.before_ids.filter((id) => at.get(id)?.shown);
+  const order = [...before].sort((a, b) => at.get(a)!.position - at.get(b)!.position);
+  return { order, before, moved: new Set(order.filter((id, i) => before[i] !== id)) };
 }
 
 /** Each marked line's box key (`pdf-pages.tsx`'s `boxKey`) and its mark. A
@@ -106,7 +87,7 @@ export function marksOf(edits: TailorEdit[], choices: Choices): Map<string, Mark
 }
 
 /** Each marked line's Revert target. An order change has one target per
- *  moved bullet, so putting one back leaves the other Tailor moves alone. */
+ *  bullet out of place, so putting one back leaves the others to revert. */
 export function revertsOf(edits: TailorEdit[], choices: Choices): Map<string, RevertTarget> {
   const reverts = new Map<string, RevertTarget>();
   for (const edit of edits) {
@@ -139,18 +120,13 @@ export function revertOf(target: RevertTarget, choices: Choices): ChoicesUpdate 
     };
   }
   if (edit.kind === "order" && target.bulletId) {
-    // The bullet goes back just after the last bullet that stayed put and
-    // came before it, and its siblings shift around it.
-    const { order, stayed } = placing(edit, choices);
+    // The bullet goes back to its before place, and its siblings shift
+    // around it.
+    const { order, before, moved } = placing(edit, choices);
     const bulletId = target.bulletId;
-    if (!order.includes(bulletId) || stayed.has(bulletId)) return {};
-    const rank = (id: string) => edit.before_ids.indexOf(id);
+    if (!moved.has(bulletId)) return {};
     const rest = order.filter((id) => id !== bulletId);
-    const after = rest.reduce(
-      (found, id, i) => (stayed.has(id) && rank(id) < rank(bulletId) ? i : found),
-      -1,
-    );
-    rest.splice(after + 1, 0, bulletId);
+    rest.splice(before.indexOf(bulletId), 0, bulletId);
     return { bullets: rest.map((bullet_id, position) => ({ bullet_id, position })) };
   }
   if (edit.kind === "skill" && edit.skill_id) {
@@ -162,7 +138,7 @@ export function revertOf(target: RevertTarget, choices: Choices): ChoicesUpdate 
 /** The changes left once the student reverts `target`, read on the
  *  `choices` the revert saved. A wording or a skill goes; an order change
  *  stays while any of its bullets is still out of place, since restoring
- *  one bullet can leave its moved siblings to revert one by one. */
+ *  one bullet can leave its siblings to revert one by one. */
 export function reverted(
   edits: TailorEdit[],
   target: RevertTarget,
