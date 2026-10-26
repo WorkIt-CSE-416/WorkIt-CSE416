@@ -17,7 +17,7 @@ import {
 } from "./batch.js";
 import { engineCaller, handleFill, jobOf, practiceJob, runEngine, submittedPage } from "./engine.js";
 import { claimMoment } from "./moments.js";
-import { nextNeedsYou } from "./next-needs-you.js";
+import { nextNeedsYou, walkFrom } from "./next-needs-you.js";
 import { SELF_ID, checkedSelfId, unansweredSelfId } from "./self-id.js";
 import { forgetSubmits, submitHinted, watchSubmitRequests } from "./submit-proof.js";
 import { injectFill } from "../shared/content-scripts.js";
@@ -222,6 +222,10 @@ async function handleMessage(message, sender) {
     // A batch tab's "Next Thing That Needs You" (content-script.js): batch.js goes to it, across the tabs.
     case "batch/next":
       return nextNeedsYou();
+
+    // The submit warning's Show me (content/submit-warning.js): the walk starts at the tab's first open row.
+    case "batch/walk-from":
+      return { shown: await walkFrom(sender.tab.id, message.key) };
 
     // A batch tab's page watches for the student's own submit (KAN-374):
     // the engine, in the page, reads the job system's answer to it and its
