@@ -108,7 +108,8 @@ GET  /applicants/{id}/answer-bank?company=...
      `company` (the page's, when the extension read it) is that company.
 POST /applicants/{id}/applications/{job_id}/finish  {"outcome": "submitted"}
      How a fill ended: submitted → applied, skipped → skipped, failed →
-     needs_you. 404 with no application, 409 when it isn't queued or
+     needs_you, closed (a batch tab found the job closed) → skipped with its
+     scraped posting marked closed. 404 with no application, 409 when it isn't queued or
      needs_you.
      {"outcome": "unsubmitted", "state": "ready" | "needs_you"} is the
      panel's I didn't submit this (KAN-401): an applied application goes
