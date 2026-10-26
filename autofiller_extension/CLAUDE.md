@@ -20,9 +20,9 @@ had an endpoint: `applicant_profiles`, the **experience bank** (`GET
 Experience Bank and onboarding screens read and write, never an uploaded
 resume's `parsed_json`. Same rule the recommender and Scout follow
 (`backend/CLAUDE.md`): the bank, not a resume, is the source of truth for
-what the student has done. `src/background/engine.js` maps the school and
+what the student has done. `src/background/engine.js` maps the schools and
 the jobs it gives the Fill engine from the bank's `entries` by `section`,
-not from a `ParsedResume`.
+and the skills from its `skills`, not from a `ParsedResume`.
 
 **One exception**: essay-question generation (below) is the first feature
 here that needed a genuinely new backend route,
@@ -1137,8 +1137,13 @@ openness covers:
   Rippling has since filled two live forms end to end through a batch tab
   of the loaded extension (KAN-369, 2026-10-25), cover letter included.
 - **One school, and no phone country.** The adapter gives the engine the
-  latest education entry only, and WorkIt holds no place the student lives,
-  so Greenhouse's Country picker beside Phone is left for the student.
+  latest education entry as the school; the earlier ones go only as
+  `education.past_schools` (school, degree, end), which the high-school and
+  "degrees completed" rules read, with `degree_level_now` (Undergraduate or
+  Graduate) while the latest degree is unfinished. The bank's skills go as
+  `experience_facts.skills`, a "Languages" group first. WorkIt holds no place
+  the student lives, so Greenhouse's Country picker beside Phone is left for
+  the student.
 - **No "not a veteran" answer.** WorkIt's `veteran_status` is
   protected_veteran, not_protected_veteran or declined. Since the engine's
   fix (KAN-329), "I am not a protected veteran" answers only
