@@ -93,8 +93,8 @@ builds it: `dist/engine.js` is committed in the engine repo.
   company, role and text from the engine (`jobOf`, `questionSet`,
   `jobNames`, `jobDescription`, `textOf`), which asks each job system's
   public API with the background's `fetchText`: the same URLs and queries
-  Apply asks. Eightfold's and Workday's questions are read off the open form
-  by the engine (`readQuestions`), and Ashby's form too when its query
+  Apply asks. Eightfold's, TikTok's and Workday's questions are read off the open form
+  by the engine (`readQuestions`; `engine.js`'s `READ_OFF_PAGE`), and Ashby's form too when its query
   fails. It then asks the engine's `plan` for answers from the WorkIt
   profile (`engineProfile`) and `POLICIES`. No job system's URLs, queries,
   parsing or company names live here: change them in the engine repo.
@@ -110,7 +110,7 @@ builds it: `dist/engine.js` is committed in the engine repo.
   only within a minute (a tab held by a human check plans afresh). A read
   that failed is asked again by the Plan. Never the answer bank (read fresh
   for each Plan, KAN-379), nor a job whose questions only its open form
-  shows (Workday, Eightfold, practice forms); every later Plan of the tab
+  shows (Workday, Eightfold, TikTok, practice forms); every later Plan of the tab
   (a Workday step, an Eightfold follow-up) reads afresh.
 - **The engine fills the page and checks it.** `fill/page` calls the
   engine's `fillEach`, which fills in the engine's own order (files first
@@ -213,7 +213,7 @@ builds it: `dist/engine.js` is committed in the engine repo.
   live read: live-check before relying on it. Tests:
   `test/oracle.extension.spec.ts` (the engine's fake Oracle page).
 - **A job's page is not always its form.** A Lever, Ashby, Rippling,
-  Workable or Eightfold posting shows the job on one page and the form on
+  Workable, Eightfold or TikTok posting shows the job on one page and the form on
   another (`jobOf`'s `form`). On the job's page the overlay names the
   form's link and fills nothing; batch apply opens the form itself
   (`formFor`: `formUrl`, then the engine's `greenhouseForm`). A hosted
@@ -226,6 +226,23 @@ builds it: `dist/engine.js` is committed in the engine repo.
   iframe (`iframe[src*="greenhouse.io/embed/job_app"]`), the overlay names
   that iframe's link instead of "can't fill this job system yet"
   (`content-script.js`).
+- **TikTok's form is behind the site's own sign-in, the student's
+  (KAN-369).** TikTok and ByteDance share one form and the engine's
+  `"tiktok"` Filler (`lifeattiktok.com`, `careers.tiktok.com`,
+  `jobs.bytedance.com`, `joinbytedance.com`); a posting's form
+  (`/resume/<id>/apply`) sends a signed-out student to
+  `/login?redirect_path=...`. WorkIt never signs in there and never types
+  an email or password: on the sign-in (`engine.js`'s `signInFirst`, or the
+  engine's `readQuestions` throwing `Handoff` on a page with a password
+  box) `planFill` answers `signIn`, the engine's line, and the panel shows
+  "Sign in to TikTok, then press Fill" (ByteDance on its hosts) and fills
+  nothing. A batch tab on it is injected at once (`startFill`, no form
+  wait, no second opening) and needs the student; the background remembers
+  the tab (`background.js`'s `SIGN_IN_TABS_KEY`) and fills it once it
+  reaches the form, as a new page or the site's own move in the page.
+  `test/tiktok.extension.spec.ts` serves the engine's rebuilt form fixture
+  behind a made-up sign-in. The form was never seen signed in (the engine's
+  `test/fixtures/forms/tiktok-README.md` lists what needs a live check).
 - **The profile adapter gives only what WorkIt holds.** Name, email,
   phone, home, links, the default resume, the transcript, the latest school and the jobs from the
   bank, and the nine autofill answers, in the words the engine's rules
@@ -246,16 +263,17 @@ builds it: `dist/engine.js` is committed in the engine repo.
   a role abroad a Screener. The engine's own rules decide everything else; change a rule in
   the engine repo, not here.
 - **Only job systems the engine covers are filled.** `engine.js`'s `jobOf`
-  names them (Greenhouse, Lever, Ashby, Rippling, Workable, Eightfold and
-  Workday). On any other page the overlay says
+  names them (Greenhouse, Lever, Ashby, Rippling, Workable, Eightfold,
+  Workday and TikTok/ByteDance). On any other page the overlay says
   WorkIt can't fill this job system yet and nothing is touched: there is
   no generic filler any more (the old label-matching one filled most forms
   wrong, and was deleted with its Greenhouse adapter in KAN-340).
-  A closed job on a system it covers is told apart (`closedPosting` in
-  content-script.js): Greenhouse sends it to its board with `?error=true`,
+  A closed job on a system it covers is told apart (`closedPosting`, in
+  closed-posting.js): Greenhouse sends it to its board with `?error=true`,
   Workable to the account with `?not_found=true`, others say so on the
-  page ("no longer accepting applications"); the overlay then says This
-  job is closed instead.
+  page ("no longer accepting applications"; TikTok's and ByteDance's "404
+  Page not found", where the engine's `NoForm` or the posting's link is
+  checked too); the overlay then says This job is closed instead.
 - **Tests**: `test/extension.ts` runs the fill as Chrome does, minus
   Chrome: `ENGINE_FILES` and `CONTENT_SCRIPT_FILES` evaluated in a saved
   form's page (served by the engine repo's own fakes and fixtures, through
@@ -926,8 +944,9 @@ waits for an opened tab's page and form (`waitForLoad`, `formShows`).
   title and favicon need `tabs`). Injecting the fill does: `activeTab`
   doesn't cover a tab the batch opened, so `host_permissions` lists each
   hiring system auto apply takes, the same hosts as
-  `backend/app/auto_apply/hosts.py` (all seven job systems the engine
-  fills, KAN-370). A host added there
+  `backend/app/auto_apply/hosts.py` (all eight job systems the engine
+  fills, KAN-370; TikTok's by its exact careers hosts, never all of
+  tiktok.com or bytedance.com). A host added there
   is added to `manifest.json` in the same change, or its fills answer
   `not_allowed`. After pulling a manifest change, reload the unpacked
   extension in `chrome://extensions`. The background also fetches their

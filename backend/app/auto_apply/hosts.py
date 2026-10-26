@@ -26,6 +26,13 @@ AUTO_APPLY_HOSTS = (
     "myworkdaysite.com",
     # Oracle Recruiting Cloud's candidate experience (the engine's oracle.ts).
     "oraclecloud.com",
+    # TikTok and ByteDance's careers sites: one form, behind the site's own
+    # sign-in, which the student goes through (the extension never signs in).
+    # Only these hosts, never the rest of tiktok.com or bytedance.com.
+    "lifeattiktok.com",
+    "careers.tiktok.com",
+    "jobs.bytedance.com",
+    "joinbytedance.com",
 )
 
 # Company careers sites whose embedded Greenhouse form doesn't fill in place

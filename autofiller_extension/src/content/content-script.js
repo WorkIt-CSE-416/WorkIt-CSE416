@@ -121,6 +121,13 @@
       if (!prepared.ok && stepped) {
         return { unplanned: prepared.status === 401 ? "Sign in from the extension popup first. " : "" };
       }
+      // On a covered job system's own page too: the engine finds no form there (TikTok's NoForm), or it is the posting's.
+      if ((!prepared.ok || !prepared.covered || prepared.openForm) && window.WIA.closedPosting()) {
+        note("_closed", "This job is closed", "It is no longer accepting applications, so there is nothing to fill. Pick another job.");
+        // A batch tab's job leaves the batch marked closed, its tab closes, and the next job opens (batch.js).
+        if (batch) send({ type: "batch/closed" }).catch(() => {});
+        return null;
+      }
       if (!prepared.ok) {
         note("_error", prepared.error || "Could not plan this application", prepared.status === 401 ? "Sign in from the extension popup first." : prepared.error, true);
         return null;
@@ -132,14 +139,16 @@
         note("_form", "This page shows the job, not its application", `Open the application form (${embedded.src}), then click Autofill again.`);
         return null;
       }
-      if (!prepared.covered && window.WIA.closedPosting()) {
-        note("_closed", "This job is closed", "It is no longer accepting applications, so there is nothing to fill. Pick another job.");
-        // A batch tab's job leaves the batch marked closed, its tab closes, and the next job opens (batch.js).
-        if (batch) send({ type: "batch/closed" }).catch(() => {});
+      if (!prepared.covered) {
+        note("_uncovered", "WorkIt can't fill this job system yet", "Nothing on this page was filled. WorkIt fills Greenhouse, Lever, Ashby, Rippling, Workable, Eightfold, Workday, Oracle and TikTok applications.");
         return null;
       }
-      if (!prepared.covered) {
-        note("_uncovered", "WorkIt can't fill this job system yet", "Nothing on this page was filled. WorkIt fills Greenhouse, Lever, Ashby, Rippling, Workable, Eightfold, Workday and Oracle applications.");
+      // TikTok's and ByteDance's form is behind the site's own sign-in, which is the student's: WorkIt
+      // never types an email or password there. Nothing is filled; the form fills once it shows (the
+      // background fills a tab that left the sign-in for its form) or the student presses Autofill.
+      if (prepared.signIn) {
+        const [line, ...rest] = prepared.signIn.split(/(?<=\.)\s+/);
+        note("_signin", line.replace(/\.$/, ""), `${rest.join(" ")} WorkIt fills the application once its form shows.`.trim());
         return null;
       }
       if (prepared.openForm) {

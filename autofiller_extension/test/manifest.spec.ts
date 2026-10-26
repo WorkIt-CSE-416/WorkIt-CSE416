@@ -25,10 +25,20 @@ for (const url of [
   // Netflix's Eightfold is on its own domain (live, 2026-10-24: the job's names and text failed to fetch).
   "https://explore.jobs.netflix.net/careers/apply?pid=790318904468",
   "https://nvidia.wd5.myworkdayjobs.com/en-US/University/job/NVIDIA-2027-Internships_JR2023495-1",
+  // TikTok and ByteDance: the posting, the form behind the site's sign-in, and the sign-in on the way to it.
+  "https://lifeattiktok.com/search/7693732178706974981",
+  "https://www.lifeattiktok.com/search/7693732178706974981",
+  "https://lifeattiktok.com/login?redirect_path=/resume/7693732178706974981/apply",
+  "https://careers.tiktok.com/resume/7693732178706974981/apply",
+  "https://jobs.bytedance.com/en/position/7678450462765254965/detail",
+  "https://joinbytedance.com/search/7678450462765254965",
 ]) {
-  test(`the manifest lets the extension reach ${new URL(url).hostname}`, () => {
+  test(`the manifest lets the extension reach ${url}`, () => {
     expect(jobOf(url), url).not.toBeNull();
     expect(manifest.host_permissions.some((p: string) => allows(p, url)), url).toBe(true);
+    // The panel's content scripts load there too, or the page has no panel to fill from.
+    const panel = manifest.content_scripts.find((c: { js: string[] }) => c.js.includes("src/content/panel.js"));
+    expect(panel.matches.some((p: string) => allows(p, url)), url).toBe(true);
   });
 }
 

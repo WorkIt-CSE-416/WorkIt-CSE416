@@ -9,9 +9,10 @@ window.WIA = window.WIA || {};
   "use strict";
 
   // Where a job system WorkIt fills sends a closed job (live, 2026-10-26): Greenhouse to its board with
-  // ?error=true, Workable to the account with ?not_found=true; others say so on the page.
-  const CLOSED_HOSTS = /(^|\.)(greenhouse\.io|workable\.com|lever\.co|ashbyhq\.com|rippling\.com|myworkdayjobs\.com|myworkdaysite\.com|eightfold\.ai|oraclecloud\.com)$/;
-  const CLOSED_WORDS = /no longer (accepting applications|open|available)|this (job|position|posting) (is|has been) (closed|filled)|job not found|couldn't find anything here/i;
+  // ?error=true, Workable to the account with ?not_found=true; others say so on the page (TikTok's and
+  // ByteDance's closed job is their "404 Page not found", the engine's NoForm there).
+  const CLOSED_HOSTS = /(^|\.)(greenhouse\.io|workable\.com|lever\.co|ashbyhq\.com|rippling\.com|myworkdayjobs\.com|myworkdaysite\.com|eightfold\.ai|oraclecloud\.com|lifeattiktok\.com|careers\.tiktok\.com|jobs\.bytedance\.com|joinbytedance\.com)$/;
+  const CLOSED_WORDS = /no longer (accepting applications|open|available)|this (job|position|posting) (is|has been) (closed|filled)|job not found|couldn't find anything here|404 page not found/i;
 
   window.WIA.closedPosting = function closedPosting() {
     if (!CLOSED_HOSTS.test(location.hostname)) return false;
