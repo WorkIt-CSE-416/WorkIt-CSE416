@@ -55,11 +55,15 @@ import { keepFitUndo, readFitUndo } from "./fit-undo";
 import { boxKey, kindLabel, loadPdfjs, PageSkeleton, PdfPages } from "./pdf-pages";
 import { PhoneEditor, usePhone } from "./phone";
 import {
+  cardsOf,
+  editKey,
+  linesOf,
   marksOf,
   reverted,
+  revertAll,
   revertOf,
-  revertsOf,
   type RevertTarget,
+  type SuggestionsApi,
   untouched,
   useTailorReview,
 } from "./tailor-review";
@@ -81,8 +85,10 @@ import { Tray } from "./tray";
  * On a phone-width screen the same state is laid out by `PhoneEditor`
  * (KAN-219, ./phone.tsx). The assistant (KAN-221, ./assistant.tsx) docks
  * beside the page, or opens in a sheet on a phone, and acts through the same
- * saves. After a Tailor run, each changed line is tinted and offers Revert on
- * hover; an edit of a changed item through `apply` drops that change.
+ * saves. On Tailor's page (`suggestions`), each change the run made is
+ * tinted and has a card in the Suggestions panel beside the page, in the
+ * assistant's column, to accept or reject; an edit of a changed item
+ * through `apply` drops that change.
  *
  * THE FIRST PDF STREAMS IN (KAN-368). The page starts the render and hands
  * it over unawaited (`initial`), since the LaTeX compile is the slowest read
@@ -164,8 +170,8 @@ export function Editor({
   initialBank,
   initialChoices,
   initialHeader,
-  onAsk,
   phoneBar,
+  suggestions,
 }: {
   resumeId: string;
   /** The first render, started by the page and not awaited. */
@@ -173,10 +179,11 @@ export function Editor({
   initialBank: Bank;
   initialChoices: Choices;
   initialHeader: Header;
-  /** Called as the student opens Ask Scout on a desktop, so a page that
-   *  narrows the editor can give the docked assistant its room (Tailor's
-   *  before and after). */
-  onAsk?: () => void;
+  /** Tailor's Suggestions panel, drawn from the run's record and the
+   *  editor's state (./tailor-review.tsx). Only Tailor's page passes it, so
+   *  only there are changes tinted: a mark with no card to act on would
+   *  mean nothing. */
+  suggestions?: (api: SuggestionsApi) => ReactNode;
   /** A row the phone layout's header shows under its buttons: the page's
    *  own controls, which the full-screen phone editor would cover. */
   phoneBar?: ReactNode;
@@ -235,6 +242,11 @@ export function Editor({
   const placed = useRef<string | null>(null);
   const phone = usePhone();
   const [asking, setAsking] = useState(false);
+  // The Suggestions card in focus (its lines outlined), the card of the
+  // marked line last clicked, and the phone's Suggestions sheet
+  const [focused, setFocused] = useState<string | null>(null);
+  const [active, setActive] = useState<string | null>(null);
+  const [suggestionsOpen, setSuggestionsOpen] = useState(false);
 
   /** Starts a request; the returned check stays true while it is the latest. */
   const begin = useCallback(() => {
@@ -553,9 +565,39 @@ export function Editor({
         <FirstRenderPane initial={initial} onLoad={adopt} onFail={fail} resumeId={resumeId} />
       </Suspense>
     );
-  const marks = review ? marksOf(review.edits, choices) : undefined;
-  const reverts = review ? revertsOf(review.edits, choices) : undefined;
-  const onRevert = (target: RevertTarget) => void apply(revertOf(target, choices), target);
+  // Tailor's review, on Tailor's page only (`suggestions`)
+  const reviewing = suggestions && review ? review : null;
+  const marks = reviewing ? marksOf(reviewing.edits, choices) : undefined;
+  const cards = reviewing ? cardsOf(reviewing.edits, choices) : undefined;
+  const focusedEdit = reviewing?.edits.find((edit) => editKey(edit) === focused);
+  const focus = focusedEdit ? linesOf(focusedEdit, choices) : undefined;
+  /** A click on a line selects it, and a marked one also brings its card up. */
+  const onLine = (key: string) => {
+    select(selected === key ? null : key);
+    const card = cards?.get(key);
+    if (card) setActive(card);
+  };
+  const panel =
+    reviewing &&
+    suggestions?.({
+      record: reviewing,
+      bank,
+      choices,
+      saving,
+      // Accept keeps the saved change and drops it from the record
+      accept: (edit) =>
+        setReview({ ...reviewing, edits: reviewing.edits.filter((e) => e !== edit) }),
+      reject: (edit) => void apply(revertOf({ edit }, choices), { edit }),
+      acceptAll: () => setReview({ ...reviewing, edits: [] }),
+      rejectAll: () => void apply(revertAll(reviewing.edits, choices)),
+      focused,
+      focus: setFocused,
+      show: (key) => {
+        setFocused(key);
+        setSuggestionsOpen(false);
+      },
+      active,
+    });
 
   if (phone) {
     const start = line && startText(line);
@@ -569,12 +611,11 @@ export function Editor({
               pdf={pdf.pdf}
               boxes={pdf.boxes}
               selected={selected}
-              onSelect={(key) => select(selected === key ? null : key)}
+              onSelect={onLine}
               onDrawn={drawn}
               placeholder={<PageSkeleton />}
               marks={marks}
-              reverts={reverts}
-              onRevert={onRevert}
+              focus={focus}
             />
           ))}
           bank={bank}
@@ -589,6 +630,14 @@ export function Editor({
           fitUndo={fitUndo}
           download={download}
           bar={phoneBar}
+          suggestions={
+            reviewing && {
+              count: reviewing.edits.length,
+              panel,
+              open: suggestionsOpen,
+              onOpenChange: setSuggestionsOpen,
+            }
+          }
           actions={
             line && (
               <LineActions
@@ -621,6 +670,7 @@ export function Editor({
       className={cn(
         "mt-4 grid items-start gap-5",
         asking && "@4xl/main:grid-cols-[minmax(0,1fr)_22rem]",
+        panel && !asking && "@4xl/main:grid-cols-[minmax(0,1fr)_22.5rem]",
       )}
     >
       <div className="flex min-w-0 flex-col gap-4">
@@ -641,14 +691,7 @@ export function Editor({
           onClose={() => select(null)}
           onFit={fit}
           onUndoFit={undoFit}
-          onAsk={
-            asking
-              ? undefined
-              : () => {
-                  setAsking(true);
-                  onAsk?.();
-                }
-          }
+          onAsk={asking ? undefined : () => setAsking(true)}
         />
         {error && (
           <p role="alert" className="text-note text-danger">
@@ -669,13 +712,12 @@ export function Editor({
               pdf={pdf.pdf}
               boxes={pdf.boxes}
               selected={selected}
-              onSelect={(key) => select(selected === key ? null : key)}
+              onSelect={onLine}
               field={field}
               onDrawn={drawn}
               placeholder={<PageSkeleton />}
               marks={marks}
-              reverts={reverts}
-              onRevert={onRevert}
+              focus={focus}
             />
           ))}
         </div>
@@ -692,6 +734,19 @@ export function Editor({
       >
         {assistant(() => setAsking(false), "animate-rise h-full")}
       </div>
+      {/* Tailor's suggestions share the assistant's column and give way to
+          it while it is open. Above the page on a narrow screen. */}
+      {panel && !asking && (
+        <div
+          data-keeps-selection
+          className={cn(
+            "max-h-scroll-box -order-1 overflow-y-auto overscroll-contain",
+            "@4xl/main:sticky @4xl/main:top-2 @4xl/main:order-none @4xl/main:max-h-[calc(100dvh-8rem)]",
+          )}
+        >
+          {panel}
+        </div>
+      )}
       {fitToast}
     </div>
   );

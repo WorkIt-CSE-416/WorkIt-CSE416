@@ -1745,18 +1745,20 @@ with no proposals to accept and no Done (2026-10-25).
   changes and its dropped count go to sessionStorage (`tailorEditsKey` in
   `lib/local-drafts.ts`, cleared by Sign Out) for the editor's review
   (Resume editor, below), with the keyword match before and after
-  (`MatchShift`). The tailored resume's page shows that over the editor
+  (`MatchShift`). Like the marks, it lives in that tab only.
+- **The review is one resume with a Suggestions panel**
+  (`tailor-suggestions.tsx`, `../../docs/tailor_resume.md`,
+  "Suggestions"): the editor on the left and, on the right, a 360px panel
+  that sticks and scrolls on its own. Its top holds the keyword match
   ("Keyword Match 3 of 14 → 9 of 14" and each keyword the run added,
-  `tailor-score.tsx`); the run's before and after matches were not shown
-  anywhere before. Like the marks, it lives in that tab only.
-- **The review is a before and after** (`tailor-compare.tsx`,
-  `../../docs/tailor_resume.md`, "Before and after"): the resume the run
-  tailored, read only, beside the editor, both in the page's one scroll.
-  Below 56rem, and on a phone in the phone editor's header, a Before /
-  After switch shows one at a time; on a desktop, Side by Side / After
-  Only, and Ask Scout switches to After Only. With no record (a new tab
-  or device) the editor shows alone, with a line saying the comparison
-  lives in the tab that ran Tailor.
+  `tailor-score.tsx`), the count, and Reject All and Accept All; under it
+  one card per change, each with Reject and Accept. Pointing at a card
+  outlines its lines; clicking a tinted line brings its card up. On a
+  phone the panel is a sheet opened by "Suggestions (n)". With no record
+  (a new tab or device) the editor shows alone, with a line saying the
+  suggestions live in the tab that ran Tailor. A before and after side by
+  side came first (2026-10-26) and was replaced the same day: two full
+  resumes and hover Revert controls showed too much at once.
 - An empty bank (409) shows a link to the bank page, where intake starts.
 
 ## Resumes (`/resumes`)
@@ -2033,22 +2035,21 @@ student who opened a resume from Experiences landed on another view.
   no count: a green "1 page" said what the page itself shows, and stood
   apart from the rest of the bar. Undo is kept in sessionStorage per resume
   (`fit-undo.ts`), so a reload in the same tab still offers it.
-  **After a Tailor run, Review Tailor's Changes sits under the bar**
-  (`tailor-review.tsx`, `../../docs/tailor_resume.md`): each change the run
-  saved, with Revert, and Save, which ends the review. Changed lines are
-  tinted on the page, see-through so the PDF's text shows: a new wording
-  or an added skill green (`positive`), an entry's bullets in a new order
-  amber (`warning-fill`). Revert goes through the choices PATCH (the
-  wording back to the source's, the old order, the skill hidden), and any
-  later edit of a changed item through it drops that change's mark. The
-  card says how many wordings the truth rule left out. The run's record is
-  in sessionStorage (`tailorEditsKey`, under `lib/local-drafts.ts`'s
-  prefix, so Sign Out clears it): a reload in the same tab keeps the
-  review, and a new tab or device opens with none. The phone editor shows
-  the same card above the page and the same tints. Two props serve a page
-  that narrows the editor (Tailor's before and after): `onAsk`, called as
-  Ask Scout opens on a desktop, and `phoneBar`, a row the phone layout's
-  header shows, since that layout covers the page. The bar also
+  **On Tailor's review step the editor takes a Suggestions panel**
+  (`suggestions`, a render prop; `tailor-review.tsx`,
+  `../../docs/tailor_resume.md`, "Suggestions"). Only then are the run's
+  changes tinted on the page, see-through so the PDF's text shows: a new
+  wording or an added skill green (`positive`), an entry's bullets in a
+  new order amber (`warning-fill`). The panel sits in the Ask Scout
+  column and gives way to the assistant while it is open; on a phone it
+  is a sheet from the bottom bar. Reject goes through the choices PATCH
+  (the wording back to the source's, the old order, the skill hidden),
+  and any later edit of a changed item drops that change's mark. The
+  run's record is in sessionStorage (`tailorEditsKey`, under
+  `lib/local-drafts.ts`'s prefix, so Sign Out clears it): a reload in the
+  same tab keeps it, and a new tab or device opens with none. `phoneBar`
+  is a row the phone layout's header shows, for the page's own line,
+  since that layout covers the page. The bar also
   says "Saving…" or the last round trip ("Saved, 412 ms"), the measure for
   the Vercel preview check. **Download** (PDF or Word) and Ask Scout end
   the bar whether or not a line is selected, so Download stays in reach down

@@ -1,16 +1,13 @@
 "use client";
 
-import { ArrowUUpLeftIcon } from "@phosphor-icons/react/ssr";
 import type { PDFDocumentProxy, RenderTask } from "pdfjs-dist";
 import { useEffect, useRef, useState, type ReactNode } from "react";
 
 import { Skeleton } from "@/components/shadcn/skeleton";
-import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/shadcn/tooltip";
-import { Button } from "@/components/ui/button";
 import type { RenderBox } from "@/lib/built-resume-actions";
 import { cn } from "@/lib/cn";
 
-import type { Mark, RevertTarget } from "./tailor-review";
+import type { Mark } from "./tailor-review";
 
 /**
  * The rendered PDF drawn with pdf.js, one canvas per page, with a click
@@ -22,7 +19,8 @@ import type { Mark, RevertTarget } from "./tailor-review";
  * `field` draws the selected line's text field over its first box (KAN-218);
  * each page is a size container, so the field's type can be set in `cqw` to
  * match the PDF's at any width. `marks` tints Tailor's changed lines and
- * `reverts` gives each change an inline action (./tailor-review.tsx).
+ * `focus` outlines the lines of the Suggestions card in focus, bringing
+ * the first into view (./tailor-review.tsx).
  */
 
 const MARK_TINT: Record<Mark, string> = {
@@ -123,8 +121,7 @@ export function PdfPages({
   field,
   placeholder,
   marks,
-  reverts,
-  onRevert,
+  focus,
 }: {
   /** base64, as the render response sends it */
   pdf: string;
@@ -140,9 +137,8 @@ export function PdfPages({
   placeholder?: ReactNode;
   /** Tailor's changed lines, by box key, while their changes are untouched. */
   marks?: Map<string, Mark>;
-  /** Tailor changes that can be reverted from their line. */
-  reverts?: Map<string, RevertTarget>;
-  onRevert?: (target: RevertTarget) => void;
+  /** The lines of the Suggestions card in focus, by box key. */
+  focus?: string[];
 }) {
   const first = boxes.find((b) => boxKey(b) === selected);
   const typing = first && field?.(first);
@@ -153,6 +149,15 @@ export function PdfPages({
   useEffect(() => {
     drawn.current = onDrawn;
   });
+  // The focused card's first line comes into view, if it is not already
+  const frame = useRef<HTMLDivElement>(null);
+  const focusFirst = focus?.[0];
+  useEffect(() => {
+    if (!focusFirst) return;
+    frame.current
+      ?.querySelector(`[data-box="${CSS.escape(focusFirst)}"]`)
+      ?.scrollIntoView({ block: "nearest", behavior: "smooth" });
+  }, [focusFirst, doc]);
 
   useEffect(() => {
     let cancelled = false;
@@ -190,7 +195,7 @@ export function PdfPages({
   if (!doc) return placeholder ?? <p className="text-body text-ink-meta">Drawing the PDF…</p>;
 
   return (
-    <div className="flex flex-col gap-4">
+    <div ref={frame} className="flex flex-col gap-4">
       {doc.sizes.map((size, i) => (
         <div
           key={i}
@@ -210,71 +215,31 @@ export function PdfPages({
             .filter((box) => box.page === i + 1)
             .map((box) => {
               const key = boxKey(box);
-              const revert = reverts?.get(key);
               const mark = marks?.get(key);
-              // A reworded bullet (green) shows the wording it replaced on hover
-              const before =
-                mark === "changed" && revert?.edit.kind === "reword" ? revert.edit.before : null;
-              const target = {
-                type: "button" as const,
-                "aria-label": `${kindLabel(box.kind)}, page ${box.page}`,
-                "aria-pressed": selected === key,
-                onClick: () => onSelect(key),
-                className: cn(
-                  "absolute inset-0 rounded-[2px] outline-offset-1 transition-colors",
-                  !mark && "hover:bg-brand/5",
-                  mark && MARK_TINT[mark],
-                  "focus-visible:outline-brand focus-visible:outline-2",
-                  selected === key &&
-                    (mark ? "outline-brand outline-2" : "bg-brand/10 outline-brand outline-2"),
-                ),
-              };
+              const focused = focus?.includes(key);
               return (
-                <div
+                <button
                   key={`${key}.${box.page}`}
-                  className="group/marked absolute"
+                  type="button"
+                  data-box={key}
+                  aria-label={`${kindLabel(box.kind)}, page ${box.page}`}
+                  aria-pressed={selected === key}
+                  onClick={() => onSelect(key)}
+                  className={cn(
+                    "absolute rounded-[2px] outline-offset-1 transition-colors",
+                    !mark && "hover:bg-brand/5",
+                    mark && MARK_TINT[mark],
+                    "focus-visible:outline-brand focus-visible:outline-2",
+                    (selected === key || focused) && "outline-brand outline-2",
+                    selected === key && !mark && "bg-brand/10",
+                  )}
                   style={{
                     left: `${(box.x0 / size.width) * 100}%`,
                     top: `${(box.y0 / size.height) * 100}%`,
                     width: `${((box.x1 - box.x0) / size.width) * 100}%`,
                     height: `${((box.y1 - box.y0) / size.height) * 100}%`,
                   }}
-                >
-                  {before ? (
-                    <Tooltip>
-                      <TooltipTrigger {...target} />
-                      <TooltipContent
-                        side="right"
-                        sideOffset={8}
-                        className="block max-w-[min(20rem,calc(100vw-2rem))] text-left break-words whitespace-normal"
-                      >
-                        <span className="mb-0.5 block font-semibold">Before</span>
-                        {before}
-                      </TooltipContent>
-                    </Tooltip>
-                  ) : (
-                    <button {...target} />
-                  )}
-                  {/* No Revert while a line is open: a click on one would throw
-                      away what the student is typing, and a hover elsewhere
-                      would crowd the line being edited. */}
-                  {revert && onRevert && selected === null && (
-                    <Button
-                      variant="secondary"
-                      size="xs"
-                      aria-label={`Revert Tailor's change to ${kindLabel(box.kind).toLowerCase()}`}
-                      onClick={() => onRevert(revert)}
-                      className={cn(
-                        "absolute right-0 bottom-full z-10 opacity-0 transition-opacity",
-                        "pointer-events-none group-hover/marked:pointer-events-auto",
-                        "group-focus-within/marked:pointer-events-auto group-hover/marked:opacity-100",
-                        "group-focus-within/marked:opacity-100",
-                      )}
-                    >
-                      <ArrowUUpLeftIcon aria-hidden /> Revert
-                    </Button>
-                  )}
-                </div>
+                />
               );
             })}
           {first?.page === i + 1 && typing && (

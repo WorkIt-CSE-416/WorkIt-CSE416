@@ -104,6 +104,7 @@ export function PhoneEditor({
   fitUndo,
   download,
   bar,
+  suggestions,
   actions,
   assistant,
   onSelect,
@@ -134,8 +135,16 @@ export function PhoneEditor({
   fitUndo: ChoicesUpdate | null;
   /** The resume's downloads, the same as the desktop sticky bar's. */
   download: ResumeDownload;
-  /** The page's own row under the buttons (Tailor's Before and After). */
+  /** The page's own row under the buttons (Tailor's note when it has no
+   *  suggestions to show). */
   bar?: ReactNode;
+  /** Tailor's Suggestions panel, in a sheet opened from the bottom bar. */
+  suggestions?: {
+    count: number;
+    panel: ReactNode;
+    open: boolean;
+    onOpenChange: (open: boolean) => void;
+  } | null;
   /** The selected line's actions, the same as the desktop sticky bar's. */
   actions: ReactNode;
   /** The editor assistant (KAN-221), shown in a sheet when asked for. */
@@ -242,7 +251,10 @@ export function PhoneEditor({
 
       <div
         ref={scroller}
-        className={cn("min-h-0 flex-1 overflow-auto p-4", selected ? "pb-[70vh]" : "pb-24")}
+        className={cn(
+          "min-h-0 flex-1 overflow-auto p-4",
+          selected || suggestions?.open ? "pb-[70vh]" : suggestions ? "pb-36" : "pb-24",
+        )}
       >
         <div className={zoom ? "w-[200%]" : "w-full"}>{pages}</div>
       </div>
@@ -254,6 +266,18 @@ export function PhoneEditor({
             TAP,
           )}
         >
+          {suggestions && (
+            <Button
+              variant="secondary"
+              className="mb-2 w-full"
+              onClick={() => suggestions.onOpenChange(true)}
+            >
+              Suggestions{" "}
+              {suggestions.count > 0 && (
+                <span className="text-ink-meta">({suggestions.count})</span>
+              )}
+            </Button>
+          )}
           {/* Both wait for the first render: each acts through a new one. */}
           <div className="flex gap-2">
             <Button
@@ -343,6 +367,13 @@ export function PhoneEditor({
           {assistant}
         </Sheet>
       </div>
+
+      {/* No scrim, as a line's sheet: the outlined line shows above it */}
+      {suggestions?.open && !selected && (
+        <Sheet onClose={() => suggestions.onOpenChange(false)} title="Suggestions">
+          <div className={TAP}>{suggestions.panel}</div>
+        </Sheet>
+      )}
 
       {trayOpen && (
         <>
