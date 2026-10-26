@@ -108,9 +108,11 @@ builds it: `dist/engine.js` is committed in the engine repo.
   Save and Continue or Submit. A step that loads as a new page drops the
   content script, so the background remembers the tab
   (`workday_fill_tabs`, session storage) and injects the fill again when
-  it loads. Workday's nested prompts (its own How Did You Hear About Us?)
-  are slow to read, so each tenant's are kept in `chrome.storage.local`
-  (`workday_trees`), as Apply keeps them.
+  it loads. Workday's nested prompts are slow to read, so each tenant's
+  are kept in `chrome.storage.local` (`workday_trees`), as Apply keeps
+  them. Its own How Did You Hear About Us? is never read: the engine
+  searches it for each source in turn (WorkIt, LinkedIn, then the rest) and
+  takes the first found.
 - **A job's page is not always its form.** A Lever, Ashby, Rippling,
   Workable or Eightfold posting shows the job on one page and the form on
   another (`jobOf`'s `form`). On the job's page the overlay names the
@@ -135,8 +137,10 @@ builds it: `dist/engine.js` is committed in the engine repo.
   parse the location here. Anything else (pay, relocation, a home address, consent boxes,
   start dates) stays the student's: the Plan lists it as a Missing fact and
   the overlay says "WorkIt has no answer for this". `POLICIES` holds no
-  student's choice; "How did you hear?" is WorkIt, or the form's "Job
-  Board". `us_roles_only` is on, since WorkIt lists US roles only: a
+  student's choice; "How did you hear?" is WorkIt in a text box; a list
+  takes WorkIt, else LinkedIn in its own wording ("LinkedIn.com", "Job
+  Board > LinkedIn"), else the careers site or "Job Board" (`how_heard.first`,
+  tried before a brought `prefer`). `us_roles_only` is on, since WorkIt lists US roles only: a
   question about working abroad ("the right to work in the UK?") is No, and
   a role abroad a Screener. The engine's own rules decide everything else; change a rule in
   the engine repo, not here.

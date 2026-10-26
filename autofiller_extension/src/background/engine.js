@@ -119,12 +119,13 @@ export function engineCaller(run) {
  * How WorkIt answers the questions no student fact covers. Nothing here is a
  * student's choice made for them: pay, defense roles, consent boxes and
  * cover letters stay the student's to answer. "How did you hear about this
- * job?" is WorkIt (a free-text box) or the form's own "Job Board" (a list),
- * as the extension answered it before the engine. WorkIt lists US roles
+ * job?" is WorkIt (a free-text box); a list takes WorkIt, else LinkedIn, in
+ * whatever wording it gives them, before the careers site and "Job Board"
+ * (Workday's prompt is searched for each in turn). WorkIt lists US roles
  * only, so a question about working abroad is No (us_roles_only).
  */
 export const POLICIES = {
-  how_heard: { prefer: ["job board", "other"], text: "WorkIt" },
+  how_heard: { first: ["WorkIt", "LinkedIn"], prefer: ["job board", "other"], text: "WorkIt" },
   marketing_opt_in: false,
   sms_opt_in: false,
   high_stakes_job_systems: [],

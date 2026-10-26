@@ -68,8 +68,8 @@ test("brought policies reach the Plan over WorkIt's own", async () => {
   // cover_letter "always": the optional Cover Letter is written too.
   expect(await essays(STUDENT)).not.toContain("Cover Letter");
   expect(await essays(BROUGHT)).toContain("Cover Letter");
-  // The student's brought policy wins where both say.
-  expect(enginePolicies(BROUGHT).how_heard).toEqual({ prefer: ["careers page"], text: "Careers page" });
+  // The student's brought policy wins where both say; WorkIt's own sources are still tried first.
+  expect(enginePolicies(BROUGHT).how_heard).toEqual({ first: ["WorkIt", "LinkedIn"], prefer: ["careers page"], text: "Careers page" });
   expect(enginePolicies(STUDENT).cover_letter).toBeUndefined();
 });
 
