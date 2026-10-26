@@ -172,7 +172,12 @@ builds it: `dist/engine.js` is committed in the engine repo.
   (`workday_fill_tabs`, session storage) and injects the fill again when
   it loads. Workday's nested prompts are slow to read, so each tenant's
   are kept in `chrome.storage.local` (`workday_trees`), as Apply keeps
-  them. Its own How Did You Hear About Us? is never read: the engine
+  them, and so are its dropdowns' choices (trees marked `list`): the next
+  fill on that tenant reads a dropdown from them without opening it, and
+  the engine checks them when it fills it (a choice gone since re-plans the
+  field with what shows). Tests: `test/workday-lists.extension.spec.ts`;
+  `test/speed.extension.spec.ts` times each fake step (`workday`,
+  `workday-2` to `workday-5`). Its own How Did You Hear About Us? is never read: the engine
   searches it for each source in turn (WorkIt, LinkedIn, then the rest) and
   takes the first found.
   `test/workday-steps.extension.spec.ts` walks a whole application (Apply's
