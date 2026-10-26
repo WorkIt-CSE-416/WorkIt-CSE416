@@ -1503,7 +1503,9 @@ walk). One purple button, then a line, then Fill Again:
   on to the next tab). Tests press it with `globalThis.workitCommand`
   (`pressNextThing` in test/loaded-extension.ts).
 - Under the button: "Required 12 of 14 filled · 3 need you" (lib-status's
-  required counts; "need you" is the same count as Next Thing's).
+  required counts; "need you" is the Autofill tab's Needs you group's count,
+  groups.js `groupOf`, so the two always agree: Check these' guesses are
+  not in it, though Next Thing's count, which walks them too, is).
 - **Fill Again** (white) asks once inline, "This replaces what you changed
   on this page.", with Fill Again and Cancel; Cancel changes nothing.
 - Outside a batch the fill now reads back the student's edits too
