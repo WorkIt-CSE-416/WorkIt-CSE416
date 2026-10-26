@@ -8,7 +8,11 @@
 // This file owns only the frame. What goes in it plugs into its slots
 // (`slot(name)`, autofiller_extension/CLAUDE.md "The panel's shell"):
 // "header-actions", "batch-line", "job-card", "primary", the tabs
-// (`addTab`; "autofill" holds overlay.js's rows and cards) and "settings".
+// (`addTab`; "autofill" holds overlay.js's rows and cards) and "settings",
+// and into the header's ⋯ menu (`menuItem`, KAN-369 Q4). The frame, top to
+// bottom: the header (WorkIt, ⋯, Close), the job (batch line, job card) and
+// the tabs, fixed (Q6); the tab's body, which scrolls; and the primary slot,
+// fixed at the bottom (Q5).
 // Loaded by launcher.js's static content script on job pages and by every
 // fill (content-scripts.js), in the same isolated world: the first copy
 // makes the shell and later ones keep it.
@@ -50,8 +54,20 @@ window.WIA = window.WIA || {};
     }
     .header button:hover { background: var(--color-hover); }
     .header button:focus-visible { outline: 2px solid var(--color-brand); outline-offset: 1px; }
-    .header button[data-collapse], .header button[data-settings], .header button[data-report] { font-size: var(--text-body); padding: 2px 8px; }
+    .header button[data-collapse], .header button[data-more-menu] { font-size: var(--text-body); padding: 2px 8px; }
+    .header button[aria-expanded="true"] { background: var(--color-hover); }
+    .top { flex: none; display: flex; flex-direction: column; gap: 8px; padding: 8px 8px 0; }
     .scroll { flex: 1; min-height: 0; overflow-y: auto; display: flex; flex-direction: column; gap: 8px; padding: 8px; }
+    .bottom { flex: none; padding: 8px; background: var(--color-panel); border-top: 1px solid var(--color-border); }
+    .bottom:has(> [data-slot="primary"]:empty) { display: none; }
+    .panel-menu {
+      position: absolute; top: 44px; right: 8px; z-index: 1; display: flex; flex-direction: column; min-width: 200px; padding: 4px;
+      background: var(--color-panel); border: 1px solid var(--color-border); border-radius: var(--radius-card); box-shadow: var(--shadow-lift);
+    }
+    .panel-menu[hidden] { display: none; }
+    .panel-menu button { all: unset; cursor: pointer; padding: 8px 10px; font-size: var(--text-note); color: var(--color-ink); border-radius: var(--radius-control); }
+    .panel-menu button:hover { background: var(--color-hover); }
+    .panel-menu button:focus-visible { outline: 2px solid var(--color-brand); outline-offset: -2px; }
     .card { background: var(--color-panel); border: 1px solid var(--color-border); border-radius: var(--radius-card); }
     [data-slot="batch-line"] { padding: 6px 10px; font-size: var(--text-note); color: var(--color-ink-meta); }
     [data-slot="job-card"] { padding: 12px; }
@@ -140,16 +156,17 @@ window.WIA = window.WIA || {};
         <span class="brand">${LOGO}<span aria-hidden="true">WorkIt</span></span>
         <span class="header-actions">
           <span data-slot="header-actions"></span>
-          <button type="button" data-report aria-label="Report a problem" title="Report a problem">⚑</button>
-          <button type="button" data-settings aria-label="Settings" title="Settings">⚙</button>
-          <button type="button" data-collapse data-close aria-label="Collapse" title="Collapse">›</button>
+          <button type="button" data-more-menu aria-label="More" aria-haspopup="menu" aria-expanded="false" title="More">⋯</button>
+          <button type="button" data-collapse data-close aria-label="Close" title="Close (Alt+W opens it again)">×</button>
         </span>
       </div>
-      <div class="scroll">
+      <div class="panel-menu" role="menu" aria-label="More" hidden></div>
+      <div class="top">
         <div class="card" data-slot="batch-line" hidden></div>
         <div class="card" data-slot="job-card" hidden></div>
-        <div data-slot="primary"></div>
         <div class="tabs" role="tablist" hidden></div>
+      </div>
+      <div class="scroll">
         <div data-tabs></div>
         <div class="card" data-slot="settings" hidden>
           <h2>Settings</h2>
@@ -158,15 +175,11 @@ window.WIA = window.WIA || {};
         </div>
         <div class="card" data-slot="report" hidden></div>
       </div>
+      <div class="bottom"><div data-slot="primary"></div></div>
     `;
     panel.querySelector("[data-collapse]").addEventListener("click", () => collapse());
-    panel.querySelector("[data-settings]").addEventListener("click", () => showSettings(panel.querySelector('[data-slot="settings"]').hidden));
     for (const back of panel.querySelectorAll("[data-back]")) back.addEventListener("click", () => showSettings(false));
-    // Report a problem (report.js, KAN-403) fills the report slot; a second press closes it.
-    panel.querySelector("[data-report]").addEventListener("click", () => {
-      if (!panel.querySelector('[data-slot="report"]').hidden) showView("report", false);
-      else window.WIA.reportCard?.open();
-    });
+    menuParts(panel);
     // The extension's own settings page (src/options/): the password is never typed into the employer's page.
     panel.querySelector("[data-signup]").addEventListener("click", () => send({ type: "workday/signup-open" }));
 
@@ -211,6 +224,75 @@ window.WIA = window.WIA || {};
     loadFont().catch(() => {});
     for (const hook of builtHooks.splice(0)) hook();
   }
+
+  // The ⋯ menu's items (menuItem): id → { label, onPress, order }, drawn by order.
+  const items = new Map();
+  let menu = null;
+  let more = null;
+
+  /** The header's ⋯ and its menu: Report a problem and Settings are the shell's own; the fill adds the rest. */
+  function menuParts(panel) {
+    more = panel.querySelector("[data-more-menu]");
+    menu = panel.querySelector(".panel-menu");
+    more.addEventListener("click", () => showMenu(menu.hidden));
+    // Shut by Escape and by a press anywhere else in the panel.
+    panel.addEventListener("keydown", (event) => {
+      if (event.key !== "Escape" || menu.hidden) return;
+      showMenu(false);
+      more.focus();
+    });
+    panel.addEventListener("click", (event) => {
+      if (!menu.hidden && !menu.contains(event.target) && !more.contains(event.target)) showMenu(false);
+    });
+    // Report a problem (report.js, KAN-403) fills the report slot; a second press closes it.
+    menuItem("report", {
+      label: "Report a problem",
+      order: 40,
+      onPress: () => {
+        if (!panel.querySelector('[data-slot="report"]').hidden) showView("report", false);
+        else window.WIA.reportCard?.open();
+      },
+    });
+    menuItem("settings", { label: "Settings", order: 50, onPress: () => showSettings(panel.querySelector('[data-slot="settings"]').hidden) });
+  }
+
+  function showMenu(shown) {
+    menu.hidden = !shown;
+    more.setAttribute("aria-expanded", String(shown));
+    if (shown) menu.querySelector("button")?.focus();
+  }
+
+  /**
+   * Adds (or with null takes out) one item of the header's ⋯ menu (KAN-369
+   * Q4): `label`, `onPress(event)` and `order` (I submitted this 10, Skip
+   * 20, Fill Again 30, Report a problem 40, Settings 50). The item carries
+   * `data-<id>`; the menu shuts before `onPress` runs. A press that must be
+   * the student's own passes `onPress` through ui.trusted.
+   * @param {string} id
+   * @param {{ label: string, onPress: (event: MouseEvent) => void, order: number } | null} item
+   */
+  function menuItem(id, item) {
+    if (item) items.set(id, item);
+    else items.delete(id);
+    if (!menu) return;
+    menu.replaceChildren(
+      ...[...items].sort(([, a], [, b]) => a.order - b.order).map(([key, { label, onPress }]) => {
+        const button = Object.assign(document.createElement("button"), { type: "button", textContent: label });
+        button.setAttribute("role", "menuitem");
+        button.dataset[key.replace(/-(\w)/g, (_, c) => c.toUpperCase())] = "";
+        button.addEventListener("click", (event) => {
+          showMenu(false);
+          onPress(event);
+        });
+        return button;
+      }),
+    );
+  }
+
+  // Who wants to know when a view (settings, report) shows or goes (onView).
+  const viewHooks = [];
+  /** Runs `hook(name, shown)` whenever showView shows or hides a view. */
+  const onView = (hook) => viewHooks.push(hook);
 
   // What waits for the shell to exist (onBuilt): the files that fill its slots.
   const builtHooks = [];
@@ -381,7 +463,9 @@ window.WIA = window.WIA || {};
     const button = Object.assign(document.createElement("button"), { type: "button", textContent: label });
     button.setAttribute("role", "tab");
     button.dataset.tab = id;
+    // A tab's press also leaves the settings or report view: the tabs stay on top in every view (KAN-369 Q6).
     button.addEventListener("click", () => {
+      if (root.querySelector("[data-tabs]").hidden) showView(null, false);
       selectTab(id);
       keepTab(id);
     });
@@ -420,11 +504,11 @@ window.WIA = window.WIA || {};
     showView("settings", shown);
   }
 
-  /** A view in place of the tabs ("settings", "report"), or the tabs again (shown false). */
+  /** A view in place of the tab's body ("settings", "report"), or the tab again (shown false). The tab strip stays. */
   function showView(name, shown) {
     for (const view of ["settings", "report"]) root.querySelector(`[data-slot="${view}"]`).hidden = !(shown && view === name);
     root.querySelector("[data-tabs]").hidden = shown;
-    root.querySelector(".tabs").hidden = shown || tabs.length < 2;
+    for (const hook of viewHooks) hook(name, shown);
   }
 
   /**
@@ -505,7 +589,7 @@ window.WIA = window.WIA || {};
 
   const shell = {
     batch: false,
-    where, ensure, open, collapse, autoOpen, toggle, isOpen, showEdge, slot, addCss, addTab, selectTab, showSettings, showView, setPrimary, fillButton, startLabel, onBuilt,
+    where, ensure, open, collapse, autoOpen, toggle, isOpen, showEdge, slot, addCss, addTab, selectTab, showSettings, showView, setPrimary, fillButton, startLabel, onBuilt, menuItem, onView,
     get root() {
       return root;
     },

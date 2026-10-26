@@ -58,7 +58,7 @@ test("every field is listed with a spinner from the start, and after the fill re
   await expect(host.locator("[data-progress-said]")).toHaveText(/^Autofilling · \d+%$/, { timeout: 60_000 });
   await expect(host.locator("[data-progress]").getByRole("button", { name: "Cancel" })).toBeVisible();
   await shot(page, "anduril-filling");
-  await expect(mainButton(page)).toContainText("Next Thing", { timeout: 60_000 });
+  await expect(mainButton(page)).toContainText(/Next:|Review and submit/, { timeout: 60_000 });
   await shot(page, "anduril-after");
 
   const start = await atStart();
@@ -107,7 +107,7 @@ test("Work Experience and Education show as one row each, with a block per entry
   const host = hostOf(page);
   await expect(host.locator("[data-progress-said]")).toHaveText(/^Autofilling · \d+%$/, { timeout: 60_000 });
   await shot(page, "coinbase-filling");
-  await expect(mainButton(page)).toContainText("Next Thing", { timeout: 60_000 });
+  await expect(mainButton(page)).toContainText(/Next:|Review and submit/, { timeout: 60_000 });
 
   const work = host.locator('.entries[data-entries="Work Experience"]');
   await expect(work).toHaveCount(1);

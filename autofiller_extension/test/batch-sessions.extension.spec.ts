@@ -9,7 +9,7 @@ import { join } from "node:path";
 import { expect, test, type Page, type Worker } from "@playwright/test";
 import { FakeApi } from "./fake-api";
 import { FakeWorkdays, SavedForms } from "./fake-job-systems";
-import { loadExtension, sendFromWebapp, signIn, webapp, type Handler, type Loaded } from "./loaded-extension";
+import { loadExtension, sendFromWebapp, signIn, webapp, type Handler, type Loaded, menuItem } from "./loaded-extension";
 
 type Tab = { id: number; url?: string; group: string | null; autoDiscardable: boolean };
 
@@ -105,9 +105,10 @@ test("a batch Chrome closed mid-way picks up where it stopped, without filling i
 
 /** Presses the Skip button on the WorkIt panel in a batch tab's page, as the student does. */
 async function skip(page: Page): Promise<void> {
-  const button = page.locator("#workit-autofiller-overlay-host [data-skip]");
-  await button.waitFor({ timeout: 30_000 });
-  await button.click();
+  // Skip is the ⋯ menu's (KAN-369 Q4), there once the fill drew its panel.
+  const host = page.locator("#workit-autofiller-overlay-host");
+  await host.locator("[data-skip]").waitFor({ state: "attached", timeout: 30_000 });
+  await (await menuItem(host, "Skip")).click();
 }
 
 test("Skip marks the job skipped, closes its tab, and the batch goes on", async () => {

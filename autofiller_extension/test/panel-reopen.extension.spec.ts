@@ -54,7 +54,7 @@ test("after Collapse, the toolbar icon brings back the same rows without filling
   const plans = await countPlans();
   const rows = await panelOf(form).locator(".row").allTextContents();
 
-  await form.locator("#workit-autofiller-overlay-host").getByRole("button", { name: "Collapse" }).click();
+  await form.locator("#workit-autofiller-overlay-host").getByRole("button", { name: "Close" }).click();
   await expect(panelOf(form)).toBeHidden();
 
   await pressToolbar(form);
@@ -71,7 +71,7 @@ test("after Collapse, the edge tab left on the page brings the panel back", asyn
   const plans = await countPlans();
   const host = form.locator("#workit-autofiller-overlay-host");
 
-  await host.getByRole("button", { name: "Collapse" }).click();
+  await host.getByRole("button", { name: "Close" }).click();
   await host.getByRole("button", { name: "Show WorkIt panel" }).click();
 
   await expect(panelOf(form)).toBeVisible();

@@ -1,13 +1,14 @@
-// The panel's primary button (KAN-396): one big button whose words follow the
-// student's next action. Autofill This Page before a fill (Fill this step on a
-// Workday step outside a batch); Next Thing ("2 things need you") while
-// anything is open, which Alt+N presses too; Ready to submit once nothing is,
-// which scrolls to the employer's Submit and rings it, never pressing it.
-// Under it, "Required 12 of 14 filled · 3 need you". Fill Again asks once.
+// The panel's one button, at its bottom (KAN-396, KAN-369 Q5): its words
+// follow the student's next action. Autofill This Page before a fill (Fill
+// this step on a Workday step outside a batch); "Next: 3 need you" while
+// anything is red, which Alt+N presses too; Review and submit once nothing
+// is, which scrolls to the employer's Submit and rings it, never pressing it.
+// The count line "Required 12 of 14 filled · 3 need you" is the Autofill
+// tab's. Fill Again, in the ⋯ menu, asks once.
 import { expect, test, type Frame, type Page } from "@playwright/test";
 import { FakeApi } from "./fake-api";
 import { FakeWorkdays, SavedForms } from "./fake-job-systems";
-import { loadExtension, signIn, webapp, type Handler, type Loaded } from "./loaded-extension";
+import { loadExtension, menuItem, signIn, webapp, type Handler, type Loaded } from "./loaded-extension";
 
 const ANDURIL = "greenhouse-anduril";
 
@@ -18,7 +19,7 @@ type Where = Page | Frame;
 const hostOf = (page: Where) => page.locator("#workit-autofiller-overlay-host");
 const primaryOf = (page: Where) => hostOf(page).locator('[data-slot="primary"]');
 const mainButton = (page: Where) => primaryOf(page).locator(".primary-button").first();
-const requiredLine = (page: Where) => primaryOf(page).locator("[data-required]");
+const requiredLine = (page: Where) => hostOf(page).locator(".summary");
 
 async function start(handlers: Handler[]): Promise<void> {
   loaded = await loadExtension([new FakeApi().handler, webapp, ...handlers]);
@@ -32,7 +33,7 @@ async function filledOwnTab(forms: SavedForms): Promise<Page> {
   await hostOf(page).getByRole("button", { name: "Show WorkIt panel" }).click({ timeout: 15_000 });
   await expect(mainButton(page)).toHaveText("Autofill This Page");
   await mainButton(page).click();
-  await expect(mainButton(page)).toContainText("Next Thing", { timeout: 60_000 });
+  await expect(mainButton(page)).toContainText("Next:", { timeout: 60_000 });
   return page;
 }
 
@@ -56,14 +57,14 @@ const pressCommand = (page: Page, command: string) =>
     [page.url(), command],
   );
 
-test("after a fill, Next Thing goes to what needs you, and the required line matches the form", async () => {
+test("after a fill, Next: N need you goes to what needs you, and the required line matches the form", async () => {
   test.setTimeout(120_000);
   const forms = new SavedForms([ANDURIL]);
   await start([forms.handler]);
   const page = await filledOwnTab(forms);
 
   const said = (await mainButton(page).innerText()).replace(/\s+/g, " ");
-  const open = Number(said.match(/(\d+) things? needs? you/)?.[1]);
+  const open = Number(said.match(/^Next: (\d+) need you$/)?.[1]);
   expect(open).toBeGreaterThan(0);
   const { total, filled } = await formCounts(page);
   expect(total).toBeGreaterThan(0);
@@ -91,13 +92,13 @@ test("Alt+N runs Next Thing, and Chrome binds it", async () => {
   expect(forms.submissions).toEqual([]);
 });
 
-test("with nothing open, Ready to submit scrolls to the employer's Submit and rings it, and sends nothing", async () => {
+test("with nothing red, Review and submit scrolls to the employer's Submit and rings it, and sends nothing", async () => {
   test.setTimeout(150_000);
   const forms = new SavedForms([ANDURIL]);
   await start([forms.handler]);
   const page = await filledOwnTab(forms);
   // The student answers whatever needs them: Next Thing shows each in turn, and they type or say it looks right.
-  for (let n = 0; n < 15 && !/Ready to submit/.test(await mainButton(page).innerText()); n++) {
+  for (let n = 0; n < 15 && !/Review and submit/.test(await mainButton(page).innerText()); n++) {
     await mainButton(page).click();
     const row = hostOf(page).locator("[data-current]");
     await expect(row).toHaveCount(1);
@@ -110,7 +111,7 @@ test("with nothing open, Ready to submit scrolls to the employer's Submit and ri
     }
     await page.waitForTimeout(300);
   }
-  await expect(mainButton(page)).toHaveText("Ready to submit");
+  await expect(mainButton(page)).toHaveText("Review and submit");
   await expect(requiredLine(page)).not.toContainText("need you");
 
   // From where the last answer left the page.
@@ -136,18 +137,18 @@ test("Fill Again asks once; Cancel leaves the page as it is", async () => {
   const page = await filledOwnTab(forms);
   await page.locator("#first_name").fill("Changed");
 
-  await primaryOf(page).getByRole("button", { name: "Fill Again" }).click();
+  await (await menuItem(hostOf(page), "Fill Again")).click();
   await expect(primaryOf(page).getByText("This replaces what you changed on this page.")).toBeVisible();
   await primaryOf(page).getByRole("button", { name: "Cancel" }).click();
   await expect(primaryOf(page).locator("[data-confirm]")).toBeHidden();
   await page.waitForTimeout(2000);
   await expect(page.locator("#first_name")).toHaveValue("Changed");
 
-  await primaryOf(page).getByRole("button", { name: "Fill Again" }).click();
+  await (await menuItem(hostOf(page), "Fill Again")).click();
   await primaryOf(page).locator("[data-confirm]").getByRole("button", { name: "Fill Again" }).click();
   // Said yes: the form fills again, and the button comes back once it is done.
   await expect(mainButton(page)).toHaveText("Filling…");
-  await expect(mainButton(page)).toContainText("Next Thing", { timeout: 90_000 });
+  await expect(mainButton(page)).toContainText("Next:", { timeout: 90_000 });
   expect(forms.submissions).toEqual([]);
 });
 

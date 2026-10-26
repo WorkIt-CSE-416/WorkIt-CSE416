@@ -1,19 +1,20 @@
-// The panel's primary button after a fill (KAN-396), in the shell's
-// "primary" slot (panel.js). Its words follow the student's next action:
-// - Next Thing ("3 things need you", lib-status.js's one rule; "2 to check"
-//   once only guesses are left) while the walk has rows on the page
-//   (batch-tab.js's flagged: red first, then amber): in a batch tab the cross-tab walk
-//   (background next-needs-you.js), elsewhere this page's own rows in page
-//   order. Alt+N (the `next-thing` command, background.js) presses it.
-// - Ready to submit once nothing is: it scrolls to the employer's Submit (the
-//   submit warning's rule: a control whose words start with "Submit") and
-//   rings it (marks.js). It never presses it.
-// - On a Workday step that isn't the last, with nothing open: Go to Save and
+// The panel's one button after a fill (KAN-396, KAN-369 Q5), in the shell's
+// "primary" slot, fixed at the panel's bottom (panel.js). Its words follow
+// the student's next action:
+// - "Next: 3 need you" while anything is red (lib-status.js's one rule):
+//   Next Thing, the walk (batch-tab.js's flagged: red first, then amber): in
+//   a batch tab the cross-tab walk (background next-needs-you.js), elsewhere
+//   this page's own rows in page order. Alt+N (the `next-thing` command,
+//   background.js) runs the walk in every state, amber rows too.
+// - Review and submit once nothing is red: it scrolls to the employer's
+//   Submit (the submit warning's rule: a control whose words start with
+//   "Submit") and rings it (marks.js). It never presses it.
+// - On a Workday step that isn't the last, with nothing red: Go to Save and
 //   Continue, which rings Workday's own button; Fill to Review
 //   (workday-walk.js) is what presses it, and only when the student asks.
-// Under it: "Required 12 of 14 filled · 3 need you" (3: the same count, the
-// Autofill tab's Needs you group's, never its Check these guesses), then Fill Again
-// (secondary), which asks once inline before it fills again. Before a fill
+// The panel's one count line is the Autofill tab's (overlay.js). Fill Again
+// is the ⋯ menu's (panel.menuItem); it asks once, over this button, before
+// it fills again. Before a fill
 // the slot is panel.fillButton's (launcher.js): Autofill This Page, or Fill
 // this step on a Workday step outside a batch (panel.startLabel).
 // Loaded by every fill after the card files (shared/content-scripts.js), as
@@ -33,14 +34,7 @@ window.WIA = window.WIA || {};
   const { send } = window.WIA.ui;
 
   const STYLES = `
-    .primary-button .primary-sub { display: block; font-size: var(--text-note); font-weight: 500; opacity: 0.9; }
-    .primary-required { font-size: var(--text-note); color: var(--color-ink-meta); }
-    .primary-again {
-      all: unset; cursor: pointer; align-self: flex-start; padding: 4px 8px; font-size: var(--text-note); font-weight: 500;
-      color: var(--color-ink); border: 1px solid var(--color-border-subtle); border-radius: var(--radius-control); background: var(--color-panel);
-    }
-    .primary-again:hover { background: var(--color-hover); }
-    .primary-again:focus-visible, .primary-confirm button:focus-visible { outline: 2px solid var(--color-brand); outline-offset: 2px; }
+    .primary-confirm button:focus-visible { outline: 2px solid var(--color-brand); outline-offset: 2px; }
     .primary-confirm {
       display: flex; flex-direction: column; gap: 6px; padding: 10px; font-size: var(--text-note);
       background: var(--color-panel); border: 1px solid var(--color-border); border-radius: var(--radius-card);
@@ -61,21 +55,10 @@ window.WIA = window.WIA || {};
   // What the button does now: "next", "submit", "continue" or "filling".
   let action = null;
 
-  const plural = (n) => (n === 1 ? "1 thing needs you" : `${n} things need you`);
   const visible = (el) => el.checkVisibility?.() ?? Boolean(el.offsetParent);
 
-  /** How many rows need the student (lib-status.js's one rule, KAN-369 Q7): Next Thing's "N things need you" and the required line's "N need you". */
+  /** How many rows need the student (lib-status.js's one rule, KAN-369 Q7): the button's "Next: N need you" and the count line's. */
   const needsYou = () => window.WIA.status.needsYouCount();
-
-  /** How many rows Next Thing still goes to on this page (the walk's, batch-tab.js): those that need the student, then answers to check. 0 before it is set. */
-  function walkCount() {
-    if (window.WIA.phase === "filling") return 0;
-    try {
-      return window.WIA.walk?.flagged().keys.length ?? 0;
-    } catch {
-      return 0;
-    }
-  }
 
   /** The employer's Submit, as the submit warning finds it; never WorkIt's own panel. */
   function submitButton() {
@@ -137,22 +120,12 @@ window.WIA = window.WIA || {};
 
   function render() {
     if (!parts) return;
-    const summary = window.WIA.status.summary();
     const red = needsYou();
-    const open = walkCount();
     const filling = window.WIA.phase === "filling";
-    action = filling ? "filling" : open > 0 ? "next" : midWorkday() ? "continue" : "submit";
+    action = filling ? "filling" : red > 0 ? "next" : midWorkday() ? "continue" : "submit";
     const { button } = parts;
     button.disabled = filling;
-    if (action === "next") {
-      button.replaceChildren("Next Thing", Object.assign(document.createElement("span"), { className: "primary-sub", textContent: red > 0 ? plural(red) : `${open} to check` }));
-    } else {
-      button.textContent = { filling: "Filling…", continue: "Go to Save and Continue", submit: "Ready to submit" }[action];
-    }
-    parts.required.textContent =
-      summary.requiredTotal === 0
-        ? "No required fields found"
-        : `Required ${summary.requiredFilled} of ${summary.requiredTotal} filled` + (red > 0 ? ` · ${red} need you` : "");
+    button.textContent = action === "next" ? `Next: ${red} need you` : { filling: "Filling…", continue: "Go to Save and Continue", submit: "Review and submit" }[action];
   }
 
   /** Fill Again, after the student says yes to its one question: the fill again, in this frame (panel/fill). */
@@ -174,21 +147,22 @@ window.WIA = window.WIA || {};
     style = shell.addCss(STYLES);
     const made = shell.setPrimary({ label: "", onPress: () => void press() });
     made.said.dataset.said = "";
-    const required = Object.assign(document.createElement("div"), { className: "primary-required" });
-    required.dataset.required = "";
-    const again = Object.assign(document.createElement("button"), { type: "button", className: "primary-again", textContent: "Fill Again" });
     const confirm = Object.assign(document.createElement("div"), { className: "primary-confirm", hidden: true });
     confirm.dataset.confirm = "";
     confirm.innerHTML = `<div>This replaces what you changed on this page.</div><span><button type="button" data-yes>Fill Again</button><button type="button" data-no>Cancel</button></span>`;
-    again.addEventListener("click", window.WIA.ui.trusted(() => {
-      confirm.hidden = false;
-      confirm.querySelector("[data-no]").focus();
-    }));
+    shell.menuItem("again", {
+      label: "Fill Again",
+      order: 30,
+      onPress: window.WIA.ui.trusted(() => {
+        confirm.hidden = false;
+        confirm.querySelector("[data-no]").focus();
+      }),
+    });
     confirm.querySelector("[data-yes]").addEventListener("click", window.WIA.ui.trusted(() => void fillAgain()));
     confirm.querySelector("[data-no]").addEventListener("click", () => (confirm.hidden = true));
-    made.button.after(required);
-    shell.slot("primary").append(again, confirm);
-    parts = { ...made, required, confirm };
+    // The question sits over the button it would change.
+    made.button.before(confirm);
+    parts = { ...made, confirm };
     unsubscribe = window.WIA.status.subscribe(render);
     render();
   }
@@ -198,6 +172,7 @@ window.WIA = window.WIA || {};
     unsubscribe = null;
     style?.remove();
     style = null;
+    window.WIA.panel?.menuItem?.("again", null);
     parts = null;
     onNext = null;
   }

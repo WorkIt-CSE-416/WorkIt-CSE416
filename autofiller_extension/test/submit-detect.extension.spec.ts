@@ -8,7 +8,7 @@
 import { expect, test, type Page } from "@playwright/test";
 import { FakeApi } from "./fake-api";
 import { SavedForms, SavedWorkable } from "./fake-job-systems";
-import { loadExtension, sendFromWebapp, signIn, webapp, type Handler, type Loaded } from "./loaded-extension";
+import { loadExtension, sendFromWebapp, signIn, webapp, type Handler, type Loaded, menuItem } from "./loaded-extension";
 
 let loaded: Loaded;
 test.afterEach(() => loaded?.close());
@@ -101,7 +101,7 @@ test("the panel's I submitted this marks the application applied when no submit 
   await page.waitForTimeout(1_500);
   expect(api.calls.filter((c) => c.endsWith("/finish"))).toEqual([]);
 
-  await panel(page).locator("[data-submitted]").click();
+  await (await menuItem(panel(page), "I submitted this")).click();
 
   await expect.poll(() => api.stages.get("job-0"), { timeout: 15_000 }).toBe("applied");
   await expect(panel(page).getByText("WorkIt marked it Applied.")).toBeVisible();

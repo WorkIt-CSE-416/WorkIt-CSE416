@@ -40,7 +40,7 @@ test("the list, every count line, Next Thing and the page's dots agree on what n
   // Hidden, as a conditional question not asked yet.
   await page.evaluate(([box, id]) => ((0, eval)(box)(id).style.display = "none"), [BOX, HIDDEN]);
   await mainButton(page).click();
-  await expect(mainButton(page)).toContainText("Next Thing", { timeout: 60_000 });
+  await expect(mainButton(page)).toContainText("Next:", { timeout: 60_000 });
   // The asked question's box goes below the guess's, so page order alone would visit the guess first.
   await page.evaluate(([box, asked, guess]) => {
     const below = (0, eval)(box)(guess);
@@ -57,9 +57,8 @@ test("the list, every count line, Next Thing and the page's dots agree on what n
   await expect(host.locator(`[data-key="${HIDDEN}"]`)).toBeHidden();
 
   // Every count line says 1.
-  await expect(host.locator('[data-slot="primary"] [data-required]')).toContainText("· 1 need you");
   await expect(host.locator(".summary")).toContainText("· 1 need you");
-  await expect(mainButton(page)).toContainText("1 thing needs you");
+  await expect(mainButton(page)).toHaveText("Next: 1 need you");
 
   // Next Thing: the red row first, though the guess stands above it; a dot on its field.
   await mainButton(page).click();
@@ -87,7 +86,7 @@ test("in a batch tab, the walk goes to every red row before the guess, and the c
   await expect.poll(() => api.stages.get("job-0"), { timeout: 60_000 }).toBe("needs_you");
   const page = loaded.context.pages().find((p) => p.url() === forms.url(ANDURIL))!;
   const host = hostOf(page);
-  await expect(mainButton(page)).toContainText("Next Thing");
+  await expect(mainButton(page)).toContainText("Next:");
   // Both questions with no answer go below the guess.
   await page.evaluate(([box, guess, ...red]) => {
     const below = (0, eval)(box)(guess);
@@ -95,9 +94,8 @@ test("in a batch tab, the walk goes to every red row before the guess, and the c
   }, [BOX, GUESS, ASKED, HIDDEN]);
 
   await expect(host.locator('[data-tab="autofill"] .row[data-key][data-mark="needs-you"]')).toHaveCount(2);
-  await expect(host.locator('[data-slot="primary"] [data-required]')).toContainText("· 2 need you");
   await expect(host.locator(".summary")).toContainText("· 2 need you");
-  await expect(mainButton(page)).toContainText("2 things need you");
+  await expect(mainButton(page)).toHaveText("Next: 2 need you");
 
   const visited: (string | undefined)[] = [];
   for (let n = 0; n < 3; n++) {

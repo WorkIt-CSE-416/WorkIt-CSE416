@@ -286,9 +286,9 @@ window.WIA = window.WIA || {};
     root.querySelector(".parts").replaceChildren(...parts.map((part) => part.panel?.(summary)).filter(Boolean));
     root.querySelector(".summary").textContent =
       summary.requiredTotal === 0
-        ? "No required fields detected"
-        : `${summary.requiredFilled}/${summary.requiredTotal} required fields filled` +
-          (window.WIA.status.needsYouCount() > 0 ? ` · ${window.WIA.status.needsYouCount()} need you` : ""); // the one rule (lib-status.js)
+        ? "No required fields found"
+        : `Required ${summary.requiredFilled} of ${summary.requiredTotal} filled` +
+          (window.WIA.status.needsYouCount() > 0 ? ` · ${window.WIA.status.needsYouCount()} need you` : ""); // the one rule (lib-status.js); the panel's one count line (KAN-369 Q4)
     // Rows waiting for the student's Claude, apart: nothing for the student to fix yet (the walk visits them last).
     const onClaude = summary.fields.filter((r) => r.status === "needs_generation" && r.claude).length;
     if (onClaude) root.querySelector(".summary").textContent += ` · ${onClaude} waiting on Claude`;
@@ -492,13 +492,9 @@ window.WIA = window.WIA || {};
     if (!early) draw();
     early = false;
 
-    const actions = shell.slot("header-actions");
-    actions.innerHTML = `
-      ${onSubmitted ? '<button type="button" data-submitted title="You sent this application: mark it Applied">I submitted this</button>' : ""}
-      ${onSkip ? '<button type="button" data-skip title="Leave this job out of the batch">Skip</button>' : ""}
-    `;
-    actions.querySelector("[data-skip]")?.addEventListener("click", window.WIA.ui.trusted(onSkip));
-    actions.querySelector("[data-submitted]")?.addEventListener("click", (event) => event.isTrusted && onSubmitted());
+    // In the header's ⋯ menu (panel.menuItem, KAN-369 Q4).
+    if (onSubmitted) shell.menuItem("submitted", { label: "I submitted this", order: 10, onPress: window.WIA.ui.trusted(() => onSubmitted()) });
+    if (onSkip) shell.menuItem("skip", { label: "Skip", order: 20, onPress: window.WIA.ui.trusted(onSkip) });
 
     // The primary slot's button (primary.js, KAN-396): Next Thing, Ready to submit, and Fill Again under it.
     if (window.WIA.primary) window.WIA.primary.mount();
@@ -550,7 +546,8 @@ window.WIA = window.WIA || {};
     style = null;
     if (root) {
       window.WIA.panel.slot("tab:autofill")?.replaceChildren();
-      window.WIA.panel.slot("header-actions")?.replaceChildren();
+      window.WIA.panel.menuItem("submitted", null);
+      window.WIA.panel.menuItem("skip", null);
     }
     root = null;
     early = false;

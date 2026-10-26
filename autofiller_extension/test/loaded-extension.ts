@@ -202,17 +202,28 @@ export function sendFromWebapp(page: Page, message: unknown): Promise<any> {
 
 /**
  * The student's Next Thing (KAN-396) in the panel `host` (its
- * #workit-autofiller-overlay-host): the primary button while it reads Next
- * Thing, else Alt+N (a tab with nothing open shows Ready to submit; Alt+N
+ * #workit-autofiller-overlay-host): the bottom button while it reads "Next:
+ * N need you", else Alt+N (a tab with nothing red shows Review and submit; Alt+N
  * still runs the batch's walk from there). A test can't press an extension
  * command's keys, so Alt+N is the background's own handler.
  */
 export async function pressNextThing(loaded: Loaded, host: Locator): Promise<void> {
   const button = host.locator('[data-slot="primary"] .primary-button').first();
   for (let n = 0; n < 50 && /Filling/.test((await button.innerText({ timeout: 30_000 })) ?? ""); n++) await host.page().waitForTimeout(200);
-  if ((await button.innerText()).includes("Next Thing")) return button.click();
+  if (/^Next:/.test(await button.innerText())) return button.click();
   await loaded.worker.evaluate(async (url) => {
     const [tab] = await chrome.tabs.query({ url });
     await (globalThis as any).workitCommand("next-thing", tab);
   }, host.page().url());
+}
+
+/**
+ * One item of the panel's ⋯ menu (KAN-369 Q4: I submitted this, Skip, Fill
+ * Again, Report a problem, Settings) in the panel `host`: opens the menu
+ * when it is shut and resolves with the item, to click.
+ */
+export async function menuItem(host: Locator, name: string): Promise<Locator> {
+  const item = host.getByRole("menuitem", { name, exact: true });
+  if (!(await item.isVisible())) await host.locator(".header").getByRole("button", { name: "More" }).click();
+  return item;
 }

@@ -10,7 +10,7 @@ import { expect, test } from "@playwright/test";
 import { STUDENT } from "./extension";
 import { FakeApi } from "./fake-api";
 import { SavedForms } from "./fake-job-systems";
-import { loadExtension, sendFromWebapp, signIn, webapp, type Handler, type Loaded } from "./loaded-extension";
+import { loadExtension, sendFromWebapp, signIn, webapp, type Handler, type Loaded, menuItem } from "./loaded-extension";
 
 const ARC = "greenhouse-arc";
 const ARC_LINK = "https://job-boards.greenhouse.io/arcboatcompany/jobs/5442881008";
@@ -58,7 +58,7 @@ test("Report a problem previews exactly what is sent, sends it only on Send, and
   const host = form.locator("#workit-autofiller-overlay-host");
   await expect(host.locator('[data-key="first_name"] .row-card')).toBeVisible();
 
-  await host.getByRole("button", { name: "Report a problem" }).click();
+  await (await menuItem(host, "Report a problem")).click();
   const card = host.locator('[data-slot="report"]');
   const sent = card.locator(".report-sent");
   await expect(sent.locator('[data-part="job_system"]')).toHaveText("greenhouse");
