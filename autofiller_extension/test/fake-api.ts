@@ -28,6 +28,8 @@ const RESUME_ID = "00000000-0000-0000-0000-0000000000r1";
 export class FakeApi {
   /** Each queued job's stage, in queue order. */
   readonly stages = new Map<string, Stage>();
+  /** Each application's finish outcome as the extension sent it (POST .../finish), by job. */
+  readonly outcomes = new Map<string, string>();
   /** The resume each job's application names as sent (PUT .../resume), by job. */
   readonly sentResumes = new Map<string, Record<string, string>>();
   /** Every call, as "METHOD /path?query". */
@@ -312,7 +314,9 @@ export class FakeApi {
       const refused = this.refuseUnlessOpen(finish[1]);
       if (refused) return refused;
       const { outcome } = JSON.parse(body.toString());
-      const next: Stage = ({ submitted: "applied", skipped: "skipped", failed: "needs_you" } as const)[outcome as "submitted"];
+      this.outcomes.set(finish[1], outcome);
+      // closed (a batch tab found the job closed): skipped, as pipeline.py does, with its posting marked closed.
+      const next: Stage = ({ submitted: "applied", skipped: "skipped", failed: "needs_you", closed: "skipped" } as const)[outcome as "submitted"];
       this.stages.set(finish[1], next);
       return { json: { job_id: finish[1], stage: next } };
     }

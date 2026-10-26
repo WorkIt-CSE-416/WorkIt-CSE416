@@ -422,6 +422,15 @@ waits for an opened tab's page and form (`waitForLoad`, `formShows`).
   so the student can press it again. **Closing a tab is not Skip**: a
   window closed, or Chrome quitting, closes every tab, and the student may
   close a tab only to come back to the job later; it just leaves the batch.
+- **A closed job leaves by itself (KAN-369).** A batch tab whose job system
+  says the job is closed (`content/closed-posting.js`: Greenhouse's
+  `?error=true` board, Workable's `?not_found=true`, or "no longer
+  accepting applications" on a covered host) is skipped the way Skip is,
+  with the outcome `closed` (`closeClosedTab`): the API marks it skipped and
+  its scraped posting closed, so it is neither applied nor failed, its tab
+  closes and the next job opens. Two ways in: the fill's "This job is
+  closed" note sends `batch/closed`, and `startFill` asks the same check
+  when the page shows no form at all (Workable's closed page).
 - **One Workday application at a time (KAN-373).** A Workday application
   runs over many pages, each waiting on the student (sign-in, then Save
   and Continue), and Chrome throttles hidden tabs, so the batch holds one

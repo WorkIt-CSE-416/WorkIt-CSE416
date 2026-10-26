@@ -308,12 +308,24 @@ async function startFill(tabId, url, again = false) {
         await markCheck(tabId, false);
       }
     }
+    if (!found && !workday && (await closedPage(tabId))) return void (await closeClosedTab(tabId));
     if (!found && !workday) throw new Error("no_form");
     await injectFill(tabId, { batch: true });
   } catch (error) {
     console.warn("[batch] nothing was filled:", error.message);
     const url = (await chrome.tabs.get(tabId).catch(() => null))?.url ?? "";
     await setTabState(tabId, jobOf(url) ? "failed" : "needs_you");
+  }
+}
+
+/** Whether a tab's page is its job system saying the job is closed (content/closed-posting.js). */
+async function closedPage(tabId) {
+  try {
+    await chrome.scripting.executeScript({ target: { tabId }, files: ["src/content/closed-posting.js"] });
+    const [{ result }] = await chrome.scripting.executeScript({ target: { tabId }, func: () => window.WIA.closedPosting() });
+    return result === true;
+  } catch {
+    return false;
   }
 }
 
@@ -468,13 +480,29 @@ export function forgetTab(tabId, removeInfo = {}) {
  * @param {number} tabId
  */
 export function skipTab(tabId) {
+  return leave(tabId, "skipped");
+}
+
+/**
+ * A batch tab's job system says the job is closed (content-script.js, or
+ * startFill on a page with no form): the application finishes "closed"
+ * (skipped, its posting marked closed; KAN-369), its tab closes, and the
+ * next queued job opens, as after Skip.
+ * @param {number} tabId
+ */
+export function closeClosedTab(tabId) {
+  return leave(tabId, "closed");
+}
+
+/** The tab's application finishes with `outcome`, its tab closes and leaves the batch, and the batch tops up. */
+function leave(tabId, outcome) {
   return serially(async () => {
     const batch = await load();
     const tab = batch?.tabs[tabId];
     if (!tab) return { batch: false };
     // A practice job has no application at WorkIt: its tab just closes.
     const account = batch.practice ? null : await me();
-    if (account) await finishApplication(account.id, tab.jobId, "skipped");
+    if (account) await finishApplication(account.id, tab.jobId, outcome);
     delete batch.tabs[tabId];
     await save(batch);
     await chrome.tabs.remove(tabId).catch(() => {});
