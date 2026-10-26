@@ -48,6 +48,12 @@ test.afterEach(async () => {
   profiles.splice(0).forEach((p) => rmSync(p, { recursive: true, force: true }));
 });
 
+/** The first step's First Name: what its box shows, or once a batch tab saved the step (Fill to Review), what was saved. */
+async function firstName(page: Page, workdays: FakeWorkdays, n = 0): Promise<unknown> {
+  const box = page.locator("[data-automation-id=formField-legalName--firstName] input");
+  return workdays.saved(n)["legalName--firstName"] ?? ((await box.count()) ? box.inputValue() : "");
+}
+
 async function openWebapp(): Promise<Page> {
   const page = loaded!.context.pages()[0] ?? (await loaded!.context.newPage());
   await page.goto("http://localhost:3000/auto-apply");
@@ -144,19 +150,22 @@ test("Workday applications fill one at a time while other job systems fill besid
   await sendFromWebapp(await openWebapp(), { type: "run/open" });
   const urls = async () => (await tabs(loaded!.worker)).map((t) => t.url);
   const groupOf = async (url: string) => (await tabs(loaded!.worker)).find((t) => t.url === url)?.group;
+  // A Workday tab saves each filled step itself (Fill to Review), so it is found on any step of its application.
+  const steps = (n: number) => workdays.url(n).replace(/\d+$/, "");
+  const workdayGroup = async (n: number) => (await tabs(loaded!.worker)).find((t) => t.url.startsWith(steps(n)))?.group;
 
   // The first Workday application and both Greenhouse forms fill; the second Workday one waits for its slot.
   await expect.poll(() => groupOf(forms.url("greenhouse-purestorage")), { timeout: 60_000 }).toBe("Needs you");
   await expect.poll(() => groupOf(forms.url("greenhouse-arc")), { timeout: 60_000 }).toBe("Ready");
-  await expect.poll(() => groupOf(workdays.url(0)), { timeout: 60_000 }).toBe("Needs you");
-  const first = loaded.context.pages().find((p) => p.url() === workdays.url(0))!;
-  await expect.poll(() => first.locator("[data-automation-id=formField-legalName--firstName] input").inputValue(), { timeout: 30_000 }).toBe("Test");
-  expect(await urls()).not.toContain(workdays.url(1));
+  await expect.poll(() => workdayGroup(0), { timeout: 60_000 }).toBe("Needs you");
+  const first = loaded.context.pages().find((p) => p.url().startsWith(steps(0)))!;
+  await expect.poll(() => firstName(first, workdays), { timeout: 30_000 }).toBe("Test");
+  expect((await urls()).some((u) => u.startsWith(steps(1)))).toBe(false);
 
   // Once the first leaves the batch, the second takes the slot.
   await skip(first);
-  await expect.poll(() => groupOf(workdays.url(1)), { timeout: 60_000 }).toBe("Needs you");
-  expect(await urls()).not.toContain(workdays.url(0));
+  await expect.poll(() => workdayGroup(1), { timeout: 60_000 }).toBe("Needs you");
+  expect((await urls()).some((u) => u.startsWith(steps(0)))).toBe(false);
   expect(api.stages.get("wd-0")).toBe("skipped");
   expect([...forms.submissions, ...workdays.submissions]).toEqual([]);
 });
@@ -204,7 +213,8 @@ test("on Workday's sign-in, fills the student's email and a password of its own 
   // The student presses Create Account; once signed in, the fill goes on by itself.
   await box(caci, "click_filter").click();
   await caci.waitForURL(workdays.url(0));
-  await expect.poll(() => caci.locator("[data-automation-id=formField-legalName--firstName] input").inputValue(), { timeout: 30_000 }).toBe("Test");
+  // A batch tab saves the filled step itself (Fill to Review), so the name shows on the step or was saved from it.
+  await expect.poll(() => firstName(caci, workdays), { timeout: 30_000 }).toBe("Test");
   expect(workdays.signIns).toEqual([{ host: "caci.wd1.myworkdayjobs.com", view: "create", email: "test.person@example.com", password: caciPassword }]);
 
   // The next company opens on Sign In, with no login saved there: only the email is filled.
