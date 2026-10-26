@@ -50,3 +50,36 @@ Workable's and BambooHR's logos are read (`logos.md`); BambooHR's careers page
 carries its logo as JSON, served as `application/octet-stream`, which next/image
 accepts because it sniffs the bytes. Recruitee's sits inside a 1 MB board page for
 the one board we read, so its cards show initials.
+
+## Rippling (KAN-301)
+
+Added 2026-10-26. About 165 companies in the curated lists use it (268 apply links
+on `ats.rippling.com`). Its robots.txt disallows only `/internal/`.
+
+- **The API is what its careers page reads, not a documented one** (an accepted
+  risk, like Workday's): `GET /api/v2/board/{slug}/jobs?page=0&pageSize=1000` lists
+  a board, and `GET /api/v2/board/{slug}/jobs/{id}` is one job's record. The page's
+  own client caps `pageSize` at 1,000, so one request reads a board; one that
+  reports a second page is skipped as too large rather than read in part. The
+  largest of the 7 boards read on 2026-10-26 had 102 postings. A missing board is a
+  404.
+- **The list has a job once per office, under one id** (Kraken Robotics'
+  internships: Mount Pearl and Dartmouth), so rows are merged on it, as Workable's
+  are, and their places joined with "; ".
+- **Only the list states the work model** (`workplaceType`: `ON_SITE`, `REMOTE`,
+  `HYBRID`, per office), and only the record has the description, the date
+  (`createdOn`), the employment type and the pay. So the reader carries the list's
+  work model on `Job.work_style` to the record's read. The location is no
+  substitute: a remote office is often named only "NY" or "Chicago". Remote wins
+  over hybrid over on site across offices, as on Recruitee.
+- **The description comes in two parts**, `company` and `role`, each HTML. The
+  company's part goes first, as the page shows them, and often holds the title and
+  location lines too. `employmentType.id` is the readable one ("Salaried,
+  full-time"); `payRangeDetails` has a range per office with `currency` and
+  `frequency` ("YEAR"), and the card takes the widest when all share both.
+- **No logo**: the board's logo is a signed URL on `secured-assets.ripplingcdn.com`
+  with an `Expires` parameter, so a stored one would stop loading. Its cards show
+  initials.
+- A company's own board can redirect off Rippling (`rippling` itself goes to
+  rippling.com); `web.get` refuses the cross-origin redirect, so it reads as a
+  failed board.

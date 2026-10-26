@@ -343,6 +343,132 @@ class TestBambooHR:
         assert job.facts.pay == Pay("USD", 125_000, 150_000, "year")
 
 
+class TestRippling:
+    """Real responses from 2026-10-26, trimmed. Rippling's list states the work
+    model and its job's own record does not, so the list's is carried to the page."""
+
+    # Kraken Robotics lists one internship once per office, under one id.
+    KRAKEN = {
+        "items": [
+            {
+                "id": "cf84fc0e-616f-4c5a-8f44-1ba6ab761e87",
+                "name": "Internships Opportunities",
+                "url": "https://ats.rippling.com/kraken-robotics-inc/jobs/cf84fc0e-616f-4c5a-8f44-1ba6ab761e87",
+                "department": {"name": "People & Culture"},
+                "locations": [{"name": city, "workplaceType": "ON_SITE"}],
+            }
+            for city in ("Mount Pearl, Canada", "Dartmouth, Canada")
+        ],
+        "page": 0,
+        "pageSize": 1000,
+        "totalItems": 2,
+        "totalPages": 1,
+    }
+    # Tavern Research's Data Scientist I, from its own record.
+    TAVERN = {
+        "uuid": "1a3cfbeb-973a-4528-8fc6-43c04e179ea8",
+        "name": "Data Scientist I",
+        "description": {
+            "company": "<meta><p><b><strong>Data Scientist I</strong></b></p>"
+            "<p>Location: Chicago, IL</p><p><b><strong>About Tavern Research</strong></b></p>"
+            "<p>Tavern Research is a political tech startup building tools and insights.</p>",
+            "role": "<meta><p><b><strong>About You</strong></b></p>"
+            "<ul><li><span>You love rolling up your sleeves to wrestle messy data into shape."
+            "</span></li></ul>",
+        },
+        "workLocations": ["Chicago, IL"],
+        "employmentType": {"label": "SALARIED_FT", "id": "Salaried, full-time"},
+        "createdOn": "2026-01-19T07:59:15.209000-08:00",
+        "payRangeDetails": [
+            {
+                "location": "Chicago, IL",
+                "currency": "USD",
+                "frequency": "YEAR",
+                "rangeStart": 95500.0,
+                "rangeEnd": 113500.0,
+                "isRemote": False,
+            }
+        ],
+    }
+
+    def listed(self, work_style: str | None = "On site") -> Job:
+        return Job(
+            ats="rippling",
+            token="tavernresearch",
+            company="Tavern Research",
+            external_id="1a3cfbeb-973a-4528-8fc6-43c04e179ea8",
+            title="Data Scientist I",
+            apply_url="https://ats.rippling.com/tavernresearch/jobs/1a3cfbeb-973a-4528-8fc6-43c04e179ea8",
+            location="Chicago, IL",
+            work_style=work_style,
+        )
+
+    def test_one_job_in_two_offices_is_one_posting(self, monkeypatch) -> None:
+        asked = serve(monkeypatch, self.KRAKEN)
+        [job] = providers.rippling("kraken-robotics-inc", "Kraken Robotics")
+        assert asked == [
+            "https://ats.rippling.com/api/v2/board/kraken-robotics-inc/jobs?page=0&pageSize=1000"
+        ]
+        assert job.key == "rippling/kraken-robotics-inc#cf84fc0e-616f-4c5a-8f44-1ba6ab761e87"
+        assert job.location == "Mount Pearl, Canada; Dartmouth, Canada"
+        assert job.department == "People & Culture"
+        assert job.work_style == "On site"
+        # Its record is read once it is kept, like a Greenhouse posting's page.
+        assert (job.page, job.posted_at) == (None, None)
+
+    def test_a_job_remote_in_one_office_is_remote(self, monkeypatch) -> None:
+        # As on Recruitee: one that can be done remotely is what a remote filter wants.
+        rows = [dict(row) for row in self.KRAKEN["items"]]
+        rows[1]["locations"] = [{"name": "NY", "workplaceType": "REMOTE"}]
+        serve(monkeypatch, {**self.KRAKEN, "items": rows})
+        [job] = providers.rippling("kraken-robotics-inc", "Kraken Robotics")
+        assert job.work_style == "Remote"
+
+    def test_its_record_gives_text_date_type_and_pay(self, monkeypatch) -> None:
+        asked = serve(monkeypatch, self.TAVERN)
+        job = providers.describe(self.listed())
+        assert asked == [
+            "https://ats.rippling.com/api/v2/board/tavernresearch/jobs/1a3cfbeb-973a-4528-8fc6-43c04e179ea8"
+        ]
+        assert job.posted_at == "2026-01-19T15:59:15.209000+00:00"
+        facts = job.facts
+        assert (facts.work_style, facts.job_type) == ("On site", "full_time")
+        assert facts.pay == Pay("USD", 95_500, 113_500, "year")
+        # Both parts are read, the company's first, as the posting's page shows them;
+        # the sections then file each line under its heading.
+        assert job.description == (
+            "Data Scientist I\nRequirements\n"
+            "• You love rolling up your sleeves to wrestle messy data into shape.\n"
+            "Details\nChicago, IL\n"
+            "About the Company\n"
+            "Tavern Research is a political tech startup building tools and insights."
+        )
+
+    def test_no_such_board_is_not_found(self, monkeypatch) -> None:
+        def missing(url: str):
+            raise BoardNotFound(url)
+
+        monkeypatch.setattr(providers, "_get_json", missing)
+        with pytest.raises(BoardNotFound):
+            providers.rippling("no-such-board", "Nobody")
+
+    def test_a_board_past_one_page_is_too_large(self, monkeypatch) -> None:
+        # Constructed: no board read had more than 102 postings. A partial list
+        # would be evidence of nothing, so it is not read at all.
+        serve(monkeypatch, {**self.KRAKEN, "totalItems": 1500, "totalPages": 2})
+        with pytest.raises(providers.TooLarge):
+            providers.rippling("kraken-robotics-inc", "Kraken Robotics")
+
+    def test_an_apply_link_names_its_board(self) -> None:
+        from build_boards import tokens
+
+        link = "https://ats.rippling.com/en-GB/foundation-robotics/jobs/6be9c342-d335-4955-83c9-3d4482811307"
+        assert tokens(link) == [("rippling", "foundation-robotics")]
+        assert tokens("https://ats.rippling.com/tavernresearch/jobs/1a3cfbeb") == [
+            ("rippling", "tavernresearch")
+        ]
+
+
 class TestWithPage:
     robots = SimpleNamespace(allows=lambda url: True, pace=lambda url: None)
 

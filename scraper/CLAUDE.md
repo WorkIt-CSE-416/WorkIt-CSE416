@@ -83,8 +83,12 @@ fixture (`tests/conftest.py`): a `Provider` holds the function itself, so
 patching the module's `describe_greenhouse` no longer reaches it.
 
 Each reader's test is built from that day's real responses. Workable,
-Recruitee and BambooHR quirks: `docs/providers.md`. Workday's, and how its
-boards are read over several runs: `docs/workday.md`.
+Recruitee, BambooHR and Rippling quirks: `docs/providers.md`. Workday's, and
+how its boards are read over several runs: `docs/workday.md`.
+
+**Still open:** Rippling (KAN-301) is read but not on the landing page's
+`hiringSystems` yet: it needs its logo file in `frontend/public/hiring-systems/`
+and a stream of real postings in `data.ts`.
 
 - **A 404 means the board does not exist; a 200 with an empty list means a
   real board with nothing open.** Raise `BoardNotFound` for the first, return
@@ -113,11 +117,18 @@ boards are read over several runs: `docs/workday.md`.
 A posting's own text is one value, `providers.Page`: the description (its kept
 sections, cut to `DESCRIPTION_CHARS`), the card's `details.Facts`, and on Greenhouse
 its offices (on Workday, its places and requisition number). Lever, Ashby and
-Recruitee send it with the board's list. Greenhouse, Workable, BambooHR and
-Workday do not (`Provider.job_url`): Greenhouse's `content=true` would send
-hundreds of megabytes a run to describe the ~2% we keep, and Workday's list
-has no description, exact date or places. So `__main__.with_page` reads each
-*kept* posting's page once, through the same robots and pacing.
+Recruitee send it with the board's list. Greenhouse, Workable, BambooHR,
+Rippling and Workday do not (`Provider.job_url`): Greenhouse's `content=true`
+would send hundreds of megabytes a run to describe the ~2% we keep, and
+Workday's list has no description, exact date or places. So
+`__main__.with_page` reads each *kept* posting's page once, through the same
+robots and pacing.
+
+- **A fact only the list states rides on the `Job` to the page read.**
+  Rippling's list has each office's work model and its job's own record has
+  none, so `rippling` sets `Job.work_style` and `describe_rippling` reads the
+  page's facts with it. Read off the location instead, a remote job named
+  "NY" would have been filed on site.
 
 - **The store carries a `Page` forward whole: `job.page or old.page`.** It
   used to be nine fields carried one by one, and a Greenhouse title's "2027"
@@ -129,7 +140,7 @@ has no description, exact date or places. So `__main__.with_page` reads each
 - **Bump `providers.PAGE_VERSION` whenever a `Page` starts holding something
   new, or a fact's pattern changes**, or stored postings never get it.
   `with_page` re-reads any page under an older version, once per kept
-  Greenhouse, Workable, BambooHR and Workday posting.
+  Greenhouse, Workable, BambooHR, Rippling and Workday posting.
 - **Changing `DESCRIPTION_CHARS` does not re-cut stored Greenhouse
   descriptions.** Clear them so the next run fetches them again:
 
