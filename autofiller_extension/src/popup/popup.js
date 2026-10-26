@@ -132,12 +132,14 @@ async function showUnsupported() {
     list.replaceChildren(
       ...[`Job system: ${job_system}`, `Link: ${posting_url}`, `Fill engine: ${engine_version}`].map((text) => Object.assign(document.createElement("li"), { textContent: text })),
     );
+    box.querySelector("#report-note").maxLength = globalThis.WIA.reportParts.NOTE_MAX;
     box.querySelector(".report").hidden = false;
   });
   const send = box.querySelector("#send-report-button");
   send.addEventListener("click", async () => {
     send.disabled = true;
-    const answer = await sendMessage({ type: "popup/report", tabId });
+    const note = box.querySelector("#report-note").value.trim();
+    const answer = await sendMessage({ type: "popup/report", tabId, note: note || null });
     send.disabled = false;
     if (!answer?.ok) return say("WorkIt couldn't send the report. Try again.", true);
     box.querySelector(".report").hidden = true;

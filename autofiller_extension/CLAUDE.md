@@ -1593,14 +1593,17 @@ report.js everywhere it is: manifest, `CONTENT_SCRIPT_FILES`, background.js
   state, in its group.
 - **A site WorkIt can't fill**: every host the manifest lists is a job
   system the Fill engine fills, so the panel never shows this; the toolbar
-  popup does, on a web page of any other host (not WorkIt's own), where the
-  icon's press lets it read the tab's link (activeTab). It says "WorkIt
+  popup does, on a web page of any other host (not WorkIt's own) that looks
+  like a job posting (`panel-states.js` `looksLikePosting`: a jobs, careers,
+  apply or position part in its path, or a schema.org `JobPosting` block,
+  read in the tab), where the icon's press lets it read the tab's link
+  (activeTab). On any other page the popup is the usual batch status. It says "WorkIt
   can't fill this site yet" with **Save to WorkIt** (`popup/save`: `POST
   /jobs/saved-by-link`, which saves the feed's job whose apply link the page
   is, ignoring query, fragment and a trailing slash; "WorkIt doesn't list
   this job yet." when there is none) and **Report a problem** (what it sends:
-  job system "unsupported", the posting link as below, the engine; then
-  Send report, `popup/report`). Nothing leaves on opening the popup. Its
+  job system "unsupported", the posting link as below, the engine, and an
+  optional note, `NOTE_MAX` long; then Send report, `popup/report`). Nothing leaves on opening the popup. Its
   test opens popup.html with `?tab=<id>` and loads a copy of the extension
   granted the fake host (`loadExtension`'s `grantHosts`), standing in for
   activeTab, which no test can press.

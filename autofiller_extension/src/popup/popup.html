@@ -4,6 +4,7 @@
     <meta charset="utf-8" />
     <title>WorkIt Autofiller</title>
     <script src="../shared/tokens.js"></script>
+    <script src="../shared/report-parts.js"></script>
     <link rel="stylesheet" href="popup.css" />
   </head>
   <body>
@@ -46,6 +47,8 @@
         <div class="report" hidden>
           <p class="muted">Send report sends only this:</p>
           <ul class="report-parts muted"></ul>
+          <label for="report-note">Note (optional)</label>
+          <textarea id="report-note" placeholder="What went wrong? Leave out anything personal."></textarea>
           <button type="button" id="send-report-button">Send report</button>
         </div>
         <p class="said muted" role="status" hidden></p>

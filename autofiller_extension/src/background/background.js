@@ -364,7 +364,7 @@ async function handleMessage(message, sender) {
     case "popup/save":
       return saveTabJob(message.tabId);
     case "popup/report":
-      return reportTab(message.tabId);
+      return reportTab(message.tabId, message.note);
     case "panel/fill":
       await injectFill(sender.tab.id, { batch: Boolean(message.batch) && (await inBatch(sender.tab.id)), frameId: sender.frameId || undefined });
       return {};

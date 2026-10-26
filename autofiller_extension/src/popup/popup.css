@@ -127,4 +127,9 @@ button:disabled {
 }
 .unsupported-line { margin: 0 0 8px; font-weight: 600; }
 .report-parts { margin: 4px 0 8px; padding-left: 16px; font-size: var(--text-note); overflow-wrap: anywhere; }
+.report label { display: block; margin: 0 0 4px; font-weight: 600; font-size: var(--text-note); }
+.report textarea {
+  box-sizing: border-box; width: 100%; min-height: 56px; margin: 0 0 8px; padding: 6px 8px; resize: vertical;
+  font: inherit; color: var(--color-ink); background: var(--color-panel); border: 1px solid var(--color-border); border-radius: var(--radius-control);
+}
 .said { margin: 8px 0 0; font-size: var(--text-note); }

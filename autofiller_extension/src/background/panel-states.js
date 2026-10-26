@@ -47,15 +47,45 @@ async function linkOf(tabId) {
   return (await chrome.tabs.get(tabId).catch(() => null))?.url ?? "";
 }
 
+// A path that names a job posting: a jobs, careers, apply or position part.
+const POSTING_PATH = /(^|[/_.-])(jobs?|careers?|apply|positions?)([/_.-]|$)/i;
+
+/**
+ * Whether the tab's page looks like a job posting: its path names one, or it
+ * carries a schema.org JobPosting block (read in the tab, which the icon's
+ * press lets the extension do). Elsewhere the popup is the usual one.
+ */
+async function looksLikePosting(tabId, url) {
+  if (POSTING_PATH.test(new URL(url).pathname)) return true;
+  const [read] = await chrome.scripting
+    .executeScript({
+      target: { tabId },
+      func: () => {
+        const posting = (node) =>
+          Array.isArray(node) ? node.some(posting) : Boolean(node) && typeof node === "object" && ([node["@type"]].flat().includes("JobPosting") || posting(node["@graph"]));
+        return [...document.querySelectorAll('script[type="application/ld+json"]')].some((script) => {
+          try {
+            return posting(JSON.parse(script.textContent));
+          } catch {
+            return false;
+          }
+        });
+      },
+    })
+    .catch(() => []);
+  return read?.result === true;
+}
+
 /**
  * What the popup shows for the tab: `unsupported` on a web page WorkIt
- * can't fill, with the report it would send (`report`).
+ * can't fill that looks like a job posting, with the report it would send
+ * (`report`).
  * @param {number} tabId
  */
 export async function popupPage(tabId) {
   const url = await linkOf(tabId);
   const web = /^https?:/.test(url) && !OWN_ORIGINS.some((origin) => url.startsWith(origin));
-  if (!web || jobOf(url) || onListedHost(url)) return { unsupported: false };
+  if (!web || jobOf(url) || onListedHost(url) || !(await looksLikePosting(tabId, url))) return { unsupported: false };
   return { unsupported: true, report: reportOf(url) };
 }
 
@@ -64,8 +94,8 @@ export async function saveTabJob(tabId) {
   return saveJobByLink(await linkOf(tabId));
 }
 
-/** Report a problem from the popup: the site and the posting's link, no fields. */
-export async function reportTab(tabId) {
-  await sendReport(await linkOf(tabId), { fields: [] });
+/** Report a problem from the popup: the site and the posting's link, no fields, and the student's note. */
+export async function reportTab(tabId, note = null) {
+  await sendReport(await linkOf(tabId), { fields: [], note });
   return {};
 }
