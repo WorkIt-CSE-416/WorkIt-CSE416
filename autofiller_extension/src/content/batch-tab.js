@@ -66,11 +66,14 @@ window.WIA = window.WIA || {};
     /**
      * The form's field for a question, by the job system's own field id: an
      * element's id (Greenhouse, Lever's cards), its name (Lever), or the
-     * attribute Ashby, Workable or Rippling mark a field's box with. Null for
-     * a row that is not a field, or a field the page doesn't show.
+     * attribute Ashby, Workable or Rippling mark a field's box with; on
+     * Workday, whose keys are "<step> / <label>", the step shown's field by
+     * its label (workday.js's fieldOf). Null for a row that is not a field,
+     * or a field the page doesn't show.
      */
     function fieldOf(key) {
       if (status.summary().fields.find((r) => r.key === key)?.note) return null;
+      if (window.WIA.workday?.isWorkday) return window.WIA.workday.fieldOf(key);
       const name = CSS.escape(key);
       return (
         document.getElementById(key) ??
