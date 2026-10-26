@@ -591,7 +591,7 @@ test("a guess stays in the walk until the student says it looks right, which sav
   await expect(heard.locator(".source")).toHaveText("You");
   await expect(heard).toContainText("Saved for next time.");
   await expect.poll(() => api.own).toEqual([
-    { jobId: "job-1", name: HEARD, label: "How did you hear about Anduril?", answer: "Anduril Website", own: true },
+    { jobId: "job-1", name: HEARD, label: "How did you hear about Anduril?", answer: "LinkedIn", own: true },
   ]);
   // Pressed once more, nothing is left (one press: the panel still marks the row the walk last went to).
   const panel = page(forms.url(ANDURIL)).locator("#workit-autofiller-overlay-host");
