@@ -472,7 +472,8 @@ async function readQuestions({ job, url, call, fetchText, state }) {
     const step = { name: shown.step, sections: shown.sections, sends: shown.sends, review: shown.review, wentWrong: Boolean(shown.wentWrong) };
     return { questions: shown.questions, step, state: shown.state };
   }
-  if (job.site === "eightfold") return { questions: await call("readQuestions", "eightfold") };
+  // Waymo's careers site builds its own form, whose fields only the page names.
+  if (job.site === "eightfold" || job.site === "waymo") return { questions: await call("readQuestions", job.site) };
   // A practice form's questions are in its own page, as a Lever form's are in its /apply page.
   if (job.practice) return { questions: engine.parseQuestions("lever", await fetchText(url)) };
   try {
@@ -544,7 +545,7 @@ function selfIdAsked(questions, profile, plan, planFor) {
  */
 export function readJobAhead(url, fetchText) {
   const job = jobOf(url);
-  if (!job?.onForm || job.practice || job.site === "workday" || job.site === "eightfold") return false;
+  if (!job?.onForm || job.practice || job.site === "workday" || job.site === "eightfold" || job.site === "waymo") return false;
   optional(() => engine.questionSet(url, fetchText), null);
   readNames(url, fetchText);
   return true;
@@ -593,7 +594,7 @@ async function planQuestions({ job, url, questions, profile, bank, today, fetchT
  */
 export async function questionsToWrite({ url, profile, bank = {}, today, fetchText, jobType = null }) {
   const job = jobOf(url);
-  if (!job || job.practice || job.site === "workday" || job.site === "eightfold") return null;
+  if (!job || job.practice || job.site === "workday" || job.site === "eightfold" || job.site === "waymo") return null;
   const fetchOnce = once(fetchText);
   let questions;
   try {

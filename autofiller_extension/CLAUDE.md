@@ -899,9 +899,21 @@ waits for an opened tab's page and form (`waitForLoad`, `formShows`).
   engine's `EIGHTFOLD_COMPANIES`) is listed by its host: without it, the
   job's names and text failed to fetch. `test/manifest.spec.ts` checks one
   link of each.
+- **Waymo's careers site is its own job system** (`careers.withwaymo.com`,
+  the engine's site `waymo`). It shows each posting of Waymo's Greenhouse
+  board with a form its site vendor builds, with no Greenhouse frame, so
+  `embedsGreenhouse` leaves out every link `jobOf` covers and the page's
+  own form is filled, its questions read off the open form as Eightfold's
+  are (`readQuestions`; none written ahead). `manifest.json` lists the
+  host; `waymo.com/joinus/<job>` opens the careers site's
+  `/jobs?gh_jid=<job>`. Its Submit posts to `/call_to_actions/<id>/form_submissions`
+  (`SUBMIT_REQUESTS.waymo`, not proof alone: how it answers a refusal isn't
+  recorded), and a closed posting's "Looks like you got lost" page is a
+  closed job. Until the engine's Waymo Filler both of Waymo's careers
+  hosts were left out (hosts.py's former `SKIP_EMBEDDING`).
 - **A careers page that embeds Greenhouse is filled in its iframe**
   (KAN-369). A `?gh_jid=` link on a company's own site (hosts.py takes
-  them, outside its `SKIP_EMBEDDING`) opens as it is, and the fill runs in
+  them all) opens as it is, and the fill runs in
   the page's `*.greenhouse.io/embed/job_app` frame only
   (`embedded-forms.js`; `injectFill`'s and `formShows`'s `frameId`). The
   extension has no host permission for the company's page: Chrome redacts

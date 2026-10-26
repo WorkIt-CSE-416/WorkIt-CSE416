@@ -24,6 +24,7 @@ for (const url of [
   "https://lockheedmartin.eightfold.ai/careers/apply?pid=996477106402",
   // Netflix's Eightfold is on its own domain (live, 2026-10-24: the job's names and text failed to fetch).
   "https://explore.jobs.netflix.net/careers/apply?pid=790318904468",
+  "https://careers.withwaymo.com/jobs/2027-summer-intern-bs-depot-automation?gh_jid=8234553",
   "https://nvidia.wd5.myworkdayjobs.com/en-US/University/job/NVIDIA-2027-Internships_JR2023495-1",
 ]) {
   test(`the manifest lets the extension reach ${new URL(url).hostname}`, () => {

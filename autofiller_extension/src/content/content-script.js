@@ -103,8 +103,8 @@
    */
   // Where a job system WorkIt fills sends a closed job (live, 2026-10-26): Greenhouse to its board with
   // ?error=true, Workable to the account with ?not_found=true; others say so on the page.
-  const CLOSED_HOSTS = /(^|\.)(greenhouse\.io|workable\.com|lever\.co|ashbyhq\.com|rippling\.com|myworkdayjobs\.com|myworkdaysite\.com|eightfold\.ai)$/;
-  const CLOSED_WORDS = /no longer (accepting applications|open|available)|this (job|position|posting) (is|has been) (closed|filled)|job not found|couldn't find anything here/i;
+  const CLOSED_HOSTS = /(^|\.)(greenhouse\.io|workable\.com|lever\.co|ashbyhq\.com|rippling\.com|myworkdayjobs\.com|myworkdaysite\.com|eightfold\.ai|withwaymo\.com)$/;
+  const CLOSED_WORDS = /no longer (accepting applications|open|available)|this (job|position|posting) (is|has been) (closed|filled)|job not found|couldn't find anything here|looks like you got lost/i;
 
   /** Whether this page is a covered job system's word that the job is closed, not a job it can't fill. */
   function closedPosting() {
@@ -148,7 +148,7 @@
         return null;
       }
       if (!prepared.covered) {
-        note("_uncovered", "WorkIt can't fill this job system yet", "Nothing on this page was filled. WorkIt fills Greenhouse, Lever, Ashby, Rippling, Workable, Eightfold and Workday applications.");
+        note("_uncovered", "WorkIt can't fill this job system yet", "Nothing on this page was filled. WorkIt fills Greenhouse, Lever, Ashby, Rippling, Workable, Eightfold, Workday and Waymo applications.");
         return null;
       }
       if (prepared.openForm) {
