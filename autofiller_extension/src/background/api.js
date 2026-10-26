@@ -641,6 +641,16 @@ export async function connectorAdded(applicantId) {
 }
 
 /**
+ * DELETE .../connector — revokes the student's Claude's sign-in to WorkIt at
+ * once (the webapp's Settings > Connected Apps Disconnect; the panel's
+ * settings, KAN-402). Answers 204, no body.
+ * @param {string} applicantId
+ */
+export async function disconnectConnector(applicantId) {
+  await apiRequest(`/applicants/${applicantId}/connector`, { method: "DELETE" });
+}
+
+/**
  * GET .../writing-samples — the student's writing samples (`samples`, KAN-384).
  * @param {string} applicantId
  */

@@ -12,7 +12,7 @@
 // here is what makes the globals exist.
 export const ENGINE_FILES = ["fill-engine/dist/engine.js"];
 
-export const CONTENT_SCRIPT_FILES = ["src/content/lib-status.js", "src/shared/tokens.js", "src/content/panel.js", "src/content/panel-top.js", "src/content/report.js", "src/content/row-card.js", "src/content/overlay.js", "src/content/card-flag.js", "src/content/card-waiting.js", "src/content/card-guess.js", "src/content/letter-preview.js", "src/content/captured-notice.js", "src/content/workday.js", "src/content/workday-walk.js", "src/content/written-answers.js", "src/content/batch-tab.js", "src/content/marks.js", "src/content/card-failed.js", "src/content/submit-warning.js", "src/content/content-script.js"];
+export const CONTENT_SCRIPT_FILES = ["src/content/lib-status.js", "src/shared/tokens.js", "src/content/panel.js", "src/content/panel-top.js", "src/content/panel-settings.js", "src/content/report.js", "src/content/row-card.js", "src/content/groups.js", "src/content/overlay.js", "src/content/card-flag.js", "src/content/card-waiting.js", "src/content/card-guess.js", "src/content/letter-preview.js", "src/content/captured-notice.js", "src/content/workday.js", "src/content/workday-walk.js", "src/content/written-answers.js", "src/content/batch-tab.js", "src/content/marks.js", "src/content/card-failed.js", "src/content/submit-warning.js", "src/content/content-script.js"];
 
 /**
  * Loads the engine into the tab, then starts the fill there. With `batch`,
@@ -56,7 +56,7 @@ export async function injectFill(tabId, { batch = false, frameId = undefined } =
 }
 
 // A batch tab at a human check before the form (KAN-369): the panel's parts (never shown there), then human-check.js.
-export const HUMAN_CHECK_FILES = ["src/content/lib-status.js", "src/shared/tokens.js", "src/content/panel.js", "src/content/row-card.js", "src/content/overlay.js", "src/content/batch-tab.js", "src/content/marks.js", "src/content/human-check.js"];
+export const HUMAN_CHECK_FILES = ["src/content/lib-status.js", "src/shared/tokens.js", "src/content/panel.js", "src/content/row-card.js", "src/content/groups.js", "src/content/overlay.js", "src/content/batch-tab.js", "src/content/marks.js", "src/content/human-check.js"];
 
 /**
  * Readies a batch tab that shows a human check where its form should be:
