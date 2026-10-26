@@ -1781,11 +1781,14 @@ with no proposals to accept and no Done (2026-10-25).
   at or open; a dot or a changed line opens it. The panel's top holds a
   "…" menu (Accept All, Reject All) and the keyword
   match as one thin row ("No new keywords matched" when it did not
-  move); under it one white section per kind, Reworded Bullets, Reordered
-  Bullets and Added Skills,
-  each heading with a colour swatch, its count and a caret, and each
-  suggestion a row with a caret that opens to its change with a red ✕
-  Reject and a green ✓ Accept. On a phone the panel is a sheet opened by
+  move), and the change types as a two-by-two legend that filters (added
+  green, reworded blue, removed red, moved amber, each with a glyph and
+  its count); under it one white section per resume entry, top to bottom
+  as on the page, each heading with the entry's title, organization,
+  count and a caret, and each suggestion a row with its type's badge and
+  a caret that opens to its change with a red ✕ Reject and a green ✓
+  Accept. Sample changes of every type sit beside the run's for now
+  (`demo-suggestions.ts`, temporary). On a phone the panel is a sheet opened by
   "Suggestions (n)". With no record (a new tab or device) the editor
   shows alone, with a line saying the suggestions live in the tab that ran
   Tailor. A before and after side by side came first (2026-10-26) and was
@@ -2080,9 +2083,9 @@ student who opened a resume from Experiences landed on another view.
   `../../docs/tailor_resume.md`, "Suggestions"). Only then does the page
   carry the run's changes: a plain dot in the margin beside each changed
   line (`dots` on `PdfPages`), and a see-through highlight, so the PDF's
-  text shows, on the lines of the suggestion in focus or open: a new
-  wording or an added skill green (`positive`, bordered in
-  `positive-ink`), an entry's bullets in a new order amber (`warning-fill`,
+  text shows, on the lines of the suggestion in focus or open: an added
+  skill green (`positive`, bordered in `positive-ink`), a new wording blue
+  (`advanced`), an entry's bullets in a new order amber (`warning-fill`,
   bordered in `warning-strong`). The same page passes `compact`, the slim
   toolbar: Undo and Redo (disabled, UI only); idle, a "⚠ 2 pages" chip
   whose popover offers Fit to One Page and the Suggestions or Original

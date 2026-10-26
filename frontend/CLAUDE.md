@@ -1265,7 +1265,9 @@ the KAN-296 cutover.
   the pick steps; the tailored resume's page has the slim
   `TailorReviewBar` instead (Back, the flow and its step, Download and
   Finish; the job in an sr-only h1), so the resume starts near the top, under its own name
-  renamed in place (`ResumeTitle`).
+  renamed in place (`ResumeTitle`). Its Suggestions panel shows sample
+  changes from `resumes/[resumeId]/demo-suggestions.ts` for now: remove
+  that file and its two uses before the branch opens a PR.
   `TailorScreen` holds the step in state, so Back keeps the pick, the
   match and the picked keywords. A new step joins `TAILOR_STEPS` in
   `tailor-steps.tsx` (`docs/screens.md`, Tailor). A wait is never a step:

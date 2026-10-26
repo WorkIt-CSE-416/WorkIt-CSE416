@@ -40,6 +40,9 @@ export type TailorReviewRecord = { edits: TailorEdit[]; match?: MatchShift; sour
  *  the panel shows at all is the editor's (the toolbar's Suggestions). */
 export type SuggestionsApi = {
   record: TailorReviewRecord;
+  /** A line's place on the page (its first box's index; `pdf-pages.tsx`'s
+   *  `boxKey`), so the panel lists entries top to bottom as the page does. */
+  pageOrder: (boxKey: string) => number;
   bank: Bank;
   choices: Choices;
   saving: boolean;
@@ -56,18 +59,61 @@ export type SuggestionsApi = {
   open: (key: string | null) => void;
 };
 
-/** The panel's sections, in its order, each named for what it holds. They
- *  were Wording, Order and Skills until 2026-10-26: "Order 5" read as a
- *  position, not as five reordered entries. */
-export const GROUPS = [
-  { kind: "reword", title: "Reworded Bullets" },
-  { kind: "order", title: "Reordered Bullets" },
-  { kind: "skill", title: "Added Skills" },
-] as const;
+/** A line's mark, the colour of its change's type (`ChangeKind`): `added`
+ *  (an added skill, green), `reworded` (a new wording, blue) or `moved` (an
+ *  entry's bullets put in a new order, amber). A removed line is not on the
+ *  page, so it has no mark. */
+export type Mark = "added" | "reworded" | "moved";
 
-/** A line's mark: `changed` (a new wording or an added skill, green) or
- *  `moved` (an entry's bullets put in a new order, amber). */
-export type Mark = "changed" | "moved";
+/** What a suggestion does to the resume, each with its own colour and
+ *  glyph in the panel and on the page: a line added (a bullet, a skill), a
+ *  line reworded, a line removed, or an entry's bullets moved. */
+export type ChangeKind = "added" | "reworded" | "removed" | "moved";
+
+/**
+ * One suggestion as the panel shows it: its type, the resume entry it sits
+ * in (`where`: an entry's id, or "skills"), and its words before and after.
+ * A run's change carries its `edit`, which Accept and Reject act on. A
+ * sample change has none (./demo-suggestions.ts, temporary): the run makes
+ * no added bullet or removed line yet, and the panel's design needed them.
+ */
+export type Change = {
+  key: string;
+  kind: ChangeKind;
+  where: string;
+  edit?: TailorEdit;
+  before?: string;
+  after?: string;
+  /** A skill's group ("Languages"). */
+  group?: string;
+};
+
+/** The run's changes as the panel shows them. */
+export function changesOf(edits: TailorEdit[], bank: Bank): Change[] {
+  return edits.map((edit): Change => {
+    const key = editKey(edit);
+    if (edit.kind === "reword") {
+      const entry = bank.entries.find((e) => e.bullets.some((b) => b.id === edit.bullet_id));
+      return {
+        key,
+        kind: "reworded",
+        where: entry?.id ?? "skills",
+        edit,
+        before: edit.before ?? undefined,
+        after: edit.text ?? "",
+      };
+    }
+    if (edit.kind === "order") return { key, kind: "moved", where: edit.entry_id ?? "", edit };
+    return {
+      key,
+      kind: "added",
+      where: "skills",
+      edit,
+      after: edit.label ?? "",
+      group: edit.group ?? undefined,
+    };
+  });
+}
 
 /** One change to undo. An order change may name one bullet to put back;
  *  without one, the whole entry goes back to its before order. */
@@ -153,8 +199,8 @@ export function marksOf(edits: TailorEdit[], choices: Choices): Map<string, Mark
     }
   }
   for (const edit of edits) {
-    if (edit.kind === "reword" && edit.bullet_id) marks.set(`${edit.bullet_id}.bullet`, "changed");
-    if (edit.kind === "skill" && edit.skill_id) marks.set(`${edit.skill_id}.skill`, "changed");
+    if (edit.kind === "reword" && edit.bullet_id) marks.set(`${edit.bullet_id}.bullet`, "reworded");
+    if (edit.kind === "skill" && edit.skill_id) marks.set(`${edit.skill_id}.skill`, "added");
   }
   return marks;
 }

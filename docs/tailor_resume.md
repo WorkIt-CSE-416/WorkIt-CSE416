@@ -267,8 +267,8 @@ weight.
   holds the column the assistant opens in, and a second AI entry beside it
   split the page. No Download while a line is open.
 - **Dots, then highlights.** Each changed line has a small plain dot in
-  the page's left margin, green for a new wording or skill, amber for a
-  moved bullet; dots on one line (skills) stack like coins. A line is
+  the page's left margin in its change type's colour (green added, blue
+  reworded, amber moved; a removed line is not on the page); dots on one line (skills) stack like coins. A line is
   highlighted only while its suggestion is pointed at, focused or open,
   as Quinncia draws one: the tint carried 1px past the line, a 1px border
   in the mark's dark shade (`positive-ink`, `warning-strong`) at half
@@ -304,22 +304,36 @@ weight.
   the editor, which owns the grid). Hidden, the page takes the whole
   width and no line stays highlighted. A phone opens the panel as a sheet
   from its own button.
-- **A section per kind**, Reworded Bullets, Reordered Bullets and Added
-  Skills (they were Wording, Order and Skills, and "Order 5" read as a
-  position): a heading with the
-  kind's colour swatch, its name, how many suggestions it holds and a
-  caret, open at first only with three or fewer. Under a hairline, each
-  suggestion is a row with its one line (the new wording, the entry and
-  how many of its bullets moved, or the skill) and a caret that turns up
-  while open. A row turns faint grey while pointed at, never brand: an
-  open row in purple read as selected. Open, it
-  shows where the change is ("In <entry>"; a skill's group), then the
-  change in a white box: the old words struck and the new ones
-  highlighted (inline when only a run in the middle changed, else the old
-  line over the new one), each moved bullet's place before and now ("2nd
-  → 1st"), or the skill, with ✕ Reject and ✓ Accept. Each suggestion was
-  a card of its own with a number until 2026-10-26; the cards did not say
-  they open.
+- **Four change types, each a colour and a glyph** (`ChangeKind`):
+  added (green, +), reworded (blue, pencil), removed (red, minus) and
+  moved (amber, up and down arrows). A glyph as well as a colour, so the
+  type reads without telling colours apart. The run's changes map onto
+  them (`changesOf`): a new wording is reworded, an entry's new order is
+  moved, an added skill is added. The run makes no added bullet and no
+  removed line yet; the types are ready for when it does.
+- **A section per resume entry, top to bottom as on the page** (the
+  entry's title box's place, `pageOrder`), Skills where its lines sit: a
+  heading with the entry's title, its organization, how many suggestions
+  it holds and a caret. Under a hairline, each suggestion is a row with
+  its type's round badge, its one line (the new or removed line, how many
+  bullets moved, a skill and its group) and a caret that turns up while
+  open. Open, the row names the change ("Removed bullet") and a grey box
+  holds the words: the old struck and the new highlighted (inline when
+  only a run in the middle changed, else the old line over the new one),
+  each moved bullet's place before and now ("2nd → 1st"), with ✕ Reject
+  and ✓ Accept. A row turns faint grey while pointed at, never brand: an
+  open row in purple read as selected. Sections were by type (Reworded
+  Bullets, Reordered Bullets, Added Skills) until 2026-10-26: with every
+  type in play, a student reads the panel against the page, and sections
+  by type sent them up and down it. Each suggestion was a numbered card
+  before that.
+- **The types are a legend that filters**, two by two under the keyword
+  match, each with its count: a press shows one type, a second shows all.
+- **Sample changes, TEMPORARY** (`demo-suggestions.ts`, 2026-10-26): six
+  sample changes of every type, built from the resume's own entries, sit
+  beside a run's real ones so the panel's design can be judged; Accept or
+  Reject only drops them, and the toolbar's count includes them. Remove
+  the file and its two uses before this branch opens a PR.
 - **Accept keeps the change** (it is saved already): the card and its
   dots go. **Reject undoes it** through the choices PATCH (`revertOf`,
   above) and drops it. Reject All is one PATCH (`revertAll`), each

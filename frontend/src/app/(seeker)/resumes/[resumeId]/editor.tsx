@@ -56,6 +56,7 @@ import {
   type HeaderField,
   type Line,
 } from "./model";
+import { useDemoChanges } from "./demo-suggestions";
 import { keepFitUndo, readFitUndo } from "./fit-undo";
 import { boxKey, kindLabel, loadPdfjs, PageSkeleton, PdfPages } from "./pdf-pages";
 import { PhoneEditor, usePhone } from "./phone";
@@ -593,6 +594,15 @@ export function Editor({
   // Tailor's review, on Tailor's page only (`suggestions`)
   const reviewing = suggestions && review ? review : null;
   const cards = reviewing ? cardsOf(reviewing.edits, choices) : undefined;
+  // Each line's place on the page, so the panel lists entries as the page does
+  const boxOrder = new Map<string, number>();
+  rendered?.boxes.forEach((b, i) => {
+    if (!boxOrder.has(boxKey(b))) boxOrder.set(boxKey(b), i);
+  });
+  const pageOrder = (key: string) => boxOrder.get(key) ?? Number.POSITIVE_INFINITY;
+  // TEMPORARY: sample changes, counted with the run's (./demo-suggestions.ts)
+  const demo = useDemoChanges(bank, (id) => boxOrder.has(`${id}.title`));
+  const suggestionCount = reviewing ? reviewing.edits.length + demo.length : 0;
   // Every changed line has a dot; only the lines of the card in focus or
   // open are tinted
   const allMarks = reviewing ? marksOf(reviewing.edits, choices) : undefined;
@@ -621,6 +631,7 @@ export function Editor({
     reviewing &&
     suggestions?.({
       record: reviewing,
+      pageOrder,
       bank,
       choices,
       saving,
@@ -689,7 +700,7 @@ export function Editor({
           bar={phoneBar}
           suggestions={
             reviewing && {
-              count: reviewing.edits.length,
+              count: suggestionCount,
               panel,
               open: suggestionsOpen,
               onOpenChange: setSuggestionsOpen,
@@ -744,7 +755,7 @@ export function Editor({
       onAsk={asking ? undefined : () => setAsking(true)}
       review={
         reviewing && {
-          count: reviewing.edits.length,
+          count: suggestionCount,
           side,
           onSide: showSide,
           hasOriginal: Boolean(original),

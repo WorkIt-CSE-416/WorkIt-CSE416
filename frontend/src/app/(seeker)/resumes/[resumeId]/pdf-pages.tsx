@@ -20,7 +20,7 @@ import type { Mark } from "./tailor-review";
  * each page is a size container, so the field's type can be set in `cqw` to
  * match the PDF's at any width. On Tailor's review, `dots` puts a small
  * dot in the page's left margin beside each changed line, in its mark's
- * colour; `marks` highlights the lines of the card in focus or open, and
+ * colour (green added, blue reworded, amber moved); `marks` highlights the lines of the card in focus or open, and
  * `focus` brings the first of them into view (./tailor-review.tsx).
  */
 
@@ -32,25 +32,31 @@ import type { Mark } from "./tailor-review";
  *  thick (2026-10-26). A line being typed in keeps the tint only: the
  *  field's ring is its one outline. */
 const MARK_TINT: Record<Mark, string> = {
-  changed: "rounded-[4px] bg-positive/20",
+  added: "rounded-[4px] bg-positive/20",
+  reworded: "rounded-[4px] bg-advanced/15",
   moved: "rounded-[4px] bg-warning-fill/20",
 };
 
 const MARK_EDGE: Record<Mark, string> = {
-  changed:
+  added:
     "shadow-[0_0_0_1px_color-mix(in_oklab,var(--color-positive)_20%,transparent),0_0_0_2px_color-mix(in_oklab,var(--color-positive-ink)_50%,transparent)]",
+  reworded:
+    "shadow-[0_0_0_1px_color-mix(in_oklab,var(--color-advanced)_15%,transparent),0_0_0_2px_color-mix(in_oklab,var(--color-advanced)_50%,transparent)]",
   moved:
     "shadow-[0_0_0_1px_color-mix(in_oklab,var(--color-warning-fill)_20%,transparent),0_0_0_2px_color-mix(in_oklab,var(--color-warning-strong)_50%,transparent)]",
 };
 
-/** A margin dot's fill, by the line's mark: the highlight's dark shade. */
+/** A margin dot's fill, by the line's mark: the highlight's dark shade, the
+ *  colour its type has in the Suggestions panel. */
 const DOT_FILL: Record<Mark, string> = {
-  changed: "bg-positive-ink",
+  added: "bg-positive-ink",
+  reworded: "bg-advanced",
   moved: "bg-warning-strong",
 };
 
 const DOT_LABEL: Record<Mark, string> = {
-  changed: "Show the suggestion for this line",
+  added: "Show the suggestion for this added line",
+  reworded: "Show the suggestion for this reworded line",
   moved: "Show the suggestion for this moved bullet",
 };
 

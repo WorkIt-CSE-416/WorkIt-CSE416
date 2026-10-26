@@ -1,6 +1,15 @@
 "use client";
 
-import { CaretDownIcon, CheckIcon, XIcon } from "@phosphor-icons/react/ssr";
+import type { Icon as PhosphorIcon } from "@phosphor-icons/react";
+import {
+  ArrowsDownUpIcon,
+  CaretDownIcon,
+  CheckIcon,
+  MinusIcon,
+  PencilSimpleIcon,
+  PlusIcon,
+  XIcon,
+} from "@phosphor-icons/react/ssr";
 import { useEffect, useRef, useState, type ComponentProps, type ReactNode } from "react";
 
 import { EllipsisIcon } from "@/components/icons";
@@ -14,15 +23,16 @@ import { Button } from "@/components/ui/button";
 import type { Bank } from "@/lib/bank-actions";
 import type { Choices } from "@/lib/built-resume-actions";
 import { cn } from "@/lib/cn";
-import type { TailorEdit } from "@/lib/tailor-actions";
 
 import { Editor } from "../../../resumes/[resumeId]/editor";
 import { wording } from "../../../resumes/[resumeId]/model";
+import { dismissDemo, useDemoChanges } from "../../../resumes/[resumeId]/demo-suggestions";
 import {
-  editKey,
-  GROUPS,
+  changesOf,
   movesOf,
   useTailorReview,
+  type Change,
+  type ChangeKind,
   type SuggestionsApi,
 } from "../../../resumes/[resumeId]/tailor-review";
 import { OriginalResume } from "./resume-preview";
@@ -36,10 +46,11 @@ import { TailorScore } from "./tailor-score";
  * panel or, from the toolbar's View Original, the source resume
  * (`original`). Each changed line has a small dot in the page's margin and
  * is highlighted only while its suggestion is pointed at, focused or open.
- * The panel has a section per kind (Reworded Bullets, Reordered Bullets,
- * Added Skills), each counting its suggestions, and each suggestion is a
- * row that opens to its before and after with Accept, which keeps the
- * saved change, and Reject, which undoes it. The editor owns the state and
+ * The panel has a section per resume entry, top to bottom as on the page,
+ * each counting its suggestions; each suggestion is a row with its type's
+ * badge (added, reworded, removed, moved: a colour and a glyph) that opens
+ * to its before and after with Accept, which keeps the saved change, and
+ * Reject, which undoes it. The types at the top are a legend that filters. The editor owns the state and
  * lays the panel out (`suggestions`); this file draws it.
  *
  * The record lives in this tab's sessionStorage, so a new tab or device has
@@ -89,20 +100,62 @@ function Count({ n }: { n: number }) {
   );
 }
 
-/** A group opens by default only when it is this small. */
-const OPEN_UP_TO = 3;
-
-/** A group's swatch, in the dark shade of its lines' highlight and margin
- *  dots (../../../resumes/[resumeId]/pdf-pages.tsx), so a section and its
- *  lines on the page read as one. */
-const SWATCH: Record<TailorEdit["kind"], string> = {
-  reword: "bg-positive-ink",
-  order: "bg-warning-strong",
-  skill: "bg-positive-ink",
+/**
+ * Each change type's name, glyph and colours: the badge on its row and its
+ * filter, in the colour its lines carry on the page
+ * (../../../resumes/[resumeId]/pdf-pages.tsx): green added, blue reworded,
+ * red removed, amber moved. A glyph as well as a colour, so the type reads
+ * without telling colours apart.
+ */
+const KINDS: Record<ChangeKind, { label: string; Icon: PhosphorIcon; badge: string }> = {
+  added: { label: "Added", Icon: PlusIcon, badge: "bg-positive-tint text-positive-ink" },
+  reworded: { label: "Reworded", Icon: PencilSimpleIcon, badge: "bg-advanced-tint text-advanced" },
+  removed: { label: "Removed", Icon: MinusIcon, badge: "bg-danger-tint text-danger" },
+  moved: { label: "Moved", Icon: ArrowsDownUpIcon, badge: "bg-warning-tint text-warning" },
 };
+
+const KIND_ORDER: ChangeKind[] = ["added", "reworded", "removed", "moved"];
+
+/** One section of the panel: a resume entry, or Skills, with its changes. */
+type Group = { where: string; title: string; detail?: string; changes: Change[]; at: number };
+
+/** The changes by the entry they sit in, top to bottom as on the page, and
+ *  within an entry by line where the line is on the page. */
+function groupsOf(changes: Change[], bank: Bank, pageOrder: (key: string) => number): Group[] {
+  const lineAt = (change: Change) => {
+    const edit = change.edit;
+    if (edit?.kind === "reword") return pageOrder(`${edit.bullet_id}.bullet`);
+    if (edit?.kind === "skill") return pageOrder(`${edit.skill_id}.skill`);
+    return Number.POSITIVE_INFINITY;
+  };
+  const groups = new Map<string, Group>();
+  for (const change of changes) {
+    let group = groups.get(change.where);
+    if (!group) {
+      const entry = bank.entries.find((e) => e.id === change.where);
+      group = entry
+        ? {
+            where: change.where,
+            title: entry.title,
+            detail: entry.organization ?? undefined,
+            changes: [],
+            at: pageOrder(`${entry.id}.title`),
+          }
+        : { where: change.where, title: "Skills", changes: [], at: Number.POSITIVE_INFINITY };
+      groups.set(change.where, group);
+    }
+    group.changes.push(change);
+  }
+  for (const group of groups.values()) {
+    group.changes.sort((a, b) => lineAt(a) - lineAt(b));
+    if (group.where === "skills") group.at = Math.min(...group.changes.map(lineAt));
+  }
+  return [...groups.values()].sort((a, b) => a.at - b.at);
+}
 
 function SuggestionsPanel({
   record,
+  pageOrder,
   bank,
   choices,
   saving,
@@ -116,22 +169,26 @@ function SuggestionsPanel({
   active,
   open,
 }: SuggestionsApi) {
-  const { edits, match } = record;
+  const { match } = record;
   const list = useRef<HTMLDivElement>(null);
-  const [openGroups, setOpenGroups] = useState<Set<string>>(
-    () =>
-      new Set(
-        GROUPS.filter((g) => edits.filter((e) => e.kind === g.kind).length <= OPEN_UP_TO).map(
-          (g) => g.kind,
-        ),
-      ),
-  );
-  // A card opened from the page (its line or dot) opens its group too
+  // TEMPORARY: sample changes of every type beside the run's own
+  const demo = useDemoChanges(bank, (id) => pageOrder(`${id}.title`) !== Number.POSITIVE_INFINITY);
+  const changes = [...changesOf(record.edits, bank), ...demo];
+  const [only, setOnly] = useState<ChangeKind | null>(null);
+  const shown = only ? changes.filter((c) => c.kind === only) : changes;
+  const groups = groupsOf(shown, bank, pageOrder);
+  const counts = new Map(KIND_ORDER.map((k) => [k, changes.filter((c) => c.kind === k).length]));
+  const [closed, setClosed] = useState<Set<string>>(() => new Set());
+  // A card opened from the page (its line or dot) opens its section, and
+  // shows every type again if a filter hid it
   const [seen, setSeen] = useState(active);
   if (active !== seen) {
     setSeen(active);
-    const kind = edits.find((e) => editKey(e) === active)?.kind;
-    if (kind && !openGroups.has(kind)) setOpenGroups(new Set([...openGroups, kind]));
+    const change = changes.find((c) => c.key === active);
+    if (change && closed.has(change.where)) {
+      setClosed(new Set([...closed].filter((w) => w !== change.where)));
+    }
+    if (change && only && change.kind !== only) setOnly(null);
   }
   // The open card comes into view
   useEffect(() => {
@@ -139,61 +196,102 @@ function SuggestionsPanel({
     list.current
       ?.querySelector(`[data-card="${CSS.escape(active)}"]`)
       ?.scrollIntoView({ block: "nearest", behavior: "smooth" });
-  }, [active, openGroups]);
+  }, [active, closed]);
 
-  const toggle = (kind: string) => {
-    const next = new Set(openGroups);
-    if (next.has(kind)) next.delete(kind);
-    else next.add(kind);
-    setOpenGroups(next);
+  const toggle = (where: string) => {
+    const next = new Set(closed);
+    if (next.has(where)) next.delete(where);
+    else next.add(where);
+    setClosed(next);
   };
+  const demoKeys = demo.map((c) => c.key);
 
   return (
     // In the brand tint with its ring, as the editor's bar above the page,
     // so the two read as one review and the white sections stand out; bare
-    // in the phone's sheet, which is its own panel. The toolbar's
-    // Suggestions shows and hides it.
+    // in the phone's sheet, which is its own panel. The toolbar's switch
+    // shows and hides it.
     <section
       aria-labelledby="suggestions-heading"
       className="sm:bg-brand-tint sm:ring-brand-pale flex flex-col gap-2 sm:rounded-2xl sm:p-3 sm:ring-1"
     >
       {/* The top stays in view while the sections scroll under it */}
-      <div className="bg-panel sm:bg-brand-tint sticky top-0 z-10 flex flex-col gap-2 pb-2 sm:-mx-3 sm:-mt-3 sm:rounded-t-2xl sm:px-3 sm:pt-3">
+      <div className="bg-panel sm:bg-brand-tint sticky top-0 z-10 flex flex-col gap-2.5 pb-2 sm:-mx-3 sm:-mt-3 sm:rounded-t-2xl sm:px-3 sm:pt-3">
         <div className="flex min-h-8 items-center gap-1">
           <h2
             id="suggestions-heading"
             className="text-subtitle text-ink mr-auto flex items-center gap-2 font-semibold max-sm:sr-only"
           >
-            Suggestions <Count n={edits.length} />
+            Suggestions <Count n={changes.length} />
           </h2>
           <DropdownMenu>
             <DropdownMenuTrigger
-              disabled={saving || edits.length === 0}
+              disabled={saving || changes.length === 0}
               aria-label="More Actions"
               render={<Button variant="ghost" size="icon-sm" />}
             >
               <EllipsisIcon className="size-4" />
             </DropdownMenuTrigger>
             <DropdownMenuContent align="end">
-              <DropdownMenuItem onClick={acceptAll}>Accept All</DropdownMenuItem>
-              <DropdownMenuItem onClick={rejectAll}>Reject All</DropdownMenuItem>
+              <DropdownMenuItem
+                onClick={() => {
+                  dismissDemo(demoKeys);
+                  acceptAll();
+                }}
+              >
+                Accept All
+              </DropdownMenuItem>
+              <DropdownMenuItem
+                onClick={() => {
+                  dismissDemo(demoKeys);
+                  rejectAll();
+                }}
+              >
+                Reject All
+              </DropdownMenuItem>
             </DropdownMenuContent>
           </DropdownMenu>
         </div>
         {match && <TailorScore match={match} />}
+        {/* The types, as a legend that filters: a press shows one type, a
+            second press shows all again. Two by two, each count at its
+            end: four in one row did not fit the panel, and wrapped one */}
+        {changes.length > 0 && (
+          <div role="group" aria-label="Show one type" className="grid grid-cols-2 gap-1">
+            {KIND_ORDER.filter((k) => counts.get(k)).map((k) => {
+              const { label, Icon, badge } = KINDS[k];
+              return (
+                <button
+                  key={k}
+                  type="button"
+                  aria-pressed={only === k}
+                  onClick={() => setOnly(only === k ? null : k)}
+                  className={cn(
+                    "text-note focus-visible:ring-brand-ring flex h-7 items-center gap-1.5 rounded-full px-2.5 font-medium transition-[opacity,box-shadow] focus-visible:ring-2 focus-visible:outline-none",
+                    badge,
+                    only === k && "ring-1 ring-current",
+                    only && only !== k && "opacity-45 hover:opacity-80",
+                  )}
+                >
+                  <Icon aria-hidden weight="bold" className="size-3.5" />
+                  {label}
+                  <span className="ml-auto tabular-nums">{counts.get(k)}</span>
+                </button>
+              );
+            })}
+          </div>
+        )}
       </div>
-      {edits.length > 0 ? (
+      {changes.length > 0 ? (
         <div ref={list} className="flex flex-col gap-2">
-          {GROUPS.map((group) => {
-            const inGroup = edits.filter((e) => e.kind === group.kind);
-            if (inGroup.length === 0) return null;
-            const isOpen = openGroups.has(group.kind);
+          {groups.map((group) => {
+            const isOpen = !closed.has(group.where);
             return (
-              // One white section per kind: its heading counts what is in it,
-              // and its suggestions are rows under a hairline, each opening
-              // in place
+              // One white section per resume entry, as the page lists them:
+              // its heading names the entry and counts its changes, and each
+              // change is a row under a hairline that opens in place
               <section
-                key={group.kind}
+                key={group.where}
                 aria-label={group.title}
                 className="bg-panel max-sm:bg-app overflow-hidden rounded-xl"
               >
@@ -201,16 +299,19 @@ function SuggestionsPanel({
                   <button
                     type="button"
                     aria-expanded={isOpen}
-                    onClick={() => toggle(group.kind)}
+                    onClick={() => toggle(group.where)}
                     className="hover:bg-ink/[0.03] focus-visible:outline-brand flex w-full items-center gap-2 px-3 py-2.5 text-left -outline-offset-2 transition-colors focus-visible:outline-2"
                   >
-                    <span
-                      aria-hidden
-                      className={cn("size-2.5 shrink-0 rounded-full", SWATCH[group.kind])}
-                    />
-                    <span className="text-label text-ink font-semibold">{group.title}</span>
-                    <span className="bg-ink/5 text-ink-muted text-note flex h-5 min-w-5 items-center justify-center rounded-full px-1.5 font-semibold tabular-nums">
-                      {inGroup.length}
+                    <span className="flex min-w-0 flex-1 flex-col">
+                      <span className="text-label text-ink truncate font-semibold">
+                        {group.title}
+                      </span>
+                      {group.detail && (
+                        <span className="text-note text-ink-meta truncate">{group.detail}</span>
+                      )}
+                    </span>
+                    <span className="bg-ink/5 text-ink-muted text-note flex h-5 min-w-5 shrink-0 items-center justify-center rounded-full px-1.5 font-semibold tabular-nums">
+                      {group.changes.length}
                     </span>
                     <Chevron open={isOpen} />
                   </button>
@@ -220,27 +321,27 @@ function SuggestionsPanel({
                     role="list"
                     className="border-border-subtle divide-border-subtle divide-y border-t"
                   >
-                    {inGroup.map((edit) => {
-                      const key = editKey(edit);
-                      return (
-                        <li key={key}>
-                          <Suggestion
-                            edit={edit}
-                            bank={bank}
-                            choices={choices}
-                            cardKey={key}
-                            lit={focused === key}
-                            isOpen={active === key}
-                            saving={saving}
-                            onFocus={focus}
-                            onToggle={() => open(active === key ? null : key)}
-                            onShow={() => show(key)}
-                            onAccept={() => accept(edit)}
-                            onReject={() => reject(edit)}
-                          />
-                        </li>
-                      );
-                    })}
+                    {group.changes.map((change) => (
+                      <li key={change.key}>
+                        <Suggestion
+                          change={change}
+                          bank={bank}
+                          choices={choices}
+                          lit={focused === change.key}
+                          isOpen={active === change.key}
+                          saving={saving}
+                          onFocus={focus}
+                          onToggle={() => open(active === change.key ? null : change.key)}
+                          onShow={() => show(change.key)}
+                          onAccept={() =>
+                            change.edit ? accept(change.edit) : dismissDemo([change.key])
+                          }
+                          onReject={() =>
+                            change.edit ? reject(change.edit) : dismissDemo([change.key])
+                          }
+                        />
+                      </li>
+                    ))}
                   </ul>
                 )}
               </section>
@@ -256,13 +357,6 @@ function SuggestionsPanel({
   );
 }
 
-/** A suggestion's kind, for screen readers: the section says it on screen. */
-const KIND_TITLES: Record<TailorEdit["kind"], string> = {
-  reword: "New wording",
-  order: "New order",
-  skill: "Added skill",
-};
-
 /** The panel's one sign of something to open: a caret at the row's end,
  *  turned up while open. */
 function Chevron({ open }: { open: boolean }) {
@@ -277,18 +371,32 @@ function Chevron({ open }: { open: boolean }) {
   );
 }
 
+/** A row's type, as a small round badge in its colour with its glyph. */
+function KindBadge({ kind }: { kind: ChangeKind }) {
+  const { Icon, badge } = KINDS[kind];
+  return (
+    <span
+      aria-hidden
+      className={cn("flex size-6 shrink-0 items-center justify-center rounded-full", badge)}
+    >
+      <Icon weight="bold" className="size-3.5" />
+    </span>
+  );
+}
+
 /**
- * One suggestion, a row in its section: its one line and a caret; open, it
- * shows where it is, the change, and ✕ Reject and ✓ Accept. Grey while
- * pointed at or focused; its lines on the page are highlighted then. Each was a
- * card of its own with a numbered dot until 2026-10-26: the numbers read as
- * an order to follow, and the cards did not say they open.
+ * One suggestion, a row in its entry's section: its type's badge, its one
+ * line and a caret; open, it shows the change, and ✕ Reject and ✓ Accept.
+ * Grey while pointed at or focused; its lines on the page are highlighted
+ * then. Sections were by type (Reworded Bullets, Reordered Bullets, Added
+ * Skills) until 2026-10-26: with every type in play, a student read the
+ * panel against the page and jumped around it, so sections now follow the
+ * page and the type is each row's badge.
  */
 function Suggestion({
-  edit,
+  change,
   bank,
   choices,
-  cardKey,
   lit,
   isOpen,
   saving,
@@ -298,10 +406,9 @@ function Suggestion({
   onAccept,
   onReject,
 }: {
-  edit: TailorEdit;
+  change: Change;
   bank: Bank;
   choices: Choices;
-  cardKey: string;
   lit: boolean;
   isOpen: boolean;
   saving: boolean;
@@ -311,40 +418,54 @@ function Suggestion({
   onAccept: () => void;
   onReject: () => void;
 }) {
-  const at = edit.kind === "order" ? null : where(edit, bank);
   return (
     <div
-      data-card={cardKey}
-      onMouseEnter={() => onFocus(cardKey)}
+      data-card={change.key}
+      onMouseEnter={() => onFocus(change.key)}
       onMouseLeave={() => onFocus(null)}
-      onFocus={() => onFocus(cardKey)}
+      onFocus={() => onFocus(change.key)}
       onBlur={(e) => {
         if (!e.currentTarget.contains(e.relatedTarget)) onFocus(null);
       }}
-      // Clear of the panel's pinned top when scrolled to
       // Grey while pointed at, never brand: an open row in purple read as
-      // selected rather than open
-      className={cn("scroll-mt-28 transition-colors", lit && !isOpen && "bg-ink/[0.03]")}
+      // selected rather than open. Clear of the panel's pinned top when
+      // scrolled to.
+      className={cn("scroll-mt-36 transition-colors", lit && !isOpen && "bg-ink/[0.03]")}
     >
       <button
         type="button"
         aria-expanded={isOpen}
         onClick={onToggle}
-        className="focus-visible:outline-brand flex w-full items-start gap-2 px-3 py-2.5 text-left -outline-offset-2 focus-visible:outline-2"
+        className="focus-visible:outline-brand flex w-full items-start gap-2.5 px-3 py-2.5 text-left -outline-offset-2 focus-visible:outline-2"
       >
-        <span className="sr-only">{KIND_TITLES[edit.kind]}: </span>
-        <span className={cn("text-note text-ink min-w-0 flex-1", !isOpen && "line-clamp-2")}>
-          {summary(edit, choices)}
-        </span>
-        <span className="mt-0.5 flex">
+        <KindBadge kind={change.kind} />
+        {/* Open, the row names the change and the box under it holds the
+            words: the line in both read twice */}
+        {isOpen ? (
+          <span className="text-note text-ink mt-0.5 min-w-0 flex-1 font-semibold">
+            {title(change)}
+          </span>
+        ) : (
+          <>
+            <span className="sr-only">{title(change)}: </span>
+            <span
+              className={cn(
+                "text-note text-ink mt-0.5 line-clamp-2 min-w-0 flex-1",
+                change.kind === "removed" && "text-ink-meta decoration-danger/50 line-through",
+              )}
+            >
+              {summary(change, choices)}
+            </span>
+          </>
+        )}
+        <span className="mt-1 flex">
           <Chevron open={isOpen} />
         </span>
       </button>
       {isOpen && (
-        <div className="flex flex-col gap-2.5 px-3 pb-3">
-          {at && <p className="text-note text-ink-meta truncate">In {at}</p>}
-          <div className="text-note text-ink bg-panel ring-border-subtle rounded-lg p-2.5 ring-1">
-            <Change edit={edit} bank={bank} choices={choices} />
+        <div className="flex flex-col gap-2.5 px-3 pb-3 pl-[2.875rem]">
+          <div className="text-note text-ink bg-app rounded-lg p-2.5">
+            <ChangeBody change={change} bank={bank} choices={choices} />
           </div>
           <div className="flex items-center gap-1.5">
             {/* On a phone the sheet covers the page: this shows the line */}
@@ -365,31 +486,32 @@ function Suggestion({
   );
 }
 
-/** A closed row's line: the new wording, the entry and how many of its
- *  bullets moved, or the skill added. */
-function summary(edit: TailorEdit, choices: Choices) {
-  if (edit.kind === "reword") return edit.text ?? "";
-  if (edit.kind === "order") {
-    const n = movesOf(edit, choices).length;
-    return `${edit.label ?? "An entry"}: ${n} ${n === 1 ? "bullet" : "bullets"} moved`;
+/** An open row's name for its change: "Reworded bullet", "Added skill". */
+function title(change: Change) {
+  if (change.kind === "moved") return "Bullets moved";
+  return `${KINDS[change.kind].label} ${change.where === "skills" ? "skill" : "bullet"}`;
+}
+
+/** A closed row's line: the new or reworded line, the line removed, how
+ *  many bullets moved, or a skill and its group. */
+function summary(change: Change, choices: Choices) {
+  if (change.kind === "moved" && change.edit) {
+    const n = movesOf(change.edit, choices).length;
+    return `${n} ${n === 1 ? "bullet" : "bullets"} moved`;
   }
-  return edit.label ?? "";
+  const line = change.kind === "removed" ? change.before : change.after;
+  return change.group ? `${line} (${change.group})` : (line ?? "");
 }
 
-/** The entry a change sits in, or a skill's group. */
-function where(edit: TailorEdit, bank: Bank) {
-  if (edit.kind === "skill") return edit.group ?? "Skills";
-  if (edit.kind === "order") return edit.label ?? "";
-  return bank.entries.find((e) => e.bullets.some((b) => b.id === edit.bullet_id))?.title ?? "";
-}
-
-function Change({ edit, bank, choices }: { edit: TailorEdit; bank: Bank; choices: Choices }) {
-  if (edit.kind === "skill") return <Added>{edit.label}</Added>;
-  if (edit.kind === "order") {
-    const bullets = bank.entries.find((e) => e.id === edit.entry_id)?.bullets ?? [];
+function ChangeBody({ change, bank, choices }: { change: Change; bank: Bank; choices: Choices }) {
+  if (change.kind === "added") return <Added>{change.after}</Added>;
+  if (change.kind === "removed") return <Removed>{change.before}</Removed>;
+  if (change.kind === "moved" && change.edit) {
+    const entryId = change.edit.entry_id;
+    const bullets = bank.entries.find((e) => e.id === entryId)?.bullets ?? [];
     return (
-      <span className="flex flex-col gap-1">
-        {movesOf(edit, choices).map(({ bulletId, from, to }) => {
+      <span className="flex flex-col gap-1.5">
+        {movesOf(change.edit, choices).map(({ bulletId, from, to }) => {
           const bullet = bullets.find((b) => b.id === bulletId);
           return (
             <span key={bulletId} className="block">
@@ -403,8 +525,8 @@ function Change({ edit, bank, choices }: { edit: TailorEdit; bank: Bank; choices
       </span>
     );
   }
-  const after = edit.text ?? "";
-  const before = edit.before;
+  const after = change.after ?? "";
+  const before = change.before;
   if (!before) return <Added>{after}</Added>;
   const diff = wordDiff(before, after);
   if (diff) {
