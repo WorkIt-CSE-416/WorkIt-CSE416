@@ -50,7 +50,6 @@ import {
   lineOf,
   move,
   pageLabel,
-  tray,
   typed,
   wording,
   type Header,
@@ -74,7 +73,7 @@ import {
   untouched,
   useTailorReview,
 } from "./tailor-review";
-import { Tray, TrayDialog } from "./tray";
+import { Tray } from "./tray";
 
 /**
  * The desktop editor (KAN-218): the built resume's own PDF, edited on the
@@ -273,8 +272,6 @@ export function Editor({
   // Suggestions panel, the original resume, or nothing, when the page
   // takes the room
   const [side, setSide] = useState<"suggestions" | "original" | null>("suggestions");
-  // Tailor's "Not on This Resume", a modal from the slim toolbar
-  const [trayOpen, setTrayOpen] = useState(false);
 
   /** Starts a request; the returned check stays true while it is the latest. */
   const begin = useCallback(() => {
@@ -757,8 +754,6 @@ export function Editor({
       onFit={fit}
       onUndoFit={undoFit}
       onAsk={asking ? undefined : () => setAsking(true)}
-      hidden={tray(bank, choices).length}
-      onShowHidden={() => setTrayOpen(true)}
     />
   );
   const reviewTools: ReviewTools | null = reviewing && {
@@ -816,8 +811,9 @@ export function Editor({
           ))}
         </div>
         {/* Putting an item back renders again, so it waits for the first. */}
-        {/* On Tailor's slim layout it is a modal from the toolbar: under a
-            two-page resume nobody scrolled to it */}
+        {/* Not on Tailor's review: putting a hidden line back is the
+            editor's own page's work, and a run's own removals have Reject.
+            A toolbar button and modal for it there cluttered the review */}
         {rendered && !compact && <Tray bank={bank} choices={choices} onPutBack={apply} />}
       </div>
       {/* Kept mounted while closed, so the chat survives closing it */}
@@ -849,16 +845,6 @@ export function Editor({
       {/* The original beside the page; under it on a narrow screen */}
       {shownOriginal && !asking && <div className={sideColumn}>{shownOriginal}</div>}
       {fitToast}
-      {compact && (
-        <TrayDialog
-          open={trayOpen}
-          onOpenChange={setTrayOpen}
-          bank={bank}
-          choices={choices}
-          saving={saving}
-          onPutBack={apply}
-        />
-      )}
     </div>
   );
   if (!compact) return grid;
@@ -906,8 +892,6 @@ function Bar({
   onFit,
   onUndoFit,
   onAsk,
-  hidden,
-  onShowHidden,
 }: {
   /** The slim row (Tailor's review), see `Editor`'s `compact`. */
   compact: boolean;
@@ -931,10 +915,6 @@ function Bar({
   onUndoFit: () => void;
   /** Opens the assistant; absent while it is open. */
   onAsk?: () => void;
-  /** How many items are not on this resume, and the slim bar's way to
-   *  them (Tailor's "Not on This Resume" modal). */
-  hidden: number;
-  onShowHidden: () => void;
 }) {
   if (compact) {
     return (
@@ -944,8 +924,6 @@ function Bar({
         elapsed={elapsed}
         fitUndo={fitUndo}
         download={download}
-        hidden={hidden}
-        onShowHidden={onShowHidden}
         onFit={onFit}
         onUndoFit={onUndoFit}
         editing={
@@ -1087,9 +1065,9 @@ function History() {
  * The slim bar (Tailor's review), over the page with the column beside it
  * starting level, holding only tools for the page: Undo and Redo
  * (`History`), then, idle, the page count as a chip that offers Fit to One
- * Page (over one page only) and Undo Fit after a fit, and at the right Not
- * on This Resume with its count (a modal, `TrayDialog`) and Download in the
- * brand fill. No "Click a line to edit it." hint: the pointer's own
+ * Page (over one page only) and Undo Fit after a fit, and Download in the
+ * brand fill at the right. Not on This Resume was a button here with a
+ * modal for a day; the review does not need it (see the grid). No "Click a line to edit it." hint: the pointer's own
  * highlight on a line says so. The view switch (Suggestions or Original)
  * sat at this bar's right until it moved to the title row (`SideSwitch`):
  * it changes what is shown, not the page. Editing a line (`editing`): its
@@ -1110,8 +1088,6 @@ function SlimBar({
   elapsed,
   fitUndo,
   download,
-  hidden,
-  onShowHidden,
   onFit,
   onUndoFit,
   editing,
@@ -1121,8 +1097,6 @@ function SlimBar({
   elapsed: number | null;
   fitUndo: ChoicesUpdate | null;
   download: ResumeDownload;
-  hidden: number;
-  onShowHidden: () => void;
   onFit: () => void;
   onUndoFit: () => void;
   /** The open line's label and actions, or nothing while idle. */
@@ -1172,14 +1146,6 @@ function SlimBar({
       )}
       <div className="ml-auto flex shrink-0 items-center gap-2">
         {status}
-        {hidden > 0 && (
-          <Button variant="secondary" size="sm" onClick={onShowHidden}>
-            <EyeSlashIcon aria-hidden /> Not on This Resume
-            <span className="bg-ink/5 text-ink-muted flex h-5 min-w-5 items-center justify-center rounded-full px-1.5 text-xs font-semibold tabular-nums">
-              {hidden}
-            </span>
-          </Button>
-        )}
         <DownloadMenu download={download} primary />
       </div>
     </div>
@@ -1188,20 +1154,24 @@ function SlimBar({
 
 /**
  * What sits beside the page on Tailor's review, at the right end of the
- * resume's title row, over the column it changes: one switch, Suggestions
- * (with its count) or Original, and a press on the chosen one leaves the
- * page alone at full width (`SegmentedToggle`'s `onClear`). It is a view
- * of the page, not a tool for it, so it left the toolbar (2026-10-26),
- * which keeps only what edits the page.
+ * resume's title row, over the column it changes: one switch of three,
+ * Resume Only (the page alone at full width, to edit with nothing beside
+ * it), Suggestions (with its count) or Original. One is always chosen, as
+ * in every segmented switch: the page alone was reached by pressing the
+ * chosen option again, which nobody would find. It is a view of the page,
+ * not a tool for it, so it left the toolbar (2026-10-26), which keeps only
+ * what edits the page.
  */
 function SideSwitch({ review }: { review: ReviewTools }) {
   return (
     <SegmentedToggle
       label="Beside the resume"
-      value={review.side}
-      onValueChange={(to) => review.onSide(to as "suggestions" | "original")}
-      onClear={() => review.onSide(null)}
+      value={review.side ?? "resume"}
+      onValueChange={(to) =>
+        review.onSide(to === "resume" ? null : (to as "suggestions" | "original"))
+      }
       options={[
+        { value: "resume", label: "Resume Only" },
         {
           value: "suggestions",
           ariaLabel: `Suggestions, ${review.count}`,

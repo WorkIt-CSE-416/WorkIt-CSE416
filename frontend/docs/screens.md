@@ -1767,16 +1767,16 @@ with no proposals to accept and no Done (2026-10-25).
   filled pill over a 360px panel in the brand tint (the editor's bar's
   colour) of white sections that sticks beside the page, its top fixed
   and its sections scrolling under it. The
-  resume's name row holds the view switch at its right, Suggestions
-  (with its count) or Original, which sets the source resume beside the
-  tailored one at one width in place of the panel; a press on the chosen
-  one leaves the page alone at full width. The toolbar holds only tools
+  resume's name row holds the view switch at its right, Resume Only (the
+  page alone at full width), Suggestions (with its count) or Original,
+  which sets the source resume beside the tailored one at one width in
+  place of the panel, under a toolbar-like bar with a Read Only tag. The
+  top row sits in the brand tint, rounded. The toolbar holds only tools
   for the page: at the left Undo and Redo (UI only for now, disabled)
   and, idle, the page count when over one page as an amber chip with a
   warning sign and a caret (its click offers Fit to One Page); at the
-  right Not on This Resume with its count, which opens a modal of the
-  hidden items in Entries, Bullets and Skills, each with Add, and
-  Download in the brand fill; while a line is open, its moves, Hide and its choices with "Esc
+  right Download in the brand fill. No "Not on This Resume" on this page
+  (the editor's own page keeps it); while a line is open, its moves, Hide and its choices with "Esc
   when done"; no Ask Scout and no Done. Each changed line has a small
   purple dot in the page's margin and is highlighted (its tint, a 1px dark
   border, rounded, after Quinncia) only while its suggestion is pointed
@@ -2090,9 +2090,8 @@ student who opened a resume from Experiences landed on another view.
   (`advanced`), an entry's bullets in a new order amber (`warning-fill`,
   bordered in `warning-strong`). The same page passes `compact`, the slim
   toolbar: Undo and Redo (disabled, UI only); idle, a "⚠ 2 pages" chip
-  whose popover offers Fit to One Page, Not on This Resume (a modal,
-  `TrayDialog`, in place of the list under the page) and Download in the
-  brand fill (`DownloadMenu`'s `primary`), with no hint; editing
+  whose popover offers Fit to One Page and Download in the brand fill
+  (`DownloadMenu`'s `primary`), with no hint and no "Not on This Resume"; editing
   a line, its moves first (`LineActions`' `movesFirst`),
   Hide and its choices, and "Esc when done" for Done. It has no Ask Scout.
   It also passes `heading`, the label over the page's column; the
@@ -2135,8 +2134,8 @@ student who opened a resume from Experiences landed on another view.
   re-rendering until the page fits and putting back what it did not need
   (`backend/CLAUDE.md`). It never cuts Education, Skills, an entry's first
   bullet, or the top Experience and Projects entry.
-- **"Not on This Resume"** (`tray.tsx`) under the page (on Tailor's
-  review, a modal from the toolbar instead): entries the resume
+- **"Not on This Resume"** (`tray.tsx`) under the page (not on Tailor's
+  review, where a run's own removals have Reject): entries the resume
   does not show (hidden, or added to the bank after Generate), hidden
   bullets of shown entries, and hidden skills. One click puts one back; an
   entry joins the end of its section with its bullets.

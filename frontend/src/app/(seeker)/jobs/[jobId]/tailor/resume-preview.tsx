@@ -1,6 +1,6 @@
 "use client";
 
-import { FileArrowDownIcon } from "@phosphor-icons/react/ssr";
+import { ClockCounterClockwiseIcon, FileArrowDownIcon } from "@phosphor-icons/react/ssr";
 import { useEffect, useRef, useState } from "react";
 
 import {
@@ -163,19 +163,30 @@ export function ResumePreviewDialog({
   );
 }
 
-/** The resume Tailor started from, read-only, beside the tailored one on
- *  the review step (the toolbar's View Original). The record keeps the
- *  source's id, not its name, so it is labelled for what it is. Its label
- *  row is the toolbar's height (44px), so the two pages start level. */
+/**
+ * The resume Tailor started from, read-only, beside the tailored one on
+ * the review step (the title row's Original). The record keeps the
+ * source's id, not its name, so it is labelled for what it is. Its label
+ * is a bar the toolbar's shape and height (44px), level with it, so the
+ * two pages start level and the pair reads as two of a kind: a history
+ * glyph in brand, "Original Resume" in ink, and a Read Only tag, since
+ * nothing on it can be clicked. It was a grey line of label type, which
+ * the user found too quiet.
+ */
 export function OriginalResume({ source }: { source: TailorSource }) {
   return (
     <section aria-labelledby="original-heading" className="flex flex-col gap-2">
-      <h2
-        id="original-heading"
-        className="text-label text-ink-meta flex min-h-11 items-center px-2 font-semibold"
-      >
-        Original Resume
-      </h2>
+      {/* A border, not the toolbar's ring: the column scrolls, and a ring
+          is drawn outside the box, where the scroll clipped its sides */}
+      <div className="bg-panel border-border-subtle flex h-11 items-center gap-2 rounded-xl border px-3">
+        <ClockCounterClockwiseIcon aria-hidden className="text-brand size-4 shrink-0" />
+        <h2 id="original-heading" className="text-label text-ink font-semibold">
+          Original Resume
+        </h2>
+        <span className="bg-ink/5 text-ink-muted text-note ml-auto rounded-full px-2 py-0.5 font-medium">
+          Read Only
+        </span>
+      </div>
       <PreviewPages source={source} label="Original Resume" enabled />
     </section>
   );

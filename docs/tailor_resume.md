@@ -229,7 +229,9 @@ panel with every card open and every line tinted was then made quiet
 after Quinncia's resume review (2026-10-26): everything had the same
 weight.
 
-- **The page's top row**: Back at the left, the flow and its step in the
+- **The page's top row**, in the brand tint with its ring and rounded,
+  as the panel is, so the page's frame stands apart from the content
+  under it: Back at the left, the flow and its step in the
   middle ("Tailor Resume", "Step 3 of 3 · Review Changes"), and Finish at
   the right, which leaves for the job posting's page, where the student
   applies. Download sat beside Finish for a day; it is back on the
@@ -238,9 +240,11 @@ weight.
   them. There was no Finish until 2026-10-26, so the review had no end.
 - **Under it, the resume's name**, spanning the page and the panel, with
   the view switch at its right end over the column it changes: one
-  switch, Suggestions (with its count) or Original (`SideSwitch`, on
-  `SegmentedToggle`, whose `onClear` lets a press on the chosen one leave
-  the page alone). It sat in the toolbar until 2026-10-26; it changes
+  switch of three, Resume Only (the page alone at full width, to edit
+  with nothing beside it), Suggestions (with its count) or Original
+  (`SideSwitch`, on `SegmentedToggle`). One is always chosen: the page
+  alone was first reached by pressing the chosen option again, which
+  nobody would find. It sat in the toolbar until 2026-10-26; it changes
   what is shown, not the page, so it left. Then two columns that start
   level: the toolbar and the page, and beside them the panel,
   "Suggestions" with its count in a filled pill at its top. The name renames in place (`ResumeTitle`): it
@@ -255,12 +259,11 @@ weight.
   2026-10-26), then the page count as an amber chip with a warning sign
   and a caret ("⚠ 2 pages ⌄", over one page only), which reads as a
   problem to open and offers Fit to One Page, and Undo Fit after a fit.
-  At the right, Not on This Resume with its count, which opens a modal
-  (`TrayDialog`: the items in Entries, Bullets and Skills, each a row
-  with Add, the modal staying open so several come back in a row), and
-  Download in the brand fill. "Not on This Resume" sat under the page,
-  below a two-page resume, where nobody scrolled to it; the editor's own
-  page keeps it there. Two
+  At the right, Download in the brand fill. No "Not on This Resume" on
+  this page: putting a hidden line back is the editor's own page's work,
+  and a run's own removals have Reject. It sat under the page, below a
+  two-page resume, then for a day was a toolbar button with a modal,
+  which cluttered the review. Two
   rows were weighed and refused: the toolbar sticks over the page, so a
   second row hides more resume as it scrolls. Before this the toolbar
   held View Original, Suggestions and Download as three buttons and
@@ -290,14 +293,17 @@ weight.
   section). Dots and cards were numbered until 2026-10-26: the numbers
   read as an order to follow, so each section counts its own instead.
 - **Original sets the source resume beside the tailored one**, in place
-  of the panel, the two at one width, so a line reads against its twin;
-  its "Original Resume" label row is the toolbar's height, so the pages
-  start level. The source (the
+  of the panel, the two at one width, so a line reads against its twin.
+  Its label is a bar the toolbar's shape and height, level with it, so
+  the pages start level and the two read as a pair (its outline a border,
+  not the toolbar's ring: the column scrolls and clipped a ring's sides): a history glyph in
+  brand, "Original Resume" in ink, and a Read Only tag. It was a grey
+  line of label type, which the user found too quiet. The source (the
   record's `source`) draws read-only through step 1's preview loader
   (`OriginalResume` in `resume-preview.tsx`), kept for the page's life so
   a second look shows at once; the record keeps the source's id, not its
   name, so it is labelled for what it is. The switch shows one column
-  at a time or none (`side` in the editor). View Original was a link in
+  at a time or none (`side` in the editor, null for Resume Only). View Original was a link in
   the panel's top, then a white button there, and opened the Preview
   dialog; the user wanted the two side by side.
 - **The panel's top stays put and only its sections scroll** under it:

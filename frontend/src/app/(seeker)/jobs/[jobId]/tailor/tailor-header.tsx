@@ -119,11 +119,15 @@ function TailorJobCard({ job }: { job: JobListing }) {
  * overwhelming beside the review (after Quinncia's slim bar); then the
  * job's logo and "Title · Company" beside Back, which crowded it; then
  * Back and "Step 3 of 3" alone, with no way to say the review was done.
+ * It sat bare on the page until it took the brand tint, which the user
+ * wanted so the row stands out against the content under it.
  */
 export function TailorReviewBar({ job }: { job: JobListing }) {
   const last = TAILOR_STEPS[TAILOR_STEPS.length - 1];
   return (
-    <div className="grid grid-cols-[1fr_auto_1fr] items-center gap-3">
+    // In the brand tint with its ring, as the Suggestions panel is, so the
+    // page's frame stands apart from the resume and its tools under it
+    <div className="bg-brand-tint ring-brand-pale grid grid-cols-[1fr_auto_1fr] items-center gap-3 rounded-2xl p-2 ring-1">
       <h1 className="sr-only">
         Tailor for {job.title} at {job.company}
       </h1>
