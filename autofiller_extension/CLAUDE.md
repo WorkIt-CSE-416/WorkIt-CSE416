@@ -648,7 +648,12 @@ waits for an opened tab's page and form (`waitForLoad`, `formShows`).
   has the content script scroll to and focus the field and mark its row
   (`batch/focus`). Past the last one the panel says "Nothing else needs
   you." and the next press starts again. A field is found by the job
-  system's own field id (`batch-tab.js`'s `fieldOf`); a tab nothing
+  system's own field id (`batch-tab.js`'s `fieldOf`); on Workday, whose
+  keys are "<step> / <label>" (the engine's Question names), by its
+  `formField-*` box on the step shown, labelled as the engine labels it
+  (`workday.js`'s `fieldOf`: a repeating section by its title, a panel's
+  field as "Work Experience 1 / Job Title", a repeated label "(2)"); a
+  key from another step finds none. A tab nothing
   was filled in is one stop, the page itself. This is the only time the
   extension switches tabs on its own, and only on the student's press.
 - **Where the walk lands, the page is marked** (KAN-369, `marks.js`,
@@ -669,9 +674,9 @@ waits for an opened tab's page and form (`waitForLoad`, `formShows`).
   this field on the page." under its row for a few seconds; on Workday one
   keyed to another step (keys start with the step) says "This is on
   Workday's <step> step." (each step's fill starts the panel's rows again,
-  so this is rare). Workday's fields have no id `fieldOf` knows, so there
-  the row, like Next Thing, finds no field. Test:
-  `test/panel-reopen.extension.spec.ts`.
+  so this is rare). Tests: `test/panel-reopen.extension.spec.ts`, and
+  `test/workday-show.extension.spec.ts` for Workday's row press and Next
+  Thing.
 - **The panel's ✕ hides it; it never goes** (KAN-369, `overlay.js`): its
   rows, cards, answers, the Next Thing bar and any moment card stay as they
   were in the page, and a small **WorkIt** tab (bottom right, the brand
