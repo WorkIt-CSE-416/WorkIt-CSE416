@@ -283,7 +283,8 @@ Find files with a directory listing; these are the rules for where code goes.
   saved: the page marks the student's own answers (captured from a form)
   New by it until they have seen them. Tests: `tests/test_captured_answers.py`.
   **Problem reports from the extension's panel** (KAN-403,
-  `routers/fill_reports.py`, table `fill_reports`): `POST /fill-reports`
+  `routers/fill_reports.py` over `queries/fill_reports.py`, table
+  `fill_reports`): `POST /fill-reports`
   stores what the student previewed and sent (job system, the posting's
   link, Fill engine version, each failed field's
   kind, label shape and error name, their note). The row names no
