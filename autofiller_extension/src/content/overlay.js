@@ -215,6 +215,9 @@ window.WIA = window.WIA || {};
       reason.textContent = `Your Claude's check: ${field.flag} Read it before you submit, and edit it if it's wrong.`;
       text.appendChild(reason);
     }
+    // See cover letter (letter-preview.js): the written answer as the form has it.
+    const letter = window.WIA.letterPreview?.render(field);
+    if (letter) text.appendChild(letter);
     el.append(dot, text);
     return el;
   }

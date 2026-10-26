@@ -678,6 +678,25 @@ waits for an opened tab's page and form (`waitForLoad`, `formShows`).
   waiting card is kept across renders for its draft). The submit warning
   is a moment card at the top of the panel, not a row's, so it stays an
   `overlay.momentCard`.
+- **See cover letter** (KAN-369, `src/content/letter-preview.js`,
+  `window.WIA.letterPreview`): a filled row for a written answer WorkIt
+  filled (the student's Claude's, a pasted one, a saved one the Plan
+  filled) has a "See cover letter" button ("See answer" when its label
+  names no cover letter) that opens the letter as the form has it, before
+  Submit: a text box's text as the engine last read it back (so the
+  student's edit shows, `watchEdits`), or for an upload (a file question:
+  Ashby's, Greenhouse's Cover Letter, Workday's; Workable's and Lever's
+  cover letters are text boxes) the exact text `asUploads` made the PDF
+  of, under "Attached as <file>". An upload whose read-back names another
+  file says the form now shows that file instead. Its card
+  (`rowCard.make`) offers **Copy**, **Edit myself** (focuses the field;
+  for a PDF it also says to remove WorkIt's file and attach their own)
+  and, only while the row is flagged, **Rewrite with Claude** through the
+  flag card's route (`batch/flag` rewrite, then `writing.rewrite`):
+  review.py refuses to rewrite an unflagged answer. `written-answers.js`
+  tells it what it filled (`letterPreview.filled`); it changes no status,
+  so it never holds Submit or the walk. Tests:
+  `test/letter-preview.extension.spec.ts`.
 - **The submit warning holds a Submit while something is open** (KAN-369,
   `src/content/submit-warning.js`, `window.WIA.submitWarning`, batch tabs
   only). When the student presses the employer's Submit (a button or
