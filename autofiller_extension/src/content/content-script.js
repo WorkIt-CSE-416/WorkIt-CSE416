@@ -101,18 +101,6 @@
    * `emptyOnly`: a Workday step filled before keeps what it shows (the
    * student's saved answers).
    */
-  // Where a job system WorkIt fills sends a closed job (live, 2026-10-26): Greenhouse to its board with
-  // ?error=true, Workable to the account with ?not_found=true; others say so on the page.
-  const CLOSED_HOSTS = /(^|\.)(greenhouse\.io|workable\.com|lever\.co|ashbyhq\.com|rippling\.com|myworkdayjobs\.com|myworkdaysite\.com|eightfold\.ai)$/;
-  const CLOSED_WORDS = /no longer (accepting applications|open|available)|this (job|position|posting) (is|has been) (closed|filled)|job not found|couldn't find anything here/i;
-
-  /** Whether this page is a covered job system's word that the job is closed, not a job it can't fill. */
-  function closedPosting() {
-    if (!CLOSED_HOSTS.test(location.hostname)) return false;
-    const params = new URLSearchParams(location.search);
-    return params.get("error") === "true" || params.has("not_found") || CLOSED_WORDS.test(document.body?.innerText ?? "");
-  }
-
   async function fillShown(emptyOnly = false) {
     const shown = new Set();
     const done = new Set();
@@ -121,15 +109,16 @@
     let state;
     let prepared;
     // A Workday step left while it fills (the student went back, or on): the next step is the loop's, not this fill's.
-    const begun = window.WIA.workday.isWorkday ? window.WIA.workday.stepId() : "";
+    const stepped = window.WIA.steps; // Workday, Oracle (steps.js)
+    const begun = stepped ? stepped.stepId() : "";
     // Live progress in the panel (KAN-398): Scanning, N fields found, Filling · N of M, Stop and Skip.
     const progress = window.WIA.progress;
-    progress.begin({ stay: window.WIA.workday.isWorkday });
+    progress.begin({ stay: Boolean(stepped) });
     try {
     for (;;) {
-      if (prepared && begun && window.WIA.workday.stepId() !== begun) return { ...prepared, written: [...written.values()], state };
+      if (prepared && begun && stepped.stepId() !== begun) return { ...prepared, written: [...written.values()], state };
       prepared = await send({ type: "fill/plan", extra, state });
-      if (!prepared.ok && window.WIA.workday.isWorkday) {
+      if (!prepared.ok && stepped) {
         return { unplanned: prepared.status === 401 ? "Sign in from the extension popup first. " : "" };
       }
       if (!prepared.ok) {
@@ -143,12 +132,14 @@
         note("_form", "This page shows the job, not its application", `Open the application form (${embedded.src}), then click Autofill again.`);
         return null;
       }
-      if (!prepared.covered && closedPosting()) {
+      if (!prepared.covered && window.WIA.closedPosting()) {
         note("_closed", "This job is closed", "It is no longer accepting applications, so there is nothing to fill. Pick another job.");
+        // A batch tab's job leaves the batch marked closed, its tab closes, and the next job opens (batch.js).
+        if (batch) send({ type: "batch/closed" }).catch(() => {});
         return null;
       }
       if (!prepared.covered) {
-        note("_uncovered", "WorkIt can't fill this job system yet", "Nothing on this page was filled. WorkIt fills Greenhouse, Lever, Ashby, Rippling, Workable, Eightfold and Workday applications.");
+        note("_uncovered", "WorkIt can't fill this job system yet", "Nothing on this page was filled. WorkIt fills Greenhouse, Lever, Ashby, Rippling, Workable, Eightfold, Workday and Oracle applications.");
         return null;
       }
       if (prepared.openForm) {
@@ -164,6 +155,8 @@
         return new Promise(() => {}); // the page is going; nothing to report from it
       }
       if (prepared.step) sessionStorage.removeItem(reloaded);
+      // Oracle's email gate is the student's (oracle.js): nothing on it is filled.
+      if (prepared.step?.gate) return { unplanned: "Enter your email on Oracle's page first. " };
       if (prepared.step?.wentWrong) {
         note("_error", "Workday showed an error page", "Reload the page. WorkIt fills the step when it shows.", true);
         return null;
@@ -177,6 +170,8 @@
 
       const sources = prepared.plan.sources ?? {};
       for (const name of Object.keys(answers)) {
+        // An entry's company or school titles its checklist block before the field fills (groups.js).
+        window.WIA.groups?.planned(name, byName.get(name)?.label ?? name, answers[name]);
         if (isNew(name)) status.register(name, byName.get(name)?.label ?? name, byName.get(name)?.required ?? false, sources[name] ?? "guessed");
       }
       // Outside a batch tab only the essay route writes (Generate): a choice or a one-line draft is the student's there.
@@ -234,7 +229,7 @@
         extra = [...extra, ...more.filter((q) => !extra.some((e) => e.name === q.name))];
         continue;
       }
-      if (prepared.site === "workday" && filledAny) {
+      if (stepped && filledAny) {
         await sleep(FOLLOW_UP_WAIT);
         continue;
       }
@@ -370,7 +365,7 @@
    * is never Ready, so the form's required fields aren't looked for there.
    */
   function watchEdits(prepared) {
-    const workday = prepared.site === "workday";
+    const workday = Boolean(window.WIA.steps); // a stepped system's tab (Workday, Oracle)
     let stopped = false;
     const required = () => (workday ? undefined : flagEmptyRequired(prepared));
     const byName = new Map(prepared.questions.map((q) => [q.name, q]));
@@ -427,8 +422,9 @@
     },
   });
 
-  const workday = window.WIA.workday;
-  if (!workday.isWorkday) {
+  // A stepped system (steps.js): Workday, Oracle.
+  const workday = window.WIA.steps;
+  if (!workday) {
     // THE PANEL GOES ON THE PAGE ONCE THE FILL IS DONE, not before. Greenhouse's
     // React app takes over the whole document as it starts up (hydration);
     // a node it didn't render, the panel's, made it draw the form again,
@@ -454,16 +450,36 @@
     return;
   }
 
-  // Workday: each step as it shows, until the step whose button sends. Its
-  // pages aren't hydrated, and the panel tells the student to sign in first.
+  // A stepped system: each step as it shows, until the step whose button sends. Its
+  // pages aren't hydrated, and the panel tells the student to sign in (Workday), or to
+  // enter their email at Oracle's gate, first.
   // A step that came as a new page shows its line at once, not an empty panel, while it waits to fill (KAN-401).
-  if (workday.step()) note("_step", `Workday: ${workday.step()}`, "Filling this step…", false, true);
+  if (workday.step()) note("_step", `${workday.name}: ${workday.step()}`, "Filling this step…", false, true);
   overlay.mount(panel);
   answerTheWalk();
+  // Oracle's closed job says so on its page, where no application starts (closed-posting.js).
+  if (!workday.step() && workday !== window.WIA.workday && window.WIA.closedPosting?.()) {
+    note("_closed", "This job is closed", "It is no longer accepting applications, so there is nothing to fill. Pick another job.");
+    window.WIA.phase = "stopped";
+    window.WIA.running = false;
+    report();
+    return;
+  }
   if (!workday.step()) {
-    note("_step", "Waiting for the application", "Sign in and start the application. WorkIt fills each step as it shows.");
+    note("_step", workday.waiting.title, workday.waiting.reason);
     window.WIA.phase = "step";
     report();
+    // Oracle's email gate: the student's, with a line in the panel; nothing on it is typed or pressed.
+    if (workday.watchGate) {
+      workday.watchGate((reason) => {
+        status.reset();
+        note("_step", workday.waiting.title, reason);
+        window.WIA.phase = "step";
+        report();
+      });
+    }
+  }
+  if (!workday.step() && workday === window.WIA.workday) {
     // The student's Start batch is the press of Apply (KAN-369): a batch tab starts the application itself.
     if (batch) {
       workday.watchStart((reason) => {
@@ -486,12 +502,12 @@
     window.WIA.phase = "filling";
     status.reset();
     // Never an empty panel between steps (KAN-401): the step's line at once, its rows as it fills.
-    note("_step", `Workday: ${step}`, "Filling this step…", false, true);
+    note("_step", `${workday.name}: ${step}`, "Filling this step…", false, true);
     const prepared = await fillShown(workday.filledBefore());
     // A step WorkIt couldn't plan is the student's: the walk never presses on it, and the next step shows filled.
     if (prepared?.unplanned !== undefined) {
       status.reset();
-      note("_step", "WorkIt couldn't fill this step", `${prepared.unplanned}Answer it yourself, then press Save and Continue. WorkIt fills the next step when it shows.`, true);
+      note("_step", "WorkIt couldn't fill this step", `${prepared.unplanned}Answer it yourself, then press ${workday.nextLabel}. WorkIt fills the next step when it shows.`, true);
       window.WIA.phase = "step";
       window.WIA.primary?.refresh();
       report();
@@ -505,12 +521,12 @@
       return;
     }
     const last = prepared.step.review || prepared.step.sends;
-    // Fill to Review (workday-walk.js): a step with nothing for the student is saved with Save and Continue.
+    // Fill to Review (workday-walk.js): a step with nothing for the student is saved with its own button.
     const toReview = window.WIA.toReview;
     // News, not a thing that needs the student: the bottom button carries the step's next press (decision 1700).
-    note("_step", `Workday: ${step}`, last
+    note("_step", `${workday.name}: ${step}`, last
       ? (toReview.on() ? toReview.REVIEW_NOTE : "This is the last step. Check the whole application, then submit it yourself.")
-      : "Check this step, then press Save and Continue. WorkIt fills the next step when it shows.", false, true);
+      : `Check this step, then press ${workday.nextLabel}. WorkIt fills the next step when it shows.`, false, true);
     window.WIA.failedCard.use(fixesOf(prepared));
     window.WIA.answersTab?.use(prepared);
     window.WIA.resumeTab?.use(fixesOf(prepared));

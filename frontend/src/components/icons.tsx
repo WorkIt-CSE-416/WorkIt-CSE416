@@ -24,6 +24,9 @@ import {
   GiftIcon as Gift,
   GlobeIcon as Globe,
   GraduationCapIcon as GraduationCap,
+  CurrencyDollarIcon as CurrencyDollar,
+  CompassIcon as Compass,
+  ChatCircleTextIcon as ChatCircleText,
   HouseIcon as House,
   IdentificationBadgeIcon as IdentificationBadge,
   IdentificationCardIcon as IdentificationCard,
@@ -511,6 +514,9 @@ const ANSWER_ICON: Record<QuestionKey, typeof AuthorizationIcon> = {
   race: RaceIcon,
   veteran_status: VeteranIcon,
   disability_status: DisabilityIcon,
+  sexual_orientation: GenderIcon,
+  transgender: GenderIcon,
+  pronouns: ({ className }: IconProps) => <ChatCircleText aria-hidden className={className} />,
 };
 
 /** An application question's glyph, by its key in the answer bank
@@ -531,6 +537,9 @@ export const ANSWER_GROUP_ICON = {
   languages: ({ className }: IconProps) => <Translate aria-hidden className={className} />,
   screeners: ({ className }: IconProps) => <ListChecks aria-hidden className={className} />,
   schoolYear: ({ className }: IconProps) => <GraduationCap aria-hidden className={className} />,
+  agePay: ({ className }: IconProps) => <CurrencyDollar aria-hidden className={className} />,
+  interests: ({ className }: IconProps) => <Compass aria-hidden className={className} />,
+  communities: ({ className }: IconProps) => <UsersThree aria-hidden className={className} />,
 };
 
 /** The sidebar's pin (KAN-300, components/hover-sidebar.tsx): a pin to pin

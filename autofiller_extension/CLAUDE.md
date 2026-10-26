@@ -184,6 +184,34 @@ builds it: `dist/engine.js` is committed in the engine repo.
   fake Workday steps, as new pages and drawn in place) from Create Account
   to Review, Fill to Review saving each step it can and the test answering
   and saving, as the student, each step where the walk stops.
+- **Stepped systems share one loop (`steps.js`).** `window.WIA.steps` is
+  the stepped job system on the page (Workday's `workday.js`, Oracle's
+  `oracle.js`), the extension's side of the engine's Stepper seam
+  (fill-engine `src/steps.ts`, README "Stepped forms"). The step loop
+  (content-script.js), Fill to Review (`workday-walk.js`), the checklist's
+  field lookup (batch-tab.js `fieldOf`) and the primary button use only its
+  face: `isOn`, `name`, `step()`, `stepId()`, `stepAfter(from)`, `quiet()`,
+  `filledBefore()`, `fieldOf(key)`, `nextLabel`, `reviewName`, `waiting`
+  {title, reason}, an optional `watchGate(onView)`, and `walk` {next,
+  review, goesOn, banner, wentWrong()}. A new stepped system (iCIMS,
+  SuccessFactors) is one more script giving it, loaded before `steps.js`
+  (shared/content-scripts.js), plus its name in `steps.js`'s list.
+- **Oracle Recruiting Cloud** (`oracle.js`, KAN-369). The manifest runs on
+  `*.oraclecloud.com/hcmUI/CandidateExperience/*`. Oracle's Apply opens an
+  email gate (Email Address, a terms box, a hidden honeypot; a returning
+  candidate may get a one-time code): it is the student's. WorkIt never
+  types into it or presses its Next; the panel says "Enter your email to
+  start" and tells them to enter it and continue. Each section (Personal
+  Info, Job Application Questions, Experience, More About You) then fills
+  as it shows, in the same page, its line "Oracle: <section>", and Fill to
+  Review presses Oracle's Next on each section with nothing for the
+  student, stopping at Summary (its Submit is the student's). A closed
+  Oracle job (its page says it is no longer available) gets "This job is
+  closed" (closed-posting.js) instead of the wait for the email. A profile
+  item's inline form (Add Education, Add Experience) isn't filled. The
+  sections' markup comes from Simplify's and Jobright's selectors, not a
+  live read: live-check before relying on it. Tests:
+  `test/oracle.extension.spec.ts` (the engine's fake Oracle page).
 - **A job's page is not always its form.** A Lever, Ashby, Rippling,
   Workable or Eightfold posting shows the job on one page and the form on
   another (`jobOf`'s `form`). On the job's page the overlay names the
@@ -422,6 +450,15 @@ waits for an opened tab's page and form (`waitForLoad`, `formShows`).
   so the student can press it again. **Closing a tab is not Skip**: a
   window closed, or Chrome quitting, closes every tab, and the student may
   close a tab only to come back to the job later; it just leaves the batch.
+- **A closed job leaves by itself (KAN-369).** A batch tab whose job system
+  says the job is closed (`content/closed-posting.js`: Greenhouse's
+  `?error=true` board, Workable's `?not_found=true`, or "no longer
+  accepting applications" on a covered host) is skipped the way Skip is,
+  with the outcome `closed` (`closeClosedTab`): the API marks it skipped and
+  its scraped posting closed, so it is neither applied nor failed, its tab
+  closes and the next job opens. Two ways in: the fill's "This job is
+  closed" note sends `batch/closed`, and `startFill` asks the same check
+  when the page shows no form at all (Workable's closed page).
 - **One Workday application at a time (KAN-373).** A Workday application
   runs over many pages, each waiting on the student (sign-in, then Save
   and Continue), and Chrome throttles hidden tabs, so the batch holds one
@@ -1230,7 +1267,9 @@ checking the student owns the application: a tab's state (`PUT
 `POST .../finish`), and whether Claude is connected (`GET
 .../connector`). Report a problem (KAN-403) sends `POST /fill-reports`
 (`routers/fill_reports.py`): no applicant in the path and no account in
-the row, the report's parts only. The rest are older:
+the row, the report's parts only. The popup's Request this job system
+(KAN-369) sends `POST /job-system-requests` (`routers/job_system_requests.py`):
+the host alone, no account in the row. The rest are older:
 
 `src/background/api.js` mostly calls endpoints that already exist for the
 webapp: `GET /auth/me`, `GET /applicants/{id}/profile`, `GET
@@ -1327,6 +1366,18 @@ only the student's own answer, never a default; an empty list is their
 "none". `schoolYear` derives `education.class_year` and
 `returning_to_school_after_internship` from the latest education entry's
 end month (`engineProfile(profile, today)`), with no new input.
+The rest of the section reaches the engine as `identity.age_18_or_over`,
+`identity.pronouns`, `voluntary_self_id.{sexual_orientation, transgender,
+communities}` (decline as "decline"; communities [] is "none of these"),
+`experience_facts.role_interests`, `links.x_twitter_url` and
+`work_authorization.citizenship_countries` (any country; the engine picks it
+from a list of countries of citizenship, two being a dual citizen's). Pay is the
+student's own answer, laid over the policies by `enginePolicies`:
+`compensation.fallback_hourly` (their hourly figure) and
+`accept_stated_rate` (with "Open to the posted range" as the words). From
+the bank, with no new input: `experience_facts.prior_internships_count`
+(jobs titled intern or co-op; unknown while the bank holds no job) and
+`identity.current_company` (the job held now).
 
 - **`work_authorized_us`/`needs_sponsorship` fall back to the onboarding
   "Visa Sponsorship" job-search filter** (`applicant_preferences.visa`,
@@ -1724,7 +1775,14 @@ report.js everywhere it is: manifest, `CONTENT_SCRIPT_FILES`, background.js
   is, ignoring query, fragment and a trailing slash; "WorkIt doesn't list
   this job yet." when there is none) and **Report a problem** (what it sends:
   job system "unsupported", the posting link as below, the engine, and an
-  optional note, `NOTE_MAX` long; then Send report, `popup/report`). Nothing leaves on opening the popup. Its
+  optional note, `NOTE_MAX` long; then Send report, `popup/report`), and
+  between them **Request this job system** (KAN-369, `popup/request`:
+  `POST /job-system-requests {"host"}`, the page's host and nothing else;
+  "Requested. WorkIt adds the job systems students ask for most."). The
+  hosts asked are kept in chrome.storage.local `requested_job_systems`, so
+  each is sent once from a browser and the popup then says "You requested
+  this job system." instead of the button (test:
+  `request-system.extension.spec.ts`). Nothing leaves on opening the popup. Its
   test opens popup.html with `?tab=<id>` and loads a copy of the extension
   granted the fake host (`loadExtension`'s `grantHosts`), standing in for
   activeTab, which no test can press.
@@ -1840,9 +1898,12 @@ head `.section-head`). Notes (content-script.js's) stand above them.
   required question the form isn't asking now), `note`. A field the engine
   reports filled (its `fillengine:field` done event) turns green at once;
   the fill's answer then sets every row as WorkIt read it back.
-- **Order (Q2).** While the fill runs, the Plan's order; once it is done
+- **Order (Q2).** The page's order: each row (a section by its first
+  field) is placed where `window.WIA.fieldOf` finds its field, and rows
+  whose field the page doesn't show yet come after, as registered
+  (`groups.inPageOrder`; KAN-369, decision 1971). Once the fill is done
   (content-script.js refreshes the list when the phase changes), red and
-  then amber rows rise to the top of their section, the rest in the Plan's
+  then amber rows rise to the top of their section, the rest in page
   order. Required questions the form isn't asking now close the Required
   section, collapsed to "N the form isn't asking now"
   (`.group[data-group="not-asked"]`).
@@ -1853,8 +1914,10 @@ head `.section-head`). Notes (content-script.js's) stand above them.
   section (`groups.entryOf`). A section is one row (`.entries[data-entries]`,
   its head Workday's "(entries)" question's row when there is one, marked
   with the worst of its fields) and under it a block per entry
-  (`.entry`), titled by its company or school as the form shows it
-  (`.entry-title`, "Work Experience 1" until filled), listing the entry's
+  (`.entry`), titled by its company or school as the form shows it, else
+  as the Plan fills it (the profile entry's; content-script.js hands each
+  planned answer to `groups.planned`, which keeps only an entry's naming
+  field), else "Work Experience 1" (`.entry-title`), listing the entry's
   fields with small dots (`.row.sub`). The section goes under Required when
   any of its fields is required.
 - **Rows (Q4's row parts).** overlay.js's `row` keeps its cards, reasons and
@@ -2111,13 +2174,11 @@ openness covers:
   `experience_facts.skills`, a "Languages" group first. WorkIt holds no place
   the student lives, so Greenhouse's Country picker beside Phone is left for
   the student.
-- **No "not a veteran" answer.** WorkIt's `veteran_status` is
-  protected_veteran, not_protected_veteran or declined. Since the engine's
-  fix (KAN-329), "I am not a protected veteran" answers only
-  protected-status questions; a plain "Are you a veteran?" or military
-  service question is the student's (a Missing fact). Answering it needs a
-  new value such as `not_veteran`, mapped to "I am not a veteran"; never
-  map not_protected_veteran to false.
+- **"Never served" is its own answer.** WorkIt's `veteran_status` adds
+  `not_veteran` ("I am not a veteran"), which answers "Are you a veteran?",
+  "have you ever served?" (No) and a branch or status (N/A).
+  not_protected_veteran still answers only protected-status questions; never
+  map it to false.
 - **A profile saved before the name split** (KAN-326) has only
   `full_name`, so its first/last name is the first word and the rest:
   wrong for a multi-word given name or a middle name. Once My Profile

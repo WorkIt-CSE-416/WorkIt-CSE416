@@ -69,8 +69,8 @@ window.WIA = window.WIA || {};
     }) ?? null;
   }
 
-  /** A Workday step with a step after it (the fill's phase "step"): its button goes on, it doesn't send. */
-  const midWorkday = () => Boolean(window.WIA.workday?.isWorkday) && window.WIA.phase === "step";
+  /** A stepped system's step (Workday's, Oracle's) with a step after it (the fill's phase "step"): its button goes on, it doesn't send. */
+  const midWorkday = () => Boolean(window.WIA.steps) && window.WIA.phase === "step";
 
   function say(text, error = false) {
     parts.said.textContent = text ?? "";

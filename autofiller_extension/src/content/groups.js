@@ -4,12 +4,13 @@
 // a spinner while it waits to be filled, then a green check (filled), an
 // amber ? (a guess or an answer to check, lib-status.js's toCheck), a red !
 // (lib-status.js's one rule, status.needsYou), blue (waiting on the
-// student's Claude) or gray (left empty). While the fill runs the rows keep
-// the Plan's order; after it, red and then amber rows rise to the top of
-// their section. A repeated section (Work Experience, Education: any
-// "<Section> <n> / <part>" fields, entryOf) is one row with a block under it
-// per entry, titled by the entry's company or school, listing its fields
-// with small dots. Notes (content-script.js's) stand above the sections.
+// student's Claude) or gray (left empty). Rows follow the page's order (its
+// fields' places, window.WIA.fieldOf); after the fill, red and then amber
+// rows rise to the top of their section. A repeated section (Work
+// Experience, Education: any "<Section> <n> / <part>" fields, entryOf) is
+// one row with a block under it per entry, titled by the entry's company or
+// school (what the form shows, else what the Plan fills it with: the
+// profile entry's), listing its fields with small dots. Notes (content-script.js's) stand above the sections.
 // Required questions the form isn't asking now (hidden, not drawn yet)
 // close the Required section, collapsed. A row keeps everything overlay.js
 // draws in it (its cards, its click to the field). Loaded before overlay.js
@@ -32,6 +33,47 @@ window.WIA = window.WIA || {};
 
   // The collapsed line of required questions the form isn't asking now, opened by the student for the page's life.
   let notAskedOpen = false;
+  // What the Plan fills each entry's naming field with (its profile entry's company or school), by row key.
+  const plannedNames = new Map();
+
+  /**
+   * The fill tells what the Plan fills a field with (content-script.js); only
+   * an entry's naming field (Company, School) is kept, as its block's title
+   * until the form shows it. Nothing else of the Plan is kept.
+   */
+  function planned(key, label, answer) {
+    const entry = entryOf({ key, label });
+    if (!entry || entry.head || !NAMES_IT.test(entry.part)) return;
+    const name = Array.isArray(answer) ? answer[0] : answer;
+    if (typeof name === "string" && name.trim()) plannedNames.set(key, name.trim());
+  }
+
+  /**
+   * `items` in the page's order: each by the place of its first field the
+   * page shows (`keysOf(item)`); those it doesn't show after, as they came.
+   */
+  function inPageOrder(items, keysOf) {
+    const fieldOf = window.WIA.fieldOf;
+    if (!fieldOf) return items;
+    const at = (item) => {
+      for (const key of keysOf(item)) {
+        let el = null;
+        try {
+          el = fieldOf(key);
+        } catch {}
+        if (el) return el;
+      }
+      return null;
+    };
+    const placed = [];
+    const rest = [];
+    for (const item of items) {
+      const el = at(item);
+      (el ? placed : rest).push({ item, el });
+    }
+    placed.sort((a, b) => (a.el === b.el ? 0 : a.el.compareDocumentPosition(b.el) & Node.DOCUMENT_POSITION_FOLLOWING ? -1 : 1));
+    return [...placed, ...rest].map((p) => p.item);
+  }
 
   /**
    * A row's mark: "needs-you" (red), "check" (amber), "waiting" (on the
@@ -69,11 +111,12 @@ window.WIA = window.WIA || {};
   const WORST = ["needs-you", "check", "waiting", "filling", "not-asked", "empty", "filled"];
   const worst = (marks) => WORST.find((m) => marks.includes(m)) ?? "empty";
 
-  /** What the entry's block is titled: its company or school as the form shows it, else "Work Experience 1". */
+  /** What the entry's block is titled: its company or school as the form shows it, else as the Plan fills it, else "Work Experience 1". */
   function titleOf(section, n, fields) {
     const naming = fields.find((f) => NAMES_IT.test(entryOf(f).part) && f.shows && f.shows.length);
     const shown = naming && (Array.isArray(naming.shows) ? naming.shows[0] : naming.shows);
-    return shown || `${section} ${n}`;
+    const plan = fields.map((f) => plannedNames.get(f.key)).find(Boolean);
+    return shown || plan || `${section} ${n}`;
   }
 
   /** A repeated section's node: its own row (or one made for it), then a block per entry. */
@@ -97,7 +140,7 @@ window.WIA = window.WIA || {};
     for (const [n, members] of [...byEntry].sort(([a], [b]) => a - b)) {
       const block = Object.assign(document.createElement("div"), { className: "entry" });
       block.append(Object.assign(document.createElement("div"), { className: "entry-title", textContent: titleOf(name, n, members) }));
-      for (const f of members) {
+      for (const f of inPageOrder(members, (m) => [m.key])) {
         const r = row(f);
         r.classList.add("sub");
         r.dataset.mark = markOf(f);
@@ -115,8 +158,8 @@ window.WIA = window.WIA || {};
    */
   function render(fields, row) {
     const notes = [];
-    // Each item: a field, or a repeated section, in the Plan's order (a section where its first field is).
-    const items = [];
+    // Each item: a field, or a repeated section (placed where its first field is); put in the page's order below.
+    let items = [];
     const sections = new Map();
     for (const field of fields) {
       if (field.note) {
@@ -139,6 +182,7 @@ window.WIA = window.WIA || {};
       if (entry.head) item.head = field;
       else item.fields.push(field);
     }
+    items = inPageOrder(items, (item) => (item.field ? [item.field.key] : [...(item.head ? [item.head.key] : []), ...item.fields.map((f) => f.key)]));
     const required = [];
     const optional = [];
     const notAsked = [];
@@ -160,7 +204,7 @@ window.WIA = window.WIA || {};
     const nodes = [...notes];
     for (const [name, list, rest] of [["Required", required, notAsked], ["Optional", optional, []]]) {
       if (!list.length && !rest.length) continue;
-      // Sorted stably: the Plan's order within each tier.
+      // Sorted stably: the page's order within each tier.
       const ordered = settled ? [...list].sort((a, b) => a.tier - b.tier) : list;
       const el = Object.assign(document.createElement("section"), { className: "section" });
       el.dataset.section = name.toLowerCase();
@@ -228,5 +272,5 @@ window.WIA = window.WIA || {};
     .group[data-group="not-asked"] .row .reason { color: var(--color-ink-meta); }
   `;
 
-  window.WIA.groups = { render, css, markOf, entryOf };
+  window.WIA.groups = { render, css, markOf, entryOf, planned };
 })();

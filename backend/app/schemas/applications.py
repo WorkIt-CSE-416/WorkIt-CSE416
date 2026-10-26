@@ -109,6 +109,8 @@ class FinishRequest(BaseModel):
     """POST .../applications/{job_id}/finish: how the fill ended. submitted:
     the student clicked Submitted. skipped: Skip, or the tab was closed.
     failed: the form could not be filled (no form, sign-in needed).
+    closed: a batch tab found the job system saying the job is closed: the
+    application is skipped and its posting marked closed (KAN-369).
     unsubmitted: the panel's "I didn't submit this", for a submit marked by
     mistake (KAN-401): an applied application goes back to the stage its
     batch tab had before, which `state` names in PUT .../fill's words (ready:
@@ -116,7 +118,7 @@ class FinishRequest(BaseModel):
     batch's next fill, so only a tab the extension says was Ready goes back
     there. `state` is unsubmitted's only (422 with any other outcome)."""
 
-    outcome: Literal["submitted", "skipped", "failed", "unsubmitted"]
+    outcome: Literal["submitted", "skipped", "failed", "closed", "unsubmitted"]
     state: Literal["ready", "needs_you"] | None = None
 
     @model_validator(mode="after")
