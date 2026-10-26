@@ -113,8 +113,10 @@ LISTING_URL = {
     # which is where the curated lists link them (`?icims=1`). `token` is that host.
     "icims": "https://{token}/api/jobs?page=1&limit=100",
     # SuccessFactors' career-site builder (jobs.grainger.com): its own search page,
-    # HTML, a few dozen postings a page. `token` is that host.
-    "successfactors": "https://{token}/search/?q=&startrow=0",
+    # HTML, a few dozen postings a page. `token` is that host. Sorted by title:
+    # the default order is not stable from page to page (Hershey's repeated 8
+    # postings across pages and left 8 out; by title, 328 of 328, 2026-10-26).
+    "successfactors": "https://{token}/search/?q=&sortColumn=sort_title&sortDirection=asc&startrow=0",
 }
 
 
@@ -1147,6 +1149,9 @@ def _greenhouse_pay(ranges: list[dict]) -> details.Pay | None:
 
 #: Requisitions per Oracle request: a larger `limit` is answered with 200 anyway.
 ORACLE_PAGE = 200
+#: The deepest Oracle's search pages: past an offset of 10,000 it serves nothing
+#: (egud.fa.us2/CX_1 counts 10,757, ejwl.fa.us2/CX 13,426; 2026-10-26).
+ORACLE_MAX = 10_000
 
 
 def oracle(
@@ -1156,10 +1161,15 @@ def oracle(
     not at all, 200 a request (Oracle's own page sends 25). The search reports
     `hasMore: false` even mid-board, so the count it gives decides when to stop.
     A site number the pod does not have is a search with a count of 0, so it reads
-    as an empty board; a pod that does not exist is a 404."""
+    as an empty board; a pod that does not exist is a 404.
+
+    The count can run a few over what the search serves (ebwg.fa.us2/CX: 115
+    counted, 113 served on one page of 200, nothing after). So a read is whole
+    when its pages never overlapped and either it reached the count or its last
+    page came back short: the search had nothing more to give."""
     parts = _parts("oracle", token)
     rows: dict[str, dict] = {}
-    expected, offset = None, 0
+    served, expected, offset, short = 0, None, 0, False
     while expected is None or offset < expected:
         url = LISTING_URL["oracle"].format(**{**parts, "offset": str(offset)})
         if offset:
@@ -1168,13 +1178,17 @@ def oracle(
         assert isinstance(payload, dict)
         search = (payload.get("items") or [{}])[0]
         expected = int(search.get("TotalJobsCount") or 0) if expected is None else expected
+        if expected > ORACLE_MAX:
+            raise TooLarge(f"{expected:,} requisitions")
         page = search.get("requisitionList") or []
+        served += len(page)
         for row in page:
             rows.setdefault(str(row["Id"]), row)
-        if not page:
+        if len(page) < ORACLE_PAGE:
+            short = True
             break
         offset += ORACLE_PAGE
-    if len(rows) != expected:
+    if served != len(rows) or len(rows) > expected or (len(rows) < expected and not short):
         raise Incomplete(f"read {len(rows):,} distinct requisitions of {expected:,}")
     site = "https://{pod}.oraclecloud.com/hcmUI/CandidateExperience/en/sites/{site}".format(**parts)
     return [
@@ -1322,9 +1336,13 @@ def icims(token: str, company: str, *, pace: Callable[[str], None] = lambda url:
     """Every iCIMS posting on a company's Jibe careers site, read whole or not at
     all, with its description. Jibe can front other systems too, so only rows it
     says are on iCIMS (`ats_code`) are kept. Jibe sites publish a Crawl-delay of
-    5 s, which `pace` keeps between pages."""
+    5 s, which `pace` keeps between pages.
+
+    A site can list one posting twice (MasTec: 1,258 rows, 1,211 postings, all
+    pages read; 2026-10-26), so the rows served, not the distinct postings, must
+    add up to the count; the twice-listed posting is kept once."""
     rows: dict[str, dict] = {}
-    expected, number = None, 1
+    served, expected, number = 0, None, 1
     while expected is None or (number - 1) * JIBE_PAGE < expected:
         url = f"https://{token}/api/jobs?page={number}&limit={JIBE_PAGE}"
         if number > 1:
@@ -1333,13 +1351,14 @@ def icims(token: str, company: str, *, pace: Callable[[str], None] = lambda url:
         assert isinstance(payload, dict)
         expected = int(payload.get("totalCount") or 0) if expected is None else expected
         page = [row.get("data") or {} for row in payload.get("jobs") or []]
+        served += len(page)
         for row in page:
             rows.setdefault(str(row.get("slug") or row.get("req_id")), row)
         if not page:
             break
         number += 1
-    if len(rows) != expected:
-        raise Incomplete(f"read {len(rows):,} distinct postings of {expected:,}")
+    if served != expected:
+        raise Incomplete(f"read {served:,} postings of {expected:,}")
     jobs = []
     for slug, row in rows.items():
         if row.get("ats_code") != "icims":
@@ -1384,21 +1403,24 @@ def successfactors(
     as the site chose (Grainger 35). No description: the posting's own page has
     it (`describe_successfactors`)."""
     rows: dict[str, tuple[str, str, str, str]] = {}
-    expected = None
+    served, expected, ended = 0, None, False
     while expected is None or len(rows) < expected:
-        url = f"https://{token}/search/?q=&startrow={len(rows)}"
+        url = listing_url("successfactors", token).replace("startrow=0", f"startrow={len(rows)}")
         if rows:
             pace(url)
         text = _get_text(url)
         total = re.search(r"paginationLabel[^>]*>.*?of\s*<b>([\d,]+)</b>", text, re.S)
         expected = int(total[1].replace(",", "")) if total else 0 if expected is None else expected
         page = _successfactors_rows(text)
-        before = len(rows)
+        served += len(page)
         for row in page:
             rows.setdefault(row[0], row)
-        if len(rows) == before:
+        if not page:
+            # Past the last posting. As on Oracle, the count can run over what the
+            # site serves (Hershey's: 328 counted, 326 served).
+            ended = True
             break
-    if len(rows) != expected:
+    if served != len(rows) or len(rows) > expected or (len(rows) < expected and not ended):
         raise Incomplete(f"read {len(rows):,} distinct postings of {expected:,}")
     return [
         Job(

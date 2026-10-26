@@ -69,13 +69,32 @@ class TestOracle:
         assert ["offset=0" in asked[0], "offset=2" in asked[1]] == [True, True]
         assert len(paced) == 1
 
-    def test_a_read_short_of_its_count_is_incomplete(self, monkeypatch) -> None:
+    def test_pages_that_overlap_are_incomplete(self, monkeypatch) -> None:
+        # The board changed under us: the second page repeats the first's rows.
+        payload = fixture("oracle-list.json")
+        payload["items"][0]["TotalJobsCount"] = 4
+        monkeypatch.setattr(providers, "ORACLE_PAGE", 3)
+        rows = payload["items"][0]["requisitionList"]
+        again = {"items": [{**payload["items"][0], "requisitionList": rows[:1]}]}
+        self.serve(monkeypatch, [payload, again])
+        with pytest.raises(Incomplete):
+            providers.oracle(self.TOKEN, "Tradeweb")
+
+    def test_a_count_a_few_over_what_the_last_page_serves_is_whole(self, monkeypatch) -> None:
+        # Live, 2026-10-26: ebwg.fa.us2/CX counted 115 and served 113 on one page of
+        # 200, with nothing past it; edel.fa.us2/CX_2001 1,040 and 1,039. The count
+        # includes requisitions the search never serves. A short last page with no
+        # overlap is the whole board.
         payload = fixture("oracle-list.json")
         payload["items"][0]["TotalJobsCount"] = 5
-        monkeypatch.setattr(providers, "ORACLE_PAGE", 3)
-        short = {"items": [{**payload["items"][0], "requisitionList": []}]}
-        self.serve(monkeypatch, [payload, short])
-        with pytest.raises(Incomplete):
+        self.serve(monkeypatch, [payload])
+        assert len(providers.oracle(self.TOKEN, "Tradeweb")) == 3
+
+    def test_a_board_past_the_deepest_page_is_too_large(self, monkeypatch) -> None:
+        payload = fixture("oracle-list.json")
+        payload["items"][0]["TotalJobsCount"] = 13_426  # ejwl.fa.us2/CX
+        self.serve(monkeypatch, [payload])
+        with pytest.raises(providers.TooLarge):
             providers.oracle(self.TOKEN, "Tradeweb")
 
     def test_a_site_with_nothing_open_is_empty(self, monkeypatch) -> None:
@@ -152,6 +171,13 @@ class TestICIMS:
         assert "At AMD, we believe technology" in (intern.description or "")
         assert len(jobs) == 2
 
+    def test_a_posting_listed_twice_is_kept_once(self, monkeypatch) -> None:
+        payload = fixture("icims-jibe-list.json")
+        payload["jobs"].append(payload["jobs"][0])
+        payload["totalCount"] = 3
+        monkeypatch.setattr(providers, "_get_json", lambda url: payload)
+        assert len(providers.icims("careers.amd.com", "AMD")) == 2
+
     def test_a_posting_on_another_system_is_left_out(self, monkeypatch) -> None:
         payload = fixture("icims-jibe-list.json")
         payload["jobs"][1]["data"]["ats_code"] = "workday"
@@ -165,7 +191,9 @@ class TestSuccessFactors:
         page = fixture("successfactors-search.html")
         monkeypatch.setattr(providers, "_get_text", lambda url: asked.append(url) or page)
         jobs = providers.successfactors("jobs.grainger.com", "Grainger")
-        assert asked == ["https://jobs.grainger.com/search/?q=&startrow=0"]
+        assert asked == [
+            "https://jobs.grainger.com/search/?q=&sortColumn=sort_title&sortDirection=asc&startrow=0"
+        ]
         assert [job.title for job in jobs] == [
             "District Sales Representative",
             "Global Command Center Manager (IT Operations)",

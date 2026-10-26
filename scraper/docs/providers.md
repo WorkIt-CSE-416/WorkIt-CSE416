@@ -68,6 +68,11 @@ on that day's responses in `tests/fixtures/providers/`.
   reported `TotalJobsCount` decides when to stop. A site number the pod lacks is a
   search counting 0, so it reads as an empty board. Pods answer robots.txt with a
   404 (no rules); they share one pace (`polite.SHARED_PACE`).
+  The first live run found two things the count does not tell: it often runs one
+  to three over what the search serves (ebwg.fa.us2/CX: 115 counted, 113 served on
+  one page of 200, nothing past it), so a read whose last page came back short and
+  never overlapped is whole; and the search serves nothing past an offset of 10,000,
+  so a bigger board is `TooLarge` (egud.fa.us2, ejwl.fa.us2).
 - **TikTok** is one board, `tiktok/lifeattiktok`: the POST lifeattiktok.com's own
   search makes, which answers "invalid request" without a `website-path: tiktok`
   header. About 4,300 postings, 200 a request, with descriptions; no date.
@@ -76,13 +81,19 @@ on that day's responses in `tests/fixtures/providers/`.
 - **iCIMS** is read where the curated lists link it: a company's Jibe careers site
   (`careers.amd.com/jobs/{id}?icims=1`), whose `/api/jobs` lists every posting with
   its description, 100 a request. The board is the site's host. Only rows Jibe
-  marks `ats_code: icims` are kept. Jibe sites publish `Crawl-delay: 5`. Bare
+  marks `ats_code: icims` are kept. Jibe sites publish `Crawl-delay: 5`. A site can
+  list one posting twice (MasTec: 1,258 rows served, 1,211 postings), so the rows
+  served must add up to the count, and a twice-listed posting is kept once. Bare
   `{tenant}.icims.com` boards are not read: 2 of the lists' active postings link one,
   and their search page is HTML in an iframe.
 - **SuccessFactors** is read from a career site's own search page
   (`jobs.grainger.com/search/?q=&startrow=N`), HTML, as many rows a page as the site
   set (Grainger 35), and a kept posting's page for its description and exact date.
-  The board is the host the lists mark `?ats=successfactors`. Its robots.txt
+  The board is the host the lists mark `?ats=successfactors`. The search is sorted
+  by title: in its default order Hershey's repeated 8 postings across pages and
+  left 8 out, and by title all 328 were read once. Its count can run over what it
+  serves, as Oracle's does, so a read that reached an empty page with no overlap
+  is whole. Its robots.txt
   disallows the RSS feed (`/services/`), so the search page is the only list.
   A posting's id is its path, as on Workday: a bare id redirects to an error page.
 
