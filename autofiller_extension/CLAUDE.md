@@ -1363,9 +1363,19 @@ slot by name, `panel.slot(name)`, and adds its styles with
 | `batch-line` | the batch line ("Batch · 3 of 5 ready · Next tab →", Workday's step) | panel-top.js |
 | `job-card` | the job card (title, company, Match score) | panel-top.js |
 | `primary` | the one big button; `panel.setPrimary({ label, onPress, secondary })` or `panel.fillButton(label)` | Autofill This Page (launcher.js), Fill Again (overlay.js) |
-| `tab:<id>` | a tab's body; `panel.addTab({ id, label })` adds one, the strip shows from two | `tab:autofill`: overlay.js's summary, Next Thing That Needs You, essay banner, moment cards, parts and rows |
+| `tab:<id>` | a tab's body; `panel.addTab({ id, label })` adds one, the strip shows from two | `tab:autofill`: overlay.js's summary, Next Thing That Needs You, essay banner, moment cards, parts and rows; `tab:resume` and `tab:answers`: a placeholder (KAN-397) |
 | `settings` | the settings view, shown by the header's gear in place of the tabs (`panel.showSettings`) | Workday Sign-Up (opens the options page), Back |
 | `report` | Report a problem, shown by the header's button in place of the tabs (`panel.showView("report", true)`) | a placeholder ("Nothing is sent yet"), Back |
+
+**Tabs (KAN-397).** The shell makes three: Autofill, Résumé and Answers.
+Résumé and Answers hold a one-line placeholder (`.tab-placeholder`) until
+their tickets fill them: `panel.slot("tab:resume").replaceChildren(...)`
+(`addTab` with an existing id returns its body). The tab the student
+presses is kept in the page's `sessionStorage` (`workit-panel-tab`), so
+it lasts while the browser tab is open, across page loads and Workday
+steps; `addTab` shows it again once that tab exists. A page that refuses
+storage keeps the choice until it goes. `selectTab` from code doesn't
+keep it.
 
 `batch-line`, `job-card` and `settings` are cards hidden while empty: a
 file that fills one sets `hidden = false`. A file loaded before the shell
@@ -1448,6 +1458,31 @@ background.js `SHELL_FILES`):
 Tests: `test/panel-header.extension.spec.ts` (a batch's line, card, ring and
 Next tab; an own tab's header, Report placeholder and applied card; a
 Workday tab's step line).
+
+## The Autofill tab's groups (KAN-397)
+
+`src/content/groups.js` (`window.WIA.groups`, loaded before overlay.js)
+draws the Autofill tab's rows by what they ask of the student, not in form
+order: **Needs you** (failed, a required field with no answer, a flag from
+the student's Claude's check, a human check or another "todo" note, a
+written answer no Claude is writing), **Check these** (guesses),
+**Waiting for your Claude**, **Filling** (rows not done yet), then
+**Filled** collapsed to "20 filled" and **N optional left empty**, both
+opened by a press (kept for the page's life). Each group's head shows its
+count; an empty group is left out; a "done" note sits above the groups.
+overlay.js's `render` asks `groups.render(fields, row)` and keeps its own
+`row` (cards, badges, row click), so every row card works in its group. A
+row in a collapsed group stays in sight while it has more than its label
+and badge (a card such as Saved for next time with Undo, a reason, See
+cover letter) or is the row Next Thing last went to. A test that presses a
+plain filled row opens Filled first (`.group[data-group="filled"]
+.group-head`).
+
+Tests: `test/panel-tabs.extension.spec.ts` (Anduril's guess under Check
+these above "20 filled", opening Filled and a row's click to its field;
+Looks right and Undo moving the counts; the three tabs, and the choice
+kept across a reload), and the waiting group's count in
+`test/waiting-card.extension.spec.ts`.
 
 ## The overlay: honest per-field results
 
