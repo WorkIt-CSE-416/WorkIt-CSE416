@@ -77,25 +77,17 @@ const BUSY: Record<Format, string> = {
  * PDF's own source, for a student who edits it in Overleaf. While a file
  * is being made, the trigger says which one and takes no second pick.
  */
-export function DownloadMenu({
-  download,
-  primary = false,
-}: {
-  download: ResumeDownload;
-  /** The brand fill: Tailor's slim editor bar, where it is the bar's one
-   *  filled button. As an outlined glyph there the user found it dated. */
-  primary?: boolean;
-}) {
+export function DownloadMenu({ download }: { download: ResumeDownload }) {
   const { busy, pick } = download;
   const label = busy ? BUSY[busy] : "Download";
   return (
     <DropdownMenu>
       <DropdownMenuTrigger
         disabled={busy !== null}
-        render={<Button variant={primary ? "default" : "secondary"} size="sm" />}
+        render={<Button variant="secondary" size="sm" />}
       >
         <FileArrowDownIcon aria-hidden /> {label}
-        <ChevronDownIcon className={primary ? undefined : "text-ink-meta"} />
+        <ChevronDownIcon className="text-ink-meta" />
       </DropdownMenuTrigger>
       <DropdownMenuContent>
         <DropdownMenuItem onClick={() => pick("pdf")}>PDF</DropdownMenuItem>

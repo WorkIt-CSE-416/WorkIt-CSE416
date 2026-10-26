@@ -38,12 +38,12 @@ import re
 import uuid
 from collections.abc import Iterable, Mapping, Sequence
 
-from sqlalchemy import Text, cast, func, select
+from sqlalchemy import Text, cast, delete, func, select
 from sqlalchemy.dialects.postgresql import TSQUERY
 from sqlalchemy.ext.asyncio import AsyncSession
 from workit_scout.identity import placeholders_in
 
-from app.models.bank import Bank_Bullet, Bank_Bullet_Variant, Bank_Entry
+from app.models.bank import Bank_Bullet, Bank_Bullet_Variant, Bank_Entry, Bank_Skill
 from app.models.jobs import Job_Post
 from app.models.resume import Resume
 from app.schemas.keywords import Keyword
@@ -465,6 +465,17 @@ def propose(
         if len(shown) > 1 and best != shown:
             changes.append(TailorChange(kind="order", entry_id=entry.id, bullet_ids=best, label=_label(entry)))
     return changes, dropped
+
+
+async def clear_run(session: AsyncSession, resume_id: uuid.UUID) -> None:
+    """What the last run and the student's edits made on the posting's
+    tailored resume and on no other: its own skills and its own typed
+    wordings, cleared so a new run replaces the resume. The run then writes
+    every choice row afresh (`write_choices`). The posting's variants stay:
+    another resume may show one, and the same wording reuses it."""
+    for model in (Bank_Skill, Bank_Bullet_Variant):
+        await session.execute(delete(model).where(model.built_resume_id == resume_id))
+    await session.flush()
 
 
 async def place_on(

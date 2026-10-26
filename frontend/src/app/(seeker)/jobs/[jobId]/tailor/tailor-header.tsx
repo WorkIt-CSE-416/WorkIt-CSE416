@@ -17,7 +17,7 @@ import { Fact } from "@/components/ui/fact";
 
 import type { JobListing } from "../../listings";
 import { toPosting } from "../../to-posting";
-import { BackToJobs } from "../page-actions";
+import { TailorBack } from "./tailor-back";
 import { TAILOR_STEPS } from "./tailor-steps";
 
 /**
@@ -106,7 +106,8 @@ function TailorJobCard({ job }: { job: JobListing }) {
 
 /**
  * The review step's whole header (./page.tsx), one slim row so the resume
- * starts near the top, in three parts: Back (the job page's `BackToJobs`),
+ * starts near the top, in three parts: Back (to Choose Keywords,
+ * `TailorBack`),
  * the step in the middle on one line ("Review Changes · Step 3 of 3"), and Finish at the right, which leaves for the job
  * posting's page, where the student applies. Download sat beside Finish
  * for a day; it is back on the editor's toolbar, with the page's tools. Every change is saved as it is made, so
@@ -121,7 +122,7 @@ function TailorJobCard({ job }: { job: JobListing }) {
  * It sat bare on the page until it took the brand tint, which the user
  * wanted so the row stands out against the content under it.
  */
-export function TailorReviewBar({ job }: { job: JobListing }) {
+export function TailorReviewBar({ job, resumeId }: { job: JobListing; resumeId: string }) {
   const last = TAILOR_STEPS[TAILOR_STEPS.length - 1];
   return (
     // In the brand tint with its ring, as the Suggestions panel is, so the
@@ -130,7 +131,7 @@ export function TailorReviewBar({ job }: { job: JobListing }) {
       <h1 className="sr-only">
         Tailor for {job.title} at {job.company}
       </h1>
-      <BackToJobs className="group/back justify-self-start" />
+      <TailorBack jobId={job.id} resumeId={resumeId} />
       {/* One line: the flow's name over the step, two lines, said more
           than this row needs */}
       <p className="text-label text-ink truncate text-center font-semibold">

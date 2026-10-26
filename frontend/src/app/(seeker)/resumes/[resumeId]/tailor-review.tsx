@@ -53,8 +53,8 @@ export type SuggestionsApi = {
   rejectAll: () => void;
   focused: string | null;
   focus: (key: string | null) => void;
-  /** Tints a card's lines and brings them into view (a click; on a phone it
-   *  also closes the sheet). */
+  /** Opens a card and brings its lines into view (on a phone it also
+   *  closes the sheet, which covers the page). */
   show: (key: string) => void;
   active: string | null;
   open: (key: string | null) => void;

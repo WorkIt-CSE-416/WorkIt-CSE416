@@ -13,10 +13,14 @@ editor with the tailored resume already compiled. There are no proposal
 cards to accept and no Done. Every change WorkIt made is marked in the
 editor, and the student can revert each one there until they click Save.
 
-**One tailored resume per posting, made once.** A posting that already has
-a tailored resume cannot be tailored again: the screen opens the existing
-one in the editor instead, and the run answers 409 if called. This saves
-model tokens; the student changes the tailored resume in the editor.
+**One tailored resume per posting; running Tailor again replaces it.** The
+posting's page opens its tailored resume's review once it has one. The
+review's Back opens Choose Keywords again on the resume the run started
+from, and a new run replaces the tailored resume in place: the same id,
+name and star, made again (2026-10-26). Step 2 says so above Tailor Resume,
+since the run asks for no confirmation. It was made once, a second run
+refused with a 409 to save model tokens, until the student wanted to go
+back and pick other keywords.
 
 ## The flow
 
@@ -232,7 +236,10 @@ weight.
 
 - **The page's top row**, in the brand tint with its ring and rounded,
   as the panel is, so the page's frame stands apart from the content
-  under it: Back at the left, the flow and its step in the
+  under it: Back at the left (`TailorBack`: Choose Keywords again on the
+  run's source, to pick other keywords and run again, which replaces this
+  resume; Pick a Resume when this tab has no record of the run; the Jobs
+  page until 2026-10-26), the step in the
   middle on one line ("Review Changes · Step 3 of 3"; the flow's name
   over the step, two lines, said more than the row needs), and Finish at
   the right, which leaves for the job posting's page, where the student
@@ -261,7 +268,8 @@ weight.
   2026-10-26), then the page count as an amber chip with a warning sign
   and a caret ("⚠ 2 pages ⌄", over one page only), which reads as a
   problem to open and offers Fit to One Page, and Undo Fit after a fit.
-  At the right, Download in the brand fill. No "Not on This Resume" on
+  At the right, Download, secondary: Finish is the page's one filled
+  button, and a filled Download beside it competed. No "Not on This Resume" on
   this page: putting a hidden line back is the editor's own page's work,
   and a run's own removals have Reject. It sat under the page, below a
   two-page resume, then for a day was a toolbar button with a modal,
@@ -350,9 +358,17 @@ weight.
   only made it harder to read), and for a rewording the old struck and
   the new highlighted (inline when
   only a run in the middle changed, else the old line over the new one),
-  each moved bullet's place before and now ("2nd → 1st"), with ✕ Reject
-  and ✓ Accept. A row turns faint grey while pointed at, never brand: an
-  open row in purple read as selected. Sections were by type (Reworded
+  each moved bullet's place before and now ("2nd → 1st"). Accept and
+  Reject are a green check and a red cross at the row's end, as Google
+  Docs answers a suggestion, shown while the row is open, pointed at or
+  focused (hidden, not removed, so the text keeps its width); they were
+  full Accept and Reject buttons under the change, which read heavy. A
+  row turns faint grey while pointed at, never brand: an open row in
+  purple read as selected. Pointing at a row highlights its lines;
+  only opening one scrolls the page to them, since scrolling on hover
+  made the page swim as the pointer crossed the panel. The panel then
+  scrolls its own list to the open row, never the page: a
+  `scrollIntoView` there cancelled the page's smooth scroll in Chrome. Sections were by type (Reworded
   Bullets, Reordered Bullets, Added Skills) until 2026-10-26: with every
   type in play, a student reads the panel against the page, and sections
   by type sent them up and down it. Each suggestion was a numbered card
@@ -386,9 +402,10 @@ weight.
 
 - **One run, one `TAILOR` use**, counted after the model answers (lifted
   for now, KAN-319).
-- **One tailored resume per posting, made once** (above). The run checks
-  `tailored_for(applicant, posting)` before any model call and answers 409
-  with the tailored resume's id, so a refused run spends no tokens.
+- **One tailored resume per posting, replaced by a new run** (above). The
+  run finds it with `tailored_for(applicant, posting)`, refuses (422) a
+  source that is that resume before any model call, and after the model
+  answers clears what it alone owns (`clear_run`) and writes it again.
 - **The source resume never changes.** The run writes only the posting's
   tailored resume, its local skills and the new wordings' variants.
 
@@ -444,8 +461,8 @@ them:
    and every reader of one built resume naming it (`backend/CLAUDE.md`).
    Nothing writes one yet: step 3 does.
 3. **The run saves. Built.** `POST .../tailor/match` reads the source's
-   match; the run refuses a posting that has a tailored resume (409 before
-   any model call), applies rewords, order and placed skills, writes the
+   match; a run on a posting that has a tailored resume replaces it in
+   place (it refused one with a 409 until 2026-10-26), applies rewords, order and placed skills, writes the
    tailored resume in one commit and answers with `edits`
    (`TailorEdit`). Done, the proposal cards and "Have you used X?" are
    gone. The screen picks skills before the run, stores the edits in

@@ -1669,7 +1669,8 @@ with no proposals to accept and no Done (2026-10-25).
   inside the picker card until 2026-10-26, as the card's heading and a
   paragraph; the user wanted the card to hold the list alone.
 - **The review step's header is one slim row** (`TailorReviewBar`,
-  2026-10-26), so the resume starts near the top: Back (`BackToJobs`),
+  2026-10-26), so the resume starts near the top: Back (`TailorBack`, to
+  Choose Keywords on the run's source, `?step=keywords&source=`),
   "Review Changes · Step 3 of 3" on one line in the middle, and
   Finish (filled, to the job posting's page) at the right. The page's h1, "Tailor for
   <title> at <company>", is for screen readers only. Under it the
@@ -1691,9 +1692,14 @@ with no proposals to accept and no Done (2026-10-25).
   with no second read. Review Changes is the tailored resume's own page.
   The run was a fourth step, Tailor, until later the same day; it only
   waited, so the user had it folded into a loader (below).
-- **A posting is tailored once.** When it has a tailored resume, the screen
-  shows it with Open in Editor and offers no run; the API refuses a second
-  run (409), so no tokens are spent on it.
+- **A posting has one tailored resume, and a new run replaces it.** The
+  posting's Tailor page opens its review once it has one. The review's
+  Back opens Choose Keywords on the run's source (`?step=keywords&source=`;
+  `?step=pick` for Pick a Resume), where a line above Tailor Resume says
+  the run replaces the tailored resume; the run keeps its id, name and
+  star. The posting's own tailored resume is never the first pick and
+  cannot be a source (422). It was tailored once, a second run refused
+  with a 409, until 2026-10-26.
 - **The screen picks through the shared resume list** (KAN-318, KAN-406):
   `ResumeLists` from `jobs/resume-picker.tsx`, as every resume dialog
   does, with its search, Type filter and Upload Resume (the same limit,
@@ -1775,7 +1781,7 @@ with no proposals to accept and no Done (2026-10-25).
   for the page: at the left Undo and Redo (UI only for now, disabled)
   and, idle, the page count when over one page as an amber chip with a
   warning sign and a caret (its click offers Fit to One Page); at the
-  right Download in the brand fill. No "Not on This Resume" on this page
+  right Download, secondary. No "Not on This Resume" on this page
   (the editor's own page keeps it); while a line is open, its moves, Hide and its choices with "Esc
   when done"; no Ask Scout and no Done. Each changed line has a small
   purple dot in the page's margin and is highlighted (its tint, a 1px dark
@@ -1786,8 +1792,10 @@ with no proposals to accept and no Done (2026-10-25).
   reworded blue, removed red, moved amber, and its count); under it one white section per resume entry, top to bottom
   as on the page, each heading with the entry's title, organization,
   count and a caret, and each suggestion a row with its type's badge and
-  a plus (a minus while open) that opens to its change with a red ✕ Reject and a green ✓
-  Accept, and under the list Reject All and Accept All. Sample changes of every type sit beside the run's for now
+  a plus (a minus while open) that opens to its change, with a green ✓
+  and a red ✕ at its end while it is open or pointed at, and under the
+  list Reject All and Accept All. Pointing at a row highlights its lines;
+  only opening it scrolls the page to them. Sample changes of every type sit beside the run's for now
   (`demo-suggestions.ts`, temporary). On a phone the panel is a sheet opened by
   "Suggestions (n)". With no record (a new tab or device) the editor
   shows alone, with a line saying the suggestions live in the tab that ran
@@ -2088,8 +2096,8 @@ student who opened a resume from Experiences landed on another view.
   (`advanced`), an entry's bullets in a new order amber (`warning-fill`,
   bordered in `warning-strong`). The same page passes `compact`, the slim
   toolbar: Undo and Redo (disabled, UI only); idle, a "⚠ 2 pages" chip
-  whose popover offers Fit to One Page and Download in the brand fill
-  (`DownloadMenu`'s `primary`), with no hint and no "Not on This Resume"; editing
+  whose popover offers Fit to One Page and Download (secondary: Finish is
+  the page's one filled button), with no hint and no "Not on This Resume"; editing
   a line, its moves first (`LineActions`' `movesFirst`),
   Hide and its choices, and "Esc when done" for Done. It has no Ask Scout.
   It also passes `heading`, the label over the page's column; the

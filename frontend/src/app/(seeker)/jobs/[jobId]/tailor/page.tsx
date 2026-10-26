@@ -55,8 +55,14 @@ export default async function TailorPage({
   if (job == null) notFound();
   const tailored = resumes.data?.find((r) => r.job_posting_id === job.id) ?? null;
   const requestedId = typeof query.resumeId === "string" ? query.resumeId : null;
-  const resume =
-    resumes.data?.find((r) => r.id === requestedId && r.job_posting_id === job.id) ?? tailored;
+  // The review's Back: Choose Keywords again on the run's source, so a
+  // posting with a tailored resume can be tailored again (the run replaces it)
+  const source =
+    query.step === "keywords" && typeof query.source === "string" ? query.source : null;
+  const restart = source != null || query.step === "pick";
+  const resume = restart
+    ? null
+    : (resumes.data?.find((r) => r.id === requestedId && r.job_posting_id === job.id) ?? tailored);
 
   if (resume) {
     const rendered = renderResumePdf(resume.id);
@@ -84,7 +90,7 @@ export default async function TailorPage({
         )}
       >
         <div className="max-w-dashboard mx-auto w-full">
-          <TailorReviewBar job={job} />
+          <TailorReviewBar job={job} resumeId={resume.id} />
           {bank.data && choices.data && profile ? (
             <TailorReview
               name={resume.name}
@@ -125,7 +131,7 @@ export default async function TailorPage({
         Pick a resume and the keywords you have used. WorkIt rewrites its bullets for this posting
         and never adds a number or tool you did not give; you can undo any change.
       </TailorHeader>
-      <TailorScreen jobId={job.id} />
+      <TailorScreen jobId={job.id} start={source ? { step: "keywords", source } : undefined} />
     </div>
   );
 }

@@ -47,17 +47,17 @@ const PHASE = {
 type Phase = keyof typeof PHASE;
 const PHASES = Object.keys(PHASE) as Phase[];
 
-/** Tailor's first pick: the resume tailored to this posting, else the
- *  primary unless it is tailored to another posting, else the first one
- *  not tailored to any. A resume tailored to another posting is the
- *  picker's primary (KAN-268), but tailoring it again starts from another
- *  job's changes, so it is never picked for the student. */
+/** Tailor's first pick: the primary unless it is tailored, else the first
+ *  one not tailored. A resume tailored to another posting is the picker's
+ *  primary (KAN-268), but tailoring it again starts from another job's
+ *  changes, so it is never picked for the student; this posting's own
+ *  tailored resume cannot be a source at all, since a run replaces it (the
+ *  API answers 422). It was picked first until a run could replace it. */
 function tailorFirst(choices: Choice[]): Choice | undefined {
   return (
-    choices.find((c) => c.forThisJob) ??
     choices.find((c) => c.isDefault && c.type !== "Tailored") ??
     choices.find((c) => c.type !== "Tailored") ??
-    choices[0]
+    choices.find((c) => !c.forThisJob)
   );
 }
 
@@ -76,14 +76,24 @@ function tailorFirst(choices: Choice[]): Choice | undefined {
  * Keywords: the match, and the missing keywords to add as skills
  * (`KeywordCard`).
  * Back keeps the picks: the same resume picked again keeps its match and
- * its keywords, read once. Tailor Resume runs once and saves the posting's
- * one tailored resume with no confirmation, under a loader in the middle
+ * its keywords, read once. Tailor Resume saves the posting's one tailored
+ * resume with no confirmation, or replaces it when the posting has one (the
+ * review's Back opens Choose Keywords again, `start`), under a loader in the middle
  * of the window (`TailorRunning`); then the tailored resume's editor opens
  * on this route (Review Changes, ./page.tsx). The run's record of changes
  * goes to sessionStorage (`tailorEditsKey`) for the editor; nothing else
  * keeps it.
  */
-export function TailorScreen({ jobId }: { jobId: string }) {
+export function TailorScreen({
+  jobId,
+  start,
+}: {
+  jobId: string;
+  /** Where to open: the review's Back opens Choose Keywords for the resume
+   *  the run started from (`source`, a picker key such as "built:<id>"), so
+   *  the student can pick other keywords and run again. */
+  start?: { step: "keywords"; source: string };
+}) {
   const router = useRouter();
   const [step, setStep] = useState<Exclude<TailorStep, "review">>("pick");
   const [source, setSource] = useState<TailorSource | null>(null);
@@ -124,12 +134,18 @@ export function TailorScreen({ jobId }: { jobId: string }) {
       setChoices(result.choices);
       setUploads(result.uploads);
       setChoiceError(result.error);
-      setSelected(tailorFirst(result.choices)?.key ?? null);
+      // Back from the review opens Choose Keywords on its source, read again
+      const back = result.choices.find((c) => c.key === start?.source && !c.forThisJob);
+      setSelected((back ?? tailorFirst(result.choices))?.key ?? null);
+      if (back) void next(back);
     });
     return () => {
       cancelled = true;
     };
-  }, [jobId]);
+    // `next` reads only setters and the mount's empty match, so the mount's
+    // copy is the one to call
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [jobId, start?.source]);
 
   const pickedChoice = choices?.find((c) => c.key === selected) ?? null;
   const matchedChoice = choices?.find((c) => c.key === matchedKey) ?? null;
@@ -150,11 +166,6 @@ export function TailorScreen({ jobId }: { jobId: string }) {
     if (!data) {
       setStep("pick");
       return setError({ message: error ?? "WorkIt couldn't read that resume.", status });
-    }
-    if (data.tailored_resume_id) {
-      return router.push(
-        `/jobs/${encodeURIComponent(jobId)}/tailor?resumeId=${encodeURIComponent(data.tailored_resume_id)}`,
-      );
     }
     setSource(next);
     setMatch(data);
@@ -381,6 +392,12 @@ function KeywordCard({
       )}
 
       <div className="border-border-subtle flex flex-col gap-2 border-t pt-4">
+        {/* Said before the click, not after: the run has no confirmation */}
+        {match.tailored_resume_id && (
+          <p className="text-note text-ink-meta">
+            This posting already has a tailored resume. Tailor Resume replaces it with a new run.
+          </p>
+        )}
         <div className="flex flex-wrap justify-between gap-2">
           <Button variant="secondary" onClick={onBack} disabled={running}>
             <ArrowLeftIcon /> Back

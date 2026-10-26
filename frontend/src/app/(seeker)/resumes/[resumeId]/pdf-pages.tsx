@@ -169,7 +169,7 @@ export function PdfPages({
   placeholder?: ReactNode;
   /** Tailor's changed lines, by box key, while their changes are untouched. */
   marks?: Map<string, Mark>;
-  /** The lines of the Suggestions card in focus, by box key. */
+  /** The lines of the open suggestion, by box key, scrolled into view. */
   focus?: string[];
   /** Tailor's margin dots, by box key, and what a click on one does. */
   dots?: Map<string, Dot>;
@@ -184,7 +184,7 @@ export function PdfPages({
   useEffect(() => {
     drawn.current = onDrawn;
   });
-  // The focused card's first line comes into view, if it is not already
+  // The open suggestion's first line comes into view, if it is not already
   const frame = useRef<HTMLDivElement>(null);
   const focusFirst = focus?.[0];
   useEffect(() => {

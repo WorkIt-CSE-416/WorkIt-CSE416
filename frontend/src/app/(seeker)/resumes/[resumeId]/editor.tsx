@@ -613,8 +613,11 @@ export function Editor({
   const dots =
     allMarks &&
     new Map([...allMarks].map(([line, mark]) => [line, { mark, lit: lit.has(line) }] as const));
-  const focusedEdit = reviewing?.edits.find((edit) => editKey(edit) === focused);
-  const focus = focusedEdit ? linesOf(focusedEdit, choices) : undefined;
+  // The page scrolls to a suggestion's lines only once it is opened: on
+  // hover it scrolled under the pointer as it crossed the panel, which made
+  // the page swim. Hover still highlights the lines (`lit`, above)
+  const openEdit = reviewing?.edits.find((edit) => editKey(edit) === active);
+  const focus = openEdit ? linesOf(openEdit, choices) : undefined;
   /** A click on a line selects it, and a changed one also opens its card. */
   const onLine = (key: string) => {
     select(selected === key ? null : key);
@@ -645,7 +648,7 @@ export function Editor({
       focused,
       focus: setFocused,
       show: (key) => {
-        setFocused(key);
+        setActive(key);
         setSuggestionsOpen(false);
       },
       active,
@@ -1065,8 +1068,8 @@ function History() {
  * The slim bar (Tailor's review), over the page with the column beside it
  * starting level, holding only tools for the page: Undo and Redo
  * (`History`), then, idle, the page count as a chip that offers Fit to One
- * Page (over one page only) and Undo Fit after a fit, and Download in the
- * brand fill at the right. Not on This Resume was a button here with a
+ * Page (over one page only) and Undo Fit after a fit, and Download at the
+ * right, secondary, since Finish is the page's one filled button. Not on This Resume was a button here with a
  * modal for a day; the review does not need it (see the grid). No "Click a line to edit it." hint: the pointer's own
  * highlight on a line says so. The view switch (Suggestions or Original)
  * sat at this bar's right until it moved to the title row (`SideSwitch`):
@@ -1146,7 +1149,9 @@ function SlimBar({
       )}
       <div className="ml-auto flex shrink-0 items-center gap-2">
         {status}
-        <DownloadMenu download={download} primary />
+        {/* Secondary: Finish, in the row above, is the page's one filled
+            button. In the brand fill too, the two competed */}
+        <DownloadMenu download={download} />
       </div>
     </div>
   );

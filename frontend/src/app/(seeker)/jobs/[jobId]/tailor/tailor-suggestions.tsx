@@ -190,12 +190,22 @@ function SuggestionsPanel({
     }
     if (change && only && change.kind !== only) setOnly(null);
   }
-  // The open card comes into view
+  // The open card comes into view, by scrolling the list alone: its
+  // scrollIntoView also scrolled the page, and Chrome then cancelled the
+  // page's own smooth scroll to the card's lines (`focus` in PdfPages)
   useEffect(() => {
-    if (!active) return;
-    list.current
-      ?.querySelector(`[data-card="${CSS.escape(active)}"]`)
-      ?.scrollIntoView({ block: "nearest", behavior: "smooth" });
+    const box = list.current;
+    const card = box?.querySelector(`[data-card="${CSS.escape(active ?? "")}"]`);
+    if (!active || !box || !card) return;
+    const r = card.getBoundingClientRect();
+    const b = box.getBoundingClientRect();
+    const by =
+      r.top < b.top
+        ? r.top - b.top
+        : r.bottom > b.bottom
+          ? Math.min(r.bottom - b.bottom, r.top - b.top)
+          : 0;
+    if (by) box.scrollBy({ top: by, behavior: "smooth" });
   }, [active, closed]);
 
   const toggle = (where: string) => {
@@ -433,7 +443,8 @@ function KindBadge({ kind, small = false }: { kind: ChangeKind; small?: boolean 
 
 /**
  * One suggestion, a row in its entry's section: its type's badge, its one
- * line and a plus (`PlusMinus`); open, it shows the change, and ✕ Reject and ✓ Accept.
+ * line and a plus (`PlusMinus`), and ✓ Accept and ✕ Reject while open or
+ * pointed at; open, it shows the change.
  * Grey while pointed at or focused; its lines on the page are highlighted
  * then. Sections were by type (Reworded Bullets, Reordered Bullets, Added
  * Skills) until 2026-10-26: with every type in play, a student read the
@@ -478,49 +489,79 @@ function Suggestion({
       // selected rather than open.
       className={cn("scroll-mt-2 transition-colors", lit && !isOpen && "bg-ink/[0.03]")}
     >
-      <button
-        type="button"
-        aria-expanded={isOpen}
-        onClick={onToggle}
-        className="focus-visible:outline-brand flex w-full items-start gap-2.5 px-3 py-2.5 text-left -outline-offset-2 focus-visible:outline-2"
-      >
-        <KindBadge kind={change.kind} />
-        {/* Open, the row names the change and the box under it holds the
+      <div className="flex items-start gap-1 pr-2">
+        <button
+          type="button"
+          aria-expanded={isOpen}
+          onClick={onToggle}
+          className="focus-visible:outline-brand flex min-w-0 flex-1 items-start gap-2.5 py-2.5 pl-3 text-left -outline-offset-2 focus-visible:outline-2"
+        >
+          <KindBadge kind={change.kind} />
+          {/* Open, the row names the change and the box under it holds the
             words: the line in both read twice */}
-        {isOpen ? (
-          <span className="text-note text-ink mt-0.5 min-w-0 flex-1 font-semibold">
-            {title(change)}
-          </span>
-        ) : (
-          <>
-            <span className="sr-only">{title(change)}: </span>
-            <span className="text-note text-ink mt-0.5 line-clamp-2 min-w-0 flex-1">
-              {summary(change, choices)}
+          {isOpen ? (
+            <span className="text-note text-ink mt-0.5 min-w-0 flex-1 font-semibold">
+              {title(change)}
             </span>
-          </>
-        )}
-        <span className="mt-1 flex">
-          <PlusMinus open={isOpen} />
+          ) : (
+            <>
+              <span className="sr-only">{title(change)}: </span>
+              <span className="text-note text-ink mt-0.5 line-clamp-2 min-w-0 flex-1">
+                {summary(change, choices)}
+              </span>
+            </>
+          )}
+          <span className="mt-1 flex">
+            <PlusMinus open={isOpen} />
+          </span>
+        </button>
+        {/* Accept and Reject as a check and a cross at the row's end, as
+          Google Docs answers a suggestion: shown while the row is open,
+          pointed at or focused. They were full Accept and Reject buttons
+          under the open change, which the user found heavy. Green keeps,
+          red undoes */}
+        {/* Hidden, not removed, so the row's text keeps its width as they
+            come and go; hidden ones leave the tab order, and focus in the
+            row shows them */}
+        <span
+          className={cn(
+            "flex shrink-0 items-center gap-0.5 pt-1.5",
+            !(isOpen || lit) && "invisible",
+          )}
+        >
+          <Button
+            variant="ghost"
+            size="icon-sm"
+            aria-label={`Accept: ${title(change)}`}
+            title="Accept"
+            disabled={saving}
+            onClick={onAccept}
+            className="text-positive-ink hover:bg-positive-tint"
+          >
+            <CheckIcon aria-hidden weight="bold" />
+          </Button>
+          <Button
+            variant="ghost"
+            size="icon-sm"
+            aria-label={`Reject: ${title(change)}`}
+            title="Reject"
+            disabled={saving}
+            onClick={onReject}
+            className="text-danger hover:bg-danger-tint"
+          >
+            <XIcon aria-hidden weight="bold" />
+          </Button>
         </span>
-      </button>
+      </div>
       {isOpen && (
-        <div className="flex flex-col gap-2.5 px-3 pb-3 pl-[2.875rem]">
+        <div className="flex flex-col gap-2 px-3 pb-3 pl-[2.875rem]">
           <div className="text-note text-ink bg-app rounded-lg p-2.5">
             <ChangeBody change={change} bank={bank} choices={choices} />
           </div>
-          <div className="flex items-center gap-1.5">
-            {/* On a phone the sheet covers the page: this shows the line */}
-            <Button variant="ghost" size="xs" className="mr-auto sm:hidden" onClick={onShow}>
-              Show on Resume
-            </Button>
-            {/* Red undoes, green keeps: the pair reads at a glance */}
-            <Button variant="decline" className="ml-auto" disabled={saving} onClick={onReject}>
-              <XIcon aria-hidden /> Reject
-            </Button>
-            <Button variant="positive" disabled={saving} onClick={onAccept}>
-              <CheckIcon aria-hidden /> Accept
-            </Button>
-          </div>
+          {/* On a phone the sheet covers the page: this shows the line */}
+          <Button variant="ghost" size="xs" className="self-start sm:hidden" onClick={onShow}>
+            Show on Resume
+          </Button>
         </div>
       )}
     </div>
