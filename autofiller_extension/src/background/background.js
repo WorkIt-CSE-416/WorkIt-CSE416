@@ -12,7 +12,7 @@ import {
   writingSamples, writtenAnswers,
 } from "./api.js";
 import {
-  batchStatus, batchTabIds, forgetTab, inBatch, jobInTab, jobTypeInTab, markSubmitted, practiceStatus, resumeBatch, setTabState, setWriting,
+  batchStatus, batchTabIds, forgetTab, inBatch, jobInTab, jobTypeInTab, markSubmitted, unmarkSubmitted, practiceStatus, resumeBatch, setTabState, setWriting,
   showBatchTab, skipTab, startBatch, startPractice, submitPractice,
 } from "./batch.js";
 import { webappOrigin } from "./panel-states.js";
@@ -294,6 +294,9 @@ async function handleMessage(message, sender) {
     // didn't show (detection missed it), marked applied on the student's word.
     case "batch/i-submitted":
       return { applied: (await markSubmitted(sender.tab.id)).batch };
+    // The panel's "I didn't submit this" (panel-states.js, KAN-401): the applied mark goes back.
+    case "batch/unsubmitted":
+      return unmarkSubmitted(sender.tab.id);
 
     // The first form that asks the self-identification (KAN-387): the tab
     // whose Plan found it asks whether to ask the student (once, in one

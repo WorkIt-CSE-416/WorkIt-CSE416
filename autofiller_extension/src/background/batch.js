@@ -360,6 +360,25 @@ export function markSubmitted(tabId) {
   });
 }
 
+/**
+ * The student's "I didn't submit this" (KAN-401) on a tab WorkIt marked
+ * applied: the application goes back to queued and the tab to Ready, in its
+ * group again. A refusal throws, for the panel to say.
+ * @param {number} tabId
+ */
+export function unmarkSubmitted(tabId) {
+  return serially(async () => {
+    const batch = await load();
+    const tab = batch?.tabs[tabId];
+    if (!tab || tab.state !== "applied") return { unsubmitted: false };
+    await finishApplication((await me()).id, tab.jobId, "unsubmitted");
+    tab.state = "ready";
+    await save(batch);
+    await moveToGroup(batch, tabId, "ready");
+    return { unsubmitted: true };
+  });
+}
+
 /** Puts the tab in its state's group, making the group again if the student closed or emptied it. */
 async function moveToGroup(batch, tabId, state) {
   const saved = batch.groups[state];

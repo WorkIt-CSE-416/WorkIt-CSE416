@@ -75,5 +75,59 @@ window.WIA = window.WIA || {};
     if (document.visibilityState === "visible" && signedOut && !window.WIA.overlay?.state?.()) void start();
   });
 
-  window.WIA.panelStates = { start };
+  let sentCard = null;
+
+  /**
+   * A batch tab's application WorkIt marked applied: the primary slot says
+   * so, over the fill's button (kept, hidden), with Next job → while
+   * another tab needs the student and I didn't submit this.
+   */
+  async function sent() {
+    style();
+    const place = panel().slot("primary");
+    if (!place) return;
+    sentCard?.remove();
+    for (const child of place.children) child.dataset.keptHidden = "";
+    sentCard = document.createElement("div");
+    sentCard.className = "state-sent";
+    sentCard.innerHTML = `<div class="state-line" data-sent role="status">Sent · Marked applied on WorkIt</div>
+      <div class="state-actions"><button type="button" data-next-job hidden>Next job →</button><button type="button" data-unsubmit>I didn't submit this</button></div>
+      <div class="state-said" hidden></div>`;
+    place.prepend(sentCard);
+    const card = sentCard;
+    const said = card.querySelector(".state-said");
+    const say = (text) => {
+      said.textContent = text;
+      said.hidden = false;
+      said.dataset.error = "";
+    };
+    card.querySelector("[data-next-job]").addEventListener("click", async () => {
+      const answer = await send({ type: "panel/next-tab" });
+      if (!answer?.ok) say("WorkIt couldn't go to the next job. Try again.");
+    });
+    // The student's own click only, as I submitted this (decision 1012): the panel's shadow root is open.
+    card.querySelector("[data-unsubmit]").addEventListener("click", async (event) => {
+      if (!event.isTrusted) return;
+      const button = event.currentTarget;
+      button.disabled = true;
+      const answer = await send({ type: "batch/unsubmitted" });
+      button.disabled = false;
+      if (!answer?.ok) return say("WorkIt couldn't set it back. Try again.");
+      unsent();
+    });
+    const line = await send({ type: "panel/batch-line" });
+    if (card.isConnected) card.querySelector("[data-next-job]").hidden = !line?.line?.next;
+  }
+
+  /** I didn't submit this, done: the fill's button again, and the row says the application is open. */
+  function unsent() {
+    sentCard?.remove();
+    sentCard = null;
+    for (const child of panel().slot("primary").children) delete child.dataset.keptHidden;
+    const status = window.WIA.status;
+    status?.register("_submit", "Not sent yet", false, undefined, "done");
+    status?.setStatus("_submit", "skipped", "WorkIt set it back. Submit it yourself when it's ready.");
+  }
+
+  window.WIA.panelStates = { start, sent };
 })();

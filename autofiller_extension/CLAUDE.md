@@ -1523,6 +1523,14 @@ report.js everywhere it is: manifest, `CONTENT_SCRIPT_FILES`, background.js
   way (`.panel[data-signed-out]`). The button opens the webapp's `/login`
   (`panel/sign-in`; the local webapp when it answers, else WorkIt's site).
   When the student comes back to the tab signed in, Autofill This Page.
+- **Sent**: once a batch tab's application is marked applied (a submit
+  WorkIt saw, or I submitted this), `panelStates.sent()` puts "Sent ·
+  Marked applied on WorkIt" over the fill's button (kept, hidden), with
+  **Next job →** (`panel/next-tab`) while another tab needs the student and
+  **I didn't submit this** (trusted clicks only, as I submitted this):
+  `batch/unsubmitted` (batch.js `unmarkSubmitted`) posts `finish` with
+  outcome `unsubmitted`, which sets an applied application back to queued
+  with no date (backend pipeline.py), and the tab to Ready, in its group.
 
 Tests: `test/panel-states.extension.spec.ts`.
 
