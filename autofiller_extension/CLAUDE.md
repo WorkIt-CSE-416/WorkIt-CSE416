@@ -1385,8 +1385,8 @@ slot by name, `panel.slot(name)`, and adds its styles with
 | `header-actions` | buttons beside settings and collapse | overlay.js: a batch tab's I submitted this, Skip |
 | `batch-line` | the batch line ("Batch · 3 of 5 ready · Next tab →", Workday's step) | panel-top.js |
 | `job-card` | the job card (title, company, Match score) | panel-top.js |
-| `primary` | the one big button; `panel.setPrimary({ label, onPress, secondary })` or `panel.fillButton(label)` | Autofill This Page (launcher.js), Fill Again (overlay.js) |
-| `tab:<id>` | a tab's body; `panel.addTab({ id, label })` adds one, the strip shows from two | `tab:autofill`: overlay.js's summary, Next Thing That Needs You, essay banner, moment cards, parts and rows; `tab:resume` and `tab:answers`: a placeholder (KAN-397) |
+| `primary` | the one big button; `panel.setPrimary({ label, onPress, secondary })` or `panel.fillButton(label)` | Autofill This Page / Fill this step (launcher.js), then primary.js: Next Thing, Ready to submit, the required line, Fill Again |
+| `tab:<id>` | a tab's body; `panel.addTab({ id, label })` adds one, the strip shows from two | `tab:autofill`: overlay.js's summary, essay banner, moment cards, parts and rows; `tab:resume` and `tab:answers`: a placeholder (KAN-397) |
 | `settings` | the settings view, shown by the header's gear in place of the tabs (`panel.showSettings`) | panel-settings.js: Claude connection, Open the panel by itself, Report a problem, Workday Sign-Up, Back |
 | `report` | Report a problem, shown in place of the tabs; open it with `window.WIA.reportCard.open()` | report.js: the preview, the note, Send report, Back |
 
@@ -1447,6 +1447,64 @@ elsewhere; Autofill This Page from the panel; drag and hides kept per
 site; a kept collapse in the next batch tab; the toolbar and Alt+W; the
 popup elsewhere), `test/panel-reopen.extension.spec.ts` (Collapse, then
 the edge tab or the toolbar brings the same rows back, no fill).
+
+### The primary button (KAN-396): its words follow the next action
+
+`src/content/primary.js` (`window.WIA.primary`, loaded by every fill after
+the card files) owns the `primary` slot once a fill mounts its rows
+(`overlay.mount` calls `primary.mount`; `overlay.offerNext` hands it the
+walk). One purple button, then a line, then Fill Again:
+
+- **Before a fill**: `panel.fillButton(panel.startLabel())`: Autofill This
+  Page, or **Fill this step** on a Workday host outside a batch (it fills the
+  step shown; the fill then fills each later step as it shows, and Fill to
+  Review, `workday-walk.js`, is still what presses Save and Continue, only
+  once the student asks).
+- **Next Thing** ("3 things need you") while the walk's rows
+  (`batch-tab.js`'s `flagged().keys`: needs you, unchecked guesses, Claude's
+  just-arrived answers) aren't empty. In a batch tab it is the cross-tab
+  walk (`batch/next`); outside a batch, this page's rows in page order after
+  the last it went to, then "Nothing else needs you." (`answerTheWalk` now
+  runs in every fill; only a batch tab adds the `batch/flags` listener).
+  What it answers shows under the button (`[data-said]`).
+- **Ready to submit** once nothing is open: scrolls to the employer's Submit
+  (the submit warning's rule: a visible control whose words start with
+  "Submit", never WorkIt's host), rings it (marks.js) and focuses it. It
+  never presses it. A Submit under the open panel (Anduril's sits at the
+  right) collapses the panel to its edge tab, for this page only
+  (`collapse({ keep: false })`), so the student can press it. On a Workday step that isn't the last (`phase` "step")
+  it reads **Go to Save and Continue** and rings Workday's footer button
+  instead; on Review its Submit.
+- **Alt+N**: the `next-thing` command (manifest.json, changeable at
+  chrome://extensions/shortcuts). background.js `commandPressed` sends
+  `panel/next` to the tab; the frame with the button runs Next Thing,
+  whatever the button reads (so a batch tab with nothing left still walks
+  on to the next tab). Tests press it with `globalThis.workitCommand`
+  (`pressNextThing` in test/loaded-extension.ts).
+- Under the button: "Required 12 of 14 filled · 3 need you" (lib-status's
+  required counts; "need you" is the same count as Next Thing's).
+- **Fill Again** (white) asks once inline, "This replaces what you changed
+  on this page.", with Fill Again and Cancel; Cancel changes nothing.
+- Outside a batch the fill now reads back the student's edits too
+  (content-script.js `watchEdits`, which only a batch ran before), so a row
+  they answer stops being open and the button can reach Ready to submit;
+  their answers are still saved only in a batch (keepOwn, card-guess.js).
+- While a Workday step fills, the button reads "Filling…", disabled; the
+  Workday loop calls `primary.refresh()` once the step's phase is set.
+
+**Embedded Greenhouse forms.** The launcher's static content script runs in
+every frame (`all_frames`) of the listed hosts, so a company careers page
+that embeds Greenhouse's form (`boards.greenhouse.io/embed/job_app` in an
+iframe) gets the edge tab and the panel inside the iframe, and its Autofill
+This Page fills that frame (`panel/fill` uses `sender.frameId`). The
+company page itself, like any host the manifest doesn't list, gets
+nothing: no edge tab, and the toolbar icon opens the popup, which has no
+fill controls since KAN-394.
+
+Tests: `test/panel-primary.extension.spec.ts` (Next Thing and the
+required line against the form's own asterisks; Alt+N; Ready to submit
+rings Submit and sends nothing; Fill Again's Cancel; Fill this step on
+Workday; the embedded form).
 
 ## The panel's top (KAN-395): header, batch line, job card
 

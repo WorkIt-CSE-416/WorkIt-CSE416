@@ -396,15 +396,16 @@
     report();
     if (prepared) writing.offer(prepared);
     if (prepared) offerSelfId(prepared);
-    if (prepared && batch) watchEdits(prepared);
-    if (batch) answerTheWalk();
+    // Outside a batch too (KAN-396): the primary button turns Ready to submit once the student answered what was open.
+    if (prepared) watchEdits(prepared);
+    answerTheWalk();
     return;
   }
 
   // Workday: each step as it shows, until the step whose button sends. Its
   // pages aren't hydrated, and the panel tells the student to sign in first.
   overlay.mount(panel);
-  if (batch) answerTheWalk();
+  answerTheWalk();
   if (!workday.step()) {
     note("_step", "Waiting for the application", "Sign in and start the application. WorkIt fills each step as it shows.");
     window.WIA.phase = "step";
@@ -446,8 +447,9 @@
     window.WIA.failedCard.use(fixesOf(prepared));
     writing.offer(prepared);
     offerSelfId(prepared);
-    const stopEdits = batch ? watchEdits(prepared) : null;
+    const stopEdits = watchEdits(prepared);
     window.WIA.phase = last ? "last" : "step";
+    window.WIA.primary?.refresh();
     report();
     if (last) return;
     const goOn = async () => {
