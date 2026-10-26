@@ -63,25 +63,20 @@ model tokens; the student changes the tailored resume in the editor.
    to the model call before it starts the stream; a failure after that is
    an `error` line with the same status and message. `POST .../tailor`
    answers the same run as one JSON body and stays for other callers.
-6. **The editor opens on the tailored resume**, compiled, under the run's
-   keyword match before and after ("Keyword Match 3 of 14 → 9 of 14" and
-   the keywords it added; `tailor-score.tsx`). Each change shows
-   on the resume itself. Changed lines use a darker green; changed bullets,
-   skills and reordered bullets offer Revert on hover or focus, but no
-   line does while one is open for editing: a Revert then would throw away
-   what the student is typing. Escape or a click off the page saves the
-   edit and brings Revert back where a mark remains. A reworded
-   bullet also shows its before wording in a tooltip to its right on hover
-   or focus (the shared tooltip, so it flips or shifts to stay inside the
-   window and wraps long text). The student edits directly, and editing a
-   changed item removes its mark and revert.
+6. **The review opens on the tailored resume**, compiled, in the editor
+   on Tailor's page, with a Suggestions panel beside it (below,
+   "Suggestions"): the run's keyword match before and after ("Keyword
+   Match 3 of 14 → 9 of 14" and the keywords it added), then one card per
+   change to accept or reject. Each change's line is tinted on the resume
+   until its card is handled. The student edits directly, and editing a
+   changed item removes its mark and card.
 
 ## What is removed
 
 | Today | After |
 |---|---|
 | `propose()` returns change cards (reword, order) | The run applies the changes itself |
-| Accept and reject per card | Revert per change in the editor |
+| Accept and reject per card, before saving | The change is saved; its card's Accept keeps it, Reject undoes it |
 | `POST .../tailor/done` | Gone: the run saves |
 | "Have you used X?" questions, and `show_skill` changes | Gone: step 4 picks the skills before the run |
 | Yes added the skill to the experience bank | A picked skill stays on the tailored resume only |
@@ -194,7 +189,7 @@ response lists each change with what it replaced, by handle and id:
 | Change | Revert | Through |
 |---|---|---|
 | A new wording | Show the `before` wording again | The editor's choices PATCH: `variant_id` = `before_variant_id` (null: the bank's own wording) |
-| A new bullet order | Put that one bullet back at its place in `before_ids`, shifting its siblings | The choices PATCH: the entry's positions |
+| A new bullet order | Put the entry's bullets back in `before_ids` order | The choices PATCH: the entry's positions |
 | A picked skill | Take it off the resume | The choices PATCH: `shown` false (the skill row goes with the resume) |
 
 - **Not in the server's memory.** The API runs as several instances that
@@ -204,42 +199,53 @@ response lists each change with what it replaced, by handle and id:
 - **The run saves the tailored resume before the editor opens**, so the
   editor, the PDF and Fit to One Page work on it as on any built resume.
   The record only colours and undoes; the resume never depends on it.
-- **A revert or an edit drops that change from the record**, so its colour
-  goes. Save drops the whole record.
-- **A reload before Save loses the colours and the reverts**, not the
-  resume. Keep a copy in `sessionStorage` (per tab, wrapped in try/catch)
-  so a reload in the same tab keeps them; a new tab starts with none.
+- **Accept, Reject or an edit drops that change from the record**, so its
+  tint and card go. The record stays while it holds the run's match, so
+  the panel keeps the score once every card is handled.
+- **The record lives in `sessionStorage`** (per tab, wrapped in
+  try/catch), so a reload in the same tab keeps the suggestions; a new tab
+  or device starts with none and the page says so in one line.
 - **The student's own edits are not marked.** Only the run's changes are.
 
-## Before and after
+## Suggestions
 
-The tailored resume's page (`/jobs/[jobId]/tailor?resumeId=`) sets the
-resume the run tailored beside the tailored one
-(`jobs/[jobId]/tailor/tailor-compare.tsx`), so the student can compare
-them.
+The review step (`/jobs/[jobId]/tailor?resumeId=`) shows one resume, the
+tailored one in the editor, and a Suggestions panel on its right, as a
+document's suggestions sit in its margin
+(`jobs/[jobId]/tailor/tailor-suggestions.tsx`). It replaced a before and
+after side by side (2026-10-26), which the user found showed too much at
+once, with the changes and their Revert controls hard to follow.
 
-- **Before is the record's `source`**, as it prints: a built resume
-  rendered again, an upload's own PDF, drawn by `PdfPages` with no click
-  targets, under its name. It is read through one server action,
-  `readTailorSource` (`lib/tailor-actions.ts`), which takes ids, never a
-  URL. A built source shows as it stands now: an edit to it after the run
-  shows in Before. A deleted source says it is not loading; a DOCX says
-  WorkIt shows PDFs only.
-- **After is the editor**, with its marks and Revert as on any review.
-- **One scroll, no syncing.** Both columns sit in the page's scroll at the
-  same width, so page N stays beside page N. A resume one page longer
-  runs on alone. Each column's bar sticks at the top.
-- **Wide while both show.** Two Letter pages need more than the reading
-  width (64rem), so the comparison widens to the shell, up to 84rem. Below
-  56rem of page (`@4xl/main`) a Before / After switch shows one at a
-  time; on a phone it sits in the phone editor's header (`phoneBar`),
-  since that layout covers the page. On a desktop, Side by Side / After
-  Only does the same, and Ask Scout switches to After Only (`onAsk`): in a
-  half column the assistant opened under the page, out of view.
-- **The record is per tab.** A new tab or another device has no source,
-  so the page shows the editor alone with one line that says so. The
-  first source read is kept for the page's life, though reverting every
-  change clears the record.
+- **The panel's top** holds the keyword match ("3 → 5 of 8" and the
+  keywords the run added, `tailor-score.tsx`), the count ("5
+  Suggestions"), and Reject All and Accept All. It stays in view while
+  the cards scroll under it. A slot for View Original (the source resume
+  in a dialog) waits beside the heading.
+- **One card per change**: a new wording shows the old words struck and
+  the new ones highlighted, inline when only a run in the middle changed,
+  else the old line over the new one; a new order names the entry and each
+  bullet's place before and now ("2nd → 1st"); an added skill shows its
+  name and group.
+- **Accept keeps the change** (it is saved already): the card and the
+  line's tint go. **Reject undoes it** through the choices PATCH
+  (`revertOf`, above) and drops it. Reject All is one PATCH
+  (`revertAll`), each bullet's parts merged into one row. Accept All
+  empties the list.
+- **Linked both ways.** Pointing at or focusing a card outlines its lines
+  on the resume and brings the first into view; clicking a tinted line
+  selects it for editing, as any line, and brings its card up, lit. The
+  hover Revert and the "Before" tooltip on lines are gone: the cards hold
+  both.
+- **Only Tailor's page reviews.** The editor takes the panel as a prop
+  (`suggestions`); without it, as on `/resumes/[id]`, it shows no tints.
+  The panel shares the Ask Scout column and gives way to the assistant
+  while it is open. With a record, the review widens to the shell's width,
+  up to 76rem, so the page keeps its size beside the 360px panel.
+- **On a phone** the panel is a sheet opened by "Suggestions (5)" in the
+  bottom bar; tapping a card's text closes the sheet and outlines its
+  line.
+- **When every card is handled**, the panel says so in one line under the
+  score.
 
 ## Other rules
 
@@ -311,8 +317,9 @@ them:
    sessionStorage and opens the editor.
 4. **The editor marks and reverts. Built.** `resumes/[resumeId]/
    tailor-review.tsx`: `marksOf` tints the lines (green a new wording or
-   skill, amber a moved bullet); `revertsOf` offers each change's Revert on
-   hover or focus; `revertOf` builds the choices PATCH; `untouched` drops a
+   skill, amber a moved bullet) on Tailor's page; the Suggestions panel
+   offers each change's Accept and Reject; `revertOf` builds the choices
+   PATCH; `untouched` drops a
    change the student's own PATCH touches, and `reverted` drops a reverted
    one. An order is read against the current choices: every bullet at
    another place than in `before_ids` is marked moved, even one a

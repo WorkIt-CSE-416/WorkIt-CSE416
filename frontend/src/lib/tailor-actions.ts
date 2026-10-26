@@ -1,8 +1,7 @@
 "use server";
 
 import { applicantCall, type Result } from "@/lib/applicant-call";
-import { listBuiltResumes, renderResumePdf, type BuiltResume } from "@/lib/built-resume-actions";
-import { readUploadedResume } from "@/lib/resume-queries";
+import type { BuiltResume } from "@/lib/built-resume-actions";
 
 /**
  * Tailor (backend/app/routers/tailor.py, docs/tailor_resume.md), as server
@@ -82,25 +81,4 @@ export async function matchTailor(
   source: TailorSource,
 ): Promise<Result<TailorMatch>> {
   return post<TailorMatch>("/match", { job_posting_id: postingId, ...source });
-}
-
-/** The resume a run tailored, as it prints, for the review's Before
- *  (`tailor-compare.tsx`): its name and its PDF, base64. A built resume is
- *  rendered again, so it shows as it stands now; an upload is its own file.
- *  `pdf` is null with no error for an upload pdf.js cannot draw (a DOCX).
- *  It takes ids, never a URL, so it is no fetch proxy (KAN-368). */
-export async function readTailorSource(
-  source: TailorSource,
-): Promise<{ name: string | null; pdf: string | null; error: string | null }> {
-  if ("built_resume_id" in source) {
-    const [list, rendered] = await Promise.all([
-      listBuiltResumes(),
-      renderResumePdf(source.built_resume_id),
-    ]);
-    const name = list.data?.find((r) => r.id === source.built_resume_id)?.name ?? null;
-    return { name, pdf: rendered.data?.pdf ?? null, error: rendered.error };
-  }
-  const { resume, pdf, listError, fileError } = await readUploadedResume(source.uploaded_resume_id);
-  const error = listError ?? fileError ?? (resume ? null : "That resume is no longer here.");
-  return { name: resume?.original_filename ?? null, pdf, error };
 }

@@ -14,10 +14,9 @@ import { SEEKER_GUTTER } from "../../../gutter";
 import { ListingsError } from "../../listing-card";
 import { getJobListing } from "../../listings";
 import { BackToJobs } from "../page-actions";
-import { TailorCompare } from "./tailor-compare";
 import { TailorHeader } from "./tailor-header";
-import { TailorScore } from "./tailor-score";
 import { TailorSteps } from "./tailor-steps";
+import { TailorReview } from "./tailor-suggestions";
 import { TailorScreen } from "./tailor-screen";
 
 export async function generateMetadata({
@@ -76,10 +75,8 @@ export default async function TailorPage({
           Your resume, tailored for this posting. Edit anything before you send it.
         </TailorHeader>
         <TailorSteps current="review" />
-        <TailorScore resumeId={resume.id} />
         {bank.data && choices.data && profile ? (
-          <TailorCompare
-            name={resume.name}
+          <TailorReview
             resumeId={resume.id}
             initial={rendered}
             initialBank={bank.data}
