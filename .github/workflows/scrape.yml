@@ -98,10 +98,17 @@ jobs:
         env:
           DATABASE_URL: ${{ secrets.DATABASE_URL }}
           GEMINI_API_KEY: ${{ secrets.GEMINI_API_KEY }}
+          # The model chain the keyword pass reads (scout/CLAUDE.md).
+          SCOUT_ENDPOINTS: ${{ secrets.SCOUT_ENDPOINTS }}
           DRY_RUN: ${{ (github.event_name == 'pull_request' || inputs.dry_run) && '--dry-run' || '' }}
         run: |
           if [ -z "$DATABASE_URL" ]; then
             echo "::error::The DATABASE_URL secret is not set (Settings > Secrets and variables > Actions)."
             exit 1
+          fi
+          if [ -z "$SCOUT_ENDPOINTS" ]; then
+            # Empty is not unset: Scout's settings fail to parse "" as a list.
+            unset SCOUT_ENDPOINTS
+            echo "::warning::SCOUT_ENDPOINTS is not set; this run extracts no keywords."
           fi
           uv run python -m app.scripts.import_jobs ../scraper/feed.json ${DRY_RUN:+"$DRY_RUN"}

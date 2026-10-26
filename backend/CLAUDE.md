@@ -84,6 +84,16 @@ module docstring has the steps.
   `job_role_tags`, resolved from its title (KAN-155).
 - A `--dry-run` writes and rolls back, leaving dead rows until autovacuum, so
   table sizes read right after one are inflated.
+- **After it commits, it extracts keywords** (KAN-392) for published scraped
+  jobs with none (`_extract_keywords`, through `keywords.read` and Scout's
+  `SCOUT_*` chain): new jobs, and changed ones, whose keywords the upsert
+  cleared. At most `--keywords-limit` model calls a run (default
+  `KEYWORDS_PER_RUN`, 100; 0 skips), so the backlog spreads over runs and
+  quotas; `--keywords-only` runs the pass alone. Each job commits on its
+  own and no transaction stays open across a model call. It reads past the
+  last id tried, never "still NULL": a job whose reply fails its schema
+  stays NULL, and a NULL query read it again forever. It stops at the first
+  `ScoutUnavailable` (no model answers) and counts no student's use.
 
 ### Tests
 
@@ -535,9 +545,16 @@ Find files with a directory listing; these are the rules for where code goes.
   (KAN-217) reads them through the same `keywords.ensure` (the cache, else
   an extraction stored on the posting) and counts its run once, not once
   more for the extraction. Which use an extraction spends stays in each
-  router. Tests:
+  router. **Most postings are read before any student asks** (KAN-392):
+  the feed import's keyword pass (The feed import, above), and for a
+  company job, a background task after a save that leaves it published
+  (`company_jobs._fill_keywords`, in its own session after the response,
+  so the composer never waits on a model). A draft is not read: no student
+  sees it and its text keeps changing. Either failure only logs, and
+  `ensure` stays the fallback. Tests:
   `tests/test_keyword_match.py` (the cache, its clearing by the import and
-  by the hash, an invalid or failed reply counts nothing, the cap).
+  by the hash, an invalid or failed reply counts nothing, the cap, the
+  import's pass and the company job's task).
 - **Tailor** (KAN-217) is `routers/tailor.py` over `services/tailor.py`.
   A run (`POST .../tailor`) proposes changes and saves nothing but the
   count and an uploaded source's reading, merged into the bank; Done (`POST .../tailor/done`) saves the accepted ones on the

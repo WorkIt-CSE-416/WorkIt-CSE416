@@ -99,6 +99,10 @@ rate-limiting the shared GitHub runners, which would stall every job on it.
 
 - **Secret:** `DATABASE_URL` (the API's pooler URL, from the root `.env`), in the
   repo's Actions secrets. Without it the run fails at the import step and says so.
+- **Secret:** `SCOUT_ENDPOINTS` (the model chain, the same JSON as the API's),
+  for the import's keyword pass (`backend/CLAUDE.md`, The feed import). Without
+  it the run warns and extracts no keywords; the import itself still runs. The
+  step unsets it when empty, because Scout's settings refuse `""` as a list.
 - **The company list** (`scraper/boards.csv`) is grown by `build_boards.py`
   before every scrape, from the curated GitHub lists, so a company they name
   today is read on the next run without a commit. It only ever adds; the rules
