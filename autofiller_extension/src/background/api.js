@@ -23,6 +23,8 @@ const CACHE_KEY = "workit_autofill_profile";
 // Re-fetch after this long even on a cache hit, so a profile edit made in
 // the webapp shows up here without an explicit "refresh" click.
 const CACHE_TTL_MS = 10 * 60 * 1000;
+/** The profile fetch under way, if any (getAutofillProfile): its callers share it. */
+let fetching = null;
 
 /** Resolved once per service-worker lifetime, not on every call. */
 let devApiReachable = null;
@@ -444,9 +446,19 @@ export async function getAutofillProfile({ force = false } = {}) {
     return cached;
   }
 
-  const fresh = await fetchAutofillProfile();
-  await chrome.storage.local.set({ [CACHE_KEY]: fresh });
-  return fresh;
+  // A fetch already under way (write early's, another tab's Plan) is waited for, not asked again;
+  // a forced one starts afresh, since it may follow an edit the one under way began before.
+  if (!force && fetching) return fetching;
+  const run = fetchAutofillProfile().then(async (fresh) => {
+    await chrome.storage.local.set({ [CACHE_KEY]: fresh });
+    return fresh;
+  });
+  fetching = run;
+  try {
+    return await run;
+  } finally {
+    if (fetching === run) fetching = null;
+  }
 }
 
 /**

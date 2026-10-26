@@ -1160,6 +1160,15 @@ with why no existing endpoint was safe/usable from here. A third is batch
 apply's `PUT .../applications/{job_id}/fill` (KAN-370): the stage is the
 API's record of each tab, and no route set `needs_you` back to `queued`.
 
+**The profile is fetched once at a time.** `getAutofillProfile` keeps the
+fetch under way and hands it to every caller that comes meanwhile: write
+early (`write-early.js`) fetches it as a batch starts, and a fast-loading
+tab's Plan used to ask the whole profile (eight calls, the resume's bytes
+among them) a second time beside it (KAN-369, seen on Rippling). A forced
+fetch (`force`, after an edit) never joins one under way, which may have
+started before the edit. It is not a longer cache: the 10 min TTL is
+unchanged. `test/plan-fetch.extension.spec.ts`.
+
 **What a student brought from Apply lies under WorkIt's fields.** `GET
 /applicants/{id}/fill-profile` (KAN-369) is the Fill engine's own profile
 and policies the student imported from Apply
