@@ -469,6 +469,107 @@ class TestRippling:
         ]
 
 
+class TestIcims:
+    """Real responses from 2026-10-26, trimmed. A board is its sitemap, which names
+    each job only by its URL; the job's own page has the rest as schema.org JSON."""
+
+    # General Dynamics Mission Systems: 723 jobs in its sitemap, and 723 in its own
+    # search pages (36 of 20, then 3).
+    SITEMAP = (
+        "<?xml version='1.0' encoding='utf-8'?><urlset xmlns=\"http://www.sitemaps.org/schemas/sitemap/0.9\">"
+        "<url><loc>https://careers-gdms.icims.com/jobs/intro</loc></url>"
+        "<url><loc>https://careers-gdms.icims.com/jobs/75689/reliability-engineering-intern/job</loc>"
+        "<lastmod>2026-10-26T12:43:29-04:00</lastmod></url>"
+        "<url><loc>https://careers-gdms.icims.com/jobs/75368/"
+        "deputy-program-manager-of-operations-%28dpmo%29/job</loc>"
+        "<lastmod>2026-10-26T12:03:09-04:00</lastmod></url>"
+        "</urlset>"
+    )
+    # Peraton's Topeka internship, from its own page. "UNAVAILABLE" is what iCIMS
+    # writes in a field the employer left empty.
+    PAGE = (
+        '<html><head><script type="application/ld+json">'
+        '{"hiringOrganization":{"@type":"Organization","name":"Peraton","sameAs":"UNAVAILABLE"},'
+        '"jobLocation":[{"address":{"addressCountry":"US","streetAddress":"UNAVAILABLE",'
+        '"@type":"PostalAddress","postalCode":"UNAVAILABLE","addressLocality":"Topeka",'
+        '"addressRegion":"KS"},"@type":"Place"}],'
+        '"employmentType":"FULL_TIME","@type":"JobPosting",'
+        '"description":"<h2>Peraton Overview</h2>\\n<p>Peraton is a next-generation national'
+        ' security company.</p>",'
+        '"datePosted":"2026-10-08T04:00:00.000Z",'
+        '"title":"Summer 2027 Mechanical Engineering Intern- Topeka, KS",'
+        '"@context":"http://schema.org",'
+        '"url":"https://careers-peraton.icims.com/jobs/172050/'
+        'summer-2027-mechanical-engineering-intern--topeka%2c-ks/job"}'
+        "</script></head><body></body></html>"
+    )
+
+    def listed(self) -> Job:
+        return Job(
+            ats="icims",
+            token="careers-peraton",
+            company="Peraton",
+            external_id="172050",
+            title="summer 2027 mechanical engineering intern topeka, ks",
+            apply_url="https://careers-peraton.icims.com/jobs/172050/"
+            "summer-2027-mechanical-engineering-intern--topeka%2c-ks/job",
+        )
+
+    def serve(self, monkeypatch, text: str) -> list[str]:
+        asked: list[str] = []
+        monkeypatch.setattr(providers, "_get_text", lambda url: asked.append(url) or text)
+        return asked
+
+    def test_its_sitemap_lists_the_board(self, monkeypatch) -> None:
+        asked = self.serve(monkeypatch, self.SITEMAP)
+        intern, manager = providers.icims("careers-gdms", "General Dynamics Mission Systems")
+        assert asked == ["https://careers-gdms.icims.com/sitemap.xml"]
+        assert intern.key == "icims/careers-gdms#75689"
+        assert intern.apply_url == (
+            "https://careers-gdms.icims.com/jobs/75689/reliability-engineering-intern/job"
+        )
+        # Only the URL names it, which is enough to classify; the page has the rest.
+        assert intern.title == "reliability engineering intern"
+        assert manager.title == "deputy program manager of operations (dpmo)"
+        assert (intern.location, intern.posted_at, intern.page) == (None, None, None)
+
+    def test_a_slug_reads_as_words(self) -> None:
+        title = providers._icims_title("summer-2027-mechanical-engineering-intern--topeka%2c-ks")
+        assert title == "summer 2027 mechanical engineering intern topeka, ks"
+
+    def test_anything_but_a_job_sitemap_is_a_failed_read(self, monkeypatch) -> None:
+        # Constructed: an index of sitemaps names no job, and reading it as an empty
+        # board would close every job the board has.
+        self.serve(monkeypatch, "<sitemapindex><sitemap><loc>x</loc></sitemap></sitemapindex>")
+        with pytest.raises(providers.Incomplete):
+            providers.icims("careers-gdms", "General Dynamics Mission Systems")
+
+    def test_its_page_gives_title_date_places_and_type(self, monkeypatch) -> None:
+        asked = self.serve(monkeypatch, self.PAGE)
+        job = providers.describe(self.listed())
+        assert asked == ["https://careers-peraton.icims.com/jobs/172050/job?in_iframe=1"]
+        assert job.title == "Summer 2027 Mechanical Engineering Intern- Topeka, KS"
+        assert job.posted_at == "2026-10-08T04:00:00+00:00"
+        assert job.places == ("Topeka, KS, US",)
+        assert job.facts.job_type == "full_time"
+        assert "Peraton is a next-generation national security company." in job.description
+
+    def test_the_pages_title_outlives_the_next_listing(self, monkeypatch) -> None:
+        self.serve(monkeypatch, self.PAGE)
+        read = providers.describe(self.listed())
+        monday = store.update(None, [read], [], RunStats(), "2026-10-05T09:00:00+00:00")
+        tuesday = store.update(monday, [self.listed()], [], RunStats(), "2026-10-06T09:00:00+00:00")
+        [job] = tuesday.jobs
+        assert job.title == "Summer 2027 Mechanical Engineering Intern- Topeka, KS"
+
+    def test_an_apply_link_names_its_board(self) -> None:
+        from build_boards import tokens
+
+        link = "https://careers-gdms.icims.com/jobs/70886/entry-level-infrastructure-software-engineer/job"
+        assert tokens(link) == [("icims", "careers-gdms")]
+        assert tokens("https://www.icims.com/") == []
+
+
 class TestWithPage:
     robots = SimpleNamespace(allows=lambda url: True, pace=lambda url: None)
 

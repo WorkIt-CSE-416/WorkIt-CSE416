@@ -17,7 +17,7 @@ from dataclasses import asdict, dataclass, field, replace
 from datetime import UTC, datetime, timedelta
 from pathlib import Path
 
-from workit_scraper.providers import Board, Job
+from workit_scraper.providers import PROVIDERS, Board, Job
 
 NEW_WINDOW = timedelta(hours=24)
 #: A quiet board -- read before, never a kept posting -- is read on one run in this
@@ -209,6 +209,10 @@ def carry(job: Job, before: dict[str, Job]) -> Job:
     old = before.get(job.key)
     if not old:
         return job
+    provider = PROVIDERS.get(job.ats)
+    if provider and provider.page_title and job.page is None and old.page is not None:
+        # An iCIMS listing's title is its URL's slug; its page gave the real one.
+        job = replace(job, title=old.title)
     if job.ats == "workday" and job.page is None:
         return replace(job, page=old.page, posted_at=old.posted_at or job.posted_at)
     return replace(job, page=job.page or old.page, posted_at=job.posted_at or old.posted_at)

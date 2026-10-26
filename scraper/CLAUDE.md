@@ -83,12 +83,12 @@ fixture (`tests/conftest.py`): a `Provider` holds the function itself, so
 patching the module's `describe_greenhouse` no longer reaches it.
 
 Each reader's test is built from that day's real responses. Workable,
-Recruitee, BambooHR and Rippling quirks: `docs/providers.md`. Workday's, and
+Recruitee, BambooHR, Rippling and iCIMS quirks: `docs/providers.md`. Workday's, and
 how its boards are read over several runs: `docs/workday.md`.
 
-**Still open:** Rippling (KAN-301) is read but not on the landing page's
-`hiringSystems` yet: it needs its logo file in `frontend/public/hiring-systems/`
-and a stream of real postings in `data.ts`.
+**Still open:** Rippling and iCIMS (KAN-301) are read but not on the landing
+page's `hiringSystems` yet: each needs its logo file in
+`frontend/public/hiring-systems/` and a stream of real postings in `data.ts`.
 
 - **A 404 means the board does not exist; a 200 with an empty list means a
   real board with nothing open.** Raise `BoardNotFound` for the first, return
@@ -118,7 +118,7 @@ A posting's own text is one value, `providers.Page`: the description (its kept
 sections, cut to `DESCRIPTION_CHARS`), the card's `details.Facts`, and on Greenhouse
 its offices (on Workday, its places and requisition number). Lever, Ashby and
 Recruitee send it with the board's list. Greenhouse, Workable, BambooHR,
-Rippling and Workday do not (`Provider.job_url`): Greenhouse's `content=true`
+Rippling, iCIMS and Workday do not (`Provider.job_url`): Greenhouse's `content=true`
 would send hundreds of megabytes a run to describe the ~2% we keep, and
 Workday's list has no description, exact date or places. So
 `__main__.with_page` reads each *kept* posting's page once, through the same
@@ -129,6 +129,12 @@ robots and pacing.
   none, so `rippling` sets `Job.work_style` and `describe_rippling` reads the
   page's facts with it. Read off the location instead, a remote job named
   "NY" would have been filed on site.
+- **A title only a URL gave is replaced by the page's, and kept.** iCIMS's
+  list is its sitemap, which names a job by its URL's slug
+  ("reliability-engineering-intern"); that classifies the same, so only kept
+  jobs' pages are read, and `describe_icims` sets the page's title.
+  `Provider.page_title` makes `store.carry` keep it over the next listing's
+  slug, or every card would read in lower case from the second run.
 
 - **The store carries a `Page` forward whole: `job.page or old.page`.** It
   used to be nine fields carried one by one, and a Greenhouse title's "2027"
@@ -140,7 +146,7 @@ robots and pacing.
 - **Bump `providers.PAGE_VERSION` whenever a `Page` starts holding something
   new, or a fact's pattern changes**, or stored postings never get it.
   `with_page` re-reads any page under an older version, once per kept
-  Greenhouse, Workable, BambooHR, Rippling and Workday posting.
+  Greenhouse, Workable, BambooHR, Rippling, iCIMS and Workday posting.
 - **Changing `DESCRIPTION_CHARS` does not re-cut stored Greenhouse
   descriptions.** Clear them so the next run fetches them again:
 
@@ -309,8 +315,10 @@ Every request goes through `web.get` and, before it, `polite.Robots`,
 including `build_boards.py`'s fetches from GitHub.
 
 - `Robots` reads every origin's robots.txt once: up front for the origins it
-  is given, and on first use, paced, for any other (Workday's ~1,500 hosts, of
-  which a run reaches only some). Per RFC 9309, a 4xx means no rules; a 5xx
+  is given, and on first use, paced, for any other: the hosts of every provider
+  with a host per company (`Provider.subdomains`: Workday's ~1,500, iCIMS's
+  ~320, BambooHR's and Recruitee's), read in parallel as the lane reaches each.
+  Per RFC 9309, a 4xx means no rules; a 5xx
   **or an unreachable robots.txt** means complete disallow for the run. An
   outage is not permission.
 - A host whose paths are case-blind has its robots.txt read case-blind too

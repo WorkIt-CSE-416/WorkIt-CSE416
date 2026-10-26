@@ -206,11 +206,13 @@ def main(argv: list[str] | None = None) -> int:
             print(f"scraping {len(boards)} boards\n")
         # Every origin a run touches, so robots.txt is read once, up front. A
         # posting's own page shares its board list's origin (`Provider.job_url`).
-        # Not Workday's: one host per company, read as its lane reaches each.
+        # Not a provider with a host per company (`Provider.subdomains`: Workday's
+        # ~1,500, iCIMS's ~300): those are read as their lane reaches each, in
+        # parallel, rather than one after another before the run starts.
         robots = Robots(
             url
             for board in boards
-            if (provider := providers.PROVIDERS.get(board.ats)) and provider.budget_s is None
+            if (provider := providers.PROVIDERS.get(board.ats)) and provider.subdomains is None
             for url in providers.robots_urls(board.ats, board.token)
         )
         before = {job.key: job for job in previous.jobs} if previous else {}

@@ -83,3 +83,39 @@ on `ats.rippling.com`). Its robots.txt disallows only `/internal/`.
 - A company's own board can redirect off Rippling (`rippling` itself goes to
   rippling.com); `web.get` refuses the cross-origin redirect, so it reads as a
   failed board.
+
+## iCIMS (KAN-301)
+
+Added 2026-10-26. About 320 companies in the curated lists use it (1,471 apply
+links), many in defense and government work. Each company is its own host,
+`{prefix}-{company}.icims.com`, and the prefix varies (`careers-`, `career-`,
+`external-`), so the token is the whole host label. Every host's robots.txt read
+that day names its sitemap and disallows only referral, login, candidate and
+connect pages; Charles Schwab's disallows everything, so it is skipped.
+
+- **A board is its sitemap**, `/sitemap.xml`: every open job's URL, in one request,
+  where its own search pages take one request per 20 jobs. It was complete: General
+  Dynamics Mission Systems' listed 723 jobs, exactly the 36 full search pages and 3
+  on the last, with every searched job in it. Peraton's listed 1,403. A missing
+  company is a 404. Anything that is not a `<urlset>` (an index of sitemaps) is a
+  failed read, never an empty board.
+- **The list names a job only by its URL**, `/jobs/{id}/{slug}/job`. The slug read
+  as words ("reliability engineering intern") classifies the same as the real
+  title, so only kept jobs' pages are read, and the page's title replaces the slug
+  for good (`Provider.page_title`, `store.carry`).
+- **A job's page carries a schema.org `JobPosting`** (`<script
+  type="application/ld+json">`), which search engines read too: the title,
+  `datePosted`, `employmentType` (`FULL_TIME`, or `OTHER` for many internships),
+  the places (`jobLocation[].address`) and the description as HTML. iCIMS writes
+  "UNAVAILABLE" in a field the employer left empty; such parts are left out. The
+  page is read at `/jobs/{id}/job?in_iframe=1`, the page inside the careers site's
+  frame. Pay is read from the description: General Dynamics states it there
+  ("$22.50 per hour").
+- **No logo yet**: the page names only the company's website
+  (`hiringOrganization.sameAs`), often "UNAVAILABLE". Its cards show initials.
+- **robots.txt is read as each host is reached**, not before the run, as for
+  Workday: one paced read per host, in parallel across the lane. On the first live
+  check one host's robots.txt failed to load and the board was skipped for that
+  run, as an unreachable robots.txt must be.
+- The first run reads every kept job's page once (102 at General Dynamics, 32 at
+  Peraton), so it is longer than the runs after it.
