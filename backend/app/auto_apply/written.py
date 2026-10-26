@@ -168,7 +168,7 @@ async def next_to_write(
 async def save_answers(
     db: AsyncSession, applicant_id: uuid.UUID, job_id: uuid.UUID, answers: dict[str, str],
     *, by: Literal["claude", "student"] = "claude", named: dict[str, str] | None = None,
-    reviews: dict[str, "Review"] | None = None,
+    unsupported: dict[str, list[str]] | None = None,
 ) -> int:
     """
     Saves the student's Claude's answers to one application's questions
@@ -187,10 +187,10 @@ async def save_answers(
     come from any AI. `named` gives, by question name, the company brief
     fact an answer uses (KAN-369), its sentence as the brief words it: it
     must be one of the brief's facts, and is saved with the answer, which
-    names none without it. Claude's answer written in words also needs its
-    Review (KAN-369, `reviews` by name), kept with it: a missing one, one
-    rated under GOOD, or a cut claim still in the answer is refused. A paste
-    needs none. Raises NotFound / WrongStage for an application that isn't
+    names none without it. Claude's answer written in words also needs the
+    claims its claim check listed (KAN-369, `unsupported` by name, [] when
+    it found none), kept with it: a missing list, or a listed claim still
+    in the answer, is refused. A paste needs none. Raises NotFound / WrongStage for an application that isn't
     open, Refused otherwise.
     """
     await open_application(db, applicant_id, job_id)
@@ -221,7 +221,7 @@ async def save_answers(
                 sources=(*sources, q.label), samples=samples, employers=employers, limit=q.max_length, question=q.label,
             ))
             if by == "claude":
-                found += _review_problems(kept[name], (reviews or {}).get(name))
+                found += _claim_problems(kept[name], (unsupported or {}).get(name))
         if found:
             failing[name] = found
     if failing:
@@ -229,41 +229,25 @@ async def save_answers(
             f"- {name!r}: {' '.join(found)}" for name, found in failing.items()
         ), failing)
     await save_written(db, applicant_id, job_id, kept, facts, {
-        name: dataclasses.asdict(review) for name, review in (reviews or {}).items()
+        name: {"unsupported": claims} for name, claims in (unsupported or {}).items()
         if by == "claude" and name in kept and is_text(questions[name].kind)
     })
     await db.commit()
     return sum(1 for name, q in questions.items() if q.answer is None and name not in answers)
 
 
-# The rating (1-10) the reader's review must give an answer before it is
-# saved, as in Apply: what a judge gives a standout answer.
-GOOD = 8
-
-
-@dataclasses.dataclass(frozen=True)
-class Review:
-    """The passes the student's Claude ran on one written answer (the
-    prompt's steps 2-4): the reader's review's last rating, 1-10, and the
-    claims the claim check listed, each quoted from the draft, which the
-    edit cut (empty when it found none)."""
-    rating: int
-    unsupported: list[str]
-
-
-def _review_problems(answer: str, review: Review | None) -> list[str]:
-    """What keeps an answer of Claude's from saving on its review: none
-    given, a rating under GOOD, or a claim the check cut still in it. A
-    model-free server can't redo the passes; this makes skipping one, or
-    saving what they found weak, a refusal rather than silence."""
-    if review is None:
-        return [("It has no review: give the rating your last review round gave it and the claims "
-                 "the claim check listed (an empty list when it found none).")]
-    if review.rating < GOOD:
-        return [(f"Its review rated it {review.rating} of 10, under {GOOD}: review and rewrite it again, or "
-                 "leave the question out and tell the student what it needs.")]
+def _claim_problems(answer: str, unsupported: list[str] | None) -> list[str]:
+    """What keeps an answer of Claude's from saving on its claim check
+    (the prompt's check, whose claims its edit cut): none given, or a claim
+    it listed still in the answer. A model-free server can't redo the
+    check; this makes skipping it a refusal rather than silence. Apply's
+    1-10 reader review is gone (it raised unsupported claims from 8 to 13),
+    and so is its rating bar."""
+    if unsupported is None:
+        return [("It has no claim check: give the claims the check listed as unsupported "
+                 "(an empty list when it found none).")]
     text = " ".join(answer.casefold().split())
-    left = [claim for claim in review.unsupported if (c := " ".join(claim.casefold().split())) and c in text]
+    left = [claim for claim in unsupported if (c := " ".join(claim.casefold().split())) and c in text]
     return [f"A claim the check listed is still in it: {claim!r}. Cut it, or say only what the sources support."
             for claim in left]
 

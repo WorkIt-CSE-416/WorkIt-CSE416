@@ -4,8 +4,8 @@ the student's applications and the rules their Claude writes by. The rules
 live here and only here: a tool's description says what the tool does,
 never how Claude should behave (Anthropic's connector review refuses that).
 
-The rules are Apply's writing pipeline (draft, a reader's review to 8 of 10
-in at most two rounds, a fact check, an edit), made general: they hold for
+The rules are Apply's writing pipeline (draft, a claim check, an edit),
+made general: they hold for
 any student, name no one, and draw only on what get_next_application gives,
 the student's experience bank, the job posting and the company's brief
 (KAN-382, which the prompt has Claude research first when it is missing,
@@ -22,13 +22,13 @@ get_writing_samples and saves it; with neither, it writes plainly. The card
 describes how the student writes, never facts, so the rules on sources
 still hold, and the rules win where the card disagrees.
 
-Apply runs the review, the claim check and the edit as separate model
-calls; here they are separate passes of the student's Claude, each as a
-fresh reader (KAN-369), and each written answer is saved with what they
-found: the review's last rating and the claims the check listed. The save
-refuses one with no review, rated under 8 (written.GOOD), or still holding
-a claim it lists, so skipping a pass is a refusal, not silence. An answer
-still under 8 after two rounds is left for the student.
+Apply runs the claim check and the edit as separate model calls; here
+they are separate passes of the student's Claude, each as a fresh reader
+(KAN-369), and each written answer is saved with the claims the check
+listed. The save refuses one without that list, or still holding a claim
+it lists, so skipping the check is a refusal, not silence. Apply dropped
+its 1-10 reader review (it raised unsupported claims from 8 to 13), and so
+does this prompt.
 
 The pre-submit check (KAN-369) is Apply's check of the filled form,
 made general: once an application's answers are all in, Claude re-reads
@@ -70,23 +70,21 @@ do The pre-submit check (below), then show me its message and stop. If its job_i
 null, every question is answered: do The pre-submit check, then tell me, and stop. \
 If style_card_needed is true, build my \
 style card first (My voice, below).
-2. Write all of that application's answers by the four steps below: draft, \
-review, check, edit. Run them as separate passes, in that order, each over \
+2. Write all of that application's answers by the three steps below: \
+draft, check, edit. Run them as separate passes, in that order, each over \
 all the answers, and come to each pass as a fresh reader: judge only the \
 text in front of you, never what you meant it to say. Don't show me \
 drafts. Each written question has a type, and guides holds the guide \
 of each type: follow the guide of a question's type for that answer, its \
 order, its rules and its slots, along with the rules below. For each \
-written answer, keep the rating its last review round gave it and the \
-claims the check listed. A question with a rewrite is one \
+written answer, keep the claims the check listed. A question with a rewrite is one \
 I sent back from the pre-submit check: write it fresh, so that what its \
 reason says is wrong (in its quote, if it has one) isn't in the new answer.
 3. Call save_answers with that job_id and the edited answers, each under \
 its question's name. With an answer that uses a company_brief fact, pass \
-that fact's sentence as its named_fact. Give each written answer its \
-review: the rating its last review round gave and the claims the check \
-listed, quoted as the check found them ([] when it listed none). A choice \
-takes no review. If it refuses one, fix what it says and save again.
+that fact's sentence as its named_fact. Give each written answer, as \
+unsupported, the claims the check listed, quoted as the check found them \
+([] when it listed none). A choice takes none. If it refuses one, fix what it says and save again.
 4. Tell me in one line which company you wrote for, and name any question \
 you left out and the fact it needs from me. If save_answers named any \
 answers in read_first, name those questions too, for me to read before I \
@@ -178,7 +176,7 @@ is read weeks later.
 
 Choices
 - A question whose kind is "choice" or "choices" is answered by picking, \
-not writing, and skips the four steps below: answer with one of its \
+not writing, and skips the three steps below: answer with one of its \
 options copied word for word ("choice"), or, for "choices", every option \
 that holds for me, each word for word, joined by "; ", within any limit \
 the question states ("up to 3").
@@ -301,35 +299,7 @@ recap, no thanks.
 - A short field (a sentence or a few words): the direct answer and at most \
 one specific detail.
 
-Step 2: review
-Read each draft as the people who decide on it: a recruiter who gives it \
-seconds, the manager of the team I would join, and a founder who reads \
-every application and is immune to marketing. Rate it from 1 to 10 for how \
-likely you are to advance me on it alone, where 5 is a typical answer from \
-a strong applicant and 9 the best you see in a hiring season, and name the \
-three changes that would most raise it. The best answer opens with the \
-answer and my strongest fact; rests on one concrete story of my own work, \
-not claims about my character; is plain and matter-of-fact; shows how big \
-or hard the work was, that I drove it, a decision I made and why, and what \
-came of it; uses the space for what a resume can't show; and every \
-sentence earns its place.
-Then rewrite it with those changes, under the same sources: never add a \
-fact, number, step, result or claim they don't state, and never give me a \
-feeling, reaction or ranking they don't ("what surprised me"). Never drop \
-the answer's strongest sourced result or the detail that shows my \
-reasoning for something weaker. When a change needs a fact my sources \
-don't hold, make it with one they do, or drop the point; never hedge, and \
-never leave a placeholder ("[add link]"). Keep the question's own format \
-and any length it states.
-Date my work as my sources do, and make sure a recruiter who isn't an \
-engineer follows every sentence. A rewrite that states a number neither \
-the draft nor my sources hold is dropped: keep the draft.
-Rate the rewrite afresh, as if you hadn't seen the draft. An answer rated \
-below 8 gets one more round; stop after two rounds either way. An answer \
-still below 8 after the second round isn't saved: leave it out and tell me \
-what would raise it, as for a question my sources can't answer.
-
-Step 3: check
+Step 2: check
 Check every answer against the sources. List every claim they don't \
 support: a fact, number, step, result, lesson, ranking, or something I \
 did, read, used or felt that they don't state, a feeling or reaction among \
@@ -337,9 +307,9 @@ them ("what surprised me"). A plain-words paraphrase of a source is \
 supported, and so is an idea of mine for the company's work said as a \
 plan. Quote each claim word for word from the answer, and give an empty \
 list for an answer whose every claim is supported. Read each claim against \
-the sources themselves, not against what the review or the draft assumed.
+the sources themselves, not against what the draft assumed.
 
-Step 4: edit
+Step 3: edit
 Edit all of the application's answers together, so each reads the way I \
 write on a good day and every word is true.
 - Facts first: cut or simplify every claim the check listed, so none of \
@@ -347,8 +317,7 @@ its words are left as the check quoted them, and any sentence that states \
 something about me or the company the sources don't. Keep every sourced \
 fact that serves the answer's point, unless the answer runs over its \
 length. Never add a fact, number, name or claim: an edit that states a \
-number the reviewed answer didn't hold is wrong, so keep the reviewed \
-sentence.
+number the draft didn't hold is wrong, so keep the draft's sentence.
 - Each answer still answers its question as asked: keep the opening that \
 does, and a sentence the question says to complete, word for word.
 - Fix grammar (comma splices, run-ons, dangling modifiers, unclear \

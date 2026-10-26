@@ -1118,8 +1118,9 @@ Real, not forgotten. Do not treat their absence as a decision already made.
   stays not own): their
   Claude's save never overwrites it, and `pipeline.answer_bank` offers it
   first on later forms. `review` (KAN-369, JSONB object) is what the
-  student's Claude's passes found on the answer it saved: `{rating,
-  unsupported}`; NULL for a choice, a paste or the student's own edit,
+  student's Claude's passes found on the answer it saved: `{unsupported}`
+  (the claim check's claims; rows saved before carry a `rating` no code
+  reads); NULL for a choice, a paste or the student's own edit,
   and cleared with the answer. An edit to a field the tab never sent (one a saved
   answer filled) adds a row of its own, `required` false, placed last.
 - **`job_applications.answer_review` is the pre-submit review's one

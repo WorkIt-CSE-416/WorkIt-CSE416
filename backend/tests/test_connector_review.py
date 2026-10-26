@@ -11,7 +11,7 @@ import uuid
 import pytest
 
 from tests.test_connector import (  # noqa: F401  (fixtures)
-    REVIEWED,
+    WRITTEN,
     _api,
     _signed_in_as,
     _student_queues,
@@ -39,7 +39,7 @@ async def test_a_flagged_answer_shows_in_the_tab_until_it_changes(running, appli
 
     async with claude(applicant) as client:
         await client.call_tool("save_answers", {"job_id": job, "answers": [
-            {"name": "question_7", "answer": WHY_ACME, "review": REVIEWED}, {"name": "question_8", "answer": PROJECT, "review": REVIEWED}]})
+            {"name": "question_7", "answer": WHY_ACME, **WRITTEN}, {"name": "question_8", "answer": PROJECT, **WRITTEN}]})
         task = (await client.call_tool("get_review_task", {})).structured_content
         saved = await client.call_tool("save_review", {"job_id": job, "versions": _versions(task), "problems": [
             {"name": "question_8", "reason": "It says students used the tool; the experience doesn't."}]})
@@ -58,7 +58,7 @@ async def test_a_flagged_answer_shows_in_the_tab_until_it_changes(running, appli
     # Saved again (the student's edit of it, or Claude's fix): its flag is gone and it is offered again.
     async with claude(applicant) as client:
         await client.call_tool("save_answers", {"job_id": job, "answers": [
-            {"name": "question_8", "answer": "I built a resume builder with FastAPI for students.", "review": REVIEWED}]})
+            {"name": "question_8", "answer": "I built a resume builder with FastAPI for students.", **WRITTEN}]})
         again = (await client.call_tool("get_review_task", {})).structured_content
     assert again["job_id"] == job
     assert [(r["reviewed"], r["flag"]) for r in await _tab_asks(me, job)] == [(True, None), (False, None)]
@@ -69,7 +69,7 @@ async def test_an_application_with_a_question_unanswered_is_not_reviewed(running
     await _tab_asks(me, job, WHY, PROUD)
 
     async with claude(applicant) as client:
-        await client.call_tool("save_answers", {"job_id": job, "answers": [{"name": "question_7", "answer": WHY_ACME, "review": REVIEWED}]})
+        await client.call_tool("save_answers", {"job_id": job, "answers": [{"name": "question_7", "answer": WHY_ACME, **WRITTEN}]})
         task = (await client.call_tool("get_review_task", {})).structured_content
 
     assert task["job_id"] is None
@@ -82,11 +82,11 @@ async def test_an_answer_edited_during_the_review_stays_due(running, applicant, 
 
     async with claude(applicant) as client:
         await client.call_tool("save_answers", {"job_id": job, "answers": [
-            {"name": "question_7", "answer": WHY_ACME, "review": REVIEWED}, {"name": "question_8", "answer": PROJECT, "review": REVIEWED}]})
+            {"name": "question_7", "answer": WHY_ACME, **WRITTEN}, {"name": "question_8", "answer": PROJECT, **WRITTEN}]})
         task = (await client.call_tool("get_review_task", {})).structured_content
         # The student edits question_8 while their Claude re-reads the old text.
         await client.call_tool("save_answers", {"job_id": job, "answers": [
-            {"name": "question_8", "answer": edited, "review": REVIEWED}]})
+            {"name": "question_8", "answer": edited, **WRITTEN}]})
         saved = await client.call_tool("save_review", {"job_id": job, "versions": _versions(task), "problems": [
             {"name": "question_8", "reason": "It says students used the tool; the experience doesn't."}]})
         again = (await client.call_tool("get_review_task", {})).structured_content
@@ -112,7 +112,7 @@ async def _tab_posts(me: str, job: str, path: str, body: dict):
 async def _flag_why(student, job: str) -> None:
     async with claude(student) as client:
         await client.call_tool("save_answers", {"job_id": job, "answers": [
-            {"name": "question_7", "answer": WHY_STRIPE, "review": REVIEWED}, {"name": "question_8", "answer": PROJECT, "review": REVIEWED}]})
+            {"name": "question_7", "answer": WHY_STRIPE, **WRITTEN}, {"name": "question_8", "answer": PROJECT, **WRITTEN}]})
         task = (await client.call_tool("get_review_task", {})).structured_content
         saved = await client.call_tool("save_review", {"job_id": job, "versions": _versions(task), "problems": [
             {"name": "question_7", "reason": "Names Stripe; this job is at Acme.", "quote": STRIPE, "wrong_company": True}]})
@@ -148,7 +148,7 @@ async def test_a_kept_flag_clears_and_a_later_review_does_not_flag_that_text_aga
     # Another answer changes, so the application is reviewed again; the same flag on the kept text doesn't show.
     async with claude(applicant) as client:
         await client.call_tool("save_answers", {"job_id": job, "answers": [
-            {"name": "question_8", "answer": "I built a resume builder with FastAPI for students.", "review": REVIEWED}]})
+            {"name": "question_8", "answer": "I built a resume builder with FastAPI for students.", **WRITTEN}]})
         task = (await client.call_tool("get_review_task", {})).structured_content
         saved = await client.call_tool("save_review", {"job_id": job, "versions": _versions(task), "problems": [
             {"name": "question_7", "reason": "Names Stripe; this job is at Acme.", "quote": STRIPE, "wrong_company": True}]})
@@ -174,7 +174,7 @@ async def test_rewrite_with_claude_hands_the_answer_back_with_the_reason(running
 
     # Claude's new answer is reviewed as any other; the rewrite's reason is no longer handed out.
     async with claude(applicant) as client:
-        await client.call_tool("save_answers", {"job_id": job, "answers": [{"name": "question_7", "answer": WHY_ACME, "review": REVIEWED}]})
+        await client.call_tool("save_answers", {"job_id": job, "answers": [{"name": "question_7", "answer": WHY_ACME, **WRITTEN}]})
         task = (await client.call_tool("get_review_task", {})).structured_content
     assert task["job_id"] == job
     assert (await _tab_posts(me, job, "rewrite", {"name": "question_8"})).status_code == 422  # not flagged

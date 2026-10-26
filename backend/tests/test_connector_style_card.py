@@ -10,7 +10,7 @@ import pytest
 
 from tests import test_connector
 from tests.test_connector import (
-    REVIEWED,
+    WRITTEN,
     WHY,
     _api,
     _signed_in_as,
@@ -121,7 +121,7 @@ async def test_an_answer_copying_a_stored_sample_is_refused(running, applicant, 
     copying = "At Acme I rebuilt our club's sign-up sheet as a small web app."
 
     async with claude(applicant) as client:
-        refused = await client.call_tool("save_answers", {"job_id": job, "answers": [{"name": "question_7", "answer": copying, "review": REVIEWED}]})
+        refused = await client.call_tool("save_answers", {"job_id": job, "answers": [{"name": "question_7", "answer": copying, **WRITTEN}]})
 
     assert refused.is_error
     assert "writing samples" in refused.content[0].text

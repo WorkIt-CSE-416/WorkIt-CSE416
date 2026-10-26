@@ -253,13 +253,14 @@ Find files with a directory listing; these are the rules for where code goes.
   parroting them; a student may paste their own words). Re-checks of a
   saved answer (`ask_questions`, `answer_bank`) leave the copy check out
   for the same reason: the save ran it.
-  **Claude's written answer carries its review** (KAN-369): the rating its
-  last review round gave and the claims the claim check listed (the
-  prompt's separate passes), stored as `written_answers.review`. The save
-  refuses one with none, rated under `written.GOOD` (8, Apply's bar), or
-  still holding a listed claim; a choice and a paste take none, and the
-  student's edit clears it (the review was of Claude's text). The server
-  can't redo the passes; this makes skipping one a refusal, not silence.
+  **Claude's written answer carries its claim check** (KAN-369): the
+  claims the prompt's check listed (`unsupported`), stored in
+  `written_answers.review`. The save refuses one without the list or still
+  holding a listed claim; a choice and a paste take none, and the
+  student's edit clears it (the check was of Claude's text). The server
+  can't redo the check; this makes skipping it a refusal, not silence.
+  There is no reader's 1-10 rating any more: Apply dropped it, since it
+  raised unsupported claims from 8 to 13.
   A refusal's `Refused.reasons` holds each answer's reasons by question
   name, for the page to show under its box. Tests: `tests/test_pasted_answers.py`.
   **An answer may name the brief fact it uses** (KAN-369): the connector's

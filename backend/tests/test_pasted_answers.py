@@ -156,7 +156,7 @@ async def test_the_student_may_paste_their_own_writing_sample_but_their_claude_m
     pasted = await _paste(me, job, question_8=SAMPLE)
     async with claude(applicant) as client:
         parroted = await client.call_tool("save_answers", {"job_id": claudes, "answers": [
-            {"name": "question_8", "answer": SAMPLE, "review": {"rating": 8, "unsupported": []}}]})
+            {"name": "question_8", "answer": SAMPLE, "unsupported": []}]})
 
     assert pasted.status_code == 200, pasted.text
     assert [q["answer"] for q in await _tab_asks(me, job, PROUD)] == [SAMPLE]
