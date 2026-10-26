@@ -218,6 +218,11 @@ builds it: `dist/engine.js` is committed in the engine repo.
   WorkIt can't fill this job system yet and nothing is touched: there is
   no generic filler any more (the old label-matching one filled most forms
   wrong, and was deleted with its Greenhouse adapter in KAN-340).
+  A closed job on a system it covers is told apart (`closedPosting` in
+  content-script.js): Greenhouse sends it to its board with `?error=true`,
+  Workable to the account with `?not_found=true`, others say so on the
+  page ("no longer accepting applications"); the overlay then says This
+  job is closed instead.
 - **Tests**: `test/extension.ts` runs the fill as Chrome does, minus
   Chrome: `ENGINE_FILES` and `CONTENT_SCRIPT_FILES` evaluated in a saved
   form's page (served by the engine repo's own fakes and fixtures, through
@@ -656,6 +661,11 @@ waits for an opened tab's page and form (`waitForLoad`, `formShows`).
   start date ("Date available") is the day the student graduates, an
   internship's its earliest start. Outside a batch it is unknown, and the
   internship's start stands.
+  The Posting's `location` is the job system's own (the engine's
+  `jobNames`, spread into the Posting with the company and title): on a
+  posting placed only abroad the engine answers work-authorization,
+  sponsorship, located-in, relocation and pay questions for that country,
+  or leaves them to the student, never with the US facts.
   The student's words in a written answer (or one the bank filled) are
   read back by `watchEdits` and saved after a 2-second pause
   (`batch/own-answer` → `PUT .../answers`); while WorkIt's own fill of one
