@@ -230,7 +230,7 @@ window.WIA = window.WIA || {};
    * gets only its empty fields filled: what shows is what the student saved.
    */
   function filledBefore() {
-    const key = `${location.pathname.replace(/\/apply(\/.*)?$/, "")} ${workdayStep()}#${stepNumber()}`;
+    const key = `${location.pathname.replace(/\/apply(\/.*)?$/, "")} ${window.WIA.workday.stepId()}`;
     let filled = [];
     try {
       filled = JSON.parse(sessionStorage.getItem(FILLED_STEPS) ?? "[]");
@@ -524,5 +524,7 @@ window.WIA = window.WIA || {};
     quiet,
     stepAfter,
     filledBefore,
+    // The step shown, told from a step of the same name: "<step>#<number>".
+    stepId: () => `${workdayStep()}#${stepNumber()}`,
   };
 })();

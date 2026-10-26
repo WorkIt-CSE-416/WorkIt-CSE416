@@ -116,7 +116,9 @@ builds it: `dist/engine.js` is committed in the engine repo.
   alike (a second "Application Questions"). A step the tab filled before
   (the student went back to it, or it loaded again; `workday.filledBefore`,
   session storage) gets only its empty fields filled, so the student's
-  saved answers stay. The extension never presses
+  saved answers stay. A fill whose step is left while it fills stops
+  planning there (`workday.stepId`), so the step shown next is the step
+  loop's to fill. The extension never presses
   Submit. **Fill to Review** (KAN-369, `workday-walk.js`, Apply's walk): in
   a batch tab, and outside one once the student presses the panel's Fill to
   Review (kept for the tab in sessionStorage), a filled step with nothing
@@ -142,7 +144,8 @@ builds it: `dist/engine.js` is committed in the engine repo.
   takes the first found.
   `test/workday-steps.extension.spec.ts` walks a whole application (Apply's
   fake Workday steps, as new pages and drawn in place) from Create Account
-  to Review, the test pressing Save and Continue as the student.
+  to Review, Fill to Review saving each step it can and the test answering
+  and saving, as the student, each step where the walk stops.
 - **A job's page is not always its form.** A Lever, Ashby, Rippling,
   Workable or Eightfold posting shows the job on one page and the form on
   another (`jobOf`'s `form`). On the job's page the overlay names the

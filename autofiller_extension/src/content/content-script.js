@@ -103,7 +103,10 @@
     let extra = [];
     let state;
     let prepared;
+    // A Workday step left while it fills (the student went back, or on): the next step is the loop's, not this fill's.
+    const begun = window.WIA.workday.isWorkday ? window.WIA.workday.stepId() : "";
     for (;;) {
+      if (prepared && begun && window.WIA.workday.stepId() !== begun) return { ...prepared, written: [...written.values()], state };
       prepared = await send({ type: "fill/plan", extra, state });
       if (!prepared.ok) {
         note("_error", prepared.error || "Could not plan this application", prepared.status === 401 ? "Sign in from the extension popup first." : prepared.error, true);

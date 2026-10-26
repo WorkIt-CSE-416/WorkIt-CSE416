@@ -2,9 +2,11 @@
 // (loaded-extension.ts), on a fake tenant (fake-job-systems.ts) with the steps
 // of Apply's fake Workday (the Fill engine's STEPS, made-up data): sign-in,
 // My Information, My Experience, Application Questions, Voluntary
-// Disclosures, Self Identify, Review. The test is the student: it presses
-// Save and Continue on each step, and the extension must have filled every
-// step as it showed, so Workday takes each save.
+// Disclosures, Self Identify, Review. The batch tab saves each step with
+// nothing for the student (Fill to Review, workday-walk.js); where it stops,
+// the test is the student: it answers what WorkIt left and presses Save and
+// Continue. Every step must have been filled as it showed, so Workday takes
+// each save.
 import { expect, test, type Page } from "@playwright/test";
 import { FakeApi } from "./fake-api";
 import { FakeWorkdays } from "./fake-job-systems";
@@ -18,16 +20,16 @@ test.afterEach(async () => {
 });
 
 const overlay = (p: Page) => p.locator("#workit-autofiller-overlay-host");
-const STEP_NOTE = "press Save and Continue";
+const STOPPED = "WorkIt stopped on this step";
+const REVIEW_NOTE = "Check everything on Workday's Review page, then press Submit.";
 
-/** The panel says the step `name` is filled and waits for the student's Save and Continue. */
+/** Step n of the bar shows, and the panel lists its fields. */
 async function filled(tab: Page, [name, fields]: Step, n: number, of: number): Promise<void> {
   // Step n of the bar is active: a step named as the one before it is another step.
   await expect(tab.locator("[data-automation-id=progressBarActiveStep]")).toContainText(`step ${n} of ${of}`, { timeout: 30_000 });
-  // The panel lists this step's fields (not the last step's, a step of the same name) and says it is filled.
+  // The panel lists this step's fields (not the last step's, a step of the same name).
   const first = fields.find((f) => "label" in f) as Field;
   await expect(overlay(tab).locator(".row").filter({ hasText: first.label }).first()).toBeVisible({ timeout: 60_000 });
-  await expect(overlay(tab).locator(".row").filter({ hasText: `Workday: ${name}` })).toContainText(STEP_NOTE, { timeout: 60_000 });
 }
 
 /**
@@ -89,16 +91,20 @@ async function walk(steps: Step[], inPlace: boolean): Promise<void> {
 
   for (const [n, [name, fields]] of steps.entries()) {
     await filled(tab, steps[n], n + 2, steps.length + 2);
-    expect(await answerLeft(tab, steps, n), `what WorkIt left to the student on ${name}`).toEqual(LEFT[name] ?? []);
-    // The student checks the step and presses Save and Continue: Workday refuses a step missing a required answer.
-    await tab.locator("[data-automation-id=pageFooterNextButton]").click();
-    await tab.waitForURL(workdays.url(0, n + 2), { timeout: 30_000 }).catch(async (error) => {
+    // The batch tab saves a step with nothing for the student itself (Fill to Review, workday-walk.js);
+    // where it stops, the student answers what's left and presses Save and Continue.
+    const next = workdays.url(0, n + 2);
+    await expect.poll(async () => tab.url() === next || (await overlay(tab).getByText(STOPPED).count()) > 0, { timeout: 60_000 }).toBe(true);
+    const left = tab.url() === next ? [] : await answerLeft(tab, steps, n);
+    expect(left, `what WorkIt left to the student on ${name}`).toEqual(LEFT[name] ?? []);
+    if (tab.url() !== next) await tab.locator("[data-automation-id=pageFooterNextButton]").click();
+    await tab.waitForURL(next, { timeout: 30_000 }).catch(async (error) => {
       const banner = await tab.locator("[data-automation-id=errorHeading]").innerText().catch(() => "");
       throw new Error(`${name} wasn't saved. Workday: ${banner}\n${error.message}`);
     });
     expect(Object.keys(workdays.saved(0))).toEqual(expect.arrayContaining(fields.map((f) => f.key)));
   }
-  await expect(overlay(tab).locator(".row").filter({ hasText: "Workday: Review" })).toContainText("This is the last step", { timeout: 60_000 });
+  await expect(overlay(tab)).toContainText(REVIEW_NOTE, { timeout: 60_000 });
 
   expect(workdays.saved(0)).toMatchObject({
     "legalName--firstName": "Test", "legalName--lastName": "Person", phoneNumber: expect.stringContaining("555"),
@@ -150,16 +156,19 @@ for (const inPlace of [false, true]) {
 
     // My Information: the student changes WorkIt's first name and saves the step.
     await filled(tab, steps[0], 2, 4);
+    await expect(overlay(tab).getByText(STOPPED)).toBeVisible({ timeout: 60_000 });
     await answerLeft(tab, steps, 0);
     const first = tab.locator("[data-automation-id=formField-legalName--firstName] input");
     await first.fill("Tess");
     await tab.locator("[data-automation-id=pageFooterNextButton]").click();
-    await filled(tab, steps[1], 3, 4);
+    await tab.waitForURL(workdays.url(0, 2), { timeout: 30_000 });
+    await expect(overlay(tab).locator(".row").filter({ hasText: "Resume/CV" }).first()).toBeVisible({ timeout: 60_000 });
     // Back on My Information (Workday shows what was saved): WorkIt doesn't put its own answer back.
     if (inPlace) await tab.evaluate((url) => (window as any).__fakeGo(url), workdays.url(0));
     else await tab.goto(workdays.url(0));
     await expect(tab.locator("[data-automation-id=progressBarActiveStep]")).toContainText("step 2 of 4");
     await tab.waitForTimeout(8_000);
-    expect(await first.inputValue()).toBe("Tess");
+    const rows = await overlay(tab).locator(".row").allInnerTexts();
+    expect(await first.inputValue(), rows.join(" | ").replace(/\s+/g, " ")).toBe("Tess");
   });
 }
