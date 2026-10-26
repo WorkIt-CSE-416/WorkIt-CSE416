@@ -24,6 +24,8 @@ AUTO_APPLY_HOSTS = (
     "explore.jobs.netflix.net",
     "myworkdayjobs.com",
     "myworkdaysite.com",
+    # Oracle Recruiting Cloud's candidate experience (the engine's oracle.ts).
+    "oraclecloud.com",
 )
 
 # Company careers sites whose embedded Greenhouse form doesn't fill in place
