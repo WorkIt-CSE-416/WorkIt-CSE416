@@ -119,10 +119,19 @@ export class FakeWorkdays {
     return `https://${this.tenants[n].host}/__fake__/signin?view=${view}`;
   }
 
-  /** The n-th tenant's job posting: no form, only Apply, which loads the Create Account page. */
-  postingUrl(n: number): string {
-    return `https://${this.tenants[n].host}/__fake__/job`;
+  /**
+   * The n-th tenant's job posting: no form, only Apply, whose popup offers
+   * Autofill with Resume, Apply Manually (which loads the Create Account
+   * page) and Use My Last Application, as live Workday's does. `continued`:
+   * an application started before, whose posting shows Continue Application
+   * instead, which loads the Sign In page.
+   */
+  postingUrl(n: number, continued = false): string {
+    return `https://${this.tenants[n].host}/__fake__/job${continued ? "?continued=1" : ""}`;
   }
+
+  /** Each press of a posting's Apply or Continue Application, and each start link opened, in order. */
+  readonly starts: string[] = [];
 
   /** Each Create Account and Sign In the student sent: the tenant's host, the view, the email and the password. */
   readonly signIns: { host: string; view: string; email: string; password: string }[] = [];
@@ -158,8 +167,16 @@ export class FakeWorkdays {
     for (const tenant of this.tenants) {
       if (request.url.hostname !== tenant.host) continue;
       if (request.url.pathname === "/__fake__/job") {
-        const apply = `<a data-automation-id="adventureButton" href="/__fake__/signin?view=create">Apply</a>`;
-        return { headers: { "content-type": "text/html" }, body: `<!doctype html><title>Intern</title><h2>Software Engineering Intern</h2>${apply}` };
+        return { headers: { "content-type": "text/html" }, body: postingPage(Boolean(request.url.searchParams.get("continued"))) };
+      }
+      if (request.url.pathname === "/__fake__/press") {
+        this.starts.push(request.url.searchParams.get("what")!);
+        return { json: {} };
+      }
+      if (["/__fake__/autofillWithResume", "/__fake__/applyManually", "/__fake__/useMyLastApplication"].includes(request.url.pathname)) {
+        this.starts.push(request.url.pathname.slice("/__fake__/".length));
+        if (request.url.pathname === "/__fake__/applyManually") return { status: 302, headers: { location: "/__fake__/signin?view=create" } };
+        return { headers: { "content-type": "text/html" }, body: "<!doctype html><title>Workday</title>" };
       }
       if (request.url.pathname === "/__fake__/signin") return { headers: { "content-type": "text/html" }, body: signInPage(request.url.searchParams.get("view")!, this.stuckTerms.has(tenant.host), this.hiddenAlerts.has(tenant.host), this.droppedPresses[tenant.host] ?? 0) };
       if (request.url.pathname === "/__fake__/account" && request.method === "POST") {
@@ -190,6 +207,32 @@ export class FakeWorkdays {
  * `hiddenAlert`, the form holds a hidden errorMessage that has text. The
  * first `dropped` presses of its button send nothing and show nothing.
  */
+/**
+ * A Workday job posting: Apply (an `adventureButton` link whose press opens
+ * Workday's popup of three ways to apply) or, for an application started
+ * before, Continue Application, which goes straight to the Sign In page.
+ * Each press of either is told to /__fake__/press.
+ */
+function postingPage(continued: boolean): string {
+  return `<!doctype html><meta charset="utf-8"><title>Intern</title><h2>Software Engineering Intern</h2>
+<a role="button" data-automation-id="adventureButton" href="/__fake__/apply">${continued ? "Continue Application" : "Apply"}</a>
+<script>
+document.querySelector("[data-automation-id=adventureButton]").addEventListener("click", (event) => {
+  event.preventDefault();
+  fetch("/__fake__/press?what=" + (${continued} ? "continue" : "apply"));
+  // Drawn a moment after the press, as Workday's popup is.
+  setTimeout(() => {
+    if (${continued}) return void (location.href = "/__fake__/signin?view=signin");
+    document.querySelector("[data-automation-id=wd-popup-frame]")?.remove();
+    document.body.insertAdjacentHTML("beforeend", '<div data-automation-id="wd-popup-frame">' +
+      '<a role="button" data-automation-id="autofillWithResume" href="/__fake__/autofillWithResume">Autofill with Resume</a>' +
+      '<a role="button" data-automation-id="applyManually" href="/__fake__/applyManually">Apply Manually</a>' +
+      '<a role="button" data-automation-id="useMyLastApplication" href="/__fake__/useMyLastApplication">Use My Last Application</a></div>');
+  }, 300);
+});
+</script>`;
+}
+
 function signInPage(view: string, stuckTerms = false, hiddenAlert = false, dropped = 0): string {
   return `<!doctype html><meta charset="utf-8"><title>Workday</title>
 <ol data-automation-id="progressBar"><li data-automation-id="progressBarActiveStep"><label>current step 1 of 3</label><label>Create Account/Sign In</label></li></ol>
