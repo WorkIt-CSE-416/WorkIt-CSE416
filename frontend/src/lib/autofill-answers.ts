@@ -52,7 +52,7 @@ export type AutofillAnswers = {
     | "two_or_more"
     | "declined"
     | null;
-  veteran_status: "protected_veteran" | "not_protected_veteran" | "declined" | null;
+  veteran_status: "protected_veteran" | "not_protected_veteran" | "not_veteran" | "declined" | null;
   disability_status: "yes" | "no" | "declined" | null;
 
   // The Application answers (KAN-369).
@@ -79,7 +79,42 @@ export type AutofillAnswers = {
   prior_government_work: YesNo | null;
   non_compete: YesNo | null;
   pending_offers: string[] | null;
+  age_18_or_over: YesNo | null;
+  /** Dollars an hour, the student's own figure. */
+  expected_hourly_pay: number | null;
+  /** Whether a posting's stated pay range is fine. */
+  accept_posted_pay: YesNo | null;
+  sexual_orientation:
+    "heterosexual" | "gay" | "lesbian" | "bisexual" | "asexual" | "queer" | "declined" | null;
+  transgender: "yes" | "no" | "declined" | null;
+  pronouns: "he_him" | "she_her" | "they_them" | "declined" | null;
+  /** [] is "none of these", ["declined"] a decline. */
+  communities: Community[] | null;
+  role_interests: RoleInterest[] | null;
+  x_url: string | null;
 };
+
+export type Community =
+  | "disability"
+  | "neurodiverse"
+  | "veteran"
+  | "parent"
+  | "refugee_immigrant"
+  | "first_generation"
+  | "lgbtq"
+  | "declined";
+
+export type RoleInterest =
+  | "backend"
+  | "frontend"
+  | "full_stack"
+  | "mobile"
+  | "embedded"
+  | "ml"
+  | "data"
+  | "infrastructure"
+  | "security"
+  | "robotics";
 
 /** The questions the Profile step and Application Questions ask. */
 export type QuestionKey =
@@ -91,7 +126,10 @@ export type QuestionKey =
   | "hispanic_latino"
   | "race"
   | "veteran_status"
-  | "disability_status";
+  | "disability_status"
+  | "sexual_orientation"
+  | "transgender"
+  | "pronouns";
 
 export const NO_ANSWERS: AutofillAnswers = {
   work_authorized_us: null,
@@ -120,6 +158,15 @@ export const NO_ANSWERS: AutofillAnswers = {
   prior_government_work: null,
   non_compete: null,
   pending_offers: null,
+  age_18_or_over: null,
+  expected_hourly_pay: null,
+  accept_posted_pay: null,
+  sexual_orientation: null,
+  transgender: null,
+  pronouns: null,
+  communities: null,
+  role_interests: null,
+  x_url: null,
 };
 
 type Options<K extends QuestionKey> = {
@@ -190,8 +237,78 @@ export const VETERAN_OPTIONS: Options<"veteran_status"> = [
     label: "I identify as one or more of the classifications of protected veteran",
   },
   { value: "not_protected_veteran", label: "I am not a protected veteran" },
+  { value: "not_veteran", label: "I am not a veteran" },
   { value: "declined", label: "I don't wish to answer" },
 ];
+
+export const ORIENTATION_OPTIONS: Options<"sexual_orientation"> = [
+  { value: "heterosexual", label: "Heterosexual" },
+  { value: "gay", label: "Gay" },
+  { value: "lesbian", label: "Lesbian" },
+  { value: "bisexual", label: "Bisexual" },
+  { value: "asexual", label: "Asexual" },
+  { value: "queer", label: "Queer" },
+  { value: "declined", label: "I Don't Wish to Answer" },
+];
+
+export const TRANSGENDER_OPTIONS: Options<"transgender"> = [
+  { value: "yes", label: "Yes" },
+  { value: "no", label: "No" },
+  { value: "declined", label: "I Don't Wish to Answer" },
+];
+
+export const PRONOUN_OPTIONS: Options<"pronouns"> = [
+  { value: "he_him", label: "He/Him" },
+  { value: "she_her", label: "She/Her" },
+  { value: "they_them", label: "They/Them" },
+  { value: "declined", label: "I Don't Wish to Answer" },
+];
+
+/** The communities forms ask about (select all that apply). */
+export const COMMUNITY_OPTIONS: { value: Community; label: string }[] = [
+  { value: "disability", label: "Person With a Disability" },
+  { value: "neurodiverse", label: "Neurodiverse" },
+  { value: "veteran", label: "Veteran" },
+  { value: "parent", label: "Parent" },
+  { value: "refugee_immigrant", label: "Refugee or Immigrant" },
+  { value: "first_generation", label: "First Generation" },
+  { value: "lgbtq", label: "LGBTQ+" },
+];
+
+/** The kinds of work a form's "area of interest" lists. */
+export const ROLE_INTEREST_OPTIONS: { value: RoleInterest; label: string }[] = [
+  { value: "backend", label: "Backend" },
+  { value: "frontend", label: "Frontend" },
+  { value: "full_stack", label: "Full Stack" },
+  { value: "mobile", label: "Mobile" },
+  { value: "embedded", label: "Embedded" },
+  { value: "ml", label: "Machine Learning" },
+  { value: "data", label: "Data" },
+  { value: "infrastructure", label: "Infrastructure" },
+  { value: "security", label: "Security" },
+  { value: "robotics", label: "Robotics" },
+];
+
+/** A community chip pressed: a decline stands alone, so picking one clears
+ *  the other; unpicking the last leaves it unanswered (null), never "none". */
+export function toggleCommunity(list: Community[] | null, key: Community): Community[] | null {
+  const picked = list ?? [];
+  if (picked.includes(key)) {
+    const next = picked.filter((k) => k !== key);
+    return next.length ? next : null;
+  }
+  return key === "declined" ? ["declined"] : [...picked.filter((k) => k !== "declined"), key];
+}
+
+/** A typed hourly pay: null when cleared, undefined when it isn't a figure
+ *  from $0 to $1,000 an hour (the API's range). */
+export function parsePay(text: string): number | null | undefined {
+  const t = text.trim().replace(/^\$/, "").trim();
+  if (!t) return null;
+  if (!/^\d+(\.\d{1,2})?$/.test(t)) return undefined;
+  const n = Number(t);
+  return n > 0 && n < 1000 ? n : undefined;
+}
 
 /** The three answers of the OFCCP's Form CC-305, in the form's own words and
  *  case, the same exception as the veteran answers above. */
@@ -202,15 +319,19 @@ export const DISABILITY_OPTIONS: Options<"disability_status"> = [
 ];
 
 /** The voluntary self-identification (EEO) questions. Onboarding never asks
- *  them (KAN-387): the extension asks the first time a form does, with the
- *  same options (autofiller_extension/src/background/self-id.js copies them:
- *  change both together), and saves them through the same PATCH. */
+ *  them (KAN-387): the extension asks the first five the first time a form
+ *  does, with the same options (autofiller_extension/src/background/self-id.js
+ *  copies them: change both together), and saves them through the same PATCH.
+ *  The extras (orientation, transgender, pronouns) are My Profile's alone. */
 export const SELF_ID_KEYS: QuestionKey[] = [
   "gender",
   "hispanic_latino",
   "race",
   "veteran_status",
   "disability_status",
+  "sexual_orientation",
+  "transgender",
+  "pronouns",
 ];
 
 /** One of the Profile step's questions: its key in the bank, the heading
@@ -297,6 +418,27 @@ export const PROFILE_QUESTIONS: ProfileQuestion[] = [
       "Voluntary self-identification of disability (Form CC-305): do you have a disability, or have you had one in the past?",
     options: DISABILITY_OPTIONS,
     columns: 1,
+  },
+  {
+    key: "sexual_orientation",
+    label: "Sexual Orientation",
+    question: "Voluntary self-identification: how would you describe your sexual orientation?",
+    options: ORIENTATION_OPTIONS,
+    columns: 3,
+  },
+  {
+    key: "transgender",
+    label: "Transgender",
+    question: "Voluntary self-identification: do you identify as transgender?",
+    options: TRANSGENDER_OPTIONS,
+    columns: 3,
+  },
+  {
+    key: "pronouns",
+    label: "Pronouns",
+    question: "What are your pronouns?",
+    options: PRONOUN_OPTIONS,
+    columns: 3,
   },
 ];
 
