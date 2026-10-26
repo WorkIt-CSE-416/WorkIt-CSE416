@@ -77,6 +77,9 @@ window.WIA = window.WIA || {};
       const answer = await send({ type: "fill/page", site: prepared.site, questions: prepared.questions, answers: { [name]: value }, state: prepared.state })
         .finally(() => (fillingWritten -= 1));
       const result = answer.ok ? answer.results[name] ?? { status: "failed", reason: "The form changed before this was filled" } : { status: "failed", reason: answer.error };
+      // See cover letter (letter-preview.js), before the row draws: an upload's text is the PDF's, which the form can't show.
+      const upload = prepared.questions.find((q) => q.name === name)?.kind === "file";
+      if (result.status === "filled") window.WIA.letterPreview?.filled(name, value, upload ? String(result.shows) : undefined);
       status.setStatus(name, result.status, result.reason, result.shows, source);
       if (result.status === "filled" && typeof result.shows === "string") workitFilled.set(name, { text: result.shows, source });
     }
@@ -327,9 +330,15 @@ window.WIA = window.WIA || {};
      * the student's own (a saved answer): an edit of one stays that answer's.
      */
     function adopt(names) {
+      let adopted = false;
       for (const row of status.summary().fields)
-        if (names.has(row.key) && row.status === "filled" && row.source && row.source !== "student" && typeof row.shows === "string")
+        if (names.has(row.key) && row.status === "filled" && row.source && row.source !== "student" && typeof row.shows === "string") {
           workitFilled.set(row.key, { text: row.shows, source: row.source });
+          window.WIA.letterPreview?.filled(row.key, row.shows);
+          adopted = true;
+        }
+      // Their rows get See cover letter (letter-preview.js).
+      if (adopted && window.WIA.letterPreview) overlay?.refresh?.();
     }
 
     /**
