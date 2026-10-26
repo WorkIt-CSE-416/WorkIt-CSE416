@@ -507,8 +507,9 @@ export function Editor({
       className: cn(
         latinModern.className,
         // A negative margin puts the side padding outside the text, so the
-        // text lands on the PDF's own glyphs
-        "bg-panel text-ink ring-brand -mx-[0.4cqw] block resize-none overflow-hidden rounded-[2px] px-[0.4cqw] shadow-md ring-2 outline-none",
+        // text lands on the PDF's own glyphs. The ring alone outlines it: a
+        // shadow read as a soft second edge under the line.
+        "bg-panel text-ink ring-brand -mx-[0.4cqw] block resize-none overflow-hidden rounded-[2px] px-[0.4cqw] ring-2 outline-none",
         "field-sizing-content",
         look.bold && "font-bold",
         look.italic && "italic",

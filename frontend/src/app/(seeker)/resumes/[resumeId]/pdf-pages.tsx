@@ -245,8 +245,11 @@ export function PdfPages({
                     !mark && "hover:bg-brand/5",
                     mark && MARK_TINT[mark],
                     "focus-visible:outline-brand focus-visible:outline-2",
-                    selected === key && "outline-brand outline-2",
-                    selected === key && !mark && "bg-brand/10",
+                    // While its line is typed in, the field's ring is the one
+                    // outline: this box sits a few pixels off the field, and its
+                    // own outline showed as a second line under the ring.
+                    selected === key && !typing && "outline-brand outline-2",
+                    selected === key && !typing && !mark && "bg-brand/10",
                   )}
                   style={{
                     left: `${(box.x0 / size.width) * 100}%`,

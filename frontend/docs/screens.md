@@ -2013,7 +2013,10 @@ student who opened a resume from Experiences landed on another view.
   this page only), at the line's size, weight and slant, with its baseline
   on the PDF's, so its text covers the printed glyphs and wraps where the
   PDF does; before this, a wider fallback serif wrapped early and the field
-  covered the lines below. It opens with the caret where the press landed
+  covered the lines below. Its 2px ring is the line's only outline while
+  it is open: the line's own selected outline sat a few pixels off the
+  field, and with the field's drop shadow it showed as extra lines under
+  the ring, so both go while the field shows. It opens with the caret where the press landed
   (`caretPositionFromPoint`, measured from the pages' top left, because the
   bar can change height in the same render). It saves after a 700 ms
   pause, on blur, on Enter, or when another line is selected; then the PDF
