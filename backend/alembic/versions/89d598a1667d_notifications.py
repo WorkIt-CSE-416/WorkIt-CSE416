@@ -11,8 +11,13 @@ safe; deployed first, Settings' PATCH and the bell's GET both answer with a
 column/table that doesn't exist.
 
 Revision ID: 89d598a1667d
-Revises: 5a6e419367b8
+Revises: b9e2c4d6f8a1
 Create Date: 2026-10-21 00:47:20.397537
+
+Re-parented from 5a6e419367b8 (2026-10-26): KAN-372's home location and
+KAN-343's bank redesign branched off that same revision independently and
+reached main first, so this one re-parents onto their head rather than
+leaving two heads (backend/alembic/CLAUDE.md, "Multi-team").
 
 """
 from typing import Sequence, Union
@@ -24,7 +29,7 @@ from sqlalchemy.dialects import postgresql
 
 # revision identifiers, used by Alembic.
 revision: str = '89d598a1667d'
-down_revision: Union[str, Sequence[str], None] = '5a6e419367b8'
+down_revision: Union[str, Sequence[str], None] = 'b9e2c4d6f8a1'
 branch_labels: Union[str, Sequence[str], None] = None
 depends_on: Union[str, Sequence[str], None] = None
 
