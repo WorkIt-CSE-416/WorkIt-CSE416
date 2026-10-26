@@ -15,6 +15,7 @@ import {
   batchStatus, batchTabIds, forgetTab, inBatch, jobInTab, jobTypeInTab, markSubmitted, practiceStatus, resumeBatch, setTabState, setWriting,
   showBatchTab, skipTab, startBatch, startPractice, submitPractice,
 } from "./batch.js";
+import { webappOrigin } from "./panel-states.js";
 import { engineCaller, handleFill, jobOf, practiceJob, runEngine, submittedPage } from "./engine.js";
 import { claimMoment } from "./moments.js";
 import { nextNeedsYou, walkFrom } from "./next-needs-you.js";
@@ -348,6 +349,10 @@ async function handleMessage(message, sender) {
     case "panel/site":
       return { site: await panelSite(sender.url ?? "", message.set) };
     // The panel's Autofill This Page and Fill Again: the fill, in the frame that asked (a batch tab stays one).
+    // Signed out (panel-states.js, KAN-401): the panel's Sign in to WorkIt opens the webapp's sign-in.
+    case "panel/sign-in":
+      await chrome.tabs.create({ url: `${await webappOrigin()}/login`, openerTabId: sender.tab?.id });
+      return {};
     case "panel/fill":
       await injectFill(sender.tab.id, { batch: Boolean(message.batch) && (await inBatch(sender.tab.id)), frameId: sender.frameId || undefined });
       return {};
@@ -494,7 +499,7 @@ async function panelSite(url, change) {
 }
 
 // What the panel's shell injects when the toolbar icon or Alt+W finds no panel on a job page yet.
-const SHELL_FILES = ["src/shared/tokens.js", "src/content/panel.js", "src/content/panel-top.js", "src/content/panel-settings.js", "src/content/report.js"];
+const SHELL_FILES = ["src/shared/tokens.js", "src/content/panel.js", "src/content/panel-top.js", "src/content/panel-settings.js", "src/content/report.js", "src/content/panel-states.js"];
 
 /**
  * The toolbar icon (a tab with no popup: a job page, panel/where) and
@@ -514,7 +519,7 @@ async function toolbarPressed(tab) {
       func: async () => {
         const panel = window.WIA.panel;
         await panel.ensure();
-        if (!window.WIA.overlay?.state?.()) panel.fillButton(panel.startLabel());
+        if (!window.WIA.overlay?.state?.()) await window.WIA.panelStates.start();
         panel.open();
       },
     });

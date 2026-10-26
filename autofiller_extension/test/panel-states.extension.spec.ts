@@ -53,3 +53,32 @@ test("the toolbar popup's failed profile read is a sentence with Try again, whic
   await popup.getByRole("button", { name: "Try again" }).click();
   await expect(popup.getByRole("button", { name: "Open WorkIt" })).toBeVisible();
 });
+
+test("signed out, the panel shows the job card and Sign in to WorkIt only; signed in again, Autofill This Page", async () => {
+  test.setTimeout(90_000);
+  const forms = new SavedForms([ANDURIL]);
+  loaded = await loadExtension([new FakeApi().handler, webapp, forms.handler]);
+  const page = await loaded.context.newPage();
+  await page.goto(forms.url(ANDURIL));
+  await edgeTab(page).click({ timeout: 15_000 });
+
+  const primary = hostOf(page).locator('[data-slot="primary"]');
+  await expect(primary.getByRole("button", { name: "Sign in to WorkIt" })).toBeVisible();
+  await expect(primary.getByRole("button", { name: "Autofill This Page" })).toHaveCount(0);
+  await expect(hostOf(page).locator('[data-slot="job-card"]')).toContainText("Anduril");
+  await expect(hostOf(page).locator(".tabs")).toBeHidden();
+  await expect(hostOf(page).locator("[data-tabs]")).toBeHidden();
+
+  const opened = loaded.context.waitForEvent("page");
+  await primary.getByRole("button", { name: "Sign in to WorkIt" }).click();
+  const login = await opened;
+  await expect.poll(() => login.url()).toBe("http://localhost:3000/login");
+
+  // The student signs in in that tab and comes back.
+  await signIn(loaded.context);
+  await login.close();
+  await page.bringToFront();
+  await page.evaluate(() => document.dispatchEvent(new Event("visibilitychange")));
+  await expect(primary.getByRole("button", { name: "Autofill This Page" })).toBeVisible();
+  await expect(hostOf(page).locator(".tabs")).toBeVisible();
+});

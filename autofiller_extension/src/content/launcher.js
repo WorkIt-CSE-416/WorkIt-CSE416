@@ -22,6 +22,7 @@ window.WIA = window.WIA || {};
   const { job, batch } = await panel.where();
   if (!job || batch || fillOwns()) return;
   await panel.ensure();
-  if (!window.WIA.overlay?.state?.()) panel.fillButton(panel.startLabel());
+  // Autofill This Page, or Sign in to WorkIt when signed out (panel-states.js, KAN-401).
+  if (!window.WIA.overlay?.state?.()) await window.WIA.panelStates.start();
   panel.showEdge();
 })();

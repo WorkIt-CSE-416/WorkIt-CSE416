@@ -1510,6 +1510,22 @@ required line against the form's own asterisks; Alt+N; Ready to submit
 rings Submit and sends nothing; Fill Again's Cancel; Fill this step on
 Workday; the embedded form).
 
+## The panel's other states (KAN-401): signed out, sent, a site it can't fill, errors
+
+`src/content/panel-states.js` (`window.WIA.panelStates`, loaded after
+report.js everywhere it is: manifest, `CONTENT_SCRIPT_FILES`, background.js
+`SHELL_FILES`) and `src/background/panel-states.js`:
+
+- **Signed out**: `panelStates.start()` is what the launcher and the
+  toolbar call in place of `panel.fillButton` before a fill. Signed out
+  (`auth/status`), the panel shows the job card (panel-top.js reads the
+  names without an account) and **Sign in to WorkIt** only: the tabs give
+  way (`.panel[data-signed-out]`). The button opens the webapp's `/login`
+  (`panel/sign-in`; the local webapp when it answers, else WorkIt's site).
+  When the student comes back to the tab signed in, Autofill This Page.
+
+Tests: `test/panel-states.extension.spec.ts`.
+
 ## The panel's top (KAN-395): header, batch line, job card
 
 The header (panel.js) is WorkIt's mark (logo.tsx's figure, in ink: the
