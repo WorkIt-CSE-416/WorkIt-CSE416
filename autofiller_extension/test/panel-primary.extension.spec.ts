@@ -166,6 +166,20 @@ test("on a Workday step outside a batch, the button reads Fill this step", async
   expect(workdays.submissions).toEqual([]);
 });
 
+test("a filled Workday step with nothing red asks for Save and Continue, not 1 need you", async () => {
+  test.setTimeout(90_000);
+  const workdays = new FakeWorkdays(["workday-caci"]);
+  await start([workdays.handler]);
+  const page = await loaded.context.newPage();
+  await page.goto(workdays.url(0));
+  await hostOf(page).getByRole("button", { name: "Show WorkIt panel" }).click({ timeout: 20_000 });
+  await mainButton(page).click();
+  // The step's line tells the student what's next; the button carries it, so it isn't a thing that needs them.
+  await expect(mainButton(page)).toHaveText("Go to Save and Continue", { timeout: 60_000 });
+  await expect(requiredLine(page)).not.toContainText("need you");
+  expect(workdays.submissions).toEqual([]);
+});
+
 test("a company careers page that embeds Greenhouse's form: Autofill This Page works in its iframe", async () => {
   test.setTimeout(120_000);
   const forms = new SavedForms(["greenhouse-coinbase"]);

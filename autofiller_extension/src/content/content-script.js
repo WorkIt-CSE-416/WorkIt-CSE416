@@ -491,9 +491,10 @@
     const last = prepared.step.review || prepared.step.sends;
     // Fill to Review (workday-walk.js): a step with nothing for the student is saved with Save and Continue.
     const toReview = window.WIA.toReview;
+    // News, not a thing that needs the student: the bottom button carries the step's next press (decision 1700).
     note("_step", `Workday: ${step}`, last
       ? (toReview.on() ? toReview.REVIEW_NOTE : "This is the last step. Check the whole application, then submit it yourself.")
-      : "Check this step, then press Save and Continue. WorkIt fills the next step when it shows.");
+      : "Check this step, then press Save and Continue. WorkIt fills the next step when it shows.", false, true);
     window.WIA.failedCard.use(fixesOf(prepared));
     window.WIA.answersTab?.use(prepared);
     window.WIA.resumeTab?.use(fixesOf(prepared));
