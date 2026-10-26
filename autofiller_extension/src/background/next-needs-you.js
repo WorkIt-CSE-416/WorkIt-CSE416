@@ -3,8 +3,9 @@
 
 import { liveBatch } from "./batch-store.js";
 
-// Where "Next Thing That Needs You" last went: { tabId, place, key, rank }: the tab's place in the
-// order the batch opened, and the key's place among all its tab's rows then (`rank`, by `order`).
+// Where "Next Thing That Needs You" last went: { tabId, place, key, rank, late }: the tab's place in the
+// order the batch opened, the key's place among all its tab's rows then (`rank`, by `order`), and whether
+// it was a row waiting for the student's Claude (`late`: those come after everything else).
 const CURSOR_KEY = "workit_batch_next";
 
 /**
@@ -19,7 +20,10 @@ const CURSOR_KEY = "workit_batch_next";
  * first. Fields the student fixed meanwhile are no longer flagged, so they
  * are passed over; the walk goes on after the row it was on by that row's
  * place on the page, which stays when it is answered (and after a closed
- * tab by the tab's place in the batch).
+ * tab by the tab's place in the batch). Rows waiting for the student's
+ * Claude (`batch/flags`'s `late`) come after every other thing in the
+ * batch, in the same order among themselves: the student can't fix them,
+ * only write them or wait.
  * @returns {Promise<{ done: true } | { done: false, tabId: number, key: string | null }>}
  */
 export async function nextNeedsYou() {
@@ -34,15 +38,17 @@ export async function nextNeedsYou() {
     const answer = await chrome.tabs.sendMessage(tabId, { type: "batch/flags" }).catch(() => null);
     if (answer) {
       if (cursor?.tabId === tabId && answer.order.includes(cursor.key)) after = answer.order.indexOf(cursor.key);
-      for (const key of answer.keys) things.push({ place, tabId, key, rank: answer.order.indexOf(key) });
-    } else if (state === "needs_you" || state === "failed") things.push({ place, tabId, key: null, rank: 0 });
+      for (const key of answer.keys) things.push({ place, tabId, key, rank: answer.order.indexOf(key), late: Boolean(answer.late?.includes(key)) });
+    } else if (state === "needs_you" || state === "failed") things.push({ place, tabId, key: null, rank: 0, late: false });
   }
-  const next = cursor ? things.find((t) => t.place > cursor.place || (t.place === cursor.place && t.rank > after)) : things[0];
+  const walk = [...things.filter((t) => !t.late), ...things.filter((t) => t.late)];
+  const beyond = (t) => (t.late !== Boolean(cursor.late) ? t.late : t.place > cursor.place || (t.place === cursor.place && t.rank > after));
+  const next = cursor ? walk.find(beyond) : walk[0];
   if (!next) {
     await chrome.storage.session.remove(CURSOR_KEY);
     return { done: true };
   }
-  await chrome.storage.session.set({ [CURSOR_KEY]: { tabId: next.tabId, place: next.place, key: next.key, rank: next.rank } });
+  await chrome.storage.session.set({ [CURSOR_KEY]: { tabId: next.tabId, place: next.place, key: next.key, rank: next.rank, late: next.late } });
   const tab = await chrome.tabs.update(next.tabId, { active: true });
   await chrome.windows.update(tab.windowId, { focused: true });
   if (next.key !== null) await chrome.tabs.sendMessage(next.tabId, { type: "batch/focus", key: next.key }).catch(() => {});
@@ -62,7 +68,7 @@ export async function walkFrom(tabId, key) {
   if (!tab) return false;
   const answer = await chrome.tabs.sendMessage(tabId, { type: "batch/flags" }).catch(() => null);
   const rank = answer?.order.indexOf(key) ?? -1;
-  await chrome.storage.session.set({ [CURSOR_KEY]: { tabId, place: batch.opened.indexOf(tab.jobId), key, rank } });
+  await chrome.storage.session.set({ [CURSOR_KEY]: { tabId, place: batch.opened.indexOf(tab.jobId), key, rank, late: Boolean(answer?.late?.includes(key)) } });
   await chrome.tabs.sendMessage(tabId, { type: "batch/focus", key }).catch(() => {});
   return true;
 }
