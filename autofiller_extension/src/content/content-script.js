@@ -140,7 +140,7 @@
         return null;
       }
       if (!prepared.covered) {
-        note("_uncovered", "WorkIt can't fill this job system yet", "Nothing on this page was filled. WorkIt fills Greenhouse, Lever, Ashby, Rippling, Workable, Eightfold, Workday, Oracle and TikTok applications.");
+        note("_uncovered", "WorkIt can't fill this job system yet", "Nothing on this page was filled. WorkIt fills Greenhouse, Lever, Ashby, Rippling, Workable, Eightfold, SmartRecruiters, Workday, Oracle, Waymo and TikTok applications.");
         return null;
       }
       // TikTok's and ByteDance's form is behind the site's own sign-in, which is the student's: WorkIt
@@ -441,7 +441,9 @@
     // once, the first box filled read back empty in 1 to 10 forms of 50. With
     // the panel mounted after the fill: 0 in 50 (KAN-370). The engine waits
     // for the form's start-up before it types, so by now it is over.
-    const prepared = await fillShown();
+    let prepared = await fillShown();
+    // SmartRecruiters: its first page, then its screening questions (smartrecruiters.js presses Next, never Submit).
+    if (prepared?.site === "smartrecruiters" && (await window.WIA.smartRecruitersNext?.(prepared))) prepared = (await fillShown()) ?? prepared;
     if (prepared) await flagEmptyRequired(prepared);
     if (prepared) window.WIA.failedCard.use(fixesOf(prepared));
     if (prepared) window.WIA.resumeTab?.use(fixesOf(prepared));

@@ -262,9 +262,22 @@ builds it: `dist/engine.js` is committed in the engine repo.
   question about working abroad ("the right to work in the UK?") is No, and
   a role abroad a Screener. The engine's own rules decide everything else; change a rule in
   the engine repo, not here.
+- **SmartRecruiters fills in two pages** (`src/content/smartrecruiters.js`).
+  A posting (`jobs.smartrecruiters.com/<company>/<id>`) opens its one-click
+  form through `?oga=true`; the form's questions are read off the page a
+  page at a time (`readQuestions`, through its components' shadow roots).
+  Once the first page is filled and nothing on it needs the student (no
+  failed row, no required answer still being written), `fill/next` has the
+  engine press Next, never Submit, and the screening page is filled as the
+  same tab's fill. Otherwise the first page is the student's, with a
+  "SmartRecruiters: first page" line telling them to press Next. Names and
+  text come from the public Posting API (`api.smartrecruiters.com`, in the
+  manifest). The form serves a captcha to a headless browser, so its tests
+  run on the engine's stand-in built from other autofillers' selectors
+  (`test/smartrecruiters.spec.ts`), not a saved live form.
 - **Only job systems the engine covers are filled.** `engine.js`'s `jobOf`
   names them (Greenhouse, Lever, Ashby, Rippling, Workable, Eightfold,
-  Workday and TikTok/ByteDance). On any other page the overlay says
+  SmartRecruiters, Workday, Oracle, Waymo and TikTok/ByteDance). On any other page the overlay says
   WorkIt can't fill this job system yet and nothing is touched: there is
   no generic filler any more (the old label-matching one filled most forms
   wrong, and was deleted with its Greenhouse adapter in KAN-340).
@@ -955,9 +968,21 @@ waits for an opened tab's page and form (`waitForLoad`, `formShows`).
   engine's `EIGHTFOLD_COMPANIES`) is listed by its host: without it, the
   job's names and text failed to fetch. `test/manifest.spec.ts` checks one
   link of each.
+- **Waymo's careers site is its own job system** (`careers.withwaymo.com`,
+  the engine's site `waymo`). It shows each posting of Waymo's Greenhouse
+  board with a form its site vendor builds, with no Greenhouse frame, so
+  `embedsGreenhouse` leaves out every link `jobOf` covers and the page's
+  own form is filled, its questions read off the open form as Eightfold's
+  are (`readQuestions`; none written ahead). `manifest.json` lists the
+  host; `waymo.com/joinus/<job>` opens the careers site's
+  `/jobs?gh_jid=<job>`. Its Submit posts to `/call_to_actions/<id>/form_submissions`
+  (`SUBMIT_REQUESTS.waymo`, not proof alone: how it answers a refusal isn't
+  recorded), and a closed posting's "Looks like you got lost" page is a
+  closed job. Until the engine's Waymo Filler both of Waymo's careers
+  hosts were left out (hosts.py's former `SKIP_EMBEDDING`).
 - **A careers page that embeds Greenhouse is filled in its iframe**
   (KAN-369). A `?gh_jid=` link on a company's own site (hosts.py takes
-  them, outside its `SKIP_EMBEDDING`) opens as it is, and the fill runs in
+  them all) opens as it is, and the fill runs in
   the page's `*.greenhouse.io/embed/job_app` frame only
   (`embedded-forms.js`; `injectFill`'s and `formShows`'s `frameId`). The
   extension has no host permission for the company's page: Chrome redacts

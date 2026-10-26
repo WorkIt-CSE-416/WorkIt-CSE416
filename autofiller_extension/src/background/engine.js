@@ -79,9 +79,10 @@ export function practiceJob(url) {
 }
 
 // Job systems whose questions only the open form shows: Eightfold's questions API answers only the
-// page's own session, and TikTok's and ByteDance's form is behind the site's own sign-in (Workday's and Oracle's
+// page's own session, Waymo's careers site builds its own form, SmartRecruiters' shows its questions
+// a page at a time, and TikTok's and ByteDance's form is behind the site's own sign-in (Workday's and Oracle's
 // steps are read on their own, readQuestions).
-const READ_OFF_PAGE = new Set(["eightfold", "tiktok"]);
+const READ_OFF_PAGE = new Set(["eightfold", "tiktok", "waymo", "smartrecruiters"]);
 const readOffPage = (job) => engine.stepped(job.site) || READ_OFF_PAGE.has(job.site);
 
 /**
@@ -549,6 +550,8 @@ async function readQuestions({ job, url, call, fetchText, state }) {
     const step = { name: shown.step, sections: shown.sections, sends: shown.sends, review: shown.review, wentWrong: Boolean(shown.wentWrong), gate: shown.gate ?? null };
     return { questions: shown.questions, step, state: shown.state };
   }
+  // Waymo's careers site builds its own form, whose fields only the page names; SmartRecruiters'
+  // questions show a page at a time on its one-click form.
   if (READ_OFF_PAGE.has(job.site)) return { questions: await call("readQuestions", job.site) };
   // A practice form's questions are in its own page, as a Lever form's are in its /apply page.
   if (job.practice) return { questions: engine.parseQuestions("lever", await fetchText(url)) };
@@ -831,6 +834,9 @@ export async function handleFill(message, { url, profile, bank, today, call, fet
       if (notNeeded) moot[name] = { answer };
     }
     return { moot };
+  } else if (message.type === "fill/next") {
+    // A form in pages the extension moves through itself (SmartRecruiters): the engine presses Next, never Submit.
+    return { step: await call("next", jobOf(url)?.site, message.step) };
   } else if (message.type === "fill/required") {
     // The fields the form won't send without that show nothing, the planned and the unplanned alike
     // (Greenhouse's phone country, required once Phone shows a number, is in no Question set as required),

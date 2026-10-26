@@ -8,6 +8,7 @@ import { FakeEightfold } from "../fill-engine/test/fake-eightfold";
 import { FakeJobServer, FORMS, loadHar } from "../fill-engine/test/fake-job-server";
 import { FakeLever } from "../fill-engine/test/fake-lever";
 import { FakeRippling } from "../fill-engine/test/fake-rippling";
+import { FakeWaymo } from "../fill-engine/test/fake-waymo";
 import { FakeWorkable } from "../fill-engine/test/fake-workable";
 import { EDUCATION, FakeWorkday, type Step } from "../fill-engine/test/fake-workday";
 import { formUrl, planFill } from "../src/background/engine.js";
@@ -157,6 +158,21 @@ test("fills a saved Eightfold form from a WorkIt profile, reading its questions 
   expect(shown(rows)).toMatchObject({ resume: "resume.pdf" });
   expect(failed(rows)).toEqual({});
   expect(netflix.submissions).toEqual([]);
+});
+
+test("fills a saved Waymo careers site form from a WorkIt profile, reading its questions from the page, and submits nothing", async ({ context }) => {
+  // Greenhouse's school search, which the page asks, finds the profile's school.
+  const waymo = new FakeWaymo("waymo-depotautomation", { schools: ["Example State University"] });
+  const page = await waymo.open(context);
+  await bridge(page, api({}));
+
+  await inject(page);
+  const { phase, rows } = await settled(page);
+
+  expect(phase).toBe("filled");
+  expect(shown(rows)).toMatchObject({ first_name: "Test", last_name: "Person", email: "test.person@example.com" });
+  expect(failed(rows)).toEqual({});
+  expect(waymo.submissions).toEqual([]);
 });
 
 // A Workday application of the questions WorkIt can answer, in Workday's steps.
