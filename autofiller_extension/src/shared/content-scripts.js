@@ -48,8 +48,3 @@ export const HUMAN_CHECK_FILES = ["src/content/lib-status.js", "src/shared/token
 export async function injectHumanCheck(tabId) {
   await chrome.scripting.executeScript({ target: { tabId }, files: HUMAN_CHECK_FILES }).catch((error) => console.warn("[batch] the human check's panel didn't show:", error.message));
 }
-
-/** Takes down a human check's panel, if the page still has it, before the fill puts up its own. */
-export async function clearHumanCheck(tabId) {
-  await chrome.scripting.executeScript({ target: { tabId }, func: () => window.WIA?.overlay?.unmount() }).catch(() => {});
-}

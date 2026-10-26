@@ -52,7 +52,7 @@
 import { ApiError, finishApplication, getAutofillProfile, me, nextApplication, recordFill, recordSentResume } from "./api.js";
 import { formFor, jobOf, practiceJob } from "./engine.js";
 import { jobBoard } from "./job-boards.js";
-import { clearHumanCheck, injectFill, injectHumanCheck } from "../shared/content-scripts.js";
+import { injectFill, injectHumanCheck } from "../shared/content-scripts.js";
 import { liveBatch, load, save, serially } from "./batch-store.js";
 import { forgetWorkableDraft, formAfterHumanCheck, formShows, humanCheckShows, waitForLoad } from "./tab-load.js";
 import { markCheck, tryInFront } from "./human-checks.js";
@@ -276,7 +276,6 @@ async function startFill(tabId, url, again = false) {
       } finally {
         await markCheck(tabId, false);
       }
-      if (found) await clearHumanCheck(tabId);
     }
     if (!found && !workday) throw new Error("no_form");
     await injectFill(tabId, { batch: true });
