@@ -518,13 +518,16 @@ async def save_own_answer(
     await db.commit()
 
 
-async def drop_own_answer(db: AsyncSession, applicant_id: uuid.UUID, job_id: uuid.UUID, name: str) -> None:
+async def drop_own_answer(
+    db: AsyncSession, applicant_id: uuid.UUID, job_id: uuid.UUID, name: str, *, own_only: bool = True,
+) -> None:
     """Takes back the student's own answer `name` on this application
-    (KAN-369, the guess card's Undo), so later forms no longer fill it.
-    Nothing saved is no error. Raises NotFound with no application."""
+    (KAN-369, the guess card's Undo), so later forms no longer fill it;
+    without `own_only`, whoever wrote it (the Written Answers page's
+    Delete). Nothing saved is no error. Raises NotFound with no application."""
     if await fetch_stage(db, applicant_id, job_id) is None:
         raise NotFound("No application for that job.")
-    await drop_own_written(db, applicant_id, job_id, name)
+    await drop_own_written(db, applicant_id, job_id, name, own_only=own_only)
     await db.commit()
 
 

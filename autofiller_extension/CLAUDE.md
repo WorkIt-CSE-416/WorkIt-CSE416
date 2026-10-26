@@ -101,7 +101,7 @@ builds it: `dist/engine.js` is committed in the engine repo.
   (Eightfold's follow-ups, Workday's new panels) answers `more`; the
   content script plans again with them (`extra`) and fills what is new.
 - **Workday, a step at a time.** The student signs in and starts the
-  application; the content script fills each step as it shows (sections
+  application (a batch tab starts it itself, below); the content script fills each step as it shows (sections
   first, then each field, then reads the step again for follow-ups), then
   waits. The student checks the step and presses Save and Continue; the
   next step is filled when Workday shows it. The extension never presses
@@ -334,6 +334,22 @@ waits for an opened tab's page and form (`waitForLoad`, `formShows`).
   skipped, or out of the fill states (filling, ready, needs_you, failed), as a
   submitted one will be (KAN-374). The other job systems fill beside it;
   the slot doesn't count against the five filling.
+- **Workday's start buttons (KAN-369).** In a batch tab, on Workday's job
+  page, `workday.js`'s `watchStart` presses Apply (`adventureButton` or
+  `continueButton` reading exactly Apply or Continue Application, as
+  Apply's `_start` finds them), then Apply Manually
+  (`[data-automation-id=applyManually]`) in the popup Apply opens, each at
+  most once a page (its path: Workday changes pages in place), and stops
+  once the sign-in form or a step shows. **Autofill with Resume and Use My
+  Last Application are never pressed**: WorkIt fills from the profile.
+  Jobright and Simplify press these only after the student presses their
+  own button (resume-2027 `research/open-decisions-forms.md`); in a batch,
+  the student's Start batch is that press. Outside a batch (the popup's
+  Autofill This Page) the student presses them. **Learned live** (NVIDIA
+  and Salesforce, 2026-10-25, headless, stopped at the sign-in): the
+  synthetic press (`press`) works on both, Apply's popup shows Apply
+  Manually a moment after, and it loads `/apply/applyManually`, then
+  Create Account/Sign In (NVIDIA's social-first, with Sign in with email).
 - **Workday sign-in (KAN-373).** On Workday's Create Account or Sign In
   form (`[data-automation-id=signInFormo]`; Workday's step bar calls it a
   step, which `workdayStep()` ignores), `workday.js` asks
@@ -1129,6 +1145,15 @@ resume is gets a `Transcript_` prefix, since a planned file is matched to
 its bytes by name. Best effort, like the resume: no transcript, or a failed
 fetch, is `transcript: null`, and the Plan lists a required transcript as
 a Missing fact. Test: `test/transcript.extension.spec.ts`.
+
+No photo is ever uploaded, not even a placeholder image (Simplify fills a
+required one with a blank white PNG in its best-effort mode; WorkIt never
+puts a fake file in a real application). The engine's Plan leaves a photo
+upload (avatar, photo, picture, headshot) blank: Workable's optional Photo
+stays empty, and a required one is a handoff the panel lists under "Left
+for you" ("Photo upload: add a photo yourself"), while the still-empty
+required field keeps the batch tab in Needs you. WorkIt stores no profile
+photo for forms.
 
 ## Essay-question generation: the one opt-in, model-backed feature
 

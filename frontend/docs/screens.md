@@ -1013,15 +1013,15 @@ The link holds only that fixed text (`src/lib/claude-connector.ts`).
 stage, newest application first: the question, the answer as sent and,
 when the student's Claude named one, its **Named fact**, the company brief
 fact the answer uses, linked to the page that states it, so the student can
-read up on it before an interview. The student's own answers (a Looks
-right or Save for next time in a batch tab) each have a muted **Delete**
-under them (KAN-369): it asks first on that line ("Delete this answer?
-Later forms won't fill it.", the red Delete Answer and Keep It, as on
-Resumes), then calls `DELETE .../applications/{job_id}/answers?name=` and
-refreshes the list. Their Claude's answers, and those saved here with
-Check and Save (saved as Claude's), have none: the API deletes only the
-student's own. A failed delete keeps the answer and says why in red under
-it. The list is left out when nothing is answered or it doesn't load.
+read up on it before an interview. Every answer has a muted **Delete**
+under it (KAN-369): the student's own (a Looks right or Save for next time
+in a batch tab), one saved here with Check and Save, and their Claude's;
+not own limits reuse, not removal. It asks first on that line ("Delete
+this answer? Later forms won't fill it.", the red Delete Answer and Keep
+It, as on Resumes), then calls `DELETE
+.../applications/{job_id}/answers?name=&own_only=false` and refreshes the
+list; a question an open tab still asks shows above again, unanswered. A
+failed delete keeps the answer and says why in red under it. The list is left out when nothing is answered or it doesn't load.
 
 **New** (KAN-369): an answer the student typed into a batch tab's form is
 saved as they type, and the tab's panel says "Saved N new answers" with

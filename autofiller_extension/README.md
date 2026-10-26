@@ -27,7 +27,8 @@ still open.
    Workable, Eightfold or Workday, click the icon again, then **Autofill
    This Page**. On a job's page that isn't its form, it names the form's
    link; on any other hiring system it fills nothing and says so. On
-   Workday, sign in and start the application: each step is filled as it
+   Workday, sign in and start the application (in a batch, the extension
+   presses Apply and Apply Manually itself): each step is filled as it
    shows, and you press Save and Continue yourself.
 
 It never submits anything — review the filled form and click the site's

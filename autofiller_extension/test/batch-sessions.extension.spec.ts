@@ -186,8 +186,8 @@ test("on Workday's sign-in, fills the student's email and a password of its own 
   const saved = () => loaded!.worker.evaluate(async () => (await chrome.storage.local.get("workday_logins")).workday_logins ?? {});
   const panel = (p: Page) => p.locator("#workit-autofiller-overlay-host .row").filter({ hasText: "Sign in to continue" });
 
-  // The first company's posting has no form: the student presses Apply, which loads Create Account as a new page.
-  await (await page(workdays.postingUrl(0))).locator("[data-automation-id=adventureButton]").click();
+  // The first company's posting has no form: the batch tab presses Apply, then Apply Manually, which loads Create Account as a new page.
+  await page(workdays.postingUrl(0));
   // Create Account there: the email, and a new strong password typed twice.
   const caci = await page(workdays.signInUrl(0));
   await expect.poll(() => box(caci, "verifyPassword").inputValue(), { timeout: 30_000 }).not.toBe("");

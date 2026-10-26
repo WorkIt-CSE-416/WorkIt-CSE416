@@ -384,6 +384,14 @@
     note("_step", "Waiting for the application", "Sign in and start the application. WorkIt fills each step as it shows.");
     window.WIA.phase = "step";
     report();
+    // The student's Start batch is the press of Apply (KAN-369): a batch tab starts the application itself.
+    if (batch) {
+      workday.watchStart((reason) => {
+        status.reset();
+        note("_step", "Starting the application", reason);
+        report();
+      });
+    }
     workday.watchSignIn((reason) => {
       status.reset();
       note("_step", "Sign in to continue", reason);

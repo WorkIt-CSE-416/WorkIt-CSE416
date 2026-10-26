@@ -165,3 +165,22 @@ async def test_the_student_may_paste_their_own_writing_sample_but_their_claude_m
     async with database() as db:
         bank = await pipeline.answer_bank(db, applicant, later)
     assert {q: a.answer for q, a in bank.items()} == {PROUD["label"]: SAMPLE}
+
+
+async def test_a_pasted_answer_is_deleted_from_the_page_and_asked_again(running, applicant, database):  # noqa: F811
+    """Every saved answer is deletable (KAN-369): `own_only=false` takes back one
+    saved with Check and Save, not own; the guess card's Undo (the default) never
+    does. The question the tab still asks shows on the page again, unanswered."""
+    me, (job,) = await _student_queues(database, applicant, 1)
+    await _tab_asks(me, job, WHY)
+    assert (await _paste(me, job, question_7=CLEAN)).status_code == 200
+
+    async with _api() as webapp:
+        undo = await webapp.delete(f"{me}/applications/{job}/answers", params={"name": "question_7"})
+        kept = [q["answer"] for q in await _tab_asks(me, job)]
+        deleted = await webapp.delete(f"{me}/applications/{job}/answers", params={"name": "question_7", "own_only": "false"})
+
+    assert (undo.status_code, deleted.status_code) == (204, 204)
+    assert kept == [CLEAN]
+    assert [q["answer"] for q in await _tab_asks(me, job)] == [None]
+    assert [q["name"] for q in (await _page(me))[0]["questions"]] == ["question_7"]
