@@ -85,13 +85,13 @@ test("an answer the review flags needs the student until they edit it", async ()
   const flag = "It says clinics call patients; the experience doesn't say that.";
   api.saveReview("job-0", { [name]: flag });
   const row = form.locator(`#workit-autofiller-overlay-host [data-key="${name}"]`);
-  await expect(row.locator(".reason")).toHaveText(`Your Claude's check: ${flag} Read it before you submit, and edit it if it's wrong.`, { timeout: 20_000 });
+  await expect(row.locator(".flag-card .card-warning")).toHaveText(`Your Claude's check: ${flag} Read it before you submit, and edit it if it's wrong.`, { timeout: 20_000 });
   await expect(row).toHaveAttribute("data-flagged", "");
   await expect.poll(() => groupOf(loaded.worker, LUMEN), { timeout: 15_000 }).toBe("Needs you");
 
   // The student edits it: the flag is gone, and nothing else needs them.
   await form.locator(`[name='${name}']`).fill("I want to build data pipelines for clinics.");
-  await expect(row.locator(".reason")).toHaveCount(0, { timeout: 15_000 });
+  await expect(row.locator(".flag-card .card-warning")).toHaveCount(0, { timeout: 15_000 });
   await expect.poll(() => groupOf(loaded.worker, LUMEN), { timeout: 15_000 }).toBe("Ready");
 });
 
@@ -138,7 +138,7 @@ test("an edit of a reviewed answer shows its new verdict", async () => {
   const flag = "It says the student lives near the clinics; the experience doesn't say that.";
   api.saveReview("job-0", { [name]: flag });
   const row = form.locator(`#workit-autofiller-overlay-host [data-key="${name}"]`);
-  await expect(row.locator(".reason")).toHaveText(`Your Claude's check: ${flag} Read it before you submit, and edit it if it's wrong.`, { timeout: 20_000 });
+  await expect(row.locator(".flag-card .card-warning")).toHaveText(`Your Claude's check: ${flag} Read it before you submit, and edit it if it's wrong.`, { timeout: 20_000 });
   await expect.poll(() => groupOf(loaded.worker, LUMEN), { timeout: 15_000 }).toBe("Needs you");
 });
 
@@ -152,7 +152,7 @@ async function flaggedLumen(api: FakeApi) {
   const { name, form } = await filledLumen(api);
   api.saveReview("job-0", { [name]: WRONG_COMPANY });
   const row = form.locator(`#workit-autofiller-overlay-host [data-key="${name}"]`);
-  await expect(row.locator(".flag-card .quote")).toHaveText(`“${STRIPE}”`, { timeout: 20_000 });
+  await expect(row.locator(".flag-card .card-highlight")).toHaveText(`“${STRIPE}”`, { timeout: 20_000 });
   await expect(row.locator(".flag-card")).toHaveAttribute("data-hard", "");
   await expect.poll(() => groupOf(loaded.worker, LUMEN), { timeout: 15_000 }).toBe("Needs you");
   return { name, form, row };

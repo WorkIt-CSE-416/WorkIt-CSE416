@@ -8,29 +8,13 @@
 // clears once that sentence changes). A wrong-company flag (`flagHard`) is
 // marked in the danger colour and needs the student like any flag, so its
 // tab is never Ready while it holds. The student still presses Submit.
-// Loaded after overlay.js (shared/content-scripts.js): overlay.js's row
-// draws it, as window.WIA.flagCard.
+// A row card (row-card.js). Loaded after overlay.js
+// (shared/content-scripts.js): overlay.js's row draws it, as
+// window.WIA.flagCard.
 window.WIA = window.WIA || {};
 
 (function () {
   "use strict";
-
-  const STYLES = `
-    .flag-card { margin-top: 6px; padding: 8px; border-radius: var(--radius-control); border: 1px solid var(--color-warning-strong); background: var(--color-panel); }
-    .flag-card[data-hard] { border-color: var(--color-danger); }
-    .flag-card[data-hard] .reason.flag { color: var(--color-danger); }
-    .flag-card .quote { display: block; width: 100%; margin-top: 6px; padding: 4px 8px; text-align: left; font: inherit; font-size: var(--text-note); color: var(--color-ink); background: var(--color-warning-tint); border: 0; border-left: 3px solid var(--color-warning-strong); border-radius: 0; cursor: pointer; }
-    .flag-card[data-hard] .quote { background: var(--color-danger-tint); border-left-color: var(--color-danger); }
-    .flag-card .ask { margin-top: 6px; font-size: var(--text-note); color: var(--color-ink); }
-    .flag-card .error { margin-top: 6px; font-size: var(--text-note); color: var(--color-danger); }
-    .flag-card .actions { display: flex; flex-wrap: wrap; gap: 6px; margin-top: 8px; }
-    .flag-card .actions button { font: inherit; font-size: var(--text-note); font-weight: 600; padding: 4px 10px; border-radius: var(--radius-control); border: 1px solid var(--color-border-subtle); background: var(--color-panel); color: var(--color-ink); cursor: pointer; }
-    .flag-card .actions button[data-main] { background: var(--color-brand); border-color: var(--color-brand); color: var(--color-on-brand); }
-    .flag-card .actions button:hover { background: var(--color-hover); }
-    .flag-card .actions button[data-main]:hover { background: var(--color-brand-hover); }
-    .flag-card .actions button:focus-visible, .flag-card .quote:focus-visible { outline: 2px solid var(--color-brand); outline-offset: 2px; }
-    .flag-card .actions button:disabled { opacity: 0.6; cursor: default; }
-  `;
 
   // The rows whose Keep is waiting for its one confirmation, and each row's last error: they outlive a redraw.
   const confirming = new Set();
@@ -43,13 +27,6 @@ window.WIA = window.WIA || {};
     const field = window.WIA.status.summary().fields.find((r) => r.key === key);
     if (field?.flag) card.replaceWith(render(field));
     else card.remove();
-  }
-
-  function button(text, onClick, main = false) {
-    const el = Object.assign(document.createElement("button"), { type: "button", textContent: text });
-    if (main) el.dataset.main = "";
-    el.addEventListener("click", onClick);
-    return el;
   }
 
   /** Keep or Rewrite with Claude, through the background (POST .../review/keep|rewrite); an error stays on the card. */
@@ -72,51 +49,46 @@ window.WIA = window.WIA || {};
    * with the student's Claude (`rewriting`), only says so.
    */
   function render(field) {
-    const card = document.createElement("div");
-    card.className = "flag-card";
-    if (field.flagHard) card.dataset.hard = "";
-    const reason = document.createElement("div");
-    reason.className = "reason flag";
-    reason.textContent = `Your Claude's check: ${field.flag} Read it before you submit, and edit it if it's wrong.`;
-    card.append(reason);
-    if (field.flagQuote) {
-      const quote = button(`“${field.flagQuote}”`, () => window.WIA.walk?.show(field.key));
-      quote.className = "quote";
-      quote.title = "Show it in the form";
-      card.append(quote);
-    }
+    const card = { className: "flag-card", tone: field.flagHard ? "danger" : "warning", data: field.flagHard ? { hard: "" } : {} };
+    card.lines = [{ text: `Your Claude's check: ${field.flag} Read it before you submit, and edit it if it's wrong.`, kind: "warning" }];
+    if (field.flagQuote) card.highlight = { text: `“${field.flagQuote}”`, title: "Show it in the form", onClick: () => window.WIA.walk?.show(field.key) };
+    // What it asks or what went wrong, under the sentence.
+    const { line } = window.WIA.rowCard;
+    card.slot = [];
     if (field.rewriting) {
-      card.append(Object.assign(document.createElement("div"), {
-        className: "ask", textContent: "Sent back to your Claude. WorkIt fills in its new answer here.",
-      }));
-      return card;
+      card.slot.push(line({ text: "Sent back to your Claude. WorkIt fills in its new answer here.", kind: "ask" }));
+      return window.WIA.rowCard.make(card);
     }
-    if (errors.has(field.key)) card.append(Object.assign(document.createElement("div"), { className: "error", textContent: errors.get(field.key) }));
-    const actions = document.createElement("div");
-    actions.className = "actions";
+    if (errors.has(field.key)) card.slot.push(line({ text: errors.get(field.key), kind: "error" }));
+    let el;
     if (confirming.has(field.key)) {
-      card.append(Object.assign(document.createElement("div"), {
-        className: "ask",
-        textContent: field.flagHard ? "It names another company. Keep it anyway? Your Claude won't flag it again." : "Keep it as it is? Your Claude won't flag it again.",
-      }));
-      actions.append(
-        button("Yes, keep it", () => answer(card, field, "keep"), true),
-        button("Cancel", () => {
-          confirming.delete(field.key);
-          redraw(card, field.key);
-        }),
-      );
+      card.slot.push(line({ text: field.flagHard ? "It names another company. Keep it anyway? Your Claude won't flag it again." : "Keep it as it is? Your Claude won't flag it again.", kind: "ask" }));
+      card.buttons = [
+        { label: "Yes, keep it", primary: true, onClick: () => answer(el, field, "keep") },
+        {
+          label: "Cancel",
+          onClick: () => {
+            confirming.delete(field.key);
+            redraw(el, field.key);
+          },
+        },
+      ];
     } else {
-      actions.append(button("Keep", () => {
-        confirming.add(field.key);
-        redraw(card, field.key);
-      }));
+      card.buttons = [
+        {
+          label: "Keep",
+          onClick: () => {
+            confirming.add(field.key);
+            redraw(el, field.key);
+          },
+        },
+      ];
       // The student's own words are theirs to change: no Claude rewrites them.
-      if (field.source !== "student") actions.append(button("Rewrite with Claude", () => answer(card, field, "rewrite"), true));
-      actions.append(button("Edit myself", () => window.WIA.walk?.show(field.key)));
+      if (field.source !== "student") card.buttons.push({ label: "Rewrite with Claude", primary: true, onClick: () => answer(el, field, "rewrite") });
+      card.buttons.push({ label: "Edit myself", onClick: () => window.WIA.walk?.show(field.key) });
     }
-    card.append(actions);
-    return card;
+    el = window.WIA.rowCard.make(card);
+    return el;
   }
 
   /** Selects a flagged row's sentence in its field, when the field is a text box that shows it. */
@@ -126,5 +98,5 @@ window.WIA = window.WIA || {};
     if (at >= 0) control.setSelectionRange(at, at + field.flagQuote.length);
   }
 
-  window.WIA.flagCard = { STYLES, render, select };
+  window.WIA.flagCard = { render, select };
 })();
