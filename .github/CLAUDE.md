@@ -127,32 +127,44 @@ rate-limiting the shared GitHub runners, which would stall every job on it.
 
 ## Job alerts (KAN-298)
 
-`workflows/job-alerts.yml` runs `app.scripts.send_job_alerts` **daily at
-13:13 UTC** (off the hour, same reasoning as the scrape's own cron): every
-opted-in applicant's best new matches, scored by the same `fetch_recommended`
-+ `pick_batch` auto apply's own batch uses (`auto-apply/architecture.md`,
-"Match (built)"/"The batch"; `backend/app/services/job_alerts.py`), as a
-bell notification and an email through Resend. Daily, not every few hours
-like the scrape: a new job posting can wait for the next scrape, but a
-digest in someone's inbox every three hours would train them to ignore it.
+`workflows/job-alerts.yml` **no longer carries the real daily schedule.**
+The digest (every opted-in applicant's best new matches, scored by the
+same `fetch_recommended` + `pick_batch` auto apply's own batch uses,
+`auto-apply/architecture.md`'s "Match (built)"/"The batch";
+`backend/app/services/job_alerts.py`) now sends through AWS SES
+(`backend/app/services/email.py`), authenticated by the sending EC2
+instance's IAM role — a role's credentials never leave that instance, so
+GitHub's runners structurally cannot send the real mail anymore. The live
+run is a crontab entry on that instance, daily at 13:13 UTC (off the
+hour, same reasoning as the scrape's own cron), running the same
+`app.scripts.send_job_alerts` this workflow calls.
 
-- **Secrets:** `DATABASE_URL` and `GEMINI_API_KEY` (both already set for
-  the scrape workflow — reused here, not duplicated) and `RESEND_API_KEY`
-  (new; without it `send_email` logs and returns `False`, so the run still
-  writes every bell notification, it just sends no mail). `EMBEDDING_PROVIDER=gemini`
-  is a plain env value here, not a secret, so the digest scores with the
-  semantic part the deployed API itself still doesn't have on by default
-  (`backend/CLAUDE.md`'s "Still open" note on that).
+This workflow still exists for two things, both free of real AWS access:
+a PR that touches the digest, the script, `email.py` or this workflow
+runs it once, always `--dry-run` (never calls `send_email` at all); and
+`workflow_dispatch` (Actions → Job alerts → Run workflow, or
+`gh workflow run job-alerts.yml`, input `dry_run`) is still there for a
+manual non-dry run, but with no IAM role attached it can only prove the
+bell-notification path — `send_email` catches the missing-credentials
+error, logs it, and returns `False`, the same best-effort outcome as a
+bounced send.
+
+- **Secrets:** `DATABASE_URL` and `GEMINI_API_KEY` only (both already set
+  for the scrape workflow — reused here, not duplicated).
+  `EMBEDDING_PROVIDER=gemini` is a plain env value here, not a secret, so
+  the digest scores with the semantic part the deployed API itself
+  doesn't have on by default (`backend/CLAUDE.md`'s "Still open" note on
+  that).
 - **One run at a time**, same reasoning as the scrape's concurrency group:
-  two overlapping runs would double-send the same applicant.
-- **Manual run:** Actions → Job alerts → Run workflow, or
-  `gh workflow run job-alerts.yml` (input `dry_run`). A PR that touches the
-  digest, the script or this workflow runs it too, always `--dry-run`
-  (never needs `RESEND_API_KEY` to pass, since a dry run never calls
-  `send_email`).
+  two overlapping runs would double-send the same applicant. This guards
+  against two *workflow* runs overlapping; it says nothing about the EC2
+  crontab, which is the user's own to keep from overlapping a workflow run.
 - **It stops silently after 60 days without a commit** to `main`, same as
   the scrape. Re-enable with `gh workflow enable job-alerts.yml`.
 - **No retry and no queue.** One applicant's failure (an empty bank, a
   bounced email) is caught, counted in the run's report, and logged; it
   never stops the rest of the run, and nobody is sent two digests to make
   up for a missed day.
+- **Still open:** the EC2 crontab has no built-in failure alerting the
+  way this workflow's schedule trigger got from GitHub for free. Not set
+  up yet (a dead-man's-switch ping or a CloudWatch alarm would do it).

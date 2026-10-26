@@ -692,9 +692,11 @@ Find files with a directory listing; these are the rules for where code goes.
   day can overshoot the pool by that much). Tests:
   `tests/test_editor_assistant.py`.
 - **The daily job-alert digest** (KAN-298) is
-  `app/scripts/send_job_alerts.py`, run by `.github/workflows/job-alerts.yml`
-  (`.github/CLAUDE.md`), over `services/job_alerts.py`. It reuses auto
-  apply's own matching, not a second implementation:
+  `app/scripts/send_job_alerts.py`, run daily from a crontab on a
+  user-managed EC2 instance, not GitHub Actions
+  (`.github/workflows/job-alerts.yml` keeps no schedule of its own
+  anymore — `.github/CLAUDE.md`), over `services/job_alerts.py`. It
+  reuses auto apply's own matching, not a second implementation:
   `build_digest` calls `routers/jobs.py`'s `fetch_recommended` and
   `auto_apply/rules.py`'s `pick_batch` exactly as `auto_apply/pipeline.py`'s
   own `_matches` does, at the same `MIN_MATCH`/`BATCH_SIZE` (imported, not
@@ -702,13 +704,23 @@ Find files with a directory listing; these are the rules for where code goes.
   WorkIt's own `/jobs/{id}` page, never `apply_url`, so it needs no
   ATS-specific knowledge. `send_job_alert` writes one `notifications` row
   (`models/CLAUDE.md`, "notifications") and sends one email through
-  `services/email.py`'s `send_email` (Resend's HTTP API, the one place a
-  provider swap would touch) from the same computed list — never scored
-  twice. Gated by `applicant_profiles.job_alerts_enabled`, the Settings
-  opt-in, default off. One applicant's failure (empty bank, a bounced
-  email) is caught and counted, never stopping the run; `--dry-run` builds
-  and reports every digest, writing and sending nothing. Tests:
-  `tests/test_job_alerts.py`, `tests/test_notifications.py`.
+  `services/email.py`'s `send_email` (AWS SES, the one place a provider
+  swap would touch) from the same computed list — never scored twice.
+  **Authenticates via the EC2 instance's IAM role, never a stored key**:
+  `aws_region`/`ses_from_email` in `config.py` are the only settings, both
+  plain values, nothing to rotate — a run from anywhere without that role
+  (local dev, GitHub Actions) has `send_email` log and return `False`,
+  same as a bounced send. **Still open: the SES account is in its
+  sandbox** (production access not yet requested), so a real send to an
+  address SES hasn't individually verified is rejected the same
+  best-effort way. The AWS/EC2-side setup (SES identity, the IAM role,
+  the instance, the crontab) is a human runbook, not code:
+  `docs/aws-ses-setup.md`. Gated by `applicant_profiles.job_alerts_enabled`, the
+  Settings opt-in, default off. One applicant's failure (empty bank, a
+  bounced email) is caught and counted, never stopping the run;
+  `--dry-run` builds and reports every digest, writing and sending
+  nothing. Tests: `tests/test_job_alerts.py`, `tests/test_notifications.py`,
+  `tests/test_email.py`.
 - **The autofiller's essay-answer generation** (KAN-164) is
   `routers/essay_answer.py` (`POST /applicants/{id}/essay-answer`) over
   `services/essay_answer.py` — the first route `autofiller_extension/`

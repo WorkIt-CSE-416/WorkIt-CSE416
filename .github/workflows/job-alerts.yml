@@ -1,14 +1,15 @@
 name: Job alerts
 
-# Sends KAN-298's daily job-match digest (bell notification + email) to
-# every applicant who opted in under Settings. Root CLAUDE.md's CI section
-# and .github/CLAUDE.md's own "Job alerts" section explain the schedule,
-# the secrets it needs and how it fails.
+# KAN-298's daily job-match digest (bell notification + email). The real
+# daily schedule now runs from a crontab on a user-managed EC2 instance,
+# whose IAM role is what send_email (AWS SES) actually authenticates
+# with — GitHub's runners have no AWS credentials and never will, so this
+# workflow keeps no schedule trigger of its own. It still proves the
+# digest-building and bell-notification path on every relevant PR (always
+# --dry-run, so it never calls send_email) and stays available to run by
+# hand. Root CLAUDE.md's CI section and .github/CLAUDE.md's own "Job
+# alerts" section have more.
 on:
-  schedule:
-    # Off the hour, same reasoning as scrape.yml's own cron: GitHub delays,
-    # and under load drops, runs scheduled on it. Late morning ET.
-    - cron: "13 13 * * *"
   workflow_dispatch:
     inputs:
       dry_run:
@@ -57,7 +58,6 @@ jobs:
           DATABASE_URL: ${{ secrets.DATABASE_URL }}
           GEMINI_API_KEY: ${{ secrets.GEMINI_API_KEY }}
           EMBEDDING_PROVIDER: gemini
-          RESEND_API_KEY: ${{ secrets.RESEND_API_KEY }}
           WEB_URL: https://workit-web-gamma.vercel.app
           DRY_RUN: ${{ (github.event_name == 'pull_request' || inputs.dry_run) && '--dry-run' || '' }}
         run: |

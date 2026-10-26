@@ -1,49 +1,49 @@
 """
 Sends one transactional email. The one place that knows which provider —
-Resend's HTTP API today — so swapping to another (SendGrid, Postmark, SES)
-later means changing this file's body, never a caller. KAN-298's daily job
+AWS SES today — so swapping to another (Resend, SendGrid, Postmark) later
+means changing this file's body, never a caller. KAN-298's daily job
 alert is the first and only caller.
 
-No queue, no retry, no template engine: one HTTP POST, one best-effort
-result. A failed send never raises — app/services/job_alerts.py still
-writes the bell notification even when the email didn't go out, the same
-principle backend/app/routers/auth.py's _send_confirmation_email already
-follows for a transient mail failure.
+Credentials come from the sending machine's IAM instance role, never an
+env var: nothing here is a stored secret to rotate. No queue, no retry,
+no template engine: one SES call, one best-effort result. A failed send
+never raises — app/services/job_alerts.py still writes the bell
+notification even when the email didn't go out.
 """
 
+import asyncio
 import logging
+from functools import lru_cache
 
-import httpx
+import boto3
+from botocore.exceptions import BotoCoreError, ClientError
 
 from app.config import get_settings
 
 logger = logging.getLogger(__name__)
 
-_RESEND_URL = "https://api.resend.com/emails"
-_FROM = "WorkIt <alerts@workit.app>"
-_TIMEOUT_SECONDS = 10
+
+@lru_cache
+def _client():
+    """One SES client per process. Safe to share: the one real caller,
+    app/scripts/send_job_alerts.py, sends strictly sequentially."""
+    return boto3.client("ses", region_name=get_settings().aws_region)
 
 
 async def send_email(to: str, subject: str, html: str) -> bool:
-    """True once Resend accepts the send. False (logged, never raised) with
-    no RESEND_API_KEY set, or on any HTTP failure."""
+    """True once SES accepts the send. False (logged, never raised) with
+    no IAM role attached (BotoCoreError, e.g. local dev or GitHub Actions),
+    or on an API-level rejection (ClientError, e.g. an unverified recipient
+    while the SES account is still in its sandbox)."""
     settings = get_settings()
-    if not settings.resend_api_key:
-        logger.warning("send_email: RESEND_API_KEY is not set, skipping send to %s", to)
-        return False
-
     try:
-        async with httpx.AsyncClient(timeout=_TIMEOUT_SECONDS) as client:
-            response = await client.post(
-                _RESEND_URL,
-                headers={"Authorization": f"Bearer {settings.resend_api_key}"},
-                json={"from": _FROM, "to": [to], "subject": subject, "html": html},
-            )
-            response.raise_for_status()
-    except httpx.HTTPStatusError as exc:
-        logger.warning("send_email to %s failed: HTTP %s", to, exc.response.status_code)
-        return False
-    except httpx.HTTPError as exc:
+        await asyncio.to_thread(
+            _client().send_email,
+            Source=settings.ses_from_email,
+            Destination={"ToAddresses": [to]},
+            Message={"Subject": {"Data": subject}, "Body": {"Html": {"Data": html}}},
+        )
+    except (ClientError, BotoCoreError) as exc:
         logger.warning("send_email to %s failed: %s", to, exc)
         return False
 

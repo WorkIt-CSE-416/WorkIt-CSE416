@@ -105,12 +105,15 @@ class Settings(BaseSettings):
     # stays out of this build.
     scraper_feed: Path = Field(default_factory=default_scraper_feed)
 
-    # KAN-298's daily job-alert email, sent through Resend's HTTP API
+    # KAN-298's daily job-alert email, sent through AWS SES
     # (app/services/email.py) — isolated there so swapping providers later
-    # changes one file, never a caller. Unset in dev: send_email logs and
-    # returns False rather than raising, same principle every other
-    # best-effort external call in this app already follows.
-    resend_api_key: str | None = None
+    # changes one file, never a caller. Credentials come from the sending
+    # instance's IAM role, never an env var here; with no role attached
+    # (local dev, GitHub Actions) send_email logs and returns False rather
+    # than raising, same principle every other best-effort external call
+    # in this app already follows.
+    aws_region: str = "us-east-1"
+    ses_from_email: str = "WorkIt <alerts@workitjobs.ai>"
     # Where a job-alert email's links point — the production app by
     # default, overridden in the scheduled workflow's own env for a
     # preview or local run.
