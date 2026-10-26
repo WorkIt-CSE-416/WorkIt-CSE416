@@ -530,6 +530,11 @@ waits for an opened tab's page and form (`waitForLoad`, `formShows`).
   system's own field id (`batch-tab.js`'s `fieldOf`); a tab nothing
   was filled in is one stop, the page itself. This is the only time the
   extension switches tabs on its own, and only on the student's press.
+- **The row card** (`row-card.js`, `window.WIA.rowCard`) is the one shape
+  for every review state: a title, sentences, a quote, at most three
+  buttons, tokens only. A feature adds `rowCard.add((field) => card | null)`;
+  the panel draws the first card for a row in place of its reason, and
+  `overlay.refresh()` draws again when a card's own state changes.
 - **The tabs fill hidden; the student is never taken to one.** KAN-305's
   runner showed its tab before the fill, because hidden fills by the
   pre-engine filler left most dropdowns empty. The Fill engine does not

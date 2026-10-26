@@ -152,6 +152,7 @@ window.WIA = window.WIA || {};
       .start svg { width: 12px; height: 12px; color: var(--color-brand); }
       .start .hint { font-size: var(--text-meta); color: var(--color-ink-meta); }
       .empty { padding: 16px 12px; color: var(--color-ink-meta); }
+      ${window.WIA.rowCard?.css ?? ""}
     `;
     return style;
   }
@@ -181,8 +182,10 @@ window.WIA = window.WIA || {};
       text.appendChild(source);
       if (field.source === "guessed") el.dataset.guessed = "";
     }
+    // A row's card (row-card.js) says what is wrong in its place: a failed field's says what the page shows.
+    const card = window.WIA.rowCard?.for(field) ?? null;
     // needs_generation's reason says who writes it (a batch tab: the student's Claude, KAN-377).
-    if ((field.status === "failed" || field.status === "skipped" || field.status === "needs_generation") && field.reason) {
+    if (!card && (field.status === "failed" || field.status === "skipped" || field.status === "needs_generation") && field.reason) {
       const reason = document.createElement("div");
       reason.className = field.status === "failed" ? "reason" : "reason note";
       reason.textContent = field.reason;
@@ -192,6 +195,7 @@ window.WIA = window.WIA || {};
       }
       text.appendChild(reason);
     }
+    if (card) text.appendChild(card);
     if (field.status === "needs_generation" && field.claude) text.appendChild(startClaude());
     if (field.flag) {
       el.dataset.flagged = "";
@@ -517,5 +521,8 @@ window.WIA = window.WIA || {};
     root = null;
   }
 
-  window.WIA.overlay = { mount, unmount, promptForEssays, offerNext, setCurrent, askSelfId, offerClaude, askSamples, askWorkdayAccounts, CLAUDE_TRIGGER };
+  /** Draws the rows again, for a row card whose own state changed (row-card.js). */
+  const refresh = () => render(window.WIA.status.summary());
+
+  window.WIA.overlay = { mount, unmount, promptForEssays, offerNext, setCurrent, refresh, askSelfId, offerClaude, askSamples, askWorkdayAccounts, CLAUDE_TRIGGER };
 })();
