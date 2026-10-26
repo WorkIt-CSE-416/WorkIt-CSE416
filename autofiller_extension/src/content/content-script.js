@@ -103,7 +103,7 @@
    */
   // Where a job system WorkIt fills sends a closed job (live, 2026-10-26): Greenhouse to its board with
   // ?error=true, Workable to the account with ?not_found=true; others say so on the page.
-  const CLOSED_HOSTS = /(^|\.)(greenhouse\.io|workable\.com|lever\.co|ashbyhq\.com|rippling\.com|myworkdayjobs\.com|myworkdaysite\.com|eightfold\.ai)$/;
+  const CLOSED_HOSTS = /(^|\.)(greenhouse\.io|workable\.com|lever\.co|ashbyhq\.com|rippling\.com|myworkdayjobs\.com|myworkdaysite\.com|eightfold\.ai|smartrecruiters\.com)$/;
   const CLOSED_WORDS = /no longer (accepting applications|open|available)|this (job|position|posting) (is|has been) (closed|filled)|job not found|couldn't find anything here/i;
 
   /** Whether this page is a covered job system's word that the job is closed, not a job it can't fill. */
@@ -148,7 +148,7 @@
         return null;
       }
       if (!prepared.covered) {
-        note("_uncovered", "WorkIt can't fill this job system yet", "Nothing on this page was filled. WorkIt fills Greenhouse, Lever, Ashby, Rippling, Workable, Eightfold and Workday applications.");
+        note("_uncovered", "WorkIt can't fill this job system yet", "Nothing on this page was filled. WorkIt fills Greenhouse, Lever, Ashby, Rippling, Workable, Eightfold, SmartRecruiters and Workday applications.");
         return null;
       }
       if (prepared.openForm) {
@@ -436,7 +436,9 @@
     // once, the first box filled read back empty in 1 to 10 forms of 50. With
     // the panel mounted after the fill: 0 in 50 (KAN-370). The engine waits
     // for the form's start-up before it types, so by now it is over.
-    const prepared = await fillShown();
+    let prepared = await fillShown();
+    // SmartRecruiters: its first page, then its screening questions (smartrecruiters.js presses Next, never Submit).
+    if (prepared?.site === "smartrecruiters" && (await window.WIA.smartRecruitersNext?.(prepared))) prepared = (await fillShown()) ?? prepared;
     if (prepared) await flagEmptyRequired(prepared);
     if (prepared) window.WIA.failedCard.use(fixesOf(prepared));
     if (prepared) window.WIA.resumeTab?.use(fixesOf(prepared));

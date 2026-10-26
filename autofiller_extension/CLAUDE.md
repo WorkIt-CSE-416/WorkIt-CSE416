@@ -217,9 +217,22 @@ builds it: `dist/engine.js` is committed in the engine repo.
   question about working abroad ("the right to work in the UK?") is No, and
   a role abroad a Screener. The engine's own rules decide everything else; change a rule in
   the engine repo, not here.
+- **SmartRecruiters fills in two pages** (`src/content/smartrecruiters.js`).
+  A posting (`jobs.smartrecruiters.com/<company>/<id>`) opens its one-click
+  form through `?oga=true`; the form's questions are read off the page a
+  page at a time (`readQuestions`, through its components' shadow roots).
+  Once the first page is filled and nothing on it needs the student (no
+  failed row, no required answer still being written), `fill/next` has the
+  engine press Next, never Submit, and the screening page is filled as the
+  same tab's fill. Otherwise the first page is the student's, with a
+  "SmartRecruiters: first page" line telling them to press Next. Names and
+  text come from the public Posting API (`api.smartrecruiters.com`, in the
+  manifest). The form serves a captcha to a headless browser, so its tests
+  run on the engine's stand-in built from other autofillers' selectors
+  (`test/smartrecruiters.spec.ts`), not a saved live form.
 - **Only job systems the engine covers are filled.** `engine.js`'s `jobOf`
-  names them (Greenhouse, Lever, Ashby, Rippling, Workable, Eightfold and
-  Workday). On any other page the overlay says
+  names them (Greenhouse, Lever, Ashby, Rippling, Workable, Eightfold,
+  SmartRecruiters and Workday). On any other page the overlay says
   WorkIt can't fill this job system yet and nothing is touched: there is
   no generic filler any more (the old label-matching one filled most forms
   wrong, and was deleted with its Greenhouse adapter in KAN-340).

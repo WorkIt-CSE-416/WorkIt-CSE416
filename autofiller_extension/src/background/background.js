@@ -99,7 +99,8 @@ async function handleMessage(message, sender) {
     case "fill/page":
     case "fill/read":
     case "fill/moot":
-    case "fill/required": {
+    case "fill/required":
+    case "fill/next": {
       const plan = message.type === "fill/plan";
       // A Plan's profile and batch reads are asked at once; the job's saved answers are fetched while
       // the engine reads the job's questions (planFill waits for them only to plan).
