@@ -35,13 +35,13 @@ export async function injectFill(tabId, { batch = false } = {}) {
   void chrome.scripting.executeScript({ target: { tabId }, files: CONTENT_SCRIPT_FILES }).catch((error) => console.warn("[fill] the fill stopped:", error));
 }
 
-// A batch tab's panel at a human check before the form (KAN-369): the panel's parts, then human-check.js.
+// A batch tab at a human check before the form (KAN-369): the panel's parts (never shown there), then human-check.js.
 export const HUMAN_CHECK_FILES = ["src/content/lib-status.js", "src/shared/tokens.js", "src/content/overlay.js", "src/content/batch-tab.js", "src/content/human-check.js"];
 
 /**
- * Puts the panel on a batch tab that shows a human check where its form
- * should be: it says what the student must do, and Next Thing That Needs
- * You stops there. Nothing is filled. Never throws: the wait for the form
+ * Readies a batch tab that shows a human check where its form should be:
+ * Next Thing That Needs You stops there, and no panel covers the check.
+ * Nothing is filled. Never throws: the wait for the form
  * goes on without it.
  * @param {number} tabId
  */

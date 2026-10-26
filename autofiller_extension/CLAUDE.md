@@ -255,14 +255,16 @@ waits for an opened tab's page and form (`waitForLoad`, `formShows`).
   checks waiting (`markCheck`, titled "A job needs you to prove you're
   human"), and it keeps waiting up to 5 minutes for the form (`formAfterHumanCheck`, also
   across the new page a passed check loads); the fill runs once it shows.
-  Meanwhile its panel (`human-check.js`, `injectHumanCheck`) says "Prove
-  you're human on this page" (a "todo" note), with Skip and Next Thing,
-  which stops there; the fill takes it down first (`clearHumanCheck`).
+  Meanwhile the page shows no panel, so nothing of WorkIt's covers the
+  check's widget (Jobright removes its own the same way), but its rows
+  (`human-check.js`, `injectHumanCheck`) hold the "todo" note "Prove
+  you're human on this page" that Next Thing stops at (on the tab: no
+  field to show); the fill puts up its own panel once the form shows.
   The walk's listener, added once per page, answers from the latest
   fill's rows (`window.WIA.walk`), as a passed check may draw the form in
   the same page. The extension never solves a check. A form that never shows has failed,
   as any other. Tests: `test/batch.extension.spec.ts` ("a human check
-  before the form", "a human check's tab says", "a human check that
+  before the form", "a human check's page shows only the check", "a human check that
   passes on its own").
 
 - **The URLs always come from the API, never the message.** `run/open`
