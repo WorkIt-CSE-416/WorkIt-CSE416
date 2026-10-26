@@ -120,6 +120,9 @@ builds it: `dist/engine.js` is committed in the engine repo.
   them. Its own How Did You Hear About Us? is never read: the engine
   searches it for each source in turn (WorkIt, LinkedIn, then the rest) and
   takes the first found.
+  `test/workday-steps.extension.spec.ts` walks a whole application (Apply's
+  fake Workday steps, as new pages and drawn in place) from Create Account
+  to Review, the test pressing Save and Continue as the student.
 - **A job's page is not always its form.** A Lever, Ashby, Rippling,
   Workable or Eightfold posting shows the job on one page and the form on
   another (`jobOf`'s `form`). On the job's page the overlay names the

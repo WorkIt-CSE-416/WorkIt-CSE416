@@ -158,9 +158,21 @@ export class FakeWorkdays {
   /** How long, in ms, each tenant host takes to answer a Create Account or Sign In it was sent. */
   readonly answerDelay: Record<string, number> = {};
 
+  /**
+   * Tenant hosts whose pages change in place, as live Workday's do: Sign In
+   * and Save and Continue draw the next step in the same document (its link
+   * changed with history.pushState), not as a new page.
+   */
+  readonly inPlace = new Set<string>();
+
   /** Every submit any tenant received (the extension must never send one). */
   get submissions(): unknown[] {
     return this.tenants.flatMap((t) => t.submissions);
+  }
+
+  /** What the n-th tenant saved from each Save and Continue the student pressed, by field key. */
+  saved(n: number): Record<string, unknown> {
+    return this.tenants[n].saved;
   }
 
   readonly handler: Handler = async (request) => {
@@ -178,7 +190,7 @@ export class FakeWorkdays {
         if (request.url.pathname === "/__fake__/applyManually") return { status: 302, headers: { location: "/__fake__/signin?view=create" } };
         return { headers: { "content-type": "text/html" }, body: "<!doctype html><title>Workday</title>" };
       }
-      if (request.url.pathname === "/__fake__/signin") return { headers: { "content-type": "text/html" }, body: signInPage(request.url.searchParams.get("view")!, this.stuckTerms.has(tenant.host), this.hiddenAlerts.has(tenant.host), this.droppedPresses[tenant.host] ?? 0) };
+      if (request.url.pathname === "/__fake__/signin") return this.placed(tenant.host, { headers: { "content-type": "text/html" }, body: signInPage(request.url.searchParams.get("view")!, this.stuckTerms.has(tenant.host), this.hiddenAlerts.has(tenant.host), this.droppedPresses[tenant.host] ?? 0) });
       if (request.url.pathname === "/__fake__/account" && request.method === "POST") {
         const { agreed, ...sent } = JSON.parse(request.body.toString());
         this.signIns.push({ host: tenant.host, ...sent });
@@ -187,11 +199,37 @@ export class FakeWorkdays {
         await new Promise((resolve) => setTimeout(resolve, this.answerDelay[tenant.host] ?? 0));
         return { json: alert ? { alert } : { next: tenant.stepUrl(1) } };
       }
-      return replay(tenant, request);
+      const reply = await replay(tenant, request);
+      return request.method === "GET" && reply?.body ? this.placed(tenant.host, reply) : reply;
     }
     return undefined;
   };
+
+  /** A page of an `inPlace` tenant: its moves to the next page draw that page into this document instead. */
+  private placed(host: string, reply: Reply): Reply {
+    if (!this.inPlace.has(host)) return reply;
+    const body = String(reply.body).replaceAll("location.href = r.next", "window.__fakeGo(r.next)").replaceAll("location.href = answer.next", "window.__fakeGo(answer.next)");
+    return { ...reply, body: body.replace(/^<!doctype html>/i, (doctype) => doctype + IN_PLACE) };
+  }
 }
+
+/**
+ * How an `inPlace` tenant goes to its next page: it fetches it and draws its
+ * body in this document, running its scripts again (each in a block, so
+ * their declarations don't clash with the last page's).
+ */
+const IN_PLACE = `<script>
+window.__fakeGo ??= async (url) => {
+  history.pushState({}, "", url);
+  const page = new DOMParser().parseFromString(await (await fetch(url)).text(), "text/html");
+  document.body.replaceChildren(...page.body.childNodes);
+  for (const old of document.body.querySelectorAll("script")) {
+    const script = document.createElement("script");
+    script.textContent = "{" + old.textContent + "\\n}";
+    old.replaceWith(script);
+  }
+};
+</script>`;
 
 /**
  * A Workday tenant's Create Account / Sign In page, in the shape of the live
