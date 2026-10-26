@@ -60,7 +60,7 @@ window.WIA = window.WIA || {};
     stopped = false;
     total = 0;
     count = 0;
-    key = `workit-${Math.random().toString(36).slice(2)}`;
+    key = `workit-${crypto.randomUUID()}`;
     document.addEventListener(`fillengine:field:${key}`, onField);
     const place = window.WIA.panel?.slot("primary");
     if (!place) return;

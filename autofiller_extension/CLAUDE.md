@@ -1541,8 +1541,10 @@ WorkIt finishes this step."), `found`, `filling` before each `fill/page`
 returns, so on Workday the notice goes with each step's fill.
 
 - **The engine's events.** The engine runs in the page's world, so
-  `filling` returns a key that `fill/page` hands the engine's `fillEach` as
-  `events` (engine.js `fillPage`). The engine dispatches
+  `filling` returns a key (`workit-` and a `crypto.randomUUID()`, as the
+  submit key, so a page can't guess the event names and stop or skip the
+  fill) that `fill/page` hands the engine's `fillEach` as `events`
+  (engine.js `fillPage`). The engine dispatches
   `fillengine:field:<key>` on `document` as each field starts and is done,
   and listens for `fillengine:stop:<key>` and `fillengine:skip:<key>`
   (detail: the field's name). See the engine README.
