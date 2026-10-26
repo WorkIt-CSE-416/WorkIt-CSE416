@@ -7,9 +7,10 @@
 
 import { sendFillReport } from "./api.js";
 import { ENGINE_VERSION, jobOf } from "./engine.js";
+import "../shared/report-parts.js";
 
 const FIELD_PARTS = ["kind", "label_shape", "error"];
-const NOTE_MAX = 1000;
+const { NOTE_MAX } = globalThis.WIA.reportParts;
 
 /** The posting's public link: the page's address without its query or fragment, which can carry the student's ids. */
 function postingUrl(url) {

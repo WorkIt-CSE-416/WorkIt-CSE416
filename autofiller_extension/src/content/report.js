@@ -24,13 +24,10 @@ window.WIA = window.WIA || {};
   "use strict";
 
   if (window.WIA.reportCard) return;
-  const send = (message) => Promise.resolve(chrome.runtime.sendMessage(message)).catch(() => null);
+  const { send } = window.WIA.ui;
 
-  // The error names a report may carry (backend/app/schemas/fill_reports.py's ErrorName).
-  // Readback: the field shows something other than its answer. FillError: the engine couldn't fill it.
-  // Handoff, NoForm: the engine's own. NoAnswer: WorkIt had no answer for it. Error: anything else.
-  const ERRORS = ["Readback", "FillError", "Handoff", "NoForm", "NoAnswer", "Error"];
-  const NOTE_MAX = 1000;
+  // The error names a report may carry and the note's limit (shared/report-parts.js).
+  const { ERRORS, NOTE_MAX } = window.WIA.reportParts;
   const SHAPE_MAX = 120;
 
   const kinds = new Map();
@@ -93,19 +90,7 @@ window.WIA = window.WIA || {};
   `;
   let styled = false;
 
-  const el = (tag, className, text) => {
-    const node = document.createElement(tag);
-    if (className) node.className = className;
-    if (text !== undefined) node.textContent = text;
-    return node;
-  };
-
-  const button = (label, onPress) => {
-    const node = el("button", "", label);
-    node.type = "button";
-    node.addEventListener("click", onPress);
-    return node;
-  };
+  const { el, button } = window.WIA.ui;
 
   /** Opens the report card in place of the tabs, with a fresh preview of what this page would send. */
   async function open() {

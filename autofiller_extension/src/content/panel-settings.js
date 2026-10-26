@@ -22,7 +22,7 @@ window.WIA = window.WIA || {};
   window.WIA.panelSettings = true;
   const panel = window.WIA.panel;
   if (!panel) return;
-  const send = (message) => Promise.resolve(chrome.runtime.sendMessage(message)).catch(() => null);
+  const { send } = window.WIA.ui;
 
   const CSS = `
     [data-slot="settings"] .group { padding: 10px 0; border-top: 1px solid var(--color-border-subtle); }

@@ -16,7 +16,7 @@ window.WIA = window.WIA || {};
   "use strict";
 
   if (window.WIA.panelStates) return;
-  const send = (message) => Promise.resolve(chrome.runtime.sendMessage(message)).catch(() => null);
+  const { send } = window.WIA.ui;
 
   const STYLES = `
     .panel[data-signed-out] .tabs, .panel[data-signed-out] [data-tabs] { display: none !important; }

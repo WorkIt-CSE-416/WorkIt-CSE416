@@ -18,7 +18,7 @@ window.WIA = window.WIA || {};
    */
   function batchTab({ batch, note }) {
     const { status, overlay } = window.WIA;
-    const send = (message) => chrome.runtime.sendMessage(message);
+    const send = window.WIA.ui.ask;
 
     // The Fill engine's event for the student's submit (its SUBMIT_EVENT, then this tab's key); its
     // detail is the result as JSON. The key is made here, in the isolated world the page can't read, so

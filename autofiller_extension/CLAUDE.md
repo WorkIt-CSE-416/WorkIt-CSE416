@@ -60,7 +60,11 @@ builds it: `dist/engine.js` is committed in the engine repo.
   world can see. The overlay and `content-script.js` run in the isolated
   world, where `chrome.runtime` is. `src/shared/content-scripts.js`'s
   `injectFill` loads both, engine first, for the panel and batch apply
-  alike. It first claims the page (`window.WIA.running`, set in one step)
+  alike. Every panel and fill file list loads `src/content/ui.js` first
+  (the shared `ask`/`send` message helpers and the `el`/`button` node
+  helpers) and `src/shared/report-parts.js` (a fill report's error names
+  and `NOTE_MAX`, also imported by `background/report.js` and loaded by the
+  popup; the backend's schema keeps its own copy). It first claims the page (`window.WIA.running`, set in one step)
   and injects nothing into a page whose fill is running: a batch tab
   opened on a Workday step is injected twice as it loads (`batch.js`'s
   `startFill` and `background.js`'s per-page-load Workday fill), and two

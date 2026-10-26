@@ -28,7 +28,7 @@ window.WIA = window.WIA || {};
   const SUBMIT_WORDS = /^\s*submit\b/i;
   const CONTROL = 'button, input[type="submit"], input[type="button"], [role="button"]';
   const WORKDAY_NEXT = "[data-automation-id=pageFooterNextButton], [data-automation-id=bottom-navigation-next-button]";
-  const send = (message) => Promise.resolve(chrome.runtime.sendMessage(message)).catch(() => null);
+  const { send } = window.WIA.ui;
 
   const STYLES = `
     .primary-button .primary-sub { display: block; font-size: var(--text-note); font-weight: 500; opacity: 0.9; }

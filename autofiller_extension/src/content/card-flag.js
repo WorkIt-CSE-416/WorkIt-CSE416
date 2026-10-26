@@ -20,7 +20,7 @@ window.WIA = window.WIA || {};
   const confirming = new Set();
   const errors = new Map();
 
-  const send = (message) => chrome.runtime.sendMessage(message);
+  const send = window.WIA.ui.ask;
 
   /** Redraws one row's card in place, from the row's current state. */
   function redraw(card, key) {

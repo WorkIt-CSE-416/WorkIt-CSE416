@@ -73,7 +73,7 @@
   // "filling", "filled", "step" (a Workday step filled, waiting for Save and Continue), "last" or "stopped".
   window.WIA.phase = "filling";
 
-  const send = (message) => chrome.runtime.sendMessage(message);
+  const send = window.WIA.ui.ask;
   // The panel's options: a batch tab's panel has Skip, and "I submitted this" for a submit WorkIt missed.
   const panel = batch ? { onSkip: () => send({ type: "batch/skip" }).catch(() => {}), onSubmitted: () => markSentByHand() } : undefined;
   /** The student says they sent this application: it is marked applied, as a detected submit is. */
