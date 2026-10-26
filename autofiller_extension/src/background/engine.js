@@ -464,12 +464,13 @@ function once(fetchText) {
  * (Eightfold's questions API answers only the page's own session; Workday
  * shows its questions a step at a time, once the student has signed in;
  * Ashby's query is undocumented, so on any failure its form is read).
- * Workday's also gives the step it is on and the engine's state.
+ * A stepped job system's (Workday, Oracle: the engine's Stepper seam) also gives the step it is
+ * on and the engine's state; Oracle's email gate comes as a step with `gate` and no questions.
  */
 async function readQuestions({ job, url, call, fetchText, state }) {
-  if (job.site === "workday") {
-    const shown = await call("readQuestions", "workday", state ?? { tenant: job.tenant, trees: {} });
-    const step = { name: shown.step, sections: shown.sections, sends: shown.sends, review: shown.review, wentWrong: Boolean(shown.wentWrong) };
+  if (engine.stepped(job.site)) {
+    const shown = await call("readQuestions", job.site, state ?? (job.site === "workday" ? { tenant: job.tenant, trees: {} } : {}));
+    const step = { name: shown.step, sections: shown.sections, sends: shown.sends, review: shown.review, wentWrong: Boolean(shown.wentWrong), gate: shown.gate ?? null };
     return { questions: shown.questions, step, state: shown.state };
   }
   if (job.site === "eightfold") return { questions: await call("readQuestions", "eightfold") };
@@ -544,7 +545,7 @@ function selfIdAsked(questions, profile, plan, planFor) {
  */
 export function readJobAhead(url, fetchText) {
   const job = jobOf(url);
-  if (!job?.onForm || job.practice || job.site === "workday" || job.site === "eightfold") return false;
+  if (!job?.onForm || job.practice || engine.stepped(job.site) || job.site === "eightfold") return false;
   optional(() => engine.questionSet(url, fetchText), null);
   readNames(url, fetchText);
   return true;
@@ -593,7 +594,7 @@ async function planQuestions({ job, url, questions, profile, bank, today, fetchT
  */
 export async function questionsToWrite({ url, profile, bank = {}, today, fetchText, jobType = null }) {
   const job = jobOf(url);
-  if (!job || job.practice || job.site === "workday" || job.site === "eightfold") return null;
+  if (!job || job.practice || engine.stepped(job.site) || job.site === "eightfold") return null;
   const fetchOnce = once(fetchText);
   let questions;
   try {
@@ -751,7 +752,7 @@ export async function handleFill(message, { url, profile, bank, today, call, fet
     // (Greenhouse's phone country, required once Phone shows a number, is in no Question set as required),
     // and the required fields the Question set lacks altogether (Ashby, Eightfold), given back as
     // `unasked` questions so the tab reads them again after each edit.
-    const unasked = message.site === "workday" ? [] : await call("unaskedQuestions", message.site, message.questions);
+    const unasked = engine.stepped(message.site) ? [] : await call("unaskedQuestions", message.site, message.questions);
     return { empty: await call("emptyRequired", message.site, [...message.questions, ...unasked], message.state), unasked };
   } else {
     throw new Error(`Unknown fill message: ${message.type}`);

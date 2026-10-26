@@ -513,9 +513,24 @@ window.WIA = window.WIA || {};
     look();
   }
 
+  const isWorkday = /(^|\.)(myworkdayjobs|myworkdaysite)\.com$/.test(location.hostname);
   window.WIA.workday = {
     // Whether this page is Workday's.
-    isWorkday: /(^|\.)(myworkdayjobs|myworkdaysite)\.com$/.test(location.hostname),
+    isWorkday,
+    // The stepped system's face (steps.js).
+    isOn: isWorkday,
+    name: "Workday",
+    nextLabel: "Save and Continue",
+    reviewName: "Review",
+    waiting: { title: "Waiting for the application", reason: "Sign in and start the application. WorkIt fills each step as it shows." },
+    walk: {
+      next: "[data-automation-id=pageFooterNextButton], [data-automation-id=bottom-navigation-next-button]",
+      review: "[data-automation-id=applyFlowReviewPage], [data-automation-id=reviewJobApplicationPage]",
+      goesOn: /^(save and continue|continue|next)$/i,
+      banner: "[data-automation-id=errorHeading], [data-automation-id=errorBanner], [data-automation-id=errorMessage]",
+      // Workday's error page in place of the step: its words, and no field of the step showing.
+      wentWrong: () => /something went wrong/i.test(document.body.innerText) && ![...document.querySelectorAll('[data-automation-id^="formField-"]')].some((f) => f.checkVisibility()),
+    },
     step: workdayStep,
     // The field on the step shown for a panel row's key (batch-tab.js's fieldOf).
     fieldOf,

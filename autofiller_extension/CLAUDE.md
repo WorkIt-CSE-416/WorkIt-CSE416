@@ -184,6 +184,17 @@ builds it: `dist/engine.js` is committed in the engine repo.
   fake Workday steps, as new pages and drawn in place) from Create Account
   to Review, Fill to Review saving each step it can and the test answering
   and saving, as the student, each step where the walk stops.
+- **Stepped systems share one loop (`steps.js`).** `window.WIA.steps` is
+  the stepped job system on the page (Workday's `workday.js`), the extension's side of the engine's Stepper seam
+  (fill-engine `src/steps.ts`, README "Stepped forms"). The step loop
+  (content-script.js), Fill to Review (`workday-walk.js`), the checklist's
+  field lookup (batch-tab.js `fieldOf`) and the primary button use only its
+  face: `isOn`, `name`, `step()`, `stepId()`, `stepAfter(from)`, `quiet()`,
+  `filledBefore()`, `fieldOf(key)`, `nextLabel`, `reviewName`, `waiting`
+  {title, reason}, an optional `watchGate(onView)`, and `walk` {next,
+  review, goesOn, banner, wentWrong()}. A new stepped system (iCIMS,
+  SuccessFactors) is one more script giving it, loaded before `steps.js`
+  (shared/content-scripts.js), plus its name in `steps.js`'s list.
 - **A job's page is not always its form.** A Lever, Ashby, Rippling,
   Workable or Eightfold posting shows the job on one page and the form on
   another (`jobOf`'s `form`). On the job's page the overlay names the

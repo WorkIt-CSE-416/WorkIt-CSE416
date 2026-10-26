@@ -58,7 +58,7 @@ window.WIA = window.WIA || {};
      */
     function fieldOf(key) {
       if (status.summary().fields.find((r) => r.key === key)?.note) return null;
-      if (window.WIA.workday?.isWorkday) return window.WIA.workday.fieldOf(key);
+      if (window.WIA.steps) return window.WIA.steps.fieldOf(key);
       const name = CSS.escape(key);
       return (
         document.getElementById(key) ??

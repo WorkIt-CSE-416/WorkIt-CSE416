@@ -153,7 +153,7 @@ window.WIA = window.WIA || {};
     } catch {
       return true;
     }
-    if (!el) return !window.WIA.workday?.isWorkday && pageWords().includes(squash(row.label ?? row.key));
+    if (!el) return !window.WIA.steps && pageWords().includes(squash(row.label ?? row.key));
     const visible = (node) => node?.checkVisibility?.() ?? Boolean(node?.offsetParent);
     return visible(el) || visible(el.parentElement);
   }
