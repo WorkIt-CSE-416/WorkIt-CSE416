@@ -167,7 +167,9 @@ builds it: `dist/engine.js` is committed in the engine repo.
   engine's `homePlace` reads it: a city with a US state ("Stony Brook, NY")
   or a city, region and country; anything less certain is left out, so the
   form's location questions and phone country stay the student's. Never
-  parse the location here. Anything else (pay, relocation, a home address, consent boxes,
+  parse the location here. With no street address, Workday's City, State,
+  Country and Country Phone Code come from the home; "previously worked
+  here" is read from the bank's jobs (by whole words of the employer). Anything else (pay, relocation, a home address, consent boxes,
   start dates) stays the student's: the Plan lists it as a Missing fact and
   the overlay says "WorkIt has no answer for this". `POLICIES` holds no
   student's choice; "How did you hear?" is WorkIt in a text box; a list
