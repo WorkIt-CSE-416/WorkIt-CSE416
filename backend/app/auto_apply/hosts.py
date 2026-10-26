@@ -35,6 +35,11 @@ AUTO_APPLY_HOSTS = (
     "joinbytedance.com",
     # SmartRecruiters' postings and their one-click form (jobs.smartrecruiters.com).
     "smartrecruiters.com",
+    # SAP SuccessFactors' career sites (the engine's successfactors.ts).
+    "successfactors.com",
+    "successfactors.eu",
+    "sapsf.com",
+    "sapsf.eu",
 )
 
 # The host is one of AUTO_APPLY_HOSTS or a subdomain of it

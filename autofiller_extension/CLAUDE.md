@@ -186,7 +186,7 @@ builds it: `dist/engine.js` is committed in the engine repo.
   and saving, as the student, each step where the walk stops.
 - **Stepped systems share one loop (`steps.js`).** `window.WIA.steps` is
   the stepped job system on the page (Workday's `workday.js`, Oracle's
-  `oracle.js`), the extension's side of the engine's Stepper seam
+  `oracle.js`, SuccessFactors' `successfactors.js`), the extension's side of the engine's Stepper seam
   (fill-engine `src/steps.ts`, README "Stepped forms"). The step loop
   (content-script.js), Fill to Review (`workday-walk.js`), the checklist's
   field lookup (batch-tab.js `fieldOf`) and the primary button use only its
@@ -212,6 +212,25 @@ builds it: `dist/engine.js` is committed in the engine repo.
   sections' markup comes from Simplify's and Jobright's selectors, not a
   live read: live-check before relying on it. Tests:
   `test/oracle.extension.spec.ts` (the engine's fake Oracle page).
+- **SAP SuccessFactors** (`successfactors.js`, KAN-369). The manifest runs on
+  the career sites' `/career*` and `/portalcareer*` pages of
+  `*.successfactors.com|.eu` and `*.sapsf.com|.eu` (backend
+  AUTO_APPLY_HOSTS the same four). A posting usually lives on the
+  employer's own career site (jobs.sap.com, `*.jobs2web.com`, a branded
+  host), where the extension doesn't run: its Apply goes on to the career
+  site's sign-in. The sign-in and its Create an Account page are the
+  student's: WorkIt never types an email or password there, never makes an
+  account and never presses their buttons; the panel says "Sign in to
+  SuccessFactors, then press Fill". Signed in, the application's fields are
+  read off the page (they differ by employer): "Application" (its
+  sections) and, at some employers, "Questions" (the screening page), each
+  with its line "SuccessFactors: <page>"; Fill to Review presses its Next
+  and stops where only Apply goes on (the student's). Education and
+  Employment entries aren't filled. The signed-in markup comes from
+  Simplify's and Jobright's selectors, not a live read: live-check before
+  relying on it (fill-engine `test/fixtures/forms/successfactors-acuity/README.md`).
+  Tests: `test/successfactors.extension.spec.ts` (the saved live sign-in,
+  and the engine's fake application page).
 - **A job's page is not always its form.** A Lever, Ashby, Rippling,
   Workable, Eightfold or TikTok posting shows the job on one page and the form on
   another (`jobOf`'s `form`). On the job's page the overlay names the
