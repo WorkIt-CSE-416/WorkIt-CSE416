@@ -101,6 +101,18 @@
    * `emptyOnly`: a Workday step filled before keeps what it shows (the
    * student's saved answers).
    */
+  // Where a job system WorkIt fills sends a closed job (live, 2026-10-26): Greenhouse to its board with
+  // ?error=true, Workable to the account with ?not_found=true; others say so on the page.
+  const CLOSED_HOSTS = /(^|\.)(greenhouse\.io|workable\.com|lever\.co|ashbyhq\.com|rippling\.com|myworkdayjobs\.com|myworkdaysite\.com|eightfold\.ai)$/;
+  const CLOSED_WORDS = /no longer (accepting applications|open|available)|this (job|position|posting) (is|has been) (closed|filled)|job not found|couldn't find anything here/i;
+
+  /** Whether this page is a covered job system's word that the job is closed, not a job it can't fill. */
+  function closedPosting() {
+    if (!CLOSED_HOSTS.test(location.hostname)) return false;
+    const params = new URLSearchParams(location.search);
+    return params.get("error") === "true" || params.has("not_found") || CLOSED_WORDS.test(document.body?.innerText ?? "");
+  }
+
   async function fillShown(emptyOnly = false) {
     const shown = new Set();
     const done = new Set();
@@ -129,6 +141,10 @@
       const embedded = prepared.covered ? null : document.querySelector('iframe[src*="greenhouse.io/embed/job_app"]');
       if (embedded) {
         note("_form", "This page shows the job, not its application", `Open the application form (${embedded.src}), then click Autofill again.`);
+        return null;
+      }
+      if (!prepared.covered && closedPosting()) {
+        note("_closed", "This job is closed", "It is no longer accepting applications, so there is nothing to fill. Pick another job.");
         return null;
       }
       if (!prepared.covered) {
