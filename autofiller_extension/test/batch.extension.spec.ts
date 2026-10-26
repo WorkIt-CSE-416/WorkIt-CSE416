@@ -328,8 +328,8 @@ async function walkToEnd(at: string, { most = 20, onStep = async (_url: string, 
 }
 
 /** Opens a batch of `forms`' saved forms, in order, and waits until every tab is in a group. */
-async function startBatch(forms: SavedForms, names: string[], handlers: Handler[] = [forms.handler]) {
-  const api = new FakeApi().queue(...names.map((name, n) => ({ id: `job-${n}`, apply_url: forms.url(name) })));
+async function startBatch(forms: SavedForms, names: string[], handlers: Handler[] = [forms.handler], fake = new FakeApi()) {
+  const api = fake.queue(...names.map((name, n) => ({ id: `job-${n}`, apply_url: forms.url(name) })));
   loaded = await loadExtension([api.handler, webapp, ...handlers]);
   await signIn(loaded.context);
   const webappPage = loaded.context.pages()[0] ?? (await loaded.context.newPage());
@@ -488,6 +488,25 @@ test("once only fine rows are left, Next Thing says none are left, across the ta
   const again = await walkToEnd(forms.url(ANDURIL));
   expect(again.walked).toEqual([]);
   expect(again.left).toBe("Nothing else needs you.");
+  expect(forms.submissions).toEqual([]);
+});
+
+test("the next form fills a question the student saved as theirs with their answer, not WorkIt's guess", async () => {
+  test.setTimeout(120_000);
+  const ANDURIL = "greenhouse-anduril";
+  const forms = new SavedForms([ANDURIL]);
+  const HEARD = "question_13130335007";
+  // What GET .../answer-bank gives once the student said a guess looked right, or changed it, on an earlier form.
+  const api = new FakeApi();
+  api.bank["How did you hear about Anduril?"] = { answer: "Handshake", own: true };
+  await startBatch(forms, [ANDURIL], [forms.handler], api);
+
+  const heard = () => page(forms.url(ANDURIL)).locator(`#workit-autofiller-overlay-host [data-key="${HEARD}"]`);
+  await expect(heard().locator(".source")).toHaveText("You");
+  const shown = page(forms.url(ANDURIL)).locator(`#${HEARD}`).locator("xpath=ancestor::div[contains(@class, 'select__control')]").locator(".select__single-value");
+  await expect(shown).toHaveText("Handshake");
+  const { walked } = await walkToEnd(forms.url(ANDURIL));
+  expect(walked.map(([, key]) => key)).not.toContain(HEARD);
   expect(forms.submissions).toEqual([]);
 });
 
