@@ -71,3 +71,24 @@ test("the counts follow the rows: a guess that looks right moves to Filled, its 
   await expect(groupOf(form, "check").locator(".group-head")).toHaveText("Check these 1");
   await expect(groupOf(form, "filled").locator(".group-head")).toHaveText("20 filled");
 });
+
+test("the three tabs switch, and the tab chosen is kept while the browser tab is open", async () => {
+  test.setTimeout(120_000);
+  const { form } = await anduril();
+  const host = hostOf(form);
+  const tabs = host.getByRole("tab");
+  await expect(tabs).toHaveText(["Autofill", "Résumé", "Answers"]);
+  await expect(host.getByRole("tab", { name: "Autofill" })).toHaveAttribute("aria-selected", "true");
+
+  await host.getByRole("tab", { name: "Answers" }).click();
+  await expect(host.getByRole("tab", { name: "Answers" })).toHaveAttribute("aria-selected", "true");
+  await expect(host.locator(`[data-key="${HEARD}"]`)).toBeHidden();
+  await expect(host.getByRole("tabpanel")).toHaveCount(1);
+  await expect(host.getByRole("tabpanel")).toHaveAttribute("data-tab", "answers");
+
+  // The page loads again in the same tab: the panel comes back on Answers.
+  await form.reload();
+  await loaded.worker.evaluate(async (url) => (globalThis as any).workitToolbar((await chrome.tabs.query({ url }))[0]), form.url());
+  await expect(host.locator(".panel")).toBeVisible();
+  await expect(host.getByRole("tab", { name: "Answers" })).toHaveAttribute("aria-selected", "true");
+});

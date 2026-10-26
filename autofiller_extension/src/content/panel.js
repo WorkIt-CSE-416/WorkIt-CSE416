@@ -74,6 +74,7 @@ window.WIA = window.WIA || {};
     .tabs button[aria-selected="true"] { color: var(--color-ink); background: var(--color-panel); box-shadow: inset 0 -2px 0 var(--color-ink); }
     .tabs button:focus-visible { outline: 2px solid var(--color-brand); outline-offset: 1px; }
     .tab { overflow: hidden; }
+    .tab-placeholder { margin: 0; padding: 16px 12px; font-size: var(--text-note); color: var(--color-ink-meta); }
     [data-slot="settings"] { padding: 12px; }
     [data-slot="settings"] h2 { margin: 0 0 8px; font-size: var(--text-label); font-weight: 600; }
     [data-slot="settings"] button {
@@ -187,6 +188,11 @@ window.WIA = window.WIA || {};
 
     root.append(panel, edge, menu);
     addTab({ id: "autofill", label: "Autofill" });
+    // Résumé and Answers hold a placeholder until their own files fill them (replaceChildren).
+    for (const [id, label, text] of [
+      ["resume", "Résumé", "The résumé this form gets will show here."],
+      ["answers", "Answers", "This job's written answers will show here."],
+    ]) addTab({ id, label }).replaceChildren(Object.assign(document.createElement("p"), { className: "tab-placeholder", textContent: text }));
     document.documentElement.appendChild(host);
     keepAttached();
     loadFont().catch(() => {});
@@ -348,13 +354,33 @@ window.WIA = window.WIA || {};
     const button = Object.assign(document.createElement("button"), { type: "button", textContent: label });
     button.setAttribute("role", "tab");
     button.dataset.tab = id;
-    button.addEventListener("click", () => selectTab(id));
+    button.addEventListener("click", () => {
+      selectTab(id);
+      keepTab(id);
+    });
     tabs.push(id);
     root.querySelector(".tabs").appendChild(button);
     root.querySelector("[data-tabs]").appendChild(body);
     root.querySelector(".tabs").hidden = tabs.length < 2;
-    selectTab(tabs[0]);
+    selectTab(tabs.includes(keptTab()) ? keptTab() : tabs[0]);
     return body;
+  }
+
+  // The tab the student chose, kept for this browser tab (a new page load or a Workday step shows it again).
+  const TAB_KEY = "workit-panel-tab";
+  function keptTab() {
+    try {
+      return sessionStorage.getItem(TAB_KEY);
+    } catch {
+      return null;
+    }
+  }
+  function keepTab(id) {
+    try {
+      sessionStorage.setItem(TAB_KEY, id);
+    } catch {
+      // A page that refuses storage: the choice lasts until the page goes.
+    }
   }
 
   function selectTab(id) {

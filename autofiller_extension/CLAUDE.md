@@ -1363,8 +1363,18 @@ slot by name, `panel.slot(name)`, and adds its styles with
 | `batch-line` | the batch line ("Batch · 3 of 5 ready · Next tab →", Workday's step) | empty, hidden |
 | `job-card` | the job card (title, company, Match score) | empty, hidden |
 | `primary` | the one big button; `panel.setPrimary({ label, onPress, secondary })` or `panel.fillButton(label)` | Autofill This Page (launcher.js), Fill Again (overlay.js) |
-| `tab:<id>` | a tab's body; `panel.addTab({ id, label })` adds one, the strip shows from two | `tab:autofill`: overlay.js's summary, Next Thing That Needs You, essay banner, moment cards, parts and rows |
+| `tab:<id>` | a tab's body; `panel.addTab({ id, label })` adds one, the strip shows from two | `tab:autofill`: overlay.js's summary, Next Thing That Needs You, essay banner, moment cards, parts and rows; `tab:resume` and `tab:answers`: a placeholder (KAN-397) |
 | `settings` | the settings view, shown by the header's gear in place of the tabs (`panel.showSettings`) | Workday Sign-Up (opens the options page), Back |
+
+**Tabs (KAN-397).** The shell makes three: Autofill, Résumé and Answers.
+Résumé and Answers hold a one-line placeholder (`.tab-placeholder`) until
+their tickets fill them: `panel.slot("tab:resume").replaceChildren(...)`
+(`addTab` with an existing id returns its body). The tab the student
+presses is kept in the page's `sessionStorage` (`workit-panel-tab`), so
+it lasts while the browser tab is open, across page loads and Workday
+steps; `addTab` shows it again once that tab exists. A page that refuses
+storage keeps the choice until it goes. `selectTab` from code doesn't
+keep it.
 
 `batch-line`, `job-card` and `settings` are cards hidden while empty: a
 file that fills one sets `hidden = false`. overlay.js keeps its API
@@ -1434,7 +1444,8 @@ plain filled row opens Filled first (`.group[data-group="filled"]
 
 Tests: `test/panel-tabs.extension.spec.ts` (Anduril's guess under Check
 these above "20 filled", opening Filled and a row's click to its field;
-Looks right and Undo moving the counts), and the waiting group's count in
+Looks right and Undo moving the counts; the three tabs, and the choice
+kept across a reload), and the waiting group's count in
 `test/waiting-card.extension.spec.ts`.
 
 ## The overlay: honest per-field results
