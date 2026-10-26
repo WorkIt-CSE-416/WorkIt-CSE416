@@ -30,6 +30,33 @@ async function anduril(): Promise<{ form: Page; forms: SavedForms }> {
   return { form, forms };
 }
 
+/** Counts the Plans the background is asked for (one per fill). */
+async function countPlans(): Promise<() => Promise<number>> {
+  await loaded.worker.evaluate(() => {
+    (globalThis as any).plans = 0;
+    chrome.runtime.onMessage.addListener((message: any) => {
+      if (message?.type === "fill/plan") (globalThis as any).plans += 1;
+    });
+  });
+  return () => loaded.worker.evaluate(() => (globalThis as any).plans as number);
+}
+
+const panelOf = (form: Page) => form.locator("#workit-autofiller-overlay-host .panel");
+
+test("after ✕, the WorkIt tab left on the page brings the panel back", async () => {
+  test.setTimeout(120_000);
+  const { form } = await anduril();
+  const plans = await countPlans();
+  const host = form.locator("#workit-autofiller-overlay-host");
+
+  await host.getByRole("button", { name: "Close" }).click();
+  await host.getByRole("button", { name: "Show WorkIt panel" }).click();
+
+  await expect(panelOf(form)).toBeVisible();
+  await expect(host.locator(`[data-key="${HEARD}"] .source`)).toHaveText("Guessed");
+  expect(await plans()).toBe(0);
+});
+
 test("pressing a yellow row scrolls to its field, focuses it and rings it", async () => {
   test.setTimeout(120_000);
   const { form } = await anduril();

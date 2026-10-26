@@ -7,6 +7,9 @@ window.WIA = window.WIA || {};
 (function () {
   "use strict";
 
+  // Injected again (Fill Again, the fill after a human check): the last fill's panel, shown or closed, goes.
+  window.WIA.overlay?.unmount?.();
+
   // Each status's dot, in WorkIt's status colours (the tokens below): positive green
   // filled, danger red failed, advanced blue waiting to be written, grey otherwise.
   const STATUS_COLOR = {
@@ -61,6 +64,17 @@ window.WIA = window.WIA || {};
         background: var(--color-panel); color: var(--color-ink); border-radius: var(--radius-card);
         border: 1px solid var(--color-border); box-shadow: var(--shadow-lift); overflow: hidden;
       }
+      .panel[hidden] { display: none; }
+      /* What the panel's ✕ leaves on the page: the panel again, as it was, on a press. */
+      .reopen {
+        all: unset; position: fixed; bottom: 16px; right: 16px; z-index: 2147483647; cursor: pointer;
+        font: 600 var(--text-note) / var(--text-note--line-height) var(--font-sans);
+        padding: 6px 12px; border-radius: 9999px; box-shadow: var(--shadow-lift);
+        background: var(--color-brand); color: var(--color-on-brand);
+      }
+      .reopen[hidden] { display: none; }
+      .reopen:hover { background: var(--color-brand-hover); }
+      .reopen:focus-visible { outline: 2px solid var(--color-brand); outline-offset: 2px; }
       .header {
         display: flex; align-items: center; justify-content: space-between;
         padding: 10px 12px; background: var(--color-brand); color: var(--color-on-brand); font-weight: 600;
@@ -538,11 +552,18 @@ window.WIA = window.WIA || {};
       <div class="parts"></div>
       <div class="list"></div>
     `;
-    panel.querySelector("[data-close]").addEventListener("click", unmount);
+    // ✕ only hides the panel: its rows, cards and answers stay, for the WorkIt tab or the popup to bring back.
+    const reopen = Object.assign(document.createElement("button"), { type: "button", className: "reopen", hidden: true, textContent: "WorkIt" });
+    reopen.setAttribute("aria-label", "Show WorkIt panel");
+    reopen.addEventListener("click", open);
+    panel.querySelector("[data-close]").addEventListener("click", () => {
+      panel.hidden = true;
+      reopen.hidden = false;
+    });
     panel.querySelector(".list").addEventListener("click", jump);
     panel.querySelector(".list").addEventListener("keydown", jump);
     panel.querySelector("[data-skip]")?.addEventListener("click", onSkip);
-    shadow.appendChild(panel);
+    shadow.append(panel, reopen);
     root = shadow;
 
     document.documentElement.appendChild(host);
@@ -578,6 +599,24 @@ window.WIA = window.WIA || {};
     root = null;
   }
 
+  /** Shows the panel again after its ✕, as it was (no fill); false when this page has none. */
+  function open() {
+    if (!root) return false;
+    root.querySelector(".panel").hidden = false;
+    root.querySelector(".reopen").hidden = true;
+    return true;
+  }
+
+  /**
+   * What the popup asks a page (popup.js): null when WorkIt has no panel
+   * here, else whether it shows, whether the page is a batch tab, and the
+   * fill's phase ("filling" while it runs).
+   */
+  function state() {
+    if (!root) return null;
+    return { shown: !root.querySelector(".panel").hidden, batch: Boolean(window.WIA.batch), phase: window.WIA.phase ?? null };
+  }
+
   /**
    * Adds a part above the panel's list, from its own file (card-guess.js):
    * `css` for the panel's styles (tokens only), `panel(summary)` its node or
@@ -592,5 +631,5 @@ window.WIA = window.WIA || {};
   /** Draws the rows again, for a row card whose own state changed (row-card.js). */
   const refresh = () => render(window.WIA.status.summary());
 
-  window.WIA.overlay = { mount, unmount, promptForEssays, offerNext, setCurrent, refresh, addPart, askSelfId, offerClaude, askSamples, askWorkdayAccounts, momentCard, CLAUDE_TRIGGER };
+  window.WIA.overlay = { mount, unmount, open, state, promptForEssays, offerNext, setCurrent, refresh, addPart, askSelfId, offerClaude, askSamples, askWorkdayAccounts, momentCard, CLAUDE_TRIGGER };
 })();

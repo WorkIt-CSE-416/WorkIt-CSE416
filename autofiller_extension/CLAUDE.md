@@ -662,6 +662,14 @@ waits for an opened tab's page and form (`waitForLoad`, `formShows`).
   so this is rare). Workday's fields have no id `fieldOf` knows, so there
   the row, like Next Thing, finds no field. Test:
   `test/panel-reopen.extension.spec.ts`.
+- **The panel's ✕ hides it; it never goes** (KAN-369, `overlay.js`): its
+  rows, cards, answers, the Next Thing bar and any moment card stay as they
+  were in the page, and a small **WorkIt** tab (bottom right, the brand
+  pill, "Show WorkIt panel") brings the panel back at once, nothing filled
+  again. The toolbar popup does too (`overlay.open`, below). Only a new
+  fill on the page (Fill Again, the fill after a human check) removes the
+  last fill's panel: `overlay.js`, injected again, unmounts the one before
+  it first.
 - **A failed field gets a card** (KAN-369, `card-failed.js`, in the shared
   row card `row-card.js`): "We put X; the page shows Y.", why in plain words
   ("This field ended up empty on the page.", "This dropdown never committed
