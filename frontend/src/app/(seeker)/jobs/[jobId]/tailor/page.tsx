@@ -11,10 +11,10 @@ import { cn } from "@/lib/cn";
 import { getProfile } from "@/lib/profile-actions";
 
 import { SEEKER_GUTTER } from "../../../gutter";
-import { Editor } from "../../../resumes/[resumeId]/editor";
 import { ListingsError } from "../../listing-card";
 import { getJobListing } from "../../listings";
 import { BackToJobs } from "../page-actions";
+import { TailorCompare } from "./tailor-compare";
 import { TailorHeader } from "./tailor-header";
 import { TailorScore } from "./tailor-score";
 import { TailorSteps } from "./tailor-steps";
@@ -78,7 +78,8 @@ export default async function TailorPage({
         <TailorSteps current="review" />
         <TailorScore resumeId={resume.id} />
         {bank.data && choices.data && profile ? (
-          <Editor
+          <TailorCompare
+            name={resume.name}
             resumeId={resume.id}
             initial={rendered}
             initialBank={bank.data}

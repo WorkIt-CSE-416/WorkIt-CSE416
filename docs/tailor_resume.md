@@ -211,6 +211,36 @@ response lists each change with what it replaced, by handle and id:
   so a reload in the same tab keeps them; a new tab starts with none.
 - **The student's own edits are not marked.** Only the run's changes are.
 
+## Before and after
+
+The tailored resume's page (`/jobs/[jobId]/tailor?resumeId=`) sets the
+resume the run tailored beside the tailored one
+(`jobs/[jobId]/tailor/tailor-compare.tsx`), so the student can compare
+them.
+
+- **Before is the record's `source`**, as it prints: a built resume
+  rendered again, an upload's own PDF, drawn by `PdfPages` with no click
+  targets, under its name. It is read through one server action,
+  `readTailorSource` (`lib/tailor-actions.ts`), which takes ids, never a
+  URL. A built source shows as it stands now: an edit to it after the run
+  shows in Before. A deleted source says it is not loading; a DOCX says
+  WorkIt shows PDFs only.
+- **After is the editor**, with its marks and Revert as on any review.
+- **One scroll, no syncing.** Both columns sit in the page's scroll at the
+  same width, so page N stays beside page N. A resume one page longer
+  runs on alone. Each column's bar sticks at the top.
+- **Wide while both show.** Two Letter pages need more than the reading
+  width (64rem), so the comparison widens to the shell, up to 84rem. Below
+  56rem of page (`@4xl/main`) a Before / After switch shows one at a
+  time; on a phone it sits in the phone editor's header (`phoneBar`),
+  since that layout covers the page. On a desktop, Side by Side / After
+  Only does the same, and Ask Scout switches to After Only (`onAsk`): in a
+  half column the assistant opened under the page, out of view.
+- **The record is per tab.** A new tab or another device has no source,
+  so the page shows the editor alone with one line that says so. The
+  first source read is kept for the page's life, though reverting every
+  change clears the record.
+
 ## Other rules
 
 - **One run, one `TAILOR` use**, counted after the model answers (lifted

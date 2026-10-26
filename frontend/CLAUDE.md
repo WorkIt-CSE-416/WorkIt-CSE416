@@ -1424,15 +1424,16 @@ the KAN-296 cutover.
   Back, as the Applications page's server-side picks replace the URL.
 - **pdf.js (`pdfjs-dist`, pinned exactly) loads on the resume pages
   only**: the editor (KAN-209), an upload's page (KAN-366,
-  `(seeker)/resumes/uploaded/[id]`) and Tailor's preview of the picked
-  resume (`jobs/[jobId]/tailor/resume-preview.tsx`), the last two drawing
-  through the same `PdfPages`, through `import("pdfjs-dist")` inside an effect in
+  `(seeker)/resumes/uploaded/[id]`, which draws through the same
+  `PdfPages`) and Tailor's page (`(seeker)/jobs/[jobId]/tailor`: the
+  editor, the before and after's Before column, and the preview of the
+  picked resume, `resume-preview.tsx`), through `import("pdfjs-dist")` inside an effect in
   `(seeker)/resumes/[resumeId]/pdf-pages.tsx`: about 110 KB gzip plus a
   290 KB worker, which every other page would otherwise pay for, and its
   module touches browser globals, so a top-level import breaks the server
   render. The worker comes from `new URL("pdfjs-dist/build/pdf.worker.min.mjs",
   import.meta.url)`, which Turbopack emits as a static file. After a build,
-  only those three routes' client manifests name the pdf.js chunk.
+  only those routes' client manifests name the pdf.js chunk.
   `npm install` on a Mac dropped two optional `@emnapi/*` entries from the
   lockfile when pdf.js was added; they were put back by hand. Check the
   lockfile diff for removals after adding any dependency. Adding Lenis
