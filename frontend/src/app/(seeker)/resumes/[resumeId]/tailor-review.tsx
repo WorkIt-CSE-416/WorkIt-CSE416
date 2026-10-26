@@ -33,8 +33,9 @@ export type TailorReviewRecord = { edits: TailorEdit[]; match?: MatchShift; sour
 
 /** What the editor hands Tailor's Suggestions panel: the record and the
  *  resume as they stand, and the panel's actions. `focused` is the card
- *  the pointer or focus is on, whose lines the page outlines; `active` the
- *  card of the marked line last clicked, which the panel scrolls to. */
+ *  the pointer or focus is on and `active` the card that is open; the page
+ *  tints the lines of both. A click on a line or its margin dot opens its
+ *  card. `numberOf` is a card's number, the one on its lines' dots. */
 export type SuggestionsApi = {
   record: TailorReviewRecord;
   bank: Bank;
@@ -46,10 +47,26 @@ export type SuggestionsApi = {
   rejectAll: () => void;
   focused: string | null;
   focus: (key: string | null) => void;
-  /** Outlines a card's lines and brings them into view (a click). */
+  /** Tints a card's lines and brings them into view (a click; on a phone it
+   *  also closes the sheet). */
   show: (key: string) => void;
   active: string | null;
+  open: (key: string | null) => void;
+  numberOf: (key: string) => number;
 };
+
+/** The panel's groups, in its order, which is also the cards' numbering. */
+export const GROUPS = [
+  { kind: "reword", title: "Wording" },
+  { kind: "order", title: "Order" },
+  { kind: "skill", title: "Skills" },
+] as const;
+
+/** The record's changes in the panel's order: wording, then order, then
+ *  skills, each kind in the run's order. */
+export function inPanelOrder(edits: TailorEdit[]): TailorEdit[] {
+  return GROUPS.flatMap((group) => edits.filter((edit) => edit.kind === group.kind));
+}
 
 /** A line's mark: `changed` (a new wording or an added skill, green) or
  *  `moved` (an entry's bullets put in a new order, amber). */

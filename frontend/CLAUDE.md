@@ -1444,6 +1444,13 @@ the KAN-296 cutover.
   lockfile diff for removals after adding any dependency. Adding Lenis
   only cleared `"dev": true` on `sharp`'s `@img/*` packages (`next`
   depends on `sharp` too), which is correct and removes no entry.
+- **Tailor's review is the resume editor with props, not a fork**
+  (`(seeker)/resumes/[resumeId]/editor.tsx`): `suggestions` (the panel,
+  and with it the margin dots and tints), `compact` (the slim toolbar),
+  `heading` (the column label) and `phoneBar`. The editor's own page
+  passes none of them and must keep its full toolbar; a change for the
+  review goes behind one of these props, so the two never drift into two
+  editors.
 - **A saved timestamp becomes a calendar day in the browser, never on the
   server.** The server runs in UTC, so a day computed there is a day off for
   the Americas. Swap the local day in after hydration (`useSyncExternalStore`);

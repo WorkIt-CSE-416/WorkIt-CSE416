@@ -1748,17 +1748,22 @@ with no proposals to accept and no Done (2026-10-25).
   (`MatchShift`). Like the marks, it lives in that tab only.
 - **The review is one resume with a Suggestions panel**
   (`tailor-suggestions.tsx`, `../../docs/tailor_resume.md`,
-  "Suggestions"): the editor on the left and, on the right, a 360px panel
-  that sticks and scrolls on its own. Its top holds the keyword match
-  ("Keyword Match 3 of 14 → 9 of 14" and each keyword the run added,
-  `tailor-score.tsx`), the count, and Reject All and Accept All; under it
-  one card per change, each with Reject and Accept. Pointing at a card
-  outlines its lines; clicking a tinted line brings its card up. On a
-  phone the panel is a sheet opened by "Suggestions (n)". With no record
-  (a new tab or device) the editor shows alone, with a line saying the
-  suggestions live in the tab that ran Tailor. A before and after side by
-  side came first (2026-10-26) and was replaced the same day: two full
-  resumes and hover Revert controls showed too much at once.
+  "Suggestions"), kept quiet after Quinncia's resume review: "Resume ·
+  <name>" over the page in the editor's slim toolbar, "Suggestions · n"
+  over a 360px panel that sticks and scrolls on its own. Each changed line
+  has a numbered dot in the page's margin and is tinted only while its
+  card is pointed at or open; a dot or a changed line opens its card. The
+  panel's top holds View Original, a "…" menu (Accept All, Reject All)
+  and the keyword match as one thin row ("No new keywords matched" when
+  it did not move); under it the cards fold in Wording, Order and Skills,
+  each card closed to its number and one line, open to its change with ✕
+  Reject and ✓ Accept. On a phone the panel is a sheet opened by
+  "Suggestions (n)". With no record (a new tab or device) the editor
+  shows alone, with a line saying the suggestions live in the tab that ran
+  Tailor. A before and after side by side came first (2026-10-26) and was
+  replaced the same day: two full resumes and hover Revert controls showed
+  too much at once; then a panel of open cards over fully tinted lines,
+  which gave everything the same weight.
 - An empty bank (409) shows a link to the bank page, where intake starts.
 
 ## Resumes (`/resumes`)
@@ -2037,10 +2042,16 @@ student who opened a resume from Experiences landed on another view.
   (`fit-undo.ts`), so a reload in the same tab still offers it.
   **On Tailor's review step the editor takes a Suggestions panel**
   (`suggestions`, a render prop; `tailor-review.tsx`,
-  `../../docs/tailor_resume.md`, "Suggestions"). Only then are the run's
-  changes tinted on the page, see-through so the PDF's text shows: a new
+  `../../docs/tailor_resume.md`, "Suggestions"). Only then does the page
+  carry the run's changes: a numbered dot in the margin beside each
+  changed line (`dots` on `PdfPages`), and a see-through tint, so the
+  PDF's text shows, on the lines of the card in focus or open: a new
   wording or an added skill green (`positive`), an entry's bullets in a
-  new order amber (`warning-fill`). The panel sits in the Ask Scout
+  new order amber (`warning-fill`). The same page passes `compact`, the
+  slim toolbar (icon Download and Ask Scout, a "2 pages" chip whose
+  popover offers Fit to One Page, the hint only while the pointer is over
+  the page), and `heading`, the label over the page's column; the
+  editor's own page passes neither and keeps this bar. The panel sits in the Ask Scout
   column and gives way to the assistant while it is open; on a phone it
   is a sheet from the bottom bar. Reject goes through the choices PATCH
   (the wording back to the source's, the old order, the skill hidden),

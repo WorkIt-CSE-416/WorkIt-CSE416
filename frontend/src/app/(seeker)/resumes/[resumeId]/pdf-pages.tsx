@@ -18,15 +18,26 @@ import type { Mark } from "./tailor-review";
  * percent of the page, so they need no redraw to follow the canvas's size.
  * `field` draws the selected line's text field over its first box (KAN-218);
  * each page is a size container, so the field's type can be set in `cqw` to
- * match the PDF's at any width. `marks` tints Tailor's changed lines and
- * `focus` outlines the lines of the Suggestions card in focus, bringing
- * the first into view (./tailor-review.tsx).
+ * match the PDF's at any width. On Tailor's review, `dots` puts a numbered
+ * dot in the page's left margin beside each changed line, the number of
+ * its Suggestions card; `marks` tints the lines of the card in focus or
+ * open, and `focus` brings the first of them into view (./tailor-review.tsx).
  */
 
 const MARK_TINT: Record<Mark, string> = {
   changed: "bg-positive/35",
   moved: "bg-warning-fill/25",
 };
+
+/** A margin dot's fill, by the line's mark: ink on the amber fill and white
+ *  only on positive-ink, which hold their contrast. */
+const DOT_FILL: Record<Mark, string> = {
+  changed: "bg-positive-ink text-on-brand",
+  moved: "bg-warning-fill text-ink",
+};
+
+/** A line's margin dot: its card's number and the line's mark. */
+export type Dot = { n: number; mark: Mark; lit: boolean };
 
 /** A box's identity across renders: its bank item and which part of it. */
 export const boxKey = (box: Pick<RenderBox, "item_id" | "kind">) => `${box.item_id}.${box.kind}`;
@@ -122,6 +133,8 @@ export function PdfPages({
   placeholder,
   marks,
   focus,
+  dots,
+  onDot,
 }: {
   /** base64, as the render response sends it */
   pdf: string;
@@ -139,6 +152,9 @@ export function PdfPages({
   marks?: Map<string, Mark>;
   /** The lines of the Suggestions card in focus, by box key. */
   focus?: string[];
+  /** Tailor's margin dots, by box key, and what a click on one does. */
+  dots?: Map<string, Dot>;
+  onDot?: (key: string) => void;
 }) {
   const first = boxes.find((b) => boxKey(b) === selected);
   const typing = first && field?.(first);
@@ -216,7 +232,6 @@ export function PdfPages({
             .map((box) => {
               const key = boxKey(box);
               const mark = marks?.get(key);
-              const focused = focus?.includes(key);
               return (
                 <button
                   key={`${key}.${box.page}`}
@@ -230,7 +245,7 @@ export function PdfPages({
                     !mark && "hover:bg-brand/5",
                     mark && MARK_TINT[mark],
                     "focus-visible:outline-brand focus-visible:outline-2",
-                    (selected === key || focused) && "outline-brand outline-2",
+                    selected === key && "outline-brand outline-2",
                     selected === key && !mark && "bg-brand/10",
                   )}
                   style={{
@@ -242,6 +257,7 @@ export function PdfPages({
                 />
               );
             })}
+          {dots && <MarginDots boxes={boxes} page={i + 1} size={size} dots={dots} onDot={onDot} />}
           {first?.page === i + 1 && typing && (
             <div
               className="absolute z-10"
@@ -258,6 +274,57 @@ export function PdfPages({
       ))}
     </div>
   );
+}
+
+/** One page's margin dots: one per changed line, at its first box's top, in
+ *  the left margin. Dots on one row (skills on one line) stack like coins,
+ *  10px apart, each ringed in white, so they stay inside the margin. */
+function MarginDots({
+  boxes,
+  page,
+  size,
+  dots,
+  onDot,
+}: {
+  boxes: RenderBox[];
+  page: number;
+  size: Size;
+  dots: Map<string, Dot>;
+  onDot?: (key: string) => void;
+}) {
+  const placed = new Set<string>();
+  const perRow = new Map<number, number>();
+  return boxes
+    .filter((box) => box.page === page)
+    .map((box) => {
+      const key = boxKey(box);
+      const dot = dots.get(key);
+      if (!dot || placed.has(key)) return null;
+      placed.add(key);
+      const row = Math.round(box.y0);
+      const nth = perRow.get(row) ?? 0;
+      perRow.set(row, nth + 1);
+      return (
+        <button
+          key={`${key}.dot`}
+          type="button"
+          aria-label={`Suggestion ${dot.n}`}
+          onClick={() => onDot?.(key)}
+          className={cn(
+            "outline-panel absolute z-10 flex h-4 min-w-4 items-center justify-center rounded-full px-1 text-xs font-semibold tabular-nums shadow-sm outline-2 transition-transform hover:z-20 hover:scale-110",
+            "focus-visible:outline-brand focus-visible:outline-2 focus-visible:outline-offset-1",
+            DOT_FILL[dot.mark],
+            dot.lit && "ring-brand scale-110 ring-2 ring-offset-1",
+          )}
+          style={{
+            left: `calc(${(10 / size.width) * 100}% + ${nth * 10}px)`,
+            top: `${(box.y0 / size.height) * 100}%`,
+          }}
+        >
+          {dot.n}
+        </button>
+      );
+    });
 }
 
 /** One page, redrawn at the canvas's own width in device pixels. */

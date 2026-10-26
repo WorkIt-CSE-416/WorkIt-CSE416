@@ -7,14 +7,17 @@ import {
   CloudSlashIcon,
   CursorClickIcon,
   EyeSlashIcon,
+  ScissorsIcon,
 } from "@phosphor-icons/react/ssr";
 import localFont from "next/font/local";
 import { Suspense, use, useCallback, useEffect, useRef, useState, type ReactNode } from "react";
 
 import { SparkleIcon } from "@/components/icons";
+import { Popover, PopoverContent, PopoverTrigger } from "@/components/shadcn/popover";
 import { Skeleton } from "@/components/shadcn/skeleton";
 import { Button, buttonClasses } from "@/components/ui/button";
 import { EmptyState } from "@/components/ui/empty-state";
+import { IconButton } from "@/components/ui/icon-button";
 import { TextLink } from "@/components/ui/text-link";
 import { updateEntry, type Bank } from "@/lib/bank-actions";
 import {
@@ -57,6 +60,7 @@ import { PhoneEditor, usePhone } from "./phone";
 import {
   cardsOf,
   editKey,
+  inPanelOrder,
   linesOf,
   marksOf,
   reverted,
@@ -172,6 +176,8 @@ export function Editor({
   initialHeader,
   phoneBar,
   suggestions,
+  compact = false,
+  heading,
 }: {
   resumeId: string;
   /** The first render, started by the page and not awaited. */
@@ -184,6 +190,13 @@ export function Editor({
    *  only there are changes tinted: a mark with no card to act on would
    *  mean nothing. */
   suggestions?: (api: SuggestionsApi) => ReactNode;
+  /** The slim toolbar (Tailor's review): icon buttons for Download and Ask
+   *  Scout, the page count as a chip that offers Fit to One Page, and "Click
+   *  a line to edit it" only while the pointer is over the page. The
+   *  editor's own page keeps the full bar. */
+  compact?: boolean;
+  /** A label over the page's column (Tailor's "Resume · name"). */
+  heading?: ReactNode;
   /** A row the phone layout's header shows under its buttons: the page's
    *  own controls, which the full-screen phone editor would cover. */
   phoneBar?: ReactNode;
@@ -246,6 +259,11 @@ export function Editor({
   // marked line last clicked, and the phone's Suggestions sheet
   const [focused, setFocused] = useState<string | null>(null);
   const [active, setActive] = useState<string | null>(null);
+  // Each card's number, given in the panel's order as its change is first
+  // seen and kept, so the numbers do not shift as cards are handled
+  const [numbers, setNumbers] = useState<Map<string, number>>(() => new Map());
+  // The pointer is over the page: the slim bar shows its hint then
+  const [overPage, setOverPage] = useState(false);
   const [suggestionsOpen, setSuggestionsOpen] = useState(false);
 
   /** Starts a request; the returned check stays true while it is the latest. */
@@ -567,15 +585,44 @@ export function Editor({
     );
   // Tailor's review, on Tailor's page only (`suggestions`)
   const reviewing = suggestions && review ? review : null;
-  const marks = reviewing ? marksOf(reviewing.edits, choices) : undefined;
+  const unnumbered = reviewing
+    ? inPanelOrder(reviewing.edits).filter((edit) => !numbers.has(editKey(edit)))
+    : [];
+  if (unnumbered.length > 0) {
+    const next = new Map(numbers);
+    for (const edit of unnumbered) next.set(editKey(edit), next.size + 1);
+    setNumbers(next);
+  }
+  const numberOf = (key: string) => numbers.get(key) ?? 0;
   const cards = reviewing ? cardsOf(reviewing.edits, choices) : undefined;
+  // Every changed line has its card's dot; only the lines of the card in
+  // focus or open are tinted
+  const allMarks = reviewing ? marksOf(reviewing.edits, choices) : undefined;
+  const litEdits = reviewing?.edits.filter((edit) => [focused, active].includes(editKey(edit)));
+  const lit = new Set(litEdits?.flatMap((edit) => linesOf(edit, choices)));
+  const marks = allMarks && new Map([...allMarks].filter(([line]) => lit.has(line)));
+  const dots =
+    allMarks &&
+    new Map(
+      [...allMarks].map(([line, mark]) => {
+        const card = cards?.get(line) ?? "";
+        return [line, { n: numberOf(card), mark, lit: lit.has(line) }] as const;
+      }),
+    );
   const focusedEdit = reviewing?.edits.find((edit) => editKey(edit) === focused);
   const focus = focusedEdit ? linesOf(focusedEdit, choices) : undefined;
-  /** A click on a line selects it, and a marked one also brings its card up. */
+  /** A click on a line selects it, and a changed one also opens its card. */
   const onLine = (key: string) => {
     select(selected === key ? null : key);
     const card = cards?.get(key);
     if (card) setActive(card);
+  };
+  /** A click on a margin dot opens its card (on a phone, in the sheet). */
+  const onDot = (key: string) => {
+    const card = cards?.get(key);
+    if (!card) return;
+    setActive(card);
+    setSuggestionsOpen(true);
   };
   const panel =
     reviewing &&
@@ -597,6 +644,8 @@ export function Editor({
         setSuggestionsOpen(false);
       },
       active,
+      open: setActive,
+      numberOf,
     });
 
   if (phone) {
@@ -616,6 +665,8 @@ export function Editor({
               placeholder={<PageSkeleton />}
               marks={marks}
               focus={focus}
+              dots={dots}
+              onDot={onDot}
             />
           ))}
           bank={bank}
@@ -673,8 +724,11 @@ export function Editor({
         panel && !asking && "@4xl/main:grid-cols-[minmax(0,1fr)_22.5rem]",
       )}
     >
-      <div className="flex min-w-0 flex-col gap-4">
+      <div className={cn("flex min-w-0 flex-col", compact ? "gap-2" : "gap-4")}>
+        {heading}
         <Bar
+          compact={compact}
+          overPage={overPage}
           line={line}
           box={box}
           bank={bank}
@@ -702,6 +756,8 @@ export function Editor({
         <div
           ref={pages}
           data-keeps-selection
+          onPointerEnter={() => setOverPage(true)}
+          onPointerLeave={() => setOverPage(false)}
           onPointerDownCapture={(e) => {
             const origin = e.currentTarget.getBoundingClientRect();
             pressed.current = { x: e.clientX - origin.left, y: e.clientY - origin.top };
@@ -718,6 +774,8 @@ export function Editor({
               placeholder={<PageSkeleton />}
               marks={marks}
               focus={focus}
+              dots={dots}
+              onDot={onDot}
             />
           ))}
         </div>
@@ -763,6 +821,8 @@ const BAR =
  *  end. Sticky, so a line's actions never cover the lines around it (user
  *  story 63), and Download stays in reach down a two-page resume. */
 function Bar({
+  compact,
+  overPage,
   line,
   box,
   bank,
@@ -781,6 +841,10 @@ function Bar({
   onUndoFit,
   onAsk,
 }: {
+  /** The slim row (Tailor's review), see `Editor`'s `compact`. */
+  compact: boolean;
+  /** The pointer is over the page: the slim row shows its hint. */
+  overPage: boolean;
   line: Line | null;
   box: RenderBox | undefined;
   bank: Bank;
@@ -802,10 +866,26 @@ function Bar({
   /** Opens the assistant; absent while it is open. */
   onAsk?: () => void;
 }) {
+  if (compact && !(line && box)) {
+    return (
+      <SlimBar
+        overPage={overPage}
+        rendered={rendered}
+        hint={hint}
+        saving={saving}
+        elapsed={elapsed}
+        fitUndo={fitUndo}
+        download={download}
+        onFit={onFit}
+        onUndoFit={onUndoFit}
+        onAsk={onAsk}
+      />
+    );
+  }
   return (
     <div
       data-keeps-selection
-      className={BAR}
+      className={compact ? SLIM_BAR : BAR}
       // A press on a button keeps focus in the field, so it does not blur and save first
       onMouseDown={(e) => {
         if ((e.target as HTMLElement).closest("button")) e.preventDefault();
@@ -876,6 +956,121 @@ function Bar({
         )}
       </div>
     </div>
+  );
+}
+
+/** The slim bar's box: a quiet white row, not the brand-tinted bar. */
+const SLIM_BAR =
+  "bg-panel/95 ring-border-subtle sticky top-2 z-20 flex min-h-10 flex-wrap items-center gap-2 rounded-xl px-2 py-1 ring-1 backdrop-blur";
+
+/** The slim bar with no line selected: the hint while the pointer is over
+ *  the page, the page count as a chip that offers Fit to One Page, and
+ *  Download and Ask Scout as icon buttons. */
+function SlimBar({
+  overPage,
+  rendered,
+  hint,
+  saving,
+  elapsed,
+  fitUndo,
+  download,
+  onFit,
+  onUndoFit,
+  onAsk,
+}: {
+  overPage: boolean;
+  rendered: RenderedPdf | null;
+  hint: boolean;
+  saving: boolean;
+  elapsed: number | null;
+  fitUndo: ChoicesUpdate | null;
+  download: ResumeDownload;
+  onFit: () => void;
+  onUndoFit: () => void;
+  onAsk?: () => void;
+}) {
+  return (
+    <div data-keeps-selection className={SLIM_BAR}>
+      {rendered && rendered.page_count > 1 && (
+        <PagesChip
+          pages={rendered.page_count}
+          linesOver={rendered.lines_over}
+          disabled={saving}
+          onFit={onFit}
+        />
+      )}
+      {fitUndo && (
+        <Button variant="ghost" size="xs" onClick={onUndoFit} disabled={saving}>
+          <ArrowUUpLeftIcon aria-hidden /> Undo Fit
+        </Button>
+      )}
+      <span
+        className={cn(
+          "text-note text-ink-meta flex items-center gap-1.5 transition-opacity",
+          !(hint && overPage) && "opacity-0",
+        )}
+      >
+        <CursorClickIcon aria-hidden className="size-4 shrink-0" />
+        Click a line to edit it.
+      </span>
+      <div className="ml-auto flex items-center gap-1">
+        <span className="text-note text-ink-meta pr-1" aria-live="polite">
+          {saving ? "Saving…" : elapsed != null ? `Saved, ${elapsed} ms` : ""}
+        </span>
+        <DownloadMenu download={download} iconOnly />
+        {onAsk && (
+          <IconButton
+            label="Ask Scout"
+            variant="outline"
+            className="text-brand size-8"
+            onClick={onAsk}
+            disabled={!rendered}
+          >
+            <SparkleIcon />
+          </IconButton>
+        )}
+      </div>
+    </div>
+  );
+}
+
+/** The page count as a small chip; its click offers Fit to One Page. */
+function PagesChip({
+  pages,
+  linesOver,
+  disabled,
+  onFit,
+}: {
+  pages: number;
+  linesOver: number;
+  disabled: boolean;
+  onFit: () => void;
+}) {
+  const [open, setOpen] = useState(false);
+  return (
+    <Popover open={open} onOpenChange={setOpen}>
+      <PopoverTrigger className="bg-warning-tint text-warning text-note focus-visible:ring-brand-ring rounded-full px-2.5 py-1 font-medium focus-visible:ring-2 focus-visible:outline-none">
+        {pages} pages
+      </PopoverTrigger>
+      <PopoverContent align="start" className="flex w-72 flex-col gap-3">
+        <p className="text-note text-ink-muted">
+          {linesOver > 0
+            ? `About ${linesOver} ${linesOver === 1 ? "line runs" : "lines run"} onto page 2.`
+            : `It runs to ${pages} pages.`}{" "}
+          Fit to One Page hides the least useful lines until it fits.
+        </p>
+        <Button
+          size="sm"
+          disabled={disabled}
+          onClick={() => {
+            setOpen(false);
+            onFit();
+          }}
+        >
+          <ScissorsIcon aria-hidden /> Fit to One Page
+        </Button>
+      </PopoverContent>
+    </Popover>
   );
 }
 

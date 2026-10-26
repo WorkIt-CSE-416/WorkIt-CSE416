@@ -10,6 +10,7 @@ import {
   DropdownMenuItem,
   DropdownMenuTrigger,
 } from "@/components/shadcn/dropdown-menu";
+import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/shadcn/tooltip";
 import { Button } from "@/components/ui/button";
 import { downloadResumeFile, renderResumePdf, type ResumeFile } from "@/lib/built-resume-actions";
 
@@ -77,17 +78,42 @@ const BUSY: Record<Format, string> = {
  * PDF's own source, for a student who edits it in Overleaf. While a file
  * is being made, the trigger says which one and takes no second pick.
  */
-export function DownloadMenu({ download }: { download: ResumeDownload }) {
+export function DownloadMenu({
+  download,
+  iconOnly = false,
+}: {
+  download: ResumeDownload;
+  /** The glyph alone, named by its tooltip (Tailor's slim editor bar). */
+  iconOnly?: boolean;
+}) {
   const { busy, pick } = download;
+  const label = busy ? BUSY[busy] : "Download";
   return (
     <DropdownMenu>
-      <DropdownMenuTrigger
-        disabled={busy !== null}
-        render={<Button variant="secondary" size="sm" />}
-      >
-        <FileArrowDownIcon aria-hidden /> {busy ? BUSY[busy] : "Download"}
-        <ChevronDownIcon className="text-ink-meta" />
-      </DropdownMenuTrigger>
+      {iconOnly ? (
+        <Tooltip>
+          <TooltipTrigger
+            render={
+              <DropdownMenuTrigger
+                disabled={busy !== null}
+                aria-label={label}
+                render={<Button variant="outline" size="icon" />}
+              />
+            }
+          >
+            <FileArrowDownIcon aria-hidden />
+          </TooltipTrigger>
+          <TooltipContent>{label}</TooltipContent>
+        </Tooltip>
+      ) : (
+        <DropdownMenuTrigger
+          disabled={busy !== null}
+          render={<Button variant="secondary" size="sm" />}
+        >
+          <FileArrowDownIcon aria-hidden /> {label}
+          <ChevronDownIcon className="text-ink-meta" />
+        </DropdownMenuTrigger>
+      )}
       <DropdownMenuContent>
         <DropdownMenuItem onClick={() => pick("pdf")}>PDF</DropdownMenuItem>
         <DropdownMenuItem onClick={() => pick("docx")}>Word</DropdownMenuItem>

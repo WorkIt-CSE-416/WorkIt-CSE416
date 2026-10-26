@@ -1,9 +1,15 @@
 "use client";
 
-import { CheckIcon, XIcon } from "@phosphor-icons/react/ssr";
+import { CaretDownIcon, CheckIcon, XIcon } from "@phosphor-icons/react/ssr";
 import { useEffect, useRef, useState, type ComponentProps, type ReactNode } from "react";
 
-import { Badge } from "@/components/ui/badge";
+import { EllipsisIcon } from "@/components/icons";
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuTrigger,
+} from "@/components/shadcn/dropdown-menu";
 import { Button } from "@/components/ui/button";
 import type { Bank } from "@/lib/bank-actions";
 import type { Choices } from "@/lib/built-resume-actions";
@@ -14,6 +20,7 @@ import { Editor } from "../../../resumes/[resumeId]/editor";
 import { wording } from "../../../resumes/[resumeId]/model";
 import {
   editKey,
+  GROUPS,
   movesOf,
   useTailorReview,
   type SuggestionsApi,
@@ -22,19 +29,27 @@ import { ResumePreviewDialog } from "./resume-preview";
 import { TailorScore } from "./tailor-score";
 
 /**
- * Tailor's review step (docs/tailor_resume.md, "Marking and reverting
- * changes"): the tailored resume in the editor, with a Suggestions panel
- * beside it, as a document's suggestions sit in its margin. The run's
- * changes are saved already, so each card offers Accept, which keeps the
- * change and clears its tint, and Reject, which undoes it. Pointing at a
- * card outlines its lines on the page; clicking a tinted line brings its
- * card up. The editor owns the state and lays the panel out
- * (`suggestions`); this file draws it.
+ * Tailor's review step (docs/tailor_resume.md, "Suggestions"), kept quiet
+ * after Quinncia's resume review: two columns under small labels, the
+ * tailored resume in the editor's slim toolbar (`compact`) and the
+ * Suggestions panel. Each changed line has a numbered dot in the page's
+ * margin; a line is tinted only while its card is pointed at, focused or
+ * open. The panel groups the cards (Wording, Order, Skills) in folding
+ * sections, and each card opens to show its before and after with Accept,
+ * which keeps the saved change, and Reject, which undoes it. The editor
+ * owns the state and lays the panel out (`suggestions`); this file draws
+ * it.
  *
  * The record lives in this tab's sessionStorage, so a new tab or device has
  * no suggestions: the editor shows alone, with a line that says why.
  */
-export function TailorReview(editor: ComponentProps<typeof Editor>) {
+export function TailorReview({
+  name,
+  ...editor
+}: ComponentProps<typeof Editor> & {
+  /** The tailored resume's name, in the page column's label. */
+  name: string;
+}) {
   const [record] = useTailorReview(editor.resumeId);
   // Storage is read after mount; until then the page shows no line about it.
   const [read, setRead] = useState(false);
@@ -49,21 +64,39 @@ export function TailorReview(editor: ComponentProps<typeof Editor>) {
   );
 
   return (
-    // The page and the panel need more than the reading width, so with a
-    // record the review widens to the shell's, up to 76rem.
-    <div
-      className={cn(
-        "[--wide:max(100%,min(76rem,calc(100cqw_-_6rem)))]",
-        record && "@4xl/main:ml-[calc((100%_-_var(--wide))/2)] @4xl/main:w-(--wide)",
-      )}
-    >
+    <>
       {noRecord}
       <Editor
         {...editor}
+        compact
+        heading={<ColumnLabel>Resume · {name}</ColumnLabel>}
         phoneBar={noRecord}
         suggestions={(api) => <SuggestionsPanel {...api} />}
       />
-    </div>
+    </>
+  );
+}
+
+/** A column's quiet label: small capitals in the meta grey. */
+function ColumnLabel({
+  id,
+  className,
+  children,
+}: {
+  id?: string;
+  className?: string;
+  children: ReactNode;
+}) {
+  return (
+    <h2
+      id={id}
+      className={cn(
+        "text-caption text-ink-meta truncate font-semibold tracking-wide uppercase",
+        className,
+      )}
+    >
+      {children}
+    </h2>
   );
 }
 
@@ -75,7 +108,7 @@ function ViewOriginal({ source }: { source: TailorSource }) {
   const [open, setOpen] = useState(false);
   return (
     <>
-      <Button variant="secondary" size="sm" className="ml-auto" onClick={() => setOpen(true)}>
+      <Button variant="ghost" size="xs" onClick={() => setOpen(true)}>
         View Original
       </Button>
       <ResumePreviewDialog
@@ -87,6 +120,9 @@ function ViewOriginal({ source }: { source: TailorSource }) {
     </>
   );
 }
+
+/** A group opens by default only when it is this small. */
+const OPEN_UP_TO = 3;
 
 function SuggestionsPanel({
   record,
@@ -101,71 +137,120 @@ function SuggestionsPanel({
   focus,
   show,
   active,
+  open,
+  numberOf,
 }: SuggestionsApi) {
   const { edits, match } = record;
-  const list = useRef<HTMLOListElement>(null);
-  // The card of the tinted line last clicked comes into view
+  const list = useRef<HTMLDivElement>(null);
+  const [openGroups, setOpenGroups] = useState<Set<string>>(
+    () =>
+      new Set(
+        GROUPS.filter((g) => edits.filter((e) => e.kind === g.kind).length <= OPEN_UP_TO).map(
+          (g) => g.kind,
+        ),
+      ),
+  );
+  // A card opened from the page (its line or dot) opens its group too
+  const [seen, setSeen] = useState(active);
+  if (active !== seen) {
+    setSeen(active);
+    const kind = edits.find((e) => editKey(e) === active)?.kind;
+    if (kind && !openGroups.has(kind)) setOpenGroups(new Set([...openGroups, kind]));
+  }
+  // The open card comes into view
   useEffect(() => {
     if (!active) return;
     list.current
       ?.querySelector(`[data-card="${CSS.escape(active)}"]`)
       ?.scrollIntoView({ block: "nearest", behavior: "smooth" });
-  }, [active]);
+  }, [active, openGroups]);
+
+  const toggle = (kind: string) => {
+    const next = new Set(openGroups);
+    if (next.has(kind)) next.delete(kind);
+    else next.add(kind);
+    setOpenGroups(next);
+  };
 
   return (
-    <section
-      aria-labelledby="suggestions-heading"
-      // A card beside the page; bare in the phone's sheet, which has its own
-      // frame and title
-      className="sm:bg-panel sm:ring-border-subtle flex flex-col gap-3 sm:rounded-2xl sm:p-4 sm:shadow-sm sm:ring-1"
-    >
+    <section aria-labelledby="suggestions-heading" className="flex flex-col gap-2">
       {/* The top stays in view while the cards scroll under it */}
-      <div className="bg-panel sticky top-0 z-10 flex flex-col gap-3 pb-1 sm:-mx-4 sm:-mt-4 sm:rounded-t-2xl sm:px-4 sm:pt-4">
-        <div className="flex items-center gap-2">
-          <h2 id="suggestions-heading" className="text-title text-ink max-sm:sr-only">
-            Suggestions
-          </h2>
+      <div className="bg-panel sticky top-0 z-10 flex flex-col gap-2 pb-2">
+        <div className="flex min-h-8 items-center gap-1">
+          <ColumnLabel id="suggestions-heading" className="mr-auto max-sm:sr-only">
+            Suggestions · {edits.length}
+          </ColumnLabel>
           {record.source && <ViewOriginal source={record.source} />}
+          <DropdownMenu>
+            <DropdownMenuTrigger
+              disabled={saving || edits.length === 0}
+              aria-label="More Actions"
+              render={<Button variant="ghost" size="icon-sm" />}
+            >
+              <EllipsisIcon className="size-4" />
+            </DropdownMenuTrigger>
+            <DropdownMenuContent align="end">
+              <DropdownMenuItem onClick={acceptAll}>Accept All</DropdownMenuItem>
+              <DropdownMenuItem onClick={rejectAll}>Reject All</DropdownMenuItem>
+            </DropdownMenuContent>
+          </DropdownMenu>
         </div>
         {match && <TailorScore match={match} />}
-        {edits.length > 0 && (
-          <div className="flex flex-wrap items-center gap-2">
-            <p className="text-label text-ink mr-auto">
-              {edits.length} {edits.length === 1 ? "Suggestion" : "Suggestions"}
-            </p>
-            <Button variant="secondary" size="sm" disabled={saving} onClick={rejectAll}>
-              Reject All
-            </Button>
-            <Button size="sm" disabled={saving} onClick={acceptAll}>
-              Accept All
-            </Button>
-          </div>
-        )}
       </div>
       {edits.length > 0 ? (
-        <>
-          <ol ref={list} role="list" className="flex flex-col gap-2">
-            {edits.map((edit) => {
-              const key = editKey(edit);
-              return (
-                <li key={key}>
-                  <Card
-                    edit={edit}
-                    bank={bank}
-                    choices={choices}
-                    cardKey={key}
-                    lit={focused === key || active === key}
-                    saving={saving}
-                    onFocus={focus}
-                    onShow={() => show(key)}
-                    onAccept={() => accept(edit)}
-                    onReject={() => reject(edit)}
+        <div ref={list} className="flex flex-col gap-3">
+          {GROUPS.map((group) => {
+            const inGroup = edits.filter((e) => e.kind === group.kind);
+            if (inGroup.length === 0) return null;
+            const isOpen = openGroups.has(group.kind);
+            return (
+              <div key={group.kind} className="flex flex-col gap-1.5">
+                <button
+                  type="button"
+                  aria-expanded={isOpen}
+                  onClick={() => toggle(group.kind)}
+                  className="text-label text-ink focus-visible:ring-brand-ring flex items-center gap-1.5 rounded-xs text-left font-medium focus-visible:ring-2 focus-visible:outline-none"
+                >
+                  <CaretDownIcon
+                    aria-hidden
+                    className={cn(
+                      "text-ink-meta size-3.5 transition-transform",
+                      !isOpen && "-rotate-90",
+                    )}
                   />
-                </li>
-              );
-            })}
-          </ol>
-        </>
+                  {group.title}
+                  <span className="text-ink-meta font-normal">{inGroup.length}</span>
+                </button>
+                {isOpen && (
+                  <ol role="list" className="flex flex-col gap-1.5">
+                    {inGroup
+                      .map((edit) => ({ edit, key: editKey(edit) }))
+                      .sort((a, b) => numberOf(a.key) - numberOf(b.key))
+                      .map(({ edit, key }) => (
+                        <li key={key}>
+                          <Card
+                            edit={edit}
+                            bank={bank}
+                            choices={choices}
+                            cardKey={key}
+                            n={numberOf(key)}
+                            lit={focused === key}
+                            isOpen={active === key}
+                            saving={saving}
+                            onFocus={focus}
+                            onToggle={() => open(active === key ? null : key)}
+                            onShow={() => show(key)}
+                            onAccept={() => accept(edit)}
+                            onReject={() => reject(edit)}
+                          />
+                        </li>
+                      ))}
+                  </ol>
+                )}
+              </div>
+            );
+          })}
+        </div>
       ) : (
         <p className="text-note text-ink-meta">
           You handled every suggestion. Edit anything else on the resume.
@@ -176,19 +261,38 @@ function SuggestionsPanel({
 }
 
 const KIND_TITLES: Record<TailorEdit["kind"], string> = {
-  reword: "New Wording",
-  order: "New Order",
-  skill: "Added Skill",
+  reword: "New wording",
+  order: "New order",
+  skill: "Added skill",
 };
+
+/** A card's number, drawn as its lines' margin dots are
+ *  (../../../resumes/[resumeId]/pdf-pages.tsx). */
+function NumberDot({ n, kind }: { n: number; kind: TailorEdit["kind"] }) {
+  return (
+    <span
+      aria-hidden
+      className={cn(
+        "flex h-4 min-w-4 shrink-0 items-center justify-center rounded-full px-1 text-xs font-semibold tabular-nums",
+        kind === "order" ? "bg-warning-fill text-ink" : "bg-positive-ink text-on-brand",
+      )}
+    >
+      {n}
+    </span>
+  );
+}
 
 function Card({
   edit,
   bank,
   choices,
   cardKey,
+  n,
   lit,
+  isOpen,
   saving,
   onFocus,
+  onToggle,
   onShow,
   onAccept,
   onReject,
@@ -197,9 +301,12 @@ function Card({
   bank: Bank;
   choices: Choices;
   cardKey: string;
+  n: number;
   lit: boolean;
+  isOpen: boolean;
   saving: boolean;
   onFocus: (key: string | null) => void;
+  onToggle: () => void;
   onShow: () => void;
   onAccept: () => void;
   onReject: () => void;
@@ -215,37 +322,59 @@ function Card({
       }}
       className={cn(
         // Clear of the panel's pinned top when scrolled to
-        "bg-panel ring-border-subtle scroll-mt-44 rounded-xl ring-1 transition-shadow",
-        lit && "ring-brand ring-2",
+        "scroll-mt-24 rounded-lg transition-colors",
+        isOpen ? "bg-panel ring-border-subtle shadow-sm ring-1" : lit && "bg-panel",
       )}
     >
-      {/* The card's body shows its lines on the page; the buttons act */}
       <button
         type="button"
-        onClick={onShow}
-        aria-label={`${KIND_TITLES[edit.kind]}: show on the resume`}
-        className="focus-visible:outline-brand flex w-full flex-col gap-1.5 rounded-xl p-3 pb-2 text-left focus-visible:outline-2"
+        aria-expanded={isOpen}
+        onClick={onToggle}
+        className="focus-visible:outline-brand flex w-full items-center gap-2 rounded-lg px-2 py-1.5 text-left focus-visible:outline-2"
       >
-        <span className="flex min-w-0 items-center gap-2">
-          <Badge variant="tag" tone={edit.kind === "order" ? "warning" : "positive"}>
-            {KIND_TITLES[edit.kind]}
-          </Badge>
-          <span className="text-note text-ink-meta truncate">{where(edit, bank)}</span>
-        </span>
-        <span className="text-note text-ink block">
-          <Change edit={edit} bank={bank} choices={choices} />
-        </span>
+        <NumberDot n={n} kind={edit.kind} />
+        <span className="sr-only">{KIND_TITLES[edit.kind]}: </span>
+        <span className="text-note text-ink min-w-0 flex-1 truncate">{summary(edit)}</span>
       </button>
-      <div className="flex justify-end gap-2 px-3 pb-3">
-        <Button variant="secondary" size="sm" disabled={saving} onClick={onReject}>
-          <XIcon aria-hidden /> Reject
-        </Button>
-        <Button variant="secondary" size="sm" disabled={saving} onClick={onAccept}>
-          <CheckIcon aria-hidden /> Accept
-        </Button>
-      </div>
+      {isOpen && (
+        <div className="flex flex-col gap-2 px-2 pb-2 pl-8">
+          <p className="text-caption text-ink-meta truncate">
+            {KIND_TITLES[edit.kind]}
+            {where(edit, bank) && ` · ${where(edit, bank)}`}
+          </p>
+          <p className="text-note text-ink">
+            <Change edit={edit} bank={bank} choices={choices} />
+          </p>
+          <div className="flex items-center gap-1.5">
+            {/* On a phone the sheet covers the page: this shows the line */}
+            <Button variant="ghost" size="xs" className="mr-auto sm:hidden" onClick={onShow}>
+              Show on Resume
+            </Button>
+            <Button
+              variant="ghost"
+              size="xs"
+              className="ml-auto"
+              disabled={saving}
+              onClick={onReject}
+            >
+              <XIcon aria-hidden /> Reject
+            </Button>
+            <Button variant="secondary" size="xs" disabled={saving} onClick={onAccept}>
+              <CheckIcon aria-hidden /> Accept
+            </Button>
+          </div>
+        </div>
+      )}
     </div>
   );
+}
+
+/** A closed card's one line: the new wording, the entry reordered, or the
+ *  skill added. */
+function summary(edit: TailorEdit) {
+  if (edit.kind === "reword") return edit.text ?? "";
+  if (edit.kind === "order") return `${edit.label ?? "An entry"}: bullets reordered`;
+  return edit.label ?? "";
 }
 
 /** The entry a change sits in, or a skill's group. */

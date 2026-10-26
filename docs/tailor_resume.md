@@ -224,38 +224,48 @@ tailored one in the editor, and a Suggestions panel on its right, as a
 document's suggestions sit in its margin
 (`jobs/[jobId]/tailor/tailor-suggestions.tsx`). It replaced a before and
 after side by side (2026-10-26), which the user found showed too much at
-once, with the changes and their Revert controls hard to follow.
+once, with the changes and their Revert controls hard to follow. A first
+panel with every card open and every line tinted was then made quiet
+after Quinncia's resume review (2026-10-26): everything had the same
+weight.
 
-- **The panel's top** holds the keyword match ("3 → 5 of 8" and the
-  keywords the run added, `tailor-score.tsx`), the count ("5
-  Suggestions"), and Reject All and Accept All. It stays in view while
-  the cards scroll under it. **View Original**, beside the heading,
-  opens the source resume (the record's `source`) read-only in step 1's
-  Preview dialog (`ResumePreviewDialog`), titled "Original Resume" since
-  the record keeps the source's id, not its name.
-- **One card per change**: a new wording shows the old words struck and
-  the new ones highlighted, inline when only a run in the middle changed,
-  else the old line over the new one; a new order names the entry and each
-  bullet's place before and now ("2nd → 1st"); an added skill shows its
-  name and group.
-- **Accept keeps the change** (it is saved already): the card and the
-  line's tint go. **Reject undoes it** through the choices PATCH
-  (`revertOf`, above) and drops it. Reject All is one PATCH
-  (`revertAll`), each bullet's parts merged into one row. Accept All
-  empties the list.
-- **Linked both ways.** Pointing at or focusing a card outlines its lines
-  on the resume and brings the first into view; clicking a tinted line
-  selects it for editing, as any line, and brings its card up, lit. The
-  hover Revert and the "Before" tooltip on lines are gone: the cards hold
-  both.
+- **Two quiet columns** under small capitals: "Resume · <name>" over the
+  page and "Suggestions · 6" over the panel. The editor's toolbar is its
+  slim row here (`compact`): icon buttons for Download and Ask Scout, the
+  page count as a chip ("2 pages") whose click offers Fit to One Page, and
+  "Click a line to edit it." only while the pointer is over the page.
+- **Dots, not tints.** Each changed line has a small numbered dot in the
+  page's left margin, green for a new wording or skill, amber for a moved
+  bullet; dots on one line (skills) stack like coins. A card's number is
+  given once, in the panel's order, and kept as cards are handled. A line
+  is tinted only while its card is pointed at, focused or open; a click on
+  a dot or on a changed line opens its card (and its group).
+- **The panel's top**, pinned while the cards scroll: View Original and a
+  "…" menu (Accept All, Reject All), then the keyword match as one thin
+  row over a hairline meter ("Keyword match 3 → 9 of 14", the keywords
+  added under it). When the run matched no new keyword it says "3 of 14 ·
+  No new keywords matched": an arrow to the same number read as a fault.
+  View Original opens the source resume (the record's `source`) read-only
+  in step 1's Preview dialog (`ResumePreviewDialog`), titled "Original
+  Resume" since the record keeps the source's id, not its name.
+- **Cards fold in groups**, Wording, Order and Skills, each with its
+  count, open at first only with three cards or fewer. A closed card shows
+  its number and one line: the new wording, the entry reordered, or the
+  skill. Open, it shows the change, the old words struck and the new ones
+  highlighted (inline when only a run in the middle changed, else the old
+  line over the new one), each moved bullet's place before and now ("2nd
+  → 1st"), or the skill and its group, with small ✕ Reject and ✓ Accept.
+- **Accept keeps the change** (it is saved already): the card and its
+  dots go. **Reject undoes it** through the choices PATCH (`revertOf`,
+  above) and drops it. Reject All is one PATCH (`revertAll`), each
+  bullet's parts merged into one row. Accept All empties the list.
 - **Only Tailor's page reviews.** The editor takes the panel as a prop
-  (`suggestions`); without it, as on `/resumes/[id]`, it shows no tints.
-  The panel shares the Ask Scout column and gives way to the assistant
-  while it is open. With a record, the review widens to the shell's width,
-  up to 76rem, so the page keeps its size beside the 360px panel.
+  (`suggestions`); without it, as on `/resumes/[id]`, it shows no dots or
+  tints and keeps its full toolbar. The panel shares the Ask Scout column
+  and gives way to the assistant while it is open.
 - **On a phone** the panel is a sheet opened by "Suggestions (5)" in the
-  bottom bar; tapping a card's text closes the sheet and outlines its
-  line.
+  bottom bar, with the same cards; an open card's Show on Resume closes
+  the sheet and tints its line, and a dot opens the sheet on its card.
 - **When every card is handled**, the panel says so in one line under the
   score.
 
