@@ -113,7 +113,10 @@ builds it: `dist/engine.js` is committed in the engine repo.
   waits. The student checks the step and presses Save and Continue; the
   next step is filled when Workday shows it: a step is told from the last
   by its name and its number in the bar, since a tenant may name two steps
-  alike (a second "Application Questions"). The extension never presses
+  alike (a second "Application Questions"). A step the tab filled before
+  (the student went back to it, or it loaded again; `workday.filledBefore`,
+  session storage) gets only its empty fields filled, so the student's
+  saved answers stay. The extension never presses
   Save and Continue or Submit. A step that loads as a new page drops the
   content script, so the background remembers the tab
   (`workday_fill_tabs`, session storage) and injects the fill again when

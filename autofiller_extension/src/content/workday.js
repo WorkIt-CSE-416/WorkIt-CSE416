@@ -221,6 +221,27 @@ window.WIA = window.WIA || {};
     return /\bstep (\d+) of \d+/i.exec(document.querySelector(WORKDAY_STEP)?.innerText ?? "")?.[1] ?? "";
   }
 
+  // This tab's steps filled before, kept across its page loads: "<application path> <step>#<number>".
+  const FILLED_STEPS = "workit-workday-filled";
+
+  /**
+   * Whether this tab filled the step shown before (the student went back to
+   * it, or the page loaded again), and marks it filled. A step filled before
+   * gets only its empty fields filled: what shows is what the student saved.
+   */
+  function filledBefore() {
+    const key = `${location.pathname.replace(/\/apply(\/.*)?$/, "")} ${workdayStep()}#${stepNumber()}`;
+    let filled = [];
+    try {
+      filled = JSON.parse(sessionStorage.getItem(FILLED_STEPS) ?? "[]");
+    } catch {}
+    if (filled.includes(key)) return true;
+    try {
+      sessionStorage.setItem(FILLED_STEPS, JSON.stringify([...filled, key]));
+    } catch {}
+    return false;
+  }
+
   // The number of the step stepAfter last resolved with.
   let resolvedNumber = "";
 
@@ -502,5 +523,6 @@ window.WIA = window.WIA || {};
     watchStart,
     quiet,
     stepAfter,
+    filledBefore,
   };
 })();

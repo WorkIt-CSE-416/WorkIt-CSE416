@@ -130,3 +130,36 @@ test("a step named as the one before it (two Application Questions, as Workday n
   ]];
   await walk([...STEPS.slice(0, 3), more, ...STEPS.slice(3)], true);
 });
+
+for (const inPlace of [false, true]) {
+  test(`a step the student goes back to keeps their own answers${inPlace ? " (drawn in place)" : ""}`, async () => {
+    test.setTimeout(180_000);
+    const steps = STEPS.slice(0, 2);
+    const workdays = new FakeWorkdays(["workday-caci"], steps);
+    if (inPlace) workdays.inPlace.add("caci.wd1.myworkdayjobs.com");
+    const api = new FakeApi().queue({ id: "wd-0", apply_url: workdays.signInUrl(0) });
+    loaded = await loadExtension([api.handler, webapp, workdays.handler]);
+    await signIn(loaded.context);
+    const app = loaded.context.pages()[0] ?? (await loaded.context.newPage());
+    await app.goto("http://localhost:3000/auto-apply");
+    await sendFromWebapp(app, { type: "run/open" });
+    await expect.poll(() => loaded!.context.pages().some((p) => p.url() === workdays.signInUrl(0)), { timeout: 30_000 }).toBe(true);
+    const tab = loaded.context.pages().find((p) => p.url() === workdays.signInUrl(0))!;
+    await overlay(tab).locator(".moment.workday-accounts [data-allow]").click({ timeout: 30_000 });
+    await tab.waitForURL(workdays.url(0), { timeout: 30_000 });
+
+    // My Information: the student changes WorkIt's first name and saves the step.
+    await filled(tab, steps[0], 2, 4);
+    await answerLeft(tab, steps, 0);
+    const first = tab.locator("[data-automation-id=formField-legalName--firstName] input");
+    await first.fill("Tess");
+    await tab.locator("[data-automation-id=pageFooterNextButton]").click();
+    await filled(tab, steps[1], 3, 4);
+    // Back on My Information (Workday shows what was saved): WorkIt doesn't put its own answer back.
+    if (inPlace) await tab.evaluate((url) => (window as any).__fakeGo(url), workdays.url(0));
+    else await tab.goto(workdays.url(0));
+    await expect(tab.locator("[data-automation-id=progressBarActiveStep]")).toContainText("step 2 of 4");
+    await tab.waitForTimeout(8_000);
+    expect(await first.inputValue()).toBe("Tess");
+  });
+}

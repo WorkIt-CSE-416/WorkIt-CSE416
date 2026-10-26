@@ -90,9 +90,10 @@
    * Plans and fills the form shown (on Workday, the step shown), planning
    * again whenever a fill brings on new questions, and on Workday once more
    * after the last answer, for a follow-up it brought up. Returns the last
-   * Plan, or null if nothing could be filled.
+   * Plan, or null if nothing could be filled. `emptyOnly`: a Workday step
+   * filled before keeps what it shows (the student's saved answers).
    */
-  async function fillShown() {
+  async function fillShown(emptyOnly = false) {
     const shown = new Set();
     const done = new Set();
     const written = new Map();
@@ -157,6 +158,15 @@
       let more = null;
       let filledAny = false;
       const left = Object.fromEntries(Object.entries(answers).filter(([name]) => !done.has(name)));
+      if (emptyOnly && Object.keys(left).length) {
+        const read = await send({ type: "fill/read", site: prepared.site, questions, names: Object.keys(left), state });
+        for (const [name, shown] of Object.entries(read.ok ? read.shows : {})) {
+          if (isEmpty(shown)) continue;
+          delete left[name];
+          done.add(name);
+          status.setStatus(name, "filled", "Saved on Workday before. WorkIt left it as it is.", shown);
+        }
+      }
       if (Object.keys(left).length) {
         const answer = await send({
           type: "fill/page", site: prepared.site, questions, answers: left, accepted: prepared.plan.accepted, state, sections: prepared.step?.sections,
@@ -409,7 +419,7 @@
     await workday.quiet();
     status.reset();
     window.WIA.phase = "filling";
-    const prepared = await fillShown();
+    const prepared = await fillShown(workday.filledBefore());
     if (!prepared) {
       window.WIA.phase = "stopped";
       window.WIA.running = false;
