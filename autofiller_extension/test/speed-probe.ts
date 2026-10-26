@@ -21,7 +21,8 @@ export const MAIN_PROBE = `(() => {
     const all = (new Error().stack || "").split("\\n").slice(2).map((l) => l.trim().replace(/^at /, ""));
     const site = all.filter((l) => l.includes("chrome-extension://")).slice(0, 6);
     if (!site.length) return set.call(window, fn, ms, ...rest);
-    // own: set by the extension's code itself; else by the page's own code, in an event the extension fired.
+    // own: set by the extension's code itself; else by the page's code (its own timer, in an event the extension
+    // fired, or a setTimeout wrapper of the page's, as Sentry's: timersBySite counts the engine's sleep() as its own).
     const rec = { ms: Number(ms) || 0, set: Date.now(), site, own: all[0].includes("chrome-extension://") };
     S.timers.push(rec);
     const id = set.call(window, function () { rec.fired = Date.now(); byId.delete(id); return typeof fn === "function" ? fn.apply(this, arguments) : undefined; }, ms, ...rest);
@@ -232,7 +233,9 @@ export function timersBySite(timers: Timer[], from: number, to: number, world: s
   const sites = new Map<string, { world: string; site: string; caller: string; count: number; askedMs: number; tookMs: number; cleared: number }>();
   for (const t of timers) {
     if (t.set < from || t.set > to) continue;
-    const site = (t.own === false ? PAGE_OWN : "") + sourceOf(t.site[0]);
+    const at0 = sourceOf(t.site[0]);
+    // The engine's sleep() (page.ts:4) is its own even when the page wraps setTimeout (Lever's Sentry does).
+    const site = (t.own === false && !at0.startsWith("fill-engine/src/page.ts:4") ? PAGE_OWN : "") + at0;
     // Who asked: the next three frames that are neither this one nor a promise's.
     const at = (f: string) => f.replace(PAGE_OWN, "").split(" ")[0];
     const chain: string[] = [];
