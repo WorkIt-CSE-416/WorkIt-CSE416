@@ -3,10 +3,11 @@
 // can't fill: a web page on a host the manifest doesn't list, or one the
 // Fill engine fills nothing on. The popup reads that tab's link only because
 // the student pressed the icon there (activeTab), and sends it only on Save
-// to WorkIt or Send report.
+// to WorkIt or Send report; Request this job system (KAN-369) sends only its
+// host.
 
 import { DEV_WEB_URL, PROD_SITES } from "../shared/config.js";
-import { saveJobByLink } from "./api.js";
+import { requestJobSystem, saveJobByLink } from "./api.js";
 import { jobOf } from "./engine.js";
 import { reportOf, sendReport } from "./report.js";
 
@@ -86,7 +87,27 @@ export async function popupPage(tabId) {
   const url = await linkOf(tabId);
   const web = /^https?:/.test(url) && !OWN_ORIGINS.some((origin) => url.startsWith(origin));
   if (!web || jobOf(url) || onListedHost(url) || !(await looksLikePosting(tabId, url))) return { unsupported: false };
-  return { unsupported: true, report: reportOf(url) };
+  return { unsupported: true, report: reportOf(url), requested: (await requestedHosts()).includes(new URL(url).hostname) };
+}
+
+// The hosts this browser asked WorkIt to add (chrome.storage.local), so a student asks once per job system.
+const REQUESTED = "requested_job_systems";
+const requestedHosts = async () => (await chrome.storage.local.get(REQUESTED))[REQUESTED] ?? [];
+
+/**
+ * Request this job system: the tab's host (no path, page text or answer)
+ * to WorkIt (POST /job-system-requests), once per host from this browser.
+ */
+export async function requestTabSystem(tabId) {
+  const url = await linkOf(tabId);
+  if (!/^https?:/.test(url)) throw new Error("Not a web page");
+  const host = new URL(url).hostname;
+  const asked = await requestedHosts();
+  if (!asked.includes(host)) {
+    await requestJobSystem(host);
+    await chrome.storage.local.set({ [REQUESTED]: [...asked, host] });
+  }
+  return {};
 }
 
 /** Save to WorkIt: the feed's job whose apply link the tab is, saved to the student's Applications. */

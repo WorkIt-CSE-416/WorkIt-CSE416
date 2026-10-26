@@ -52,6 +52,8 @@ export class FakeApi {
   refusePastes: string[] | null = null;
   /** The problem reports the extension sent (POST /fill-reports, KAN-403), each as its body, in order. */
   readonly reports: unknown[] = [];
+  /** The job system requests the popup sent (POST /job-system-requests, KAN-369), each as its body, in order. */
+  readonly systemRequests: unknown[] = [];
   /** In order: "next:<job>" when GET .../applications/next hands a job out (its tab opens), "questions:<job>" when its questions arrive. */
   readonly events: string[] = [];
 
@@ -147,6 +149,10 @@ export class FakeApi {
     if (path === "/fill-reports" && method === "POST") {
       this.reports.push(JSON.parse(body.toString()));
       return { status: 201, json: { stored: true } };
+    }
+    if (path === "/job-system-requests" && method === "POST") {
+      this.systemRequests.push(JSON.parse(body.toString()));
+      return { status: 201, json: { id: "request-1" } };
     }
     if (path === "/jobs/saved-by-link" && method === "POST") {
       // applications.py's Save to WorkIt by the page's link (KAN-401): the feed's job whose apply link it is.

@@ -15,7 +15,7 @@ import {
   batchStatus, batchTabIds, forgetTab, inBatch, jobInTab, jobTypeInTab, markSubmitted, unmarkSubmitted, practiceStatus, resumeBatch, setTabState, setWriting,
   showBatchTab, skipTab, closeClosedTab, startBatch, startPractice, submitPractice,
 } from "./batch.js";
-import { popupPage, reportTab, saveTabJob, webappOrigin } from "./panel-states.js";
+import { popupPage, reportTab, requestTabSystem, saveTabJob, webappOrigin } from "./panel-states.js";
 import { engineCaller, handleFill, jobOf, practiceJob, runEngine, submittedPage } from "./engine.js";
 import { claimMoment } from "./moments.js";
 import { nextNeedsYou, walkFrom } from "./next-needs-you.js";
@@ -372,6 +372,8 @@ async function handleMessage(message, sender) {
       return saveTabJob(message.tabId);
     case "popup/report":
       return reportTab(message.tabId, message.note);
+    case "popup/request":
+      return requestTabSystem(message.tabId);
     case "panel/fill":
       await injectFill(sender.tab.id, { batch: Boolean(message.batch) && (await inBatch(sender.tab.id)), frameId: sender.frameId || undefined });
       return {};

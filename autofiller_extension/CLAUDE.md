@@ -1239,7 +1239,9 @@ checking the student owns the application: a tab's state (`PUT
 `POST .../finish`), and whether Claude is connected (`GET
 .../connector`). Report a problem (KAN-403) sends `POST /fill-reports`
 (`routers/fill_reports.py`): no applicant in the path and no account in
-the row, the report's parts only. The rest are older:
+the row, the report's parts only. The popup's Request this job system
+(KAN-369) sends `POST /job-system-requests` (`routers/job_system_requests.py`):
+the host alone, no account in the row. The rest are older:
 
 `src/background/api.js` mostly calls endpoints that already exist for the
 webapp: `GET /auth/me`, `GET /applicants/{id}/profile`, `GET
@@ -1730,7 +1732,14 @@ report.js everywhere it is: manifest, `CONTENT_SCRIPT_FILES`, background.js
   is, ignoring query, fragment and a trailing slash; "WorkIt doesn't list
   this job yet." when there is none) and **Report a problem** (what it sends:
   job system "unsupported", the posting link as below, the engine, and an
-  optional note, `NOTE_MAX` long; then Send report, `popup/report`). Nothing leaves on opening the popup. Its
+  optional note, `NOTE_MAX` long; then Send report, `popup/report`), and
+  between them **Request this job system** (KAN-369, `popup/request`:
+  `POST /job-system-requests {"host"}`, the page's host and nothing else;
+  "Requested. WorkIt adds the job systems students ask for most."). The
+  hosts asked are kept in chrome.storage.local `requested_job_systems`, so
+  each is sent once from a browser and the popup then says "You requested
+  this job system." instead of the button (test:
+  `request-system.extension.spec.ts`). Nothing leaves on opening the popup. Its
   test opens popup.html with `?tab=<id>` and loads a copy of the extension
   granted the fake host (`loadExtension`'s `grantHosts`), standing in for
   activeTab, which no test can press.
