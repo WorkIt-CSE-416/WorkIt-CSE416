@@ -1,6 +1,8 @@
 import { CheckCircleIcon, CloudSlashIcon } from "@phosphor-icons/react/ssr";
 import type { Metadata } from "next";
+import { cookies } from "next/headers";
 
+import { Badge } from "@/components/ui/badge";
 import { Card } from "@/components/ui/card";
 import { EmptyState } from "@/components/ui/empty-state";
 import { TextLink } from "@/components/ui/text-link";
@@ -11,7 +13,9 @@ import { SEEKER_GUTTER } from "../../gutter";
 import { WriteWithClaude } from "../write-with-claude";
 import { AnswerBox } from "./answer-box";
 import { DeleteAnswer } from "./delete-answer";
+import { isNew, newestSaved, SEEN_COOKIE, seenAt } from "./new-answers";
 import { getAnsweredQuestions, getWrittenQuestions } from "./questions";
+import { SeenNow } from "./seen-now";
 
 export const metadata: Metadata = {
   title: "Written Answers",
@@ -55,10 +59,14 @@ export default async function WrittenAnswersPage() {
     getWrittenQuestions(),
     getAnsweredQuestions(),
   ]);
+  // Own answers captured from a form since the last visit are marked New (./new-answers.ts).
+  const seen = seenAt((await cookies()).get(SEEN_COOKIE)?.value);
+  const shown = newestSaved(answered ?? []);
 
   return (
     <div className={cn("max-w-app mx-auto w-full flex-1 py-6", SEEKER_GUTTER)}>
       <BackLink parent={{ href: "/auto-apply", name: "Auto Apply" }} named />
+      {shown != null && <SeenNow at={shown} />}
       <div className="flex flex-col gap-3 @2xl/main:flex-row @2xl/main:items-start @2xl/main:justify-between">
         <div className="min-w-0">
           <h1 className="text-heading text-ink">Written Answers</h1>
@@ -119,7 +127,10 @@ export default async function WrittenAnswersPage() {
                 <dl className="mt-4 flex flex-col gap-5">
                   {posting.questions.map((question) => (
                     <div key={question.name} className="flex flex-col gap-1.5">
-                      <dt className="text-body text-ink font-semibold">{question.label}</dt>
+                      <dt className="text-body text-ink flex items-center gap-2 font-semibold">
+                        {question.label}
+                        {isNew(question, seen) && <Badge tone="brand">New</Badge>}
+                      </dt>
                       <dd className="text-body text-ink whitespace-pre-wrap">{question.answer}</dd>
                       {question.named_fact && (
                         <dd className="text-note text-ink-meta">

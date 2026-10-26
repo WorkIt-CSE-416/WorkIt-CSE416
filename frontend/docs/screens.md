@@ -1023,6 +1023,15 @@ Check and Save (saved as Claude's), have none: the API deletes only the
 student's own. A failed delete keeps the answer and says why in red under
 it. The list is left out when nothing is answered or it doesn't load.
 
+**New** (KAN-369): an answer the student typed into a batch tab's form is
+saved as they type, and the tab's panel says "Saved N new answers" with
+**Review**, which opens this page. Each of the student's own answers saved
+since their last visit wears a brand status Badge, New, beside its question.
+The last visit is the `answers_seen` cookie, the newest save time the page
+showed (`auto-apply/answers/new-answers.ts`, written by `seen-now.tsx` once
+the page shows), so the marks clear on the next visit; a student who never
+opened the page sees every own answer New.
+
 **Jobs lead the page** (KAN-359): the heading with **Manage Resumes** (a
 secondary button to Resumes & Experiences) and **Add to Claude** beside
 Start Auto Apply, then
