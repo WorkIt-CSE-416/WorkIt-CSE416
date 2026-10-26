@@ -496,9 +496,10 @@ test("a guess stays in the walk until the student says it looks right, which sav
   await expect.poll(() => api.own).toEqual([
     { jobId: "job-1", name: HEARD, label: "How did you hear about Anduril?", answer: "Anduril Website", own: true },
   ]);
-  const last = await walkToEnd(forms.url(ANDURIL));
-  expect(last.walked).toEqual([]);
-  expect(last.left).toBe("Nothing else needs you.");
+  // Pressed once more, nothing is left (one press: the panel still marks the row the walk last went to).
+  const panel = page(forms.url(ANDURIL)).locator("#workit-autofiller-overlay-host");
+  await panel.getByRole("button", { name: "Next Thing That Needs You" }).click();
+  await expect(panel.locator("[data-said]")).toHaveText("Nothing else needs you.");
   expect(forms.submissions).toEqual([]);
 });
 
