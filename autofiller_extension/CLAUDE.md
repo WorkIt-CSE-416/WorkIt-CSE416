@@ -186,7 +186,7 @@ builds it: `dist/engine.js` is committed in the engine repo.
   and saving, as the student, each step where the walk stops.
 - **Stepped systems share one loop (`steps.js`).** `window.WIA.steps` is
   the stepped job system on the page (Workday's `workday.js`, Oracle's
-  `oracle.js`), the extension's side of the engine's Stepper seam
+  `oracle.js`, iCIMS's `icims.js`), the extension's side of the engine's Stepper seam
   (fill-engine `src/steps.ts`, README "Stepped forms"). The step loop
   (content-script.js), Fill to Review (`workday-walk.js`), the checklist's
   field lookup (batch-tab.js `fieldOf`) and the primary button use only its
@@ -212,6 +212,24 @@ builds it: `dist/engine.js` is committed in the engine repo.
   sections' markup comes from Simplify's and Jobright's selectors, not a
   live read: live-check before relying on it. Tests:
   `test/oracle.extension.spec.ts` (the engine's fake Oracle page).
+- **iCIMS** (`icims.js`, KAN-369). The manifest runs on
+  `*.icims.com/jobs/*`. iCIMS draws every page in its own iframe
+  (`#icims_content_iframe`, same host): the panel and the fill stay on the
+  top page and work in that frame's document (the face's `doc()`, which
+  Fill to Review reads too); the launcher skips the frame. The candidate's
+  sign-in (email, the privacy-notice consent and "I accept", then a
+  password or a new login; an invisible hCaptcha) is the student's: WorkIt
+  never types into it or presses its Next, and the panel says "Sign in to
+  iCIMS, then WorkIt fills". Each step (a new page in the frame, watched
+  by polling) then fills as it shows, its line "iCIMS: <step>"; Fill to
+  Review presses Next on each step with nothing for the student and stops
+  on the step whose button reads Submit. A batch tab skips the form wait
+  (the form is in the frame) and its fill waits for the sign-in. A closed
+  job (`/jobs/search?...notFound=1`) says "This job is closed". Education
+  and Experience entries (`iCIMS_CollectionContainer`) aren't filled. The
+  steps' markup comes from Simplify's and Jobright's selectors, not a live
+  read: live-check before relying on it. Tests:
+  `test/icims.extension.spec.ts` (the engine's fake iCIMS site).
 - **A job's page is not always its form.** A Lever, Ashby, Rippling,
   Workable or Eightfold posting shows the job on one page and the form on
   another (`jobOf`'s `form`). On the job's page the overlay names the

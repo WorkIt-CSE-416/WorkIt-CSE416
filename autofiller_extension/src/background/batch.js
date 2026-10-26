@@ -286,7 +286,8 @@ async function startFill(tabId, url, again = false) {
     const shown = (await chrome.tabs.get(tabId)).url ?? "";
     if (jobOf(shown)?.site === "workable") await forgetWorkableDraft(tabId, { onlyIfDraft: true });
     // A Workday posting shows no form until Apply is pressed (the fill presses it, workday.js) and the student signs in: its fill waits.
-    const workday = isWorkday(shown);
+    // iCIMS draws its sign-in and steps in its own frame, never this page: its fill waits for them (icims.js).
+    const workday = isWorkday(shown) || jobOf(shown)?.site === "icims";
     let found = await formShows(tabId, workday ? 0 : FORM_TIMEOUT_MS);
     // No answer: a new page ended the look (a human check that passed on its own), so look in the new one.
     if (found === null && !workday) found = await formAfterHumanCheck(tabId, FORM_TIMEOUT_MS);

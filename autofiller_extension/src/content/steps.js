@@ -10,6 +10,7 @@
 //   walk {next, review, goesOn, banner, wentWrong()} (the step's button, the
 //   page where the walk stops, the button's words that go on, an error's
 //   words, the system's error page).
-// Loaded after workday.js and oracle.js, as window.WIA.steps.
+// An optional doc() is the document the steps are drawn in (iCIMS's frame).
+// Loaded after workday.js, oracle.js and icims.js, as window.WIA.steps.
 window.WIA = window.WIA || {};
-window.WIA.steps = [window.WIA.workday, window.WIA.oracle].find((system) => system?.isOn) ?? null;
+window.WIA.steps = [window.WIA.workday, window.WIA.oracle, window.WIA.icims].find((system) => system?.isOn) ?? null;
