@@ -20,9 +20,9 @@ had an endpoint: `applicant_profiles`, the **experience bank** (`GET
 Experience Bank and onboarding screens read and write, never an uploaded
 resume's `parsed_json`. Same rule the recommender and Scout follow
 (`backend/CLAUDE.md`): the bank, not a resume, is the source of truth for
-what the student has done. `src/background/engine.js` maps the school and
+what the student has done. `src/background/engine.js` maps the schools and
 the jobs it gives the Fill engine from the bank's `entries` by `section`,
-not from a `ParsedResume`.
+and the skills from its `skills`, not from a `ParsedResume`.
 
 **One exception**: essay-question generation (below) is the first feature
 here that needed a genuinely new backend route,
@@ -331,13 +331,20 @@ waits for an opened tab's page and form (`waitForLoad`, `formShows`).
   every company, `workday.js` presses "Sign in with email", switches to
   Create Account when nothing is saved there (to Sign In when the saved
   login has signed in, `signedIn`, set by the first `fill/plan` on the
-  tenant), ticks the terms box and names its words in the panel, and
+  tenant, or made the account, `created`, set by `workday/created` when
+  Workday answers the extension's Create Account by asking to verify the
+  email, in an alert or the page's text), ticks the terms box and names its words in the panel, and
   presses Create Account (only with a password made on that page, and only
   once the box shows ticked, `checked` or `aria-checked`, a moment later;
   else it says to tick it and press Create Account, and keeps the
   password) or Sign In, once the boxes hold the login and the page has
-  settled. **Each button at most once a page**: Workday's message after a
-  press is shown (a verification email: open it, come back and press Sign
+  settled. **Each button is pressed again only when Workday dropped the
+  press**: the worker watches (`watchWorkdaySends`, webRequest, observing
+  only) for the tab's non-GET request to the tenant's host outside /wday/;
+  with none 10 s after a press and the form still showing, it is pressed
+  again, at most 3 times, and never once one went out (`workday/sent`).
+  Workday's message after a press (a visible one that wasn't there at the
+  press) is shown (a verification email: open it, come back and press Sign
   In), and a refused Create Account drops its new password
   (`workday/forget`). **A refused Sign In is never pressed again, on any
   page** (Workday locks accounts): `workday/refused` saves `refused` on the
@@ -446,6 +453,16 @@ waits for an opened tab's page and form (`waitForLoad`, `formShows`).
   real application (its one written question is all that needs the
   student, so the filled answer moves the tab to Ready; Harvey's other
   questions keep it in Needs you).
+  **The same row has Write with Claude** (a row's `claude` in
+  lib-status.js): a link to `https://claude.ai/new?q=Write%20my%20WorkIt%20answers`
+  in a new tab, which opens a new chat with the trigger in its box, not
+  sent, and a click that also copies the trigger, with "Press Enter in
+  Claude (or paste)". claude.ai's `?q=` is undocumented (it once sent the
+  text by itself, and may stop working), so the copy is the fallback.
+  The trigger is overlay.js's `CLAUDE_TRIGGER`, the connector prompt's
+  title (`backend/app/connector/prompt.py` TITLE); every line that names
+  it uses that constant. Never put the student's data in the link: it
+  lands in browser history. Test: `test/claude-start.extension.spec.ts`.
 - **Writing starts when jobs are queued, and a question is answered once**
   (KAN-379). On `run/open`, once the tabs have opened, `write-early.js`'s
   `writeEarly` reads every queued job the batch hasn't opened with
@@ -738,8 +755,9 @@ My Profile instead.
   `/connect/claude/add`, which redirects to Claude's Add Custom Connector
   dialog: the install link is built only in
   `frontend/src/lib/claude-connector.ts`, from the API's address, which the
-  extension doesn't keep. A practice batch never shows it (its essays stay
-  the student's).
+  extension doesn't keep. The step tells the student to choose "Always
+  allow" for each of WorkIt's tools, so a run doesn't stop at every save.
+  A practice batch never shows it (its essays stay the student's).
 - **Writing samples, once the first written batch is.** A batch tab that
   sends its questions is `writing` (`batch.js`'s `setWriting`, kept in the
   batch); once its last one shows an answer it says `batch/written`, and
@@ -1141,8 +1159,13 @@ openness covers:
   Rippling has since filled two live forms end to end through a batch tab
   of the loaded extension (KAN-369, 2026-10-25), cover letter included.
 - **One school, and no phone country.** The adapter gives the engine the
-  latest education entry only, and WorkIt holds no place the student lives,
-  so Greenhouse's Country picker beside Phone is left for the student.
+  latest education entry as the school; the earlier ones go only as
+  `education.past_schools` (school, degree, end), which the high-school and
+  "degrees completed" rules read, with `degree_level_now` (Undergraduate or
+  Graduate) while the latest degree is unfinished. The bank's skills go as
+  `experience_facts.skills`, a "Languages" group first. WorkIt holds no place
+  the student lives, so Greenhouse's Country picker beside Phone is left for
+  the student.
 - **No "not a veteran" answer.** WorkIt's `veteran_status` is
   protected_veteran, not_protected_veteran or declined. Since the engine's
   fix (KAN-329), "I am not a protected veteran" answers only

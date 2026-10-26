@@ -22,7 +22,7 @@ import { SELF_ID, checkedSelfId, unansweredSelfId } from "./self-id.js";
 import { forgetSubmits, submitHinted, watchSubmitRequests } from "./submit-proof.js";
 import { injectFill } from "../shared/content-scripts.js";
 import { forgetShownWorkableDraft } from "./tab-load.js";
-import { allowForMe, forgetLogin, markRefused, markSignedIn, workdayLogin } from "./workday-logins.js";
+import { allowForMe, forgetLogin, markCreated, markRefused, markSignedIn, sentSince, watchWorkdaySends, workdayLogin } from "./workday-logins.js";
 import { writeEarly } from "./write-early.js";
 
 /**
@@ -154,11 +154,25 @@ async function handleMessage(message, sender) {
       return forgetLogin(job.tenant);
     }
 
+    // Workday asked to verify the email after a Create Account the extension pressed: the account was made.
+    case "workday/created": {
+      const job = jobOf(sender.url);
+      if (job?.site !== "workday") throw new Error("Not a Workday page");
+      return markCreated(job.tenant);
+    }
+
     // Workday refused a Sign In the extension pressed: it is never pressed with that login again.
     case "workday/refused": {
       const job = jobOf(sender.url);
       if (job?.site !== "workday") throw new Error("Not a Workday page");
       return markRefused(job.tenant);
+    }
+
+    // A Create Account or Sign In the extension pressed (workday.js): whether this tab sent the form to
+    // the page's host since `since`. If not, Workday dropped the press, and it may be made again.
+    case "workday/sent": {
+      if (jobOf(sender.url)?.site !== "workday") throw new Error("Not a Workday page");
+      return { sent: await sentSince(sender.tab.id, new URL(sender.url).hostname, message.since) };
     }
 
     // The student pressed Skip on a batch tab's panel (content-script.js).
@@ -311,6 +325,7 @@ async function rememberWorkdayTab(tabId) {
 // The job system's answer to a batch tab's submit request (submit-proof.js)
 // is what marks its application applied.
 watchSubmitRequests(markSubmitted);
+watchWorkdaySends();
 
 // A batch tab that moves to a job system's page for a sent application
 // (Greenhouse's confirmation, Lever's thanks): a hint, paired with Lever's

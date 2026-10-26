@@ -161,6 +161,7 @@
  *   may start with "_" too (Ashby's "_systemfield_name"), so only this marks a message.
  * @property {{ text: string, href: string }} [link]  A link ending the reason (a batch tab's
  *   wait for Claude links the webapp's Written Answers page)
+ * @property {boolean} [claude]  It waits for the student's Claude: the overlay offers Write with Claude.
  */
 
 /**

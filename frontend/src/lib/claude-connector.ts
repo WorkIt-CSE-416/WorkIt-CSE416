@@ -32,3 +32,14 @@ export function claudeConnectorLink(): string {
   });
   return `https://claude.ai/customize/connectors?${query}`;
 }
+
+/**
+ * Starting the student's Claude on their written answers: what they send
+ * it, the connector prompt's title (backend/app/connector/prompt.py
+ * TITLE), and a new claude.ai chat with it already in the box, not sent.
+ * claude.ai's `?q=` is undocumented and once sent the text by itself, so
+ * Write with Claude also copies the trigger (app/(seeker)/auto-apply/write-with-claude.tsx).
+ * Never put the student's data in the link: it lands in browser history.
+ */
+export const CLAUDE_TRIGGER = "Write my WorkIt answers";
+export const CLAUDE_START_URL = `https://claude.ai/new?q=${encodeURIComponent(CLAUDE_TRIGGER)}`;

@@ -1001,7 +1001,13 @@ a saved answer stays, marked Saved, until the next visit. Nothing left
 reads "Nothing Left to Write". **The Auto Apply page links to it** with a
 card over Up Next, "N Written Questions Waiting", while any open
 application has one, which says the student's Claude writes them once
-added and offers **Write Answers** (a secondary button with the pencil).
+added and offers **Write with Claude** and **Write Answers** (a secondary
+button with the pencil). **Write with Claude** (`auto-apply/write-with-claude.tsx`,
+also beside Written Answers' heading while a question waits) is a
+secondary button with the sparkle: it opens a new claude.ai chat in a new
+tab with "Write my WorkIt answers" in its box, not sent, and copies the
+same text, with "Press Enter in Claude (or paste)" under it in meta type.
+The link holds only that fixed text (`src/lib/claude-connector.ts`).
 **Your Answers**, below, lists every written question already answered
 (`GET .../written-answers`, KAN-369), one white card per job posting at any
 stage, newest application first: the question, the answer as sent and,

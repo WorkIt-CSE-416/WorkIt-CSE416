@@ -62,12 +62,13 @@ window.WIA = window.WIA || {};
    * @param {string | string[]} [shows]  what a filled field shows now, as the engine read it back
    * @param {import("../shared/types.js").Source} [source]  a new source for what it shows (the student's edit, a written answer)
    * @param {{ text: string, href: string }} [link]  a link that ends the reason's sentence (a webapp page)
+   * @param {boolean} [claude]  it waits for the student's Claude: the overlay offers Write with Claude
    */
-  function setStatus(key, status, reason, shows, source, link) {
+  function setStatus(key, status, reason, shows, source, link, claude) {
     const existing = results.get(key);
     if (!existing) return;
     // A new status is a new state of the field: a review's flag on what it showed before no longer holds.
-    results.set(key, { ...existing, status, reason, shows, link, flag: undefined, ...(source ? { source } : {}) });
+    results.set(key, { ...existing, status, reason, shows, link, claude, flag: undefined, ...(source ? { source } : {}) });
     notify();
   }
 

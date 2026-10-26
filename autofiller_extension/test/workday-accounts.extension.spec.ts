@@ -179,3 +179,53 @@ test("a terms box that doesn't show ticked: Create Account isn't pressed, the pa
   await caci.waitForURL(workdays.url(0), { timeout: 30_000 });
   expect(workdays.signIns[0]?.password).toBe(saved["caci.wd1.myworkdayjobs.com"].password);
 });
+
+test("a hidden message already on the form isn't Workday's answer: a slow Create Account keeps its password", async () => {
+  test.setTimeout(120_000);
+  const workdays = new FakeWorkdays(["workday-caci"]);
+  workdays.hiddenAlerts.add("caci.wd1.myworkdayjobs.com");
+  workdays.answerDelay["caci.wd1.myworkdayjobs.com"] = 12_000;
+  const page = await start(workdays, { id: "wd-0", apply_url: workdays.signInUrl(0) });
+
+  const caci = await page(workdays.signInUrl(0));
+  await allow(caci);
+  await caci.waitForURL(workdays.url(0), { timeout: 60_000 });
+  // One Create Account sent, though Workday took longer to answer than a dropped press is waited for.
+  expect(workdays.signIns.map((s) => s.view)).toEqual(["create"]);
+  const saved = await loaded!.worker.evaluate(async () => (await chrome.storage.local.get("workday_logins")).workday_logins ?? {});
+  expect(saved["caci.wd1.myworkdayjobs.com"]?.password).toBe(workdays.signIns[0].password);
+});
+
+test("a press Workday drops is made again, and one that sent the form never is", async () => {
+  test.setTimeout(120_000);
+  const workdays = new FakeWorkdays(["workday-caci"]);
+  workdays.droppedPresses["caci.wd1.myworkdayjobs.com"] = 2;
+  const page = await start(workdays, { id: "wd-0", apply_url: workdays.signInUrl(0) });
+
+  const caci = await page(workdays.signInUrl(0));
+  await allow(caci);
+  await caci.waitForURL(workdays.url(0), { timeout: 60_000 });
+  expect(workdays.signIns.map((s) => s.view)).toEqual(["create"]);
+  const saved = await loaded!.worker.evaluate(async () => (await chrome.storage.local.get("workday_logins")).workday_logins ?? {});
+  expect(saved["caci.wd1.myworkdayjobs.com"]?.password).toBe(workdays.signIns[0].password);
+});
+
+test("an account Workday asked to verify is signed in to next time, not made again", async () => {
+  test.setTimeout(120_000);
+  const workdays = new FakeWorkdays(["workday-caci"]);
+  workdays.alerts["caci.wd1.myworkdayjobs.com"] = { create: "Please verify your account. We sent a verification email to test.person@example.com." };
+  const page = await start(workdays,
+    { id: "wd-0", apply_url: workdays.signInUrl(0) },
+    { id: "wd-1", apply_url: workdays.signInUrl(0) + "&again" });
+
+  const caci = await page(workdays.signInUrl(0));
+  await allow(caci);
+  await expect(overlay(caci).locator(".row").filter({ hasText: "Open the email" })).toBeVisible({ timeout: 30_000 });
+  await skip(caci);
+
+  // The student clicked the email's link; the next page opens on Create Account: it switches to Sign In and presses it.
+  const again = await page(workdays.signInUrl(0) + "&again");
+  await again.waitForURL(workdays.url(0), { timeout: 30_000 });
+  expect(workdays.signIns.map((s) => s.view)).toEqual(["create", "signin"]);
+  expect(workdays.signIns[1].password).toBe(workdays.signIns[0].password);
+});

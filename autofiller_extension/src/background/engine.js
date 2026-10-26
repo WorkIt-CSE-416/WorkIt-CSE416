@@ -206,6 +206,21 @@ function present(object) {
   return Object.fromEntries(Object.entries(object).filter(([, v]) => v !== null && v !== undefined));
 }
 
+/** The bank's skill names, languages first and then the bank's own order (by group, then name), as the
+ * engine's rules read a resume's Skills line: "languages most comfortable" ticks the first it names. */
+function skillNames(skills) {
+  const language = (s) => /language/i.test(s.group ?? "");
+  return [...skills.filter(language), ...skills.filter((s) => !language(s))].map((s) => s.name);
+}
+
+/** "Undergraduate" or "Graduate" for a degree the student is still in (the engine's degree_level_now); null once finished. */
+function levelNow(school) {
+  if (!school.degree || school.end_kind === "month") return null;
+  const level = engine.degreeLevel(school.degree);
+  if (level === "Bachelor's Degree" || level === "Associate's Degree") return "Undergraduate";
+  return level === "Master's Degree" || level === "Doctorate" ? "Graduate" : null;
+}
+
 /** The profile's free-text home ("Stony Brook, NY") as the engine's city, state and country; null when it reads none. */
 function home(location) {
   const place = location ? engine.homePlace(location) : {};
@@ -218,7 +233,7 @@ function home(location) {
  * Only what WorkIt holds is given; a question about anything else stays the
  * student's (a Missing fact in the plan). The home is the profile's location
  * as the engine reads it (city and state). The school is the latest education
- * entry; the jobs are the experience entries, most recently started first. Under all of
+ * entry, the earlier ones its past schools; the skills are the bank's, languages first; the jobs are the experience entries, most recently started first. Under all of
  * it lies the engine profile the student brought from Apply
  * (`profile.fill`): WorkIt's own fields win where both hold a value.
  * @param {import("../shared/types.js").AutofillProfile} profile
@@ -233,7 +248,8 @@ function workitProfile(profile) {
   const [first, ...rest] = (profile.full_name ?? "").trim().split(/\s+/);
   const named = Boolean(profile.first_name && profile.last_name);
   const entries = profile.bank?.entries ?? [];
-  const [school] = latest(entries, "education");
+  const [school, ...earlier] = latest(entries, "education");
+  const skills = skillNames(profile.bank?.skills ?? []);
   const answers = profile.answers ?? {};
   return {
     identity: present({
@@ -251,6 +267,7 @@ function workitProfile(profile) {
       ? present({
           school: school.title,
           degree: school.degree ? engine.degreeLevel(school.degree) : null,
+          degree_level_now: levelNow(school),
           // As written ("B.S."): the kind a list of kinds (BA, BS) picks by.
           degree_type: school.degree,
           majors: school.field_of_study ? [school.field_of_study] : null,
@@ -258,13 +275,19 @@ function workitProfile(profile) {
           gpa_scale: school.gpa_scale,
           start_date: school.start_month,
           expected_graduation: school.end_kind === "present" ? null : school.end_month,
+          // The earlier schools (a high school among them), as the engine's high-school and degrees-completed rules read them.
+          past_schools: earlier.length
+            ? earlier.map((e) => present({ school: e.title, degree: e.degree, end: e.end_kind === "present" ? null : e.end_month }))
+            : null,
         })
       : {},
-    experience_facts: {
+    experience_facts: present({
       employment_history: newest(entries, "experience").map((e) =>
         present({ employer: e.organization, title: e.title, start: e.start_month, end: e.end_kind === "present" ? null : e.end_month, location: e.location }),
       ),
-    },
+      // Workday's "Type to Add Skills" and "languages most comfortable" read these.
+      skills: skills.length ? skills : null,
+    }),
     work_authorization: present({
       authorized_to_work_us: YES_NO[answers.work_authorized_us],
       requires_sponsorship_now_or_future: YES_NO[answers.needs_sponsorship],

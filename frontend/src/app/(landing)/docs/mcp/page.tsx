@@ -53,7 +53,7 @@ export default function McpDocsPage() {
           </li>
           <li>Claude lists WorkIt under its connectors. Turn it on in a chat if it is off.</li>
           <li>
-            The first time Claude asks to use WorkIt&apos;s <strong>Save answers</strong>, choose{" "}
+            The first time Claude asks to use each of WorkIt&apos;s tools, choose{" "}
             <strong>Always allow</strong>. Otherwise Claude stops to ask before every answer it
             saves.
           </li>
