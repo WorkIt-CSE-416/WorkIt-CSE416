@@ -7,7 +7,9 @@
 //   cd autofiller_extension/test
 //   SPEED_OUT=<dir> SPEED_PREFIX=baseline SPEED_RUNS=5 npx playwright test speed.extension.spec.ts --workers=1
 //
-// SPEED_ONLY=greenhouse,lever picks systems. Each system writes
+// SPEED_ONLY=greenhouse,lever picks systems. SPEED_API_MS=150 answers every
+// API call (a JSON reply: WorkIt's API, the job system's) that much later, as
+// a live API's round trip would; the fakes answer in 1-3 ms otherwise. Each system writes
 // <SPEED_OUT>/<prefix>-<system>.json (every run's numbers, and the last run's
 // field values and panel rows, to diff "same fields, same values" against
 // another prefix); the last test writes <prefix>-summary.md.
@@ -28,6 +30,15 @@ const OUT = process.env.SPEED_OUT ?? join(__dirname, "test-results", "speed");
 const PREFIX = process.env.SPEED_PREFIX ?? "baseline";
 const RUNS = Number(process.env.SPEED_RUNS ?? 5);
 const ONLY = process.env.SPEED_ONLY?.split(",");
+const API_MS = Number(process.env.SPEED_API_MS ?? 0);
+
+/** `handler` with its JSON replies (API calls, not pages or their files) answered API_MS later. */
+const slowApi = (handler: Handler): Handler => async (request) => {
+  const reply = await handler(request);
+  const json = reply?.json !== undefined || /json/.test(reply?.headers?.["content-type"] ?? "");
+  if (reply && json && API_MS > 0) await new Promise((done) => setTimeout(done, API_MS));
+  return reply;
+};
 // How long nothing may change (a panel row, a field) after the fill's last phase for it to count as settled.
 const QUIET_MS = 2_500;
 
@@ -108,7 +119,7 @@ type Raw = { t0: number; worker: any; iso: any; main: any; values: Record<string
 async function runOnce(name: string): Promise<Raw> {
   const system = SYSTEMS[name]();
   const api = new FakeApi().queue({ id: "job-0", apply_url: system.url });
-  const loaded: Loaded = await loadExtension([api.handler, webapp, system.handler]);
+  const loaded: Loaded = await loadExtension([slowApi(api.handler), webapp, slowApi(system.handler)]);
   try {
     await signIn(loaded.context);
     await loaded.context.addInitScript(MAIN_PROBE);
@@ -307,7 +318,7 @@ for (const name of systems) {
       untilInject: stat((r) => r.pageWait.untilInject), plan: stat((r) => r.plan.ms), api: stat((r) => r.api.ms), fieldsSum: stat((r) => r.fields.sumMs),
       waitsTook: stat((r) => r.waits.tookMs), fillPage: stat((r) => r.messages["fill/page"]?.ms ?? 0),
     };
-    writeFileSync(join(OUT, `${PREFIX}-${name}.json`), JSON.stringify({ system: name, prefix: PREFIX, runs: RUNS, at: new Date().toISOString(), summary, perRun: runs, values: last!.values, rows: last!.rows }, null, 2));
+    writeFileSync(join(OUT, `${PREFIX}-${name}.json`), JSON.stringify({ system: name, prefix: PREFIX, runs: RUNS, apiMs: API_MS, at: new Date().toISOString(), summary, perRun: runs, values: last!.values, rows: last!.rows }, null, 2));
     expect(runs.every((r) => !r.timedOut && Number.isFinite(r.firstField))).toBe(true);
   });
 }
