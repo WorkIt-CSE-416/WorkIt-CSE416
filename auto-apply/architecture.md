@@ -330,8 +330,11 @@ One click of **Start Auto Apply** queues a batch of 10 job postings.
    when its `apply_url` host is a `greenhouse.io` one
    (`backend/app/auto_apply/hosts.py`, the one list; the SQL condition and
    `JobListing.auto_apply` both read it). A company's own careers page that
-   embeds Greenhouse (`?gh_jid=`) stays out: the run would land on the
-   company's page, not the form. Add a hiring system there once its fill
+   embeds Greenhouse (`?gh_jid=` in its query) is taken too (KAN-369): the
+   batch tab opens the company's page and fills Greenhouse's form in its
+   iframe there, as Jobright and Simplify do. A company whose embedded form
+   doesn't fill in place goes in `SKIP_EMBEDDING` (Waymo's two careers
+   sites, as Simplify leaves out). Add a hiring system there once its fill
    works. This reverses an earlier choice to queue every hiring system and
    let unfillable ones fail to `needs_you`: a student saw a Workday or
    Ashby job queued that the run could only fail.
