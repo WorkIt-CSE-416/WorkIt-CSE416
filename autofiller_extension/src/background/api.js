@@ -131,9 +131,27 @@ async function apiFetchBinary(path) {
   return response.arrayBuffer();
 }
 
+// Who is signed in, kept a short while per session token (a batch asked it
+// before nearly every call, a round trip each): a new token (another sign-in)
+// or none (signed out) asks again, as does a refused token.
+const ME_TTL_MS = 60 * 1000;
+/** @type {{ token: string, at: number, account: Promise<any> } | null} */
+let account = null;
+
 /** GET /auth/me — also how the popup checks "am I actually signed in". */
 async function me() {
-  return apiFetch("/auth/me");
+  const session = await getSession();
+  if (!session) {
+    account = null;
+    throw new ApiError(401, "Not signed in");
+  }
+  if (account?.token === session.access_token && Date.now() - account.at < ME_TTL_MS) return account.account;
+  const asked = { token: session.access_token, at: Date.now(), account: apiFetch("/auth/me") };
+  account = asked;
+  asked.account.catch(() => {
+    if (account === asked) account = null;
+  });
+  return asked.account;
 }
 
 async function getApplicantProfile(applicantId) {

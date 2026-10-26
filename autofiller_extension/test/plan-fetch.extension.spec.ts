@@ -13,15 +13,18 @@ const SLOW_MS = 300;
 /** `handler`'s answers held back SLOW_MS each, with when each call was asked and answered. */
 function slow(handler: Handler) {
   const log: { call: string; asked: number; answered: number }[] = [];
+  // Calls held back longer still: a path pattern and its extra ms.
+  const held: { pattern?: RegExp; ms: number } = { ms: 0 };
   const slowed: Handler = async (request) => {
     const asked = Date.now();
     const reply = await handler(request);
     if (!reply) return reply;
-    await new Promise((done) => setTimeout(done, SLOW_MS));
+    const extra = held.pattern?.test(request.url.pathname) ? held.ms : 0;
+    await new Promise((done) => setTimeout(done, SLOW_MS + extra));
     log.push({ call: `${request.method} ${request.url.pathname}`, asked, answered: Date.now() });
     return reply;
   };
-  return { handler: slowed, log };
+  return { handler: slowed, log, held };
 }
 
 let loaded: Loaded;
@@ -29,17 +32,23 @@ test.afterEach(() => loaded?.close());
 
 /** One queued Greenhouse posting, started as Start Auto Apply does, until its tab is filled (in a tab group). */
 async function batchOfOne() {
-  const forms = new SavedForms(["greenhouse-arc"]);
+  const forms = new SavedForms(["greenhouse-arc", "greenhouse-coinbase"]);
   const api = new FakeApi().queue({ id: "job-0", apply_url: forms.url("greenhouse-arc") });
   const slowed = slow(api.handler);
-  loaded = await loadExtension([slowed.handler, webapp, forms.handler]);
+  // When each saved form's page was asked for: its tab had opened.
+  const pages: number[] = [];
+  const pageAsked: Handler = (request) => {
+    if (request.method === "GET" && [forms.url("greenhouse-arc"), forms.url("greenhouse-coinbase")].includes(request.url.href)) pages.push(Date.now());
+    return forms.handler(request);
+  };
+  loaded = await loadExtension([slowed.handler, webapp, pageAsked]);
   await signIn(loaded.context);
   const app = loaded.context.pages()[0] ?? (await loaded.context.newPage());
   await app.goto("http://localhost:3000/auto-apply");
   await sendFromWebapp(app, { type: "run/open" });
   const grouped = () => loaded.worker.evaluate(async () => (await chrome.tabGroups.query({})).length);
   await expect.poll(grouped, { timeout: 60_000 }).toBeGreaterThan(0);
-  return { api, log: slowed.log, forms };
+  return { api, log: slowed.log, held: slowed.held, forms, pages };
 }
 
 test("a tab that plans while the profile is still being fetched waits for that fetch, not a second one", async () => {
@@ -51,12 +60,22 @@ test("a tab that plans while the profile is still being fetched waits for that f
 
 test("the profile's parts are asked at once, not one after another", async () => {
   const { log } = await batchOfOne();
-  const parts = log.filter((l) => /^GET \/applicants\/[^/]+\/(profile|bank|preferences|autofill-answers|resumes|documents|fill-profile)(\/|$)/.test(l.call));
+  // Each part's first ask (the Résumé tab lists the résumés again once the tab is filled).
+  const parts = log.filter((l) => /^GET \/applicants\/[^/]+\/(profile|bank|preferences|autofill-answers|resumes|documents|fill-profile)(\/|$)/.test(l.call))
+    .filter((l, i, all) => all.findIndex((m) => m.call === l.call) === i);
   expect(parts.map((p) => p.call.replace(/\/applicants\/[^/]+/, ""))).toHaveLength(8);
   // One after another, the eight (the resume's bytes after its list) take eight round trips; at once,
   // about three (a list, its bytes, and the browser's six connections to one host).
   const took = Math.max(...parts.map((p) => p.answered)) - Math.min(...parts.map((p) => p.asked));
   expect(took).toBeLessThan(4 * SLOW_MS);
+});
+
+test("a batch asks who is signed in once, not before each of its calls", async () => {
+  // Each GET /auth/me was a round trip before the call that needed it: three after every fill alone.
+  const { api, forms } = await batchOfOne();
+  await expect.poll(() => api.calls.some((c) => c.startsWith("PUT ") && c.endsWith("/fill")), { timeout: 30_000 }).toBe(true);
+  expect(api.calls.filter((c) => c === "GET /auth/me")).toHaveLength(1);
+  expect(forms.submissions).toEqual([]);
 });
 
 test("a batch tab's job questions are asked as its tab opens, while its page is still loading, and once", async () => {

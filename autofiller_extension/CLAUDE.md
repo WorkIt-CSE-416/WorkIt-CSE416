@@ -1240,6 +1240,11 @@ transcript waits for the resume only to tell their names apart. Live, at a
 few hundred ms a call, that is about three round trips instead of eight.
 `test/plan-fetch.extension.spec.ts`.
 
+**Who is signed in is asked once a minute.** `me()` keeps `/auth/me`'s
+answer for a minute per session token (a batch asked it before nearly every
+call: three round trips after each fill alone); a new token, no session
+(signed out) or a refused answer asks again. `test/plan-fetch.extension.spec.ts`.
+
 **What a student brought from Apply lies under WorkIt's fields.** `GET
 /applicants/{id}/fill-profile` (KAN-369) is the Fill engine's own profile
 and policies the student imported from Apply
