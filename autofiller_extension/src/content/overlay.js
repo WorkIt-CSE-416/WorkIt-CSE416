@@ -133,6 +133,7 @@ window.WIA = window.WIA || {};
       .start .hint { font-size: var(--text-meta); color: var(--color-ink-meta); }
       .empty { padding: 16px 12px; color: var(--color-ink-meta); }
       ${window.WIA.rowCard?.css ?? ""}
+      ${window.WIA.groups?.css ?? ""}
       ${parts.map((part) => part.css ?? "").join("\n")}
     `;
     return style;
@@ -261,7 +262,7 @@ window.WIA = window.WIA || {};
     const focused = root.activeElement;
     root.querySelector(".list").replaceChildren(
       ...(summary.fields.length
-        ? summary.fields.map(row)
+        ? (window.WIA.groups?.render(summary.fields, row) ?? summary.fields.map(row))
         : [Object.assign(document.createElement("div"), { className: "empty", textContent: "No fields detected yet." })]),
     );
     root.querySelector(".parts").replaceChildren(...parts.map((part) => part.panel?.(summary)).filter(Boolean));

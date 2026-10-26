@@ -23,6 +23,8 @@ window.WIA = window.WIA || {};
   const FONT_FAMILY = "WorkIt Jakarta Sans";
   // Where the edge tab sits until the student drags it (px from the top).
   const TAB_TOP = 120;
+  // WorkIt's mark (frontend/src/components/logo.tsx), in ink: the header is neutral.
+  const LOGO = `<svg role="img" aria-label="WorkIt" viewBox="0 0 118.48 91"><path d="M7.94 26.87 L33.59 83.06 L59.24 45.19 L84.89 83.06 L110.54 26.87" fill="none" stroke="currentColor" stroke-width="15.88" stroke-linecap="round" stroke-linejoin="round"/><circle cx="59.24" cy="13.44" r="13.44" fill="currentColor"/></svg>`;
   const send = (message) => Promise.resolve(chrome.runtime.sendMessage(message)).catch(() => null);
 
   const SHELL_CSS = `
@@ -39,15 +41,16 @@ window.WIA = window.WIA || {};
       flex: none; display: flex; align-items: center; justify-content: space-between; gap: 8px;
       padding: 10px 12px; background: var(--color-panel); border-bottom: 1px solid var(--color-border);
     }
-    .brand { font-size: var(--text-body); font-weight: 700; color: var(--color-ink); }
+    .brand { display: flex; align-items: center; gap: 6px; font-size: var(--text-body); font-weight: 700; color: var(--color-ink); }
+    .brand svg { height: 18px; width: auto; display: block; }
     .header-actions, [data-slot="header-actions"] { display: flex; align-items: center; gap: 4px; }
     .header button {
       all: unset; cursor: pointer; font-size: var(--text-note); font-weight: 500; color: var(--color-ink-muted);
-      padding: 4px 8px; border-radius: var(--radius-control);
+      padding: 4px 8px; border-radius: var(--radius-control); white-space: nowrap;
     }
     .header button:hover { background: var(--color-hover); }
     .header button:focus-visible { outline: 2px solid var(--color-brand); outline-offset: 1px; }
-    .header button[data-collapse], .header button[data-settings] { font-size: var(--text-body); padding: 2px 8px; }
+    .header button[data-collapse], .header button[data-settings], .header button[data-report] { font-size: var(--text-body); padding: 2px 8px; }
     .scroll { flex: 1; min-height: 0; overflow-y: auto; display: flex; flex-direction: column; gap: 8px; padding: 8px; }
     .card { background: var(--color-panel); border: 1px solid var(--color-border); border-radius: var(--radius-card); }
     [data-slot="batch-line"] { padding: 6px 10px; font-size: var(--text-note); color: var(--color-ink-meta); }
@@ -74,14 +77,16 @@ window.WIA = window.WIA || {};
     .tabs button[aria-selected="true"] { color: var(--color-ink); background: var(--color-panel); box-shadow: inset 0 -2px 0 var(--color-ink); }
     .tabs button:focus-visible { outline: 2px solid var(--color-brand); outline-offset: 1px; }
     .tab { overflow: hidden; }
-    [data-slot="settings"] { padding: 12px; }
-    [data-slot="settings"] h2 { margin: 0 0 8px; font-size: var(--text-label); font-weight: 600; }
-    [data-slot="settings"] button {
+    .tab-placeholder { margin: 0; padding: 16px 12px; font-size: var(--text-note); color: var(--color-ink-meta); }
+    [data-slot="settings"], [data-slot="report"] { padding: 12px; }
+    [data-slot="settings"] h2, [data-slot="report"] h2 { margin: 0 0 8px; font-size: var(--text-label); font-weight: 600; }
+    [data-slot="report"] p { margin: 0; color: var(--color-ink-meta); }
+    [data-slot="settings"] button, [data-slot="report"] button {
       all: unset; cursor: pointer; display: block; margin-top: 6px; padding: 6px 10px; font-size: var(--text-note); font-weight: 500;
       border-radius: var(--radius-control); border: 1px solid var(--color-border-subtle); background: var(--color-panel); color: var(--color-ink);
     }
-    [data-slot="settings"] button:hover { background: var(--color-hover); }
-    [data-slot="settings"] button:focus-visible { outline: 2px solid var(--color-brand); outline-offset: 2px; }
+    [data-slot="settings"] button:hover, [data-slot="report"] button:hover { background: var(--color-hover); }
+    [data-slot="settings"] button:focus-visible, [data-slot="report"] button:focus-visible { outline: 2px solid var(--color-brand); outline-offset: 2px; }
     /* The edge tab: what a collapsed panel leaves on the right edge. */
     .edge {
       position: fixed; right: 0; z-index: 2147483647; display: flex; flex-direction: column; align-items: stretch;
@@ -130,9 +135,10 @@ window.WIA = window.WIA || {};
     panel.setAttribute("aria-label", "WorkIt");
     panel.innerHTML = `
       <div class="header">
-        <span class="brand">WorkIt</span>
+        <span class="brand">${LOGO}<span aria-hidden="true">WorkIt</span></span>
         <span class="header-actions">
           <span data-slot="header-actions"></span>
+          <button type="button" data-report aria-label="Report a problem" title="Report a problem">⚑</button>
           <button type="button" data-settings aria-label="Settings" title="Settings">⚙</button>
           <button type="button" data-collapse data-close aria-label="Collapse" title="Collapse">›</button>
         </span>
@@ -148,11 +154,18 @@ window.WIA = window.WIA || {};
           <button type="button" data-signup>Workday Sign-Up</button>
           <button type="button" data-back>Back</button>
         </div>
+        <div class="card" data-slot="report" hidden>
+          <h2>Report a problem</h2>
+          <p>Soon you can tell WorkIt what went wrong on this page, and see exactly what is sent first. Nothing is sent yet.</p>
+          <button type="button" data-back>Back</button>
+        </div>
       </div>
     `;
     panel.querySelector("[data-collapse]").addEventListener("click", () => collapse());
     panel.querySelector("[data-settings]").addEventListener("click", () => showSettings(panel.querySelector('[data-slot="settings"]').hidden));
-    panel.querySelector("[data-back]").addEventListener("click", () => showSettings(false));
+    for (const back of panel.querySelectorAll("[data-back]")) back.addEventListener("click", () => showSettings(false));
+    // A placeholder until the report ticket fills the report slot (KAN-395).
+    panel.querySelector("[data-report]").addEventListener("click", () => showView("report", panel.querySelector('[data-slot="report"]').hidden));
     // The extension's own settings page (src/options/): the password is never typed into the employer's page.
     panel.querySelector("[data-signup]").addEventListener("click", () => send({ type: "workday/signup-open" }));
 
@@ -187,9 +200,26 @@ window.WIA = window.WIA || {};
 
     root.append(panel, edge, menu);
     addTab({ id: "autofill", label: "Autofill" });
+    // Résumé and Answers hold a placeholder until their own files fill them (replaceChildren).
+    for (const [id, label, text] of [
+      ["resume", "Résumé", "The résumé this form gets will show here."],
+      ["answers", "Answers", "This job's written answers will show here."],
+    ]) addTab({ id, label }).replaceChildren(Object.assign(document.createElement("p"), { className: "tab-placeholder", textContent: text }));
     document.documentElement.appendChild(host);
     keepAttached();
     loadFont().catch(() => {});
+    for (const hook of builtHooks.splice(0)) hook();
+  }
+
+  // What waits for the shell to exist (onBuilt): the files that fill its slots.
+  const builtHooks = [];
+  // Whether a batch tab's panel opens by itself (panel/where's autoOpen).
+  let autoOpens = true;
+
+  /** Runs `hook` once the shell exists (now, if it does). */
+  function onBuilt(hook) {
+    if (root) hook();
+    else builtHooks.push(hook);
   }
 
   /**
@@ -258,6 +288,8 @@ window.WIA = window.WIA || {};
     ready ??= send({ type: "panel/where" }).then((answer) => {
       site = answer?.site ?? {};
       shell.batch = Boolean(answer?.batch);
+      // The settings view's Open the panel by itself (KAN-402), on unless the student turned it off.
+      autoOpens = answer?.autoOpen !== false;
       return { job: Boolean(answer?.job), batch: Boolean(answer?.batch) };
     });
     return ready;
@@ -290,10 +322,10 @@ window.WIA = window.WIA || {};
     paint();
   }
 
-  /** Opens the panel by itself (a batch tab whose fill is done), unless the student collapsed it on this site. */
+  /** Opens the panel by itself (a batch tab whose fill is done), unless the student collapsed it on this site or turned auto-open off. */
   async function autoOpen() {
     await ensure();
-    if (site.collapsed) return paint();
+    if (site.collapsed || !autoOpens) return paint();
     root.querySelector(".panel").hidden = false;
     paint();
   }
@@ -348,13 +380,33 @@ window.WIA = window.WIA || {};
     const button = Object.assign(document.createElement("button"), { type: "button", textContent: label });
     button.setAttribute("role", "tab");
     button.dataset.tab = id;
-    button.addEventListener("click", () => selectTab(id));
+    button.addEventListener("click", () => {
+      selectTab(id);
+      keepTab(id);
+    });
     tabs.push(id);
     root.querySelector(".tabs").appendChild(button);
     root.querySelector("[data-tabs]").appendChild(body);
     root.querySelector(".tabs").hidden = tabs.length < 2;
-    selectTab(tabs[0]);
+    selectTab(tabs.includes(keptTab()) ? keptTab() : tabs[0]);
     return body;
+  }
+
+  // The tab the student chose, kept for this browser tab (a new page load or a Workday step shows it again).
+  const TAB_KEY = "workit-panel-tab";
+  function keptTab() {
+    try {
+      return sessionStorage.getItem(TAB_KEY);
+    } catch {
+      return null;
+    }
+  }
+  function keepTab(id) {
+    try {
+      sessionStorage.setItem(TAB_KEY, id);
+    } catch {
+      // A page that refuses storage: the choice lasts until the page goes.
+    }
   }
 
   function selectTab(id) {
@@ -364,7 +416,12 @@ window.WIA = window.WIA || {};
 
   /** The settings view in place of the tabs (true), or the tabs again (false). */
   function showSettings(shown) {
-    root.querySelector('[data-slot="settings"]').hidden = !shown;
+    showView("settings", shown);
+  }
+
+  /** A view in place of the tabs ("settings", "report"), or the tabs again (shown false). */
+  function showView(name, shown) {
+    for (const view of ["settings", "report"]) root.querySelector(`[data-slot="${view}"]`).hidden = !(shown && view === name);
     root.querySelector("[data-tabs]").hidden = shown;
     root.querySelector(".tabs").hidden = shown || tabs.length < 2;
   }
@@ -447,7 +504,7 @@ window.WIA = window.WIA || {};
 
   const shell = {
     batch: false,
-    where, ensure, open, collapse, autoOpen, toggle, isOpen, showEdge, slot, addCss, addTab, selectTab, showSettings, setPrimary, fillButton, startLabel,
+    where, ensure, open, collapse, autoOpen, toggle, isOpen, showEdge, slot, addCss, addTab, selectTab, showSettings, showView, setPrimary, fillButton, startLabel, onBuilt,
     get root() {
       return root;
     },

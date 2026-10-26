@@ -7,7 +7,13 @@ import type { Handler } from "./loaded-extension";
 
 export type Stage = "queued" | "needs_you" | "skipped" | "applied";
 /** `form_url`: the employer's form the API names (KAN-376); its apply_url when left out, as for a hiring system's posting. */
-export type Posting = { id: string; apply_url: string; form_url?: string | null; title?: string; company?: string };
+export type Posting = {
+  id: string; apply_url: string; form_url?: string | null; title?: string; company?: string;
+  // The job card's parts (KAN-395), as JobListing names them: shown when known.
+  location_label?: string; logo_url?: string; salary_min?: number; salary_max?: number; salary_period?: string;
+  // The Match score GET .../applications?scored=true gives it (null: none).
+  match?: number | null;
+};
 /** A question a batch tab's form needs written, and the answer the student's Claude saved (KAN-377). */
 export type Written = {
   name: string; label: string; required: boolean; max_length: number | null; answer: string | null;
@@ -95,6 +101,17 @@ export class FakeApi {
     this.answers = { ...(profile.answers ?? STUDENT.answers) };
   }
 
+  /** When each application was marked applied (ISO), by job. */
+  readonly appliedAt = new Map<string, string>();
+
+  /** A posting the student applied to already, `at` (ISO): its application is at the applied stage. */
+  applied(posting: Posting, at: string): this {
+    this.postings.set(posting.id, posting);
+    this.stages.set(posting.id, "applied");
+    this.appliedAt.set(posting.id, at);
+    return this;
+  }
+
   /** Queues the postings in this order, as Start Auto Apply or the job cards do. */
   queue(...postings: Posting[]): this {
     for (const posting of postings) {
@@ -138,6 +155,10 @@ export class FakeApi {
     if (route === "/documents/transcript/bytes" && this.transcript) {
       return { headers: { "content-type": "application/pdf" }, body: Buffer.from(this.transcript.base64, "base64") };
     }
+    if (route === "/connector" && method === "DELETE") {
+      this.connectorAdded = false;
+      return { status: 204, body: "" };
+    }
     if (route === "/connector") return { json: { added: this.connectorAdded } };
     if (route === "/writing-samples" && method === "GET") return { json: { samples: this.samples, style_card: null } };
 
@@ -150,6 +171,11 @@ export class FakeApi {
     // The queued applications, newest first, as GET .../applications?stage=queued answers them.
     if (route === "/applications" && method === "GET" && url.searchParams.get("stage") === "queued") {
       return { json: [...this.stages].filter(([, stage]) => stage === "queued").map(([id]) => this.application(id)).reverse() };
+    }
+    // Every application, newest first; ?scored=true adds each one's Match score (KAN-395's job card).
+    if (route === "/applications" && method === "GET" && !url.searchParams.has("stage")) {
+      const scored = url.searchParams.get("scored") === "true";
+      return { json: [...this.stages.keys()].map((id) => ({ ...this.application(id), match: scored ? this.postings.get(id)!.match ?? null : null })).reverse() };
     }
     const bank = /^\/applications\/([^/]+)\/answer-bank$/.exec(route);
     if (bank && method === "GET" && this.stages.has(bank[1])) return { json: this.bank };
@@ -256,8 +282,12 @@ export class FakeApi {
         id,
         apply_url: posting.apply_url,
         form_url: posting.form_url === undefined ? posting.apply_url : posting.form_url,
-        title: posting.title ?? "Intern", company_name: posting.company ?? "Acme" },
+        title: posting.title ?? "Intern", company: posting.company ?? "Acme", company_name: posting.company ?? "Acme",
+        location_label: posting.location_label ?? null, logo_url: posting.logo_url ?? null,
+        salary_min: posting.salary_min ?? null, salary_max: posting.salary_max ?? null, salary_currency: posting.salary_min ? "USD" : null,
+        salary_period: posting.salary_period ?? null },
       stage: this.stages.get(id),
+      applied_at: this.appliedAt.get(id) ?? null,
       open: true,
     };
   }

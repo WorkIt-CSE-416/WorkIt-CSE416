@@ -1360,14 +1360,26 @@ slot by name, `panel.slot(name)`, and adds its styles with
 | Slot | What goes there | Today |
 |---|---|---|
 | `header-actions` | buttons beside settings and collapse | overlay.js: a batch tab's I submitted this, Skip |
-| `batch-line` | the batch line ("Batch · 3 of 5 ready · Next tab →", Workday's step) | empty, hidden |
-| `job-card` | the job card (title, company, Match score) | empty, hidden |
+| `batch-line` | the batch line ("Batch · 3 of 5 ready · Next tab →", Workday's step) | panel-top.js |
+| `job-card` | the job card (title, company, Match score) | panel-top.js |
 | `primary` | the one big button; `panel.setPrimary({ label, onPress, secondary })` or `panel.fillButton(label)` | Autofill This Page / Fill this step (launcher.js), then primary.js: Next Thing, Ready to submit, the required line, Fill Again |
-| `tab:<id>` | a tab's body; `panel.addTab({ id, label })` adds one, the strip shows from two | `tab:autofill`: overlay.js's summary, essay banner, moment cards, parts and rows |
-| `settings` | the settings view, shown by the header's gear in place of the tabs (`panel.showSettings`) | Workday Sign-Up (opens the options page), Back |
+| `tab:<id>` | a tab's body; `panel.addTab({ id, label })` adds one, the strip shows from two | `tab:autofill`: overlay.js's summary, essay banner, moment cards, parts and rows; `tab:resume` and `tab:answers`: a placeholder (KAN-397) |
+| `settings` | the settings view, shown by the header's gear in place of the tabs (`panel.showSettings`) | panel-settings.js: Claude connection, Open the panel by itself, Report a problem, Workday Sign-Up, Back |
+| `report` | Report a problem, shown by the header's button in place of the tabs (`panel.showView("report", true)`) | a placeholder ("Nothing is sent yet"), Back |
+
+**Tabs (KAN-397).** The shell makes three: Autofill, Résumé and Answers.
+Résumé and Answers hold a one-line placeholder (`.tab-placeholder`) until
+their tickets fill them: `panel.slot("tab:resume").replaceChildren(...)`
+(`addTab` with an existing id returns its body). The tab the student
+presses is kept in the page's `sessionStorage` (`workit-panel-tab`), so
+it lasts while the browser tab is open, across page loads and Workday
+steps; `addTab` shows it again once that tab exists. A page that refuses
+storage keeps the choice until it goes. `selectTab` from code doesn't
+keep it.
 
 `batch-line`, `job-card` and `settings` are cards hidden while empty: a
-file that fills one sets `hidden = false`. overlay.js keeps its API
+file that fills one sets `hidden = false`. A file loaded before the shell
+exists waits for it with `panel.onBuilt(hook)`. overlay.js keeps its API
 (`mount`, `refresh`, `addPart`, `momentCard`, ...); `mount` now fills the
 Autofill tab instead of making a host, and `unmount` (a fill again)
 empties it and leaves the shell. panel.js is loaded first by the static
@@ -1470,6 +1482,96 @@ Tests: `test/panel-primary.extension.spec.ts` (Next Thing and the
 required line against the form's own asterisks; Alt+N; Ready to submit
 rings Submit and sends nothing; Fill Again's Cancel; Fill this step on
 Workday; the embedded form).
+
+## The panel's top (KAN-395): header, batch line, job card
+
+The header (panel.js) is WorkIt's mark (logo.tsx's figure, in ink: the
+header is neutral), Report a problem (a ⚑ button, named so; a placeholder card until its ticket),
+the gear and Collapse. `src/content/panel-top.js` fills two slots, loaded
+after panel.js everywhere panel.js is (manifest, `CONTENT_SCRIPT_FILES`,
+background.js `SHELL_FILES`):
+
+- **Batch line** (`batch-line`): in a batch tab, "Batch · R of N ready ·
+  Next tab →", N the batch's open tabs and R those in state ready
+  (background `panel/batch-line`, panel-top.js in background/). Next tab
+  shows only while another tab needs the student (needs_you or failed); it
+  goes to the next one after this tab, round from the first
+  (`panel/next-tab`). The line follows the batch: the content script
+  re-asks whenever `workit_batch` changes in chrome.storage.local. On
+  Workday a second line, "Step 3 of 6 · My Experience", is read off
+  Workday's step bar (`progressBarActiveStep`) and kept up as the steps
+  load, in batch tabs and out.
+- **Job card** (`job-card`, `panel/job`): WorkIt's own posting when the
+  student has an application for it (a batch tab's by its job id, any other
+  tab's by the Fill engine's jobOf identity of the page against the
+  posting's form_url / apply_url), from `GET .../applications?scored=true`
+  (read once per 30 s for all tabs): logo (the company's first letter when
+  there is none or the page won't load it), title, company, place
+  (`location_label`), pay ("$45–$55 an hour"), the Match score as a ring
+  (purple, one of the two purple things) with its band (Strong Match at 80,
+  as frontend/src/lib/match.ts), and "You applied on Oct 25" at the applied
+  stage. No application, or signed out: the engine's `jobNames` read gives
+  title and company only. No score: no ring.
+
+Tests: `test/panel-header.extension.spec.ts` (a batch's line, card, ring and
+Next tab; an own tab's header, Report placeholder and applied card; a
+Workday tab's step line).
+
+## The Autofill tab's groups (KAN-397)
+
+`src/content/groups.js` (`window.WIA.groups`, loaded before overlay.js)
+draws the Autofill tab's rows by what they ask of the student, not in form
+order: **Needs you** (failed, a required field with no answer, a flag from
+the student's Claude's check, a human check or another "todo" note, a
+written answer no Claude is writing), **Check these** (guesses),
+**Waiting for your Claude**, **Filling** (rows not done yet), then
+**Filled** collapsed to "20 filled" and **N optional left empty**, both
+opened by a press (kept for the page's life). Each group's head shows its
+count; an empty group is left out; a "done" note sits above the groups.
+overlay.js's `render` asks `groups.render(fields, row)` and keeps its own
+`row` (cards, badges, row click), so every row card works in its group. A
+row in a collapsed group stays in sight while it has more than its label
+and badge (a card such as Saved for next time with Undo, a reason, See
+cover letter) or is the row Next Thing last went to. A test that presses a
+plain filled row opens Filled first (`.group[data-group="filled"]
+.group-head`).
+
+Tests: `test/panel-tabs.extension.spec.ts` (Anduril's guess under Check
+these above "20 filled", opening Filled and a row's click to its field;
+Looks right and Undo moving the counts; the three tabs, and the choice
+kept across a reload), and the waiting group's count in
+`test/waiting-card.extension.spec.ts`.
+
+## The panel's settings (KAN-402): Claude, auto-open, report, Workday
+
+`src/content/panel-settings.js` fills the `settings` slot (loaded after
+panel-top.js everywhere it is: manifest, `CONTENT_SCRIPT_FILES`,
+background.js `SHELL_FILES`); `src/background/panel-settings.js` answers
+its messages. The gear shows it in place of the tabs; Back returns.
+
+- **Claude**: "Your Claude is connected." with **Disconnect** (`DELETE
+  /applicants/{id}/connector`, which revokes the sign-in at once, as the
+  webapp's Settings > Connected Apps does), or "Your Claude isn't
+  connected." with **Add to Claude** (a new tab on the webapp's
+  `/connect/claude/add`, which goes on to Claude's Add Custom Connector
+  dialog). Signed out: "Sign in to WorkIt to connect your Claude." The
+  state (`settings/read`, `GET .../connector`) is read again each time the
+  gear opens the view and when the student comes back to the tab.
+- **Open the panel by itself** (on by default): `panel_auto_open` in
+  chrome.storage.local, given to panel.js by `panel/where` (`autoOpen`).
+  Off, a batch tab's panel stays closed with its edge tab, as a kept
+  collapse does; the student opens it. Outside a batch nothing opens by
+  itself anyway.
+- **Report a problem**: opens the report view (`panel.showView("report",
+  true)`), the same entry point as the header's ⚑; KAN-403 fills that slot.
+- **Workday Sign-Up**: opens the extension's options page
+  (`workday/signup-open`). No password field is ever in the panel: it
+  lives in the employer's page.
+
+Tests: `test/panel-settings.extension.spec.ts` (the Claude connection with
+Disconnect and Add to Claude; auto-open off keeps a batch tab's panel
+closed; the gear and Back, Report, Workday Sign-Up opening the options
+page and no password field in the panel).
 
 ## The overlay: honest per-field results
 
