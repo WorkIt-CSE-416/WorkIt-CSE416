@@ -212,6 +212,16 @@ Submit button themselves, on the ATS's own page, after reviewing what got
 filled. `activeTab` also means no broad host-permission prompt for
 arbitrary websites at install time.
 
+**On a page WorkIt already filled, the popup offers Show WorkIt Panel
+first** (KAN-369, `popup.js`'s `panelOn`): it asks every frame of the tab
+for the panel's state (`overlay.state`: shown or closed, batch tab or not,
+the fill's phase), and where one answers, Show WorkIt Panel brings that
+frame's panel back as it was (`overlay.open`, no fill, no Plan), and
+Autofill This Page becomes the secondary **Fill Again**, which fills the
+same frame the same way (a batch tab stays a batch tab). While the fill
+still runs, only Show WorkIt Panel shows. The state lives in the page, so
+a reload or a new page is a fresh start: Autofill This Page again.
+
 **The one other trigger is the student's own Auto Apply click** (KAN-305,
 KAN-370): batch apply fills the tabs it opened for that click (below). It
 is still a click, never a page load, and it still never submits. It is why

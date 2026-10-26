@@ -46,6 +46,20 @@ function renderLoginView(errorText) {
   root.querySelector("#recheck-button").addEventListener("click", () => init());
 }
 
+/**
+ * WorkIt's panel on the tab, if a fill left one there (overlay.js's state,
+ * asked in every frame: an embedded form's panel is in its frame): its
+ * frame, whether it shows, whether the tab is a batch tab, and the phase.
+ * Null when nothing was filled, or WorkIt can't run on the page.
+ */
+async function panelOn(tabId) {
+  const frames = await chrome.scripting
+    .executeScript({ target: { tabId, allFrames: true }, func: () => window.WIA?.overlay?.state?.() ?? null })
+    .catch(() => []);
+  const found = frames.find((frame) => frame.result);
+  return found ? { frameId: found.frameId, ...found.result } : null;
+}
+
 function renderSignedIn(profile) {
   const template = document.getElementById("signed-in-template");
   root.replaceChildren(template.content.cloneNode(true));
@@ -59,17 +73,38 @@ function renderSignedIn(profile) {
   // The one email and password for every company's Workday (src/options/), kept only in this browser.
   root.querySelector("#workday-signup-button").addEventListener("click", () => chrome.runtime.openOptionsPage());
 
-  root.querySelector("#autofill-button").addEventListener("click", async (event) => {
+  // A page WorkIt already filled (KAN-369): its panel comes back as it was, no fill; Fill Again starts over.
+  let panel = null;
+  const autofill = root.querySelector("#autofill-button");
+  const showPanel = root.querySelector("#show-panel-button");
+  chrome.tabs.query({ active: true, currentWindow: true }).then(async ([tab]) => {
+    panel = tab?.id ? await panelOn(tab.id) : null;
+    if (!panel) return;
+    showPanel.hidden = false;
+    autofill.textContent = "Fill Again";
+    autofill.classList.add("secondary");
+    autofill.hidden = panel.phase === "filling";
+    root.querySelector(".hint").textContent =
+      panel.phase === "filling" ? "WorkIt is filling this page now." : "WorkIt already filled this page. Show its panel, or fill the page again from the start.";
+    showPanel.addEventListener("click", async () => {
+      await chrome.scripting.executeScript({ target: { tabId: tab.id, frameIds: [panel.frameId] }, func: () => window.WIA?.overlay?.open?.() });
+      window.close();
+    });
+  });
+
+  autofill.addEventListener("click", async (event) => {
     const button = event.currentTarget;
+    const label = button.textContent;
     button.disabled = true;
     button.textContent = "Filling…";
     try {
       const [tab] = await chrome.tabs.query({ active: true, currentWindow: true });
       if (!tab?.id) throw new Error("No active tab");
-      await injectFill(tab.id);
+      // Filled again where it was filled: a batch tab stays one, an embedded form's frame is filled alone.
+      await injectFill(tab.id, panel ? { batch: panel.batch, frameId: panel.frameId || undefined } : undefined);
       window.close(); // the on-page overlay takes over from here
     } catch (error) {
-      button.textContent = "Autofill This Page";
+      button.textContent = label;
       button.disabled = false;
       const hint = root.querySelector(".hint");
       hint.textContent =

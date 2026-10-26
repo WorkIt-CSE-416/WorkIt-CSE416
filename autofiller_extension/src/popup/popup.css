@@ -60,6 +60,8 @@ button {
   transition: background-color 150ms ease-out, border-color 150ms ease-out;
 }
 
+button[hidden] { display: none; }
+
 button:hover { background: var(--color-brand-hover); }
 button:active { background: var(--color-brand-active); }
 
