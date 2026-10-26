@@ -331,8 +331,13 @@ weight.
   type in play, a student reads the panel against the page, and sections
   by type sent them up and down it. Each suggestion was a numbered card
   before that.
-- **The types are a legend that filters**, two by two under the keyword
-  match, each with its count: a press shows one type, a second shows all.
+- **A type filter in the panel's heading row** (`TypeFilter`), a
+  dropdown drawn as the Resumes page's Type filter is (`facetClasses`,
+  brand-tinted while it holds a pick): its button names the type shown
+  with that type's badge, and its menu lists All Types and each type
+  present, each with its badge and count. The types were a two-by-two
+  legend of coloured pills under the keyword match, which took four rows'
+  height.
 - **Sample changes, TEMPORARY** (`demo-suggestions.ts`, 2026-10-26): six
   sample changes of every type, built from the resume's own entries, sit
   beside a run's real ones so the panel's design can be judged; Accept or

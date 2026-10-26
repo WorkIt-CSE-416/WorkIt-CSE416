@@ -1781,9 +1781,9 @@ with no proposals to accept and no Done (2026-10-25).
   at or open; a dot or a changed line opens it. The panel's top holds a
   "…" menu (Accept All, Reject All) and the keyword
   match as one thin row ("No new keywords matched" when it did not
-  move), and the change types as a two-by-two legend that filters (added
-  green, reworded blue, removed red, moved amber, each with a glyph and
-  its count); under it one white section per resume entry, top to bottom
+  move), and a type filter in the heading row (a dropdown of All Types
+  and each change type, each with its coloured badge, added green,
+  reworded blue, removed red, moved amber, and its count); under it one white section per resume entry, top to bottom
   as on the page, each heading with the entry's title, organization,
   count and a caret, and each suggestion a row with its type's badge and
   a plus (a minus while open) that opens to its change with a red ✕ Reject and a green ✓

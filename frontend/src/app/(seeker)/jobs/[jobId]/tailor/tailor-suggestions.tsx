@@ -12,11 +12,14 @@ import {
 } from "@phosphor-icons/react/ssr";
 import { useEffect, useRef, useState, type ComponentProps, type ReactNode } from "react";
 
-import { EllipsisIcon } from "@/components/icons";
+import { facetClasses } from "@/components/field-facet";
+import { ChevronDownIcon, EllipsisIcon, FilterIcon } from "@/components/icons";
 import {
   DropdownMenu,
   DropdownMenuContent,
   DropdownMenuItem,
+  DropdownMenuRadioGroup,
+  DropdownMenuRadioItem,
   DropdownMenuTrigger,
 } from "@/components/shadcn/dropdown-menu";
 import { Button } from "@/components/ui/button";
@@ -50,7 +53,7 @@ import { TailorScore } from "./tailor-score";
  * each counting its suggestions; each suggestion is a row with its type's
  * badge (added, reworded, removed, moved: a colour and a glyph) that opens
  * to its before and after with Accept, which keeps the saved change, and
- * Reject, which undoes it. The types at the top are a legend that filters. The editor owns the state and
+ * Reject, which undoes it. A dropdown in the heading row filters by type. The editor owns the state and
  * lays the panel out (`suggestions`); this file draws it.
  *
  * The record lives in this tab's sessionStorage, so a new tab or device has
@@ -101,8 +104,8 @@ function Count({ n }: { n: number }) {
 }
 
 /**
- * Each change type's name, glyph and colours: the badge on its row and its
- * filter, in the colour its lines carry on the page
+ * Each change type's name, glyph and colours: the badge on its row and in
+ * the type filter, in the colour its lines carry on the page
  * (../../../resumes/[resumeId]/pdf-pages.tsx): green added, blue reworded,
  * red removed, amber moved. A glyph as well as a colour, so the type reads
  * without telling colours apart.
@@ -224,6 +227,7 @@ function SuggestionsPanel({
           >
             Suggestions <Count n={changes.length} />
           </h2>
+          {changes.length > 0 && <TypeFilter only={only} counts={counts} onChange={setOnly} />}
           <DropdownMenu>
             <DropdownMenuTrigger
               disabled={saving || changes.length === 0}
@@ -253,34 +257,6 @@ function SuggestionsPanel({
           </DropdownMenu>
         </div>
         {match && <TailorScore match={match} />}
-        {/* The types, as a legend that filters: a press shows one type, a
-            second press shows all again. Two by two, each count at its
-            end: four in one row did not fit the panel, and wrapped one */}
-        {changes.length > 0 && (
-          <div role="group" aria-label="Show one type" className="grid grid-cols-2 gap-1">
-            {KIND_ORDER.filter((k) => counts.get(k)).map((k) => {
-              const { label, Icon, badge } = KINDS[k];
-              return (
-                <button
-                  key={k}
-                  type="button"
-                  aria-pressed={only === k}
-                  onClick={() => setOnly(only === k ? null : k)}
-                  className={cn(
-                    "text-note focus-visible:ring-brand-ring flex h-7 items-center gap-1.5 rounded-full px-2.5 font-medium transition-[opacity,box-shadow] focus-visible:ring-2 focus-visible:outline-none",
-                    badge,
-                    only === k && "ring-1 ring-current",
-                    only && only !== k && "opacity-45 hover:opacity-80",
-                  )}
-                >
-                  <Icon aria-hidden weight="bold" className="size-3.5" />
-                  {label}
-                  <span className="ml-auto tabular-nums">{counts.get(k)}</span>
-                </button>
-              );
-            })}
-          </div>
-        )}
       </div>
       {changes.length > 0 ? (
         <div ref={list} className="flex flex-col gap-2">
@@ -357,6 +333,63 @@ function SuggestionsPanel({
   );
 }
 
+/**
+ * The change types as a filter dropdown in the panel's heading row, drawn
+ * as the Resumes page's Type filter is (`facetClasses`, brand-tinted while
+ * it holds a pick). Its button names the type shown, with that type's
+ * badge; its menu lists All Types and each type present, with its badge
+ * and count. The types were a two-by-two legend of coloured pills under
+ * the keyword match until 2026-10-26, which took four rows' height.
+ */
+function TypeFilter({
+  only,
+  counts,
+  onChange,
+}: {
+  only: ChangeKind | null;
+  counts: Map<ChangeKind, number>;
+  onChange: (only: ChangeKind | null) => void;
+}) {
+  const total = [...counts.values()].reduce((sum, n) => sum + n, 0);
+  return (
+    <DropdownMenu>
+      <DropdownMenuTrigger
+        aria-label={`Show ${only ? KINDS[only].label : "All Types"}`}
+        className={facetClasses(only !== null, "gap-1.5 px-2.5")}
+      >
+        <span className="flex min-w-0 items-center gap-1.5">
+          {only ? (
+            <KindBadge kind={only} small />
+          ) : (
+            <FilterIcon className="text-ink-meta size-4 shrink-0" />
+          )}
+          <span className="truncate">{only ? KINDS[only].label : "All Types"}</span>
+        </span>
+        <ChevronDownIcon className="text-muted-foreground size-4" />
+      </DropdownMenuTrigger>
+      <DropdownMenuContent align="end" className="w-52">
+        <DropdownMenuRadioGroup
+          value={only ?? "all"}
+          onValueChange={(next) => onChange(next === "all" ? null : (next as ChangeKind))}
+        >
+          <DropdownMenuRadioItem value="all" className="gap-2">
+            <FilterIcon className="text-ink-meta size-4" />
+            All Types
+            <span className="text-ink-meta ml-auto tabular-nums">{total}</span>
+          </DropdownMenuRadioItem>
+          {KIND_ORDER.filter((k) => counts.get(k)).map((k) => (
+            <DropdownMenuRadioItem key={k} value={k} className="gap-2">
+              <KindBadge kind={k} small />
+              {KINDS[k].label}
+              <span className="text-ink-meta ml-auto tabular-nums">{counts.get(k)}</span>
+            </DropdownMenuRadioItem>
+          ))}
+        </DropdownMenuRadioGroup>
+      </DropdownMenuContent>
+    </DropdownMenu>
+  );
+}
+
 /** A section's sign that it folds: a caret at its heading's end, turned
  *  up while open. */
 function Chevron({ open }: { open: boolean }) {
@@ -380,14 +413,18 @@ function PlusMinus({ open }: { open: boolean }) {
 }
 
 /** A row's type, as a small round badge in its colour with its glyph. */
-function KindBadge({ kind }: { kind: ChangeKind }) {
+function KindBadge({ kind, small = false }: { kind: ChangeKind; small?: boolean }) {
   const { Icon, badge } = KINDS[kind];
   return (
     <span
       aria-hidden
-      className={cn("flex size-6 shrink-0 items-center justify-center rounded-full", badge)}
+      className={cn(
+        "flex shrink-0 items-center justify-center rounded-full",
+        small ? "size-5" : "size-6",
+        badge,
+      )}
     >
-      <Icon weight="bold" className="size-3.5" />
+      <Icon weight="bold" className={small ? "size-3" : "size-3.5"} />
     </span>
   );
 }
