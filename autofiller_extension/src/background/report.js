@@ -11,7 +11,7 @@ import { jobOf } from "./engine.js";
 // The Fill engine this extension ships (the fill-engine submodule's pin, as
 // `git -C fill-engine describe --tags` names it). Change it when the pin
 // moves: test/report.extension.spec.ts fails until you do.
-export const ENGINE_VERSION = "v0.3.2-105-gfcaaf20";
+export const ENGINE_VERSION = "v0.3.2-116-g3fb95d0";
 
 const FIELD_PARTS = ["kind", "label_shape", "error"];
 const NOTE_MAX = 1000;
