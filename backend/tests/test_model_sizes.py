@@ -33,6 +33,8 @@ def _sizes(module: str, name: str) -> set[str]:
     # Tailor rewrites with the large chain but reads keywords with the small
     # one, so a posting's keywords come from one chain whoever reads first.
     ("tailor", "run", {"large", "small"}),
+    ("tailor", "run_streamed", {"large", "small"}),
+    ("tailor", "match", {"small"}),
     ("bank", "import_resume", {"large"}),
     ("assistant", "ask", {"large"}),
     ("built_resumes", "keyword_match", {"small"}),

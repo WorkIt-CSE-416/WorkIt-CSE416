@@ -1656,34 +1656,34 @@ in Docs (suggested answers in the chat, not a banner).
 
 ### Tailor (`/jobs/[jobId]/tailor`, KAN-217)
 
+The design is `../../docs/tailor_resume.md`: one click tailors and saves,
+with no proposals to accept and no Done (2026-10-25).
+
 - **Opened from "Tailor My Resume"** on the job posting page, which reads
   "Your Tailored Resume" once the student has one for that posting.
-- **The run waits for a click.** Each run spends one of today's 2 Tailor
-  runs, so loading the page never starts one.
-- **Tailor My Resume opens Pick a Resume to Tailor** (KAN-318): the
-  posting's resumes in "Did You Apply?"'s resume list (grouped as the
-  Resumes page, a search, one radio group), starting on the resume tailored to
-  this job, else the default, and an upload with the same limit, replace
-  step and duplicate rule. The three resume dialogs share
-  `jobs/resume-picker.tsx`, so a rule changed there changes all three. The dialog's Tailor My Resume
-  closes it and runs; "Tailoring…" and errors show on the card. A pick
-  other than this job's tailored resume warns that Done replaces it. An
-  upload is read into the bank and tailored as its own entries; nothing
-  new appears under Generated. A run changes only what the picked
-  resume shows: it never proposes an entry or bullet that resume hides.
-- **The keyword match** shows "12 of 18" before, and again with what the
-  student has accepted, required keywords first. The second count adds
-  each accepted change's `keywords` and each Yes in the browser, with no
-  call; Done's response is the saved resume's own match. A posting with no
-  description shows the "weak match" notice.
-- **Every change has Accept and Reject**, plus Accept All; a new wording
-  shows beside the old one. Nothing saves until Done; Leave Without Saving
-  goes back to the posting. "Reorder bullets" names the entry with its
-  organization ("Software Intern, Acme"), since two jobs can share a title.
-- **"Have you used X?"** lists missing keywords that neither the picked
-  resume's entries nor any bank skill hold. Yes adds the skill to the bank
-  (it is saved at once, being true) and shows it on the tailored resume. It
-  no longer asks where the skill was used: skill links were removed.
+- **A posting is tailored once.** When it has a tailored resume, the screen
+  shows it with Open in Editor and offers no run; the API refuses a second
+  run (409), so no tokens are spent on it.
+- **The screen picks through the shared resume list** (KAN-318, KAN-406):
+  `ResumeLists` from `jobs/resume-picker.tsx`, as every resume dialog
+  does, with its search, Type filter and Upload Resume (the same limit,
+  replace step and duplicate rule) and the Uploaded, Generated and
+  Tailored groups. It starts on the resume tailored to this job, else the
+  primary unless that is tailored to another job, else the first resume
+  not tailored to any (`tailorFirst`): tailoring another job's tailored
+  resume starts from that job's changes. Use This Resume reads the
+  resume's keyword match (`matchTailor`); "Reading…" and errors show on
+  the card. An upload is read into the bank and tailored as its own
+  entries; a run changes only what the picked resume shows.
+- **The keyword match** shows "12 of 18", the matched keywords, and the
+  missing ones as toggle chips: the student picks those they have used,
+  to add as skills. A keyword not picked is never written in. A posting
+  with no description shows the "weak match" notice.
+- **Tailor Resume runs once** and saves the posting's tailored resume,
+  then opens it in the editor (`/resumes/[id]`). The run's record of
+  changes and its dropped count go to sessionStorage (`tailorEditsKey` in
+  `lib/local-drafts.ts`, cleared by Sign Out) for the editor's review
+  (Resume editor, below).
 - An empty bank (409) shows a link to the bank page, where intake starts.
 
 ## Resumes (`/resumes`)
@@ -1959,7 +1959,20 @@ student who opened a resume from Experiences landed on another view.
   everything Fit hid (the response's `undo` body). A one-page resume shows
   no count: a green "1 page" said what the page itself shows, and stood
   apart from the rest of the bar. Undo is kept in sessionStorage per resume
-  (`fit-undo.ts`), so a reload in the same tab still offers it. The bar also
+  (`fit-undo.ts`), so a reload in the same tab still offers it.
+  **After a Tailor run, Review Tailor's Changes sits under the bar**
+  (`tailor-review.tsx`, `../../docs/tailor_resume.md`): each change the run
+  saved, with Revert, and Save, which ends the review. Changed lines are
+  tinted on the page, see-through so the PDF's text shows: a new wording
+  or an added skill green (`positive`), an entry's bullets in a new order
+  amber (`warning-fill`). Revert goes through the choices PATCH (the
+  wording back to the source's, the old order, the skill hidden), and any
+  later edit of a changed item through it drops that change's mark. The
+  card says how many wordings the truth rule left out. The run's record is
+  in sessionStorage (`tailorEditsKey`, under `lib/local-drafts.ts`'s
+  prefix, so Sign Out clears it): a reload in the same tab keeps the
+  review, and a new tab or device opens with none. The phone editor shows
+  the same card above the page and the same tints. The bar also
   says "Saving…" or the last round trip ("Saved, 412 ms"), the measure for
   the Vercel preview check. **Download** (PDF or Word) and Ask Scout end
   the bar whether or not a line is selected, so Download stays in reach down

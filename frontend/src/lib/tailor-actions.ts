@@ -4,77 +4,81 @@ import { applicantCall, type Result } from "@/lib/applicant-call";
 import type { BuiltResume } from "@/lib/built-resume-actions";
 
 /**
- * Tailor (backend/app/routers/tailor.py), as server actions. Types mirror
- * backend/app/schemas/tailor.py. Every action returns `error: string | null`
- * and never throws; `status` lets the screen tell an empty bank (409) from
- * the daily limit (429).
+ * Tailor (backend/app/routers/tailor.py, docs/tailor_resume.md), as server
+ * actions. Types mirror backend/app/schemas/tailor.py. A run streams its
+ * phases, so it goes through the route handler `/api/tailor`, not an action. Every action returns
+ * `error: string | null` and never throws; `status` lets the screen tell an
+ * empty bank or an already tailored posting (409) from the daily limit (429).
  */
 
 export type Keyword = { keyword: string; kind: "required" | "preferred" };
-
-export type TailorChange = {
-  kind: "reword" | "show_skill" | "order";
-  bullet_id: string | null;
-  entry_id: string | null;
-  skill_id: string | null;
-  bullet_ids: string[];
-  text: string | null;
-  original: string | null;
-  label: string | null;
-  /** The posting's keywords this change alone adds to the match. */
-  keywords: string[];
-};
 
 /** The resume the student picked to tailor: a built resume, or an upload
  *  (read into the bank again and shown as its own entries; never saved). */
 export type TailorSource = { built_resume_id: string } | { uploaded_resume_id: string };
 
-export type TailorProposal = {
+/** The picked resume's keyword match before a run. `tailored_resume_id`:
+ *  the posting's tailored resume, when it has one (a run is then refused). */
+export type TailorMatch = {
   job_posting_id: string;
-  /** The source the run was given, one of the two; Done sends it back. */
-  built_resume_id: string | null;
-  uploaded_resume_id: string | null;
   tailored_resume_id: string | null;
   weak_match: boolean;
   matched: Keyword[];
   missing: Keyword[];
-  /** Missing keywords that are nowhere in the bank: "Have you used X?". */
-  questions: Keyword[];
-  changes: TailorChange[];
+};
+
+/** One change a run saved, with what it replaced, for the editor to mark
+ *  and revert. `reword`: `bullet_id` shows `text`, and showed
+ *  `before` (variant `before_variant_id`). `order`: `entry_id`'s bullets are
+ *  `bullet_ids`, and were `before_ids`; the editor can restore one bullet's
+ *  prior position at a time. `skill`: `skill_id`, named `label` in `group`,
+ *  is this resume's own. */
+export type TailorEdit = {
+  kind: "reword" | "order" | "skill";
+  bullet_id: string | null;
+  entry_id: string | null;
+  skill_id: string | null;
+  label: string | null;
+  text: string | null;
+  variant_id: string | null;
+  before: string | null;
+  before_variant_id: string | null;
+  bullet_ids: string[];
+  before_ids: string[];
+  group: string | null;
+};
+
+export type TailorRunResult = {
+  resume: BuiltResume;
+  weak_match: boolean;
+  matched: Keyword[];
+  missing: Keyword[];
+  after_matched: Keyword[];
+  after_missing: Keyword[];
+  edits: TailorEdit[];
   dropped: number;
   uses_left: number;
 };
 
-export type TailorResult = { resume: BuiltResume; matched: Keyword[]; missing: Keyword[] };
+/** One line of a streamed run (`/api/tailor`, the API's `POST
+ *  .../tailor/stream`): `asking` as the prompt goes to the model,
+ *  `generating` once its answer is back, then `done` or `error`. Mirrors
+ *  `TailorPhase`, `TailorDone` and `TailorFailed` in
+ *  backend/app/schemas/tailor.py; change both or neither. */
+export type TailorStreamEvent =
+  | { type: "phase"; phase: "asking" | "generating" }
+  | { type: "done"; result: TailorRunResult }
+  | { type: "error"; status: number; message: string };
 
 function post<T>(path: string, body: unknown): Promise<Result<T>> {
   return applicantCall<T>(`/tailor${path}`, { method: "POST", body: JSON.stringify(body) });
 }
 
-/** One Tailor run from the picked resume: spends one of today's Tailor
- *  runs. Saves nothing but what an upload's reading adds to the bank. */
-export async function runTailor(
+/** The picked resume's matched and missing keywords. Saves nothing but the
+ *  posting's keyword cache and what an upload's reading adds to the bank. */
+export async function matchTailor(
   postingId: string,
   source: TailorSource,
-): Promise<Result<TailorProposal>> {
-  return post<TailorProposal>("", { job_posting_id: postingId, ...source });
-}
-
-/** The source a run names, as Done takes it back. */
-function sourceOf(proposal: TailorProposal): TailorSource {
-  return proposal.built_resume_id
-    ? { built_resume_id: proposal.built_resume_id }
-    : { uploaded_resume_id: proposal.uploaded_resume_id as string };
-}
-
-/** Done: saves the accepted changes on the posting's one tailored resume. Free. */
-export async function finishTailor(
-  proposal: TailorProposal,
-  changes: TailorChange[],
-): Promise<Result<TailorResult>> {
-  return post<TailorResult>("/done", {
-    job_posting_id: proposal.job_posting_id,
-    ...sourceOf(proposal),
-    changes,
-  });
+): Promise<Result<TailorMatch>> {
+  return post<TailorMatch>("/match", { job_posting_id: postingId, ...source });
 }

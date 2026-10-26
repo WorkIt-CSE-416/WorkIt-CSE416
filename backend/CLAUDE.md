@@ -234,6 +234,17 @@ Find files with a directory listing; these are the rules for where code goes.
   session, flushes and never commits, so the router owns the transaction and
   one request can make many changes atomically (an import saving many
   entries).
+- **A resume-local skill is not in the bank** (`docs/tailor_resume.md`):
+  `load_bank` leaves out every skill a built resume owns
+  (`bank_skills.built_resume_id`) unless the caller names that resume in
+  `local_to`. Every reader of one built resume names it: `load_view` (the
+  PDF, Word, LaTeX, keyword match, Fit, sent resumes), the choices PATCH,
+  the editor assistant, Tailor's built source, Generate's duplicate check
+  (all resumes), and `GET /bank?built_resume_id=` (the editor page).
+  Nothing else does, so Scout, the recommender, Generate and the
+  Experiences view never see one. `add_local_skill` writes one and leaves
+  the bank's embedding alone. Tests: `tests/test_tailor.py`, "Resume-local
+  skills".
 - **The experience bank is written only through `services/bank.py`.** It
   holds the ownership scoping, the duplicate check and the clearing of the
   bank embedding on every entry, bullet or skill change; a route or script
@@ -256,7 +267,7 @@ Find files with a directory listing; these are the rules for where code goes.
   `JobFilters.job_ids`. One scoring path, one number per job.
 - **A student reaches only the postings the Jobs page lists**
   (`services/postings.py`'s `LISTED`: published and scraped). Tailor (run
-  and Done), the keyword match and Apply load a posting through
+  and its match), the keyword match and Apply load a posting through
   `postings.listed`, so a company's draft or a closed posting answers 404
   and its text never reaches a model. The one exception: a tailored
   resume's keyword match against its own posting, which still works after
@@ -286,7 +297,7 @@ Find files with a directory listing; these are the rules for where code goes.
   their places on built resumes go, with no warning. Deleting an upload
   deletes its rows (cascade). Upload flushes the `Resume` row first (the
   rows point at it). An item with no owner was made by the student, by
-  intake or by Tailor's "Have you used X?". Add (`POST .../bank/entries`
+  intake or by Tailor's "Have you used X?" (removed). Add (`POST .../bank/entries`
   and `.../skills`) takes `?resume_id=`: an upload owns the new item, a
   built resume gets a shown choice row; its duplicate check and the skill
   name index (`NULLS NOT DISTINCT`) look at one owner only. `GET /bank`
@@ -554,7 +565,8 @@ Find files with a directory listing; these are the rules for where code goes.
   script before a new endpoint joins the chain.
 - **The keyword match** (KAN-215) is `GET .../built-resumes/{rid}/keyword-match`
   over `services/keywords.py`: a job posting's keywords, extracted once by
-  the model and cached on the posting with a hash of its description, and
+  the model and cached on the posting with a hash of its title and the
+  description's job part (`job_part`), all the model read, and
   the pure count of those the built resume view shows (text and skills,
   whole words, ignoring case). **Only an extraction spends a use, and it
   counts under `TAILOR`**; a cached match is free, for every student. Tailor
@@ -562,8 +574,9 @@ Find files with a directory listing; these are the rules for where code goes.
   an extraction stored on the posting) and counts its run once, not once
   more for the extraction. Which use an extraction spends stays in each
   router. **Every extraction uses the small model** (`get_small_llm`,
-  KAN-356), Tailor's included: its route takes the large model for the
-  rewrite and the small one for `keywords.ensure`, so a posting's keywords
+  KAN-356), Tailor's included: its run routes (JSON and stream) take the
+  large model for the rewrite and the small one for `keywords.ensure`, and
+  its match route only the small one, so a posting's keywords
   come from one chain whichever path reads them first. Routes pass the
   model in; `ensure` never loads one, so a test's dependency override
   reaches it. **Most postings are read before any student asks** (KAN-392):
@@ -572,67 +585,116 @@ Find files with a directory listing; these are the rules for where code goes.
   (`company_jobs._fill_keywords`, in its own session after the response,
   so the composer never waits on a model). A draft is not read: no student
   sees it and its text keeps changing. Either failure only logs, and
-  `ensure` stays the fallback. Tests:
+  `ensure` stays the fallback. **The import and `cached` hash with one
+  function, `posting_text_hash`**: the import's pass (KAN-392) and the
+  title-and-job-part hash (KAN-343) landed separately, the import hashing
+  the description alone, which left every cache it filled stale to
+  Tailor and spent each extraction twice. Tests:
   `tests/test_keyword_match.py` (the cache, its clearing by the import and
   by the hash, an invalid or failed reply counts nothing, the cap, the
   import's pass and the company job's task).
-- **Tailor** (KAN-217) is `routers/tailor.py` over `services/tailor.py`.
-  A run (`POST .../tailor`) proposes changes and saves nothing but the
-  count and an uploaded source's reading, merged into the bank; Done (`POST .../tailor/done`) saves the accepted ones on the
-  posting's one tailored resume, approved wordings as bullet variants for
-  the posting. Rules, each with a test in `tests/test_tailor.py`:
-  - **The student picks the source** (KAN-318): run and Done each take
-    exactly one of `built_resume_id` or `uploaded_resume_id` (422
+- **Tailor** (KAN-217, `../docs/tailor_resume.md`) is `routers/tailor.py`
+  over `services/tailor.py`. `POST .../tailor/match` gives the picked
+  source's keyword match (and the posting's tailored resume, if any) for
+  the student to pick the missing keywords to add. A run (`POST
+  .../tailor`) then rewrites, orders and adds those skills and **saves the
+  posting's tailored resume itself, with no confirmation**: proposals,
+  Accept and Reject, Done (`.../tailor/done`) and "Have you used X?" were
+  removed on 2026-10-25. It answers with `edits`, each change and what it
+  replaced, which the editor marks and can revert until Save; the API keeps
+  no record of them. **The Tailor screen runs it streamed**, `POST
+  .../tailor/stream`: the same steps (`_steps`, one generator both routes
+  read) as NDJSON lines, `asking` before the model call, `generating` after
+  it, then `done` or `error`. It opens its own session, since the
+  request's may close once streaming starts, and runs to the first line
+  before it answers, so every refusal before the model call stays an
+  HTTP status. Rules, each with a test in `tests/test_tailor.py`:
+  - **One tailored resume per posting, made once.** A run on a posting that
+    has one answers 409 `{detail: {message, tailored_resume_id}}` before
+    any model call, so it spends no tokens; the student edits that resume
+    instead. Two runs at once: the loser's commit fails on
+    `built_resumes_applicant_posting_key` and answers 409.
+  - **The student picks the source** (KAN-318): the match and the run each
+    take exactly one of `built_resume_id` or `uploaded_resume_id` (422
     otherwise; 404 for one not the applicant's). A built resume gives its
-    choices. An upload gives the entries and skills it owns
-    (`tailor.upload_source`, ADR 0005), built in memory, never saved;
-    every other entry and skill waits hidden. It never reads an upload
-    that owns something again: a reading replaces what it owns, which
-    would drop those entries from the tailored resume. One that owns
-    nothing is read into the bank first. It used to
-    start from the newest base resume by `created_at`, which ignored the
-    star and the student's edits, and to generate one when there was
-    none. An upload the parser reads nothing from answers 409. Done
-    writes the posting's one tailored resume from whichever source it is
-    sent, so a new source replaces what it showed.
+    choices (and its own skills: a tailored resume can be a source). An
+    upload gives the entries and skills it owns (`tailor.upload_source`,
+    ADR 0005), built in memory, never saved; every other entry and skill
+    waits hidden. It never reads an upload that owns something again: a
+    reading replaces what it owns, which would drop those entries. One
+    that owns nothing is read into the bank first. An upload the parser
+    reads nothing from answers 409. The source never changes.
   - **The truth rule is one pure function**, `services/truth_rule.py`'s
     `invented` (tested directly, `tests/test_truth_rule.py`): a wording
-    with a number or tool in neither its original bullet nor the bank's
-    skills is dropped from the proposals and refused (422) at Done, since
-    the browser can send any text. Change what counts as a tool there and
+    with a number or tool in neither its original bullet nor what the
+    student has already said (`tailor.known`: the resume's skills, the
+    picked missing keywords, and the posting's keywords the resume already
+    shows anywhere, coursework included) is dropped and counted in
+    `dropped`. A missing keyword the student did not pick is in none of
+    these, so "backend" on a designer's bullet is dropped while
+    "algorithms", in the resume's coursework, passes: in the first live run
+    (2026-10-25) the posting-keyword check dropped both rewordings, the
+    second for "algorithms" alone. `propose` and `save_variants` read one
+    `known` list.
+    Both read every bank skill before 2026-10-25, so a wording could bring
+    in another upload's skill. Change what counts as a tool there and
     nowhere else.
-  - **A run tailors only what the picked resume shows** (KAN-318,
-    `tailor.on_resume`): its shown entries and their shown bullets are
-    all that is ranked, sent to the model, reworded, reordered and
-    matched. It never proposes an entry or bullet the resume hides, so a
-    pick keeps its focus and length. "Bring back" (`show_entry`) is gone,
-    and the API refuses it at Done (422). Skills are the exception: every
-    bank skill stays in, so a hidden one that adds a keyword is still
-    proposed, and the truth rule still reads them all. Before this, the
-    whole bank went to the model, and the hidden bullets took places among
-    the best 40 although a reword of one was always dropped.
-  - **A missing keyword that neither the resume's entries nor any bank
-    skill hold is a question** ("Have you used X?"), never words. A hidden
-    entry's words do not count, since the run never brings it back. Yes
-    adds the skill through the bank's own routes and shows it, with no AI
-    call.
+  - **A run tailors only what the picked resume shows, read once as its
+    view** (KAN-318): the router builds `build_view(bank, choices)` once,
+    and the rank, the prompt, the handles, the changes, the keyword match
+    and the record of edits all read it. So the model sees the resume the
+    student sees: its shown entries and bullets in the resume's own order
+    and wording, and only its shown skills. `prompt` and `propose` number
+    the handles from the same view, or b3 would name two bullets. A run
+    never adds an entry or bullet the resume hides, so a pick keeps its
+    focus and length. `on_resume`, the bank cut to what shows, was a
+    second copy of the view's rule and is gone.
+  - **A keyword the student does not pick is never written in.** Picked
+    skills (`skills` in the run's body; only missing keywords count, any
+    other name is ignored) go on the tailored resume only, as its own
+    skills (`bank_skills.built_resume_id`, `place_on`), never into the
+    experience bank. The prompt numbers the resume's skills by group
+    (`skill_numbers`) and lists the picked ones to place; the model answers
+    a group and `after` (a number it copies, 0 for first in the group) for
+    each, and `place_skills` checks each placement alone and builds the
+    order (the group wins over the number; at most two new groups;
+    positions come from code, never the model). A hidden bank skill that
+    holds a keyword is no longer offered: it was a card per skill, two
+    when two uploads owned one name.
   - **The model sees handles (b1, e1), never ids**, and no links: an
     entry's link field is left out and the seam removes identity data.
     Postgres text search (`ts_rank`, the posting's words OR'd) ranks the
-    resume's bullets: the best 40 go to the model, and the rank proposes
-    each entry's bullet order. A posting with no description is read by its
-    title, with `weak_match`.
-  - **A change names its entry with the organization** ("Software Intern,
-    Acme"), since two jobs can share a title.
-  - **One run is one `TAILOR` use**, counted after the model answers and
-    the proposals are built; a keyword extraction inside the run is not a
-    second use. **Lifted for now (KAN-319):** the route's `uses_left`
-    check and `count_use` are commented out, it answers `uses_left` as the
-    cap, the Tailor screen hides its "runs left today" and "Each run uses
-    one of today's 2 Tailor runs" lines, and the three
-    cap tests in `test_tailor.py` are skipped. Restore all four together.
-    The keyword match in `routers/built_resumes.py` still spends `TAILOR`
-    uses.
+    resume's bullets, and a run orders each entry's bullets by it. A
+    posting with no description is read by its title, with `weak_match`.
+  - **A run fits Groq's free tier** (8,000 tokens a minute for
+    gpt-oss-120b, prompt and reply together): the prompt is estimated at
+    four characters a token, and over `PROMPT_TOKENS` (5,000) it leaves out
+    the lowest-ranked bullets, keeping every entry's line; the reply asks
+    for `REPLY_TOKENS` (3,000) at most. A request a provider still finds too
+    large moves down the chain (Scout's `RequestTooLarge`); a reply stopped
+    at its cap is `ReplyCutOff`. Each has its own line in
+    `services/ai_messages.py`. There is no cap on how many bullets the model
+    rewords.
+  - **A rewording must keep its bullet** (`keeps_its_bullet`): a third of
+    the original's words (three letters or more; a shared start of four
+    letters counts) must be in it, or it is dropped and counted in
+    `dropped`. The model copies handles, and one copied wrong puts a
+    rewording on another bullet; the truth rule passes it when it adds no
+    number or tool.
+  - **A failed run saves nothing.** The tailored resume, its variants, its
+    choices and its own skills go in one commit after the model answers;
+    only the posting's keyword cache, and what reading an upload wrote,
+    are committed earlier, since they are not the run's.
+  - **An order edit names its entry with the organization** ("Software
+    Intern, Acme"), since two jobs can share a title.
+  - **One run is one `TAILOR` use**, counted after the model answers; a
+    keyword extraction inside the run or the match is not a second use.
+    **Lifted for now (KAN-319):** the route's `uses_left` check and
+    `count_use` are commented out, it answers `uses_left` as the cap, the
+    Tailor screen hides its "Each run uses one of today's 2 Tailor runs"
+    line, and the three cap tests in `test_tailor.py` are skipped. Restore
+    them together. The keyword match in `routers/built_resumes.py` still
+    spends `TAILOR` uses.
 - **The editor assistant** (KAN-221) is `routers/assistant.py` (`POST
   .../built-resumes/{rid}/assistant`) over `services/assistant.py`. The
   model only **reads** the student's message into one action (fit, hide,
@@ -886,6 +948,16 @@ removed at cutover, not before. Until then a change must work on both.
   KAN-343) before the deploy that writes them.** The models map both
   tables, so deployed first, every upload, Import Again and `GET /bank`
   answers 500. It only adds two tables, so applying it early is safe.
+- **`b9e2c4d6f8a1` drops `resumes.embedding`**, the contract half of
+  KAN-212: apply it only where the code that stopped mapping the column
+  (`d89a4ef`, on `main` since KAN-212) is deployed. Applied first, an older
+  deploy's upload INSERT names the column and fails.
+- **Apply `a3d7f1c9e2b4` (`bank_skills.built_resume_id`, resume-local
+  skills) before the deploy that maps it.** Every skill insert names the
+  column, so deployed first, uploads, Import Again and Add skill answer
+  500. It only adds a nullable column, a check every row meets and
+  indexes, so applying it early is safe. It sits on `c8f2a4e6b913`, which
+  goes on after ADR 0005's deploy (below), so apply both in that order.
 - **ADR 0005 is two migrations around one deploy.** Apply `b5e1c3a7d920`
   (adds `resume_id` to `bank_entries` and `bank_skills`, fills it from
   single-source rows, swaps the skill name index) before the deploy: the

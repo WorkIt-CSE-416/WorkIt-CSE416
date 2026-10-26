@@ -126,15 +126,20 @@ class Bank_Bullet_Variant(BaseModel):
 class Bank_Skill(BaseModel):
     '''
     A named ability, with an optional group ("Languages"). Owned as an entry
-    is (`resume_id`). A name appears once per owner, ignoring case: once per
-    upload, and once among the student's own (bank_skills_applicant_name_key,
-    NULLS NOT DISTINCT).
+    is (`resume_id`), or by one built resume (`built_resume_id`: a Tailor
+    skill that shows on that resume only and is not in the experience bank,
+    docs/tailor_resume.md); at most one owner. A name appears once per
+    owner, ignoring case: once per upload, once per built resume, and once
+    among the student's own (bank_skills_applicant_name_key, NULLS NOT
+    DISTINCT).
     '''
     __tablename__ = "bank_skills"
     __table_args__ = (
-        Index("bank_skills_applicant_name_key", "applicant_id", "resume_id", text("lower(name)"), unique=True,
-              postgresql_nulls_not_distinct=True),
+        Index("bank_skills_applicant_name_key", "applicant_id", "resume_id", "built_resume_id", text("lower(name)"),
+              unique=True, postgresql_nulls_not_distinct=True),
         Index("bank_skills_applicant_resume_idx", "applicant_id", "resume_id"),
+        Index("bank_skills_built_resume_idx", "built_resume_id", postgresql_where=text("built_resume_id IS NOT NULL")),
+        CheckConstraint("resume_id IS NULL OR built_resume_id IS NULL", name="bank_skills_one_owner_check"),
     )
 
     id: Mapped[_uuid.UUID] = mapped_column(
@@ -142,6 +147,7 @@ class Bank_Skill(BaseModel):
     applicant_id: Mapped[_uuid.UUID] = mapped_column(
         ForeignKey("applicant_profiles.id", ondelete="CASCADE"))
     resume_id: Mapped[_uuid.UUID | None] = mapped_column(ForeignKey("resumes.id", ondelete="CASCADE"))
+    built_resume_id: Mapped[_uuid.UUID | None] = mapped_column(ForeignKey("built_resumes.id", ondelete="CASCADE"))
     name: Mapped[str]
     group: Mapped[str | None]
 

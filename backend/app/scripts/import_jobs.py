@@ -549,7 +549,7 @@ async def _extract_keywords(conn: AsyncConnection, llm: LLM, *, limit: int) -> i
                     )
                     .values(
                         keywords=[k.model_dump() for k in found],
-                        keywords_hash=keywords.description_hash(row.description),
+                        keywords_hash=keywords.posting_text_hash(row.title, row.description),
                     )
                 )
             count += result.rowcount

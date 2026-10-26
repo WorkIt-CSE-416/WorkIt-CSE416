@@ -1,9 +1,9 @@
 """Request/response shapes for Tailor (KAN-217)."""
 
-from typing import Literal
+from typing import Annotated, Literal
 from uuid import UUID
 
-from pydantic import BaseModel, Field, model_validator
+from pydantic import BaseModel, Field, StringConstraints, model_validator
 
 from app.schemas.built_resume import BuiltResumeResponse
 from app.schemas.keywords import Keyword
@@ -14,20 +14,31 @@ class Reword(BaseModel):
     text: str
 
 
+class Placement(BaseModel):
+    """Where one picked skill goes: a `group` (the resume's, or a new one)
+    and `after`, the prompt's number of the skill it follows, 0 for first in
+    its group. `services/tailor.py`'s `place_skills` checks each one."""
+
+    skill: str
+    group: str | None = None
+    after: int | None = None
+
+
 class TailorReading(BaseModel):
     """The model's reply: new wordings for the resume's bullets, each named
-    by its handle in the prompt (b1). Unknown handles are ignored; every
-    wording then faces the truth-rule check."""
+    by its handle in the prompt (b1), and a placement for each picked skill.
+    Unknown handles are ignored; every wording then faces the truth-rule
+    check."""
 
     rewords: list[Reword] = []
+    placements: list[Placement] = []
 
 
 class TailorSource(BaseModel):
     """The resume the student picked to tailor: exactly one of a built
     resume (its choices) or an uploaded resume (the entries it owns,
     built in memory and never saved; `services/tailor.py`'s
-    `upload_choices`). Run and Done both name it, so Done rebuilds what the
-    run proposed against."""
+    `upload_choices`). The match and the run both name it."""
 
     built_resume_id: UUID | None = None
     uploaded_resume_id: UUID | None = None
@@ -40,65 +51,118 @@ class TailorSource(BaseModel):
 
 
 class TailorRun(TailorSource):
-    """POST /tailor body."""
+    """POST /tailor body. `skills`: the missing keywords the student picked
+    to add to the resume (`docs/tailor_resume.md`); any other name is
+    ignored."""
 
     job_posting_id: UUID
+    skills: list[Annotated[str, StringConstraints(strip_whitespace=True, min_length=1, max_length=60)]] = Field(
+        default=[], max_length=20)
 
 
 class TailorChange(BaseModel):
-    """One proposed change, which the student accepts or rejects.
+    """One change a run makes, before it is saved (`services/tailor.py`).
 
     - `reword`: show `text` for `bullet_id` (in place of `original`).
-    - `show_skill`: show `skill_id`.
     - `order`: show `entry_id`'s bullets in the order `bullet_ids`.
-
-    `label` and `keywords` (the posting's keywords this change alone would
-    add to the match) are for display; Done ignores them.
     """
 
-    kind: Literal["reword", "show_skill", "order"]
+    kind: Literal["reword", "order"]
     bullet_id: UUID | None = None
     entry_id: UUID | None = None
-    skill_id: UUID | None = None
     bullet_ids: list[UUID] = []
     text: str | None = None
     original: str | None = None
     label: str | None = None
-    keywords: list[str] = []
 
 
-class TailorProposal(BaseModel):
-    """A run's proposals; nothing is saved until Done, except what reading
-    an uploaded source that owned nothing wrote into the bank. `built_resume_id` or
-    `uploaded_resume_id` is the source the run was given, for Done to send
-    back. `matched`/`missing` is the source resume's keyword match ("12 of 18"); `questions` are the
-    missing keywords that are nowhere in the bank, to ask "Have you used
-    X?" about, never to write in. `weak_match`: the posting has no
-    description, so WorkIt read its title only. `dropped`: wordings the
-    truth-rule check removed."""
+class TailorEdit(BaseModel):
+    """One change a run saved on the tailored resume, with what it replaced,
+    so the editor can mark it and revert it until Save
+    (`docs/tailor_resume.md`, "Marking and reverting changes"). The browser
+    keeps these; the API stores no record of them.
+
+    - `reword`: `bullet_id` now shows `text` (variant `variant_id`); it
+      showed `before` (variant `before_variant_id`, null for the bank's own
+      wording). Revert: the choices PATCH with `variant_id=before_variant_id`.
+    - `order`: `entry_id`'s bullets are now in the order `bullet_ids`; they
+      were in `before_ids`. The editor restores one bullet's prior position
+      at a time, shifting its siblings around it.
+    - `skill`: `skill_id` is a picked skill, `label` in `group`, local to
+      this resume. Revert: hide it (the choices PATCH, `shown=False`).
+    """
+
+    kind: Literal["reword", "order", "skill"]
+    bullet_id: UUID | None = None
+    entry_id: UUID | None = None
+    skill_id: UUID | None = None
+    label: str | None = None
+    text: str | None = None
+    variant_id: UUID | None = None
+    before: str | None = None
+    before_variant_id: UUID | None = None
+    bullet_ids: list[UUID] = []
+    before_ids: list[UUID] = []
+    group: str | None = None
+
+
+class TailorMatchRequest(TailorSource):
+    """POST /tailor/match body."""
 
     job_posting_id: UUID
-    built_resume_id: UUID | None
-    uploaded_resume_id: UUID | None
+
+
+class TailorMatch(BaseModel):
+    """The picked resume's keyword match before a run, for the student to
+    pick the missing keywords to add. `tailored_resume_id`: the posting's
+    tailored resume, when it has one (a run is then refused).
+    `weak_match`: the posting has no description, so WorkIt read its title
+    only."""
+
+    job_posting_id: UUID
     tailored_resume_id: UUID | None
     weak_match: bool
     matched: list[Keyword]
     missing: list[Keyword]
-    questions: list[Keyword]
-    changes: list[TailorChange]
+
+
+class TailorRunResult(BaseModel):
+    """A run, saved as the posting's tailored resume (`resume`).
+    `matched`/`missing`: the source's match; `after_matched`/`after_missing`:
+    the tailored resume's. `edits`: what the run changed, for the editor.
+    `dropped`: wordings the truth-rule or overlap check removed."""
+
+    resume: BuiltResumeResponse
+    weak_match: bool
+    matched: list[Keyword]
+    missing: list[Keyword]
+    after_matched: list[Keyword]
+    after_missing: list[Keyword]
+    edits: list[TailorEdit]
     dropped: int
     uses_left: int
 
 
-class TailorDone(TailorSource):
-    """POST /tailor/done body: the accepted changes, applied to the source
-    resume's choices and saved on the posting's one tailored resume."""
+class TailorPhase(BaseModel):
+    """A streamed run's progress line: `asking` once the run sends its
+    prompt to the model, `generating` once the model's answer is back and
+    the run applies and saves it."""
 
-    job_posting_id: UUID
-    changes: list[TailorChange] = Field(default_factory=list, max_length=200)
+    type: Literal["phase"] = "phase"
+    phase: Literal["asking", "generating"]
 
 
-class TailorResult(BaseModel):
-    resume: BuiltResumeResponse
-    matched: list[Keyword]
-    missing: list[Keyword]
+class TailorDone(BaseModel):
+    """A streamed run's last line when it saved: what `POST .../tailor` answers."""
+
+    type: Literal["done"] = "done"
+    result: TailorRunResult
+
+
+class TailorFailed(BaseModel):
+    """A streamed run's last line when it failed after its first line: the
+    status and message the JSON route would have answered."""
+
+    type: Literal["error"] = "error"
+    status: int
+    message: str
