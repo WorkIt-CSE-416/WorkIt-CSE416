@@ -4,6 +4,10 @@
 // - ask(message): chrome.runtime.sendMessage, rejecting as it does.
 // - send(message): the same, but a failed send answers null.
 // - el(tag, className, text) and button(label, onPress): the panel's nodes.
+// - trusted(onPress): a click listener that acts on the student's own clicks
+//   only (event.isTrusted). The panel lives in the employer's page, whose
+//   scripts can dispatch clicks; every panel action that changes something
+//   takes its clicks through this (button() does).
 window.WIA = window.WIA || {};
 
 (function () {
@@ -21,12 +25,14 @@ window.WIA = window.WIA || {};
     return node;
   };
 
+  const trusted = (onPress) => (event) => (event?.isTrusted ? onPress(event) : undefined);
+
   const button = (label, onPress) => {
     const node = el("button", null, label);
     node.type = "button";
-    node.addEventListener("click", onPress);
+    node.addEventListener("click", trusted(onPress));
     return node;
   };
 
-  window.WIA.ui = { ask, send, el, button };
+  window.WIA.ui = { ask, send, el, button, trusted };
 })();

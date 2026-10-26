@@ -135,7 +135,7 @@ window.WIA = window.WIA || {};
       if (batch.next) {
         const next = el("button", "", "Next tab →");
         next.type = "button";
-        next.addEventListener("click", () => send({ type: "panel/next-tab" }));
+        next.addEventListener("click", window.WIA.ui.trusted(() => send({ type: "panel/next-tab" })));
         line.append(" · ", next);
       }
       lines.push(line);

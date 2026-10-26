@@ -78,7 +78,7 @@ window.WIA = window.WIA || {};
     view.querySelector("[data-auto-open]").addEventListener("change", (event) => {
       void send({ type: "settings/auto-open", on: event.target.checked });
     });
-    view.querySelector("[data-claude]").addEventListener("click", pressClaude);
+    view.querySelector("[data-claude]").addEventListener("click", window.WIA.ui.trusted(pressClaude));
 
     // Read again each time the gear opens the view (the shell's own listener shows it first).
     panel.root.querySelector("[data-settings]")?.addEventListener("click", () => {

@@ -174,11 +174,11 @@ window.WIA = window.WIA || {};
     const confirm = Object.assign(document.createElement("div"), { className: "primary-confirm", hidden: true });
     confirm.dataset.confirm = "";
     confirm.innerHTML = `<div>This replaces what you changed on this page.</div><span><button type="button" data-yes>Fill Again</button><button type="button" data-no>Cancel</button></span>`;
-    again.addEventListener("click", () => {
+    again.addEventListener("click", window.WIA.ui.trusted(() => {
       confirm.hidden = false;
       confirm.querySelector("[data-no]").focus();
-    });
-    confirm.querySelector("[data-yes]").addEventListener("click", () => void fillAgain());
+    }));
+    confirm.querySelector("[data-yes]").addEventListener("click", window.WIA.ui.trusted(() => void fillAgain()));
     confirm.querySelector("[data-no]").addEventListener("click", () => (confirm.hidden = true));
     made.button.after(required);
     shell.slot("primary").append(again, confirm);

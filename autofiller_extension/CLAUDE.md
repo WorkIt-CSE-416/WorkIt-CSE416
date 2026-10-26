@@ -950,8 +950,7 @@ waits for an opened tab's page and form (`waitForLoad`, `formShows`).
   submit is their own `/thanks` page (`submitPractice`).
 - **"I submitted this"** (KAN-369): a batch tab's panel header has it, for a
   submit detection missed. It answers only the student's own click
-  (`isTrusted`: the panel's shadow root is open, so a page script could
-  click it), says `batch/i-submitted`, and the worker marks the application
+  (`isTrusted`, as every panel action, below), says `batch/i-submitted`, and the worker marks the application
   applied with `markSubmitted`, as a detected submit. A detected submit
   says "Application sent / WorkIt marked it Applied." on the panel, the tab
   leaves its group, and the Auto Apply page shows the row Applied. The
@@ -1379,7 +1378,18 @@ The extension's on-page UI is one panel, `src/content/panel.js`
 (`window.WIA.panel`): 380 px wide, fixed to the right edge, full height
 with its own scroll, over the page (the page is never resized), in a
 shadow root on `#workit-autofiller-overlay-host`, so the employer's styles
-can't reach it. There is no bottom-right card any more, and the toolbar
+can't reach it. **The root is closed**: the page's scripts get null from
+`host.shadowRoot` and see none of its text or buttons; the extension's own
+files reach it through `window.WIA.panel.root` in their isolated world.
+**Every panel action that changes something answers only the student's own
+click** (`event.isTrusted`, through `ui.js`'s `trusted`, which `button()`
+and row-card buttons use): Disconnect Claude, Send report, Use this, Tailor,
+Fill Again, Next job / Next tab, Looks right, Keep, Rewrite, Save answer,
+Stop and Skip, Skip this job, I submitted this, I didn't submit this,
+the essay banner's Generate, the self-ID Save. Tests: the test copies of the extension
+(`loaded-extension.ts` `openPanel`) open the root, since Playwright's
+locators can't reach a closed one; `loadExtension(..., { closedPanel: true })`
+keeps it closed (`test/panel-closed.extension.spec.ts`). There is no bottom-right card any more, and the toolbar
 popup has no fill controls. The header is neutral (white, ink); purple is
 kept for the primary action.
 

@@ -122,7 +122,9 @@ window.WIA = window.WIA || {};
   function build() {
     host = document.createElement("div");
     host.id = "workit-autofiller-overlay-host";
-    root = host.attachShadow({ mode: "open" });
+    // Closed: the employer's page can't reach the panel through host.shadowRoot. The extension's own files reach it
+    // through window.WIA.panel.root, in the isolated world the page can't see.
+    root = host.attachShadow({ mode: "closed" });
     const style = document.createElement("style");
     style.dataset.shell = "";
     style.textContent = `${window.WIA.tokens ?? ""}\n${SHELL_CSS}`;
