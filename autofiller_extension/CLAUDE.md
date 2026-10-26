@@ -1587,7 +1587,7 @@ report.js everywhere it is: manifest, `CONTENT_SCRIPT_FILES`, background.js
   /jobs/saved-by-link`, which saves the feed's job whose apply link the page
   is, ignoring query, fragment and a trailing slash; "WorkIt doesn't list
   this job yet." when there is none) and **Report a problem** (what it sends:
-  job system "unsupported", the link without its query, the engine; then
+  job system "unsupported", the posting link as below, the engine; then
   Send report, `popup/report`). Nothing leaves on opening the popup. Its
   test opens popup.html with `?tab=<id>` and loads a copy of the extension
   granted the fake host (`loadExtension`'s `grantHosts`), standing in for
@@ -1646,8 +1646,11 @@ the unsupported-site state call the same function. The card lists exactly
 what Send sends, and Send sends just that:
 
 - the job system (the Fill engine's `jobOf` site, "unsupported" when it
-  fills none there), the posting's link (the page's address without query
-  or fragment, which can carry the student's ids), the Fill engine version
+  fills none there), the posting's link (the page's address with only the
+  query parts that name a posting, `report.js` `POSTING_PARAMS`: for, token,
+  gh_jid, jobId, job_id, jobid, jobReqId, career_job_req_id, each a plain
+  id; no other part, fragment or user:password, which can carry the
+  student's ids; the backend refuses any other part), the Fill engine version
   (`FillEngine.version`, which the engine's build stamps into
   `dist/engine.js`; `ENGINE_VERSION` in `background/engine.js`);
 - each failed field: its kind (the Question set's), its label's shape
