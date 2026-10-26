@@ -1386,7 +1386,7 @@ slot by name, `panel.slot(name)`, and adds its styles with
 | `batch-line` | the batch line ("Batch · 3 of 5 ready · Next tab →", Workday's step) | panel-top.js |
 | `job-card` | the job card (title, company, Match score) | panel-top.js |
 | `primary` | the one big button; `panel.setPrimary({ label, onPress, secondary })` or `panel.fillButton(label)` | Autofill This Page / Fill this step (launcher.js), then primary.js: Next Thing, Ready to submit, the required line, Fill Again |
-| `tab:<id>` | a tab's body; `panel.addTab({ id, label })` adds one, the strip shows from two | `tab:autofill`: overlay.js's summary, essay banner, moment cards, parts and rows; `tab:resume` and `tab:answers`: a placeholder (KAN-397) |
+| `tab:<id>` | a tab's body; `panel.addTab({ id, label })` adds one, the strip shows from two | `tab:autofill`: overlay.js's summary, essay banner, moment cards, parts and rows; `tab:resume` and `tab:answers`: a placeholder (KAN-397); `tab:answers`: answers-tab.js (KAN-400), a placeholder until a fill |
 | `settings` | the settings view, shown by the header's gear in place of the tabs (`panel.showSettings`) | panel-settings.js: Claude connection, Open the panel by itself, Report a problem, Workday Sign-Up, Back |
 | `report` | Report a problem, shown in place of the tabs; open it with `window.WIA.reportCard.open()` | report.js: the preview, the note, Send report, Back |
 
@@ -1606,6 +1606,33 @@ Looks right and Undo moving the counts; the three tabs, and the choice
 kept across a reload), and the waiting group's count in
 `test/waiting-card.extension.spec.ts`.
 
+## The Answers tab (KAN-400)
+
+`src/content/answers-tab.js` (`window.WIA.answersTab`, loaded after
+letter-preview.js in `CONTENT_SCRIPT_FILES`) fills `tab:answers` once a
+page (or a Workday step) is filled: content-script.js calls
+`answersTab.use(prepared)`, and the tab follows lib-status.js's rows from
+then on (it subscribes; it keeps no rows of its own). Its questions: the
+ones written or waiting to be written (`prepared.written`), the ones left
+for the student to write (`rows.written`), the ones a saved answer filled
+in words (`plan.banked`, text boxes), and any cover letter field (label or
+name "cover letter"). Each row shows its label (a press goes to the field,
+`WIA.showField`) and where its answer came from, from the row's status and
+`source`: **Waiting for your Claude**, **Written by your Claude**,
+**Pasted**, **Yours**, Written with AI (the essay route), Saved Answer,
+Guessed, Not written yet, Needs you, Left empty. **See answer** is
+letter-preview.js's toggle and preview (`render(field, { any: true })`:
+any filled row, the student's own answers too), the same open state as the
+Autofill tab's, so both redraw. **Write with Claude** (overlay.js's
+`startClaude`) heads the tab only while a row waits for the student's
+Claude. A form with no cover letter field ends with a "Cover letter · No
+cover letter field" row ("on this step" on Workday, which fills a step at
+a time). Before a fill the shell's placeholder stays.
+
+Tests: `test/panel-answers.extension.spec.ts` (Lumen's practice question
+waiting, then written by the student's Claude, with Write with Claude only
+while it waits and See answer the form's text; Yours; Pasted; Workable's
+cover letter box listed, no "No cover letter field").
 ## The panel's settings (KAN-402): Claude, auto-open, report, Workday
 
 `src/content/panel-settings.js` fills the `settings` slot (loaded after

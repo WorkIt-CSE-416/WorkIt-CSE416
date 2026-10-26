@@ -391,6 +391,7 @@
     if (prepared) await flagEmptyRequired(prepared);
     if (prepared) window.WIA.failedCard.use(fixesOf(prepared));
     overlay.mount(panel);
+    if (prepared) window.WIA.answersTab?.use(prepared);
     window.WIA.phase = prepared ? "filled" : "stopped";
     window.WIA.running = false;
     report();
@@ -445,6 +446,7 @@
       ? (toReview.on() ? toReview.REVIEW_NOTE : "This is the last step. Check the whole application, then submit it yourself.")
       : "Check this step, then press Save and Continue. WorkIt fills the next step when it shows.");
     window.WIA.failedCard.use(fixesOf(prepared));
+    window.WIA.answersTab?.use(prepared);
     writing.offer(prepared);
     offerSelfId(prepared);
     const stopEdits = watchEdits(prepared);

@@ -44,7 +44,11 @@ window.WIA = window.WIA || {};
     else uploads.delete(name);
   }
 
-  const redraw = () => window.WIA.overlay?.refresh();
+  // The Answers tab (answers-tab.js) shows the same preview: both redraw.
+  const redraw = () => {
+    window.WIA.overlay?.refresh();
+    window.WIA.answersTab?.refresh();
+  };
 
   /** Copies `text`; a page whose clipboard is refused gets the older copy command. */
   async function copy(text) {
@@ -121,9 +125,11 @@ window.WIA = window.WIA || {};
   /**
    * The row's See cover letter button, and its preview while open; null for
    * a row that isn't a written answer WorkIt filled, or shows nothing now.
+   * `any`: any filled row (the Answers tab's, whose rows are all written
+   * questions, the student's own answers too).
    */
-  function render(field) {
-    if (!written.has(field.key) || field.status !== "filled") return null;
+  function render(field, { any = false } = {}) {
+    if ((!any && !written.has(field.key)) || field.status !== "filled") return null;
     const what = onForm(field);
     if (!what) return null;
     const letter = /cover/i.test(field.label) ? "cover letter" : "answer";
