@@ -158,7 +158,6 @@ window.WIA = window.WIA || {};
       .start .hint { font-size: var(--text-meta); color: var(--color-ink-meta); }
       .empty { padding: 16px 12px; color: var(--color-ink-meta); }
       ${window.WIA.rowCard?.css ?? ""}
-      ${window.WIA.waitingCard?.css ?? ""}
       ${parts.map((part) => part.css ?? "").join("\n")}
     `;
     return style;
