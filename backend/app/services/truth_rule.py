@@ -12,6 +12,7 @@ experience bank's skills.
 - **A tool** is a word shaped like a product name: one with a capital after
   its first letter (TypeScript, AWS, iOS), a `+` or `#` (C++, C#), or a
   capital that does not start the sentence (Python, Docker in mid-bullet).
+  The pronoun "I" is never one: an essay answer is in the first person.
   The first word is skipped by shape, since a rewording may open with a new
   verb; `tools` (the posting's keywords) names words that count wherever
   they stand, so "Kubernetes clusters..." is still caught.
@@ -41,6 +42,8 @@ def _present(word: str, text: str) -> bool:
 
 
 def _shaped_like_a_tool(word: str, leads: bool) -> bool:
+    if word == "I":  # the pronoun, mid-sentence in a first-person essay answer
+        return False
     if "+" in word or "#" in word:
         return True
     if any(c.isupper() for c in word[1:]):

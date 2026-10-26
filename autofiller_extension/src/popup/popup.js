@@ -6,7 +6,7 @@
 // every time the popup closes).
 
 import { DEV_WEB_URL, PROD_SITES } from "../shared/config.js";
-import { CONTENT_SCRIPT_FILES } from "../shared/content-scripts.js";
+import { injectFill } from "../shared/content-scripts.js";
 
 const root = document.getElementById("root");
 
@@ -63,7 +63,7 @@ function renderSignedIn(profile) {
     try {
       const [tab] = await chrome.tabs.query({ active: true, currentWindow: true });
       if (!tab?.id) throw new Error("No active tab");
-      await chrome.scripting.executeScript({ target: { tabId: tab.id }, files: CONTENT_SCRIPT_FILES });
+      await injectFill(tab.id);
       window.close(); // the on-page overlay takes over from here
     } catch (error) {
       button.textContent = "Autofill This Page";

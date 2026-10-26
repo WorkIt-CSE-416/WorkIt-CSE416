@@ -470,6 +470,10 @@ yet; the column below is the plan for that warning.
   hiring systems auto apply takes ("The batch"). A hiring system added there
   is added to the manifest in the same change. An unpacked extension gets
   the new permission when the student reloads it in `chrome://extensions`.
+  The manifest also lists the six other hiring systems the extension fills
+  from its popup (KAN-341): its background fetches their job APIs, and
+  injects Workday's fill again when a step loads as a new page. Auto apply
+  still takes Greenhouse alone until `hosts.py` adds them.
 - **The resume is the profile's for now.** The fill attaches what the
   popup attaches: the default resume (`resolveResumeFile`). It does not
   call `prepare_resume`, so it does not yet attach a tailored resume (11.3)
@@ -965,8 +969,10 @@ gap.
 from `prepare_resume`'s link and sends it to the content script (base64). The
 content script makes a `File`, puts it in a `DataTransfer`, sets the file
 input's `files`, and sends `input` and `change` events. Some hiring
-systems use a drop zone instead (Workday). Test each hiring system. The
-sample form (`test/sample-form.html`) needs a file input.
+systems use a drop zone instead (Workday). Since KAN-340 the Fill engine
+(the `fill-engine` submodule, `autofiller_extension/CLAUDE.md`) attaches
+files, from the bytes the background passes it; its tests cover each
+hiring system's saved forms.
 
 ## 18. Build order
 
