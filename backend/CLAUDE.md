@@ -759,9 +759,11 @@ Find files with a directory listing; these are the rules for where code goes.
     the best 40 although a reword of one was always dropped.
   - **A missing keyword that neither the resume's entries nor any bank
     skill hold is a question** ("Have you used X?"), never words. A hidden
-    entry's words do not count, since the run never brings it back. Yes
-    adds the skill through the bank's own routes and shows it, with no AI
-    call.
+    entry's words do not count, since the run never brings it back. Only
+    a keyword the skills catalog knows is asked (`services/skill_catalog.py`,
+    KAN-369): a degree, "AI tools" or a soft skill never is, so Yes never
+    adds one. Yes adds the skill through the bank's own routes and shows
+    it, with no AI call.
   - **The model sees handles (b1, e1), never ids**, and no links: an
     entry's link field is left out and the seam removes identity data.
     Postgres text search (`ts_rank`, the posting's words OR'd) ranks the

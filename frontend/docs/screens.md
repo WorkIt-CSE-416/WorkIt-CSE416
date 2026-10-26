@@ -1725,7 +1725,8 @@ in Docs (suggested answers in the chat, not a banner).
   goes back to the posting. "Reorder bullets" names the entry with its
   organization ("Software Intern, Acme"), since two jobs can share a title.
 - **"Have you used X?"** lists missing keywords that neither the picked
-  resume's entries nor any bank skill hold. Yes adds the skill to the bank
+  resume's entries nor any bank skill hold, and only those the skills
+  catalog knows (KAN-369: never a degree or "AI tools"). Yes adds the skill to the bank
   (it is saved at once, being true) and shows it on the tailored resume. It
   no longer asks where the skill was used: skill links were removed.
 - An empty bank (409) shows a link to the bank page, where intake starts.
