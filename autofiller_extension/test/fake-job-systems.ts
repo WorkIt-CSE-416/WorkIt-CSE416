@@ -7,7 +7,7 @@
 import { readFileSync } from "node:fs";
 import { join } from "node:path";
 import { FakeJobServer, FORMS, boardAndJob, loadHar, type Options } from "../fill-engine/test/fake-job-server";
-import { FakeWorkday, type Step } from "../fill-engine/test/fake-workday";
+import { FakeWorkday, type Options as WorkdayOptions, type Step } from "../fill-engine/test/fake-workday";
 import { FakeWorkable } from "../fill-engine/test/fake-workable";
 import type { Handler, Reply, Request } from "./loaded-extension";
 
@@ -98,12 +98,12 @@ async function replay(server: FakeJobServer | FakeWorkday | FakeWorkable, reques
 export class FakeWorkdays {
   private tenants: FakeWorkday[];
 
-  /** `names`: saved Workday forms (fill-engine/test/fixtures/forms), one tenant each. */
+  /** `names`: saved Workday forms (fill-engine/test/fixtures/forms), one tenant each; `options`: the n-th tenant's FakeWorkday options. */
   constructor(names: string[], steps: Step[] = [["My Information", [
     { key: "legalName--firstName", label: "First Name", kind: "text", required: true },
     { key: "legalName--lastName", label: "Last Name", kind: "text", required: true },
-  ]]]) {
-    this.tenants = names.map((name) => new FakeWorkday(name, { steps }));
+  ]]], options: Omit<WorkdayOptions, "steps">[] = []) {
+    this.tenants = names.map((name, n) => new FakeWorkday(name, { ...options[n], steps }));
   }
 
   /** The application's first step (or step `step`) on the n-th tenant; the first is what a posting's apply_url gives. */
@@ -140,6 +140,15 @@ export class FakeWorkdays {
   /** Tenant hosts whose terms box a script's click doesn't tick (the student must tick it). */
   readonly stuckTerms = new Set<string>();
 
+  /** Tenant hosts whose sign-in form holds a hidden errorMessage with text in it, as Workday keeps an empty-looking one. */
+  readonly hiddenAlerts = new Set<string>();
+
+  /** How many presses of Create Account or Sign In each tenant host's page drops, sending nothing (Axiom's, live). */
+  readonly droppedPresses: Record<string, number> = {};
+
+  /** How long, in ms, each tenant host takes to answer a Create Account or Sign In it was sent. */
+  readonly answerDelay: Record<string, number> = {};
+
   /** Every submit any tenant received (the extension must never send one). */
   get submissions(): unknown[] {
     return this.tenants.flatMap((t) => t.submissions);
@@ -152,12 +161,13 @@ export class FakeWorkdays {
         const apply = `<a data-automation-id="adventureButton" href="/__fake__/signin?view=create">Apply</a>`;
         return { headers: { "content-type": "text/html" }, body: `<!doctype html><title>Intern</title><h2>Software Engineering Intern</h2>${apply}` };
       }
-      if (request.url.pathname === "/__fake__/signin") return { headers: { "content-type": "text/html" }, body: signInPage(request.url.searchParams.get("view")!, this.stuckTerms.has(tenant.host)) };
+      if (request.url.pathname === "/__fake__/signin") return { headers: { "content-type": "text/html" }, body: signInPage(request.url.searchParams.get("view")!, this.stuckTerms.has(tenant.host), this.hiddenAlerts.has(tenant.host), this.droppedPresses[tenant.host] ?? 0) };
       if (request.url.pathname === "/__fake__/account" && request.method === "POST") {
         const { agreed, ...sent } = JSON.parse(request.body.toString());
         this.signIns.push({ host: tenant.host, ...sent });
         if (sent.view === "create") this.agreed.push(agreed);
         const alert = this.alerts[tenant.host]?.[sent.view as "create" | "signin"];
+        await new Promise((resolve) => setTimeout(resolve, this.answerDelay[tenant.host] ?? 0));
         return { json: alert ? { alert } : { next: tenant.stepUrl(1) } };
       }
       return replay(tenant, request);
@@ -176,20 +186,24 @@ export class FakeWorkdays {
  * The link switches views in the page, as live Workday does: the form is
  * drawn again, its boxes empty, a moment after it changes title (Xcel
  * Energy's, live 2026-10-25). With `stuckTerms`, the terms box ignores a
- * script's click (event.isTrusted false) and stays unticked.
+ * script's click (event.isTrusted false) and stays unticked. With
+ * `hiddenAlert`, the form holds a hidden errorMessage that has text. The
+ * first `dropped` presses of its button send nothing and show nothing.
  */
-function signInPage(view: string, stuckTerms = false): string {
+function signInPage(view: string, stuckTerms = false, hiddenAlert = false, dropped = 0): string {
   return `<!doctype html><meta charset="utf-8"><title>Workday</title>
 <ol data-automation-id="progressBar"><li data-automation-id="progressBarActiveStep"><label>current step 1 of 3</label><label>Create Account/Sign In</label></li></ol>
 <div data-automation-id="signInContent"></div>
 <script>
 let view = ${JSON.stringify(view)};
+let dropped = ${dropped};
 const box = (id, label, type = "password") => '<label>' + label + '<input type="' + type + '" data-automation-id="' + id + '"></label>';
 function draw() {
   const create = view === "create";
   document.querySelector("[data-automation-id=signInContent]").innerHTML =
     '<h2 id="authViewTitle">' + (create ? "Create Account" : "Sign In") + '</h2>' +
-    '<form data-automation-id="signInFormo" onsubmit="return false">' + box("email", "Email Address", "text") + box("password", "Password") +
+    '<form data-automation-id="signInFormo" onsubmit="return false">' +
+    (${JSON.stringify(hiddenAlert)} ? '<div data-automation-id="errorMessage" style="display:none">An error occurred.</div>' : '') + box("email", "Email Address", "text") + box("password", "Password") +
     (create ? box("verifyPassword", "Verify New Password") + '<label><input type="checkbox" data-automation-id="createAccountCheckbox"' + (${JSON.stringify(stuckTerms)} ? ' onclick="return event.isTrusted"' : '') + '>I agree to the terms</label>' : "") +
     '<div role="button" aria-label="' + (create ? "Create Account" : "Sign In") + '" data-automation-id="click_filter" style="width:200px;height:40px;background:#ddd"></div></form>' +
     '<button data-automation-id="' + (create ? "signInLink" : "createAccountLink") + '">' + (create ? "Sign In" : "Create Account") + '</button>';
@@ -204,6 +218,7 @@ document.addEventListener("click", async (event) => {
     return;
   }
   if (!event.target.closest("[data-automation-id=click_filter]")) return;
+  if (dropped > 0) return void dropped--;
   const value = (id) => document.querySelector("[data-automation-id=" + id + "]").value;
   const agreed = Boolean(document.querySelector("[data-automation-id=createAccountCheckbox]")?.checked);
   const answer = await (await fetch("/__fake__/account", { method: "POST", body: JSON.stringify({ view, email: value("email"), password: value("password"), agreed }) })).json();

@@ -115,6 +115,15 @@
         note("_form", "This page shows the job, not its application", `Open the application form (${prepared.openForm}), then click Autofill again.`);
         return null;
       }
+      // Workday's error page: the step shows on the next load (seen live), so reload once by
+      // ourselves; the mark (this tab's, by page) keeps it from looping, and the note waits for the error to be back.
+      const reloaded = "workit-workday-reloaded";
+      if (prepared.step?.wentWrong && sessionStorage.getItem(reloaded) !== location.href) {
+        sessionStorage.setItem(reloaded, location.href);
+        location.reload();
+        return new Promise(() => {}); // the page is going; nothing to report from it
+      }
+      if (prepared.step) sessionStorage.removeItem(reloaded);
       if (prepared.step?.wentWrong) {
         note("_error", "Workday showed an error page", "Reload the page. WorkIt fills the step when it shows.", true);
         return null;
