@@ -245,6 +245,37 @@ def test_the_chain_comes_from_env_in_order(monkeypatch):
     ]
 
 
+_GROQ_120B = '{"base_url": "http://groq/v1", "model": "gpt-oss-120b", "api_key": "g"}'
+_GROQ_20B = '{"base_url": "http://groq/v1", "model": "gpt-oss-20b", "api_key": "g"}'
+_GEMINI = '{"base_url": "http://gemini/v1", "model": "flash-lite", "api_key": "k"}'
+
+
+def _models(size=None) -> list[str]:
+    return [e.model for e in ScoutSettings(_env_file=None).chain(size)]
+
+
+def test_a_size_chain_ends_with_the_default_chain(monkeypatch):
+    monkeypatch.setenv("SCOUT_ENDPOINTS", f"[{_GEMINI}]")
+    monkeypatch.setenv("SCOUT_ENDPOINTS_LARGE", f"[{_GROQ_120B}]")
+    monkeypatch.setenv("SCOUT_ENDPOINTS_SMALL", f"[{_GROQ_20B}]")
+    assert _models("large") == ["gpt-oss-120b", "flash-lite"]
+    assert _models("small") == ["gpt-oss-20b", "flash-lite"]
+    assert _models() == ["flash-lite"]
+
+
+def test_an_unset_size_is_the_default_chain(monkeypatch):
+    for name in ("SCOUT_ENDPOINTS", "SCOUT_ENDPOINTS_LARGE", "SCOUT_ENDPOINTS_SMALL"):
+        monkeypatch.delenv(name, raising=False)
+    monkeypatch.setenv("SCOUT_MODEL", "qwen3.5:9b")
+    assert _models("large") == _models("small") == _models() == ["qwen3.5:9b"]
+
+
+def test_an_endpoint_in_both_chains_is_tried_once(monkeypatch):
+    monkeypatch.setenv("SCOUT_ENDPOINTS", f"[{_GEMINI}, {_GROQ_20B}]")
+    monkeypatch.setenv("SCOUT_ENDPOINTS_SMALL", f"[{_GROQ_20B}]")
+    assert _models("small") == ["gpt-oss-20b", "flash-lite"]
+
+
 def test_settings_read_the_scout_prefix(monkeypatch):
     monkeypatch.setenv("SCOUT_MODEL", "qwen3.5:9b")
     s = ScoutSettings(_env_file=None)

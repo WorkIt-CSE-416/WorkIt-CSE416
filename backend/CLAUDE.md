@@ -115,6 +115,13 @@ module docstring has the steps.
   and the test uploads to the real bucket. `tests/test_sent_resumes.py`'s
   `storage` fixture is the pattern: an in-memory bucket that records uploads
   and removals.
+- **A test that calls a model route swaps the model with
+  `tests/fake_models.py`'s `use(fake)`**, which overrides all three
+  sizes (`app/services/models.py`) at once, and `clear()` after; a test of
+  which size a feature asks for overrides one itself
+  (`tests/test_model_sizes.py`, Tailor's split in `tests/test_tailor.py`).
+  Overriding `get_llm` alone leaves a route that asks for another size on
+  the real model.
 - **An auto apply test seeds a Greenhouse `apply_url`** (`_seed_posting(database,
   url)` in `tests/test_sent_resumes.py`): the queue refuses every other host
   (`app/auto_apply/hosts.py`) with a 404. The Greenhouse-only rule broke six
@@ -193,6 +200,13 @@ Find files with a directory listing; these are the rules for where code goes.
 - **Services** (`app/services/`): logic with no HTTP or database of its own.
   Never in `models/`, whose `__init__` imports every file as a model. Job
   matching: `app/services/matching/CLAUDE.md`.
+- **Every AI feature gets its model from `app/services/models.py`**
+  (KAN-356), as a FastAPI dependency by size: `get_large_llm` (Tailor's
+  rewrite, Read It With AI, the editor assistant), `get_small_llm` (every
+  keyword extraction) or `get_llm` (Scout, intake, essay answers). A new
+  feature picks a size there; it never builds an `LLM` itself, so the
+  `SCOUT_*` settings stay the one place a model is named
+  (`../scout/CLAUDE.md`, "Which model, where").
 - **Auto apply** (`app/auto_apply/`): KAN-223's layers 1 and 2, in three
   files by kind: `rules.py` pure (no session), `queries.py` database, and
   `pipeline.py` the steps that call them. Unlike a service, its functions may
@@ -547,7 +561,12 @@ Find files with a directory listing; these are the rules for where code goes.
   (KAN-217) reads them through the same `keywords.ensure` (the cache, else
   an extraction stored on the posting) and counts its run once, not once
   more for the extraction. Which use an extraction spends stays in each
-  router. **Most postings are read before any student asks** (KAN-392):
+  router. **Every extraction uses the small model** (`get_small_llm`,
+  KAN-356), Tailor's included: its route takes the large model for the
+  rewrite and the small one for `keywords.ensure`, so a posting's keywords
+  come from one chain whichever path reads them first. Routes pass the
+  model in; `ensure` never loads one, so a test's dependency override
+  reaches it. **Most postings are read before any student asks** (KAN-392):
   the feed import's keyword pass (The feed import, above), and for a
   company job, a background task after a save that leaves it published
   (`company_jobs._fill_keywords`, in its own session after the response,
@@ -815,7 +834,9 @@ removed at cutover, not before. Until then a change must work on both.
   real deploy from a laptop.
 - **Production env vars:** `DATABASE_URL`, `SUPABASE_URL`,
   `SUPABASE_SERVICE_KEY`, and Scout's `SCOUT_*` (`../scout/CLAUDE.md`, "Which
-  model, where"); without `SCOUT_*` every Scout reply is "offline". The
+  model, where"); without `SCOUT_*` every Scout reply is "offline".
+  `SCOUT_ENDPOINTS_LARGE` and `SCOUT_ENDPOINTS_SMALL` are optional: unset,
+  each size runs on the default chain. The
   `AI_*` usage limits are optional (defaults in `app/config.py`). **Never
   `DIRECT_URL`**: migrations run by hand, locally, and the deployed API has no
   business holding that connection. Embeddings use Ollama with

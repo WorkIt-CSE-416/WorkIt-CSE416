@@ -33,7 +33,7 @@ install time.
 
 | file | owns |
 |---|---|
-| `settings.py` | `SCOUT_*`: the endpoint chain |
+| `settings.py` | `SCOUT_*`: the endpoint chains, the default and one per size |
 | `llm.py` | the one place `openai` is imported; the endpoint chain, streamed and structured calls, identity-data removal on every call |
 | `prompt.py` | the frozen system prompt and the facts block after it |
 | `agent.py` | one turn: prompt + conversation in, events out |
@@ -88,6 +88,17 @@ are now ignored; a deploy that still sets them has no fallback until
 | Production now (spec) | Groq `openai/gpt-oss-120b` (`https://api.groq.com/openai/v1`), the Gemini free tier (`https://generativelanguage.googleapis.com/v1beta/openai/`, `gemini-3.5-flash-lite`, effort `minimal`), Groq `openai/gpt-oss-20b` (effort `low`), Cloudflare Workers AI; set as `SCOUT_ENDPOINTS` on the `workit-api` Vercel project |
 | At launch (spec) | DeepInfra `gpt-oss-120b`, then Groq, with a $50 a month spend limit |
 | Laptops testing on hosted models | Groq `openai/gpt-oss-120b`, then Groq `openai/gpt-oss-20b` (effort `low`), then Gemini `gemini-3.5-flash-lite` once a key is added; as `SCOUT_ENDPOINTS` in the root `.env`. Each Groq model has its own daily quota, so the 20b doubles the free room |
+
+**A feature asks for a size, never a model by name** (KAN-356): `large`
+(`SCOUT_ENDPOINTS_LARGE`) for writing and judgment, `small`
+(`SCOUT_ENDPOINTS_SMALL`) for plain extraction at volume, or the default
+chain. `ScoutSettings.chain(size)` is the size's own chain followed by the
+default chain, an endpoint in both tried once, so a shared fallback (Gemini)
+is written once, in `SCOUT_ENDPOINTS`; an unset size is the default chain
+alone, so a deploy without the size variables behaves as before. A model
+name in code would make a retired model a code change; a size makes it an
+env change. Which feature uses which size is the API's choice
+(`backend/app/services/models.py`), not this package's.
 
 **Production differs from the spec** (checked 2026-10-14 with `vercel env
 pull`): `workit-api` sets no `SCOUT_ENDPOINTS`, only `SCOUT_BASE_URL`,

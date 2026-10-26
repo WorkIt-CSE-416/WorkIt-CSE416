@@ -21,13 +21,13 @@ from workit_scout.llm import LLM, ScoutUnavailable
 
 from app.db import get_session
 from app.deps import assert_applicant_owns, get_current_account
-from app.routers.scout import get_llm
 from app.schemas.assistant import AssistantReading, AssistantReply, AssistantTurn
 from app.schemas.auth import AuthenticatedAccount
 from app.services import assistant, built_resumes
 from app.services.ai_messages import AIMessages
 from app.services.bank import NotFound, load_bank
 from app.services.identity import load_identity
+from app.services.models import get_large_llm
 from app.services.usage import Feature, count_use, uses_left
 
 router = APIRouter(prefix="/applicants/{applicant_id}/built-resumes/{resume_id}/assistant", tags=["assistant"])
@@ -45,7 +45,7 @@ async def ask(
     applicant_id: uuid.UUID,
     resume_id: uuid.UUID,
     account: AuthenticatedAccount = Depends(get_current_account),
-    llm: LLM = Depends(get_llm),
+    llm: LLM = Depends(get_large_llm),
     session: AsyncSession = Depends(get_session),
 ) -> AssistantReply:
     assert_applicant_owns(account, applicant_id)

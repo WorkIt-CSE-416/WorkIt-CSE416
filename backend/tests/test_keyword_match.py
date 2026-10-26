@@ -21,10 +21,10 @@ from app.main import app
 from app.models.dto import company_role, company_size_range, profile_status
 from app.models.jobs import Job_Post
 from app.models.profiles import Company_Membership, Company_Profile
-from app.routers.scout import get_llm
 from app.schemas.auth import AccountType, AuthenticatedAccount
 from app.schemas.jobs import JobListing
 from app.scripts.import_jobs import _extract_keywords, import_feed
+from tests import fake_models
 
 pytestmark = pytest.mark.anyio
 
@@ -100,11 +100,11 @@ async def student(database):
 def use_model():
     def install(*scripts) -> ScriptedLLM:
         fake = ScriptedLLM(*scripts)
-        app.dependency_overrides[get_llm] = lambda: fake
+        fake_models.use(fake)
         return fake
 
     yield install
-    app.dependency_overrides.pop(get_llm, None)
+    fake_models.clear()
 
 
 async def _seed_posting(database, description: str | None = DESCRIPTION) -> str:
@@ -427,7 +427,7 @@ async def test_the_import_pass_skips_filled_closed_and_company_jobs(database):
     assert fake.prompts == []
 
 
-async def test_the_import_pass_stops_when_no_model_answers():
+async def test_the_import_pass_stops_when_no_model_answers(database):
     posting = (await _import_many(3))[0]
     fake = ScriptedLLM(rate_limited())
 
@@ -436,7 +436,7 @@ async def test_the_import_pass_stops_when_no_model_answers():
     assert await _cache_cleared(posting)
 
 
-async def test_the_import_pass_skips_an_invalid_reply_and_ends():
+async def test_the_import_pass_skips_an_invalid_reply_and_ends(database):
     await _import_many(3)
     fake = ScriptedLLM(["not json"])
 
@@ -446,7 +446,7 @@ async def test_the_import_pass_skips_an_invalid_reply_and_ends():
     assert len(fake.prompts) == 3
 
 
-async def test_the_import_pass_keeps_to_its_limit():
+async def test_the_import_pass_keeps_to_its_limit(database):
     await _import_many(3)
     fake = ScriptedLLM(reading(KEYWORDS))
 

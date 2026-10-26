@@ -46,7 +46,6 @@ from app.db import get_session
 from app.deps import assert_applicant_owns, get_current_account
 from app.models.built_resume import Built_Resume
 from app.models.jobs import Job_Post
-from app.routers.scout import get_llm
 from app.schemas.auth import AuthenticatedAccount
 from app.schemas.built_resume import BuiltResumeResponse
 from app.schemas.tailor import (
@@ -61,6 +60,7 @@ from app.services import built_resumes, keywords, postings, tailor
 from app.services.ai_messages import AIMessages
 from app.services.bank import NotFound, load_bank
 from app.services.identity import load_identity
+from app.services.models import get_large_llm, get_small_llm
 from app.services.resume_view import Choices
 
 # KAN-319: the Tailor limit is lifted for now; restore with the lines in run().
@@ -109,7 +109,8 @@ async def run(
     body: TailorRun,
     applicant_id: uuid.UUID,
     account: AuthenticatedAccount = Depends(get_current_account),
-    llm: LLM = Depends(get_llm),
+    llm: LLM = Depends(get_large_llm),
+    keywords_llm: LLM = Depends(get_small_llm),
     session: AsyncSession = Depends(get_session),
 ) -> TailorProposal:
     assert_applicant_owns(account, applicant_id)
@@ -126,7 +127,7 @@ async def run(
     if not bank.entries:
         raise HTTPException(409, EMPTY_BANK)
     try:
-        found, extracted = await keywords.ensure(job, llm)
+        found, extracted = await keywords.ensure(job, keywords_llm)
     except ScoutUnavailable as exc:
         raise HTTPException(503, AI.failure(exc)) from exc
     if extracted:
