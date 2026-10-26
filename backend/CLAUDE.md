@@ -297,6 +297,14 @@ Find files with a directory listing; these are the rules for where code goes.
   each an id; any other param is refused. It feeds the team's
   engine repair loop; nothing reads it in the app. Tests:
   `tests/test_fill_reports.py`.
+  **Save to WorkIt by a page's link** (KAN-401, `POST /jobs/saved-by-link`
+  in `routers/applications.py`, `queries/applications.py`
+  `listed_job_by_link`): the extension's toolbar popup on a site it can't
+  fill saves the feed's listed job whose apply link is the page, the exact
+  link first, else the same link without query, fragment and trailing
+  slash (SQL `split_part`/`rtrim`, no index: the feed is small), through
+  `save_job`. A page no listed job links to is a 404; it never makes a
+  posting. Tests: `tests/test_saved_jobs.py`.
   **A student's writing samples and style card** (KAN-384) are
   `queries/writing.py`, behind `routers/writing_samples.py` (the student's
   add, replace, remove) and the connector's tools (their Claude reads the
