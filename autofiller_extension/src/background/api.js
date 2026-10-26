@@ -545,6 +545,18 @@ export async function saveOwnAnswer(applicantId, jobId, answer) {
 }
 
 /**
+ * DELETE .../applications/{job_id}/answers?name= — Undo on the guess card
+ * (KAN-369, card-guess.js): takes back the answer the student saved for
+ * question `name`, so later forms no longer fill it.
+ * @param {string} applicantId
+ * @param {string} jobId
+ * @param {string} name
+ */
+export async function dropOwnAnswer(applicantId, jobId, name) {
+  await apiRequest(`/applicants/${applicantId}/applications/${jobId}/answers?name=${encodeURIComponent(name)}`, { method: "DELETE" });
+}
+
+/**
  * POST .../applications/{job_id}/review/keep|rewrite — the flag card's answer
  * to a question the pre-submit review flagged (KAN-369): keep it as it
  * stands, or send it back to the student's Claude to write again.

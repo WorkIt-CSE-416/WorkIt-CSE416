@@ -18,6 +18,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.auto_apply import briefs, checks
 from app.auto_apply.queries import (
+    drop_own_written,
     drop_written,
     fetch_answered,
     fetch_application_companies,
@@ -513,6 +514,16 @@ async def save_own_answer(
         if found:
             raise Refused(f"Not saved: {' '.join(found)}", {own.name: found})
     await save_own_written(db, applicant_id, job_id, own.name, own.label.strip(), answer, own.own)
+    await db.commit()
+
+
+async def drop_own_answer(db: AsyncSession, applicant_id: uuid.UUID, job_id: uuid.UUID, name: str) -> None:
+    """Takes back the student's own answer `name` on this application
+    (KAN-369, the guess card's Undo), so later forms no longer fill it.
+    Nothing saved is no error. Raises NotFound with no application."""
+    if await fetch_stage(db, applicant_id, job_id) is None:
+        raise NotFound("No application for that job.")
+    await drop_own_written(db, applicant_id, job_id, name)
     await db.commit()
 
 

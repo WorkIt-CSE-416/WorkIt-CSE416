@@ -8,7 +8,7 @@
 
 import { getSession } from "./auth.js";
 import {
-  answerBank, answerFlag, anyFormAnswerBank, getAutofillProfile, generateEssayAnswer, ApiError, askQuestions, connectorAdded, me, saveAutofillAnswers, saveOwnAnswer, savePastedAnswer,
+  answerBank, answerFlag, anyFormAnswerBank, dropOwnAnswer, getAutofillProfile, generateEssayAnswer, ApiError, askQuestions, connectorAdded, me, saveAutofillAnswers, saveOwnAnswer, savePastedAnswer,
   writingSamples, writtenAnswers,
 } from "./api.js";
 import {
@@ -216,6 +216,15 @@ async function handleMessage(message, sender) {
       if (!jobId) throw new Error("This tab isn't one of the batch's");
       const { id } = await me();
       await saveOwnAnswer(id, jobId, { name: message.name, label: message.label, answer: message.answer, own: message.own === true });
+      return {};
+    }
+
+    // Undo on a batch tab's guess card (card-guess.js): takes back an answer saved with "batch/own-answer".
+    case "batch/own-answer-undo": {
+      const jobId = await jobInTab(sender.tab.id);
+      if (!jobId) throw new Error("This tab isn't one of the batch's");
+      const { id } = await me();
+      await dropOwnAnswer(id, jobId, message.name);
       return {};
     }
 

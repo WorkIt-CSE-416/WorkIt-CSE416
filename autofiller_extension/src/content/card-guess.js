@@ -9,7 +9,11 @@
 // theirs too; the row offers Save for next time, one click. When two or more
 // consent boxes are guessed, the panel offers Looks right ×N for them at
 // once; never for self-identification, legal or work-authorization
-// questions, which the student confirms one at a time. The row's card is
+// questions, which the student confirms one at a time. A saved answer's row
+// says "Saved for next time." with Undo for the rest of the page's life:
+// Undo deletes it ("batch/own-answer-undo", DELETE .../answers?name=), all
+// N of a Looks right ×N, and the row is what it was before (a guess with
+// Looks right, or a change with Save for next time). The row's card is
 // row-card.js's. Loaded after overlay.js (shared/content-scripts.js), as
 // window.WIA.guessCard.
 window.WIA = window.WIA || {};
@@ -38,6 +42,9 @@ window.WIA = window.WIA || {};
   // By key: confirmed with Looks right; changed by the student and offered to save; saved.
   const confirmed = new Map();
   const saved = new Map();
+  // By key, a confirmed guess's row as it was, and the rows confirmed with it (one press: one Undo).
+  const before = new Map();
+  const together = new Map();
   const wasGuessed = new Set();
   // Only a batch tab's answers are saved: they need the tab's application (injectFill sets window.WIA.batch).
   const batch = () => Boolean(window.WIA.batch);
@@ -69,8 +76,40 @@ window.WIA = window.WIA || {};
     return Boolean(reply?.ok);
   }
 
+  /** Takes back a saved answer, in a batch tab. Answers whether it was deleted. */
+  async function unsave(key) {
+    const reply = await chrome.runtime.sendMessage({ type: "batch/own-answer-undo", name: key.slice(0, FIELD_NAME_MAX) }).catch(() => null);
+    return Boolean(reply?.ok);
+  }
+
+  /** Undo on a confirmed guess: deletes its saved answer, and its group's; each row is a guess again. */
+  async function undoConfirm(key) {
+    const keys = (together.get(key) ?? [key]).filter((k) => ["saved", "stuck"].includes(confirmed.get(k)));
+    for (const k of keys) confirmed.set(k, "undoing");
+    overlay.refresh();
+    const done = await Promise.all(keys.map(unsave));
+    keys.forEach((k, n) => {
+      if (!done[n]) return void confirmed.set(k, "stuck");
+      const r = before.get(k);
+      confirmed.delete(k);
+      together.delete(k);
+      status.setStatus(k, "filled", r.reason, r.shows, r.source, r.link, r.claude);
+    });
+    overlay.refresh();
+  }
+
+  /** Undo on a saved change: deletes the saved answer; the row offers Save for next time again. */
+  async function undoChange(key) {
+    saved.set(key, "undoing");
+    overlay.refresh();
+    if (await unsave(key)) saved.delete(key);
+    else saved.set(key, "stuck");
+    overlay.refresh();
+  }
+
   /** Looks right: the guess is the student's answer now, and saved for next time. */
   async function confirm(r) {
+    before.set(r.key, r);
     confirmed.set(r.key, "saving");
     status.setStatus(r.key, "filled", r.reason, r.shows, "student", r.link, r.claude);
     confirmed.set(r.key, (await save(r)) ? "saved" : "kept");
@@ -87,18 +126,24 @@ window.WIA = window.WIA || {};
 
   /** A row card (row-card.js): its one sentence, and a button when there is something to press. */
   const card = (line, label, onClick) => ({ lines: [line], buttons: label ? [{ label, primary: true, onClick }] : [] });
+  /** A saved answer's card: Undo, greyed while it deletes; a failed delete says so. */
+  const undoCard = (state, onClick) => ({
+    lines: [state === "stuck" ? "WorkIt couldn't undo it. Try again." : "Saved for next time."],
+    busy: state === "undoing",
+    buttons: [{ label: "Undo", onClick }],
+  });
 
   /** The card under a row: Looks right on a guess, what came of it, or the offer to save a change. */
   function row(r) {
     if (r.status !== "filled") return null; // a field emptied or failed since has another card
     const done = confirmed.get(r.key);
-    if (done === "saved") return card("Looks right. We'll use this next time.");
+    if (done === "saved" || done === "undoing" || done === "stuck") return undoCard(done, () => undoConfirm(r.key));
     if (done === "kept") return card(batch() ? "Looks right. WorkIt couldn't save it for next time." : "Looks right.");
     if (done) return null;
     if (isGuess(r)) return card("WorkIt guessed this. Check it on the form.", "Looks right", () => confirm(r));
     if (!batch() || !wasGuessed.has(r.key) || r.source !== "student" || !shown(r)) return null;
     const kept = saved.get(r.key);
-    if (kept === "saved") return card("Saved. We'll use this next time.");
+    if (kept === "saved" || kept === "undoing" || kept === "stuck") return undoCard(kept, () => undoChange(r.key));
     if (kept === "saving") return null;
     return card(kept === "failed" ? "WorkIt couldn't save it. Try again." : "You changed WorkIt's guess.", "Save for next time", () => saveChange(r));
   }
@@ -107,7 +152,11 @@ window.WIA = window.WIA || {};
   function panel(summary) {
     const boxes = summary.fields.filter(isConsent);
     if (boxes.length < 2) return null;
-    const el = window.WIA.rowCard.make(card(`WorkIt ticked ${boxes.length} consent boxes for you.`, `Looks right ×${boxes.length}`, () => boxes.forEach(confirm)));
+    const el = window.WIA.rowCard.make(card(`WorkIt ticked ${boxes.length} consent boxes for you.`, `Looks right ×${boxes.length}`, () => {
+      const keys = boxes.map((b) => b.key);
+      for (const k of keys) together.set(k, keys);
+      boxes.forEach(confirm);
+    }));
     el.classList.add("guess-batch");
     return el;
   }

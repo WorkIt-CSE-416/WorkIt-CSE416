@@ -34,6 +34,8 @@ export class FakeApi {
   /** The student's answers the tabs saved (PUT .../answers, KAN-379), in order: `own` for their own words,
    * false for an edit of an answer WorkIt filled. */
   readonly own: { jobId: string; name: string; label: string; answer: string; own: boolean }[] = [];
+  /** The saved answers the student took back with Undo (DELETE .../answers?name=, KAN-369), in order. */
+  readonly undone: { jobId: string; name: string }[] = [];
   /** Set to refuse the next edits of a filled answer (not own) with these reasons, as WorkIt's checks do (422). */
   refuseEdits: string[] | null = null;
   /** The answers the student pasted in a waiting row's card (PUT .../written-answers, KAN-385's paste route), in order. */
@@ -160,6 +162,10 @@ export class FakeApi {
       const question = this.written.get(own[1])?.find((q) => q.name === name);
       if (question) Object.assign(question, { answer, reviewed: isOwn, flag: null });
       return { json: { answer, own: isOwn } };
+    }
+    if (own && method === "DELETE" && this.stages.has(own[1])) {
+      this.undone.push({ jobId: own[1], name: url.searchParams.get("name") ?? "" });
+      return { status: 204 };
     }
     // The flag card (review.py keep / rewrite): Keep clears the flag; Rewrite with Claude clears the answer for Claude.
     const flagged = /^\/applications\/([^/]+)\/review\/(keep|rewrite)$/.exec(route);
