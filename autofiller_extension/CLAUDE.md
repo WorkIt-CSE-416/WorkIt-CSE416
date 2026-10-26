@@ -171,7 +171,9 @@ here:
   autofill-extension.ts`), using Chrome's `externally_connectable` to ask
   batch apply to open (and fill) the queued applications, which jobs its
   tabs show, and to switch to one of them, and onboarding's practice batch
-  and install check (`ping`, KAN-378) — nothing more. The job cards'
+  and install check (`ping`, KAN-378), and Settings' link to the Workday
+  Sign-Up page (`workday/signup-open`, which only opens it: no login
+  crosses) — nothing more. The job cards'
   "Autofill ready" badge, `ping`'s first caller, was removed (KAN-278).
   The extension's core function
   never depends on this bridge: it works from its own popup on whatever
@@ -368,6 +370,9 @@ waits for an opened tab's page and form (`waitForLoad`, `formShows`).
   saved; with no switch link it presses Sign In with it, and a refusal saves
   the copy `refused`. A tenant saved before keeps its own login. With none
   set, everything is as below. Every press rule below holds unchanged.
+  The page opens from the popup, the consent card's Set One Password
+  (`workday/signup-open`) and the webapp's Settings > Connected Apps (the
+  same message over `externally_connectable`; it only opens the page).
 - **Workday sign-in (KAN-373).** On Workday's Create Account or Sign In
   form (`[data-automation-id=signInFormo]`; Workday's step bar calls it a
   step, which `workdayStep()` ignores), `workday.js` asks

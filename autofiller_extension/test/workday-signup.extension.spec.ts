@@ -125,3 +125,25 @@ test("a saved sign-up is used for Create Account and Sign In at every company, a
   expect(api.sent.length).toBeGreaterThan(0);
   expect(api.sent.filter((s) => s.includes(PASSWORD))).toEqual([]);
 });
+
+test("the consent card and the webapp's Settings open the sign-up page", async () => {
+  test.setTimeout(120_000);
+  const workdays = new FakeWorkdays(["workday-caci"]);
+  loaded = await loadExtension([new FakeApi().queue({ id: "wd-0", apply_url: workdays.signInUrl(0) }).handler, webapp, workdays.handler]);
+  await signIn(loaded.context);
+  const opened = () => loaded!.context.pages().filter((p) => p.url() === SIGNUP_PAGE).length;
+
+  const app = loaded.context.pages()[0] ?? (await loaded.context.newPage());
+  await app.goto("http://localhost:3000/settings/security");
+  expect(await sendFromWebapp(app, { type: "workday/signup-open" })).toMatchObject({ ok: true });
+  await expect.poll(opened, { timeout: 15_000 }).toBe(1);
+  await loaded.context.pages().find((p) => p.url() === SIGNUP_PAGE)!.close();
+
+  await sendFromWebapp(app, { type: "run/open" });
+  await expect.poll(() => loaded!.context.pages().some((p) => p.url() === workdays.signInUrl(0)), { timeout: 30_000 }).toBe(true);
+  const caci = loaded.context.pages().find((p) => p.url() === workdays.signInUrl(0))!;
+  const card = overlay(caci).locator(".moment.workday-accounts");
+  await card.locator("[data-signup]").click({ timeout: 30_000 });
+  await expect.poll(opened, { timeout: 15_000 }).toBe(1);
+  expect(workdays.signIns).toEqual([]);
+});
