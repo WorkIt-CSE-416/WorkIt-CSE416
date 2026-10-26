@@ -24,7 +24,7 @@ from workit_scraper.store import RunStats
 def serve(monkeypatch, payload: object) -> list[str]:
     """Answer every `_get_json` with `payload`, and record the URLs asked for."""
     asked: list[str] = []
-    monkeypatch.setattr(providers, "_get_json", lambda url: asked.append(url) or payload)
+    monkeypatch.setattr(providers.fetch, "_get_json", lambda url: asked.append(url) or payload)
     return asked
 
 
@@ -99,7 +99,7 @@ class TestWorkable:
 
     def test_ely_is_named_once(self) -> None:
         # Thorlabs' Ely has the region "Ely".
-        assert providers._place("Ely", "Ely", "United Kingdom") == "Ely, United Kingdom"
+        assert providers.text._place("Ely", "Ely", "United Kingdom") == "Ely, United Kingdom"
 
     def test_its_page_states_work_model_pay_and_type(self, monkeypatch) -> None:
         asked = serve(monkeypatch, self.DATAVISOR)
@@ -133,13 +133,13 @@ class TestWorkable:
 
     def test_on_site_is_spelled_with_an_underscore(self) -> None:
         # Trexquant's counsel: `"workplace": "on_site"`.
-        assert providers._work_style("on_site", None) == "On site"
+        assert providers.text._work_style("on_site", None) == "On site"
 
     def test_no_such_account_is_a_404(self, monkeypatch) -> None:
         def missing(url: str):
             raise BoardNotFound(url)
 
-        monkeypatch.setattr(providers, "_get_json", missing)
+        monkeypatch.setattr(providers.fetch, "_get_json", missing)
         with pytest.raises(BoardNotFound):
             providers.workable("no-such-board", "Nobody")
 
@@ -236,9 +236,9 @@ class TestRecruitee:
         # Constructed: no board we read states a salary yet. The shape is the
         # example in Recruitee's API reference (docs.recruitee.com, `/offers/`).
         row = {"salary": {"min": "100", "max": "1000", "period": "hour", "currency": "EUR"}}
-        assert providers._recruitee_pay(row) is None  # €1,000 an hour is no wage
+        assert providers.systems.recruitee._recruitee_pay(row) is None  # €1,000 an hour is no wage
         row = {"salary": {"min": "25", "max": "30", "period": "hour", "currency": "EUR"}}
-        assert providers._recruitee_pay(row) == Pay("EUR", 25, 30, "hour")
+        assert providers.systems.recruitee._recruitee_pay(row) == Pay("EUR", 25, 30, "hour")
 
 
 class TestBambooHR:
@@ -329,7 +329,7 @@ class TestBambooHR:
                 "https://www.bamboohr.com/", 302, "refused cross-origin redirect", None, None
             )
 
-        monkeypatch.setattr(providers, "_get_json", redirected)
+        monkeypatch.setattr(providers.fetch, "_get_json", redirected)
         with pytest.raises(BoardNotFound):
             providers.bamboohr("no-such-company", "Nobody")
 
@@ -449,7 +449,7 @@ class TestRippling:
         def missing(url: str):
             raise BoardNotFound(url)
 
-        monkeypatch.setattr(providers, "_get_json", missing)
+        monkeypatch.setattr(providers.fetch, "_get_json", missing)
         with pytest.raises(BoardNotFound):
             providers.rippling("no-such-board", "Nobody")
 
@@ -518,7 +518,7 @@ class TestIcims:
 
     def serve(self, monkeypatch, text: str) -> list[str]:
         asked: list[str] = []
-        monkeypatch.setattr(providers, "_get_text", lambda url: asked.append(url) or text)
+        monkeypatch.setattr(providers.fetch, "_get_text", lambda url: asked.append(url) or text)
         return asked
 
     def test_its_sitemap_lists_the_board(self, monkeypatch) -> None:
@@ -535,14 +535,16 @@ class TestIcims:
         assert (intern.location, intern.posted_at, intern.page) == (None, None, None)
 
     def test_a_slug_reads_as_words(self) -> None:
-        title = providers._icims_title("summer-2027-mechanical-engineering-intern--topeka%2c-ks")
+        title = providers.systems.icims._icims_title(
+            "summer-2027-mechanical-engineering-intern--topeka%2c-ks"
+        )
         assert title == "summer 2027 mechanical engineering intern topeka, ks"
 
     def test_a_co_op_slug_still_reads_as_a_co_op(self) -> None:
         # A hyphen in a slug is a space, but "co op" is no stage the filter knows:
         # every co-op on iCIMS was dropped before its page was read (7 at Peraton
         # and 5 at General Dynamics on 2026-10-26). Seen at Peraton.
-        title = providers._icims_title("software-engineering-co-op")
+        title = providers.systems.icims._icims_title("software-engineering-co-op")
         assert classify(title) == classify("Software Engineering Co-op")
         assert classify(title)
 
@@ -637,16 +639,16 @@ class TestOracle:
     def pages(self, monkeypatch, rows: list[dict], total: int | None = None) -> list[str]:
         """Answer each list request with its page of `rows`, as Oracle does."""
         asked: list[str] = []
-        monkeypatch.setattr(providers, "ORACLE_PAGE", 2)
+        monkeypatch.setattr(providers.systems.oracle, "ORACLE_PAGE", 2)
 
         def answer(url: str) -> object:
             asked.append(url)
             offset = int(url.rsplit("offset=", 1)[1].split(",")[0])
-            page = rows[offset : offset + providers.ORACLE_PAGE]
+            page = rows[offset : offset + providers.systems.oracle.ORACLE_PAGE]
             count = len(rows) if total is None else total
             return {"items": [{"TotalJobsCount": count, "requisitionList": page}]}
 
-        monkeypatch.setattr(providers, "_get_json", answer)
+        monkeypatch.setattr(providers.fetch, "_get_json", answer)
         return asked
 
     def test_a_board_is_read_page_by_page(self, monkeypatch) -> None:
@@ -686,7 +688,7 @@ class TestOracle:
 
     def test_a_board_past_the_largest_read_is_too_large(self, monkeypatch) -> None:
         self.pages(monkeypatch, self.ROWS)
-        monkeypatch.setattr(providers, "ORACLE_MAX", 2)
+        monkeypatch.setattr(providers.systems.oracle, "ORACLE_MAX", 2)
         with pytest.raises(providers.TooLarge):
             providers.oracle(self.TOKEN, "Texas Instruments")
 

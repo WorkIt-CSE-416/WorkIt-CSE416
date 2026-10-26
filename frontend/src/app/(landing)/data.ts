@@ -97,7 +97,7 @@ export const hiringSystemsSection = {
 
 /**
  * The hiring systems the scraper reads company job boards from
- * (scraper/workit_scraper/providers.py, PROVIDERS). Keep the two lists
+ * (scraper/workit_scraper/providers/, PROVIDERS). Keep the two lists
  * the same: a name here is a claim that WorkIt reads it. Rippling, iCIMS
  * and Oracle are read but not listed yet: each needs its logo file and a
  * stream below. `logo` is a file in public/hiring-systems/, from the

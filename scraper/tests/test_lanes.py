@@ -214,7 +214,7 @@ def test_a_listing_never_overwrites_what_the_page_said(monkeypatch) -> None:
             }
         ]
     }
-    monkeypatch.setattr(providers, "_get_json", lambda url: listing)
+    monkeypatch.setattr(providers.fetch, "_get_json", lambda url: listing)
     [fresh] = providers.greenhouse("cloudflare", "Cloudflare")
     read = replace(fresh, page=Page(providers.PAGE_VERSION, None, Facts(start_term="Summer 2027")))
     assert store.carry(fresh, {read.key: read}).facts.start_term == "Summer 2027"

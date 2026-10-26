@@ -61,11 +61,11 @@ class TestText:
 
 class TestLines:
     def test_closing_a_list_closes_its_implicit_items(self) -> None:
-        full, roles = providers._described(
+        full, roles = providers.text._described(
             "<h3>Requirements</h3><ul><li>Python<li>C++</ul><p><b>Benefits</b></p><p>Free lunch</p>"
         )
         assert roles == ("h", "li", "li", "b", "p")
-        assert providers._page("Intern", full, roles=roles).description == (
+        assert providers.text._page("Intern", full, roles=roles).description == (
             "Requirements\n• Python\n• C++\nBenefits\nFree lunch"
         )
 
@@ -91,11 +91,11 @@ class TestLines:
         assert providers.plain_lines("Intro\n- Python") == [("Intro", "p"), ("- Python", "p")]
 
     def test_a_page_stores_a_list_item_with_its_bullet(self) -> None:
-        full, roles = providers._described(
+        full, roles = providers.text._described(
             "<h3>Responsibilities</h3><ul><li>Build robots</li><li>Write tests</li></ul>"
         )
 
-        page = providers._page("Intern", full, roles=roles)
+        page = providers.text._page("Intern", full, roles=roles)
 
         assert page.description == "Responsibilities\n• Build robots\n• Write tests"
 
@@ -109,7 +109,7 @@ class TestLever:
             "additionalPlain": "Equal opportunity employer.",
         }
         assert (
-            providers._lever_description(row)
+            providers.systems.lever._lever_description(row)
             == "About us.\nRequirements\nPython\nROS\nEqual opportunity employer."
         )
 

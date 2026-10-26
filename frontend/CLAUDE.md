@@ -418,7 +418,7 @@ the KAN-296 cutover.
   section redrawn on 2026-10-22.
   **The hiring-system list in
   `data.ts` is a claim that WorkIt reads those systems**: it must match
-  `scraper/workit_scraper/providers.py`'s `PROVIDERS`. Its logos are
+  `scraper/workit_scraper/providers/`'s `PROVIDERS`. Its logos are
   files in `public/hiring-systems/`, each from the company's own site or
   its GitHub organization, square and at least 48px: the Google favicon
   host had only 16-32px copies of BambooHR's and Workday's, which looked

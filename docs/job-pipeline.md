@@ -469,7 +469,7 @@ browser can't restore your place by itself. The app does it instead:
 | To change... | Start in |
 |---|---|
 | Which company job boards are read | `scraper/build_boards.py`, `scraper/boards.csv` |
-| How a hiring system's company job boards are read | `scraper/workit_scraper/providers.py` |
+| How a hiring system's company job boards are read | `scraper/workit_scraper/providers/systems/` (one module per hiring system) |
 | Which job postings are kept, and their categories and specialties | `scraper/workit_scraper/shortlist.py` |
 | How a fact is read from a description | `scraper/workit_scraper/details.py` |
 | What the import writes | `backend/app/scripts/import_jobs.py` |
