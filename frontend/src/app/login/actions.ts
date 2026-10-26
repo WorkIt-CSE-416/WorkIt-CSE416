@@ -8,16 +8,25 @@ import { createSupabaseServerClient } from "@/lib/supabase/server";
 const TURNSTILE_SECRET = process.env.TURNSTILE_SECRET_KEY;
 const TURNSTILE_VERIFY_URL = "https://challenges.cloudflare.com/turnstile/v0/siteverify";
 
-async function verifyTurnstile(token: string | null): Promise<boolean> {
-  if (!TURNSTILE_SECRET) return true; // skip in local dev
-  if (!token) return false;
-  const resp = await fetch(TURNSTILE_VERIFY_URL, {
-    method: "POST",
-    headers: { "Content-Type": "application/x-www-form-urlencoded" },
-    body: new URLSearchParams({ secret: TURNSTILE_SECRET, response: token }),
-  });
-  const data = await resp.json();
-  return data.success === true;
+/** Null when the token passes, else the message to show. Same 5s limit and
+ *  messages as the API's _verify_turnstile, so a slow or down Cloudflare
+ *  reads as a retry, not a crashed action. */
+async function verifyTurnstile(token: string | null): Promise<string | null> {
+  if (!TURNSTILE_SECRET) return null; // skip in local dev
+  if (!token) return "CAPTCHA verification required.";
+  try {
+    const resp = await fetch(TURNSTILE_VERIFY_URL, {
+      method: "POST",
+      headers: { "Content-Type": "application/x-www-form-urlencoded" },
+      body: new URLSearchParams({ secret: TURNSTILE_SECRET, response: token }),
+      signal: AbortSignal.timeout(5000),
+    });
+    const data = await resp.json();
+    return data.success === true ? null : "CAPTCHA verification failed. Please try again.";
+  } catch (error) {
+    console.error("[login] Turnstile verification request failed:", error);
+    return "CAPTCHA verification is temporarily unavailable. Please try again.";
+  }
 }
 
 // `email` round-trips the submitted value back into the form on failure.
@@ -39,9 +48,10 @@ export async function signIn(_prevState: LoginState, formData: FormData): Promis
   const password = formData.get("password");
 
   const turnstileToken = formData.get("cf-turnstile-response");
-  if (!(await verifyTurnstile(typeof turnstileToken === "string" ? turnstileToken : null))) {
-    return { error: "CAPTCHA verification failed. Please try again.", email: emailValue };
-  }
+  const captchaError = await verifyTurnstile(
+    typeof turnstileToken === "string" ? turnstileToken : null,
+  );
+  if (captchaError) return { error: captchaError, email: emailValue };
 
   const supabase = await createSupabaseServerClient();
 

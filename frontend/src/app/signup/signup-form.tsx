@@ -277,7 +277,7 @@ export function SignupForm({ formId }: { formId: string }) {
             </div>
           </div>
 
-          <Turnstile form={formId} />
+          <Turnstile form={formId} resetKey={state} />
 
           {/* Same banner as /login's. It names no single field, so it marks
               none; the field-level messages above do that. */}

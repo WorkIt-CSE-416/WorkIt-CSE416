@@ -62,9 +62,11 @@ request  Browser ──sb-* cookie──▶ Next (src/proxy.ts refreshes the ses
 - **Login** is checked by Supabase Auth; the Next action then calls `/auth/me`
   for the account type and onboarding state.
 - **Signup requires email verification** (KAN-293). The API creates the user
-  without `email_confirm`, so Supabase sends a confirmation email. The
-  frontend redirects to `/signup/check-email`. The confirm link lands on
-  `/auth/confirm`, which calls `verifyOtp` and redirects to `/login`.
+  without `email_confirm`, then asks Supabase to send the confirmation email
+  (`auth.resend`), since the admin `create_user` sends none. The frontend
+  redirects to `/signup/check-email`. The confirm link lands on
+  `/auth/confirm`, which signs the user in and redirects to `/login` (and
+  from there home).
 - **A taken email returns 201 silently** (KAN-293). Signup for an address
   that already has an account returns the same 201 response with a dummy id
   and no profile row. The frontend always redirects to check-email, so an
@@ -93,6 +95,18 @@ Auth directly. Set these on any new Supabase project:
   Google Cloud Console for `google`, and from a LinkedIn Developer app with
   "Sign In with LinkedIn using OpenID Connect" for `linkedin_oidc` (the older
   `linkedin` provider is deprecated).
+- **Email (KAN-293)**: Providers → Email → "Confirm email" ON; a custom SMTP
+  provider (the built-in one sends a handful an hour); Attack Protection's
+  CAPTCHA OFF (the app checks Turnstile itself); each origin's
+  `/auth/confirm` in URL Configuration's redirect list.
+- **Email templates (KAN-293)**, as Supabase's SSR guide gives them, so a
+  link works in any browser: "Confirm signup" links to
+  `{{ .SiteURL }}/auth/confirm?token_hash={{ .TokenHash }}&type=email` and
+  "Reset Password" to
+  `{{ .SiteURL }}/auth/confirm?token_hash={{ .TokenHash }}&type=recovery`.
+  With the default templates the links still work, through `?code=`
+  (`/auth/confirm` takes both), but a reset link then opens only in the
+  browser that asked for it, and a signup link lands on the Site URL.
 
 ## How a token is verified
 

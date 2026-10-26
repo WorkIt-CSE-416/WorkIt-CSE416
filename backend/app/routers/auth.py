@@ -107,6 +107,13 @@ async def _verify_turnstile(token: str | None) -> None:
         raise HTTPException(status.HTTP_400_BAD_REQUEST, "CAPTCHA verification failed.")
 
 
+async def _send_confirmation(supabase, email: str) -> None:
+    """Ask Supabase for the signup confirmation email. The admin create_user
+    that signup uses sends none of its own (Supabase's docs say so), so
+    without this call a new account could never confirm, and never sign in."""
+    await asyncio.to_thread(supabase.auth.resend, {"type": "signup", "email": email})
+
+
 def _create_company(company_info:CompanySignup)->Company_Profile:
     '''
     function to create a company given the json information file
@@ -163,7 +170,14 @@ async def signup(
     except AuthError as exc:
         # Taken email returns 201 silently — same shape, dummy id, no profile
         # row created. This prevents leaking whether an email is registered.
+        # An account still unconfirmed gets its email again; a confirmed one
+        # (or a send inside Supabase's 60s limit) refuses, and that refusal
+        # is swallowed so the answer stays the same.
         if exc.code in ("email_exists", "user_already_exists"):
+            try:
+                await _send_confirmation(supabase, body.email)
+            except AuthError:
+                pass
             return AuthenticatedAccount(
                 id=uuid.uuid4(),
                 email=body.email,
@@ -218,6 +232,21 @@ async def signup(
                 company_id=None,
             )
         raise
+
+    try:
+        await _send_confirmation(supabase, body.email)
+    except AuthError as exc:
+        # No email means no way in: undo the account (deleting the auth user
+        # cascades to the profile row) so a retry can start clean.
+        logger.exception("Couldn't send the confirmation email for %s", user_id)
+        try:
+            await asyncio.to_thread(supabase.auth.admin.delete_user, created.user.id)
+        except AuthError:
+            logger.exception("Orphaned Supabase auth user %s after a failed signup", created.user.id)
+        raise HTTPException(
+            status.HTTP_502_BAD_GATEWAY,
+            "Couldn't send the confirmation email. Please try again.",
+        ) from exc
 
     return AuthenticatedAccount(
         id=profile.id,

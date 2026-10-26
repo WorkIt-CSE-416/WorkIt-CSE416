@@ -10,8 +10,13 @@ const SITE_KEY = process.env.NEXT_PUBLIC_TURNSTILE_SITE_KEY;
  * with the token. When the site key is unset (local dev), renders nothing
  * and the hidden input stays empty — the backend skips verification when
  * its own secret is unset.
+ *
+ * A token is good for one check only, and the form's own reset after an
+ * action empties the hidden input too. So a form passes its action state as
+ * `resetKey`: each new state (a wrong password, a refused signup) resets the
+ * widget for a fresh token, or every retry would fail the check.
  */
-export function Turnstile({ form }: { form?: string }) {
+export function Turnstile({ form, resetKey }: { form?: string; resetKey?: unknown }) {
   const containerRef = useRef<HTMLDivElement>(null);
   const widgetIdRef = useRef<string | null>(null);
 
@@ -42,6 +47,15 @@ export function Turnstile({ form }: { form?: string }) {
     };
   }, [render]);
 
+  const first = useRef(true);
+  useEffect(() => {
+    if (first.current) {
+      first.current = false;
+      return;
+    }
+    if (widgetIdRef.current != null) window.turnstile.reset(widgetIdRef.current);
+  }, [resetKey]);
+
   if (!SITE_KEY) return null;
 
   return (
@@ -62,6 +76,7 @@ declare global {
         container: HTMLElement,
         options: { sitekey: string; callback: (token: string) => void },
       ) => string;
+      reset: (widgetId: string) => void;
       remove: (widgetId: string) => void;
     };
   }

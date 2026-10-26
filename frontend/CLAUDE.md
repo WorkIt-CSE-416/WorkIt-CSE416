@@ -1172,9 +1172,15 @@ are in `docs/auth.md`.
   sign-in forms. It renders nothing when `NEXT_PUBLIC_TURNSTILE_SITE_KEY` is
   unset (local dev). Signup sends the token to the API as `captchaToken`;
   sign-in verifies it server-side in the Next action via `TURNSTILE_SECRET_KEY`.
-- **`/auth/confirm`** (KAN-293) handles email confirmation links from
-  Supabase. `type=signup` redirects to `/login`; `type=recovery` redirects to
-  `/login/new-password` with a session active.
+  **A form passes its action state as `resetKey`**: a token passes one check
+  only, and the form's reset after an action empties its input, so without a
+  widget reset every retry after a wrong password failed the CAPTCHA.
+- **`/auth/confirm`** (KAN-293) handles email links from Supabase in both
+  shapes: `token_hash` + `type` (the templates in `docs/auth.md`, through
+  `verifyOtp`) and `code` (the default templates, through
+  `exchangeCodeForSession`, whose `redirectType` marks a reset). A reset goes
+  to `/login/new-password` with a session active; anything else to `/login`.
+  A bad or used link goes to `/login?error=…`, which says so above the form.
 - **Password reset** (KAN-293): `/login/reset-password` sends a reset email
   (always shows "Check your email"); the reset link lands on `/auth/confirm`,
   which sets a session and redirects to `/login/new-password`;

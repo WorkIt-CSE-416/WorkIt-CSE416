@@ -958,10 +958,17 @@ why each rule exists.
   company owner's delete is designed. Tests: `tests/test_delete_account.py`.
 
 - **Email verification is required** (KAN-293). Signup does not pass
-  `email_confirm: True`, so Supabase sends a confirmation email. The
-  frontend redirects to `/signup/check-email` after signup. The confirm
-  link lands on `/auth/confirm`, which verifies the OTP. A taken email
-  returns 201 silently (same response shape, dummy id, no profile row).
+  `email_confirm: True`, and then asks Supabase for the confirmation email
+  itself (`auth.resend(type="signup")`): the admin `create_user` sends no
+  email of its own, so without that call no new account could ever sign in.
+  If the email can't be sent, signup deletes the auth user (the profile row
+  cascades) and answers 502, so a retry starts clean. The frontend
+  redirects to `/signup/check-email` after signup; the link lands on
+  `/auth/confirm`. A taken email returns 201 silently (same response
+  shape, dummy id, no profile row) and resends the email, which reaches
+  only an account still unconfirmed. Supabase's own CAPTCHA setting stays
+  off: its `/resend` would then want a Turnstile token, and signup has
+  already spent the one it got. Tests: `tests/test_signup.py`.
 - **Turnstile verification on signup** (KAN-293). The `captcha_token` field
   in `SignupRequest` is verified server-side against `TURNSTILE_SECRET_KEY`
   (`app/config.py`). When the key is `None` (local dev), verification is

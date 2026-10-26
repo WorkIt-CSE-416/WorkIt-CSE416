@@ -63,7 +63,7 @@ export function LoginForm({ formId }: { formId: string }) {
         </div>
       </div>
 
-      <Turnstile form={formId} />
+      <Turnstile form={formId} resetKey={state} />
 
       {state.error && (
         <p
