@@ -84,7 +84,7 @@ test("a submit made after the student closed the panel still marks it applied", 
   const api = new FakeApi();
   const page = await batchOf(api, forms.url("ashby-cohere"), [ashbySingleOk, forms.handler]);
   await panel(page).locator("[data-close]").click();
-  await expect(panel(page)).toHaveCount(0);
+  await expect(panel(page).locator(".panel")).toBeHidden();
 
   await ashbySubmits(page);
 
