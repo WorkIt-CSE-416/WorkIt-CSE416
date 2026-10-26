@@ -97,3 +97,21 @@ test("outside a batch, walks to Review only once the student presses Fill to Rev
   await tab.waitForTimeout(3_000);
   expect(workdays.submissions).toEqual([]);
 });
+
+test("saves two steps of one name drawn in place on a link that never changes, each once", async () => {
+  test.setTimeout(180_000);
+  const workdays = new FakeWorkdays(["workday-caci"], [
+    ["My Information", [...NAME]],
+    ["Application Questions", [...NAME]],
+    ["Application Questions", [{ key: "preferredName", label: "Preferred First Name", kind: "text" }, ...NAME]],
+  ]);
+  workdays.inPlace.add("caci.wd1.myworkdayjobs.com");
+  workdays.samePath.add("caci.wd1.myworkdayjobs.com");
+  const tab = await batchTab(workdays);
+
+  // Review shows on the first step's link, the two Application Questions each saved by the walk without a 30 s wait.
+  await expect(tab.locator("[data-automation-id=applyFlowReviewPage]")).toBeVisible({ timeout: 60_000 });
+  await expect(overlay(tab)).toContainText(REVIEW_NOTE, { timeout: 30_000 });
+  expect(tab.url()).toBe(workdays.url(0));
+  expect(workdays.submissions).toEqual([]);
+});

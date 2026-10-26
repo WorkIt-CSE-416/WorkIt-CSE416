@@ -13,8 +13,8 @@
 //   note), a required field shows nothing, or the self-identification card
 //   waits. The panel says why; the student answers and presses Save and
 //   Continue, and the next step walks again.
-// - Save and Continue is pressed at most once a step (by its name and the
-//   page's path, kept for the tab), and only when it reads Save and
+// - Save and Continue is pressed at most once a step (by its name, its
+//   number in Workday's bar and the page's path, kept for the tab), and only when it reads Save and
 //   Continue, Continue or Next: never a button that reads as sending
 //   (Submit, Apply, Finish...), never on Review.
 // - After the press, an error Workday shows that stays (ERROR_WAIT) stops the
@@ -97,11 +97,12 @@ window.WIA = window.WIA || {};
    * something on it needs the student. Resolves with what to tell the
    * student when it stops on the step (null once the step was left, or the
    * page went on without it).
-   * @param {string} step  the step's name, as workday.js reads it
+   * @param {string} step  the step's id, as workday.js's stepId reads it when its fill began ("<name>#<number>")
    * @param {{ fields: object[], selfIdWaits?: boolean }} shown  the panel's rows, and whether the self-identification card waits
    */
   async function leave(step, { fields, selfIdWaits = false }) {
-    const stepNow = window.WIA.workday.step;
+    const { workday } = window.WIA;
+    const stepNow = workday.stepId;
     if (stepNow() !== step) return null;
     const why = blocker(fields, selfIdWaits);
     if (why) return why;
@@ -122,7 +123,8 @@ window.WIA = window.WIA || {};
     done.add(key);
     store(() => sessionStorage.setItem(PRESSED, JSON.stringify([...done])));
     press(button);
-    const left = () => { const now = stepNow(); return now && now !== step; };
+    // Another step: one with a name, told from this one by its name or its number (a second "Application Questions").
+    const left = () => Boolean(workday.step()) && stepNow() !== step;
     const after = await until(() => (left() ? "left" : banner() ? "error" : null), LEAVE_WAIT);
     if (after === "left") return null;
     if (after === "error" && (await until(left, ERROR_WAIT))) return null;

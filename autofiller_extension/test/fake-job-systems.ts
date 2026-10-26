@@ -165,6 +165,9 @@ export class FakeWorkdays {
    */
   readonly inPlace = new Set<string>();
 
+  /** `inPlace` tenant hosts whose link stays the first step's as the steps change (no pushState), as some tenants keep theirs. */
+  readonly samePath = new Set<string>();
+
   /** What the n-th tenant saved from the steps' Save and Continue, by field key (a batch tab saves each step it filled, Fill to Review). */
   saved(n: number): Record<string, unknown> {
     return this.tenants[n].saved;
@@ -208,8 +211,11 @@ export class FakeWorkdays {
   /** A page of an `inPlace` tenant: its moves to the next page draw that page into this document instead. */
   private placed(host: string, reply: Reply): Reply {
     if (!this.inPlace.has(host)) return reply;
-    const body = String(reply.body).replaceAll("location.href = r.next", "window.__fakeGo(r.next)").replaceAll("location.href = answer.next", "window.__fakeGo(answer.next)");
-    return { ...reply, body: body.replace(/^<!doctype html>/i, (doctype) => doctype + IN_PLACE) };
+    let body = String(reply.body).replaceAll("location.href = r.next", "window.__fakeGo(r.next)").replaceAll("location.href = answer.next", "window.__fakeGo(answer.next)");
+    // A link that stays the same: each step's save still goes to its own step.
+    if (this.samePath.has(host)) body = body.replaceAll("fetch(location.pathname", "fetch(window.__fakeAt || location.pathname");
+    const go = this.samePath.has(host) ? IN_PLACE.replace('history.pushState({}, "", url);', "window.__fakeAt = new URL(url, location.href).pathname;") : IN_PLACE;
+    return { ...reply, body: body.replace(/^<!doctype html>/i, (doctype) => doctype + go) };
   }
 }
 

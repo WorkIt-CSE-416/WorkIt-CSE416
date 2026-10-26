@@ -131,7 +131,9 @@ builds it: `dist/engine.js` is committed in the engine repo.
   a guessed answer, a flag, the Plan's note), a required field shows
   nothing (`fill/required`, asked on Workday only here), or the
   self-identification card waits. The button is pressed at most once a
-  step (its name and path, kept for the tab), never again after Workday
+  step (its name, its number in Workday's bar and the path, kept for the
+  tab, so a second "Application Questions" on a link that doesn't change
+  is a step of its own), never again after Workday
   shows an error that stays 5 s or after 30 s with no new step; then the
   student presses it. Tests: `test/workday-review.extension.spec.ts`. A
   step that loads as a new page drops the

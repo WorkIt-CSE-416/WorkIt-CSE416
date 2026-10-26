@@ -423,6 +423,7 @@
   let step = await workday.stepAfter("");
   for (;;) {
     await workday.quiet();
+    const shownId = workday.stepId(); // told from a next step of the same name by its number
     status.reset();
     window.WIA.phase = "filling";
     const prepared = await fillShown(workday.filledBefore());
@@ -445,11 +446,10 @@
     window.WIA.phase = last ? "last" : "step";
     report();
     if (last) return;
-    const shownStep = step;
     const goOn = async () => {
       await flagEmptyRequired(prepared);
-      const why = await toReview.leave(shownStep, { fields: status.summary().fields, selfIdWaits: Boolean(selfIdWaiting) });
-      if (!why || workday.step() !== shownStep) return;
+      const why = await toReview.leave(shownId, { fields: status.summary().fields, selfIdWaits: Boolean(selfIdWaiting) });
+      if (!why || workday.stepId() !== shownId) return;
       note("_step", toReview.STOPPED, why);
       report();
     };
