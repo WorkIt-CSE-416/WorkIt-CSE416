@@ -13,9 +13,9 @@ import {
 } from "./api.js";
 import {
   batchStatus, batchTabIds, forgetTab, inBatch, jobInTab, jobTypeInTab, markSubmitted, unmarkSubmitted, practiceStatus, resumeBatch, setTabState, setWriting,
-  showBatchTab, skipTab, startBatch, startPractice, submitPractice,
+  showBatchTab, skipTab, closeClosedTab, startBatch, startPractice, submitPractice,
 } from "./batch.js";
-import { popupPage, reportTab, saveTabJob, webappOrigin } from "./panel-states.js";
+import { popupPage, reportTab, requestTabSystem, saveTabJob, webappOrigin } from "./panel-states.js";
 import { engineCaller, handleFill, jobOf, practiceJob, runEngine, submittedPage } from "./engine.js";
 import { claimMoment } from "./moments.js";
 import { nextNeedsYou, walkFrom } from "./next-needs-you.js";
@@ -190,6 +190,10 @@ async function handleMessage(message, sender) {
     // The student pressed Skip on a batch tab's panel (content-script.js).
     case "batch/skip":
       return skipTab(sender.tab.id);
+
+    // A batch tab's job system says the job is closed (content-script.js): it leaves the batch marked closed.
+    case "batch/closed":
+      return closeClosedTab(sender.tab.id);
 
     // A batch tab's questions that need writing (KAN-377): sent to the API for
     // the student's own Claude to answer through the connector
@@ -368,6 +372,8 @@ async function handleMessage(message, sender) {
       return saveTabJob(message.tabId);
     case "popup/report":
       return reportTab(message.tabId, message.note);
+    case "popup/request":
+      return requestTabSystem(message.tabId);
     case "panel/fill":
       await injectFill(sender.tab.id, { batch: Boolean(message.batch) && (await inBatch(sender.tab.id)), frameId: sender.frameId || undefined });
       return {};

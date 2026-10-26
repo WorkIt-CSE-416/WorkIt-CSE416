@@ -697,6 +697,15 @@ export async function saveJobByLink(url) {
 }
 
 /**
+ * POST /job-system-requests: the popup's Request this job system (KAN-369)
+ * on a job page WorkIt can't fill. Sends the page's host and nothing else.
+ * @param {string} host
+ */
+export async function requestJobSystem(host) {
+  return apiFetch("/job-system-requests", { method: "POST", body: JSON.stringify({ host }) });
+}
+
+/**
  * POST .../finish: the application's outcome. "unsubmitted" also takes the
  * tab's `state` before the mark ("ready" → queued, "needs_you" → needs_you).
  */
