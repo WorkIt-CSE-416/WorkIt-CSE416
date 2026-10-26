@@ -83,7 +83,10 @@ async function apiRequest(path, init = {}) {
 
   if (!response.ok) {
     const body = await response.json().catch(() => ({}));
-    throw new ApiError(response.status, errorMessage(response.status, body));
+    const error = new ApiError(response.status, errorMessage(response.status, body));
+    // A refusal's reasons by question (the paste route's 422, savePastedAnswer), when the route gives them.
+    error.reasons = body?.detail?.reasons;
+    throw error;
   }
   return response;
 }
@@ -97,6 +100,7 @@ async function apiRequest(path, init = {}) {
 export function errorMessage(status, body) {
   const { detail } = body ?? {};
   if (typeof detail === "string" && detail) return detail;
+  if (typeof detail?.message === "string" && detail.message) return detail.message;
   if (Array.isArray(detail) && detail.length) return detail.map((e) => e?.msg ?? String(e)).join("; ");
   return `Request failed (${status})`;
 }
@@ -551,6 +555,22 @@ export async function saveOwnAnswer(applicantId, jobId, answer) {
  */
 export async function answerFlag(applicantId, jobId, action, name) {
   await apiRequest(`/applicants/${applicantId}/applications/${jobId}/review/${action}`, { method: "POST", body: JSON.stringify({ name }) });
+}
+
+/**
+ * PUT .../applications/{job_id}/written-answers — an answer the student
+ * pasted in a waiting row's card (KAN-369), saved as the Written Answers
+ * page saves one (KAN-385): checked as their Claude's, saved by="student",
+ * not as their own words. A refusal is an ApiError 422 whose `reasons`
+ * names each question's reasons.
+ * @param {string} applicantId
+ * @param {string} jobId
+ * @param {string} name
+ * @param {string} answer
+ * @returns {Promise<{ saved: number, left: number }>}
+ */
+export async function savePastedAnswer(applicantId, jobId, name, answer) {
+  return apiFetch(`/applicants/${applicantId}/applications/${jobId}/written-answers`, { method: "PUT", body: JSON.stringify({ answers: [{ name, answer }] }) });
 }
 
 /**

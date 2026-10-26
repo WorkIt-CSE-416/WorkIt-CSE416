@@ -133,6 +133,7 @@ window.WIA = window.WIA || {};
         return;
       }
       offerClaude();
+      window.WIA.waitingCard?.onSave((name, answer) => paste(prepared, name, answer));
       let byClaude = false;
       let answered = false;
       for (;;) {
@@ -143,6 +144,8 @@ window.WIA = window.WIA || {};
           if (rowStatus(name) !== "filled") {
             await fillWritten(prepared, name, answer, "claude");
             byClaude = true;
+            // Just arrived: Next Thing walks to it until the student has seen it once (batch-tab.js).
+            if (rowStatus(name) === "filled") (window.WIA.unseenAnswers ??= new Set()).add(name);
           }
         }
         for (const name of waiting) if (rowStatus(name) === "filled") waiting.delete(name);
@@ -158,6 +161,21 @@ window.WIA = window.WIA || {};
         await sleep(ANSWER_POLL);
         reply = await send({ type: "batch/answers" }).catch((error) => ({ ok: false, error: error.message }));
       }
+    }
+
+    /**
+     * An answer the student pasted in a waiting row's card (card-waiting.js):
+     * saved through the Written Answers route (the same checks as their
+     * Claude's, by="student", not their own words), then filled at once.
+     * The tab's next poll finds the row filled and leaves it.
+     */
+    async function paste(prepared, name, answer) {
+      const reply = await send({ type: "batch/paste", name: name.slice(0, FIELD_NAME_MAX), answer: answer.slice(0, ANSWER_MAX) })
+        .catch((error) => ({ ok: false, error: error.message }));
+      if (!reply?.ok) return { saved: false, reasons: [], error: `WorkIt didn't save it: ${reply?.error ?? "no answer"}` };
+      if (!reply.saved) return { saved: false, reasons: reply.reasons ?? [], error: reply.error };
+      if (rowStatus(name) !== "filled") await fillWritten(prepared, name, answer, "pasted");
+      return { saved: true };
     }
 
     // The answers whose review verdict this tab has seen: an edit of one waits for its new verdict.
@@ -322,7 +340,8 @@ window.WIA = window.WIA || {};
       const filled = workitFilled.get(row.key);
       if (filled && replaces(filled.text, shown)) workitFilled.delete(row.key); // rewritten: the student's now
       const edit = filled && workitFilled.has(row.key);
-      if (edit) status.setStatus(row.key, "filled", `You edited ${filled.source === "claude" ? "your Claude's" : "WorkIt's"} answer`, shown, filled.source);
+      const whose = { claude: "your Claude's", pasted: "your pasted" }[filled?.source] ?? "WorkIt's";
+      if (edit) status.setStatus(row.key, "filled", `You edited ${whose} answer`, shown, filled.source);
       else status.setStatus(row.key, "filled", row.status === "filled" ? row.reason : "You answered this", shown, "student");
       // A flag holds while its sentence is still in the field (the flag card's Edit myself).
       if (row.flag && row.flagQuote && shown.includes(row.flagQuote)) status.flag(row.key, row.flag, { quote: row.flagQuote, hard: row.flagHard });

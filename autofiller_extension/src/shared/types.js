@@ -174,5 +174,5 @@
  * no fact of theirs). "student" is also a value the student typed after the
  * fill; "claude" an answer their own Claude wrote (the connector); "ai" one
  * the essay route wrote.
- * @typedef {"profile" | "student" | "saved" | "guessed" | "claude" | "ai"} Source
+ * @typedef {"profile" | "student" | "saved" | "guessed" | "claude" | "ai" | "pasted"} Source
  */

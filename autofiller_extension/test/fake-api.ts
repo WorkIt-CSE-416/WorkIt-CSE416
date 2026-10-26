@@ -36,6 +36,10 @@ export class FakeApi {
   readonly own: { jobId: string; name: string; label: string; answer: string; own: boolean }[] = [];
   /** Set to refuse the next edits of a filled answer (not own) with these reasons, as WorkIt's checks do (422). */
   refuseEdits: string[] | null = null;
+  /** The answers the student pasted in a waiting row's card (PUT .../written-answers, KAN-385's paste route), in order. */
+  readonly pasted: { jobId: string; name: string; answer: string }[] = [];
+  /** Set to refuse the next pastes with these reasons, as WorkIt's checks do (422, reasons by question). */
+  refusePastes: string[] | null = null;
   /** In order: "next:<job>" when GET .../applications/next hands a job out (its tab opens), "questions:<job>" when its questions arrive. */
   readonly events: string[] = [];
 
@@ -167,6 +171,21 @@ export class FakeApi {
       if (flagged[2] === "keep") Object.assign(question, { flag: null, flag_quote: null, flag_hard: false });
       else Object.assign(question, { answer: null, reviewed: false, flag: null, flag_quote: null, flag_hard: false });
       return { status: 204, body: "" };
+      }
+    // A pasted answer (backend/app/routers/pasted_answers.py): checked as Claude's, saved as the question's answer.
+    const paste = /^\/applications\/([^/]+)\/written-answers$/.exec(route);
+    if (paste && method === "PUT" && this.stages.has(paste[1])) {
+      const answers: { name: string; answer: string }[] = JSON.parse(body.toString()).answers;
+      if (this.refusePastes) {
+        const reasons = Object.fromEntries(answers.map((a) => [a.name, this.refusePastes!]));
+        return { status: 422, json: { detail: { message: "WorkIt didn't save these answers.", reasons } } };
+      }
+      for (const { name, answer } of answers) {
+        this.pasted.push({ jobId: paste[1], name, answer });
+        this.saveAnswer(paste[1], name, answer);
+      }
+      const left = (this.written.get(paste[1]) ?? []).filter((q) => q.answer === null).length;
+      return { json: { saved: answers.length, left } };
     }
     const fill = /^\/applications\/([^/]+)\/fill$/.exec(route);
     if (fill && method === "PUT") {

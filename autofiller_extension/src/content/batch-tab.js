@@ -44,6 +44,11 @@ window.WIA = window.WIA || {};
     const shownGuesses = (window.WIA.shownGuesses ??= new Set());
     /** A filled answer WorkIt guessed (the panel's "Guessed") that the walk hasn't shown the student yet. */
     const unchecked = (r) => !r.note && r.status === "filled" && r.source === "guessed" && !shownGuesses.has(r.key);
+    // The answers from the student's Claude that just arrived (written-answers.js), until the walk has shown them.
+    const unseenAnswers = (window.WIA.unseenAnswers ??= new Set());
+    const unseen = (r) => !r.note && r.status === "filled" && unseenAnswers.has(r.key);
+    /** A row waiting for the student's Claude: nothing for them to fix yet, so the walk visits it last. */
+    const onClaude = (r) => r.status === "needs_generation" && Boolean(r.claude);
 
     /**
      * Whether this batch tab is "ready" (every field it needs shows an answer),
@@ -80,7 +85,10 @@ window.WIA = window.WIA || {};
      * field stands on the page (notes and fields the page doesn't show last),
      * and `keys`, those of them that need the student, and the guesses the
      * walk hasn't shown them (a guess doesn't keep the tab from Ready:
-     * the walk shows it once, for the student to check). The walk places a row
+     * the walk shows it once, for the student to check), and the answers
+     * from their Claude that just arrived, also once; `late`, those of `keys`
+     * waiting for their Claude, which the walk visits after everything else
+     * in the batch. The walk places a row
      * it went to by `order`, so it goes on after it once the row is answered.
      */
     function flagged() {
@@ -88,14 +96,17 @@ window.WIA = window.WIA || {};
       const rows = fields.map((r) => ({ key: r.key, field: fieldOf(r.key) }));
       const placed = rows.filter((r) => r.field).sort((a, b) => (a.field.compareDocumentPosition(b.field) & Node.DOCUMENT_POSITION_FOLLOWING ? -1 : 1));
       const order = [...placed, ...rows.filter((r) => !r.field)].map((r) => r.key);
-      const needing = new Set(fields.filter((r) => needsYou(r) || unchecked(r)).map((r) => r.key));
-      return { order, keys: order.filter((key) => needing.has(key)) };
+      const needing = new Set(fields.filter((r) => needsYou(r) || unchecked(r) || unseen(r)).map((r) => r.key));
+      const late = new Set(fields.filter(onClaude).map((r) => r.key));
+      const keys = order.filter((key) => needing.has(key));
+      return { order, keys, late: keys.filter((key) => late.has(key)) };
     }
 
     /** Brings a flagged row's field into view and focuses it, and marks its row on the panel. A guess is then seen. */
     function show(key) {
       const row = status.summary().fields.find((r) => r.key === key);
       if (row && unchecked(row)) shownGuesses.add(key);
+      unseenAnswers.delete(key);
       const field = fieldOf(key);
       if (field) {
         field.scrollIntoView({ block: "center" });
@@ -125,7 +136,7 @@ window.WIA = window.WIA || {};
       if (window.WIA.walking) return;
       window.WIA.walking = true;
       chrome.runtime.onMessage.addListener((message, _sender, reply) => {
-        if (message?.type === "batch/flags") reply(window.WIA.phase === "filling" ? { order: [], keys: [] } : window.WIA.walk.flagged());
+        if (message?.type === "batch/flags") reply(window.WIA.phase === "filling" ? { order: [], keys: [], late: [] } : window.WIA.walk.flagged());
         else if (message?.type === "batch/focus") {
           window.WIA.walk.show(message.key);
           reply({ shown: true });
