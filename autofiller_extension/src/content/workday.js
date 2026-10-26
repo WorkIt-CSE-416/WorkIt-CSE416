@@ -6,7 +6,11 @@
 // In, as Jobright and Simplify do (KAN-369): each button pressed again only
 // when Workday dropped the press (it sent nothing), at most 3 times, never
 // after the form went out, and a Sign In Workday refused never again
-// (`refused`, saved with the login), so the account doesn't lock. It presses nothing else. Loaded
+// (`refused`, saved with the login), so the account doesn't lock. In a batch
+// tab it also starts the application from the job's page, as both do once
+// their own button is pressed (the student's Start batch is that press):
+// Apply, then Apply Manually, or Continue Application, each at most once a
+// page (watchStart). It presses nothing else. Loaded
 // before content-script.js (shared/content-scripts.js), as window.WIA.workday.
 window.WIA = window.WIA || {};
 
@@ -36,6 +40,13 @@ window.WIA = window.WIA || {};
   // How long a press gets to send the form before Workday is taken to have dropped it, and the most presses.
   const SEND_WAIT = 10_000;
   const SEND_PRESSES = 3;
+  // Workday's job page: Apply, or Continue Application for an application
+  // started before (as Apply's _start finds them), and Apply Manually in the
+  // popup Apply opens. Autofill with Resume and Use My Last Application are
+  // never pressed: WorkIt fills from the student's profile.
+  const START = "[data-automation-id=adventureButton], [data-automation-id=continueButton]";
+  const START_WORDS = /^(apply|continue application)$/i;
+  const MANUALLY = "[data-automation-id=applyManually]";
   // How long a ticked box gets to show it is ticked before Create Account is pressed.
   const TICK_SHOWS = 100;
   // How long a Workday step's page must stop changing before it is read, and the longest wait for that.
@@ -367,11 +378,44 @@ window.WIA = window.WIA || {};
     fillSignIn();
   }
 
+  /**
+   * In a batch tab, starts the application from Workday's job page: presses
+   * Apply (or Continue Application), then Apply Manually when its popup
+   * shows, each at most once a page (its path, since Workday changes pages
+   * in place), as Jobright and Simplify do once their own button is pressed.
+   * Stops once the application's first step shows. `onPress(reason)`: what
+   * to tell the student.
+   */
+  function watchStart(onPress) {
+    const pressed = new Set();
+    const once = (what, button, reason) => {
+      const key = `${what} ${location.pathname}`;
+      if (pressed.has(key)) return;
+      pressed.add(key);
+      press(button);
+      onPress(reason);
+    };
+    const look = () => {
+      if (document.querySelector(SIGN_IN_FORM)) return;
+      const manually = [...document.querySelectorAll(MANUALLY)].find((b) => b.checkVisibility());
+      if (manually) return once("manually", manually, `WorkIt pressed Apply Manually for you, so it fills from your WorkIt profile. ${SIGNED_IN}`);
+      const start = [...document.querySelectorAll(START)].find((b) => b.checkVisibility() && START_WORDS.test(b.innerText.trim()));
+      if (start) once("start", start, `WorkIt pressed ${start.innerText.trim()} for you. ${SIGNED_IN}`);
+    };
+    const observer = new MutationObserver(() => {
+      if (workdayStep()) return observer.disconnect();
+      look();
+    });
+    observer.observe(document.documentElement, { childList: true, subtree: true });
+    look();
+  }
+
   window.WIA.workday = {
     // Whether this page is Workday's.
     isWorkday: /(^|\.)(myworkdayjobs|myworkdaysite)\.com$/.test(location.hostname),
     step: workdayStep,
     watchSignIn,
+    watchStart,
     quiet,
     stepAfter,
   };

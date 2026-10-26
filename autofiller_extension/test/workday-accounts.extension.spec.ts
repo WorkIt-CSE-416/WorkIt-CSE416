@@ -229,3 +229,28 @@ test("an account Workday asked to verify is signed in to next time, not made aga
   expect(workdays.signIns.map((s) => s.view)).toEqual(["create", "signin"]);
   expect(workdays.signIns[1].password).toBe(workdays.signIns[0].password);
 });
+
+test("in a batch tab, presses a posting's Apply then Apply Manually, or its Continue Application, once each, never the other ways", async () => {
+  test.setTimeout(180_000);
+  const workdays = new FakeWorkdays(["workday-caci", "workday-xcel"]);
+  const page = await start(workdays,
+    { id: "wd-0", apply_url: workdays.postingUrl(0) },
+    { id: "wd-1", apply_url: workdays.postingUrl(1, true) });
+
+  // The student's Start batch is the press: Apply, then Apply Manually in its popup, which loads Create Account.
+  const caci = await page(workdays.postingUrl(0));
+  await caci.waitForURL(/\/__fake__\/signin\?view=create/, { timeout: 30_000 });
+  await expect.poll(() => box(caci, "email").inputValue(), { timeout: 30_000 }).toBe("test.person@example.com");
+  await caci.waitForTimeout(2000);
+  expect(workdays.starts).toEqual(["apply", "applyManually"]);
+  await expect(overlay(caci).locator(".row").filter({ hasText: "Sign in to continue" })).toBeVisible();
+
+  // An application started before: Continue Application, which loads Sign In.
+  await skip(caci);
+  const xcel = await page(workdays.postingUrl(1, true));
+  await xcel.waitForURL(/\/__fake__\/signin\?view=signin/, { timeout: 30_000 });
+  await xcel.waitForTimeout(2000);
+  expect(workdays.starts).toEqual(["apply", "applyManually", "continue"]);
+  expect(workdays.signIns).toEqual([]);
+  expect(workdays.submissions).toEqual([]);
+});
