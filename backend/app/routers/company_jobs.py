@@ -5,12 +5,15 @@ company, taken from the verified token, never from the request.
 """
 
 import datetime
+import logging
 import uuid
 
-from fastapi import APIRouter, Depends, HTTPException, Query, status
+from fastapi import APIRouter, BackgroundTasks, Depends, HTTPException, Query, status
 from sqlalchemy.ext.asyncio import AsyncSession
+from sqlalchemy.orm import undefer
+from workit_scout.llm import LLM, ScoutUnavailable
 
-from app.db import get_session
+from app.db import get_session, get_sessionmaker
 from app.deps import get_company_member
 from app.models.dto import job_post_status
 from app.models.jobs import Job_Post
@@ -23,6 +26,7 @@ from app.queries.company_jobs import (
     posting,
     set_location,
 )
+from app.routers.scout import get_llm
 from app.schemas.auth import AuthenticatedAccount
 from app.schemas.company_jobs import (
     JobPosting,
@@ -31,6 +35,9 @@ from app.schemas.company_jobs import (
     JobPostingUpdate,
     JobStatusChange,
 )
+from app.services import keywords
+
+logger = logging.getLogger(__name__)
 
 router = APIRouter(prefix="/company/jobs", tags=["company jobs"])
 
@@ -73,6 +80,37 @@ async def _commit(db: AsyncSession, job: Job_Post) -> None:
         raise HTTPException(status.HTTP_422_UNPROCESSABLE_CONTENT, str(exc)) from exc
 
 
+async def _fill_keywords(job_id: uuid.UUID, llm: LLM) -> None:
+    '''
+    extract the job's keywords once it is live, so no student's first
+    keyword match or Tailor run waits on (or spends a use on) it. Runs after
+    the response, in its own session: the request's has closed. A failure
+    only logs; `keywords.ensure` still extracts on a student's first match.
+    '''
+    async with get_sessionmaker()() as db:
+        job = await db.get(
+            Job_Post, job_id, options=[undefer(Job_Post.keywords), undefer(Job_Post.keywords_hash)])
+        if job is None or job.status != job_post_status.published:
+            return
+        try:
+            _, extracted = await keywords.ensure(job, llm)
+        except ScoutUnavailable:
+            logger.warning("Keyword extraction failed for company job %s", job_id, exc_info=True)
+            return
+        if extracted:
+            await db.commit()
+
+
+def _after_save(tasks: BackgroundTasks, job: Job_Post, llm: LLM) -> None:
+    '''
+    queue the keyword extraction for a job saved as published. Drafts wait:
+    no student sees one, and its text keeps changing. A cache that still
+    matches the description makes the task a no-op.
+    '''
+    if job.status == job_post_status.published:
+        tasks.add_task(_fill_keywords, job.id, llm)
+
+
 def _reject_past_close(closes_at: datetime.datetime | None) -> None:
     '''
     the date picker blocks past days, but a direct call or a form left open
@@ -89,8 +127,10 @@ def _reject_past_close(closes_at: datetime.datetime | None) -> None:
 @router.post("", response_model=JobPosting, status_code=status.HTTP_201_CREATED)
 async def create_job(
     body: JobPostingCreate,
+    tasks: BackgroundTasks,
     account: AuthenticatedAccount = Depends(get_company_member),
     db: AsyncSession = Depends(get_session),
+    llm: LLM = Depends(get_llm),
 ) -> JobPosting:
     '''
     save a new job, as a draft or published, under the caller's company
@@ -106,6 +146,7 @@ async def create_job(
     await db.flush()
     await set_location(db, job.id, body.location_country, body.location_state)
     await _commit(db, job)
+    _after_save(tasks, job, llm)
     return await posting(db, job)
 
 
@@ -148,8 +189,10 @@ async def get_job(
 async def update_job(
     job_id: uuid.UUID,
     body: JobPostingUpdate,
+    tasks: BackgroundTasks,
     account: AuthenticatedAccount = Depends(get_company_member),
     db: AsyncSession = Depends(get_session),
+    llm: LLM = Depends(get_llm),
 ) -> JobPosting:
     '''
     replace a job's details with the composer's full form. PUT, not PATCH: the
@@ -189,6 +232,7 @@ async def update_job(
         setattr(job, field, value)
     await set_location(db, job.id, body.location_country, body.location_state)
     await _commit(db, job)
+    _after_save(tasks, job, llm)
     return await posting(db, job)
 
 
@@ -196,8 +240,10 @@ async def update_job(
 async def change_job_status(
     job_id: uuid.UUID,
     body: JobStatusChange,
+    tasks: BackgroundTasks,
     account: AuthenticatedAccount = Depends(get_company_member),
     db: AsyncSession = Depends(get_session),
+    llm: LLM = Depends(get_llm),
 ) -> JobPosting:
     '''
     pause, resume or close a job. Only the moves in _NEXT_STATUSES are
@@ -228,4 +274,5 @@ async def change_job_status(
             job.closes_at = now
 
     await _commit(db, job)
+    _after_save(tasks, job, llm)
     return await posting(db, job)

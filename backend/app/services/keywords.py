@@ -8,6 +8,11 @@ from (`keywords_hash`). A cache whose hash differs from the description's is
 stale and extracted again, so a company's edit is caught too; the feed
 import also clears both when it changes a description.
 
+Extraction runs ahead of any student where it can: the feed import fills
+scraped postings with no keywords after it commits, and a company job is
+read in the background once it is saved as published. `ensure` is the
+fallback for a posting neither has reached yet.
+
 The match is pure: a keyword matches when it appears, ignoring case, as a
 whole word or phrase in the text the built resume shows (the view) or in its
 shown skills.
@@ -69,17 +74,24 @@ def _cleaned(reading: KeywordReading) -> list[Keyword]:
     return out[:MAX_KEYWORDS]
 
 
-async def extract(job: Job_Post, llm: LLM) -> list[Keyword]:
-    """The model's keywords for the posting. A posting with no description
-    is read from its title. Raises `ScoutUnavailable` (or `InvalidReply`)
-    when no model answers or the answer fails the schema. The posting is no
-    student's text, so the seam gets an empty Identity, which still removes
-    any email, URL or phone. It reads the job's own sections (`job_part`), not
-    the perks or the company's pitch kept after them."""
-    description = job_part(job.description, keep_headings=True)[:MAX_DESCRIPTION_CHARS]
-    posting = f"{job.title}\n\n{description}".strip()
+async def read(title: str, description: str | None, llm: LLM) -> list[Keyword]:
+    """The model's keywords for a posting with this title and description.
+    A posting with no description is read from its title. Raises
+    `ScoutUnavailable` (or `InvalidReply`) when no model answers or the
+    answer fails the schema. The posting is no student's text, so the seam
+    gets an empty Identity, which still removes any email, URL or phone. It
+    reads the job's own sections (`job_part`), not the perks or the
+    company's pitch kept after them. Takes plain values, so the feed import
+    can call it on Core rows."""
+    text = job_part(description, keep_headings=True)[:MAX_DESCRIPTION_CHARS]
+    posting = f"{title}\n\n{text}".strip()
     prompt = [{"role": "system", "content": PROMPT}, {"role": "user", "content": posting}]
     return _cleaned(await llm.complete_json(prompt, KeywordReading, identity=Identity()))
+
+
+async def extract(job: Job_Post, llm: LLM) -> list[Keyword]:
+    """The model's keywords for the posting. Raises like `read`."""
+    return await read(job.title, job.description, llm)
 
 
 def store(job: Job_Post, keywords: list[Keyword]) -> None:
