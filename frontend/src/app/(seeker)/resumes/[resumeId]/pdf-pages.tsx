@@ -5,6 +5,7 @@ import type { PDFDocumentProxy, RenderTask } from "pdfjs-dist";
 import { useEffect, useRef, useState, type ReactNode } from "react";
 
 import { Skeleton } from "@/components/shadcn/skeleton";
+import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/shadcn/tooltip";
 import { Button } from "@/components/ui/button";
 import type { RenderBox } from "@/lib/built-resume-actions";
 import { cn } from "@/lib/cn";
@@ -211,6 +212,23 @@ export function PdfPages({
               const key = boxKey(box);
               const revert = reverts?.get(key);
               const mark = marks?.get(key);
+              // A reworded bullet (green) shows the wording it replaced on hover
+              const before =
+                mark === "changed" && revert?.edit.kind === "reword" ? revert.edit.before : null;
+              const target = {
+                type: "button" as const,
+                "aria-label": `${kindLabel(box.kind)}, page ${box.page}`,
+                "aria-pressed": selected === key,
+                onClick: () => onSelect(key),
+                className: cn(
+                  "absolute inset-0 rounded-[2px] outline-offset-1 transition-colors",
+                  !mark && "hover:bg-brand/5",
+                  mark && MARK_TINT[mark],
+                  "focus-visible:outline-brand focus-visible:outline-2",
+                  selected === key &&
+                    (mark ? "outline-brand outline-2" : "bg-brand/10 outline-brand outline-2"),
+                ),
+              };
               return (
                 <div
                   key={`${key}.${box.page}`}
@@ -222,20 +240,21 @@ export function PdfPages({
                     height: `${((box.y1 - box.y0) / size.height) * 100}%`,
                   }}
                 >
-                  <button
-                    type="button"
-                    aria-label={`${kindLabel(box.kind)}, page ${box.page}`}
-                    aria-pressed={selected === key}
-                    onClick={() => onSelect(key)}
-                    className={cn(
-                      "absolute inset-0 rounded-[2px] outline-offset-1 transition-colors",
-                      !mark && "hover:bg-brand/5",
-                      mark && MARK_TINT[mark],
-                      "focus-visible:outline-brand focus-visible:outline-2",
-                      selected === key &&
-                        (mark ? "outline-brand outline-2" : "bg-brand/10 outline-brand outline-2"),
-                    )}
-                  />
+                  {before ? (
+                    <Tooltip>
+                      <TooltipTrigger {...target} />
+                      <TooltipContent
+                        side="right"
+                        sideOffset={8}
+                        className="block max-w-[min(20rem,calc(100vw-2rem))] text-left break-words whitespace-normal"
+                      >
+                        <span className="mb-0.5 block font-semibold">Before</span>
+                        {before}
+                      </TooltipContent>
+                    </Tooltip>
+                  ) : (
+                    <button {...target} />
+                  )}
                   {revert && onRevert && (
                     <Button
                       variant="secondary"
