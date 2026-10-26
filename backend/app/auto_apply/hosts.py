@@ -24,6 +24,8 @@ AUTO_APPLY_HOSTS = (
     "explore.jobs.netflix.net",
     "myworkdayjobs.com",
     "myworkdaysite.com",
+    # SmartRecruiters' postings and their one-click form (jobs.smartrecruiters.com).
+    "smartrecruiters.com",
 )
 
 # Company careers sites whose embedded Greenhouse form doesn't fill in place

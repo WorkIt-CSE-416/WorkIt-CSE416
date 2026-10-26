@@ -58,6 +58,7 @@ def test_size_zero_or_empty_input():
     "https://explore.jobs.netflix.net/careers/job/1",
     "https://acme.wd5.myworkdayjobs.com/en-US/Careers/job/Intern_R1",
     "https://wd3.myworkdaysite.com/recruiting/acme/Careers/job/Intern_R1",
+    "https://jobs.smartrecruiters.com/Acme/744000000000001-field-technician",
     # A company's own careers page that embeds Greenhouse's form (filled in its iframe).
     "https://stripe.com/jobs/search?gh_jid=8257892",
     "https://www.databricks.com/company/careers/open-positions/job?utm=x&gh_jid=8805655002",
@@ -71,7 +72,7 @@ def test_auto_apply_takes_every_hiring_system_the_fill_engine_fills(url):
     # Job boards: their terms ban automation (KAN-369).
     "https://www.linkedin.com/jobs/view/1",
     "https://www.indeed.com/viewjob?jk=1",
-    "https://jobs.smartrecruiters.com/acme/1",
+    "https://jobs.jobvite.com/acme/job/1",  # a hiring system the engine doesn't fill
     # A careers page whose embedded form doesn't fill in place (SKIP_EMBEDDING), or a gh_jid that isn't the query's.
     "https://careers.withwaymo.com/jobs?gh_jid=8257660",
     "https://waymo.com/joinus/8257660?gh_jid=8257660",
