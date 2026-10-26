@@ -195,6 +195,8 @@ export function OnboardingForm({
   const [resume, setResume] = useState<File | null>(null);
   /** The picked file's reading, from Read Resume; cleared with the file. */
   const [preview, setPreview] = useState<ResumePreview | null>(null);
+  /** The reading's skills the student took out (×, KAN-369); cleared with the file. */
+  const [removedSkills, setRemovedSkills] = useState<string[]>([]);
   /** The file name this visit saved, for the resume step's "Saved" line. */
   const [savedResume, setSavedResume] = useState<string | null>(null);
   // What is in flight. "reading" alone shows on the dropzone, so it never
@@ -239,6 +241,7 @@ export function OnboardingForm({
   function pickResume(file: File | null) {
     setResume(file);
     setPreview(null);
+    setRemovedSkills([]);
     setError(null);
   }
 
@@ -267,7 +270,10 @@ export function OnboardingForm({
     setBusy("saving");
     setError(null);
     try {
-      const { error: uploadError, duplicateOf } = await uploadResume(resumeForm(), {
+      const form = resumeForm();
+      // Not saved, and no later reading adds them again (KAN-369).
+      for (const name of removedSkills) form.append("removed_skills", name);
+      const { error: uploadError, duplicateOf } = await uploadResume(form, {
         replaceMatching: true,
       });
       // A duplicate is already uploaded (KAN-267): an upload that reached
@@ -435,6 +441,8 @@ export function OnboardingForm({
               onRemove={() => pickResume(null)}
               reading={busy === "reading"}
               preview={preview}
+              removedSkills={removedSkills}
+              onRemoveSkill={(name) => setRemovedSkills((all) => [...all, name])}
               savedName={savedResume}
             />
           )}

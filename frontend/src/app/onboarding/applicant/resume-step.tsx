@@ -1,9 +1,12 @@
 "use client";
 
+import { XIcon } from "@phosphor-icons/react/ssr";
+
 import { formatDates, SECTIONS } from "@/app/(seeker)/bank/sections";
 import { CheckIcon, FileIcon } from "@/components/icons";
 import { ResumeUpload } from "@/components/resume-upload";
 import { Badge } from "@/components/ui/badge";
+import { IconButton } from "@/components/ui/icon-button";
 import type { PreviewEntry, ResumePreview } from "@/lib/resume-actions";
 
 import { Field } from "./role-step";
@@ -15,8 +18,9 @@ import { Field } from "./role-step";
  * `replace=matching`, so the reading lands in the experience bank and
  * replaces, rather than copies, what an earlier upload holds of the same
  * entries. Each entry and skill that would replace one says so here, before
- * the student agrees. The footer's buttons live in ./onboarding-form, which
- * owns the step's state.
+ * the student agrees. Each skill has a × (KAN-369): a skill taken out is not
+ * saved, and no later reading adds it again. The footer's buttons live in
+ * ./onboarding-form, which owns the step's state.
  */
 export function ResumeStep({
   file,
@@ -24,6 +28,8 @@ export function ResumeStep({
   onRemove,
   reading,
   preview,
+  removedSkills,
+  onRemoveSkill,
   savedName,
 }: {
   file: File | null;
@@ -33,10 +39,21 @@ export function ResumeStep({
   reading: boolean;
   /** The picked file's reading, once Read Resume answered. */
   preview: ResumePreview | null;
+  /** The skills the student took out of the reading (×). */
+  removedSkills: readonly string[];
+  onRemoveSkill: (name: string) => void;
   /** The file this visit saved, if any. */
   savedName: string | null;
 }) {
-  if (file && preview) return <Reading name={file.name} preview={preview} />;
+  if (file && preview)
+    return (
+      <Reading
+        name={file.name}
+        preview={preview}
+        removedSkills={removedSkills}
+        onRemoveSkill={onRemoveSkill}
+      />
+    );
   return (
     <>
       {savedName && (
@@ -65,8 +82,19 @@ function count(n: number, one: string, many = `${one}s`) {
 }
 
 /** What the parser read, by section, before anything is saved. */
-function Reading({ name, preview }: { name: string; preview: ResumePreview }) {
-  const { entries, skills, duplicate_of: duplicate } = preview;
+function Reading({
+  name,
+  preview,
+  removedSkills,
+  onRemoveSkill,
+}: {
+  name: string;
+  preview: ResumePreview;
+  removedSkills: readonly string[];
+  onRemoveSkill: (name: string) => void;
+}) {
+  const { entries, duplicate_of: duplicate } = preview;
+  const skills = preview.skills.filter((s) => !removedSkills.includes(s.name));
   const replacing =
     entries.filter((e) => e.replaces.length).length +
     skills.filter((s) => s.replaces.length).length;
@@ -125,8 +153,18 @@ function Reading({ name, preview }: { name: string; preview: ResumePreview }) {
             <h3 className="text-caption text-ink-muted mb-2 uppercase">Skills</h3>
             <ul className="flex flex-wrap gap-2">
               {skills.map((skill) => (
-                <li key={skill.name}>
-                  <Badge variant="tag">{skill.name}</Badge>
+                <li
+                  key={skill.name}
+                  className="rounded-control text-note text-ink border-border-subtle inline-flex items-center gap-1.5 border px-2 py-1"
+                >
+                  {skill.name}
+                  <IconButton
+                    label={`Remove ${skill.name}`}
+                    tooltip="Leave this skill out"
+                    onClick={() => onRemoveSkill(skill.name)}
+                  >
+                    <XIcon aria-hidden className="size-3" />
+                  </IconButton>
                 </li>
               ))}
             </ul>

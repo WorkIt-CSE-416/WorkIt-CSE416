@@ -2211,7 +2211,10 @@ way on without one. **The student sees the reading before it is saved
 (KAN-372, ADR 0006; `onboarding/applicant/resume-step.tsx`).** Read Resume
 sends the file to `POST .../resumes/preview`, which saves nothing, and the
 step shows what it found: each entry by section (title, organization and
-dates, bullets), then the skills. An entry an earlier upload already holds
+dates, bullets), then the skills, each a tag with a × (Remove <name>,
+KAN-369). A skill taken out goes with the upload as `removed_skills`: it is
+not saved, and no later reading or Tailor adds it again. The skills shown
+are only those the skills catalog knows. An entry an earlier upload already holds
 carries Replaces Earlier Copy, and the note above counts them. Save Resume
 uploads the same file with `?replace=matching`, so the earlier copies are
 replaced, not doubled, then opens Profile; Choose Another File drops the
