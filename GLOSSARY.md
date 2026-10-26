@@ -18,6 +18,7 @@ _Avoid_: category, block, custom section
 
 **Skill**:
 A named ability in the experience bank. Skills are one list per student, not tied to entries.
+A resume reading or Tailor adds only skills the **skills catalog** lists (`backend/data/skills.txt`): tools, languages, frameworks and hard skills, never soft skills or degrees. A skill the student types is not checked.
 _Avoid_: keyword, tag
 
 **Bullet**:

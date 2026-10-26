@@ -21,6 +21,7 @@ from workit_scout.llm import LLM
 
 from app.models.dto import Experience, ParsedResume, bank_section, entry_end_kind
 from app.schemas.bank import DraftEntry, ModelReading
+from app.services import skill_catalog
 from app.utils.resume_parser import parse_resume
 
 _SHORT, _LONG, _NAME = 200, 500, 60
@@ -159,15 +160,16 @@ def parsed_skills(parsed: ParsedResume) -> list[tuple[str, str | None]]:
 
 
 def skill_pairs(skills: list[tuple[str, str | None]]) -> list[tuple[str, str | None]]:
-    """(name, group) pairs clipped to the field limits, one per name,
-    ignoring case, leaving out what is not a skill (`not_a_skill`)."""
+    """(name, group) pairs clipped to the field limits, keeping only the
+    skills the catalog knows (`skill_catalog`, KAN-369), in the resume's
+    spelling, one per catalog skill ("ReactJS" and "React" are one)."""
     seen: set[str] = set()
     out: list[tuple[str, str | None]] = []
     for raw_name, group in skills:
         name = _clip(raw_name, _NAME)
-        if not name or name.lower() in seen or not_a_skill(name):
+        if not name or not_a_skill(name) or (known := skill_catalog.canonical(name)) is None or known in seen:
             continue
-        seen.add(name.lower())
+        seen.add(known)
         out.append((name, _clip(group, _NAME)))
     return out
 

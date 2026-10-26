@@ -971,6 +971,14 @@ def test_a_reading_never_keeps_a_qualification_or_a_glued_name_as_a_skill():
     assert skill_pairs(pairs) == [("Rust", "Languages"), ("Docker", "Tools")]
 
 
+def test_a_reading_keeps_only_catalog_skills_in_the_resumes_spelling_once_each():
+    pairs = [("ReactJS", "Frameworks"), ("Teamwork", None), ("Communication", None), ("Python", None),
+             ("Leadership", None), ("REST APIs", None), ("React", None), ("Pi Pico", None),
+             ("Microsoft Office Tools", None), ("Problem Solving", None)]
+    assert skill_pairs(pairs) == [("ReactJS", "Frameworks"), ("Python", None), ("REST APIs", None),
+                                  ("Pi Pico", None), ("Microsoft Office Tools", None)]
+
+
 def test_a_model_reading_with_null_lists_still_counts():
     # Groq's gpt-oss sends coursework: null on a job. That is an empty list,
     # not a failed reading.

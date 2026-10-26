@@ -133,13 +133,16 @@ as `None` (null end date).
   `Experience.technologies` (jobs and leadership), then to ungrouped skills.
   Before, the whole tail stayed in the title.
 - **Skills a reading keeps** (`bank_import.skill_pairs`, for the parser's and
-  the model's readings alike) leave out what is not a skill (`not_a_skill`):
-  a name still holding a "|", a qualification ("<field> degree",
-  "Bachelor's in ...", "GPA", "N years", a clearance), or a generic phrase
-  that names no product ("AI tools", "communication skills"). A product or
-  a role keeps its name: "Scrum Master", "Chrome Developer Tools", "CI/CD
-  tools". The clean-up script checks only skills read from an upload; one
-  the student typed is never removed.
+  the model's readings alike) are only those the skills catalog knows
+  (`services/skill_catalog.py`, `data/skills.txt`, KAN-369): tools,
+  languages, frameworks and hard skills, each with its other spellings. A
+  soft skill ("Teamwork"), a qualification ("Computer Science degree") or a
+  vague phrase ("AI tools") is no catalog line, so it is left out; a name
+  still holding a "|" is too (`not_a_skill`). The resume's spelling is kept,
+  once per catalog skill ("ReactJS" then "React" keeps "ReactJS"). A real
+  skill the catalog lacks is left out as well: add its line to
+  `data/skills.txt`. The clean-up script checks only skills read from an
+  upload; one the student typed is never removed.
 - **A skills line that ends in a comma** continues on the next line, which
   keeps its group. Before this, a wrapped "Concepts:" list lost its group.
 
