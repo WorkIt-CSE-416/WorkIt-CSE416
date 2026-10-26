@@ -40,10 +40,9 @@ export const metadata: Metadata = {
  * YOUR ANSWERS. Below, every written question already answered, newest
  * application first, with the company brief fact the answer names (its
  * Named fact, KAN-369) linked to the page that states it, so the student
- * can read up on it before an interview. The student's own answers (a
- * Looks right or Save for next time in a batch tab) each have a Delete
- * (./delete-answer.tsx); their Claude's, and answers saved here, which are
- * saved as Claude's, have none. A list that doesn't load is left out
+ * can read up on it before an interview. Every answer has a Delete
+ * (./delete-answer.tsx): the student's own, one saved here, and their
+ * Claude's (not own limits reuse, not removal). A list that doesn't load is left out
  * rather than shown as an error.
  *
  * The list is read once, on the server, as the page loads; a saved answer
@@ -133,7 +132,7 @@ export default async function WrittenAnswersPage() {
                           </TextLink>
                         </dd>
                       )}
-                      {question.own && <DeleteAnswer jobId={posting.job_id} name={question.name} />}
+                      <DeleteAnswer jobId={posting.job_id} name={question.name} />
                     </div>
                   ))}
                 </dl>
