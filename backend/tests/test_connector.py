@@ -307,8 +307,8 @@ async def test_the_next_application_is_read_only_and_holds_only_that_application
     assert (got["company"], got["title"]) == ("Acme", "Intern")
     assert got["posting"] == "Acme builds rockets. You will write flight software."
     assert got["questions"] == [
-        {"name": "question_7", "question": WHY["label"], "required": True, "max_length": 600, "kind": "text", "options": None},
-        {"name": "question_8", "question": PROUD["label"], "required": False, "max_length": None, "kind": "text", "options": None},
+        {"name": "question_7", "question": WHY["label"], "required": True, "max_length": 600, "kind": "text", "options": None, "rewrite": None},
+        {"name": "question_8", "question": PROUD["label"], "required": False, "max_length": None, "kind": "text", "options": None, "rewrite": None},
     ]
     # The student's experience bank, to write from.
     assert "Software Intern, Acme" in got["experience"]

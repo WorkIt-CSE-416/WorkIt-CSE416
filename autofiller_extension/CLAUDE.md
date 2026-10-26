@@ -66,7 +66,9 @@ builds it: `dist/engine.js` is committed in the engine repo.
   questions that need writing (their rows, Generate or the student's
   Claude, the student's edits of them) as `window.WIA.writtenAnswers`,
   and `batch-tab.js` a batch tab's side (`batch/state`, the walk's
-  `batch/flags` and `batch/focus`, the submit watch) as `window.WIA.batchTab`.
+  `batch/flags` and `batch/focus`, the submit watch) as `window.WIA.batchTab`,
+  and `card-flag.js` the flag card under a flagged row (after `overlay.js`,
+  which draws it and adds its styles) as `window.WIA.flagCard`.
   The content script reaches the engine through the background,
   which runs `engine.js`'s `runEngine` (the engine's own dispatcher,
   `FillEngine.call`) in the page's MAIN world with
@@ -446,6 +448,21 @@ waits for an opened tab's page and form (`waitForLoad`, `formShows`).
   answer whose verdict the tab showed, once saved (`batch/own-answer`),
   starts the poll again until the edit's verdict lands (their own words
   count as reviewed at once). Tests: `test/paste.extension.spec.ts`.
+  **The flag card** (`card-flag.js`, KAN-369) under a flagged row: the
+  reason, the flagged sentence quoted (`flag_quote`; a click focuses the
+  field with it selected, as does the walk's `show`), and three actions.
+  **Keep** asks once, then `batch/flag` → `POST .../review/keep` records it
+  as the student's choice (no later review flags that text) and the flag
+  clears. **Rewrite with Claude** (not on the student's own words) →
+  `POST .../review/rewrite` clears the answer, and `get_next_application`
+  hands the question to their Claude again with the flag; the row waits
+  (Write with Claude) and keeps its flag (`rewriting`, so the tab still
+  needs the student), the field's old text isn't taken as an edit, and
+  the new answer is filled when it lands (`writtenAnswers().rewrite`, via
+  `window.WIA.writing`). **Edit myself** focuses the field with the
+  sentence selected; an edit that leaves the sentence in keeps the flag.
+  A wrong-company flag (`flag_hard`) is drawn in the danger colour; like
+  every flag it keeps the tab out of Ready and in the walk until resolved.
   A hidden tab's timers slow to about once a minute after five minutes, so
   an answer can take that long to land. Tests:
   `test/connector.extension.spec.ts` (Ashby's Harvey form: no saved
@@ -481,6 +498,21 @@ waits for an opened tab's page and form (`waitForLoad`, `formShows`).
   title (`backend/app/connector/prompt.py` TITLE); every line that names
   it uses that constant. Never put the student's data in the link: it
   lands in browser history. Test: `test/claude-start.extension.spec.ts`.
+- **A row waiting for the student's Claude carries the waiting card**
+  (KAN-369, `src/content/card-waiting.js`, `window.WIA.waitingCard`; the
+  overlay asks it for each such row's card and adds its CSS). It shows how
+  long the row has waited on this page ("Waiting 4 min"), Write with
+  Claude, a paste box and Write it myself (the walk's `show`: scrolls to
+  and focuses the field; what the student types there is theirs, as
+  before). Save answer sends `batch/paste` → `PUT .../applications/{job}/written-answers`,
+  the Written Answers page's route, so a pasted answer passes the same
+  checks as Claude's (saved by="student", not own); a 422's reasons for
+  that question (`ApiError.reasons`) show in the card under the box, and
+  the draft stays. A saved one fills at once (source "pasted"); the next
+  poll finds the row filled and leaves it. Cards are kept by key across
+  renders, and render puts the focus back, so a draft survives other
+  rows changing. The panel's summary counts these rows apart ("N waiting
+  on Claude"). Tests: `test/waiting-card.extension.spec.ts`.
 - **Writing starts when jobs are queued, and a question is answered once**
   (KAN-379). On `run/open`, once the tabs have opened, `write-early.js`'s
   `writeEarly` reads every queued job the batch hasn't opened with
@@ -536,18 +568,69 @@ waits for an opened tab's page and form (`waitForLoad`, `formShows`).
   one the form doesn't show or no longer calls for, "skipped"; and
   each "Guessed" answer once, for the student to check, which doesn't
   keep the tab from Ready;
+  each answer that just arrived from the student's Claude once, too
+  (`window.WIA.unseenAnswers`, cleared when the walk shows it);
   notes last; a note is a row marked `note`, "todo" or "done" for news
   like "Application sent", never a key starting "_": Ashby keys its own
   fields `_systemfield_...`), goes to the first one after the last it went to (cursor in
   `chrome.storage.session`, `workit_batch_next`: the tab's place in the
   batch and the row's place among all the tab's rows, `batch/flags`'s
-  `order`, so it goes on after a row the student just answered), switches to its tab and
+  `order`, so it goes on after a row the student just answered; rows
+  waiting for the student's Claude, `batch/flags`'s `late`, come after
+  everything else in the batch, and the cursor's `late` says which part
+  it is in), switches to its tab and
   has the content script scroll to and focus the field and mark its row
   (`batch/focus`). Past the last one the panel says "Nothing else needs
   you." and the next press starts again. A field is found by the job
   system's own field id (`batch-tab.js`'s `fieldOf`); a tab nothing
   was filled in is one stop, the page itself. This is the only time the
   extension switches tabs on its own, and only on the student's press.
+- **Where the walk lands, the page is marked** (KAN-369, `marks.js`,
+  `window.WIA.marks`): the field scrolls to the middle and gets a ring in
+  the brand colour for 3 seconds, and a small orange dot
+  (`--color-warning-strong`) that stays on it while its row still needs the
+  student (failed, waiting, flagged), gone once resolved. Both sit in their
+  own shadow host (`#workit-marks-host`), follow the field each frame while
+  shown, and never take a click. A guess, shown once, gets the ring only.
+- **A failed field gets a card** (KAN-369, `card-failed.js`, in the shared
+  row card `row-card.js`): "We put X; the page shows Y.", why in plain words
+  ("This field ended up empty on the page.", "This dropdown never committed
+  a choice.", "The site rejected this value.", "The page changed it."), and
+  the site's own error quoted when the page marked the field
+  `aria-invalid` (the element its `aria-errormessage`/`aria-describedby`
+  names, else the nearest alert or error-styled text). **Put mine back**
+  fills the planned answer again, alone, and reads it back; only on
+  Greenhouse, Lever, Ashby and Rippling (where the engine fills one field
+  alone safely), never for a value the site marked invalid, and not again
+  once it didn't take. **Keep the page's** takes what the page shows as the
+  student's own answer (Source "student"), so the row stops counting; an
+  empty optional one becomes "skipped", and an empty required one has no
+  Keep. A card shows on every failed field with a planned answer (not a
+  file); the fill hands each Plan to `window.WIA.failedCard.use`. The card
+  stores what the page showed on the row (`shows`), so the student's
+  later edit is a change from it: a click elsewhere no longer turns a
+  failed field showing a wrong value into "You answered this".
+- **The row card** (`row-card.js`, `window.WIA.rowCard`) is the one shape
+  for every review state: a title, sentences, a quote, at most three
+  buttons, tokens only. A feature adds `rowCard.add((field) => card | null)`;
+  the panel draws the first card for a row in place of its reason, and
+  `overlay.refresh()` draws again when a card's own state changes.
+- **The submit warning holds a Submit while something is open** (KAN-369,
+  `src/content/submit-warning.js`, `window.WIA.submitWarning`, batch tabs
+  only). When the student presses the employer's Submit (a button or
+  submit input whose words start with "Submit", on every job system; Next,
+  Save and Continue and a job page's Apply never count) and the tab has a
+  failed field, a required one still waiting, or a review flag (fields
+  only, never a note), a capture-phase listener on `window` cancels that
+  press before the page's own handlers see it, and the panel shows a card
+  (`overlay.momentCard`, role `alertdialog`): "N things still need you",
+  each with a few words why, then **Show me** (`batch/walk-from`:
+  `next-needs-you.js`'s `walkFrom` starts the walk's cursor at the first
+  and focuses it) and **Submit anyway**, which re-sends nothing: it lets
+  every later press on this page through and says "Press Submit again".
+  Enter on the button arrives as its click; a form sent with no button is
+  held from its `submit` event. A tab with nothing open is never held.
+  Tests: `test/submit-warning.extension.spec.ts`.
 - **The tabs fill hidden; the student is never taken to one.** KAN-305's
   runner showed its tab before the fill, because hidden fills by the
   pre-engine filler left most dropdowns empty. The Fill engine does not
@@ -1090,8 +1173,9 @@ Each filled row carries its **Source** (KAN-375, `GLOSSARY.md`): the Fill
 engine's Plan names each planned answer's (`plan.sources`: profile,
 student, saved, guessed), the essay route's answers are "ai", the
 student's own Claude's (the connector) "claude", and a value the student
-types after the fill "student". The overlay shows it as a badge (Profile,
-Saved Answer, Claude, AI, You, Guessed; the AI ones carry the sparkle) and
+types after the fill "student", and one pasted in a waiting row's card
+"pasted". The overlay shows it as a badge (Profile,
+Saved Answer, Claude, AI, You, Pasted, Guessed; the AI ones carry the sparkle) and
 highlights a guessed row in the warning tint. Where an answer comes from
 is the engine's to say: never work it out here.
 

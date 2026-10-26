@@ -116,6 +116,7 @@ window.WIA = window.WIA || {};
      * has read every answer (KAN-369, awaitReview).
      */
     async function awaitClaude(prepared) {
+      claudeFill = prepared;
       const waiting = new Set(prepared.written.map((q) => q.name));
       // max_length: the field's own limit, as the Fill engine read it from the form; WorkIt refuses a longer answer.
       const questions = prepared.written.map((q) => ({
@@ -132,6 +133,7 @@ window.WIA = window.WIA || {};
         return;
       }
       offerClaude();
+      window.WIA.waitingCard?.onSave((name, answer) => paste(prepared, name, answer));
       let byClaude = false;
       let answered = false;
       for (;;) {
@@ -142,6 +144,8 @@ window.WIA = window.WIA || {};
           if (rowStatus(name) !== "filled") {
             await fillWritten(prepared, name, answer, "claude");
             byClaude = true;
+            // Just arrived: Next Thing walks to it until the student has seen it once (batch-tab.js).
+            if (rowStatus(name) === "filled") (window.WIA.unseenAnswers ??= new Set()).add(name);
           }
         }
         for (const name of waiting) if (rowStatus(name) === "filled") waiting.delete(name);
@@ -157,6 +161,21 @@ window.WIA = window.WIA || {};
         await sleep(ANSWER_POLL);
         reply = await send({ type: "batch/answers" }).catch((error) => ({ ok: false, error: error.message }));
       }
+    }
+
+    /**
+     * An answer the student pasted in a waiting row's card (card-waiting.js):
+     * saved through the Written Answers route (the same checks as their
+     * Claude's, by="student", not their own words), then filled at once.
+     * The tab's next poll finds the row filled and leaves it.
+     */
+    async function paste(prepared, name, answer) {
+      const reply = await send({ type: "batch/paste", name: name.slice(0, FIELD_NAME_MAX), answer: answer.slice(0, ANSWER_MAX) })
+        .catch((error) => ({ ok: false, error: error.message }));
+      if (!reply?.ok) return { saved: false, reasons: [], error: `WorkIt didn't save it: ${reply?.error ?? "no answer"}` };
+      if (!reply.saved) return { saved: false, reasons: reply.reasons ?? [], error: reply.error };
+      if (rowStatus(name) !== "filled") await fillWritten(prepared, name, answer, "pasted");
+      return { saved: true };
     }
 
     // The answers whose review verdict this tab has seen: an edit of one waits for its new verdict.
@@ -183,11 +202,11 @@ window.WIA = window.WIA || {};
       try {
         for (;;) {
           const rows = reply?.ok ? reply.questions : [];
-          for (const { name, answer, reviewed, flag } of rows) {
+          for (const { name, answer, reviewed, flag, flag_quote: quote, flag_hard: hard } of rows) {
             if (!reviewed) continue;
             reviewedNames.add(name);
             const row = status.summary().fields.find((r) => r.key === name);
-            if (row?.status === "filled" && row.shows === answer) status.flag(name, flag ?? undefined);
+            if (row?.status === "filled" && row.shows === answer) status.flag(name, flag ?? undefined, { quote, hard });
           }
           if (reply?.ok && !stale && rows.every((q) => !q.answer || q.reviewed)) return;
           if (pollsLeft <= 0) return;
@@ -316,22 +335,64 @@ window.WIA = window.WIA || {};
      * (keepOwn). `question`: the field's question.
      */
     function edited(row, shown, question) {
+      // The field still shows the answer sent back to the student's Claude: not an edit.
+      if (rewriting.get(row.key) === shown) return;
       const filled = workitFilled.get(row.key);
       if (filled && replaces(filled.text, shown)) workitFilled.delete(row.key); // rewritten: the student's now
       const edit = filled && workitFilled.has(row.key);
-      if (edit) status.setStatus(row.key, "filled", `You edited ${filled.source === "claude" ? "your Claude's" : "WorkIt's"} answer`, shown, filled.source);
+      const whose = { claude: "your Claude's", pasted: "your pasted" }[filled?.source] ?? "WorkIt's";
+      if (edit) status.setStatus(row.key, "filled", `You edited ${whose} answer`, shown, filled.source);
       else status.setStatus(row.key, "filled", row.status === "filled" ? row.reason : "You answered this", shown, "student");
+      // A flag holds while its sentence is still in the field (the flag card's Edit myself).
+      if (row.flag && row.flagQuote && shown.includes(row.flagQuote)) status.flag(row.key, row.flag, { quote: row.flagQuote, hard: row.flagHard });
       keepOwn(question, shown, !edit);
     }
 
-    return {
+    // The answers sent back to the student's Claude (the flag card's Rewrite with Claude), by field: the text the field still shows.
+    const rewriting = new Map();
+    // The batch tab's fill, once its questions went to the student's Claude (awaitClaude).
+    let claudeFill = null;
+
+    /**
+     * The flag card's Rewrite with Claude (card-flag.js), once WorkIt has
+     * cleared the answer for the student's Claude: the row waits for it
+     * (Write with Claude) and keeps its flag, so the tab still needs the
+     * student, and the tab asks every ANSWER_POLL ms for the new answer and
+     * fills it. It stops if the student writes the answer first.
+     */
+    async function rewrite(name) {
+      const row = status.summary().fields.find((r) => r.key === name);
+      if (!row?.flag || !claudeFill || rewriting.has(name)) return;
+      rewriting.set(name, row.shows);
+      status.setStatus(name, "needs_generation", WAIT_FOR_CLAUDE, row.shows, undefined, undefined, true);
+      status.flag(name, row.flag, { quote: row.flagQuote, hard: row.flagHard, rewriting: true });
+      try {
+        while (rowStatus(name) === "needs_generation") {
+          await sleep(ANSWER_POLL);
+          const reply = await send({ type: "batch/answers" }).catch((error) => ({ ok: false, error: error.message }));
+          const answer = reply.ok ? reply.questions.find((q) => q.name === name)?.answer : null;
+          if (!answer || rowStatus(name) !== "needs_generation") continue;
+          rewriting.delete(name);
+          await fillWritten(claudeFill, name, answer, "claude");
+          awaitReview();
+        }
+      } finally {
+        rewriting.delete(name);
+      }
+    }
+
+    const api = {
       showRows,
       offer,
       adopt,
       edited,
+      rewrite,
       // Whether WorkIt is filling a written answer now: the typing is its own, not the student's.
       busy: () => fillingWritten > 0,
     };
+    // The flag card reaches this fill's rewrite (card-flag.js).
+    if (batch) window.WIA.writing = api;
+    return api;
   }
 
   window.WIA.writtenAnswers = writtenAnswers;

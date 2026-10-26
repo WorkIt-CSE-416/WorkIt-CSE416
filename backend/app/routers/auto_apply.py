@@ -79,6 +79,13 @@ PUT  /applicants/{id}/applications/{job_id}/answers  {"name", "label", "answer",
      kept as that answer's and checked as their Claude's (422 with the
      reasons when it fails). Answers {"answer", "own"}. 404 with no
      application.
+POST /applicants/{id}/applications/{job_id}/review/keep     {"name"}
+POST /applicants/{id}/applications/{job_id}/review/rewrite  {"name"}
+     The tab's flag card (KAN-369) on an answer the pre-submit review
+     flagged: keep it as it stands (no later review flags that text again),
+     or send it back to the student's Claude (the answer is cleared, and
+     get_next_application hands the question out with the flag). 204; 422
+     when that answer isn't flagged, or (rewrite) is the student's own.
 GET  /applicants/{id}/applications/{job_id}/answer-bank
      The answers saved on the student's other applications that this one's
      form may reuse, {question wording: {"answer", "own"}} (pipeline.answer_bank:
@@ -99,6 +106,7 @@ Applicant accounts only, and only their own id (assert_applicant_owns).
 """
 
 import uuid
+from typing import Literal
 
 from fastapi import APIRouter, Depends, HTTPException, Query, Response, status
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -118,6 +126,7 @@ from app.schemas.applications import (
     ChooseResume,
     FillRequest,
     FinishRequest,
+    FlagAnswer,
     OwnAnswer,
     QueueRequest,
     SavedAnswer,
@@ -311,6 +320,25 @@ async def written_answers(
     student's Claude's pre-submit review found (KAN-369)."""
     assert_applicant_owns(account, applicant_id)
     return await pipeline.reviewed_answers(db, applicant_id, job_id)
+
+
+@router.post("/applications/{job_id}/review/{action}", status_code=status.HTTP_204_NO_CONTENT)
+async def answer_flag(
+    applicant_id: uuid.UUID,
+    job_id: uuid.UUID,
+    action: Literal["keep", "rewrite"],
+    body: FlagAnswer,
+    account: AuthenticatedAccount = Depends(get_current_account),
+    db: AsyncSession = Depends(get_session),
+) -> Response:
+    """The batch tab's flag card (KAN-369): the student keeps a flagged answer
+    as it stands, or sends it back to their Claude to rewrite."""
+    assert_applicant_owns(account, applicant_id)
+    try:
+        await (pipeline.keep if action == "keep" else pipeline.rewrite)(db, applicant_id, job_id, body.name)
+    except pipeline.Refused as exc:
+        raise HTTPException(status.HTTP_422_UNPROCESSABLE_CONTENT, str(exc)) from exc
+    return Response(status_code=status.HTTP_204_NO_CONTENT)
 
 
 @router.put("/applications/{job_id}/answers", response_model=SavedAnswer)
