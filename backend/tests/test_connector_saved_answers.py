@@ -197,6 +197,37 @@ async def test_an_edit_is_kept_only_for_the_students_own_application(running, ap
     assert no_bank.status_code == 404
 
 
+async def test_undo_deletes_the_students_saved_answer_and_only_theirs(running, applicant, database):
+    """The guess card's Undo (KAN-369): DELETE .../answers?name= takes back an
+    answer the student saved with Looks right; later forms no longer fill it."""
+    from tests.test_connector import _another_students_application
+
+    me, (first, second) = await _student_queues(database, applicant, 2)
+    await _student_answers(me, first, GOALS, "Yes")
+    other, theirs = await _another_students_application(database)
+    _signed_in_as(applicant)
+    async with _api() as extension:
+        not_mine = await extension.delete(f"{other}/applications/{theirs}/answers", params={"name": GOALS["name"]})
+        no_application = await extension.delete(f"{me}/applications/{uuid.uuid4()}/answers", params={"name": GOALS["name"]})
+        undone = await extension.delete(f"{me}/applications/{first}/answers", params={"name": GOALS["name"]})
+        again = await extension.delete(f"{me}/applications/{first}/answers", params={"name": GOALS["name"]})
+
+    assert (not_mine.status_code, no_application.status_code) == (403, 404)
+    assert (undone.status_code, again.status_code) == (204, 204)
+    assert await _bank(me, second) == {}
+
+
+async def test_undo_on_a_question_the_tab_sent_leaves_it_for_claude(running, applicant, database):
+    me, (job,) = await _student_queues(database, applicant, 1)
+    await _tab_asks(me, job, GOALS)
+    await _student_answers(me, job, GOALS, "To learn how a real team ships.")
+    async with _api() as extension:
+        assert (await extension.delete(f"{me}/applications/{job}/answers", params={"name": GOALS["name"]})).status_code == 204
+
+    assert (await _tab_asks(me, job))[0]["answer"] is None
+    assert await _next_job(applicant) == job
+
+
 async def test_an_edit_of_claudes_answer_stays_claudes_and_is_checked(running, applicant, database):
     """The student touched up the answer their Claude wrote: the words are still mostly Claude's, so
     they are kept as Claude's (never offered as the student's own, e.g. on a form that bans AI text)

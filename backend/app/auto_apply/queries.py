@@ -581,6 +581,18 @@ async def save_own_written(
     ))
 
 
+async def drop_own_written(db: AsyncSession, applicant_id: uuid.UUID, job_id: uuid.UUID, name: str) -> None:
+    """Takes back the student's own answer to their application's question
+    `name` (KAN-369, the guess card's Undo). One the tab never sent (a field
+    WorkIt guessed or a saved answer filled) goes; a question the tab sent
+    stays, unanswered, for their Claude to write. Never touches their
+    Claude's answer. Flushes; the caller commits."""
+    mine = (Written_Answer.applicant_id == applicant_id, Written_Answer.job_id == job_id,
+            Written_Answer.name == name, Written_Answer.own.is_(True))
+    await db.execute(delete(Written_Answer).where(*mine, Written_Answer.position == UNSENT))
+    await db.execute(update(Written_Answer).where(*mine).values(answer=None, answered_at=None, own=False, named_fact=None))
+
+
 async def fetch_posting_text(db: AsyncSession, job_id: uuid.UUID) -> tuple[str | None, str | None, str | None]:
     """One job posting's company, title and description, as saved."""
     row = (
