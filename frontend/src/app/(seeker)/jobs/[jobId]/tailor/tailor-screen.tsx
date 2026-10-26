@@ -1,21 +1,14 @@
 "use client";
 
 import { useRouter } from "next/navigation";
-import { useCallback, useState } from "react";
+import { useCallback, useEffect, useState } from "react";
 
 import { SparkleIcon } from "@/components/icons";
-import {
-  Dialog,
-  DialogContent,
-  DialogDescription,
-  DialogFooter,
-  DialogHeader,
-  DialogTitle,
-} from "@/components/shadcn/dialog";
 import { Badge } from "@/components/ui/badge";
 import { Button, ButtonLink } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
 import { Chip } from "@/components/ui/chip";
+import { SelectField } from "@/components/ui/select-field";
 import { tailorEditsKey, writeSessionDraft } from "@/lib/local-drafts";
 import type { ResumeItem } from "@/lib/resume-actions";
 import {
@@ -29,7 +22,6 @@ import {
 import {
   firstChoice,
   loadChoices,
-  ResumeLists,
   UploadPick,
   type Choice,
 } from "../../resume-picker";
@@ -63,6 +55,26 @@ export function TailorScreen({
   const [reading, setReading] = useState(false);
   const [running, setRunning] = useState(false);
   const [error, setError] = useState<{ message: string; status: number | null } | null>(null);
+  const [choices, setChoices] = useState<Choice[] | null>(null);
+  const [uploads, setUploads] = useState<ResumeItem[]>([]);
+  const [choiceError, setChoiceError] = useState<string | null>(null);
+  const [uploading, setUploading] = useState(false);
+  const [selected, setSelected] = useState<string | null>(null);
+  const onUploadBusy = useCallback((busy: boolean) => setUploading(busy), []);
+  const refreshChoices = useCallback(async (): Promise<Choice[]> => {
+    const result = await loadChoices(jobId);
+    setChoices(result.choices);
+    setUploads(result.uploads);
+    setChoiceError(result.error);
+    setSource(null);
+    setMatch(null);
+    setSelected(firstChoice(result.choices)?.key ?? null);
+    return result.choices;
+  }, [jobId]);
+
+  useEffect(() => {
+    if (!tailored) void refreshChoices();
+  }, [refreshChoices, tailored]);
 
   if (tailored) {
     return (
@@ -89,6 +101,11 @@ export function TailorScreen({
     setSource(next);
     setMatch(data);
     setPicked(new Set());
+  }
+
+  async function uploaded(id: string) {
+    const refreshed = await refreshChoices();
+    setSelected(refreshed.find((choice) => choice.key === `uploaded:${id}`)?.key ?? null);
   }
 
   async function run() {
@@ -121,13 +138,60 @@ export function TailorScreen({
           posting and opens the result in the editor, where you can undo any change. WorkIt never
           adds a number or tool you did not give.
         </p>
-        <PickResume
-          jobId={jobId}
-          title={title}
-          label={match ? "Pick Another Resume" : "Pick a Resume"}
-          running={reading || running}
-          onRun={read}
-        />
+        <div className="mt-3 flex flex-col gap-3">
+          {choices == null ? (
+            <p className="text-note text-ink-muted">Loading your resumes…</p>
+          ) : (
+            <>
+              <SelectField
+                id="tailor-resume"
+                label="Pick a Resume"
+                value={selected ?? ""}
+                onValueChange={(key) => {
+                  setSelected(key);
+                  setSource(null);
+                  setMatch(null);
+                  setError(null);
+                }}
+                placeholder="Choose a resume"
+                options={choices.map((choice) => ({
+                  value: choice.key,
+                  label: `${choice.label} · ${choice.type}${
+                    choice.tailoredFor ? ` · ${choice.tailoredFor}` : ""
+                  }`,
+                }))}
+                className="max-w-2xl"
+              />
+              {choices.length === 0 && (
+                <p className="text-note text-ink-meta">
+                  No resumes yet. Generate one below or upload a resume.
+                </p>
+              )}
+              <UploadPick
+                label="Upload a Resume"
+                uploads={uploads}
+                onUploaded={uploaded}
+                onBusyChange={onUploadBusy}
+              />
+              <Button
+                className="self-start"
+                onClick={() => {
+                  const choice = choices.find((item) => item.key === selected);
+                  if (choice) void read(toSource(choice));
+                }}
+                disabled={!selected || reading || running || uploading}
+              >
+                <SparkleIcon />{" "}
+                {reading ? "Reading…" : match ? "Use Another Resume" : "Use This Resume"}
+              </Button>
+            </>
+          )}
+          {choiceError && (
+            <p role="alert" className="text-note text-danger">
+              {choiceError}
+            </p>
+          )}
+        </div>
         {/* KAN-319: the Tailor limit is lifted for now, so the cost is hidden.
         <p className="text-note text-ink-meta mt-2">
           Each run uses one of today&apos;s 2 Tailor runs.
@@ -183,115 +247,6 @@ const toSource = (choice: Choice): TailorSource =>
   "builtResumeId" in choice.source
     ? { built_resume_id: choice.source.builtResumeId }
     : { uploaded_resume_id: choice.source.uploadedResumeId };
-
-/**
- * Tailor My Resume and its dialog, Pick a Resume to Tailor: the job
- * posting's resumes as "Did You Apply?" lists them, starting on the one
- * tailored to this job, else the default. Its Tailor My Resume closes the
- * dialog and reads its keyword match; the card shows "Reading…" and any
- * error.
- */
-function PickResume({
-  jobId,
-  title,
-  label,
-  running,
-  onRun,
-}: {
-  jobId: string;
-  title: string;
-  label: string;
-  running: boolean;
-  onRun: (source: TailorSource) => void;
-}) {
-  const [open, setOpen] = useState(false);
-  const [choices, setChoices] = useState<Choice[] | null>(null);
-  const [uploads, setUploads] = useState<ResumeItem[]>([]);
-  const [picked, setPicked] = useState<string | null>(null);
-  const [error, setError] = useState<string | null>(null);
-  const [uploading, setUploading] = useState(false);
-  const onUploadBusy = useCallback((busy: boolean) => setUploading(busy), []);
-
-  /** Reads the list without blanking it, so an upload keeps its place. */
-  async function refresh(): Promise<Choice[]> {
-    const { choices, uploads, error } = await loadChoices(jobId);
-    setChoices(choices);
-    setUploads(uploads);
-    setError(error);
-    return choices;
-  }
-
-  async function openPicker() {
-    setOpen(true);
-    setChoices(null);
-    setPicked(firstChoice(await refresh())?.key ?? null);
-  }
-
-  async function uploaded(id: string) {
-    await refresh();
-    setPicked(`uploaded:${id}`);
-  }
-
-  const choice = choices?.find((c) => c.key === picked);
-
-  return (
-    <>
-      <Button className="mt-3" onClick={openPicker} disabled={running}>
-        <SparkleIcon /> {running ? "Reading…" : label}
-      </Button>
-      <Dialog open={open} onOpenChange={setOpen}>
-        {/* As wide as "Did You Apply?", for the same resume table. */}
-        <DialogContent className="max-h-[90vh] overflow-y-auto sm:max-w-3xl">
-          <DialogHeader>
-            <DialogTitle className="text-subtitle font-semibold">
-              Pick a Resume to Tailor
-            </DialogTitle>
-            <DialogDescription>
-              WorkIt tailors it to {title} and saves the result as a new resume; this one stays as
-              it is. An uploaded resume is read into your experience bank first.
-            </DialogDescription>
-          </DialogHeader>
-          {choices == null ? (
-            <p className="text-note text-ink-muted">Loading your resumes…</p>
-          ) : (
-            <>
-              <ResumeLists
-                name="tailor-from"
-                choices={choices}
-                emptyBuilt="None yet. Generate Resume on Resumes & Experiences makes one."
-                emptyUploaded="None yet. Upload one below."
-                picked={picked}
-                onPick={setPicked}
-              />
-              <UploadPick
-                label="Tailor a Different Resume?"
-                uploads={uploads}
-                onUploaded={uploaded}
-                onBusyChange={onUploadBusy}
-              />
-            </>
-          )}
-          {error && <p className="text-meta text-danger">{error}</p>}
-          <DialogFooter>
-            <Button variant="secondary" onClick={() => setOpen(false)}>
-              Cancel
-            </Button>
-            <Button
-              onClick={() => {
-                if (!choice) return;
-                setOpen(false);
-                onRun(toSource(choice));
-              }}
-              disabled={choice == null || uploading}
-            >
-              Use This Resume
-            </Button>
-          </DialogFooter>
-        </DialogContent>
-      </Dialog>
-    </>
-  );
-}
 
 function MatchCount({ matched, missing }: { matched: Keyword[]; missing: Keyword[] }) {
   const total = matched.length + missing.length;
