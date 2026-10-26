@@ -168,7 +168,6 @@ function SuggestionsPanel({
   focus,
   show,
   active,
-  open,
 }: SuggestionsApi) {
   const list = useRef<HTMLDivElement>(null);
   // TEMPORARY: sample changes of every type beside the run's own
@@ -289,10 +288,9 @@ function SuggestionsPanel({
                           bank={bank}
                           choices={choices}
                           lit={focused === change.key}
-                          isOpen={active === change.key}
+                          current={active === change.key}
                           saving={saving}
                           onFocus={focus}
-                          onToggle={() => open(active === change.key ? null : change.key)}
                           onShow={() => show(change.key)}
                           onAccept={() =>
                             change.edit ? accept(change.edit) : dismissDemo([change.key])
@@ -416,14 +414,6 @@ function Chevron({ open }: { open: boolean }) {
   );
 }
 
-/** A suggestion's own toggle: a plus that turns to a minus while open. A
- *  caret here read as a second section heading under the section's own
- *  caret, so only sections fold with a caret. */
-function PlusMinus({ open }: { open: boolean }) {
-  const Glyph = open ? MinusIcon : PlusIcon;
-  return <Glyph aria-hidden className="text-ink-meta ml-auto size-4 shrink-0" />;
-}
-
 /** A row's type, as a small round badge in its colour with its glyph. */
 function KindBadge({ kind, small = false }: { kind: ChangeKind; small?: boolean }) {
   const { Icon, badge } = KINDS[kind];
@@ -442,24 +432,26 @@ function KindBadge({ kind, small = false }: { kind: ChangeKind; small?: boolean 
 }
 
 /**
- * One suggestion, a row in its entry's section: its type's badge, its one
- * line and a plus (`PlusMinus`), and ✓ Accept and ✕ Reject while open or
- * pointed at; open, it shows the change.
- * Grey while pointed at or focused; its lines on the page are highlighted
- * then. Sections were by type (Reworded Bullets, Reordered Bullets, Added
- * Skills) until 2026-10-26: with every type in play, a student read the
- * panel against the page and jumped around it, so sections now follow the
- * page and the type is each row's badge.
+ * One suggestion, a row in its entry's section, always open: its type's
+ * badge and name, ✓ Accept and ✕ Reject at its end, as Google Docs answers
+ * a suggestion, and under them the change (`ChangeBody`). A click on it
+ * shows its lines on the page (`onShow`: highlighted and scrolled to; on a
+ * phone the sheet closes); pointing at it highlights them without
+ * scrolling. Each row folded on its own, with a plus and a minus, until
+ * 2026-10-26: a fold inside a folding section read as nested and odd, so
+ * only sections fold. Sections were by type (Reworded Bullets, Reordered
+ * Bullets, Added Skills) before that: with every type in play, a student
+ * reads the panel against the page, so sections follow the page and the
+ * type is each row's badge.
  */
 function Suggestion({
   change,
   bank,
   choices,
   lit,
-  isOpen,
+  current,
   saving,
   onFocus,
-  onToggle,
   onShow,
   onAccept,
   onReject,
@@ -467,11 +459,12 @@ function Suggestion({
   change: Change;
   bank: Bank;
   choices: Choices;
+  /** Pointed at or focused. */
   lit: boolean;
-  isOpen: boolean;
+  /** Last shown on the page, from here or from its line or dot there. */
+  current: boolean;
   saving: boolean;
   onFocus: (key: string | null) => void;
-  onToggle: () => void;
   onShow: () => void;
   onAccept: () => void;
   onReject: () => void;
@@ -485,47 +478,25 @@ function Suggestion({
       onBlur={(e) => {
         if (!e.currentTarget.contains(e.relatedTarget)) onFocus(null);
       }}
-      // Grey while pointed at, never brand: an open row in purple read as
-      // selected rather than open.
-      className={cn("scroll-mt-2 transition-colors", lit && !isOpen && "bg-ink/[0.03]")}
+      // Grey while pointed at or shown on the page, never brand: a row in
+      // purple read as selected for something else
+      className={cn("scroll-mt-2 pb-3 transition-colors", (lit || current) && "bg-ink/[0.03]")}
     >
       <div className="flex items-start gap-1 pr-2">
         <button
           type="button"
-          aria-expanded={isOpen}
-          onClick={onToggle}
+          onClick={onShow}
           className="focus-visible:outline-brand flex min-w-0 flex-1 items-start gap-2.5 py-2.5 pl-3 text-left -outline-offset-2 focus-visible:outline-2"
         >
           <KindBadge kind={change.kind} />
-          {/* Open, the row names the change and the box under it holds the
-            words: the line in both read twice */}
-          {isOpen ? (
-            <span className="text-note text-ink mt-0.5 min-w-0 flex-1 font-semibold">
-              {title(change)}
-            </span>
-          ) : (
-            <>
-              <span className="sr-only">{title(change)}: </span>
-              <span className="text-note text-ink mt-0.5 line-clamp-2 min-w-0 flex-1">
-                {summary(change, choices)}
-              </span>
-            </>
-          )}
+          <span className="text-note text-ink mt-0.5 min-w-0 flex-1 font-semibold">
+            {title(change)}
+          </span>
+          <span className="sr-only">, show on the resume</span>
         </button>
-        {/* Accept and Reject as a check and a cross at the row's end, as
-          Google Docs answers a suggestion: shown while the row is open,
-          pointed at or focused. They were full Accept and Reject buttons
-          under the open change, which the user found heavy. Green keeps,
-          red undoes */}
-        {/* Hidden, not removed, so the row's text keeps its width as they
-            come and go; hidden ones leave the tab order, and focus in the
-            row shows them */}
-        <span
-          className={cn(
-            "flex shrink-0 items-center gap-0.5 pt-1.5",
-            !(isOpen || lit) && "invisible",
-          )}
-        >
+        {/* Green keeps, red undoes. They were full Accept and Reject
+            buttons under the change, which read heavy */}
+        <span className="flex shrink-0 items-center gap-0.5 pt-1.5">
           <Button
             variant="ghost"
             size="icon-sm"
@@ -549,51 +520,24 @@ function Suggestion({
             <XIcon aria-hidden weight="bold" />
           </Button>
         </span>
-        {/* The fold sign last, at the row's far right, as a section's caret
-            is; the row's own button above names the state for a screen
-            reader, so this one is a pointer target only */}
-        <button
-          type="button"
-          tabIndex={-1}
-          aria-hidden
-          onClick={onToggle}
-          className="text-ink-meta hover:text-ink mt-1.5 flex size-7 shrink-0 items-center justify-center pt-0.5"
-        >
-          <PlusMinus open={isOpen} />
-        </button>
       </div>
-      {isOpen && (
-        <div className="flex flex-col gap-2 px-3 pb-3 pl-[2.875rem]">
-          <ChangeBody change={change} bank={bank} choices={choices} />
-          {/* On a phone the sheet covers the page: this shows the line */}
-          <Button variant="ghost" size="xs" className="self-start sm:hidden" onClick={onShow}>
-            Show on Resume
-          </Button>
-        </div>
-      )}
+      <div className="pr-3 pl-[2.875rem]">
+        <ChangeBody change={change} bank={bank} choices={choices} />
+      </div>
     </div>
   );
 }
 
-/** An open row's name for its change: "Reworded bullet", "Added skill". */
+/** A row's name for its change: "Reworded bullet", "Added skill ·
+ *  Languages". */
 function title(change: Change) {
   if (change.kind === "moved") return "Bullets moved";
-  return `${KINDS[change.kind].label} ${change.where === "skills" ? "skill" : "bullet"}`;
-}
-
-/** A closed row's line: the new or reworded line, the line removed, how
- *  many bullets moved, or a skill and its group. */
-function summary(change: Change, choices: Choices) {
-  if (change.kind === "moved" && change.edit) {
-    const n = movesOf(change.edit, choices).length;
-    return `${n} ${n === 1 ? "bullet" : "bullets"} moved`;
-  }
-  const line = change.kind === "removed" ? change.before : change.after;
-  return change.group ? `${line} (${change.group})` : (line ?? "");
+  const name = `${KINDS[change.kind].label} ${change.where === "skills" ? "skill" : "bullet"}`;
+  return change.group ? `${name} · ${change.group}` : name;
 }
 
 /**
- * The open change as a white card with an outline, one row for each thing
+ * A change as a white card with an outline, one row for each thing
  * that changed, under a hairline: each moved bullet with its place before
  * and after as an amber tag; a rewording's old and new lines, or one line
  * with the changed words marked; an added or removed line. It was one grey

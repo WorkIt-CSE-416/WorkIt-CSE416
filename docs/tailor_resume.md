@@ -348,35 +348,31 @@ weight.
 - **A section per resume entry, top to bottom as on the page** (the
   entry's title box's place, `pageOrder`), Skills where its lines sit: a
   heading with the entry's title, its organization, how many suggestions
-  it holds and a caret. Under a hairline, each suggestion is a row with
-  its type's round badge, its one line (the new or removed line, how many
-  bullets moved, a skill and its group) and, at its far right after
-  Accept and Reject, a plus that turns to a minus while open. Only a
-  section folds with a caret: a caret on each row too read as a second
-  section heading under the section's own. Open, the row names the change
-  ("Removed bullet") and a white card with an outline holds the words, one
-  row for each thing that changed under a hairline (`ChangeCard`): each
-  moved bullet with its place before and after as an amber tag ("3 → 1"),
-  a rewording's Before and After lines or one line with the changed words
-  marked (the old struck, the new highlighted), an added or removed line
-  in plain type (its badge and the row's name say which; a highlight or a
-  strike over a whole line only made it harder to read). It was one grey
-  box of all of it, which read as a chat message and ran three moves
-  together as one. Accept and Reject are a green check and a red cross at
-  the row's end, as Google
-  Docs answers a suggestion, shown while the row is open, pointed at or
-  focused (hidden, not removed, so the text keeps its width); they were
-  full Accept and Reject buttons under the change, which read heavy. A
-  row turns faint grey while pointed at, never brand: an open row in
-  purple read as selected. Pointing at a row highlights its lines;
-  only opening one scrolls the page to them, since scrolling on hover
-  made the page swim as the pointer crossed the panel. The panel then
-  scrolls its own list to the open row, never the page: a
-  `scrollIntoView` there cancelled the page's smooth scroll in Chrome. Sections were by type (Reworded
-  Bullets, Reordered Bullets, Added Skills) until 2026-10-26: with every
-  type in play, a student reads the panel against the page, and sections
-  by type sent them up and down it. Each suggestion was a numbered card
-  before that.
+  it holds and a caret. Under a hairline, each suggestion is always open:
+  its type's round badge and name ("Removed bullet", "Added skill ·
+  Languages"), a green check (Accept) and a red cross (Reject) at its end,
+  as Google Docs answers a suggestion, and under them a white card with an
+  outline holding the words, one row for each thing that changed under a
+  hairline (`ChangeCard`): each moved bullet with its place before and
+  after as an amber tag ("3 → 1"), a rewording's Before and After lines or
+  one line with the changed words marked (the old struck, the new
+  highlighted), an added or removed line in plain type (its badge and name
+  say which; a highlight or a strike over a whole line only made it harder
+  to read). Only sections fold: each row folded too, with a plus and a
+  minus, until 2026-10-26, and a fold inside a folding section read as
+  nested and odd. The card was one grey box, which read as a chat message
+  and ran three moves together as one; Accept and Reject were full buttons
+  under it, which read heavy. Pointing at a row highlights its lines and
+  turns it faint grey, never brand (a purple row read as selected); a click
+  on its name also scrolls the page to them (on a phone, closing the
+  sheet). Hover never scrolls: it made the page swim as the pointer
+  crossed the panel. The panel scrolls its own list to a row shown from
+  the page, never the page: a `scrollIntoView` there cancelled the page's
+  smooth scroll in Chrome. Sections were by type (Reworded Bullets,
+  Reordered Bullets, Added Skills) until 2026-10-26: with every type in
+  play, a student reads the panel against the page, and sections by type
+  sent them up and down it. Each suggestion was a numbered card before
+  that.
 - **A type filter in the panel's heading row** (`TypeFilter`), a
   dropdown drawn as the Resumes page's Type filter is (`facetClasses`,
   brand-tinted while it holds a pick): its button names the type shown
