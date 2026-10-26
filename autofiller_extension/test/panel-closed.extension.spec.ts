@@ -7,7 +7,7 @@
 import { expect, test } from "@playwright/test";
 import { FakeApi } from "./fake-api";
 import { SavedForms } from "./fake-job-systems";
-import { loadExtension, sendFromWebapp, signIn, webapp, type Handler, type Loaded } from "./loaded-extension";
+import { loadExtension, sendFromWebapp, signIn, webapp, type Handler, type Loaded, menuItem } from "./loaded-extension";
 
 const ARC = "greenhouse-arc";
 let loaded: Loaded;
@@ -43,7 +43,7 @@ test("a page script's click on Send report sends nothing; the student's click se
   await page.goto(forms.url(ARC));
   const host = page.locator("#workit-autofiller-overlay-host");
   await host.getByRole("button", { name: "Show WorkIt panel" }).click({ timeout: 30_000 });
-  await host.getByRole("button", { name: "Report a problem" }).click();
+  await (await menuItem(host, "Report a problem")).click();
   const send = host.getByRole("button", { name: "Send report" });
   await expect(send).toBeVisible();
 

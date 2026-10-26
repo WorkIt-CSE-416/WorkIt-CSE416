@@ -6,7 +6,7 @@
 import { expect, test, type Page } from "@playwright/test";
 import { FakeApi } from "./fake-api";
 import { FakeWorkdays, SavedForms } from "./fake-job-systems";
-import { loadExtension, sendFromWebapp, signIn, webapp, type Handler, type Loaded } from "./loaded-extension";
+import { loadExtension, sendFromWebapp, signIn, webapp, type Handler, type Loaded, menuItem } from "./loaded-extension";
 
 const ANDURIL = "greenhouse-anduril";
 const ARC = "greenhouse-arc";
@@ -86,9 +86,10 @@ test("a job form the student opened shows the header and, for a posting WorkIt h
 
   const header = hostOf(page).locator(".header");
   await expect(header.getByRole("img", { name: "WorkIt" })).toBeVisible();
-  await expect(header.getByRole("button", { name: "Settings" })).toBeVisible();
-  await expect(header.getByRole("button", { name: "Collapse" })).toBeVisible();
-  await header.getByRole("button", { name: "Report a problem" }).click();
+  // The header is WorkIt, ⋯ and Close (KAN-369 Q4); Report a problem and Settings are the ⋯ menu's.
+  await expect(header.getByRole("button", { name: "Close" })).toBeVisible();
+  await (await menuItem(hostOf(page), "Settings")).waitFor();
+  await (await menuItem(hostOf(page), "Report a problem")).click();
   await expect(hostOf(page).locator('[data-slot="report"]')).toContainText("Report a problem");
 
   const card = slotOf(page, "job-card");

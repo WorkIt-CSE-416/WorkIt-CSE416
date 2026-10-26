@@ -58,7 +58,7 @@ test("the scanning, found and filling states show in order with the right counts
   await start([forms.handler]);
   const { page, lines } = await pressAutofill(forms);
 
-  await expect(primaryOf(page).locator(".primary-button").first()).toContainText("Next Thing", { timeout: 60_000 });
+  await expect(primaryOf(page).locator(".primary-button").first()).toContainText("Next:", { timeout: 60_000 });
   await expect(progressOf(page)).toHaveCount(0);
   const seen = await lines();
   expect(seen[0]).toBe("Scanning this page");
@@ -105,7 +105,7 @@ test("a field that never settles shows Skip after 5 s; Skip moves on and lists i
   const label = (await stuck.locator(".progress-label").innerText()).trim();
   await skip.click();
 
-  await expect(primaryOf(page).locator(".primary-button").first()).toContainText("Next Thing", { timeout: 30_000 });
+  await expect(primaryOf(page).locator(".primary-button").first()).toContainText("Next:", { timeout: 30_000 });
   const row = needsYou(page).locator(".row").filter({ hasText: label });
   await expect(row).toBeVisible();
   await expect(row).toContainText("You skipped this. Answer it yourself.");

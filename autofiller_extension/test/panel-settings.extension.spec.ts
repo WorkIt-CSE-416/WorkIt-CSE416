@@ -7,7 +7,7 @@
 import { expect, test, type Page } from "@playwright/test";
 import { FakeApi } from "./fake-api";
 import { SavedForms } from "./fake-job-systems";
-import { EXTENSION_ID, loadExtension, sendFromWebapp, signIn, webapp, type Loaded } from "./loaded-extension";
+import { EXTENSION_ID, loadExtension, sendFromWebapp, signIn, webapp, type Loaded, menuItem } from "./loaded-extension";
 
 const ANDURIL = "greenhouse-anduril";
 
@@ -29,7 +29,7 @@ async function openSettings(forms: SavedForms): Promise<Page> {
   const page = await loaded.context.newPage();
   await page.goto(forms.url(ANDURIL));
   await edgeTab(page).click({ timeout: 15_000 });
-  await hostOf(page).getByRole("button", { name: "Settings" }).click();
+  await (await menuItem(hostOf(page), "Settings")).click();
   await expect(settingsOf(page)).toBeVisible();
   return page;
 }
@@ -96,7 +96,7 @@ test("the gear opens settings and Back returns; Workday Sign-Up opens the extens
   await expect(hostOf(page).locator('[data-slot="report"]')).toBeVisible();
   await expect(settingsOf(page)).toBeHidden();
 
-  await hostOf(page).getByRole("button", { name: "Settings" }).click();
+  await (await menuItem(hostOf(page), "Settings")).click();
   await settingsOf(page).getByRole("button", { name: "Back" }).click();
   await expect(settingsOf(page)).toBeHidden();
   await expect(hostOf(page).locator("[data-tabs]")).toHaveJSProperty("hidden", false);

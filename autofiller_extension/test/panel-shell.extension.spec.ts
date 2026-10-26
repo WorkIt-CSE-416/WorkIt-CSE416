@@ -7,7 +7,7 @@
 import { expect, test, type Page } from "@playwright/test";
 import { FakeApi } from "./fake-api";
 import { SavedForms } from "./fake-job-systems";
-import { EXTENSION_ID, loadExtension, sendFromWebapp, signIn, webapp, type Handler, type Loaded } from "./loaded-extension";
+import { EXTENSION_ID, loadExtension, sendFromWebapp, signIn, webapp, type Handler, type Loaded, menuItem } from "./loaded-extension";
 
 const ANDURIL = "greenhouse-anduril";
 // How Anduril heard of the student: a guess, a row the fill always shows.
@@ -114,7 +114,7 @@ test("the edge tab opens the panel, and its Autofill This Page fills the form", 
   await hostOf(page).getByRole("button", { name: "Autofill This Page" }).click();
   await expect(hostOf(page).locator(`[data-key="${HEARD}"] .source`)).toHaveText("Guessed", { timeout: 60_000 });
   await expect(panelOf(page)).toBeVisible();
-  await expect(hostOf(page).getByRole("button", { name: "Fill Again" })).toBeVisible();
+  await expect(await menuItem(hostOf(page), "Fill Again")).toBeVisible();
   expect(forms.submissions).toEqual([]);
 });
 
@@ -157,7 +157,7 @@ test("a site where the student collapsed the panel keeps it collapsed in the nex
   const { api, forms } = await start();
   const page = await ownTab(forms);
   await edgeTab(page).click({ timeout: 15_000 });
-  await hostOf(page).getByRole("button", { name: "Collapse" }).click();
+  await hostOf(page).getByRole("button", { name: "Close" }).click();
   await expect(panelOf(page)).toBeHidden();
   await expect(edgeTab(page)).toBeVisible();
   await page.close();

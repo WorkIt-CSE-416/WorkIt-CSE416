@@ -6,7 +6,7 @@ import { expect, test, type Page } from "@playwright/test";
 import { FakeApi } from "./fake-api";
 import { STEPS } from "../fill-engine/test/fake-workday";
 import { FakeWorkdays, SavedForms } from "./fake-job-systems";
-import { EXTENSION_ID, loadExtension, sendFromWebapp, signIn, webapp, type Loaded } from "./loaded-extension";
+import { EXTENSION_ID, loadExtension, sendFromWebapp, signIn, webapp, type Loaded, menuItem } from "./loaded-extension";
 
 const ANDURIL = "greenhouse-anduril";
 
@@ -28,7 +28,7 @@ test("the settings view's Claude read that fails says so in a sentence, and Try 
   const page = await loaded.context.newPage();
   await page.goto(forms.url(ANDURIL));
   await edgeTab(page).click({ timeout: 15_000 });
-  await hostOf(page).getByRole("button", { name: "Settings" }).click();
+  await (await menuItem(hostOf(page), "Settings")).click();
   const claude = hostOf(page).locator('[data-slot="settings"] .claude');
 
   await expect(claude).toContainText("WorkIt couldn't check your Claude.");
@@ -98,12 +98,12 @@ test("a batch tab's submit shows Sent with Next job, and I didn't submit this se
   const page = loaded.context.pages().find((p) => p.url().startsWith(forms.url(COHERE).split("?")[0]))!;
   await page.bringToFront();
   const host = hostOf(page);
-  await host.locator("[data-submitted]").click();
+  await (await menuItem(host, "I submitted this")).click();
 
   const primary = host.locator('[data-slot="primary"]');
   await expect(primary.getByText("Sent · Marked applied on WorkIt")).toBeVisible({ timeout: 15_000 });
   expect(api.stages.get("job-0")).toBe("applied");
-  await expect(primary.getByRole("button", { name: "Next Thing" })).toBeHidden();
+  await expect(primary.getByRole("button", { name: /^Next:/ })).toBeHidden();
 
   await primary.getByRole("button", { name: "I didn't submit this" }).click();
   // Back to the state its tab had before the mark: Cohere's tab needed the student, so needs_you (Ready would be queued).
@@ -119,13 +119,13 @@ test("a batch tab's submit shows Sent with Next job, and I didn't submit this se
     batch.tabs[tab.id!].state = "ready";
     await chrome.storage.local.set({ [key]: batch });
   }, forms.url(COHERE).split("?")[0]);
-  await host.locator("[data-submitted]").click();
+  await (await menuItem(host, "I submitted this")).click();
   await expect(primary.getByText("Sent · Marked applied on WorkIt")).toBeVisible({ timeout: 15_000 });
   await primary.getByRole("button", { name: "I didn't submit this" }).click();
   await expect.poll(() => api.stages.get("job-0")).toBe("queued");
 
   // Sent again: Next job goes to the tab that still needs the student.
-  await host.locator("[data-submitted]").click();
+  await (await menuItem(host, "I submitted this")).click();
   await expect(primary.getByText("Sent · Marked applied on WorkIt")).toBeVisible({ timeout: 15_000 });
   await primary.getByRole("button", { name: "Next job →" }).click();
   await expect.poll(() => loaded.worker.evaluate(async () => (await chrome.tabs.query({ active: true, lastFocusedWindow: true }))[0]?.url)).toContain("greenhouse");

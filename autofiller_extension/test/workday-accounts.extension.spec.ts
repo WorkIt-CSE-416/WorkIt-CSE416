@@ -8,7 +8,7 @@ import { expect, test, type Page } from "@playwright/test";
 import { FakeApi } from "./fake-api";
 import { FakeWorkdays } from "./fake-job-systems";
 import { CONTENT_SCRIPT_FILES, ENGINE_FILES } from "../src/shared/content-scripts.js";
-import { loadExtension, sendFromWebapp, signIn, webapp, type Loaded } from "./loaded-extension";
+import { loadExtension, sendFromWebapp, signIn, webapp, type Loaded, menuItem } from "./loaded-extension";
 
 let loaded: Loaded | undefined;
 test.afterEach(async () => {
@@ -47,7 +47,7 @@ async function allow(page: Page): Promise<void> {
 }
 
 async function skip(page: Page): Promise<void> {
-  await overlay(page).locator("[data-skip]").click();
+  await (await menuItem(overlay(page), "Skip")).click();
 }
 
 test("allowed once, makes each company's Workday account itself, terms box shown, and signs in later", async () => {

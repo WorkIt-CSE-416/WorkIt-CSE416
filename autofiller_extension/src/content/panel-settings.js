@@ -1,5 +1,5 @@
 // The panel's settings view (KAN-402), in the shell's "settings" slot
-// (panel.js), shown by the header's gear in place of the tabs:
+// (panel.js), shown by the ⋯ menu's Settings in place of the tab's body:
 //
 // - Claude: whether the student's Claude is connected to WorkIt, with Add to
 //   Claude (the webapp's link to Claude's Add Custom Connector dialog) or
@@ -80,9 +80,9 @@ window.WIA = window.WIA || {};
     });
     view.querySelector("[data-claude]").addEventListener("click", window.WIA.ui.trusted(pressClaude));
 
-    // Read again each time the gear opens the view (the shell's own listener shows it first).
-    panel.root.querySelector("[data-settings]")?.addEventListener("click", () => {
-      if (!view.hidden) void read();
+    // Read again each time the ⋯ menu's Settings opens the view (panel.onView).
+    panel.onView((name, shown) => {
+      if (name === "settings" && shown) void read();
     });
     // The student added Claude in another tab and came back.
     document.addEventListener("visibilitychange", () => {

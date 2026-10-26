@@ -400,8 +400,8 @@ waits for an opened tab's page and form (`waitForLoad`, `formShows`).
   window that is closing. A batch with no tab left has ended: the next
   `run/open` starts a new one, so a job the student closed unsubmitted
   comes back then. Chrome restores only tabs whose page had loaded.
-- **Skip is on the batch tab's panel (KAN-373).** The panel's header has a
-  Skip button in a batch tab only (`overlay.mount({ onSkip })`); it sends
+- **Skip is on the batch tab's panel (KAN-373).** The panel's ⋯ menu has
+  Skip in a batch tab only (`overlay.mount({ onSkip })`); it sends
   `batch/skip`, and `skipTab` records the application as skipped
   (`POST .../finish {"outcome": "skipped"}`), closes the tab, removes it
   from the batch and tops the window up. If the API refuses, the tab stays,
@@ -762,7 +762,7 @@ waits for an opened tab's page and form (`waitForLoad`, `formShows`).
   so this is rare). Tests: `test/panel-reopen.extension.spec.ts`, and
   `test/workday-show.extension.spec.ts` for Workday's row press and Next
   Thing.
-- **The panel's Collapse hides it; it never goes** (KAN-369, KAN-394): its
+- **The panel's Close (Collapse) hides it; it never goes** (KAN-369, KAN-394): its
   rows, cards, answers, the Next Thing bar and any moment card stay as they
   were in the page, and the edge tab ("Show WorkIt panel", "The panel's
   shell") brings the panel back at once, nothing filled again. The toolbar
@@ -984,7 +984,7 @@ waits for an opened tab's page and form (`waitForLoad`, `formShows`).
   moves the tab to Needs you; the application stays unapplied. A practice
   batch (KAN-378) is left out: its forms are no applications, and their
   submit is their own `/thanks` page (`submitPractice`).
-- **"I submitted this"** (KAN-369): a batch tab's panel header has it, for a
+- **"I submitted this"** (KAN-369): a batch tab's panel ⋯ menu has it, for a
   submit detection missed. It answers only the student's own click
   (`isTrusted`, as every panel action, below), says `batch/i-submitted`, and the worker marks the application
   applied with `markSubmitted`, as a detected submit. A detected submit
@@ -1452,13 +1452,30 @@ slot by name, `panel.slot(name)`, and adds its styles with
 
 | Slot | What goes there | Today |
 |---|---|---|
-| `header-actions` | buttons beside settings and collapse | overlay.js: a batch tab's I submitted this, Skip |
+| `header-actions` | buttons beside ⋯ and Close (kept empty: actions go in the ⋯ menu) | none |
 | `batch-line` | the batch line ("Batch · 3 of 5 ready · Next tab →", Workday's step) | panel-top.js |
 | `job-card` | the job card (title, company, Match score) | panel-top.js |
-| `primary` | the one big button; `panel.setPrimary({ label, onPress, secondary })` or `panel.fillButton(label)` | Autofill This Page / Fill this step (launcher.js), then primary.js: Next Thing, Ready to submit, the required line, Fill Again |
+| `primary` | the one big button, fixed at the panel's bottom; `panel.setPrimary({ label, onPress, secondary })` or `panel.fillButton(label)` | Autofill This Page / Fill this step (launcher.js), then primary.js: "Next: N need you", Review and submit, Go to Save and Continue, Fill Again's question |
 | `tab:<id>` | a tab's body; `panel.addTab({ id, label })` adds one, the strip shows from two | `tab:autofill`: overlay.js's summary, essay banner, moment cards, parts and rows; `tab:resume`: resume-tab.js (KAN-399); `tab:answers`: answers-tab.js (KAN-400), a placeholder until a fill |
-| `settings` | the settings view, shown by the header's gear in place of the tabs (`panel.showSettings`) | panel-settings.js: Claude connection, Open the panel by itself, Report a problem, Workday Sign-Up, Back |
-| `report` | Report a problem, shown in place of the tabs; open it with `window.WIA.reportCard.open()` | report.js: the preview, the note, Send report, Back |
+| `settings` | the settings view, shown by the ⋯ menu's Settings in place of the tab's body (`panel.showSettings`; `panel.onView(hook)` hears it open) | panel-settings.js: Claude connection, Open the panel by itself, Report a problem, Workday Sign-Up, Back |
+| `report` | Report a problem, shown in place of the tab's body; open it with `window.WIA.reportCard.open()` | report.js: the preview, the note, Send report, Back |
+
+**The frame (KAN-369 Q4-Q6).** Top to bottom: the header (WorkIt, ⋯,
+Close: Close is the old Collapse, `data-collapse`); the batch line, job
+card and tab strip, fixed (they never scroll, in every state but signed
+out, where panel-states.js hides the tabs); the tab's body or a view
+(settings, report), which scrolls (`.scroll`); and the `primary` slot,
+fixed at the bottom (`.bottom`, gone while the slot is empty). A view
+covers only the tab's body: the strip stays, and pressing a tab leaves the
+view. **The ⋯ menu** (`panel.menuItem(id, { label, onPress, order } |
+null)`, role menu, shut by Escape, a press elsewhere in the panel or an
+item) holds, by `order`: I submitted this (10) and Skip (20) in a batch
+tab (overlay.mount), Fill Again (30) after a fill (primary.js), Report a
+problem (40) and Settings (50), the shell's own. Each item carries
+`data-<id>` (`[data-skip]`, `[data-submitted]`, `[data-again]`); an item
+that changes something passes its `onPress` through `ui.trusted`. Tests
+open it with `menuItem(host, name)` (test/loaded-extension.ts).
+`test/panel-controls.extension.spec.ts` covers the frame.
 
 **Tabs (KAN-397).** The shell makes three: Autofill, Résumé and Answers.
 Résumé and Answers hold a one-line placeholder (`.tab-placeholder`) until
@@ -1487,8 +1504,8 @@ job page outside a batch shows only the edge tab, with Autofill This Page
 behind it; other pages show nothing. The student's press on Autofill This
 Page opens it (it is open already).
 
-**The edge tab** replaces the old "WorkIt" pill: Collapse (the header's
-›, `data-close` kept for older tests) leaves it on the right edge. It is
+**The edge tab** replaces the old "WorkIt" pill: Close (the header's
+×, `data-close` kept for older tests) leaves it on the right edge. It is
 dragged up and down (a move under 4 px is a press, which opens the panel);
 its ⋯ menu has **Hide until next visit** (this page only: the next page
 load shows it again) and **Hide on this site**. Per site (host name),
@@ -1527,21 +1544,23 @@ the edge tab or the toolbar brings the same rows back, no fill).
 `src/content/primary.js` (`window.WIA.primary`, loaded by every fill after
 the card files) owns the `primary` slot once a fill mounts its rows
 (`overlay.mount` calls `primary.mount`; `overlay.offerNext` hands it the
-walk). One purple button, then a line, then Fill Again:
+walk). One purple button at the panel's bottom (KAN-369 Q5):
 
 - **Before a fill**: `panel.fillButton(panel.startLabel())`: Autofill This
   Page, or **Fill this step** on a Workday host outside a batch (it fills the
   step shown; the fill then fills each later step as it shows, and Fill to
   Review, `workday-walk.js`, is still what presses Save and Continue, only
   once the student asks).
-- **Next Thing** ("3 things need you") while the walk's rows
-  (`batch-tab.js`'s `flagged().keys`: needs you, unchecked guesses, Claude's
-  just-arrived answers) aren't empty. In a batch tab it is the cross-tab
+- **"Next: 3 need you"** (Next Thing) while anything is red
+  (`status.needsYouCount()`, lib-status.js's one rule). It runs the walk
+  (`batch-tab.js`'s `flagged().keys`: red rows first, then unchecked
+  guesses and Claude's just-arrived answers). In a batch tab it is the cross-tab
   walk (`batch/next`); outside a batch, this page's rows in page order after
   the last it went to, then "Nothing else needs you." (`answerTheWalk` now
   runs in every fill; only a batch tab adds the `batch/flags` listener).
   What it answers shows under the button (`[data-said]`).
-- **Ready to submit** once nothing is open: scrolls to the employer's Submit
+- **Review and submit** once nothing is red (amber guesses may be left:
+  Alt+N still walks them): scrolls to the employer's Submit
   (the submit warning's rule: a visible control whose words start with
   "Submit", never WorkIt's host), rings it (marks.js) and focuses it. It
   never presses it. A Submit under the open panel (Anduril's sits at the
@@ -1555,15 +1574,15 @@ walk). One purple button, then a line, then Fill Again:
   whatever the button reads (so a batch tab with nothing left still walks
   on to the next tab). Tests press it with `globalThis.workitCommand`
   (`pressNextThing` in test/loaded-extension.ts).
-- Under the button: "Required 12 of 14 filled · 3 need you" (lib-status's
-  required counts; "need you" is the Autofill tab's Needs you group's count,
-  groups.js `groupOf`, so the two always agree: Check these' guesses are
-  not in it, though Next Thing's count, which walks them too, is).
-- **Fill Again** (white) asks once inline, "This replaces what you changed
-  on this page.", with Fill Again and Cancel; Cancel changes nothing.
+- The panel's one count line is the Autofill tab's `.summary` (overlay.js):
+  "Required 12 of 14 filled · 3 need you · 1 waiting on Claude", the same
+  `needsYouCount()` as the button.
+- **Fill Again** is the ⋯ menu's; it asks once, over the button, "This
+  replaces what you changed on this page.", with Fill Again and Cancel;
+  Cancel changes nothing.
 - Outside a batch the fill now reads back the student's edits too
   (content-script.js `watchEdits`, which only a batch ran before), so a row
-  they answer stops being open and the button can reach Ready to submit;
+  they answer stops being open and the button can reach Review and submit;
   their answers are still saved only in a batch (keepOwn, card-guess.js).
 - While a Workday step fills, the button reads "Filling…", disabled; the
   Workday loop calls `primary.refresh()` once the step's phase is set.
@@ -1577,8 +1596,8 @@ company page itself, like any host the manifest doesn't list, gets
 nothing: no edge tab, and the toolbar icon opens the popup, which has no
 fill controls since KAN-394.
 
-Tests: `test/panel-primary.extension.spec.ts` (Next Thing and the
-required line against the form's own asterisks; Alt+N; Ready to submit
+Tests: `test/panel-primary.extension.spec.ts` ("Next: N need you" and the
+count line against the form's own asterisks; Alt+N; Review and submit
 rings Submit and sends nothing; Fill Again's Cancel; Fill this step on
 Workday; the embedded form).
 
@@ -1676,8 +1695,8 @@ Tests: `test/panel-states.extension.spec.ts`.
 ## The panel's top (KAN-395): header, batch line, job card
 
 The header (panel.js) is WorkIt's mark (logo.tsx's figure, in ink: the
-header is neutral), Report a problem (a ⚑ button, named so; report.js's card, below),
-the gear and Collapse. `src/content/panel-top.js` fills two slots, loaded
+header is neutral), ⋯ (the menu, above: Report a problem, Settings, a
+batch tab's I submitted this and Skip, Fill Again) and Close. `src/content/panel-top.js` fills two slots, loaded
 after panel.js everywhere panel.js is (manifest, `CONTENT_SCRIPT_FILES`,
 background.js `SHELL_FILES`):
 
