@@ -1575,8 +1575,10 @@ report.js everywhere it is: manifest, `CONTENT_SCRIPT_FILES`, background.js
   **Next job →** (`panel/next-tab`) while another tab needs the student and
   **I didn't submit this** (trusted clicks only, as I submitted this):
   `batch/unsubmitted` (batch.js `unmarkSubmitted`) posts `finish` with
-  outcome `unsubmitted`, which sets an applied application back to queued
-  with no date (backend pipeline.py), and the tab to Ready, in its group.
+  outcome `unsubmitted` and the tab's `state` from before the mark
+  (`tab.before`): Ready sets the application back to queued, anything else
+  to needs_you, with no date (backend pipeline.py), and the tab to that
+  state, in its group.
 - **A site WorkIt can't fill**: every host the manifest lists is a job
   system the Fill engine fills, so the panel never shows this; the toolbar
   popup does, on a web page of any other host (not WorkIt's own), where the

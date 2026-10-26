@@ -106,9 +106,23 @@ test("a batch tab's submit shows Sent with Next job, and I didn't submit this se
   await expect(primary.getByRole("button", { name: "Next Thing" })).toBeHidden();
 
   await primary.getByRole("button", { name: "I didn't submit this" }).click();
-  await expect.poll(() => api.stages.get("job-0")).toBe("queued");
+  // Back to the state its tab had before the mark: Cohere's tab needed the student, so needs_you (Ready would be queued).
+  await expect.poll(() => api.stages.get("job-0")).toBe("needs_you");
   await expect(primary.getByText("Sent · Marked applied on WorkIt")).toBeHidden();
   await expect(primary.locator(".primary-button").first()).toBeVisible();
+
+  // A tab that was Ready when marked goes back to queued. (Its state is set by hand: no saved form here fills Ready.)
+  await loaded.worker.evaluate(async (url) => {
+    const [tab] = await chrome.tabs.query({ url: `${url}*` });
+    const stored = await chrome.storage.local.get(null);
+    const [key, batch] = Object.entries(stored).find(([, v]: [string, any]) => v?.tabs?.[tab.id!]) as [string, any];
+    batch.tabs[tab.id!].state = "ready";
+    await chrome.storage.local.set({ [key]: batch });
+  }, forms.url(COHERE).split("?")[0]);
+  await host.locator("[data-submitted]").click();
+  await expect(primary.getByText("Sent · Marked applied on WorkIt")).toBeVisible({ timeout: 15_000 });
+  await primary.getByRole("button", { name: "I didn't submit this" }).click();
+  await expect.poll(() => api.stages.get("job-0")).toBe("queued");
 
   // Sent again: Next job goes to the tab that still needs the student.
   await host.locator("[data-submitted]").click();
