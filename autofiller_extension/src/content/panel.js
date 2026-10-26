@@ -207,6 +207,8 @@ window.WIA = window.WIA || {};
 
   // What waits for the shell to exist (onBuilt): the files that fill its slots.
   const builtHooks = [];
+  // Whether a batch tab's panel opens by itself (panel/where's autoOpen).
+  let autoOpens = true;
 
   /** Runs `hook` once the shell exists (now, if it does). */
   function onBuilt(hook) {
@@ -280,6 +282,8 @@ window.WIA = window.WIA || {};
     ready ??= send({ type: "panel/where" }).then((answer) => {
       site = answer?.site ?? {};
       shell.batch = Boolean(answer?.batch);
+      // The settings view's Open the panel by itself (KAN-402), on unless the student turned it off.
+      autoOpens = answer?.autoOpen !== false;
       return { job: Boolean(answer?.job), batch: Boolean(answer?.batch) };
     });
     return ready;
@@ -312,10 +316,10 @@ window.WIA = window.WIA || {};
     paint();
   }
 
-  /** Opens the panel by itself (a batch tab whose fill is done), unless the student collapsed it on this site. */
+  /** Opens the panel by itself (a batch tab whose fill is done), unless the student collapsed it on this site or turned auto-open off. */
   async function autoOpen() {
     await ensure();
-    if (site.collapsed) return paint();
+    if (site.collapsed || !autoOpens) return paint();
     root.querySelector(".panel").hidden = false;
     paint();
   }

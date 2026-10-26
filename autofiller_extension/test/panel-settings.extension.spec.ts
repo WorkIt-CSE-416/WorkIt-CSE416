@@ -52,3 +52,29 @@ test("settings show the student's Claude connection, and Disconnect and Add to C
   await claude.getByRole("button", { name: "Add to Claude" }).click();
   await expect.poll(async () => (await opened).url()).toBe("http://localhost:3000/connect/claude/add");
 });
+
+test("with Open the panel by itself off, a batch tab's panel stays closed until the student opens it", async () => {
+  test.setTimeout(120_000);
+  const forms = new SavedForms([ANDURIL]);
+  const api = new FakeApi().queue({ id: "job-0", apply_url: forms.url(ANDURIL) });
+  await start(api, forms);
+  const page = await openSettings(forms);
+  const autoOpen = settingsOf(page).getByRole("checkbox", { name: /Open the panel by itself/ });
+  await expect(autoOpen).toBeChecked();
+  await autoOpen.uncheck();
+  await settingsOf(page).getByRole("button", { name: "Back" }).click();
+  await expect(settingsOf(page)).toBeHidden();
+  await expect(hostOf(page).getByRole("button", { name: "Autofill This Page" })).toBeVisible();
+  await page.close();
+
+  const app = await loaded.context.newPage();
+  await app.goto("http://localhost:3000/auto-apply");
+  await sendFromWebapp(app, { type: "run/open" });
+  await expect.poll(() => api.stages.get("job-0"), { timeout: 60_000 }).toBe("needs_you");
+  const form = loaded.context.pages().find((p) => p.url() === forms.url(ANDURIL) && !p.isClosed())!;
+  await expect(edgeTab(form)).toBeVisible({ timeout: 15_000 });
+  await expect(panelOf(form)).toBeHidden();
+  await edgeTab(form).click();
+  await expect(panelOf(form)).toBeVisible();
+  await expect(hostOf(form).locator(".row").first()).toBeVisible();
+});
