@@ -191,7 +191,7 @@ window.WIA = window.WIA || {};
       if (KINDS[state.attached.kind]) file.append(el("div", "kind", KINDS[state.attached.kind]));
       attached.append(file, button("Preview", preview));
     } else {
-      file.append(el("div", "label", "Attached"), el("div", "kind", "No résumé yet. Add one on WorkIt's Résumés page."));
+      file.append(el("div", "label", "Attached"), el("div", "kind", "No résumé yet. Add one on WorkIt's Resumes page."));
       attached.append(file);
     }
     root.append(attached, keywordsSection());
