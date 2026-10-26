@@ -232,7 +232,7 @@ async def test_the_forms_own_limit_sends_a_too_long_saved_answer_back_to_claude(
     async with claude(applicant) as client:
         got = (await client.call_tool("get_next_application", {})).structured_content
     assert got["job_id"] == job
-    assert got["questions"] == [{"name": "question_8", "question": PROUD["label"], "required": False, "max_length": 60, "kind": "text", "options": None}]
+    assert got["questions"] == [{"name": "question_8", "question": PROUD["label"], "required": False, "max_length": 60, "kind": "text", "options": None, "rewrite": None}]
     # One within the limit stays.
     short = "I built a robot that placed second at a contest."
     await _save(applicant, job, "question_8", short)

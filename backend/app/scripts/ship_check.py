@@ -180,6 +180,8 @@ def stub(folder: Path, chat: int) -> Iterator[tools.MCPServer]:
             (written, "load_bank", nothing),
             # The pre-submit review (KAN-369) isn't what this check reads: it finds nothing to review.
             (review, "fetch_next_to_review", lambda db, applicant_id: _none()),
+            # Nor does it send answers back to be written again (the flag card's Rewrite with Claude).
+            (review, "fetch_review", lambda db, applicant_id, job_id: _no_review()),
             (briefs, "research_task", nothing),
             (briefs, "brief_for", no_brief),
             (briefs, "needs_research", nothing),
@@ -206,6 +208,10 @@ def stub(folder: Path, chat: int) -> Iterator[tools.MCPServer]:
 
 async def _none() -> None:
     return None
+
+
+async def _no_review() -> tuple[None, list]:
+    return None, []
 
 
 def serve(folder: Path, chat: int) -> None:
