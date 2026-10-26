@@ -142,7 +142,10 @@ builds it: `dist/engine.js` is committed in the engine repo.
   so a second "Application Questions" on a link that doesn't change is a
   step of its own). A press Workday drops (in 3 s the button never
   disabled, no error, the same step) is made again on the same button, 3
-  presses in all, as Apply's `_next` (Applied Materials, live). It is
+  presses in all, as Apply's `_next` (Applied Materials, live). Right
+  before every press it reads the button's words and looks for the Review
+  page again, so a button a tenant relabels Submit after a dropped press is
+  never pressed. It is
   never pressed again after Workday shows an error that stays 5 s, its
   "Something went wrong" page, or 30 s with no new step; then the student
   presses it. Tests: `test/workday-review.extension.spec.ts`. A

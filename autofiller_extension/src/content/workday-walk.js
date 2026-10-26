@@ -19,6 +19,9 @@
 //   drops (nothing at all comes of it in TAKEN_WAIT: the button never
 //   disables, no error, the step unchanged) is made again on the same
 //   button, PRESSES in all, as Apply's _next does (Applied Materials, live).
+//   The button's words and the Review page are checked again right before
+//   every press, so a button relabeled Submit after a dropped press is never
+//   pressed.
 // - After the press, an error Workday shows that stays (ERROR_WAIT) stops the
 //   walk with its words, and nothing is pressed again; so does a step that
 //   never changes (LEAVE_WAIT).
@@ -96,6 +99,16 @@ window.WIA = window.WIA || {};
     button.click();
   }
 
+  /** Why `button` must not be pressed now (Review shows, or it doesn't read as going on), or null. */
+  function refuse(button) {
+    if (document.querySelector(REVIEW_PAGE)) return "This is Workday's Review page. Check everything, then press Submit yourself.";
+    const words = (button.innerText || button.getAttribute("aria-label") || "").trim();
+    if (!GOES_ON.test(words) || SENDS.test(`${words} ${button.getAttribute("aria-label") ?? ""}`)) {
+      return `This step's button reads "${words}", which WorkIt never presses. Check the step, then go on yourself.`;
+    }
+    return null;
+  }
+
   const banner = () => [...document.querySelectorAll(BANNER)].find((b) => b.checkVisibility() && b.innerText.trim());
   // Workday's error page in place of the step: its words, and no field of the step showing.
   const wentWrong = () => WENT_WRONG.test(document.body.innerText) && ![...document.querySelectorAll('[data-automation-id^="formField-"]')].some((f) => f.checkVisibility());
@@ -136,10 +149,8 @@ window.WIA = window.WIA || {};
     const button = shown() ?? (await until(shown, ENABLED_WAIT));
     if (stepNow() !== step) return null;
     if (!button) return "WorkIt found no Save and Continue button on this step. Check it, then go on yourself.";
-    const words = (button.innerText || button.getAttribute("aria-label") || "").trim();
-    if (!GOES_ON.test(words) || SENDS.test(`${words} ${button.getAttribute("aria-label") ?? ""}`)) {
-      return `This step's button reads "${words}", which WorkIt never presses. Check the step, then go on yourself.`;
-    }
+    const refused = refuse(button);
+    if (refused) return refused;
     const key = `${step} ${location.pathname}`;
     const done = pressed();
     if (done.has(key)) return "WorkIt pressed Save and Continue on this step once already. Check it, then press Save and Continue yourself.";
@@ -153,6 +164,9 @@ window.WIA = window.WIA || {};
     const left = () => Boolean(workday.step()) && stepNow() !== step;
     let after = null;
     for (let presses = 1; ; presses++) {
+      // Read again before every press: a tenant may relabel the button, or show Review, after a dropped press.
+      const refusedNow = refuse(button);
+      if (refusedNow) return refusedNow;
       const taken = watchTaken(button);
       press(button);
       after = await until(() => (left() ? "left" : banner() ? "error" : taken() ? "taken" : null), TAKEN_WAIT);
