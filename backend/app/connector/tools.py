@@ -5,7 +5,10 @@ whole view of WorkIt (auto-apply/architecture.md, 14.6):
 - `get_next_application` (read-only): the oldest open application with a
   question still unanswered: only its job posting, its unanswered
   questions (in words, or a one-off choice with its options, KAN-369),
-  and the student's experience bank. A job id of null when
+  and the student's experience bank. Each question in words carries its
+  Question type and, when the form states no length, the type's default
+  (app/auto_apply/question_types.py), and `guides` holds the guide of each
+  type the application asks; the prompt says to follow it. A job id of null when
   nothing is left, or when this chat has had its share of applications
   (KAN-381, below).
 - `get_research_task` and `save_company_brief`: the shared company
@@ -66,7 +69,7 @@ from mcp.server.mcpserver.exceptions import ToolError
 from mcp_types import ToolAnnotations
 from pydantic import BaseModel, Field
 
-from app.auto_apply import briefs, pipeline
+from app.auto_apply import briefs, pipeline, question_types
 from app.config import get_settings
 from app.connector import account
 from app.connector.prompt import PROMPT, TITLE
@@ -97,6 +100,10 @@ class Question(BaseModel):
     rewrite: Rewrite | None = Field(default=None, description=(
         "Set when the student sent this question's answer back to be written again: what the pre-submit "
         "check found wrong with it."))
+    type: str | None = Field(default=None, description=(
+        'The question\'s Question type, one of guides\' or other_types\' keys; null for a choice.'))
+    default_length: str | None = Field(default=None, description=(
+        "The type's usual length in words, given only when the form states no length of its own."))
 
 
 class NextApplication(BaseModel):
@@ -131,6 +138,21 @@ class NextApplication(BaseModel):
     style_card_needed: bool = Field(
         default=False, description="True when the student has writing samples and no style card built from them."
     )
+    guides: dict[str, dict] = Field(default={}, description=(
+        "The guide of each Question type this application's questions have, by type: its company link, its "
+        "slots (each with whether it is required) and its guidance text."))
+    other_types: dict[str, str] = Field(default={}, description="Every other Question type, in one line each.")
+
+
+def typed(questions: list) -> tuple[list[tuple[str | None, str | None]], dict[str, dict], dict[str, str]]:
+    """Each question's Question type and default length (none for a
+    choice), the guides of the types they have, and the other types' summaries."""
+    guides = question_types.load()
+    kinds = [question_types.classify(q.label) if is_text(q.kind) else None for q in questions]
+    tags = [(kind, kind and question_types.default_length(q.label, kind, q.max_length))
+            for q, kind in zip(questions, kinds)]
+    given = {kind: guides[kind].shown() for kind in kinds if kind}
+    return tags, given, {name: g.summary for name, g in guides.items() if name not in given}
 
 
 class Review(BaseModel):
@@ -245,6 +267,7 @@ def register(server: MCPServer) -> None:
         if research:
             return NextApplication(job_id=None, chat=chat, research_first=job.company)
         experience, skills = bank_context(found.bank)
+        tags, guides, other_types = typed(found.questions)
         return NextApplication(
             job_id=str(job.id),
             chat=",".join(str(j) for j in [*skip, job.id]),
@@ -256,14 +279,17 @@ def register(server: MCPServer) -> None:
                     name=q.name, question=q.label, required=q.required, max_length=q.max_length,
                     kind="text" if is_text(q.kind) else q.kind, options=q.options,
                     rewrite=Rewrite(**sent_back[q.name]) if q.name in sent_back else None,
+                    type=kind, default_length=length,
                 )
-                for q in found.questions
+                for q, (kind, length) in zip(found.questions, tags)
             ],
             experience=experience,
             skills=skills,
             company_brief=brief,
             style_card=card,
             style_card_needed=card_needed,
+            guides=guides,
+            other_types=other_types,
         )
 
     @server.tool(

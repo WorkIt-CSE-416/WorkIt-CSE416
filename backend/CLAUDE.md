@@ -336,7 +336,8 @@ Find files with a directory listing; these are the rules for where code goes.
   question into one of 15 types or `general`, and each type's guide is a
   file in `auto_apply/type_guides/` whose front matter code reads (its
   summary, company link, default length, match patterns and slots) and
-  whose body is guidance the connector hands out as data. A guide names
+  whose body is guidance `get_next_application` hands out as data (each
+  question its type and default length, `guides` by type). A guide names
   no student and lists no banned word; change its slots and the save's
   plan check changes with them. Tests: `tests/test_question_types.py`.
   **Every saved answer passes the checks in code first**

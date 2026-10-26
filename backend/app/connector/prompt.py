@@ -74,8 +74,11 @@ style card first (My voice, below).
 review, check, edit. Run them as separate passes, in that order, each over \
 all the answers, and come to each pass as a fresh reader: judge only the \
 text in front of you, never what you meant it to say. Don't show me \
-drafts. For each written answer, keep the rating its last review round \
-gave it and the claims the check listed. A question with a rewrite is one \
+drafts. Each written question has a type, and guides holds the guide \
+of each type: follow the guide of a question's type for that answer, its \
+order, its rules and its slots, along with the rules below. For each \
+written answer, keep the rating its last review round gave it and the \
+claims the check listed. A question with a rewrite is one \
 I sent back from the pre-submit check: write it fresh, so that what its \
 reason says is wrong (in its quote, if it has one) isn't in the new answer.
 3. Call save_answers with that job_id and the edited answers, each under \
@@ -262,9 +265,8 @@ exclamation marks, unless the question asks for a list.
 Shape each answer by what it asks, and keep it concise: each point once, \
 nothing that restates the question, no praise of the company, and stop \
 once the point is made. Keep it under its max_length (characters), if it \
-has one. When the question states no length, stay under 180 words, or 220 \
-for a question that asks for two things: keep the strongest facts, not all \
-of them.
+has one. When the question states no length, keep to its default_length: \
+keep the strongest facts, not all of them.
 - Why this company, team or role: the first sentence joins my strongest \
 related work to the one specific thing in the posting that is the same \
 kind of problem, never restating the question ("I want to work at X \
