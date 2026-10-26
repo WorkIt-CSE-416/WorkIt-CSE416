@@ -87,6 +87,7 @@ export default async function TailorPage({
           <TailorReviewBar job={job} />
           {bank.data && choices.data && profile ? (
             <TailorReview
+              name={resume.name}
               resumeId={resume.id}
               initial={rendered}
               initialBank={bank.data}
