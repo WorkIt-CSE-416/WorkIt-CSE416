@@ -120,3 +120,13 @@ test("Workday's steps drawn in the same page, as live, are each filled as they s
   test.setTimeout(300_000);
   await walk(STEPS, true);
 });
+
+test("a step named as the one before it (two Application Questions, as Workday names a second questionnaire) is filled too", async () => {
+  test.setTimeout(300_000);
+  const questions = STEPS[2];
+  const more: Step = [questions[0], [
+    { key: "eligible", label: "Are you legally eligible to work in the United States?", kind: "dropdown", required: true, options: ["Yes", "No"] },
+    { key: "phoneNumberAgain", label: "Phone Number", kind: "text", required: true },
+  ]];
+  await walk([...STEPS.slice(0, 3), more, ...STEPS.slice(3)], true);
+});

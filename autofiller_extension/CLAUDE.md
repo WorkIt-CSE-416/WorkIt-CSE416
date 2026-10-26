@@ -111,7 +111,9 @@ builds it: `dist/engine.js` is committed in the engine repo.
   application (a batch tab starts it itself, below); the content script fills each step as it shows (sections
   first, then each field, then reads the step again for follow-ups), then
   waits. The student checks the step and presses Save and Continue; the
-  next step is filled when Workday shows it. The extension never presses
+  next step is filled when Workday shows it: a step is told from the last
+  by its name and its number in the bar, since a tenant may name two steps
+  alike (a second "Application Questions"). The extension never presses
   Save and Continue or Submit. A step that loads as a new page drops the
   content script, so the background remembers the tab
   (`workday_fill_tabs`, session storage) and injects the fill again when
