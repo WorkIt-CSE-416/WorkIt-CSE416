@@ -48,3 +48,13 @@ test("a tab that plans while the profile is still being fetched waits for that f
   expect(api.calls.filter((c) => /^GET \/applicants\/[^/]+\/bank$/.test(c))).toHaveLength(1);
   expect(forms.submissions).toEqual([]);
 });
+
+test("the profile's parts are asked at once, not one after another", async () => {
+  const { log } = await batchOfOne();
+  const parts = log.filter((l) => /^GET \/applicants\/[^/]+\/(profile|bank|preferences|autofill-answers|resumes|documents|fill-profile)(\/|$)/.test(l.call));
+  expect(parts.map((p) => p.call.replace(/\/applicants\/[^/]+/, ""))).toHaveLength(8);
+  // One after another, the eight (the resume's bytes after its list) take eight round trips; at once,
+  // about three (a list, its bytes, and the browser's six connections to one host).
+  const took = Math.max(...parts.map((p) => p.answered)) - Math.min(...parts.map((p) => p.asked));
+  expect(took).toBeLessThan(4 * SLOW_MS);
+});

@@ -1167,7 +1167,12 @@ tab's Plan used to ask the whole profile (eight calls, the resume's bytes
 among them) a second time beside it (KAN-369, seen on Rippling). A forced
 fetch (`force`, after an edit) never joins one under way, which may have
 started before the edit. It is not a longer cache: the 10 min TTL is
-unchanged. `test/plan-fetch.extension.spec.ts`.
+unchanged. Its parts (profile, bank, preferences, autofill answers, the
+resume, the transcript, the brought fill profile) are asked at once after
+`/auth/me`, not one after another: none needs another's answer, and the
+transcript waits for the resume only to tell their names apart. Live, at a
+few hundred ms a call, that is about three round trips instead of eight.
+`test/plan-fetch.extension.spec.ts`.
 
 **What a student brought from Apply lies under WorkIt's fields.** `GET
 /applicants/{id}/fill-profile` (KAN-369) is the Fill engine's own profile
