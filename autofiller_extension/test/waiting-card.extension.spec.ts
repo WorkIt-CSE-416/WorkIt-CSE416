@@ -1,7 +1,8 @@
 // The waiting card (KAN-369): a batch tab's row waiting for the student's Claude carries a card with how long
 // it has waited, Write with Claude, a paste box that saves through the Written Answers paste route (the same
 // checks as Claude's; backend/app/routers/pasted_answers.py, faked in fake-api.ts) and Write it myself.
-// Next Thing That Needs You visits rows waiting on Claude after everything else. Lumen's practice form, queued as a
+// Next Thing That Needs You visits rows waiting on Claude after everything else, and an answer that just
+// arrived from Claude stays in the walk until the student has seen it once. Lumen's practice form, queued as a
 // real application, asks one written question; Arc's saved Greenhouse form has a name box that drops its answer.
 import { expect, test, type Page, type Worker } from "@playwright/test";
 import { PRACTICE_JOBS, practiceFormUrl, practicePage } from "../../frontend/src/lib/practice-form";
@@ -136,4 +137,19 @@ test("Next Thing visits a row waiting on Claude after everything else in the bat
   expect(walked.map(([, key]) => key)).toContain("first_name");
   expect(walked.at(-1)).toEqual([LUMEN, name]);
   expect(walked.findIndex(([, key]) => key === "first_name")).toBeLessThan(walked.length - 1);
+});
+
+test("an answer that just arrived from Claude stays in the walk until the student has seen it once", async () => {
+  test.setTimeout(150_000);
+  const { api, name, arc } = await lumenThenArc();
+  api.saveAnswer("job-0", name, ANSWER);
+  const lumen = loaded.context.pages().find((p) => p.url() === LUMEN)!;
+  await expect(lumen.locator(`[name='${name}']`)).toHaveValue(ANSWER, { timeout: 20_000 });
+
+  // Filled, so no longer waiting: the walk shows it in its page place (before nothing else is left) once...
+  const first = await walk(arc);
+  expect(first).toContainEqual([LUMEN, name]);
+  // ...and, seen, not again.
+  const second = await walk(arc);
+  expect(second).not.toContainEqual([LUMEN, name]);
 });

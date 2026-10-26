@@ -533,6 +533,8 @@ waits for an opened tab's page and form (`waitForLoad`, `formShows`).
   one the form doesn't show or no longer calls for, "skipped"; and
   each "Guessed" answer once, for the student to check, which doesn't
   keep the tab from Ready;
+  each answer that just arrived from the student's Claude once, too
+  (`window.WIA.unseenAnswers`, cleared when the walk shows it);
   notes last; a note is a row marked `note`, "todo" or "done" for news
   like "Application sent", never a key starting "_": Ashby keys its own
   fields `_systemfield_...`), goes to the first one after the last it went to (cursor in

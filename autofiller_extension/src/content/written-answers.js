@@ -143,6 +143,8 @@ window.WIA = window.WIA || {};
           if (rowStatus(name) !== "filled") {
             await fillWritten(prepared, name, answer, "claude");
             byClaude = true;
+            // Just arrived: Next Thing walks to it until the student has seen it once (batch-tab.js).
+            if (rowStatus(name) === "filled") (window.WIA.unseenAnswers ??= new Set()).add(name);
           }
         }
         for (const name of waiting) if (rowStatus(name) === "filled") waiting.delete(name);

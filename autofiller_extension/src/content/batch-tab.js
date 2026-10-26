@@ -44,6 +44,9 @@ window.WIA = window.WIA || {};
     const shownGuesses = (window.WIA.shownGuesses ??= new Set());
     /** A filled answer WorkIt guessed (the panel's "Guessed") that the walk hasn't shown the student yet. */
     const unchecked = (r) => !r.note && r.status === "filled" && r.source === "guessed" && !shownGuesses.has(r.key);
+    // The answers from the student's Claude that just arrived (written-answers.js), until the walk has shown them.
+    const unseenAnswers = (window.WIA.unseenAnswers ??= new Set());
+    const unseen = (r) => !r.note && r.status === "filled" && unseenAnswers.has(r.key);
     /** A row waiting for the student's Claude: nothing for them to fix yet, so the walk visits it last. */
     const onClaude = (r) => r.status === "needs_generation" && Boolean(r.claude);
 
@@ -82,7 +85,8 @@ window.WIA = window.WIA || {};
      * field stands on the page (notes and fields the page doesn't show last),
      * and `keys`, those of them that need the student, and the guesses the
      * walk hasn't shown them (a guess doesn't keep the tab from Ready:
-     * the walk shows it once, for the student to check); `late`, those of `keys`
+     * the walk shows it once, for the student to check), and the answers
+     * from their Claude that just arrived, also once; `late`, those of `keys`
      * waiting for their Claude, which the walk visits after everything else
      * in the batch. The walk places a row
      * it went to by `order`, so it goes on after it once the row is answered.
@@ -92,7 +96,7 @@ window.WIA = window.WIA || {};
       const rows = fields.map((r) => ({ key: r.key, field: fieldOf(r.key) }));
       const placed = rows.filter((r) => r.field).sort((a, b) => (a.field.compareDocumentPosition(b.field) & Node.DOCUMENT_POSITION_FOLLOWING ? -1 : 1));
       const order = [...placed, ...rows.filter((r) => !r.field)].map((r) => r.key);
-      const needing = new Set(fields.filter((r) => needsYou(r) || unchecked(r)).map((r) => r.key));
+      const needing = new Set(fields.filter((r) => needsYou(r) || unchecked(r) || unseen(r)).map((r) => r.key));
       const late = new Set(fields.filter(onClaude).map((r) => r.key));
       const keys = order.filter((key) => needing.has(key));
       return { order, keys, late: keys.filter((key) => late.has(key)) };
@@ -102,6 +106,7 @@ window.WIA = window.WIA || {};
     function show(key) {
       const row = status.summary().fields.find((r) => r.key === key);
       if (row && unchecked(row)) shownGuesses.add(key);
+      unseenAnswers.delete(key);
       const field = fieldOf(key);
       if (field) {
         field.scrollIntoView({ block: "center" });
