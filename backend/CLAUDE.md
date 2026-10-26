@@ -285,11 +285,15 @@ Find files with a directory listing; these are the rules for where code goes.
   **Problem reports from the extension's panel** (KAN-403,
   `routers/fill_reports.py`, table `fill_reports`): `POST /fill-reports`
   stores what the student previewed and sent (job system, the posting's
-  link with no query or fragment, Fill engine version, each failed field's
+  link, Fill engine version, each failed field's
   kind, label shape and error name, their note). The row names no
   account, though sending needs a sign-in. Every model forbids other keys
   and the label shape holds only letters, `#` and spaces, so an answer or
-  the page's text is refused (422), never stored. It feeds the team's
+  the page's text is refused (422), never stored. The link is http or
+  https with no sign-in in it and no fragment, and its query keeps only the
+  params that name the posting (`schemas/fill_reports.py` POSTING_PARAMS:
+  Greenhouse's embed `for` and `token`, `gh_jid`, `jobId` and the like),
+  each an id; any other param is refused. It feeds the team's
   engine repair loop; nothing reads it in the app. Tests:
   `tests/test_fill_reports.py`.
   **A student's writing samples and style card** (KAN-384) are

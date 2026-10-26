@@ -5,7 +5,9 @@ student previewed and pressed Send for.
 POST /fill-reports  {"job_system", "posting_url", "engine_version",
                      "fields": [{"kind", "label_shape", "error"}], "note"}
      Stores it and answers {"id"} (201). 422 for any key or value outside
-     that shape (app/schemas/fill_reports.py). Any signed-in account may
+     that shape (app/schemas/fill_reports.py): posting_url is http or
+     https with no sign-in or fragment, and its query only the params that
+     name the posting (POSTING_PARAMS). Any signed-in account may
      send one (sign-in keeps strangers from filling the table); the row
      names no account.
 """

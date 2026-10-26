@@ -2,13 +2,21 @@
 Every model forbids other keys, so an answer, a reason or the page's text
 is refused (422), never stored."""
 
+import re
 from typing import Literal
-from urllib.parse import urlsplit
+from urllib.parse import parse_qsl, urlsplit
 
 from pydantic import BaseModel, ConfigDict, Field, field_validator
 
 # The extension's error names (autofiller_extension/src/content/report.js ERRORS).
 ErrorName = Literal["Readback", "FillError", "Handoff", "NoForm", "NoAnswer", "Error"]
+
+# The query params a posting link keeps: the ones that say which posting the
+# page is (Greenhouse's embed ?for=<board>&token=<id>, a careers page's
+# ?gh_jid=, an ?jobId= or similar), each an id of letters, digits and . _ -.
+# Any other param (a tracking source, an email) is refused, never stored.
+POSTING_PARAMS = frozenset({"for", "token", "gh_jid", "jobId", "job_id", "jobid", "jobReqId", "career_job_req_id"})
+POSTING_ID = re.compile(r"[A-Za-z0-9._-]{1,100}")
 
 
 class FillReportField(BaseModel):
@@ -41,8 +49,15 @@ class FillReportRequest(BaseModel):
     @classmethod
     def _public_link(cls, value: str) -> str:
         parts = urlsplit(value)
-        if parts.scheme != "https" or not parts.netloc or parts.query or parts.fragment or "@" in parts.netloc:
-            raise ValueError("the posting's link, https with no query or fragment")
+        if parts.scheme not in ("http", "https") or not parts.netloc or parts.fragment or "@" in parts.netloc:
+            raise ValueError("the posting's link, http or https with no sign-in or fragment")
+        try:
+            params = parse_qsl(parts.query, keep_blank_values=True, strict_parsing=bool(parts.query))
+        except ValueError:
+            raise ValueError("the posting link's query is not key=value pairs") from None
+        for key, param in params:
+            if key not in POSTING_PARAMS or not POSTING_ID.fullmatch(param):
+                raise ValueError(f"the posting's link keeps only the params naming the posting ({key!r} isn't one)")
         return value
 
 
