@@ -60,8 +60,6 @@ export function TailorScreen({ jobId, title }: { jobId: string; title: string })
   const [source, setSource] = useState<TailorSource | null>(null);
   const [match, setMatch] = useState<TailorMatch | null>(null);
   const [picked, setPicked] = useState<Set<string>>(new Set());
-  // Add All only picks every missing keyword; unpicking one after keeps the label
-  const [addedAll, setAddedAll] = useState(false);
   const [reading, setReading] = useState(false);
   const [running, setRunning] = useState(false);
   const [phase, setPhase] = useState<string>(PHASE.retrieving);
@@ -111,7 +109,6 @@ export function TailorScreen({ jobId, title }: { jobId: string; title: string })
     setSource(next);
     setMatch(data);
     setPicked(new Set());
-    setAddedAll(false);
   }
 
   async function uploaded(id: string) {
@@ -238,45 +235,12 @@ export function TailorScreen({ jobId, title }: { jobId: string; title: string })
           </div>
           <KeywordList label="Matched" keywords={match.matched} />
           {match.missing.length > 0 && (
-            <div className="mt-3">
-              <div className="flex flex-wrap items-baseline gap-x-3 gap-y-1">
-                <p className="text-note text-ink-meta">Missing: choose which skills to add</p>
-                <Button
-                  variant="link"
-                  size="inline"
-                  onClick={() => {
-                    setPicked(new Set(match.missing.map((k) => k.keyword)));
-                    setAddedAll(true);
-                  }}
-                >
-                  {addedAll ? "Added All" : "Add All"}
-                </Button>
-              </div>
-              <ul role="list" className="mt-2 flex flex-wrap gap-2">
-                {match.missing.map((k) => (
-                  <li key={k.keyword}>
-                    <Chip
-                      pressed={picked.has(k.keyword)}
-                      onClick={() => toggle(k.keyword)}
-                      className="gap-2"
-                    >
-                      <span
-                        aria-hidden="true"
-                        className={`flex size-4 shrink-0 items-center justify-center rounded-[4px] border ${
-                          picked.has(k.keyword)
-                            ? "border-brand bg-brand text-on-brand"
-                            : "border-ink-meta bg-panel text-transparent"
-                        }`}
-                      >
-                        <CheckIcon className="size-3" />
-                      </span>
-                      {k.keyword}
-                      {k.kind === "required" && <span className="sr-only"> (required)</span>}
-                    </Chip>
-                  </li>
-                ))}
-              </ul>
-            </div>
+            <MissingKeywords
+              missing={match.missing}
+              picked={picked}
+              onToggle={toggle}
+              onSet={setPicked}
+            />
           )}
           <Button className="mt-4" onClick={run} disabled={running}>
             <SparkleIcon /> <span aria-live="polite">{running ? phase : "Tailor Resume"}</span>
@@ -292,6 +256,105 @@ const toSource = (choice: Choice): TailorSource =>
   "builtResumeId" in choice.source
     ? { built_resume_id: choice.source.builtResumeId }
     : { uploaded_resume_id: choice.source.uploadedResumeId };
+
+/**
+ * The missing keywords the student picks to add (KAN-408): required ones
+ * first, under their own label, then the preferred. Picking one says the
+ * student has it: the run adds it to this resume's skills, and the truth
+ * rule then lets a rewording name it (`tailor.known`), so the note says so
+ * and Add All asks first, on its own line, as Delete does on Resumes
+ * (`DeleteConfirm`). Its label follows the picks: Clear All once every
+ * keyword is picked. "(required)" was for screen readers only, and Add All
+ * ticked every keyword at once, then read "Added All" even after one was
+ * unticked.
+ */
+function MissingKeywords({
+  missing,
+  picked,
+  onToggle,
+  onSet,
+}: {
+  missing: Keyword[];
+  picked: Set<string>;
+  onToggle: (keyword: string) => void;
+  onSet: (next: Set<string>) => void;
+}) {
+  const [confirming, setConfirming] = useState(false);
+  const all = missing.every((k) => picked.has(k.keyword));
+  const groups = [
+    { label: "Required", keywords: missing.filter((k) => k.kind === "required") },
+    { label: "Preferred", keywords: missing.filter((k) => k.kind !== "required") },
+  ].filter((group) => group.keywords.length > 0);
+
+  return (
+    <div className="mt-3">
+      <div className="flex flex-wrap items-baseline gap-x-3 gap-y-1">
+        <p className="text-label text-ink">Missing: Choose Which Skills to Add</p>
+        <Button
+          variant="link"
+          size="inline"
+          disabled={confirming}
+          onClick={() => (all ? onSet(new Set()) : setConfirming(true))}
+        >
+          {all ? "Clear All" : "Add All"}
+        </Button>
+      </div>
+      <p className="text-note text-ink-muted mt-1">
+        Pick only skills you have used. WorkIt adds each one to this resume&apos;s skills, and its
+        rewrites may name it in your bullets.
+      </p>
+      {confirming && (
+        <div className="mt-2 flex flex-wrap items-center gap-x-3 gap-y-2">
+          <span className="text-note text-ink-muted">
+            Add all {missing.length}? Do this only if you have used every one.
+          </span>
+          <div className="flex gap-2">
+            <Button
+              size="sm"
+              onClick={() => {
+                onSet(new Set(missing.map((k) => k.keyword)));
+                setConfirming(false);
+              }}
+            >
+              Add All {missing.length}
+            </Button>
+            <Button size="sm" variant="secondary" onClick={() => setConfirming(false)}>
+              Cancel
+            </Button>
+          </div>
+        </div>
+      )}
+      {groups.map((group) => (
+        <div key={group.label} className="mt-3">
+          <p className="text-note text-ink-meta">{group.label}</p>
+          <ul role="list" aria-label={group.label} className="mt-1 flex flex-wrap gap-2">
+            {group.keywords.map((k) => (
+              <li key={k.keyword}>
+                <Chip
+                  pressed={picked.has(k.keyword)}
+                  onClick={() => onToggle(k.keyword)}
+                  className="gap-2"
+                >
+                  <span
+                    aria-hidden="true"
+                    className={`flex size-4 shrink-0 items-center justify-center rounded-[4px] border ${
+                      picked.has(k.keyword)
+                        ? "border-brand bg-brand text-on-brand"
+                        : "border-ink-meta bg-panel text-transparent"
+                    }`}
+                  >
+                    <CheckIcon className="size-3" />
+                  </span>
+                  {k.keyword}
+                </Chip>
+              </li>
+            ))}
+          </ul>
+        </div>
+      ))}
+    </div>
+  );
+}
 
 function MatchCount({ matched, missing }: { matched: Keyword[]; missing: Keyword[] }) {
   const total = matched.length + missing.length;
