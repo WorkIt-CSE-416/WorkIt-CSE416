@@ -271,6 +271,9 @@ Find files with a directory listing; these are the rules for where code goes.
   and by the student's own words, and the Written Answers page lists it
   with the answer (`GET .../written-answers`, `pipeline.answered_questions`).
   Tests: `tests/test_named_fact.py`.
+  **Each listed answer carries `answered_at`** (KAN-369), when it was last
+  saved: the page marks the student's own answers (captured from a form)
+  New by it until they have seen them. Tests: `tests/test_captured_answers.py`.
   **A student's writing samples and style card** (KAN-384) are
   `queries/writing.py`, behind `routers/writing_samples.py` (the student's
   add, replace, remove) and the connector's tools (their Claude reads the

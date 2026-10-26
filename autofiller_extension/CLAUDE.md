@@ -566,6 +566,19 @@ waits for an opened tab's page and form (`waitForLoad`, `formShows`).
   `test/write-early.spec.ts` (the read, no page) and
   `test/write-early.extension.spec.ts` (Workday: a step's own words, an
   edit of Claude's answer on the next page, and a step drawn in the page).
+- **The student is told what was captured** (KAN-369,
+  `src/content/captured-notice.js`, a part above the panel's list): once
+  their own words are saved (only `own: true`, never an edit of WorkIt's
+  fill), the panel says "Saved N new answers for later forms." (N counts
+  questions, not saves) with **Review**, which opens the webapp's Written
+  Answers page in a new tab (`batch/answers-page`), where each is marked
+  New, and **Undo**, which takes every one back (`batch/own-answer-undo`;
+  the field keeps the words, the question stays for their Claude) and
+  says "Not saved. Later forms won't fill it." A question taken back is not
+  saved again on this page (keepOwn asks `capturedNotice.undone`). No
+  question is asked before a save; structured fields (profile facts) are
+  still saved only through a click (the Guessed card's Save for next time).
+  Test: `test/connector.extension.spec.ts` (typed into Harvey's form).
 - **A written question's limit comes from the Fill engine** (KAN-380).
   `planFill` passes the Question set through the engine's `limits`, which
   reads each text field's own `maxlength` on the page, and `planRows`

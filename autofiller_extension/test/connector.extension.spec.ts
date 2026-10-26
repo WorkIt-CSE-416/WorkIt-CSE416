@@ -116,3 +116,39 @@ test("a follow-up its parent's answer from Claude doesn't call for stops waiting
   await expect(row(form, FOLLOW_UP)).toContainText("Not needed");
   expect(forms.submissions).toEqual([]);
 });
+
+test("the student's words typed into a form are saved with a notice: Review opens Written Answers, Undo takes them back", async () => {
+  test.setTimeout(120_000);
+  const forms = new SavedForms([HARVEY]);
+  const api = new FakeApi().queue({ id: "job-0", apply_url: forms.url(HARVEY) });
+  await start(api, forms);
+  await expect.poll(() => api.written.get("job-0")?.length, { timeout: 60_000 }).toBe(3);
+  const name = api.written.get("job-0")![0].name;
+  const form = loaded.context.pages().find((p) => p.url().startsWith(forms.url(HARVEY)))!;
+  await expect(row(form, WHY)).toContainText("Waiting for your Claude");
+
+  // Saved as they type, with no question first, and the panel says so once.
+  await box(form, name).fill("My own words.");
+  await expect.poll(() => api.own, { timeout: 15_000 }).toEqual([{ jobId: "job-0", name, label: WHY, answer: "My own words.", own: true }]);
+  const notice = form.locator(".captured");
+  await expect(notice).toContainText("Saved 1 new answer for later forms.");
+  // More typing in the same answer is the same answer, not a second one.
+  await box(form, name).fill("My own words, and more of them.");
+  await expect.poll(() => api.own.length, { timeout: 15_000 }).toBe(2);
+  await expect(notice).toContainText("Saved 1 new answer for later forms.");
+
+  // Review opens Written Answers, where it is marked New.
+  const opened = loaded.context.waitForEvent("page");
+  await notice.getByRole("button", { name: "Review" }).click();
+  expect((await opened).url()).toBe("http://localhost:3000/auto-apply/answers");
+
+  // Undo takes it back; the field keeps the student's words, and later typing isn't saved again on this page.
+  await notice.getByRole("button", { name: "Undo" }).click();
+  await expect.poll(() => api.undone).toEqual([{ jobId: "job-0", name }]);
+  await expect(notice).toContainText("Not saved. Later forms won't fill it.");
+  await box(form, name).fill("Still my own words.");
+  await form.waitForTimeout(4_000);
+  expect(api.own.length).toBe(2);
+  await expect(box(form, name)).toHaveValue("Still my own words.");
+  expect(forms.submissions).toEqual([]);
+});

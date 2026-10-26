@@ -52,6 +52,8 @@ export type AnsweredQuestion = {
   /** The student's own words, not their Claude's. */
   own: boolean;
   named_fact: NamedFact | null;
+  /** When it was last saved (ISO), by which the page marks the student's own answers New (./new-answers.ts). */
+  answered_at: string | null;
 };
 
 /** One application's answered written questions, newest application first. */
