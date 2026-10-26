@@ -115,6 +115,8 @@ window.WIA = window.WIA || {};
       .moment [data-secondary]:hover { background: var(--color-hover); }
       .moment button:focus-visible, .moment a:focus-visible, .moment select:focus-visible { outline: 2px solid var(--color-brand); outline-offset: 2px; }
       .moment .error { color: var(--color-danger); }
+      .moment ul { margin: 0 0 8px; padding-left: 16px; font-size: var(--text-note); color: var(--color-ink-muted); }
+      .moment li span { color: var(--color-ink-meta); }
       .list { overflow-y: auto; padding: 4px 0; }
       .row {
         display: flex; align-items: flex-start; gap: 8px; padding: 6px 12px;
@@ -517,5 +519,5 @@ window.WIA = window.WIA || {};
     root = null;
   }
 
-  window.WIA.overlay = { mount, unmount, promptForEssays, offerNext, setCurrent, askSelfId, offerClaude, askSamples, askWorkdayAccounts, CLAUDE_TRIGGER };
+  window.WIA.overlay = { mount, unmount, promptForEssays, offerNext, setCurrent, askSelfId, offerClaude, askSamples, askWorkdayAccounts, momentCard, CLAUDE_TRIGGER };
 })();
