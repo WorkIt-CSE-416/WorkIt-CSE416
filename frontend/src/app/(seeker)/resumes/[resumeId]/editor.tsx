@@ -50,6 +50,7 @@ import {
   lineOf,
   move,
   pageLabel,
+  tray,
   typed,
   wording,
   type Header,
@@ -73,7 +74,7 @@ import {
   untouched,
   useTailorReview,
 } from "./tailor-review";
-import { Tray } from "./tray";
+import { Tray, TrayDialog } from "./tray";
 
 /**
  * The desktop editor (KAN-218): the built resume's own PDF, edited on the
@@ -193,10 +194,11 @@ export function Editor({
    *  only there are changes tinted: a mark with no card to act on would
    *  mean nothing. */
   suggestions?: (api: SuggestionsApi) => ReactNode;
-  /** The slim toolbar (Tailor's review), over the page, with the column
-   *  beside it starting level: Undo and Redo, the page count as a warning
-   *  chip that offers Fit to One Page, and the Suggestions or Original
-   *  switch (`SlimBar`). The editor's own page keeps the full bar. */
+  /** Tailor's review layout: the title row over the page and the column
+   *  beside it, with the Suggestions or Original switch at its right
+   *  (`SideSwitch`), then the slim toolbar over the page (`SlimBar`: Undo
+   *  and Redo, and the page count as a warning chip that offers Fit to One
+   *  Page). The editor's own page keeps the full bar. */
   compact?: boolean;
   /** A title over the page (Tailor's `ResumeTitle`); over the page and the
    *  column beside it when `compact`. */
@@ -271,6 +273,8 @@ export function Editor({
   // Suggestions panel, the original resume, or nothing, when the page
   // takes the room
   const [side, setSide] = useState<"suggestions" | "original" | null>("suggestions");
+  // Tailor's "Not on This Resume", a modal from the slim toolbar
+  const [trayOpen, setTrayOpen] = useState(false);
 
   /** Starts a request; the returned check stays true while it is the latest. */
   const begin = useCallback(() => {
@@ -753,16 +757,16 @@ export function Editor({
       onFit={fit}
       onUndoFit={undoFit}
       onAsk={asking ? undefined : () => setAsking(true)}
-      review={
-        reviewing && {
-          count: suggestionCount,
-          side,
-          onSide: showSide,
-          hasOriginal: Boolean(original),
-        }
-      }
+      hidden={tray(bank, choices).length}
+      onShowHidden={() => setTrayOpen(true)}
     />
   );
+  const reviewTools: ReviewTools | null = reviewing && {
+    count: suggestionCount,
+    side,
+    onSide: showSide,
+    hasOriginal: Boolean(original),
+  };
   // The column beside the page sticks level with the toolbar over the page
   const sideColumn =
     "overflow-y-auto overscroll-contain @4xl/main:sticky @4xl/main:top-2 @4xl/main:max-h-[calc(100dvh-8rem)]";
@@ -812,7 +816,9 @@ export function Editor({
           ))}
         </div>
         {/* Putting an item back renders again, so it waits for the first. */}
-        {rendered && <Tray bank={bank} choices={choices} onPutBack={apply} />}
+        {/* On Tailor's slim layout it is a modal from the toolbar: under a
+            two-page resume nobody scrolled to it */}
+        {rendered && !compact && <Tray bank={bank} choices={choices} onPutBack={apply} />}
       </div>
       {/* Kept mounted while closed, so the chat survives closing it */}
       <div
@@ -843,15 +849,29 @@ export function Editor({
       {/* The original beside the page; under it on a narrow screen */}
       {shownOriginal && !asking && <div className={sideColumn}>{shownOriginal}</div>}
       {fitToast}
+      {compact && (
+        <TrayDialog
+          open={trayOpen}
+          onOpenChange={setTrayOpen}
+          bank={bank}
+          choices={choices}
+          saving={saving}
+          onPutBack={apply}
+        />
+      )}
     </div>
   );
   if (!compact) return grid;
   // The title spans the page and the column beside it, so the column starts
-  // level with the toolbar. The toolbar spanned both too for a day, which
+  // level with the toolbar, and the view switch sits at its right end over
+  // the column it changes. The toolbar spanned both too for a day, which
   // put the panel under it, apart from the page it reviews
   return (
     <div className="mt-4 flex flex-col gap-3">
-      {heading}
+      <div className="flex flex-wrap items-center gap-x-4 gap-y-2">
+        <div className="min-w-0 flex-1">{heading}</div>
+        {reviewTools && <SideSwitch review={reviewTools} />}
+      </div>
       {grid}
     </div>
   );
@@ -886,7 +906,8 @@ function Bar({
   onFit,
   onUndoFit,
   onAsk,
-  review,
+  hidden,
+  onShowHidden,
 }: {
   /** The slim row (Tailor's review), see `Editor`'s `compact`. */
   compact: boolean;
@@ -910,8 +931,10 @@ function Bar({
   onUndoFit: () => void;
   /** Opens the assistant; absent while it is open. */
   onAsk?: () => void;
-  /** Tailor's review tools on the slim bar: Suggestions and View Original. */
-  review?: ReviewTools | null;
+  /** How many items are not on this resume, and the slim bar's way to
+   *  them (Tailor's "Not on This Resume" modal). */
+  hidden: number;
+  onShowHidden: () => void;
 }) {
   if (compact) {
     return (
@@ -920,9 +943,11 @@ function Bar({
         saving={saving}
         elapsed={elapsed}
         fitUndo={fitUndo}
+        download={download}
+        hidden={hidden}
+        onShowHidden={onShowHidden}
         onFit={onFit}
         onUndoFit={onUndoFit}
-        review={review}
         editing={
           line &&
           box && (
@@ -1060,45 +1085,46 @@ function History() {
 
 /**
  * The slim bar (Tailor's review), over the page with the column beside it
- * starting level, its tools grouped by what they act on. At the left, the
- * page: Undo and Redo (`History`), then, idle, the page count as a chip
- * that offers Fit to One Page (over one page only) and Undo Fit after a
- * fit. No "Click a line to edit it." hint: the pointer's own highlight on
- * a line says so, and the hint was one more thing in a full row. At the
- * right, what sits beside the page:
- * one switch, Suggestions (with its count) or Original, and pressing the
- * chosen one again leaves the page alone; they were two buttons, which
- * read as two separate actions though only one can show. Editing a line
- * (`editing`): its kind, its moves first, then Hide and the line's own
- * choices, and "Esc when done" in place of a Done button, since Escape or
- * a click off the page already saves and closes.
+ * starting level, holding only tools for the page: Undo and Redo
+ * (`History`), then, idle, the page count as a chip that offers Fit to One
+ * Page (over one page only) and Undo Fit after a fit, and at the right Not
+ * on This Resume with its count (a modal, `TrayDialog`) and Download in the
+ * brand fill. No "Click a line to edit it." hint: the pointer's own
+ * highlight on a line says so. The view switch (Suggestions or Original)
+ * sat at this bar's right until it moved to the title row (`SideSwitch`):
+ * it changes what is shown, not the page. Editing a line (`editing`): its
+ * kind, its moves first, then Hide and the line's own choices, and "Esc
+ * when done" in place of a Done button, since Escape or a click off the
+ * page already saves and closes.
  *
- * Download and Finish are the review's ways out, so they sit in the page's
- * top row (`TailorReviewBar`), not here; with Download, View Original and
- * Suggestions all here the bar wrapped to two rows beside the panel. No
- * Ask Scout here: the panel holds the column the assistant would open in,
- * and a second AI entry beside it split the page's attention. The bar
- * spanned the page and the panel for a day, which put the panel under it,
- * apart from the page; the panel folded to a rail of its own (») until the
- * user found it dated.
+ * Download sat in the page's top row beside Finish for a day; the user
+ * wanted it back with the page's tools. No Ask Scout here: the panel holds
+ * the column the assistant would open in, and a second AI entry beside it
+ * split the page's attention. The bar spanned the page and the panel for a
+ * day, which put the panel under it, apart from the page; the panel folded
+ * to a rail of its own (») until the user found it dated.
  */
 function SlimBar({
   rendered,
   saving,
   elapsed,
   fitUndo,
+  download,
+  hidden,
+  onShowHidden,
   onFit,
   onUndoFit,
-  review,
   editing,
 }: {
   rendered: RenderedPdf | null;
   saving: boolean;
   elapsed: number | null;
   fitUndo: ChoicesUpdate | null;
+  download: ResumeDownload;
+  hidden: number;
+  onShowHidden: () => void;
   onFit: () => void;
   onUndoFit: () => void;
-  review?: ReviewTools | null;
   /** The open line's label and actions, or nothing while idle. */
   editing: ReactNode;
 }) {
@@ -1146,31 +1172,51 @@ function SlimBar({
       )}
       <div className="ml-auto flex shrink-0 items-center gap-2">
         {status}
-        {review && (
-          <SegmentedToggle
-            label="Beside the resume"
-            value={review.side}
-            onValueChange={(to) => review.onSide(to as "suggestions" | "original")}
-            onClear={() => review.onSide(null)}
-            options={[
-              {
-                value: "suggestions",
-                ariaLabel: `Suggestions, ${review.count}`,
-                label: (
-                  <>
-                    Suggestions
-                    <span className="bg-brand text-on-brand flex h-4.5 min-w-4.5 items-center justify-center rounded-full px-1 text-xs font-semibold tabular-nums">
-                      {review.count}
-                    </span>
-                  </>
-                ),
-              },
-              ...(review.hasOriginal ? [{ value: "original", label: "Original" }] : []),
-            ]}
-          />
+        {hidden > 0 && (
+          <Button variant="secondary" size="sm" onClick={onShowHidden}>
+            <EyeSlashIcon aria-hidden /> Not on This Resume
+            <span className="bg-ink/5 text-ink-muted flex h-5 min-w-5 items-center justify-center rounded-full px-1.5 text-xs font-semibold tabular-nums">
+              {hidden}
+            </span>
+          </Button>
         )}
+        <DownloadMenu download={download} primary />
       </div>
     </div>
+  );
+}
+
+/**
+ * What sits beside the page on Tailor's review, at the right end of the
+ * resume's title row, over the column it changes: one switch, Suggestions
+ * (with its count) or Original, and a press on the chosen one leaves the
+ * page alone at full width (`SegmentedToggle`'s `onClear`). It is a view
+ * of the page, not a tool for it, so it left the toolbar (2026-10-26),
+ * which keeps only what edits the page.
+ */
+function SideSwitch({ review }: { review: ReviewTools }) {
+  return (
+    <SegmentedToggle
+      label="Beside the resume"
+      value={review.side}
+      onValueChange={(to) => review.onSide(to as "suggestions" | "original")}
+      onClear={() => review.onSide(null)}
+      options={[
+        {
+          value: "suggestions",
+          ariaLabel: `Suggestions, ${review.count}`,
+          label: (
+            <>
+              Suggestions
+              <span className="bg-brand text-on-brand flex h-4.5 min-w-4.5 items-center justify-center rounded-full px-1 text-xs font-semibold tabular-nums">
+                {review.count}
+              </span>
+            </>
+          ),
+        },
+        ...(review.hasOriginal ? [{ value: "original", label: "Original" }] : []),
+      ]}
+    />
   );
 }
 

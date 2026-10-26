@@ -230,29 +230,37 @@ after Quinncia's resume review (2026-10-26): everything had the same
 weight.
 
 - **The page's top row**: Back at the left, the flow and its step in the
-  middle ("Tailor Resume", "Step 3 of 3 · Review Changes"), and the two
-  ways out at the right: Download (secondary, `TailorDownload`) and Finish
-  (the row's one filled button), which leaves for the job posting's page,
-  where the student applies. Every change is saved as it is made, so
+  middle ("Tailor Resume", "Step 3 of 3 · Review Changes"), and Finish at
+  the right, which leaves for the job posting's page, where the student
+  applies. Download sat beside Finish for a day; it is back on the
+  toolbar with the page's tools. Every change is saved as it is made, so
   Finish saves nothing, and suggestions not handled stay as the run made
   them. There was no Finish until 2026-10-26, so the review had no end.
-- **Under it, the resume's name**, spanning the page and the panel, then
-  two columns that start level: the toolbar and the page, and beside them
-  the panel, "Suggestions" with its count in a filled pill at its top. The name renames in place (`ResumeTitle`): it
+- **Under it, the resume's name**, spanning the page and the panel, with
+  the view switch at its right end over the column it changes: one
+  switch, Suggestions (with its count) or Original (`SideSwitch`, on
+  `SegmentedToggle`, whose `onClear` lets a press on the chosen one leave
+  the page alone). It sat in the toolbar until 2026-10-26; it changes
+  what is shown, not the page, so it left. Then two columns that start
+  level: the toolbar and the page, and beside them the panel,
+  "Suggestions" with its count in a filled pill at its top. The name renames in place (`ResumeTitle`): it
   reads as text, shows a faint outline and a pencil when pointed at, and a
   click makes it a field in the same box; Enter or a click away saves
   (`renameBuiltResume`), Esc cancels. They were grey small capitals
   ("RESUME · <name>", "SUGGESTIONS · 6") until the user found them muted.
   The job's logo, title and company beside Back crowded the top row.
-- **The toolbar groups its tools by what they act on**: the editor's
-  slim row (`compact`), one row over the page. At the left, the page:
-  Undo and Redo, UI only for now (the editor keeps no history yet, so
-  both stay disabled, 2026-10-26), then the page count as an amber chip
-  with a warning sign and a caret ("⚠ 2 pages ⌄", over one page only),
-  which reads as a problem to open and offers Fit to One Page, and Undo
-  Fit after a fit. At the right, what sits beside the page: one switch,
-  Suggestions (with its count) or Original (`SegmentedToggle`, whose
-  `onClear` lets a press on the chosen one leave the page alone). Two
+- **The toolbar holds only tools for the page**: the editor's slim row
+  (`compact`), one row over the page. At the left, Undo and Redo, UI only
+  for now (the editor keeps no history yet, so both stay disabled,
+  2026-10-26), then the page count as an amber chip with a warning sign
+  and a caret ("⚠ 2 pages ⌄", over one page only), which reads as a
+  problem to open and offers Fit to One Page, and Undo Fit after a fit.
+  At the right, Not on This Resume with its count, which opens a modal
+  (`TrayDialog`: the items in Entries, Bullets and Skills, each a row
+  with Add, the modal staying open so several come back in a row), and
+  Download in the brand fill. "Not on This Resume" sat under the page,
+  below a two-page resume, where nobody scrolled to it; the editor's own
+  page keeps it there. Two
   rows were weighed and refused: the toolbar sticks over the page, so a
   second row hides more resume as it scrolls. Before this the toolbar
   held View Original, Suggestions and Download as three buttons and

@@ -18,7 +18,6 @@ import { Fact } from "@/components/ui/fact";
 import type { JobListing } from "../../listings";
 import { toPosting } from "../../to-posting";
 import { BackToJobs } from "../page-actions";
-import { TailorDownload } from "./tailor-download";
 import { TAILOR_STEPS } from "./tailor-steps";
 
 /**
@@ -109,9 +108,9 @@ function TailorJobCard({ job }: { job: JobListing }) {
  * The review step's whole header (./page.tsx), one slim row so the resume
  * starts near the top, in three parts: Back (the job page's `BackToJobs`),
  * the flow and its step in the middle ("Tailor Resume", "Step 3 of 3 ·
- * Review Changes"), and the two ways out of the review at the right:
- * Download (`TailorDownload`) and Finish, which leaves for the job
- * posting's page, where the student applies. Every change is saved as it is made, so
+ * Review Changes"), and Finish at the right, which leaves for the job
+ * posting's page, where the student applies. Download sat beside Finish
+ * for a day; it is back on the editor's toolbar, with the page's tools. Every change is saved as it is made, so
  * Finish saves nothing; suggestions not yet handled stay as the run made
  * them. The page's h1 names the job for screen readers only; on screen the
  * resume's own title (`ResumeTitle`, under this row) leads. Until
@@ -121,7 +120,7 @@ function TailorJobCard({ job }: { job: JobListing }) {
  * job's logo and "Title · Company" beside Back, which crowded it; then
  * Back and "Step 3 of 3" alone, with no way to say the review was done.
  */
-export function TailorReviewBar({ job, resumeId }: { job: JobListing; resumeId: string }) {
+export function TailorReviewBar({ job }: { job: JobListing }) {
   const last = TAILOR_STEPS[TAILOR_STEPS.length - 1];
   return (
     <div className="grid grid-cols-[1fr_auto_1fr] items-center gap-3">
@@ -135,12 +134,13 @@ export function TailorReviewBar({ job, resumeId }: { job: JobListing; resumeId: 
           Step {TAILOR_STEPS.length} of {TAILOR_STEPS.length} · {last.label}
         </p>
       </div>
-      <div className="flex items-center gap-2 justify-self-end">
-        <TailorDownload resumeId={resumeId} />
-        <ButtonLink href={`/jobs/${encodeURIComponent(job.id)}`} size="sm">
-          <CheckIcon aria-hidden className="size-4" /> Finish
-        </ButtonLink>
-      </div>
+      <ButtonLink
+        href={`/jobs/${encodeURIComponent(job.id)}`}
+        size="sm"
+        className="justify-self-end"
+      >
+        <CheckIcon aria-hidden className="size-4" /> Finish
+      </ButtonLink>
     </div>
   );
 }

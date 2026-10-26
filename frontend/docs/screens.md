@@ -1671,8 +1671,7 @@ with no proposals to accept and no Done (2026-10-25).
 - **The review step's header is one slim row** (`TailorReviewBar`,
   2026-10-26), so the resume starts near the top: Back (`BackToJobs`),
   "Tailor Resume" over "Step 3 of 3 · Review Changes" in the middle, and
-  Download (secondary) and Finish (filled, to the job posting's page) at
-  the right. The page's h1, "Tailor for
+  Finish (filled, to the job posting's page) at the right. The page's h1, "Tailor for
   <title> at <company>", is for screen readers only. Under it the
   resume's name leads, renamed in place (`ResumeTitle`, below). The step
   had the pick steps' Back, the resume's name as a big title, a line, the
@@ -1768,14 +1767,16 @@ with no proposals to accept and no Done (2026-10-25).
   filled pill over a 360px panel in the brand tint (the editor's bar's
   colour) of white sections that sticks beside the page, its top fixed
   and its sections scrolling under it. The
-  toolbar is one row grouped by what each tool acts on: at the left Undo
-  and Redo (UI only for now, disabled) and, idle, the page count when over
-  one page as an amber chip with a warning sign and a caret (its click
-  offers Fit to One Page); at the right one switch, Suggestions (with its
-  count) or Original, which sets the source resume beside the tailored
-  one at one width in place of the panel; a press on the chosen one
-  leaves the page alone at full width. Download and Finish sit in the
-  top row; while a line is open, its moves, Hide and its choices with "Esc
+  resume's name row holds the view switch at its right, Suggestions
+  (with its count) or Original, which sets the source resume beside the
+  tailored one at one width in place of the panel; a press on the chosen
+  one leaves the page alone at full width. The toolbar holds only tools
+  for the page: at the left Undo and Redo (UI only for now, disabled)
+  and, idle, the page count when over one page as an amber chip with a
+  warning sign and a caret (its click offers Fit to One Page); at the
+  right Not on This Resume with its count, which opens a modal of the
+  hidden items in Entries, Bullets and Skills, each with Add, and
+  Download in the brand fill; while a line is open, its moves, Hide and its choices with "Esc
   when done"; no Ask Scout and no Done. Each changed line has a small
   purple dot in the page's margin and is highlighted (its tint, a 1px dark
   border, rounded, after Quinncia) only while its suggestion is pointed
@@ -2089,8 +2090,9 @@ student who opened a resume from Experiences landed on another view.
   (`advanced`), an entry's bullets in a new order amber (`warning-fill`,
   bordered in `warning-strong`). The same page passes `compact`, the slim
   toolbar: Undo and Redo (disabled, UI only); idle, a "⚠ 2 pages" chip
-  whose popover offers Fit to One Page and the Suggestions or Original
-  switch, with no hint and no Download (Tailor's top row has it); editing
+  whose popover offers Fit to One Page, Not on This Resume (a modal,
+  `TrayDialog`, in place of the list under the page) and Download in the
+  brand fill (`DownloadMenu`'s `primary`), with no hint; editing
   a line, its moves first (`LineActions`' `movesFirst`),
   Hide and its choices, and "Esc when done" for Done. It has no Ask Scout.
   It also passes `heading`, the label over the page's column; the
@@ -2133,7 +2135,8 @@ student who opened a resume from Experiences landed on another view.
   re-rendering until the page fits and putting back what it did not need
   (`backend/CLAUDE.md`). It never cuts Education, Skills, an entry's first
   bullet, or the top Experience and Projects entry.
-- **"Not on This Resume"** (`tray.tsx`) under the page: entries the resume
+- **"Not on This Resume"** (`tray.tsx`) under the page (on Tailor's
+  review, a modal from the toolbar instead): entries the resume
   does not show (hidden, or added to the bank after Generate), hidden
   bullets of shown entries, and hidden skills. One click puts one back; an
   entry joins the end of its section with its bullets.
