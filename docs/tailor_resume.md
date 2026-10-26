@@ -229,8 +229,15 @@ panel with every card open and every line tinted was then made quiet
 after Quinncia's resume review (2026-10-26): everything had the same
 weight.
 
-- **Two quiet columns** under small capitals: "Resume · <name>" over the
-  page and "Suggestions · 6" over the panel. The editor's toolbar is its
+- **Two columns under one line of titles**: the resume's name over the
+  page and "Suggestions" with its count in a filled pill over the panel,
+  both at subtitle size. The name renames in place (`ResumeTitle`): it
+  reads as text, shows a faint outline and a pencil when pointed at, and a
+  click makes it a field in the same box; Enter or a click away saves
+  (`renameBuiltResume`), Esc cancels. They were grey small capitals
+  ("RESUME · <name>", "SUGGESTIONS · 6") until the user found them muted.
+  The page bar over both holds only Back and "Step 3 of 3": the job's
+  logo, title and company beside Back crowded it. The editor's toolbar is its
   slim row here (`compact`), in two states with only what each needs.
   Idle: the page count as a chip ("2 pages", over one page only) whose
   click offers Fit to One Page, Undo after a fit, "Click a line to edit
@@ -254,12 +261,18 @@ weight.
   View Original opens the source resume (the record's `source`) read-only
   in step 1's Preview dialog (`ResumePreviewDialog`), titled "Original
   Resume" since the record keeps the source's id, not its name.
-- **A grey panel of white cards.** The panel is a grey card (`app`), so
-  its white cards stand apart from the white resume; the cards have no
-  outline and lift (`shadow-lift`) while pointed at or open. On a phone the
-  sheet is white and the cards grey. Reject is the danger tint with red
-  text (Button `decline`) and Accept the green fill (`positive`), so the
-  two read apart at a glance.
+- **A brand-tint panel of white cards.** The panel is the brand tint with
+  its pale ring, the editor's bar's colour, so the two read as one review
+  and its white cards stand apart; it was grey (`app`) until the user
+  found it muted. The cards have no outline and lift (`shadow-lift`) while
+  pointed at or open. On a phone the sheet is white and the cards grey.
+  Reject is the danger tint with red text (Button `decline`) and Accept
+  the green fill (`positive`), so the two read apart at a glance.
+- **The panel folds** beside the page: » folds it to a 56px rail with the
+  count and "Suggestions" set upright, and the page widens into the room;
+  « opens it. Focus moves to the other toggle each time. A phone's sheet
+  never folds. The fold lives in the editor's state (`panelCollapsed`),
+  since the editor owns the grid.
 - **Cards fold in groups**, Wording, Order and Skills, each with its
   count, open at first only with three cards or fewer. A closed card shows
   its number and one line: the new wording, the entry reordered, or the

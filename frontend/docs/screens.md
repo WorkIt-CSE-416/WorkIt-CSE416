@@ -1669,14 +1669,15 @@ with no proposals to accept and no Done (2026-10-25).
   inside the picker card until 2026-10-26, as the card's heading and a
   paragraph; the user wanted the card to hold the list alone.
 - **The review step's header is one slim row** (`TailorReviewBar`,
-  2026-10-26), so the resume starts near the top: Back (`BackToJobs`), the
-  employer's small logo, "Software Engineer Intern · Schweitzer
-  Engineering Laboratories" (title, then company, cut to one line) and
-  "Step 3 of 3" at the right. The job title is the page's one h1, set
-  small. The step had the pick steps' Back, the resume's name as a big
-  title, a line, the job card and the timeline, about 300px over the
-  resume, which the user found overwhelming (Quinncia's slim bar was the
-  model). The review names the resume itself.
+  2026-10-26), so the resume starts near the top: Back (`BackToJobs`) and
+  "Step 3 of 3" at the right, nothing else. The page's h1, "Tailor for
+  <title> at <company>", is for screen readers only. Under it the
+  resume's name leads, renamed in place (`ResumeTitle`, below). The step
+  had the pick steps' Back, the resume's name as a big title, a line, the
+  job card and the timeline, about 300px over the resume, which the user
+  found overwhelming (Quinncia's slim bar was the model); then the
+  employer's logo and "Title · Company" beside Back, which crowded it and
+  repeated what the tailored resume's name already says.
 - **One step at a time** (2026-10-26): the step timeline (`TailorSteps`,
   even columns, each label under its circle, so a phone keeps one row)
   shows Pick a Resume, Choose Keywords and Review Changes, and each step
@@ -1756,9 +1757,13 @@ with no proposals to accept and no Done (2026-10-25).
   (`MatchShift`). Like the marks, it lives in that tab only.
 - **The review is one resume with a Suggestions panel**
   (`tailor-suggestions.tsx`, `../../docs/tailor_resume.md`,
-  "Suggestions"), kept quiet after Quinncia's resume review: "Resume ·
-  <name>" over the page in the editor's slim toolbar, "Suggestions · n"
-  over a 360px grey panel of white cards that sticks and scrolls on its
+  "Suggestions"), kept quiet after Quinncia's resume review: the
+  resume's name over the page (`ResumeTitle`: plain text that shows a
+  faint outline and a pencil when pointed at, and a click makes it a field
+  in the same box; Enter or a click away saves, Esc cancels), the
+  editor's slim toolbar under it, and "Suggestions" with its count in a
+  filled pill over a 360px panel in the brand tint (the editor's bar's
+  colour) of white cards that sticks and scrolls on its
   own. The toolbar shows Download alone while idle (with the page chip
   when over one page) and, while a line is open, its moves, Hide and its
   choices with "Esc when done"; no Ask Scout and no Done. Each changed line
@@ -1768,13 +1773,18 @@ with no proposals to accept and no Done (2026-10-25).
   and the keyword match as one thin row ("No new keywords matched" when
   it did not move); under it the cards fold in Wording, Order and Skills,
   each card closed to its number and one line, open to its change with a
-  red ✕ Reject and a green ✓ Accept. On a phone the panel is a sheet opened by
-  "Suggestions (n)". With no record (a new tab or device) the editor
+  red ✕ Reject and a green ✓ Accept. Beside the page (the `@4xl/main`
+  column) the panel folds to a 56px rail (») that holds the count and
+  "Suggestions" set upright, and the page takes the room; « opens it
+  again, and focus moves to the other toggle each time. On a phone the
+  panel is a sheet opened by "Suggestions (n)" and never folds. With no record (a new tab or device) the editor
   shows alone, with a line saying the suggestions live in the tab that ran
   Tailor. A before and after side by side came first (2026-10-26) and was
   replaced the same day: two full resumes and hover Revert controls showed
   too much at once; then a panel of open cards over fully tinted lines,
-  which gave everything the same weight.
+  which gave everything the same weight; then a grey panel under quiet
+  small-capitals labels ("RESUME · <name>", "SUGGESTIONS · n"), which the
+  user found muted.
 - An empty bank (409) shows a link to the bank page, where intake starts.
 
 ## Resumes (`/resumes`)

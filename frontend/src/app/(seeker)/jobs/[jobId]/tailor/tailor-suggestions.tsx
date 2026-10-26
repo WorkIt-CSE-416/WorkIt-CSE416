@@ -1,6 +1,12 @@
 "use client";
 
-import { CaretDownIcon, CheckIcon, XIcon } from "@phosphor-icons/react/ssr";
+import {
+  CaretDoubleLeftIcon,
+  CaretDoubleRightIcon,
+  CaretDownIcon,
+  CheckIcon,
+  XIcon,
+} from "@phosphor-icons/react/ssr";
 import { useEffect, useRef, useState, type ComponentProps, type ReactNode } from "react";
 
 import { EllipsisIcon } from "@/components/icons";
@@ -26,6 +32,7 @@ import {
   type SuggestionsApi,
 } from "../../../resumes/[resumeId]/tailor-review";
 import { ResumePreviewDialog } from "./resume-preview";
+import { ResumeTitle } from "./resume-title";
 import { TailorScore } from "./tailor-score";
 
 /**
@@ -69,34 +76,11 @@ export function TailorReview({
       <Editor
         {...editor}
         compact
-        heading={<ColumnLabel>Resume · {name}</ColumnLabel>}
+        heading={<ResumeTitle resumeId={editor.resumeId} name={name} />}
         phoneBar={noRecord}
         suggestions={(api) => <SuggestionsPanel {...api} />}
       />
     </>
-  );
-}
-
-/** A column's quiet label: small capitals in the meta grey. */
-function ColumnLabel({
-  id,
-  className,
-  children,
-}: {
-  id?: string;
-  className?: string;
-  children: ReactNode;
-}) {
-  return (
-    <h2
-      id={id}
-      className={cn(
-        "text-caption text-ink-meta truncate font-semibold tracking-wide uppercase",
-        className,
-      )}
-    >
-      {children}
-    </h2>
   );
 }
 
@@ -121,6 +105,15 @@ function ViewOriginal({ source }: { source: TailorSource }) {
   );
 }
 
+/** The number of suggestions left, as a filled brand pill. */
+function Count({ n }: { n: number }) {
+  return (
+    <span className="bg-brand text-on-brand text-note flex h-5 min-w-5 items-center justify-center rounded-full px-1.5 font-semibold tabular-nums">
+      {n}
+    </span>
+  );
+}
+
 /** A group opens by default only when it is this small. */
 const OPEN_UP_TO = 3;
 
@@ -139,6 +132,8 @@ function SuggestionsPanel({
   active,
   open,
   numberOf,
+  collapsed,
+  setCollapsed,
 }: SuggestionsApi) {
   const { edits, match } = record;
   const list = useRef<HTMLDivElement>(null);
@@ -165,6 +160,20 @@ function SuggestionsPanel({
       ?.scrollIntoView({ block: "nearest", behavior: "smooth" });
   }, [active, openGroups]);
 
+  // Folding swaps one toggle for the other, so focus moves to the new one;
+  // left alone it fell to the page's body, as the clicked button unmounted
+  const refocus = useRef(false);
+  const fold = (to: boolean) => {
+    refocus.current = true;
+    setCollapsed(to);
+  };
+  const takeFocus = (el: HTMLButtonElement | null) => {
+    if (el && refocus.current) {
+      refocus.current = false;
+      el.focus();
+    }
+  };
+
   const toggle = (kind: string) => {
     const next = new Set(openGroups);
     if (next.has(kind)) next.delete(kind);
@@ -172,19 +181,49 @@ function SuggestionsPanel({
     setOpenGroups(next);
   };
 
+  // Folded: a slim rail with the count, so the page takes the room
+  if (collapsed) {
+    return (
+      <section
+        aria-label="Suggestions"
+        className="bg-brand-tint ring-brand-pale flex flex-col items-center gap-3 rounded-2xl py-3 ring-1"
+      >
+        <Button
+          variant="ghost"
+          size="icon-sm"
+          aria-expanded={false}
+          aria-label={`Show Suggestions (${edits.length})`}
+          ref={takeFocus}
+          onClick={() => fold(false)}
+        >
+          <CaretDoubleLeftIcon aria-hidden />
+        </Button>
+        <Count n={edits.length} />
+        <span className="text-label text-brand rotate-180 font-semibold [writing-mode:vertical-rl]">
+          Suggestions
+        </span>
+      </section>
+    );
+  }
+
   return (
-    // A grey panel, so its white cards stand apart from the white resume
-    // beside it; bare in the phone's sheet, which is its own panel
+    // In the brand tint with its ring, as the editor's bar above the page,
+    // so the two read as one review and the white cards stand out; bare in
+    // the phone's sheet, which is its own panel. It was grey with a quiet
+    // small-capitals title, which the user found muted.
     <section
       aria-labelledby="suggestions-heading"
-      className="sm:bg-app flex flex-col gap-2 sm:rounded-2xl sm:p-3"
+      className="sm:bg-brand-tint sm:ring-brand-pale flex flex-col gap-2 sm:rounded-2xl sm:p-3 sm:ring-1"
     >
       {/* The top stays in view while the cards scroll under it */}
-      <div className="bg-panel sm:bg-app sticky top-0 z-10 flex flex-col gap-2 pb-2 sm:-mx-3 sm:-mt-3 sm:rounded-t-2xl sm:px-3 sm:pt-3">
+      <div className="bg-panel sm:bg-brand-tint sticky top-0 z-10 flex flex-col gap-2 pb-2 sm:-mx-3 sm:-mt-3 sm:rounded-t-2xl sm:px-3 sm:pt-3">
         <div className="flex min-h-8 items-center gap-1">
-          <ColumnLabel id="suggestions-heading" className="mr-auto max-sm:sr-only">
-            Suggestions · {edits.length}
-          </ColumnLabel>
+          <h2
+            id="suggestions-heading"
+            className="text-subtitle text-ink mr-auto flex items-center gap-2 font-semibold max-sm:sr-only"
+          >
+            Suggestions <Count n={edits.length} />
+          </h2>
           {record.source && <ViewOriginal source={record.source} />}
           <DropdownMenu>
             <DropdownMenuTrigger
@@ -199,6 +238,18 @@ function SuggestionsPanel({
               <DropdownMenuItem onClick={rejectAll}>Reject All</DropdownMenuItem>
             </DropdownMenuContent>
           </DropdownMenu>
+          {/* Folds only where the panel is a column beside the page */}
+          <Button
+            variant="ghost"
+            size="icon-sm"
+            aria-expanded
+            aria-label="Hide Suggestions"
+            className="hidden @4xl/main:inline-flex"
+            ref={takeFocus}
+            onClick={() => fold(true)}
+          >
+            <CaretDoubleRightIcon aria-hidden />
+          </Button>
         </div>
         {match && <TailorScore match={match} />}
       </div>

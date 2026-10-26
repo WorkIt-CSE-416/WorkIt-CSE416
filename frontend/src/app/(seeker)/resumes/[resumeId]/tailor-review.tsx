@@ -53,6 +53,10 @@ export type SuggestionsApi = {
   active: string | null;
   open: (key: string | null) => void;
   numberOf: (key: string) => number;
+  /** The panel folded to a slim rail beside the page, which widens into
+   *  the room; never on a phone, whose sheet is its own panel. */
+  collapsed: boolean;
+  setCollapsed: (collapsed: boolean) => void;
 };
 
 /** The panel's groups, in its order, which is also the cards' numbering. */

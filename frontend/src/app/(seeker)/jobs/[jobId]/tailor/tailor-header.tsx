@@ -104,26 +104,22 @@ function TailorJobCard({ job }: { job: JobListing }) {
 
 /**
  * The review step's whole header (./page.tsx), one slim row so the resume
- * starts near the top: Back (the job page's `BackToJobs`), the employer's
- * logo, "Title · Company" cut to one line, and "Step 3 of 3". The title is
- * the page's h1, set small: the page still needs one heading for screen
- * readers. Until 2026-10-26 this step had the pick steps' Back, title,
- * line, job card and timeline, about 300px over the resume, and the user
- * found it overwhelming beside the review (after Quinncia's slim bar).
+ * starts near the top: Back (the job page's `BackToJobs`) and "Step 3 of
+ * 3". The page's h1 names the job for screen readers only; on screen the
+ * resume's own title (`ResumeTitle`, over the page) leads. Until
+ * 2026-10-26 this step had the pick steps' Back, title, line, job card and
+ * timeline, about 300px over the resume, and the user found it
+ * overwhelming beside the review (after Quinncia's slim bar); then the
+ * job's logo and "Title · Company" beside Back, which the user found
+ * crowded Back and repeated what the resume's name already says.
  */
 export function TailorReviewBar({ job }: { job: JobListing }) {
   return (
-    <div className="flex items-center gap-3">
+    <div className="flex items-center justify-between gap-3">
+      <h1 className="sr-only">
+        Tailor for {job.title} at {job.company}
+      </h1>
       <BackToJobs className="group/back shrink-0" />
-      <CompanyLogo
-        name={job.company}
-        src={job.logo_url}
-        className="text-meta rounded-control size-7 shrink-0"
-      />
-      <div className="text-label min-w-0 flex-1 truncate" title={`${job.title} · ${job.company}`}>
-        <h1 className="text-ink inline font-semibold">{job.title}</h1>
-        <span className="text-ink-meta font-normal"> · {job.company}</span>
-      </div>
       <p className="text-note text-ink-meta shrink-0 whitespace-nowrap">
         Step {TAILOR_STEPS.length} of {TAILOR_STEPS.length}
       </p>

@@ -264,6 +264,8 @@ export function Editor({
   // The pointer is over the page: the slim bar shows its hint then
   const [overPage, setOverPage] = useState(false);
   const [suggestionsOpen, setSuggestionsOpen] = useState(false);
+  // Tailor's panel folded to a slim rail beside the page, which takes the room
+  const [panelCollapsed, setPanelCollapsed] = useState(false);
 
   /** Starts a request; the returned check stays true while it is the latest. */
   const begin = useCallback(() => {
@@ -646,6 +648,9 @@ export function Editor({
       active,
       open: setActive,
       numberOf,
+      // The phone's sheet is its own panel and never folds
+      collapsed: !phone && panelCollapsed,
+      setCollapsed: setPanelCollapsed,
     });
 
   if (phone) {
@@ -721,7 +726,11 @@ export function Editor({
       className={cn(
         "mt-4 grid items-start gap-5",
         asking && "@4xl/main:grid-cols-[minmax(0,1fr)_22rem]",
-        panel && !asking && "@4xl/main:grid-cols-[minmax(0,1fr)_22.5rem]",
+        panel &&
+          !asking &&
+          (panelCollapsed
+            ? "@4xl/main:grid-cols-[minmax(0,1fr)_3.5rem]"
+            : "@4xl/main:grid-cols-[minmax(0,1fr)_22.5rem]"),
       )}
     >
       <div className={cn("flex min-w-0 flex-col", compact ? "gap-2" : "gap-4")}>
