@@ -7,10 +7,9 @@ import { useEffect, useRef, useState, type ReactNode } from "react";
 import { Skeleton } from "@/components/shadcn/skeleton";
 import { Button } from "@/components/ui/button";
 import type { RenderBox } from "@/lib/built-resume-actions";
-import type { TailorEdit } from "@/lib/tailor-actions";
 import { cn } from "@/lib/cn";
 
-import type { Mark } from "./tailor-review";
+import type { Mark, RevertTarget } from "./tailor-review";
 
 /**
  * The rendered PDF drawn with pdf.js, one canvas per page, with a click
@@ -141,8 +140,8 @@ export function PdfPages({
   /** Tailor's changed lines, by box key, while their changes are untouched. */
   marks?: Map<string, Mark>;
   /** Tailor changes that can be reverted from their line. */
-  reverts?: Map<string, TailorEdit>;
-  onRevert?: (edit: TailorEdit) => void;
+  reverts?: Map<string, RevertTarget>;
+  onRevert?: (target: RevertTarget) => void;
 }) {
   const first = boxes.find((b) => boxKey(b) === selected);
   const typing = first && field?.(first);
@@ -210,7 +209,7 @@ export function PdfPages({
             .filter((box) => box.page === i + 1)
             .map((box) => {
               const key = boxKey(box);
-              const edit = reverts?.get(key);
+              const revert = reverts?.get(key);
               const mark = marks?.get(key);
               return (
                 <div
@@ -237,12 +236,12 @@ export function PdfPages({
                         (mark ? "outline-brand outline-2" : "bg-brand/10 outline-brand outline-2"),
                     )}
                   />
-                  {edit && onRevert && (
+                  {revert && onRevert && (
                     <Button
                       variant="secondary"
                       size="xs"
                       aria-label={`Revert Tailor's change to ${kindLabel(box.kind).toLowerCase()}`}
-                      onClick={() => onRevert(edit)}
+                      onClick={() => onRevert(revert)}
                       className={cn(
                         "absolute right-0 bottom-full z-10 opacity-0 transition-opacity",
                         "pointer-events-none group-hover/marked:pointer-events-auto",

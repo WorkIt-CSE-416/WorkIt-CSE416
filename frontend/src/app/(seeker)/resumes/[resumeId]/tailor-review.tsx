@@ -2,7 +2,7 @@
 
 import { useCallback, useEffect, useState } from "react";
 
-import type { ChoicesUpdate } from "@/lib/built-resume-actions";
+import type { Choices, ChoicesUpdate } from "@/lib/built-resume-actions";
 import { readSessionDraft, tailorEditsKey, writeSessionDraft } from "@/lib/local-drafts";
 import type { TailorEdit } from "@/lib/tailor-actions";
 
@@ -23,6 +23,10 @@ export type TailorReviewRecord = { edits: TailorEdit[] };
 /** A line's mark: `changed` (a new wording or an added skill, green) or
  *  `moved` (an entry's bullets put in a new order, amber). */
 export type Mark = "changed" | "moved";
+
+/** One change's inline Revert action. Order changes name the one bullet the
+ * student chose to put back, while wording and skills revert themselves. */
+export type RevertTarget = { edit: TailorEdit; bulletId?: string };
 
 /** The run's record for `resumeId`, read after mount (the server render has
  *  no sessionStorage), and a setter that keeps storage in step. */
@@ -55,15 +59,43 @@ function readable(stored: unknown): TailorReviewRecord | null {
   return null;
 }
 
+/** An order change as it stands on `choices`: its entry's shown bullets in
+ *  their current order, and the ones still out of place. The bullets of the
+ *  longest run that keeps the before order stayed put, and every other one
+ *  moved past them, so a bullet only nudged by a neighbour's move is never
+ *  marked. */
+function placing(edit: TailorEdit, choices: Choices) {
+  const at = new Map(choices.bullets.map((choice) => [choice.bullet_id, choice]));
+  const order = edit.before_ids
+    .filter((id) => at.get(id)?.shown)
+    .sort((a, b) => at.get(a)!.position - at.get(b)!.position);
+  const rank = order.map((id) => edit.before_ids.indexOf(id));
+  // The longest increasing run of `rank`, by the plain quadratic search:
+  // an entry has a handful of bullets.
+  const length = rank.map(() => 1);
+  const previous = rank.map(() => -1);
+  let last = -1;
+  rank.forEach((r, i) => {
+    for (let j = 0; j < i; j++) {
+      if (rank[j] < r && length[j] + 1 > length[i]) {
+        length[i] = length[j] + 1;
+        previous[i] = j;
+      }
+    }
+    if (last < 0 || length[i] > length[last]) last = i;
+  });
+  const stayed = new Set<string>();
+  for (let i = last; i >= 0; i = previous[i]) stayed.add(order[i]);
+  return { order, moved: new Set(order.filter((id) => !stayed.has(id))), stayed };
+}
+
 /** Each marked line's box key (`pdf-pages.tsx`'s `boxKey`) and its mark. A
  *  new wording wins over a new order on the same bullet. */
-export function marksOf(edits: TailorEdit[]): Map<string, Mark> {
+export function marksOf(edits: TailorEdit[], choices: Choices): Map<string, Mark> {
   const marks = new Map<string, Mark>();
   for (const edit of edits) {
     if (edit.kind === "order") {
-      for (const id of edit.bullet_ids) {
-        if (!marks.has(`${id}.bullet`)) marks.set(`${id}.bullet`, "moved");
-      }
+      for (const id of placing(edit, choices).moved) marks.set(`${id}.bullet`, "moved");
     }
   }
   for (const edit of edits) {
@@ -73,23 +105,27 @@ export function marksOf(edits: TailorEdit[]): Map<string, Mark> {
   return marks;
 }
 
-/** Each marked line's Tailor change, so its editor target can offer Revert. */
-export function revertsOf(edits: TailorEdit[]): Map<string, TailorEdit> {
-  const reverts = new Map<string, TailorEdit>();
+/** Each marked line's Revert target. An order change has one target per
+ *  moved bullet, so putting one back leaves the other Tailor moves alone. */
+export function revertsOf(edits: TailorEdit[], choices: Choices): Map<string, RevertTarget> {
+  const reverts = new Map<string, RevertTarget>();
   for (const edit of edits) {
     if (edit.kind === "order") {
-      for (const id of edit.bullet_ids) reverts.set(`${id}.bullet`, edit);
+      for (const bulletId of placing(edit, choices).moved) {
+        reverts.set(`${bulletId}.bullet`, { edit, bulletId });
+      }
     }
   }
   for (const edit of edits) {
-    if (edit.kind === "reword" && edit.bullet_id) reverts.set(`${edit.bullet_id}.bullet`, edit);
-    if (edit.kind === "skill" && edit.skill_id) reverts.set(`${edit.skill_id}.skill`, edit);
+    if (edit.kind === "reword" && edit.bullet_id) reverts.set(`${edit.bullet_id}.bullet`, { edit });
+    if (edit.kind === "skill" && edit.skill_id) reverts.set(`${edit.skill_id}.skill`, { edit });
   }
   return reverts;
 }
 
 /** The choices PATCH that undoes one change. */
-export function revertOf(edit: TailorEdit): ChoicesUpdate {
+export function revertOf(target: RevertTarget, choices: Choices): ChoicesUpdate {
+  const { edit } = target;
   if (edit.kind === "reword" && edit.bullet_id) {
     // The source showed the bank's own wording (no variant), or a variant:
     // its text again, as this resume's own wording, since a variant local
@@ -102,13 +138,40 @@ export function revertOf(edit: TailorEdit): ChoicesUpdate {
       ],
     };
   }
-  if (edit.kind === "order") {
-    return { bullets: edit.before_ids.map((bullet_id, position) => ({ bullet_id, position })) };
+  if (edit.kind === "order" && target.bulletId) {
+    // The bullet goes back just after the last bullet that stayed put and
+    // came before it, and its siblings shift around it.
+    const { order, stayed } = placing(edit, choices);
+    const bulletId = target.bulletId;
+    if (!order.includes(bulletId) || stayed.has(bulletId)) return {};
+    const rank = (id: string) => edit.before_ids.indexOf(id);
+    const rest = order.filter((id) => id !== bulletId);
+    const after = rest.reduce(
+      (found, id, i) => (stayed.has(id) && rank(id) < rank(bulletId) ? i : found),
+      -1,
+    );
+    rest.splice(after + 1, 0, bulletId);
+    return { bullets: rest.map((bullet_id, position) => ({ bullet_id, position })) };
   }
   if (edit.kind === "skill" && edit.skill_id) {
     return { skills: [{ skill_id: edit.skill_id, shown: false }] };
   }
   return {};
+}
+
+/** The changes left once the student reverts `target`, read on the
+ *  `choices` the revert saved. A wording or a skill goes; an order change
+ *  stays while any of its bullets is still out of place, since restoring
+ *  one bullet can leave its moved siblings to revert one by one. */
+export function reverted(
+  edits: TailorEdit[],
+  target: RevertTarget,
+  choices: Choices,
+): TailorEdit[] {
+  return edits.filter(
+    (edit) =>
+      edit !== target.edit || (edit.kind === "order" && placing(edit, choices).moved.size > 0),
+  );
 }
 
 /** The changes the student's own `update` leaves alone: one that rewords,

@@ -29,7 +29,6 @@ import {
 } from "@/lib/built-resume-actions";
 import { cn } from "@/lib/cn";
 import { updateProfile } from "@/lib/profile-actions";
-import type { TailorEdit } from "@/lib/tailor-actions";
 
 import {
   DownloadMenu,
@@ -55,7 +54,15 @@ import {
 import { keepFitUndo, readFitUndo } from "./fit-undo";
 import { boxKey, kindLabel, loadPdfjs, PageSkeleton, PdfPages } from "./pdf-pages";
 import { PhoneEditor, usePhone } from "./phone";
-import { marksOf, revertOf, revertsOf, untouched, useTailorReview } from "./tailor-review";
+import {
+  marksOf,
+  reverted,
+  revertOf,
+  revertsOf,
+  type RevertTarget,
+  untouched,
+  useTailorReview,
+} from "./tailor-review";
 import { Tray } from "./tray";
 
 /**
@@ -241,7 +248,7 @@ export function Editor({
   );
 
   const apply = useCallback(
-    async (changes: ChoicesUpdate) => {
+    async (changes: ChoicesUpdate, revertedTarget?: RevertTarget) => {
       // A wording picked from the bar or the assistant replaces what was
       // typed, so the field shows the picked wording, not the old draft
       if (changes.bullets?.some((b) => "variant_id" in b)) {
@@ -259,7 +266,14 @@ export function Editor({
       setChoices(data);
       // A change to an item Tailor changed (a revert included) drops its mark
       const waiting = latestReview.current;
-      if (waiting) setReview({ ...waiting, edits: untouched(waiting.edits, changes) });
+      if (waiting) {
+        setReview({
+          ...waiting,
+          edits: revertedTarget
+            ? reverted(waiting.edits, revertedTarget, data)
+            : untouched(waiting.edits, changes),
+        });
+      }
       await renderAgain(current);
     },
     [begin, resumeId, renderAgain, setReview],
@@ -530,9 +544,9 @@ export function Editor({
         <FirstRenderPane initial={initial} onLoad={adopt} onFail={fail} resumeId={resumeId} />
       </Suspense>
     );
-  const marks = review ? marksOf(review.edits) : undefined;
-  const reverts = review ? revertsOf(review.edits) : undefined;
-  const onRevert = (edit: TailorEdit) => void apply(revertOf(edit));
+  const marks = review ? marksOf(review.edits, choices) : undefined;
+  const reverts = review ? revertsOf(review.edits, choices) : undefined;
+  const onRevert = (target: RevertTarget) => void apply(revertOf(target, choices), target);
 
   if (phone) {
     const start = line && startText(line);

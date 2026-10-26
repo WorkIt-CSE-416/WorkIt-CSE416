@@ -86,7 +86,8 @@ class TailorEdit(BaseModel):
       showed `before` (variant `before_variant_id`, null for the bank's own
       wording). Revert: the choices PATCH with `variant_id=before_variant_id`.
     - `order`: `entry_id`'s bullets are now in the order `bullet_ids`; they
-      were in `before_ids`. Revert: the choices PATCH with those positions.
+      were in `before_ids`. The editor restores one bullet's prior position
+      at a time, shifting its siblings around it.
     - `skill`: `skill_id` is a picked skill, `label` in `group`, local to
       this resume. Revert: hide it (the choices PATCH, `shown=False`).
     """
