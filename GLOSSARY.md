@@ -111,6 +111,10 @@ _Avoid_: skipped field, manual field, error
 A question the student's data doesn't answer, left for the student to fill in.
 _Avoid_: unknown field, blank, unanswered
 
+**Application answers**:
+The facts screening questions ask, kept in the student's answer bank: on-site and full-time availability, the start window, relocation and where they would work, street address, languages, and the screener facts (relatives, referrals, government work, a non-compete, pending offers). A screener fact is always the student's own answer, never a default. My Profile shows them in a section of that name, with the class year WorkIt works out from education.
+_Avoid_: screening questions (for the answers), extra questions, eligibility
+
 **Batch apply**:
 The extension filling the student's queued Applications in background tabs, at most five at once, the next opening as one finishes. It never submits.
 _Avoid_: runner, run tab
