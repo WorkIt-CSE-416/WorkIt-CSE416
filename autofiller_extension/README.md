@@ -24,7 +24,7 @@ still open.
    Again** after step 4, or confirm you're actually signed in on
    `localhost:3000` (not just the deployed site, or vice versa).
 6. Open a job application form on Greenhouse, Lever, Ashby, Rippling,
-   Workable, Eightfold or Workday, click the icon again, then **Autofill
+   Workable, Eightfold, Workday or TikTok/ByteDance careers, click the icon again, then **Autofill
    This Page**. On a job's page that isn't its form, it names the form's
    link; on any other hiring system it fills nothing and says so. On
    Workday, sign in and start the application (in a batch, the extension

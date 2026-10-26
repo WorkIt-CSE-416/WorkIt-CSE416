@@ -148,7 +148,7 @@
         return null;
       }
       if (!prepared.covered) {
-        note("_uncovered", "WorkIt can't fill this job system yet", "Nothing on this page was filled. WorkIt fills Greenhouse, Lever, Ashby, Rippling, Workable, Eightfold and Workday applications.");
+        note("_uncovered", "WorkIt can't fill this job system yet", "Nothing on this page was filled. WorkIt fills Greenhouse, Lever, Ashby, Rippling, Workable, Eightfold, Workday and TikTok applications.");
         return null;
       }
       if (prepared.openForm) {

@@ -218,8 +218,8 @@ builds it: `dist/engine.js` is committed in the engine repo.
   a role abroad a Screener. The engine's own rules decide everything else; change a rule in
   the engine repo, not here.
 - **Only job systems the engine covers are filled.** `engine.js`'s `jobOf`
-  names them (Greenhouse, Lever, Ashby, Rippling, Workable, Eightfold and
-  Workday). On any other page the overlay says
+  names them (Greenhouse, Lever, Ashby, Rippling, Workable, Eightfold,
+  Workday and TikTok/ByteDance). On any other page the overlay says
   WorkIt can't fill this job system yet and nothing is touched: there is
   no generic filler any more (the old label-matching one filled most forms
   wrong, and was deleted with its Greenhouse adapter in KAN-340).
@@ -889,8 +889,9 @@ waits for an opened tab's page and form (`waitForLoad`, `formShows`).
   title and favicon need `tabs`). Injecting the fill does: `activeTab`
   doesn't cover a tab the batch opened, so `host_permissions` lists each
   hiring system auto apply takes, the same hosts as
-  `backend/app/auto_apply/hosts.py` (all seven job systems the engine
-  fills, KAN-370). A host added there
+  `backend/app/auto_apply/hosts.py` (all eight job systems the engine
+  fills, KAN-370; TikTok's by its exact careers hosts, never all of
+  tiktok.com or bytedance.com). A host added there
   is added to `manifest.json` in the same change, or its fills answer
   `not_allowed`. After pulling a manifest change, reload the unpacked
   extension in `chrome://extensions`. The background also fetches their
