@@ -1750,14 +1750,17 @@ with no proposals to accept and no Done (2026-10-25).
   (`tailor-suggestions.tsx`, `../../docs/tailor_resume.md`,
   "Suggestions"), kept quiet after Quinncia's resume review: "Resume ·
   <name>" over the page in the editor's slim toolbar, "Suggestions · n"
-  over a 360px panel that sticks and scrolls on its own. Each changed line
+  over a 360px grey panel of white cards that sticks and scrolls on its
+  own. The toolbar shows Download alone while idle (with the page chip
+  when over one page) and, while a line is open, its moves, Hide and its
+  choices with "Esc when done"; no Ask Scout and no Done. Each changed line
   has a numbered dot in the page's margin and is tinted only while its
   card is pointed at or open; a dot or a changed line opens its card. The
   panel's top holds View Original, a "…" menu (Accept All, Reject All)
   and the keyword match as one thin row ("No new keywords matched" when
   it did not move); under it the cards fold in Wording, Order and Skills,
-  each card closed to its number and one line, open to its change with ✕
-  Reject and ✓ Accept. On a phone the panel is a sheet opened by
+  each card closed to its number and one line, open to its change with a
+  red ✕ Reject and a green ✓ Accept. On a phone the panel is a sheet opened by
   "Suggestions (n)". With no record (a new tab or device) the editor
   shows alone, with a line saying the suggestions live in the tab that ran
   Tailor. A before and after side by side came first (2026-10-26) and was
@@ -2048,9 +2051,11 @@ student who opened a resume from Experiences landed on another view.
   PDF's text shows, on the lines of the card in focus or open: a new
   wording or an added skill green (`positive`), an entry's bullets in a
   new order amber (`warning-fill`). The same page passes `compact`, the
-  slim toolbar (icon Download and Ask Scout, a "2 pages" chip whose
-  popover offers Fit to One Page, the hint only while the pointer is over
-  the page), and `heading`, the label over the page's column; the
+  slim toolbar: idle, an icon Download, a "2 pages" chip whose popover
+  offers Fit to One Page, and the hint only while the pointer is over the
+  page; editing a line, its moves first (`LineActions`' `movesFirst`),
+  Hide and its choices, and "Esc when done" for Done. It has no Ask Scout.
+  It also passes `heading`, the label over the page's column; the
   editor's own page passes neither and keeps this bar. The panel sits in the Ask Scout
   column and gives way to the assistant while it is open; on a phone it
   is a sheet from the bottom bar. Reject goes through the choices PATCH
