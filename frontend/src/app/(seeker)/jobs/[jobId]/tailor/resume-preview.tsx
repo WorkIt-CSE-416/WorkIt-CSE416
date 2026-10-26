@@ -3,46 +3,68 @@
 import { FileArrowDownIcon } from "@phosphor-icons/react/ssr";
 import { useEffect, useRef, useState } from "react";
 
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogHeader,
+  DialogTitle,
+} from "@/components/shadcn/dialog";
 import { Button } from "@/components/ui/button";
-import { Card } from "@/components/ui/card";
 import { getResumeFileUrl } from "@/lib/resume-actions";
 import { openDownload } from "@/lib/save-file";
+import type { TailorSource } from "@/lib/tailor-actions";
 
 import { loadPdfjs, PageSkeleton, PdfPages } from "../../../resumes/[resumeId]/pdf-pages";
-import type { Choice } from "../../resume-picker";
 
 /**
- * A preview of the resume picked in Tailor's first step, so the student
- * sees what they are about to tailor. Read-only: the editor's `PdfPages`
- * with no click targets, as an upload's own page draws it. The PDF comes
- * from /api/resume-preview (a built resume rendered, an upload's file
- * read), a route handler so a slow render never queues the screen's server
- * actions behind it. A DOCX cannot be drawn by pdf.js, so it gets a note
- * and Download, as its own page does.
+ * A resume shown in a dialog, read-only: Tailor's step 1 opens it from a
+ * card's Preview button (`onPreview` on `ResumeLists`), so the student sees
+ * what they are about to tailor without picking it, and the review step
+ * opens it for View Original. It draws with the editor's `PdfPages` and no
+ * click targets, as an upload's own page does. A DOCX cannot be drawn by
+ * pdf.js, so it gets a note and Download, as its own page does.
  *
- * Each answer is kept by the pick's key, so a pick shows only its own
- * answer, however late an older one arrives, and a pick made again shows
- * at once. A failed one says so in a line, with Try Again.
+ * The PDF comes from /api/resume-preview (a built resume rendered, an
+ * upload's file read), a route handler so a slow render never queues the
+ * screen's server actions behind it. A built resume renders as it is now.
+ *
+ * Each answer is kept by its source while the dialog stays mounted, so a
+ * resume shows only its own answer, however late an older one arrives, and
+ * a resume opened again shows at once. A failed one says so in a line, with
+ * Try Again. Step 1 held the preview as a column beside the list until the
+ * list needed the width; a dialog also gives the page room to be read.
  */
 
 type Preview = { pdf: string | null; error: string | null };
 
-export function ResumePreview({ choice }: { choice: Choice | null }) {
+const keyOf = (source: TailorSource) =>
+  "built_resume_id" in source
+    ? `built=${encodeURIComponent(source.built_resume_id)}`
+    : `uploaded=${encodeURIComponent(source.uploaded_resume_id)}`;
+
+export function ResumePreviewDialog({
+  open,
+  onOpenChange,
+  label,
+  source,
+}: {
+  open: boolean;
+  onOpenChange: (open: boolean) => void;
+  /** The resume's name, the dialog's title. */
+  label: string;
+  source: TailorSource;
+}) {
   const [previews, setPreviews] = useState<Record<string, Preview>>({});
-  // Keys asked for and not yet answered, so a quick pick away and back
-  // does not ask twice.
+  // Sources asked for and not yet answered, so one opened away and back
+  // is not asked for twice.
   const asking = useRef(new Set<string>());
-  const key = choice?.key ?? null;
-  const query = choice
-    ? "builtResumeId" in choice.source
-      ? `built=${encodeURIComponent(choice.source.builtResumeId)}`
-      : `uploaded=${encodeURIComponent(choice.source.uploadedResumeId)}`
-    : null;
-  const preview = key ? previews[key] : undefined;
+  const key = keyOf(source);
+  const preview = previews[key];
   const have = preview !== undefined;
 
   useEffect(() => {
-    if (!key || !query || have || asking.current.has(key)) return;
+    if (!open || have || asking.current.has(key)) return;
     asking.current.add(key);
     // pdf.js downloads while the server draws the PDF, as in the editor.
     loadPdfjs().catch(() => {});
@@ -50,7 +72,7 @@ export function ResumePreview({ choice }: { choice: Choice | null }) {
       asking.current.delete(key);
       setPreviews((all) => ({ ...all, [key]: answer }));
     };
-    fetch(`/api/resume-preview?${query}`)
+    fetch(`/api/resume-preview?${key}`)
       .then(async (res) => {
         const body = (await res.json()) as Partial<Preview>;
         keep({
@@ -59,10 +81,9 @@ export function ResumePreview({ choice }: { choice: Choice | null }) {
         });
       })
       .catch(() => keep({ pdf: null, error: "Could not reach the server." }));
-  }, [key, query, have]);
+  }, [open, key, have]);
 
   function retry() {
-    if (!key) return;
     setPreviews((all) => {
       const rest = { ...all };
       delete rest[key];
@@ -71,56 +92,54 @@ export function ResumePreview({ choice }: { choice: Choice | null }) {
   }
 
   return (
-    <Card as="section" aria-labelledby="resume-preview-title" className="flex min-w-0 flex-col">
-      <h2 id="resume-preview-title" className="text-subtitle text-ink">
-        Preview
-      </h2>
-      <p className="text-note text-ink-meta break-words">{choice?.label ?? "No resume picked"}</p>
-      {/* One height on a desktop, beside the list; on a phone it stacks and
-          stops at most of the screen, so the page can still scroll past it. */}
-      <div
-        tabIndex={0}
-        aria-label="Resume pages"
-        className="bg-canvas focus-visible:outline-brand mt-3 max-h-[70svh] overflow-y-auto rounded-xl p-3 focus-visible:outline-2 lg:h-[44rem] lg:max-h-none"
-      >
-        {!choice ? (
-          <p className="text-body text-ink-meta">Pick a resume to preview it.</p>
-        ) : !preview ? (
-          <PageSkeleton />
-        ) : preview.error ? (
-          <p role="alert" className="text-body text-danger">
-            The preview could not be shown.{" "}
-            <Button variant="link" onClick={retry}>
-              Try Again
-            </Button>
-          </p>
-        ) : preview.pdf ? (
-          // Keyed by the pick: PdfPages keeps its old document on screen
-          // until a new one is read, which would show the last pick's PDF.
-          <PdfPages
-            key={choice.key}
-            pdf={preview.pdf}
-            boxes={[]}
-            selected={null}
-            onSelect={() => {}}
-            placeholder={<PageSkeleton />}
-          />
-        ) : (
-          <DocxNote choice={choice} />
-        )}
-      </div>
-    </Card>
+    <Dialog open={open} onOpenChange={onOpenChange}>
+      {/* Tall, so a page reads at once; its pages scroll under the title. */}
+      <DialogContent className="flex h-[92vh] w-[92vw] max-w-none flex-col sm:max-w-3xl">
+        <DialogHeader>
+          <DialogTitle className="text-subtitle pr-8 font-semibold break-words">
+            {label}
+          </DialogTitle>
+          <DialogDescription className="sr-only">A preview of this resume.</DialogDescription>
+        </DialogHeader>
+        <div className="bg-canvas rounded-card min-h-0 flex-1 overflow-y-auto p-3 sm:p-4">
+          {!preview ? (
+            <PageSkeleton />
+          ) : preview.error ? (
+            <p role="alert" className="text-body text-danger">
+              The preview could not be shown.{" "}
+              <Button variant="link" onClick={retry}>
+                Try Again
+              </Button>
+            </p>
+          ) : preview.pdf ? (
+            // Keyed by the source: PdfPages keeps its old document on screen
+            // until a new one is read, which would show the last resume.
+            <PdfPages
+              key={key}
+              pdf={preview.pdf}
+              boxes={[]}
+              selected={null}
+              onSelect={() => {}}
+              placeholder={<PageSkeleton />}
+            />
+          ) : (
+            "uploaded_resume_id" in source && (
+              <DocxNote id={source.uploaded_resume_id} label={label} />
+            )
+          )}
+        </div>
+      </DialogContent>
+    </Dialog>
   );
 }
 
 /** A DOCX upload: pdf.js cannot draw one, so its file downloads instead. */
-function DocxNote({ choice }: { choice: Choice }) {
+function DocxNote({ id, label }: { id: string; label: string }) {
   const [error, setError] = useState<string | null>(null);
 
   async function download() {
-    if (!("uploadedResumeId" in choice.source)) return;
     setError(null);
-    const { url, error } = await getResumeFileUrl(choice.source.uploadedResumeId, true);
+    const { url, error } = await getResumeFileUrl(id, true);
     if (url) openDownload(url);
     else setError(error ?? "Could not download the resume.");
   }
@@ -128,7 +147,7 @@ function DocxNote({ choice }: { choice: Choice }) {
   return (
     <div className="flex flex-col items-start gap-2">
       <p className="text-body text-ink-meta">
-        WorkIt shows PDF resumes here. Download {choice.label} to open it.
+        WorkIt shows PDF resumes here. Download {label} to open it.
       </p>
       <Button variant="secondary" size="sm" onClick={download}>
         <FileArrowDownIcon aria-hidden className="size-4" /> Download
