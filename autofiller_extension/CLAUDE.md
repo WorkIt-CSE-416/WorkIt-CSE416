@@ -259,7 +259,8 @@ waits for an opened tab's page and form (`waitForLoad`, `formShows`).
   check's widget (Jobright removes its own the same way), but its rows
   (`human-check.js`, `injectHumanCheck`) hold the "todo" note "Prove
   you're human on this page" that Next Thing stops at (on the tab: no
-  field to show); the fill puts up its own panel once the form shows.
+  field to show), first of all, as the check blocks the tab's whole form
+  (`waitingChecks`); the fill puts up its own panel once the form shows.
   The walk's listener, added once per page, answers from the latest
   fill's rows (`window.WIA.walk`), as a passed check may draw the form in
   the same page. The extension never solves a check. A form that never shows has failed,

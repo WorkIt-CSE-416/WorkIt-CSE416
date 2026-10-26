@@ -303,12 +303,12 @@ test("a human check before the form needs the student, and the form fills once t
   expect(forms.submissions).toEqual([]);
 });
 
-test("a human check's page shows only the check, and Next Thing goes to it", async () => {
+test("a human check's page shows only the check, and Next Thing goes to it first", async () => {
   test.setTimeout(120_000);
-  const [ARC, ANDURIL] = ["greenhouse-arc", "greenhouse-anduril"];
-  const forms = new SavedForms([ARC, ANDURIL]);
+  const [ANDURIL, ARC] = ["greenhouse-anduril", "greenhouse-arc"];
+  const forms = new SavedForms([ANDURIL, ARC]);
   const check = humanCheckFirst(forms, ARC);
-  const api = new FakeApi().queue({ id: "job-0", apply_url: forms.url(ARC) }, { id: "job-1", apply_url: forms.url(ANDURIL) });
+  const api = new FakeApi().queue({ id: "job-0", apply_url: forms.url(ANDURIL) }, { id: "job-1", apply_url: forms.url(ARC) });
   loaded = await loadExtension([api.handler, webapp, check.handler]);
   await signIn(loaded.context);
   const webappPage = loaded.context.pages()[0] ?? (await loaded.context.newPage());
@@ -319,7 +319,8 @@ test("a human check's page shows only the check, and Next Thing goes to it", asy
   // WorkIt's panel never covers the check.
   await expect(page(forms.url(ARC)).locator("#workit-autofiller-overlay-host")).toHaveCount(0);
 
-  // From Anduril's tab, the first thing is Arc's check (the tab itself), then Anduril's own questions.
+  // From Anduril's tab (opened first), the first thing is Arc's check (the tab itself: it blocks Arc's whole form),
+  // then Anduril's own questions.
   const panel = page(forms.url(ANDURIL)).locator("#workit-autofiller-overlay-host");
   const next = panel.getByRole("button", { name: "Next Thing That Needs You" });
   const shownTab = async () => (await tabs(loaded.worker)).find((t) => t.active)!.url;
