@@ -527,8 +527,11 @@ export async function fillPage({ call, site, questions, answers, accepted, state
     const filled = await call("fillEach", site, questions, answers, { accepted: accepted ?? {}, state, sections });
     return { results: filled.results, ...(filled.moreQuestions ? { more: filled.moreQuestions } : {}), state: filled.state ?? state };
   } catch (error) {
-    const reason = ["FillError", "Handoff", "NoForm"].includes(error.name) ? error.message : `Fill failed: ${error.message}`;
-    return { results: Object.fromEntries(Object.keys(answers).map((name) => [name, { status: "failed", reason }])), state };
+    const named = ["FillError", "Handoff", "NoForm"].includes(error.name);
+    const reason = named ? error.message : `Fill failed: ${error.message}`;
+    // The error's name, for a problem report (content/report.js), which never carries the reason.
+    const failed = { status: "failed", reason, error: named ? error.name : "Error" };
+    return { results: Object.fromEntries(Object.keys(answers).map((name) => [name, failed])), state };
   }
 }
 

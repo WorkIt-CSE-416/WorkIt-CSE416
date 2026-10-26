@@ -7,7 +7,7 @@
 //   again each time the view opens and when the student comes back to the tab.
 // - Open the panel by itself: whether a batch tab's panel opens once its fill
 //   is done (background panel-settings.js; panel.js's autoOpen reads it).
-// - Report a problem: the report view (panel.showView("report"), KAN-403's).
+// - Report a problem: the report card (report.js's window.WIA.reportCard.open(), KAN-403).
 // - Workday Sign-Up: opens the extension's own options page. The password is
 //   never typed here: the panel lives in the employer's page.
 //
@@ -72,8 +72,8 @@ window.WIA = window.WIA || {};
       `,
     );
     view.querySelector("[data-back]").addEventListener("click", () => panel.showSettings(false));
-    // KAN-403's entry point: the shell's report view (its ticket fills the "report" slot).
-    view.querySelector("[data-report-open]").addEventListener("click", () => panel.showView("report", true));
+    // KAN-403's card, the same as the header's ⚑ opens.
+    view.querySelector("[data-report-open]").addEventListener("click", () => window.WIA.reportCard?.open());
     view.querySelector("[data-signup]").addEventListener("click", () => send({ type: "workday/signup-open" }));
     view.querySelector("[data-auto-open]").addEventListener("change", (event) => {
       void send({ type: "settings/auto-open", on: event.target.checked });

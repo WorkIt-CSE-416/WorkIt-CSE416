@@ -47,6 +47,9 @@ repo `WorkIt-CSE-416/fill-engine` and sits here as the submodule
 `fill-engine/`, **pinned to a tag**. A person moves the pin (`git -C
 autofiller_extension/fill-engine checkout vX.Y.Z`, commit the gitlink), so
 a change to the engine reaches students only when someone here chooses it.
+Moving the pin also means changing `ENGINE_VERSION` in
+`src/background/report.js` (what a problem report names);
+`test/report.extension.spec.ts` fails until it matches `git describe --tags`.
 **A checkout needs `git submodule update --init` once**, or Chrome can't
 load `fill-engine/dist/engine.js` and every fill fails. The extension never
 builds it: `dist/engine.js` is committed in the engine repo.
@@ -1144,7 +1147,9 @@ checking the student owns the application: a tab's state (`PUT
 .../questions`), the student's edits (`PUT .../answers`), the answer bank
 (`GET .../answer-bank`), the sent resume and finish (`PUT .../resume`,
 `POST .../finish`), and whether Claude is connected (`GET
-.../connector`). The rest are older:
+.../connector`). Report a problem (KAN-403) sends `POST /fill-reports`
+(`routers/fill_reports.py`): no applicant in the path and no account in
+the row, the report's parts only. The rest are older:
 
 `src/background/api.js` mostly calls endpoints that already exist for the
 webapp: `GET /auth/me`, `GET /applicants/{id}/profile`, `GET
@@ -1365,7 +1370,7 @@ slot by name, `panel.slot(name)`, and adds its styles with
 | `primary` | the one big button; `panel.setPrimary({ label, onPress, secondary })` or `panel.fillButton(label)` | Autofill This Page (launcher.js), Fill Again (overlay.js) |
 | `tab:<id>` | a tab's body; `panel.addTab({ id, label })` adds one, the strip shows from two | `tab:autofill`: overlay.js's summary, Next Thing That Needs You, essay banner, moment cards, parts and rows; `tab:resume` and `tab:answers`: a placeholder (KAN-397) |
 | `settings` | the settings view, shown by the header's gear in place of the tabs (`panel.showSettings`) | panel-settings.js: Claude connection, Open the panel by itself, Report a problem, Workday Sign-Up, Back |
-| `report` | Report a problem, shown by the header's button in place of the tabs (`panel.showView("report", true)`) | a placeholder ("Nothing is sent yet"), Back |
+| `report` | Report a problem, shown in place of the tabs; open it with `window.WIA.reportCard.open()` | report.js: the preview, the note, Send report, Back |
 
 **Tabs (KAN-397).** The shell makes three: Autofill, Résumé and Answers.
 Résumé and Answers hold a one-line placeholder (`.tab-placeholder`) until
@@ -1428,7 +1433,7 @@ the edge tab or the toolbar brings the same rows back, no fill).
 ## The panel's top (KAN-395): header, batch line, job card
 
 The header (panel.js) is WorkIt's mark (logo.tsx's figure, in ink: the
-header is neutral), Report a problem (a ⚑ button, named so; a placeholder card until its ticket),
+header is neutral), Report a problem (a ⚑ button, named so; report.js's card, below),
 the gear and Collapse. `src/content/panel-top.js` fills two slots, loaded
 after panel.js everywhere panel.js is (manifest, `CONTENT_SCRIPT_FILES`,
 background.js `SHELL_FILES`):
@@ -1458,6 +1463,47 @@ background.js `SHELL_FILES`):
 Tests: `test/panel-header.extension.spec.ts` (a batch's line, card, ring and
 Next tab; an own tab's header, Report placeholder and applied card; a
 Workday tab's step line).
+
+## Report a problem (KAN-403): a preview, then Send
+
+`src/content/report.js` (loaded after panel-top.js everywhere it is)
+fills the `report` slot. **`window.WIA.reportCard.open()`** opens it: the
+header's ⚑ calls it (a second press closes it), and the settings view and
+the unsupported-site state call the same function. The card lists exactly
+what Send sends, and Send sends just that:
+
+- the job system (the Fill engine's `jobOf` site, "unsupported" when it
+  fills none there), the posting's link (the page's address without query
+  or fragment, which can carry the student's ids), the Fill engine version
+  (`ENGINE_VERSION` in `background/report.js`, the submodule's pin);
+- each failed field: its kind (the Question set's), its label's shape
+  (`labelShape`: lower case, quoted names, emails and links out, digits as
+  `#`, only letters and spaces kept) and its error's name: Readback (it
+  shows something other than its answer), FillError (the engine couldn't
+  fill it), Handoff, NoForm, NoAnswer (WorkIt had none), Error;
+- the student's note, optional.
+
+**Never an answer, a reason or what the page shows**: a failed reason can
+quote both. The content script tells report.js each question's kind
+(`window.WIA.report.track`) and each failed field's error name
+(`window.WIA.report.failed`); `engine.js`'s `fillPage` puts the error's
+name on a whole-fill failure. The background (`report/preview`,
+`report/send`) names the page's parts itself from the tab's URL and keeps
+only the allowed parts of each field, so a page's script can add nothing.
+`POST /fill-reports` (backend `routers/fill_reports.py`) stores it with no
+account and refuses any other key (422).
+
+**Nothing is sent but on Send**, one report per press: once sent, the card
+says "Sent. Thanks for telling WorkIt." with Back and no second Send; a
+new report means opening it again. Signed out, Send says "Sign in to WorkIt
+to send a report." **The Web Store listing's privacy practices must declare
+it** (the posting link and the student's note leave the extension): for
+Lisul, before release.
+
+Tests: `test/report.extension.spec.ts` (a batch tab's failed field: the
+preview, nothing sent until Send, the request the fake API receives equals
+the preview and holds no answer or page text, no second Send). Backend:
+`tests/test_fill_reports.py`.
 
 ## The Autofill tab's groups (KAN-397)
 
@@ -1504,8 +1550,8 @@ its messages. The gear shows it in place of the tabs; Back returns.
   Off, a batch tab's panel stays closed with its edge tab, as a kept
   collapse does; the student opens it. Outside a batch nothing opens by
   itself anyway.
-- **Report a problem**: opens the report view (`panel.showView("report",
-  true)`), the same entry point as the header's ⚑; KAN-403 fills that slot.
+- **Report a problem**: opens the report card
+  (`window.WIA.reportCard.open()`, report.js), as the header's ⚑ does.
 - **Workday Sign-Up**: opens the extension's options page
   (`workday/signup-open`). No password field is ever in the panel: it
   lives in the employer's page.

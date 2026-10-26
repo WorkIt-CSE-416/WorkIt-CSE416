@@ -154,18 +154,17 @@ window.WIA = window.WIA || {};
           <button type="button" data-signup>Workday Sign-Up</button>
           <button type="button" data-back>Back</button>
         </div>
-        <div class="card" data-slot="report" hidden>
-          <h2>Report a problem</h2>
-          <p>Soon you can tell WorkIt what went wrong on this page, and see exactly what is sent first. Nothing is sent yet.</p>
-          <button type="button" data-back>Back</button>
-        </div>
+        <div class="card" data-slot="report" hidden></div>
       </div>
     `;
     panel.querySelector("[data-collapse]").addEventListener("click", () => collapse());
     panel.querySelector("[data-settings]").addEventListener("click", () => showSettings(panel.querySelector('[data-slot="settings"]').hidden));
     for (const back of panel.querySelectorAll("[data-back]")) back.addEventListener("click", () => showSettings(false));
-    // A placeholder until the report ticket fills the report slot (KAN-395).
-    panel.querySelector("[data-report]").addEventListener("click", () => showView("report", panel.querySelector('[data-slot="report"]').hidden));
+    // Report a problem (report.js, KAN-403) fills the report slot; a second press closes it.
+    panel.querySelector("[data-report]").addEventListener("click", () => {
+      if (!panel.querySelector('[data-slot="report"]').hidden) showView("report", false);
+      else window.WIA.reportCard?.open();
+    });
     // The extension's own settings page (src/options/): the password is never typed into the employer's page.
     panel.querySelector("[data-signup]").addEventListener("click", () => send({ type: "workday/signup-open" }));
 

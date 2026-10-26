@@ -20,6 +20,7 @@ import { claimMoment } from "./moments.js";
 import { nextNeedsYou, walkFrom } from "./next-needs-you.js";
 import { batchLine, jobForTab, showNextTab } from "./panel-top.js";
 import { addClaude, autoOpen, disconnectClaude, readSettings, setAutoOpen } from "./panel-settings.js";
+import { reportOf, sendReport } from "./report.js";
 import { SELF_ID, checkedSelfId, unansweredSelfId } from "./self-id.js";
 import { forgetSubmits, submitHinted, watchSubmitRequests } from "./submit-proof.js";
 import { watchEmbeddedForms } from "./embedded-forms.js";
@@ -357,6 +358,12 @@ async function handleMessage(message, sender) {
       return { line: await batchLine(sender.tab.id), site: jobOf(sender.url ?? "")?.site ?? null };
     case "panel/next-tab":
       return showNextTab(sender.tab.id);
+    // Report a problem (report.js, KAN-403): what the card previews, and its Send.
+    case "report/preview":
+      return reportOf(sender.url ?? "");
+    case "report/send":
+      await sendReport(sender.url ?? "", message.report);
+      return {};
     // The panel's settings view (panel-settings.js, KAN-402): the Claude connection and auto-open.
     case "settings/read":
       return readSettings();
@@ -487,7 +494,7 @@ async function panelSite(url, change) {
 }
 
 // What the panel's shell injects when the toolbar icon or Alt+W finds no panel on a job page yet.
-const SHELL_FILES = ["src/shared/tokens.js", "src/content/panel.js", "src/content/panel-top.js", "src/content/panel-settings.js"];
+const SHELL_FILES = ["src/shared/tokens.js", "src/content/panel.js", "src/content/panel-top.js", "src/content/panel-settings.js", "src/content/report.js"];
 
 /**
  * The toolbar icon (a tab with no popup: a job page, panel/where) and
