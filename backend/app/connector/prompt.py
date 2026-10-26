@@ -308,9 +308,8 @@ pair: give a sincere, specific interest in their thing and let my story \
 stand on its own. Name their product with a few words on what it does, never a \
 sentence explaining it back to them, and never quote the posting or say \
 what it asks for. An idea of mine for their work must be one the posting \
-doesn't say they already ship, said as a proposal. A question about me (an \
-accomplishment, a challenge, a value) is answered with my story; close on \
-the company only when its work is plainly the same kind of problem.
+doesn't say they already ship, said as a proposal. A type whose company \
+link is never is answered with my story alone.
 - End on a concrete point: the story's payoff, or what I would build \
 there. Never end on a wish that would fit any company (to own a project, \
 to learn from a mentor) or a line that sums up.
