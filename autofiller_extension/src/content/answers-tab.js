@@ -69,7 +69,7 @@ window.WIA = window.WIA || {};
   /** One question's row: its label (a press goes to its field), its status, and See answer. */
   function row(field) {
     const el = Object.assign(document.createElement("div"), { className: "answer" });
-    el.dataset.key = field.key;
+    el.dataset.answerKey = field.key; // not data-key: that names the Autofill tab's row, which rows, cards and Next Thing look up
     const head = Object.assign(document.createElement("div"), { className: "answer-head" });
     const label = Object.assign(document.createElement("button"), { type: "button", className: "answer-label", textContent: field.label });
     label.addEventListener("click", () => window.WIA.showField?.(field.key));
