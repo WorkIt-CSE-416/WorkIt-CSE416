@@ -7,12 +7,14 @@ import {
   CloudSlashIcon,
   CursorClickIcon,
   EyeSlashIcon,
+  ListChecksIcon,
   ScissorsIcon,
+  WarningIcon,
 } from "@phosphor-icons/react/ssr";
 import localFont from "next/font/local";
 import { Suspense, use, useCallback, useEffect, useRef, useState, type ReactNode } from "react";
 
-import { SparkleIcon } from "@/components/icons";
+import { ChevronDownIcon, SparkleIcon } from "@/components/icons";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/shadcn/popover";
 import { Skeleton } from "@/components/shadcn/skeleton";
 import { Button, buttonClasses } from "@/components/ui/button";
@@ -59,7 +61,6 @@ import { PhoneEditor, usePhone } from "./phone";
 import {
   cardsOf,
   editKey,
-  inPanelOrder,
   linesOf,
   marksOf,
   reverted,
@@ -189,12 +190,12 @@ export function Editor({
    *  only there are changes tinted: a mark with no card to act on would
    *  mean nothing. */
   suggestions?: (api: SuggestionsApi) => ReactNode;
-  /** The slim toolbar (Tailor's review): icon buttons for Download and Ask
-   *  Scout, the page count as a chip that offers Fit to One Page, and "Click
-   *  a line to edit it" only while the pointer is over the page. The
+  /** The slim toolbar (Tailor's review): the page count as a warning chip
+   *  that offers Fit to One Page, "Click a line to edit it" only while the
+   *  pointer is over the page, Suggestions and Download (`SlimBar`). The
    *  editor's own page keeps the full bar. */
   compact?: boolean;
-  /** A label over the page's column (Tailor's "Resume · name"). */
+  /** A title over the page's column (Tailor's `ResumeTitle`). */
   heading?: ReactNode;
   /** A row the phone layout's header shows under its buttons: the page's
    *  own controls, which the full-screen phone editor would cover. */
@@ -258,14 +259,12 @@ export function Editor({
   // marked line last clicked, and the phone's Suggestions sheet
   const [focused, setFocused] = useState<string | null>(null);
   const [active, setActive] = useState<string | null>(null);
-  // Each card's number, given in the panel's order as its change is first
-  // seen and kept, so the numbers do not shift as cards are handled
-  const [numbers, setNumbers] = useState<Map<string, number>>(() => new Map());
   // The pointer is over the page: the slim bar shows its hint then
   const [overPage, setOverPage] = useState(false);
   const [suggestionsOpen, setSuggestionsOpen] = useState(false);
-  // Tailor's panel folded to a slim rail beside the page, which takes the room
-  const [panelCollapsed, setPanelCollapsed] = useState(false);
+  // Tailor's panel beside the page, shown and hidden from the toolbar; the
+  // page takes the room while it is hidden
+  const [panelOpen, setPanelOpen] = useState(true);
 
   /** Starts a request; the returned check stays true while it is the latest. */
   const begin = useCallback(() => {
@@ -587,30 +586,16 @@ export function Editor({
     );
   // Tailor's review, on Tailor's page only (`suggestions`)
   const reviewing = suggestions && review ? review : null;
-  const unnumbered = reviewing
-    ? inPanelOrder(reviewing.edits).filter((edit) => !numbers.has(editKey(edit)))
-    : [];
-  if (unnumbered.length > 0) {
-    const next = new Map(numbers);
-    for (const edit of unnumbered) next.set(editKey(edit), next.size + 1);
-    setNumbers(next);
-  }
-  const numberOf = (key: string) => numbers.get(key) ?? 0;
   const cards = reviewing ? cardsOf(reviewing.edits, choices) : undefined;
-  // Every changed line has its card's dot; only the lines of the card in
-  // focus or open are tinted
+  // Every changed line has a dot; only the lines of the card in focus or
+  // open are tinted
   const allMarks = reviewing ? marksOf(reviewing.edits, choices) : undefined;
   const litEdits = reviewing?.edits.filter((edit) => [focused, active].includes(editKey(edit)));
   const lit = new Set(litEdits?.flatMap((edit) => linesOf(edit, choices)));
   const marks = allMarks && new Map([...allMarks].filter(([line]) => lit.has(line)));
   const dots =
     allMarks &&
-    new Map(
-      [...allMarks].map(([line, mark]) => {
-        const card = cards?.get(line) ?? "";
-        return [line, { n: numberOf(card), mark, lit: lit.has(line) }] as const;
-      }),
-    );
+    new Map([...allMarks].map(([line, mark]) => [line, { mark, lit: lit.has(line) }] as const));
   const focusedEdit = reviewing?.edits.find((edit) => editKey(edit) === focused);
   const focus = focusedEdit ? linesOf(focusedEdit, choices) : undefined;
   /** A click on a line selects it, and a changed one also opens its card. */
@@ -647,11 +632,10 @@ export function Editor({
       },
       active,
       open: setActive,
-      numberOf,
-      // The phone's sheet is its own panel and never folds
-      collapsed: !phone && panelCollapsed,
-      setCollapsed: setPanelCollapsed,
     });
+  // Beside the page, the toolbar's Suggestions shows and hides the panel;
+  // the phone opens it as a sheet from its own button
+  const shownPanel = panelOpen && panel;
 
   if (phone) {
     const start = line && startText(line);
@@ -726,11 +710,7 @@ export function Editor({
       className={cn(
         "mt-4 grid items-start gap-5",
         asking && "@4xl/main:grid-cols-[minmax(0,1fr)_22rem]",
-        panel &&
-          !asking &&
-          (panelCollapsed
-            ? "@4xl/main:grid-cols-[minmax(0,1fr)_3.5rem]"
-            : "@4xl/main:grid-cols-[minmax(0,1fr)_22.5rem]"),
+        shownPanel && !asking && "@4xl/main:grid-cols-[minmax(0,1fr)_22.5rem]",
       )}
     >
       <div className={cn("flex min-w-0 flex-col", compact ? "gap-2" : "gap-4")}>
@@ -755,6 +735,20 @@ export function Editor({
           onFit={fit}
           onUndoFit={undoFit}
           onAsk={asking ? undefined : () => setAsking(true)}
+          review={
+            reviewing && {
+              count: reviewing.edits.length,
+              open: panelOpen,
+              // A hidden panel leaves no line highlighted for a card out of sight
+              onToggle: () => {
+                if (panelOpen) {
+                  setActive(null);
+                  setFocused(null);
+                }
+                setPanelOpen(!panelOpen);
+              },
+            }
+          }
         />
         {error && (
           <p role="alert" className="text-note text-danger">
@@ -803,7 +797,7 @@ export function Editor({
       </div>
       {/* Tailor's suggestions share the assistant's column and give way to
           it while it is open. Above the page on a narrow screen. */}
-      {panel && !asking && (
+      {shownPanel && !asking && (
         <div
           data-keeps-selection
           className={cn(
@@ -811,7 +805,7 @@ export function Editor({
             "@4xl/main:sticky @4xl/main:top-2 @4xl/main:order-none @4xl/main:max-h-[calc(100dvh-8rem)]",
           )}
         >
-          {panel}
+          {shownPanel}
         </div>
       )}
       {fitToast}
@@ -849,6 +843,7 @@ function Bar({
   onFit,
   onUndoFit,
   onAsk,
+  review,
 }: {
   /** The slim row (Tailor's review), see `Editor`'s `compact`. */
   compact: boolean;
@@ -874,6 +869,9 @@ function Bar({
   onUndoFit: () => void;
   /** Opens the assistant; absent while it is open. */
   onAsk?: () => void;
+  /** Tailor's Suggestions panel: its count, and whether it shows beside the
+   *  page (the slim bar's toggle). */
+  review?: SuggestionsToggle | null;
 }) {
   if (compact) {
     return (
@@ -887,6 +885,7 @@ function Bar({
         download={download}
         onFit={onFit}
         onUndoFit={onUndoFit}
+        review={review}
         editing={
           line &&
           box && (
@@ -989,6 +988,10 @@ function Bar({
   );
 }
 
+/** The slim bar's Suggestions toggle: the changes left and whether the
+ *  panel shows beside the page. */
+type SuggestionsToggle = { count: number; open: boolean; onToggle: () => void };
+
 /** The slim bar's box: a quiet white row, not the brand-tinted bar. */
 const SLIM_BAR =
   "bg-panel/95 ring-border-subtle sticky top-2 z-20 flex min-h-10 flex-wrap items-center gap-2 rounded-xl px-2 py-1 ring-1 backdrop-blur";
@@ -997,13 +1000,16 @@ const SLIM_BAR =
  * The slim bar (Tailor's review), in two states, each with only what that
  * moment needs. Idle: the page count as a chip that offers Fit to One Page
  * (over one page only), Undo after a fit, the hint while the pointer is
- * over the page, and Download. Editing a line (`editing`): its kind, its
+ * over the page, then Suggestions (on Tailor's review: shows and hides the
+ * panel, with its count) and Download in the brand fill. Editing a line
+ * (`editing`): its kind, its
  * moves first, then Hide and the line's own choices, and "Esc when done"
  * in place of a Done button, since Escape or a click off the page already
  * saves and closes. No Ask Scout here: the Suggestions panel holds the
  * column the assistant would open in, and a second AI entry beside it
  * split the page's attention. Download goes while a line is open, which is
- * not the moment to save a file.
+ * not the moment to save a file. The panel folded to a rail of its own (»)
+ * until the user found it dated; Download was an outlined glyph.
  */
 function SlimBar({
   overPage,
@@ -1015,6 +1021,7 @@ function SlimBar({
   download,
   onFit,
   onUndoFit,
+  review,
   editing,
 }: {
   overPage: boolean;
@@ -1026,6 +1033,7 @@ function SlimBar({
   download: ResumeDownload;
   onFit: () => void;
   onUndoFit: () => void;
+  review?: SuggestionsToggle | null;
   /** The open line's label and actions, or nothing while idle. */
   editing: ReactNode;
 }) {
@@ -1078,15 +1086,31 @@ function SlimBar({
         <CursorClickIcon aria-hidden className="size-4 shrink-0" />
         Click a line to edit it.
       </span>
-      <div className="ml-auto flex items-center gap-1">
+      <div className="ml-auto flex items-center gap-2">
         {status}
-        <DownloadMenu download={download} iconOnly />
+        {review && (
+          <Button
+            variant="secondary"
+            size="sm"
+            aria-pressed={review.open}
+            onClick={review.onToggle}
+            className="aria-pressed:bg-brand-tint aria-pressed:border-brand-pale aria-pressed:text-brand"
+          >
+            <ListChecksIcon aria-hidden /> Suggestions
+            <span className="bg-brand text-on-brand flex h-5 min-w-5 items-center justify-center rounded-full px-1.5 text-xs font-semibold tabular-nums">
+              {review.count}
+            </span>
+          </Button>
+        )}
+        <DownloadMenu download={download} primary />
       </div>
     </div>
   );
 }
 
-/** The page count as a small chip; its click offers Fit to One Page. */
+/** The page count as a small amber chip with a warning sign and a caret,
+ *  so it reads as a problem to open; its click offers Fit to One Page. As
+ *  bare text ("2 pages") nobody took it for a button. */
 function PagesChip({
   pages,
   linesOver,
@@ -1101,8 +1125,10 @@ function PagesChip({
   const [open, setOpen] = useState(false);
   return (
     <Popover open={open} onOpenChange={setOpen}>
-      <PopoverTrigger className="bg-warning-tint text-warning text-note focus-visible:ring-brand-ring rounded-full px-2.5 py-1 font-medium focus-visible:ring-2 focus-visible:outline-none">
+      <PopoverTrigger className="bg-warning-tint text-warning text-note focus-visible:ring-brand-ring hover:ring-warning-fill flex items-center gap-1.5 rounded-full py-1 pr-2 pl-2 font-medium transition-shadow hover:ring-1 focus-visible:ring-2 focus-visible:outline-none">
+        <WarningIcon aria-hidden weight="fill" className="text-warning-strong size-4 shrink-0" />
         {pages} pages
+        <ChevronDownIcon className="size-3.5" />
       </PopoverTrigger>
       <PopoverContent align="start" className="flex w-72 flex-col gap-3">
         <p className="text-note text-ink-muted">

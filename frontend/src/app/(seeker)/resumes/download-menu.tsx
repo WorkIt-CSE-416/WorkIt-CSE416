@@ -10,7 +10,6 @@ import {
   DropdownMenuItem,
   DropdownMenuTrigger,
 } from "@/components/shadcn/dropdown-menu";
-import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/shadcn/tooltip";
 import { Button } from "@/components/ui/button";
 import { downloadResumeFile, renderResumePdf, type ResumeFile } from "@/lib/built-resume-actions";
 
@@ -80,40 +79,24 @@ const BUSY: Record<Format, string> = {
  */
 export function DownloadMenu({
   download,
-  iconOnly = false,
+  primary = false,
 }: {
   download: ResumeDownload;
-  /** The glyph alone, named by its tooltip (Tailor's slim editor bar). */
-  iconOnly?: boolean;
+  /** The brand fill (Tailor's slim editor bar, where it is the one action).
+   *  It was a bare outlined glyph there, which the user found dated. */
+  primary?: boolean;
 }) {
   const { busy, pick } = download;
   const label = busy ? BUSY[busy] : "Download";
   return (
     <DropdownMenu>
-      {iconOnly ? (
-        <Tooltip>
-          <TooltipTrigger
-            render={
-              <DropdownMenuTrigger
-                disabled={busy !== null}
-                aria-label={label}
-                render={<Button variant="outline" size="icon" />}
-              />
-            }
-          >
-            <FileArrowDownIcon aria-hidden />
-          </TooltipTrigger>
-          <TooltipContent>{label}</TooltipContent>
-        </Tooltip>
-      ) : (
-        <DropdownMenuTrigger
-          disabled={busy !== null}
-          render={<Button variant="secondary" size="sm" />}
-        >
-          <FileArrowDownIcon aria-hidden /> {label}
-          <ChevronDownIcon className="text-ink-meta" />
-        </DropdownMenuTrigger>
-      )}
+      <DropdownMenuTrigger
+        disabled={busy !== null}
+        render={<Button variant={primary ? "default" : "secondary"} size="sm" />}
+      >
+        <FileArrowDownIcon aria-hidden /> {label}
+        <ChevronDownIcon className={primary ? undefined : "text-ink-meta"} />
+      </DropdownMenuTrigger>
       <DropdownMenuContent>
         <DropdownMenuItem onClick={() => pick("pdf")}>PDF</DropdownMenuItem>
         <DropdownMenuItem onClick={() => pick("docx")}>Word</DropdownMenuItem>

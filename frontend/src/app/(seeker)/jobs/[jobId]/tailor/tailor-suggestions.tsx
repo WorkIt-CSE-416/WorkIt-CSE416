@@ -1,12 +1,6 @@
 "use client";
 
-import {
-  CaretDoubleLeftIcon,
-  CaretDoubleRightIcon,
-  CaretDownIcon,
-  CheckIcon,
-  XIcon,
-} from "@phosphor-icons/react/ssr";
+import { CaretDownIcon, CheckIcon, XIcon } from "@phosphor-icons/react/ssr";
 import { useEffect, useRef, useState, type ComponentProps, type ReactNode } from "react";
 
 import { EllipsisIcon } from "@/components/icons";
@@ -37,15 +31,15 @@ import { TailorScore } from "./tailor-score";
 
 /**
  * Tailor's review step (docs/tailor_resume.md, "Suggestions"), kept quiet
- * after Quinncia's resume review: two columns under small labels, the
- * tailored resume in the editor's slim toolbar (`compact`) and the
- * Suggestions panel. Each changed line has a numbered dot in the page's
- * margin; a line is tinted only while its card is pointed at, focused or
- * open. The panel groups the cards (Wording, Order, Skills) in folding
- * sections, and each card opens to show its before and after with Accept,
- * which keeps the saved change, and Reject, which undoes it. The editor
- * owns the state and lays the panel out (`suggestions`); this file draws
- * it.
+ * after Quinncia's resume review: the tailored resume under its name and
+ * the editor's slim toolbar (`compact`), and the Suggestions panel, which
+ * the toolbar shows and hides. Each changed line has a small dot in the
+ * page's margin and is highlighted only while its suggestion is pointed
+ * at, focused or open. The panel has a section per kind (Wording, Order,
+ * Skills), each counting its suggestions, and each suggestion is a row that
+ * opens to its before and after with Accept, which keeps the saved change,
+ * and Reject, which undoes it. The editor owns the state and lays the
+ * panel out (`suggestions`); this file draws it.
  *
  * The record lives in this tab's sessionStorage, so a new tab or device has
  * no suggestions: the editor shows alone, with a line that says why.
@@ -117,6 +111,15 @@ function Count({ n }: { n: number }) {
 /** A group opens by default only when it is this small. */
 const OPEN_UP_TO = 3;
 
+/** A group's swatch, in the dark shade of its lines' highlight and margin
+ *  dots (../../../resumes/[resumeId]/pdf-pages.tsx), so a section and its
+ *  lines on the page read as one. */
+const SWATCH: Record<TailorEdit["kind"], string> = {
+  reword: "bg-positive-ink",
+  order: "bg-warning-strong",
+  skill: "bg-positive-ink",
+};
+
 function SuggestionsPanel({
   record,
   bank,
@@ -131,9 +134,6 @@ function SuggestionsPanel({
   show,
   active,
   open,
-  numberOf,
-  collapsed,
-  setCollapsed,
 }: SuggestionsApi) {
   const { edits, match } = record;
   const list = useRef<HTMLDivElement>(null);
@@ -160,20 +160,6 @@ function SuggestionsPanel({
       ?.scrollIntoView({ block: "nearest", behavior: "smooth" });
   }, [active, openGroups]);
 
-  // Folding swaps one toggle for the other, so focus moves to the new one;
-  // left alone it fell to the page's body, as the clicked button unmounted
-  const refocus = useRef(false);
-  const fold = (to: boolean) => {
-    refocus.current = true;
-    setCollapsed(to);
-  };
-  const takeFocus = (el: HTMLButtonElement | null) => {
-    if (el && refocus.current) {
-      refocus.current = false;
-      el.focus();
-    }
-  };
-
   const toggle = (kind: string) => {
     const next = new Set(openGroups);
     if (next.has(kind)) next.delete(kind);
@@ -181,41 +167,16 @@ function SuggestionsPanel({
     setOpenGroups(next);
   };
 
-  // Folded: a slim rail with the count, so the page takes the room
-  if (collapsed) {
-    return (
-      <section
-        aria-label="Suggestions"
-        className="bg-brand-tint ring-brand-pale flex flex-col items-center gap-3 rounded-2xl py-3 ring-1"
-      >
-        <Button
-          variant="ghost"
-          size="icon-sm"
-          aria-expanded={false}
-          aria-label={`Show Suggestions (${edits.length})`}
-          ref={takeFocus}
-          onClick={() => fold(false)}
-        >
-          <CaretDoubleLeftIcon aria-hidden />
-        </Button>
-        <Count n={edits.length} />
-        <span className="text-label text-brand rotate-180 font-semibold [writing-mode:vertical-rl]">
-          Suggestions
-        </span>
-      </section>
-    );
-  }
-
   return (
     // In the brand tint with its ring, as the editor's bar above the page,
-    // so the two read as one review and the white cards stand out; bare in
-    // the phone's sheet, which is its own panel. It was grey with a quiet
-    // small-capitals title, which the user found muted.
+    // so the two read as one review and the white sections stand out; bare
+    // in the phone's sheet, which is its own panel. The toolbar's
+    // Suggestions shows and hides it.
     <section
       aria-labelledby="suggestions-heading"
       className="sm:bg-brand-tint sm:ring-brand-pale flex flex-col gap-2 sm:rounded-2xl sm:p-3 sm:ring-1"
     >
-      {/* The top stays in view while the cards scroll under it */}
+      {/* The top stays in view while the sections scroll under it */}
       <div className="bg-panel sm:bg-brand-tint sticky top-0 z-10 flex flex-col gap-2 pb-2 sm:-mx-3 sm:-mt-3 sm:rounded-t-2xl sm:px-3 sm:pt-3">
         <div className="flex min-h-8 items-center gap-1">
           <h2
@@ -238,58 +199,56 @@ function SuggestionsPanel({
               <DropdownMenuItem onClick={rejectAll}>Reject All</DropdownMenuItem>
             </DropdownMenuContent>
           </DropdownMenu>
-          {/* Folds only where the panel is a column beside the page */}
-          <Button
-            variant="ghost"
-            size="icon-sm"
-            aria-expanded
-            aria-label="Hide Suggestions"
-            className="hidden @4xl/main:inline-flex"
-            ref={takeFocus}
-            onClick={() => fold(true)}
-          >
-            <CaretDoubleRightIcon aria-hidden />
-          </Button>
         </div>
         {match && <TailorScore match={match} />}
       </div>
       {edits.length > 0 ? (
-        <div ref={list} className="flex flex-col gap-3">
+        <div ref={list} className="flex flex-col gap-2">
           {GROUPS.map((group) => {
             const inGroup = edits.filter((e) => e.kind === group.kind);
             if (inGroup.length === 0) return null;
             const isOpen = openGroups.has(group.kind);
             return (
-              <div key={group.kind} className="flex flex-col gap-1.5">
-                <button
-                  type="button"
-                  aria-expanded={isOpen}
-                  onClick={() => toggle(group.kind)}
-                  className="text-label text-ink focus-visible:ring-brand-ring flex items-center gap-1.5 rounded-xs text-left font-medium focus-visible:ring-2 focus-visible:outline-none"
-                >
-                  <CaretDownIcon
-                    aria-hidden
-                    className={cn(
-                      "text-ink-meta size-3.5 transition-transform",
-                      !isOpen && "-rotate-90",
-                    )}
-                  />
-                  {group.title}
-                  <span className="text-ink-meta font-normal">{inGroup.length}</span>
-                </button>
+              // One white section per kind: its heading counts what is in it,
+              // and its suggestions are rows under a hairline, each opening
+              // in place
+              <section
+                key={group.kind}
+                aria-label={group.title}
+                className="bg-panel max-sm:bg-app overflow-hidden rounded-xl"
+              >
+                <h3>
+                  <button
+                    type="button"
+                    aria-expanded={isOpen}
+                    onClick={() => toggle(group.kind)}
+                    className="hover:bg-ink/[0.03] focus-visible:outline-brand flex w-full items-center gap-2 px-3 py-2.5 text-left -outline-offset-2 transition-colors focus-visible:outline-2"
+                  >
+                    <span
+                      aria-hidden
+                      className={cn("size-2.5 shrink-0 rounded-full", SWATCH[group.kind])}
+                    />
+                    <span className="text-label text-ink font-semibold">{group.title}</span>
+                    <span className="bg-ink/5 text-ink-muted text-note flex h-5 min-w-5 items-center justify-center rounded-full px-1.5 font-semibold tabular-nums">
+                      {inGroup.length}
+                    </span>
+                    <Chevron open={isOpen} />
+                  </button>
+                </h3>
                 {isOpen && (
-                  <ol role="list" className="flex flex-col gap-1.5">
-                    {inGroup
-                      .map((edit) => ({ edit, key: editKey(edit) }))
-                      .sort((a, b) => numberOf(a.key) - numberOf(b.key))
-                      .map(({ edit, key }) => (
+                  <ul
+                    role="list"
+                    className="border-border-subtle divide-border-subtle divide-y border-t"
+                  >
+                    {inGroup.map((edit) => {
+                      const key = editKey(edit);
+                      return (
                         <li key={key}>
-                          <Card
+                          <Suggestion
                             edit={edit}
                             bank={bank}
                             choices={choices}
                             cardKey={key}
-                            n={numberOf(key)}
                             lit={focused === key}
                             isOpen={active === key}
                             saving={saving}
@@ -300,10 +259,11 @@ function SuggestionsPanel({
                             onReject={() => reject(edit)}
                           />
                         </li>
-                      ))}
-                  </ol>
+                      );
+                    })}
+                  </ul>
                 )}
-              </div>
+              </section>
             );
           })}
         </div>
@@ -316,34 +276,39 @@ function SuggestionsPanel({
   );
 }
 
+/** A suggestion's kind, for screen readers: the section says it on screen. */
 const KIND_TITLES: Record<TailorEdit["kind"], string> = {
   reword: "New wording",
   order: "New order",
   skill: "Added skill",
 };
 
-/** A card's number, drawn as its lines' margin dots are
- *  (../../../resumes/[resumeId]/pdf-pages.tsx). */
-function NumberDot({ n, kind }: { n: number; kind: TailorEdit["kind"] }) {
+/** The panel's one sign of something to open: a caret at the row's end,
+ *  turned up while open. */
+function Chevron({ open }: { open: boolean }) {
   return (
-    <span
+    <CaretDownIcon
       aria-hidden
       className={cn(
-        "flex h-4 min-w-4 shrink-0 items-center justify-center rounded-full px-1 text-xs font-semibold tabular-nums",
-        kind === "order" ? "bg-warning-fill text-ink" : "bg-positive-ink text-on-brand",
+        "text-ink-meta ml-auto size-4 shrink-0 transition-transform duration-150",
+        open && "rotate-180",
       )}
-    >
-      {n}
-    </span>
+    />
   );
 }
 
-function Card({
+/**
+ * One suggestion, a row in its section: its one line and a caret; open, it
+ * shows where it is, the change, and ✕ Reject and ✓ Accept. Tinted while
+ * pointed at, focused or open, as its lines are on the page. Each was a
+ * card of its own with a numbered dot until 2026-10-26: the numbers read as
+ * an order to follow, and the cards did not say they open.
+ */
+function Suggestion({
   edit,
   bank,
   choices,
   cardKey,
-  n,
   lit,
   isOpen,
   saving,
@@ -357,7 +322,6 @@ function Card({
   bank: Bank;
   choices: Choices;
   cardKey: string;
-  n: number;
   lit: boolean;
   isOpen: boolean;
   saving: boolean;
@@ -367,6 +331,7 @@ function Card({
   onAccept: () => void;
   onReject: () => void;
 }) {
+  const at = edit.kind === "order" ? null : where(edit, bank);
   return (
     <div
       data-card={cardKey}
@@ -376,33 +341,29 @@ function Card({
       onBlur={(e) => {
         if (!e.currentTarget.contains(e.relatedTarget)) onFocus(null);
       }}
-      className={cn(
-        // White on the grey panel (grey on the phone's white sheet), lifted
-        // while pointed at or open; no outline. Clear of the panel's pinned
-        // top when scrolled to.
-        "bg-panel max-sm:bg-app scroll-mt-28 rounded-xl transition-shadow",
-        (isOpen || lit) && "shadow-lift",
-      )}
+      // Clear of the panel's pinned top when scrolled to
+      className={cn("scroll-mt-28 transition-colors", (isOpen || lit) && "bg-brand-tint/60")}
     >
       <button
         type="button"
         aria-expanded={isOpen}
         onClick={onToggle}
-        className="focus-visible:outline-brand flex w-full items-center gap-2 rounded-xl px-3 py-2 text-left focus-visible:outline-2"
+        className="focus-visible:outline-brand flex w-full items-start gap-2 px-3 py-2.5 text-left -outline-offset-2 focus-visible:outline-2"
       >
-        <NumberDot n={n} kind={edit.kind} />
         <span className="sr-only">{KIND_TITLES[edit.kind]}: </span>
-        <span className="text-note text-ink min-w-0 flex-1 truncate">{summary(edit)}</span>
+        <span className={cn("text-note text-ink min-w-0 flex-1", !isOpen && "line-clamp-2")}>
+          {summary(edit, choices)}
+        </span>
+        <span className="mt-0.5 flex">
+          <Chevron open={isOpen} />
+        </span>
       </button>
       {isOpen && (
-        <div className="flex flex-col gap-2.5 px-3 pb-3 pl-9">
-          <p className="text-note text-ink-meta truncate">
-            {KIND_TITLES[edit.kind]}
-            {where(edit, bank) && ` · ${where(edit, bank)}`}
-          </p>
-          <p className="text-note text-ink">
+        <div className="flex flex-col gap-2.5 px-3 pb-3">
+          {at && <p className="text-note text-ink-meta truncate">In {at}</p>}
+          <div className="text-note text-ink bg-panel ring-border-subtle rounded-lg p-2.5 ring-1">
             <Change edit={edit} bank={bank} choices={choices} />
-          </p>
+          </div>
           <div className="flex items-center gap-1.5">
             {/* On a phone the sheet covers the page: this shows the line */}
             <Button variant="ghost" size="xs" className="mr-auto sm:hidden" onClick={onShow}>
@@ -422,11 +383,14 @@ function Card({
   );
 }
 
-/** A closed card's one line: the new wording, the entry reordered, or the
- *  skill added. */
-function summary(edit: TailorEdit) {
+/** A closed row's line: the new wording, the entry and how many of its
+ *  bullets moved, or the skill added. */
+function summary(edit: TailorEdit, choices: Choices) {
   if (edit.kind === "reword") return edit.text ?? "";
-  if (edit.kind === "order") return `${edit.label ?? "An entry"}: bullets reordered`;
+  if (edit.kind === "order") {
+    const n = movesOf(edit, choices).length;
+    return `${edit.label ?? "An entry"}: ${n} ${n === 1 ? "bullet" : "bullets"} moved`;
+  }
   return edit.label ?? "";
 }
 

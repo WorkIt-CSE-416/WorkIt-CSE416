@@ -18,26 +18,38 @@ import type { Mark } from "./tailor-review";
  * percent of the page, so they need no redraw to follow the canvas's size.
  * `field` draws the selected line's text field over its first box (KAN-218);
  * each page is a size container, so the field's type can be set in `cqw` to
- * match the PDF's at any width. On Tailor's review, `dots` puts a numbered
- * dot in the page's left margin beside each changed line, the number of
- * its Suggestions card; `marks` tints the lines of the card in focus or
- * open, and `focus` brings the first of them into view (./tailor-review.tsx).
+ * match the PDF's at any width. On Tailor's review, `dots` puts a small
+ * dot in the page's left margin beside each changed line, in its mark's
+ * colour; `marks` highlights the lines of the card in focus or open, and
+ * `focus` brings the first of them into view (./tailor-review.tsx).
  */
 
+/** A marked line's highlight, as Quinncia draws one: the tint, carried
+ *  1px past the line by a spread shadow so the text does not touch the
+ *  edge, then a 1px border in the mark's dark shade, rounded. A flat tint
+ *  with square corners read as a smear (2026-10-26). */
 const MARK_TINT: Record<Mark, string> = {
-  changed: "bg-positive/35",
-  moved: "bg-warning-fill/25",
+  changed:
+    "rounded-[4px] bg-positive/20 shadow-[0_0_0_1px_color-mix(in_oklab,var(--color-positive)_20%,transparent),0_0_0_2px_var(--color-positive-ink)]",
+  moved:
+    "rounded-[4px] bg-warning-fill/20 shadow-[0_0_0_1px_color-mix(in_oklab,var(--color-warning-fill)_20%,transparent),0_0_0_2px_var(--color-warning-strong)]",
 };
 
-/** A margin dot's fill, by the line's mark: ink on the amber fill and white
- *  only on positive-ink, which hold their contrast. */
+/** A margin dot's fill, by the line's mark: the highlight's dark shade. */
 const DOT_FILL: Record<Mark, string> = {
-  changed: "bg-positive-ink text-on-brand",
-  moved: "bg-warning-fill text-ink",
+  changed: "bg-positive-ink",
+  moved: "bg-warning-strong",
 };
 
-/** A line's margin dot: its card's number and the line's mark. */
-export type Dot = { n: number; mark: Mark; lit: boolean };
+const DOT_LABEL: Record<Mark, string> = {
+  changed: "Show the suggestion for this line",
+  moved: "Show the suggestion for this moved bullet",
+};
+
+/** A line's margin dot: the line's mark, and whether its card is in focus.
+ *  Dots carried their card's number until 2026-10-26: numbered cards and
+ *  dots read as an order the student had to follow. */
+export type Dot = { mark: Mark; lit: boolean };
 
 /** A box's identity across renders: its bank item and which part of it. */
 export const boxKey = (box: Pick<RenderBox, "item_id" | "kind">) => `${box.item_id}.${box.kind}`;
@@ -281,7 +293,7 @@ export function PdfPages({
 
 /** One page's margin dots: one per changed line, at its first box's top, in
  *  the left margin. Dots on one row (skills on one line) stack like coins,
- *  10px apart, each ringed in white, so they stay inside the margin. */
+ *  8px apart, each ringed in white, so they stay inside the margin. */
 function MarginDots({
   boxes,
   page,
@@ -311,21 +323,19 @@ function MarginDots({
         <button
           key={`${key}.dot`}
           type="button"
-          aria-label={`Suggestion ${dot.n}`}
+          aria-label={DOT_LABEL[dot.mark]}
           onClick={() => onDot?.(key)}
           className={cn(
-            "outline-panel absolute z-10 flex h-4 min-w-4 items-center justify-center rounded-full px-1 text-xs font-semibold tabular-nums shadow-sm outline-2 transition-transform hover:z-20 hover:scale-110",
+            "outline-panel absolute z-10 size-2.5 rounded-full shadow-sm outline-2 transition-transform hover:z-20 hover:scale-125",
             "focus-visible:outline-brand focus-visible:outline-2 focus-visible:outline-offset-1",
             DOT_FILL[dot.mark],
-            dot.lit && "ring-brand scale-110 ring-2 ring-offset-1",
+            dot.lit && "ring-brand scale-125 ring-2 ring-offset-1",
           )}
           style={{
-            left: `calc(${(10 / size.width) * 100}% + ${nth * 10}px)`,
-            top: `${(box.y0 / size.height) * 100}%`,
+            left: `calc(${(12 / size.width) * 100}% + ${nth * 8}px)`,
+            top: `calc(${(box.y0 / size.height) * 100}% + 3px)`,
           }}
-        >
-          {dot.n}
-        </button>
+        />
       );
     });
 }

@@ -35,7 +35,9 @@ export type TailorReviewRecord = { edits: TailorEdit[]; match?: MatchShift; sour
  *  resume as they stand, and the panel's actions. `focused` is the card
  *  the pointer or focus is on and `active` the card that is open; the page
  *  tints the lines of both. A click on a line or its margin dot opens its
- *  card. `numberOf` is a card's number, the one on its lines' dots. */
+ *  card. Cards carry no number: a numbered card and dot read as an order
+ *  the student had to follow, so each group counts its own changes. Whether
+ *  the panel shows at all is the editor's (the toolbar's Suggestions). */
 export type SuggestionsApi = {
   record: TailorReviewRecord;
   bank: Bank;
@@ -52,25 +54,14 @@ export type SuggestionsApi = {
   show: (key: string) => void;
   active: string | null;
   open: (key: string | null) => void;
-  numberOf: (key: string) => number;
-  /** The panel folded to a slim rail beside the page, which widens into
-   *  the room; never on a phone, whose sheet is its own panel. */
-  collapsed: boolean;
-  setCollapsed: (collapsed: boolean) => void;
 };
 
-/** The panel's groups, in its order, which is also the cards' numbering. */
+/** The panel's groups, in its order. */
 export const GROUPS = [
   { kind: "reword", title: "Wording" },
   { kind: "order", title: "Order" },
   { kind: "skill", title: "Skills" },
 ] as const;
-
-/** The record's changes in the panel's order: wording, then order, then
- *  skills, each kind in the run's order. */
-export function inPanelOrder(edits: TailorEdit[]): TailorEdit[] {
-  return GROUPS.flatMap((group) => edits.filter((edit) => edit.kind === group.kind));
-}
 
 /** A line's mark: `changed` (a new wording or an added skill, green) or
  *  `moved` (an entry's bullets put in a new order, amber). */

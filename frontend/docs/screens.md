@@ -1763,28 +1763,31 @@ with no proposals to accept and no Done (2026-10-25).
   in the same box; Enter or a click away saves, Esc cancels), the
   editor's slim toolbar under it, and "Suggestions" with its count in a
   filled pill over a 360px panel in the brand tint (the editor's bar's
-  colour) of white cards that sticks and scrolls on its
-  own. The toolbar shows Download alone while idle (with the page chip
-  when over one page) and, while a line is open, its moves, Hide and its
-  choices with "Esc when done"; no Ask Scout and no Done. Each changed line
-  has a numbered dot in the page's margin and is tinted only while its
-  card is pointed at or open; a dot or a changed line opens its card. The
-  panel's top holds View Original, a "…" menu (Accept All, Reject All)
-  and the keyword match as one thin row ("No new keywords matched" when
-  it did not move); under it the cards fold in Wording, Order and Skills,
-  each card closed to its number and one line, open to its change with a
-  red ✕ Reject and a green ✓ Accept. Beside the page (the `@4xl/main`
-  column) the panel folds to a 56px rail (») that holds the count and
-  "Suggestions" set upright, and the page takes the room; « opens it
-  again, and focus moves to the other toggle each time. On a phone the
-  panel is a sheet opened by "Suggestions (n)" and never folds. With no record (a new tab or device) the editor
+  colour) of white sections that sticks and scrolls on its own. The
+  toolbar, idle, shows the page count when over one page as an amber
+  chip with a warning sign and a caret (its click offers Fit to One
+  Page), then Suggestions with its count, which shows and hides the
+  panel (hidden, the page takes the width), and Download in the brand
+  fill; while a line is open, its moves, Hide and its choices with "Esc
+  when done"; no Ask Scout and no Done. Each changed line has a small
+  plain dot in the page's margin and is highlighted (its tint, a 1px dark
+  border, rounded, after Quinncia) only while its suggestion is pointed
+  at or open; a dot or a changed line opens it. The panel's top holds
+  View Original, a "…" menu (Accept All, Reject All) and the keyword
+  match as one thin row ("No new keywords matched" when it did not
+  move); under it one white section per kind, Wording, Order and Skills,
+  each heading with a colour swatch, its count and a caret, and each
+  suggestion a row with a caret that opens to its change with a red ✕
+  Reject and a green ✓ Accept. On a phone the panel is a sheet opened by
+  "Suggestions (n)". With no record (a new tab or device) the editor
   shows alone, with a line saying the suggestions live in the tab that ran
   Tailor. A before and after side by side came first (2026-10-26) and was
   replaced the same day: two full resumes and hover Revert controls showed
   too much at once; then a panel of open cards over fully tinted lines,
   which gave everything the same weight; then a grey panel under quiet
   small-capitals labels ("RESUME · <name>", "SUGGESTIONS · n"), which the
-  user found muted.
+  user found muted; then numbered cards and dots, which read as an order
+  to follow, and a panel that folded to a rail, which looked dated.
 - An empty bank (409) shows a link to the bank page, where intake starts.
 
 ## Resumes (`/resumes`)
@@ -2067,14 +2070,16 @@ student who opened a resume from Experiences landed on another view.
   **On Tailor's review step the editor takes a Suggestions panel**
   (`suggestions`, a render prop; `tailor-review.tsx`,
   `../../docs/tailor_resume.md`, "Suggestions"). Only then does the page
-  carry the run's changes: a numbered dot in the margin beside each
-  changed line (`dots` on `PdfPages`), and a see-through tint, so the
-  PDF's text shows, on the lines of the card in focus or open: a new
-  wording or an added skill green (`positive`), an entry's bullets in a
-  new order amber (`warning-fill`). The same page passes `compact`, the
-  slim toolbar: idle, an icon Download, a "2 pages" chip whose popover
-  offers Fit to One Page, and the hint only while the pointer is over the
-  page; editing a line, its moves first (`LineActions`' `movesFirst`),
+  carry the run's changes: a plain dot in the margin beside each changed
+  line (`dots` on `PdfPages`), and a see-through highlight, so the PDF's
+  text shows, on the lines of the suggestion in focus or open: a new
+  wording or an added skill green (`positive`, bordered in
+  `positive-ink`), an entry's bullets in a new order amber (`warning-fill`,
+  bordered in `warning-strong`). The same page passes `compact`, the slim
+  toolbar: idle, a "⚠ 2 pages" chip whose popover offers Fit to One Page,
+  the hint only while the pointer is over the page, Suggestions (shows
+  and hides the panel) and Download in the brand fill (`DownloadMenu`'s
+  `primary`); editing a line, its moves first (`LineActions`' `movesFirst`),
   Hide and its choices, and "Esc when done" for Done. It has no Ask Scout.
   It also passes `heading`, the label over the page's column; the
   editor's own page passes neither and keeps this bar. The panel sits in the Ask Scout

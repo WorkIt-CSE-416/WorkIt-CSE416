@@ -239,20 +239,27 @@ weight.
   The page bar over both holds only Back and "Step 3 of 3": the job's
   logo, title and company beside Back crowded it. The editor's toolbar is its
   slim row here (`compact`), in two states with only what each needs.
-  Idle: the page count as a chip ("2 pages", over one page only) whose
-  click offers Fit to One Page, Undo after a fit, "Click a line to edit
-  it." only while the pointer is over the page, and Download as an icon.
+  Idle: the page count as an amber chip with a warning sign and a caret
+  ("⚠ 2 pages ⌄", over one page only), so it reads as a problem to open,
+  whose click offers Fit to One Page; Undo after a fit; "Click a line to
+  edit it." only while the pointer is over the page; then Suggestions,
+  which shows and hides the panel and carries its count, and Download in
+  the brand fill. Download was an outlined glyph and the panel folded to a
+  rail of its own (»), which the user found dated.
   Editing a line: its kind, Move Up and Move Down first, then Hide and the
   line's own choices (a bullet's wordings, Education's GPA), and "Esc when
   done" in place of a Done button. No Ask Scout on this page: the panel
   holds the column the assistant opens in, and a second AI entry beside it
   split the page. No Download while a line is open.
-- **Dots, not tints.** Each changed line has a small numbered dot in the
-  page's left margin, green for a new wording or skill, amber for a moved
-  bullet; dots on one line (skills) stack like coins. A card's number is
-  given once, in the panel's order, and kept as cards are handled. A line
-  is tinted only while its card is pointed at, focused or open; a click on
-  a dot or on a changed line opens its card (and its group).
+- **Dots, then highlights.** Each changed line has a small plain dot in
+  the page's left margin, green for a new wording or skill, amber for a
+  moved bullet; dots on one line (skills) stack like coins. A line is
+  highlighted only while its suggestion is pointed at, focused or open,
+  as Quinncia draws one: the tint carried 1px past the line, a 1px border
+  in the mark's dark shade (`positive-ink`, `warning-strong`), rounded. A
+  click on a dot or on a changed line opens its suggestion (and its
+  section). Dots and cards were numbered until 2026-10-26: the numbers
+  read as an order to follow, so each section counts its own instead.
 - **The panel's top**, pinned while the cards scroll: View Original and a
   "…" menu (Accept All, Reject All), then the keyword match as one thin
   row over a hairline meter ("Keyword match 3 → 9 of 14", the keywords
@@ -261,25 +268,29 @@ weight.
   View Original opens the source resume (the record's `source`) read-only
   in step 1's Preview dialog (`ResumePreviewDialog`), titled "Original
   Resume" since the record keeps the source's id, not its name.
-- **A brand-tint panel of white cards.** The panel is the brand tint with
-  its pale ring, the editor's bar's colour, so the two read as one review
-  and its white cards stand apart; it was grey (`app`) until the user
-  found it muted. The cards have no outline and lift (`shadow-lift`) while
-  pointed at or open. On a phone the sheet is white and the cards grey.
-  Reject is the danger tint with red text (Button `decline`) and Accept
-  the green fill (`positive`), so the two read apart at a glance.
-- **The panel folds** beside the page: » folds it to a 56px rail with the
-  count and "Suggestions" set upright, and the page widens into the room;
-  « opens it. Focus moves to the other toggle each time. A phone's sheet
-  never folds. The fold lives in the editor's state (`panelCollapsed`),
-  since the editor owns the grid.
-- **Cards fold in groups**, Wording, Order and Skills, each with its
-  count, open at first only with three cards or fewer. A closed card shows
-  its number and one line: the new wording, the entry reordered, or the
-  skill. Open, it shows the change, the old words struck and the new ones
+- **A brand-tint panel of white sections.** The panel is the brand tint
+  with its pale ring, the editor's bar's colour, so the two read as one
+  review and its white sections stand apart; it was grey (`app`) until
+  the user found it muted. On a phone the sheet is white and the sections
+  grey. Reject is the danger tint with red text (Button `decline`) and
+  Accept the green fill (`positive`), so the two read apart at a glance.
+- **The toolbar shows and hides the panel** (Suggestions, `panelOpen` in
+  the editor, which owns the grid). Hidden, the page takes the whole
+  width and no line stays highlighted. A phone opens the panel as a sheet
+  from its own button.
+- **A section per kind**, Wording, Order and Skills: a heading with the
+  kind's colour swatch, its name, how many suggestions it holds and a
+  caret, open at first only with three or fewer. Under a hairline, each
+  suggestion is a row with its one line (the new wording, the entry and
+  how many of its bullets moved, or the skill) and a caret that turns up
+  while open. A row is tinted while pointed at, focused or open. Open, it
+  shows where the change is ("In <entry>"; a skill's group), then the
+  change in a white box: the old words struck and the new ones
   highlighted (inline when only a run in the middle changed, else the old
   line over the new one), each moved bullet's place before and now ("2nd
-  → 1st"), or the skill and its group, with small ✕ Reject and ✓ Accept.
+  → 1st"), or the skill, with ✕ Reject and ✓ Accept. Each suggestion was
+  a card of its own with a number until 2026-10-26; the cards did not say
+  they open.
 - **Accept keeps the change** (it is saved already): the card and its
   dots go. **Reject undoes it** through the choices PATCH (`revertOf`,
   above) and drops it. Reject All is one PATCH (`revertAll`), each
