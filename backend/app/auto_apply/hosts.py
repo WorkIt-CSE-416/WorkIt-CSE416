@@ -26,6 +26,8 @@ AUTO_APPLY_HOSTS = (
     "myworkdaysite.com",
     # Oracle Recruiting Cloud's candidate experience (the engine's oracle.ts).
     "oraclecloud.com",
+    # iCIMS career sites, the form in their own iframe (the engine's icims.ts).
+    "icims.com",
 )
 
 # Company careers sites whose embedded Greenhouse form doesn't fill in place
