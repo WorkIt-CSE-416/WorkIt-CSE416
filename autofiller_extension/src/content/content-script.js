@@ -93,16 +93,20 @@
    * Plans and fills the form shown (on Workday, the step shown), planning
    * again whenever a fill brings on new questions, and on Workday once more
    * after the last answer, for a follow-up it brought up. Returns the last
-   * Plan, or null if nothing could be filled.
+   * Plan, or null if nothing could be filled. `emptyOnly`: a Workday step
+   * filled before keeps what it shows (the student's saved answers).
    */
-  async function fillShown() {
+  async function fillShown(emptyOnly = false) {
     const shown = new Set();
     const done = new Set();
     const written = new Map();
     let extra = [];
     let state;
     let prepared;
+    // A Workday step left while it fills (the student went back, or on): the next step is the loop's, not this fill's.
+    const begun = window.WIA.workday.isWorkday ? window.WIA.workday.stepId() : "";
     for (;;) {
+      if (prepared && begun && window.WIA.workday.stepId() !== begun) return { ...prepared, written: [...written.values()], state };
       prepared = await send({ type: "fill/plan", extra, state });
       if (!prepared.ok) {
         note("_error", prepared.error || "Could not plan this application", prepared.status === 401 ? "Sign in from the extension popup first." : prepared.error, true);
@@ -139,6 +143,7 @@
       state = prepared.state;
       const { questions, answers, rows } = prepared;
       const byName = new Map(questions.map((q) => [q.name, q]));
+      window.WIA.report?.track(questions);
       const isNew = (name) => !shown.has(name) && shown.add(name);
 
       const sources = prepared.plan.sources ?? {};
@@ -154,12 +159,22 @@
         if (!isNew(q.name)) continue;
         status.register(q.name, q.label, q.required);
         status.setStatus(q.name, q.required ? "failed" : "skipped", "WorkIt has no answer for this. Answer it yourself.");
+        window.WIA.report?.failed(q.name, "NoAnswer");
       }
       rows.notes.forEach((text) => isNew(`_note:${text}`) && note(`_note:${text}`, "Left for you", text));
 
       let more = null;
       let filledAny = false;
       const left = Object.fromEntries(Object.entries(answers).filter(([name]) => !done.has(name)));
+      if (emptyOnly && Object.keys(left).length) {
+        const read = await send({ type: "fill/read", site: prepared.site, questions, names: Object.keys(left), state });
+        for (const [name, shown] of Object.entries(read.ok ? read.shows : {})) {
+          if (isEmpty(shown)) continue;
+          delete left[name];
+          done.add(name);
+          status.setStatus(name, "filled", "Saved on Workday before. WorkIt left it as it is.", shown);
+        }
+      }
       if (Object.keys(left).length) {
         const answer = await send({
           type: "fill/page", site: prepared.site, questions, answers: left, accepted: prepared.plan.accepted, state, sections: prepared.step?.sections,
@@ -167,6 +182,7 @@
         if (!answer.ok) {
           for (const name of Object.keys(left)) {
             status.setStatus(name, "failed", answer.error);
+            window.WIA.report?.failed(name, "Error");
             done.add(name);
           }
         } else {
@@ -175,6 +191,7 @@
             done.add(name);
             filledAny = true;
             status.setStatus(name, result.status, result.reason, result.shows);
+            if (result.status === "failed") window.WIA.report?.failed(name, result);
           }
           more = answer.more ?? null;
         }
@@ -375,20 +392,22 @@
     if (prepared) window.WIA.failedCard.use(fixesOf(prepared));
     if (prepared) window.WIA.resumeTab?.use(fixesOf(prepared));
     overlay.mount(panel);
+    if (prepared) window.WIA.answersTab?.use(prepared);
     window.WIA.phase = prepared ? "filled" : "stopped";
     window.WIA.running = false;
     report();
     if (prepared) writing.offer(prepared);
     if (prepared) offerSelfId(prepared);
-    if (prepared && batch) watchEdits(prepared);
-    if (batch) answerTheWalk();
+    // Outside a batch too (KAN-396): the primary button turns Ready to submit once the student answered what was open.
+    if (prepared) watchEdits(prepared);
+    answerTheWalk();
     return;
   }
 
   // Workday: each step as it shows, until the step whose button sends. Its
   // pages aren't hydrated, and the panel tells the student to sign in first.
   overlay.mount(panel);
-  if (batch) answerTheWalk();
+  answerTheWalk();
   if (!workday.step()) {
     note("_step", "Waiting for the application", "Sign in and start the application. WorkIt fills each step as it shows.");
     window.WIA.phase = "step";
@@ -411,9 +430,10 @@
   let step = await workday.stepAfter("");
   for (;;) {
     await workday.quiet();
+    const shownId = workday.stepId(); // told from a next step of the same name by its number
     status.reset();
     window.WIA.phase = "filling";
-    const prepared = await fillShown();
+    const prepared = await fillShown(workday.filledBefore());
     if (!prepared) {
       window.WIA.phase = "stopped";
       window.WIA.running = false;
@@ -427,18 +447,19 @@
       ? (toReview.on() ? toReview.REVIEW_NOTE : "This is the last step. Check the whole application, then submit it yourself.")
       : "Check this step, then press Save and Continue. WorkIt fills the next step when it shows.");
     window.WIA.failedCard.use(fixesOf(prepared));
+    window.WIA.answersTab?.use(prepared);
     window.WIA.resumeTab?.use(fixesOf(prepared));
     writing.offer(prepared);
     offerSelfId(prepared);
-    const stopEdits = batch ? watchEdits(prepared) : null;
+    const stopEdits = watchEdits(prepared);
     window.WIA.phase = last ? "last" : "step";
+    window.WIA.primary?.refresh();
     report();
     if (last) return;
-    const shownStep = step;
     const goOn = async () => {
       await flagEmptyRequired(prepared);
-      const why = await toReview.leave(shownStep, { fields: status.summary().fields, selfIdWaits: Boolean(selfIdWaiting) });
-      if (!why || workday.step() !== shownStep) return;
+      const why = await toReview.leave(shownId, { fields: status.summary().fields, selfIdWaits: Boolean(selfIdWaiting) });
+      if (!why || (workday.step() && workday.stepId() !== shownId)) return; // another step shows (none, as on Workday's error page, isn't one)
       note("_step", toReview.STOPPED, why);
       report();
     };

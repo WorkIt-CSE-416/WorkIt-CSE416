@@ -6,7 +6,7 @@
 import { expect, test, type Page, type Worker } from "@playwright/test";
 import { FakeApi } from "./fake-api";
 import { SavedForms, uncoveredForm } from "./fake-job-systems";
-import { loadExtension, sendFromWebapp, signIn, webapp, type Handler, type Loaded } from "./loaded-extension";
+import { loadExtension, sendFromWebapp, signIn, webapp, type Handler, type Loaded, pressNextThing } from "./loaded-extension";
 
 const GREENHOUSE = ["greenhouse-arc", "greenhouse-purestorage", "greenhouse-anduril", "greenhouse-coinbase", "greenhouse-datacor"];
 
@@ -345,11 +345,10 @@ test("a human check's page shows only the check, and Next Thing goes to it first
   // From Anduril's tab (opened first), the first thing is Arc's check (the tab itself: it blocks Arc's whole form),
   // then Anduril's own questions.
   const panel = page(forms.url(ANDURIL)).locator("#workit-autofiller-overlay-host");
-  const next = panel.getByRole("button", { name: "Next Thing That Needs You" });
   const shownTab = async () => (await tabs(loaded.worker)).find((t) => t.active)!.url;
-  await next.click();
+  await pressNextThing(loaded, panel);
   await expect.poll(shownTab).toBe(forms.url(ARC));
-  await next.click();
+  await pressNextThing(loaded, panel);
   await expect.poll(shownTab).toBe(forms.url(ANDURIL));
   await expect(panel.locator("[data-current]")).toHaveAttribute("data-key", "question_13130330007");
 
@@ -400,7 +399,7 @@ async function walkToEnd(at: string, { most = 20, onStep = async (_url: string, 
   let left = "";
   for (let n = 0; n < most && !left; n++) {
     const before = JSON.stringify(walked.at(-1));
-    await panel(at).getByRole("button", { name: "Next Thing That Needs You" }).click();
+    await pressNextThing(loaded, panel(at));
     // Either it says nothing is left, or a tab shows a field it hasn't just shown.
     const after = async () => {
       const said = panel(at).locator("[data-said]");
@@ -595,7 +594,7 @@ test("a guess stays in the walk until the student says it looks right, which sav
   ]);
   // Pressed once more, nothing is left (one press: the panel still marks the row the walk last went to).
   const panel = page(forms.url(ANDURIL)).locator("#workit-autofiller-overlay-host");
-  await panel.getByRole("button", { name: "Next Thing That Needs You" }).click();
+  await pressNextThing(loaded, panel);
   await expect(panel.locator("[data-said]")).toHaveText("Nothing else needs you.");
   expect(forms.submissions).toEqual([]);
 });

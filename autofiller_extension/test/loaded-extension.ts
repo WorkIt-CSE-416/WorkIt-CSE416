@@ -16,7 +16,7 @@ import { createServer as createHttps } from "node:https";
 import type { AddressInfo } from "node:net";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
-import { chromium, type BrowserContext, type Page, type Worker } from "@playwright/test";
+import { chromium, type BrowserContext, type Locator, type Page, type Worker } from "@playwright/test";
 import { CERT, KEY } from "./fake-tls";
 
 export const EXTENSION = join(__dirname, "..");
@@ -157,4 +157,21 @@ export function sendFromWebapp(page: Page, message: unknown): Promise<any> {
     ([id, message]) => new Promise((resolve) => (window as any).chrome.runtime.sendMessage(id, message, resolve)),
     [EXTENSION_ID, message] as const,
   );
+}
+
+/**
+ * The student's Next Thing (KAN-396) in the panel `host` (its
+ * #workit-autofiller-overlay-host): the primary button while it reads Next
+ * Thing, else Alt+N (a tab with nothing open shows Ready to submit; Alt+N
+ * still runs the batch's walk from there). A test can't press an extension
+ * command's keys, so Alt+N is the background's own handler.
+ */
+export async function pressNextThing(loaded: Loaded, host: Locator): Promise<void> {
+  const button = host.locator('[data-slot="primary"] .primary-button').first();
+  for (let n = 0; n < 50 && /Filling/.test((await button.innerText({ timeout: 30_000 })) ?? ""); n++) await host.page().waitForTimeout(200);
+  if ((await button.innerText()).includes("Next Thing")) return button.click();
+  await loaded.worker.evaluate(async (url) => {
+    const [tab] = await chrome.tabs.query({ url });
+    await (globalThis as any).workitCommand("next-thing", tab);
+  }, host.page().url());
 }

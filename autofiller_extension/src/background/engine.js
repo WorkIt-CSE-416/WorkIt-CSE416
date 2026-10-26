@@ -293,7 +293,11 @@ function workitProfile(profile) {
       : {},
     experience_facts: present({
       employment_history: newest(entries, "experience").map((e) =>
-        present({ employer: e.organization, title: e.title, start: e.start_month, end: e.end_kind === "present" ? null : e.end_month, location: e.location }),
+        present({
+          employer: e.organization, title: e.title, start: e.start_month, end: e.end_kind === "present" ? null : e.end_month, location: e.location,
+          // A Role Description (Workday's Work Experience) is the job's bullets, one a line, as Apply gives it.
+          description: [...(e.bullets ?? [])].sort((a, b) => a.position - b.position).map((b) => b.text).join("\n") || null,
+        }),
       ),
       // Workday's "Type to Add Skills" and "languages most comfortable" read these.
       skills: skills.length ? skills : null,
@@ -527,8 +531,11 @@ export async function fillPage({ call, site, questions, answers, accepted, state
     const filled = await call("fillEach", site, questions, answers, { accepted: accepted ?? {}, state, sections });
     return { results: filled.results, ...(filled.moreQuestions ? { more: filled.moreQuestions } : {}), state: filled.state ?? state };
   } catch (error) {
-    const reason = ["FillError", "Handoff", "NoForm"].includes(error.name) ? error.message : `Fill failed: ${error.message}`;
-    return { results: Object.fromEntries(Object.keys(answers).map((name) => [name, { status: "failed", reason }])), state };
+    const named = ["FillError", "Handoff", "NoForm"].includes(error.name);
+    const reason = named ? error.message : `Fill failed: ${error.message}`;
+    // The error's name, for a problem report (content/report.js), which never carries the reason.
+    const failed = { status: "failed", reason, error: named ? error.name : "Error" };
+    return { results: Object.fromEntries(Object.keys(answers).map((name) => [name, failed])), state };
   }
 }
 

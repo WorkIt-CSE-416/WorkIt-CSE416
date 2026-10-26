@@ -123,21 +123,34 @@ window.WIA = window.WIA || {};
     }
 
     /**
-     * Batch apply's "Next Thing That Needs You" (background/batch.js walks the
-     * batch's tabs): this tab answers which of its rows need the student
+     * Next Thing (the panel's primary button, primary.js). In a batch tab,
+     * batch apply's walk (background/next-needs-you.js walks the batch's
+     * tabs): this tab answers which of its rows need the student
      * ("batch/flags") and shows one when it is next ("batch/focus"). The
      * listener is added once per page and answers from the latest fill's
      * rows (`window.WIA.walk`): injected again (the fill after a human
      * check, a second Autofill), the page has a new status and panel.
+     * Outside a batch (KAN-396), this page's own rows in page order, after
+     * the one it last went to, then "Nothing else needs you." and again
+     * from the first.
      */
     function answerTheWalk() {
       window.WIA.walk = { flagged, show };
+      let last = null;
       overlay.offerNext(async () => {
+        if (!batch) {
+          const { order, keys } = flagged();
+          const after = last === null ? -1 : order.indexOf(last);
+          last = keys.find((key) => order.indexOf(key) > after) ?? null;
+          if (last === null) return "Nothing else needs you.";
+          show(last);
+          return null;
+        }
         const answer = await send({ type: "batch/next" }).catch(() => null);
         if (!answer?.ok) return "WorkIt couldn't look through the batch. Try again.";
         return answer.done ? "Nothing else needs you." : null;
       });
-      if (window.WIA.walking) return;
+      if (!batch || window.WIA.walking) return;
       window.WIA.walking = true;
       chrome.runtime.onMessage.addListener((message, _sender, reply) => {
         if (message?.type === "batch/flags") reply(window.WIA.phase === "filling" ? { order: [], keys: [], late: [] } : window.WIA.walk.flagged());

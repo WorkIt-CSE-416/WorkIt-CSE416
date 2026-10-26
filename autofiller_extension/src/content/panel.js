@@ -154,18 +154,17 @@ window.WIA = window.WIA || {};
           <button type="button" data-signup>Workday Sign-Up</button>
           <button type="button" data-back>Back</button>
         </div>
-        <div class="card" data-slot="report" hidden>
-          <h2>Report a problem</h2>
-          <p>Soon you can tell WorkIt what went wrong on this page, and see exactly what is sent first. Nothing is sent yet.</p>
-          <button type="button" data-back>Back</button>
-        </div>
+        <div class="card" data-slot="report" hidden></div>
       </div>
     `;
     panel.querySelector("[data-collapse]").addEventListener("click", () => collapse());
     panel.querySelector("[data-settings]").addEventListener("click", () => showSettings(panel.querySelector('[data-slot="settings"]').hidden));
     for (const back of panel.querySelectorAll("[data-back]")) back.addEventListener("click", () => showSettings(false));
-    // A placeholder until the report ticket fills the report slot (KAN-395).
-    panel.querySelector("[data-report]").addEventListener("click", () => showView("report", panel.querySelector('[data-slot="report"]').hidden));
+    // Report a problem (report.js, KAN-403) fills the report slot; a second press closes it.
+    panel.querySelector("[data-report]").addEventListener("click", () => {
+      if (!panel.querySelector('[data-slot="report"]').hidden) showView("report", false);
+      else window.WIA.reportCard?.open();
+    });
     // The extension's own settings page (src/options/): the password is never typed into the employer's page.
     panel.querySelector("[data-signup]").addEventListener("click", () => send({ type: "workday/signup-open" }));
 
@@ -213,6 +212,8 @@ window.WIA = window.WIA || {};
 
   // What waits for the shell to exist (onBuilt): the files that fill its slots.
   const builtHooks = [];
+  // Whether a batch tab's panel opens by itself (panel/where's autoOpen).
+  let autoOpens = true;
 
   /** Runs `hook` once the shell exists (now, if it does). */
   function onBuilt(hook) {
@@ -286,6 +287,8 @@ window.WIA = window.WIA || {};
     ready ??= send({ type: "panel/where" }).then((answer) => {
       site = answer?.site ?? {};
       shell.batch = Boolean(answer?.batch);
+      // The settings view's Open the panel by itself (KAN-402), on unless the student turned it off.
+      autoOpens = answer?.autoOpen !== false;
       return { job: Boolean(answer?.job), batch: Boolean(answer?.batch) };
     });
     return ready;
@@ -318,10 +321,10 @@ window.WIA = window.WIA || {};
     paint();
   }
 
-  /** Opens the panel by itself (a batch tab whose fill is done), unless the student collapsed it on this site. */
+  /** Opens the panel by itself (a batch tab whose fill is done), unless the student collapsed it on this site or turned auto-open off. */
   async function autoOpen() {
     await ensure();
-    if (site.collapsed) return paint();
+    if (site.collapsed || !autoOpens) return paint();
     root.querySelector(".panel").hidden = false;
     paint();
   }
@@ -441,6 +444,14 @@ window.WIA = window.WIA || {};
   }
 
   /**
+   * The words of the button before a fill (KAN-396): Fill this step on a
+   * Workday step outside a batch (the fill fills the step shown; Fill to
+   * Review, workday-walk.js, goes on from there), else Autofill This Page.
+   */
+  const startLabel = () =>
+    /\.(myworkdayjobs|myworkdaysite)\.com$/.test(location.hostname) && !window.WIA.batch ? "Fill this step" : "Autofill This Page";
+
+  /**
    * Autofill This Page and Fill Again: the background injects the fill into
    * this frame (panel/fill); the panel shows the rows once it is done.
    */
@@ -492,7 +503,7 @@ window.WIA = window.WIA || {};
 
   const shell = {
     batch: false,
-    where, ensure, open, collapse, autoOpen, toggle, isOpen, showEdge, slot, addCss, addTab, selectTab, showSettings, showView, setPrimary, fillButton, onBuilt,
+    where, ensure, open, collapse, autoOpen, toggle, isOpen, showEdge, slot, addCss, addTab, selectTab, showSettings, showView, setPrimary, fillButton, startLabel, onBuilt,
     get root() {
       return root;
     },

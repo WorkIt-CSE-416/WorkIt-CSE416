@@ -6,7 +6,7 @@
 import { expect, test, type Page } from "@playwright/test";
 import { FakeApi } from "./fake-api";
 import { FakeWorkdays } from "./fake-job-systems";
-import { loadExtension, sendFromWebapp, signIn, webapp, type Loaded } from "./loaded-extension";
+import { loadExtension, sendFromWebapp, signIn, webapp, type Loaded, pressNextThing } from "./loaded-extension";
 
 const WHY = "Why are you interested in working at CACI?";
 const FIRST = "My Information / First Name";
@@ -61,7 +61,7 @@ test("on Workday, Next Thing That Needs You walks to a field on the step", async
   // The step's note may come first; the walk reaches the question waiting for the student's Claude.
   const current = async () => ((await panel.locator("[data-current]").count()) ? panel.locator("[data-current]").getAttribute("data-key") : null);
   for (let n = 0; n < 5 && (await current()) !== why; n++) {
-    await panel.getByRole("button", { name: "Next Thing That Needs You" }).click();
+    await pressNextThing(loaded, panel);
     await tab.waitForTimeout(500);
   }
 

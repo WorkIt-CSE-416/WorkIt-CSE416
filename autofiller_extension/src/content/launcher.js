@@ -22,6 +22,6 @@ window.WIA = window.WIA || {};
   const { job, batch } = await panel.where();
   if (!job || batch || fillOwns()) return;
   await panel.ensure();
-  if (!window.WIA.overlay?.state?.()) panel.fillButton("Autofill This Page");
+  if (!window.WIA.overlay?.state?.()) panel.fillButton(panel.startLabel());
   panel.showEdge();
 })();

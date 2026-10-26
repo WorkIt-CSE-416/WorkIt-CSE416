@@ -53,15 +53,6 @@ window.WIA = window.WIA || {};
     const style = document.createElement("style");
     style.textContent = `
       .summary { padding: 8px 12px; font-size: var(--text-note); color: var(--color-ink-meta); border-bottom: 1px solid var(--color-border); }
-      .next { display: flex; align-items: center; gap: 8px; padding: 8px 12px; border-bottom: 1px solid var(--color-border); }
-      .next[hidden] { display: none; }
-      .next button {
-        all: unset; cursor: pointer; font-size: var(--text-note); font-weight: 500; padding: 6px 10px;
-        border-radius: var(--radius-control); background: var(--color-brand); color: var(--color-on-brand);
-      }
-      .next button:hover { background: var(--color-brand-hover); }
-      .next button:focus-visible { outline: 2px solid var(--color-brand); outline-offset: 2px; }
-      .next .said { font-size: var(--text-note); color: var(--color-ink-meta); }
       .essay-banner {
         padding: 10px 12px; background: var(--color-advanced-tint); border-bottom: 1px solid var(--color-border);
         font-size: var(--text-note); color: var(--color-ink);
@@ -447,22 +438,14 @@ window.WIA = window.WIA || {};
   }
 
   /**
-   * Batch apply's "Next Thing That Needs You" (content-script.js): shows the
-   * button, which calls `onNext` and shows what it answers (a sentence for
+   * Next Thing (content-script.js's walk): the panel's primary button
+   * (primary.js) calls `onNext` and shows what it answers (a sentence for
    * the student, or nothing when it went to a field).
    * @param {() => Promise<string | null>} onNext
    */
   function offerNext(onNext) {
     if (!root) return;
-    const bar = root.querySelector(".next");
-    const said = bar.querySelector("[data-said]");
-    bar.hidden = false;
-    bar.querySelector("[data-next]").onclick = async () => {
-      said.hidden = true;
-      const text = await onNext();
-      said.textContent = text ?? "";
-      said.hidden = !text;
-    };
+    window.WIA.primary?.offerNext(onNext);
   }
 
   /** Marks the row "Next Thing That Needs You" went to (null: none), and brings it into view. */
@@ -503,10 +486,6 @@ window.WIA = window.WIA || {};
     tab.innerHTML = `
       <div class="card fields">
         <div class="summary"></div>
-        <div class="next" hidden>
-          <button type="button" data-next>Next Thing That Needs You</button>
-          <span class="said" data-said hidden></span>
-        </div>
         <div class="essay-banner" hidden></div>
         <div class="moments"></div>
         <div class="parts"></div>
@@ -515,8 +494,9 @@ window.WIA = window.WIA || {};
     `;
     tab.querySelector(".list").addEventListener("click", jump);
     tab.querySelector(".list").addEventListener("keydown", jump);
-    // Fill Again: white, since the next action (Next Thing That Needs You) keeps the purple.
-    shell.fillButton("Fill Again", { secondary: true });
+    // The primary slot's button (primary.js, KAN-396): Next Thing, Ready to submit, and Fill Again under it.
+    if (window.WIA.primary) window.WIA.primary.mount();
+    else shell.fillButton("Fill Again", { secondary: true });
 
     unsubscribe = window.WIA.status.subscribe(render);
     render(window.WIA.status.summary());
@@ -567,5 +547,5 @@ window.WIA = window.WIA || {};
   /** Draws the rows again, for a row card whose own state changed (row-card.js). */
   const refresh = () => render(window.WIA.status.summary());
 
-  window.WIA.overlay = { mount, unmount, open, state, promptForEssays, offerNext, setCurrent, refresh, addPart, askSelfId, offerClaude, askSamples, askWorkdayAccounts, momentCard, CLAUDE_TRIGGER };
+  window.WIA.overlay = { mount, unmount, open, state, promptForEssays, offerNext, setCurrent, refresh, addPart, askSelfId, offerClaude, askSamples, askWorkdayAccounts, momentCard, startClaude, CLAUDE_TRIGGER };
 })();
