@@ -58,6 +58,12 @@ def test_size_zero_or_empty_input():
     "https://explore.jobs.netflix.net/careers/job/1",
     "https://acme.wd5.myworkdayjobs.com/en-US/Careers/job/Intern_R1",
     "https://wd3.myworkdaysite.com/recruiting/acme/Careers/job/Intern_R1",
+    # TikTok and ByteDance's careers sites: one form, behind their own sign-in.
+    "https://lifeattiktok.com/search/7693732178706974981",
+    "https://www.lifeattiktok.com/search/7693732178706974981",
+    "https://careers.tiktok.com/resume/7693732178706974981/apply",
+    "https://jobs.bytedance.com/en/position/7678450462765254965/detail",
+    "https://joinbytedance.com/search/7678450462765254965",
     # A company's own careers page that embeds Greenhouse's form (filled in its iframe).
     "https://stripe.com/jobs/search?gh_jid=8257892",
     "https://www.databricks.com/company/careers/open-positions/job?utm=x&gh_jid=8805655002",
@@ -81,6 +87,9 @@ def test_auto_apply_takes_every_hiring_system_the_fill_engine_fills(url):
     "https://greenhouse.io.example.com/acme",
     "https://notgreenhouse.io/acme",
     "https://notlever.co/acme",
+    # Only TikTok's careers site, not the rest of tiktok.com or bytedance.com.
+    "https://www.tiktok.com/@acme",
+    "https://www.bytedance.com/en/news",
 ])
 def test_auto_apply_leaves_out_other_hosts(url):
     assert not auto_apply_supported(url)
