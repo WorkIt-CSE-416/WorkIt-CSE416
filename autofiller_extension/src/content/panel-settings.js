@@ -22,7 +22,7 @@ window.WIA = window.WIA || {};
   window.WIA.panelSettings = true;
   const panel = window.WIA.panel;
   if (!panel) return;
-  const send = (message) => Promise.resolve(chrome.runtime.sendMessage(message)).catch(() => null);
+  const { send } = window.WIA.ui;
 
   const CSS = `
     [data-slot="settings"] .group { padding: 10px 0; border-top: 1px solid var(--color-border-subtle); }
@@ -78,7 +78,7 @@ window.WIA = window.WIA || {};
     view.querySelector("[data-auto-open]").addEventListener("change", (event) => {
       void send({ type: "settings/auto-open", on: event.target.checked });
     });
-    view.querySelector("[data-claude]").addEventListener("click", pressClaude);
+    view.querySelector("[data-claude]").addEventListener("click", window.WIA.ui.trusted(pressClaude));
 
     // Read again each time the gear opens the view (the shell's own listener shows it first).
     panel.root.querySelector("[data-settings]")?.addEventListener("click", () => {

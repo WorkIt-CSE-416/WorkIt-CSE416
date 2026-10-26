@@ -24,9 +24,10 @@ const NAME = [
 const REVIEW_NOTE = "Check everything on Workday's Review page, then press Submit.";
 
 /** Starts a batch of one Workday application on `workdays`' first tenant: its tab. */
-async function batchTab(workdays: FakeWorkdays, first: Handler[] = []): Promise<Page> {
+async function batchTab(workdays: FakeWorkdays, first: Handler[] = [], before?: () => Promise<unknown>): Promise<Page> {
   const api = new FakeApi().queue({ id: "wd-0", apply_url: workdays.url(0) });
   loaded = await loadExtension([...first, api.handler, webapp, workdays.handler]);
+  await before?.();
   await signIn(loaded.context);
   const app = loaded.context.pages()[0] ?? (await loaded.context.newPage());
   await app.goto("http://localhost:3000/auto-apply");
@@ -109,6 +110,28 @@ test("presses Save and Continue again when Workday drops the press, as Applied M
   await tab.waitForURL(workdays.url(0, 3), { timeout: 40_000 });
   await expect(overlay(tab)).toContainText(REVIEW_NOTE, { timeout: 30_000 });
   await tab.waitForTimeout(3_000);
+  expect(workdays.submissions).toEqual([]);
+});
+
+test("never presses again once a dropped press leaves the button reading Submit", async () => {
+  test.setTimeout(120_000);
+  // The first press is dropped (nothing changes), and the tenant then relabels its footer button Submit.
+  const workdays = new FakeWorkdays(["workday-caci"], [["My Information", [...NAME]], ["Application Questions", [...NAME]]], [{ droppedSaves: 1 }]);
+  const tab = await batchTab(workdays, [], () =>
+    loaded!.context.addInitScript(() => {
+      (window as any).__presses = 0;
+      document.addEventListener("click", (event) => {
+        const next = (event.target as Element).closest?.("[data-automation-id=pageFooterNextButton]");
+        if (!next) return;
+        (window as any).__presses++;
+        setTimeout(() => (next.textContent = "Submit"), 0);
+      }, true);
+    }),
+  );
+
+  await expect(overlay(tab)).toContainText("which WorkIt never presses", { timeout: 40_000 });
+  expect(await tab.evaluate(() => (window as any).__presses)).toBe(1);
+  expect(tab.url()).toBe(workdays.url(0, 1));
   expect(workdays.submissions).toEqual([]);
 });
 

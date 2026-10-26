@@ -19,7 +19,7 @@ window.WIA = window.WIA || {};
   window.WIA.panelTop = true;
   const panel = window.WIA.panel;
   if (!panel) return;
-  const send = (message) => Promise.resolve(chrome.runtime.sendMessage(message)).catch(() => null);
+  const { send } = window.WIA.ui;
 
   const CSS = `
     [data-slot="batch-line"] { display: flex; flex-direction: column; gap: 2px; }
@@ -64,12 +64,7 @@ window.WIA = window.WIA || {};
   const bandOf = (score) => BANDS.find(([min]) => score >= min)[1];
   const PER = { hour: "an hour", week: "a week", month: "a month", year: "a year" };
 
-  const el = (tag, className, text) => {
-    const node = document.createElement(tag);
-    if (className) node.className = className;
-    if (text !== undefined) node.textContent = text;
-    return node;
-  };
+  const { el } = window.WIA.ui;
 
   /** "$45–$55 an hour", "$120k a year", "EUR 50k": the posting's pay as it states it. */
   function payText({ min, max, currency, period }) {
@@ -140,7 +135,7 @@ window.WIA = window.WIA || {};
       if (batch.next) {
         const next = el("button", "", "Next tab →");
         next.type = "button";
-        next.addEventListener("click", () => send({ type: "panel/next-tab" }));
+        next.addEventListener("click", window.WIA.ui.trusted(() => send({ type: "panel/next-tab" })));
         line.append(" · ", next);
       }
       lines.push(line);

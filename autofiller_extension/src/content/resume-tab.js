@@ -5,8 +5,10 @@
 //   opens in a new tab).
 // - Its Keyword match against the job, "3 of 5 keywords" with the matched
 //   and missing ones, as the backend counts them (only a résumé built in
-//   WorkIt has one). It is read when the tab first shows, since reading a
-//   new posting's keywords spends one of the day's Tailor uses.
+//   WorkIt has one). A posting's first read spends one of the day's Tailor
+//   uses (decision 1064), so it waits for the student's press of Check
+//   keyword match (uses 1 Tailor run today); a job read here before shows
+//   its match by itself (background resume-tab.js keywordsFor).
 // - Tailor for this job: WorkIt's Tailor page for the job, in a new tab.
 // - The student's other résumés (uploaded, base, tailored for this job),
 //   each with Use this: the choice is kept for the tab and saved for the
@@ -24,7 +26,7 @@ window.WIA = window.WIA || {};
   if (window.WIA.resumeTab) return;
   const panel = window.WIA.panel;
   if (!panel) return;
-  const send = (message) => Promise.resolve(chrome.runtime.sendMessage(message)).catch(() => null);
+  const { send } = window.WIA.ui;
 
   const CSS = `
     .resume {
@@ -64,18 +66,7 @@ window.WIA = window.WIA || {};
 
   const KINDS = { uploaded: "Uploaded file", built: "Built in WorkIt", tailored: "Tailored for this job" };
 
-  const el = (tag, className, text) => {
-    const node = document.createElement(tag);
-    if (className) node.className = className;
-    if (text !== undefined) node.textContent = text;
-    return node;
-  };
-  const button = (label, onPress) => {
-    const b = el("button", null, label);
-    b.type = "button";
-    b.addEventListener("click", onPress);
-    return b;
-  };
+  const { el, button } = window.WIA.ui;
 
   let fixes = null; // the fill's Plan (content-script.js), once the form is filled
   let state = null; // resume/tab's answer
@@ -140,6 +131,10 @@ window.WIA = window.WIA || {};
       section.append(el("p", null, "Reading this job's keywords…"));
       return section;
     }
+    if (match.unread) {
+      section.append(button("Check keyword match (uses 1 Tailor run today)", () => readKeywords(true)));
+      return section;
+    }
     if (match.error) {
       section.append(el("p", null, match.error));
       section.append(button("Try again", () => {
@@ -159,16 +154,24 @@ window.WIA = window.WIA || {};
     return section;
   }
 
-  /** Reads the attached built résumé's Keyword match, once the tab shows. */
-  function readKeywords() {
+  /**
+   * Reads the attached built résumé's Keyword match once the tab shows, if
+   * this job's keywords were read before (no Tailor use spent); else the
+   * match waits for Check keyword match (`spend`).
+   */
+  function readKeywords(spend = false) {
     const attached = state?.attached;
-    if (!attached || body.hidden || !state.jobId || matches.has(attached.key)) return;
+    if (!attached || body.hidden || !state.jobId) return;
+    if (matches.has(attached.key) && !(spend && matches.get(attached.key)?.unread)) return;
     if (attached.kind !== "built" && attached.kind !== "tailored") return;
     matches.set(attached.key, null);
-    send({ type: "resume/keywords", key: attached.key }).then((answer) => {
-      matches.set(attached.key, answer?.ok && !answer.error && answer.matched
-        ? { matched: answer.matched, missing: answer.missing }
-        : { error: answer?.error ?? "WorkIt couldn't read this job's keywords. Try again." });
+    if (spend) paint();
+    send({ type: "resume/keywords", key: attached.key, spend }).then((answer) => {
+      matches.set(attached.key, answer?.ok && answer.unread
+        ? { unread: true }
+        : answer?.ok && !answer.error && answer.matched
+          ? { matched: answer.matched, missing: answer.missing }
+          : { error: answer?.error ?? "WorkIt couldn't read this job's keywords. Try again." });
       paint();
     });
   }
@@ -188,7 +191,7 @@ window.WIA = window.WIA || {};
       if (KINDS[state.attached.kind]) file.append(el("div", "kind", KINDS[state.attached.kind]));
       attached.append(file, button("Preview", preview));
     } else {
-      file.append(el("div", "label", "Attached"), el("div", "kind", "No résumé yet. Add one on WorkIt's Résumés page."));
+      file.append(el("div", "label", "Attached"), el("div", "kind", "No résumé yet. Add one on WorkIt's Resumes page."));
       attached.append(file);
     }
     root.append(attached, keywordsSection());

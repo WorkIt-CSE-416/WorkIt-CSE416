@@ -114,10 +114,13 @@ export async function loadExtension(
     profile: kept = undefined as string | undefined,
     args = [] as string[],
     grantHosts = [] as string[],
+    closedPanel = false,
   } = {},
 ): Promise<Loaded> {
-  const copy = grantHosts.length ? grantedCopy(grantHosts) : null;
-  const net = await startFakeNet(handlers, copy ?? EXTENSION);
+  // A copy, so its panel's shadow root can be open for Playwright's locators (which can't reach a closed
+  // one); `closedPanel` keeps the student's closed root, for the tests of what the page can reach.
+  const copy = testCopy(grantHosts, !closedPanel);
+  const net = await startFakeNet(handlers, copy);
   // `profile`: a Chromium profile folder to start (again) with, which the caller keeps; else a new one, removed on close.
   const profile = kept ?? mkdtempSync(join(tmpdir(), "workit-extension-"));
   const context = await chromium.launchPersistentContext(profile, {
@@ -149,16 +152,29 @@ export async function loadExtension(
 }
 
 /**
- * A copy of the extension that may read `hosts` too: what activeTab grants
- * when the student presses the toolbar icon on a page outside the manifest's
- * hosts, which a test can't press. Same key, so the same extension id.
+ * The panel's source with its shadow root open, for tests only: Playwright's
+ * locators can't reach a closed root. The student's panel stays closed.
  */
-function grantedCopy(hosts: string[]): string {
+export function openPanel(source: string): string {
+  const open = source.replace('attachShadow({ mode: "closed" })', 'attachShadow({ mode: "open" })');
+  if (open === source) throw new Error("panel.js no longer attaches a closed shadow root: update openPanel");
+  return open;
+}
+
+/**
+ * A copy of the extension to load: its panel's root open when `open` (see
+ * openPanel), and allowed to read `hosts` too: what activeTab grants when the
+ * student presses the toolbar icon on a page outside the manifest's hosts,
+ * which a test can't press. Same key, so the same extension id.
+ */
+function testCopy(hosts: string[], open: boolean): string {
   const dir = mkdtempSync(join(tmpdir(), "workit-extension-copy-"));
   for (const part of ["src", "icons", "fonts", "fill-engine/dist"]) cpSync(join(EXTENSION, part), join(dir, part), { recursive: true });
   const manifest = JSON.parse(readFileSync(join(EXTENSION, "manifest.json"), "utf8"));
   manifest.host_permissions.push(...hosts);
   writeFileSync(join(dir, "manifest.json"), JSON.stringify(manifest));
+  const panel = join(dir, "src/content/panel.js");
+  if (open) writeFileSync(panel, openPanel(readFileSync(panel, "utf8")));
   return dir;
 }
 

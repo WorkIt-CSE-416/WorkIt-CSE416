@@ -10,7 +10,8 @@
 // - On a Workday step that isn't the last, with nothing open: Go to Save and
 //   Continue, which rings Workday's own button; Fill to Review
 //   (workday-walk.js) is what presses it, and only when the student asks.
-// Under it: "Required 12 of 14 filled · 3 need you", then Fill Again
+// Under it: "Required 12 of 14 filled · 3 need you" (3: the Autofill tab's
+// Needs you group's count, never its Check these guesses), then Fill Again
 // (secondary), which asks once inline before it fills again. Before a fill
 // the slot is panel.fillButton's (launcher.js): Autofill This Page, or Fill
 // this step on a Workday step outside a batch (panel.startLabel).
@@ -28,7 +29,7 @@ window.WIA = window.WIA || {};
   const SUBMIT_WORDS = /^\s*submit\b/i;
   const CONTROL = 'button, input[type="submit"], input[type="button"], [role="button"]';
   const WORKDAY_NEXT = "[data-automation-id=pageFooterNextButton], [data-automation-id=bottom-navigation-next-button]";
-  const send = (message) => Promise.resolve(chrome.runtime.sendMessage(message)).catch(() => null);
+  const { send } = window.WIA.ui;
 
   const STYLES = `
     .primary-button .primary-sub { display: block; font-size: var(--text-note); font-weight: 500; opacity: 0.9; }
@@ -63,6 +64,13 @@ window.WIA = window.WIA || {};
   const visible = (el) => el.checkVisibility?.() ?? Boolean(el.offsetParent);
 
   /** How many things on the page are open: the walk's rows (batch-tab.js), 0 before it is set. */
+  /** The Needs you group's count (groups.js's groupOf, the same rows): the required line's "N need you". */
+  function needsYou(summary) {
+    if (window.WIA.phase === "filling") return 0;
+    const groupOf = window.WIA.groups?.groupOf;
+    return groupOf ? summary.fields.filter((field) => groupOf(field) === "needs-you").length : 0;
+  }
+
   function openCount() {
     if (window.WIA.phase === "filling") return 0;
     try {
@@ -146,7 +154,7 @@ window.WIA = window.WIA || {};
     parts.required.textContent =
       summary.requiredTotal === 0
         ? "No required fields found"
-        : `Required ${summary.requiredFilled} of ${summary.requiredTotal} filled` + (open > 0 ? ` · ${open} need you` : "");
+        : `Required ${summary.requiredFilled} of ${summary.requiredTotal} filled` + (needsYou(summary) > 0 ? ` · ${needsYou(summary)} need you` : "");
   }
 
   /** Fill Again, after the student says yes to its one question: the fill again, in this frame (panel/fill). */
@@ -174,11 +182,11 @@ window.WIA = window.WIA || {};
     const confirm = Object.assign(document.createElement("div"), { className: "primary-confirm", hidden: true });
     confirm.dataset.confirm = "";
     confirm.innerHTML = `<div>This replaces what you changed on this page.</div><span><button type="button" data-yes>Fill Again</button><button type="button" data-no>Cancel</button></span>`;
-    again.addEventListener("click", () => {
+    again.addEventListener("click", window.WIA.ui.trusted(() => {
       confirm.hidden = false;
       confirm.querySelector("[data-no]").focus();
-    });
-    confirm.querySelector("[data-yes]").addEventListener("click", () => void fillAgain());
+    }));
+    confirm.querySelector("[data-yes]").addEventListener("click", window.WIA.ui.trusted(() => void fillAgain()));
     confirm.querySelector("[data-no]").addEventListener("click", () => (confirm.hidden = true));
     made.button.after(required);
     shell.slot("primary").append(again, confirm);

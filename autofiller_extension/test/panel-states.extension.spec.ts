@@ -106,9 +106,23 @@ test("a batch tab's submit shows Sent with Next job, and I didn't submit this se
   await expect(primary.getByRole("button", { name: "Next Thing" })).toBeHidden();
 
   await primary.getByRole("button", { name: "I didn't submit this" }).click();
-  await expect.poll(() => api.stages.get("job-0")).toBe("queued");
+  // Back to the state its tab had before the mark: Cohere's tab needed the student, so needs_you (Ready would be queued).
+  await expect.poll(() => api.stages.get("job-0")).toBe("needs_you");
   await expect(primary.getByText("Sent · Marked applied on WorkIt")).toBeHidden();
   await expect(primary.locator(".primary-button").first()).toBeVisible();
+
+  // A tab that was Ready when marked goes back to queued. (Its state is set by hand: no saved form here fills Ready.)
+  await loaded.worker.evaluate(async (url) => {
+    const [tab] = await chrome.tabs.query({ url: `${url}*` });
+    const stored = await chrome.storage.local.get(null);
+    const [key, batch] = Object.entries(stored).find(([, v]: [string, any]) => v?.tabs?.[tab.id!]) as [string, any];
+    batch.tabs[tab.id!].state = "ready";
+    await chrome.storage.local.set({ [key]: batch });
+  }, forms.url(COHERE).split("?")[0]);
+  await host.locator("[data-submitted]").click();
+  await expect(primary.getByText("Sent · Marked applied on WorkIt")).toBeVisible({ timeout: 15_000 });
+  await primary.getByRole("button", { name: "I didn't submit this" }).click();
+  await expect.poll(() => api.stages.get("job-0")).toBe("queued");
 
   // Sent again: Next job goes to the tab that still needs the student.
   await host.locator("[data-submitted]").click();
@@ -143,9 +157,37 @@ test("on a site WorkIt can't fill, the toolbar popup says so, Save to WorkIt sav
   await popup.getByRole("button", { name: "Report a problem" }).click();
   await expect(popup.locator(".unsupported")).toContainText("careers.example-corp.com/jobs/42");
   expect(api.reports).toEqual([]);
+  await popup.getByLabel("Note (optional)").fill("The Apply button opens a new window.");
   await popup.getByRole("button", { name: "Send report" }).click();
   await expect(popup.getByText("Sent. Thanks for telling WorkIt.")).toBeVisible();
-  expect(api.reports).toEqual([{ job_system: "unsupported", posting_url: CAREERS, engine_version: expect.any(String), fields: [], note: null }]);
+  expect(api.reports).toEqual([{ job_system: "unsupported", posting_url: CAREERS, engine_version: expect.any(String), fields: [], note: "The Apply button opens a new window." }]);
+});
+
+test("the toolbar popup says it can't fill a site only on a page that looks like a job posting", async () => {
+  const HOST = "www.example-shop.com";
+  const POSTING = `<script type="application/ld+json">${JSON.stringify({ "@context": "https://schema.org", "@graph": [{ "@type": "JobPosting", title: "Intern" }] })}</script>`;
+  const site = ({ url }: { url: URL }) =>
+    url.host === HOST ? { headers: { "content-type": "text/html" }, body: `<!doctype html><title>Shop</title>${url.pathname === "/p/7" ? POSTING : ""}<h1>Hello</h1>` } : undefined;
+  loaded = await loadExtension([new FakeApi().handler, webapp, site], { grantHosts: [`https://${HOST}/*`] });
+  await signIn(loaded.context);
+  const popupFor = async (path: string) => {
+    const page = await loaded.context.newPage();
+    await page.goto(`https://${HOST}${path}`);
+    const tabId = await loaded.worker.evaluate(async (url) => (await chrome.tabs.query({ url }))[0].id, page.url());
+    const popup = await loaded.context.newPage();
+    await popup.goto(`chrome-extension://${EXTENSION_ID}/src/popup/popup.html?tab=${tabId}`);
+    await expect(popup.locator(".batch-status")).toBeAttached();
+    await popup.waitForTimeout(1_000);
+    return popup;
+  };
+
+  // A shop's page: the normal popup.
+  const shop = await popupFor("/cart");
+  await expect(shop.getByText("WorkIt can't fill this site yet")).toBeHidden();
+  await expect(shop.getByRole("button", { name: "Open WorkIt" })).toBeVisible();
+  // A posting by its JobPosting block, and one by its path.
+  await expect((await popupFor("/p/7")).getByText("WorkIt can't fill this site yet")).toBeVisible();
+  await expect((await popupFor("/careers/intern-2027")).getByText("WorkIt can't fill this site yet")).toBeVisible();
 });
 
 test("between Workday steps the panel keeps something to show: never an empty Autofill tab", async () => {

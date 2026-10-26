@@ -105,5 +105,5 @@ window.WIA = window.WIA || {};
     .group .row[hidden] { display: none; }
   `;
 
-  window.WIA.groups = { render, css };
+  window.WIA.groups = { render, css, groupOf };
 })();

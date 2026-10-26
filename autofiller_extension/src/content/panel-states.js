@@ -16,7 +16,7 @@ window.WIA = window.WIA || {};
   "use strict";
 
   if (window.WIA.panelStates) return;
-  const send = (message) => Promise.resolve(chrome.runtime.sendMessage(message)).catch(() => null);
+  const { send } = window.WIA.ui;
 
   const STYLES = `
     .panel[data-signed-out] .tabs, .panel[data-signed-out] [data-tabs] { display: none !important; }
@@ -101,11 +101,11 @@ window.WIA = window.WIA || {};
       said.hidden = false;
       said.dataset.error = "";
     };
-    card.querySelector("[data-next-job]").addEventListener("click", async () => {
+    card.querySelector("[data-next-job]").addEventListener("click", window.WIA.ui.trusted(async () => {
       const answer = await send({ type: "panel/next-tab" });
       if (!answer?.ok) say("WorkIt couldn't go to the next job. Try again.");
-    });
-    // The student's own click only, as I submitted this (decision 1012): the panel's shadow root is open.
+    }));
+    // The student's own click only, as I submitted this (decision 1012).
     card.querySelector("[data-unsubmit]").addEventListener("click", async (event) => {
       if (!event.isTrusted) return;
       const button = event.currentTarget;

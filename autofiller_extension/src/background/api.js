@@ -656,8 +656,12 @@ export async function saveJobByLink(url) {
   return apiFetch("/jobs/saved-by-link", { method: "POST", body: JSON.stringify({ url }) });
 }
 
-export async function finishApplication(applicantId, jobId, outcome) {
-  return apiFetch(`/applicants/${applicantId}/applications/${jobId}/finish`, { method: "POST", body: JSON.stringify({ outcome }) });
+/**
+ * POST .../finish: the application's outcome. "unsubmitted" also takes the
+ * tab's `state` before the mark ("ready" → queued, "needs_you" → needs_you).
+ */
+export async function finishApplication(applicantId, jobId, outcome, state = undefined) {
+  return apiFetch(`/applicants/${applicantId}/applications/${jobId}/finish`, { method: "POST", body: JSON.stringify(state ? { outcome, state } : { outcome }) });
 }
 
 /**

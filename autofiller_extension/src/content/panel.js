@@ -25,7 +25,7 @@ window.WIA = window.WIA || {};
   const TAB_TOP = 120;
   // WorkIt's mark (frontend/src/components/logo.tsx), in ink: the header is neutral.
   const LOGO = `<svg role="img" aria-label="WorkIt" viewBox="0 0 118.48 91"><path d="M7.94 26.87 L33.59 83.06 L59.24 45.19 L84.89 83.06 L110.54 26.87" fill="none" stroke="currentColor" stroke-width="15.88" stroke-linecap="round" stroke-linejoin="round"/><circle cx="59.24" cy="13.44" r="13.44" fill="currentColor"/></svg>`;
-  const send = (message) => Promise.resolve(chrome.runtime.sendMessage(message)).catch(() => null);
+  const { send } = window.WIA.ui;
 
   const SHELL_CSS = `
     :host { all: initial; }
@@ -122,7 +122,9 @@ window.WIA = window.WIA || {};
   function build() {
     host = document.createElement("div");
     host.id = "workit-autofiller-overlay-host";
-    root = host.attachShadow({ mode: "open" });
+    // Closed: the employer's page can't reach the panel through host.shadowRoot. The extension's own files reach it
+    // through window.WIA.panel.root, in the isolated world the page can't see.
+    root = host.attachShadow({ mode: "closed" });
     const style = document.createElement("style");
     style.dataset.shell = "";
     style.textContent = `${window.WIA.tokens ?? ""}\n${SHELL_CSS}`;

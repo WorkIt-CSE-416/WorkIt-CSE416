@@ -365,7 +365,7 @@ async function handleMessage(message, sender) {
     case "popup/save":
       return saveTabJob(message.tabId);
     case "popup/report":
-      return reportTab(message.tabId);
+      return reportTab(message.tabId, message.note);
     case "panel/fill":
       await injectFill(sender.tab.id, { batch: Boolean(message.batch) && (await inBatch(sender.tab.id)), frameId: sender.frameId || undefined });
       return {};
@@ -384,7 +384,7 @@ async function handleMessage(message, sender) {
     case "resume/choose":
       return chooseResume({ tabId: sender.tab.id, url: sender.url ?? "", key: message.key });
     case "resume/keywords":
-      return keywordsFor({ tabId: sender.tab.id, url: sender.url ?? "", key: message.key });
+      return keywordsFor({ tabId: sender.tab.id, url: sender.url ?? "", key: message.key, spend: message.spend === true });
     case "resume/tailor":
       return openTailor({ tabId: sender.tab.id, url: sender.url ?? "" });
     // Report a problem (report.js, KAN-403): what the card previews, and its Send.
@@ -523,7 +523,7 @@ async function panelSite(url, change) {
 }
 
 // What the panel's shell injects when the toolbar icon or Alt+W finds no panel on a job page yet.
-const SHELL_FILES = ["src/shared/tokens.js", "src/content/panel.js", "src/content/panel-top.js", "src/content/resume-tab.js", "src/content/panel-settings.js", "src/content/report.js", "src/content/panel-states.js"];
+const SHELL_FILES = ["src/shared/tokens.js", "src/content/ui.js", "src/shared/report-parts.js", "src/content/panel.js", "src/content/panel-top.js", "src/content/resume-tab.js", "src/content/panel-settings.js", "src/content/report.js", "src/content/panel-states.js"];
 
 /**
  * The toolbar icon (a tab with no popup: a job page, panel/where) and

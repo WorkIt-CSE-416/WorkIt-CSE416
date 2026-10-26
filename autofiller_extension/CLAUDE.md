@@ -60,7 +60,11 @@ builds it: `dist/engine.js` is committed in the engine repo.
   world can see. The overlay and `content-script.js` run in the isolated
   world, where `chrome.runtime` is. `src/shared/content-scripts.js`'s
   `injectFill` loads both, engine first, for the panel and batch apply
-  alike. It first claims the page (`window.WIA.running`, set in one step)
+  alike. Every panel and fill file list loads `src/content/ui.js` first
+  (the shared `ask`/`send` message helpers and the `el`/`button` node
+  helpers) and `src/shared/report-parts.js` (a fill report's error names
+  and `NOTE_MAX`, also imported by `background/report.js` and loaded by the
+  popup; the backend's schema keeps its own copy). It first claims the page (`window.WIA.running`, set in one step)
   and injects nothing into a page whose fill is running: a batch tab
   opened on a Workday step is injected twice as it loads (`batch.js`'s
   `startFill` and `background.js`'s per-page-load Workday fill), and two
@@ -152,7 +156,10 @@ builds it: `dist/engine.js` is committed in the engine repo.
   so a second "Application Questions" on a link that doesn't change is a
   step of its own). A press Workday drops (in 3 s the button never
   disabled, no error, the same step) is made again on the same button, 3
-  presses in all, as Apply's `_next` (Applied Materials, live). It is
+  presses in all, as Apply's `_next` (Applied Materials, live). Right
+  before every press it reads the button's words and looks for the Review
+  page again, so a button a tenant relabels Submit after a dropped press is
+  never pressed. It is
   never pressed again after Workday shows an error that stays 5 s, its
   "Something went wrong" page, or 30 s with no new step; then the student
   presses it. Tests: `test/workday-review.extension.spec.ts`. A
@@ -960,8 +967,7 @@ waits for an opened tab's page and form (`waitForLoad`, `formShows`).
   submit is their own `/thanks` page (`submitPractice`).
 - **"I submitted this"** (KAN-369): a batch tab's panel header has it, for a
   submit detection missed. It answers only the student's own click
-  (`isTrusted`: the panel's shadow root is open, so a page script could
-  click it), says `batch/i-submitted`, and the worker marks the application
+  (`isTrusted`, as every panel action, below), says `batch/i-submitted`, and the worker marks the application
   applied with `markSubmitted`, as a detected submit. A detected submit
   says "Application sent / WorkIt marked it Applied." on the panel, the tab
   leaves its group, and the Auto Apply page shows the row Applied. The
@@ -1225,7 +1231,10 @@ leaves the brought one, so a screener or a self-identification answer WorkIt
 has no field for still fills. Policies go the other way (`enginePolicies`):
 the student's brought rules lie over WorkIt's `POLICIES`, since they say how
 that student applies (Apply's how-heard beats WorkIt's default). Its answer bank
-arrives through `GET .../answer-bank` with the rest. `test/apply-profile.spec.ts`.
+arrives through `GET .../answer-bank` with the rest. Each job WorkIt holds
+goes to the engine with its bullets, in their order, one a line, as its
+`description` (Workday's Role Description, as Apply gives it).
+`test/apply-profile.spec.ts`.
 
 **The email it fills is the profile's `contact_email`, else `/auth/me`'s
 sign-in email** (KAN-262). A seeker may apply with a different address than
@@ -1403,7 +1412,18 @@ The extension's on-page UI is one panel, `src/content/panel.js`
 (`window.WIA.panel`): 380 px wide, fixed to the right edge, full height
 with its own scroll, over the page (the page is never resized), in a
 shadow root on `#workit-autofiller-overlay-host`, so the employer's styles
-can't reach it. There is no bottom-right card any more, and the toolbar
+can't reach it. **The root is closed**: the page's scripts get null from
+`host.shadowRoot` and see none of its text or buttons; the extension's own
+files reach it through `window.WIA.panel.root` in their isolated world.
+**Every panel action that changes something answers only the student's own
+click** (`event.isTrusted`, through `ui.js`'s `trusted`, which `button()`
+and row-card buttons use): Disconnect Claude, Send report, Use this, Tailor,
+Fill Again, Next job / Next tab, Looks right, Keep, Rewrite, Save answer,
+Stop and Skip, Skip this job, I submitted this, I didn't submit this,
+the essay banner's Generate, the self-ID Save. Tests: the test copies of the extension
+(`loaded-extension.ts` `openPanel`) open the root, since Playwright's
+locators can't reach a closed one; `loadExtension(..., { closedPanel: true })`
+keeps it closed (`test/panel-closed.extension.spec.ts`). There is no bottom-right card any more, and the toolbar
 popup has no fill controls. The header is neutral (white, ink); purple is
 kept for the primary action.
 
@@ -1517,7 +1537,9 @@ walk). One purple button, then a line, then Fill Again:
   on to the next tab). Tests press it with `globalThis.workitCommand`
   (`pressNextThing` in test/loaded-extension.ts).
 - Under the button: "Required 12 of 14 filled · 3 need you" (lib-status's
-  required counts; "need you" is the same count as Next Thing's).
+  required counts; "need you" is the Autofill tab's Needs you group's count,
+  groups.js `groupOf`, so the two always agree: Check these' guesses are
+  not in it, though Next Thing's count, which walks them too, is).
 - **Fill Again** (white) asks once inline, "This replaces what you changed
   on this page.", with Fill Again and Cancel; Cancel changes nothing.
 - Outside a batch the fill now reads back the student's edits too
@@ -1555,8 +1577,10 @@ WorkIt finishes this step."), `found`, `filling` before each `fill/page`
 returns, so on Workday the notice goes with each step's fill.
 
 - **The engine's events.** The engine runs in the page's world, so
-  `filling` returns a key that `fill/page` hands the engine's `fillEach` as
-  `events` (engine.js `fillPage`). The engine dispatches
+  `filling` returns a key (`workit-` and a `crypto.randomUUID()`, as the
+  submit key, so a page can't guess the event names and stop or skip the
+  fill) that `fill/page` hands the engine's `fillEach` as `events`
+  (engine.js `fillPage`). The engine dispatches
   `fillengine:field:<key>` on `document` as each field starts and is done,
   and listens for `fillengine:stop:<key>` and `fillengine:skip:<key>`
   (detail: the field's name). See the engine README.
@@ -1599,18 +1623,23 @@ report.js everywhere it is: manifest, `CONTENT_SCRIPT_FILES`, background.js
   **Next job →** (`panel/next-tab`) while another tab needs the student and
   **I didn't submit this** (trusted clicks only, as I submitted this):
   `batch/unsubmitted` (batch.js `unmarkSubmitted`) posts `finish` with
-  outcome `unsubmitted`, which sets an applied application back to queued
-  with no date (backend pipeline.py), and the tab to Ready, in its group.
+  outcome `unsubmitted` and the tab's `state` from before the mark
+  (`tab.before`): Ready sets the application back to queued, anything else
+  to needs_you, with no date (backend pipeline.py), and the tab to that
+  state, in its group.
 - **A site WorkIt can't fill**: every host the manifest lists is a job
   system the Fill engine fills, so the panel never shows this; the toolbar
-  popup does, on a web page of any other host (not WorkIt's own), where the
-  icon's press lets it read the tab's link (activeTab). It says "WorkIt
+  popup does, on a web page of any other host (not WorkIt's own) that looks
+  like a job posting (`panel-states.js` `looksLikePosting`: a jobs, careers,
+  apply or position part in its path, or a schema.org `JobPosting` block,
+  read in the tab), where the icon's press lets it read the tab's link
+  (activeTab). On any other page the popup is the usual batch status. It says "WorkIt
   can't fill this site yet" with **Save to WorkIt** (`popup/save`: `POST
   /jobs/saved-by-link`, which saves the feed's job whose apply link the page
   is, ignoring query, fragment and a trailing slash; "WorkIt doesn't list
   this job yet." when there is none) and **Report a problem** (what it sends:
-  job system "unsupported", the link without its query, the engine; then
-  Send report, `popup/report`). Nothing leaves on opening the popup. Its
+  job system "unsupported", the posting link as below, the engine, and an
+  optional note, `NOTE_MAX` long; then Send report, `popup/report`). Nothing leaves on opening the popup. Its
   test opens popup.html with `?tab=<id>` and loads a copy of the extension
   granted the fake host (`loadExtension`'s `grantHosts`), standing in for
   activeTab, which no test can press.
@@ -1668,8 +1697,11 @@ the unsupported-site state call the same function. The card lists exactly
 what Send sends, and Send sends just that:
 
 - the job system (the Fill engine's `jobOf` site, "unsupported" when it
-  fills none there), the posting's link (the page's address without query
-  or fragment, which can carry the student's ids), the Fill engine version
+  fills none there), the posting's link (the page's address with only the
+  query parts that name a posting, `report.js` `POSTING_PARAMS`: for, token,
+  gh_jid, jobId, job_id, jobid, jobReqId, career_job_req_id, each a plain
+  id; no other part, fragment or user:password, which can carry the
+  student's ids; the backend refuses any other part), the Fill engine version
   (`FillEngine.version`, which the engine's build stamps into
   `dist/engine.js`; `ENGINE_VERSION` in `background/engine.js`);
 - each failed field: its kind (the Question set's), its label's shape
@@ -1797,9 +1829,14 @@ fills `tab:resume` from `src/background/resume-tab.js` (`resume/tab`,
   **Preview** (the file, from the background, opens as a blob in a new tab).
 - **Keyword match** (GLOSSARY): a built résumé's "3 of 5 keywords" with the
   matched ("On your résumé") and missing ones, exactly as `GET
-  .../built-resumes/{id}/keyword-match?job_posting_id=` gives them. Read the
-  first time the tab shows, not on every page: a posting read for the first
-  time spends one of the day's Tailor uses. An uploaded file has none
+  .../built-resumes/{id}/keyword-match?job_posting_id=` gives them. A
+  posting read for the first time spends one of the day's Tailor uses, so
+  nothing is spent silently: the match shows by itself only for a job whose
+  keywords WorkIt read before (`keywords_read_jobs` in chrome.storage.local,
+  background `keywordsFor`); for any other the tab shows **Check keyword
+  match (uses 1 Tailor run today)**, and only that press reads it. (The
+  backend has no read that never extracts, so a posting the webapp already
+  read still shows the button once.) An uploaded file has none
   ("Keyword match is for résumés built in WorkIt").
 - **Tailor for this job** opens the website's `/jobs/{job}/tailor` on the
   origin the student signed in on. Only for a job WorkIt has an

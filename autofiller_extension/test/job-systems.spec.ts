@@ -287,7 +287,8 @@ test("asks the essay route for no more than it takes, though the form's box take
 
   await inject(page);
   await settled(page);
-  await page.evaluate(() => (document.getElementById("workit-autofiller-overlay-host")!.shadowRoot!.querySelector("[data-generate]") as HTMLElement).click());
+  // The student's own click: the panel takes no click a script makes.
+  await page.locator("#workit-autofiller-overlay-host [data-generate]").click();
   await page.waitForFunction(() => !(window as any).WIA.status.summary().fields.some((f: any) => f.status === "needs_generation"));
 
   expect(asked.length).toBeGreaterThan(0);

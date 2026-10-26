@@ -82,6 +82,12 @@ test("switching to the tailored résumé saves the choice, attaches it to the fo
   await expect.poll(() => attachedName(form)).toBe("Anduril Resume.pdf");
 
   await expect(tab.locator(".resume-name")).toHaveText("Anduril Resume.pdf");
+  // A posting's first read may spend a Tailor use: never without the student's press.
+  const check = tab.getByRole("button", { name: "Check keyword match (uses 1 Tailor run today)" });
+  await expect(check).toBeVisible();
+  await form.waitForTimeout(1_000);
+  expect(api.calls.filter((c) => c.includes("/keyword-match"))).toEqual([]);
+  await check.click();
   // The backend's own count and lists, matched first.
   await expect(tab.locator(".keywords .count")).toHaveText("3 of 5 keywords");
   await expect(tab.locator(".keywords .matched li")).toHaveText(["Python", "C++", "Linux"]);
@@ -89,5 +95,10 @@ test("switching to the tailored résumé saves the choice, attaches it to the fo
   expect(api.calls).toContain(`GET /applicants/${STUDENT.id}/built-resumes/${TAILORED.id}/keyword-match?job_posting_id=job-0`);
   // The uploaded file is now among the others.
   await expect(tab.locator(".resume-option .option-name")).toHaveText([STUDENT.resume.filename, "Base Resume"]);
+  // This job's keywords are read now (cached, no use spent): another built résumé's match shows by itself.
+  await tab.locator(".resume-option", { hasText: "Base Resume" }).getByRole("button", { name: "Use this" }).click();
+  await expect(tab.locator(".resume-name")).toHaveText("Base Resume.pdf");
+  await expect(tab.locator(".keywords .count")).toBeVisible();
+  await expect(check).toBeHidden();
   expect(forms.submissions).toEqual([]);
 });

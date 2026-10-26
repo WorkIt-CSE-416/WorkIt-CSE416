@@ -60,7 +60,7 @@ window.WIA = window.WIA || {};
     stopped = false;
     total = 0;
     count = 0;
-    key = `workit-${Math.random().toString(36).slice(2)}`;
+    key = `workit-${crypto.randomUUID()}`;
     document.addEventListener(`fillengine:field:${key}`, onField);
     const place = window.WIA.panel?.slot("primary");
     if (!place) return;
@@ -83,7 +83,7 @@ window.WIA = window.WIA || {};
     };
     parts.stay.textContent = STAY;
     parts.stay.hidden = !stay;
-    parts.stop.addEventListener("click", stop);
+    parts.stop.addEventListener("click", window.WIA.ui.trusted(stop));
     place.dataset.progressing = "";
     place.append(el);
     say("Scanning this page");
@@ -154,10 +154,10 @@ window.WIA = window.WIA || {};
     if (!row.isConnected || row.dataset.state !== "filling") return;
     row.dataset.stuck = "";
     const skip = Object.assign(document.createElement("button"), { type: "button", textContent: "Skip" });
-    skip.addEventListener("click", () => {
+    skip.addEventListener("click", window.WIA.ui.trusted(() => {
       skip.disabled = true;
       document.dispatchEvent(new CustomEvent(`fillengine:skip:${key}`, { detail: name }));
-    });
+    }));
     row.append(skip);
   }
 

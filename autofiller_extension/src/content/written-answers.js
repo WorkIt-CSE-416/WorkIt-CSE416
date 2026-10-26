@@ -46,7 +46,7 @@ window.WIA = window.WIA || {};
    */
   function writtenAnswers({ batch }) {
     const { status, overlay } = window.WIA;
-    const send = (message) => chrome.runtime.sendMessage(message);
+    const send = window.WIA.ui.ask;
     const sleep = (ms) => new Promise((done) => setTimeout(done, ms));
     // The Written Answers link ({ text, href }), asked of the background once; null when it couldn't say.
     let answersPage;

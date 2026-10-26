@@ -302,10 +302,10 @@ window.WIA = window.WIA || {};
       banner.hidden = true;
       banner.innerHTML = "";
     };
-    banner.querySelector("[data-generate]").addEventListener("click", () => {
+    banner.querySelector("[data-generate]").addEventListener("click", window.WIA.ui.trusted(() => {
       hide();
       onGenerate();
-    });
+    }));
     banner.querySelector("[data-dismiss]").addEventListener("click", () => {
       hide();
       onDismiss();
@@ -352,14 +352,14 @@ window.WIA = window.WIA || {};
     if (!card) return;
     const error = card.querySelector(".error");
     card.querySelector("[data-dismiss]").addEventListener("click", () => card.remove());
-    card.querySelector("[data-save]").addEventListener("click", async () => {
+    card.querySelector("[data-save]").addEventListener("click", window.WIA.ui.trusted(async () => {
       const answers = Object.fromEntries([...card.querySelectorAll("select")].filter((s) => s.value).map((s) => [s.name, s.value]));
       error.hidden = true;
       const failed = await onSave(answers);
       if (!failed) return card.remove();
       error.textContent = failed;
       error.hidden = false;
-    });
+    }));
   }
 
   /**
@@ -479,7 +479,7 @@ window.WIA = window.WIA || {};
       ${onSubmitted ? '<button type="button" data-submitted title="You sent this application: mark it Applied">I submitted this</button>' : ""}
       ${onSkip ? '<button type="button" data-skip title="Leave this job out of the batch">Skip</button>' : ""}
     `;
-    actions.querySelector("[data-skip]")?.addEventListener("click", onSkip);
+    actions.querySelector("[data-skip]")?.addEventListener("click", window.WIA.ui.trusted(onSkip));
     actions.querySelector("[data-submitted]")?.addEventListener("click", (event) => event.isTrusted && onSubmitted());
 
     const tab = shell.slot("tab:autofill");

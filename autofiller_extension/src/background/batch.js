@@ -310,7 +310,12 @@ export function setTabState(tabId, state) {
   return serially(async () => {
     const batch = await load();
     const tab = batch?.tabs[tabId];
-    // A sent application's form may still change (the page clears it); its tab stays out of the groups.
+    // A sent application's form may still change (the page clears it); its tab stays out of the groups,
+    // but a fill that ends after the mark is kept for "I didn't submit this".
+    if (tab?.state === "applied" && tab.before === "filling") {
+      tab.before = state;
+      await save(batch);
+    }
     if (!tab || tab.state === state || tab.state === "applied") return { batch: Boolean(tab) };
     const wasFilling = tab.state === "filling";
     tab.state = state;
@@ -356,6 +361,8 @@ export function markSubmitted(tabId) {
     if (sent) await recordSentResume(account.id, tab.jobId, sent).catch((error) => console.warn("[batch] the sent resume wasn't recorded:", error.message));
     await finishApplication(account.id, tab.jobId, "submitted");
     const wasFilling = tab.state === "filling";
+    // Kept for "I didn't submit this", which puts the tab back as it was.
+    tab.before = tab.state;
     tab.state = "applied";
     await save(batch);
     await chrome.tabs.ungroup(tabId).catch(() => {});
@@ -367,8 +374,9 @@ export function markSubmitted(tabId) {
 
 /**
  * The student's "I didn't submit this" (KAN-401) on a tab WorkIt marked
- * applied: the application goes back to queued and the tab to Ready, in its
- * group again. A refusal throws, for the panel to say.
+ * applied: the tab goes back to the state it had before the mark, Ready or
+ * Needs you, in its group again, and the application with it (queued or
+ * needs_you; the finish route's `state`). A refusal throws, for the panel to say.
  * @param {number} tabId
  */
 export function unmarkSubmitted(tabId) {
@@ -376,10 +384,14 @@ export function unmarkSubmitted(tabId) {
     const batch = await load();
     const tab = batch?.tabs[tabId];
     if (!tab || tab.state !== "applied") return { unsubmitted: false };
-    await finishApplication((await me()).id, tab.jobId, "unsubmitted");
-    tab.state = "ready";
+    // As it was before the mark: Ready, or still filling (its fill's end sets the tab as usual); anything
+    // else, or nothing known, needs the student.
+    const state = tab.before === "ready" || tab.before === "filling" ? "ready" : "needs_you";
+    await finishApplication((await me()).id, tab.jobId, "unsubmitted", state);
+    tab.state = state;
+    delete tab.before;
     await save(batch);
-    await moveToGroup(batch, tabId, "ready");
+    await moveToGroup(batch, tabId, state);
     return { unsubmitted: true };
   });
 }
