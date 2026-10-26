@@ -123,6 +123,7 @@ Flask
 FastAPI
 Pydantic
 SQLAlchemy
+Spigot API | Spigot | Bukkit
 Alembic
 Celery
 Spring | Spring Framework

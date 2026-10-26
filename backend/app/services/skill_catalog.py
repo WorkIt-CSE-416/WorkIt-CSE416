@@ -10,7 +10,8 @@ Matching (`key`) ignores case, spaces, hyphens and underscores, a ".js"
 ending and one final plural "s" (not "ss"), so "ReactJS", "React.js" and
 "react", or "REST API" and "REST APIs", are one skill. The student's own
 spelling is kept; the catalog only says yes or no, and which names are the
-same skill.
+same skill. A bracketed flavour or skills joined by a slash count too (see
+`canonical`).
 """
 
 import functools
@@ -46,9 +47,32 @@ def _catalog() -> dict[str, str]:
     return names
 
 
+_FLAVOUR_RE = re.compile(r"^(.+?)\s*\(([^()]*)\)$")
+_JOINED_RE = re.compile(r"\s*(?:/|,|&)\s*")
+
+
 def canonical(name: str) -> str | None:
-    """The catalog's name for this skill, or None when it is not one."""
-    return _catalog().get(key(name)) if name and name.strip() else None
+    """The catalog's name for this skill, or None when it is not one.
+
+    A skill with its flavour in brackets ("SQL (Postgres)") is the skill
+    outside them; skills joined by a slash, comma or "&" ("HTML/CSS") are a
+    skill when every part is one ("C/C++" is its own line, so it matches
+    whole first).
+    """
+    if not name or not name.strip():
+        return None
+    found = _catalog().get(key(name))
+    if found:
+        return found
+    flavour = _FLAVOUR_RE.match(name.strip())
+    if flavour:
+        return canonical(flavour.group(1))
+    parts = [p for p in _JOINED_RE.split(name.strip()) if p]
+    if len(parts) > 1:
+        names = [_catalog().get(key(p)) for p in parts]
+        if all(names):
+            return "/".join(names)
+    return None
 
 
 def is_skill(name: str) -> bool:
