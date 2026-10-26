@@ -819,7 +819,10 @@ waits for an opened tab's page and form (`waitForLoad`, `formShows`).
   engine's (`src/submit.ts` in the engine, tested there on recorded
   answers): in the page, `watchSubmit` wraps the page's `fetch` and reads
   the submit's answer (Greenhouse: an OK answer; Ashby: every form result a
-  success, no block message) and watches for a success or failure notice
+  success, no block message, from either of its submits: the multiple-forms
+  mutation, or `ApiSubmitSingleApplicationFormAction` for a posting with no
+  survey forms, which the engine and `SUBMIT_REQUESTS` once missed, so such
+  an Ashby application was never marked) and watches for a success or failure notice
   that newly shows (Ashby, Workable, Eightfold, Rippling, Workday); in the
   background, `submittedPage` is the page shown once an application is sent
   (Greenhouse's confirmation; Lever's thanks, its only signal, since its
