@@ -566,7 +566,7 @@ test("a guess stays in the walk until the student says it looks right, which sav
   const heard = rowOf(forms.url(ANDURIL), HEARD);
   await heard.getByRole("button", { name: "Looks right" }).click();
   await expect(heard.locator(".source")).toHaveText("You");
-  await expect(heard).toContainText("Looks right. We'll use this next time.");
+  await expect(heard).toContainText("Saved for next time.");
   await expect.poll(() => api.own).toEqual([
     { jobId: "job-1", name: HEARD, label: "How did you hear about Anduril?", answer: "Anduril Website", own: true },
   ]);
@@ -593,8 +593,13 @@ test("a guess the student changes is theirs: the walk passes it over, and one cl
   // Nothing is saved until the student says so.
   expect(api.own).toEqual([]);
   await heard.getByRole("button", { name: "Save for next time" }).click();
-  await expect(heard).toContainText("Saved. We'll use this next time.");
+  await expect(heard).toContainText("Saved for next time.");
   expect(api.own).toEqual([{ jobId: "job-0", name: HEARD, label: "How did you hear about Anduril?", answer: "Handshake", own: true }]);
+  // Undo takes the saved answer back; the row offers to save it again. What the form shows stays the student's.
+  await heard.getByRole("button", { name: "Undo" }).click();
+  await expect(heard.getByRole("button", { name: "Save for next time" })).toBeVisible();
+  expect(api.undone).toEqual([{ jobId: "job-0", name: HEARD }]);
+  await expect(heard.locator(".source")).toHaveText("You");
 
   const { walked } = await walkToEnd(forms.url(ANDURIL));
   expect(walked.map(([, key]) => key)).not.toContain(HEARD);

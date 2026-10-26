@@ -101,6 +101,50 @@ test("Looks right ×N confirms the guessed consent boxes at once, never a self-i
   expect(coinbase.submissions).toEqual([]);
 });
 
+test("Undo after Looks right ×N takes back every answer it saved, and the boxes are guesses again", async ({ context }) => {
+  const coinbase = new FakeJobServer("greenhouse-coinbase");
+  const page = await coinbase.open(context);
+  const job = readFileSync(join(FORMS, "greenhouse-coinbase", "questions.json"), "utf8");
+  const saved = new Map(loadHar("greenhouse-coinbase").log.entries.map((e: any) => [e.request.url, e.response.content.text ?? ""]));
+  await bridge(page, async (url) => (url.startsWith("https://boards-api.greenhouse.io/") ? job : saved.get(url) ?? ""), STUDENT);
+  await inject(page);
+  await settled(page);
+  // A batch tab's (window.WIA.batch): the background saves and deletes the answers; the test keeps its messages.
+  await page.evaluate(() => {
+    const w = window as any;
+    const { status } = w.WIA;
+    for (const [key, label] of [["ack", "I acknowledge the candidate privacy notice."], ["terms", "I agree to the terms and conditions."]]) {
+      status.register(key, label, true, "guessed");
+      status.setStatus(key, "filled", undefined, "Yes");
+    }
+    w.WIA.batch = { jobId: "job-0" };
+    w.__sent = [];
+    const send = w.chrome.runtime.sendMessage;
+    w.chrome.runtime.sendMessage = (message: any) => {
+      if (!String(message.type).startsWith("batch/")) return send(message);
+      w.__sent.push(message.name ? [message.type, message.name] : [message.type]);
+      return Promise.resolve({ ok: true });
+    };
+  });
+  const panel = page.locator("#workit-autofiller-overlay-host");
+  const row = (key: string) => panel.locator(`[data-key="${key}"]`);
+  await panel.getByRole("button", { name: "Looks right ×2" }).click();
+  await expect(row("ack")).toContainText("Saved for next time.");
+  await expect(row("terms")).toContainText("Saved for next time.");
+
+  await row("terms").getByRole("button", { name: "Undo" }).click();
+  for (const key of ["ack", "terms"]) {
+    await expect(row(key).locator(".source")).toHaveText("Guessed");
+    await expect(row(key).getByRole("button", { name: "Looks right" })).toBeVisible();
+  }
+  await expect(panel.getByRole("button", { name: "Looks right ×2" })).toBeVisible();
+  const sent = await page.evaluate(() => (window as any).__sent.filter(([type]: string[]) => type.startsWith("batch/own-answer")));
+  expect(sent.sort()).toEqual([
+    ["batch/own-answer", "ack"], ["batch/own-answer", "terms"], ["batch/own-answer-undo", "ack"], ["batch/own-answer-undo", "terms"],
+  ]);
+  expect(coinbase.submissions).toEqual([]);
+});
+
 test("leaves a job system the engine doesn't cover alone", async () => {
   const prepared = await planFill({
     url: "https://example.com/careers/apply/123", profile: STUDENT, today: "2026-10-22",

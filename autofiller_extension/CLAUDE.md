@@ -1200,9 +1200,17 @@ self-identification, the law (arbitration, certify, sign) or the right to
 work is never in it, worded as consent or not. Outside a batch tab Looks
 right confirms only: there is no application to save it to. WorkIt's own
 policies leave consent boxes to the student, so the batch shows only for a
-student whose policies (brought from Apply) tick them. Tests:
-`test/batch.extension.spec.ts` (the walk, the save, the next form),
-`test/greenhouse.spec.ts` (the batch skips self-ID and legal).
+student whose policies (brought from Apply) tick them. Once saved, the
+row reads "Saved for next time." with **Undo** for the rest of the page's
+life (the card's state is in memory): Undo deletes the saved answer
+(`batch/own-answer-undo`, DELETE .../answers?name=; the backend deletes
+only the student's own, and a question the tab sent stays for their
+Claude), every one a Looks right ×N press saved, and the row is what it
+was: a guess with Looks right, or a change with Save for next time. A
+failed delete says "WorkIt couldn't undo it. Try again." Tests:
+`test/batch.extension.spec.ts` (the walk, the save, Undo of a change, the
+next form), `test/greenhouse.spec.ts` (the batch skips self-ID and legal;
+Undo after Looks right ×N).
 
 Both of the extension's surfaces, the popup and the overlay, follow
 WorkIt's design system (`frontend/docs/design.md`). **The tokens are
