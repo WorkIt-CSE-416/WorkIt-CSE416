@@ -151,6 +151,14 @@
         note("_uncovered", "WorkIt can't fill this job system yet", "Nothing on this page was filled. WorkIt fills Greenhouse, Lever, Ashby, Rippling, Workable, Eightfold, Workday and TikTok applications.");
         return null;
       }
+      // TikTok's and ByteDance's form is behind the site's own sign-in, which is the student's: WorkIt
+      // never types an email or password there. Nothing is filled; the form fills once it shows (the
+      // background fills a tab that left the sign-in for its form) or the student presses Autofill.
+      if (prepared.signIn) {
+        const [line, ...rest] = prepared.signIn.split(/(?<=\.)\s+/);
+        note("_signin", line.replace(/\.$/, ""), `${rest.join(" ")} WorkIt fills the application once its form shows.`.trim());
+        return null;
+      }
       if (prepared.openForm) {
         note("_form", "This page shows the job, not its application", `Open the application form (${prepared.openForm}), then click Autofill again.`);
         return null;

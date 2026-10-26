@@ -78,6 +78,23 @@ export function practiceJob(url) {
   return m ? { company: m[1], job: m[2], page: m[3] } : null;
 }
 
+// Job systems whose questions only the open form shows: Eightfold's questions API answers only the
+// page's own session, and TikTok's and ByteDance's form is behind the site's own sign-in (Workday's
+// steps are read on their own, readQuestions).
+const READ_OFF_PAGE = new Set(["eightfold", "tiktok"]);
+const readOffPage = (job) => job.site === "workday" || READ_OFF_PAGE.has(job.site);
+
+/**
+ * Whether `url` is a careers site's own sign-in on the way to its form
+ * (TikTok's and ByteDance's, `lifeattiktok.com/login?redirect_path=...`),
+ * which the student goes through themselves: WorkIt never signs in there.
+ * @param {string} url
+ */
+export function signInFirst(url) {
+  const job = jobOf(url);
+  return job?.site === "tiktok" && !job.onForm && /^\/(login|create-?account|register)\b/i.test(new URL(url).pathname);
+}
+
 /** The link to open for an application: its form, where the engine covers the job system. */
 export function formUrl(url) {
   return jobOf(url)?.form ?? url;
@@ -461,7 +478,8 @@ function once(fetchText) {
 /**
  * The job's Question set as Apply reads it: fetched from the job system's
  * public API and read by the engine, else off the open form by the engine
- * (Eightfold's questions API answers only the page's own session; Workday
+ * (Eightfold's questions API answers only the page's own session, TikTok's
+ * form is behind the site's sign-in; Workday
  * shows its questions a step at a time, once the student has signed in;
  * Ashby's query is undocumented, so on any failure its form is read).
  * Workday's also gives the step it is on and the engine's state.
@@ -472,7 +490,7 @@ async function readQuestions({ job, url, call, fetchText, state }) {
     const step = { name: shown.step, sections: shown.sections, sends: shown.sends, review: shown.review, wentWrong: Boolean(shown.wentWrong) };
     return { questions: shown.questions, step, state: shown.state };
   }
-  if (job.site === "eightfold") return { questions: await call("readQuestions", "eightfold") };
+  if (READ_OFF_PAGE.has(job.site)) return { questions: await call("readQuestions", job.site) };
   // A practice form's questions are in its own page, as a Lever form's are in its /apply page.
   if (job.practice) return { questions: engine.parseQuestions("lever", await fetchText(url)) };
   try {
@@ -489,7 +507,9 @@ async function readQuestions({ job, url, call, fetchText, state }) {
  * Plan for the WorkIt profile, with file answers holding their bytes, and the
  * rows the overlay lists besides the planned answers (`planRows`). On a page
  * the engine doesn't cover, `{ covered: false }` and nothing is fetched; on a
- * job's page that isn't its form, `openForm`. On Workday it is the step
+ * job's page that isn't its form, `openForm`; on a careers site's own
+ * sign-in (TikTok's: the engine hands the form to the student, Handoff),
+ * `signIn`, the line to show, and nothing is filled. On Workday it is the step
  * shown, with `step` and the engine's `state`.
  * @param {{
  *   url: string, profile: import("../shared/types.js").AutofillProfile, bank?: object | Promise<object> | Function, today: string,
@@ -502,11 +522,17 @@ export async function planFill({ url, profile, bank = {}, today, call, fetchText
   const job = jobOf(url);
   if (!job) return { covered: false };
   const { site } = job;
-  if (!job.onForm) return { covered: true, site, openForm: job.form };
+  if (!job.onForm && !signInFirst(url)) return { covered: true, site, openForm: job.form };
   const fetchOnce = once(fetchText);
   // The job's names and text need no question: asked beside the questions, not after them.
   const reading = readNames(url, fetchOnce);
-  const read = await readQuestions({ job, url, call, fetchText: fetchOnce, state });
+  let read;
+  try {
+    read = await readQuestions({ job, url, call, fetchText: fetchOnce, state });
+  } catch (error) {
+    if (site === "tiktok" && error.name === "Handoff") return { covered: true, site, signIn: error.message };
+    throw error;
+  }
   const known = new Set(read.questions.map((q) => q.name));
   // Each text field's own limit, as the form on the page sets it (KAN-380): a written answer is checked against it before it is saved.
   const asked = [...read.questions, ...extra.filter((q) => !known.has(q.name))];
@@ -539,12 +565,12 @@ function selfIdAsked(questions, profile, plan, planFor) {
  * Starts asking the job system's public API for what a Plan of `url` will
  * read with `fetchText` (its questions, names and text), before its page is
  * open (plan-reads.js); nothing for a job whose questions only its open form
- * shows (Workday, Eightfold, a practice form). Failures are left to the Plan.
+ * shows (Workday, Eightfold, TikTok, a practice form). Failures are left to the Plan.
  * @returns {boolean} whether anything was asked
  */
 export function readJobAhead(url, fetchText) {
   const job = jobOf(url);
-  if (!job?.onForm || job.practice || job.site === "workday" || job.site === "eightfold") return false;
+  if (!job?.onForm || job.practice || readOffPage(job)) return false;
   optional(() => engine.questionSet(url, fetchText), null);
   readNames(url, fetchText);
   return true;
@@ -586,14 +612,14 @@ async function planQuestions({ job, url, questions, profile, bank, today, fetchT
  * them, so the student's Claude can write them before the tab opens. In the
  * shape PUT .../applications/{job}/questions takes; the form's own length
  * limit is unknown until the tab reads its fields, so `max_length` is null.
- * Null when only the open form shows its questions (Workday, Eightfold, an
+ * Null when only the open form shows its questions (Workday, Eightfold, TikTok, an
  * Ashby form whose query failed), or the link is no form the engine covers.
  * @param {{ url: string, profile: object, bank?: object, today: string, fetchText: Function, jobType?: string | null }} options
  * @returns {Promise<{ name: string, label: string, required: boolean, max_length: null }[] | null>}
  */
 export async function questionsToWrite({ url, profile, bank = {}, today, fetchText, jobType = null }) {
   const job = jobOf(url);
-  if (!job || job.practice || job.site === "workday" || job.site === "eightfold") return null;
+  if (!job || job.practice || readOffPage(job)) return null;
   const fetchOnce = once(fetchText);
   let questions;
   try {

@@ -51,7 +51,7 @@
 
 import { tabResume } from "./resume-tab.js";
 import { ApiError, finishApplication, getAutofillProfile, me, nextApplication, recordFill, recordSentResume, warmProfile } from "./api.js";
-import { formFor, jobOf, practiceJob } from "./engine.js";
+import { formFor, jobOf, practiceJob, signInFirst } from "./engine.js";
 import { jobBoard } from "./job-boards.js";
 import { injectFill, injectHumanCheck } from "../shared/content-scripts.js";
 import { embeddedForm, embedsGreenhouse } from "./embedded-forms.js";
@@ -287,10 +287,14 @@ async function startFill(tabId, url, again = false) {
     if (jobOf(shown)?.site === "workable") await forgetWorkableDraft(tabId, { onlyIfDraft: true });
     // A Workday posting shows no form until Apply is pressed (the fill presses it, workday.js) and the student signs in: its fill waits.
     const workday = isWorkday(shown);
+    // TikTok's form behind its sign-in: the fill shows the student the sign-in line (needs you), and the
+    // background fills the form once the tab reaches it (background.js). Opening the form again only signs in again.
+    if (signInFirst(shown)) return await injectFill(tabId, { batch: true });
     let found = await formShows(tabId, workday ? 0 : FORM_TIMEOUT_MS);
     // No answer: a new page ended the look (a human check that passed on its own), so look in the new one.
     if (found === null && !workday) found = await formAfterHumanCheck(tabId, FORM_TIMEOUT_MS);
     const now = (await chrome.tabs.get(tabId)).url ?? "";
+    if (signInFirst(now)) return await injectFill(tabId, { batch: true });
     if (!again && url && jobOf(url)?.onForm && !jobOf(now)?.onForm) {
       await chrome.tabs.update(tabId, { url });
       return startFill(tabId, url, true);

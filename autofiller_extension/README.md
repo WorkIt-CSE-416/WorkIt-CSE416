@@ -29,7 +29,9 @@ still open.
    link; on any other hiring system it fills nothing and says so. On
    Workday, sign in and start the application (in a batch, the extension
    presses Apply and Apply Manually itself): each step is filled as it
-   shows, and you press Save and Continue yourself.
+   shows, and you press Save and Continue yourself. On TikTok or
+   ByteDance, sign in to the careers site yourself first: the extension
+   never signs in there, and fills the form once it shows.
 
 It never submits anything — review the filled form and click the site's
 own Submit button yourself.
