@@ -266,9 +266,12 @@ weight.
   done" in place of a Done button. No Ask Scout on this page: the panel
   holds the column the assistant opens in, and a second AI entry beside it
   split the page. No Download while a line is open.
-- **Dots, then highlights.** Each changed line has a small plain dot in
-  the page's left margin in its change type's colour (green added, blue
-  reworded, amber moved; a removed line is not on the page); dots on one line (skills) stack like coins. A line is
+- **Dots, then highlights.** Each changed line has a small dot (8px) in
+  the page's left margin, brand purple whatever the change: in each
+  type's colour the amber dots read as one more signal among the
+  highlights, so a dot says only that a line changed and the panel says
+  how. A removed line is not on the page, so it has none. Dots on one
+  line (skills) stack like coins. A line is
   highlighted only while its suggestion is pointed at, focused or open,
   as Quinncia draws one: the tint carried 1px past the line, a 1px border
   in the mark's dark shade (`positive-ink`, `warning-strong`) at half

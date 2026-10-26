@@ -1776,7 +1776,7 @@ with no proposals to accept and no Done (2026-10-25).
   leaves the page alone at full width. Download and Finish sit in the
   top row; while a line is open, its moves, Hide and its choices with "Esc
   when done"; no Ask Scout and no Done. Each changed line has a small
-  plain dot in the page's margin and is highlighted (its tint, a 1px dark
+  purple dot in the page's margin and is highlighted (its tint, a 1px dark
   border, rounded, after Quinncia) only while its suggestion is pointed
   at or open; a dot or a changed line opens it. The panel's top holds a
   "…" menu (Accept All, Reject All) and the keyword
@@ -2081,7 +2081,7 @@ student who opened a resume from Experiences landed on another view.
   **On Tailor's review step the editor takes a Suggestions panel**
   (`suggestions`, a render prop; `tailor-review.tsx`,
   `../../docs/tailor_resume.md`, "Suggestions"). Only then does the page
-  carry the run's changes: a plain dot in the margin beside each changed
+  carry the run's changes: a small purple dot in the margin beside each changed
   line (`dots` on `PdfPages`), and a see-through highlight, so the PDF's
   text shows, on the lines of the suggestion in focus or open: an added
   skill green (`positive`, bordered in `positive-ink`), a new wording blue

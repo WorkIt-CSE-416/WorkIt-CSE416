@@ -19,9 +19,10 @@ import type { Mark } from "./tailor-review";
  * `field` draws the selected line's text field over its first box (KAN-218);
  * each page is a size container, so the field's type can be set in `cqw` to
  * match the PDF's at any width. On Tailor's review, `dots` puts a small
- * dot in the page's left margin beside each changed line, in its mark's
- * colour (green added, blue reworded, amber moved); `marks` highlights the lines of the card in focus or open, and
- * `focus` brings the first of them into view (./tailor-review.tsx).
+ * brand dot in the page's left margin beside each changed line; `marks`
+ * highlights the lines of the card in focus or open, in the colour of its
+ * change type, and `focus` brings the first of them into view
+ * (./tailor-review.tsx).
  */
 
 /** A marked line's highlight, as Quinncia draws one: the tint, rounded
@@ -44,14 +45,6 @@ const MARK_EDGE: Record<Mark, string> = {
     "shadow-[0_0_0_1px_color-mix(in_oklab,var(--color-advanced)_15%,transparent),0_0_0_2px_color-mix(in_oklab,var(--color-advanced)_50%,transparent)]",
   moved:
     "shadow-[0_0_0_1px_color-mix(in_oklab,var(--color-warning-fill)_20%,transparent),0_0_0_2px_color-mix(in_oklab,var(--color-warning-strong)_50%,transparent)]",
-};
-
-/** A margin dot's fill, by the line's mark: the highlight's dark shade, the
- *  colour its type has in the Suggestions panel. */
-const DOT_FILL: Record<Mark, string> = {
-  added: "bg-positive-ink",
-  reworded: "bg-advanced",
-  moved: "bg-warning-strong",
 };
 
 const DOT_LABEL: Record<Mark, string> = {
@@ -308,7 +301,7 @@ export function PdfPages({
 
 /** One page's margin dots: one per changed line, at its first box's top, in
  *  the left margin. Dots on one row (skills on one line) stack like coins,
- *  8px apart, each ringed in white, so they stay inside the margin. */
+ *  7px apart, each ringed in white, so they stay inside the margin. */
 function MarginDots({
   boxes,
   page,
@@ -341,14 +334,17 @@ function MarginDots({
           aria-label={DOT_LABEL[dot.mark]}
           onClick={() => onDot?.(key)}
           className={cn(
-            "outline-panel absolute z-10 size-2.5 rounded-full shadow-sm outline-2 transition-transform hover:z-20 hover:scale-125",
+            // Brand purple whatever the change, and 8px: in each type's
+            // colour the amber dots read as one more signal among the
+            // highlights; a dot says only that a line changed, the panel
+            // says how
+            "outline-panel bg-brand absolute z-10 size-2 rounded-full shadow-sm outline-2 transition-transform hover:z-20 hover:scale-125",
             "focus-visible:outline-brand focus-visible:outline-2 focus-visible:outline-offset-1",
-            DOT_FILL[dot.mark],
             dot.lit && "ring-brand scale-125 ring-2 ring-offset-1",
           )}
           style={{
-            left: `calc(${(12 / size.width) * 100}% + ${nth * 8}px)`,
-            top: `calc(${(box.y0 / size.height) * 100}% + 3px)`,
+            left: `calc(${(12 / size.width) * 100}% + ${nth * 7}px)`,
+            top: `calc(${(box.y0 / size.height) * 100}% + 4px)`,
           }}
         />
       );
