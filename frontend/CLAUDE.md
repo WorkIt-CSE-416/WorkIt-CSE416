@@ -1134,8 +1134,11 @@ the KAN-296 cutover.
   `transition-[--panel-gain] duration-200 ease-linear
   md:in-data-[pinned=false]:[--panel-gain:calc(var(--sidebar-width)_-_var(--sidebar-width-icon))]`
   itself, or it reads 0px and never moves. The readers today are
-  `[data-scout-page]` in `(seeker)/layout.tsx`, the Applications wrapper, and
-  the job rail's frame and aside (`jobs/jobs-rail.tsx`); keep the 200 ms
+  `[data-scout-page]` in `(seeker)/layout.tsx`, the Applications wrapper,
+  Tailor's review page (`jobs/[jobId]/tailor/page.tsx`: a work area beside
+  its Suggestions panel, so it widens with the sidebar closed, up to
+  `max-w-dashboard`), and the job rail's frame and aside
+  (`jobs/jobs-rail.tsx`); keep the 200 ms
   linear equal to shadcn's gap. It used to inherit and ease on the column
   above the page, which restyled about 4,258 elements on every frame of a pin
   (130 to 250 ms frames at 4x CPU). A sidebar row eases its current fill to

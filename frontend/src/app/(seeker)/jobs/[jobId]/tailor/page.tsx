@@ -69,39 +69,55 @@ export default async function TailorPage({
     const editorError = bank.error ?? choices.error ?? profileError;
 
     return (
-      <div className={cn("max-w-app mx-auto w-full flex-1 py-6", SEEKER_GUTTER)}>
-        <BackToJobs />
-        <TailorHeader job={job} title={resume.name}>
-          Your resume, tailored for this posting. Edit anything before you send it.
-        </TailorHeader>
-        <TailorSteps current="review" />
-        {bank.data && choices.data && profile ? (
-          <TailorReview
-            resumeId={resume.id}
-            initial={rendered}
-            initialBank={bank.data}
-            initialChoices={choices.data}
-            initialHeader={profile}
-          />
-        ) : (
-          <EmptyState
-            Icon={CloudSlashIcon}
-            title="This Resume Isn't Loading Right Now"
-            className="mt-4"
-            action={
-              <a
-                href={`/jobs/${encodeURIComponent(job.id)}/tailor?resumeId=${encodeURIComponent(
-                  resume.id,
-                )}`}
-                className={buttonClasses({ variant: "secondary", size: "sm" })}
-              >
-                Try Again
-              </a>
-            }
-          >
-            {editorError}
-          </EmptyState>
+      // A WORK AREA, NOT A READING PAGE: the resume and the Suggestions
+      // panel sit side by side, so every pixel helps. No max-w-app, and when
+      // the sidebar collapses the page takes back the room the shell holds
+      // empty (--panel-gain), as the Applications page does (../../../
+      // applications/page.tsx says how; this wrapper carries its own copy of
+      // the property, which does not inherit). The content stops at the
+      // Dashboard's cap, so a very wide window does not blow the resume up.
+      // At max-w-app the resume and panel were squeezed between two wide
+      // margins with the sidebar closed.
+      <div
+        className={cn(
+          "-mx-[calc(var(--panel-gain)/2)] flex-1 py-6 transition-[--panel-gain] duration-200 ease-linear md:in-data-[pinned=false]:[--panel-gain:calc(var(--sidebar-width)_-_var(--sidebar-width-icon))]",
+          SEEKER_GUTTER,
         )}
+      >
+        <div className="max-w-dashboard mx-auto w-full">
+          <BackToJobs />
+          <TailorHeader job={job} title={resume.name}>
+            Your resume, tailored for this posting. Edit anything before you send it.
+          </TailorHeader>
+          <TailorSteps current="review" />
+          {bank.data && choices.data && profile ? (
+            <TailorReview
+              resumeId={resume.id}
+              initial={rendered}
+              initialBank={bank.data}
+              initialChoices={choices.data}
+              initialHeader={profile}
+            />
+          ) : (
+            <EmptyState
+              Icon={CloudSlashIcon}
+              title="This Resume Isn't Loading Right Now"
+              className="mt-4"
+              action={
+                <a
+                  href={`/jobs/${encodeURIComponent(job.id)}/tailor?resumeId=${encodeURIComponent(
+                    resume.id,
+                  )}`}
+                  className={buttonClasses({ variant: "secondary", size: "sm" })}
+                >
+                  Try Again
+                </a>
+              }
+            >
+              {editorError}
+            </EmptyState>
+          )}
+        </div>
       </div>
     );
   }
