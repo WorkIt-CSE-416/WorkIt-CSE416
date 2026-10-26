@@ -548,8 +548,8 @@ waits for an opened tab's page and form (`waitForLoad`, `formShows`).
   a note that asks something, a failed field, a required one still
   waiting for its answer, a review flag; never a filled one or a required
   one the form doesn't show or no longer calls for, "skipped"; and
-  each "Guessed" answer once, for the student to check, which doesn't
-  keep the tab from Ready;
+  each "Guessed" answer until the student says it looks right or changes
+  it (the Guessed card below), which doesn't keep the tab from Ready;
   each answer that just arrived from the student's Claude once, too
   (`window.WIA.unseenAnswers`, cleared when the walk shows it);
   notes last; a note is a row marked `note`, "todo" or "done" for news
@@ -1160,6 +1160,31 @@ types after the fill "student", and one pasted in a waiting row's card
 Saved Answer, Claude, AI, You, Pasted, Guessed; the AI ones carry the sparkle) and
 highlights a guessed row in the warning tint. Where an answer comes from
 is the engine's to say: never work it out here.
+
+**The Guessed card** (KAN-369, `src/content/card-guess.js`, loaded after
+`overlay.js`): a guessed row's row card (`rowCard.add`) has **Looks
+right**; the batch below is a part above the panel's list
+(`overlay.addPart`: a part's `css` and `panel(summary)`). It makes the answer
+the student's (its source becomes "student", the badge reads You, and
+Next Thing That Needs You stops going to it) and, in a batch tab, saves
+it as their own answer to the question (`batch/own-answer`, PUT
+.../answers with `own: true`, the text the field shows; a multi-select's
+picks joined with "; "). The backend's `answer_bank` offers it on later
+forms by the question's wording, one about this company only on its
+forms, and the engine's Plan fills it as the student's ("You"): their own
+bank answer beats a rule's guess. A guess the student changes on the form
+is theirs too (the edit read-back covers every guessed row, optional ones
+included, `guessCard.watched`); its row offers **Save for next time**,
+one click, and nothing is saved before. When two or more guessed rows are
+consent boxes (agree, acknowledge, privacy notice, I understand), the
+panel offers **Looks right ×N** for them at once; a question about
+self-identification, the law (arbitration, certify, sign) or the right to
+work is never in it, worded as consent or not. Outside a batch tab Looks
+right confirms only: there is no application to save it to. WorkIt's own
+policies leave consent boxes to the student, so the batch shows only for a
+student whose policies (brought from Apply) tick them. Tests:
+`test/batch.extension.spec.ts` (the walk, the save, the next form),
+`test/greenhouse.spec.ts` (the batch skips self-ID and legal).
 
 Both of the extension's surfaces, the popup and the overlay, follow
 WorkIt's design system (`frontend/docs/design.md`). **The tokens are

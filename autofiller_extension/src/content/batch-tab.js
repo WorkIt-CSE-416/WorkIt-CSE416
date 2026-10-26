@@ -39,11 +39,9 @@ window.WIA = window.WIA || {};
     const waiting = (r) => r.status === "pending" || r.status === "needs_generation";
     const needsYou = (r) => (r.note ? r.note === "todo" : r.status === "failed" || (r.required && waiting(r)) || Boolean(r.flag));
 
-    // The guesses Next Thing That Needs You has shown the student, by key: once shown, a guess is theirs to
-    // have checked. Kept on the page, as the walk is (answerTheWalk).
-    const shownGuesses = (window.WIA.shownGuesses ??= new Set());
-    /** A filled answer WorkIt guessed (the panel's "Guessed") that the walk hasn't shown the student yet. */
-    const unchecked = (r) => !r.note && r.status === "filled" && r.source === "guessed" && !shownGuesses.has(r.key);
+    /** A filled answer WorkIt guessed (the panel's "Guessed"): walked until the student says it looks right
+     * or changes it (card-guess.js), which makes it theirs. */
+    const unchecked = (r) => !r.note && r.status === "filled" && r.source === "guessed";
     // The answers from the student's Claude that just arrived (written-answers.js), until the walk has shown them.
     const unseenAnswers = (window.WIA.unseenAnswers ??= new Set());
     const unseen = (r) => !r.note && r.status === "filled" && unseenAnswers.has(r.key);
@@ -83,10 +81,10 @@ window.WIA = window.WIA || {};
     /**
      * The walk's view of this tab: `order`, every row's key in the order its
      * field stands on the page (notes and fields the page doesn't show last),
-     * and `keys`, those of them that need the student, and the guesses the
-     * walk hasn't shown them (a guess doesn't keep the tab from Ready:
-     * the walk shows it once, for the student to check), and the answers
-     * from their Claude that just arrived, also once; `late`, those of `keys`
+     * and `keys`, those of them that need the student, the guesses they
+     * haven't confirmed (a guess doesn't keep the tab from Ready, but the walk
+     * goes to it until the student says it looks right), and the answers
+     * from their Claude that just arrived, once; `late`, those of `keys`
      * waiting for their Claude, which the walk visits after everything else
      * in the batch. The walk places a row
      * it went to by `order`, so it goes on after it once the row is answered.
@@ -102,10 +100,9 @@ window.WIA = window.WIA || {};
       return { order, keys, late: keys.filter((key) => late.has(key)) };
     }
 
-    /** Brings a flagged row's field into view and focuses it, and marks its row on the panel. A guess is then seen. */
+    /** Brings a flagged row's field into view and focuses it, and marks its row on the panel. */
     function show(key) {
       const row = status.summary().fields.find((r) => r.key === key);
-      if (row && unchecked(row)) shownGuesses.add(key);
       unseenAnswers.delete(key);
       const field = fieldOf(key);
       if (field) {

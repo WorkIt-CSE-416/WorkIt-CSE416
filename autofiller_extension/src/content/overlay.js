@@ -46,6 +46,8 @@ window.WIA = window.WIA || {};
   let current = null;
   let unsubscribe = null;
   let keeper = null;
+  // Parts other files add above the panel's list (addPart): their styles, and the part.
+  const parts = [];
 
   function styles() {
     const style = document.createElement("style");
@@ -158,6 +160,7 @@ window.WIA = window.WIA || {};
       ${window.WIA.rowCard?.css ?? ""}
       ${window.WIA.flagCard?.STYLES ?? ""}
       ${window.WIA.waitingCard?.css ?? ""}
+      ${parts.map((part) => part.css ?? "").join("\n")}
     `;
     return style;
   }
@@ -256,6 +259,7 @@ window.WIA = window.WIA || {};
         ? summary.fields.map(row)
         : [Object.assign(document.createElement("div"), { className: "empty", textContent: "No fields detected yet." })]),
     );
+    root.querySelector(".parts").replaceChildren(...parts.map((part) => part.panel?.(summary)).filter(Boolean));
     root.querySelector(".summary").textContent =
       summary.requiredTotal === 0
         ? "No required fields detected"
@@ -497,6 +501,7 @@ window.WIA = window.WIA || {};
       </div>
       <div class="essay-banner" hidden></div>
       <div class="moments"></div>
+      <div class="parts"></div>
       <div class="list"></div>
     `;
     panel.querySelector("[data-close]").addEventListener("click", unmount);
@@ -537,8 +542,19 @@ window.WIA = window.WIA || {};
     root = null;
   }
 
+  /**
+   * Adds a part above the panel's list, from its own file (card-guess.js):
+   * `css` for the panel's styles (tokens only), `panel(summary)` its node or
+   * null, asked again at every render. A row's card is row-card.js's.
+   * Added before the panel mounts.
+   * @param {{ css?: string, panel?: (summary: object) => Node | null }} part
+   */
+  function addPart(part) {
+    parts.push(part);
+  }
+
   /** Draws the rows again, for a row card whose own state changed (row-card.js). */
   const refresh = () => render(window.WIA.status.summary());
 
-  window.WIA.overlay = { mount, unmount, promptForEssays, offerNext, setCurrent, refresh, askSelfId, offerClaude, askSamples, askWorkdayAccounts, momentCard, CLAUDE_TRIGGER };
+  window.WIA.overlay = { mount, unmount, promptForEssays, offerNext, setCurrent, refresh, addPart, askSelfId, offerClaude, askSamples, askWorkdayAccounts, momentCard, CLAUDE_TRIGGER };
 })();

@@ -328,8 +328,8 @@ async function walkToEnd(at: string, { most = 20, onStep = async (_url: string, 
 }
 
 /** Opens a batch of `forms`' saved forms, in order, and waits until every tab is in a group. */
-async function startBatch(forms: SavedForms, names: string[], handlers: Handler[] = [forms.handler]) {
-  const api = new FakeApi().queue(...names.map((name, n) => ({ id: `job-${n}`, apply_url: forms.url(name) })));
+async function startBatch(forms: SavedForms, names: string[], handlers: Handler[] = [forms.handler], fake = new FakeApi()) {
+  const api = fake.queue(...names.map((name, n) => ({ id: `job-${n}`, apply_url: forms.url(name) })));
   loaded = await loadExtension([api.handler, webapp, ...handlers]);
   await signIn(loaded.context);
   const webappPage = loaded.context.pages()[0] ?? (await loaded.context.newPage());
@@ -453,17 +453,17 @@ test("a dropdown the student answers with the mouse alone no longer needs them: 
   expect(forms.submissions).toEqual([]);
 });
 
-test("once only fine rows are left, Next Thing says none are left, across the tabs in batch order", async () => {
+test("a guess stays in the walk until the student says it looks right, which saves it as their own", async () => {
   test.setTimeout(150_000);
   const [ARC, ANDURIL] = ["greenhouse-arc", "greenhouse-anduril"];
   const forms = new SavedForms([ARC, ANDURIL]);
-  await startBatch(forms, [ARC, ANDURIL], [withScript(forms, ARC, DROPS_FIRST_NAME)]);
+  const api = await startBatch(forms, [ARC, ANDURIL], [withScript(forms, ARC, DROPS_FIRST_NAME)]);
   const rowOf = (url: string, key: string) => page(url).locator(`#workit-autofiller-overlay-host [data-key="${key}"]`);
-  // How Anduril heard of the student is a guess: the walk shows it once, for the student to check.
+  // How Anduril heard of the student is a guess, for the student to check.
   const HEARD = "question_13130335007";
   await expect(rowOf(forms.url(ANDURIL), HEARD).locator(".source")).toHaveText("Guessed");
 
-  // The student answers each field the walk shows them, Arc's first name and Anduril's two questions.
+  // The student answers each field the walk shows them, Arc's first name and Anduril's two questions, but not the guess.
   const answer = async (url: string, key: string) => {
     const form = page(url);
     if (key === "first_name") {
@@ -485,10 +485,65 @@ test("once only fine rows are left, Next Thing says none are left, across the ta
   ]);
   expect(first.left).toBe("Nothing else needs you.");
 
-  // Pressed again, it starts over and finds nothing: every row left is filled and fine, the guess seen.
+  // Pressed again, it starts over: the guess the student saw but didn't confirm is still theirs to check.
   const again = await walkToEnd(forms.url(ANDURIL));
-  expect(again.walked).toEqual([]);
-  expect(again.left).toBe("Nothing else needs you.");
+  expect(again.walked).toEqual([[forms.url(ANDURIL), HEARD]]);
+
+  // Looks right: the answer is the student's now, saved as theirs for the next form that asks it.
+  const heard = rowOf(forms.url(ANDURIL), HEARD);
+  await heard.getByRole("button", { name: "Looks right" }).click();
+  await expect(heard.locator(".source")).toHaveText("You");
+  await expect(heard).toContainText("Looks right. We'll use this next time.");
+  await expect.poll(() => api.own).toEqual([
+    { jobId: "job-1", name: HEARD, label: "How did you hear about Anduril?", answer: "Anduril Website", own: true },
+  ]);
+  // Pressed once more, nothing is left (one press: the panel still marks the row the walk last went to).
+  const panel = page(forms.url(ANDURIL)).locator("#workit-autofiller-overlay-host");
+  await panel.getByRole("button", { name: "Next Thing That Needs You" }).click();
+  await expect(panel.locator("[data-said]")).toHaveText("Nothing else needs you.");
+  expect(forms.submissions).toEqual([]);
+});
+
+test("a guess the student changes is theirs: the walk passes it over, and one click saves it for next time", async () => {
+  test.setTimeout(120_000);
+  const ANDURIL = "greenhouse-anduril";
+  const forms = new SavedForms([ANDURIL]);
+  const api = await startBatch(forms, [ANDURIL]);
+  const form = page(forms.url(ANDURIL));
+  const HEARD = "question_13130335007";
+  const heard = form.locator(`#workit-autofiller-overlay-host [data-key="${HEARD}"]`);
+  await expect(heard.locator(".source")).toHaveText("Guessed");
+
+  await form.locator(`#${HEARD}`).click();
+  await form.getByRole("option", { name: "Handshake" }).click();
+  await expect(heard.locator(".source")).toHaveText("You", { timeout: 10_000 });
+  // Nothing is saved until the student says so.
+  expect(api.own).toEqual([]);
+  await heard.getByRole("button", { name: "Save for next time" }).click();
+  await expect(heard).toContainText("Saved. We'll use this next time.");
+  expect(api.own).toEqual([{ jobId: "job-0", name: HEARD, label: "How did you hear about Anduril?", answer: "Handshake", own: true }]);
+
+  const { walked } = await walkToEnd(forms.url(ANDURIL));
+  expect(walked.map(([, key]) => key)).not.toContain(HEARD);
+  expect(forms.submissions).toEqual([]);
+});
+
+test("the next form fills a question the student saved as theirs with their answer, not WorkIt's guess", async () => {
+  test.setTimeout(120_000);
+  const ANDURIL = "greenhouse-anduril";
+  const forms = new SavedForms([ANDURIL]);
+  const HEARD = "question_13130335007";
+  // What GET .../answer-bank gives once the student said a guess looked right, or changed it, on an earlier form.
+  const api = new FakeApi();
+  api.bank["How did you hear about Anduril?"] = { answer: "Handshake", own: true };
+  await startBatch(forms, [ANDURIL], [forms.handler], api);
+
+  const heard = () => page(forms.url(ANDURIL)).locator(`#workit-autofiller-overlay-host [data-key="${HEARD}"]`);
+  await expect(heard().locator(".source")).toHaveText("You");
+  const shown = page(forms.url(ANDURIL)).locator(`#${HEARD}`).locator("xpath=ancestor::div[contains(@class, 'select__control')]").locator(".select__single-value");
+  await expect(shown).toHaveText("Handshake");
+  const { walked } = await walkToEnd(forms.url(ANDURIL));
+  expect(walked.map(([, key]) => key)).not.toContain(HEARD);
   expect(forms.submissions).toEqual([]);
 });
 
