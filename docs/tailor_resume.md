@@ -42,12 +42,9 @@ model tokens; the student changes the tailored resume in the editor.
    - answers with the tailored resume's id and the **changes**: what each
      change replaced (below).
 6. **The editor opens on the tailored resume**, compiled. Each change shows
-   on a separate background colour. The student edits directly, and can
-   revert any change. **Save** ends the review: the colours go, and a
-   change can no longer be reverted (an edit still can change anything).
-
-The matched and missing keywords from step 3 stay on the page after the
-run, beside the new match.
+   on the resume itself. Changed lines use a darker green; changed bullets,
+   skills and reordered bullets offer Revert on hover or focus. The student
+   edits directly, and editing a changed item removes its mark and revert.
 
 ## What is removed
 
@@ -145,9 +142,8 @@ picked, may not. Each missing keyword has one way in: the student's pick.
 ## Marking and reverting changes
 
 The editor needs to know what the run changed, and what was there before,
-to colour it and to undo it. **That record is needed only until Save**
-(decided 2026-10-25): after Save nothing is reverted, so it is never
-stored in the database.
+to colour it and to undo it. The browser keeps that record in sessionStorage;
+it is never stored in the database.
 
 **The run answers with the record, and the browser keeps it.** The run's
 response lists each change with what it replaced, by handle and id:
@@ -254,12 +250,10 @@ them:
    gone. The screen picks skills before the run, stores the edits in
    sessionStorage and opens the editor.
 4. **The editor marks and reverts. Built.** `resumes/[resumeId]/
-   tailor-review.tsx`: Review Tailor's Changes lists each change with
-   Revert and Save; `marksOf` tints the lines (green a new wording or
-   skill, amber a new order); `revertOf` builds the choices PATCH;
-   `untouched` drops a change any later PATCH touches, a revert included.
-   The screen stores `{edits, dropped}`; the card shows the dropped count.
-   Checked in the browser on 2026-10-25: marks, a skill and an order
-   reverted, the review kept across a reload, and Save clearing it.
+   tailor-review.tsx`: `marksOf` tints the lines (green a new wording or
+   skill, amber a new order); `revertsOf` offers each change's Revert on
+   hover or focus; `revertOf` builds the choices PATCH; `untouched` drops a
+   change any later PATCH touches, a revert included. The screen stores
+   `{edits}` in sessionStorage.
 5. **Clean up.** Remove the questions, `show_skill`, `TailorChange` and the
    proposal schemas; update `backend/CLAUDE.md` and `frontend/CLAUDE.md`.

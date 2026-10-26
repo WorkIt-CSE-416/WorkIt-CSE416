@@ -67,8 +67,18 @@ export function TailorScreen({
   }, [jobId]);
 
   useEffect(() => {
-    void refreshChoices();
-  }, [refreshChoices]);
+    let cancelled = false;
+    void loadChoices(jobId).then((result) => {
+      if (cancelled) return;
+      setChoices(result.choices);
+      setUploads(result.uploads);
+      setChoiceError(result.error);
+      setSelected(firstChoice(result.choices)?.key ?? null);
+    });
+    return () => {
+      cancelled = true;
+    };
+  }, [jobId]);
 
   async function read(next: TailorSource) {
     setReading(true);
@@ -100,7 +110,7 @@ export function TailorScreen({
       setRunning(false);
       return setError({ message: error ?? "Tailor failed.", status });
     }
-    writeSessionDraft(tailorEditsKey(data.resume.id), { edits: data.edits, dropped: data.dropped });
+    writeSessionDraft(tailorEditsKey(data.resume.id), { edits: data.edits });
     router.push(
       `/jobs/${encodeURIComponent(jobId)}/tailor?resumeId=${encodeURIComponent(data.resume.id)}`,
     );
@@ -208,7 +218,7 @@ export function TailorScreen({
                     <Chip
                       pressed={picked.has(k.keyword)}
                       onClick={() => toggle(k.keyword)}
-                      className="gap-2 rounded-control"
+                      className="gap-2"
                     >
                       <span
                         aria-hidden="true"

@@ -29,6 +29,7 @@ import {
 } from "@/lib/built-resume-actions";
 import { cn } from "@/lib/cn";
 import { updateProfile } from "@/lib/profile-actions";
+import type { TailorEdit } from "@/lib/tailor-actions";
 
 import {
   DownloadMenu,
@@ -54,7 +55,7 @@ import {
 import { keepFitUndo, readFitUndo } from "./fit-undo";
 import { boxKey, kindLabel, loadPdfjs, PageSkeleton, PdfPages } from "./pdf-pages";
 import { PhoneEditor, usePhone } from "./phone";
-import { marksOf, revertOf, TailorReview, untouched, useTailorReview } from "./tailor-review";
+import { marksOf, revertOf, revertsOf, untouched, useTailorReview } from "./tailor-review";
 import { Tray } from "./tray";
 
 /**
@@ -73,9 +74,8 @@ import { Tray } from "./tray";
  * On a phone-width screen the same state is laid out by `PhoneEditor`
  * (KAN-219, ./phone.tsx). The assistant (KAN-221, ./assistant.tsx) docks
  * beside the page, or opens in a sheet on a phone, and acts through the same
- * saves. After a Tailor run, its review (./tailor-review.tsx) sits above the
- * page: each change is tinted on its line and listed with Revert until Save,
- * and an edit of a changed item through `apply` drops that change.
+ * saves. After a Tailor run, each changed line is tinted and offers Revert on
+ * hover; an edit of a changed item through `apply` drops that change.
  *
  * THE FIRST PDF STREAMS IN (KAN-368). The page starts the render and hands
  * it over unawaited (`initial`), since the LaTeX compile is the slowest read
@@ -531,15 +531,8 @@ export function Editor({
       </Suspense>
     );
   const marks = review ? marksOf(review.edits) : undefined;
-  const reviewCard = review && (
-    <TailorReview
-      record={review}
-      bank={bank}
-      saving={saving}
-      onRevert={(edit) => void apply(revertOf(edit))}
-      onSave={() => setReview(null)}
-    />
-  );
+  const reverts = review ? revertsOf(review.edits) : undefined;
+  const onRevert = (edit: TailorEdit) => void apply(revertOf(edit));
 
   if (phone) {
     const start = line && startText(line);
@@ -557,6 +550,8 @@ export function Editor({
               onDrawn={drawn}
               placeholder={<PageSkeleton />}
               marks={marks}
+              reverts={reverts}
+              onRevert={onRevert}
             />
           ))}
           bank={bank}
@@ -591,7 +586,6 @@ export function Editor({
           onApply={apply}
           onFit={fit}
           onUndoFit={undoFit}
-          review={reviewCard}
         />
         {fitToast}
       </>
@@ -631,7 +625,6 @@ export function Editor({
           </p>
         )}
         <DownloadNotes download={download} />
-        {reviewCard}
         <div
           ref={pages}
           data-keeps-selection
@@ -650,6 +643,8 @@ export function Editor({
               onDrawn={drawn}
               placeholder={<PageSkeleton />}
               marks={marks}
+              reverts={reverts}
+              onRevert={onRevert}
             />
           ))}
         </div>

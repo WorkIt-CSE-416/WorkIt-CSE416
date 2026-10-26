@@ -27,7 +27,7 @@ export type TailorMatch = {
 };
 
 /** One change a run saved, with what it replaced, for the editor to mark
- *  and revert until Save. `reword`: `bullet_id` shows `text`, and showed
+ *  and revert. `reword`: `bullet_id` shows `text`, and showed
  *  `before` (variant `before_variant_id`). `order`: `entry_id`'s bullets are
  *  `bullet_ids`, and were `before_ids`. `skill`: `skill_id`, named `label`
  *  in `group`, is this resume's own. */

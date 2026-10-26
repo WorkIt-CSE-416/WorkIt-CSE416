@@ -10,7 +10,7 @@
  *
  * Tailor's record of what a run changed (docs/tailor_resume.md) is kept the
  * same way in sessionStorage instead, under the same prefix: it matters only
- * until the editor's Save, in this tab, and `clearLocalDrafts` clears it too.
+ * in this tab, and `clearLocalDrafts` clears it too.
  *
  * Storage can be missing or refuse (private windows, blocked site data), so
  * every call here swallows its error; the page then works without it.
@@ -26,7 +26,7 @@ export const INTAKE_SKIPPED_KEY = `${PREFIX}intake-skipped`;
  *  ((seeker)/applications/column-layout.ts, KAN-282). */
 export const APPLICATIONS_COLUMNS_KEY = `${PREFIX}applications-columns`;
 
-/** What a Tailor run changed on a tailored resume, until the editor's Save. */
+/** What a Tailor run changed, for the editor's per-line Revert controls. */
 export const tailorEditsKey = (resumeId: string) => `${PREFIX}tailor-edits.${resumeId}`;
 
 export function readLocalDraft<T>(key: string): T | null {

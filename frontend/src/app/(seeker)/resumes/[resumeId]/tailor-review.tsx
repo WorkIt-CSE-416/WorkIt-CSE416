@@ -1,11 +1,7 @@
 "use client";
 
-import { ArrowUUpLeftIcon, CheckIcon } from "@phosphor-icons/react/ssr";
 import { useCallback, useEffect, useState } from "react";
 
-import { Button } from "@/components/ui/button";
-import { Card } from "@/components/ui/card";
-import type { Bank } from "@/lib/bank-actions";
 import type { ChoicesUpdate } from "@/lib/built-resume-actions";
 import { readSessionDraft, tailorEditsKey, writeSessionDraft } from "@/lib/local-drafts";
 import type { TailorEdit } from "@/lib/tailor-actions";
@@ -14,17 +10,15 @@ import type { TailorEdit } from "@/lib/tailor-actions";
  * Tailor's review in the editor (docs/tailor_resume.md, "Marking and
  * reverting changes"). A Tailor run saves the tailored resume itself and
  * hands the editor what it changed, each with what it replaced, through
- * sessionStorage (the Tailor screen writes it, `tailorEditsKey`). Until Save
- * the editor tints each changed line (`marksOf`) and lists each change with
- * Revert, which goes through the editor's own choices PATCH (`revertOf`).
- * A revert, or the student's own edit of a changed item (`untouched`),
- * drops that change; Save drops them all. The API keeps no record, so a new
- * tab, or another device, opens the resume with no marks.
+ * sessionStorage (the Tailor screen writes it, `tailorEditsKey`). The editor
+ * tints each changed line (`marksOf`) and shows its Revert control on hover
+ * or focus. Revert goes through the editor's choices PATCH (`revertOf`). A
+ * revert, or the student's own edit of a changed item (`untouched`), drops
+ * that change. The API keeps no record, so a new tab or device has no marks.
  */
 
-/** What the Tailor screen stores: the run's changes, and how many wordings
- *  the truth rule left out. */
-export type TailorReviewRecord = { edits: TailorEdit[]; dropped: number };
+/** What the Tailor screen stores: the run's changes. */
+export type TailorReviewRecord = { edits: TailorEdit[] };
 
 /** A line's mark: `changed` (a new wording or an added skill, green) or
  *  `moved` (an entry's bullets put in a new order, amber). */
@@ -53,12 +47,10 @@ export function useTailorReview(resumeId: string) {
  *  of edits (the first shape, before the dropped count), or anything else
  *  in storage, never breaks the editor. */
 function readable(stored: unknown): TailorReviewRecord | null {
-  if (Array.isArray(stored)) return stored.length ? { edits: stored, dropped: 0 } : null;
+  if (Array.isArray(stored)) return stored.length ? { edits: stored } : null;
   if (stored && typeof stored === "object" && Array.isArray((stored as TailorReviewRecord).edits)) {
     const record = stored as TailorReviewRecord;
-    return record.edits.length
-      ? { edits: record.edits, dropped: Number(record.dropped) || 0 }
-      : null;
+    return record.edits.length ? { edits: record.edits } : null;
   }
   return null;
 }
@@ -79,6 +71,21 @@ export function marksOf(edits: TailorEdit[]): Map<string, Mark> {
     if (edit.kind === "skill" && edit.skill_id) marks.set(`${edit.skill_id}.skill`, "changed");
   }
   return marks;
+}
+
+/** Each marked line's Tailor change, so its editor target can offer Revert. */
+export function revertsOf(edits: TailorEdit[]): Map<string, TailorEdit> {
+  const reverts = new Map<string, TailorEdit>();
+  for (const edit of edits) {
+    if (edit.kind === "order") {
+      for (const id of edit.bullet_ids) reverts.set(`${id}.bullet`, edit);
+    }
+  }
+  for (const edit of edits) {
+    if (edit.kind === "reword" && edit.bullet_id) reverts.set(`${edit.bullet_id}.bullet`, edit);
+    if (edit.kind === "skill" && edit.skill_id) reverts.set(`${edit.skill_id}.skill`, edit);
+  }
+  return reverts;
 }
 
 /** The choices PATCH that undoes one change. */
@@ -122,95 +129,4 @@ export function untouched(edits: TailorEdit[], update: ChoicesUpdate): TailorEdi
     if (edit.kind === "order") return !edit.bullet_ids.some((id) => moved.has(id));
     return !skills.has(edit.skill_id ?? "");
   });
-}
-
-/** The entry a bullet sits under, as a change names it: "Title, Organization". */
-function entryOf(bank: Bank, bulletId: string | null) {
-  const entry = bank.entries.find((e) => e.bullets.some((b) => b.id === bulletId));
-  return entry ? [entry.title, entry.organization].filter(Boolean).join(", ") : null;
-}
-
-/**
- * The card above the page while a run's changes wait for review: each
- * change with Revert, the colours' key, and Save, which ends the review.
- * The resume is already saved; Save only drops the marks and the reverts.
- */
-export function TailorReview({
-  record,
-  bank,
-  saving,
-  onRevert,
-  onSave,
-}: {
-  record: TailorReviewRecord;
-  bank: Bank;
-  saving: boolean;
-  onRevert: (edit: TailorEdit) => void;
-  onSave: () => void;
-}) {
-  const { edits, dropped } = record;
-  return (
-    <Card as="section" aria-labelledby="tailor-review">
-      <div className="flex flex-wrap items-start justify-between gap-3">
-        <div className="min-w-0">
-          <h2 id="tailor-review" className="text-subtitle text-ink">
-            Review Tailor&apos;s Changes
-          </h2>
-          <p className="text-note text-ink-muted mt-1">
-            Your tailored resume is saved. Changed lines are{" "}
-            <span className="bg-positive/20 rounded-[2px] px-1">green</span>; bullets in a new order
-            are <span className="bg-warning-fill/25 rounded-[2px] px-1">amber</span>. Revert any you
-            don&apos;t want, then Save.
-          </p>
-          {dropped > 0 && (
-            <p className="text-note text-ink-meta mt-1">
-              WorkIt left out {dropped} {dropped === 1 ? "wording" : "wordings"} that added
-              something your resume does not say.
-            </p>
-          )}
-        </div>
-        <Button size="sm" onClick={onSave} disabled={saving}>
-          <CheckIcon aria-hidden /> Save
-        </Button>
-      </div>
-      <ul role="list" className="divide-border-subtle mt-2 flex flex-col divide-y">
-        {edits.map((edit) => (
-          <li
-            key={`${edit.kind}.${edit.bullet_id ?? edit.entry_id ?? edit.skill_id}`}
-            className="flex flex-wrap items-start justify-between gap-3 py-2.5"
-          >
-            <div className="min-w-0 flex-1">
-              <p className="text-note text-ink-meta">
-                {edit.kind === "reword" &&
-                  `New Wording: ${entryOf(bank, edit.bullet_id) ?? "Bullet"}`}
-                {edit.kind === "order" && `New Bullet Order: ${edit.label ?? "Entry"}`}
-                {edit.kind === "skill" && "Added Skill"}
-              </p>
-              {edit.kind === "reword" && (
-                <div className="mt-1 grid gap-1 @lg/main:grid-cols-2">
-                  <p className="text-body text-ink-muted">
-                    <span className="sr-only">Was: </span>
-                    {edit.before}
-                  </p>
-                  <p className="text-body text-ink">
-                    <span className="sr-only">Now: </span>
-                    {edit.text}
-                  </p>
-                </div>
-              )}
-              {edit.kind === "skill" && (
-                <p className="text-body text-ink mt-1">
-                  {edit.label}
-                  {edit.group && <span className="text-ink-muted"> in {edit.group}</span>}
-                </p>
-              )}
-            </div>
-            <Button variant="secondary" size="sm" onClick={() => onRevert(edit)} disabled={saving}>
-              <ArrowUUpLeftIcon aria-hidden /> Revert
-            </Button>
-          </li>
-        ))}
-      </ul>
-    </Card>
-  );
 }
