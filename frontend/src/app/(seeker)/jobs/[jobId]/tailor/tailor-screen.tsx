@@ -35,6 +35,8 @@ export function TailorScreen({ jobId, title }: { jobId: string; title: string })
   const [source, setSource] = useState<TailorSource | null>(null);
   const [match, setMatch] = useState<TailorMatch | null>(null);
   const [picked, setPicked] = useState<Set<string>>(new Set());
+  // Add All only picks every missing keyword; unpicking one after keeps the label
+  const [addedAll, setAddedAll] = useState(false);
   const [reading, setReading] = useState(false);
   const [running, setRunning] = useState(false);
   const [error, setError] = useState<{ message: string; status: number | null } | null>(null);
@@ -83,6 +85,7 @@ export function TailorScreen({ jobId, title }: { jobId: string; title: string })
     setSource(next);
     setMatch(data);
     setPicked(new Set());
+    setAddedAll(false);
   }
 
   async function uploaded(id: string) {
@@ -200,7 +203,19 @@ export function TailorScreen({ jobId, title }: { jobId: string; title: string })
           <KeywordList label="Matched" keywords={match.matched} />
           {match.missing.length > 0 && (
             <div className="mt-3">
-              <p className="text-note text-ink-meta">Missing: choose which skills to add</p>
+              <div className="flex flex-wrap items-baseline gap-x-3 gap-y-1">
+                <p className="text-note text-ink-meta">Missing: choose which skills to add</p>
+                <Button
+                  variant="link"
+                  size="inline"
+                  onClick={() => {
+                    setPicked(new Set(match.missing.map((k) => k.keyword)));
+                    setAddedAll(true);
+                  }}
+                >
+                  {addedAll ? "Added All" : "Add All"}
+                </Button>
+              </div>
               <ul role="list" className="mt-2 flex flex-wrap gap-2">
                 {match.missing.map((k) => (
                   <li key={k.keyword}>
