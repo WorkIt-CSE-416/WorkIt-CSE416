@@ -1051,6 +1051,11 @@ the KAN-296 cutover.
   come from any AI, and never send it to the extension; the open tab fills
   it on its own poll. A failed check is the warning amber under its box,
   never the danger red (the student fixes it; nothing broke).
+  A question whose answer waits on an Essay fact (KAN-369: a fact the
+  student's Claude asked for rather than invent) shows the question above
+  its box (`answers/fact-box.tsx`), saved with `PUT .../essay-facts` into
+  the experience entry it names; never into the answer box, since the
+  fact is for their Claude to quote, not the answer itself.
   Every resume dialog (Did You Apply?, Tailor's Pick a Resume, Up Next's
   Choose a Resume) picks through one table, `ResumeLists` in
   `jobs/resume-picker.tsx` (KAN-360): change it there, never per dialog

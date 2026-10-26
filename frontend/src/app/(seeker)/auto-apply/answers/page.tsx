@@ -13,6 +13,7 @@ import { SEEKER_GUTTER } from "../../gutter";
 import { WriteWithClaude } from "../write-with-claude";
 import { AnswerBox } from "./answer-box";
 import { DeleteAnswer } from "./delete-answer";
+import { FactBox } from "./fact-box";
 import { isNew, newestSaved, SEEN_COOKIE, seenAt } from "./new-answers";
 import { getAnsweredQuestions, getWrittenQuestions } from "./questions";
 import { SeenNow } from "./seen-now";
@@ -37,6 +38,12 @@ export const metadata: Metadata = {
  * `pipeline.save_answers`), so WorkIt's checks run on it exactly as on
  * Claude's, and the open tab fills it on its next poll. Nothing here talks
  * to the extension.
+ *
+ * ESSAY FACTS (KAN-369). A question whose answer needs a fact nothing in
+ * the student's experience states shows what their Claude asked above its
+ * box (./fact-box.tsx): the student's answer joins their experience, and
+ * their Claude then writes the answer from it. They may still write the
+ * whole answer themselves in the box.
  *
  * WRITE WITH CLAUDE (../write-with-claude.tsx), beside the heading while
  * any question waits, starts the student's own Claude on them instead.
@@ -101,7 +108,17 @@ export default async function WrittenAnswersPage() {
               {posting.company && <p className="text-body text-ink-meta">{posting.company}</p>}
               <div className="mt-4 flex flex-col gap-6">
                 {posting.questions.map((question) => (
-                  <AnswerBox key={question.name} jobId={posting.job_id} question={question} />
+                  <div key={question.name} className="flex flex-col gap-2">
+                    {question.ask && (
+                      <FactBox
+                        jobId={posting.job_id}
+                        name={question.name}
+                        ask={question.ask}
+                        about={question.ask_about}
+                      />
+                    )}
+                    <AnswerBox jobId={posting.job_id} question={question} />
+                  </div>
                 ))}
               </div>
             </Card>

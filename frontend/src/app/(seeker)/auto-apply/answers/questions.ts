@@ -25,6 +25,14 @@ export type WrittenQuestion = {
   kind: "choice" | "choices" | null;
   /** The choice's options, as the form words them; null when written in words. */
   options: string[] | null;
+  /**
+   * The fact the student's Claude asked the student for (KAN-369, an Essay
+   * fact): "Essay fact: <question>", or null. Their answer joins the
+   * experience entry `ask_about` names, and the question goes back to their Claude.
+   */
+  ask: string | null;
+  /** The experience entry, by its heading line, the fact's answer is saved under. */
+  ask_about: string | null;
 };
 
 /** One open application's unanswered questions, oldest application first. */
