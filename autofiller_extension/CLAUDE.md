@@ -350,6 +350,16 @@ waits for an opened tab's page and form (`waitForLoad`, `formShows`).
   synthetic press (`press`) works on both, Apply's popup shows Apply
   Manually a moment after, and it loads `/apply/applyManually`, then
   Create Account/Sign In (NVIDIA's social-first, with Sign in with email).
+- **Workday Sign-Up (KAN-369).** The extension's options page
+  (`src/options/`, opened from the popup's Workday Sign-Up button) lets the
+  student set one registration email (prefilled from their WorkIt profile,
+  `profile/get`) and one password for every company's Workday, as Jobright's
+  "Sign-up Information" does. A live checklist (12+ characters, upper, lower,
+  number, special) gates Save; Show/Hide and Clear. **The page writes the
+  login straight to `chrome.storage.local` (`workday_signup`)**: no message
+  carries it, the page never shows a saved password back, and it never
+  reaches the API, a log or the webapp
+  (`test/workday-signup.extension.spec.ts` checks every API request).
 - **Workday sign-in (KAN-373).** On Workday's Create Account or Sign In
   form (`[data-automation-id=signInFormo]`; Workday's step bar calls it a
   step, which `workdayStep()` ignores), `workday.js` asks
