@@ -1675,8 +1675,8 @@ with no proposals to accept and no Done (2026-10-25).
   and each step is its own view under it (`TailorScreen` keeps the step in
   state; a reload starts at the pick). The keyword match appeared under
   the picker on one page before, so the student scrolled past the list to
-  read it. Pick a Resume shows the list beside the picked resume's
-  preview (`ResumePreview`; under it below a 56rem column). Choose
+  read it. Pick a Resume shows the list across the full width, and each
+  card's Preview opens that resume in a dialog (below). Choose
   Keywords has Back and Tailor Resume. Back never loses a pick: the same
   resume picked again keeps its match and its picked keywords, with no
   second read. Tailor lists the run's phases as they stream (Retrieving
@@ -1703,20 +1703,24 @@ with no proposals to accept and no Done (2026-10-25).
   read returns to the pick with its error on the card. An upload is read into the bank and
   tailored as its own entries; a run changes only what the picked resume
   shows.
-- **A preview shows the picked resume** (`resume-preview.tsx`), so the
-  student sees what they are about to tailor. A built resume's PDF is
-  rendered and an upload's PDF is read, then drawn page by page with the
-  editor's `PdfPages`, read-only, with no click targets. A DOCX upload
-  gets a note and Download, as its own page does: pdf.js cannot draw one.
-  The PDF comes from `GET /api/resume-preview?built=<id>` or
+- **Each card has a Preview button** (an eye, labelled "Preview <name>",
+  `onPreview` on `ResumeLists`), which opens the resume in a dialog
+  (`ResumePreviewDialog`, `resume-preview.tsx`) without moving the pick.
+  The other resume dialogs pass no `onPreview` and show no eye. A preview
+  sat in a column beside the list until 2026-10-26; the list needed the
+  width, and a dialog gives the page room to read. The dialog takes a
+  name and a `TailorSource`, so the review step opens it too, for View
+  Original. A built resume's PDF is rendered (as it is now) and an
+  upload's PDF is read, then drawn page by page with the editor's
+  `PdfPages`, read-only, with no click targets. A DOCX upload gets a
+  note and Download, as its own page does: pdf.js cannot draw one. The
+  PDF comes from `GET /api/resume-preview?built=<id>` or
   `?uploaded=<id>`, a route handler, not a server action: Next runs a
-  client's actions one at a time, so each pick's render would hold back
-  Use This Resume. Each answer is kept by the pick's key, so a late
-  answer for an older pick never shows, and a pick made again shows at
-  once. The page's skeleton shows while it loads; a failure says so in
-  one line with Try Again; no pick says "Pick a resume to preview it."
-  Its pages scroll inside one fixed height from lg up, beside the list;
-  below lg it stacks and stops at 70% of the screen's height.
+  client's actions one at a time, so each render would hold back Use
+  This Resume. Each answer is kept by its resume while the dialog stays
+  mounted, so a late answer for another resume never shows and a resume
+  opened again shows at once. The page's skeleton shows while it loads,
+  and a failure says so in one line with Try Again.
 - **The keyword match** shows "12 of 18", the matched keywords, and the
   missing ones as toggle chips, Required then Preferred, each under its
   own label (`MissingKeywords`, KAN-408): the student picks those they

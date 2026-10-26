@@ -24,7 +24,7 @@ import {
 
 import type { MatchShift, TailorReviewRecord } from "../../../resumes/[resumeId]/tailor-review";
 import { loadChoices, ResumeLists, type Choice } from "../../resume-picker";
-import { ResumePreview } from "./resume-preview";
+import { ResumePreviewDialog } from "./resume-preview";
 import { TailorSteps, type TailorStep } from "./tailor-steps";
 
 /** The run's phases, in order, as the Tailor step lists them, by the
@@ -63,8 +63,9 @@ function tailorFirst(choices: Choice[]): Choice | undefined {
  * at the pick, which reads nothing the student would lose.
  *
  * Pick a Resume: the student picks a generated or uploaded resume, or
- * uploads one with the Resumes page's rules (../../resume-picker, KAN-318),
- * beside its preview. Use This Resume reads its keyword match and moves on.
+ * uploads one with the Resumes page's rules (../../resume-picker, KAN-318);
+ * a card's Preview opens it in a dialog (./resume-preview.tsx) without
+ * picking it. Use This Resume reads its keyword match and moves on.
  * Choose Keywords: the match, and the missing keywords to add as skills.
  * Back keeps the picks: the same resume picked again keeps its match and
  * its keywords, read once. Tailor Resume runs once and saves the posting's
@@ -90,6 +91,10 @@ export function TailorScreen({ jobId }: { jobId: string }) {
   const [choiceError, setChoiceError] = useState<string | null>(null);
   const [uploading, setUploading] = useState(false);
   const [selected, setSelected] = useState<string | null>(null);
+  /** The resume last previewed; the dialog stays mounted once opened, so a
+   *  resume opened again shows at once. */
+  const [previewed, setPreviewed] = useState<Choice | null>(null);
+  const [previewOpen, setPreviewOpen] = useState(false);
   const onUploadBusy = useCallback((busy: boolean) => setUploading(busy), []);
   const refreshChoices = useCallback(async (): Promise<Choice[]> => {
     const result = await loadChoices(jobId);
@@ -218,9 +223,7 @@ export function TailorScreen({ jobId }: { jobId: string }) {
       <TailorSteps current={step} />
       <div className="mt-4">
         {step === "pick" && (
-          // Beside the list from a 56rem column (the preview is a page,
-          // so it needs the room); under it below that.
-          <div className="grid items-start gap-4 @4xl/main:grid-cols-[3fr_2fr]">
+          <>
             <Card as="section" aria-label="Pick a Resume" className="flex min-w-0 flex-col gap-3">
               {choices == null ? (
                 <p className="text-note text-ink-muted">Loading your resumes…</p>
@@ -234,6 +237,10 @@ export function TailorScreen({ jobId }: { jobId: string }) {
                     onPick={(key) => {
                       setSelected(key);
                       setError(null);
+                    }}
+                    onPreview={(choice) => {
+                      setPreviewed(choice);
+                      setPreviewOpen(true);
                     }}
                     upload={{ uploads, onUploaded: uploaded, onBusyChange: onUploadBusy }}
                   />
@@ -258,10 +265,15 @@ export function TailorScreen({ jobId }: { jobId: string }) {
               */}
               <TailorError error={error} />
             </Card>
-            <div className="min-w-0 @4xl/main:sticky @4xl/main:top-4">
-              <ResumePreview choice={pickedChoice} />
-            </div>
-          </div>
+            {previewed && (
+              <ResumePreviewDialog
+                open={previewOpen}
+                onOpenChange={setPreviewOpen}
+                label={previewed.label}
+                source={toSource(previewed)}
+              />
+            )}
+          </>
         )}
 
         {step === "keywords" && (reading || !match) && <MatchWaiting />}

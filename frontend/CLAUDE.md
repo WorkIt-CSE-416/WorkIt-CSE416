@@ -1426,8 +1426,8 @@ the KAN-296 cutover.
   only**: the editor (KAN-209), an upload's page (KAN-366,
   `(seeker)/resumes/uploaded/[id]`, which draws through the same
   `PdfPages`) and Tailor's page (`(seeker)/jobs/[jobId]/tailor`: the
-  editor, the before and after's Before column, and the preview of the
-  picked resume, `resume-preview.tsx`), through `import("pdfjs-dist")` inside an effect in
+  editor, the before and after's Before column, and a resume card's
+  Preview dialog, `resume-preview.tsx`), through `import("pdfjs-dist")` inside an effect in
   `(seeker)/resumes/[resumeId]/pdf-pages.tsx`: about 110 KB gzip plus a
   290 KB worker, which every other page would otherwise pay for, and its
   module touches browser globals, so a top-level import breaks the server
@@ -1522,9 +1522,9 @@ are in `docs/auth.md`.
   trips in a row (KAN-368). Use one action that runs `Promise.all` on the
   server, or a server component. A slow read the student can repeat while
   they work goes through a route handler instead, which `fetch` runs
-  beside the actions: Tailor's preview (`app/api/resume-preview`) renders
-  a PDF on each pick, and as an action it held Use This Resume's keyword
-  match behind every render. Shell components start reads that do not
+  beside the actions: Tailor's Preview dialog (`app/api/resume-preview`)
+  renders a PDF on each resume opened, and as an action it would hold Use
+  This Resume's keyword match behind every render. Shell components start reads that do not
   depend on `/auth/me` together with `getCurrentAccount`
   (`account-status.tsx`, `profile-strength.tsx`), or the chip waits on two
   API calls in a row on every hard load and `router.refresh()`.
@@ -1648,7 +1648,9 @@ are in `docs/auth.md`.
   no Generate Resume: a dialog holds a few resumes with the likely pick
   first, and a resume generated mid-dialog is not the file a student
   sent. The dialogs' dropzone sections went with KAN-406, as the
-  Resumes page's had in KAN-362.
+  Resumes page's had in KAN-362. A picker given `onPreview` (Tailor's
+  step 1) adds a Preview eye to each card, which opens the resume and
+  never moves the pick; the other dialogs pass none.
 - **Every resume opens a page of WorkIt's own** (KAN-366): a built resume
   the editor (`(seeker)/resumes/[resumeId]`), an upload its view page
   (`(seeker)/resumes/uploaded/[id]`, the static segment winning over
