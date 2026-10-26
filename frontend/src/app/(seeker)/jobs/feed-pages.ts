@@ -14,7 +14,8 @@
  * every seeker page and shouldn't carry the job card along.
  */
 
-import { LIST_FRESH_FOR } from "./list-pages";
+import type { ApplicationStage } from "../auto-apply/actions";
+import { LIST_FRESH_FOR, type ListSource } from "./list-pages";
 import type { JobListing } from "./listings";
 import { sessionStore } from "./session-store";
 
@@ -53,4 +54,37 @@ export function keep({ at = Date.now(), ...pages }: Omit<Kept, "at"> & { at?: nu
  *  them, so Jobs, then the Dashboard, then Back still finds them. */
 export function forgetFeedPages(path: string) {
   if (readKept()?.path === path) store.write(null);
+}
+
+/** The first page as last drawn, with what its cards need (KAN-287). */
+type Snapshot = {
+  query: string;
+  jobs: JobListing[];
+  stages: Record<string, ApplicationStage>;
+  tailored: string[];
+  canMarkApplied: boolean;
+  source: ListSource;
+  at: number;
+};
+
+/**
+ * The feed's Suspense fallback (./feed-fallback) draws this while the
+ * server fetches the fresh first page, which then replaces it, so a visit
+ * to the list paints its cards at once instead of a skeleton. Kept apart
+ * from the pages above, which a fresh arrival still drops: that visit shows
+ * the first page alone, and a return the whole list.
+ */
+const snapshot = sessionStore<Snapshot>("workit:feed-snapshot");
+
+export const subscribeSnapshot = snapshot.subscribe;
+
+/** The snapshot while it is young enough to show (LIST_FRESH_FOR). */
+export function readSnapshot(): Snapshot | null {
+  const kept = snapshot.read();
+  return kept && Date.now() - kept.at < LIST_FRESH_FOR ? kept : null;
+}
+
+/** Keeps the first page just drawn, dated now: the server fetched it fresh. */
+export function keepSnapshot(next: Omit<Snapshot, "at">) {
+  snapshot.write({ ...next, at: Date.now() });
 }

@@ -1298,6 +1298,16 @@ the KAN-296 cutover.
   list do, and ages by `LIST_FRESH_FOR`. The rail checks its list's age on
   every job opened, not once: checked on mount only, it sat on its skeleton
   for good once the list passed half an hour, since it stays mounted.
+- **The feed's loading state is its last first page** (KAN-287,
+  `jobs/feed-fallback.tsx`): `FeedList` keeps the first page it drew as a
+  snapshot (`jobs/feed-pages.ts`), and the Suspense fallback draws it while
+  the server fetches the fresh one, so any visit to /jobs paints cards at
+  once; the skeleton shows only without a snapshot for the query. A return
+  adds the kept Load More pages; a fresh arrival still drops those and shows
+  the first page alone (asked for 2026-10-10). The snapshot lives apart from
+  the kept pages so that dropping one never drops the other, and only a
+  fetched page dates either: a rewrite on every mount would restart
+  `LIST_FRESH_FOR` and keep stale pages alive for good.
 - **Promote to `src/components` on the second consumer**, not in anticipation;
   anything used by one route stays beside it (the per-route `icons.tsx`).
 - **`src/components/ui` is hand-written and is what screens import.**
