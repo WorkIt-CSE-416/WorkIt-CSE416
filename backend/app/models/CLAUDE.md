@@ -266,7 +266,13 @@ change here must keep:
 - **`experience_banks` has one row per applicant, made by the first bank
   change** (an upsert in `clear_embedding`), not at signup. A missing row
   reads as "no embedding yet". Its `embedding` is the only applicant vector
-  the recommender reads (KAN-212).
+  the recommender reads (KAN-212). `removed_skills` (KAN-369) holds the
+  catalog keys (`services/skill_catalog.py` `key`) of the skills the
+  student deleted, or took out of the parse preview: a resume reading
+  (`import_upload`, the preview) and Tailor's "Have you used X?" never add
+  them again. The student adding one by hand (POST .../bank/skills) takes
+  it off the list. The clean-up script's deletes are not the student's and
+  are not remembered.
 - **Section fields are plain nullable columns on `bank_entries`**, not a
   JSONB blob, so later queries (graduation date, Tailor's text search) read
   them directly. `schemas/bank.py`'s `SECTION_FIELDS` says which section

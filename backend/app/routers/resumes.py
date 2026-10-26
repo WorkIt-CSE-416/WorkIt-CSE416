@@ -15,7 +15,10 @@ saving nothing: each entry and skill lists the other uploads' rows a
 confirm would replace, and `duplicate_of` names an upload with the same
 text. The student confirms by uploading the same file with
 `?replace=matching`, which also deletes those rows in the upload's
-transaction (`bank.import_upload`).
+transaction (`bank.import_upload`). The skills the student took out of the
+preview (× on a tag) come as form fields `removed_skills`: they are not
+saved and are remembered as removed (KAN-369). A preview never lists a
+skill the student removed.
 **Duplicates** (KAN-267): an upload whose text matches one of the student's
 uploads (`text_hash`, which says what "matches" means) answers 409
 `{"detail": {"message": "Duplicate Resume found: <name>", "resume_id"}}`
@@ -64,7 +67,7 @@ from datetime import UTC, datetime
 from pathlib import PurePosixPath
 from typing import Literal
 
-from fastapi import APIRouter, Depends, HTTPException, Query, Response, UploadFile
+from fastapi import APIRouter, Depends, Form, HTTPException, Query, Response, UploadFile
 from sqlalchemy import select
 from sqlalchemy.exc import IntegrityError, SQLAlchemyError
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -89,6 +92,7 @@ from app.services import (
     built_resumes,
     local_files,
     sent_resumes,
+    skill_catalog,
     stored_files,
 )
 from app.services.stored_files import BUCKET
@@ -157,6 +161,9 @@ async def preview_resume(
         raise HTTPException(exc.status, str(exc)) from exc
     raw_text = await _extract(contents, ext)
     entries, skills = bank_import.read(raw_text)
+    # A skill the student removed is no longer offered (KAN-369).
+    removed = await bank.removed_skills(session, applicant_id)
+    skills = [(name, group) for name, group in skills if skill_catalog.key(name) not in removed]
     same = await _duplicate_of(session, applicant_id, text_hash(raw_text))
     matches = await bank.upload_matches(session, applicant_id, entries, skills)
     return ResumePreview(
@@ -178,6 +185,9 @@ async def upload_resume(
     # "matching": the upload confirms a parse preview, and replaces the
     # entries and skills of other uploads its reading matches (ADR 0006).
     replace: Literal["matching"] | None = Query(None),
+    # The skills the student took out of the parse preview (× on a tag,
+    # KAN-369): not saved, and remembered as removed.
+    removed_skills: list[str] = Form([]),
     account: AuthenticatedAccount = Depends(get_current_account),
     session: AsyncSession = Depends(get_session)
 ):
@@ -238,6 +248,7 @@ async def upload_resume(
         # The bank's entries point at the resume, and no relationship()
         # orders the inserts (models/CLAUDE.md).
         await session.flush()
+        await bank.remember_removed(session, applicant_id, removed_skills)
         imported = await bank.import_upload(
             session, applicant_id, resume.id, entries, skills, replace_matching=replace == "matching")
         left = await uses_left(session, applicant_id, Feature.PARSING)

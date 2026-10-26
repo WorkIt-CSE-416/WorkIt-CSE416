@@ -250,6 +250,18 @@ async def test_a_missing_keyword_that_is_no_catalog_skill_is_never_asked(student
     assert _words(body["questions"]) == ["Go", "Kubernetes"]
 
 
+async def test_a_skill_the_student_deleted_is_never_asked_again(student, database, use_model):
+    kubernetes = await student.skill("Kubernetes")
+    res = await student.client.delete(f"/applicants/{student.id}/bank/skills/{kubernetes['id']}")
+    assert res.status_code == 204
+    posting = await _seed_posting(database)
+    use_model(reply())
+
+    body = (await student.tailor(posting)).json()
+
+    assert _words(body["questions"]) == ["Go"]
+
+
 async def test_a_bank_skill_left_off_the_resume_is_proposed_not_asked(student, database, use_model):
     kubernetes = await student.skill("Kubernetes")
     posting = await _seed_posting(database)

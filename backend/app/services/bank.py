@@ -31,10 +31,10 @@ The session is handed in by the caller; this module opens no connection.
 
 import datetime
 import uuid
-from collections.abc import Mapping, Sequence
+from collections.abc import Iterable, Mapping, Sequence
 from dataclasses import dataclass
 
-from sqlalchemy import delete, func, select
+from sqlalchemy import delete, func, select, update
 from sqlalchemy.dialects.postgresql import insert
 from sqlalchemy.ext.asyncio import AsyncSession
 
@@ -58,6 +58,7 @@ from app.schemas.bank import (
     EntryResponse,
     SkillResponse,
 )
+from app.services import skill_catalog
 
 
 class NotFound(Exception):
@@ -135,6 +136,34 @@ async def clear_embedding(session: AsyncSession, applicant_id: uuid.UUID) -> Non
             index_elements=[Experience_Bank.applicant_id],
             set_={"embedding": None, "embedded_at": None, "updated_at": func.now()},
         )
+    )
+
+
+async def removed_skills(session: AsyncSession, applicant_id: uuid.UUID) -> set[str]:
+    """The catalog keys of the skills the student deleted (KAN-369)."""
+    keys = await session.scalar(
+        select(Experience_Bank.removed_skills).where(Experience_Bank.applicant_id == applicant_id))
+    return set(keys or ())
+
+
+async def remember_removed(session: AsyncSession, applicant_id: uuid.UUID, names: Iterable[str]) -> None:
+    """The student removed these skills: no reading or Tailor adds them again."""
+    keys = sorted({skill_catalog.key(n) for n in names} - await removed_skills(session, applicant_id))
+    if not keys:
+        return
+    stmt = insert(Experience_Bank).values(applicant_id=applicant_id, removed_skills=keys)
+    await session.execute(stmt.on_conflict_do_update(
+        index_elements=[Experience_Bank.applicant_id],
+        set_={"removed_skills": func.array_cat(Experience_Bank.removed_skills, stmt.excluded.removed_skills)},
+    ))
+
+
+async def forget_removed(session: AsyncSession, applicant_id: uuid.UUID, name: str) -> None:
+    """The student added this skill by hand: it is theirs again."""
+    await session.execute(
+        update(Experience_Bank)
+        .where(Experience_Bank.applicant_id == applicant_id)
+        .values(removed_skills=func.array_remove(Experience_Bank.removed_skills, skill_catalog.key(name)))
     )
 
 
@@ -284,7 +313,11 @@ async def delete_entries(session: AsyncSession, applicant_id: uuid.UUID, entry_i
 
 
 async def delete_skills(session: AsyncSession, applicant_id: uuid.UUID, skill_ids: Sequence[uuid.UUID]) -> None:
+    """The student's delete: the skills are also remembered as removed."""
+    names = list(await session.scalars(
+        select(Bank_Skill.name).where(Bank_Skill.applicant_id == applicant_id, Bank_Skill.id.in_(skill_ids))))
     await _delete_many(session, applicant_id, Bank_Skill, skill_ids)
+    await remember_removed(session, applicant_id, names)
 
 
 async def _owned_bullet(session: AsyncSession, applicant_id: uuid.UUID, bullet_id: uuid.UUID) -> Bank_Bullet:
@@ -403,7 +436,10 @@ async def update_skill(
 
 
 async def delete_skill(session: AsyncSession, applicant_id: uuid.UUID, skill_id: uuid.UUID) -> None:
-    await session.delete(await _owned_skill(session, applicant_id, skill_id))
+    """The student's delete: the skill is also remembered as removed."""
+    skill = await _owned_skill(session, applicant_id, skill_id)
+    await session.delete(skill)
+    await remember_removed(session, applicant_id, [skill.name])
     await clear_embedding(session, applicant_id)
     await session.flush()
 
@@ -507,7 +543,10 @@ async def import_upload(
     for draft in entries:
         await create_entry(session, applicant_id, draft, draft.bullets, resume_id=resume_id, allow_duplicate=True)
     names: set[str] = set()
+    removed = await removed_skills(session, applicant_id)
     for name, group in skills:
+        if skill_catalog.key(name) in removed:
+            continue
         if name.lower() not in names:
             names.add(name.lower())
             await add_skill(session, applicant_id, name, group, resume_id=resume_id)

@@ -59,7 +59,7 @@ from app.schemas.tailor import (
 )
 from app.services import built_resumes, keywords, postings, tailor
 from app.services.ai_messages import AIMessages
-from app.services.bank import NotFound, load_bank
+from app.services.bank import NotFound, load_bank, removed_skills
 from app.services.identity import load_identity
 from app.services.resume_view import Choices
 
@@ -162,7 +162,7 @@ async def run(
         weak_match=tailor.weak_match(job),
         matched=matched,
         missing=missing,
-        questions=tailor.questions(resume, found, missing),
+        questions=tailor.questions(resume, found, missing, removed=await removed_skills(session, applicant_id)),
         changes=changes,
         dropped=dropped,
         uses_left=left,  # KAN-319: was left - 1
