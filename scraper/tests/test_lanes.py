@@ -56,15 +56,18 @@ class TestQuietBoards:
         assert self.store().to_read([new], MONDAY) == [new]
 
     def test_each_run_takes_its_own_third(self) -> None:
-        # Read on Monday; the next three days split the quiet boards between them.
-        days = ["2026-10-06T09:00:00+00:00", "2026-10-07T09:00:00+00:00"]
-        reads = [set(self.store().to_read(self.quiet, day)) for day in days]
-        assert reads[0].isdisjoint(reads[1])
-        assert 0 < len(reads[0]) < len(self.quiet)
+        # Read on Monday; the next three scheduled runs, three hours apart, split the
+        # quiet boards between them. By day, one day's eight runs read the same third
+        # eight times and the next two days read none of it.
+        runs = [f"2026-10-05T{hour}:17:00+00:00" for hour in (12, 15, 18)]
+        reads = [set(self.store().to_read(self.quiet, at)) for at in runs]
+        assert all(a.isdisjoint(b) for i, a in enumerate(reads) for b in reads[i + 1 :])
+        assert set().union(*reads) == set(self.quiet)
+        assert all(0 < len(r) < len(self.quiet) for r in reads)
 
     def test_no_quiet_board_waits_past_its_turn(self) -> None:
-        # Runs missed for three days: every quiet board is due, whatever its slot.
-        later = "2026-10-08T09:00:00+00:00"
+        # A day of missed runs: every quiet board is due, whatever its slot.
+        later = "2026-10-06T09:00:00+00:00"
         assert self.store().to_read(self.quiet, later) == self.quiet
 
 

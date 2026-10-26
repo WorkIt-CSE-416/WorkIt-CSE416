@@ -113,7 +113,7 @@ other hiring systems finish inside it (about 3 minutes without Workday).
 
 | Step | What happens |
 |---|---|
-| 1. Pick company job boards | One that has ever had a job posting we keep is read every run. The rest ("quiet" ones) are read one day in three, so a first job posting at a quiet company can appear up to two days late. `--full` reads them all. Workday's are read for 12 minutes a run, least recently read first (section 2). |
+| 1. Pick company job boards | One that has ever had a job posting we keep is read every run. The rest ("quiet" ones) are read one run in three, a third of them on each run, so a first job posting at a quiet company can appear about nine hours late. `--full` reads them all. Workday's are read for 12 minutes a run, least recently read first (section 2). |
 | 2. Read politely | Checks each site's `robots.txt`, waits between requests (Lever asks for one second) and names itself honestly. Each hiring system has its own lane of workers, so slow Lever doesn't hold up Greenhouse. BambooHR, Recruitee and Workday give every company its own subdomain, and each hiring system's subdomains share one pace. |
 | 3. Keep the right job postings | Checks each title (section 3.1). About 100,000 job postings are read on the other hiring systems and about 115,000 more on Workday each run. About 3,500 of the first are kept; Workday's first run kept 664, under the five categories before KAN-172. |
 | 4. Fetch full pages | Greenhouse, Workable, BambooHR and Workday lists leave out the description, pay, work style or exact date, so the scraper reads the full page of each kept job posting there, once. |
@@ -452,7 +452,7 @@ browser can't restore your place by itself. The app does it instead:
 | Some titles land in the wrong category | It is read from the title alone: a trading firm's "Systems Engineer" is IT work read as engineering | Read the description too, or the company's other job postings |
 | Many job postings lack pay, start date or visa | Companies don't state them | Nothing on our side; filters hide these job postings |
 | A company only arrives once a GitHub list names it | The lists are our only source of company job boards | Find company job boards ourselves too (Common Crawl, an archive of the web) |
-| A new job posting at a quiet company can be two days late | Quiet company job boards are read one day in three | `--full` runs, or reading more often |
+| A new job posting at a quiet company can be about nine hours late | Quiet company job boards are read one run in three | `--full` runs, or reading more often |
 
 ---
 

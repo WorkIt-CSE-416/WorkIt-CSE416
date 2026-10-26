@@ -21,8 +21,12 @@ from workit_scraper.providers import Board, Job
 
 NEW_WINDOW = timedelta(hours=24)
 #: A quiet board -- read before, never a kept posting -- is read on one run in this
-#: many, and always once this many days have passed since its last read.
+#: many, and always once QUIET_LONGEST has passed since its last read.
 QUIET_EVERY = 3
+QUIET_LONGEST = timedelta(days=1)
+#: How often the scheduled run fires (.github/workflows/scrape.yml, every three
+#: hours): the slot that each quiet board's turn comes round in.
+RUN_EVERY = timedelta(hours=3)
 
 
 @dataclass(frozen=True, slots=True)
@@ -91,10 +95,12 @@ class Store:
 
         Most boards in boards.csv have never had a posting we keep -- 282 of 333 on
         Lever, whose one-second Crawl-delay made it most of a run. A quiet board is
-        read on a third of runs, staggered by its key so each run takes its own
-        third, and whenever QUIET_EVERY days have passed, so a missed day of runs
-        does not leave one unread. A new posting on one can arrive two days late;
-        `--full` reads everything.
+        read on a third of runs, staggered by its key over the run's RUN_EVERY slot
+        so each run takes its own third, and whenever QUIET_LONGEST has passed, so
+        missed runs do not leave one unread. A new posting on one can arrive about
+        nine hours late; `--full` reads everything. The stagger was by day until
+        2026-10-26: a day's eight runs read one third eight times, and a posting
+        could wait two days.
 
         Skipping is safe for the rest of the store: a quiet board has nothing
         listed, and its `last_read_at` simply does not move.
@@ -104,6 +110,7 @@ class Store:
         read longest ago, and every board gets its turn. Other lanes read all.
         """
         at = _at(now)
+        slot = int(at.timestamp() // RUN_EVERY.total_seconds())
         hot = {job.board_key for job in self.jobs}
         due = []
         for board in boards:
@@ -112,8 +119,8 @@ class Store:
                 everything
                 or reads is None
                 or board.key in hot
-                or at - _at(reads.last_read_at) >= timedelta(days=QUIET_EVERY)
-                or zlib.crc32(board.key.encode()) % QUIET_EVERY == at.toordinal() % QUIET_EVERY
+                or at - _at(reads.last_read_at) >= QUIET_LONGEST
+                or zlib.crc32(board.key.encode()) % QUIET_EVERY == slot % QUIET_EVERY
             ):
                 due.append(board)
         never = datetime.min.replace(tzinfo=UTC)

@@ -295,9 +295,15 @@ including `build_boards.py`'s fetches from GitHub.
 **Speed comes from lanes and quiet boards, never from less pacing.** One lane
 per provider (`__main__.scrape`), so a worker waiting out Lever's delay never
 blocks Greenhouse. Quiet boards rest (`Store.to_read`): a board that has never
-had a kept posting is read on one day in `QUIET_EVERY`, staggered by key, so a
-first posting there can appear two days late; `--full` reads every board. A
-board with any kept posting ever is read every run.
+had a kept posting is read on one run in `QUIET_EVERY`, staggered by key over
+the run's three-hour slot (`RUN_EVERY`), and always after `QUIET_LONGEST` (a
+day), so a first posting there can appear about nine hours late; `--full` reads
+every board. A board with any kept posting ever is read every run. **Stagger by
+run slot, never by day:** until 2026-10-26 it was by day, so a day's eight runs
+read one third eight times, the next two days none of it, and a first posting
+waited up to two days for the same number of requests. `RUN_EVERY` must match the
+cron in `.github/workflows/scrape.yml`; if they drift, quiet boards are still read
+on a third of runs, only less evenly spaced.
 
 **A lane can have a time budget** (`__main__.LANE_BUDGET_S`; only Workday's,
 12 minutes). It starts boards from the front of `Store.to_read`'s order, least
