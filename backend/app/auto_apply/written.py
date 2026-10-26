@@ -116,6 +116,7 @@ async def answered_questions(db: AsyncSession, applicant_id: uuid.UUID) -> list[
             AnsweredQuestion(
                 name=r.name, label=r.label, answer=r.answer or "", own=r.own,
                 named_fact=NamedFact(**r.named_fact) if r.named_fact else None,
+                answered_at=r.answered_at,
             )
             for r in rows
         ])

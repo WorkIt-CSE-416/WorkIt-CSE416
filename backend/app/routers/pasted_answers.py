@@ -14,8 +14,10 @@ GET  /applicants/{id}/written-questions
 GET  /applicants/{id}/written-answers
      Every application with a written question answered, at any stage,
      newest first, as {"job_id", "company", "title", "questions":
-     [{"name", "label", "answer", "own", "named_fact"}]}: named_fact is the
-     company brief fact the answer uses, {"fact", "url"}, or null (KAN-369).
+     [{"name", "label", "answer", "own", "named_fact", "answered_at"}]}:
+     named_fact is the company brief fact the answer uses, {"fact", "url"},
+     or null (KAN-369); answered_at is when it was last saved, by which the
+     page marks the student's own answers captured from a form New.
 PUT  /applicants/{id}/applications/{job_id}/written-answers
      {"answers": [{"name", "answer"}]}
      Saves the answers, all or none, after every check. Answers

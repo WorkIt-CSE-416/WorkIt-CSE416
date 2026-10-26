@@ -239,13 +239,16 @@ class NamedFact(BaseModel):
 
 class AnsweredQuestion(BaseModel):
     """A written question and the answer saved for it, with the brief fact
-    it names, if any, as the Written Answers page shows it."""
+    it names, if any, as the Written Answers page shows it. `answered_at`:
+    when it was last saved, which the page marks the student's own answers
+    New by until they have seen them (KAN-369)."""
 
     name: str
     label: str
     answer: str
     own: bool
     named_fact: NamedFact | None
+    answered_at: datetime.datetime | None
 
 
 class PostingAnswers(BaseModel):
