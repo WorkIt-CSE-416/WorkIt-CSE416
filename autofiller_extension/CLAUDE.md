@@ -1117,6 +1117,15 @@ its bytes by name. Best effort, like the resume: no transcript, or a failed
 fetch, is `transcript: null`, and the Plan lists a required transcript as
 a Missing fact. Test: `test/transcript.extension.spec.ts`.
 
+No photo is ever uploaded, not even a placeholder image (Simplify fills a
+required one with a blank white PNG in its best-effort mode; WorkIt never
+puts a fake file in a real application). The engine's Plan leaves a photo
+upload (avatar, photo, picture, headshot) blank: Workable's optional Photo
+stays empty, and a required one is a handoff the panel lists under "Left
+for you" ("Photo upload: add a photo yourself"), while the still-empty
+required field keeps the batch tab in Needs you. WorkIt stores no profile
+photo for forms.
+
 ## Essay-question generation: the one opt-in, model-backed feature
 
 Open-ended questions ("Why do you want to work here?") have no fixed
