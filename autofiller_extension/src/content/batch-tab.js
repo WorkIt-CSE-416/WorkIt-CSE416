@@ -100,7 +100,7 @@ window.WIA = window.WIA || {};
       return { order, keys, late: keys.filter((key) => late.has(key)) };
     }
 
-    /** Brings a flagged row's field into view and focuses it, and marks its row on the panel. */
+    /** Brings a row's field into view and focuses it, and marks its row on the panel; false when the page doesn't show it. */
     function show(key) {
       const row = status.summary().fields.find((r) => r.key === key);
       unseenAnswers.delete(key);
@@ -116,6 +116,7 @@ window.WIA = window.WIA || {};
         window.WIA.flagCard?.select(control, row);
       }
       overlay.setCurrent(key);
+      return Boolean(field);
     }
 
     /**
@@ -172,6 +173,7 @@ window.WIA = window.WIA || {};
     }
 
     status.subscribe(report);
+    window.WIA.showField = show; // a panel row the student presses goes to its field (overlay.js)
     window.WIA.fieldOf = fieldOf; // the failed-field card reads the site's error by the field (card-failed.js)
     return { report, answerTheWalk, watchSubmit };
   }

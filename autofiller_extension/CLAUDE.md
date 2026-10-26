@@ -648,6 +648,20 @@ waits for an opened tab's page and form (`waitForLoad`, `formShows`).
   student (failed, waiting, flagged), gone once resolved. Both sit in their
   own shadow host (`#workit-marks-host`), follow the field each frame while
   shown, and never take a click. A guess, shown once, gets the ring only.
+- **A panel row takes the student to its field** (KAN-369, `overlay.js`'s
+  `jump`): pressing a field's row (any row but a note; Enter on its label
+  too) runs the walk's own `show(key)` (`batch-tab.js`, as
+  `window.WIA.showField`, made for every fill, batch or popup): the field
+  scrolls to the middle, takes focus and gets the ring (and the dot while
+  it needs the student), and the row is marked current. A press on a
+  button, link or box inside the row, or anywhere in its row card, keeps
+  its own behaviour. A field the page doesn't show gets "WorkIt can't find
+  this field on the page." under its row for a few seconds; on Workday one
+  keyed to another step (keys start with the step) says "This is on
+  Workday's <step> step." (each step's fill starts the panel's rows again,
+  so this is rare). Workday's fields have no id `fieldOf` knows, so there
+  the row, like Next Thing, finds no field. Test:
+  `test/panel-reopen.extension.spec.ts`.
 - **A failed field gets a card** (KAN-369, `card-failed.js`, in the shared
   row card `row-card.js`): "We put X; the page shows Y.", why in plain words
   ("This field ended up empty on the page.", "This dropdown never committed

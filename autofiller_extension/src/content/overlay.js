@@ -127,6 +127,10 @@ window.WIA = window.WIA || {};
       /* A guess (lib-status.js's source "guessed"): the student checks it before they submit. */
       .row[data-guessed] { background: var(--color-warning-tint); }
       .row[data-current] { box-shadow: inset 3px 0 0 var(--color-brand); background: var(--color-brand-tint); }
+      /* A row with a field: pressing it goes to the field (window.WIA.showField). */
+      .row[data-jump] { cursor: pointer; }
+      .row[data-jump]:hover .label { text-decoration: underline; }
+      .label:focus-visible { outline: 2px solid var(--color-brand); outline-offset: 2px; border-radius: var(--radius-control); }
       .dot { width: 8px; height: 8px; border-radius: 50%; margin-top: 4px; flex: none; }
       .text { flex: 1; min-width: 0; }
       .label { font-weight: 500; }
@@ -178,6 +182,12 @@ window.WIA = window.WIA || {};
     // A note row is the overlay's own message (content-script.js's note), not a field.
     label.textContent = field.label + (field.required || field.note ? "" : " (optional)");
     text.appendChild(label);
+    // A field's row (a note is not one) takes the student to the field: by mouse, or Enter on its label.
+    if (!field.note) {
+      el.dataset.jump = "";
+      label.tabIndex = 0;
+      label.title = "Go to this field";
+    }
     // Where a filled value came from; a guess is highlighted for the student to check.
     if (field.status === "filled" && SOURCE_LABEL[field.source]) {
       const source = document.createElement("span");
@@ -246,6 +256,29 @@ window.WIA = window.WIA || {};
       document.execCommand("copy");
       box.remove();
     });
+  }
+
+  /**
+   * A press on a row (not on a button, link or box in its card) goes to its
+   * field: scrolled to, focused and ringed (batch-tab.js's show, the same
+   * as Next Thing That Needs You's). A field the page doesn't show gets a
+   * line saying so; on Workday, one from another step names the step.
+   */
+  function jump(event) {
+    if (event.type === "keydown" && (event.key !== "Enter" || !event.target.matches(".label"))) return;
+    if (event.target.closest("button, a, input, textarea, select, label, [contenteditable], .row-card")) return;
+    const el = event.target.closest(".row[data-jump]");
+    if (!el || !window.WIA.showField) return;
+    const key = el.dataset.key;
+    if (window.WIA.showField(key)) return;
+    const step = key.split(" / ")[0];
+    const elsewhere = window.WIA.workday?.isWorkday && key.includes(" / ") && step !== window.WIA.workday.step?.();
+    const said = Object.assign(document.createElement("div"), {
+      className: "reason note",
+      textContent: elsewhere ? `This is on Workday's ${step} step.` : "WorkIt can't find this field on the page.",
+    });
+    root.querySelector(`.row[data-key="${CSS.escape(key)}"] .text`)?.appendChild(said);
+    setTimeout(() => said.remove(), 4000);
   }
 
   function render(summary) {
@@ -506,6 +539,8 @@ window.WIA = window.WIA || {};
       <div class="list"></div>
     `;
     panel.querySelector("[data-close]").addEventListener("click", unmount);
+    panel.querySelector(".list").addEventListener("click", jump);
+    panel.querySelector(".list").addEventListener("keydown", jump);
     panel.querySelector("[data-skip]")?.addEventListener("click", onSkip);
     shadow.appendChild(panel);
     root = shadow;
