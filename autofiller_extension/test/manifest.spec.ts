@@ -26,12 +26,18 @@ for (const url of [
   "https://explore.jobs.netflix.net/careers/apply?pid=790318904468",
   "https://careers.withwaymo.com/jobs/2027-summer-intern-bs-depot-automation?gh_jid=8234553",
   "https://nvidia.wd5.myworkdayjobs.com/en-US/University/job/NVIDIA-2027-Internships_JR2023495-1",
+  "https://jobs.smartrecruiters.com/oneclick-ui/company/BoschGroup/publication/c45a68e0-2aa1-405f-8b08-1e60b5ae778b",
 ]) {
   test(`the manifest lets the extension reach ${new URL(url).hostname}`, () => {
     expect(jobOf(url), url).not.toBeNull();
     expect(manifest.host_permissions.some((p: string) => allows(p, url)), url).toBe(true);
   });
 }
+
+// SmartRecruiters' names and text come from its public Posting API, on a host of its own.
+test("the manifest lets the background read SmartRecruiters' Posting API", () => {
+  expect(manifest.host_permissions.some((p: string) => allows(p, "https://api.smartrecruiters.com/v1/companies/BoschGroup/postings/1"))).toBe(true);
+});
 
 // A permission added in a later release disables the extension until the student accepts it, so batch
 // apply's tab groups ask for theirs in the release that brings batch apply (KAN-370).

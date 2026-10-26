@@ -474,6 +474,8 @@ async function readQuestions({ job, url, call, fetchText, state }) {
   }
   // Waymo's careers site builds its own form, whose fields only the page names.
   if (job.site === "eightfold" || job.site === "waymo") return { questions: await call("readQuestions", job.site) };
+  // SmartRecruiters' questions show a page at a time on its one-click form.
+  if (job.site === "smartrecruiters") return { questions: await call("readQuestions", "smartrecruiters") };
   // A practice form's questions are in its own page, as a Lever form's are in its /apply page.
   if (job.practice) return { questions: engine.parseQuestions("lever", await fetchText(url)) };
   try {
@@ -545,7 +547,7 @@ function selfIdAsked(questions, profile, plan, planFor) {
  */
 export function readJobAhead(url, fetchText) {
   const job = jobOf(url);
-  if (!job?.onForm || job.practice || job.site === "workday" || job.site === "eightfold" || job.site === "waymo") return false;
+  if (!job?.onForm || job.practice || job.site === "workday" || job.site === "eightfold" || job.site === "waymo" || job.site === "smartrecruiters") return false;
   optional(() => engine.questionSet(url, fetchText), null);
   readNames(url, fetchText);
   return true;
@@ -594,7 +596,7 @@ async function planQuestions({ job, url, questions, profile, bank, today, fetchT
  */
 export async function questionsToWrite({ url, profile, bank = {}, today, fetchText, jobType = null }) {
   const job = jobOf(url);
-  if (!job || job.practice || job.site === "workday" || job.site === "eightfold" || job.site === "waymo") return null;
+  if (!job || job.practice || job.site === "workday" || job.site === "eightfold" || job.site === "waymo" || job.site === "smartrecruiters") return null;
   const fetchOnce = once(fetchText);
   let questions;
   try {
@@ -747,6 +749,9 @@ export async function handleFill(message, { url, profile, bank, today, call, fet
       if (notNeeded) moot[name] = { answer };
     }
     return { moot };
+  } else if (message.type === "fill/next") {
+    // A form in pages the extension moves through itself (SmartRecruiters): the engine presses Next, never Submit.
+    return { step: await call("next", jobOf(url)?.site, message.step) };
   } else if (message.type === "fill/required") {
     // The fields the form won't send without that show nothing, the planned and the unplanned alike
     // (Greenhouse's phone country, required once Phone shows a number, is in no Question set as required),

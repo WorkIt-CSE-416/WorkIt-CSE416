@@ -101,18 +101,6 @@
    * `emptyOnly`: a Workday step filled before keeps what it shows (the
    * student's saved answers).
    */
-  // Where a job system WorkIt fills sends a closed job (live, 2026-10-26): Greenhouse to its board with
-  // ?error=true, Workable to the account with ?not_found=true; others say so on the page.
-  const CLOSED_HOSTS = /(^|\.)(greenhouse\.io|workable\.com|lever\.co|ashbyhq\.com|rippling\.com|myworkdayjobs\.com|myworkdaysite\.com|eightfold\.ai|withwaymo\.com)$/;
-  const CLOSED_WORDS = /no longer (accepting applications|open|available)|this (job|position|posting) (is|has been) (closed|filled)|job not found|couldn't find anything here|looks like you got lost/i;
-
-  /** Whether this page is a covered job system's word that the job is closed, not a job it can't fill. */
-  function closedPosting() {
-    if (!CLOSED_HOSTS.test(location.hostname)) return false;
-    const params = new URLSearchParams(location.search);
-    return params.get("error") === "true" || params.has("not_found") || CLOSED_WORDS.test(document.body?.innerText ?? "");
-  }
-
   async function fillShown(emptyOnly = false) {
     const shown = new Set();
     const done = new Set();
@@ -143,12 +131,14 @@
         note("_form", "This page shows the job, not its application", `Open the application form (${embedded.src}), then click Autofill again.`);
         return null;
       }
-      if (!prepared.covered && closedPosting()) {
+      if (!prepared.covered && window.WIA.closedPosting()) {
         note("_closed", "This job is closed", "It is no longer accepting applications, so there is nothing to fill. Pick another job.");
+        // A batch tab's job leaves the batch marked closed, its tab closes, and the next job opens (batch.js).
+        if (batch) send({ type: "batch/closed" }).catch(() => {});
         return null;
       }
       if (!prepared.covered) {
-        note("_uncovered", "WorkIt can't fill this job system yet", "Nothing on this page was filled. WorkIt fills Greenhouse, Lever, Ashby, Rippling, Workable, Eightfold, Workday and Waymo applications.");
+        note("_uncovered", "WorkIt can't fill this job system yet", "Nothing on this page was filled. WorkIt fills Greenhouse, Lever, Ashby, Rippling, Workable, Eightfold, SmartRecruiters, Workday and Waymo applications.");
         return null;
       }
       if (prepared.openForm) {
@@ -177,6 +167,8 @@
 
       const sources = prepared.plan.sources ?? {};
       for (const name of Object.keys(answers)) {
+        // An entry's company or school titles its checklist block before the field fills (groups.js).
+        window.WIA.groups?.planned(name, byName.get(name)?.label ?? name, answers[name]);
         if (isNew(name)) status.register(name, byName.get(name)?.label ?? name, byName.get(name)?.required ?? false, sources[name] ?? "guessed");
       }
       // Outside a batch tab only the essay route writes (Generate): a choice or a one-line draft is the student's there.
@@ -436,7 +428,9 @@
     // once, the first box filled read back empty in 1 to 10 forms of 50. With
     // the panel mounted after the fill: 0 in 50 (KAN-370). The engine waits
     // for the form's start-up before it types, so by now it is over.
-    const prepared = await fillShown();
+    let prepared = await fillShown();
+    // SmartRecruiters: its first page, then its screening questions (smartrecruiters.js presses Next, never Submit).
+    if (prepared?.site === "smartrecruiters" && (await window.WIA.smartRecruitersNext?.(prepared))) prepared = (await fillShown()) ?? prepared;
     if (prepared) await flagEmptyRequired(prepared);
     if (prepared) window.WIA.failedCard.use(fixesOf(prepared));
     if (prepared) window.WIA.resumeTab?.use(fixesOf(prepared));

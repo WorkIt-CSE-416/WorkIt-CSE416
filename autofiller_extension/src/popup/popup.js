@@ -98,8 +98,9 @@ async function pageTabId() {
 /**
  * A web page WorkIt can't fill (KAN-401; background/panel-states.js): says
  * so, with Save to WorkIt (the feed's job whose apply link the page is, to
- * the student's Applications) and Report a problem (what it sends, then
- * Send report). Nothing leaves on opening the popup.
+ * the student's Applications), Request this job system (KAN-369: the page's
+ * host only, once per host) and Report a problem (what it sends, then Send
+ * report). Nothing leaves on opening the popup.
  */
 async function showUnsupported() {
   const tabId = await pageTabId();
@@ -125,6 +126,19 @@ async function showUnsupported() {
     }
     // The route's own sentence when it has one ("WorkIt doesn't list this job yet."), never a status code.
     say(answer?.status === 404 ? answer.error : "WorkIt couldn't save this job. Try again.", true);
+  });
+  const request = box.querySelector("#request-button");
+  if (page.requested) {
+    request.hidden = true;
+    say("You requested this job system.");
+  }
+  request.addEventListener("click", async () => {
+    request.disabled = true;
+    const answer = await sendMessage({ type: "popup/request", tabId });
+    request.disabled = false;
+    if (!answer?.ok) return say("WorkIt couldn't send the request. Try again.", true);
+    request.hidden = true;
+    say("Requested. WorkIt adds the job systems students ask for most.");
   });
   box.querySelector("#report-button").addEventListener("click", () => {
     const list = box.querySelector(".report-parts");

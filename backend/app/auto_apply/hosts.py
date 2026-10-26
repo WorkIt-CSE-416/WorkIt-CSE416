@@ -24,6 +24,8 @@ AUTO_APPLY_HOSTS = (
     "explore.jobs.netflix.net",
     "myworkdayjobs.com",
     "myworkdaysite.com",
+    # SmartRecruiters' postings and their one-click form (jobs.smartrecruiters.com).
+    "smartrecruiters.com",
 )
 
 # The host is one of AUTO_APPLY_HOSTS or a subdomain of it
