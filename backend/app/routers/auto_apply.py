@@ -84,7 +84,10 @@ DELETE /applicants/{id}/applications/{job_id}/answers?name=
      answer to `name` (one Looks right or Save for next time saved), so
      later forms no longer fill it. A question the tab sent stays,
      unanswered, for their Claude; their Claude's answer is never touched.
-     204, also when nothing was saved; 404 with no application.
+     `own_only=false` (the Written Answers page's Delete): any saved answer
+     to `name` goes, one pasted with Check and Save or their Claude's; not
+     own limits reuse, not removal. 204, also when nothing was saved; 404
+     with no application.
 POST /applicants/{id}/applications/{job_id}/review/keep     {"name"}
 POST /applicants/{id}/applications/{job_id}/review/rewrite  {"name"}
      The tab's flag card (KAN-369) on an answer the pre-submit review
@@ -369,12 +372,13 @@ async def drop_own_answer(
     applicant_id: uuid.UUID,
     job_id: uuid.UUID,
     name: str = Query(min_length=1, max_length=200),
+    own_only: bool = True,
     account: AuthenticatedAccount = Depends(get_current_account),
     db: AsyncSession = Depends(get_session),
 ) -> Response:
-    """Undo on the batch tab's guess card: takes back an answer the student saved."""
+    """Undo on the batch tab's guess card, or Delete on Written Answers: takes back a saved answer."""
     assert_applicant_owns(account, applicant_id)
-    await pipeline.drop_own_answer(db, applicant_id, job_id, name)
+    await pipeline.drop_own_answer(db, applicant_id, job_id, name, own_only=own_only)
     return Response(status_code=status.HTTP_204_NO_CONTENT)
 
 
