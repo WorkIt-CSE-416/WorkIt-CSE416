@@ -162,7 +162,11 @@ builds it: `dist/engine.js` is committed in the engine repo.
   never pressed. It is
   never pressed again after Workday shows an error that stays 5 s, its
   "Something went wrong" page, or 30 s with no new step; then the student
-  presses it. Tests: `test/workday-review.extension.spec.ts`. A
+  presses it. A step WorkIt can't plan (the profile didn't load, say)
+  is the student's: its line reads "WorkIt couldn't fill this step" (Needs
+  you), the walk never presses on it, and the fill waits for the next step
+  the student moves to and fills it as any other (`fillShown`'s
+  `unplanned`, content-script.js). Tests: `test/workday-review.extension.spec.ts`. A
   step that loads as a new page drops the
   content script, so the background remembers the tab
   (`workday_fill_tabs`, session storage) and injects the fill again when
@@ -303,7 +307,7 @@ finished tab goes into the **"Ready"** tab group (green: every field it
 needs shows an answer) or **"Needs you"** (orange: anything unfilled, a
 note the Plan left the student, a Workday step, or a job system with no
 Filler), and moves between them when that changes. A tab whose fill itself
-went wrong (the Plan failed, Workday's error page, a covered job system's
+went wrong (the Plan failed, except on a Workday step, which is Needs you; Workday's error page, a covered job system's
 page that never loaded or took no fill) is **failed**: in Needs you too,
 but its own state. The student reviews
 each tab and presses the employer's own Submit; nothing here submits.
