@@ -212,11 +212,12 @@ async def remove_queued(db: AsyncSession, applicant_id: uuid.UUID, job_id: uuid.
 async def set_stage(
     db: AsyncSession, applicant_id: uuid.UUID, job_id: uuid.UUID, stage: application_stage
 ) -> None:
-    """Moves this application to `stage`. Applied also records when, unless
-    it already has a date."""
+    """Moves this application to `stage`. Applied records when: now, the
+    student's submit (only a queued or needs_you application is finished,
+    and its applied_at may hold a stale date from an insert that took the
+    column's now() default, never the submit's). Any other stage has none."""
     values: dict = {"stage": stage}
-    if stage == application_stage.applied:
-        values["applied_at"] = func.coalesce(Job_Application.applied_at, func.now())
+    values["applied_at"] = func.now() if stage == application_stage.applied else None
     await db.execute(
         update(Job_Application)
         .where(

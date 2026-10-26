@@ -72,8 +72,14 @@
   window.WIA.phase = "filling";
 
   const send = (message) => chrome.runtime.sendMessage(message);
-  // The panel's options: a batch tab's panel has Skip.
-  const panel = batch ? { onSkip: () => send({ type: "batch/skip" }).catch(() => {}) } : undefined;
+  // The panel's options: a batch tab's panel has Skip, and "I submitted this" for a submit WorkIt missed.
+  const panel = batch ? { onSkip: () => send({ type: "batch/skip" }).catch(() => {}), onSubmitted: () => markSentByHand() } : undefined;
+  /** The student says they sent this application: it is marked applied, as a detected submit is. */
+  async function markSentByHand() {
+    const answer = await send({ type: "batch/i-submitted" }).catch((error) => ({ ok: false, error: error.message }));
+    if (answer?.ok && answer.applied) note("_submit", "Application sent", "WorkIt marked it Applied.", false, true);
+    else note("_submit", "WorkIt couldn't mark it Applied", `Try again, or mark it Applied on WorkIt's Auto Apply page. (${answer?.error ?? "No answer"})`, true);
+  }
   const sleep = (ms) => new Promise((done) => setTimeout(done, ms));
   /** A row that is the overlay's message, not a field. `done`: news that asks nothing of the student. */
   function note(key, label, reason, failed = false, done = false) {

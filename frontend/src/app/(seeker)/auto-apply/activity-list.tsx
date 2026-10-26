@@ -33,6 +33,7 @@ import { STAGE_ICON } from "../stage-colors";
 import type { RunStage } from "./actions";
 import type { Application } from "./applications";
 import type { Sort, StatusFilter } from "./query";
+import { MarkApplied } from "./mark-applied";
 import { RemoveFromQueue } from "./remove-from-queue";
 
 type Glyph = ComponentType<{ className?: string }>;
@@ -494,6 +495,9 @@ function Row({
       )}
 
       <TableCell className={cn(TD, CENTER, "py-0")}>
+        {item.status !== "applied" && item.status !== "skipped" && (
+          <MarkApplied jobId={item.id} role={item.role} />
+        )}
         {item.status === "queued" ? (
           <RemoveFromQueue jobId={item.id} role={item.role} company={item.company} />
         ) : item.status === "browser" ? (

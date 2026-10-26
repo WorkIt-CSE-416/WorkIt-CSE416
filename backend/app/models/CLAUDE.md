@@ -1028,8 +1028,15 @@ a `NOT EXISTS`); auto apply's matches leave out every stage, `saved` too
   stage, and `applied_at` NULL (`auto_apply/queries.py`), or the default
   dates a job nobody applied to.
 - **The Applied button upserts**: a saved, queued, skipped or needs_you row
-  becomes applied; an applied row keeps its first `applied_at` (`ON CONFLICT
-  DO UPDATE ... WHERE applied_at IS NULL`).
+  becomes applied, dated now; an applied row keeps its first `applied_at`
+  (`ON CONFLICT DO UPDATE ... applied_at = CASE WHEN stage = 'applied' THEN
+  coalesce(applied_at, now()) ELSE now() END`).
+- **`applied_at` is the submit's time, never the queue's** (KAN-369).
+  Auto apply's finish (`set_stage`) writes `now()` for applied and NULL for
+  any other stage, and the Applied button dates a row not yet applied now,
+  so a row that holds a stale date (an insert that took the `now()`
+  default, as rows written straight to a database copy do) still gets its
+  submit's time. Tests: `tests/test_applied_at.py`.
 - **Apply `c0467afe819c` right after merging.** Until then the deployed
   code's queue routes and stage filters fail on the missing column; the
   Applied button keeps working either way.

@@ -9,7 +9,7 @@ import datetime
 import uuid
 from typing import Any, NamedTuple
 
-from sqlalchemy import delete, func, select
+from sqlalchemy import case, delete, func, select
 from sqlalchemy.dialects.postgresql import insert
 from sqlalchemy.ext.asyncio import AsyncSession
 
@@ -80,9 +80,10 @@ async def mark_applied(
     if listed is None:
         return None
     # A job queued, skipped or left to the applicant by auto apply becomes
-    # applied. One already applied keeps its first date (coalesce), so a
-    # second click, or two tabs at once, never moves the day; only the
-    # resume it names can change.
+    # applied, dated now: a date it holds from before is no submit's (an
+    # insert that took the column's now() default). One already applied
+    # keeps its first date, so a second click, or two tabs at once, never
+    # moves the day; only the resume it names can change.
     link = {} if sent_resume_id is KEEP else {"sent_resume_id": sent_resume_id}
     await db.execute(
         insert(Job_Application)
@@ -92,7 +93,11 @@ async def mark_applied(
             index_elements=["applicant_id", "job_id"],
             set_={
                 "stage": application_stage.applied,
-                "applied_at": func.coalesce(Job_Application.applied_at, func.now()),
+                "applied_at": case(
+                    (Job_Application.stage == application_stage.applied,
+                     func.coalesce(Job_Application.applied_at, func.now())),
+                    else_=func.now(),
+                ),
                 **link,
             },
         )

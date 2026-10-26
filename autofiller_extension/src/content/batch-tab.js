@@ -166,7 +166,7 @@ window.WIA = window.WIA || {};
         const answer = await send({ type: "batch/submitted" }).catch((error) => ({ ok: false, error: error.message }));
         if (answer?.ok && answer.applied) note("_submit", "Application sent", "WorkIt marked it Applied.", false, true);
         // The page said so, but WorkIt didn't see the job system take its submit request.
-        else if (answer?.ok) note("_submit", "Did your application go out?", "WorkIt couldn't confirm it with the job system. If it was sent, mark it Applied on WorkIt's Applications page.", true);
+        else if (answer?.ok) note("_submit", "Did your application go out?", "WorkIt couldn't confirm it with the job system. If it was sent, press I submitted this.", true);
         else note("_submit", "Application sent, but WorkIt didn't mark it Applied", `Mark it Applied on WorkIt's Applications page. (${answer?.error ?? "No answer"})`, true);
       });
       send({ type: "batch/watch", key: SUBMIT_KEY }).catch(() => {});
