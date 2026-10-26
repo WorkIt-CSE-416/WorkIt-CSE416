@@ -1661,14 +1661,22 @@ with no proposals to accept and no Done (2026-10-25).
 
 - **Opened from "Tailor My Resume"** on the job posting page, which reads
   "Your Tailored Resume" once the student has one for that posting.
-- **Every view opens the same way** (`TailorHeader`, `tailor-header.tsx`):
-  the page title ("Tailor Your Resume to <job title>", or the tailored
-  resume's name on its page), one line on what Tailor does, then a job
-  card: the employer's logo and name, the title (a link to the job
+- **The pick steps open the same way** (`TailorHeader`,
+  `tailor-header.tsx`): the page title ("Tailor Your Resume to <job
+  title>"), one line on what Tailor does, then a job card: the employer's logo and name, the title (a link to the job
   posting's page) and the facts the posting states, the job page's header
   made small, with no second h1 and no empty fact slots. The intro sat
   inside the picker card until 2026-10-26, as the card's heading and a
   paragraph; the user wanted the card to hold the list alone.
+- **The review step's header is one slim row** (`TailorReviewBar`,
+  2026-10-26), so the resume starts near the top: Back (`BackToJobs`), the
+  employer's small logo, "Software Engineer Intern · Schweitzer
+  Engineering Laboratories" (title, then company, cut to one line) and
+  "Step 3 of 3" at the right. The job title is the page's one h1, set
+  small. The step had the pick steps' Back, the resume's name as a big
+  title, a line, the job card and the timeline, about 300px over the
+  resume, which the user found overwhelming (Quinncia's slim bar was the
+  model). The review names the resume itself.
 - **One step at a time** (2026-10-26): the step timeline (`TailorSteps`,
   even columns, each label under its circle, so a phone keeps one row)
   shows Pick a Resume, Choose Keywords and Review Changes, and each step

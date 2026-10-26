@@ -1262,7 +1262,8 @@ the KAN-296 cutover.
   `docs/screens.md`, Applications, has the rest.
 - **Tailor is one step per view** (`(seeker)/jobs/[jobId]/tailor`,
   2026-10-26): `TailorHeader` (the title, its line and the job card) tops
-  every view, the pick steps' and the tailored resume's page alike, and
+  the pick steps; the tailored resume's page has the slim
+  `TailorReviewBar` instead, so the resume starts near the top.
   `TailorScreen` holds the step in state, so Back keeps the pick, the
   match and the picked keywords. A new step joins `TAILOR_STEPS` in
   `tailor-steps.tsx` (`docs/screens.md`, Tailor). A wait is never a step:

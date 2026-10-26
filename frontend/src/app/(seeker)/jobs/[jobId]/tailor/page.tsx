@@ -14,8 +14,7 @@ import { SEEKER_GUTTER } from "../../../gutter";
 import { ListingsError } from "../../listing-card";
 import { getJobListing } from "../../listings";
 import { BackToJobs } from "../page-actions";
-import { TailorHeader } from "./tailor-header";
-import { TailorSteps } from "./tailor-steps";
+import { TailorHeader, TailorReviewBar } from "./tailor-header";
 import { TailorReview } from "./tailor-suggestions";
 import { TailorScreen } from "./tailor-screen";
 
@@ -85,11 +84,7 @@ export default async function TailorPage({
         )}
       >
         <div className="max-w-dashboard mx-auto w-full">
-          <BackToJobs />
-          <TailorHeader job={job} title={resume.name}>
-            Your resume, tailored for this posting. Edit anything before you send it.
-          </TailorHeader>
-          <TailorSteps current="review" />
+          <TailorReviewBar job={job} />
           {bank.data && choices.data && profile ? (
             <TailorReview
               resumeId={resume.id}
