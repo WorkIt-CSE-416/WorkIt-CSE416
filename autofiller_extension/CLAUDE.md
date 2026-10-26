@@ -172,7 +172,12 @@ builds it: `dist/engine.js` is committed in the engine repo.
   (`workday_fill_tabs`, session storage) and injects the fill again when
   it loads. Workday's nested prompts are slow to read, so each tenant's
   are kept in `chrome.storage.local` (`workday_trees`), as Apply keeps
-  them. Its own How Did You Hear About Us? is never read: the engine
+  them, and so are its dropdowns' choices (trees marked `list`): the next
+  fill on that tenant reads a dropdown from them without opening it, and
+  the engine checks them when it fills it (a choice gone since re-plans the
+  field with what shows). Tests: `test/workday-lists.extension.spec.ts`;
+  `test/speed.extension.spec.ts` times each fake step (`workday`,
+  `workday-2` to `workday-5`). Its own How Did You Hear About Us? is never read: the engine
   searches it for each source in turn (WorkIt, LinkedIn, then the rest) and
   takes the first found.
   `test/workday-steps.extension.spec.ts` walks a whole application (Apply's
@@ -218,6 +223,11 @@ builds it: `dist/engine.js` is committed in the engine repo.
   WorkIt can't fill this job system yet and nothing is touched: there is
   no generic filler any more (the old label-matching one filled most forms
   wrong, and was deleted with its Greenhouse adapter in KAN-340).
+  A closed job on a system it covers is told apart (`closedPosting` in
+  content-script.js): Greenhouse sends it to its board with `?error=true`,
+  Workable to the account with `?not_found=true`, others say so on the
+  page ("no longer accepting applications"); the overlay then says This
+  job is closed instead.
 - **Tests**: `test/extension.ts` runs the fill as Chrome does, minus
   Chrome: `ENGINE_FILES` and `CONTENT_SCRIPT_FILES` evaluated in a saved
   form's page (served by the engine repo's own fakes and fixtures, through
@@ -660,6 +670,11 @@ waits for an opened tab's page and form (`waitForLoad`, `formShows`).
   start date ("Date available") is the day the student graduates, an
   internship's its earliest start. Outside a batch it is unknown, and the
   internship's start stands.
+  The Posting's `location` is the job system's own (the engine's
+  `jobNames`, spread into the Posting with the company and title): on a
+  posting placed only abroad the engine answers work-authorization,
+  sponsorship, located-in, relocation and pay questions for that country,
+  or leaves them to the student, never with the US facts.
   The student's words in a written answer (or one the bank filled) are
   read back by `watchEdits` and saved after a 2-second pause
   (`batch/own-answer` → `PUT .../answers`); while WorkIt's own fill of one

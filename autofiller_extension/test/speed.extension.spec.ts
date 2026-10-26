@@ -7,7 +7,7 @@
 //   cd autofiller_extension/test
 //   SPEED_OUT=<dir> SPEED_PREFIX=baseline SPEED_RUNS=5 npx playwright test speed.extension.spec.ts --workers=1
 //
-// SPEED_ONLY=greenhouse,lever picks systems. SPEED_API_MS=150 answers every
+// SPEED_ONLY=greenhouse,lever picks systems (workday is the fake tenant's step 1, workday-2 to workday-5 its later steps). SPEED_API_MS=150 answers every
 // API call (a JSON reply: WorkIt's API, the job system's) that much later, as
 // a live API's round trip would; the fakes answer in 1-3 ms otherwise. SPEED_HIDDEN=1
 // runs the job system page's timers as a hidden tab's (1 s alignment, HIDDEN_TIMERS in
@@ -116,6 +116,11 @@ const SYSTEMS: Record<string, () => System> = {
     const workdays = new FakeWorkdays(["workday-caci"], [STEPS[0]]);
     return { url: workdays.url(0), handler: workdays.handler, submissions: () => workdays.submissions };
   },
+  // The same tenant's later steps, each opened on its own (the fake opens any step signed in): one step, one fill.
+  ...Object.fromEntries(STEPS.slice(1).map((_, n) => [`workday-${n + 2}`, () => {
+    const workdays = new FakeWorkdays(["workday-caci"], STEPS);
+    return { url: workdays.url(0, n + 2), handler: workdays.handler, submissions: () => workdays.submissions };
+  }])),
 };
 
 type Raw = { t0: number; worker: any; iso: any; main: any; values: Record<string, unknown>; rows: Record<string, unknown>; settled: number; timedOut: boolean };
@@ -325,7 +330,8 @@ for (const name of systems) {
       waitsTook: stat((r) => r.waits.tookMs), fillPage: stat((r) => r.messages["fill/page"]?.ms ?? 0),
     };
     writeFileSync(join(OUT, `${PREFIX}-${name}.json`), JSON.stringify({ system: name, prefix: PREFIX, runs: RUNS, apiMs: API_MS, hidden: HIDDEN, at: new Date().toISOString(), summary, perRun: runs, values: last!.values, rows: last!.rows }, null, 2));
-    expect(runs.every((r) => !r.timedOut && Number.isFinite(r.firstField))).toBe(true);
+    // The later Workday steps' fields (a file, dropdowns, a box) show no typing events: only their time is measured.
+    expect(runs.every((r) => !r.timedOut && (Number.isFinite(r.firstField) || name.startsWith("workday-")))).toBe(true);
   });
 }
 
