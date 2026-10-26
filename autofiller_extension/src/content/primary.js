@@ -1,7 +1,8 @@
 // The panel's primary button after a fill (KAN-396), in the shell's
 // "primary" slot (panel.js). Its words follow the student's next action:
-// - Next Thing ("3 things need you") while anything on the page is open (the
-//   walk's rows: batch-tab.js's flagged): in a batch tab the cross-tab walk
+// - Next Thing ("3 things need you", lib-status.js's one rule; "2 to check"
+//   once only guesses are left) while the walk has rows on the page
+//   (batch-tab.js's flagged: red first, then amber): in a batch tab the cross-tab walk
 //   (background next-needs-you.js), elsewhere this page's own rows in page
 //   order. Alt+N (the `next-thing` command, background.js) presses it.
 // - Ready to submit once nothing is: it scrolls to the employer's Submit (the
@@ -10,8 +11,8 @@
 // - On a Workday step that isn't the last, with nothing open: Go to Save and
 //   Continue, which rings Workday's own button; Fill to Review
 //   (workday-walk.js) is what presses it, and only when the student asks.
-// Under it: "Required 12 of 14 filled · 3 need you" (3: the Autofill tab's
-// Needs you group's count, never its Check these guesses), then Fill Again
+// Under it: "Required 12 of 14 filled · 3 need you" (3: the same count, the
+// Autofill tab's Needs you group's, never its Check these guesses), then Fill Again
 // (secondary), which asks once inline before it fills again. Before a fill
 // the slot is panel.fillButton's (launcher.js): Autofill This Page, or Fill
 // this step on a Workday step outside a batch (panel.startLabel).
@@ -63,15 +64,11 @@ window.WIA = window.WIA || {};
   const plural = (n) => (n === 1 ? "1 thing needs you" : `${n} things need you`);
   const visible = (el) => el.checkVisibility?.() ?? Boolean(el.offsetParent);
 
-  /** How many things on the page are open: the walk's rows (batch-tab.js), 0 before it is set. */
-  /** The Needs you group's count (groups.js's groupOf, the same rows): the required line's "N need you". */
-  function needsYou(summary) {
-    if (window.WIA.phase === "filling") return 0;
-    const groupOf = window.WIA.groups?.groupOf;
-    return groupOf ? summary.fields.filter((field) => groupOf(field) === "needs-you").length : 0;
-  }
+  /** How many rows need the student (lib-status.js's one rule, KAN-369 Q7): Next Thing's "N things need you" and the required line's "N need you". */
+  const needsYou = () => window.WIA.status.needsYouCount();
 
-  function openCount() {
+  /** How many rows Next Thing still goes to on this page (the walk's, batch-tab.js): those that need the student, then answers to check. 0 before it is set. */
+  function walkCount() {
     if (window.WIA.phase === "filling") return 0;
     try {
       return window.WIA.walk?.flagged().keys.length ?? 0;
@@ -141,20 +138,21 @@ window.WIA = window.WIA || {};
   function render() {
     if (!parts) return;
     const summary = window.WIA.status.summary();
-    const open = openCount();
+    const red = needsYou();
+    const open = walkCount();
     const filling = window.WIA.phase === "filling";
     action = filling ? "filling" : open > 0 ? "next" : midWorkday() ? "continue" : "submit";
     const { button } = parts;
     button.disabled = filling;
     if (action === "next") {
-      button.replaceChildren("Next Thing", Object.assign(document.createElement("span"), { className: "primary-sub", textContent: plural(open) }));
+      button.replaceChildren("Next Thing", Object.assign(document.createElement("span"), { className: "primary-sub", textContent: red > 0 ? plural(red) : `${open} to check` }));
     } else {
       button.textContent = { filling: "Filling…", continue: "Go to Save and Continue", submit: "Ready to submit" }[action];
     }
     parts.required.textContent =
       summary.requiredTotal === 0
         ? "No required fields found"
-        : `Required ${summary.requiredFilled} of ${summary.requiredTotal} filled` + (needsYou(summary) > 0 ? ` · ${needsYou(summary)} need you` : "");
+        : `Required ${summary.requiredFilled} of ${summary.requiredTotal} filled` + (red > 0 ? ` · ${red} need you` : "");
   }
 
   /** Fill Again, after the student says yes to its one question: the fill again, in this frame (panel/fill). */

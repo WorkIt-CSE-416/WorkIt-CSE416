@@ -1,8 +1,10 @@
 // The Autofill tab's groups (KAN-397): the panel's rows by what they ask
-// of the student, not in form order. Needs you (a failed field, a required
-// one with no answer, a flag from the student's Claude's check, a human
-// check or another "todo" note), Check these (guesses), Waiting for your
-// Claude, then Filled, collapsed to "12 filled" until pressed. Each group
+// of the student, not in form order. Needs you (lib-status.js's one rule,
+// status.needsYou: a failed field, a required one with no answer, a flag
+// from the student's Claude's check, a human check or another "todo"
+// note), Check these (guesses), Waiting for your Claude, then Filled,
+// collapsed to "12 filled" until pressed, and the required questions the
+// form isn't asking now (hidden, not drawn yet), collapsed too. Each group
 // shows its count; an empty group is left out. A row keeps everything
 // overlay.js draws in it (its cards, its click to the field), and a filled
 // row with something still to say (a card such as Saved for next time with
@@ -24,19 +26,26 @@ window.WIA = window.WIA || {};
     { id: "filling", name: "Filling" },
     { id: "filled", collapsed: (n) => `${n} filled` },
     { id: "optional", collapsed: (n) => `${n} optional left empty` },
+    { id: "not-asked", collapsed: (n) => `${n} the form isn't asking now` },
   ];
 
   // The collapsed groups the student opened, for the page's life (every render draws the list anew).
   const opened = new Set();
 
-  /** A row's group, or null for news that asks nothing of the student (a "done" note), shown above the groups. */
+  /**
+   * A row's group, or null for news that asks nothing of the student (a
+   * "done" note), shown above the groups. Needs you is lib-status.js's one
+   * rule (status.needsYou, KAN-369 Q7); a required question the form doesn't
+   * ask now (hidden, not drawn, or "skipped") goes to its own collapsed group.
+   */
   function groupOf(field) {
+    const { status } = window.WIA;
     if (field.note) return field.note === "done" ? null : "needs-you";
-    if (field.flag || field.status === "failed") return "needs-you";
-    if (field.status === "needs_generation") return field.claude ? "waiting" : "needs-you";
+    if (status.needsYou(field)) return "needs-you";
+    if (field.status === "needs_generation" && field.claude) return "waiting";
     if (field.status === "filled") return field.source === "guessed" ? "check" : "filled";
-    if (field.status === "pending") return "filling";
-    return field.required ? "needs-you" : "optional";
+    if (field.status === "pending" && window.WIA.phase === "filling") return "filling";
+    return field.required ? "not-asked" : "optional";
   }
 
   /** A row with more than its label and source badge: a card, a reason, a preview. */
@@ -69,7 +78,8 @@ window.WIA = window.WIA || {};
           else opened.add(group.id);
           window.WIA.overlay?.refresh?.();
         });
-        if (!open) for (const r of rows) r.hidden = !hasMore(r);
+        // A question the form isn't asking has nothing to show until it does: hidden whatever it says.
+        if (!open) for (const r of rows) r.hidden = group.id === "not-asked" || !hasMore(r);
       } else {
         head = document.createElement("h3");
         const count = Object.assign(document.createElement("span"), { className: "count", textContent: String(rows.length) });
@@ -103,6 +113,9 @@ window.WIA = window.WIA || {};
     }
     button.group-head[aria-expanded="true"]::after { transform: rotate(-135deg); }
     .group .row[hidden] { display: none; }
+    /* Not a red row: its dot is gray, whatever its status (the one rule, lib-status.js). */
+    .group[data-group="not-asked"] .row .dot { background: var(--color-ink-subtle) !important; }
+    .group[data-group="not-asked"] .row .reason { color: var(--color-ink-meta); }
   `;
 
   window.WIA.groups = { render, css, groupOf };

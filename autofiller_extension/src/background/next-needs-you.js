@@ -4,17 +4,23 @@
 import { liveBatch } from "./batch-store.js";
 import { waitingChecks } from "./human-checks.js";
 
-// Where "Next Thing That Needs You" last went: { tabId, place, key, rank, late }: the tab's place in the
-// order the batch opened, the key's place among all its tab's rows then (`rank`, by `order`), and whether
-// it was a row waiting for the student's Claude (`late`: those come after everything else).
+// Where "Next Thing That Needs You" last went: { tabId, place, key, rank, tier }: the tab's place in the
+// order the batch opened, the key's place among all its tab's rows then (`rank`, by `order`), and its tier
+// then: 0 needs the student, 1 an answer to check (`batch/flags`'s `check`), 2 waiting for the student's
+// Claude (`late`). Every tab's tier 0 comes before any tier 1, and tier 2 after everything else.
 const CURSOR_KEY = "workit_batch_next";
+
+/** A row's tier in a tab's `batch/flags` answer (content/batch-tab.js's flagged). */
+const tierOf = (answer, key) => (answer.late?.includes(key) ? 2 : answer.check?.includes(key) ? 1 : 0);
 
 /**
  * "Next Thing That Needs You" (the overlay's button in a batch tab, KAN-375):
  * goes to the first thing that needs the student after the last one it went
  * to, walking first the tabs at a human check (human-checks.js), then the
  * batch's tabs in the order they opened, and each tab's
- * flagged fields in page order (each tab's content script names them,
+ * flagged fields in page order, every tab's red ones (that need the student)
+ * before any tab's amber ones (answers to check), and those waiting for the
+ * student's Claude last (each tab's content script names them,
  * "batch/flags", with every row in page order). It switches to that tab and
  * has it show the field ("batch/focus"). A tab with no content script to
  * answer (nothing was filled there) is one thing, the page itself. Past the
@@ -43,17 +49,17 @@ export async function nextNeedsYou() {
     const answer = await chrome.tabs.sendMessage(tabId, { type: "batch/flags" }).catch(() => null);
     if (answer) {
       if (cursor?.tabId === tabId && answer.order.includes(cursor.key)) after = answer.order.indexOf(cursor.key);
-      for (const key of answer.keys) things.push({ place, tabId, key, rank: answer.order.indexOf(key), late: Boolean(answer.late?.includes(key)) });
-    } else if (state === "needs_you" || state === "failed") things.push({ place, tabId, key: null, rank: 0, late: false });
+      for (const key of answer.keys) things.push({ place, tabId, key, rank: answer.order.indexOf(key), tier: tierOf(answer, key) });
+    } else if (state === "needs_you" || state === "failed") things.push({ place, tabId, key: null, rank: 0, tier: 0 });
   }
-  const walk = [...things.filter((t) => !t.late), ...things.filter((t) => t.late)];
-  const beyond = (t) => (t.late !== Boolean(cursor.late) ? t.late : t.place > cursor.place || (t.place === cursor.place && t.rank > after));
+  const walk = [0, 1, 2].flatMap((tier) => things.filter((t) => t.tier === tier));
+  const beyond = (t) => (t.tier !== (cursor.tier ?? 0) ? t.tier > (cursor.tier ?? 0) : t.place > cursor.place || (t.place === cursor.place && t.rank > after));
   const next = cursor ? walk.find(beyond) : walk[0];
   if (!next) {
     await chrome.storage.session.remove(CURSOR_KEY);
     return { done: true };
   }
-  await chrome.storage.session.set({ [CURSOR_KEY]: { tabId: next.tabId, place: next.place, key: next.key, rank: next.rank, late: next.late } });
+  await chrome.storage.session.set({ [CURSOR_KEY]: { tabId: next.tabId, place: next.place, key: next.key, rank: next.rank, tier: next.tier } });
   const tab = await chrome.tabs.update(next.tabId, { active: true });
   await chrome.windows.update(tab.windowId, { focused: true });
   if (next.key !== null) await chrome.tabs.sendMessage(next.tabId, { type: "batch/focus", key: next.key }).catch(() => {});
@@ -73,7 +79,7 @@ export async function walkFrom(tabId, key) {
   if (!tab) return false;
   const answer = await chrome.tabs.sendMessage(tabId, { type: "batch/flags" }).catch(() => null);
   const rank = answer?.order.indexOf(key) ?? -1;
-  await chrome.storage.session.set({ [CURSOR_KEY]: { tabId, place: batch.opened.indexOf(tab.jobId), key, rank, late: Boolean(answer?.late?.includes(key)) } });
+  await chrome.storage.session.set({ [CURSOR_KEY]: { tabId, place: batch.opened.indexOf(tab.jobId), key, rank, tier: answer ? tierOf(answer, key) : 0 } });
   await chrome.tabs.sendMessage(tabId, { type: "batch/focus", key }).catch(() => {});
   return true;
 }

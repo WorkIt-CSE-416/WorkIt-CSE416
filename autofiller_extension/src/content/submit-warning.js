@@ -19,13 +19,11 @@ window.WIA = window.WIA || {};
   const CONTROL = 'button, input[type="submit"], input[type="button"], [role="button"]';
   const MAX_LISTED = 5;
 
-  const waiting = (r) => r.status === "pending" || r.status === "needs_generation";
-
   /** What the student still has open on this page, as the warning lists it: a field, never a note. */
   function openItems() {
     const fields = window.WIA.status?.summary().fields ?? [];
     return fields
-      .filter((r) => !r.note && (r.status === "failed" || (r.required && waiting(r)) || r.flag))
+      .filter((r) => !r.note && (window.WIA.status.needsYou(r) || window.WIA.status.waitingOnClaude(r)))
       .map((r) => ({ key: r.key, label: r.label, why: why(r) }));
   }
 

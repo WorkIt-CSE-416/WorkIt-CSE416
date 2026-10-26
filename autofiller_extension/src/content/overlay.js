@@ -173,7 +173,7 @@ window.WIA = window.WIA || {};
     // A row's card (row-card.js) says what is wrong in its place: a failed field's says what the page shows.
     const card = window.WIA.rowCard?.for(field) ?? null;
     // needs_generation's reason says who writes it (a batch tab: the student's Claude, KAN-377).
-    if (!card && (field.status === "failed" || field.status === "skipped" || field.status === "needs_generation") && field.reason) {
+    if (!card && (field.status === "failed" || field.status === "skipped" || field.status === "needs_generation" || field.status === "pending") && field.reason) {
       const reason = document.createElement("div");
       reason.className = field.status === "failed" ? "reason" : "reason note";
       reason.textContent = field.reason;
@@ -270,7 +270,7 @@ window.WIA = window.WIA || {};
       summary.requiredTotal === 0
         ? "No required fields detected"
         : `${summary.requiredFilled}/${summary.requiredTotal} required fields filled` +
-          (summary.failedCount > 0 ? ` · ${summary.failedCount} need attention` : "");
+          (window.WIA.status.needsYouCount() > 0 ? ` · ${window.WIA.status.needsYouCount()} need you` : ""); // the one rule (lib-status.js)
     // Rows waiting for the student's Claude, apart: nothing for the student to fix yet (the walk visits them last).
     const onClaude = summary.fields.filter((r) => r.status === "needs_generation" && r.claude).length;
     if (onClaude) root.querySelector(".summary").textContent += ` · ${onClaude} waiting on Claude`;

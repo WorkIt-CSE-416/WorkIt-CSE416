@@ -235,7 +235,8 @@
    * the rows and cards show as after any fill; `stopped` ends a Workday walk.
    */
   function stoppedAt(prepared, left, written, state) {
-    for (const name of Object.keys(left)) status.setStatus(name, "skipped", "Not filled: you stopped the fill.");
+    // Still "pending" (not reached), not "skipped" (which says the form doesn't ask it): a required one on the page needs the student.
+    for (const name of Object.keys(left)) status.setStatus(name, "pending", "Not filled: you stopped the fill.");
     note("_stopped", "You stopped the fill", "WorkIt left the rest of this page for you.");
     return { ...prepared, written: [...written.values()], state, stopped: true };
   }

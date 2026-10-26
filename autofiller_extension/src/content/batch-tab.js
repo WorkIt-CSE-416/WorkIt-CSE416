@@ -26,27 +26,12 @@ window.WIA = window.WIA || {};
     const SUBMIT_KEY = crypto.randomUUID();
     const SUBMIT_EVENT = `fillengine:submit:${SUBMIT_KEY}`;
 
-    /**
-     * Whether a row needs the student: a note that asks something of them
-     * (the Plan's, a Workday step, a failed fill or submit), a failed field,
-     * a required one still waiting for an answer (its fill, or a written
-     * answer), or an answer the review flagged. A required one "skipped" is
-     * not: the form doesn't show it, or the answer before it doesn't call
-     * for it (a required field the page shows empty has failed,
-     * flagEmptyRequired). A row is a note by its `note`, never by its key:
-     * Ashby's own fields are keyed "_systemfield_...".
-     */
-    const waiting = (r) => r.status === "pending" || r.status === "needs_generation";
-    const needsYou = (r) => (r.note ? r.note === "todo" : r.status === "failed" || (r.required && waiting(r)) || Boolean(r.flag));
-
-    /** A filled answer WorkIt guessed (the panel's "Guessed"): walked until the student says it looks right
-     * or changes it (card-guess.js), which makes it theirs. */
-    const unchecked = (r) => !r.note && r.status === "filled" && r.source === "guessed";
+    // Whether a row needs the student (red), is a filled answer for them to check (amber: a guess, or an
+    // answer from their Claude the walk hasn't shown), or waits for their Claude: lib-status.js's one rule
+    // (KAN-369 Q7), the same the panel's list and counts use.
+    const { needsYou, toCheck, waitingOnClaude } = status;
     // The answers from the student's Claude that just arrived (written-answers.js), until the walk has shown them.
     const unseenAnswers = (window.WIA.unseenAnswers ??= new Set());
-    const unseen = (r) => !r.note && r.status === "filled" && unseenAnswers.has(r.key);
-    /** A row waiting for the student's Claude: nothing for them to fix yet, so the walk visits it last. */
-    const onClaude = (r) => r.status === "needs_generation" && Boolean(r.claude);
 
     /**
      * Whether this batch tab is "ready" (every field it needs shows an answer),
@@ -60,7 +45,7 @@ window.WIA = window.WIA || {};
       // The fill itself went wrong (the Plan failed, Workday's error page): failed, not a question for the student.
       if (status.summary().fields.some((r) => r.key === "_error" && r.status === "failed")) return "failed";
       if (phase !== "filled") return "needs_you";
-      return status.summary().fields.some(needsYou) ? "needs_you" : "ready";
+      return status.summary().fields.some((r) => needsYou(r) || waitingOnClaude(r)) ? "needs_you" : "ready";
     }
 
     /**
@@ -84,24 +69,31 @@ window.WIA = window.WIA || {};
     /**
      * The walk's view of this tab: `order`, every row's key in the order its
      * field stands on the page (notes and fields the page doesn't show last),
-     * and `keys`, those of them that need the student, the guesses they
-     * haven't confirmed (a guess doesn't keep the tab from Ready, but the walk
-     * goes to it until the student says it looks right), and the answers
-     * from their Claude that just arrived, once; `late`, those of `keys`
-     * waiting for their Claude, which the walk visits after everything else
-     * in the batch. The walk places a row
-     * it went to by `order`, so it goes on after it once the row is answered.
+     * and `keys`, the rows the walk goes to, in its order: first those that
+     * need the student (red), then the answers for them to check (amber: the
+     * guesses they haven't confirmed, which don't keep the tab from Ready,
+     * and the answers from their Claude that just arrived, once), then those
+     * waiting for their Claude, each in page order. `check` and `late` name
+     * the amber ones and those waiting for Claude; the batch's walk visits
+     * every tab's red ones before any amber, and those waiting last. The walk
+     * places a row it went to by `order` and its tier, so it goes on after it
+     * once the row is answered.
      */
     function flagged() {
       const fields = status.summary().fields;
       const rows = fields.map((r) => ({ key: r.key, field: fieldOf(r.key) }));
       const placed = rows.filter((r) => r.field).sort((a, b) => (a.field.compareDocumentPosition(b.field) & Node.DOCUMENT_POSITION_FOLLOWING ? -1 : 1));
       const order = [...placed, ...rows.filter((r) => !r.field)].map((r) => r.key);
-      const needing = new Set(fields.filter((r) => needsYou(r) || unchecked(r) || unseen(r)).map((r) => r.key));
-      const late = new Set(fields.filter(onClaude).map((r) => r.key));
-      const keys = order.filter((key) => needing.has(key));
-      return { order, keys, late: keys.filter((key) => late.has(key)) };
+      const byKey = new Map(fields.map((r) => [r.key, r]));
+      const tier = (test) => order.filter((key) => test(byKey.get(key)));
+      const red = tier(needsYou);
+      const check = tier((r) => !needsYou(r) && toCheck(r));
+      const late = tier((r) => !needsYou(r) && waitingOnClaude(r));
+      return { order, keys: [...red, ...check, ...late], check, late };
     }
+
+    /** A row's tier in the walk: 0 needs the student, 1 to check, 2 waiting for their Claude. */
+    const tierOf = (view, key) => (view.late.includes(key) ? 2 : view.check.includes(key) ? 1 : 0);
 
     /** Brings a row's field into view and focuses it, and marks its row on the panel; false when the page doesn't show it. */
     function show(key) {
@@ -139,11 +131,12 @@ window.WIA = window.WIA || {};
       let last = null;
       overlay.offerNext(async () => {
         if (!batch) {
-          const { order, keys } = flagged();
-          const after = last === null ? -1 : order.indexOf(last);
-          last = keys.find((key) => order.indexOf(key) > after) ?? null;
+          // After the row it last went to: by that row's tier then, then its place on the page.
+          const view = flagged();
+          const next = view.keys.find((key) => !last || tierOf(view, key) > last.tier || (tierOf(view, key) === last.tier && view.order.indexOf(key) > view.order.indexOf(last.key)));
+          last = next === undefined ? null : { key: next, tier: tierOf(view, next) };
           if (last === null) return "Nothing else needs you.";
-          show(last);
+          show(last.key);
           return null;
         }
         const answer = await send({ type: "batch/next" }).catch(() => null);
@@ -153,7 +146,7 @@ window.WIA = window.WIA || {};
       if (!batch || window.WIA.walking) return;
       window.WIA.walking = true;
       chrome.runtime.onMessage.addListener((message, _sender, reply) => {
-        if (message?.type === "batch/flags") reply(window.WIA.phase === "filling" ? { order: [], keys: [], late: [] } : window.WIA.walk.flagged());
+        if (message?.type === "batch/flags") reply(window.WIA.phase === "filling" ? { order: [], keys: [], check: [], late: [] } : window.WIA.walk.flagged());
         else if (message?.type === "batch/focus") {
           window.WIA.walk.show(message.key);
           reply({ shown: true });

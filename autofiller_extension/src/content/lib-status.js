@@ -127,5 +127,65 @@ window.WIA = window.WIA || {};
     };
   }
 
-  window.WIA.status = { register, setStatus, flag, reset, summary, subscribe };
+  // The page's words, read at most every 250 ms (shown() asks for each row on every render).
+  let words = { at: -Infinity, text: "" };
+  const squash = (text) => text.replace(/\s+/g, " ").trim().toLowerCase();
+  function pageWords() {
+    if (performance.now() - words.at > 250) words = { at: performance.now(), text: squash(document.body?.textContent ?? "") };
+    return words.text;
+  }
+
+  /**
+   * Whether the page shows a row's field now (KAN-369 Q7). Not shown: a field
+   * the form hides (display: none on it and its box, as a conditional
+   * question not asked yet), and one with no element whose question isn't
+   * on the page either (a question the form hasn't drawn; on Workday,
+   * another step's). A field WorkIt can't find by its key but whose question
+   * the page still shows (a file field whose input the site swapped out)
+   * counts as shown. Before batch-tab.js gives the page's fieldOf, every row does.
+   */
+  function shown(row) {
+    const fieldOf = window.WIA.fieldOf;
+    if (!fieldOf) return true;
+    let el = null;
+    try {
+      el = fieldOf(row.key);
+    } catch {
+      return true;
+    }
+    if (!el) return !window.WIA.workday?.isWorkday && pageWords().includes(squash(row.label ?? row.key));
+    const visible = (node) => node?.checkVisibility?.() ?? Boolean(node?.offsetParent);
+    return visible(el) || visible(el.parentElement);
+  }
+
+  /**
+   * The one rule for "needs you" (KAN-369 Q7): the Autofill tab's Needs you
+   * rows, every count line, Next Thing's count, the batch tab's state and the
+   * red dots on the page all use it. A note that asks something of the
+   * student ("todo"), or a field the page shows now that failed, that the
+   * review flagged, or that is required and still empty after the fill (a
+   * question for a written answer they haven't asked their Claude for
+   * counts; one waiting on their Claude does not, see waitingOnClaude). A
+   * required field "skipped" (the form doesn't ask it) and a guess are not.
+   * @param {import("../shared/types.js").FieldResult} row
+   */
+  function needsYou(row) {
+    if (row.note) return row.note === "todo";
+    if (!(row.status === "failed" || row.flag || row.required)) return false;
+    if (!shown(row)) return false;
+    if (row.status === "failed" || row.flag) return true;
+    if (row.status === "needs_generation") return !row.claude;
+    return row.status === "pending" && window.WIA.phase !== "filling";
+  }
+
+  /** A filled answer for the student to check (amber, not needs-you): a guess, or an answer from their Claude the walk hasn't shown. */
+  const toCheck = (row) => !row.note && row.status === "filled" && (row.source === "guessed" || Boolean(window.WIA.unseenAnswers?.has(row.key)));
+
+  /** A required question waiting for the student's Claude: nothing for them to fix yet, but not ready either. */
+  const waitingOnClaude = (row) => !row.note && row.required && row.status === "needs_generation" && Boolean(row.claude);
+
+  /** How many rows need the student now (needsYou): the number every count line shows. */
+  const needsYouCount = () => Array.from(results.values()).filter(needsYou).length;
+
+  window.WIA.status = { register, setStatus, flag, reset, summary, subscribe, needsYou, toCheck, waitingOnClaude, needsYouCount };
 })();

@@ -695,14 +695,28 @@ waits for an opened tab's page and form (`waitForLoad`, `formShows`).
   is named differently on each hiring system: the engine knows how). The
   API refuses a saved answer over it.
   Tests: `test/greenhouse.spec.ts`.
+- **One rule for "needs you"** (KAN-369 Q7, `lib-status.js`'s
+  `status.needsYou`, with `toCheck` and `waitingOnClaude`): the Autofill
+  tab's Needs you rows, the required line's "N need you", the list's
+  summary line, Next Thing's "N things need you", a batch tab's state
+  (`tabState`, which also waits for required rows on the student's
+  Claude), the submit warning and the walk's red dots all use it. A row
+  needs the student when it is a "todo" note, or a field the page shows
+  now (`shown`: not display: none on it and its box; with no element
+  found by its key, its question's words are on the page, and never on
+  Workday, where that means another step) that failed, was flagged, or is
+  required and still empty after the fill ("pending", or a written answer
+  not yet asked of their Claude). A required "skipped" field (the form
+  doesn't ask it) or one the form hides goes to the collapsed "N the form
+  isn't asking now" group; a guess is amber (Check these), never counted.
+  Stop autofill leaves the fields it didn't reach "pending", not
+  "skipped". Tests: `test/needs-you-rule.extension.spec.ts`.
 - **"Next Thing That Needs You" walks the batch** (KAN-375). Each batch
   tab's panel has the button. `next-needs-you.js`'s `nextNeedsYou` asks every batch
   tab, in the order the tabs opened, which of its rows need the student
-  (`batch/flags`: the rows that send a tab to Needs you, in page order:
-  a note that asks something, a failed field, a required one still
-  waiting for its answer, a review flag; never a filled one or a required
-  one the form doesn't show or no longer calls for, "skipped"; and
-  each "Guessed" answer until the student says it looks right or changes
+  (`batch/flags`: red first, the rows that need the student by the one
+  rule above; then amber, `check`: each "Guessed" answer until the student
+  says it looks right or changes
   it (the Guessed card below), which doesn't keep the tab from Ready;
   each answer that just arrived from the student's Claude once, too
   (`window.WIA.unseenAnswers`, cleared when the walk shows it);
@@ -713,8 +727,9 @@ waits for an opened tab's page and form (`waitForLoad`, `formShows`).
   batch and the row's place among all the tab's rows, `batch/flags`'s
   `order`, so it goes on after a row the student just answered; rows
   waiting for the student's Claude, `batch/flags`'s `late`, come after
-  everything else in the batch, and the cursor's `late` says which part
-  it is in), switches to its tab and
+  everything else in the batch; every tab's red rows come before any
+  tab's amber ones, and the cursor's `tier`, 0 red, 1 amber, 2 late,
+  says which part it is in), switches to its tab and
   has the content script scroll to and focus the field and mark its row
   (`batch/focus`). Past the last one the panel says "Nothing else needs
   you." and the next press starts again. A field is found by the job
