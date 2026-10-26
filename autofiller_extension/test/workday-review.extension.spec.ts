@@ -1,0 +1,99 @@
+// Fill to Review (KAN-369), end to end in the loaded extension on the fake
+// Workday tenant (fake-job-systems.ts): a batch tab, or a tab where the
+// student pressed Fill to Review, fills each step and, with nothing left for
+// the student, presses Workday's Save and Continue once, until Review, where
+// it stops and tells the student to check everything and press Submit. A step
+// with something for the student stops the walk there. Submit is never pressed.
+import { expect, test, type Page } from "@playwright/test";
+import { FakeApi } from "./fake-api";
+import { FakeWorkdays } from "./fake-job-systems";
+import { CONTENT_SCRIPT_FILES, ENGINE_FILES } from "../src/shared/content-scripts.js";
+import { loadExtension, sendFromWebapp, signIn, webapp, type Loaded } from "./loaded-extension";
+
+let loaded: Loaded | undefined;
+test.afterEach(async () => {
+  await loaded?.close();
+  loaded = undefined;
+});
+
+const overlay = (p: Page) => p.locator("#workit-autofiller-overlay-host");
+const NAME = [
+  { key: "legalName--firstName", label: "First Name", kind: "text", required: true },
+  { key: "legalName--lastName", label: "Last Name", kind: "text", required: true },
+] as const;
+const REVIEW_NOTE = "Check everything on Workday's Review page, then press Submit.";
+
+/** Starts a batch of one Workday application on `workdays`' first tenant: its tab. */
+async function batchTab(workdays: FakeWorkdays): Promise<Page> {
+  const api = new FakeApi().queue({ id: "wd-0", apply_url: workdays.url(0) });
+  loaded = await loadExtension([api.handler, webapp, workdays.handler]);
+  await signIn(loaded.context);
+  const app = loaded.context.pages()[0] ?? (await loaded.context.newPage());
+  await app.goto("http://localhost:3000/auto-apply");
+  await sendFromWebapp(app, { type: "run/open" });
+  await expect.poll(() => loaded!.context.pages().some((p) => p.url().startsWith(workdays.url(0).replace(/\/1$/, "/"))), { timeout: 30_000 }).toBe(true);
+  return loaded.context.pages().find((p) => p.url().startsWith(workdays.url(0).replace(/\/1$/, "/")))!;
+}
+
+test("in a batch tab, saves each filled step itself up to Workday's Review, then stops there and never submits", async () => {
+  test.setTimeout(180_000);
+  const workdays = new FakeWorkdays(["workday-caci"], [
+    ["My Information", [...NAME]],
+    ["Application Questions", [{ key: "preferredName", label: "Preferred First Name", kind: "text" }, ...NAME]],
+  ]);
+  const tab = await batchTab(workdays);
+
+  await tab.waitForURL(workdays.url(0, 3), { timeout: 90_000 });
+  await expect(tab.locator("[data-automation-id=applyFlowReviewPage]")).toBeVisible();
+  await expect(overlay(tab)).toContainText(REVIEW_NOTE, { timeout: 30_000 });
+  // Both steps were saved with WorkIt's answers, and Review's Submit was left to the student.
+  await expect(tab.locator("[data-automation-id=applyFlowReviewPage]")).toContainText("legalName--firstName");
+  await tab.waitForTimeout(5_000);
+  expect(tab.url()).toBe(workdays.url(0, 3));
+  expect(workdays.submissions).toEqual([]);
+});
+
+test("stops at a step with something for the student, and says why, without pressing Save and Continue", async () => {
+  test.setTimeout(180_000);
+  const workdays = new FakeWorkdays(["workday-caci"], [
+    ["My Information", [...NAME]],
+    ["Application Questions", [...NAME, { key: "badge", label: "What is your employee badge number?", kind: "text", required: true }]],
+  ]);
+  const tab = await batchTab(workdays);
+
+  // The first step had nothing for the student: saved. The second asks something WorkIt has no answer for.
+  await tab.waitForURL(workdays.url(0, 2), { timeout: 90_000 });
+  await expect(overlay(tab)).toContainText("What is your employee badge number?", { timeout: 60_000 });
+  await expect(overlay(tab)).toContainText(/WorkIt stopped on this step/, { timeout: 30_000 });
+  await tab.waitForTimeout(5_000);
+  expect(tab.url()).toBe(workdays.url(0, 2));
+  await expect(tab.locator("[data-automation-id=errorHeading]")).toBeHidden();
+  expect(workdays.submissions).toEqual([]);
+});
+
+test("outside a batch, walks to Review only once the student presses Fill to Review", async () => {
+  test.setTimeout(180_000);
+  const workdays = new FakeWorkdays(["workday-caci"], [["My Information", [...NAME]], ["Application Questions", [...NAME]]]);
+  loaded = await loadExtension([new FakeApi().handler, webapp, workdays.handler]);
+  await signIn(loaded.context);
+  const tab = await loaded.context.newPage();
+  await tab.goto(workdays.url(0));
+  // Autofill This Page.
+  await loaded.worker.evaluate(async ([engine, scripts]) => {
+    const [{ id }] = await chrome.tabs.query({ url: "https://*/__fake__/apply/*" });
+    await chrome.scripting.executeScript({ target: { tabId: id! }, func: () => void ((window as any).WIA = { running: true }) });
+    await chrome.scripting.executeScript({ target: { tabId: id! }, world: "MAIN", files: engine });
+    void chrome.scripting.executeScript({ target: { tabId: id! }, files: scripts });
+  }, [ENGINE_FILES, CONTENT_SCRIPT_FILES]);
+
+  const button = overlay(tab).getByRole("button", { name: "Fill to Review" });
+  await expect(button).toBeVisible({ timeout: 60_000 });
+  await tab.waitForTimeout(3_000);
+  expect(tab.url()).toBe(workdays.url(0)); // nothing pressed before the student asks
+  await button.click();
+
+  await tab.waitForURL(workdays.url(0, 3), { timeout: 90_000 });
+  await expect(overlay(tab)).toContainText(REVIEW_NOTE, { timeout: 60_000 });
+  await tab.waitForTimeout(3_000);
+  expect(workdays.submissions).toEqual([]);
+});

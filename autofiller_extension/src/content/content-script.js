@@ -1,7 +1,9 @@
 // The fill, run in the application's page (the isolated world) once the
 // popup's "Autofill This Page" or the auto-apply runner injects it
 // (shared/content-scripts.js's injectFill, which loads the Fill engine into
-// the page first). It never submits, and never moves a form in steps on.
+// the page first). It never submits. It moves a form on only on Workday,
+// with Save and Continue, once a step needs nothing from the student (Fill
+// to Review, workday-walk.js).
 //
 // The engine does the work: the background reads the job's Question set and
 // plans every answer from the WorkIt profile ("fill/plan"), then the engine
@@ -13,8 +15,9 @@
 // student's one Generate click, then go to the essay-answer route.
 //
 // Workday asks a step at a time: each step is filled as it shows, the
-// student checks it and presses Save and Continue, and the next step is
-// filled when it shows. On a job system the engine doesn't cover, nothing
+// student checks it and presses Save and Continue (or, in a batch tab or
+// after Fill to Review, workday-walk.js presses it on a step with nothing
+// left for the student), and the next step is filled when it shows. On a job system the engine doesn't cover, nothing
 // is filled and the overlay says so.
 //
 // Before that, Workday asks the student to sign in to the company's site
@@ -417,8 +420,10 @@
       return;
     }
     const last = prepared.step.review || prepared.step.sends;
+    // Fill to Review (workday-walk.js): a step with nothing for the student is saved with Save and Continue.
+    const toReview = window.WIA.toReview;
     note("_step", `Workday: ${step}`, last
-      ? "This is the last step. Check the whole application, then submit it yourself."
+      ? (toReview.on() ? toReview.REVIEW_NOTE : "This is the last step. Check the whole application, then submit it yourself.")
       : "Check this step, then press Save and Continue. WorkIt fills the next step when it shows.");
     window.WIA.failedCard.use(fixesOf(prepared));
     writing.offer(prepared);
@@ -427,6 +432,16 @@
     window.WIA.phase = last ? "last" : "step";
     report();
     if (last) return;
+    const shownStep = step;
+    const goOn = async () => {
+      await flagEmptyRequired(prepared);
+      const why = await toReview.leave(shownStep, { fields: status.summary().fields, selfIdWaits: Boolean(selfIdWaiting) });
+      if (!why || workday.step() !== shownStep) return;
+      note("_step", toReview.STOPPED, why);
+      report();
+    };
+    if (toReview.on()) await goOn();
+    else toReview.offer(goOn);
     step = await workday.stepAfter(step);
     stopEdits?.();
   }
