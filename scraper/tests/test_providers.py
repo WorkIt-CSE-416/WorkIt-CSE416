@@ -17,6 +17,7 @@ from workit_scraper import __main__ as run
 from workit_scraper import polite, providers, store
 from workit_scraper.details import Facts, Pay
 from workit_scraper.providers import BoardNotFound, Job, Page
+from workit_scraper.shortlist import classify
 from workit_scraper.store import RunStats
 
 
@@ -537,6 +538,14 @@ class TestIcims:
         title = providers._icims_title("summer-2027-mechanical-engineering-intern--topeka%2c-ks")
         assert title == "summer 2027 mechanical engineering intern topeka, ks"
 
+    def test_a_co_op_slug_still_reads_as_a_co_op(self) -> None:
+        # A hyphen in a slug is a space, but "co op" is no stage the filter knows:
+        # every co-op on iCIMS was dropped before its page was read (7 at Peraton
+        # and 5 at General Dynamics on 2026-10-26). Seen at Peraton.
+        title = providers._icims_title("software-engineering-co-op")
+        assert classify(title) == classify("Software Engineering Co-op")
+        assert classify(title)
+
     def test_anything_but_a_job_sitemap_is_a_failed_read(self, monkeypatch) -> None:
         # Constructed: an index of sitemaps names no job, and reading it as an empty
         # board would close every job the board has.
@@ -680,6 +689,30 @@ class TestOracle:
         monkeypatch.setattr(providers, "ORACLE_MAX", 2)
         with pytest.raises(providers.TooLarge):
             providers.oracle(self.TOKEN, "Texas Instruments")
+
+    def test_the_records_exact_time_outlives_the_next_listing(self, monkeypatch) -> None:
+        # The list dates a posting by day; its record by the second. A bare listing
+        # the next run must not put it back at midnight.
+        serve(monkeypatch, self.DETAIL)
+        listed = Job(
+            ats="oracle",
+            token=self.TOKEN,
+            company="Texas Instruments",
+            external_id="25016380",
+            title="Digital Design Verification Engineering Intern",
+            apply_url="https://edbz.fa.us2.oraclecloud.com/hcmUI/CandidateExperience/en/sites/CX/job/25016380",
+            posted_at="2026-10-23T00:00:00+00:00",
+        )
+        read = providers.describe(listed)
+        monday = store.update(None, [read], [], RunStats(), "2026-10-24T09:00:00+00:00")
+        tuesday = store.update(
+            monday,
+            [store.carry(listed, {job.key: job for job in monday.jobs})],
+            [],
+            RunStats(),
+            "2026-10-25T09:00:00+00:00",
+        )
+        assert tuesday.jobs[0].posted_at == "2026-10-23T20:17:59+00:00"
 
     def test_its_record_gives_text_date_and_pay(self, monkeypatch) -> None:
         asked = serve(monkeypatch, self.DETAIL)

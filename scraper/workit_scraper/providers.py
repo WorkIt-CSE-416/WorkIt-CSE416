@@ -928,8 +928,11 @@ def icims(token: str, company: str) -> list[Job]:
 
 def _icims_title(slug: str) -> str:
     """ "summer-2027-mechanical-engineering-intern--topeka%2c-ks" as words: the
-    title lower-cased, its punctuation mostly gone."""
-    return " ".join(urllib.parse.unquote(slug).replace("-", " ").split())
+    title lower-cased, its punctuation mostly gone. "co-op" becomes "coop", which
+    the filter reads as it reads "co-op"; as "co op" every iCIMS co-op was dropped
+    before its page was read."""
+    text = re.sub(r"\bco-op\b", "coop", urllib.parse.unquote(slug), flags=re.I)
+    return " ".join(text.replace("-", " ").split())
 
 
 def describe_icims(job: Job) -> Job:
@@ -1371,6 +1374,10 @@ class Provider:
     #: Its list names a posting only by its URL's slug, so the title its page gave
     #: wins and the store carries it forward (`store.carry`).
     page_title: bool = False
+    #: Its list dates a posting only roughly (Workday's "Posted 3 Days Ago",
+    #: Oracle's bare day), so the exact date its page gave wins over a bare
+    #: listing's (`store.carry`).
+    page_date: bool = False
     #: Its token's case is part of it, so build_boards.py keeps it as the apply link
     #: writes it rather than lower-casing it.
     keeps_case: bool = False
@@ -1566,6 +1573,7 @@ PROVIDERS: dict[str, Provider] = {
         ),
         describe=describe_oracle,
         paged=True,
+        page_date=True,
         # One pace for all of Oracle's tenants, as for Workday's.
         subdomains="oraclecloud.com",
         # Its ~190 boards hold some 100,000 postings, 200 a request: read like
@@ -1595,6 +1603,7 @@ PROVIDERS: dict[str, Provider] = {
         job_url="https://{tenant}.{wd}.myworkdayjobs.com/wday/cxs/{tenant}/{site}{job_id}",
         describe=describe_workday,
         paged=True,
+        page_date=True,
         # A Workday tenant's robots.txt names its careers sites, not the API path
         # under them: Caterpillar's disallows `/CaterpillarCareers/`, and reading that
         # site's postings through the API would be reading what the employer asked

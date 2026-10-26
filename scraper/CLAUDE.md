@@ -72,6 +72,7 @@ reader needs together are tested (`TestProviderRecords`).
      and `case_blind` if its paths are;
    - its boards cannot all be read in one run: `budget_s`;
    - its list names a job only by its URL: `page_title` (iCIMS);
+   - its list dates a job only roughly: `page_date` (Workday, Oracle);
    - its token's case matters: `keeps_case` (Oracle's site codes);
    - its board page has a square logo: `logo_page` and `logo_pattern`, and the
      image host in `frontend/next.config.ts` (see Logos). If it names only the
@@ -141,10 +142,13 @@ robots and pacing.
 - **The store carries a `Page` forward whole: `job.page or old.page`.** It
   used to be nine fields carried one by one, and a Greenhouse title's "2027"
   overwrote the page's "Summer 2027". `posted_at` is carried the same way, for
-  BambooHR, whose date is only on the page. Workday's is the reverse
-  (`store.carry`): its list has a date counted back from "Posted 3 Days Ago",
-  but the page's exact one wins, so a bare Workday listing keeps the stored
-  date and never drifts by a day or vanishes at "30+ Days Ago".
+  BambooHR, whose date is only on the page. Workday's and Oracle's are the
+  reverse (`Provider.page_date`, `store.carry`): Workday's list has a date
+  counted back from "Posted 3 Days Ago" and Oracle's a bare day, but the page's
+  exact one wins, so a bare listing keeps the stored date and never drifts by a
+  day, vanishes at "30+ Days Ago", or falls back to midnight. Oracle did fall
+  back on its second run until 2026-10-26: a list that dates a posting at all,
+  only roughly, needs `page_date`.
 - **Bump `providers.PAGE_VERSION` whenever a `Page` starts holding something
   new, or a fact's pattern changes**, or stored postings never get it.
   `with_page` re-reads any page under an older version, once per kept

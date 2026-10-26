@@ -102,7 +102,10 @@ connect pages; Charles Schwab's disallows everything, so it is skipped.
 - **The list names a job only by its URL**, `/jobs/{id}/{slug}/job`. The slug read
   as words ("reliability engineering intern") classifies the same as the real
   title, so only kept jobs' pages are read, and the page's title replaces the slug
-  for good (`Provider.page_title`, `store.carry`).
+  for good (`Provider.page_title`, `store.carry`). One word needed its hyphen:
+  "co-op" read as "co op", which the filter does not know, so every co-op was
+  dropped (7 at Peraton, 5 at General Dynamics); `_icims_title` writes it
+  "coop". Check a new stage word against a slug before trusting the slug.
 - **A job's page carries a schema.org `JobPosting`** (`<script
   type="application/ld+json">`), which search engines read too: the title,
   `datePosted`, `employmentType` (`FULL_TIME`, or `OTHER` for many internships),
@@ -147,6 +150,9 @@ past `ORACLE_MAX`, so it is skipped.
   `build_boards.py` keeps the code as the apply link writes it
   (`Provider.keeps_case`). Two sites of one tenant list different jobs (Jackson's
   `CX_3` and `CX_5`), so each is its own board.
+- **The list's date is a bare day, the record's an exact time**, and the record's
+  wins over every later bare listing (`Provider.page_date`, as for Workday): before
+  it, every Oracle role went back to midnight on its second run.
 - **The list has the title, date, places and, where the employer fills it in, the
   work model** (`WorkplaceType`: "Remote", "On-site", "Hybrid"); the record does
   not repeat it, so it rides on `Job.work_style` as Rippling's does. The record

@@ -204,10 +204,12 @@ def carry(job: Job, before: dict[str, Job]) -> Job:
     bring a fresh page every read, which always wins -- facts an employer changed
     must not linger. A BambooHR listing has no date either: its page gave it one.
 
-    A Workday listing's date is the reverse: it has one, but only counted back
-    from "Posted 3 Days Ago", a day out either way and gone at "30+ Days Ago",
-    while its page gave the exact one. So a bare Workday listing keeps the stored
-    date; one whose page was just read brings that page's date.
+    A Workday or Oracle listing's date is the reverse (`Provider.page_date`): it
+    has one, but only roughly -- Workday's counted back from "Posted 3 Days Ago",
+    a day out either way and gone at "30+ Days Ago", Oracle's a bare day -- while
+    its page gave the exact one. So a bare listing keeps the stored date; one
+    whose page was just read brings that page's date. Without it every Oracle
+    role went back to midnight on its second run.
     """
     old = before.get(job.key)
     if not old:
@@ -216,7 +218,7 @@ def carry(job: Job, before: dict[str, Job]) -> Job:
     if provider and provider.page_title and job.page is None and old.page is not None:
         # An iCIMS listing's title is its URL's slug; its page gave the real one.
         job = replace(job, title=old.title)
-    if job.ats == "workday" and job.page is None:
+    if provider and provider.page_date and job.page is None:
         return replace(job, page=old.page, posted_at=old.posted_at or job.posted_at)
     return replace(job, page=job.page or old.page, posted_at=job.posted_at or old.posted_at)
 
