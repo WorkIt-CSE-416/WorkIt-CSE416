@@ -6,13 +6,13 @@
 // engine (the fill-engine submodule, pinned to a tag) must see the page's
 // React state and wrap its fetch (Ashby), which an extension's isolated world
 // can't. CONTENT_SCRIPT_FILES run in the isolated world, where chrome.runtime
-// is: lib-status/tokens/overlay/workday/written-answers/batch-tab populate window.WIA and content-script.js (last)
+// is: lib-status/tokens/overlay/card-waiting/workday/written-answers/batch-tab populate window.WIA and content-script.js (last)
 // runs the fill, reaching the engine through the background
 // (background/engine.js). Content scripts can't be ES modules, so the order
 // here is what makes the globals exist.
 export const ENGINE_FILES = ["fill-engine/dist/engine.js"];
 
-export const CONTENT_SCRIPT_FILES = ["src/content/lib-status.js", "src/shared/tokens.js", "src/content/overlay.js", "src/content/workday.js", "src/content/written-answers.js", "src/content/batch-tab.js", "src/content/content-script.js"];
+export const CONTENT_SCRIPT_FILES = ["src/content/lib-status.js", "src/shared/tokens.js", "src/content/overlay.js", "src/content/card-waiting.js", "src/content/workday.js", "src/content/written-answers.js", "src/content/batch-tab.js", "src/content/content-script.js"];
 
 /**
  * Loads the engine into the tab, then starts the fill there. With `batch`,

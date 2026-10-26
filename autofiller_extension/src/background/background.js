@@ -8,7 +8,7 @@
 
 import { getSession } from "./auth.js";
 import {
-  answerBank, anyFormAnswerBank, getAutofillProfile, generateEssayAnswer, ApiError, askQuestions, connectorAdded, me, saveAutofillAnswers, saveOwnAnswer,
+  answerBank, anyFormAnswerBank, getAutofillProfile, generateEssayAnswer, ApiError, askQuestions, connectorAdded, me, saveAutofillAnswers, saveOwnAnswer, savePastedAnswer,
   writingSamples, writtenAnswers,
 } from "./api.js";
 import {
@@ -217,6 +217,22 @@ async function handleMessage(message, sender) {
       const { id } = await me();
       await saveOwnAnswer(id, jobId, { name: message.name, label: message.label, answer: message.answer, own: message.own === true });
       return {};
+    }
+
+    // An answer the student pasted in a waiting row's card (KAN-369, card-waiting.js): saved through the
+    // Written Answers page's route, so it passes the same checks. A refusal is an answer, not an error:
+    // its reasons show in the card. The job is the batch's own for that tab, never the message's.
+    case "batch/paste": {
+      const jobId = await jobInTab(sender.tab.id);
+      if (!jobId) throw new Error("This tab isn't one of the batch's");
+      const { id } = await me();
+      try {
+        const { left } = await savePastedAnswer(id, jobId, message.name, message.answer);
+        return { saved: true, left };
+      } catch (error) {
+        if (!(error instanceof ApiError) || error.status !== 422) throw error;
+        return { saved: false, reasons: error.reasons?.[message.name] ?? [], error: error.message };
+      }
     }
 
     // A batch tab's "Next Thing That Needs You" (content-script.js): batch.js goes to it, across the tabs.

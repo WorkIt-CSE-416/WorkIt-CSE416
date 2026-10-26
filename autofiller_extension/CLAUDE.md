@@ -463,6 +463,21 @@ waits for an opened tab's page and form (`waitForLoad`, `formShows`).
   title (`backend/app/connector/prompt.py` TITLE); every line that names
   it uses that constant. Never put the student's data in the link: it
   lands in browser history. Test: `test/claude-start.extension.spec.ts`.
+- **A row waiting for the student's Claude carries the waiting card**
+  (KAN-369, `src/content/card-waiting.js`, `window.WIA.waitingCard`; the
+  overlay asks it for each such row's card and adds its CSS). It shows how
+  long the row has waited on this page ("Waiting 4 min"), Write with
+  Claude, a paste box and Write it myself (the walk's `show`: scrolls to
+  and focuses the field; what the student types there is theirs, as
+  before). Save answer sends `batch/paste` → `PUT .../applications/{job}/written-answers`,
+  the Written Answers page's route, so a pasted answer passes the same
+  checks as Claude's (saved by="student", not own); a 422's reasons for
+  that question (`ApiError.reasons`) show in the card under the box, and
+  the draft stays. A saved one fills at once (source "pasted"); the next
+  poll finds the row filled and leaves it. Cards are kept by key across
+  renders, and render puts the focus back, so a draft survives other
+  rows changing. The panel's summary counts these rows apart ("N waiting
+  on Claude"). Tests: `test/waiting-card.extension.spec.ts`.
 - **Writing starts when jobs are queued, and a question is answered once**
   (KAN-379). On `run/open`, once the tabs have opened, `write-early.js`'s
   `writeEarly` reads every queued job the batch hasn't opened with
@@ -1072,8 +1087,9 @@ Each filled row carries its **Source** (KAN-375, `GLOSSARY.md`): the Fill
 engine's Plan names each planned answer's (`plan.sources`: profile,
 student, saved, guessed), the essay route's answers are "ai", the
 student's own Claude's (the connector) "claude", and a value the student
-types after the fill "student". The overlay shows it as a badge (Profile,
-Saved Answer, Claude, AI, You, Guessed; the AI ones carry the sparkle) and
+types after the fill "student", and one pasted in a waiting row's card
+"pasted". The overlay shows it as a badge (Profile,
+Saved Answer, Claude, AI, You, Pasted, Guessed; the AI ones carry the sparkle) and
 highlights a guessed row in the warning tint. Where an answer comes from
 is the engine's to say: never work it out here.
 
