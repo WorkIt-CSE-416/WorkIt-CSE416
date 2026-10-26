@@ -24,8 +24,8 @@ const NAME = [
 const REVIEW_NOTE = "Check everything on Workday's Review page, then press Submit.";
 
 /** Starts a batch of one Workday application on `workdays`' first tenant: its tab. */
-async function batchTab(workdays: FakeWorkdays, first: Handler[] = [], before?: () => Promise<unknown>): Promise<Page> {
-  const api = new FakeApi().queue({ id: "wd-0", apply_url: workdays.url(0) });
+async function batchTab(workdays: FakeWorkdays, first: Handler[] = [], before?: () => Promise<unknown>, api = new FakeApi()): Promise<Page> {
+  api.queue({ id: "wd-0", apply_url: workdays.url(0) });
   loaded = await loadExtension([...first, api.handler, webapp, workdays.handler]);
   await before?.();
   await signIn(loaded.context);
@@ -178,5 +178,39 @@ test("stops at once, saying so, when Workday shows Something went wrong after th
 
   // Well inside the 30 s the walk waits for a step that never shows.
   await expect(overlay(tab)).toContainText("Workday showed \"Something went wrong\"", { timeout: 25_000 });
+  expect(workdays.submissions).toEqual([]);
+});
+
+test("a step WorkIt can't plan is left for the student, and the next step they move to is filled as it shows", async () => {
+  test.setTimeout(180_000);
+  const PREFERRED = { key: "preferredName", label: "Preferred First Name", kind: "text", required: true } as const;
+  const workdays = new FakeWorkdays(["workday-caci"], [["My Information", [...NAME]], ["Application Questions", [PREFERRED]], ["Voluntary Disclosures", [...NAME]]]);
+  workdays.inPlace.add("caci.wd1.myworkdayjobs.com");
+  const api = new FakeApi();
+  // The first step's save takes the profile down (and its cached copy), so the second step's Plan fails.
+  const down: Handler = async (request) => {
+    if (request.method !== "POST" || request.url.pathname !== "/__fake__/apply/1") return undefined;
+    api.profileDown = true;
+    await loaded!.worker.evaluate(() => chrome.storage.local.remove("workit_autofill_profile"));
+    return undefined;
+  };
+  const tab = await batchTab(workdays, [down], undefined, api);
+
+  await tab.waitForURL(workdays.url(0, 2), { timeout: 90_000 });
+  await expect(overlay(tab)).toContainText("WorkIt couldn't fill this step", { timeout: 60_000 });
+  await expect(overlay(tab)).toContainText("Answer it yourself, then press Save and Continue.");
+  await expect.poll(() => api.stages.get("wd-0"), { timeout: 30_000 }).toBe("needs_you");
+  // The walker leaves the step alone: no press, so no error banner for the empty required field.
+  await tab.waitForTimeout(5_000);
+  expect(tab.url()).toBe(workdays.url(0, 2));
+  await expect(tab.locator("[data-automation-id=errorHeading]")).toBeHidden();
+
+  // The student answers it and saves; the next step is WorkIt's again, filled and saved by the walk up to Review.
+  api.profileDown = false;
+  await tab.locator(`[data-automation-id="formField-${PREFERRED.key}"] input`).fill("Made up");
+  await tab.locator("[data-automation-id=pageFooterNextButton]").click();
+  await tab.waitForURL(workdays.url(0, 4), { timeout: 90_000 });
+  await expect(overlay(tab)).toContainText(REVIEW_NOTE, { timeout: 30_000 });
+  expect(workdays.saved(0)).toMatchObject({ preferredName: "Made up", "legalName--firstName": "Test" });
   expect(workdays.submissions).toEqual([]);
 });

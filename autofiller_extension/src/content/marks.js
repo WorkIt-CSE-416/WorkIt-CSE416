@@ -27,7 +27,8 @@ window.WIA = window.WIA || {};
     document.getElementById("workit-marks-host")?.remove(); // an earlier fill's, on this page
     host = document.createElement("div");
     host.id = "workit-marks-host";
-    root = host.attachShadow({ mode: "open" });
+    // Closed, as the panel's: the employer's page can't reach the marks through host.shadowRoot.
+    root = host.attachShadow({ mode: "closed" });
     const style = document.createElement("style");
     style.textContent = `
       ${window.WIA.tokens}

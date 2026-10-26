@@ -95,8 +95,11 @@
    * Plans and fills the form shown (on Workday, the step shown), planning
    * again whenever a fill brings on new questions, and on Workday once more
    * after the last answer, for a follow-up it brought up. Returns the last
-   * Plan, or null if nothing could be filled. `emptyOnly`: a Workday step
-   * filled before keeps what it shows (the student's saved answers).
+   * Plan, or null if nothing could be filled. On Workday, a step whose
+   * Plan fails gives `{ unplanned: reason }` instead: that step is the
+   * student's, and the next step is still filled (decision 1570).
+   * `emptyOnly`: a Workday step filled before keeps what it shows (the
+   * student's saved answers).
    */
   async function fillShown(emptyOnly = false) {
     const shown = new Set();
@@ -114,6 +117,9 @@
     for (;;) {
       if (prepared && begun && window.WIA.workday.stepId() !== begun) return { ...prepared, written: [...written.values()], state };
       prepared = await send({ type: "fill/plan", extra, state });
+      if (!prepared.ok && window.WIA.workday.isWorkday) {
+        return { unplanned: prepared.status === 401 ? "Sign in from the extension popup first. " : "" };
+      }
       if (!prepared.ok) {
         note("_error", prepared.error || "Could not plan this application", prepared.status === 401 ? "Sign in from the extension popup first." : prepared.error, true);
         return null;
@@ -464,6 +470,16 @@
     // Never an empty panel between steps (KAN-401): the step's line at once, its rows as it fills.
     note("_step", `Workday: ${step}`, "Filling this step…", false, true);
     const prepared = await fillShown(workday.filledBefore());
+    // A step WorkIt couldn't plan is the student's: the walk never presses on it, and the next step shows filled.
+    if (prepared?.unplanned !== undefined) {
+      status.reset();
+      note("_step", "WorkIt couldn't fill this step", `${prepared.unplanned}Answer it yourself, then press Save and Continue. WorkIt fills the next step when it shows.`, true);
+      window.WIA.phase = "step";
+      window.WIA.primary?.refresh();
+      report();
+      step = await workday.stepAfter(step);
+      continue;
+    }
     if (!prepared) {
       window.WIA.phase = "stopped";
       window.WIA.running = false;
