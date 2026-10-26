@@ -216,10 +216,11 @@ function SuggestionsPanel({
     // shows and hides it.
     <section
       aria-labelledby="suggestions-heading"
-      className="sm:bg-brand-tint sm:ring-brand-pale flex flex-col gap-2 sm:rounded-2xl sm:p-3 sm:ring-1"
+      className="sm:bg-brand-tint sm:ring-brand-pale flex min-h-0 flex-col gap-2 sm:rounded-2xl sm:p-3 sm:ring-1"
     >
-      {/* The top stays in view while the sections scroll under it */}
-      <div className="bg-panel sm:bg-brand-tint sticky top-0 z-10 flex flex-col gap-2.5 pb-2 sm:-mx-3 sm:-mt-3 sm:rounded-t-2xl sm:px-3 sm:pt-3">
+      {/* The top stays put and only the sections under it scroll, so the
+          scroll bar starts under it and the panel keeps its rounded corners */}
+      <div className="flex shrink-0 flex-col gap-2.5 pb-1">
         <div className="flex min-h-8 items-center gap-1">
           <h2
             id="suggestions-heading"
@@ -259,7 +260,10 @@ function SuggestionsPanel({
         {match && <TailorScore match={match} />}
       </div>
       {changes.length > 0 ? (
-        <div ref={list} className="flex flex-col gap-2">
+        <div
+          ref={list}
+          className="-mr-1.5 flex min-h-0 flex-col gap-2 overflow-y-auto overscroll-contain pr-1.5"
+        >
           {groups.map((group) => {
             const isOpen = !closed.has(group.where);
             return (
@@ -269,7 +273,9 @@ function SuggestionsPanel({
               <section
                 key={group.where}
                 aria-label={group.title}
-                className="bg-panel max-sm:bg-app overflow-hidden rounded-xl"
+                // shrink-0: in the scrolling list a clipped section would
+                // otherwise squeeze to fit rather than scroll
+                className="bg-panel max-sm:bg-app shrink-0 overflow-hidden rounded-xl"
               >
                 <h3>
                   <button
@@ -473,9 +479,8 @@ function Suggestion({
         if (!e.currentTarget.contains(e.relatedTarget)) onFocus(null);
       }}
       // Grey while pointed at, never brand: an open row in purple read as
-      // selected rather than open. Clear of the panel's pinned top when
-      // scrolled to.
-      className={cn("scroll-mt-36 transition-colors", lit && !isOpen && "bg-ink/[0.03]")}
+      // selected rather than open.
+      className={cn("scroll-mt-2 transition-colors", lit && !isOpen && "bg-ink/[0.03]")}
     >
       <button
         type="button"
@@ -493,12 +498,7 @@ function Suggestion({
         ) : (
           <>
             <span className="sr-only">{title(change)}: </span>
-            <span
-              className={cn(
-                "text-note text-ink mt-0.5 line-clamp-2 min-w-0 flex-1",
-                change.kind === "removed" && "text-ink-meta decoration-danger/50 line-through",
-              )}
-            >
+            <span className="text-note text-ink mt-0.5 line-clamp-2 min-w-0 flex-1">
               {summary(change, choices)}
             </span>
           </>
@@ -549,8 +549,12 @@ function summary(change: Change, choices: Choices) {
 }
 
 function ChangeBody({ change, bank, choices }: { change: Change; bank: Bank; choices: Choices }) {
-  if (change.kind === "added") return <Added>{change.after}</Added>;
-  if (change.kind === "removed") return <Removed>{change.before}</Removed>;
+  // An added or removed line in plain type: its badge and its row's name
+  // already say which, and a highlight or a strike over the whole line
+  // only made it harder to read. A rewording keeps its marks, which show
+  // the words that changed
+  if (change.kind === "added") return change.after;
+  if (change.kind === "removed") return change.before;
   if (change.kind === "moved" && change.edit) {
     const entryId = change.edit.entry_id;
     const bullets = bank.entries.find((e) => e.id === entryId)?.bullets ?? [];
@@ -572,7 +576,7 @@ function ChangeBody({ change, bank, choices }: { change: Change; bank: Bank; cho
   }
   const after = change.after ?? "";
   const before = change.before;
-  if (!before) return <Added>{after}</Added>;
+  if (!before) return after;
   const diff = wordDiff(before, after);
   if (diff) {
     return (

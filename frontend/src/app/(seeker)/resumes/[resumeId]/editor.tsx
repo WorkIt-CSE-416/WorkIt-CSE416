@@ -826,10 +826,16 @@ export function Editor({
       </div>
       {/* Tailor's suggestions share the assistant's column and give way to
           it while it is open. Above the page on a narrow screen. */}
+      {/* The panel scrolls its own list under its header, so the column
+          only caps its height: scrolled here, the header and the panel's
+          rounded corners went up with the list. 15rem is the chrome above
+          it on Tailor's page (the app bar, the review's top row, the
+          resume's name), so its rounded foot shows before the page
+          scrolls; at 8rem it ran 80px below the window */}
       {shownPanel && !asking && (
         <div
           data-keeps-selection
-          className={cn(sideColumn, "max-h-scroll-box -order-1 @4xl/main:order-none")}
+          className="max-h-scroll-box -order-1 flex flex-col @4xl/main:sticky @4xl/main:top-2 @4xl/main:order-none @4xl/main:max-h-[calc(100dvh-15rem)]"
         >
           {shownPanel}
         </div>

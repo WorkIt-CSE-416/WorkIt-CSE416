@@ -1766,7 +1766,8 @@ with no proposals to accept and no Done (2026-10-25).
   editor's slim toolbar over the page with the panel level beside it, and
   "Suggestions" with its count in a
   filled pill over a 360px panel in the brand tint (the editor's bar's
-  colour) of white sections that sticks and scrolls on its own. The
+  colour) of white sections that sticks beside the page, its top fixed
+  and its sections scrolling under it. The
   toolbar is one row grouped by what each tool acts on: at the left Undo
   and Redo (UI only for now, disabled) and, idle, the page count when over
   one page as an amber chip with a warning sign and a caret (its click

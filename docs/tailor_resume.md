@@ -292,7 +292,13 @@ weight.
   at a time or none (`side` in the editor). View Original was a link in
   the panel's top, then a white button there, and opened the Preview
   dialog; the user wanted the two side by side.
-- **The panel's top**, pinned while the cards scroll: a
+- **The panel's top stays put and only its sections scroll** under it:
+  the column beside the page caps the panel's height (the window less
+  the 15rem of chrome above it, so its rounded foot shows before the page
+  scrolls) and the section list scrolls inside, so the scroll bar starts
+  under the top and the panel keeps its corners. The column itself
+  scrolled until 2026-10-26, which carried the rounded corners off with
+  the list. The top holds a
   "…" menu (Accept All, Reject All), then the keyword match as one thin
   row over a hairline meter ("Keyword match 3 → 9 of 14", the keywords
   added under it). When the run matched no new keyword it says "3 of 14 ·
@@ -322,7 +328,10 @@ weight.
   bullets moved, a skill and its group) and a plus that turns to a minus
   while open. Only a section folds with a caret: a caret on each row too
   read as a second section heading under the section's own. Open, the row names the change ("Removed bullet") and a grey box
-  holds the words: the old struck and the new highlighted (inline when
+  holds the words, in plain type for an added or removed line (its badge
+  and the row's name say which; a highlight or a strike over a whole line
+  only made it harder to read), and for a rewording the old struck and
+  the new highlighted (inline when
   only a run in the middle changed, else the old line over the new one),
   each moved bullet's place before and now ("2nd → 1st"), with ✕ Reject
   and ✓ Accept. A row turns faint grey while pointed at, never brand: an
