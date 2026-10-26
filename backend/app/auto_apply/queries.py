@@ -514,6 +514,21 @@ async def fetch_answered(
     return list(found.values())
 
 
+async def fetch_plans(db: AsyncSession, applicant_id: uuid.UUID, job_id: uuid.UUID) -> dict[str, dict]:
+    """The Essay plan each answer of the student's Claude on this
+    application was saved with (KAN-369), by question name."""
+    rows = await db.execute(
+        select(Written_Answer.name, Written_Answer.review["plan"])
+        .where(
+            Written_Answer.applicant_id == applicant_id,
+            Written_Answer.job_id == job_id,
+            Written_Answer.answer.is_not(None),
+            Written_Answer.review.has_key("plan"),
+        )
+    )
+    return {name: plan for name, plan in rows if isinstance(plan, dict)}
+
+
 async def save_written(
     db: AsyncSession, applicant_id: uuid.UUID, job_id: uuid.UUID, answers: dict[str, str],
     named: dict[str, NamedFact] | None = None, reviews: dict[str, dict] | None = None,

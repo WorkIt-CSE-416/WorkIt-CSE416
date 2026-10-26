@@ -252,8 +252,12 @@ async def test_a_refresh_token_used_twice_at_once_gives_one_pair(running, applic
 # --- The tools and the prompt ---
 
 WHY = {"name": "question_7", "label": "Why do you want to work at Acme?", "required": True, "max_length": 600}
-# What Claude's passes found on a written answer, which save_answers takes with it (KAN-369).
-WRITTEN = {"unsupported": []}
+# What Claude's passes found on a written answer, which save_answers takes with it (KAN-369):
+# its Essay plan, each required slot quoted from the student's bank (_fill_bank), and its claim check.
+PLAN = {"type": "general", "story": "", "company_fact": "", "angle": "Fast pages.", "slots": [
+    {"slot": "answer", "quotes": ["Cut page load time by 30%"]},
+    {"slot": "episode", "quotes": ["Wrote the billing service's tests"]}]}
+WRITTEN = {"plan": PLAN, "unsupported": []}
 PROUD = {"name": "question_8", "label": "Tell us about a project you are proud of.", "required": False, "max_length": None}
 
 

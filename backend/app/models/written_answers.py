@@ -62,8 +62,10 @@ class Written_Answer(BaseModel):
     # the answer later forms reuse for the same question
     own: Mapped[bool] = mapped_column(server_default=text("false"))
     # what the student's Claude's passes found on the answer it saved here
-    # (KAN-369): {"unsupported": the claims the claim check listed and the
-    # edit cut}. NULL for a choice, a pasted answer or the student's own words
+    # (KAN-369): {"plan": its Essay plan (type, story, company_fact, angle,
+    # slots: {slot: [quotes]}), "unsupported": the claims the claim check
+    # listed and the edit cut}. NULL for a choice, a pasted answer or the
+    # student's own words
     review: Mapped[dict | None] = mapped_column(JSONB(none_as_null=True))
     # the company brief fact the answer uses, {"fact", "url"} as the brief
     # had it when saved, so the student can read up on it before an

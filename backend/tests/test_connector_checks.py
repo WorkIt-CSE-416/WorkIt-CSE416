@@ -205,3 +205,82 @@ async def test_where_the_student_worked_or_studied_is_theirs_to_name(running, ap
         saved = await client.call_tool("save_answers", {"job_id": job, "answers": [{"name": "question_7", "answer": answer, **WRITTEN}]})
 
     assert saved.is_error is False, saved.content
+
+
+# --- The Essay plan (KAN-369) ---
+
+def _with(plan_changes: dict) -> dict:
+    return {**WRITTEN, "plan": {**WRITTEN["plan"], **plan_changes}}
+
+
+async def test_a_written_answer_needs_its_plan_and_keeps_it(running, applicant, database):  # noqa: F811
+    me, (job,) = await _student_queues(database, applicant, 1)
+    await _tab_asks(me, job, WHY)
+    invented = {"slots": [{"slot": "answer", "quotes": ["Cut page load time by 45%"]},
+                          {"slot": "episode", "quotes": ["Wrote the billing service's tests"]}]}
+    unbacked = {"slots": [{"slot": "answer", "quotes": ["Cut page load time by 30%"]}]}
+
+    async with claude(applicant) as client:
+        unplanned = await client.call_tool("save_answers", {"job_id": job, "answers": [
+            {"name": "question_7", "answer": CLEAN, "unsupported": []}]})
+        made_up = await client.call_tool("save_answers", {"job_id": job, "answers": [
+            {"name": "question_7", "answer": CLEAN, **_with(invented)}]})
+        bare = await client.call_tool("save_answers", {"job_id": job, "answers": [
+            {"name": "question_7", "answer": CLEAN, **_with(unbacked)}]})
+        assert (await _tab_asks(me, job))[0]["answer"] is None
+        saved = await client.call_tool("save_answers", {"job_id": job, "answers": [
+            {"name": "question_7", "answer": CLEAN, **_with({"story": "Cut page load time by 30%"})}]})
+
+    assert unplanned.is_error and "no plan" in unplanned.content[0].text
+    assert made_up.is_error and "45%" in made_up.content[0].text
+    assert bare.is_error and "episode" in bare.content[0].text
+    assert saved.is_error is False, saved.content
+    async with database() as session:
+        stored = (await session.execute(text(
+            "SELECT review FROM written_answers WHERE job_id = :j AND name = 'question_7'"), {"j": job})).scalar_one()
+    assert stored["plan"]["story"] == "Cut page load time by 30%"
+    assert stored["plan"]["slots"]["episode"] == ["Wrote the billing service's tests"]
+
+
+async def test_no_story_leads_two_answers_on_one_application(running, applicant, database):  # noqa: F811
+    me, (job,) = await _student_queues(database, applicant, 1)
+    proud = {"name": "question_8", "label": "Tell us about a project you are proud of.", "required": False, "max_length": None}
+    await _tab_asks(me, job, WHY, proud)
+    led = _with({"story": "Cut page load time by 30%"})
+
+    async with claude(applicant) as client:
+        together = await client.call_tool("save_answers", {"job_id": job, "answers": [
+            {"name": "question_7", "answer": CLEAN, **led}, {"name": "question_8", "answer": "At Acme I cut page load time by 30%.", **led}]})
+        first = await client.call_tool("save_answers", {"job_id": job, "answers": [{"name": "question_7", "answer": CLEAN, **led}]})
+        again = await client.call_tool("save_answers", {"job_id": job, "answers": [
+            {"name": "question_8", "answer": "At Acme I cut page load time by 30%.", **led}]})
+
+    assert together.is_error and "question_7" in together.content[0].text
+    assert first.is_error is False, first.content
+    assert again.is_error and "already leads" in again.content[0].text
+
+
+async def test_the_plans_company_fact_is_the_answers_named_fact(running, applicant, database):  # noqa: F811
+    me, (job,) = await _student_queues(database, applicant, 1)
+    await _company(database, job, "Initech")
+    fact = "Initech launched Ledger in 37 countries."
+    async with database() as session:
+        session.add(Company_Brief(company_key=briefs.company_key("Initech"), company="Initech", saved_at=text("now()"), facts=[{
+            "category": "launches", "fact": fact, "url": "https://initech.example/news",
+            "quote": "Ledger is now live in 37 countries", "published": "2026-03",
+        }]))
+        await session.commit()
+    await _tab_asks(me, job, WHY)
+    plan = {"type": "why-company", "company_fact": fact, "slots": [
+        {"slot": "company-fact", "quotes": [fact]}, {"slot": "own-match", "quotes": ["Cut page load time by 30%"]}]}
+
+    async with claude(applicant) as client:
+        saved = await client.call_tool("save_answers", {"job_id": job, "answers": [
+            {"name": "question_7", "answer": "Ledger reaching 37 countries is why I want in; at Acme I cut page load time by 30%.",
+             "plan": plan, "unsupported": []}]})
+
+    assert saved.is_error is False, saved.content
+    async with database() as session:
+        named = (await session.execute(text(
+            "SELECT named_fact FROM written_answers WHERE job_id = :j AND name = 'question_7'"), {"j": job})).scalar_one()
+    assert named == {"fact": fact, "url": "https://initech.example/news"}

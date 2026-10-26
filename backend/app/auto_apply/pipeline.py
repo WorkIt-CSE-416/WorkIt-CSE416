@@ -14,6 +14,10 @@ from typing import Literal
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.auto_apply.hosts import refusal
+from app.auto_apply.plans import (  # noqa: F401 (re-exported for the connector)
+    Backed,
+    Plan,
+)
 from app.auto_apply.queries import (
     fetch_applications,
     fetch_next_application,

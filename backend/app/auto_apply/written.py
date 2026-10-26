@@ -16,7 +16,7 @@ from typing import Literal
 
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from app.auto_apply import briefs, checks
+from app.auto_apply import briefs, checks, plans
 from app.auto_apply.queries import (
     drop_own_written,
     drop_written,
@@ -25,6 +25,7 @@ from app.auto_apply.queries import (
     fetch_brought_answers,
     fetch_company_names,
     fetch_next_to_write,
+    fetch_plans,
     fetch_posting_text,
     fetch_saved_answers,
     fetch_stage,
@@ -49,6 +50,7 @@ from app.schemas.applications import (
     WrittenQuestion,
 )
 from app.services.bank import Bank, load_bank
+from app.services.essay_answer import bank_context
 
 
 async def ask_questions(
@@ -168,7 +170,7 @@ async def next_to_write(
 async def save_answers(
     db: AsyncSession, applicant_id: uuid.UUID, job_id: uuid.UUID, answers: dict[str, str],
     *, by: Literal["claude", "student"] = "claude", named: dict[str, str] | None = None,
-    unsupported: dict[str, list[str]] | None = None,
+    unsupported: dict[str, list[str]] | None = None, plans_given: dict[str, plans.Plan] | None = None,
 ) -> int:
     """
     Saves the student's Claude's answers to one application's questions
@@ -189,8 +191,12 @@ async def save_answers(
     must be one of the brief's facts, and is saved with the answer, which
     names none without it. Claude's answer written in words also needs the
     claims its claim check listed (KAN-369, `unsupported` by name, [] when
-    it found none), kept with it: a missing list, or a listed claim still
-    in the answer, is refused. A paste needs none. Raises NotFound / WrongStage for an application that isn't
+    it found none), and its Essay plan (`plans_given` by name), checked by
+    plans.check against the student's sources and the application's other
+    answers and kept with it: a missing list or plan, a listed claim still
+    in the answer, or a plan that fails a check is refused. A plan's
+    company fact is the answer's named fact when it names none. A paste
+    needs none. Raises NotFound / WrongStage for an application that isn't
     open, Refused otherwise.
     """
     await open_application(db, applicant_id, job_id)
@@ -205,11 +211,16 @@ async def save_answers(
             )
         if not answer.strip():
             raise Refused(f"The answer to {name!r} is empty.", {name: ["The answer is empty."]})
-    facts = await _named_facts(db, job_id, named or {})
     sources, employers, samples = await _check_material(db, applicant_id, job_id)
     if by == "student":
         samples = ()
+    planning = by == "claude" and any(is_text(questions[name].kind) for name in answers)
+    material = await _plan_sources(db, applicant_id, job_id, questions, answers) if planning else None
+    led = {story: name for name, plan in (await fetch_plans(db, applicant_id, job_id)).items()
+           if name not in answers and (story := plans.stories(plan))} if planning else {}
+    named = dict(named or {})
     kept: dict[str, str] = {}
+    planned: dict[str, plans.Plan] = {}
     failing: dict[str, list[str]] = {}
     for name, answer in answers.items():
         q = questions[name]
@@ -222,18 +233,55 @@ async def save_answers(
             ))
             if by == "claude":
                 found += _claim_problems(kept[name], (unsupported or {}).get(name))
+                found += _plan_problems(name, (plans_given or {}).get(name), material, led, planned)
+                if name in planned and planned[name].company_fact and name not in named:
+                    named[name] = planned[name].company_fact
         if found:
             failing[name] = found
     if failing:
         raise Refused("Nothing was saved. Fix these answers and save them all again:\n" + "\n".join(
             f"- {name!r}: {' '.join(found)}" for name, found in failing.items()
         ), failing)
+    facts = await _named_facts(db, job_id, named)
     await save_written(db, applicant_id, job_id, kept, facts, {
-        name: {"unsupported": claims} for name, claims in (unsupported or {}).items()
-        if by == "claude" and name in kept and is_text(questions[name].kind)
+        name: {"plan": plan.stored(), "unsupported": (unsupported or {})[name]} for name, plan in planned.items()
     })
     await db.commit()
     return sum(1 for name, q in questions.items() if q.answer is None and name not in answers)
+
+
+def _plan_problems(
+    name: str, plan: plans.Plan | None, material: plans.Sources | None, led: dict[str, str],
+    planned: dict[str, plans.Plan],
+) -> list[str]:
+    """What keeps an answer of Claude's from saving on its Essay plan
+    (plans.check). A plan that passes goes in `planned`, as kept, and its
+    story in `led`, so no later answer of the same save leads with it."""
+    if plan is None or material is None:
+        return [("It has no plan: give its type, story, company_fact, angle and slots, each slot with "
+                 "the passages that back it, copied word for word.")]
+    kept, found = plans.check(plan, material, led)
+    if not found:
+        planned[name] = kept
+        if (story := plans.stories(kept.stored())) and kept.type not in plans.REUSABLE:
+            led[story] = name
+    return found
+
+
+async def _plan_sources(
+    db: AsyncSession, applicant_id: uuid.UUID, job_id: uuid.UUID, questions: dict[str, WrittenAnswer],
+    saving: Collection[str],
+) -> plans.Sources:
+    """What an Essay plan's quotes may come from (plans.Sources): the
+    student's experience and skills as the connector gives them, the
+    posting, the company and team brief's facts, and the application's
+    answers already saved to its other questions."""
+    company, title, posting = await fetch_posting_text(db, job_id)
+    experience, skills = bank_context(await load_bank(db, applicant_id))
+    facts = [str(f["fact"]) for f in await briefs.brief_for(db, company, job_id) if f.get("fact")]
+    earlier = [q.answer for name, q in questions.items() if q.answer and name not in saving]
+    held = "\n".join([experience, *skills, company or "", title or "", posting or "", *facts, *earlier])
+    return plans.Sources(plans.fold(held), plans.fold(experience), {plans.fold(f).strip() for f in facts})
 
 
 def _claim_problems(answer: str, unsupported: list[str] | None) -> list[str]:

@@ -253,10 +253,22 @@ Find files with a directory listing; these are the rules for where code goes.
   parroting them; a student may paste their own words). Re-checks of a
   saved answer (`ask_questions`, `answer_bank`) leave the copy check out
   for the same reason: the save ran it.
-  **Claude's written answer carries its claim check** (KAN-369): the
-  claims the prompt's check listed (`unsupported`), stored in
-  `written_answers.review`. The save refuses one without the list or still
-  holding a listed claim; a choice and a paste take none, and the
+  **Claude's written answer carries its Essay plan and claim check**
+  (KAN-369, Apply's evidence-first writer): the plan it was written from
+  (type, story, company fact, angle, and its type's slots, each with
+  quotes) and the claims the prompt's check listed (`unsupported`), stored
+  in `written_answers.review` as `{plan, unsupported}`. `plans.check`
+  (pure, `tests/test_plans.py`) holds the plan to the sources the
+  connector gave (`written._plan_sources`: the experience as
+  `bank_context` writes it, skills, posting, brief facts, the
+  application's other saved answers): each quote word for word and at
+  least 20 characters folded, every required slot quoted, an optional one
+  without dropped, the story a line of the experience leading no other
+  answer on the application (anything-else and cover letters may reuse
+  one), the company fact one of the brief's on a type that links the
+  company; a plan's company fact is the answer's named fact when it names
+  none. The save refuses one without the plan or the list, failing the
+  plan, or still holding a listed claim; a choice and a paste take none, and the
   student's edit clears it (the check was of Claude's text). The server
   can't redo the check; this makes skipping it a refusal, not silence.
   There is no reader's 1-10 rating any more: Apply dropped it, since it
