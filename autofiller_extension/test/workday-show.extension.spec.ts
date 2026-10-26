@@ -31,11 +31,6 @@ async function workdayTab(): Promise<{ tab: Page; workdays: FakeWorkdays }> {
   await sendFromWebapp(app, { type: "run/open" });
   await expect.poll(() => loaded.context.pages().some((p) => p.url() === workdays.url(0)), { timeout: 30_000 }).toBe(true);
   const tab = loaded.context.pages().find((p) => p.url() === workdays.url(0))!;
-  // The batch's first injection into a Workday tab it just opened can fail in this harness ("Frame with ID 0
-  // was removed"); a Workday batch tab gets its fill again on every load, so the test loads it once more.
-  await tab.waitForLoadState("load");
-  await tab.waitForTimeout(3_000);
-  await tab.reload();
   // Filled: the question for the student's Claude waits on the panel.
   await expect(tab.locator(`#workit-autofiller-overlay-host .row[data-key="My Information / ${WHY}"]`)).toBeVisible({ timeout: 60_000 });
   await expect(tab.locator("[data-automation-id=formField-legalName--firstName] input")).not.toHaveValue("", { timeout: 30_000 });
