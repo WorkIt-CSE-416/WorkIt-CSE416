@@ -1,12 +1,12 @@
-// The panel after the student closes it (KAN-369): its Collapse leaves the
-// edge tab on the page, and the toolbar's popup, on a page WorkIt already
-// filled, offers Show WorkIt Panel (the same rows, nothing filled again)
-// before Fill Again. And a panel row takes the student to its field.
+// The panel after the student collapses it (KAN-369, KAN-394): Collapse
+// leaves the edge tab on the page, and the edge tab or the toolbar icon
+// bring back the same rows, nothing filled again. And a panel row takes the
+// student to its field.
 // Anduril's saved Greenhouse form, filled as a batch tab.
 import { expect, test, type Page } from "@playwright/test";
 import { FakeApi } from "./fake-api";
 import { SavedForms } from "./fake-job-systems";
-import { EXTENSION_ID, loadExtension, sendFromWebapp, signIn, webapp, type Loaded } from "./loaded-extension";
+import { loadExtension, sendFromWebapp, signIn, webapp, type Loaded } from "./loaded-extension";
 
 const ANDURIL = "greenhouse-anduril";
 // How Anduril heard of the student: a guess, the panel's yellow row.
@@ -41,21 +41,14 @@ async function countPlans(): Promise<() => Promise<number>> {
   return () => loaded.worker.evaluate(() => (globalThis as any).plans as number);
 }
 
-/** The toolbar popup, as if opened over `form`'s tab (a popup opened as a page is its own active tab). */
-async function popupOver(form: Page): Promise<Page> {
-  const tabId = await loaded.worker.evaluate(async (url) => (await chrome.tabs.query({ url }))[0].id, form.url());
-  const popup = await loaded.context.newPage();
-  await popup.addInitScript((id) => {
-    const query = chrome.tabs.query.bind(chrome.tabs);
-    (chrome.tabs as any).query = (info: chrome.tabs.QueryInfo) => (info.active ? chrome.tabs.get(id).then((tab) => [tab]) : query(info));
-  }, tabId);
-  await popup.goto(`chrome-extension://${EXTENSION_ID}/src/popup/popup.html`);
-  return popup;
+/** The toolbar icon's press on `form`'s tab (a job page: no popup, the icon opens and closes the panel). */
+async function pressToolbar(form: Page): Promise<void> {
+  await loaded.worker.evaluate(async (url) => (globalThis as any).workitToolbar((await chrome.tabs.query({ url }))[0]), form.url());
 }
 
 const panelOf = (form: Page) => form.locator("#workit-autofiller-overlay-host .panel");
 
-test("after Collapse, the popup's Show WorkIt Panel brings back the same rows without filling again", async () => {
+test("after Collapse, the toolbar icon brings back the same rows without filling again", async () => {
   test.setTimeout(120_000);
   const { form, forms } = await anduril();
   const plans = await countPlans();
@@ -64,9 +57,7 @@ test("after Collapse, the popup's Show WorkIt Panel brings back the same rows wi
   await form.locator("#workit-autofiller-overlay-host").getByRole("button", { name: "Collapse" }).click();
   await expect(panelOf(form)).toBeHidden();
 
-  const popup = await popupOver(form);
-  await expect(popup.getByRole("button", { name: "Fill Again" })).toBeVisible();
-  await popup.getByRole("button", { name: "Show WorkIt Panel" }).click();
+  await pressToolbar(form);
 
   await expect(panelOf(form)).toBeVisible();
   expect(await panelOf(form).locator(".row").allTextContents()).toEqual(rows);

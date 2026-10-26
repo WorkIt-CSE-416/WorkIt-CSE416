@@ -60,5 +60,11 @@
       "https://workitjobs.ai/*",
       "https://workit-web-gamma.vercel.app/*"
     ]
+  },
+  "commands": {
+    "toggle-panel": {
+      "suggested_key": { "default": "Alt+W" },
+      "description": "Open or close the WorkIt panel"
+    }
   }
 }

@@ -334,10 +334,12 @@ async function handleMessage(message, sender) {
     }
 
     // The panel's shell (panel.js, KAN-394): whether this page is a job page WorkIt
-    // covers, whether the tab is a batch's, and the site's kept choices.
+    // covers, whether the tab is a batch's, and the site's kept choices. On a job
+    // page the toolbar icon opens and closes the panel, so the tab has no popup.
     case "panel/where": {
       const url = sender.url ?? "";
       const job = Boolean(jobOf(url));
+      if (job && sender.tab?.id !== undefined) await chrome.action.setPopup({ tabId: sender.tab.id, popup: "" });
       return { job, batch: sender.tab ? await inBatch(sender.tab.id) : false, site: await panelSite(url) };
     }
     case "panel/site":
@@ -346,6 +348,9 @@ async function handleMessage(message, sender) {
     case "panel/fill":
       await injectFill(sender.tab.id, { batch: Boolean(message.batch) && (await inBatch(sender.tab.id)), frameId: sender.frameId || undefined });
       return {};
+    // The toolbar popup off job pages: the batch's status.
+    case "popup/batch":
+      return batchStatus();
 
     // The panel's font (panel.js's loadFont), as base64: the page can't
     // load the extension's own files, which aren't web-accessible.
@@ -462,6 +467,45 @@ async function panelSite(url, change) {
   await chrome.storage.local.set({ [PANEL_SITES_KEY]: sites });
   return sites[site];
 }
+
+// What the panel's shell injects when the toolbar icon or Alt+W finds no panel on a job page yet.
+const SHELL_FILES = ["src/shared/tokens.js", "src/content/panel.js"];
+
+/**
+ * The toolbar icon (a tab with no popup: a job page, panel/where) and
+ * Alt+W: open or close the panel in whichever frame has it. A job page whose
+ * edge tab isn't drawn yet gets the shell, open; any other page gets the
+ * popup (the batch's status), as a tab with a popup would.
+ * @param {chrome.tabs.Tab} tab
+ */
+async function toolbarPressed(tab) {
+  if (!tab?.id) return;
+  const answer = await chrome.tabs.sendMessage(tab.id, { type: "panel/toggle" }).catch(() => null);
+  if (answer?.toggled) return;
+  if (jobOf(tab.url ?? "")) {
+    await chrome.scripting.executeScript({ target: { tabId: tab.id }, files: SHELL_FILES });
+    await chrome.scripting.executeScript({
+      target: { tabId: tab.id },
+      func: async () => {
+        const panel = window.WIA.panel;
+        await panel.ensure();
+        if (!window.WIA.overlay?.state?.()) panel.fillButton("Autofill This Page");
+        panel.open();
+      },
+    });
+    return;
+  }
+  await chrome.action.setPopup({ tabId: tab.id, popup: chrome.runtime.getManifest().action.default_popup });
+  await chrome.action.openPopup().catch(() => {});
+}
+chrome.action.onClicked.addListener((tab) => void toolbarPressed(tab).catch((error) => console.warn("[panel] the toolbar press did nothing:", error.message)));
+chrome.commands.onCommand.addListener(async (command, tab) => {
+  if (command !== "toggle-panel") return;
+  tab ??= (await chrome.tabs.query({ active: true, lastFocusedWindow: true }))[0];
+  await toolbarPressed(tab).catch((error) => console.warn("[panel] Alt+W did nothing:", error.message));
+});
+// The tests' way to press the toolbar icon, which Chrome gives no page a way to press.
+globalThis.workitToolbar = toolbarPressed;
 
 // Messages from the popup and the content script (same extension, so this
 // channel, not the External one below).

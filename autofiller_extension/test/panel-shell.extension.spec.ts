@@ -1,12 +1,13 @@
 // The panel's shell (KAN-394): one panel docked to the right edge of the job
 // page, full height, over the page, that collapses to an edge tab the student
 // drags up and down and can hide. Batch tabs open it once their fill is done;
-// a job form outside a batch shows only the edge tab; other pages nothing.
-// Anduril's saved Greenhouse form.
+// a job form outside a batch shows only the edge tab; other pages nothing. The
+// toolbar icon and Alt+W open and close it on a job page; elsewhere the icon
+// shows the batch's status. Anduril's saved Greenhouse form.
 import { expect, test, type Page } from "@playwright/test";
 import { FakeApi } from "./fake-api";
 import { SavedForms } from "./fake-job-systems";
-import { loadExtension, sendFromWebapp, signIn, webapp, type Handler, type Loaded } from "./loaded-extension";
+import { EXTENSION_ID, loadExtension, sendFromWebapp, signIn, webapp, type Handler, type Loaded } from "./loaded-extension";
 
 const ANDURIL = "greenhouse-anduril";
 // How Anduril heard of the student: a guess, a row the fill always shows.
@@ -48,6 +49,20 @@ async function ownTab(forms: SavedForms): Promise<Page> {
   await page.goto(forms.url(ANDURIL));
   return page;
 }
+
+/** The toolbar icon's press on `page`'s tab: what Chrome's action.onClicked gives the background. */
+async function pressToolbar(page: Page): Promise<void> {
+  await loaded.worker.evaluate(async (url) => {
+    const [tab] = await chrome.tabs.query({ url });
+    await (globalThis as any).workitToolbar(tab);
+  }, page.url());
+}
+
+const popupOf = (page: Page) =>
+  loaded.worker.evaluate(async (url) => chrome.action.getPopup({ tabId: (await chrome.tabs.query({ url }))[0].id! }), page.url());
+/** The popup of every tab whose link the extension can't see (pages outside its hosts, such as NEWS). */
+const popupsOfOtherPages = () =>
+  loaded.worker.evaluate(async () => Promise.all((await chrome.tabs.query({})).filter((t) => !t.url).map((t) => chrome.action.getPopup({ tabId: t.id! }))));
 
 test("a batch tab's panel opens docked right, full height, over the page, with its rows", async () => {
   test.setTimeout(120_000);
@@ -152,4 +167,40 @@ test("a site where the student collapsed the panel keeps it collapsed in the nex
   await expect(edgeTab(form)).toBeVisible();
   await edgeTab(form).click();
   await expect(hostOf(form).locator(`[data-key="${HEARD}"]`)).toBeVisible();
+});
+
+test("the toolbar icon and Alt+W open and close the panel on a job page", async () => {
+  test.setTimeout(90_000);
+  const { forms } = await start();
+  const page = await ownTab(forms);
+  await expect(edgeTab(page)).toBeVisible({ timeout: 15_000 });
+  expect(await popupOf(page)).toBe("");
+
+  await pressToolbar(page);
+  await expect(panelOf(page)).toBeVisible();
+  await pressToolbar(page);
+  await expect(panelOf(page)).toBeHidden();
+
+  // Alt+W is the same press as an extension command (Chrome's, so no page sees the key): a test can't press
+  // it, so this checks Chrome has it bound; the press itself is the toolbar's, above.
+  const commands = await loaded.worker.evaluate(() => chrome.commands.getAll());
+  expect(commands.find((c) => c.name === "toggle-panel")?.shortcut).toMatch(/^(Alt|⌥)\+?W$/);
+});
+
+test("elsewhere the toolbar icon shows the batch's status and Open WorkIt", async () => {
+  test.setTimeout(120_000);
+  const { api, forms } = await start();
+  await batchTab(api, forms);
+  const other = await loaded.context.newPage();
+  await other.goto(NEWS);
+  const popups = await popupsOfOtherPages();
+  expect(popups.length).toBeGreaterThan(0);
+  for (const popup of popups) expect(popup).toMatch(/src\/popup\/popup\.html$/);
+
+  const popup = await loaded.context.newPage();
+  await popup.goto(`chrome-extension://${EXTENSION_ID}/src/popup/popup.html`);
+  await expect(popup.getByText("1 job in your batch · 1 needs you")).toBeVisible();
+  await expect(popup.getByRole("button", { name: "Open WorkIt" })).toBeVisible();
+  await expect(popup.getByRole("button", { name: "Autofill This Page" })).toHaveCount(0);
+  expect(forms.submissions).toEqual([]);
 });
