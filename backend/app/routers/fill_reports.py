@@ -5,7 +5,9 @@ student previewed and pressed Send for.
 POST /fill-reports  {"job_system", "posting_url", "engine_version",
                      "fields": [{"kind", "label_shape", "error"}], "note"}
      Stores it and answers {"id"} (201). 422 for any key or value outside
-     that shape (app/schemas/fill_reports.py). Any signed-in account may
+     that shape (app/schemas/fill_reports.py): posting_url is http or
+     https with no sign-in or fragment, and its query only the params that
+     name the posting (POSTING_PARAMS). Any signed-in account may
      send one (sign-in keeps strangers from filling the table); the row
      names no account.
 """
@@ -15,7 +17,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.db import get_session
 from app.deps import get_current_account
-from app.models.fill_reports import Fill_Report
+from app.queries.fill_reports import store_report
 from app.schemas.auth import AuthenticatedAccount
 from app.schemas.fill_reports import FillReportRequest, FillReportStored
 
@@ -29,7 +31,4 @@ async def store_fill_report(
     db: AsyncSession = Depends(get_session),
 ) -> FillReportStored:
     """Stores one problem report, with no account."""
-    report = Fill_Report(**body.model_dump(mode="json"))
-    db.add(report)
-    await db.commit()
-    return FillReportStored(id=str(report.id))
+    return FillReportStored(id=str(await store_report(db, body.model_dump(mode="json"))))

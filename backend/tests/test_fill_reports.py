@@ -59,3 +59,29 @@ async def test_a_report_is_stored_and_one_outside_the_shape_is_refused(signed_in
     for refused in (with_answer, with_page_text, with_query, with_unknown_error):
         assert (await _send(refused)).status_code == 422, refused
     assert len(await _stored(database)) == 1
+
+
+async def test_a_posting_link_may_be_http_and_keep_the_params_that_name_the_posting(signed_in, database):
+    # The extension keeps the query params that say which posting a page is
+    # (Greenhouse's embed ?for=&token=, a careers page's ?gh_jid=, ?jobId=);
+    # any other param, a fragment or a sign-in in the link is still refused.
+    kept = [
+        "http://careers.example.com/jobs/123",
+        "https://boards.greenhouse.io/embed/job_app?for=acme&token=4012345",
+        "https://www.example.com/careers?gh_jid=4012345",
+        "https://jobs.example.com/apply?jobId=JR-1234",
+    ]
+    for link in kept:
+        assert (await _send({**REPORT, "posting_url": link})).status_code == 201, link
+
+    refused = [
+        "ftp://careers.example.com/jobs/123",
+        "http://sam:secret@careers.example.com/jobs/123",
+        "https://www.example.com/careers?gh_jid=4012345&email=sam@example.com",
+        "https://www.example.com/careers?utm_source=feed",
+        "https://www.example.com/careers?gh_jid=sam@example.com",
+        "https://www.example.com/careers?gh_jid=4012345#apply",
+    ]
+    for link in refused:
+        assert (await _send({**REPORT, "posting_url": link})).status_code == 422, link
+    assert len(await _stored(database)) == len(kept)

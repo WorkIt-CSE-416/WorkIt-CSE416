@@ -300,11 +300,13 @@ export class FakeApi {
     }
     const finish = /^\/applications\/([^/]+)\/finish$/.exec(route);
     if (finish && method === "POST" && JSON.parse(body.toString()).outcome === "unsubmitted") {
-      // pipeline.py's way back (KAN-401): only an applied application, to queued, its date cleared.
+      // pipeline.py's way back (KAN-401): only an applied application, its date cleared, to the
+      // stage its tab had ("state": ready → queued, needs_you → needs_you; none → needs_you).
       if (this.stages.get(finish[1]) !== "applied") return { status: 409, json: { detail: "That application wasn't marked applied." } };
-      this.stages.set(finish[1], "queued");
+      const back = JSON.parse(body.toString()).state === "ready" ? "queued" : "needs_you";
+      this.stages.set(finish[1], back);
       this.appliedAt.delete(finish[1]);
-      return { json: { job_id: finish[1], stage: "queued" } };
+      return { json: { job_id: finish[1], stage: back } };
     }
     if (finish && method === "POST") {
       const refused = this.refuseUnlessOpen(finish[1]);

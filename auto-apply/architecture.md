@@ -556,6 +556,7 @@ job (`chrome.storage.local`, so a batch outlives Chrome: KAN-373 below).
 | ready | `queued` (it waits for the student's submit) | `PUT .../fill {"state": "ready"}` |
 | needs_you | `needs_you` | `PUT .../fill {"state": "needs_you"}` |
 | submitted, skipped, failed | `applied`, `skipped`, `needs_you` | `POST .../finish` (KAN-373, KAN-374) |
+| I didn't submit this (from applied) | the tab's stage before: `queued` (ready) or `needs_you` (also with no state) | `POST .../finish {"outcome": "unsubmitted", "state"}` (KAN-401) |
 
 The next tab's job is `GET .../applications/next?skip=...`, past every job
 the batch opened. No migration: what outlives a tab is the browser's

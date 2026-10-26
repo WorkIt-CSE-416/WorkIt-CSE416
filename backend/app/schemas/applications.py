@@ -110,9 +110,20 @@ class FinishRequest(BaseModel):
     the student clicked Submitted. skipped: Skip, or the tab was closed.
     failed: the form could not be filled (no form, sign-in needed).
     unsubmitted: the panel's "I didn't submit this", for a submit marked by
-    mistake (KAN-401): an applied application goes back to queued."""
+    mistake (KAN-401): an applied application goes back to the stage its
+    batch tab had before, which `state` names in PUT .../fill's words (ready:
+    queued; needs_you). No state is needs_you: a queued application is the
+    batch's next fill, so only a tab the extension says was Ready goes back
+    there. `state` is unsubmitted's only (422 with any other outcome)."""
 
     outcome: Literal["submitted", "skipped", "failed", "unsubmitted"]
+    state: Literal["ready", "needs_you"] | None = None
+
+    @model_validator(mode="after")
+    def _state_only_when_unsubmitted(self) -> "FinishRequest":
+        if self.state is not None and self.outcome != "unsubmitted":
+            raise ValueError("state goes with the unsubmitted outcome only")
+        return self
 
 
 class FillRequest(BaseModel):
