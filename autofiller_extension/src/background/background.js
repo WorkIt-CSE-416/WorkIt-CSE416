@@ -18,6 +18,7 @@ import {
 import { engineCaller, handleFill, jobOf, practiceJob, runEngine, submittedPage } from "./engine.js";
 import { claimMoment } from "./moments.js";
 import { nextNeedsYou, walkFrom } from "./next-needs-you.js";
+import { batchLine, jobForTab, showNextTab } from "./panel-top.js";
 import { SELF_ID, checkedSelfId, unansweredSelfId } from "./self-id.js";
 import { forgetSubmits, submitHinted, watchSubmitRequests } from "./submit-proof.js";
 import { watchEmbeddedForms } from "./embedded-forms.js";
@@ -348,6 +349,13 @@ async function handleMessage(message, sender) {
     case "panel/fill":
       await injectFill(sender.tab.id, { batch: Boolean(message.batch) && (await inBatch(sender.tab.id)), frameId: sender.frameId || undefined });
       return {};
+    // The panel's top (panel-top.js, KAN-395): the job card's job, and the batch line.
+    case "panel/job":
+      return { job: await jobForTab({ tabId: sender.tab.id, url: sender.url ?? "" }) };
+    case "panel/batch-line":
+      return { line: await batchLine(sender.tab.id), site: jobOf(sender.url ?? "")?.site ?? null };
+    case "panel/next-tab":
+      return showNextTab(sender.tab.id);
     // The toolbar popup off job pages: the batch's status.
     case "popup/batch":
       return batchStatus();
@@ -469,7 +477,7 @@ async function panelSite(url, change) {
 }
 
 // What the panel's shell injects when the toolbar icon or Alt+W finds no panel on a job page yet.
-const SHELL_FILES = ["src/shared/tokens.js", "src/content/panel.js"];
+const SHELL_FILES = ["src/shared/tokens.js", "src/content/panel.js", "src/content/panel-top.js"];
 
 /**
  * The toolbar icon (a tab with no popup: a job page, panel/where) and

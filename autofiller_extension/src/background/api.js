@@ -507,6 +507,17 @@ export async function queuedApplications(applicantId) {
 }
 
 /**
+ * GET .../applications?scored=true — every application, newest first, each
+ * with its job posting's listing, its stage and `applied_at`, and `match`:
+ * the Jobs page's Match score (null for a closed posting or an empty
+ * experience bank). The panel's job card (KAN-395, panel-top.js).
+ * @param {string} applicantId
+ */
+export async function scoredApplications(applicantId) {
+  return apiFetch(`/applicants/${applicantId}/applications?scored=true`);
+}
+
+/**
  * GET .../applications/{job_id}/answer-bank — the answers saved on the
  * student's other applications that this one's form may reuse,
  * `{[question wording]: {answer, own}}`: the Fill engine's Answer bank for
