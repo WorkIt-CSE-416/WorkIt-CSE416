@@ -220,3 +220,8 @@ test("never served, age, pay, the EEO extras, interests and an X link reach the 
   expect(none.experience_facts?.prior_internships_count).toBeUndefined();
   expect(none.identity.current_company).toBeUndefined();
 });
+
+test("the countries of citizenship reach the engine", () => {
+  const answers = { ...STUDENT.answers, citizenship_countries: ["India"] };
+  expect(engineProfile({ ...STUDENT, answers }).work_authorization.citizenship_countries).toEqual(["India"]);
+});

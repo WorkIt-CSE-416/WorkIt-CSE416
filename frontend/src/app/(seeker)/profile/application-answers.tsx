@@ -40,7 +40,7 @@ import { SectionAction } from "./section-action";
  * Application Questions and edited the same way (two modes, one Edit at the
  * top right, Cancel and Save under the fields, Escape cancels). Groups:
  * Availability, Start Window, Relocation, Address, Languages, Age and Pay,
- * Interests and Links, Communities and Screener Facts, then School Year,
+ * More About You (role interests, X profile, citizenship), Communities and Screener Facts, then School Year,
  * which WorkIt works out from the latest education entry (lib/school-year)
  * and never asks. Pay is only ever the student's own figure.
  *
@@ -257,7 +257,7 @@ export function ApplicationAnswers({
               <Note>WorkIt types pay only from your answers here, never a guess.</Note>
             </Group>
 
-            <Group icon="interests" title="Interests and Links">
+            <Group icon="interests" title="More About You">
               <Question id="answers-interests-label" label="Kinds of work you want">
                 <div
                   role="group"
@@ -284,6 +284,12 @@ export function ApplicationAnswers({
                   })}
                 </div>
               </Question>
+              <ListField
+                id="answers-citizenship_countries"
+                label="Countries You Are a Citizen Of"
+                value={draft.citizenship_countries}
+                onChange={(names) => set({ citizenship_countries: names.length ? names : null })}
+              />
               <TextField
                 id="answers-x_url"
                 label="X (Twitter) Profile"
@@ -407,7 +413,7 @@ export function ApplicationAnswers({
               <Fact label="Posted Range Is Fine" value={yesNo(answers.accept_posted_pay)} />
             </dl>
           </Group>
-          <Group icon="interests" title="Interests and Links">
+          <Group icon="interests" title="More About You">
             <dl className="grid gap-2">
               <Fact
                 label="Kinds of Work"
@@ -416,6 +422,7 @@ export function ApplicationAnswers({
                   .join(", ")}
               />
               <Fact label="X Profile" value={answers.x_url} />
+              <Fact label="Citizenship" value={answers.citizenship_countries?.join(", ")} />
             </dl>
           </Group>
           <Group icon="communities" title="Communities">

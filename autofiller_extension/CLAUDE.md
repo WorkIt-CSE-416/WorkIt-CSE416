@@ -1327,7 +1327,9 @@ end month (`engineProfile(profile, today)`), with no new input.
 The rest of the section reaches the engine as `identity.age_18_or_over`,
 `identity.pronouns`, `voluntary_self_id.{sexual_orientation, transgender,
 communities}` (decline as "decline"; communities [] is "none of these"),
-`experience_facts.role_interests` and `links.x_twitter_url`. Pay is the
+`experience_facts.role_interests`, `links.x_twitter_url` and
+`work_authorization.citizenship_countries` (any country; the engine picks it
+from a list of countries of citizenship, two being a dual citizen's). Pay is the
 student's own answer, laid over the policies by `enginePolicies`:
 `compensation.fallback_hourly` (their hourly figure) and
 `accept_stated_rate` (with "Open to the posted range" as the words). From

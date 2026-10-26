@@ -39,7 +39,8 @@ Then age 18 or over, pay (an expected hourly figure and whether a posting's
 stated range is fine: the student's own, never a WorkIt default), the EEO
 extras (sexual orientation, transgender, pronouns, communities, each with a
 decline answer; communities [] is "none of these", ["declined"] a decline),
-the kinds of work they want (role interests) and an X profile link.
+the kinds of work they want (role interests), an X profile link and the
+countries they are a citizen of.
 """
 
 from typing import Annotated, Literal
@@ -94,6 +95,8 @@ class AutofillAnswers(BaseModel):
     needs_sponsorship: YesNo | None = None
     work_authorization_status: WorkAuthorizationStatus | None = None
     security_clearance: SecurityClearance | None = None
+    # every country they are a citizen of (a list of two: a dual citizen)
+    citizenship_countries: list[Short] | None = None
     gender: Gender | None = None
     hispanic_latino: HispanicLatino | None = None
     race: Race | None = None

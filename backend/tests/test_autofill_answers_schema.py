@@ -86,3 +86,8 @@ def test_more_application_answers_read_back_each_by_its_own_shape():
     assert answers.x_url == "https://x.com/example"
     assert answers_from_bank({"expected_hourly_pay": "30", "role_interests": ["cooking"]}).expected_hourly_pay is None
     assert answers_from_bank({"role_interests": ["cooking"]}).role_interests is None
+
+
+def test_countries_of_citizenship_read_back_as_a_list():
+    assert answers_from_bank({"citizenship_countries": ["India"]}).citizenship_countries == ["India"]
+    assert answers_from_bank({"citizenship_countries": "India"}).citizenship_countries is None

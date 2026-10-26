@@ -434,6 +434,8 @@ function workitProfile(profile, today) {
       authorized_to_work_us: YES_NO[answers.work_authorized_us],
       requires_sponsorship_now_or_future: YES_NO[answers.needs_sponsorship],
       citizenship: CITIZENSHIP[answers.work_authorization_status],
+      // Any country's, for a list of countries of citizenship (two: a dual citizen's, theirs to pick).
+      citizenship_countries: Array.isArray(answers.citizenship_countries) && answers.citizenship_countries.length ? answers.citizenship_countries : undefined,
       security_clearance: CLEARANCE[answers.security_clearance],
     }),
     voluntary_self_id: present({

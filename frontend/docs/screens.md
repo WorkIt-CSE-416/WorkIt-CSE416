@@ -1233,8 +1233,9 @@ the next six terms as chips), Relocation (willing, places ranked best first
 as numbered chips, where they'll live), Address (street and ZIP; city and
 state are the profile's location), Languages (English shown as a suggestion
 until saved), Age and Pay (18 or older; expected dollars an hour, typed by
-the student and never guessed; whether a posted range is fine), Interests
-and Links (kinds of work as chips; an X profile), Communities (chips, with
+the student and never guessed; whether a posted range is fine), More About
+You (kinds of work as chips; an X profile; the countries they are a citizen
+of), Communities (chips, with
 None of These and I Don't Wish to Answer, each standing alone) and Screener
 Facts, one card with Yes and No each and a None of
 These Apply button that answers only the unanswered ones; a Yes on a list

@@ -92,6 +92,8 @@ export type AutofillAnswers = {
   communities: Community[] | null;
   role_interests: RoleInterest[] | null;
   x_url: string | null;
+  /** Every country they are a citizen of ("India"); two make a dual citizen. */
+  citizenship_countries: string[] | null;
 };
 
 export type Community =
@@ -167,6 +169,7 @@ export const NO_ANSWERS: AutofillAnswers = {
   communities: null,
   role_interests: null,
   x_url: null,
+  citizenship_countries: null,
 };
 
 type Options<K extends QuestionKey> = {

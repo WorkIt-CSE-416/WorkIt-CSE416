@@ -106,6 +106,7 @@
  * @property {string[] | null} [communities] [] is "none of these"; ["declined"] a decline
  * @property {string[] | null} [role_interests]
  * @property {string | null} [x_url]
+ * @property {string[] | null} [citizenship_countries] every country they are a citizen of
  */
 
 /**
