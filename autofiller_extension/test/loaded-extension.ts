@@ -117,8 +117,8 @@ export async function loadExtension(
     closedPanel = false,
   } = {},
 ): Promise<Loaded> {
-  // A copy, so its panel's shadow root can be open for Playwright's locators (which can't reach a closed
-  // one); `closedPanel` keeps the student's closed root, for the tests of what the page can reach.
+  // A copy, so its panel's and marks' shadow roots can be open for Playwright's locators (which can't reach a
+  // closed one); `closedPanel` keeps the student's closed roots, for the tests of what the page can reach.
   const copy = testCopy(grantHosts, !closedPanel);
   const net = await startFakeNet(handlers, copy);
   // `profile`: a Chromium profile folder to start (again) with, which the caller keeps; else a new one, removed on close.
@@ -151,18 +151,22 @@ export async function loadExtension(
   };
 }
 
+/** The files whose shadow root is closed for the student and opened in the test copies: the panel, and the marks (ring and dot). */
+export const CLOSED_ROOT_FILES = ["src/content/panel.js", "src/content/marks.js"];
+
 /**
- * The panel's source with its shadow root open, for tests only: Playwright's
- * locators can't reach a closed root. The student's panel stays closed.
+ * A closed-root file's source (CLOSED_ROOT_FILES) with its shadow root open,
+ * for tests only: Playwright's locators can't reach a closed root. The
+ * student's stay closed.
  */
-export function openPanel(source: string): string {
+export function openPanel(source: string, file = "src/content/panel.js"): string {
   const open = source.replace('attachShadow({ mode: "closed" })', 'attachShadow({ mode: "open" })');
-  if (open === source) throw new Error("panel.js no longer attaches a closed shadow root: update openPanel");
+  if (open === source) throw new Error(`${file} no longer attaches a closed shadow root: update openPanel`);
   return open;
 }
 
 /**
- * A copy of the extension to load: its panel's root open when `open` (see
+ * A copy of the extension to load: its panel's and marks' roots open when `open` (see
  * openPanel), and allowed to read `hosts` too: what activeTab grants when the
  * student presses the toolbar icon on a page outside the manifest's hosts,
  * which a test can't press. Same key, so the same extension id.
@@ -173,8 +177,7 @@ function testCopy(hosts: string[], open: boolean): string {
   const manifest = JSON.parse(readFileSync(join(EXTENSION, "manifest.json"), "utf8"));
   manifest.host_permissions.push(...hosts);
   writeFileSync(join(dir, "manifest.json"), JSON.stringify(manifest));
-  const panel = join(dir, "src/content/panel.js");
-  if (open) writeFileSync(panel, openPanel(readFileSync(panel, "utf8")));
+  if (open) for (const file of CLOSED_ROOT_FILES) writeFileSync(join(dir, file), openPanel(readFileSync(join(dir, file), "utf8"), file));
   return dir;
 }
 

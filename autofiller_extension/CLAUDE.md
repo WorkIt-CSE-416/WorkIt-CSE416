@@ -727,8 +727,8 @@ waits for an opened tab's page and form (`waitForLoad`, `formShows`).
   the brand colour for 3 seconds, and a small orange dot
   (`--color-warning-strong`) that stays on it while its row still needs the
   student (failed, waiting, flagged), gone once resolved. Both sit in their
-  own shadow host (`#workit-marks-host`), follow the field each frame while
-  shown, and never take a click. A guess, shown once, gets the ring only.
+  own shadow host (`#workit-marks-host`), whose root is closed as the
+  panel's is, follow the field each frame while shown, and never take a click. A guess, shown once, gets the ring only.
 - **A panel row takes the student to its field** (KAN-369, `overlay.js`'s
   `jump`): pressing a field's row (any row but a note; Enter on its label
   too) runs the walk's own `show(key)` (`batch-tab.js`, as
@@ -1420,10 +1420,10 @@ click** (`event.isTrusted`, through `ui.js`'s `trusted`, which `button()`
 and row-card buttons use): Disconnect Claude, Send report, Use this, Tailor,
 Fill Again, Next job / Next tab, Looks right, Keep, Rewrite, Save answer,
 Stop and Skip, Skip this job, I submitted this, I didn't submit this,
-the essay banner's Generate, the self-ID Save. Tests: the test copies of the extension
-(`loaded-extension.ts` `openPanel`) open the root, since Playwright's
+the essay banner's Generate, the self-ID Save. The marks' root (`marks.js`, the ring and dot) is closed too. Tests: the test copies of the extension
+(`loaded-extension.ts` `openPanel`, over `CLOSED_ROOT_FILES`: panel.js and marks.js) open both roots, since Playwright's
 locators can't reach a closed one; `loadExtension(..., { closedPanel: true })`
-keeps it closed (`test/panel-closed.extension.spec.ts`). There is no bottom-right card any more, and the toolbar
+keeps them closed (`test/panel-closed.extension.spec.ts`). There is no bottom-right card any more, and the toolbar
 popup has no fill controls. The header is neutral (white, ink); purple is
 kept for the primary action.
 
