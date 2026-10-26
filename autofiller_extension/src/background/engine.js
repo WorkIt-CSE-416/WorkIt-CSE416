@@ -32,6 +32,15 @@ export function jobOf(url) {
 }
 
 /**
+ * The posting's company and title, as the Fill engine reads them from its
+ * job system (the panel's job card when WorkIt has no posting for the page).
+ * @param {string} url
+ */
+export function jobNamesOf(url, fetchText = getText) {
+  return engine.jobNames(url, fetchText);
+}
+
+/**
  * Whether `url` is a page a job system shows only once an application is
  * sent (Greenhouse's confirmation, Lever's thanks): the student's submit
  * went through (the engine's `submittedPage`).

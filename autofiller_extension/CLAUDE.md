@@ -1360,14 +1360,16 @@ slot by name, `panel.slot(name)`, and adds its styles with
 | Slot | What goes there | Today |
 |---|---|---|
 | `header-actions` | buttons beside settings and collapse | overlay.js: a batch tab's I submitted this, Skip |
-| `batch-line` | the batch line ("Batch · 3 of 5 ready · Next tab →", Workday's step) | empty, hidden |
-| `job-card` | the job card (title, company, Match score) | empty, hidden |
+| `batch-line` | the batch line ("Batch · 3 of 5 ready · Next tab →", Workday's step) | panel-top.js |
+| `job-card` | the job card (title, company, Match score) | panel-top.js |
 | `primary` | the one big button; `panel.setPrimary({ label, onPress, secondary })` or `panel.fillButton(label)` | Autofill This Page (launcher.js), Fill Again (overlay.js) |
 | `tab:<id>` | a tab's body; `panel.addTab({ id, label })` adds one, the strip shows from two | `tab:autofill`: overlay.js's summary, Next Thing That Needs You, essay banner, moment cards, parts and rows |
 | `settings` | the settings view, shown by the header's gear in place of the tabs (`panel.showSettings`) | Workday Sign-Up (opens the options page), Back |
+| `report` | Report a problem, shown by the header's button in place of the tabs (`panel.showView("report", true)`) | a placeholder ("Nothing is sent yet"), Back |
 
 `batch-line`, `job-card` and `settings` are cards hidden while empty: a
-file that fills one sets `hidden = false`. overlay.js keeps its API
+file that fills one sets `hidden = false`. A file loaded before the shell
+exists waits for it with `panel.onBuilt(hook)`. overlay.js keeps its API
 (`mount`, `refresh`, `addPart`, `momentCard`, ...); `mount` now fills the
 Autofill tab instead of making a host, and `unmount` (a fill again)
 empties it and leaves the shell. panel.js is loaded first by the static
@@ -1412,6 +1414,40 @@ elsewhere; Autofill This Page from the panel; drag and hides kept per
 site; a kept collapse in the next batch tab; the toolbar and Alt+W; the
 popup elsewhere), `test/panel-reopen.extension.spec.ts` (Collapse, then
 the edge tab or the toolbar brings the same rows back, no fill).
+
+## The panel's top (KAN-395): header, batch line, job card
+
+The header (panel.js) is WorkIt's mark (logo.tsx's figure, in ink: the
+header is neutral), Report a problem (a placeholder card until its ticket),
+the gear and Collapse. `src/content/panel-top.js` fills two slots, loaded
+after panel.js everywhere panel.js is (manifest, `CONTENT_SCRIPT_FILES`,
+background.js `SHELL_FILES`):
+
+- **Batch line** (`batch-line`): in a batch tab, "Batch · R of N ready ·
+  Next tab →", N the batch's open tabs and R those in state ready
+  (background `panel/batch-line`, panel-top.js in background/). Next tab
+  shows only while another tab needs the student (needs_you or failed); it
+  goes to the next one after this tab, round from the first
+  (`panel/next-tab`). The line follows the batch: the content script
+  re-asks whenever `workit_batch` changes in chrome.storage.local. On
+  Workday a second line, "Step 3 of 6 · My Experience", is read off
+  Workday's step bar (`progressBarActiveStep`) and kept up as the steps
+  load, in batch tabs and out.
+- **Job card** (`job-card`, `panel/job`): WorkIt's own posting when the
+  student has an application for it (a batch tab's by its job id, any other
+  tab's by the Fill engine's jobOf identity of the page against the
+  posting's form_url / apply_url), from `GET .../applications?scored=true`
+  (read once per 30 s for all tabs): logo (the company's first letter when
+  there is none or the page won't load it), title, company, place
+  (`location_label`), pay ("$45–$55 an hour"), the Match score as a ring
+  (purple, one of the two purple things) with its band (Strong Match at 80,
+  as frontend/src/lib/match.ts), and "You applied on Oct 25" at the applied
+  stage. No application, or signed out: the engine's `jobNames` read gives
+  title and company only. No score: no ring.
+
+Tests: `test/panel-header.extension.spec.ts` (a batch's line, card, ring and
+Next tab; an own tab's header, Report placeholder and applied card; a
+Workday tab's step line).
 
 ## The overlay: honest per-field results
 
