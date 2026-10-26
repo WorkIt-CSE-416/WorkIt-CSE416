@@ -139,6 +139,7 @@
       state = prepared.state;
       const { questions, answers, rows } = prepared;
       const byName = new Map(questions.map((q) => [q.name, q]));
+      window.WIA.report?.track(questions);
       const isNew = (name) => !shown.has(name) && shown.add(name);
 
       const sources = prepared.plan.sources ?? {};
@@ -154,6 +155,7 @@
         if (!isNew(q.name)) continue;
         status.register(q.name, q.label, q.required);
         status.setStatus(q.name, q.required ? "failed" : "skipped", "WorkIt has no answer for this. Answer it yourself.");
+        window.WIA.report?.failed(q.name, "NoAnswer");
       }
       rows.notes.forEach((text) => isNew(`_note:${text}`) && note(`_note:${text}`, "Left for you", text));
 
@@ -167,6 +169,7 @@
         if (!answer.ok) {
           for (const name of Object.keys(left)) {
             status.setStatus(name, "failed", answer.error);
+            window.WIA.report?.failed(name, "Error");
             done.add(name);
           }
         } else {
@@ -175,6 +178,7 @@
             done.add(name);
             filledAny = true;
             status.setStatus(name, result.status, result.reason, result.shows);
+            if (result.status === "failed") window.WIA.report?.failed(name, result);
           }
           more = answer.more ?? null;
         }
