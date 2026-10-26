@@ -165,14 +165,14 @@ export class FakeWorkdays {
    */
   readonly inPlace = new Set<string>();
 
+  /** What the n-th tenant saved from the steps' Save and Continue, by field key (a batch tab saves each step it filled, Fill to Review). */
+  saved(n: number): Record<string, unknown> {
+    return this.tenants[n].saved;
+  }
+
   /** Every submit any tenant received (the extension must never send one). */
   get submissions(): unknown[] {
     return this.tenants.flatMap((t) => t.submissions);
-  }
-
-  /** What the n-th tenant saved from each Save and Continue the student pressed, by field key. */
-  saved(n: number): Record<string, unknown> {
-    return this.tenants[n].saved;
   }
 
   readonly handler: Handler = async (request) => {
