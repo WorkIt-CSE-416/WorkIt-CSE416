@@ -725,7 +725,12 @@ waits for an opened tab's page and form (`waitForLoad`, `formShows`).
   browsing history") and kept per tab in `storage.session`. No embed frame
   within 10 seconds, or no form in it, and the tab needs the student. The
   panel shows inside the frame. Popup Autofill on such a page still names
-  the iframe's `src` (decision 633).
+  the iframe's `src` (decision 633). Greenhouse's page starts React only in
+  `requestIdleCallback`, which an iframe in a background tab may never run:
+  its form stayed dead and the fill waited on it for good (1 run in 2 to 4
+  with four Chromiums at once). The manifest's one static content script,
+  `embed-idle.js` (MAIN world, `document_start`, the embed frame only),
+  gives those callbacks a 500 ms deadline.
 - **Wait for the page, then the form, then fill.** `startFill` waits for
   the tab's `complete` status (30 seconds at most), injects `waitForForm`,
   which watches the DOM (never `requestAnimationFrame`: a hidden tab runs
