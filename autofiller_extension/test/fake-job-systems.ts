@@ -102,7 +102,7 @@ export class FakeWorkdays {
   constructor(names: string[], steps: Step[] = [["My Information", [
     { key: "legalName--firstName", label: "First Name", kind: "text", required: true },
     { key: "legalName--lastName", label: "Last Name", kind: "text", required: true },
-  ]]], options: Omit<WorkdayOptions, "steps">[] = []) {
+  ]]], private options: Omit<WorkdayOptions, "steps">[] = []) {
     this.tenants = names.map((name, n) => new FakeWorkday(name, { ...options[n], steps }));
   }
 
@@ -179,7 +179,7 @@ export class FakeWorkdays {
   }
 
   readonly handler: Handler = async (request) => {
-    for (const tenant of this.tenants) {
+    for (const [n, tenant] of this.tenants.entries()) {
       if (request.url.hostname !== tenant.host) continue;
       if (request.url.pathname === "/__fake__/job") {
         return { headers: { "content-type": "text/html" }, body: postingPage(Boolean(request.url.searchParams.get("continued"))) };
@@ -203,10 +203,21 @@ export class FakeWorkdays {
         return { json: alert ? { alert } : { next: tenant.stepUrl(1) } };
       }
       const reply = await replay(tenant, request);
-      return request.method === "GET" && reply?.body ? this.placed(tenant.host, reply) : reply;
+      return request.method === "GET" && reply?.body ? this.placed(tenant.host, this.withOptions(n, reply)) : reply;
     }
     return undefined;
   };
+
+  /**
+   * A step page with the n-th tenant's page options set, as FakeWorkday.open's
+   * init script sets them (Save and Continue clicks it drops, an error it
+   * flashes mid-save, a button disabled while the step loads).
+   */
+  private withOptions(n: number, reply: Reply): Reply {
+    const o = this.options[n] ?? {};
+    const set = `<script>window.__fakeDroppedSaves = ${o.droppedSaves ?? 0}; window.__fakeFlashesError = ${!!o.flashesError}; window.__fakeLoadsDisabled = ${o.loadsDisabled ?? 0};</script>`;
+    return { ...reply, body: String(reply.body).replace(/^<!doctype html>/i, (doctype) => doctype + set) };
+  }
 
   /** A page of an `inPlace` tenant: its moves to the next page draw that page into this document instead. */
   private placed(host: string, reply: Reply): Reply {

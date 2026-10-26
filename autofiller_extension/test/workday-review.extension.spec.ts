@@ -98,6 +98,31 @@ test("outside a batch, walks to Review only once the student presses Fill to Rev
   expect(workdays.submissions).toEqual([]);
 });
 
+// Apply's walk (resume-2027 apply workday.py _next), as live Workday answers a press.
+test("presses Save and Continue again when Workday drops the press, as Applied Materials' did live", async () => {
+  test.setTimeout(180_000);
+  // Each step drops its first press: the button never disables, nothing changes.
+  const workdays = new FakeWorkdays(["workday-caci"], [["My Information", [...NAME]], ["Application Questions", [...NAME]]], [{ droppedSaves: 1 }]);
+  const tab = await batchTab(workdays);
+
+  // Well inside the 30 s a single press would wait, per step.
+  await tab.waitForURL(workdays.url(0, 3), { timeout: 40_000 });
+  await expect(overlay(tab)).toContainText(REVIEW_NOTE, { timeout: 30_000 });
+  await tab.waitForTimeout(3_000);
+  expect(workdays.submissions).toEqual([]);
+});
+
+test("walks on when Workday flashes an error mid-save and then shows the next step, as Adobe's did live", async () => {
+  test.setTimeout(180_000);
+  const workdays = new FakeWorkdays(["workday-caci"], [["My Information", [...NAME]], ["Application Questions", [...NAME]]], [{ flashesError: true }]);
+  const tab = await batchTab(workdays);
+
+  await tab.waitForURL(workdays.url(0, 3), { timeout: 90_000 });
+  await expect(overlay(tab)).toContainText(REVIEW_NOTE, { timeout: 30_000 });
+  await expect(overlay(tab)).not.toContainText("Workday didn't take this step");
+  expect(workdays.submissions).toEqual([]);
+});
+
 test("saves two steps of one name drawn in place on a link that never changes, each once", async () => {
   test.setTimeout(180_000);
   const workdays = new FakeWorkdays(["workday-caci"], [

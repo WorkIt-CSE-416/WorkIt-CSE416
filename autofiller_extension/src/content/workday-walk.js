@@ -2,8 +2,7 @@
 // it needs the student, the fill presses Workday's own Save and Continue, so
 // the next step shows and is filled, and so on until Review, where it stops:
 // the student checks every answer on Workday's Review page and presses Submit
-// themselves. As Apply walks Workday (resume-2027 apply/src/apply/workday.py),
-// minus its second press of a dropped click.
+// themselves. As Apply walks Workday (resume-2027 apply/src/apply/workday.py).
 //
 // It walks in every batch tab, and outside a batch once the student presses
 // the panel's Fill to Review (remembered for the tab, sessionStorage, so the
@@ -13,10 +12,13 @@
 //   note), a required field shows nothing, or the self-identification card
 //   waits. The panel says why; the student answers and presses Save and
 //   Continue, and the next step walks again.
-// - Save and Continue is pressed at most once a step (by its name, its
-//   number in Workday's bar and the page's path, kept for the tab), and only when it reads Save and
-//   Continue, Continue or Next: never a button that reads as sending
-//   (Submit, Apply, Finish...), never on Review.
+// - Save and Continue is pressed on a step once (by its name, its number in
+//   Workday's bar and the page's path, kept for the tab), and only when it
+//   reads Save and Continue, Continue or Next: never a button that reads as
+//   sending (Submit, Apply, Finish...), never on Review. A press Workday
+//   drops (nothing at all comes of it in TAKEN_WAIT: the button never
+//   disables, no error, the step unchanged) is made again on the same
+//   button, PRESSES in all, as Apply's _next does (Applied Materials, live).
 // - After the press, an error Workday shows that stays (ERROR_WAIT) stops the
 //   walk with its words, and nothing is pressed again; so does a step that
 //   never changes (LEAVE_WAIT).
@@ -40,6 +42,9 @@ window.WIA = window.WIA || {};
   const ENABLED_WAIT = 10_000;
   const LEAVE_WAIT = 30_000;
   const ERROR_WAIT = 5_000;
+  // How long a press gets to show Workday took it (the button disables while it saves), and the most presses (Apply's).
+  const TAKEN_WAIT = 3_000;
+  const PRESSES = 3;
   const REVIEW_NOTE = "Check everything on Workday's Review page, then press Submit.";
   const STOPPED = "WorkIt stopped on this step";
 
@@ -91,6 +96,23 @@ window.WIA = window.WIA || {};
   }
 
   const banner = () => [...document.querySelectorAll(BANNER)].find((b) => b.checkVisibility() && b.innerText.trim());
+  const shown = () => [...document.querySelectorAll(NEXT)].find((b) => b.checkVisibility());
+
+  /**
+   * Whether Workday took a press of `button` from now on: it disabled the
+   * button (as it does while it saves; a press of a disabled button is no
+   * press) or took it off the page (another step drew).
+   */
+  function watchTaken(button) {
+    let took = false;
+    const off = () => button.disabled || button.getAttribute("aria-disabled") === "true";
+    const watch = new MutationObserver(() => { if (off()) took = true; });
+    watch.observe(button, { attributes: true, attributeFilter: ["disabled", "aria-disabled"] });
+    return () => {
+      if (took || off() || !button.isConnected) { watch.disconnect(); return true; }
+      return false;
+    };
+  }
 
   /**
    * Leaves the filled step `step` with Workday's Save and Continue, unless
@@ -107,7 +129,7 @@ window.WIA = window.WIA || {};
     const why = blocker(fields, selfIdWaits);
     if (why) return why;
     if (document.querySelector(REVIEW_PAGE)) return null;
-    const button = [...document.querySelectorAll(NEXT)].find((b) => b.checkVisibility());
+    const button = shown();
     if (!button) return "WorkIt found no Save and Continue button on this step. Check it, then go on yourself.";
     const words = (button.innerText || button.getAttribute("aria-label") || "").trim();
     if (!GOES_ON.test(words) || SENDS.test(`${words} ${button.getAttribute("aria-label") ?? ""}`)) {
@@ -122,10 +144,20 @@ window.WIA = window.WIA || {};
     if (stepNow() !== step) return null;
     done.add(key);
     store(() => sessionStorage.setItem(PRESSED, JSON.stringify([...done])));
-    press(button);
     // Another step: one with a name, told from this one by its name or its number (a second "Application Questions").
     const left = () => Boolean(workday.step()) && stepNow() !== step;
-    const after = await until(() => (left() ? "left" : banner() ? "error" : null), LEAVE_WAIT);
+    let after = null;
+    for (let presses = 1; ; presses++) {
+      const taken = watchTaken(button);
+      press(button);
+      after = await until(() => (left() ? "left" : banner() ? "error" : taken() ? "taken" : null), TAKEN_WAIT);
+      if (after || presses === PRESSES) break;
+      // Dropped: pressed again only while the same button shows, enabled, on the same step.
+      if (stepNow() !== step || !button.isConnected || !button.checkVisibility() || button.disabled) break;
+    }
+    if (after !== "left" && after !== "error") {
+      after = await until(() => (left() ? "left" : banner() ? "error" : null), LEAVE_WAIT);
+    }
     if (after === "left") return null;
     if (after === "error" && (await until(left, ERROR_WAIT))) return null;
     if (after === "error") {

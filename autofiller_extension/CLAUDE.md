@@ -130,12 +130,15 @@ builds it: `dist/engine.js` is committed in the engine repo.
   row needs the student (failed, unanswered, a written answer still coming,
   a guessed answer, a flag, the Plan's note), a required field shows
   nothing (`fill/required`, asked on Workday only here), or the
-  self-identification card waits. The button is pressed at most once a
-  step (its name, its number in Workday's bar and the path, kept for the
-  tab, so a second "Application Questions" on a link that doesn't change
-  is a step of its own), never again after Workday
-  shows an error that stays 5 s or after 30 s with no new step; then the
-  student presses it. Tests: `test/workday-review.extension.spec.ts`. A
+  self-identification card waits. The button is pressed on a step once
+  (its name, its number in Workday's bar and the path, kept for the tab,
+  so a second "Application Questions" on a link that doesn't change is a
+  step of its own). A press Workday drops (in 3 s the button never
+  disabled, no error, the same step) is made again on the same button, 3
+  presses in all, as Apply's `_next` (Applied Materials, live). It is
+  never pressed again after Workday shows an error that stays 5 s or
+  after 30 s with no new step; then the student
+  presses it. Tests: `test/workday-review.extension.spec.ts`. A
   step that loads as a new page drops the
   content script, so the background remembers the tab
   (`workday_fill_tabs`, session storage) and injects the fill again when
