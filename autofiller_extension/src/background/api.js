@@ -23,6 +23,8 @@ const CACHE_KEY = "workit_autofill_profile";
 // Re-fetch after this long even on a cache hit, so a profile edit made in
 // the webapp shows up here without an explicit "refresh" click.
 const CACHE_TTL_MS = 10 * 60 * 1000;
+// A profile older than CACHE_TTL_MS but younger than this is used while a fresh one is fetched.
+const STALE_OK_MS = 24 * 60 * 60 * 1000;
 /** The profile fetch under way, if any (getAutofillProfile): its callers share it. */
 let fetching = null;
 
@@ -467,13 +469,24 @@ export async function getAutofillProfile({ force = false } = {}) {
   if (!session) throw new ApiError(401, "Not signed in");
 
   const { [CACHE_KEY]: cached } = await chrome.storage.local.get(CACHE_KEY);
-  if (cached && !force && Date.now() - cached.fetched_at < CACHE_TTL_MS) {
+  const age = cached ? Date.now() - cached.fetched_at : Infinity;
+  if (!force && age < CACHE_TTL_MS) return cached;
+  // Past its ten minutes but under a day old: used at once, and fetched again behind (a cold API
+  // took 4-9 s to answer, live), so the next call has the fresh one. Older ones are waited for, as is
+  // one of another account's (a sign-in as someone else; `me` is one call, kept a minute).
+  if (!force && age < STALE_OK_MS && (await me()).id === cached.id) {
+    if (!fetching) refetch().catch((error) => console.warn("[profile] not fetched again:", error.message));
     return cached;
   }
 
   // A fetch already under way (write early's, another tab's Plan) is waited for, not asked again;
   // a forced one starts afresh, since it may follow an edit the one under way began before.
   if (!force && fetching) return fetching;
+  return refetch();
+}
+
+/** Fetches the profile and caches it; callers meanwhile share it (`fetching`). */
+async function refetch() {
   const run = fetchAutofillProfile().then(async (fresh) => {
     await chrome.storage.local.set({ [CACHE_KEY]: fresh });
     return fresh;
@@ -484,6 +497,15 @@ export async function getAutofillProfile({ force = false } = {}) {
   } finally {
     if (fetching === run) fetching = null;
   }
+}
+
+/**
+ * Starts the profile fetch, and so wakes a cold API, before anything waits
+ * for it: as a batch starts and as the panel opens, so a tab's Plan finds it
+ * in hand. Never throws; a signed-out student simply fetches nothing.
+ */
+export function warmProfile() {
+  getAutofillProfile().catch(() => {});
 }
 
 /**

@@ -50,7 +50,7 @@
 // Starting a real batch ends a practice one.
 
 import { tabResume } from "./resume-tab.js";
-import { ApiError, finishApplication, getAutofillProfile, me, nextApplication, recordFill, recordSentResume } from "./api.js";
+import { ApiError, finishApplication, getAutofillProfile, me, nextApplication, recordFill, recordSentResume, warmProfile } from "./api.js";
 import { formFor, jobOf, practiceJob } from "./engine.js";
 import { jobBoard } from "./job-boards.js";
 import { injectFill, injectHumanCheck } from "../shared/content-scripts.js";
@@ -84,6 +84,8 @@ const FORM_TIMEOUT_MS = 10_000;
  * >}
  */
 export async function startBatch(sender) {
+  // Every tab's Plan needs the profile: asked now, while the tabs open, not once the first page has loaded.
+  warmProfile();
   let account;
   try {
     account = await me();

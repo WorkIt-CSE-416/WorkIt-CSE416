@@ -8,7 +8,7 @@
 
 import { getSession } from "./auth.js";
 import {
-  answerBank, answerFlag, anyFormAnswerBank, dropOwnAnswer, getAutofillProfile, generateEssayAnswer, ApiError, askQuestions, connectorAdded, me, saveAutofillAnswers, saveOwnAnswer, savePastedAnswer,
+  answerBank, answerFlag, anyFormAnswerBank, dropOwnAnswer, getAutofillProfile, warmProfile, generateEssayAnswer, ApiError, askQuestions, connectorAdded, me, saveAutofillAnswers, saveOwnAnswer, savePastedAnswer,
   writingSamples, writtenAnswers,
 } from "./api.js";
 import {
@@ -350,6 +350,8 @@ async function handleMessage(message, sender) {
       const url = sender.url ?? "";
       const job = Boolean(jobOf(url));
       if (job && sender.tab?.id !== undefined) await chrome.action.setPopup({ tabId: sender.tab.id, popup: "" });
+      // A job page's panel will plan a fill: its profile is fetched while the page settles.
+      if (job) warmProfile();
       return { job, batch: sender.tab ? await inBatch(sender.tab.id) : false, site: await panelSite(url), autoOpen: await autoOpen() };
     }
     case "panel/site":
@@ -627,7 +629,11 @@ chrome.runtime.onMessageExternal.addListener((message, sender, sendResponse) => 
   if (message?.type === "ping") {
     // `pinned` for onboarding's install step (KAN-378), which asks the student to pin it.
     Promise.all([getSession().catch(() => null), pinned()])
-      .then(([session, isPinned]) => sendResponse({ ok: true, installed: true, signedIn: Boolean(session), pinned: isPinned }));
+      .then(([session, isPinned]) => {
+        // The webapp asks as its pages open (Auto Apply's among them): the profile is fetched now, before a batch waits for it.
+        if (session) warmProfile();
+        sendResponse({ ok: true, installed: true, signedIn: Boolean(session), pinned: isPinned });
+      });
     return true;
   }
 

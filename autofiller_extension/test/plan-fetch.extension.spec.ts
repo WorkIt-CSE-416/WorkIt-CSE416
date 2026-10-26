@@ -78,6 +78,38 @@ test("a batch asks who is signed in once, not before each of its calls", async (
   expect(forms.submissions).toEqual([]);
 });
 
+test("the profile is asked as the batch starts, while its tab opens, not once the page has loaded", async () => {
+  const { log, forms, pages } = await batchOfOne();
+  const asked = (pattern: RegExp) => Math.min(...log.filter((l) => pattern.test(l.call)).map((l) => l.asked));
+  const tabOpened = pages[0];
+  expect(asked(/^GET \/applicants\/[^/]+\/bank$/)).toBeLessThan(tabOpened);
+  expect(forms.submissions).toEqual([]);
+});
+
+test("a profile past its ten minutes is used at once and fetched again behind", async () => {
+  const { api, log, held, forms } = await batchOfOne();
+  await expect.poll(() => api.calls.some((c) => c.startsWith("PUT ") && c.endsWith("/fill")), { timeout: 30_000 }).toBe(true);
+  // Eleven minutes on: the cached profile is old.
+  await loaded.worker.evaluate(async () => {
+    const { workit_autofill_profile: cached } = await chrome.storage.local.get("workit_autofill_profile");
+    await chrome.storage.local.set({ workit_autofill_profile: { ...cached, fetched_at: Date.now() - 11 * 60_000 } });
+  });
+  const from = log.length;
+  // The profile fetched again answers slowly, as a cold API does.
+  Object.assign(held, { pattern: /^\/applicants\/[^/]+\/bank$/, ms: 4_000 });
+  api.queue({ id: "job-1", apply_url: forms.url("greenhouse-coinbase") });
+  const app = loaded.context.pages().find((p) => p.url().startsWith("http://localhost:3000"))!;
+  await sendFromWebapp(app, { type: "run/open" });
+  await expect.poll(() => log.slice(from).some((l) => /\/applications\/job-1\/answer-bank$/.test(l.call)), { timeout: 30_000 }).toBe(true);
+  const refetch = () => log.slice(from).filter((l) => /^GET \/applicants\/[^/]+\/bank$/.test(l.call));
+  await expect.poll(() => refetch().length, { timeout: 30_000 }).toBe(1);
+  const later = log.slice(from);
+  const refetched = refetch();
+  // The Plan's saved answers need the profile in hand: asked before the profile fetched again was in.
+  const bank = later.find((l) => /\/applications\/job-1\/answer-bank$/.test(l.call))!;
+  expect(bank.asked).toBeLessThan(refetched[0].answered);
+});
+
 test("a batch tab's job questions are asked as its tab opens, while its page is still loading, and once", async () => {
   const forms = new SavedForms(["greenhouse-arc"]);
   const form = forms.url("greenhouse-arc");
