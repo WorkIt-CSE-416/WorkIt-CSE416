@@ -78,3 +78,27 @@ test("with Open the panel by itself off, a batch tab's panel stays closed until 
   await expect(panelOf(form)).toBeVisible();
   await expect(hostOf(form).locator(".row").first()).toBeVisible();
 });
+
+test("the gear opens settings and Back returns; Workday Sign-Up opens the extension's own page, and no password is asked in the panel", async () => {
+  test.setTimeout(90_000);
+  const forms = new SavedForms([ANDURIL]);
+  await start(new FakeApi(), forms);
+  const page = await openSettings(forms);
+  // The tabs give way to the view (an empty Autofill tab has no size, so its hidden property says it).
+  await expect(hostOf(page).locator("[data-tabs]")).toHaveJSProperty("hidden", true);
+  await expect(hostOf(page).locator('input[type="password"]')).toHaveCount(0);
+
+  const opened = loaded.context.waitForEvent("page");
+  await settingsOf(page).getByRole("button", { name: "Workday Sign-Up" }).click();
+  await expect.poll(async () => (await opened).url()).toBe(`chrome-extension://${EXTENSION_ID}/src/options/options.html`);
+
+  await settingsOf(page).getByRole("button", { name: "Report a problem" }).click();
+  await expect(hostOf(page).locator('[data-slot="report"]')).toBeVisible();
+  await expect(settingsOf(page)).toBeHidden();
+
+  await hostOf(page).getByRole("button", { name: "Settings" }).click();
+  await settingsOf(page).getByRole("button", { name: "Back" }).click();
+  await expect(settingsOf(page)).toBeHidden();
+  await expect(hostOf(page).locator("[data-tabs]")).toHaveJSProperty("hidden", false);
+  await expect(hostOf(page).getByRole("button", { name: "Autofill This Page" })).toBeVisible();
+});
