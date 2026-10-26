@@ -28,6 +28,15 @@ DELETE /jobs/{job_id}/saved  takes it back out of saved: 204, and also when
                              it was never saved. 409 when it is past saved
                              (queued, applied...): that is a record, not a
                              bookmark.
+POST /jobs/saved-by-link     {"url": "<the page's link>"}: the extension's
+                             Save to WorkIt on a site it can't fill
+                             (KAN-401). Saves the feed's listed job whose
+                             apply link is that page (the same link first,
+                             else the same one without query, fragment and
+                             trailing slash) as POST /jobs/{job_id}/saved
+                             does, and answers {"job_id", "stage"}. 404
+                             "WorkIt doesn't list this job yet." when no
+                             listed job has that link.
 
 The Applications board reads saved and applied jobs through auto apply's
 list, GET /applicants/{id}/applications?stage=saved&stage=applied
@@ -37,9 +46,12 @@ Applicant accounts only (403 for a company's); the applicant is the token's,
 never a path or body field. A job that isn't open (closed, a company's own,
 no such job) is a 404 to mark or save, as GET /jobs/{job_id} is to read.
 
-Its own router, beside jobs.py's, for the same /jobs prefix: the paths
-here have one more segment than GET /jobs/{job_id}, so neither shadows the
-other whatever the order they're registered in.
+Its own router, beside jobs.py's, for the same /jobs prefix. The
+/jobs/{job_id}/... paths have one more segment than GET /jobs/{job_id}, and
+POST /jobs/saved-by-link has the same two segments but a method jobs.py
+never serves (its routes are all GETs), so neither router shadows the other
+whatever the order they're registered in. A GET on a two-segment path here
+would need registering before jobs.py's catch-all (routers/CLAUDE.md).
 """
 
 import uuid
@@ -118,8 +130,10 @@ async def post_saved_by_link(
     extension's Save to WorkIt on a site it can't fill (KAN-401)."""
     applicant_id = _applicant_only(account)
     job_id = await listed_job_by_link(db, body.url)
-    stage = job_id and await save_job(db, applicant_id, job_id)
-    if not stage:
+    if job_id is None:
+        raise HTTPException(status.HTTP_404_NOT_FOUND, "WorkIt doesn't list this job yet.")
+    stage = await save_job(db, applicant_id, job_id)
+    if stage is None:
         raise HTTPException(status.HTTP_404_NOT_FOUND, "WorkIt doesn't list this job yet.")
     return JobSavedByLink(job_id=job_id, stage=stage)
 
