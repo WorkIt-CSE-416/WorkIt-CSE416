@@ -6,12 +6,7 @@
 // put nothing else in it. No value, reason or page text is ever a part.
 
 import { sendFillReport } from "./api.js";
-import { jobOf } from "./engine.js";
-
-// The Fill engine this extension ships (the fill-engine submodule's pin, as
-// `git -C fill-engine describe --tags` names it). Change it when the pin
-// moves: test/report.extension.spec.ts fails until you do.
-export const ENGINE_VERSION = "v0.3.2-105-gfcaaf20";
+import { ENGINE_VERSION, jobOf } from "./engine.js";
 
 const FIELD_PARTS = ["kind", "label_shape", "error"];
 const NOTE_MAX = 1000;

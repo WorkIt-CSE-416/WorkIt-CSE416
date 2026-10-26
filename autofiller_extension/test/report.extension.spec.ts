@@ -41,8 +41,8 @@ function withScript(forms: SavedForms, script: string): Handler {
   };
 }
 
-// The pinned engine as git names it: the version a report must carry.
-const ENGINE = execFileSync("git", ["-C", path.join(__dirname, "..", "fill-engine"), "describe", "--tags"]).toString().trim();
+// The shipped engine as its own build names it (fill-engine build.mjs): the version a report must carry.
+const ENGINE = execFileSync("node", ["build.mjs", "--version"], { cwd: path.join(__dirname, "..", "fill-engine") }).toString().trim();
 
 test("Report a problem previews exactly what is sent, sends it only on Send, and never sends an answer or the page's text", async () => {
   test.setTimeout(120_000);

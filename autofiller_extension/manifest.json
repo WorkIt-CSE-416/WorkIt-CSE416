@@ -32,7 +32,7 @@
     },
     {
       "matches": ["https://*.greenhouse.io/*", "https://*.lever.co/*", "https://*.ashbyhq.com/*", "https://*.rippling.com/*", "https://*.workable.com/*", "https://*.eightfold.ai/*", "https://explore.jobs.netflix.net/*", "https://*.myworkdayjobs.com/*", "https://*.myworkdaysite.com/*"],
-      "js": ["src/shared/tokens.js", "src/content/panel.js", "src/content/panel-top.js", "src/content/panel-settings.js", "src/content/report.js", "src/content/panel-states.js", "src/content/launcher.js"],
+      "js": ["src/shared/tokens.js", "src/content/panel.js", "src/content/panel-top.js", "src/content/resume-tab.js", "src/content/panel-settings.js", "src/content/report.js", "src/content/panel-states.js", "src/content/launcher.js"],
       "run_at": "document_idle",
       "all_frames": true
     }
