@@ -58,7 +58,6 @@ from app.db import get_session, get_sessionmaker
 from app.deps import assert_applicant_owns, get_current_account
 from app.models.built_resume import Built_Resume
 from app.models.jobs import Job_Post
-from app.routers.scout import get_llm
 from app.schemas.auth import AuthenticatedAccount
 from app.schemas.built_resume import BuiltResumeResponse
 from app.schemas.tailor import (
@@ -76,6 +75,7 @@ from app.services import built_resumes, keywords, postings, tailor
 from app.services.ai_messages import AIMessages
 from app.services.bank import NotFound, load_bank
 from app.services.identity import load_identity
+from app.services.models import get_large_llm, get_small_llm
 from app.services.resume_view import Choices, build_view
 
 # KAN-319: the Tailor limit is lifted for now; restore with the lines in run().
@@ -131,7 +131,7 @@ async def match(
     body: TailorMatchRequest,
     applicant_id: uuid.UUID,
     account: AuthenticatedAccount = Depends(get_current_account),
-    llm: LLM = Depends(get_llm),
+    keywords_llm: LLM = Depends(get_small_llm),
     session: AsyncSession = Depends(get_session),
 ) -> TailorMatch:
     assert_applicant_owns(account, applicant_id)
@@ -140,7 +140,7 @@ async def match(
     choices, _ = await _source(session, applicant_id, body)
     bank = await load_bank(session, applicant_id, local_to=_own(body))
     try:
-        found, _ = await keywords.ensure(job, llm)
+        found, _ = await keywords.ensure(job, keywords_llm)
     except ScoutUnavailable as exc:
         raise HTTPException(503, AI.failure(exc)) from exc
     matched, missing = keywords.match(build_view(bank, choices), found)
@@ -161,11 +161,12 @@ async def run(
     body: TailorRun,
     applicant_id: uuid.UUID,
     account: AuthenticatedAccount = Depends(get_current_account),
-    llm: LLM = Depends(get_llm),
+    llm: LLM = Depends(get_large_llm),
+    keywords_llm: LLM = Depends(get_small_llm),
     session: AsyncSession = Depends(get_session),
 ) -> TailorRunResult:
     assert_applicant_owns(account, applicant_id)
-    async for step in _steps(session, applicant_id, account, llm, body):
+    async for step in _steps(session, applicant_id, account, llm, keywords_llm, body):
         if isinstance(step, TailorRunResult):
             return step
     raise AssertionError("a run always ends with its result")
@@ -176,12 +177,13 @@ async def run_streamed(
     body: TailorRun,
     applicant_id: uuid.UUID,
     account: AuthenticatedAccount = Depends(get_current_account),
-    llm: LLM = Depends(get_llm),
+    llm: LLM = Depends(get_large_llm),
+    keywords_llm: LLM = Depends(get_small_llm),
 ) -> StreamingResponse:
     assert_applicant_owns(account, applicant_id)
     # Its own session: the request's may be closed once streaming starts.
     session = get_sessionmaker()()
-    steps = _steps(session, applicant_id, account, llm, body)
+    steps = _steps(session, applicant_id, account, llm, keywords_llm, body)
     try:
         # Every check before the model call runs here, so a refusal (404,
         # 409, a keyword extraction's 503) is still an HTTP status.
@@ -218,10 +220,12 @@ async def _ndjson(events: AsyncIterator[TailorPhase | TailorDone | TailorFailed]
 
 
 async def _steps(
-    session: AsyncSession, applicant_id: uuid.UUID, account: AuthenticatedAccount, llm: LLM, body: TailorRun
+    session: AsyncSession, applicant_id: uuid.UUID, account: AuthenticatedAccount,
+    llm: LLM, keywords_llm: LLM, body: TailorRun,
 ) -> AsyncIterator[TailorPhase | TailorRunResult]:
     """One run: a phase line before and after the model call, then the
-    result. Raises HTTPException as the JSON route answers; the stream turns
+    result. `llm` (large) writes the proposals; `keywords_llm` (small) reads
+    the posting's keywords, as every extraction does. Raises HTTPException as the JSON route answers; the stream turns
     one raised after its first line into an `error` line."""
     # KAN-319: the Tailor limit is lifted for now. Check before anything else
     # left = await uses_left(session, applicant_id, Feature.TAILOR)
@@ -243,7 +247,7 @@ async def _steps(
     if not bank.entries:
         raise HTTPException(409, EMPTY_BANK)
     try:
-        found, extracted = await keywords.ensure(job, llm)
+        found, extracted = await keywords.ensure(job, keywords_llm)
     except ScoutUnavailable as exc:
         raise HTTPException(503, AI.failure(exc)) from exc
     if extracted:

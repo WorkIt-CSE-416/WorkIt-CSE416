@@ -89,11 +89,11 @@ from app.models import dto
 from app.models.job_roles import Job_Role, Job_Role_Tag
 from app.models.jobs import Job_Location, Job_Post
 from app.models.locations import Country, State
-from app.routers.scout import get_llm
 from app.schemas.jobs import JobListing
 from app.services import keywords
 from app.services.location_resolver import LocationResolver, Place, Resolution
 from app.services.matching.embeddings import BATCH_SIZE, embed, job_text
+from app.services.models import get_small_llm
 from app.services.role_resolver import RoleResolver
 
 logger = logging.getLogger(__name__)
@@ -599,7 +599,7 @@ async def _run(
                     logger.warning("Embedding failed after import committed", exc_info=True)
                 if keywords_limit:
                     try:
-                        report.keywords = await _extract_keywords(conn, get_llm(), limit=keywords_limit)
+                        report.keywords = await _extract_keywords(conn, get_small_llm(), limit=keywords_limit)
                     except Exception:
                         logger.warning("Keyword extraction failed after import committed", exc_info=True)
             return report
@@ -620,7 +620,7 @@ async def _run_keywords_only(*, limit: int) -> int:
     engine = get_engine()
     try:
         async with engine.connect() as conn:
-            return await _extract_keywords(conn, get_llm(), limit=limit)
+            return await _extract_keywords(conn, get_small_llm(), limit=limit)
     finally:
         await engine.dispose()
 
