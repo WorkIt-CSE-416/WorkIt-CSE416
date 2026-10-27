@@ -13,8 +13,8 @@ import { TailorBar } from "./tailor-header";
  * wraps every route under it, Tailor included, so without this one the
  * Tailor page would load behind a job page's skeleton. It draws Tailor's
  * frame (./page.tsx, `TailorBar` and `TailorHeader`): the top row at Pick a
- * Resume with Back live and Use This Resume off, the title and its line as
- * bars, the job card's shape, and the picker card.
+ * Resume with Back live and Use This Resume off, then the title, the job
+ * line and the step's line as bars, and the picker card.
  *
  * From the job page's own Tailor My Resume, the way in, the job's segment
  * is already on screen, so this is the skeleton that shows. A link to
@@ -36,19 +36,16 @@ export default function TailorLoading() {
       <div role="status" className="mt-4">
         <span className="sr-only">Loading the job posting</span>
         <div aria-hidden="true">
-          {/* The title's and its line's heights, so nothing under them moves. */}
+          {/* The title's, the job line's and the step line's heights, so
+              nothing under them moves. */}
           <div className="flex h-8 items-center">
             <Skeleton className="h-7 w-96 max-w-full" />
           </div>
-          <Skeleton className="mt-1 h-5 w-[36rem] max-w-full" />
-          <Card as="section" padding="md" className="mt-4 flex items-start gap-3">
-            <Skeleton className="rounded-control size-10 shrink-0" />
-            <div className="flex min-w-0 flex-1 flex-col gap-2">
-              <Skeleton className="h-4 w-32" />
-              <Skeleton className="h-5 w-64 max-w-full" />
-              <Skeleton className="h-4 w-80 max-w-full" />
-            </div>
-          </Card>
+          <div className="mt-1 flex h-5 items-center gap-2">
+            <Skeleton className="rounded-control size-5 shrink-0" />
+            <Skeleton className="h-4 w-72 max-w-full" />
+          </div>
+          <Skeleton className="mt-2 h-5 w-[36rem] max-w-full" />
         </div>
       </div>
       <Card as="section" aria-hidden="true" className="mt-4 flex flex-col gap-2">

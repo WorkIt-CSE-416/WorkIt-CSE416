@@ -37,7 +37,9 @@ import {
   type SuggestionsApi,
 } from "../../../resumes/[resumeId]/tailor-review";
 import { OriginalResume } from "./resume-preview";
+import type { JobListing } from "../../listings";
 import { ResumeTitle } from "./resume-title";
+import { TailorJobLine } from "./tailor-header";
 
 /**
  * Tailor's review step (docs/tailor_resume.md, "Suggestions"), kept quiet
@@ -58,10 +60,13 @@ import { ResumeTitle } from "./resume-title";
  */
 export function TailorReview({
   name,
+  job,
   ...editor
 }: ComponentProps<typeof Editor> & {
-  /** The tailored resume's name, in the page column's label. */
+  /** The tailored resume's name, the page's title. */
   name: string;
+  /** The job it is tailored for, named under the title (`TailorJobLine`). */
+  job: JobListing;
 }) {
   const [record] = useTailorReview(editor.resumeId);
   // Storage is read after mount; until then the page shows no line about it.
@@ -82,7 +87,12 @@ export function TailorReview({
       <Editor
         {...editor}
         compact
-        heading={<ResumeTitle resumeId={editor.resumeId} name={name} />}
+        heading={
+          <div className="flex min-w-0 flex-col gap-0.5">
+            <ResumeTitle resumeId={editor.resumeId} name={name} />
+            <TailorJobLine job={job} />
+          </div>
+        }
         original={record?.source && <OriginalResume source={record.source} />}
         phoneBar={noRecord}
         suggestions={(api) => <SuggestionsPanel {...api} />}

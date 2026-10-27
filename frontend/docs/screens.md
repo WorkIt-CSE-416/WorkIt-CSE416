@@ -1668,9 +1668,15 @@ with no proposals to accept and no Done (2026-10-25).
   bullets, never adds a number or tool, and can be undone; the keyword
   card's own note says what a picked keyword means). Both read "Tailor
   Your Resume to <job title>" over one line about the whole flow until
-  2026-10-26. Then a job card: the employer's logo and name, the title (a link to the job
-  posting's page) and the facts the posting states, the job page's header
-  made small, with no second h1 and no empty fact slots. The intro sat
+  2026-10-26.
+- **Every step names its job in one line under its title**
+  (`TailorJobLine`), the review's resume name included: the employer's
+  small logo, then "Title · Company", a link to the job posting's page.
+  Step 2's keywords and step 3's changes are read against that job, and
+  the resume's name, which the student can rename, is no stand-in. The
+  pick steps showed a job card until 2026-10-26, with the posting's
+  location, pay, type and level, which help neither pick, and the review
+  showed none. The intro sat
   inside the picker card until 2026-10-26, as the card's heading and a
   paragraph; the user wanted the card to hold the list alone.
 - **The review step's header is one slim row** (`TailorReviewBar`,
@@ -1688,7 +1694,7 @@ with no proposals to accept and no Done (2026-10-25).
 - **One step at a time** (2026-10-26), each under the same top row in the
   brand tint (`TailorBar`): Back, the step on one line ("Pick a Resume ·
   Step 1 of 3"), and the step's way on, Use This Resume, Tailor Resume or
-  Finish. Then the step's title, its line and the job card
+  Finish. Then the step's title, its job line and its line
   (`TailorHeader`), then the step's own view (`TailorScreen` keeps the step in state; a
   reload starts at the pick). The keyword match appeared under the picker
   on one page before, so the student scrolled past the list to read it.
