@@ -241,7 +241,9 @@ with the failure it prevents.
 `docs/agents/`. Each person installs the plugin themselves.
 
 - **Issue tracker:** Jira, project KAN on workitsbu.atlassian.net, through the
-  Atlassian MCP server. Ask before creating tickets. `docs/agents/issue-tracker.md`.
+  Atlassian MCP server. Ask before creating tickets. Epic, Story and Task only
+  (no Bug, no Subtask): every Story and Task has an Epic as its parent.
+  `docs/agents/issue-tracker.md`.
 - **Triage labels:** the five default roles, as Jira labels under their own
   names. `docs/agents/triage-labels.md`.
 - **Domain docs:** single-context, one `GLOSSARY.md` and `docs/adr/` at the
