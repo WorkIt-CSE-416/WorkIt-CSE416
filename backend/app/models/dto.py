@@ -187,6 +187,19 @@ APPLIED_STAGES = (
     application_stage.rejected,
 )
 
+# Every other stage: no application sent yet. SQL asks "did they apply?" as
+# NOT IN these, never IN APPLIED_STAGES: Postgres refuses a query naming an
+# enum value its type lacks, so before a7d3e5f1c2b4 every GET /jobs for a
+# signed-in student answered 500. These four exist on every database, so
+# the query runs before and after the migration. A new stage before applied
+# joins this list.
+BEFORE_APPLIED = (
+    application_stage.saved,
+    application_stage.queued,
+    application_stage.needs_you,
+    application_stage.skipped,
+)
+
 
 class application_event_kind(enum.StrEnum):
     '''

@@ -959,6 +959,11 @@ removed at cutover, not before. Until then a change must work on both.
   KAN-212: apply it only where the code that stopped mapping the column
   (`d89a4ef`, on `main` since KAN-212) is deployed. Applied first, an older
   deploy's upload INSERT names the column and fails.
+- **Apply `a7d3e5f1c2b4` (the stages after applied and
+  `application_events`, KAN-413) as soon as it merges.** It only adds enum
+  values and a table that nothing reads yet, so applying it is safe for
+  every deploy; the Applications Tracker's stage menu and Add Event, which
+  follow in their own PR, answer 500 on a database without it.
 - **Apply `a3d7f1c9e2b4` (`bank_skills.built_resume_id`, resume-local
   skills) before the deploy that maps it.** Every skill insert names the
   column, so deployed first, uploads, Import Again and Add skill answer
