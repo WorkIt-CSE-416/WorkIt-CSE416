@@ -97,7 +97,8 @@ rail; pointing at it opens it over the page after 150ms, and it closes
 flashes it open nor snaps it shut. Tabbing into it opens it at once, and
 focus leaving it or Escape closes it. The bar's toggle pins and unpins
 (`aria-pressed`, a "Pin sidebar" / "Unpin sidebar" tooltip), as does Ctrl or
-Cmd+B, and the pin is the `sidebar_state` cookie. Below md the panel is
+Cmd+B, and the pin is the `company_sidebar_pinned` cookie, not shadcn's
+`sidebar_state`, which a Ctrl or Cmd+B on the seeker rail still writes. Below md the panel is
 shadcn's sheet. `components/hover-sidebar.tsx` wraps shadcn's provider
 rather than editing the vendored one: it opens the provider when pinned or
 hovering. **Size anything by the pinned width with `useSidebarPin`, never
@@ -117,7 +118,7 @@ Sign In without `onSignOut`).
 
 `components/stat-tile.tsx` is shared by both dashboards, and both use its
 `plain` variant; its card form has no caller today; the seeker Home
-draws its own numbers (`dashboard/headline.tsx`).
+draws its own numbers (`home/headline.tsx`).
 
 The company Dashboard and the seeker Profile still use open sections, the
 seeker Home's old surfaces (it moved to tiles in KAN-173). On

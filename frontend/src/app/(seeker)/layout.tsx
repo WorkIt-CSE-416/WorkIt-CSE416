@@ -39,8 +39,9 @@ import { SeekerSidebar } from "./seeker-sidebar";
  * @/components/app-sidebar): an icon over each section's name. It was a
  * 256px panel that collapsed to a 72px rail and opened over the page on
  * hover (KAN-300) until 2026-10-27, when the user found the panel covering
- * the page a flaw. So there is no pin, no peek and no sidebar_state cookie
- * here, and the page never changes width for the panel. --sidebar-width is
+ * the page a flaw. So there is no pin and no peek, and the page never changes
+ * width for the panel. shadcn still writes its sidebar_state cookie on a Ctrl
+ * or Cmd+B; nothing reads it (the company pin has its own cookie). --sidebar-width is
  * the rail's width, so shadcn's in-flow gap beside it matches it.
  *
  * THE BAR holds, below md, the toggle that opens the panel's sheet, then the

@@ -44,10 +44,11 @@ import { cn } from "@/lib/cn";
  *
  * WHY IT IS OFFSET RATHER THAN FULL-HEIGHT: shadcn's Sidebar positions itself
  * `fixed inset-y-0 h-svh`, which assumes it owns the left edge of the viewport
- * and that any header sits inside the content area beside it. Both shells keep
- * a full-width bar across the top instead, so the panel starts where the bar
- * ends. Each shell passes `top-(--company-bar)!` or `top-(--seeker-bar)!` as
- * `className`: the bar height its own layout.tsx sets once. The override is
+ * and that any header sits inside the content area beside it. The company
+ * shell keeps a full-width bar across the top instead, so its panel starts
+ * where the bar ends: it passes `top-(--company-bar)!` as `className`, the
+ * bar height its layout.tsx sets once. The seeker rail runs the full height,
+ * with no offset. The override is
  * passed in rather than edited into components/shadcn/sidebar.tsx, which
  * `shadcn add` regenerates.
  *

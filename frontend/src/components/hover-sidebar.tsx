@@ -25,8 +25,8 @@ import { cn } from "@/lib/cn";
  * the page for as long as the pointer or focus stays: the page underneath
  * neither moves nor reflows, so crossing the rail never shifts what the
  * seeker is reading. Leaving it closes it again. The toggle in the bar pins
- * and unpins, and the choice is the same sidebar_state cookie the layouts
- * read, so it survives a reload. Below md the sidebar is shadcn's sheet,
+ * and unpins, and the choice is the company_sidebar_pinned cookie the layout
+ * reads, so it survives a reload. Below md the sidebar is shadcn's sheet,
  * which has no hover, and works as before.
  *
  * Built around shadcn's provider rather than in it: src/components/shadcn is
@@ -39,8 +39,12 @@ import { cn } from "@/lib/cn";
  * sidebar-brand.tsx), in CSS through data-pinned on the wrapper.
  */
 
-/** shadcn's own cookie, which the layouts read as the pinned state. */
-const COOKIE = "sidebar_state";
+/** The pin, which the company layout reads back as defaultPinned
+ *  (app/company/layout.tsx spells the same name). Not shadcn's own
+ *  `sidebar_state`, which shadcn writes on every Ctrl or Cmd+B: the seeker
+ *  rail is held open, so a press there wrote `false`, and the company panel
+ *  then opened unpinned (KAN-421). */
+const COOKIE = "company_sidebar_pinned";
 const COOKIE_MAX_AGE = 60 * 60 * 24 * 7;
 
 /** A pause before a peek opens, so a pointer only crossing the rail on its
@@ -82,7 +86,7 @@ export function HoverSidebarProvider({
   className,
   ...props
 }: Omit<ComponentProps<typeof SidebarProvider>, "open" | "onOpenChange" | "defaultOpen"> & {
-  /** The sidebar_state cookie, read by the layout. */
+  /** The company_sidebar_pinned cookie, read by the layout. */
   defaultPinned: boolean;
 }) {
   const [pinned, setPinned] = useState(defaultPinned);
@@ -90,9 +94,9 @@ export function HoverSidebarProvider({
   const timer = useRef<ReturnType<typeof setTimeout>>(undefined);
   const firstRender = useRef(true);
 
-  // shadcn writes its cookie on every toggle, but with the value it computed
-  // from `open`, which a peek has set to true, so a pin from a peek would be
-  // saved as unpinned. This runs after it and writes what was meant.
+  // The pin's own cookie, written here rather than left to shadcn's, which
+  // it computes from `open`: a peek sets that to true, so a pin from a peek
+  // would be saved as unpinned. This writes what was meant.
   useEffect(() => {
     if (firstRender.current) {
       firstRender.current = false;

@@ -1544,7 +1544,8 @@ are in `docs/auth.md`.
   (KAN-368). A new marketing page adds its name to the matcher's lookahead;
   one left out still works, with one proxy call more. Every session-reading
   path and every path with a proxy redirect (`/company*`,
-  `/onboarding/company`, `/calendar`) must stay matched. **Still open:** time
+  `/onboarding/company`, `/dashboard`) must stay matched, and so must
+  `/go-home`, which reads the session. **Still open:** time
   spent only on marketing pages no longer extends the 7-day idle cookie; the
   first app request does. It is a convenience, not security: the
   API is reachable without Next and checks every token. Its session step

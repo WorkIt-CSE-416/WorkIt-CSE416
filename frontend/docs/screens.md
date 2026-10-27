@@ -493,10 +493,10 @@ Matches tile lead there). The tracker stores no dated events yet, so Next Up and
 Up Next only said "nothing scheduled", and Waiting's buckets were a fixture.
 Under the numbers, Activity runs the full width.
 The archived tiles' code stays (`next-up-hero.tsx`, `up-next.tsx`,
-`getUpNext`, `waiting.tsx`, `WAITING`); a note in `dashboard/page.tsx` says
+`getUpNext`, `waiting.tsx`, `WAITING`); a note in `home/page.tsx` says
 how to bring them back. The notes below still describe them.
 
-**Top Matches sits under the numbers** (KAN-342, `dashboard/top-matches.tsx`):
+**Top Matches sits under the numbers** (KAN-342, `home/top-matches.tsx`):
 the seeker's twelve best-scoring open jobs, best first, from the Best Match
 scores (`getTopMatches`, `GET /jobs/recommended?limit=12`), with no score
 floor. A new seeker's thin experience bank can score every job a Weak
@@ -534,7 +534,7 @@ scoring, and the page starts its four reads first, before its other awaits,
 or its two scoring calls run one whole call late (KAN-368). The page awaits
 only the account: the headline numbers (the Strong Matches count is a full
 scoring pass), Top Matches and Activity each stream over a skeleton of their
-shape, and `dashboard/loading.tsx` draws the same frame (`DashboardFrame`),
+shape, and `home/loading.tsx` draws the same frame (`HomeFrame`),
 so a prefetched click shows it at once and the page replaces it in place. It replaced New Matches, the newest postings in posting order in
 the same scrolling frame, which went when Strong Matches replaced New Roles
 and came back ordered by fit at the user's ask. The notes below that name
@@ -594,7 +594,7 @@ Applied. That is a placeholder: it helps nobody contact anyone, and KAN-174
 (still open) plans the real flow, a list of only what has waited two weeks,
 a Scout-drafted note, a recruiter search, then marking an application
 followed up or closed once the tracker has a backend. The headline numbers are Strong Matches, Saved, Applied and Interviewing
-(`getHeadline` in `dashboard/data.ts`), all live (KAN-342). **The Tracker's
+(`getHeadline` in `home/data.ts`), all live (KAN-342). **The Tracker's
 tiles are named for its stages**, the Status filter each one opens: Applied
 was "Applications", the same word as the page it opened, and Interviewing
 was "Interviews". **The order is the search, left to right**: find, save,
@@ -634,7 +634,7 @@ glyph slides out as an arrow slides in, so it reads as clickable; a press
 settles it, and reduced motion keeps only the colour. A lift alone, which
 only two linked tiles once had, was too slight to say so. A keyboard focus
 rings the tile. Its range is `?range=`, moved in place: the
-headline (`dashboard/headline.tsx`) is handed every range's figures and reads
+headline (`home/headline.tsx`) is handed every range's figures and reads
 `?range=` itself (`useRange` in `range-switch.tsx`), so a new range counts
 its numbers with the switch's thumb instead of after the server draws the
 page again. The streak always shows the full year regardless of range.

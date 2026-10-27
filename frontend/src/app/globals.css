@@ -99,7 +99,7 @@
   /* Radii ---------------------------------------------------------------- */
   --radius-control: 0.5rem; /* 8px — inputs, buttons */
   --radius-card: 0.625rem; /* 10px — card */
-  --radius-shell: 1.25rem; /* 20px: the seeker shell's floating panels, both Dashboards' heroes, the company pipeline band */
+  --radius-shell: 1.25rem; /* 20px: Home's and the company Dashboard's heroes and tiles, the company pipeline band */
 
   /* Elevation ------------------------------------------------------------
    * Matches the measured falloff: ~10px below the card, ~8px to the sides. */

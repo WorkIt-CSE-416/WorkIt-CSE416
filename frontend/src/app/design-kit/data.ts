@@ -361,7 +361,7 @@ export const RADII: { token: string; cls: string; role: string }[] = [
   {
     token: "--radius-shell",
     cls: "rounded-shell",
-    role: "Seeker shell panels, both Dashboard heroes",
+    role: "Home's and the company Dashboard's heroes and tiles",
   },
   { token: "--radius", cls: "rounded-(--radius)", role: "→ --radius-card · shadcn's base radius" },
 ];
