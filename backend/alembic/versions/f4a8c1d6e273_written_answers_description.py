@@ -1,7 +1,7 @@
 """written answers: description, the help text the form shows under a question (KAN-369)
 
 Revision ID: f4a8c1d6e273
-Revises: b7d41c09e2a6
+Revises: d8a3f5c1e7b2
 Create Date: 2026-10-26 12:00:00.000000
 
 What the form says under a question's label ("3-4 sentences", "250 words
@@ -18,7 +18,7 @@ import sqlalchemy as sa
 
 # revision identifiers, used by Alembic.
 revision: str = 'f4a8c1d6e273'
-down_revision: Union[str, Sequence[str], None] = 'b7d41c09e2a6'
+down_revision: Union[str, Sequence[str], None] = 'd8a3f5c1e7b2'
 branch_labels: Union[str, Sequence[str], None] = None
 depends_on: Union[str, Sequence[str], None] = None
 
