@@ -150,8 +150,8 @@ with the failure it prevents.
   invariants, rationale, what must not change and why, what is still open.
 - `README.md` — deliberately short. Explanatory prose goes in a `CLAUDE.md`
   or the docs folders below, and stays out of any README once trimmed.
-- `frontend/docs/`, `backend/docs/`, `scraper/docs/` — each half's prose too
-  long for its `CLAUDE.md`, reached through a pointer in it.
+- `frontend/docs/`, `scraper/docs/` — each half's prose too long for its
+  `CLAUDE.md`, reached through a pointer in it.
 - `docs/job_posting.md`, `resume.md`, `avatar.md`, `auth.md` — design
   rationale: the schema notes and the auth flow. Alembic stays the source of
   truth for what the schema is.

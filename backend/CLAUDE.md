@@ -714,8 +714,10 @@ Find files with a directory listing; these are the rules for where code goes.
   sandbox** (production access not yet requested), so a real send to an
   address SES hasn't individually verified is rejected the same
   best-effort way. The AWS/EC2-side setup (SES identity, the IAM role,
-  the instance, the crontab) is a human runbook, not code:
-  `docs/aws-ses-setup.md`. Gated by `applicant_profiles.job_alerts_enabled`, the
+  the instance, the crontab) is a human runbook, run by hand, not code:
+  the steps are in PR #172's description, not committed here, since
+  they're one-time ops setup rather than something future code changes.
+  Gated by `applicant_profiles.job_alerts_enabled`, the
   Settings opt-in, default off. One applicant's failure (empty bank, a
   bounced email) is caught and counted, never stopping the run;
   `--dry-run` builds and reports every digest, writing and sending
