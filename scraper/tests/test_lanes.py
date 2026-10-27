@@ -8,6 +8,7 @@ could silently drop or misreport a board.
 from __future__ import annotations
 
 import json
+import urllib.error
 from dataclasses import replace
 from types import SimpleNamespace
 
@@ -98,7 +99,7 @@ class TestSecondRead:
 class TestLanes:
     def test_results_come_back_in_boards_csv_order(self, monkeypatch) -> None:
         boards = [board("lever", "a"), board("ashby", "b"), board("lever", "c")]
-        monkeypatch.setattr(run, "_scrape_one", lambda b, robots: (run.Outcome.OK, [job(b)]))
+        monkeypatch.setattr(run, "_scrape_one", lambda b, robots: (run.Outcome.OK, [job(b)], None))
         scanned, stats, read, _ = run.scrape(boards, SimpleNamespace(), {})
         assert [j.token for j in scanned] == ["a", "b", "c"]
         assert read == [b.key for b in boards]
@@ -116,7 +117,7 @@ class TestLanes:
             return replace(j, page=Page(providers.PAGE_VERSION, None, Facts()))
 
         monkeypatch.setattr(
-            run, "_scrape_one", lambda b, robots: (run.Outcome.OK, [job(b, "1"), job(b, "2")])
+            run, "_scrape_one", lambda b, robots: (run.Outcome.OK, [job(b, "1"), job(b, "2")], None)
         )
         swap_provider("greenhouse", describe=describe_greenhouse)
         robots = SimpleNamespace(allows=lambda url: True, pace=lambda url: None)
@@ -130,7 +131,7 @@ class TestLanes:
         monkeypatch.setattr(
             run,
             "_scrape_one",
-            lambda b, robots: (run.Outcome.OK, [job(b, "9", title="Account Executive")]),
+            lambda b, robots: (run.Outcome.OK, [job(b, "9", title="Account Executive")], None),
         )
         fetched: list[Job] = []
         swap_provider("greenhouse", describe=fetched.append)
@@ -149,7 +150,9 @@ class TestVanishedBoards:
 
     def answer(self, monkeypatch, previous: Store, at: str) -> Store:
         """One run in which the board says it does not exist."""
-        monkeypatch.setattr(run, "_scrape_one", lambda b, robots: (run.Outcome.MISSING, []))
+        monkeypatch.setattr(
+            run, "_scrape_one", lambda b, robots: (run.Outcome.MISSING, [], "no such board")
+        )
         before = {job.key: job for job in previous.jobs}
         scanned, stats, read, missing = run.scrape([self.gone], SimpleNamespace(), before)
         return store.update(previous, scanned, read, stats, at, missing=missing)
@@ -181,7 +184,9 @@ class TestVanishedBoards:
         before = {j.key: j for j in map(job, boards)}
 
         def scrape_one(b: Board, robots) -> tuple:
-            return (run.Outcome.OK if b == boards[0] else run.Outcome.MISSING), []
+            if b == boards[0]:
+                return run.Outcome.OK, [], None
+            return run.Outcome.MISSING, [], "no such board"
 
         monkeypatch.setattr(run, "_scrape_one", scrape_one)
         _, stats, read, missing = run.scrape(boards, SimpleNamespace(), before)
@@ -192,13 +197,17 @@ class TestVanishedBoards:
         # A typo in boards.csv: it has nothing stored, so nothing to close, and it
         # must not look read (`Store.is_new` reads its first read).
         typo = board("greenhouse", "stirpe")
-        monkeypatch.setattr(run, "_scrape_one", lambda b, robots: (run.Outcome.MISSING, []))
+        monkeypatch.setattr(
+            run, "_scrape_one", lambda b, robots: (run.Outcome.MISSING, [], "no such board")
+        )
         _, _, read, missing = run.scrape([typo], SimpleNamespace(), {})
         assert read == missing == []
 
     def test_a_failed_read_is_still_evidence_of_nothing(self, monkeypatch) -> None:
         listed = job(self.gone)
-        monkeypatch.setattr(run, "_scrape_one", lambda b, robots: (run.Outcome.FAILED, []))
+        monkeypatch.setattr(
+            run, "_scrape_one", lambda b, robots: (run.Outcome.FAILED, [], "timeout")
+        )
         _, _, read, missing = run.scrape([self.gone], SimpleNamespace(), {listed.key: listed})
         assert read == missing == []
 
@@ -214,8 +223,8 @@ class TestMetrics:
 
         def scrape_one(b: Board, robots) -> tuple:
             if b.token == "gone":
-                return run.Outcome.MISSING, []
-            return run.Outcome.OK, [job(b, "1"), job(b, "2", title="Account Executive")]
+                return run.Outcome.MISSING, [], "no such board"
+            return run.Outcome.OK, [job(b, "1"), job(b, "2", title="Account Executive")], None
 
         monkeypatch.setattr(run, "_scrape_one", scrape_one)
         swap_provider("greenhouse", describe=lambda j: replace(j, page=Page(1, "Read.", Facts())))
@@ -278,7 +287,9 @@ class TestListOrder:
             ordered.key: self.dated(ordered, self.NEWER, self.OLDER),
             unordered.key: self.dated(unordered, self.OLDER, self.NEWER),
         }
-        monkeypatch.setattr(run, "_scrape_one", lambda b, robots: (run.Outcome.OK, lists[b.key]))
+        monkeypatch.setattr(
+            run, "_scrape_one", lambda b, robots: (run.Outcome.OK, lists[b.key], None)
+        )
         robots = SimpleNamespace(allows=lambda url: True, pace=lambda url: None)
         _, stats, _, _ = run.scrape([ordered, unordered], robots, {})
         workday = stats.by_provider["workday"]
@@ -288,10 +299,52 @@ class TestListOrder:
     def test_a_provider_that_does_not_page_is_not_measured(self, monkeypatch) -> None:
         lever = board("lever", "a")
         monkeypatch.setattr(
-            run, "_scrape_one", lambda b, robots: (run.Outcome.OK, self.dated(b, self.OLDER))
+            run, "_scrape_one", lambda b, robots: (run.Outcome.OK, self.dated(b, self.OLDER), None)
         )
         _, stats, _, _ = run.scrape([lever], SimpleNamespace(), {})
         assert "newest_first" not in stats.by_provider["lever"]
+
+
+class TestWhyUnread:
+    """Why a board went unread reaches metrics.json by kind, so a site that refuses
+    us is a count there, not only a log line (docs/coverage.md)."""
+
+    def test_each_failure_is_named_by_its_kind(self) -> None:
+        moved = "refused cross-origin redirect to https://example.test/"
+        for error, why in (
+            (urllib.error.HTTPError("https://a.test", 403, "Forbidden", None, None), "403"),
+            (urllib.error.HTTPError("https://a.test", 429, "Too Many Requests", None, None), "429"),
+            (urllib.error.HTTPError("https://example.test/", 302, moved, None, None), "redirect"),
+            (TimeoutError("timed out"), "timeout"),
+            (urllib.error.URLError(TimeoutError("timed out")), "timeout"),
+            (urllib.error.URLError("Name or service not known"), "connection"),
+            (ConnectionResetError(), "connection"),
+            (providers.Incomplete("read 19 distinct postings of 20"), "incomplete"),
+            (json.JSONDecodeError("Expecting value", "<html>", 0), "unreadable answer"),
+            (AssertionError(), "unreadable answer"),
+            (KeyError("id"), "KeyError"),
+        ):
+            assert run._why(error) == why, error
+
+    def test_metrics_count_unread_boards_by_provider_and_why(self, monkeypatch, tmp_path) -> None:
+        refused = [board("workday", "a.wd1/site"), board("workday", "b.wd1/site")]
+        whys = {b.key: "403" for b in refused}
+
+        def scrape_one(b: Board, robots) -> tuple:
+            if b.key in whys:
+                return run.Outcome.FAILED, [], whys[b.key]
+            return run.Outcome.OK, [], None
+
+        monkeypatch.setattr(run, "_scrape_one", scrape_one)
+        _, stats, _, _ = run.scrape([*refused, board("lever", "c")], SimpleNamespace(), {})
+        assert stats.unread == whys
+        path = tmp_path / "metrics.json"
+        run.write_metrics(stats, [], {}, MONDAY, path)
+        written = json.loads(path.read_text(encoding="utf-8"))
+        assert written["unread"] == {
+            "workday": {"403": {"boards": 2, "examples": [b.key for b in refused]}}
+        }
+        assert "unread" not in written["totals"]
 
 
 class TestWidening:

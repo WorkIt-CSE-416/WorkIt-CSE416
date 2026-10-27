@@ -14,6 +14,7 @@ import csv
 import json
 import sys
 import time
+import urllib.error
 from collections import Counter
 from concurrent.futures import ThreadPoolExecutor
 from dataclasses import asdict, replace
@@ -64,15 +65,17 @@ def load_boards(path: Path) -> list[Board]:
     return boards
 
 
-def _scrape_one(board: Board, robots: Robots) -> tuple[Outcome, list[Job]]:
+def _scrape_one(board: Board, robots: Robots) -> tuple[Outcome, list[Job], str | None]:
+    """One board's read: what happened, its postings, and why it stayed unread
+    (None when it was read whole)."""
     provider = providers.PROVIDERS.get(board.ats)
     if provider is None:
         print(f"  ?  {board.key}: no fetcher for this provider", file=sys.stderr)
-        return Outcome.SKIPPED, []
+        return Outcome.SKIPPED, [], "no reader"
     url = providers.listing_url(board.ats, board.token)
     if not all(robots.allows(u) for u in providers.robots_urls(board.ats, board.token)):
         print(f"  -  {board.key}: skipped, robots.txt disallows us")
-        return Outcome.SKIPPED, []
+        return Outcome.SKIPPED, [], "robots.txt"
     robots.pace(url)
     try:
         if provider.paged:
@@ -81,15 +84,37 @@ def _scrape_one(board: Board, robots: Robots) -> tuple[Outcome, list[Job]]:
             jobs = provider.read(board.token, board.company)
     except BoardNotFound:
         print(f"  x  {board.key}: no such board")
-        return Outcome.MISSING, []
+        return Outcome.MISSING, [], "no such board"
     except providers.TooLarge as error:
         print(f"  -  {board.key}: skipped, too large to read whole ({error})")
-        return Outcome.SKIPPED, []
+        return Outcome.SKIPPED, [], "too large"
     except Exception as error:  # noqa: BLE001 - one bad board must not end the run
         print(f"  !  {board.key}: {type(error).__name__}: {error}", file=sys.stderr)
-        return Outcome.FAILED, []
+        return Outcome.FAILED, [], _why(error)
     print(f"  ok {board.key}: {len(jobs)} postings")
-    return Outcome.OK, jobs
+    return Outcome.OK, jobs, None
+
+
+def _why(error: Exception) -> str:
+    """What kind of failure a failed read was, for metrics.json: the HTTP status a
+    site answered ("403", "429", "503"), a redirect `web.get` refused to follow, a
+    timeout, a lost connection, a paged read that did not add up, or an answer we
+    could not read. A site that refuses us then shows as a count, not only as a log
+    line, before anyone weighs another way in (docs/coverage.md)."""
+    if isinstance(error, urllib.error.HTTPError):
+        return "redirect" if 300 <= error.code < 400 else str(error.code)
+    if isinstance(error, TimeoutError) or (
+        isinstance(error, urllib.error.URLError) and isinstance(error.reason, TimeoutError)
+    ):
+        return "timeout"
+    if isinstance(error, urllib.error.URLError | ConnectionError):
+        return "connection"
+    if isinstance(error, providers.Incomplete):
+        return "incomplete"
+    # A reader asserts the shape it expects; JSONDecodeError is a ValueError.
+    if isinstance(error, ValueError | AssertionError):
+        return "unreadable answer"
+    return type(error).__name__
 
 
 def newest_first(jobs: list[Job]) -> bool | None:
@@ -109,21 +134,23 @@ def _lane(boards: list[Board], robots: Robots, before: dict[str, Job]):
     not after Lever's. Order is kept, so each board gets its own jobs back.
 
     A lane with a budget (`Provider.budget_s`) starts no board once it has run out.
-    Also returns how long the lane took, how many pages it read and, for a provider
-    that pages, how many of its lists named the newest postings first
-    (`newest_first`), for the run's metrics."""
+    Also returns how long the lane took, how many pages it read, for a provider that
+    pages how many of its lists named the newest postings first (`newest_first`),
+    and why each board it did not read stayed unread, for the run's metrics."""
     started = time.monotonic()
     provider = providers.PROVIDERS.get(boards[0].ats) if boards else None
     budget = provider.budget_s if provider else None
     deadline = started + budget if budget is not None else None
 
-    def read(board: Board) -> tuple[Outcome, list[Job]]:
+    def read(board: Board) -> tuple[Outcome, list[Job], str | None]:
         if deadline is not None and time.monotonic() > deadline:
-            return Outcome.DEFERRED, []
+            return Outcome.DEFERRED, [], None
         return _scrape_one(board, robots)
 
     with ThreadPoolExecutor(MAX_IN_FLIGHT) as pool:
-        results = list(pool.map(read, boards))
+        reads = list(pool.map(read, boards))
+        results = [(outcome, jobs) for outcome, jobs, _ in reads]
+        unread = {board.key: why for board, (*_, why) in zip(boards, reads, strict=True) if why}
         # Read off the list as it came, before `carry` puts back the dates the
         # postings' own pages gave. A board read in slices, one per filter value
         # (Workday's capped ones), is in no one order, so it is left out.
@@ -138,7 +165,7 @@ def _lane(boards: list[Board], robots: Robots, before: dict[str, Job]):
     pages = sum(1 for was, now in zip(listed, paged, strict=True) if now is not was)
     described = iter(paged)
     results = [(outcome, [next(described) for _ in jobs]) for outcome, jobs in results]
-    return results, time.monotonic() - started, pages, order
+    return results, time.monotonic() - started, pages, order, unread
 
 
 def scrape(
@@ -159,7 +186,7 @@ def scrape(
         by_lane = list(pool.map(lambda lane: _lane(lane, robots, before), lanes.values()))
     outcome_of = {
         board.key: result
-        for lane, (results, _, _, _) in zip(lanes.values(), by_lane, strict=True)
+        for lane, (results, *_) in zip(lanes.values(), by_lane, strict=True)
         for board, result in zip(lane, results, strict=True)
     }
     results = [outcome_of[board.key] for board in boards]
@@ -190,10 +217,11 @@ def scrape(
                     else {}
                 ),
             }
-            for (ats, lane), (lane_results, seconds, pages, order) in zip(
+            for (ats, lane), (lane_results, seconds, pages, order, _) in zip(
                 lanes.items(), by_lane, strict=True
             )
         },
+        unread={key: why for *_, lane_unread in by_lane for key, why in lane_unread.items()},
     )
     # A board we hold postings from that now says it does not exist may have
     # nothing open (`store.update` closes it on the second answer in a row). Not
@@ -358,6 +386,26 @@ def widening(scanned: list[Job]) -> dict[str, int]:
     return {step: steps[step] for step in WIDENING_STEPS}
 
 
+#: Board keys kept as examples for each provider's reason, so metrics.json names
+#: the hosts that refused us without listing every quiet Workday tenant.
+UNREAD_EXAMPLES = 5
+
+
+def unread_by_provider(unread: dict[str, str]) -> dict[str, dict[str, dict[str, object]]]:
+    """Why boards went unread (`RunStats.unread`), by provider and reason: how many,
+    and a few of their keys, whose host is the site that answered."""
+    grouped: dict[str, dict[str, list[str]]] = {}
+    for key, why in sorted(unread.items()):
+        grouped.setdefault(key.split("/")[0], {}).setdefault(why, []).append(key)
+    return {
+        ats: {
+            why: {"boards": len(keys), "examples": keys[:UNREAD_EXAMPLES]}
+            for why, keys in reasons.items()
+        }
+        for ats, reasons in grouped.items()
+    }
+
+
 def write_metrics(
     stats: RunStats,
     kept: list[Job],
@@ -369,14 +417,18 @@ def write_metrics(
     missed: int | None = None,
 ) -> None:
     """metrics.json: the run's totals and each provider's share, so a change to one
-    provider can be measured run against run (the scheduled run keeps it a week).
-    With `steps`, what a wider shortlist would keep (`widening`); with `missed`, the
-    boards holding a posting missed once, whose next complete read decides it."""
-    totals = {key: value for key, value in asdict(stats).items() if key != "by_provider"}
+    provider can be measured run against run (the scheduled run keeps it a week),
+    and why boards went unread (`unread_by_provider`). With `steps`, what a wider
+    shortlist would keep (`widening`); with `missed`, the boards holding a posting
+    missed once, whose next complete read decides it."""
+    totals = {
+        key: value for key, value in asdict(stats).items() if key not in ("by_provider", "unread")
+    }
     payload: dict[str, object] = {
         "scraped_at": at,
         "totals": totals,
         "by_provider": _per_provider(stats, kept, Counter(roles)),
+        "unread": unread_by_provider(stats.unread),
     }
     if steps is not None:
         payload["widening"] = steps
@@ -410,6 +462,11 @@ def print_metrics(
                 f" first, {row['not_newest_first']:,} do not,"
                 f" {row['order_unclear']:,} give too few dates to tell"
             )
+    if stats.unread:
+        print("\nwhy boards went unread, by provider:")
+        for ats, reasons in sorted(unread_by_provider(stats.unread).items()):
+            ranked = sorted(reasons.items(), key=lambda reason: -reason[1]["boards"])
+            print(f"  {ats:11s} " + ", ".join(f"{why} {n['boards']:,}" for why, n in ranked))
     if steps:
         print(f"\nwhat a wider shortlist would keep, of the {sum(steps.values()):,} scanned:")
         for step, count in steps.items():

@@ -45,6 +45,10 @@ class RunStats:
     #: Each provider's share of the run, keyed by `ats` (`__main__.scrape`): its
     #: boards by outcome, postings scanned, pages read and lane seconds.
     by_provider: dict[str, dict[str, float]] = field(default_factory=dict)
+    #: Why each board this run did not read stayed unread, keyed by `Board.key`
+    #: (`__main__._why`): the HTTP status a site answered ("403"), "timeout",
+    #: "robots.txt", "no such board" and the rest.
+    unread: dict[str, str] = field(default_factory=dict)
 
 
 @dataclass(frozen=True, slots=True)

@@ -520,6 +520,13 @@ the design they serve and its next steps):
   page's. An arrival scan that reads only a list's first pages needs it; a board
   read in slices is in no one order and is left out.
 - **`boards_missed_once`** (above, "Nothing closes").
+- **`unread`**: why each board a run did not read stayed unread, by provider and
+  reason, with up to five board keys each (`RunStats.unread`, `_why`,
+  `unread_by_provider`): the HTTP status a site answered ("403", "429"),
+  "timeout", "connection", "redirect", "incomplete", "unreadable answer",
+  "robots.txt", "too large" or "no such board". It says whether any site blocks
+  GitHub's runners before anyone weighs a move or a proxy: until it, a refusal
+  was only a line in the log.
 
 `build_boards.py` prints the unread apply links by cause, with their top hosts
 (`unread_cause`, `unread_hosts`). That table is where a new reader pays off:
