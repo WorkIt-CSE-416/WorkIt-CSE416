@@ -20,7 +20,9 @@ def _get_json(url: str) -> object:
     """GET and parse JSON, with one retry on a 5xx, a 429 or an explicit Retry-After.
 
     A 404 becomes `BoardNotFound`; every other failure propagates, because a board
-    we could not read is not a board we know anything about.
+    we could not read is not a board we know anything about. A paged reader turns
+    one after its first request into `Incomplete`: a page that is not there says
+    nothing about the board.
     """
     return _json(url, lambda: web.get(url, timeout=TIMEOUT_S))
 

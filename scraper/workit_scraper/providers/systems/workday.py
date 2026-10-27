@@ -77,7 +77,10 @@ def workday(
         while expected is None or offset < expected:
             if facets or offset:
                 pace(url)
-                page = _workday_page(url, facets, offset)
+                try:
+                    page = _workday_page(url, facets, offset)
+                except BoardNotFound as error:
+                    raise Incomplete(f"no page at offset {offset:,}") from error
             else:
                 page = first
             # Only the first page of a search carries the count; later pages say 0.

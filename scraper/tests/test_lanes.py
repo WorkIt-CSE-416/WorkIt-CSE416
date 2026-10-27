@@ -76,7 +76,7 @@ class TestLanes:
     def test_results_come_back_in_boards_csv_order(self, monkeypatch) -> None:
         boards = [board("lever", "a"), board("ashby", "b"), board("lever", "c")]
         monkeypatch.setattr(run, "_scrape_one", lambda b, robots: (run.Outcome.OK, [job(b)]))
-        scanned, stats, read = run.scrape(boards, SimpleNamespace(), {})
+        scanned, stats, read, _ = run.scrape(boards, SimpleNamespace(), {})
         assert [j.token for j in scanned] == ["a", "b", "c"]
         assert read == [b.key for b in boards]
         assert stats.boards_ok == 3
@@ -97,7 +97,7 @@ class TestLanes:
         )
         swap_provider("greenhouse", describe=describe_greenhouse)
         robots = SimpleNamespace(allows=lambda url: True, pace=lambda url: None)
-        scanned, _, _ = run.scrape([gh], robots, {known.key: known})
+        scanned, _, _, _ = run.scrape([gh], robots, {known.key: known})
         assert fetched == ["2"]
         # The page read before still speaks for posting 1.
         assert {j.external_id: j.description for j in scanned} == {"1": "Old.", "2": None}
@@ -121,30 +121,63 @@ class TestVanishedBoards:
     postings stayed on the page for good, since only a complete read moves them."""
 
     gone = board("greenhouse", "left-greenhouse")
+    listed = replace(job(gone), first_seen_at=MONDAY, last_seen_at=MONDAY)
+    days = [f"2026-10-{day:02d}T09:00:00+00:00" for day in (6, 7, 8)]
 
-    def test_a_known_board_now_missing_is_read_with_nothing_open(self, monkeypatch) -> None:
-        listed = replace(job(self.gone), first_seen_at=MONDAY, last_seen_at=MONDAY)
-        monday = stored(read_at=MONDAY, jobs=[listed], boards=[self.gone])
+    def answer(self, monkeypatch, previous: Store, at: str) -> Store:
+        """One run in which the board says it does not exist."""
         monkeypatch.setattr(run, "_scrape_one", lambda b, robots: (run.Outcome.MISSING, []))
-        scanned, stats, read = run.scrape([self.gone], SimpleNamespace(), {listed.key: listed})
-        assert read == [self.gone.key]
-        assert stats.boards_missing == 1
-        tuesday = store.update(monday, scanned, read, stats, "2026-10-06T09:00:00+00:00")
-        assert not tuesday.is_listed(tuesday.jobs[0])
+        before = {job.key: job for job in previous.jobs}
+        scanned, stats, read, missing = run.scrape([self.gone], SimpleNamespace(), before)
+        return store.update(previous, scanned, read, stats, at, missing=missing)
+
+    def monday(self) -> Store:
+        return stored(read_at=MONDAY, jobs=[self.listed], boards=[self.gone])
+
+    def test_one_answer_closes_nothing(self, monkeypatch) -> None:
+        # One tenant's bad minute must not close its postings in Supabase.
+        tuesday = self.answer(monkeypatch, self.monday(), self.days[0])
+        assert tuesday.stats.boards_missing == 1
+        assert tuesday.is_listed(tuesday.jobs[0])
+
+    def test_a_second_answer_in_a_row_closes_its_postings(self, monkeypatch) -> None:
+        tuesday = self.answer(monkeypatch, self.monday(), self.days[0])
+        wednesday = self.answer(monkeypatch, tuesday, self.days[1])
+        assert not wednesday.is_listed(wednesday.jobs[0])
+
+    def test_a_complete_read_between_starts_the_count_again(self, monkeypatch) -> None:
+        tuesday = self.answer(monkeypatch, self.monday(), self.days[0])
+        wednesday = store.update(tuesday, [self.listed], [self.gone.key], RunStats(), self.days[1])
+        thursday = self.answer(monkeypatch, wednesday, self.days[2])
+        assert thursday.is_listed(thursday.jobs[0])
+
+    def test_most_of_a_lane_gone_at_once_closes_nothing(self, monkeypatch) -> None:
+        # Every Workday tenant answering 422 is Workday changing, not every company
+        # leaving it; the import's half-the-feed guard would let one lane through.
+        boards = [board("greenhouse", f"gone{i}") for i in range(4)]
+        before = {j.key: j for j in map(job, boards)}
+
+        def scrape_one(b: Board, robots) -> tuple:
+            return (run.Outcome.OK if b == boards[0] else run.Outcome.MISSING), []
+
+        monkeypatch.setattr(run, "_scrape_one", scrape_one)
+        _, stats, read, missing = run.scrape(boards, SimpleNamespace(), before)
+        assert (read, missing) == ([boards[0].key], [])
+        assert stats.boards_missing == 3
 
     def test_a_board_never_read_stays_unread(self, monkeypatch) -> None:
         # A typo in boards.csv: it has nothing stored, so nothing to close, and it
         # must not look read (`Store.is_new` reads its first read).
         typo = board("greenhouse", "stirpe")
         monkeypatch.setattr(run, "_scrape_one", lambda b, robots: (run.Outcome.MISSING, []))
-        _, _, read = run.scrape([typo], SimpleNamespace(), {})
-        assert read == []
+        _, _, read, missing = run.scrape([typo], SimpleNamespace(), {})
+        assert read == missing == []
 
     def test_a_failed_read_is_still_evidence_of_nothing(self, monkeypatch) -> None:
         listed = job(self.gone)
         monkeypatch.setattr(run, "_scrape_one", lambda b, robots: (run.Outcome.FAILED, []))
-        _, _, read = run.scrape([self.gone], SimpleNamespace(), {listed.key: listed})
-        assert read == []
+        _, _, read, missing = run.scrape([self.gone], SimpleNamespace(), {listed.key: listed})
+        assert read == missing == []
 
 
 class TestMetrics:
@@ -164,7 +197,7 @@ class TestMetrics:
         monkeypatch.setattr(run, "_scrape_one", scrape_one)
         swap_provider("greenhouse", describe=lambda j: replace(j, page=Page(1, "Read.", Facts())))
         robots = SimpleNamespace(allows=lambda url: True, pace=lambda url: None)
-        _, stats, _ = run.scrape(boards, robots, {})
+        _, stats, _, _ = run.scrape(boards, robots, {})
         lever, greenhouse = stats.by_provider["lever"], stats.by_provider["greenhouse"]
         assert (lever["boards"], lever["ok"], lever["missing"], lever["postings"]) == (2, 1, 1, 2)
         # Only the kept Greenhouse posting's page is read; Lever sends it with the list.

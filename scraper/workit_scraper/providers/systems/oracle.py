@@ -9,7 +9,7 @@ from dataclasses import replace
 
 from workit_scraper.providers import fetch
 from workit_scraper.providers.fetch import _iso
-from workit_scraper.providers.model import Incomplete, Job, Provider, TooLarge
+from workit_scraper.providers.model import BoardNotFound, Incomplete, Job, Provider, TooLarge
 from workit_scraper.providers.registry import _parts, job_url, listing_url
 from workit_scraper.providers.text import (
     _described,
@@ -45,10 +45,20 @@ def oracle(
     while total is None or offset < total:
         if offset:
             pace(url)
-        payload = fetch._get_json(f"{url},limit={ORACLE_PAGE},offset={offset}")
+        try:
+            payload = fetch._get_json(f"{url},limit={ORACLE_PAGE},offset={offset}")
+        except BoardNotFound as error:
+            if not offset:
+                raise
+            raise Incomplete(f"no page at offset {offset:,}") from error
         assert isinstance(payload, dict)
-        found = (payload.get("items") or [{}])[0]
+        items = payload.get("items")
+        found = (items or [{}])[0]
         if total is None:
+            # The count decides what a whole read is: without it, the first page
+            # would pass for the whole board.
+            if items is None or (items and "TotalJobsCount" not in found):
+                raise Incomplete("no posting count")
             total = int(found.get("TotalJobsCount") or 0)
             if total > ORACLE_MAX:
                 raise TooLarge(f"{total:,} postings")
@@ -58,7 +68,7 @@ def oracle(
         if not page:
             break
         offset += ORACLE_PAGE
-    if len(rows) < total - max(1, total // 500):
+    if (total and not rows) or len(rows) < total - max(1, total // 500):
         raise Incomplete(f"read {len(rows):,} distinct postings of {total:,}")
 
     parts = _parts("oracle", token)

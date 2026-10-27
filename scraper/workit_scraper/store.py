@@ -13,6 +13,7 @@ from __future__ import annotations
 
 import json
 import zlib
+from collections.abc import Iterable
 from dataclasses import asdict, dataclass, field, replace
 from datetime import UTC, datetime, timedelta
 from pathlib import Path
@@ -52,6 +53,9 @@ class BoardReads:
 
     first_read_at: str
     last_read_at: str
+    #: When it first said it does not exist since its last complete read. The next
+    #: such answer closes its postings (`update`); one alone is evidence of nothing.
+    missing_at: str | None = None
 
 
 @dataclass(frozen=True, slots=True)
@@ -146,7 +150,13 @@ def _at(iso: str) -> datetime:
 
 
 def update(
-    previous: Store | None, fresh: list[Job], read: list[str], stats: RunStats, now: str
+    previous: Store | None,
+    fresh: list[Job],
+    read: list[str],
+    stats: RunStats,
+    now: str,
+    *,
+    missing: Iterable[str] = (),
 ) -> Store:
     """Fold one scrape into the store.
 
@@ -155,6 +165,11 @@ def update(
     this read had none: Greenhouse's list never includes one, and each posting's
     own page is read only once (see `__main__.with_page`). `read` is the keys of the
     boards this run read completely; only those advance their `last_read_at`.
+
+    `missing` is the keys of the boards we hold postings from that said they do not
+    exist (`__main__.scrape`). The first answer is only noted; a second with no
+    complete read between is a complete read with nothing open, so their postings
+    close. One spurious 404 must not close a company's postings in Supabase.
     """
     before = {job.key: job for job in previous.jobs} if previous else {}
     merged = []
@@ -174,6 +189,14 @@ def update(
     for key in read:
         first = boards[key].first_read_at if key in boards else now
         boards[key] = BoardReads(first_read_at=first, last_read_at=now)
+    for key in missing:
+        reads = boards.get(key)
+        if reads is None:
+            continue
+        if reads.missing_at is None:
+            boards[key] = replace(reads, missing_at=now)
+        else:
+            boards[key] = replace(reads, last_read_at=now)
     logos = dict(previous.logos) if previous else {}
     version = previous.logos_version if previous else 1
     return Store(

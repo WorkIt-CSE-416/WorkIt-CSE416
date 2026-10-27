@@ -117,7 +117,10 @@ landing page's `hiringSystems` yet: each needs its logo file in
 - **A 404 means the board does not exist; a 200 with an empty list means a
   real board with nothing open.** Raise `BoardNotFound` for the first, return
   `[]` for the second. Collapsing them turns a typo in `boards.csv` into "this
-  company stopped hiring", which nobody notices.
+  company stopped hiring", which nobody notices. **Only a board's first request
+  can say it does not exist**: a paged reader turns a 404 on a later page into
+  `Incomplete` (Oracle's and Workday's). As "no such board", one bad page of a
+  large Oracle board closed every posting on it.
 - **Providers disagree about types.** Lever sends `createdAt` as an `int` in
   some records and a numeric string in others; trusting one shape silently
   dropped every Lever board on the first live run. Normalise dates through
@@ -328,13 +331,20 @@ posting is gone**: a timeout, a partial read, or one board seen twice in one
 run is not. Actually closing a posting is a real design for the ticket that
 needs it: two accepted complete absences, at most one miss per board per run.
 
-**A board we hold postings from that now answers "no such board" was read in
-full, with nothing open** (`__main__.scrape`): a 404, Workday's 422 or
-BambooHR's redirect home, when the company has left that hiring system. Counted
-as no read until 2026-10-26, its postings stayed on the page for good. A board
-never read that answers so is still unread (a typo has nothing to close, and
-`Store.is_new` reads a board's first read). A spurious 404 closes the board's
-jobs for one run; the next read lists them again and the import reopens them.
+**A board we hold postings from that answers "no such board" twice in a row
+was read in full, with nothing open** (`store.update`, `missing`): a 404,
+Workday's 422 or BambooHR's redirect home, when the company has left that
+hiring system. Counted as no read until 2026-10-26, its postings stayed on the
+page for good. The first answer only sets `BoardReads.missing_at`; a complete
+read clears it. One answer closed postings at first, and a Workday or Oracle
+board then waited about 12 hours at the back of its lane's queue to reopen them.
+A board never read that answers so is still unread (a typo has nothing to
+close, and `Store.is_new` reads a board's first read). **A lane where `SURGE`
+(3) or more known boards answer so in one run, and more of them than read
+whole, closes none** (`__main__.scrape`): that is the hiring system changing,
+and one lane is under the import's half-the-feed guard. A revert to code before
+`missing_at` and `RunStats.by_provider` must delete the `scraper-store-*`
+Actions cache, or the old code fails to load `jobs.json`.
 
 ## Politeness is ours to enforce
 
