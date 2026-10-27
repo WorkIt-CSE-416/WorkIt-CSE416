@@ -78,6 +78,24 @@ export function practiceJob(url) {
   return m ? { company: m[1], job: m[2], page: m[3] } : null;
 }
 
+// Job systems whose questions only the open form shows: Eightfold's questions API answers only the
+// page's own session, Waymo's careers site builds its own form, SmartRecruiters' shows its questions
+// a page at a time, and TikTok's and ByteDance's form is behind the site's own sign-in (Workday's and Oracle's
+// steps are read on their own, readQuestions).
+const READ_OFF_PAGE = new Set(["eightfold", "tiktok", "waymo", "smartrecruiters"]);
+const readOffPage = (job) => engine.stepped(job.site) || READ_OFF_PAGE.has(job.site);
+
+/**
+ * Whether `url` is a careers site's own sign-in on the way to its form
+ * (TikTok's and ByteDance's, `lifeattiktok.com/login?redirect_path=...`),
+ * which the student goes through themselves: WorkIt never signs in there.
+ * @param {string} url
+ */
+export function signInFirst(url) {
+  const job = jobOf(url);
+  return job?.site === "tiktok" && !job.onForm && /^\/(login|create-?account|register)\b/i.test(new URL(url).pathname);
+}
+
 /** The link to open for an application: its form, where the engine covers the job system. */
 export function formUrl(url) {
   return jobOf(url)?.form ?? url;
@@ -167,7 +185,24 @@ const RACE = {
   two_or_more: "Two or More Races",
   declined: "decline",
 };
-const VETERAN = { protected_veteran: true, not_protected_veteran: "I am not a protected veteran", declined: "decline" };
+// "Never served" is "I am not a veteran" (the engine's isVeteran reads it as false): it also answers
+// "have you ever served?" and a branch or status (N/A); "not a protected veteran" says nothing of service.
+const VETERAN = {
+  protected_veteran: true, not_protected_veteran: "I am not a protected veteran", not_veteran: "I am not a veteran", declined: "decline",
+};
+const ORIENTATION = {
+  heterosexual: "Heterosexual", gay: "Gay", lesbian: "Lesbian", bisexual: "Bisexual", asexual: "Asexual", queer: "Queer", declined: "decline",
+};
+// "He/him" fits "He/Him/His" and "He/him/his" alike (the engine takes the shortest option it starts).
+const PRONOUNS = { he_him: "He/him", she_her: "She/her", they_them: "They/them", declined: "decline" };
+const COMMUNITY = {
+  disability: "Person with disability", neurodiverse: "Neurodiverse", veteran: "Veteran", parent: "Parent",
+  refugee_immigrant: "Refugee or immigrant", first_generation: "First-generation", lgbtq: "LGBTQ+",
+};
+const ROLE_INTEREST = {
+  backend: "Backend", frontend: "Frontend", full_stack: "Full-Stack", mobile: "Mobile", embedded: "Embedded", ml: "Machine Learning",
+  data: "Data", infrastructure: "Infrastructure", security: "Security", robotics: "Robotics",
+};
 const YES_NO_DECLINE = { yes: true, no: false, declined: "decline" };
 const YES_NO = { yes: true, no: false };
 
@@ -196,7 +231,18 @@ export function layered(under, over) {
 /** The student's policies: WorkIt's own (POLICIES), with what they brought from Apply over them (a
  * student's own rules are how they apply, so Apply's how-heard beats WorkIt's default). */
 export function enginePolicies(profile) {
-  return layered(POLICIES, profile?.fill?.policies);
+  return layered(layered(POLICIES, profile?.fill?.policies), { compensation: pay(profile?.answers ?? {}) });
+}
+
+/** Pay as the student answered it (Application answers), never a WorkIt default: their hourly figure,
+ * and whether a posting's stated range is fine, which a question asking in words reads as their words. */
+function pay(answers) {
+  const accepts = yes(answers.accept_posted_pay);
+  return present({
+    fallback_hourly: typeof answers.expected_hourly_pay === "number" ? answers.expected_hourly_pay : undefined,
+    accept_stated_rate: accepts,
+    expectation: accepts ? "Open to the posted range" : undefined,
+  });
 }
 
 /** Bank entries of one section, the most recently started first, as a resume lists jobs (and Apply's
@@ -321,6 +367,22 @@ function applicationFacts(answers, place) {
   };
 }
 
+/** Communities as the engine's list ([] is "none of these"), or "decline" for a student who declined. */
+function communities(keys) {
+  if (!Array.isArray(keys)) return undefined;
+  return keys.includes("declined") ? "decline" : keys.map((k) => COMMUNITY[k]).filter(Boolean);
+}
+
+/** How many internships the bank's jobs hold (titled intern or co-op); unknown while it holds no job. */
+function internships(jobs) {
+  return jobs.length ? jobs.filter((e) => /\bintern(ship)?\b|\bco-?op\b/i.test(e.title ?? "")).length : undefined;
+}
+
+/** The company of the job held now, the most recently started first; none held, none named. */
+function currentCompany(jobs) {
+  return jobs.find((e) => e.end_kind === "present" && e.organization)?.organization;
+}
+
 /** The engine profile from WorkIt's own fields alone. */
 function workitProfile(profile, today) {
   // The profile's own name parts where it has them, so a middle name never joins the last name.
@@ -332,6 +394,7 @@ function workitProfile(profile, today) {
   const answers = profile.answers ?? {};
   const place = home(profile.location);
   const facts = applicationFacts(answers, place);
+  const jobs = newest(entries, "experience");
   return {
     logistics: facts.logistics,
     screeners: facts.screeners,
@@ -343,8 +406,14 @@ function workitProfile(profile, today) {
       email: profile.email, phone: profile.phone_number,
       // Where the student lives, as they typed it (KAN-372), read by the engine; one it can't read is left out.
       current_location: place,
+      age_18_or_over: yes(answers.age_18_or_over),
+      pronouns: PRONOUNS[answers.pronouns],
+      current_company: currentCompany(jobs),
     }),
-    links: present({ linkedin_url: profile.linkedin_url, github_url: profile.github_url, portfolio_url: profile.portfolio_url ?? profile.other_url }),
+    links: present({
+      linkedin_url: profile.linkedin_url, github_url: profile.github_url, portfolio_url: profile.portfolio_url ?? profile.other_url,
+      x_twitter_url: answers.x_url,
+    }),
     // The engine's names for the files it plans (rules.ts): the resume and the unofficial transcript (KAN-369).
     files: present({ resume_pdf: profile.resume?.filename, unofficial_transcript_pdf: profile.transcript?.filename }),
     education: school
@@ -367,7 +436,7 @@ function workitProfile(profile, today) {
         })
       : {},
     experience_facts: present({
-      employment_history: newest(entries, "experience").map((e) =>
+      employment_history: jobs.map((e) =>
         present({
           employer: e.organization, title: e.title, start: e.start_month, end: e.end_kind === "present" ? null : e.end_month, location: e.location,
           // A Role Description (Workday's Work Experience) is the job's bullets, one a line, as Apply gives it.
@@ -376,11 +445,15 @@ function workitProfile(profile, today) {
       ),
       // Workday's "Type to Add Skills" and "languages most comfortable" read these.
       skills: skills.length ? skills : null,
+      prior_internships_count: internships(jobs),
+      role_interests: Array.isArray(answers.role_interests) ? answers.role_interests.map((k) => ROLE_INTEREST[k]).filter(Boolean) : undefined,
     }),
     work_authorization: present({
       authorized_to_work_us: YES_NO[answers.work_authorized_us],
       requires_sponsorship_now_or_future: YES_NO[answers.needs_sponsorship],
       citizenship: CITIZENSHIP[answers.work_authorization_status],
+      // Any country's, for a list of countries of citizenship (two: a dual citizen's, theirs to pick).
+      citizenship_countries: Array.isArray(answers.citizenship_countries) && answers.citizenship_countries.length ? answers.citizenship_countries : undefined,
       security_clearance: CLEARANCE[answers.security_clearance],
     }),
     voluntary_self_id: present({
@@ -389,6 +462,9 @@ function workitProfile(profile, today) {
       race: RACE[answers.race],
       veteran: VETERAN[answers.veteran_status],
       disability: YES_NO_DECLINE[answers.disability_status],
+      sexual_orientation: ORIENTATION[answers.sexual_orientation],
+      transgender: YES_NO_DECLINE[answers.transgender],
+      communities: communities(answers.communities),
     }),
   };
 }
@@ -461,18 +537,22 @@ function once(fetchText) {
 /**
  * The job's Question set as Apply reads it: fetched from the job system's
  * public API and read by the engine, else off the open form by the engine
- * (Eightfold's questions API answers only the page's own session; Workday
+ * (Eightfold's questions API answers only the page's own session, TikTok's
+ * form is behind the site's sign-in; Workday
  * shows its questions a step at a time, once the student has signed in;
  * Ashby's query is undocumented, so on any failure its form is read).
- * Workday's also gives the step it is on and the engine's state.
+ * A stepped job system's (Workday, Oracle: the engine's Stepper seam) also gives the step it is
+ * on and the engine's state; Oracle's email gate comes as a step with `gate` and no questions.
  */
 async function readQuestions({ job, url, call, fetchText, state }) {
-  if (job.site === "workday") {
-    const shown = await call("readQuestions", "workday", state ?? { tenant: job.tenant, trees: {} });
-    const step = { name: shown.step, sections: shown.sections, sends: shown.sends, review: shown.review, wentWrong: Boolean(shown.wentWrong) };
+  if (engine.stepped(job.site)) {
+    const shown = await call("readQuestions", job.site, state ?? (job.site === "workday" ? { tenant: job.tenant, trees: {} } : {}));
+    const step = { name: shown.step, sections: shown.sections, sends: shown.sends, review: shown.review, wentWrong: Boolean(shown.wentWrong), gate: shown.gate ?? null };
     return { questions: shown.questions, step, state: shown.state };
   }
-  if (job.site === "eightfold") return { questions: await call("readQuestions", "eightfold") };
+  // Waymo's careers site builds its own form, whose fields only the page names; SmartRecruiters'
+  // questions show a page at a time on its one-click form.
+  if (READ_OFF_PAGE.has(job.site)) return { questions: await call("readQuestions", job.site) };
   // A practice form's questions are in its own page, as a Lever form's are in its /apply page.
   if (job.practice) return { questions: engine.parseQuestions("lever", await fetchText(url)) };
   try {
@@ -489,7 +569,9 @@ async function readQuestions({ job, url, call, fetchText, state }) {
  * Plan for the WorkIt profile, with file answers holding their bytes, and the
  * rows the overlay lists besides the planned answers (`planRows`). On a page
  * the engine doesn't cover, `{ covered: false }` and nothing is fetched; on a
- * job's page that isn't its form, `openForm`. On Workday it is the step
+ * job's page that isn't its form, `openForm`; on a careers site's own
+ * sign-in (TikTok's: the engine hands the form to the student, Handoff),
+ * `signIn`, the line to show, and nothing is filled. On Workday it is the step
  * shown, with `step` and the engine's `state`.
  * @param {{
  *   url: string, profile: import("../shared/types.js").AutofillProfile, bank?: object | Promise<object> | Function, today: string,
@@ -502,11 +584,17 @@ export async function planFill({ url, profile, bank = {}, today, call, fetchText
   const job = jobOf(url);
   if (!job) return { covered: false };
   const { site } = job;
-  if (!job.onForm) return { covered: true, site, openForm: job.form };
+  if (!job.onForm && !signInFirst(url)) return { covered: true, site, openForm: job.form };
   const fetchOnce = once(fetchText);
   // The job's names and text need no question: asked beside the questions, not after them.
   const reading = readNames(url, fetchOnce);
-  const read = await readQuestions({ job, url, call, fetchText: fetchOnce, state });
+  let read;
+  try {
+    read = await readQuestions({ job, url, call, fetchText: fetchOnce, state });
+  } catch (error) {
+    if (site === "tiktok" && error.name === "Handoff") return { covered: true, site, signIn: error.message };
+    throw error;
+  }
   const known = new Set(read.questions.map((q) => q.name));
   // Each text field's own limit, as the form on the page sets it (KAN-380): a written answer is checked against it before it is saved.
   const asked = [...read.questions, ...extra.filter((q) => !known.has(q.name))];
@@ -539,12 +627,12 @@ function selfIdAsked(questions, profile, plan, planFor) {
  * Starts asking the job system's public API for what a Plan of `url` will
  * read with `fetchText` (its questions, names and text), before its page is
  * open (plan-reads.js); nothing for a job whose questions only its open form
- * shows (Workday, Eightfold, a practice form). Failures are left to the Plan.
+ * shows (Workday, Eightfold, TikTok, a practice form). Failures are left to the Plan.
  * @returns {boolean} whether anything was asked
  */
 export function readJobAhead(url, fetchText) {
   const job = jobOf(url);
-  if (!job?.onForm || job.practice || job.site === "workday" || job.site === "eightfold") return false;
+  if (!job?.onForm || job.practice || readOffPage(job)) return false;
   optional(() => engine.questionSet(url, fetchText), null);
   readNames(url, fetchText);
   return true;
@@ -586,14 +674,14 @@ async function planQuestions({ job, url, questions, profile, bank, today, fetchT
  * them, so the student's Claude can write them before the tab opens. In the
  * shape PUT .../applications/{job}/questions takes; the form's own length
  * limit is unknown until the tab reads its fields, so `max_length` is null.
- * Null when only the open form shows its questions (Workday, Eightfold, an
+ * Null when only the open form shows its questions (Workday, Eightfold, TikTok, an
  * Ashby form whose query failed), or the link is no form the engine covers.
  * @param {{ url: string, profile: object, bank?: object, today: string, fetchText: Function, jobType?: string | null }} options
  * @returns {Promise<{ name: string, label: string, required: boolean, max_length: null }[] | null>}
  */
 export async function questionsToWrite({ url, profile, bank = {}, today, fetchText, jobType = null }) {
   const job = jobOf(url);
-  if (!job || job.practice || job.site === "workday" || job.site === "eightfold") return null;
+  if (!job || job.practice || readOffPage(job)) return null;
   const fetchOnce = once(fetchText);
   let questions;
   try {
@@ -746,12 +834,15 @@ export async function handleFill(message, { url, profile, bank, today, call, fet
       if (notNeeded) moot[name] = { answer };
     }
     return { moot };
+  } else if (message.type === "fill/next") {
+    // A form in pages the extension moves through itself (SmartRecruiters): the engine presses Next, never Submit.
+    return { step: await call("next", jobOf(url)?.site, message.step) };
   } else if (message.type === "fill/required") {
     // The fields the form won't send without that show nothing, the planned and the unplanned alike
     // (Greenhouse's phone country, required once Phone shows a number, is in no Question set as required),
     // and the required fields the Question set lacks altogether (Ashby, Eightfold), given back as
     // `unasked` questions so the tab reads them again after each edit.
-    const unasked = message.site === "workday" ? [] : await call("unaskedQuestions", message.site, message.questions);
+    const unasked = engine.stepped(message.site) ? [] : await call("unaskedQuestions", message.site, message.questions);
     return { empty: await call("emptyRequired", message.site, [...message.questions, ...unasked], message.state), unasked };
   } else {
     throw new Error(`Unknown fill message: ${message.type}`);

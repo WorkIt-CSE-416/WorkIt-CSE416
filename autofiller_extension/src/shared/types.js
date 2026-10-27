@@ -77,7 +77,7 @@
  * @property {"male" | "female" | "non_binary" | "declined" | null} gender
  * @property {"yes" | "no" | "declined" | null} hispanic_latino
  * @property {"american_indian_alaska_native" | "asian" | "black_african_american" | "native_hawaiian_pacific_islander" | "white" | "two_or_more" | "declined" | null} race
- * @property {"protected_veteran" | "not_protected_veteran" | "declined" | null} veteran_status
+ * @property {"protected_veteran" | "not_protected_veteran" | "not_veteran" | "declined" | null} veteran_status
  * @property {"yes" | "no" | "declined" | null} disability_status
  * The Application answers (KAN-369), each null until answered; a list's [] is the student's "none":
  * @property {"yes" | "no" | null} [onsite_ok]
@@ -97,6 +97,16 @@
  * @property {"yes" | "no" | null} [prior_government_work]
  * @property {"yes" | "no" | null} [non_compete]
  * @property {string[] | null} [pending_offers]
+ * @property {"yes" | "no" | null} [age_18_or_over]
+ * @property {number | null} [expected_hourly_pay] dollars an hour
+ * @property {"yes" | "no" | null} [accept_posted_pay]
+ * @property {"heterosexual" | "gay" | "lesbian" | "bisexual" | "asexual" | "queer" | "declined" | null} [sexual_orientation]
+ * @property {"yes" | "no" | "declined" | null} [transgender]
+ * @property {"he_him" | "she_her" | "they_them" | "declined" | null} [pronouns]
+ * @property {string[] | null} [communities] [] is "none of these"; ["declined"] a decline
+ * @property {string[] | null} [role_interests]
+ * @property {string | null} [x_url]
+ * @property {string[] | null} [citizenship_countries] every country they are a citizen of
  */
 
 /**

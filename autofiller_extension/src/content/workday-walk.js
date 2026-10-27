@@ -25,19 +25,26 @@
 // - After the press, an error Workday shows that stays (ERROR_WAIT) stops the
 //   walk with its words, and nothing is pressed again; so does a step that
 //   never changes (LEAVE_WAIT).
-// Loaded after workday.js and overlay.js (shared/content-scripts.js), as
+// It walks any stepped system the same way (steps.js: Workday, and Oracle,
+// whose button is Next and whose last page is Summary), with that system's
+// button, review page and error words; the rules above are Workday's words.
+// Loaded after steps.js and overlay.js (shared/content-scripts.js), as
 // window.WIA.toReview.
 window.WIA = window.WIA || {};
 
 (function () {
   "use strict";
 
-  const NEXT = "[data-automation-id=pageFooterNextButton], [data-automation-id=bottom-navigation-next-button]";
-  const REVIEW_PAGE = "[data-automation-id=applyFlowReviewPage], [data-automation-id=reviewJobApplicationPage]";
-  const GOES_ON = /^(save and continue|continue|next)$/i;
+  // The stepped system's button, review page, words that go on, and error (steps.js; Workday's by default).
+  const system = window.WIA.steps ?? window.WIA.workday;
+  const { next: NEXT, review: REVIEW_PAGE, goesOn: GOES_ON, banner: BANNER } = system.walk;
   const SENDS = /\b(submit|send|apply|finish|complete|confirm)\b/i;
-  const BANNER = "[data-automation-id=errorHeading], [data-automation-id=errorBanner], [data-automation-id=errorMessage]";
-  const WENT_WRONG = /something went wrong/i; // Workday's error page, which asks for a refresh
+  // The page where the walk stops shows (Workday's Review page, Oracle's Submit button).
+  // The document the steps are drawn in (iCIMS's frame), else this page.
+  const root = () => system.doc?.() ?? document;
+  const onReview = () => [...root().querySelectorAll(REVIEW_PAGE)].some((el) => el.checkVisibility());
+  const NAME = system.name;
+  const PRESS = system.nextLabel;
   // This tab's choice (Fill to Review pressed) and the steps pressed in it, kept across Workday's page loads.
   const OPTED = "workit-fill-to-review";
   const PRESSED = "workit-fill-to-review-pressed";
@@ -49,7 +56,7 @@ window.WIA = window.WIA || {};
   // How long a press gets to show Workday took it (the button disables while it saves), and the most presses (Apply's).
   const TAKEN_WAIT = 3_000;
   const PRESSES = 3;
-  const REVIEW_NOTE = "Check everything on Workday's Review page, then press Submit.";
+  const REVIEW_NOTE = `Check everything on ${NAME}'s ${system.reviewName} page, then press Submit.`;
   const STOPPED = "WorkIt stopped on this step";
 
   const { overlay } = window.WIA;
@@ -88,7 +95,7 @@ window.WIA = window.WIA || {};
     if (selfIdWaits) reasons.push("the self-identification questions wait for your answer");
     if (!reasons.length) return null;
     const more = reasons.length > 3 ? ` (and ${reasons.length - 3} more)` : "";
-    return `${reasons.slice(0, 3).join("; ")}${more}. Fix it, then press Save and Continue yourself. WorkIt fills the next step when it shows.`;
+    return `${reasons.slice(0, 3).join("; ")}${more}. Fix it, then press ${PRESS} yourself. WorkIt fills the next step when it shows.`;
   }
 
   function press(button) {
@@ -101,18 +108,22 @@ window.WIA = window.WIA || {};
 
   /** Why `button` must not be pressed now (Review shows, or it doesn't read as going on), or null. */
   function refuse(button) {
-    if (document.querySelector(REVIEW_PAGE)) return "This is Workday's Review page. Check everything, then press Submit yourself.";
-    const words = (button.innerText || button.getAttribute("aria-label") || "").trim();
+    if (onReview()) return `This is ${NAME}'s ${system.reviewName} page. Check everything, then press Submit yourself.`;
+    const words = (button.innerText || button.value || button.getAttribute("aria-label") || "").trim();
     if (!GOES_ON.test(words) || SENDS.test(`${words} ${button.getAttribute("aria-label") ?? ""}`)) {
       return `This step's button reads "${words}", which WorkIt never presses. Check the step, then go on yourself.`;
     }
     return null;
   }
 
-  const banner = () => [...document.querySelectorAll(BANNER)].find((b) => b.checkVisibility() && b.innerText.trim());
-  // Workday's error page in place of the step: its words, and no field of the step showing.
-  const wentWrong = () => WENT_WRONG.test(document.body.innerText) && ![...document.querySelectorAll('[data-automation-id^="formField-"]')].some((f) => f.checkVisibility());
-  const shown = () => [...document.querySelectorAll(NEXT)].find((b) => b.checkVisibility());
+  const banner = () => [...root().querySelectorAll(BANNER)].find((b) => b.checkVisibility() && b.innerText.trim());
+  // The system's error page in place of the step (Workday's "Something went wrong").
+  const wentWrong = system.walk.wentWrong;
+  // The step's button: the one that reads as going on where the footer has more (Oracle's Back), else the one shown.
+  const shown = () => {
+    const buttons = [...root().querySelectorAll(NEXT)].filter((b) => b.checkVisibility());
+    return buttons.find((b) => GOES_ON.test((b.innerText || b.value || b.getAttribute("aria-label") || "").trim())) ?? buttons[0];
+  };
 
   /**
    * Whether Workday took a press of `button` from now on: it disabled the
@@ -139,23 +150,23 @@ window.WIA = window.WIA || {};
    * @param {{ fields: object[], selfIdWaits?: boolean }} shown  the panel's rows, and whether the self-identification card waits
    */
   async function leave(step, { fields, selfIdWaits = false }) {
-    const { workday } = window.WIA;
+    const workday = system;
     const stepNow = workday.stepId;
     if (stepNow() !== step) return null;
     const why = blocker(fields, selfIdWaits);
     if (why) return why;
-    if (document.querySelector(REVIEW_PAGE)) return null;
+    if (onReview()) return null;
     // The footer may draw a moment after the step's fields.
     const button = shown() ?? (await until(shown, ENABLED_WAIT));
     if (stepNow() !== step) return null;
-    if (!button) return "WorkIt found no Save and Continue button on this step. Check it, then go on yourself.";
+    if (!button) return `WorkIt found no ${PRESS} button on this step. Check it, then go on yourself.`;
     const refused = refuse(button);
     if (refused) return refused;
     const key = `${step} ${location.pathname}`;
     const done = pressed();
-    if (done.has(key)) return "WorkIt pressed Save and Continue on this step once already. Check it, then press Save and Continue yourself.";
+    if (done.has(key)) return `WorkIt pressed ${PRESS} on this step once already. Check it, then press ${PRESS} yourself.`;
     if (!(await until(() => !button.disabled && button.isConnected, ENABLED_WAIT))) {
-      return "Workday kept Save and Continue disabled. Check the step, then press it yourself.";
+      return `${NAME} kept ${PRESS} disabled. Check the step, then press it yourself.`;
     }
     if (stepNow() !== step) return null;
     done.add(key);
@@ -178,12 +189,12 @@ window.WIA = window.WIA || {};
       after = await until(() => (left() ? "left" : banner() ? "error" : wentWrong() ? "wrong" : null), LEAVE_WAIT);
     }
     if (after === "left") return null;
-    if (after === "wrong") return "Workday showed \"Something went wrong\" after WorkIt pressed Save and Continue. Reload the page, check the step, then go on yourself.";
+    if (after === "wrong") return `${NAME} showed "Something went wrong" after WorkIt pressed ${PRESS}. Reload the page, check the step, then go on yourself.`;
     if (after === "error" && (await until(left, ERROR_WAIT))) return null;
     if (after === "error") {
-      return `Workday didn't take this step: "${banner()?.innerText.replace(/\s+/g, " ").trim().slice(0, 300) ?? ""}" Fix it, then press Save and Continue yourself. WorkIt won't press it again here.`;
+      return `${NAME} didn't take this step: "${banner()?.innerText.replace(/\s+/g, " ").trim().slice(0, 300) ?? ""}" Fix it, then press ${PRESS} yourself. WorkIt won't press it again here.`;
     }
-    return "Workday didn't go on after WorkIt pressed Save and Continue. Check the step, then press it yourself.";
+    return `${NAME} didn't go on after WorkIt pressed ${PRESS}. Check the step, then press it yourself.`;
   }
 
   // Outside a batch: the step's walk, kept for the panel's Fill to Review until the student presses it.
@@ -198,7 +209,7 @@ window.WIA = window.WIA || {};
   function panel() {
     if (!offered || on()) return null;
     const el = window.WIA.rowCard.make({
-      lines: ["Fill every step up to Workday's Review page. WorkIt presses Save and Continue on each step that needs nothing from you, never Submit."],
+      lines: [`Fill every step up to ${NAME}'s ${system.reviewName} page. WorkIt presses ${PRESS} on each step that needs nothing from you, never Submit.`],
       buttons: [{
         label: "Fill to Review",
         onClick: () => {
@@ -214,7 +225,7 @@ window.WIA = window.WIA || {};
     return el;
   }
 
-  if (window.WIA.workday?.isWorkday) overlay.addPart({ css: ".to-review { margin: 8px 12px; }", panel });
+  if (window.WIA.steps) overlay.addPart({ css: ".to-review { margin: 8px 12px; }", panel });
 
   window.WIA.toReview = { on, leave, offer, REVIEW_NOTE, STOPPED };
 })();

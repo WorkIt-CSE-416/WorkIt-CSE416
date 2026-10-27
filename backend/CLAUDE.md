@@ -297,6 +297,15 @@ Find files with a directory listing; these are the rules for where code goes.
   each an id; any other param is refused. It feeds the team's
   engine repair loop; nothing reads it in the app. Tests:
   `tests/test_fill_reports.py`.
+  **Job system requests from the extension's popup** (KAN-369,
+  `routers/job_system_requests.py`, table `job_system_requests`, migration
+  `d8a3f5c1e7b2`): `POST /job-system-requests {"host"}` stores the host of
+  a job page WorkIt can't fill when the student presses Request this job
+  system. Only a bare lower-case host name is taken (any other key, a
+  scheme, port or path is 422); the row names no account, though sending
+  needs a sign-in. The team ranks the next job systems with `SELECT host,
+  count(*) FROM job_system_requests GROUP BY host`; nothing reads it in the
+  app. Tests: `tests/test_job_system_requests.py`.
   **Save to WorkIt by a page's link** (KAN-401, `POST /jobs/saved-by-link`
   in `routers/applications.py`, `queries/applications.py`
   `listed_job_by_link`): the extension's toolbar popup on a site it can't

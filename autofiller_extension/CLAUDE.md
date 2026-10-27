@@ -93,8 +93,8 @@ builds it: `dist/engine.js` is committed in the engine repo.
   company, role and text from the engine (`jobOf`, `questionSet`,
   `jobNames`, `jobDescription`, `textOf`), which asks each job system's
   public API with the background's `fetchText`: the same URLs and queries
-  Apply asks. Eightfold's and Workday's questions are read off the open form
-  by the engine (`readQuestions`), and Ashby's form too when its query
+  Apply asks. Eightfold's, TikTok's and Workday's questions are read off the open form
+  by the engine (`readQuestions`; `engine.js`'s `READ_OFF_PAGE`), and Ashby's form too when its query
   fails. It then asks the engine's `plan` for answers from the WorkIt
   profile (`engineProfile`) and `POLICIES`. No job system's URLs, queries,
   parsing or company names live here: change them in the engine repo.
@@ -110,7 +110,7 @@ builds it: `dist/engine.js` is committed in the engine repo.
   only within a minute (a tab held by a human check plans afresh). A read
   that failed is asked again by the Plan. Never the answer bank (read fresh
   for each Plan, KAN-379), nor a job whose questions only its open form
-  shows (Workday, Eightfold, practice forms); every later Plan of the tab
+  shows (Workday, Eightfold, TikTok, practice forms); every later Plan of the tab
   (a Workday step, an Eightfold follow-up) reads afresh.
 - **The engine fills the page and checks it.** `fill/page` calls the
   engine's `fillEach`, which fills in the engine's own order (files first
@@ -184,8 +184,73 @@ builds it: `dist/engine.js` is committed in the engine repo.
   fake Workday steps, as new pages and drawn in place) from Create Account
   to Review, Fill to Review saving each step it can and the test answering
   and saving, as the student, each step where the walk stops.
+- **Stepped systems share one loop (`steps.js`).** `window.WIA.steps` is
+  the stepped job system on the page (Workday's `workday.js`, Oracle's
+  `oracle.js`, SuccessFactors' `successfactors.js`, iCIMS's `icims.js`), the extension's side of the engine's Stepper seam
+  (fill-engine `src/steps.ts`, README "Stepped forms"). The step loop
+  (content-script.js), Fill to Review (`workday-walk.js`), the checklist's
+  field lookup (batch-tab.js `fieldOf`) and the primary button use only its
+  face: `isOn`, `name`, `step()`, `stepId()`, `stepAfter(from)`, `quiet()`,
+  `filledBefore()`, `fieldOf(key)`, `nextLabel`, `reviewName`, `waiting`
+  {title, reason}, an optional `watchGate(onView)`, and `walk` {next,
+  review, goesOn, banner, wentWrong()}. A new stepped system (iCIMS,
+  SuccessFactors) is one more script giving it, loaded before `steps.js`
+  (shared/content-scripts.js), plus its name in `steps.js`'s list.
+- **Oracle Recruiting Cloud** (`oracle.js`, KAN-369). The manifest runs on
+  `*.oraclecloud.com/hcmUI/CandidateExperience/*`. Oracle's Apply opens an
+  email gate (Email Address, a terms box, a hidden honeypot; a returning
+  candidate may get a one-time code): it is the student's. WorkIt never
+  types into it or presses its Next; the panel says "Enter your email to
+  start" and tells them to enter it and continue. Each section (Personal
+  Info, Job Application Questions, Experience, More About You) then fills
+  as it shows, in the same page, its line "Oracle: <section>", and Fill to
+  Review presses Oracle's Next on each section with nothing for the
+  student, stopping at Summary (its Submit is the student's). A closed
+  Oracle job (its page says it is no longer available) gets "This job is
+  closed" (closed-posting.js) instead of the wait for the email. A profile
+  item's inline form (Add Education, Add Experience) isn't filled. The
+  sections' markup comes from Simplify's and Jobright's selectors, not a
+  live read: live-check before relying on it. Tests:
+  `test/oracle.extension.spec.ts` (the engine's fake Oracle page).
+- **SAP SuccessFactors** (`successfactors.js`, KAN-369). The manifest runs on
+  the career sites' `/career*` and `/portalcareer*` pages of
+  `*.successfactors.com|.eu` and `*.sapsf.com|.eu` (backend
+  AUTO_APPLY_HOSTS the same four). A posting usually lives on the
+  employer's own career site (jobs.sap.com, `*.jobs2web.com`, a branded
+  host), where the extension doesn't run: its Apply goes on to the career
+  site's sign-in. The sign-in and its Create an Account page are the
+  student's: WorkIt never types an email or password there, never makes an
+  account and never presses their buttons; the panel says "Sign in to
+  SuccessFactors, then press Fill". Signed in, the application's fields are
+  read off the page (they differ by employer): "Application" (its
+  sections) and, at some employers, "Questions" (the screening page), each
+  with its line "SuccessFactors: <page>"; Fill to Review presses its Next
+  and stops where only Apply goes on (the student's). Education and
+  Employment entries aren't filled. The signed-in markup comes from
+  Simplify's and Jobright's selectors, not a live read: live-check before
+  relying on it (fill-engine `test/fixtures/forms/successfactors-acuity/README.md`).
+  Tests: `test/successfactors.extension.spec.ts` (the saved live sign-in,
+  and the engine's fake application page).
+- **iCIMS** (`icims.js`, KAN-369). The manifest runs on
+  `*.icims.com/jobs/*`. iCIMS draws every page in its own iframe
+  (`#icims_content_iframe`, same host): the panel and the fill stay on the
+  top page and work in that frame's document (the face's `doc()`, which
+  Fill to Review reads too); the launcher skips the frame. The candidate's
+  sign-in (email, the privacy-notice consent and "I accept", then a
+  password or a new login; an invisible hCaptcha) is the student's: WorkIt
+  never types into it or presses its Next, and the panel says "Sign in to
+  iCIMS, then WorkIt fills". Each step (a new page in the frame, watched
+  by polling) then fills as it shows, its line "iCIMS: <step>"; Fill to
+  Review presses Next on each step with nothing for the student and stops
+  on the step whose button reads Submit. A batch tab skips the form wait
+  (the form is in the frame) and its fill waits for the sign-in. A closed
+  job (`/jobs/search?...notFound=1`) says "This job is closed". Education
+  and Experience entries (`iCIMS_CollectionContainer`) aren't filled. The
+  steps' markup comes from Simplify's and Jobright's selectors, not a live
+  read: live-check before relying on it. Tests:
+  `test/icims.extension.spec.ts` (the engine's fake iCIMS site).
 - **A job's page is not always its form.** A Lever, Ashby, Rippling,
-  Workable or Eightfold posting shows the job on one page and the form on
+  Workable, Eightfold or TikTok posting shows the job on one page and the form on
   another (`jobOf`'s `form`). On the job's page the overlay names the
   form's link and fills nothing; batch apply opens the form itself
   (`formFor`: `formUrl`, then the engine's `greenhouseForm`). A hosted
@@ -198,6 +263,23 @@ builds it: `dist/engine.js` is committed in the engine repo.
   iframe (`iframe[src*="greenhouse.io/embed/job_app"]`), the overlay names
   that iframe's link instead of "can't fill this job system yet"
   (`content-script.js`).
+- **TikTok's form is behind the site's own sign-in, the student's
+  (KAN-369).** TikTok and ByteDance share one form and the engine's
+  `"tiktok"` Filler (`lifeattiktok.com`, `careers.tiktok.com`,
+  `jobs.bytedance.com`, `joinbytedance.com`); a posting's form
+  (`/resume/<id>/apply`) sends a signed-out student to
+  `/login?redirect_path=...`. WorkIt never signs in there and never types
+  an email or password: on the sign-in (`engine.js`'s `signInFirst`, or the
+  engine's `readQuestions` throwing `Handoff` on a page with a password
+  box) `planFill` answers `signIn`, the engine's line, and the panel shows
+  "Sign in to TikTok, then press Fill" (ByteDance on its hosts) and fills
+  nothing. A batch tab on it is injected at once (`startFill`, no form
+  wait, no second opening) and needs the student; the background remembers
+  the tab (`background.js`'s `SIGN_IN_TABS_KEY`) and fills it once it
+  reaches the form, as a new page or the site's own move in the page.
+  `test/tiktok.extension.spec.ts` serves the engine's rebuilt form fixture
+  behind a made-up sign-in. The form was never seen signed in (the engine's
+  `test/fixtures/forms/tiktok-README.md` lists what needs a live check).
 - **The profile adapter gives only what WorkIt holds.** Name, email,
   phone, home, links, the default resume, the transcript, the latest school and the jobs from the
   bank, and the nine autofill answers, in the words the engine's rules
@@ -217,17 +299,31 @@ builds it: `dist/engine.js` is committed in the engine repo.
   question about working abroad ("the right to work in the UK?") is No, and
   a role abroad a Screener. The engine's own rules decide everything else; change a rule in
   the engine repo, not here.
+- **SmartRecruiters fills in two pages** (`src/content/smartrecruiters.js`).
+  A posting (`jobs.smartrecruiters.com/<company>/<id>`) opens its one-click
+  form through `?oga=true`; the form's questions are read off the page a
+  page at a time (`readQuestions`, through its components' shadow roots).
+  Once the first page is filled and nothing on it needs the student (no
+  failed row, no required answer still being written), `fill/next` has the
+  engine press Next, never Submit, and the screening page is filled as the
+  same tab's fill. Otherwise the first page is the student's, with a
+  "SmartRecruiters: first page" line telling them to press Next. Names and
+  text come from the public Posting API (`api.smartrecruiters.com`, in the
+  manifest). The form serves a captcha to a headless browser, so its tests
+  run on the engine's stand-in built from other autofillers' selectors
+  (`test/smartrecruiters.spec.ts`), not a saved live form.
 - **Only job systems the engine covers are filled.** `engine.js`'s `jobOf`
-  names them (Greenhouse, Lever, Ashby, Rippling, Workable, Eightfold and
-  Workday). On any other page the overlay says
+  names them (Greenhouse, Lever, Ashby, Rippling, Workable, Eightfold,
+  SmartRecruiters, Workday, Oracle, SuccessFactors, iCIMS, Waymo and TikTok/ByteDance). On any other page the overlay says
   WorkIt can't fill this job system yet and nothing is touched: there is
   no generic filler any more (the old label-matching one filled most forms
   wrong, and was deleted with its Greenhouse adapter in KAN-340).
-  A closed job on a system it covers is told apart (`closedPosting` in
-  content-script.js): Greenhouse sends it to its board with `?error=true`,
+  A closed job on a system it covers is told apart (`closedPosting`, in
+  closed-posting.js): Greenhouse sends it to its board with `?error=true`,
   Workable to the account with `?not_found=true`, others say so on the
-  page ("no longer accepting applications"); the overlay then says This
-  job is closed instead.
+  page ("no longer accepting applications"; TikTok's and ByteDance's "404
+  Page not found", where the engine's `NoForm` or the posting's link is
+  checked too); the overlay then says This job is closed instead.
 - **Tests**: `test/extension.ts` runs the fill as Chrome does, minus
   Chrome: `ENGINE_FILES` and `CONTENT_SCRIPT_FILES` evaluated in a saved
   form's page (served by the engine repo's own fakes and fixtures, through
@@ -422,6 +518,15 @@ waits for an opened tab's page and form (`waitForLoad`, `formShows`).
   so the student can press it again. **Closing a tab is not Skip**: a
   window closed, or Chrome quitting, closes every tab, and the student may
   close a tab only to come back to the job later; it just leaves the batch.
+- **A closed job leaves by itself (KAN-369).** A batch tab whose job system
+  says the job is closed (`content/closed-posting.js`: Greenhouse's
+  `?error=true` board, Workable's `?not_found=true`, or "no longer
+  accepting applications" on a covered host) is skipped the way Skip is,
+  with the outcome `closed` (`closeClosedTab`): the API marks it skipped and
+  its scraped posting closed, so it is neither applied nor failed, its tab
+  closes and the next job opens. Two ways in: the fill's "This job is
+  closed" note sends `batch/closed`, and `startFill` asks the same check
+  when the page shows no form at all (Workable's closed page).
 - **One Workday application at a time (KAN-373).** A Workday application
   runs over many pages, each waiting on the student (sign-in, then Save
   and Continue), and Chrome throttles hidden tabs, so the batch holds one
@@ -889,8 +994,9 @@ waits for an opened tab's page and form (`waitForLoad`, `formShows`).
   title and favicon need `tabs`). Injecting the fill does: `activeTab`
   doesn't cover a tab the batch opened, so `host_permissions` lists each
   hiring system auto apply takes, the same hosts as
-  `backend/app/auto_apply/hosts.py` (all seven job systems the engine
-  fills, KAN-370). A host added there
+  `backend/app/auto_apply/hosts.py` (all eight job systems the engine
+  fills, KAN-370; TikTok's by its exact careers hosts, never all of
+  tiktok.com or bytedance.com). A host added there
   is added to `manifest.json` in the same change, or its fills answer
   `not_allowed`. After pulling a manifest change, reload the unpacked
   extension in `chrome://extensions`. The background also fetches their
@@ -899,9 +1005,21 @@ waits for an opened tab's page and form (`waitForLoad`, `formShows`).
   engine's `EIGHTFOLD_COMPANIES`) is listed by its host: without it, the
   job's names and text failed to fetch. `test/manifest.spec.ts` checks one
   link of each.
+- **Waymo's careers site is its own job system** (`careers.withwaymo.com`,
+  the engine's site `waymo`). It shows each posting of Waymo's Greenhouse
+  board with a form its site vendor builds, with no Greenhouse frame, so
+  `embedsGreenhouse` leaves out every link `jobOf` covers and the page's
+  own form is filled, its questions read off the open form as Eightfold's
+  are (`readQuestions`; none written ahead). `manifest.json` lists the
+  host; `waymo.com/joinus/<job>` opens the careers site's
+  `/jobs?gh_jid=<job>`. Its Submit posts to `/call_to_actions/<id>/form_submissions`
+  (`SUBMIT_REQUESTS.waymo`, not proof alone: how it answers a refusal isn't
+  recorded), and a closed posting's "Looks like you got lost" page is a
+  closed job. Until the engine's Waymo Filler both of Waymo's careers
+  hosts were left out (hosts.py's former `SKIP_EMBEDDING`).
 - **A careers page that embeds Greenhouse is filled in its iframe**
   (KAN-369). A `?gh_jid=` link on a company's own site (hosts.py takes
-  them, outside its `SKIP_EMBEDDING`) opens as it is, and the fill runs in
+  them all) opens as it is, and the fill runs in
   the page's `*.greenhouse.io/embed/job_app` frame only
   (`embedded-forms.js`; `injectFill`'s and `formShows`'s `frameId`). The
   extension has no host permission for the company's page: Chrome redacts
@@ -1230,7 +1348,9 @@ checking the student owns the application: a tab's state (`PUT
 `POST .../finish`), and whether Claude is connected (`GET
 .../connector`). Report a problem (KAN-403) sends `POST /fill-reports`
 (`routers/fill_reports.py`): no applicant in the path and no account in
-the row, the report's parts only. The rest are older:
+the row, the report's parts only. The popup's Request this job system
+(KAN-369) sends `POST /job-system-requests` (`routers/job_system_requests.py`):
+the host alone, no account in the row. The rest are older:
 
 `src/background/api.js` mostly calls endpoints that already exist for the
 webapp: `GET /auth/me`, `GET /applicants/{id}/profile`, `GET
@@ -1254,9 +1374,12 @@ fetch (`force`, after an edit) never joins one under way, which may have
 started before the edit. Past its 10 min TTL a profile under a day old,
 and of the account signed in, is used at once while a fresh one is fetched
 behind (a cold API answered in 4-9 s live); an older one is waited for. The
-fetch starts before anything waits for it (`warmProfile`): as a batch starts,
-as the webapp pings (its pages opening, Auto Apply's among them) and as a
-job page's panel asks `panel/where`. Its parts (profile, bank, preferences, autofill answers, the
+fetch starts before anything waits for it (`warmProfile`): as the webapp
+pings (its pages opening, Auto Apply's among them) and as a job page's
+panel asks `panel/where`. Not at `run/open`: its seven parts, asked before
+the tabs open, took Chrome's six connections to an HTTP/1.1 API and held
+`applications/next` one round trip (every tab 150 ms later at a 150 ms API);
+write early asks for it once the tabs have opened (`test/batch.extension.spec.ts`). Its parts (profile, bank, preferences, autofill answers, the
 resume, the transcript, the brought fill profile) are asked at once after
 `/auth/me`, not one after another: none needs another's answer, and the
 transcript waits for the resume only to tell their names apart. Live, at a
@@ -1324,6 +1447,18 @@ only the student's own answer, never a default; an empty list is their
 "none". `schoolYear` derives `education.class_year` and
 `returning_to_school_after_internship` from the latest education entry's
 end month (`engineProfile(profile, today)`), with no new input.
+The rest of the section reaches the engine as `identity.age_18_or_over`,
+`identity.pronouns`, `voluntary_self_id.{sexual_orientation, transgender,
+communities}` (decline as "decline"; communities [] is "none of these"),
+`experience_facts.role_interests`, `links.x_twitter_url` and
+`work_authorization.citizenship_countries` (any country; the engine picks it
+from a list of countries of citizenship, two being a dual citizen's). Pay is the
+student's own answer, laid over the policies by `enginePolicies`:
+`compensation.fallback_hourly` (their hourly figure) and
+`accept_stated_rate` (with "Open to the posted range" as the words). From
+the bank, with no new input: `experience_facts.prior_internships_count`
+(jobs titled intern or co-op; unknown while the bank holds no job) and
+`identity.current_company` (the job held now).
 
 - **`work_authorized_us`/`needs_sponsorship` fall back to the onboarding
   "Visa Sponsorship" job-search filter** (`applicant_preferences.visa`,
@@ -1721,7 +1856,14 @@ report.js everywhere it is: manifest, `CONTENT_SCRIPT_FILES`, background.js
   is, ignoring query, fragment and a trailing slash; "WorkIt doesn't list
   this job yet." when there is none) and **Report a problem** (what it sends:
   job system "unsupported", the posting link as below, the engine, and an
-  optional note, `NOTE_MAX` long; then Send report, `popup/report`). Nothing leaves on opening the popup. Its
+  optional note, `NOTE_MAX` long; then Send report, `popup/report`), and
+  between them **Request this job system** (KAN-369, `popup/request`:
+  `POST /job-system-requests {"host"}`, the page's host and nothing else;
+  "Requested. WorkIt adds the job systems students ask for most."). The
+  hosts asked are kept in chrome.storage.local `requested_job_systems`, so
+  each is sent once from a browser and the popup then says "You requested
+  this job system." instead of the button (test:
+  `request-system.extension.spec.ts`). Nothing leaves on opening the popup. Its
   test opens popup.html with `?tab=<id>` and loads a copy of the extension
   granted the fake host (`loadExtension`'s `grantHosts`), standing in for
   activeTab, which no test can press.
@@ -1837,9 +1979,12 @@ head `.section-head`). Notes (content-script.js's) stand above them.
   required question the form isn't asking now), `note`. A field the engine
   reports filled (its `fillengine:field` done event) turns green at once;
   the fill's answer then sets every row as WorkIt read it back.
-- **Order (Q2).** While the fill runs, the Plan's order; once it is done
+- **Order (Q2).** The page's order: each row (a section by its first
+  field) is placed where `window.WIA.fieldOf` finds its field, and rows
+  whose field the page doesn't show yet come after, as registered
+  (`groups.inPageOrder`; KAN-369, decision 1971). Once the fill is done
   (content-script.js refreshes the list when the phase changes), red and
-  then amber rows rise to the top of their section, the rest in the Plan's
+  then amber rows rise to the top of their section, the rest in page
   order. Required questions the form isn't asking now close the Required
   section, collapsed to "N the form isn't asking now"
   (`.group[data-group="not-asked"]`).
@@ -1850,8 +1995,10 @@ head `.section-head`). Notes (content-script.js's) stand above them.
   section (`groups.entryOf`). A section is one row (`.entries[data-entries]`,
   its head Workday's "(entries)" question's row when there is one, marked
   with the worst of its fields) and under it a block per entry
-  (`.entry`), titled by its company or school as the form shows it
-  (`.entry-title`, "Work Experience 1" until filled), listing the entry's
+  (`.entry`), titled by its company or school as the form shows it, else
+  as the Plan fills it (the profile entry's; content-script.js hands each
+  planned answer to `groups.planned`, which keeps only an entry's naming
+  field), else "Work Experience 1" (`.entry-title`), listing the entry's
   fields with small dots (`.row.sub`). The section goes under Required when
   any of its fields is required.
 - **Rows (Q4's row parts).** overlay.js's `row` keeps its cards, reasons and
@@ -2108,13 +2255,11 @@ openness covers:
   `experience_facts.skills`, a "Languages" group first. WorkIt holds no place
   the student lives, so Greenhouse's Country picker beside Phone is left for
   the student.
-- **No "not a veteran" answer.** WorkIt's `veteran_status` is
-  protected_veteran, not_protected_veteran or declined. Since the engine's
-  fix (KAN-329), "I am not a protected veteran" answers only
-  protected-status questions; a plain "Are you a veteran?" or military
-  service question is the student's (a Missing fact). Answering it needs a
-  new value such as `not_veteran`, mapped to "I am not a veteran"; never
-  map not_protected_veteran to false.
+- **"Never served" is its own answer.** WorkIt's `veteran_status` adds
+  `not_veteran` ("I am not a veteran"), which answers "Are you a veteran?",
+  "have you ever served?" (No) and a branch or status (N/A).
+  not_protected_veteran still answers only protected-status questions; never
+  map it to false.
 - **A profile saved before the name split** (KAN-326) has only
   `full_name`, so its first/last name is the first word and the rest:
   wrong for a multi-word given name or a middle name. Once My Profile

@@ -131,7 +131,7 @@ window.WIA = window.WIA || {};
       ...cover.map((q) => q.name),
     ]);
     coverLetter = cover.length > 0;
-    workday = prepared.site === "workday";
+    workday = Boolean(window.WIA.steps);
     if (!style?.isConnected) style = window.WIA.panel?.addCss(css);
     unsubscribe?.();
     unsubscribe = window.WIA.status.subscribe(render);

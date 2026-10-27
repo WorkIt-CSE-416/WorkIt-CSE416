@@ -50,8 +50,8 @@
 // Starting a real batch ends a practice one.
 
 import { tabResume } from "./resume-tab.js";
-import { ApiError, finishApplication, getAutofillProfile, me, nextApplication, recordFill, recordSentResume, warmProfile } from "./api.js";
-import { formFor, jobOf, practiceJob } from "./engine.js";
+import { ApiError, finishApplication, getAutofillProfile, me, nextApplication, recordFill, recordSentResume } from "./api.js";
+import { formFor, jobOf, practiceJob, signInFirst } from "./engine.js";
 import { jobBoard } from "./job-boards.js";
 import { injectFill, injectHumanCheck } from "../shared/content-scripts.js";
 import { embeddedForm, embedsGreenhouse } from "./embedded-forms.js";
@@ -84,8 +84,8 @@ const FORM_TIMEOUT_MS = 10_000;
  * >}
  */
 export async function startBatch(sender) {
-  // Every tab's Plan needs the profile: asked now, while the tabs open, not once the first page has loaded.
-  warmProfile();
+  // No profile warm-up here: asked before the tabs open, its seven parts took Chrome's six connections to a
+  // local (HTTP/1.1) API and held applications/next one round trip. writeEarly asks for it as the tabs open.
   let account;
   try {
     account = await me();
@@ -286,11 +286,16 @@ async function startFill(tabId, url, again = false) {
     const shown = (await chrome.tabs.get(tabId)).url ?? "";
     if (jobOf(shown)?.site === "workable") await forgetWorkableDraft(tabId, { onlyIfDraft: true });
     // A Workday posting shows no form until Apply is pressed (the fill presses it, workday.js) and the student signs in: its fill waits.
-    const workday = isWorkday(shown);
+    // iCIMS draws its sign-in and steps in its own frame, never this page: its fill waits for them (icims.js).
+    const workday = isWorkday(shown) || jobOf(shown)?.site === "icims";
+    // TikTok's form behind its sign-in: the fill shows the student the sign-in line (needs you), and the
+    // background fills the form once the tab reaches it (background.js). Opening the form again only signs in again.
+    if (signInFirst(shown)) return await injectFill(tabId, { batch: true });
     let found = await formShows(tabId, workday ? 0 : FORM_TIMEOUT_MS);
     // No answer: a new page ended the look (a human check that passed on its own), so look in the new one.
     if (found === null && !workday) found = await formAfterHumanCheck(tabId, FORM_TIMEOUT_MS);
     const now = (await chrome.tabs.get(tabId)).url ?? "";
+    if (signInFirst(now)) return await injectFill(tabId, { batch: true });
     if (!again && url && jobOf(url)?.onForm && !jobOf(now)?.onForm) {
       await chrome.tabs.update(tabId, { url });
       return startFill(tabId, url, true);
@@ -308,12 +313,24 @@ async function startFill(tabId, url, again = false) {
         await markCheck(tabId, false);
       }
     }
+    if (!found && !workday && (await closedPage(tabId))) return void (await closeClosedTab(tabId));
     if (!found && !workday) throw new Error("no_form");
     await injectFill(tabId, { batch: true });
   } catch (error) {
     console.warn("[batch] nothing was filled:", error.message);
     const url = (await chrome.tabs.get(tabId).catch(() => null))?.url ?? "";
     await setTabState(tabId, jobOf(url) ? "failed" : "needs_you");
+  }
+}
+
+/** Whether a tab's page is its job system saying the job is closed (content/closed-posting.js). */
+async function closedPage(tabId) {
+  try {
+    await chrome.scripting.executeScript({ target: { tabId }, files: ["src/content/closed-posting.js"] });
+    const [{ result }] = await chrome.scripting.executeScript({ target: { tabId }, func: () => window.WIA.closedPosting() });
+    return result === true;
+  } catch {
+    return false;
   }
 }
 
@@ -468,13 +485,29 @@ export function forgetTab(tabId, removeInfo = {}) {
  * @param {number} tabId
  */
 export function skipTab(tabId) {
+  return leave(tabId, "skipped");
+}
+
+/**
+ * A batch tab's job system says the job is closed (content-script.js, or
+ * startFill on a page with no form): the application finishes "closed"
+ * (skipped, its posting marked closed; KAN-369), its tab closes, and the
+ * next queued job opens, as after Skip.
+ * @param {number} tabId
+ */
+export function closeClosedTab(tabId) {
+  return leave(tabId, "closed");
+}
+
+/** The tab's application finishes with `outcome`, its tab closes and leaves the batch, and the batch tops up. */
+function leave(tabId, outcome) {
   return serially(async () => {
     const batch = await load();
     const tab = batch?.tabs[tabId];
     if (!tab) return { batch: false };
     // A practice job has no application at WorkIt: its tab just closes.
     const account = batch.practice ? null : await me();
-    if (account) await finishApplication(account.id, tab.jobId, "skipped");
+    if (account) await finishApplication(account.id, tab.jobId, outcome);
     delete batch.tabs[tabId];
     await save(batch);
     await chrome.tabs.remove(tabId).catch(() => {});

@@ -1232,12 +1232,20 @@ Availability (on-site, full time), Start Window (earliest start, latest end,
 the next six terms as chips), Relocation (willing, places ranked best first
 as numbered chips, where they'll live), Address (street and ZIP; city and
 state are the profile's location), Languages (English shown as a suggestion
-until saved) and Screener Facts, one card with Yes and No each and a None of
+until saved), Age and Pay (18 or older; expected dollars an hour, typed by
+the student and never guessed; whether a posted range is fine), More About
+You (kinds of work as chips; an X profile; the countries they are a citizen
+of), Communities (chips, with
+None of These and I Don't Wish to Answer, each standing alone) and Screener
+Facts, one card with Yes and No each and a None of
 These Apply button that answers only the unanswered ones; a Yes on a list
 question asks which companies. School Year (class year, back to school after
 the internship) is worked out from the latest education entry's end month
 (`lib/school-year.ts`) and only shown, with "From your education: ...". The
 same controls are `components/answer-fields.tsx`, shared with onboarding.
+Application Questions also lists the EEO extras (sexual orientation,
+transgender, pronouns), each with a decline answer; onboarding skips them
+with the other self-identification, and the extension never asks them.
 
 **Contact & Links (KAN-262)** is an open section between the identity band
 and Resumes & Experiences. It lists all six fields under visible labels, two

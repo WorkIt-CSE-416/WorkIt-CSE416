@@ -80,6 +80,23 @@ test("fills a batch five tabs at a time into the Ready and Needs you groups", as
   expect(forms.submissions).toEqual([]);
 });
 
+test("run/open asks for the next applications before any part of the profile, so the profile never holds up a tab's opening", async () => {
+  // Over HTTP/1.1 (a local API) Chrome keeps six connections a host: the profile's seven parts asked first left
+  // applications/next waiting one round trip (the speed harness, 150 ms API: every tab opened 150 ms later).
+  const forms = new SavedForms(["greenhouse-arc"]);
+  const api = new FakeApi().queue({ id: "job-0", apply_url: forms.url("greenhouse-arc") });
+  const { webappPage } = await start(api, forms);
+  const from = loaded.asked.length;
+  await sendFromWebapp(webappPage, { type: "run/open" });
+  await expect.poll(async () => (await tabs(loaded.worker)).some((t) => t.url === forms.url("greenhouse-arc")), { timeout: 60_000 }).toBe(true);
+  const asked = loaded.asked.slice(from).map((u) => new URL(u).pathname);
+  const lastNext = asked.findLastIndex((p) => p.endsWith("/applications/next"));
+  const firstPart = asked.findIndex((p) => /\/applicants\/[^/]+\/(profile|bank|preferences|autofill-answers|resumes|documents|fill-profile)$/.test(p));
+  expect(lastNext).toBeGreaterThanOrEqual(0);
+  expect(firstPart === -1 || firstPart > lastNext).toBe(true);
+  expect(forms.submissions).toEqual([]);
+});
+
 test("a fill that errors leaves its tab failed, not just needing the student, in the Needs you group", async () => {
   const forms = new SavedForms(["greenhouse-arc"]);
   const api = new FakeApi().queue({ id: "job-0", apply_url: forms.url("greenhouse-arc") });

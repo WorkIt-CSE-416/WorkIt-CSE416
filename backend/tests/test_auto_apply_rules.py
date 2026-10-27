@@ -58,9 +58,22 @@ def test_size_zero_or_empty_input():
     "https://explore.jobs.netflix.net/careers/job/1",
     "https://acme.wd5.myworkdayjobs.com/en-US/Careers/job/Intern_R1",
     "https://wd3.myworkdaysite.com/recruiting/acme/Careers/job/Intern_R1",
+    "https://fa-acme-saasfaprod1.fa.ocs.oraclecloud.com/hcmUI/CandidateExperience/en/sites/CX_1/job/27180",
+    # TikTok and ByteDance's careers sites: one form, behind their own sign-in.
+    "https://lifeattiktok.com/search/7693732178706974981",
+    "https://www.lifeattiktok.com/search/7693732178706974981",
+    "https://careers.tiktok.com/resume/7693732178706974981/apply",
+    "https://jobs.bytedance.com/en/position/7678450462765254965/detail",
+    "https://joinbytedance.com/search/7678450462765254965",
+    "https://jobs.smartrecruiters.com/Acme/744000000000001-field-technician",
+    "https://career4.successfactors.com/career?career_ns=job_listing&company=AcmeCo&career_job_req_id=16550",
+    "https://careers-acme.icims.com/jobs/1234/software-intern/job",
     # A company's own careers page that embeds Greenhouse's form (filled in its iframe).
     "https://stripe.com/jobs/search?gh_jid=8257892",
     "https://www.databricks.com/company/careers/open-positions/job?utm=x&gh_jid=8805655002",
+    # Waymo's careers site, whose own form the Fill engine fills.
+    "https://careers.withwaymo.com/jobs?gh_jid=8257660",
+    "https://waymo.com/joinus/8257660?gh_jid=8257660",
 ])
 def test_auto_apply_takes_every_hiring_system_the_fill_engine_fills(url):
     assert auto_apply_supported(url)
@@ -71,16 +84,17 @@ def test_auto_apply_takes_every_hiring_system_the_fill_engine_fills(url):
     # Job boards: their terms ban automation (KAN-369).
     "https://www.linkedin.com/jobs/view/1",
     "https://www.indeed.com/viewjob?jk=1",
-    "https://jobs.smartrecruiters.com/acme/1",
-    # A careers page whose embedded form doesn't fill in place (SKIP_EMBEDDING), or a gh_jid that isn't the query's.
-    "https://careers.withwaymo.com/jobs?gh_jid=8257660",
-    "https://waymo.com/joinus/8257660?gh_jid=8257660",
+    "https://jobs.jobvite.com/acme/job/1",  # a hiring system the engine doesn't fill
+    # A gh_jid that isn't the query's.
     "https://example.com/jobs#gh_jid=1",
     "https://example.com/jobs?not_gh_jid=1",
     "https://example.com/?next=https://boards.greenhouse.io/acme",
     "https://greenhouse.io.example.com/acme",
     "https://notgreenhouse.io/acme",
     "https://notlever.co/acme",
+    # Only TikTok's careers site, not the rest of tiktok.com or bytedance.com.
+    "https://www.tiktok.com/@acme",
+    "https://www.bytedance.com/en/news",
 ])
 def test_auto_apply_leaves_out_other_hosts(url):
     assert not auto_apply_supported(url)

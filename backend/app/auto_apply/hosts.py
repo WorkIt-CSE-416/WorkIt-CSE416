@@ -24,27 +24,40 @@ AUTO_APPLY_HOSTS = (
     "explore.jobs.netflix.net",
     "myworkdayjobs.com",
     "myworkdaysite.com",
+    # Oracle Recruiting Cloud's candidate experience (the engine's oracle.ts).
+    "oraclecloud.com",
+    # TikTok and ByteDance's careers sites: one form, behind the site's own
+    # sign-in, which the student goes through (the extension never signs in).
+    # Only these hosts, never the rest of tiktok.com or bytedance.com.
+    "lifeattiktok.com",
+    "careers.tiktok.com",
+    "jobs.bytedance.com",
+    "joinbytedance.com",
+    # SmartRecruiters' postings and their one-click form (jobs.smartrecruiters.com).
+    "smartrecruiters.com",
+    # SAP SuccessFactors' career sites (the engine's successfactors.ts).
+    "successfactors.com",
+    "successfactors.eu",
+    "sapsf.com",
+    "sapsf.eu",
+    # iCIMS career sites, the form in their own iframe (the engine's icims.ts).
+    "icims.com",
 )
-
-# Company careers sites whose embedded Greenhouse form doesn't fill in place
-# (Simplify leaves Waymo's two out the same way; research
-# open-decisions-forms.md, section 2). Their ?gh_jid= pages stay out.
-SKIP_EMBEDDING = ("waymo.com", "withwaymo.com")
 
 # The host is one of AUTO_APPLY_HOSTS or a subdomain of it
 # (job-boards.greenhouse.io, boards.eu.greenhouse.io), or the link is a
-# company's own careers page that embeds Greenhouse's form, named by ?gh_jid=
-# in its query (the extension fills the form in its iframe there, KAN-369),
-# on a host outside SKIP_EMBEDDING. Written for both Python's re and
-# Postgres's ~* (filters.py), so the SQL and the listing's flag agree: one
-# capture-free alternation, lookahead only.
+# company's own careers page that shows a Greenhouse posting, named by
+# ?gh_jid= in its query: the extension fills the embedded form in its iframe
+# there (KAN-369), or the page's own form where the Fill engine fills it
+# (Waymo's careers site, careers.withwaymo.com, which builds its own form;
+# it was left out until the engine's Waymo Filler). Written for both
+# Python's re and Postgres's ~* (filters.py), so the SQL and the listing's
+# flag agree: one capture-free alternation.
 AUTO_APPLY_URL_PATTERN = (
     r"^https?://(?:[a-z0-9-]+\.)*(?:"
     + "|".join(re.escape(host) for host in AUTO_APPLY_HOSTS)
     + r")(?:[/:?#]|$)"
-    + r"|^https?://(?!(?:[a-z0-9-]+\.)*(?:"
-    + "|".join(re.escape(host) for host in SKIP_EMBEDDING)
-    + r")(?:[/:?#]|$))[^/?#]+[^?#]*\?(?:[^#]*&)?gh_jid=[0-9]+(?:[&#]|$)"
+    + r"|^https?://[^/?#]+[^?#]*\?(?:[^#]*&)?gh_jid=[0-9]+(?:[&#]|$)"
 )
 _AUTO_APPLY_URL = re.compile(AUTO_APPLY_URL_PATTERN, re.IGNORECASE)
 

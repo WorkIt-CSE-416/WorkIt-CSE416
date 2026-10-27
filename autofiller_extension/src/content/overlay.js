@@ -265,10 +265,11 @@ window.WIA = window.WIA || {};
     render(window.WIA.status.summary());
     if (window.WIA.showField(key)) return;
     const step = key.split(" / ")[0];
-    const elsewhere = window.WIA.workday?.isWorkday && key.includes(" / ") && step !== window.WIA.workday.step?.();
+    const steps = window.WIA.steps;
+    const elsewhere = steps && key.includes(" / ") && step !== steps.step?.();
     const said = Object.assign(document.createElement("div"), {
       className: "reason note",
-      textContent: elsewhere ? `This is on Workday's ${step} step.` : "WorkIt can't find this field on the page.",
+      textContent: elsewhere ? `This is on ${steps.name}'s ${step} step.` : "WorkIt can't find this field on the page.",
     });
     root.querySelector(`.row[data-key="${CSS.escape(key)}"] .text`)?.appendChild(said);
     setTimeout(() => said.remove(), 4000);
