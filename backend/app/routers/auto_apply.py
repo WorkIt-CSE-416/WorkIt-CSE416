@@ -108,8 +108,15 @@ GET  /applicants/{id}/answer-bank?company=...
      `company` (the page's, when the extension read it) is that company.
 POST /applicants/{id}/applications/{job_id}/finish  {"outcome": "submitted"}
      How a fill ended: submitted → applied, skipped → skipped, failed →
-     needs_you. 404 with no application, 409 when it isn't queued or
+     needs_you, closed (a batch tab found the job closed) → skipped with its
+     scraped posting marked closed. 404 with no application, 409 when it isn't queued or
      needs_you.
+     {"outcome": "unsubmitted", "state": "ready" | "needs_you"} is the
+     panel's I didn't submit this (KAN-401): an applied application goes
+     back, its date cleared, to the stage its batch tab had (ready →
+     queued, needs_you → needs_you; no state → needs_you, so it never
+     joins the queue unless the tab was Ready). 409 when it isn't applied;
+     422 for a state with any other outcome.
 
 Applicant accounts only, and only their own id (assert_applicant_owns).
 """
@@ -301,7 +308,7 @@ async def finish_application(
 ) -> ApplicationStage:
     """Records how one application's fill ended."""
     assert_applicant_owns(account, applicant_id)
-    stage = await pipeline.finish_application(db, applicant_id, job_id, body.outcome)
+    stage = await pipeline.finish_application(db, applicant_id, job_id, body.outcome, body.state)
     return ApplicationStage(job_id=job_id, stage=stage)
 
 

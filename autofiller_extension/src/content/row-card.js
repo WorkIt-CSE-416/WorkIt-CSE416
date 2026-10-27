@@ -90,7 +90,7 @@ window.WIA = window.WIA || {};
     if (quote) card.append(Object.assign(document.createElement("q"), { textContent: quote }));
     if (highlight) {
       const el = Object.assign(document.createElement("button"), { type: "button", className: "card-highlight", textContent: highlight.text, title: highlight.title ?? "", disabled: Boolean(busy) });
-      el.addEventListener("click", highlight.onClick);
+      el.addEventListener("click", window.WIA.ui.trusted(highlight.onClick));
       card.append(el);
     }
     card.append(...slot);
@@ -100,7 +100,7 @@ window.WIA = window.WIA || {};
         const button = Object.assign(document.createElement("button"), { type: "button", textContent: label, disabled: Boolean(busy) });
         if (primary) button.dataset.primary = "";
         Object.assign(button.dataset, own);
-        button.addEventListener("click", onClick);
+        button.addEventListener("click", window.WIA.ui.trusted(onClick));
         actions.append(button);
       }
       card.append(actions);

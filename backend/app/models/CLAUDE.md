@@ -1028,8 +1028,15 @@ a `NOT EXISTS`); auto apply's matches leave out every stage, `saved` too
   stage, and `applied_at` NULL (`auto_apply/queries.py`), or the default
   dates a job nobody applied to.
 - **The Applied button upserts**: a saved, queued, skipped or needs_you row
-  becomes applied; an applied row keeps its first `applied_at` (`ON CONFLICT
-  DO UPDATE ... WHERE applied_at IS NULL`).
+  becomes applied, dated now; an applied row keeps its first `applied_at`
+  (`ON CONFLICT DO UPDATE ... applied_at = CASE WHEN stage = 'applied' THEN
+  coalesce(applied_at, now()) ELSE now() END`).
+- **`applied_at` is the submit's time, never the queue's** (KAN-369).
+  Auto apply's finish (`set_stage`) writes `now()` for applied and NULL for
+  any other stage, and the Applied button dates a row not yet applied now,
+  so a row that holds a stale date (an insert that took the `now()`
+  default, as rows written straight to a database copy do) still gets its
+  submit's time. Tests: `tests/test_applied_at.py`.
 - **Apply `c0467afe819c` right after merging.** Until then the deployed
   code's queue routes and stage filters fail on the missing column; the
   Applied button keeps working either way.
@@ -1098,8 +1105,12 @@ Real, not forgotten. Do not treat their absence as a decision already made.
 - Only `company_profiles.id` has a UUID default (Python `uuid4` plus
   `gen_random_uuid()`); every other insert must supply `id`. The account
   tables must keep having none — their id is the `auth.users` id.
-- `autofill_answers` (above) holds only onboarding's nine questions. The
-  rest that forms repeat (availability, relocation) have no key yet.
+- `autofill_answers` (above) holds onboarding's nine questions and the
+  Application answers (KAN-369: availability, start window, relocation,
+  address line and postal code, languages, screener facts, age 18+, pay, the
+  EEO extras, role interests, an X link). Those joined as
+  new keys in the same bank, with no migration. Dates are YYYY-MM-DD strings,
+  terms "summer 2027", and an empty list is the student's own "none".
 - `applicant_profiles.location` and `company_profiles.industry` are absent.
 - `company_profiles.contact_email` is unique, which forbids two companies sharing
   an HR inbox — plausible for subsidiaries. Probably wrong; confirm it is

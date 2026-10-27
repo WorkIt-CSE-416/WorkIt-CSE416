@@ -115,6 +115,10 @@ _Avoid_: unknown field, blank, unanswered
 A fact a written answer's essay plan needs for a required slot that nothing in the student's experience states, such as what they do differently since a release slipped. Their Claude asks for it ("Essay fact: ...") rather than invent it; the question shows on the Written Answers page and in the batch tab, and the student's answer joins the experience entry it is about as a bullet, so the next plan can quote it. A fact that belongs to no entry stays a question for the student.
 _Avoid_: missing info, follow-up question, gap
 
+**Application answers**:
+The facts screening questions ask, kept in the student's answer bank: on-site and full-time availability, the start window, relocation and where they would work, street address, languages, and the screener facts (relatives, referrals, government work, a non-compete, pending offers). A screener fact is always the student's own answer, never a default. My Profile shows them in a section of that name, with the class year WorkIt works out from education.
+_Avoid_: screening questions (for the answers), extra questions, eligibility
+
 **Batch apply**:
 The extension filling the student's queued Applications in background tabs, at most five at once, the next opening as one finishes. It never submits.
 _Avoid_: runner, run tab
@@ -179,6 +183,10 @@ _Avoid_: column, step (the Applications Tracker's Status filter picks stages)
 **Application**:
 One job posting a student is following in the Applications Tracker, at one stage.
 _Avoid_: Applications (as the page's name)
+
+**Match score**:
+How well one job posting fits a student, from 0 to 100, in bands named by their lowest score (Strong Match at 80 and above).
+_Avoid_: fit score, fit, match percentage
 
 **Strong Match**:
 A job posting that scores 80 or more for a student, the Strong Match band and above. The Dashboard's first number, Strong Matches, counts them.

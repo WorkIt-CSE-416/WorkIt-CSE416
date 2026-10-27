@@ -23,8 +23,9 @@ header {
   align-items: center;
   gap: 8px;
   padding: 12px;
-  background: var(--color-brand);
-  color: var(--color-on-brand);
+  background: var(--color-panel);
+  color: var(--color-ink);
+  border-bottom: 1px solid var(--color-border);
   font-weight: 600;
 }
 
@@ -59,6 +60,8 @@ button {
   cursor: pointer;
   transition: background-color 150ms ease-out, border-color 150ms ease-out;
 }
+
+button[hidden] { display: none; }
 
 button:hover { background: var(--color-brand-hover); }
 button:active { background: var(--color-brand-active); }
@@ -114,3 +117,19 @@ button:disabled {
 @media (prefers-reduced-motion: reduce) {
   button { transition: none; }
 }
+
+/* A site WorkIt can't fill (KAN-401). */
+.unsupported {
+  margin: 8px 0;
+  padding: 10px;
+  border: 1px solid var(--color-border-subtle);
+  border-radius: var(--radius-card);
+}
+.unsupported-line { margin: 0 0 8px; font-weight: 600; }
+.report-parts { margin: 4px 0 8px; padding-left: 16px; font-size: var(--text-note); overflow-wrap: anywhere; }
+.report label { display: block; margin: 0 0 4px; font-weight: 600; font-size: var(--text-note); }
+.report textarea {
+  box-sizing: border-box; width: 100%; min-height: 56px; margin: 0 0 8px; padding: 6px 8px; resize: vertical;
+  font: inherit; color: var(--color-ink); background: var(--color-panel); border: 1px solid var(--color-border); border-radius: var(--radius-control);
+}
+.said { margin: 8px 0 0; font-size: var(--text-note); }

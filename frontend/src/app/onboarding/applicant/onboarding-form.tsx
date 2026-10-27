@@ -21,6 +21,7 @@ import { PRACTICE_JOBS, practiceFormUrl } from "@/lib/practice-form";
 
 import { saveAutofillAnswers } from "@/lib/autofill-answers-actions";
 import {
+  changedAnswers,
   NO_ANSWERS,
   PROFILE_QUESTIONS,
   SELF_ID_KEYS,
@@ -29,6 +30,7 @@ import {
 } from "@/lib/autofill-answers";
 
 import { savePreferences } from "./actions";
+import { AvailabilityStep } from "./availability-step";
 import { ChoiceTile } from "./choice-tile";
 import { LinkFields, LINKS, LocationField, NO_CONTACT, type Contact } from "./contact-fields";
 import { ExtensionStep, useExtensionState } from "./extension-step";
@@ -40,7 +42,7 @@ import { ONBOARDING_STEPS } from "./steps";
 import { StoryPanel } from "./story-panel";
 
 /**
- * The applicant onboarding wizard (KAN-231): five short steps, each one's
+ * The applicant onboarding wizard (KAN-231): six short steps, each one's
  * question on the left (./story-panel) and the fields answering it on the
  * right, under the step rail (./steps.ts). Each new question takes focus, so
  * a screen reader hears it.
@@ -75,13 +77,19 @@ import { StoryPanel } from "./story-panel";
  *
  * STEP 3'S NEXT saves it to the answer bank and the profile, only what
  * changed, then step 1 as the seeker's preferences, which marks onboarding
- * done, before the extension's two steps: a seeker who leaves during them
+ * done, before Availability and the extension's two steps: a seeker who leaves during them
  * has a finished profile, and Skip on either opens the Jobs page. Step 3 saves first
  * because a finished seeker is never sent back here; a failed save leaves
  * this step to retry from, and saving again changes nothing. A link that is
  * no web address stops Finish before anything saves.
  *
- * STEPS 4 AND 5 ARE THE EXTENSION (KAN-378). Step 4 asks the seeker to add
+ * STEP 4 IS AVAILABILITY (KAN-369, ./availability-step): on-site and full
+ * time, the earliest start and terms, and the screener facts card, nothing
+ * pre-picked. Next saves what changed to the answer bank; Skip drops this
+ * step's picks and goes on. The rest of the Application answers live on My
+ * Profile.
+ *
+ * STEPS 5 AND 6 ARE THE EXTENSION (KAN-378). Step 4 asks the seeker to add
  * the WorkIt extension and pin it (./extension-step), and turns each line
  * done as the page sees it, asking the extension every 1.5 seconds. Step 5
  * runs a practice batch on WorkIt's own practice forms (lib/practice-form,
@@ -127,6 +135,14 @@ const STEPS: { question: ReactNode; line: string }[] = [
   {
     question: (
       <>
+        Next, <strong>when you can work</strong>, and a few screening facts.
+      </>
+    ),
+    line: "All optional. Skip it, and fill the rest in on My Profile later.",
+  },
+  {
+    question: (
+      <>
         Now, <strong>add the WorkIt extension</strong> to Chrome.
       </>
     ),
@@ -146,8 +162,9 @@ const STEPS: { question: ReactNode; line: string }[] = [
 const ROLE = 0;
 const RESUME = 1;
 const PROFILE = 2;
-const EXTENSION = 3;
-const PRACTICE = 4;
+const AVAILABILITY = 3;
+const EXTENSION = 4;
+const PRACTICE = 5;
 
 export function OnboardingForm({
   roles,
@@ -338,12 +355,9 @@ export function OnboardingForm({
       // Only the answers changed here go to the bank: it merges them into
       // what it holds, so one this page didn't load is never erased.
       const sent = profile;
-      const changed = Object.fromEntries(
-        Object.entries(sent).filter(
-          ([key, value]) => value !== bankSaved.current[key as keyof AutofillAnswers],
-        ),
+      const { error: bankError } = await saveAutofillAnswers(
+        changedAnswers(sent, bankSaved.current),
       );
-      const { error: bankError } = await saveAutofillAnswers(changed);
       if (bankError) return fail(bankError);
       bankSaved.current = sent;
       const contactChanged = Object.fromEntries(
@@ -359,6 +373,25 @@ export function OnboardingForm({
       // A picked state narrows its country, as All Filters' Apply does.
       const { error: saveError } = await savePreferences(statesNarrowCountries(answers));
       if (saveError) return fail(saveError);
+      setBusy(null);
+      goTo(AVAILABILITY);
+    } catch {
+      fail("Could not reach the server. Check your connection and try again.");
+    }
+  }
+
+  /** Availability's Next: what changed on it to the answer bank, then the
+   *  extension. A failure stays here to retry from. */
+  async function saveAvailability() {
+    setBusy("saving");
+    setError(null);
+    try {
+      const sent = profile;
+      const { error: bankError } = await saveAutofillAnswers(
+        changedAnswers(sent, bankSaved.current),
+      );
+      if (bankError) return fail(bankError);
+      bankSaved.current = sent;
       setBusy(null);
       goTo(EXTENSION);
     } catch {
@@ -426,7 +459,12 @@ export function OnboardingForm({
             thin bar and 14px grey "Step 1 of 2" at the foot of the left
             panel, the screen's smallest type, and went unnoticed (KAN-259). */}
         <div className="mx-auto w-full max-w-2xl px-6 pt-6 lg:pt-10">
-          <Stepper size="lg" steps={ONBOARDING_STEPS} current={step} />
+          <Stepper
+            size="lg"
+            steps={ONBOARDING_STEPS}
+            // Availability is Profile's second page on the rail (./steps.ts).
+            current={step > PROFILE ? step - 1 : step}
+          />
         </div>
 
         {/* Keyed on the step so each step's fields rise in. */}
@@ -444,6 +482,12 @@ export function OnboardingForm({
               removedSkills={removedSkills}
               onRemoveSkill={(name) => setRemovedSkills((all) => [...all, name])}
               savedName={savedResume}
+            />
+          )}
+          {step === AVAILABILITY && (
+            <AvailabilityStep
+              answers={profile}
+              set={(change) => setProfile((a) => ({ ...a, ...change }))}
             />
           )}
           {step === EXTENSION && <ExtensionStep state={extension} />}
@@ -486,6 +530,20 @@ export function OnboardingForm({
                   Choose Another File
                 </Button>
               )}
+              {step === AVAILABILITY && (
+                <Button
+                  variant="outline"
+                  size="lg"
+                  disabled={saving}
+                  onClick={() => {
+                    // Skip keeps nothing picked here: the bank stays as saved.
+                    setProfile(bankSaved.current);
+                    goTo(EXTENSION);
+                  }}
+                >
+                  Skip
+                </Button>
+              )}
               {(step === EXTENSION || (step === PRACTICE && !done)) && (
                 <Button variant="outline" size="lg" onClick={() => router.push("/jobs")}>
                   {step === EXTENSION ? "Skip" : "Skip Practice"}
@@ -513,11 +571,13 @@ export function OnboardingForm({
                 onClick={() =>
                   step === PROFILE
                     ? saveProfile()
-                    : step === RESUME
-                      ? resumeNext()
-                      : step === PRACTICE
-                        ? practiceNext()
-                        : goTo(step + 1)
+                    : step === AVAILABILITY
+                      ? saveAvailability()
+                      : step === RESUME
+                        ? resumeNext()
+                        : step === PRACTICE
+                          ? practiceNext()
+                          : goTo(step + 1)
                 }
               >
                 {busy === "saving"

@@ -10,13 +10,13 @@
 // request from the extension's service worker, nor the first load of a tab the
 // extension opens (checked 2026-10-25, Playwright 1.64). The existing page
 // tests (extension.ts) block service workers; this harness must not.
-import { mkdtempSync, rmSync } from "node:fs";
+import { cpSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from "node:fs";
 import { createServer as createHttp, type IncomingHttpHeaders, type IncomingMessage, type ServerResponse } from "node:http";
 import { createServer as createHttps } from "node:https";
 import type { AddressInfo } from "node:net";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
-import { chromium, type BrowserContext, type Page, type Worker } from "@playwright/test";
+import { chromium, type BrowserContext, type Locator, type Page, type Worker } from "@playwright/test";
 import { CERT, KEY } from "./fake-tls";
 
 export const EXTENSION = join(__dirname, "..");
@@ -51,7 +51,7 @@ export type FakeNet = {
  * other host over HTTPS. Each request goes to the handlers in turn; one no
  * handler answers gets a 404.
  */
-export async function startFakeNet(handlers: Handler[]): Promise<FakeNet> {
+export async function startFakeNet(handlers: Handler[], extension = EXTENSION): Promise<FakeNet> {
   const asked: string[] = [];
   const serve = (scheme: string) => async (incoming: IncomingMessage, response: ServerResponse) => {
     const body = await new Promise<Buffer>((done) => {
@@ -84,8 +84,8 @@ export async function startFakeNet(handlers: Handler[]): Promise<FakeNet> {
   const [httpPort, httpsPort] = [await port(http), await port(https)];
   return {
     args: [
-      `--disable-extensions-except=${EXTENSION}`,
-      `--load-extension=${EXTENSION}`,
+      `--disable-extensions-except=${extension}`,
+      `--load-extension=${extension}`,
       `--host-resolver-rules=MAP localhost 127.0.0.1:${httpPort}, MAP * 127.0.0.1:${httpsPort}`,
       "--ignore-certificate-errors",
       // Every host now resolves to this machine: let public pages reach it.
@@ -108,9 +108,19 @@ export async function startFakeNet(handlers: Handler[]): Promise<FakeNet> {
  */
 export async function loadExtension(
   handlers: Handler[],
-  { focused = false, headless = !process.env.HEADED, profile: kept = undefined as string | undefined, args = [] as string[] } = {},
+  {
+    focused = false,
+    headless = !process.env.HEADED,
+    profile: kept = undefined as string | undefined,
+    args = [] as string[],
+    grantHosts = [] as string[],
+    closedPanel = false,
+  } = {},
 ): Promise<Loaded> {
-  const net = await startFakeNet(handlers);
+  // A copy, so its panel's and marks' shadow roots can be open for Playwright's locators (which can't reach a
+  // closed one); `closedPanel` keeps the student's closed roots, for the tests of what the page can reach.
+  const copy = testCopy(grantHosts, !closedPanel);
+  const net = await startFakeNet(handlers, copy);
   // `profile`: a Chromium profile folder to start (again) with, which the caller keeps; else a new one, removed on close.
   const profile = kept ?? mkdtempSync(join(tmpdir(), "workit-extension-"));
   const context = await chromium.launchPersistentContext(profile, {
@@ -136,8 +146,39 @@ export async function loadExtension(
       await context.close();
       net.close();
       if (!kept) rmSync(profile, { recursive: true, force: true });
+      if (copy) rmSync(copy, { recursive: true, force: true });
     },
   };
+}
+
+/** The files whose shadow root is closed for the student and opened in the test copies: the panel, and the marks (ring and dot). */
+export const CLOSED_ROOT_FILES = ["src/content/panel.js", "src/content/marks.js"];
+
+/**
+ * A closed-root file's source (CLOSED_ROOT_FILES) with its shadow root open,
+ * for tests only: Playwright's locators can't reach a closed root. The
+ * student's stay closed.
+ */
+export function openPanel(source: string, file = "src/content/panel.js"): string {
+  const open = source.replace('attachShadow({ mode: "closed" })', 'attachShadow({ mode: "open" })');
+  if (open === source) throw new Error(`${file} no longer attaches a closed shadow root: update openPanel`);
+  return open;
+}
+
+/**
+ * A copy of the extension to load: its panel's and marks' roots open when `open` (see
+ * openPanel), and allowed to read `hosts` too: what activeTab grants when the
+ * student presses the toolbar icon on a page outside the manifest's hosts,
+ * which a test can't press. Same key, so the same extension id.
+ */
+function testCopy(hosts: string[], open: boolean): string {
+  const dir = mkdtempSync(join(tmpdir(), "workit-extension-copy-"));
+  for (const part of ["src", "icons", "fonts", "fill-engine/dist"]) cpSync(join(EXTENSION, part), join(dir, part), { recursive: true });
+  const manifest = JSON.parse(readFileSync(join(EXTENSION, "manifest.json"), "utf8"));
+  manifest.host_permissions.push(...hosts);
+  writeFileSync(join(dir, "manifest.json"), JSON.stringify(manifest));
+  if (open) for (const file of CLOSED_ROOT_FILES) writeFileSync(join(dir, file), openPanel(readFileSync(join(dir, file), "utf8"), file));
+  return dir;
 }
 
 /** The webapp's Supabase session cookie, as background/webapp-session.js reads it, for a fake token. */
@@ -157,4 +198,32 @@ export function sendFromWebapp(page: Page, message: unknown): Promise<any> {
     ([id, message]) => new Promise((resolve) => (window as any).chrome.runtime.sendMessage(id, message, resolve)),
     [EXTENSION_ID, message] as const,
   );
+}
+
+/**
+ * The student's Next Thing (KAN-396) in the panel `host` (its
+ * #workit-autofiller-overlay-host): the bottom button while it reads "Next:
+ * N need you", else Alt+N (a tab with nothing red shows Review and submit; Alt+N
+ * still runs the batch's walk from there). A test can't press an extension
+ * command's keys, so Alt+N is the background's own handler.
+ */
+export async function pressNextThing(loaded: Loaded, host: Locator): Promise<void> {
+  const button = host.locator('[data-slot="primary"] .primary-button').first();
+  for (let n = 0; n < 50 && /Filling/.test((await button.innerText({ timeout: 30_000 })) ?? ""); n++) await host.page().waitForTimeout(200);
+  if (/^Next:/.test(await button.innerText())) return button.click();
+  await loaded.worker.evaluate(async (url) => {
+    const [tab] = await chrome.tabs.query({ url });
+    await (globalThis as any).workitCommand("next-thing", tab);
+  }, host.page().url());
+}
+
+/**
+ * One item of the panel's ⋯ menu (KAN-369 Q4: I submitted this, Skip, Fill
+ * Again, Report a problem, Settings) in the panel `host`: opens the menu
+ * when it is shut and resolves with the item, to click.
+ */
+export async function menuItem(host: Locator, name: string): Promise<Locator> {
+  const item = host.getByRole("menuitem", { name, exact: true });
+  if (!(await item.isVisible())) await host.locator(".header").getByRole("button", { name: "More" }).click();
+  return item;
 }

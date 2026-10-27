@@ -1119,6 +1119,14 @@ one client step over the server's rows), in flight.
   open (`components/clickable-row.tsx`, the Applications list's), leaving
   clicks on links and buttons alone; the role is the real link. A closed
   one links nowhere.
+- **Mark applied** (KAN-369, `auto-apply/mark-applied.tsx`): every row not
+  yet applied or skipped has a briefcase (the Applied stage's icon),
+  tooltip "I submitted this: mark applied", for an application the student
+  sent that the extension's submit detection missed. It finishes the
+  application as submitted (`markSubmitted`, POST
+  `.../applications/{job_id}/finish`, which dates it now), refreshes the
+  route so the row shows Applied, and toasts "<role> is marked Applied.".
+  The batch panel's "I submitted this" is the same from the job's tab.
 - **Actions**: icon buttons only, to save width. A queued row has a cross,
   "Remove from queue" in its tooltip (`auto-apply/remove-from-queue.tsx`),
   alone in the Actions column: beside the badge, before KAN-285, it read as
@@ -1216,6 +1224,28 @@ Questions, and a "Resumes & Experiences" section that links to both views of
 that page. The photo, name and headline are shown here and edited in
 Settings' Personal Details (KAN-326): the identity band's Edit is a link
 there.
+
+**Application Answers (KAN-369)** is an open section under Application
+Questions, edited the same way (Edit at the top right; Cancel and Save under
+the fields; Escape cancels; Save sends only what changed). Its groups:
+Availability (on-site, full time), Start Window (earliest start, latest end,
+the next six terms as chips), Relocation (willing, places ranked best first
+as numbered chips, where they'll live), Address (street and ZIP; city and
+state are the profile's location), Languages (English shown as a suggestion
+until saved), Age and Pay (18 or older; expected dollars an hour, typed by
+the student and never guessed; whether a posted range is fine), More About
+You (kinds of work as chips; an X profile; the countries they are a citizen
+of), Communities (chips, with
+None of These and I Don't Wish to Answer, each standing alone) and Screener
+Facts, one card with Yes and No each and a None of
+These Apply button that answers only the unanswered ones; a Yes on a list
+question asks which companies. School Year (class year, back to school after
+the internship) is worked out from the latest education entry's end month
+(`lib/school-year.ts`) and only shown, with "From your education: ...". The
+same controls are `components/answer-fields.tsx`, shared with onboarding.
+Application Questions also lists the EEO extras (sexual orientation,
+transgender, pronouns), each with a decline answer; onboarding skips them
+with the other self-identification, and the extension never asks them.
 
 **Contact & Links (KAN-262)** is an open section between the identity band
 and Resumes & Experiences. It lists all six fields under visible labels, two
@@ -2113,15 +2143,17 @@ Experience Level, Location and Salary Range, Experience Level after Job Type
 (KAN-284); step 2 is Resume (KAN-275), read and confirmed before it is
 saved (KAN-372); step 3, Profile, is the questions every application asks
 (KAN-283, all optional), right after the resume (KAN-372); step 4,
-Extension, and step 5, Practice, add the WorkIt extension and run a
-practice batch (KAN-378). Start Date shows only once
+Availability, asks on-site and full time, the earliest start and terms, and
+the screener facts card, all optional with Skip (KAN-369; the rest of the
+Application answers are on My Profile); step 5, Extension, and step 6,
+Practice, add the WorkIt extension and run a practice batch (KAN-378). Start Date shows only once
 Internship is picked, and unpicking Internship clears it: a saved season keeps
 only the jobs that name one, which a new-grad role rarely does. Preference Tags, free-text skills, were dropped
 (KAN-231): the feed has no filter for them.
 
 **One step rail counts the whole journey (KAN-259).** The wizard heads its
 fields with the shared `components/stepper.tsx` at `size="lg"`: Role,
-Resume, Profile, Extension, Practice (`onboarding/applicant/steps.ts`;
+Resume, Profile, Extension, Practice (`onboarding/applicant/steps.ts`; Availability, KAN-369, is Profile's second page on the rail;
 Resume was last until KAN-372, Profile until KAN-378). It replaced a thin bar and
 a 14px grey "Step 1 of 2" at the foot of the left half: the smallest type on
 the screen, far from the fields, and wrong, since intake then opened six more

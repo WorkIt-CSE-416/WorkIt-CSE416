@@ -7,7 +7,7 @@
 import { expect, test, type Page } from "@playwright/test";
 import { FakeApi } from "./fake-api";
 import { FakeWorkdays } from "./fake-job-systems";
-import { EXTENSION_ID, loadExtension, sendFromWebapp, signIn, webapp, type Handler, type Loaded } from "./loaded-extension";
+import { EXTENSION_ID, loadExtension, sendFromWebapp, signIn, webapp, type Handler, type Loaded, menuItem } from "./loaded-extension";
 
 let loaded: Loaded | undefined;
 test.afterEach(async () => {
@@ -107,11 +107,11 @@ test("a saved sign-up is used for Create Account and Sign In at every company, a
   const caci = await tab(workdays.signInUrl(0));
   await caci.waitForURL(workdays.url(0), { timeout: 30_000 });
   // A new company opening on Sign In: nothing known there, so it makes the account with the saved login too.
-  await overlay(caci).locator("[data-skip]").click();
+  await (await menuItem(overlay(caci), "Skip")).click();
   const xcel = await tab(workdays.signInUrl(1, "signin"));
   await expect.poll(() => workdays.signIns.length, { timeout: 30_000 }).toBe(2);
   // The first company again: Sign In with the saved login.
-  await overlay(xcel).locator("[data-skip]").click();
+  await (await menuItem(overlay(xcel), "Skip")).click();
   await tab(workdays.signInUrl(0, "signin"));
   await expect.poll(() => workdays.signIns.length, { timeout: 30_000 }).toBe(3);
 

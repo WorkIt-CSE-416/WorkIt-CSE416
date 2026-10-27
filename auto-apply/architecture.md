@@ -207,7 +207,7 @@ Names are not final.
 | 1 | `pick_resume(db, applicant_id, job_id)` | The resume to attach: tailored to this job posting, else the default resume, else `None` ("The resume"). **Built** |
 | 1 | `sent_resumes.send_built`, `send_uploaded` | Keep the file as a sent resume linked to the job posting; unchanged content returns the last one. **Built** (KAN-208, KAN-220) |
 | 1 | `record_run(db, application_id, report)` | Saves one autofill result |
-| 1 | `set_stage(db, applicant_id, job_id, stage)` | Moves it; `applied` also sets `applied_at`. **Built** |
+| 1 | `set_stage(db, applicant_id, job_id, stage)` | Moves it; `applied` sets `applied_at` to now (the submit), any other stage clears it. **Built** |
 | 2 | `get_matches(db, account, filters, min_match=60, size=10)` | `fetch_recommended`, leaving out every job posting with an application at any stage (`JobFilters.no_application_by`) → `pick_batch`. Reads only. **Built** |
 | 2 | `start_batch(db, account, filters, min_match=60, size=10)` | `fetch_recommended` → `pick_batch` → `queue_applications`; one commit; returns the queued job ids, best first. **Built** |
 | 2 | `queue_job(db, applicant_id, job_id)` | A job's Auto Apply button: `queue_applications` for one; a job with an application keeps its stage (`fetch_stage`). **Built** |
@@ -559,6 +559,7 @@ job (`chrome.storage.local`, so a batch outlives Chrome: KAN-373 below).
 | ready | `queued` (it waits for the student's submit) | `PUT .../fill {"state": "ready"}` |
 | needs_you | `needs_you` | `PUT .../fill {"state": "needs_you"}` |
 | submitted, skipped, failed | `applied`, `skipped`, `needs_you` | `POST .../finish` (KAN-373, KAN-374) |
+| I didn't submit this (from applied) | the tab's stage before: `queued` (ready) or `needs_you` (also with no state) | `POST .../finish {"outcome": "unsubmitted", "state"}` (KAN-401) |
 
 The next tab's job is `GET .../applications/next?skip=...`, past every job
 the batch opened. No migration: what outlives a tab is the browser's
@@ -969,7 +970,7 @@ function. Every route checks that the caller owns the applicant, like
 | GET | `/applicants/{id}/applications/{job_id}/answer-bank` | `answer_bank` | The answers saved on the student's other applications this form may reuse, `{wording: {answer, own}}`: the Fill engine's Answer bank for its Plan (KAN-379; never one about another company, KAN-380). 404 with no application. **Built** |
 | GET | `/applicants/{id}/written-questions` | `unanswered_questions` | Every open application's unanswered written questions, by job posting, oldest first: the Written Answers page for a student without Claude (KAN-385). **Built** |
 | PUT | `/applicants/{id}/applications/{job_id}/written-answers` | `save_answers` | Answers the student pasted there, `{"answers": [{"name", "answer"}]}`, all or none, through the connector's own save and checks; the open tab fills them as it fills Claude's. 422 with `{"message", "reasons": {name: [...]}}` when one fails. **Built** |
-| POST | `/applicants/{id}/applications/{job_id}/finish` | `finish_application` | `{"outcome": "submitted" \| "skipped" \| "failed"}`; 409 when not queued or needs_you. **Built**; takes the autofill run's report once `autofill_runs` exists |
+| POST | `/applicants/{id}/applications/{job_id}/finish` | `finish_application` | `{"outcome": "submitted" \| "skipped" \| "failed" \| "closed"}` (closed: skipped, and a scraped posting marked closed, KAN-369); 409 when not queued or needs_you. **Built**; takes the autofill run's report once `autofill_runs` exists |
 | POST | `/applicants/{id}/applications/{job_id}/resume` | `prepare_resume` | Picks the resume and keeps it as a sent resume for the job posting. Answers the sent resume and a 5-minute link, or `null` with no resume. 404 with no application or a closed job posting, 409 when not queued or needs_you, 503 when the PDF cannot be made, 502 when Storage refuses the file. **Built** |
 
 An application is named by its job id: the row's key is `(applicant_id,

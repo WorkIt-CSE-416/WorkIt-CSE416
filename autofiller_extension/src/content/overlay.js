@@ -1,21 +1,14 @@
-// The on-page status panel — a shadow DOM host so its styles can't leak
-// into (or be overridden by) whatever ATS page it's sitting on top of.
-// Renders the same four-state-plus-honest-rollup tracker lib-status.js
-// computes; this file only draws it.
+// The panel's Autofill tab: the fill's rows and cards, in the shell's
+// shadow root (panel.js), so the page's styles can't reach them. Renders
+// the same four-state-plus-honest-rollup tracker lib-status.js computes;
+// this file only draws it.
 window.WIA = window.WIA || {};
 
 (function () {
   "use strict";
 
-  // Each status's dot, in WorkIt's status colours (the tokens below): positive green
-  // filled, danger red failed, advanced blue waiting to be written, grey otherwise.
-  const STATUS_COLOR = {
-    pending: "var(--color-ink-subtle)",
-    filled: "var(--color-positive)",
-    failed: "var(--color-danger)",
-    skipped: "var(--color-ink-subtle)",
-    needs_generation: "var(--color-advanced)",
-  };
+  // Injected again (Fill Again, the fill after a human check): the last fill's rows go; the shell stays.
+  window.WIA.overlay?.unmount?.();
 
   // Where a filled value came from (lib-status.js's `source`), as its badge reads.
   const SOURCE_LABEL = {
@@ -37,51 +30,23 @@ window.WIA = window.WIA || {};
   const CLAUDE_TRIGGER = "Write my WorkIt answers";
   const CLAUDE_START_URL = `https://claude.ai/new?q=${encodeURIComponent(CLAUDE_TRIGGER)}`;
 
-  // tokens.js's --font-sans names the shipped font this way.
-  const FONT_FAMILY = "WorkIt Jakarta Sans";
-
-  let host = null;
+  // The shell's shadow root (panel.js) while a fill's rows are in it, and the styles added to it.
   let root = null;
+  let style = null;
   // The row "Next Thing That Needs You" last went to.
   let current = null;
+  // The row the student last pressed: open, with its full question and source (KAN-369 Q4).
+  let opened = null;
+  // True while the list shows during a fill, before mount (live).
+  let early = false;
   let unsubscribe = null;
-  let keeper = null;
   // Parts other files add above the panel's list (addPart): their styles, and the part.
   const parts = [];
 
   function styles() {
     const style = document.createElement("style");
     style.textContent = `
-      ${window.WIA.tokens}
-      :host { all: initial; }
-      .panel {
-        position: fixed; bottom: 16px; right: 16px; z-index: 2147483647;
-        width: 300px; max-height: 70vh; display: flex; flex-direction: column;
-        font: var(--font-weight-normal) var(--text-label) / var(--text-label--line-height) var(--font-sans);
-        background: var(--color-panel); color: var(--color-ink); border-radius: var(--radius-card);
-        border: 1px solid var(--color-border); box-shadow: var(--shadow-lift); overflow: hidden;
-      }
-      .header {
-        display: flex; align-items: center; justify-content: space-between;
-        padding: 10px 12px; background: var(--color-brand); color: var(--color-on-brand); font-weight: 600;
-      }
-      .header button {
-        all: unset; cursor: pointer; font-size: var(--text-body); padding: 2px 6px; border-radius: var(--radius-control);
-      }
-      .header button:hover { background: var(--color-brand-hover); }
-      .header button:focus-visible { outline: 2px solid var(--color-on-brand); outline-offset: 1px; }
-      .header .actions { display: flex; gap: 4px; }
-      .header button[data-skip] { font-size: var(--text-note); font-weight: 500; border: 1px solid currentColor; padding: 2px 8px; }
       .summary { padding: 8px 12px; font-size: var(--text-note); color: var(--color-ink-meta); border-bottom: 1px solid var(--color-border); }
-      .next { display: flex; align-items: center; gap: 8px; padding: 8px 12px; border-bottom: 1px solid var(--color-border); }
-      .next[hidden] { display: none; }
-      .next button {
-        all: unset; cursor: pointer; font-size: var(--text-note); font-weight: 500; padding: 6px 10px;
-        border-radius: var(--radius-control); background: var(--color-brand); color: var(--color-on-brand);
-      }
-      .next button:hover { background: var(--color-brand-hover); }
-      .next button:focus-visible { outline: 2px solid var(--color-brand); outline-offset: 2px; }
-      .next .said { font-size: var(--text-note); color: var(--color-ink-meta); }
       .essay-banner {
         padding: 10px 12px; background: var(--color-advanced-tint); border-bottom: 1px solid var(--color-border);
         font-size: var(--text-note); color: var(--color-ink);
@@ -120,16 +85,29 @@ window.WIA = window.WIA || {};
       .moment .error { color: var(--color-danger); }
       .moment ul { margin: 0 0 8px; padding-left: 16px; font-size: var(--text-note); color: var(--color-ink-muted); }
       .moment li span { color: var(--color-ink-meta); }
-      .list { overflow-y: auto; padding: 4px 0; }
+      .list { padding: 4px 0; }
       .row {
         display: flex; align-items: flex-start; gap: 8px; padding: 6px 12px;
       }
       /* A guess (lib-status.js's source "guessed"): the student checks it before they submit. */
       .row[data-guessed] { background: var(--color-warning-tint); }
       .row[data-current] { box-shadow: inset 3px 0 0 var(--color-brand); background: var(--color-brand-tint); }
+      /* A row with a field: pressing it goes to the field (window.WIA.showField). */
+      .row[data-jump] { cursor: pointer; }
+      .row[data-jump]:hover .label { text-decoration: underline; }
+      .label:focus-visible { outline: 2px solid var(--color-brand); outline-offset: 2px; border-radius: var(--radius-control); }
       .dot { width: 8px; height: 8px; border-radius: 50%; margin-top: 4px; flex: none; }
       .text { flex: 1; min-width: 0; }
       .label { font-weight: 500; }
+      /* A long question shows two lines until its row is opened (pressed, or Next Thing's). */
+      .row:not([data-open]) .label { display: -webkit-box; -webkit-box-orient: vertical; -webkit-line-clamp: 2; overflow: hidden; }
+      .row:not([data-open]) .source { display: none; }
+      .row .skip {
+        all: unset; cursor: pointer; margin-top: 4px; display: inline-block; padding: 3px 8px; font-size: var(--text-note); font-weight: 500; color: var(--color-ink);
+        border: 1px solid var(--color-border-subtle); border-radius: var(--radius-control); background: var(--color-panel);
+      }
+      .row .skip:hover { background: var(--color-hover); }
+      .row .skip:focus-visible { outline: 2px solid var(--color-brand); outline-offset: 2px; }
       .source {
         display: inline-flex; align-items: center; gap: 3px; margin-top: 2px;
         font-size: var(--text-meta); font-weight: 600; padding: 1px 6px; border-radius: 9999px;
@@ -158,6 +136,7 @@ window.WIA = window.WIA || {};
       .start .hint { font-size: var(--text-meta); color: var(--color-ink-meta); }
       .empty { padding: 16px 12px; color: var(--color-ink-meta); }
       ${window.WIA.rowCard?.css ?? ""}
+      ${window.WIA.groups?.css ?? ""}
       ${parts.map((part) => part.css ?? "").join("\n")}
     `;
     return style;
@@ -168,9 +147,12 @@ window.WIA = window.WIA || {};
     el.className = "row";
     el.dataset.key = field.key;
     if (field.key === current) el.dataset.current = "";
+    if (field.key === current || field.key === opened) el.dataset.open = "";
+    // Its mark (groups.js markOf): spinner, check, ?, ! or gray.
+    const mark = window.WIA.groups?.markOf(field);
+    if (mark) el.dataset.mark = mark;
     const dot = document.createElement("span");
     dot.className = "dot";
-    dot.style.background = STATUS_COLOR[field.status] ?? STATUS_COLOR.pending;
     const text = document.createElement("div");
     text.className = "text";
     const label = document.createElement("div");
@@ -178,6 +160,12 @@ window.WIA = window.WIA || {};
     // A note row is the overlay's own message (content-script.js's note), not a field.
     label.textContent = field.label + (field.required || field.note ? "" : " (optional)");
     text.appendChild(label);
+    // A field's row (a note is not one) takes the student to the field: by mouse, or Enter on its label.
+    if (!field.note) {
+      el.dataset.jump = "";
+      label.tabIndex = 0;
+      label.title = "Go to this field";
+    }
     // Where a filled value came from; a guess is highlighted for the student to check.
     if (field.status === "filled" && SOURCE_LABEL[field.source]) {
       const source = document.createElement("span");
@@ -191,7 +179,7 @@ window.WIA = window.WIA || {};
     // A row's card (row-card.js) says what is wrong in its place: a failed field's says what the page shows.
     const card = window.WIA.rowCard?.for(field) ?? null;
     // needs_generation's reason says who writes it (a batch tab: the student's Claude, KAN-377).
-    if (!card && (field.status === "failed" || field.status === "skipped" || field.status === "needs_generation") && field.reason) {
+    if (!card && (field.status === "failed" || field.status === "skipped" || field.status === "needs_generation" || field.status === "pending") && field.reason) {
       const reason = document.createElement("div");
       reason.className = field.status === "failed" ? "reason" : "reason note";
       reason.textContent = field.reason;
@@ -214,6 +202,19 @@ window.WIA = window.WIA || {};
       reason.className = "reason flag";
       reason.textContent = `Your Claude's check: ${field.flag} Read it before you submit, and edit it if it's wrong.`;
       text.appendChild(reason);
+    }
+    // See cover letter (letter-preview.js): the written answer as the form has it.
+    const letter = window.WIA.letterPreview?.render(field);
+    if (letter) text.appendChild(letter);
+    // A field still filling after a while (progress.js): Skip leaves it for the student and the fill goes on.
+    if (window.WIA.progress?.isStuck?.(field.key)) {
+      el.dataset.stuck = "";
+      const skip = Object.assign(document.createElement("button"), { type: "button", className: "skip", textContent: "Skip" });
+      skip.addEventListener("click", window.WIA.ui.trusted(() => {
+        skip.disabled = true;
+        window.WIA.progress.skip(field.key);
+      }));
+      text.appendChild(skip);
     }
     el.append(dot, text);
     return el;
@@ -248,21 +249,47 @@ window.WIA = window.WIA || {};
     });
   }
 
+  /**
+   * A press on a row (not on a button, link or box in its card) goes to its
+   * field: scrolled to, focused and ringed (batch-tab.js's show, the same
+   * as Next Thing That Needs You's). A field the page doesn't show gets a
+   * line saying so; on Workday, one from another step names the step.
+   */
+  function jump(event) {
+    if (event.type === "keydown" && (event.key !== "Enter" || !event.target.matches(".label"))) return;
+    if (event.target.closest("button, a, input, textarea, select, label, [contenteditable], .row-card")) return;
+    const el = event.target.closest(".row[data-jump]");
+    if (!el || !window.WIA.showField) return;
+    const key = el.dataset.key;
+    opened = key;
+    render(window.WIA.status.summary());
+    if (window.WIA.showField(key)) return;
+    const step = key.split(" / ")[0];
+    const steps = window.WIA.steps;
+    const elsewhere = steps && key.includes(" / ") && step !== steps.step?.();
+    const said = Object.assign(document.createElement("div"), {
+      className: "reason note",
+      textContent: elsewhere ? `This is on ${steps.name}'s ${step} step.` : "WorkIt can't find this field on the page.",
+    });
+    root.querySelector(`.row[data-key="${CSS.escape(key)}"] .text`)?.appendChild(said);
+    setTimeout(() => said.remove(), 4000);
+  }
+
   function render(summary) {
     if (!root) return;
     // A kept card's box (card-waiting.js) is moved, not rebuilt: it keeps the student's focus.
     const focused = root.activeElement;
     root.querySelector(".list").replaceChildren(
       ...(summary.fields.length
-        ? summary.fields.map(row)
+        ? (window.WIA.groups?.render(summary.fields, row) ?? summary.fields.map(row))
         : [Object.assign(document.createElement("div"), { className: "empty", textContent: "No fields detected yet." })]),
     );
     root.querySelector(".parts").replaceChildren(...parts.map((part) => part.panel?.(summary)).filter(Boolean));
     root.querySelector(".summary").textContent =
       summary.requiredTotal === 0
-        ? "No required fields detected"
-        : `${summary.requiredFilled}/${summary.requiredTotal} required fields filled` +
-          (summary.failedCount > 0 ? ` · ${summary.failedCount} need attention` : "");
+        ? "No required fields found"
+        : `Required ${summary.requiredFilled} of ${summary.requiredTotal} filled` +
+          (window.WIA.status.needsYouCount() > 0 ? ` · ${window.WIA.status.needsYouCount()} need you` : ""); // the one rule (lib-status.js); the panel's one count line (KAN-369 Q4)
     // Rows waiting for the student's Claude, apart: nothing for the student to fix yet (the walk visits them last).
     const onClaude = summary.fields.filter((r) => r.status === "needs_generation" && r.claude).length;
     if (onClaude) root.querySelector(".summary").textContent += ` · ${onClaude} waiting on Claude`;
@@ -294,10 +321,10 @@ window.WIA = window.WIA || {};
       banner.hidden = true;
       banner.innerHTML = "";
     };
-    banner.querySelector("[data-generate]").addEventListener("click", () => {
+    banner.querySelector("[data-generate]").addEventListener("click", window.WIA.ui.trusted(() => {
       hide();
       onGenerate();
-    });
+    }));
     banner.querySelector("[data-dismiss]").addEventListener("click", () => {
       hide();
       onDismiss();
@@ -344,14 +371,14 @@ window.WIA = window.WIA || {};
     if (!card) return;
     const error = card.querySelector(".error");
     card.querySelector("[data-dismiss]").addEventListener("click", () => card.remove());
-    card.querySelector("[data-save]").addEventListener("click", async () => {
+    card.querySelector("[data-save]").addEventListener("click", window.WIA.ui.trusted(async () => {
       const answers = Object.fromEntries([...card.querySelectorAll("select")].filter((s) => s.value).map((s) => [s.name, s.value]));
       error.hidden = true;
       const failed = await onSave(answers);
       if (!failed) return card.remove();
       error.textContent = failed;
       error.hidden = false;
-    });
+    }));
   }
 
   /**
@@ -430,22 +457,14 @@ window.WIA = window.WIA || {};
   }
 
   /**
-   * Batch apply's "Next Thing That Needs You" (content-script.js): shows the
-   * button, which calls `onNext` and shows what it answers (a sentence for
+   * Next Thing (content-script.js's walk): the panel's primary button
+   * (primary.js) calls `onNext` and shows what it answers (a sentence for
    * the student, or nothing when it went to a field).
    * @param {() => Promise<string | null>} onNext
    */
   function offerNext(onNext) {
     if (!root) return;
-    const bar = root.querySelector(".next");
-    const said = bar.querySelector("[data-said]");
-    bar.hidden = false;
-    bar.querySelector("[data-next]").onclick = async () => {
-      said.hidden = true;
-      const text = await onNext();
-      said.textContent = text ?? "";
-      said.hidden = !text;
-    };
+    window.WIA.primary?.offerNext(onNext);
   }
 
   /** Marks the row "Next Thing That Needs You" went to (null: none), and brings it into view. */
@@ -457,90 +476,98 @@ window.WIA = window.WIA || {};
   }
 
   /**
-   * Adds Plus Jakarta Sans (fonts/, as "WorkIt Jakarta Sans") to the page's
-   * fonts, once, for the panel: @font-face inside a shadow root does nothing,
-   * and a font the page fetches from the extension's URL would need the
-   * extension's files open to every site and pass the page's font-src. So
-   * the background reads the file and the bytes come here. Until it loads
-   * (or if it can't), the panel uses the system font.
+   * Puts the fill's rows and cards in the panel's Autofill tab (panel.js,
+   * the shell). `onSkip`: a batch tab's Skip (the job leaves the batch, and
+   * its tab closes), shown in the header. `onSubmitted`: a batch tab's "I
+   * submitted this", for a submit WorkIt didn't see; it answers only the
+   * student's own click (`isTrusted`), never one a page script makes on
+   * this open shadow root. A batch tab's panel opens by itself now that its
+   * fill is done (unless the student collapsed it on this site); elsewhere
+   * the student pressed Autofill This Page, so it is open already.
+   * @param {{ onSkip?: () => void, onSubmitted?: () => void }} [options]
    */
-  async function loadFont() {
-    if ([...document.fonts].some((face) => face.family.replace(/"/g, "") === FONT_FAMILY)) return;
-    const answer = await chrome.runtime.sendMessage({ type: "overlay/font" }).catch(() => null);
-    if (!answer?.ok || !answer.data) return;
-    const bytes = Uint8Array.from(atob(answer.data), (c) => c.charCodeAt(0));
-    const face = new FontFace(FONT_FAMILY, bytes, { weight: "200 800" });
-    document.fonts.add(await face.load());
+  function mount({ onSkip, onSubmitted } = {}) {
+    if (root && !early) return;
+    const shell = window.WIA.panel;
+    void shell.ensure();
+    if (!early) draw();
+    early = false;
+
+    // In the header's ⋯ menu (panel.menuItem, KAN-369 Q4).
+    if (onSubmitted) shell.menuItem("submitted", { label: "I submitted this", order: 10, onPress: window.WIA.ui.trusted(() => onSubmitted()) });
+    if (onSkip) shell.menuItem("skip", { label: "Skip", order: 20, onPress: window.WIA.ui.trusted(onSkip) });
+
+    // The primary slot's button (primary.js, KAN-396): Next Thing, Ready to submit, and Fill Again under it.
+    if (window.WIA.primary) window.WIA.primary.mount();
+    else shell.fillButton("Fill Again", { secondary: true });
+
+    if (window.WIA.batch) void shell.autoOpen();
+    else shell.open();
   }
 
-  /**
-   * Puts the panel on the page. `onSkip`: a batch tab's Skip (the job leaves
-   * the batch, and its tab closes), shown as a button in the header.
-   * @param {{ onSkip?: () => void }} [options]
-   */
-  function mount({ onSkip } = {}) {
-    if (host) return;
-    host = document.createElement("div");
-    host.id = "workit-autofiller-overlay-host";
-    const shadow = host.attachShadow({ mode: "open" });
-    shadow.appendChild(styles());
-
-    const panel = document.createElement("div");
-    panel.className = "panel";
-    panel.innerHTML = `
-      <div class="header">
-        <span>WorkIt Autofiller</span>
-        <span class="actions">
-          ${onSkip ? '<button type="button" data-skip title="Leave this job out of the batch">Skip</button>' : ""}
-          <button type="button" aria-label="Close" data-close>✕</button>
-        </span>
+  /** The Autofill tab's list, drawn in the shell and kept up to date with the rows. */
+  function draw() {
+    const shell = window.WIA.panel;
+    root = shell.root;
+    style = shell.addCss(styles().textContent);
+    const tab = shell.slot("tab:autofill");
+    tab.innerHTML = `
+      <div class="card fields">
+        <div class="summary"></div>
+        <div class="essay-banner" hidden></div>
+        <div class="moments"></div>
+        <div class="parts"></div>
+        <div class="list"></div>
       </div>
-      <div class="summary"></div>
-      <div class="next" hidden>
-        <button type="button" data-next>Next Thing That Needs You</button>
-        <span class="said" data-said hidden></span>
-      </div>
-      <div class="essay-banner" hidden></div>
-      <div class="moments"></div>
-      <div class="parts"></div>
-      <div class="list"></div>
     `;
-    panel.querySelector("[data-close]").addEventListener("click", unmount);
-    panel.querySelector("[data-skip]")?.addEventListener("click", onSkip);
-    shadow.appendChild(panel);
-    root = shadow;
-
-    document.documentElement.appendChild(host);
-    keepAttached();
-    loadFont().catch(() => {});
+    tab.querySelector(".list").addEventListener("click", jump);
+    tab.querySelector(".list").addEventListener("keydown", jump);
     unsubscribe = window.WIA.status.subscribe(render);
     render(window.WIA.status.summary());
   }
 
   /**
-   * Puts the panel back whenever the page removes it. Greenhouse is a React
-   * app that takes over the whole document when it starts up (hydration),
-   * and that drops nodes it didn't render, ours included, sometimes by
-   * replacing <html> itself. The auto-apply runner shows its tab and fills
-   * at once, which lands the fill right as the page starts up: the fields
-   * filled, but the panel was gone. So this watches the whole document,
-   * not one element, and appends the same host to whichever <html> exists.
+   * The checklist while a fill runs (KAN-369 Q1, progress.js's begin): every
+   * row as soon as the Plan registers it, each spinning until it is filled.
+   * Only on a page whose shell is up already (the student pressed Autofill
+   * This Page): a batch tab gets no panel before its fill is done (hydration,
+   * content-script.js). mount() then adds the rest.
    */
-  function keepAttached() {
-    keeper = new MutationObserver(() => {
-      if (host && !host.isConnected) document.documentElement.appendChild(host);
-    });
-    keeper.observe(document, { childList: true, subtree: true });
+  function live() {
+    if (root || !window.WIA.panel?.root) return;
+    draw();
+    early = true;
   }
 
+  /** Empties what the last fill put in the panel (a fill again draws it anew); the shell stays. */
   function unmount() {
-    keeper?.disconnect();
-    keeper = null;
     unsubscribe?.();
     unsubscribe = null;
-    host?.remove();
-    host = null;
+    style?.remove();
+    style = null;
+    if (root) {
+      window.WIA.panel.slot("tab:autofill")?.replaceChildren();
+      window.WIA.panel.menuItem("submitted", null);
+      window.WIA.panel.menuItem("skip", null);
+    }
     root = null;
+    early = false;
+  }
+
+  /** Shows the panel again after a collapse, as it was (no fill); false when this page has none. */
+  function open() {
+    if (!root) return false;
+    return window.WIA.panel.open();
+  }
+
+  /**
+   * What the background asks a page: null when no fill drew rows here, else
+   * whether the panel shows, whether the page is a batch tab, and the fill's
+   * phase ("filling" while it runs).
+   */
+  function state() {
+    if (!root) return null;
+    return { shown: window.WIA.panel.isOpen(), batch: Boolean(window.WIA.batch), phase: window.WIA.phase ?? null };
   }
 
   /**
@@ -557,5 +584,5 @@ window.WIA = window.WIA || {};
   /** Draws the rows again, for a row card whose own state changed (row-card.js). */
   const refresh = () => render(window.WIA.status.summary());
 
-  window.WIA.overlay = { mount, unmount, promptForEssays, offerNext, setCurrent, refresh, addPart, askSelfId, offerClaude, askSamples, askWorkdayAccounts, momentCard, CLAUDE_TRIGGER };
+  window.WIA.overlay = { live, mount, unmount, open, state, promptForEssays, offerNext, setCurrent, refresh, addPart, askSelfId, offerClaude, askSamples, askWorkdayAccounts, momentCard, startClaude, CLAUDE_TRIGGER };
 })();

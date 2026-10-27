@@ -98,16 +98,16 @@ def test_list_filters_by_stage_newest_first():
     assert "ORDER BY job_applications.created_at DESC" in sql
 
 
-def test_set_stage_applied_keeps_the_first_date():
+def test_set_stage_applied_dates_the_submit_now():
     db = Recorder()
     asyncio.run(queries.set_stage(db, APPLICANT, JOB, application_stage.applied))
-    assert "applied_at=coalesce(job_applications.applied_at, now())" in db.sql()
+    assert "applied_at=now()" in db.sql()
 
 
-def test_set_stage_skipped_leaves_the_date():
+def test_set_stage_skipped_clears_the_date():
     db = Recorder()
     asyncio.run(queries.set_stage(db, APPLICANT, JOB, application_stage.skipped))
-    assert "applied_at" not in db.sql()
+    assert "applied_at=%(applied_at)s" in db.sql()
 
 
 def test_mark_applied_turns_a_queued_job_applied_and_keeps_a_first_date():
@@ -117,7 +117,11 @@ def test_mark_applied_turns_a_queued_job_applied_and_keeps_a_first_date():
     assert "ON CONFLICT (applicant_id, job_id) DO UPDATE SET stage = %(param_1)s" in sql
     # The first date stays (KAN-267 dropped the WHERE, so a second mark can
     # still change the resume it names); no body leaves that resume alone.
-    assert "applied_at = coalesce(job_applications.applied_at, now())" in sql
+    # One not applied yet is dated now, whatever date it held (KAN-369).
+    assert (
+        "applied_at = CASE WHEN (job_applications.stage = %(stage_1)s)"
+        " THEN coalesce(job_applications.applied_at, now()) ELSE now() END"
+    ) in sql
     assert "sent_resume_id" not in sql
 
 

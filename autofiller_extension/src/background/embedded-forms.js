@@ -9,13 +9,17 @@
 // install warning: greenhouse.io is in host_permissions), kept in
 // storage.session, since Chrome stops this worker when idle.
 
+import { jobOf } from "./engine.js";
+
 // One key per tab, `embeddedForm:<tabId>` = the frameId of its Greenhouse embed frame (one key each: no lost write).
 const key = (tabId) => `embeddedForm:${tabId}`;
 
-/** A ?gh_jid= link on a site other than Greenhouse's: a careers page that embeds its form. */
+/** A ?gh_jid= link on a site other than Greenhouse's: a careers page that embeds its form. Not one
+ * whose own form the engine fills (Waymo's careers site builds its own, with no Greenhouse frame). */
 export function embedsGreenhouse(url) {
   try {
     const { hostname, searchParams } = new URL(url);
+    if (jobOf(url)) return false;
     return !/(^|\.)greenhouse\.io$/.test(hostname) && /^\d+$/.test(searchParams.get("gh_jid") ?? "");
   } catch {
     return false;

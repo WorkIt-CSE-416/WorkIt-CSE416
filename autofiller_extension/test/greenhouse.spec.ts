@@ -260,6 +260,20 @@ test("on a job system the engine doesn't cover, the overlay says so, not as an o
   await expect(page.locator("input[name=first]")).toHaveValue("");
 });
 
+// Live (2026-10-26): Greenhouse sends a closed job to its board with ?error=true, Workable to ?not_found=true.
+for (const url of ["https://job-boards.greenhouse.io/amperesand?error=true", "https://apply.workable.com/coretek-services/?not_found=true"]) {
+  test(`a closed posting on a job system WorkIt fills says the job is closed, not that the system is unsupported: ${url}`, async ({ page }) => {
+    await page.route(`${new URL(url).origin}/**`, (route) => route.fulfill({ contentType: "text/html", body: "<h1>Current openings</h1>" }));
+    await page.goto(url);
+    await bridge(page, async () => { throw new Error("a job API was fetched"); });
+    await inject(page);
+    await settled(page);
+    const text = await page.evaluate(() => document.getElementById("workit-autofiller-overlay-host")!.shadowRoot!.querySelector(".list")!.textContent);
+    expect(text).toContain("This job is closed");
+    expect(text).not.toContain("WorkIt can't fill this job system yet");
+  });
+}
+
 test("a company's careers page that embeds a Greenhouse form points the student to that form", async ({ page }) => {
   // The page Greenhouse sends a hosted job to when its board has its own careers site: the form is in an iframe.
   const form = "https://job-boards.greenhouse.io/embed/job_app?for=acmerobots&token=123";

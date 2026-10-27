@@ -236,7 +236,15 @@ Find files with a directory listing; these are the rules for where code goes.
   `next_application`'s `skip` passes over the jobs the extension already
   has open. A new stage value would be an `ALTER TYPE` and a coordinated
   deploy; add one only when a state must outlive its tab.
-  Tests: `tests/test_batch_apply.py`. **A batch tab's essay questions are
+  **The panel's I didn't submit this** (KAN-401, `POST .../finish
+  {"outcome": "unsubmitted", "state"}`) undoes a submit: only an applied
+  application, its date cleared, back to the stage its tab had in
+  `PUT .../fill`'s words (ready → `queued`, needs_you → `needs_you`). With
+  no `state` it goes to `needs_you`, never `queued`: a queued application
+  is the batch's next fill, so only a tab the extension says was Ready
+  goes back into it. No column keeps the stage before applied; the
+  extension, which held the tab, says it (tested in
+  `tests/test_applied_at.py`). Tests: `tests/test_batch_apply.py`. **A batch tab's essay questions are
   rows in `written_answers`** (KAN-377): the tab sends the questions its
   form needs written (`PUT .../questions`), the student's own Claude saves
   each answer through the connector, and the tab reads them back
@@ -305,6 +313,38 @@ Find files with a directory listing; these are the rules for where code goes.
   **Each listed answer carries `answered_at`** (KAN-369), when it was last
   saved: the page marks the student's own answers (captured from a form)
   New by it until they have seen them. Tests: `tests/test_captured_answers.py`.
+  **Problem reports from the extension's panel** (KAN-403,
+  `routers/fill_reports.py` over `queries/fill_reports.py`, table
+  `fill_reports`): `POST /fill-reports`
+  stores what the student previewed and sent (job system, the posting's
+  link, Fill engine version, each failed field's
+  kind, label shape and error name, their note). The row names no
+  account, though sending needs a sign-in. Every model forbids other keys
+  and the label shape holds only letters, `#` and spaces, so an answer or
+  the page's text is refused (422), never stored. The link is http or
+  https with no sign-in in it and no fragment, and its query keeps only the
+  params that name the posting (`schemas/fill_reports.py` POSTING_PARAMS:
+  Greenhouse's embed `for` and `token`, `gh_jid`, `jobId` and the like),
+  each an id; any other param is refused. It feeds the team's
+  engine repair loop; nothing reads it in the app. Tests:
+  `tests/test_fill_reports.py`.
+  **Job system requests from the extension's popup** (KAN-369,
+  `routers/job_system_requests.py`, table `job_system_requests`, migration
+  `d8a3f5c1e7b2`): `POST /job-system-requests {"host"}` stores the host of
+  a job page WorkIt can't fill when the student presses Request this job
+  system. Only a bare lower-case host name is taken (any other key, a
+  scheme, port or path is 422); the row names no account, though sending
+  needs a sign-in. The team ranks the next job systems with `SELECT host,
+  count(*) FROM job_system_requests GROUP BY host`; nothing reads it in the
+  app. Tests: `tests/test_job_system_requests.py`.
+  **Save to WorkIt by a page's link** (KAN-401, `POST /jobs/saved-by-link`
+  in `routers/applications.py`, `queries/applications.py`
+  `listed_job_by_link`): the extension's toolbar popup on a site it can't
+  fill saves the feed's listed job whose apply link is the page, the exact
+  link first, else the same link without query, fragment and trailing
+  slash (SQL `split_part`/`rtrim`, no index: the feed is small), through
+  `save_job`. A page no listed job links to is a 404; it never makes a
+  posting. Tests: `tests/test_saved_jobs.py`.
   **A student's writing samples and style card** (KAN-384) are
   `queries/writing.py`, behind `routers/writing_samples.py` (the student's
   add, replace, remove) and the connector's tools (their Claude reads the

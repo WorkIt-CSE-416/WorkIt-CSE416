@@ -7,7 +7,7 @@
 import { expect, test, type Page } from "@playwright/test";
 import { FakeApi } from "./fake-api";
 import { SavedForms } from "./fake-job-systems";
-import { loadExtension, sendFromWebapp, signIn, webapp, type Handler, type Loaded } from "./loaded-extension";
+import { loadExtension, sendFromWebapp, signIn, webapp, type Handler, type Loaded, pressNextThing } from "./loaded-extension";
 
 const ARC = "greenhouse-arc";
 
@@ -101,7 +101,7 @@ test("Keep the page's takes what the page shows as the student's, quoting the si
 test("Next Thing rings the field it lands on for a few seconds and leaves a dot on it until it is fixed", async () => {
   const { form } = await arcWith(DROPS_FIRST_NAME);
   const marks = form.locator("#workit-marks-host");
-  await form.locator("#workit-autofiller-overlay-host").getByRole("button", { name: "Next Thing That Needs You" }).click();
+  await pressNextThing(loaded, form.locator("#workit-autofiller-overlay-host"));
 
   await expect(marks.locator(".ring")).toBeVisible();
   await expect(marks.locator('.dot[data-key="first_name"]')).toBeVisible();

@@ -63,6 +63,67 @@ window.WIA = window.WIA || {};
     return SIGN_IN_STEP.test(step) ? "" : step;
   }
 
+  // A step's fields and repeating sections, as the Fill engine reads them (its workday.ts).
+  const FIELD = '[data-automation-id^="formField-"]';
+  const GROUP = "[role=group][aria-labelledby]";
+  const DATE_PARTS = { dateSectionMonth: "MM", dateSectionDay: "DD", dateSectionYear: "YYYY" };
+  const oneLine = (text) => String(text ?? "").replace(/\s+/g, " ").trim();
+  const textOf = (el) => (el ? oneLine(el.innerText.replace(/\*/g, "")) : "");
+  const shows = (el) => Boolean(el) && el.offsetParent !== null;
+  const titleOf = (group) => textOf(document.getElementById((group.getAttribute("aria-labelledby") ?? "").split(/\s+/)[0]));
+  const numbered = (title) => /\s\d+$/.test(title);
+
+  /** The numbered panel ("Work Experience 2") a field stands in, or "". */
+  function panelOf(box) {
+    for (let group = box.closest(GROUP); group; group = group.parentElement?.closest(GROUP) ?? null) {
+      if (numbered(titleOf(group))) return titleOf(group);
+    }
+    return "";
+  }
+
+  /** A field box's label, as the engine names its Question (a date's ends with its format, "From (MM/YYYY)"). */
+  function labelOf(box) {
+    const checks = [...box.querySelectorAll("input[type=checkbox]")];
+    const forInput = (input) => textOf(box.querySelector(`label[for="${CSS.escape(input.id)}"]`));
+    const group = box.closest(GROUP);
+    const legend = box.querySelector("legend");
+    const file = Boolean(box.querySelector("input[type=file]"));
+    const dates = [...box.querySelectorAll("[data-automation-id^=dateSection][data-automation-id$=-input]")];
+    const label = legend ? textOf(legend)
+      : checks.length === 1 && group && /statement above/i.test(forInput(checks[0])) ? `${titleOf(group)}: ${forInput(checks[0])}`
+      : checks.length === 1 ? forInput(checks[0]) || textOf(box.querySelector("label"))
+      : file && group && /^upload\b/i.test(textOf(box.querySelector("label"))) ? titleOf(group)
+      : textOf(box.querySelector("label"));
+    const format = !file && dates.length ? dates.map((d) => DATE_PARTS[d.dataset.automationId.replace(/-input$/, "")]).join("/") : "";
+    return label && label + (format ? ` (${format})` : "");
+  }
+
+  /**
+   * The field on the step shown for a panel row's key, "<step> / <label>",
+   * found as the Fill engine names a step's questions: its repeating
+   * sections by title, then each `formField-*` box by its label (a panel's
+   * prefixed, "Work Experience 1 / Job Title"; a repeated one numbered,
+   * "Phone (2)"). Null for a key from another step, or a field not shown.
+   */
+  function fieldOf(key) {
+    const step = workdayStep();
+    if (!step || !key.startsWith(`${step} / `)) return null;
+    const name = key.slice(step.length + 3);
+    for (const group of document.querySelectorAll(GROUP)) {
+      if (shows(group) && titleOf(group) === name && !numbered(name)) return group;
+    }
+    const seen = {};
+    for (const box of document.querySelectorAll(FIELD)) {
+      if (!shows(box) || box.parentElement?.closest(FIELD)) continue;
+      const own = labelOf(box);
+      if (!own) continue;
+      const label = [panelOf(box), own].filter(Boolean).join(" / ");
+      seen[label] = (seen[label] ?? 0) + 1;
+      if (name === label + (seen[label] > 1 ? ` (${seen[label]})` : "")) return box;
+    }
+    return null;
+  }
+
   /**
    * Types `value` into the sign-in form's box `id` (an automation id), as
    * typing would (Workday's React reads the input event), unless the box
@@ -151,13 +212,53 @@ window.WIA = window.WIA || {};
     });
   }
 
-  /** Resolves with Workday's step once it shows and isn't `from`. Watches the page; never times out. */
+  /**
+   * The number of Workday's step shown, from its bar ("current step 4 of 8"),
+   * or "" if the bar gives none. Two steps may have one name (a tenant's
+   * second questionnaire is "Application Questions" again): their numbers differ.
+   */
+  function stepNumber() {
+    return /\bstep (\d+) of \d+/i.exec(document.querySelector(WORKDAY_STEP)?.innerText ?? "")?.[1] ?? "";
+  }
+
+  // This tab's steps filled before, kept across its page loads: "<application path> <step>#<number>".
+  const FILLED_STEPS = "workit-workday-filled";
+
+  /**
+   * Whether this tab filled the step shown before (the student went back to
+   * it, or the page loaded again), and marks it filled. A step filled before
+   * gets only its empty fields filled: what shows is what the student saved.
+   */
+  function filledBefore() {
+    const key = `${location.pathname.replace(/\/apply(\/.*)?$/, "")} ${window.WIA.workday.stepId()}`;
+    let filled = [];
+    try {
+      filled = JSON.parse(sessionStorage.getItem(FILLED_STEPS) ?? "[]");
+    } catch {}
+    if (filled.includes(key)) return true;
+    try {
+      sessionStorage.setItem(FILLED_STEPS, JSON.stringify([...filled, key]));
+    } catch {}
+    return false;
+  }
+
+  // The number of the step stepAfter last resolved with.
+  let resolvedNumber = "";
+
+  /**
+   * Resolves with Workday's step once it shows and isn't `from` (the step
+   * stepAfter last resolved with): another name, or the same name at another
+   * number. Watches the page; never times out.
+   */
   function stepAfter(from) {
+    const fromNumber = from ? resolvedNumber : "";
     return new Promise((resolve) => {
       const check = () => {
         const step = workdayStep();
-        if (!step || step === from) return false;
+        const number = stepNumber();
+        if (!step || (step === from && number === fromNumber)) return false;
         observer.disconnect();
+        resolvedNumber = number;
         resolve(step);
         return true;
       };
@@ -412,13 +513,33 @@ window.WIA = window.WIA || {};
     look();
   }
 
+  const isWorkday = /(^|\.)(myworkdayjobs|myworkdaysite)\.com$/.test(location.hostname);
   window.WIA.workday = {
     // Whether this page is Workday's.
-    isWorkday: /(^|\.)(myworkdayjobs|myworkdaysite)\.com$/.test(location.hostname),
+    isWorkday,
+    // The stepped system's face (steps.js).
+    isOn: isWorkday,
+    name: "Workday",
+    nextLabel: "Save and Continue",
+    reviewName: "Review",
+    waiting: { title: "Waiting for the application", reason: "Sign in and start the application. WorkIt fills each step as it shows." },
+    walk: {
+      next: "[data-automation-id=pageFooterNextButton], [data-automation-id=bottom-navigation-next-button]",
+      review: "[data-automation-id=applyFlowReviewPage], [data-automation-id=reviewJobApplicationPage]",
+      goesOn: /^(save and continue|continue|next)$/i,
+      banner: "[data-automation-id=errorHeading], [data-automation-id=errorBanner], [data-automation-id=errorMessage]",
+      // Workday's error page in place of the step: its words, and no field of the step showing.
+      wentWrong: () => /something went wrong/i.test(document.body.innerText) && ![...document.querySelectorAll('[data-automation-id^="formField-"]')].some((f) => f.checkVisibility()),
+    },
     step: workdayStep,
+    // The field on the step shown for a panel row's key (batch-tab.js's fieldOf).
+    fieldOf,
     watchSignIn,
     watchStart,
     quiet,
     stepAfter,
+    filledBefore,
+    // The step shown, told from a step of the same name: "<step>#<number>".
+    stepId: () => `${workdayStep()}#${stepNumber()}`,
   };
 })();

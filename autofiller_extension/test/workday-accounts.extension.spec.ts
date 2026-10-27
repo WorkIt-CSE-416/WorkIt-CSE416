@@ -8,13 +8,19 @@ import { expect, test, type Page } from "@playwright/test";
 import { FakeApi } from "./fake-api";
 import { FakeWorkdays } from "./fake-job-systems";
 import { CONTENT_SCRIPT_FILES, ENGINE_FILES } from "../src/shared/content-scripts.js";
-import { loadExtension, sendFromWebapp, signIn, webapp, type Loaded } from "./loaded-extension";
+import { loadExtension, sendFromWebapp, signIn, webapp, type Loaded, menuItem } from "./loaded-extension";
 
 let loaded: Loaded | undefined;
 test.afterEach(async () => {
   await loaded?.close();
   loaded = undefined;
 });
+
+/** The first step's First Name: what its box shows, or once a batch tab saved the step (Fill to Review), what was saved. */
+async function firstName(page: Page, workdays: FakeWorkdays, n = 0): Promise<unknown> {
+  const box = page.locator("[data-automation-id=formField-legalName--firstName] input");
+  return workdays.saved(n)["legalName--firstName"] ?? ((await box.count()) ? box.inputValue() : "");
+}
 
 const overlay = (p: Page) => p.locator("#workit-autofiller-overlay-host");
 const box = (p: Page, id: string) => p.locator(`[data-automation-id=${id}]`);
@@ -41,7 +47,7 @@ async function allow(page: Page): Promise<void> {
 }
 
 async function skip(page: Page): Promise<void> {
-  await overlay(page).locator("[data-skip]").click();
+  await (await menuItem(overlay(page), "Skip")).click();
 }
 
 test("allowed once, makes each company's Workday account itself, terms box shown, and signs in later", async () => {
@@ -56,7 +62,8 @@ test("allowed once, makes each company's Workday account itself, terms box shown
   const caci = await page(workdays.signInUrl(0));
   await allow(caci);
   await caci.waitForURL(workdays.url(0), { timeout: 30_000 });
-  await expect.poll(() => caci.locator("[data-automation-id=formField-legalName--firstName] input").inputValue(), { timeout: 30_000 }).toBe("Test");
+  // A batch tab saves the filled step itself (Fill to Review), so the name shows on the step or was saved from it.
+  await expect.poll(() => firstName(caci, workdays), { timeout: 30_000 }).toBe("Test");
   const caciPassword = workdays.signIns[0]?.password;
   expect(workdays.signIns).toEqual([{ host: "caci.wd1.myworkdayjobs.com", view: "create", email: "test.person@example.com", password: caciPassword }]);
   expect(workdays.agreed).toEqual([true]);

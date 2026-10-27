@@ -106,6 +106,18 @@ test("jobs go most recently started first, as the student lists them, a job held
   expect(history.map((j: any) => j.employer)).toEqual(["Globex", "Initech", "Acme"]);
 });
 
+test("a job's bullets, in order and one a line, are its description (Workday's Role Description)", () => {
+  const bullets = [{ id: "b2", position: 1, text: "Cut a report's run time by half." }, { id: "b1", position: 0, text: "Built a made-up dashboard." }];
+  const job = (id: string, bullets: object[]) => ({
+    id, section: "experience", title: "Intern", organization: "Acme", location: null, start_month: "2025-06", end_month: "2025-08", end_kind: "month", bullets,
+  });
+  const bank = { entries: [job("j1", bullets), job("j2", [])], skills: [] };
+
+  const history = engineProfile({ ...STUDENT, bank }).experience_facts.employment_history;
+
+  expect(history.map((j: any) => j.description ?? null)).toEqual(["Built a made-up dashboard.\nCut a report's run time by half.", null]);
+});
+
 test("the bank's skills (languages first) and earlier schools reach the engine; an empty list keeps what was brought", () => {
   const skill = (name: string, group: string | null) => ({ id: name, name, group });
   const school = (id: string, title: string, degree: string, end_month: string) => ({
@@ -144,4 +156,72 @@ test("a queued full-time job's start date is the day the student graduates, not 
 
   expect(prepared.posting.job_type).toBe("full_time");
   expect(prepared.plan.answers.date_available).toBe("2028-05-15"); // the bank's graduation, on the day brought from Apply
+});
+
+test("the Application answers reach the engine, and the school year comes from the education entry", () => {
+  const answers = {
+    ...STUDENT.answers, onsite_ok: "yes", full_time_40h: "no", earliest_start: "2027-05-24", latest_end: "2027-08-13",
+    available_terms: ["summer 2027"], willing_to_relocate: "yes", location_preferences: ["Springfield, IL", "Remote"],
+    internship_location: "Springfield, IL", address_line1: "1 Example Way", postal_code: "00000", languages: ["English", "Spanish"],
+    relatives_at: [], relative_public_official: "no", referred_at: ["Initech"], prior_government_work: "no", non_compete: "yes", pending_offers: [],
+  };
+  const profile = engineProfile({ ...STUDENT, location: "Springfield, IL", answers }, "2026-10-26");
+
+  expect(profile.logistics).toEqual({
+    onsite_5_days_ok: true, can_work_full_time_40h: false, earliest_start_date: "2027-05-24", latest_end_date: "2027-08-13",
+    available_terms: ["summer 2027"], willing_to_relocate_for_summer: true, location_preferences: [["Springfield, IL", "Springfield"], ["Remote"]],
+    referrals: ["Initech"],
+  });
+  expect(profile.identity.home_address).toEqual({ line1: "1 Example Way", zip: "00000", city: "Springfield", state: "IL", country: "United States" });
+  expect(profile.identity.summer_2027_location).toBe("Springfield, IL");
+  expect(profile.identity.languages).toEqual([
+    { language: "English", spoken: true, written: true }, { language: "Spanish", spoken: true, written: true }]);
+  // A screener is the student's own answer: an empty list is their "none".
+  expect(profile.screeners).toEqual({
+    relatives_at: [], relative_of_public_official: false, prior_us_government_employment: false,
+    non_compete_or_conflicting_agreements: true, pending_offers: [],
+  });
+  // STUDENT graduates in May 2028: a junior this year, back at school after an August internship.
+  expect(profile.education.class_year).toBe("3rd Year Undergrad (Junior)");
+  expect(profile.education.returning_to_school_after_internship).toBe(true);
+
+  // Nothing answered: no fact, never a default.
+  const unanswered = engineProfile(STUDENT, "2026-10-26");
+  expect(unanswered.screeners ?? {}).toEqual({});
+  expect(unanswered.logistics ?? {}).toEqual({});
+  expect(unanswered.education.returning_to_school_after_internship).toBeUndefined();
+});
+
+test("never served, age, pay, the EEO extras, interests and an X link reach the engine; the bank gives the internships and current company", () => {
+  const answers = {
+    ...STUDENT.answers, veteran_status: "not_veteran", age_18_or_over: "yes", expected_hourly_pay: 32.5, accept_posted_pay: "yes",
+    sexual_orientation: "declined", transgender: "no", pronouns: "they_them", communities: [], role_interests: ["backend", "ml"],
+    x_url: "https://x.com/example",
+  };
+  const job = (id: string, title: string, organization: string, end_kind: string, end_month: string | null) => ({
+    ...STUDENT.bank.entries[0], id, section: "experience", title, organization, degree: null, field_of_study: null,
+    start_month: "2024-06", end_month, end_kind, bullets: [],
+  });
+  const bank = { entries: [...STUDENT.bank.entries, job("x1", "Software Engineering Intern", "Initech", "month", "2024-08"),
+    job("x2", "Research Co-op", "Example Lab", "month", "2025-08"), job("x3", "Teaching Assistant", "Example State University", "present", null)], skills: [] };
+  const profile = engineProfile({ ...STUDENT, answers, bank }, "2026-10-26");
+
+  expect(profile.voluntary_self_id).toMatchObject({ veteran: "I am not a veteran", sexual_orientation: "decline", transgender: false, communities: [] });
+  expect(profile.identity).toMatchObject({ age_18_or_over: true, pronouns: "They/them", current_company: "Example State University" });
+  expect(profile.experience_facts).toMatchObject({ prior_internships_count: 2, role_interests: ["Backend", "Machine Learning"] });
+  expect(profile.links.x_twitter_url).toBe("https://x.com/example");
+  // Pay is the student's own answer, laid over WorkIt's policies.
+  expect(enginePolicies({ ...STUDENT, answers }).compensation).toEqual({
+    fallback_hourly: 32.5, accept_stated_rate: true, expectation: "Open to the posted range" });
+  expect(enginePolicies(STUDENT).compensation).toBeUndefined();
+
+  // A bank with no jobs says nothing of internships; no job held now, no current company.
+  const none = engineProfile(STUDENT, "2026-10-26");
+  expect(none.experience_facts?.prior_internships_count).toBeUndefined();
+  expect(none.identity.current_company).toBeUndefined();
+});
+
+test("the countries of citizenship reach the engine", () => {
+  const answers = { ...STUDENT.answers, citizenship_countries: ["India"] };
+  expect(engineProfile({ ...STUDENT, answers }).work_authorization.citizenship_countries).toEqual(["India"]);
 });

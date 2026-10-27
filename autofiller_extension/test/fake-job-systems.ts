@@ -102,7 +102,7 @@ export class FakeWorkdays {
   constructor(names: string[], steps: Step[] = [["My Information", [
     { key: "legalName--firstName", label: "First Name", kind: "text", required: true },
     { key: "legalName--lastName", label: "Last Name", kind: "text", required: true },
-  ]]], options: Omit<WorkdayOptions, "steps">[] = []) {
+  ]]], private options: Omit<WorkdayOptions, "steps">[] = []) {
     this.tenants = names.map((name, n) => new FakeWorkday(name, { ...options[n], steps }));
   }
 
@@ -158,13 +158,28 @@ export class FakeWorkdays {
   /** How long, in ms, each tenant host takes to answer a Create Account or Sign In it was sent. */
   readonly answerDelay: Record<string, number> = {};
 
+  /**
+   * Tenant hosts whose pages change in place, as live Workday's do: Sign In
+   * and Save and Continue draw the next step in the same document (its link
+   * changed with history.pushState), not as a new page.
+   */
+  readonly inPlace = new Set<string>();
+
+  /** `inPlace` tenant hosts whose link stays the first step's as the steps change (no pushState), as some tenants keep theirs. */
+  readonly samePath = new Set<string>();
+
+  /** What the n-th tenant saved from the steps' Save and Continue, by field key (a batch tab saves each step it filled, Fill to Review). */
+  saved(n: number): Record<string, unknown> {
+    return this.tenants[n].saved;
+  }
+
   /** Every submit any tenant received (the extension must never send one). */
   get submissions(): unknown[] {
     return this.tenants.flatMap((t) => t.submissions);
   }
 
   readonly handler: Handler = async (request) => {
-    for (const tenant of this.tenants) {
+    for (const [n, tenant] of this.tenants.entries()) {
       if (request.url.hostname !== tenant.host) continue;
       if (request.url.pathname === "/__fake__/job") {
         return { headers: { "content-type": "text/html" }, body: postingPage(Boolean(request.url.searchParams.get("continued"))) };
@@ -178,7 +193,7 @@ export class FakeWorkdays {
         if (request.url.pathname === "/__fake__/applyManually") return { status: 302, headers: { location: "/__fake__/signin?view=create" } };
         return { headers: { "content-type": "text/html" }, body: "<!doctype html><title>Workday</title>" };
       }
-      if (request.url.pathname === "/__fake__/signin") return { headers: { "content-type": "text/html" }, body: signInPage(request.url.searchParams.get("view")!, this.stuckTerms.has(tenant.host), this.hiddenAlerts.has(tenant.host), this.droppedPresses[tenant.host] ?? 0) };
+      if (request.url.pathname === "/__fake__/signin") return this.placed(tenant.host, { headers: { "content-type": "text/html" }, body: signInPage(request.url.searchParams.get("view")!, this.stuckTerms.has(tenant.host), this.hiddenAlerts.has(tenant.host), this.droppedPresses[tenant.host] ?? 0) });
       if (request.url.pathname === "/__fake__/account" && request.method === "POST") {
         const { agreed, ...sent } = JSON.parse(request.body.toString());
         this.signIns.push({ host: tenant.host, ...sent });
@@ -187,11 +202,51 @@ export class FakeWorkdays {
         await new Promise((resolve) => setTimeout(resolve, this.answerDelay[tenant.host] ?? 0));
         return { json: alert ? { alert } : { next: tenant.stepUrl(1) } };
       }
-      return replay(tenant, request);
+      const reply = await replay(tenant, request);
+      return request.method === "GET" && reply?.body ? this.placed(tenant.host, this.withOptions(n, reply)) : reply;
     }
     return undefined;
   };
+
+  /**
+   * A step page with the n-th tenant's page options set, as FakeWorkday.open's
+   * init script sets them (Save and Continue clicks it drops, an error it
+   * flashes mid-save, a button disabled while the step loads).
+   */
+  private withOptions(n: number, reply: Reply): Reply {
+    const o = this.options[n] ?? {};
+    const set = `<script>window.__fakeDroppedSaves = ${o.droppedSaves ?? 0}; window.__fakeFlashesError = ${!!o.flashesError}; window.__fakeLoadsDisabled = ${o.loadsDisabled ?? 0};</script>`;
+    return { ...reply, body: String(reply.body).replace(/^<!doctype html>/i, (doctype) => doctype + set) };
+  }
+
+  /** A page of an `inPlace` tenant: its moves to the next page draw that page into this document instead. */
+  private placed(host: string, reply: Reply): Reply {
+    if (!this.inPlace.has(host)) return reply;
+    let body = String(reply.body).replaceAll("location.href = r.next", "window.__fakeGo(r.next)").replaceAll("location.href = answer.next", "window.__fakeGo(answer.next)");
+    // A link that stays the same: each step's save still goes to its own step.
+    if (this.samePath.has(host)) body = body.replaceAll("fetch(location.pathname", "fetch(window.__fakeAt || location.pathname");
+    const go = this.samePath.has(host) ? IN_PLACE.replace('history.pushState({}, "", url);', "window.__fakeAt = new URL(url, location.href).pathname;") : IN_PLACE;
+    return { ...reply, body: body.replace(/^<!doctype html>/i, (doctype) => doctype + go) };
+  }
 }
+
+/**
+ * How an `inPlace` tenant goes to its next page: it fetches it and draws its
+ * body in this document, running its scripts again (each in a block, so
+ * their declarations don't clash with the last page's).
+ */
+const IN_PLACE = `<script>
+window.__fakeGo ??= async (url) => {
+  history.pushState({}, "", url);
+  const page = new DOMParser().parseFromString(await (await fetch(url)).text(), "text/html");
+  document.body.replaceChildren(...page.body.childNodes);
+  for (const old of document.body.querySelectorAll("script")) {
+    const script = document.createElement("script");
+    script.textContent = "{" + old.textContent + "\\n}";
+    old.replaceWith(script);
+  }
+};
+</script>`;
 
 /**
  * A Workday tenant's Create Account / Sign In page, in the shape of the live

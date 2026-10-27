@@ -49,14 +49,16 @@
 // that reaches the job's /thanks page is submitted (background.js).
 // Starting a real batch ends a practice one.
 
+import { tabResume } from "./resume-tab.js";
 import { ApiError, finishApplication, getAutofillProfile, me, nextApplication, recordFill, recordSentResume } from "./api.js";
-import { formFor, jobOf, practiceJob } from "./engine.js";
+import { formFor, jobOf, practiceJob, signInFirst } from "./engine.js";
 import { jobBoard } from "./job-boards.js";
 import { injectFill, injectHumanCheck } from "../shared/content-scripts.js";
 import { embeddedForm, embedsGreenhouse } from "./embedded-forms.js";
 import { liveBatch, load, save, serially } from "./batch-store.js";
 import { forgetWorkableDraft, formAfterHumanCheck, formShows, humanCheckShows, waitForLoad } from "./tab-load.js";
 import { markCheck, tryInFront } from "./human-checks.js";
+import { readAhead } from "./plan-reads.js";
 
 /** @typedef {import("./batch-store.js").Batch} Batch @typedef {import("./batch-store.js").TabState} TabState */
 
@@ -82,6 +84,8 @@ const FORM_TIMEOUT_MS = 10_000;
  * >}
  */
 export async function startBatch(sender) {
+  // No profile warm-up here: asked before the tabs open, its seven parts took Chrome's six connections to a
+  // local (HTTP/1.1) API and held applications/next one round trip. writeEarly asks for it as the tabs open.
   let account;
   try {
     account = await me();
@@ -170,7 +174,10 @@ async function resume(batch, windowId) {
 /**
  * Opens the next queued applications until WINDOW tabs are filling or the
  * queue is empty. Each tab opens hidden beside the others, kept from being
- * discarded, and its fill starts once it loads (not awaited here).
+ * discarded, and its fill starts once it loads (not awaited here). Each
+ * application's form link is looked up (formFor) while the next one is
+ * asked, and the tabs then open in the queue's order: one round trip a tab,
+ * not two or more.
  * @param {Batch} batch
  * @param {string} applicantId
  */
@@ -179,35 +186,50 @@ async function topUp(batch, applicantId) {
   if (!(await chrome.windows.get(batch.windowId).catch(() => null))) return;
   const filling = () => Object.values(batch.tabs).filter((t) => t.state === "filling").length;
   batch.held ??= [];
-  while (filling() < WINDOW) {
-    if (!batch.practice && batch.held.length && !workdayOpen(batch)) {
-      const { jobId, url, jobType } = batch.held.shift();
+  /** @type {{ jobId: string, jobType: string | null, url: Promise<string> | string }[]} */
+  const opening = [];
+  // Whether a Workday application in `opening` takes the batch's one Workday slot.
+  let workdayOpening = false;
+  const workdayBusy = () => workdayOpening || workdayOpen(batch);
+  try {
+    while (filling() + opening.length < WINDOW) {
+      if (!batch.practice && batch.held.length && !workdayBusy()) {
+        const { jobId, url, jobType } = batch.held.shift();
+        batch.opened.push(jobId);
+        opening.push({ jobId, url, jobType });
+        workdayOpening = true;
+        continue;
+      }
+      const application = batch.practice
+        ? nextPractice(batch)
+        : await nextApplication(applicantId, [...batch.opened, ...batch.held.map((h) => h.jobId)]);
+      if (!application) break;
+      const jobId = application.job.id;
+      const jobType = application.job.job_type ?? null;
+      // The employer's form the API names (a job board's posting is taken only through it, KAN-376).
+      const link = application.job.form_url ?? application.job.apply_url;
+      if (jobBoard(link)) {
+        // Never a job board's page, whatever the API says: this batch passes it over.
+        console.warn(`[batch] not opened: ${jobBoard(link)} is a job board, and batch apply opens only an employer's own form`);
+        batch.opened.push(jobId);
+        continue;
+      }
+      // The form, not the job's page, where the two differ (a Lever posting's form is at .../apply):
+      // looked up while the next application is asked. Its lookup never turns a link into Workday's or out of it.
+      const url = formFor(link);
+      url.catch(() => {}); // awaited below, in order
+      if (isWorkday(link)) {
+        if (workdayBusy()) {
+          batch.held.push({ jobId, url: await url, jobType });
+          continue;
+        }
+        workdayOpening = true;
+      }
       batch.opened.push(jobId);
-      await openTab(batch, jobId, url, jobType);
-      continue;
+      opening.push({ jobId, url, jobType });
     }
-    const application = batch.practice
-      ? nextPractice(batch)
-      : await nextApplication(applicantId, [...batch.opened, ...batch.held.map((h) => h.jobId)]);
-    if (!application) break;
-    const jobId = application.job.id;
-    const jobType = application.job.job_type ?? null;
-    // The employer's form the API names (a job board's posting is taken only through it, KAN-376).
-    const link = application.job.form_url ?? application.job.apply_url;
-    if (jobBoard(link)) {
-      // Never a job board's page, whatever the API says: this batch passes it over.
-      console.warn(`[batch] not opened: ${jobBoard(link)} is a job board, and batch apply opens only an employer's own form`);
-      batch.opened.push(jobId);
-      continue;
-    }
-    // The form, not the job's page, where the two differ (a Lever posting's form is at .../apply).
-    const url = await formFor(link);
-    if (isWorkday(url) && workdayOpen(batch)) {
-      batch.held.push({ jobId, url, jobType });
-      continue;
-    }
-    batch.opened.push(jobId);
-    await openTab(batch, jobId, url, jobType);
+  } finally {
+    for (const { jobId, url, jobType } of opening) await openTab(batch, jobId, await url, jobType);
   }
   await save(batch);
 }
@@ -230,6 +252,8 @@ function workdayOpen(batch) {
  */
 async function openTab(batch, jobId, url, jobType = null) {
   const tab = await chrome.tabs.create({ url, active: false, windowId: batch.windowId });
+  // Its job's questions, names and text need no page: asked while the page loads (plan-reads.js).
+  readAhead(tab.id, url);
   // Memory Saver must never throw away a form the student hasn't reviewed.
   await chrome.tabs.update(tab.id, { autoDiscardable: false });
   batch.windowId = tab.windowId;
@@ -260,13 +284,18 @@ async function startFill(tabId, url, again = false) {
       return await injectFill(tabId, { batch: true, frameId });
     }
     const shown = (await chrome.tabs.get(tabId)).url ?? "";
-    if (jobOf(shown)?.site === "workable") await forgetWorkableDraft(tabId);
+    if (jobOf(shown)?.site === "workable") await forgetWorkableDraft(tabId, { onlyIfDraft: true });
     // A Workday posting shows no form until Apply is pressed (the fill presses it, workday.js) and the student signs in: its fill waits.
-    const workday = isWorkday(shown);
+    // iCIMS draws its sign-in and steps in its own frame, never this page: its fill waits for them (icims.js).
+    const workday = isWorkday(shown) || jobOf(shown)?.site === "icims";
+    // TikTok's form behind its sign-in: the fill shows the student the sign-in line (needs you), and the
+    // background fills the form once the tab reaches it (background.js). Opening the form again only signs in again.
+    if (signInFirst(shown)) return await injectFill(tabId, { batch: true });
     let found = await formShows(tabId, workday ? 0 : FORM_TIMEOUT_MS);
     // No answer: a new page ended the look (a human check that passed on its own), so look in the new one.
     if (found === null && !workday) found = await formAfterHumanCheck(tabId, FORM_TIMEOUT_MS);
     const now = (await chrome.tabs.get(tabId)).url ?? "";
+    if (signInFirst(now)) return await injectFill(tabId, { batch: true });
     if (!again && url && jobOf(url)?.onForm && !jobOf(now)?.onForm) {
       await chrome.tabs.update(tabId, { url });
       return startFill(tabId, url, true);
@@ -284,12 +313,24 @@ async function startFill(tabId, url, again = false) {
         await markCheck(tabId, false);
       }
     }
+    if (!found && !workday && (await closedPage(tabId))) return void (await closeClosedTab(tabId));
     if (!found && !workday) throw new Error("no_form");
     await injectFill(tabId, { batch: true });
   } catch (error) {
     console.warn("[batch] nothing was filled:", error.message);
     const url = (await chrome.tabs.get(tabId).catch(() => null))?.url ?? "";
     await setTabState(tabId, jobOf(url) ? "failed" : "needs_you");
+  }
+}
+
+/** Whether a tab's page is its job system saying the job is closed (content/closed-posting.js). */
+async function closedPage(tabId) {
+  try {
+    await chrome.scripting.executeScript({ target: { tabId }, files: ["src/content/closed-posting.js"] });
+    const [{ result }] = await chrome.scripting.executeScript({ target: { tabId }, func: () => window.WIA.closedPosting() });
+    return result === true;
+  } catch {
+    return false;
   }
 }
 
@@ -306,7 +347,12 @@ export function setTabState(tabId, state) {
   return serially(async () => {
     const batch = await load();
     const tab = batch?.tabs[tabId];
-    // A sent application's form may still change (the page clears it); its tab stays out of the groups.
+    // A sent application's form may still change (the page clears it); its tab stays out of the groups,
+    // but a fill that ends after the mark is kept for "I didn't submit this".
+    if (tab?.state === "applied" && tab.before === "filling") {
+      tab.before = state;
+      await save(batch);
+    }
     if (!tab || tab.state === state || tab.state === "applied") return { batch: Boolean(tab) };
     const wasFilling = tab.state === "filling";
     tab.state = state;
@@ -346,17 +392,44 @@ export function markSubmitted(tabId) {
     // A practice form is no application (its submit is submitPractice's).
     if (!tab || batch.practice || tab.state === "applied") return { batch: Boolean(tab) };
     const account = await me();
-    const resume = (await getAutofillProfile().catch(() => null))?.resume;
+    // The résumé the student switched the tab to (resume-tab.js), else the profile's.
+    const resume = (await tabResume(tabId)) ?? (await getAutofillProfile().catch(() => null))?.resume;
     const sent = resume?.uploaded_resume_id ? { uploaded_resume_id: resume.uploaded_resume_id } : resume?.built_resume_id ? { built_resume_id: resume.built_resume_id } : null;
     if (sent) await recordSentResume(account.id, tab.jobId, sent).catch((error) => console.warn("[batch] the sent resume wasn't recorded:", error.message));
     await finishApplication(account.id, tab.jobId, "submitted");
     const wasFilling = tab.state === "filling";
+    // Kept for "I didn't submit this", which puts the tab back as it was.
+    tab.before = tab.state;
     tab.state = "applied";
     await save(batch);
     await chrome.tabs.ungroup(tabId).catch(() => {});
     // A submitted Workday application frees the Workday slot too.
     if (wasFilling || isWorkday(tab.url)) await topUp(batch, account.id);
     return { batch: true };
+  });
+}
+
+/**
+ * The student's "I didn't submit this" (KAN-401) on a tab WorkIt marked
+ * applied: the tab goes back to the state it had before the mark, Ready or
+ * Needs you, in its group again, and the application with it (queued or
+ * needs_you; the finish route's `state`). A refusal throws, for the panel to say.
+ * @param {number} tabId
+ */
+export function unmarkSubmitted(tabId) {
+  return serially(async () => {
+    const batch = await load();
+    const tab = batch?.tabs[tabId];
+    if (!tab || tab.state !== "applied") return { unsubmitted: false };
+    // As it was before the mark: Ready, or still filling (its fill's end sets the tab as usual); anything
+    // else, or nothing known, needs the student.
+    const state = tab.before === "ready" || tab.before === "filling" ? "ready" : "needs_you";
+    await finishApplication((await me()).id, tab.jobId, "unsubmitted", state);
+    tab.state = state;
+    delete tab.before;
+    await save(batch);
+    await moveToGroup(batch, tabId, state);
+    return { unsubmitted: true };
   });
 }
 
@@ -412,13 +485,29 @@ export function forgetTab(tabId, removeInfo = {}) {
  * @param {number} tabId
  */
 export function skipTab(tabId) {
+  return leave(tabId, "skipped");
+}
+
+/**
+ * A batch tab's job system says the job is closed (content-script.js, or
+ * startFill on a page with no form): the application finishes "closed"
+ * (skipped, its posting marked closed; KAN-369), its tab closes, and the
+ * next queued job opens, as after Skip.
+ * @param {number} tabId
+ */
+export function closeClosedTab(tabId) {
+  return leave(tabId, "closed");
+}
+
+/** The tab's application finishes with `outcome`, its tab closes and leaves the batch, and the batch tops up. */
+function leave(tabId, outcome) {
   return serially(async () => {
     const batch = await load();
     const tab = batch?.tabs[tabId];
     if (!tab) return { batch: false };
     // A practice job has no application at WorkIt: its tab just closes.
     const account = batch.practice ? null : await me();
-    if (account) await finishApplication(account.id, tab.jobId, "skipped");
+    if (account) await finishApplication(account.id, tab.jobId, outcome);
     delete batch.tabs[tabId];
     await save(batch);
     await chrome.tabs.remove(tabId).catch(() => {});

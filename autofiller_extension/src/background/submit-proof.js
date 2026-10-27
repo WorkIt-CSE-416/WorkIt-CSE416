@@ -31,7 +31,10 @@
 export const SUBMIT_REQUESTS = {
   greenhouse: { url: /^https:\/\/([\w-]+\.)*greenhouse\.io\/(embed\/)?[\w-]+\/jobs\/\d+\/?([?#].*)?$/, ok: [200, 299], alone: true },
   lever: { url: /^https:\/\/jobs\.lever\.co\/[^/?#]+\/[0-9a-f-]{36}\/apply\/?([?#].*)?$/i, ok: [200, 399], alone: false },
-  ashby: { url: /^https:\/\/jobs\.ashbyhq\.com\/api\/non-user-graphql\?(.*&)?op=ApiSubmitMultipleFormsAction(&.*)?$/, ok: [200, 299], alone: false },
+  // Ashby's page sends the single-form mutation for a posting with no survey forms, the multiple-forms one otherwise.
+  ashby: { url: /^https:\/\/jobs\.ashbyhq\.com\/api\/non-user-graphql\?(.*&)?op=ApiSubmit(MultipleForms|SingleApplicationForm)Action(&.*)?$/, ok: [200, 299], alone: false },
+  // Waymo's careers site posts its own form (Turbo); how it answers a refusal isn't recorded, so the page must say so too.
+  waymo: { url: /^https:\/\/careers\.withwaymo\.com\/call_to_actions\/\w+\/form_submissions([?#].*)?$/, ok: [200, 399], alone: false },
   workable: { url: /^https:\/\/apply\.workable\.com\/api\/v1\/(accounts\/[^/?#]+\/)?jobs\/\w+\/apply\/?([?#].*)?$/, ok: [200, 299], alone: false },
 };
 

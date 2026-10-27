@@ -26,6 +26,12 @@ window.WIA = window.WIA || {};
   const ASK = "Essay fact: ";
   // How often a batch tab asks whether the student's Claude saved an answer (KAN-377).
   const ANSWER_POLL = 10_000;
+  // Sooner while the answers are new (KAN-369): the student's Claude often saves one within a minute of the
+  // questions (write early sent most before the tab opened), so the tab asks every ANSWER_POLL_SOON ms for SOON_FOR ms.
+  const ANSWER_POLL_SOON = 2_000;
+  const SOON_FOR = 60_000;
+  /** How long to wait before asking again, for a wait that began at `since`. */
+  const answerPoll = (since) => (Date.now() - since < SOON_FOR ? ANSWER_POLL_SOON : ANSWER_POLL);
   // How many polls a tab waits for the pre-submit review's verdict (KAN-369): 30 minutes, then it stops asking.
   const REVIEW_POLLS = 180;
   // The connector's limits on a question and an answer (backend/app/schemas/applications.py).
@@ -43,7 +49,7 @@ window.WIA = window.WIA || {};
    */
   function writtenAnswers({ batch }) {
     const { status, overlay } = window.WIA;
-    const send = (message) => chrome.runtime.sendMessage(message);
+    const send = window.WIA.ui.ask;
     const sleep = (ms) => new Promise((done) => setTimeout(done, ms));
     // The Written Answers link ({ text, href }), asked of the background once; null when it couldn't say.
     let answersPage;
@@ -80,6 +86,9 @@ window.WIA = window.WIA || {};
       const answer = await send({ type: "fill/page", site: prepared.site, questions: prepared.questions, answers: { [name]: value }, state: prepared.state })
         .finally(() => (fillingWritten -= 1));
       const result = answer.ok ? answer.results[name] ?? { status: "failed", reason: "The form changed before this was filled" } : { status: "failed", reason: answer.error };
+      // See cover letter (letter-preview.js), before the row draws: an upload's text is the PDF's, which the form can't show.
+      const upload = prepared.questions.find((q) => q.name === name)?.kind === "file";
+      if (result.status === "filled") window.WIA.letterPreview?.filled(name, value, upload ? String(result.shows) : undefined);
       status.setStatus(name, result.status, result.reason, result.shows, source);
       if (result.status === "filled" && typeof result.shows === "string") workitFilled.set(name, { text: result.shows, source });
     }
@@ -135,7 +144,7 @@ window.WIA = window.WIA || {};
     /**
      * A batch tab's questions that need writing (KAN-377): sent to WorkIt for
      * the student's own Claude, which saves its answers through the connector.
-     * The tab then asks for the saved answers every ANSWER_POLL ms and fills
+     * The tab then asks for the saved answers every ANSWER_POLL ms (sooner in the first minute) and fills
      * each new one through the engine, until none is left; the tab's group
      * follows (report()). A question the student answered first keeps their
      * answer. It then asks on until the student's Claude's pre-submit review
@@ -164,6 +173,7 @@ window.WIA = window.WIA || {};
       window.WIA.waitingCard?.onSave((name, answer) => paste(prepared, name, answer));
       let byClaude = false;
       let answered = false;
+      const since = Date.now();
       for (;;) {
         const rows = reply.ok ? reply.questions : [];
         for (const { name, answer, ask } of rows) {
@@ -187,7 +197,7 @@ window.WIA = window.WIA || {};
           awaitReview(reply);
           return;
         }
-        await sleep(ANSWER_POLL);
+        await sleep(answerPoll(since));
         reply = await send({ type: "batch/answers" }).catch((error) => ({ ok: false, error: error.message }));
       }
     }
@@ -356,9 +366,15 @@ window.WIA = window.WIA || {};
      * the student's own (a saved answer): an edit of one stays that answer's.
      */
     function adopt(names) {
+      let adopted = false;
       for (const row of status.summary().fields)
-        if (names.has(row.key) && row.status === "filled" && row.source && row.source !== "student" && typeof row.shows === "string")
+        if (names.has(row.key) && row.status === "filled" && row.source && row.source !== "student" && typeof row.shows === "string") {
           workitFilled.set(row.key, { text: row.shows, source: row.source });
+          window.WIA.letterPreview?.filled(row.key, row.shows);
+          adopted = true;
+        }
+      // Their rows get See cover letter (letter-preview.js).
+      if (adopted && window.WIA.letterPreview) overlay?.refresh?.();
     }
 
     /**
@@ -389,7 +405,7 @@ window.WIA = window.WIA || {};
      * The flag card's Rewrite with Claude (card-flag.js), once WorkIt has
      * cleared the answer for the student's Claude: the row waits for it
      * (Write with Claude) and keeps its flag, so the tab still needs the
-     * student, and the tab asks every ANSWER_POLL ms for the new answer and
+     * student, and the tab asks every ANSWER_POLL ms (sooner in the first minute) for the new answer and
      * fills it. It stops if the student writes the answer first.
      */
     async function rewrite(name) {
@@ -399,8 +415,9 @@ window.WIA = window.WIA || {};
       status.setStatus(name, "needs_generation", WAIT_FOR_CLAUDE, row.shows, undefined, undefined, true);
       status.flag(name, row.flag, { quote: row.flagQuote, hard: row.flagHard, rewriting: true });
       try {
+        const since = Date.now();
         while (rowStatus(name) === "needs_generation") {
-          await sleep(ANSWER_POLL);
+          await sleep(answerPoll(since));
           const reply = await send({ type: "batch/answers" }).catch((error) => ({ ok: false, error: error.message }));
           const answer = reply.ok ? reply.questions.find((q) => q.name === name)?.answer : null;
           if (!answer || rowStatus(name) !== "needs_generation") continue;

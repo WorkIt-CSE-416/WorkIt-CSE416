@@ -4,6 +4,7 @@
     <meta charset="utf-8" />
     <title>WorkIt Autofiller</title>
     <script src="../shared/tokens.js"></script>
+    <script src="../shared/report-parts.js"></script>
     <link rel="stylesheet" href="popup.css" />
   </head>
   <body>
@@ -29,16 +30,34 @@
       </p>
     </template>
 
+    <template id="failed-template">
+      <p class="failed" role="alert"></p>
+      <button type="button" id="try-again-button">Try again</button>
+    </template>
+
     <template id="signed-in-template">
       <div class="profile">
         <p class="name"></p>
         <p class="email muted"></p>
-        <p class="bank-status muted"></p>
       </div>
-      <button type="button" id="autofill-button">Autofill This Page</button>
+      <section class="unsupported" hidden>
+        <p class="unsupported-line">WorkIt can't fill this site yet</p>
+        <button type="button" id="save-button">Save to WorkIt</button>
+        <button type="button" id="request-button" class="secondary">Request this job system</button>
+        <button type="button" id="report-button" class="secondary">Report a problem</button>
+        <div class="report" hidden>
+          <p class="muted">Send report sends only this:</p>
+          <ul class="report-parts muted"></ul>
+          <label for="report-note">Note (optional)</label>
+          <textarea id="report-note" placeholder="What went wrong? Leave out anything personal."></textarea>
+          <button type="button" id="send-report-button">Send report</button>
+        </div>
+        <p class="said muted" role="status" hidden></p>
+      </section>
+      <p class="batch-status"></p>
+      <button type="button" id="open-workit-button">Open WorkIt</button>
       <p class="hint muted">
-        Fills from your WorkIt profile and experience bank. Never submits — review the form
-        yourself before clicking the real Submit button.
+        On a job form, WorkIt's panel is at the right edge of the page: this icon and Alt+W open and close it.
       </p>
       <button type="button" id="workday-signup-button" class="secondary">Workday Sign-Up</button>
     </template>

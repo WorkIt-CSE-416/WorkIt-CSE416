@@ -179,3 +179,19 @@ test("the student's words typed into a form are saved with a notice: Review open
   await expect(box(form, name)).toHaveValue("Still my own words.");
   expect(forms.submissions).toEqual([]);
 });
+
+test("an answer the student's Claude saves in the first minute fills within seconds, not a full poll later", async () => {
+  test.setTimeout(120_000);
+  const forms = new SavedForms([HARVEY]);
+  const api = new FakeApi().queue({ id: "job-0", apply_url: forms.url(HARVEY) });
+  await start(api, forms);
+  await expect.poll(() => api.written.get("job-0")?.length, { timeout: 60_000 }).toBe(3);
+  const form = loaded.context.pages().find((p) => p.url().startsWith(forms.url(HARVEY)))!;
+  await expect(row(form, WHY)).toContainText("Waiting for your Claude");
+
+  // Saved just after the tab sent its questions: the tab asks again within ANSWER_POLL_SOON (2 s), not ANSWER_POLL (10 s).
+  const name = api.written.get("job-0")![0].name;
+  api.saveAnswer("job-0", name, ANSWER);
+  await expect(box(form, name)).toHaveValue(ANSWER, { timeout: 5_000 });
+  expect(forms.submissions).toEqual([]);
+});

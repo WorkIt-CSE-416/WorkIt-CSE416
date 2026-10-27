@@ -8,16 +8,21 @@
 
 import { getSession } from "./auth.js";
 import {
-  answerBank, answerFlag, anyFormAnswerBank, dropOwnAnswer, getAutofillProfile, generateEssayAnswer, ApiError, askQuestions, connectorAdded, me, saveAutofillAnswers, saveOwnAnswer, savePastedAnswer,
+  answerBank, answerFlag, anyFormAnswerBank, dropOwnAnswer, getAutofillProfile, warmProfile, generateEssayAnswer, ApiError, askQuestions, connectorAdded, me, saveAutofillAnswers, saveOwnAnswer, savePastedAnswer,
   writingSamples, writtenAnswers,
 } from "./api.js";
 import {
-  batchStatus, batchTabIds, forgetTab, inBatch, jobInTab, jobTypeInTab, markSubmitted, practiceStatus, resumeBatch, setTabState, setWriting,
-  showBatchTab, skipTab, startBatch, startPractice, submitPractice,
+  batchStatus, batchTabIds, forgetTab, inBatch, jobInTab, jobTypeInTab, markSubmitted, unmarkSubmitted, practiceStatus, resumeBatch, setTabState, setWriting,
+  showBatchTab, skipTab, closeClosedTab, startBatch, startPractice, submitPractice,
 } from "./batch.js";
+import { popupPage, reportTab, requestTabSystem, saveTabJob, webappOrigin } from "./panel-states.js";
 import { engineCaller, handleFill, jobOf, practiceJob, runEngine, submittedPage } from "./engine.js";
 import { claimMoment } from "./moments.js";
 import { nextNeedsYou, walkFrom } from "./next-needs-you.js";
+import { batchLine, jobForTab, showNextTab } from "./panel-top.js";
+import { attachedFile, chooseResume, keywordsFor, openTailor, resumeTab, withTabResume } from "./resume-tab.js";
+import { addClaude, autoOpen, disconnectClaude, readSettings, setAutoOpen } from "./panel-settings.js";
+import { reportOf, sendReport } from "./report.js";
 import { SELF_ID, checkedSelfId, unansweredSelfId } from "./self-id.js";
 import { forgetSubmits, submitHinted, watchSubmitRequests } from "./submit-proof.js";
 import { watchEmbeddedForms } from "./embedded-forms.js";
@@ -25,6 +30,7 @@ import { injectFill } from "../shared/content-scripts.js";
 import { forgetShownWorkableDraft } from "./tab-load.js";
 import { allowForMe, forgetLogin, markCreated, markRefused, markSignedIn, sentSince, watchWorkdaySends, workdayLogin } from "./workday-logins.js";
 import { writeEarly } from "./write-early.js";
+import { fetchText, planReads } from "./plan-reads.js";
 
 /**
  * Calls the Fill engine in the frame that sent `sender`'s message: the
@@ -38,12 +44,6 @@ function engineIn(sender) {
     const [injection] = await chrome.scripting.executeScript({ target, world: "MAIN", func: runEngine, args: [request] });
     return injection?.result;
   });
-}
-
-async function fetchText(url, init) {
-  const response = await fetch(url, init && { ...init, headers: { "Content-Type": "application/json" } });
-  if (!response.ok) throw new Error(`${new URL(url).hostname} answered ${response.status}`);
-  return response.text();
 }
 
 // The nested prompts the engine read on each Workday tenant (fill/plan, fill/page), kept for its next fill.
@@ -99,8 +99,19 @@ async function handleMessage(message, sender) {
     case "fill/page":
     case "fill/read":
     case "fill/moot":
-    case "fill/required": {
-      const profile = await getAutofillProfile();
+    case "fill/required":
+    case "fill/next": {
+      const plan = message.type === "fill/plan";
+      // A Plan's profile and batch reads are asked at once; the job's saved answers are fetched while
+      // the engine reads the job's questions (planFill waits for them only to plan).
+      const [profile, jobId, typed] = await Promise.all([
+        // The résumé the student switched this tab to (resume-tab.js) in place of the default.
+        getAutofillProfile().then((p) => withTabResume(p, sender.tab?.id)),
+        plan ? jobInTab(sender.tab.id) : null,
+        // Its job type picks the start date: a full-time role's is graduation, an internship's its start.
+        plan ? jobTypeInTab(sender.tab.id) : null,
+      ]);
+      const jobType = jobId ? typed : null;
       if (message.type === "fill/plan" && jobOf(sender.url)?.site === "workday") {
         await rememberWorkdayTab(sender.tab.id);
         // An application step shows: the saved login (if any) signs in to this tenant.
@@ -109,15 +120,14 @@ async function handleMessage(message, sender) {
       // A Plan uses the answers the student saved (KAN-379), read fresh for each Plan: one saved a
       // moment ago in another tab counts. A batch tab's are its application's; any other page has no
       // application, so it gets the bank for the page's company, once the engine has read it.
-      const jobId = message.type === "fill/plan" ? await jobInTab(sender.tab.id) : null;
-      // Its job type picks the start date: a full-time role's is graduation, an internship's its start.
-      const jobType = jobId ? await jobTypeInTab(sender.tab.id) : null;
-      const bank = message.type !== "fill/plan" ? {}
-        : jobId ? await answerBank(profile.id, jobId).catch(() => ({}))
+      const bank = !plan ? {}
+        : jobId ? answerBank(profile.id, jobId).catch(() => ({}))
         : (company) => anyFormAnswerBank(profile.id, company).catch(() => ({}));
       const answer = await handleFill(message, {
-        url: sender.url, profile, bank, today: today(), call: engineIn(sender), fetchText, trees: workdayTrees, jobType,
+        url: sender.url, profile, bank, today: today(), call: engineIn(sender), fetchText: plan ? planReads(sender.tab.id) : fetchText, trees: workdayTrees, jobType,
       });
+      // TikTok's sign-in, the student's to go through: the tab is remembered, and its form fills once it shows.
+      if (message.type === "fill/plan" && answer.signIn) await rememberSignInTab(sender.tab.id);
       // Outside a batch, a Workable draft with entries is forgotten and the form filled again from empty (tab-load.js).
       if (message.type === "fill/plan" && !(await inBatch(sender.tab.id)) && (await forgetShownWorkableDraft(sender.tab.id, answer))) {
         injectFill(sender.tab.id).catch((error) => console.warn("[fill] the reloaded Workable form wasn't filled:", error));
@@ -183,6 +193,10 @@ async function handleMessage(message, sender) {
     // The student pressed Skip on a batch tab's panel (content-script.js).
     case "batch/skip":
       return skipTab(sender.tab.id);
+
+    // A batch tab's job system says the job is closed (content-script.js): it leaves the batch marked closed.
+    case "batch/closed":
+      return closeClosedTab(sender.tab.id);
 
     // A batch tab's questions that need writing (KAN-377): sent to the API for
     // the student's own Claude to answer through the connector
@@ -286,6 +300,14 @@ async function handleMessage(message, sender) {
     case "batch/submitted":
       return { applied: await submitHinted(sender.tab.id, markSubmitted, jobOf(sender.url)?.site) };
 
+    // The panel's "I submitted this" (the student's own click): a submit the job system's answer
+    // didn't show (detection missed it), marked applied on the student's word.
+    case "batch/i-submitted":
+      return { applied: (await markSubmitted(sender.tab.id)).batch };
+    // The panel's "I didn't submit this" (panel-states.js, KAN-401): the applied mark goes back.
+    case "batch/unsubmitted":
+      return unmarkSubmitted(sender.tab.id);
+
     // The first form that asks the self-identification (KAN-387): the tab
     // whose Plan found it asks whether to ask the student (once, in one
     // tab: moments.js), then saves their answers to the profile, and every
@@ -328,7 +350,74 @@ async function handleMessage(message, sender) {
       return { added: await connectorAdded(id) };
     }
 
-    // The panel's font (overlay.js's loadFont), as base64: the page can't
+    // The panel's shell (panel.js, KAN-394): whether this page is a job page WorkIt
+    // covers, whether the tab is a batch's, and the site's kept choices. On a job
+    // page the toolbar icon opens and closes the panel, so the tab has no popup.
+    case "panel/where": {
+      const url = sender.url ?? "";
+      const job = Boolean(jobOf(url));
+      if (job && sender.tab?.id !== undefined) await chrome.action.setPopup({ tabId: sender.tab.id, popup: "" });
+      // A job page's panel will plan a fill: its profile is fetched while the page settles.
+      if (job) warmProfile();
+      return { job, batch: sender.tab ? await inBatch(sender.tab.id) : false, site: await panelSite(url), autoOpen: await autoOpen() };
+    }
+    case "panel/site":
+      return { site: await panelSite(sender.url ?? "", message.set) };
+    // The panel's Autofill This Page and Fill Again: the fill, in the frame that asked (a batch tab stays one).
+    // Signed out (panel-states.js, KAN-401): the panel's Sign in to WorkIt opens the webapp's sign-in.
+    case "panel/sign-in":
+      await chrome.tabs.create({ url: `${await webappOrigin()}/login`, openerTabId: sender.tab?.id });
+      return {};
+    // The toolbar popup on a site WorkIt can't fill (popup.js, KAN-401).
+    case "popup/page":
+      return popupPage(message.tabId);
+    case "popup/save":
+      return saveTabJob(message.tabId);
+    case "popup/report":
+      return reportTab(message.tabId, message.note);
+    case "popup/request":
+      return requestTabSystem(message.tabId);
+    case "panel/fill":
+      await injectFill(sender.tab.id, { batch: Boolean(message.batch) && (await inBatch(sender.tab.id)), frameId: sender.frameId || undefined });
+      return {};
+    // The panel's top (panel-top.js, KAN-395): the job card's job, and the batch line.
+    case "panel/job":
+      return { job: await jobForTab({ tabId: sender.tab.id, url: sender.url ?? "" }) };
+    case "panel/batch-line":
+      return { line: await batchLine(sender.tab.id), site: jobOf(sender.url ?? "")?.site ?? null };
+    case "panel/next-tab":
+      return showNextTab(sender.tab.id);
+    // The panel's Résumé tab (resume-tab.js, KAN-399).
+    case "resume/tab":
+      return resumeTab({ tabId: sender.tab.id, url: sender.url ?? "" });
+    case "resume/file":
+      return { file: await attachedFile(sender.tab.id) };
+    case "resume/choose":
+      return chooseResume({ tabId: sender.tab.id, url: sender.url ?? "", key: message.key });
+    case "resume/keywords":
+      return keywordsFor({ tabId: sender.tab.id, url: sender.url ?? "", key: message.key, spend: message.spend === true });
+    case "resume/tailor":
+      return openTailor({ tabId: sender.tab.id, url: sender.url ?? "" });
+    // Report a problem (report.js, KAN-403): what the card previews, and its Send.
+    case "report/preview":
+      return reportOf(sender.url ?? "");
+    case "report/send":
+      await sendReport(sender.url ?? "", message.report);
+      return {};
+    // The panel's settings view (panel-settings.js, KAN-402): the Claude connection and auto-open.
+    case "settings/read":
+      return readSettings();
+    case "settings/claude-add":
+      return addClaude(sender.tab?.id);
+    case "settings/claude-disconnect":
+      return disconnectClaude();
+    case "settings/auto-open":
+      return setAutoOpen(message.on);
+    // The toolbar popup off job pages: the batch's status.
+    case "popup/batch":
+      return batchStatus();
+
+    // The panel's font (panel.js's loadFont), as base64: the page can't
     // load the extension's own files, which aren't web-accessible.
     case "overlay/font": {
       const bytes = new Uint8Array(await (await fetch(chrome.runtime.getURL("fonts/PlusJakartaSans-latin.woff2"))).arrayBuffer());
@@ -394,6 +483,31 @@ chrome.tabs.onUpdated.addListener(async (tabId, change, tab) => {
   injectFill(tabId, { batch: await inBatch(tabId) }).catch((error) => console.warn("[fill] Workday's next page wasn't filled:", error));
 });
 
+// Tabs a fill found on a careers site's own sign-in (TikTok's, ByteDance's:
+// planFill's `signIn`), which the student goes through themselves. Once the
+// tab reaches the form (a new page, or the site's own move to it in the
+// page), the fill runs there, once; a tab that leaves the site is forgotten.
+const SIGN_IN_TABS_KEY = "sign_in_fill_tabs";
+
+async function signInTabs() {
+  return (await chrome.storage.session.get(SIGN_IN_TABS_KEY))[SIGN_IN_TABS_KEY] ?? [];
+}
+
+async function rememberSignInTab(tabId) {
+  const tabs = await signInTabs();
+  if (!tabs.includes(tabId)) await chrome.storage.session.set({ [SIGN_IN_TABS_KEY]: [...tabs, tabId] });
+}
+
+chrome.tabs.onUpdated.addListener(async (tabId, change, tab) => {
+  if (tab.status !== "complete" || (!change.url && change.status !== "complete")) return;
+  const tabs = await signInTabs();
+  if (!tabs.includes(tabId)) return;
+  const job = jobOf(tab.url ?? "");
+  if (job?.site === "tiktok" && !job.onForm) return; // still signing in
+  await chrome.storage.session.set({ [SIGN_IN_TABS_KEY]: tabs.filter((id) => id !== tabId) });
+  if (job?.onForm) injectFill(tabId, { batch: await inBatch(tabId) }).catch((error) => console.warn("[fill] the form after sign-in wasn't filled:", error));
+});
+
 // A practice form's Submit opens its /thanks page and sends nothing
 // (frontend/src/lib/practice-form.ts): reaching it is the practice job's
 // submit. `url` is given for WorkIt's own pages, which are in host_permissions.
@@ -408,6 +522,8 @@ chrome.tabs.onRemoved.addListener(async (tabId, removeInfo) => {
   await forgetTab(tabId, removeInfo);
   const tabs = await workdayTabs();
   if (tabs.includes(tabId)) await chrome.storage.session.set({ [WORKDAY_TABS_KEY]: tabs.filter((id) => id !== tabId) });
+  const signingIn = await signInTabs();
+  if (signingIn.includes(tabId)) await chrome.storage.session.set({ [SIGN_IN_TABS_KEY]: signingIn.filter((id) => id !== tabId) });
 });
 
 // A batch Chrome closed mid-way picks up where it stopped (batch.js), once
@@ -427,6 +543,70 @@ function resumeOnce() {
 }
 chrome.runtime.onStartup.addListener(resumeOnce);
 resumeOnce();
+
+// The panel's choices per site (panel.js): { top, collapsed, hidden }, by host name.
+const PANEL_SITES_KEY = "panel_sites";
+async function panelSite(url, change) {
+  let site;
+  try {
+    site = new URL(url).hostname;
+  } catch {
+    return {};
+  }
+  const sites = (await chrome.storage.local.get(PANEL_SITES_KEY))[PANEL_SITES_KEY] ?? {};
+  if (!change) return sites[site] ?? {};
+  sites[site] = { ...sites[site], ...change };
+  await chrome.storage.local.set({ [PANEL_SITES_KEY]: sites });
+  return sites[site];
+}
+
+// What the panel's shell injects when the toolbar icon or Alt+W finds no panel on a job page yet.
+const SHELL_FILES = ["src/shared/tokens.js", "src/content/ui.js", "src/shared/report-parts.js", "src/content/panel.js", "src/content/panel-top.js", "src/content/resume-tab.js", "src/content/panel-settings.js", "src/content/report.js", "src/content/panel-states.js"];
+
+/**
+ * The toolbar icon (a tab with no popup: a job page, panel/where) and
+ * Alt+W: open or close the panel in whichever frame has it. A job page whose
+ * edge tab isn't drawn yet gets the shell, open; any other page gets the
+ * popup (the batch's status), as a tab with a popup would.
+ * @param {chrome.tabs.Tab} tab
+ */
+async function toolbarPressed(tab) {
+  if (!tab?.id) return;
+  const answer = await chrome.tabs.sendMessage(tab.id, { type: "panel/toggle" }).catch(() => null);
+  if (answer?.toggled) return;
+  if (jobOf(tab.url ?? "")) {
+    await chrome.scripting.executeScript({ target: { tabId: tab.id }, files: SHELL_FILES });
+    await chrome.scripting.executeScript({
+      target: { tabId: tab.id },
+      func: async () => {
+        const panel = window.WIA.panel;
+        await panel.ensure();
+        if (!window.WIA.overlay?.state?.()) await window.WIA.panelStates.start();
+        panel.open();
+      },
+    });
+    return;
+  }
+  await chrome.action.setPopup({ tabId: tab.id, popup: chrome.runtime.getManifest().action.default_popup });
+  await chrome.action.openPopup().catch(() => {});
+}
+chrome.action.onClicked.addListener((tab) => void toolbarPressed(tab).catch((error) => console.warn("[panel] the toolbar press did nothing:", error.message)));
+/**
+ * The extension's commands (manifest.json): Alt+W opens or closes the panel;
+ * Alt+N presses its Next Thing (KAN-396) in whichever frame has the button
+ * (primary.js answers "panel/next"; a page without one does nothing).
+ * @param {string} command
+ * @param {chrome.tabs.Tab} [tab]
+ */
+async function commandPressed(command, tab) {
+  tab ??= (await chrome.tabs.query({ active: true, lastFocusedWindow: true }))[0];
+  if (command === "toggle-panel") await toolbarPressed(tab).catch((error) => console.warn("[panel] Alt+W did nothing:", error.message));
+  if (command === "next-thing" && tab?.id) await chrome.tabs.sendMessage(tab.id, { type: "panel/next" }).catch(() => null);
+}
+chrome.commands.onCommand.addListener((command, tab) => void commandPressed(command, tab));
+// The tests' way to press the toolbar icon and the commands' keys, which Chrome gives no page a way to press.
+globalThis.workitToolbar = toolbarPressed;
+globalThis.workitCommand = commandPressed;
 
 // Messages from the popup and the content script (same extension, so this
 // channel, not the External one below).
@@ -485,7 +665,11 @@ chrome.runtime.onMessageExternal.addListener((message, sender, sendResponse) => 
   if (message?.type === "ping") {
     // `pinned` for onboarding's install step (KAN-378), which asks the student to pin it.
     Promise.all([getSession().catch(() => null), pinned()])
-      .then(([session, isPinned]) => sendResponse({ ok: true, installed: true, signedIn: Boolean(session), pinned: isPinned }));
+      .then(([session, isPinned]) => {
+        // The webapp asks as its pages open (Auto Apply's among them): the profile is fetched now, before a batch waits for it.
+        if (session) warmProfile();
+        sendResponse({ ok: true, installed: true, signedIn: Boolean(session), pinned: isPinned });
+      });
     return true;
   }
 

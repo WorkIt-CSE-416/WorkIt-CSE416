@@ -26,6 +26,19 @@ class MarkApplied(BaseModel):
     sent_resume_id: uuid.UUID | None = None
 
 
+class SaveByLink(BaseModel):
+    """POST /jobs/saved-by-link: the page the student is on (KAN-401)."""
+
+    url: str = Field(max_length=2048)
+
+
+class JobSavedByLink(BaseModel):
+    """POST /jobs/saved-by-link: the job the link is, and its stage after the save."""
+
+    job_id: uuid.UUID
+    stage: application_stage
+
+
 class JobSaved(BaseModel):
     """POST /jobs/{job_id}/saved: the job's stage after the save. saved, or
     the stage it already had (queued, applied...), which saving keeps."""
@@ -95,9 +108,24 @@ class QueueRequest(BaseModel):
 class FinishRequest(BaseModel):
     """POST .../applications/{job_id}/finish: how the fill ended. submitted:
     the student clicked Submitted. skipped: Skip, or the tab was closed.
-    failed: the form could not be filled (no form, sign-in needed)."""
+    failed: the form could not be filled (no form, sign-in needed).
+    closed: a batch tab found the job system saying the job is closed: the
+    application is skipped and its posting marked closed (KAN-369).
+    unsubmitted: the panel's "I didn't submit this", for a submit marked by
+    mistake (KAN-401): an applied application goes back to the stage its
+    batch tab had before, which `state` names in PUT .../fill's words (ready:
+    queued; needs_you). No state is needs_you: a queued application is the
+    batch's next fill, so only a tab the extension says was Ready goes back
+    there. `state` is unsubmitted's only (422 with any other outcome)."""
 
-    outcome: Literal["submitted", "skipped", "failed"]
+    outcome: Literal["submitted", "skipped", "failed", "closed", "unsubmitted"]
+    state: Literal["ready", "needs_you"] | None = None
+
+    @model_validator(mode="after")
+    def _state_only_when_unsubmitted(self) -> "FinishRequest":
+        if self.state is not None and self.outcome != "unsubmitted":
+            raise ValueError("state goes with the unsubmitted outcome only")
+        return self
 
 
 class FillRequest(BaseModel):

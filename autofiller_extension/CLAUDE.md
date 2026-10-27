@@ -47,6 +47,9 @@ repo `WorkIt-CSE-416/fill-engine` and sits here as the submodule
 `fill-engine/`, **pinned to a tag**. A person moves the pin (`git -C
 autofiller_extension/fill-engine checkout vX.Y.Z`, commit the gitlink), so
 a change to the engine reaches students only when someone here chooses it.
+Moving the pin also means changing `ENGINE_VERSION` in
+`src/background/report.js` (what a problem report names);
+`test/report.extension.spec.ts` fails until it matches `git describe --tags`.
 **A checkout needs `git submodule update --init` once**, or Chrome can't
 load `fill-engine/dist/engine.js` and every fill fails. The extension never
 builds it: `dist/engine.js` is committed in the engine repo.
@@ -56,8 +59,19 @@ builds it: `dist/engine.js` is committed in the engine repo.
   Ashby wraps the page's `fetch`, neither of which an extension's isolated
   world can see. The overlay and `content-script.js` run in the isolated
   world, where `chrome.runtime` is. `src/shared/content-scripts.js`'s
-  `injectFill` loads both, engine first, for the popup and batch apply
-  alike. The isolated world's files are classic scripts, not modules: each
+  `injectFill` loads both, engine first, for the panel and batch apply
+  alike. Every panel and fill file list loads `src/content/ui.js` first
+  (the shared `ask`/`send` message helpers and the `el`/`button` node
+  helpers) and `src/shared/report-parts.js` (a fill report's error names
+  and `NOTE_MAX`, also imported by `background/report.js` and loaded by the
+  popup; the backend's schema keeps its own copy). It first claims the page (`window.WIA.running`, set in one step)
+  and injects nothing into a page whose fill is running: a batch tab
+  opened on a Workday step is injected twice as it loads (`batch.js`'s
+  `startFill` and `background.js`'s per-page-load Workday fill), and two
+  copies of the panel scripts side by side left no panel (KAN-369,
+  `test/workday-show.extension.spec.ts`). Its "Frame with ID 0 was
+  removed" only means the filled page went (a Workday fill's script lasts
+  as long as its page), so it isn't logged. The isolated world's files are classic scripts, not modules: each
   sets its part of `window.WIA` and `content-script.js`, loaded last, runs
   the fill with them, so `CONTENT_SCRIPT_FILES`' order matters. Beside the
   status rows (`lib-status.js`) and the panel (`overlay.js`),
@@ -79,11 +93,25 @@ builds it: `dist/engine.js` is committed in the engine repo.
   company, role and text from the engine (`jobOf`, `questionSet`,
   `jobNames`, `jobDescription`, `textOf`), which asks each job system's
   public API with the background's `fetchText`: the same URLs and queries
-  Apply asks. Eightfold's and Workday's questions are read off the open form
-  by the engine (`readQuestions`), and Ashby's form too when its query
+  Apply asks. Eightfold's, TikTok's and Workday's questions are read off the open form
+  by the engine (`readQuestions`; `engine.js`'s `READ_OFF_PAGE`), and Ashby's form too when its query
   fails. It then asks the engine's `plan` for answers from the WorkIt
   profile (`engineProfile`) and `POLICIES`. No job system's URLs, queries,
   parsing or company names live here: change them in the engine repo.
+  A Plan asks what needs no other answer at once (KAN-369): the profile and
+  the batch's record of the tab, then the job's questions beside its names
+  and text (`readNames`) and the job's answer bank, which `planQuestions`
+  waits for only to plan (it takes the bank as a promise). Each URL is
+  still asked once per Plan (`once`), so the requests are the same ones.
+  A batch tab's job reads start sooner still: `openTab` asks the job's
+  questions, names and text as the tab opens (`plan-reads.js`'s
+  `readAhead`, the engine's same calls through `readJobAhead`), while the
+  page loads, and the tab's first Plan takes them (`planReads`): once, and
+  only within a minute (a tab held by a human check plans afresh). A read
+  that failed is asked again by the Plan. Never the answer bank (read fresh
+  for each Plan, KAN-379), nor a job whose questions only its open form
+  shows (Workday, Eightfold, TikTok, practice forms); every later Plan of the tab
+  (a Workday step, an Eightfold follow-up) reads afresh.
 - **The engine fills the page and checks it.** `fill/page` calls the
   engine's `fillEach`, which fills in the engine's own order (files first
   where the job system parses the résumé into the form, Workable in one go,
@@ -104,17 +132,125 @@ builds it: `dist/engine.js` is committed in the engine repo.
   application (a batch tab starts it itself, below); the content script fills each step as it shows (sections
   first, then each field, then reads the step again for follow-ups), then
   waits. The student checks the step and presses Save and Continue; the
-  next step is filled when Workday shows it. The extension never presses
-  Save and Continue or Submit. A step that loads as a new page drops the
+  next step is filled when Workday shows it: a step is told from the last
+  by its name and its number in the bar, since a tenant may name two steps
+  alike (a second "Application Questions"). A step the tab filled before
+  (the student went back to it, or it loaded again; `workday.filledBefore`,
+  session storage) gets only its empty fields filled, so the student's
+  saved answers stay. A fill whose step is left while it fills stops
+  planning there (`workday.stepId`), so the step shown next is the step
+  loop's to fill. The extension never presses
+  Submit. **Fill to Review** (KAN-369, `workday-walk.js`, Apply's walk): in
+  a batch tab, and outside one once the student presses the panel's Fill to
+  Review (kept for the tab in sessionStorage), a filled step with nothing
+  for the student is saved with Workday's own Save and Continue
+  (`pageFooterNextButton` or `bottom-navigation-next-button`, only when it
+  reads Save and Continue, Continue or Next), so every step fills up to
+  Review, where the panel says "Check everything on Workday's Review page,
+  then press Submit." A step stops the walk, and the panel says why, when a
+  row needs the student (failed, unanswered, a written answer still coming,
+  a guessed answer, a flag, the Plan's note), a required field shows
+  nothing (`fill/required`, asked on Workday only here), or the
+  self-identification card waits. The button is pressed on a step once
+  (its name, its number in Workday's bar and the path, kept for the tab,
+  so a second "Application Questions" on a link that doesn't change is a
+  step of its own). A press Workday drops (in 3 s the button never
+  disabled, no error, the same step) is made again on the same button, 3
+  presses in all, as Apply's `_next` (Applied Materials, live). Right
+  before every press it reads the button's words and looks for the Review
+  page again, so a button a tenant relabels Submit after a dropped press is
+  never pressed. It is
+  never pressed again after Workday shows an error that stays 5 s, its
+  "Something went wrong" page, or 30 s with no new step; then the student
+  presses it. A step WorkIt can't plan (the profile didn't load, say)
+  is the student's: its line reads "WorkIt couldn't fill this step" (Needs
+  you), the walk never presses on it, and the fill waits for the next step
+  the student moves to and fills it as any other (`fillShown`'s
+  `unplanned`, content-script.js). Tests: `test/workday-review.extension.spec.ts`. A
+  step that loads as a new page drops the
   content script, so the background remembers the tab
   (`workday_fill_tabs`, session storage) and injects the fill again when
   it loads. Workday's nested prompts are slow to read, so each tenant's
   are kept in `chrome.storage.local` (`workday_trees`), as Apply keeps
-  them. Its own How Did You Hear About Us? is never read: the engine
+  them, and so are its dropdowns' choices (trees marked `list`): the next
+  fill on that tenant reads a dropdown from them without opening it, and
+  the engine checks them when it fills it (a choice gone since re-plans the
+  field with what shows). Tests: `test/workday-lists.extension.spec.ts`;
+  `test/speed.extension.spec.ts` times each fake step (`workday`,
+  `workday-2` to `workday-5`). Its own How Did You Hear About Us? is never read: the engine
   searches it for each source in turn (WorkIt, LinkedIn, then the rest) and
   takes the first found.
+  `test/workday-steps.extension.spec.ts` walks a whole application (Apply's
+  fake Workday steps, as new pages and drawn in place) from Create Account
+  to Review, Fill to Review saving each step it can and the test answering
+  and saving, as the student, each step where the walk stops.
+- **Stepped systems share one loop (`steps.js`).** `window.WIA.steps` is
+  the stepped job system on the page (Workday's `workday.js`, Oracle's
+  `oracle.js`, SuccessFactors' `successfactors.js`, iCIMS's `icims.js`), the extension's side of the engine's Stepper seam
+  (fill-engine `src/steps.ts`, README "Stepped forms"). The step loop
+  (content-script.js), Fill to Review (`workday-walk.js`), the checklist's
+  field lookup (batch-tab.js `fieldOf`) and the primary button use only its
+  face: `isOn`, `name`, `step()`, `stepId()`, `stepAfter(from)`, `quiet()`,
+  `filledBefore()`, `fieldOf(key)`, `nextLabel`, `reviewName`, `waiting`
+  {title, reason}, an optional `watchGate(onView)`, and `walk` {next,
+  review, goesOn, banner, wentWrong()}. A new stepped system (iCIMS,
+  SuccessFactors) is one more script giving it, loaded before `steps.js`
+  (shared/content-scripts.js), plus its name in `steps.js`'s list.
+- **Oracle Recruiting Cloud** (`oracle.js`, KAN-369). The manifest runs on
+  `*.oraclecloud.com/hcmUI/CandidateExperience/*`. Oracle's Apply opens an
+  email gate (Email Address, a terms box, a hidden honeypot; a returning
+  candidate may get a one-time code): it is the student's. WorkIt never
+  types into it or presses its Next; the panel says "Enter your email to
+  start" and tells them to enter it and continue. Each section (Personal
+  Info, Job Application Questions, Experience, More About You) then fills
+  as it shows, in the same page, its line "Oracle: <section>", and Fill to
+  Review presses Oracle's Next on each section with nothing for the
+  student, stopping at Summary (its Submit is the student's). A closed
+  Oracle job (its page says it is no longer available) gets "This job is
+  closed" (closed-posting.js) instead of the wait for the email. A profile
+  item's inline form (Add Education, Add Experience) isn't filled. The
+  sections' markup comes from Simplify's and Jobright's selectors, not a
+  live read: live-check before relying on it. Tests:
+  `test/oracle.extension.spec.ts` (the engine's fake Oracle page).
+- **SAP SuccessFactors** (`successfactors.js`, KAN-369). The manifest runs on
+  the career sites' `/career*` and `/portalcareer*` pages of
+  `*.successfactors.com|.eu` and `*.sapsf.com|.eu` (backend
+  AUTO_APPLY_HOSTS the same four). A posting usually lives on the
+  employer's own career site (jobs.sap.com, `*.jobs2web.com`, a branded
+  host), where the extension doesn't run: its Apply goes on to the career
+  site's sign-in. The sign-in and its Create an Account page are the
+  student's: WorkIt never types an email or password there, never makes an
+  account and never presses their buttons; the panel says "Sign in to
+  SuccessFactors, then press Fill". Signed in, the application's fields are
+  read off the page (they differ by employer): "Application" (its
+  sections) and, at some employers, "Questions" (the screening page), each
+  with its line "SuccessFactors: <page>"; Fill to Review presses its Next
+  and stops where only Apply goes on (the student's). Education and
+  Employment entries aren't filled. The signed-in markup comes from
+  Simplify's and Jobright's selectors, not a live read: live-check before
+  relying on it (fill-engine `test/fixtures/forms/successfactors-acuity/README.md`).
+  Tests: `test/successfactors.extension.spec.ts` (the saved live sign-in,
+  and the engine's fake application page).
+- **iCIMS** (`icims.js`, KAN-369). The manifest runs on
+  `*.icims.com/jobs/*`. iCIMS draws every page in its own iframe
+  (`#icims_content_iframe`, same host): the panel and the fill stay on the
+  top page and work in that frame's document (the face's `doc()`, which
+  Fill to Review reads too); the launcher skips the frame. The candidate's
+  sign-in (email, the privacy-notice consent and "I accept", then a
+  password or a new login; an invisible hCaptcha) is the student's: WorkIt
+  never types into it or presses its Next, and the panel says "Sign in to
+  iCIMS, then WorkIt fills". Each step (a new page in the frame, watched
+  by polling) then fills as it shows, its line "iCIMS: <step>"; Fill to
+  Review presses Next on each step with nothing for the student and stops
+  on the step whose button reads Submit. A batch tab skips the form wait
+  (the form is in the frame) and its fill waits for the sign-in. A closed
+  job (`/jobs/search?...notFound=1`) says "This job is closed". Education
+  and Experience entries (`iCIMS_CollectionContainer`) aren't filled. The
+  steps' markup comes from Simplify's and Jobright's selectors, not a live
+  read: live-check before relying on it. Tests:
+  `test/icims.extension.spec.ts` (the engine's fake iCIMS site).
 - **A job's page is not always its form.** A Lever, Ashby, Rippling,
-  Workable or Eightfold posting shows the job on one page and the form on
+  Workable, Eightfold or TikTok posting shows the job on one page and the form on
   another (`jobOf`'s `form`). On the job's page the overlay names the
   form's link and fills nothing; batch apply opens the form itself
   (`formFor`: `formUrl`, then the engine's `greenhouseForm`). A hosted
@@ -127,6 +263,23 @@ builds it: `dist/engine.js` is committed in the engine repo.
   iframe (`iframe[src*="greenhouse.io/embed/job_app"]`), the overlay names
   that iframe's link instead of "can't fill this job system yet"
   (`content-script.js`).
+- **TikTok's form is behind the site's own sign-in, the student's
+  (KAN-369).** TikTok and ByteDance share one form and the engine's
+  `"tiktok"` Filler (`lifeattiktok.com`, `careers.tiktok.com`,
+  `jobs.bytedance.com`, `joinbytedance.com`); a posting's form
+  (`/resume/<id>/apply`) sends a signed-out student to
+  `/login?redirect_path=...`. WorkIt never signs in there and never types
+  an email or password: on the sign-in (`engine.js`'s `signInFirst`, or the
+  engine's `readQuestions` throwing `Handoff` on a page with a password
+  box) `planFill` answers `signIn`, the engine's line, and the panel shows
+  "Sign in to TikTok, then press Fill" (ByteDance on its hosts) and fills
+  nothing. A batch tab on it is injected at once (`startFill`, no form
+  wait, no second opening) and needs the student; the background remembers
+  the tab (`background.js`'s `SIGN_IN_TABS_KEY`) and fills it once it
+  reaches the form, as a new page or the site's own move in the page.
+  `test/tiktok.extension.spec.ts` serves the engine's rebuilt form fixture
+  behind a made-up sign-in. The form was never seen signed in (the engine's
+  `test/fixtures/forms/tiktok-README.md` lists what needs a live check).
 - **The profile adapter gives only what WorkIt holds.** Name, email,
   phone, home, links, the default resume, the transcript, the latest school and the jobs from the
   bank, and the nine autofill answers, in the words the engine's rules
@@ -134,7 +287,9 @@ builds it: `dist/engine.js` is committed in the engine repo.
   engine's `homePlace` reads it: a city with a US state ("Stony Brook, NY")
   or a city, region and country; anything less certain is left out, so the
   form's location questions and phone country stay the student's. Never
-  parse the location here. Anything else (pay, relocation, a home address, consent boxes,
+  parse the location here. With no street address, Workday's City, State,
+  Country and Country Phone Code come from the home; "previously worked
+  here" is read from the bank's jobs (by whole words of the employer). Anything else (pay, relocation, a home address, consent boxes,
   start dates) stays the student's: the Plan lists it as a Missing fact and
   the overlay says "WorkIt has no answer for this". `POLICIES` holds no
   student's choice; "How did you hear?" is WorkIt in a text box; a list
@@ -144,12 +299,31 @@ builds it: `dist/engine.js` is committed in the engine repo.
   question about working abroad ("the right to work in the UK?") is No, and
   a role abroad a Screener. The engine's own rules decide everything else; change a rule in
   the engine repo, not here.
+- **SmartRecruiters fills in two pages** (`src/content/smartrecruiters.js`).
+  A posting (`jobs.smartrecruiters.com/<company>/<id>`) opens its one-click
+  form through `?oga=true`; the form's questions are read off the page a
+  page at a time (`readQuestions`, through its components' shadow roots).
+  Once the first page is filled and nothing on it needs the student (no
+  failed row, no required answer still being written), `fill/next` has the
+  engine press Next, never Submit, and the screening page is filled as the
+  same tab's fill. Otherwise the first page is the student's, with a
+  "SmartRecruiters: first page" line telling them to press Next. Names and
+  text come from the public Posting API (`api.smartrecruiters.com`, in the
+  manifest). The form serves a captcha to a headless browser, so its tests
+  run on the engine's stand-in built from other autofillers' selectors
+  (`test/smartrecruiters.spec.ts`), not a saved live form.
 - **Only job systems the engine covers are filled.** `engine.js`'s `jobOf`
-  names them (Greenhouse, Lever, Ashby, Rippling, Workable, Eightfold and
-  Workday). On any other page the overlay says
+  names them (Greenhouse, Lever, Ashby, Rippling, Workable, Eightfold,
+  SmartRecruiters, Workday, Oracle, SuccessFactors, iCIMS, Waymo and TikTok/ByteDance). On any other page the overlay says
   WorkIt can't fill this job system yet and nothing is touched: there is
   no generic filler any more (the old label-matching one filled most forms
   wrong, and was deleted with its Greenhouse adapter in KAN-340).
+  A closed job on a system it covers is told apart (`closedPosting`, in
+  closed-posting.js): Greenhouse sends it to its board with `?error=true`,
+  Workable to the account with `?not_found=true`, others say so on the
+  page ("no longer accepting applications"; TikTok's and ByteDance's "404
+  Page not found", where the engine's `NoForm` or the posting's link is
+  checked too); the overlay then says This job is closed instead.
 - **Tests**: `test/extension.ts` runs the fill as Chrome does, minus
   Chrome: `ENGINE_FILES` and `CONTENT_SCRIPT_FILES` evaluated in a saved
   form's page (served by the engine repo's own fakes and fixtures, through
@@ -180,8 +354,8 @@ here:
   crosses) — nothing more. The job cards'
   "Autofill ready" badge, `ping`'s first caller, was removed (KAN-278).
   The extension's core function
-  never depends on this bridge: it works from its own popup on whatever
-  page the user is on, bridge or no bridge.
+  never depends on this bridge: it works from its own panel on the job
+  page, bridge or no bridge.
 
 **`externally_connectable.matches` takes exact origins, never a glued
 prefix+wildcard.** `manifest.json` lists `http://localhost:3000/*` and the
@@ -201,16 +375,25 @@ Supabase's Redirect URLs allow-list, for the same underlying reason.
 
 ## Why it's user-triggered, not automatic
 
-No `content_scripts` entry in `manifest.json`, and no background logic runs
-on page load. Autofilling is something the user starts by clicking
-"Autofill This Page" in the popup, which injects the content script files
-into the current tab on demand (`chrome.scripting.executeScript` +
-`activeTab`) rather than running on every page the user happens to visit.
-Same reasoning as the build plan doc's core recommendation: **this
-prototype never auto-submits, ever** — the user always clicks the real
-Submit button themselves, on the ATS's own page, after reviewing what got
-filled. `activeTab` also means no broad host-permission prompt for
-arbitrary websites at install time.
+Filling is something the student starts: **Autofill This Page** in the
+panel (background.js `panel/fill`, which runs `injectFill` in the frame
+that asked) or their Auto Apply click (below). **This prototype never
+auto-submits, ever**: the student always clicks the real Submit button
+themselves, on the job system's own page, after reviewing what got
+filled.
+
+**What does run on page load is a small check, and only on the job
+systems' hosts** (KAN-394): manifest.json's second `content_scripts` entry
+(`tokens.js`, `panel.js`, `launcher.js`, top frame, `document_idle`) on the
+same hosts `host_permissions` already lists, so it adds no install
+warning. `launcher.js` waits for the page's load plus a second (a node
+drawn during Greenhouse's start-up makes it redraw the form, see the
+overlay), asks the background `panel/where` (the engine's `jobOf` on the
+page's link, and whether the tab is a batch's), and on a job page outside
+a batch draws only the edge tab. Nothing fills, nothing is read from the
+form, and other pages get nothing drawn. A page on any other host is
+never touched: the panel has no way in there (an embedded Greenhouse form
+on a company's own site is filled only by batch apply, decision 956).
 
 **The one other trigger is the student's own Auto Apply click** (KAN-305,
 KAN-370): batch apply fills the tabs it opened for that click (below). It
@@ -225,12 +408,16 @@ covers a tab the extension opened.
 and a job card's Auto Apply once it queues the job, send `run/open` over
 `externally_connectable`; the batch opens the queued applications, each in
 its own background tab in the window that asked, **at most `WINDOW` (5)
-filling at once**, and opens the next one as soon as one finishes. A
+filling at once**, and opens the next one as soon as one finishes. The
+tabs open together: each application's form link (`formFor`, a Job Board
+API read for Greenhouse) is looked up while the next application is asked,
+then the tabs open in the queue's order (`topUp`; one round trip a tab, not
+two or more; `test/plan-fetch.extension.spec.ts`). A
 finished tab goes into the **"Ready"** tab group (green: every field it
 needs shows an answer) or **"Needs you"** (orange: anything unfilled, a
 note the Plan left the student, a Workday step, or a job system with no
 Filler), and moves between them when that changes. A tab whose fill itself
-went wrong (the Plan failed, Workday's error page, a covered job system's
+went wrong (the Plan failed, except on a Workday step, which is Needs you; Workday's error page, a covered job system's
 page that never loaded or took no fill) is **failed**: in Needs you too,
 but its own state. The student reviews
 each tab and presses the employer's own Submit; nothing here submits.
@@ -323,14 +510,23 @@ waits for an opened tab's page and form (`waitForLoad`, `formShows`).
   window that is closing. A batch with no tab left has ended: the next
   `run/open` starts a new one, so a job the student closed unsubmitted
   comes back then. Chrome restores only tabs whose page had loaded.
-- **Skip is on the batch tab's panel (KAN-373).** The panel's header has a
-  Skip button in a batch tab only (`overlay.mount({ onSkip })`); it sends
+- **Skip is on the batch tab's panel (KAN-373).** The panel's ⋯ menu has
+  Skip in a batch tab only (`overlay.mount({ onSkip })`); it sends
   `batch/skip`, and `skipTab` records the application as skipped
   (`POST .../finish {"outcome": "skipped"}`), closes the tab, removes it
   from the batch and tops the window up. If the API refuses, the tab stays,
   so the student can press it again. **Closing a tab is not Skip**: a
   window closed, or Chrome quitting, closes every tab, and the student may
   close a tab only to come back to the job later; it just leaves the batch.
+- **A closed job leaves by itself (KAN-369).** A batch tab whose job system
+  says the job is closed (`content/closed-posting.js`: Greenhouse's
+  `?error=true` board, Workable's `?not_found=true`, or "no longer
+  accepting applications" on a covered host) is skipped the way Skip is,
+  with the outcome `closed` (`closeClosedTab`): the API marks it skipped and
+  its scraped posting closed, so it is neither applied nor failed, its tab
+  closes and the next job opens. Two ways in: the fill's "This job is
+  closed" note sends `batch/closed`, and `startFill` asks the same check
+  when the page shows no form at all (Workable's closed page).
 - **One Workday application at a time (KAN-373).** A Workday application
   runs over many pages, each waiting on the student (sign-in, then Save
   and Continue), and Chrome throttles hidden tabs, so the batch holds one
@@ -350,7 +546,7 @@ waits for an opened tab's page and form (`waitForLoad`, `formShows`).
   Last Application are never pressed**: WorkIt fills from the profile.
   Jobright and Simplify press these only after the student presses their
   own button (resume-2027 `research/open-decisions-forms.md`); in a batch,
-  the student's Start batch is that press. Outside a batch (the popup's
+  the student's Start batch is that press. Outside a batch (the panel's
   Autofill This Page) the student presses them. **Learned live** (NVIDIA
   and Salesforce, 2026-10-25, headless, stopped at the sign-in): the
   synthetic press (`press`) works on both, Apply's popup shows Apply
@@ -472,7 +668,10 @@ waits for an opened tab's page and form (`waitForLoad`, `formShows`).
   (`batch/questions` → `PUT .../applications/{job}/questions`), shows each
   as waiting for the student's Claude, and asks for the saved answers every
   10 seconds (`batch/answers` → `GET .../questions`) until none is left,
-  filling each through the engine; its group follows. The background takes
+  every 2 seconds in the first minute (KAN-369: Claude often saves one
+  soon, write early having sent most questions before the tab opened; a
+  Rewrite with Claude's wait does the same), filling each through the
+  engine; its group follows. The review's polls keep 10 seconds. The background takes
   the job from the batch's own record of the tab (`jobInTab`), never from
   the message. A question the student answered first keeps their answer;
   one Claude's answer fills is labelled Claude (KAN-375's sources). A
@@ -584,6 +783,11 @@ waits for an opened tab's page and form (`waitForLoad`, `formShows`).
   start date ("Date available") is the day the student graduates, an
   internship's its earliest start. Outside a batch it is unknown, and the
   internship's start stands.
+  The Posting's `location` is the job system's own (the engine's
+  `jobNames`, spread into the Posting with the company and title): on a
+  posting placed only abroad the engine answers work-authorization,
+  sponsorship, located-in, relocation and pay questions for that country,
+  or leaves them to the student, never with the US facts.
   The student's words in a written answer (or one the bank filled) are
   read back by `watchEdits` and saved after a 2-second pause
   (`batch/own-answer` → `PUT .../answers`); while WorkIt's own fill of one
@@ -627,14 +831,28 @@ waits for an opened tab's page and form (`waitForLoad`, `formShows`).
   read one (the help text under the label, "3-4 sentences", cut to 1,000
   characters; KAN-369), so the student's Claude writes to the form's own
   length; a question without one sends no key.
+- **One rule for "needs you"** (KAN-369 Q7, `lib-status.js`'s
+  `status.needsYou`, with `toCheck` and `waitingOnClaude`): the Autofill
+  tab's Needs you rows, the required line's "N need you", the list's
+  summary line, Next Thing's "N things need you", a batch tab's state
+  (`tabState`, which also waits for required rows on the student's
+  Claude), the submit warning and the walk's red dots all use it. A row
+  needs the student when it is a "todo" note, or a field the page shows
+  now (`shown`: not display: none on it and its box; with no element
+  found by its key, its question's words are on the page, and never on
+  Workday, where that means another step) that failed, was flagged, or is
+  required and still empty after the fill ("pending", or a written answer
+  not yet asked of their Claude). A required "skipped" field (the form
+  doesn't ask it) or one the form hides goes to the collapsed "N the form
+  isn't asking now" group; a guess is amber (`toCheck`), never counted.
+  Stop autofill leaves the fields it didn't reach "pending", not
+  "skipped". Tests: `test/needs-you-rule.extension.spec.ts`.
 - **"Next Thing That Needs You" walks the batch** (KAN-375). Each batch
   tab's panel has the button. `next-needs-you.js`'s `nextNeedsYou` asks every batch
   tab, in the order the tabs opened, which of its rows need the student
-  (`batch/flags`: the rows that send a tab to Needs you, in page order:
-  a note that asks something, a failed field, a required one still
-  waiting for its answer, a review flag; never a filled one or a required
-  one the form doesn't show or no longer calls for, "skipped"; and
-  each "Guessed" answer until the student says it looks right or changes
+  (`batch/flags`: red first, the rows that need the student by the one
+  rule above; then amber, `check`: each "Guessed" answer until the student
+  says it looks right or changes
   it (the Guessed card below), which doesn't keep the tab from Ready;
   each answer that just arrived from the student's Claude once, too
   (`window.WIA.unseenAnswers`, cleared when the walk shows it);
@@ -645,12 +863,18 @@ waits for an opened tab's page and form (`waitForLoad`, `formShows`).
   batch and the row's place among all the tab's rows, `batch/flags`'s
   `order`, so it goes on after a row the student just answered; rows
   waiting for the student's Claude, `batch/flags`'s `late`, come after
-  everything else in the batch, and the cursor's `late` says which part
-  it is in), switches to its tab and
+  everything else in the batch; every tab's red rows come before any
+  tab's amber ones, and the cursor's `tier`, 0 red, 1 amber, 2 late,
+  says which part it is in), switches to its tab and
   has the content script scroll to and focus the field and mark its row
   (`batch/focus`). Past the last one the panel says "Nothing else needs
   you." and the next press starts again. A field is found by the job
-  system's own field id (`batch-tab.js`'s `fieldOf`); a tab nothing
+  system's own field id (`batch-tab.js`'s `fieldOf`); on Workday, whose
+  keys are "<step> / <label>" (the engine's Question names), by its
+  `formField-*` box on the step shown, labelled as the engine labels it
+  (`workday.js`'s `fieldOf`: a repeating section by its title, a panel's
+  field as "Work Experience 1 / Job Title", a repeated label "(2)"); a
+  key from another step finds none. A tab nothing
   was filled in is one stop, the page itself. This is the only time the
   extension switches tabs on its own, and only on the student's press.
 - **Where the walk lands, the page is marked** (KAN-369, `marks.js`,
@@ -658,8 +882,30 @@ waits for an opened tab's page and form (`waitForLoad`, `formShows`).
   the brand colour for 3 seconds, and a small orange dot
   (`--color-warning-strong`) that stays on it while its row still needs the
   student (failed, waiting, flagged), gone once resolved. Both sit in their
-  own shadow host (`#workit-marks-host`), follow the field each frame while
-  shown, and never take a click. A guess, shown once, gets the ring only.
+  own shadow host (`#workit-marks-host`), whose root is closed as the
+  panel's is, follow the field each frame while shown, and never take a click. A guess, shown once, gets the ring only.
+- **A panel row takes the student to its field** (KAN-369, `overlay.js`'s
+  `jump`): pressing a field's row (any row but a note; Enter on its label
+  too) runs the walk's own `show(key)` (`batch-tab.js`, as
+  `window.WIA.showField`, made for every fill, batch or popup): the field
+  scrolls to the middle, takes focus and gets the ring (and the dot while
+  it needs the student), and the row is marked current. A press on a
+  button, link or box inside the row, or anywhere in its row card, keeps
+  its own behaviour. A field the page doesn't show gets "WorkIt can't find
+  this field on the page." under its row for a few seconds; on Workday one
+  keyed to another step (keys start with the step) says "This is on
+  Workday's <step> step." (each step's fill starts the panel's rows again,
+  so this is rare). Tests: `test/panel-reopen.extension.spec.ts`, and
+  `test/workday-show.extension.spec.ts` for Workday's row press and Next
+  Thing.
+- **The panel's Close (Collapse) hides it; it never goes** (KAN-369, KAN-394): its
+  rows, cards, answers, the Next Thing bar and any moment card stay as they
+  were in the page, and the edge tab ("Show WorkIt panel", "The panel's
+  shell") brings the panel back at once, nothing filled again. The toolbar
+  icon and Alt+W do too. Only a new
+  fill on the page (Fill Again, the fill after a human check) removes the
+  last fill's rows: `overlay.js`, injected again, unmounts the one before
+  it first.
 - **A failed field gets a card** (KAN-369, `card-failed.js`, in the shared
   row card `row-card.js`): "We put X; the page shows Y.", why in plain words
   ("This field ended up empty on the page.", "This dropdown never committed
@@ -690,6 +936,25 @@ waits for an opened tab's page and form (`waitForLoad`, `formShows`).
   waiting card is kept across renders for its draft). The submit warning
   is a moment card at the top of the panel, not a row's, so it stays an
   `overlay.momentCard`.
+- **See cover letter** (KAN-369, `src/content/letter-preview.js`,
+  `window.WIA.letterPreview`): a filled row for a written answer WorkIt
+  filled (the student's Claude's, a pasted one, a saved one the Plan
+  filled) has a "See cover letter" button ("See answer" when its label
+  names no cover letter) that opens the letter as the form has it, before
+  Submit: a text box's text as the engine last read it back (so the
+  student's edit shows, `watchEdits`), or for an upload (a file question:
+  Ashby's, Greenhouse's Cover Letter, Workday's; Workable's and Lever's
+  cover letters are text boxes) the exact text `asUploads` made the PDF
+  of, under "Attached as <file>". An upload whose read-back names another
+  file says the form now shows that file instead. Its card
+  (`rowCard.make`) offers **Copy**, **Edit myself** (focuses the field;
+  for a PDF it also says to remove WorkIt's file and attach their own)
+  and, only while the row is flagged, **Rewrite with Claude** through the
+  flag card's route (`batch/flag` rewrite, then `writing.rewrite`):
+  review.py refuses to rewrite an unflagged answer. `written-answers.js`
+  tells it what it filled (`letterPreview.filled`); it changes no status,
+  so it never holds Submit or the walk. Tests:
+  `test/letter-preview.extension.spec.ts`.
 - **The submit warning holds a Submit while something is open** (KAN-369,
   `src/content/submit-warning.js`, `window.WIA.submitWarning`, batch tabs
   only). When the student presses the employer's Submit (a button or
@@ -741,8 +1006,9 @@ waits for an opened tab's page and form (`waitForLoad`, `formShows`).
   title and favicon need `tabs`). Injecting the fill does: `activeTab`
   doesn't cover a tab the batch opened, so `host_permissions` lists each
   hiring system auto apply takes, the same hosts as
-  `backend/app/auto_apply/hosts.py` (all seven job systems the engine
-  fills, KAN-370). A host added there
+  `backend/app/auto_apply/hosts.py` (all eight job systems the engine
+  fills, KAN-370; TikTok's by its exact careers hosts, never all of
+  tiktok.com or bytedance.com). A host added there
   is added to `manifest.json` in the same change, or its fills answer
   `not_allowed`. After pulling a manifest change, reload the unpacked
   extension in `chrome://extensions`. The background also fetches their
@@ -751,9 +1017,21 @@ waits for an opened tab's page and form (`waitForLoad`, `formShows`).
   engine's `EIGHTFOLD_COMPANIES`) is listed by its host: without it, the
   job's names and text failed to fetch. `test/manifest.spec.ts` checks one
   link of each.
+- **Waymo's careers site is its own job system** (`careers.withwaymo.com`,
+  the engine's site `waymo`). It shows each posting of Waymo's Greenhouse
+  board with a form its site vendor builds, with no Greenhouse frame, so
+  `embedsGreenhouse` leaves out every link `jobOf` covers and the page's
+  own form is filled, its questions read off the open form as Eightfold's
+  are (`readQuestions`; none written ahead). `manifest.json` lists the
+  host; `waymo.com/joinus/<job>` opens the careers site's
+  `/jobs?gh_jid=<job>`. Its Submit posts to `/call_to_actions/<id>/form_submissions`
+  (`SUBMIT_REQUESTS.waymo`, not proof alone: how it answers a refusal isn't
+  recorded), and a closed posting's "Looks like you got lost" page is a
+  closed job. Until the engine's Waymo Filler both of Waymo's careers
+  hosts were left out (hosts.py's former `SKIP_EMBEDDING`).
 - **A careers page that embeds Greenhouse is filled in its iframe**
   (KAN-369). A `?gh_jid=` link on a company's own site (hosts.py takes
-  them, outside its `SKIP_EMBEDDING`) opens as it is, and the fill runs in
+  them all) opens as it is, and the fill runs in
   the page's `*.greenhouse.io/embed/job_app` frame only
   (`embedded-forms.js`; `injectFill`'s and `formShows`'s `frameId`). The
   extension has no host permission for the company's page: Chrome redacts
@@ -790,12 +1068,14 @@ waits for an opened tab's page and form (`waitForLoad`, `formShows`).
 - **`run/open` never reloads or refills a tab already open.** A second
   click (another card, Start again) tops up the window from the queue and
   leaves the open tabs alone (`fill: "kept"` when nothing new opened). A
-  student who reloads a tab by hand fills it from the popup.
+  student who reloads a tab by hand fills it from the panel's Autofill This Page.
 - **A Workable form fills from empty, in a batch or not.** Workable
   restores an unsent draft from local storage (`evergreen-*`) as its form
   opens, and the engine won't add to entries a section already lists. A
   batch tab forgets the draft and reloads as it opens (`batch.js`'s
-  `startFill`); the student's own Autofill does so only when its first Plan
+  `startFill`), only when there was one: every fresh form writes an empty
+  index (`evergreen-meta-peristence` = `{}`), which is no draft, and the
+  reload costs a second page load (about a second live); the student's own Autofill does so only when its first Plan
   finds entries showing once the form's Submit shows (`tab-load.js`'s
   `forgetShownWorkableDraft`), then fills again, so what the student typed
   by hand on that form is lost (`test/workable.extension.spec.ts`). The
@@ -812,7 +1092,10 @@ waits for an opened tab's page and form (`waitForLoad`, `formShows`).
   engine's (`src/submit.ts` in the engine, tested there on recorded
   answers): in the page, `watchSubmit` wraps the page's `fetch` and reads
   the submit's answer (Greenhouse: an OK answer; Ashby: every form result a
-  success, no block message) and watches for a success or failure notice
+  success, no block message, from either of its submits: the multiple-forms
+  mutation, or `ApiSubmitSingleApplicationFormAction` for a posting with no
+  survey forms, which the engine and `SUBMIT_REQUESTS` once missed, so such
+  an Ashby application was never marked) and watches for a success or failure notice
   that newly shows (Ashby, Workable, Eightfold, Rippling, Workday); in the
   background, `submittedPage` is the page shown once an application is sent
   (Greenhouse's confirmation; Lever's thanks, its only signal, since its
@@ -852,6 +1135,16 @@ waits for an opened tab's page and form (`waitForLoad`, `formShows`).
   moves the tab to Needs you; the application stays unapplied. A practice
   batch (KAN-378) is left out: its forms are no applications, and their
   submit is their own `/thanks` page (`submitPractice`).
+- **"I submitted this"** (KAN-369): a batch tab's panel ⋯ menu has it, for a
+  submit detection missed. It answers only the student's own click
+  (`isTrusted`, as every panel action, below), says `batch/i-submitted`, and the worker marks the application
+  applied with `markSubmitted`, as a detected submit. A detected submit
+  says "Application sent / WorkIt marked it Applied." on the panel, the tab
+  leaves its group, and the Auto Apply page shows the row Applied. The
+  student's submit is caught also after the panel is closed (the watch is
+  the page's, not the panel's) and after a refill (the engine keeps its
+  first watch and key, whose listener stays). Tests:
+  `test/submit-detect.extension.spec.ts`.
 - **Tests** (`test/batch.extension.spec.ts`; KAN-373's resume, Skip,
   Workday slot and sign-in in `test/batch-sessions.extension.spec.ts`,
   with fake Workday tenants and sign-in pages in `fake-job-systems.ts`;
@@ -1065,7 +1358,11 @@ checking the student owns the application: a tab's state (`PUT
 .../questions`), the student's edits (`PUT .../answers`), the answer bank
 (`GET .../answer-bank`), the sent resume and finish (`PUT .../resume`,
 `POST .../finish`), and whether Claude is connected (`GET
-.../connector`). The rest are older:
+.../connector`). Report a problem (KAN-403) sends `POST /fill-reports`
+(`routers/fill_reports.py`): no applicant in the path and no account in
+the row, the report's parts only. The popup's Request this job system
+(KAN-369) sends `POST /job-system-requests` (`routers/job_system_requests.py`):
+the host alone, no account in the row. The rest are older:
 
 `src/background/api.js` mostly calls endpoints that already exist for the
 webapp: `GET /auth/me`, `GET /applicants/{id}/profile`, `GET
@@ -1080,6 +1377,32 @@ with why no existing endpoint was safe/usable from here. A third is batch
 apply's `PUT .../applications/{job_id}/fill` (KAN-370): the stage is the
 API's record of each tab, and no route set `needs_you` back to `queued`.
 
+**The profile is fetched once at a time.** `getAutofillProfile` keeps the
+fetch under way and hands it to every caller that comes meanwhile: write
+early (`write-early.js`) fetches it as a batch starts, and a fast-loading
+tab's Plan used to ask the whole profile (eight calls, the resume's bytes
+among them) a second time beside it (KAN-369, seen on Rippling). A forced
+fetch (`force`, after an edit) never joins one under way, which may have
+started before the edit. Past its 10 min TTL a profile under a day old,
+and of the account signed in, is used at once while a fresh one is fetched
+behind (a cold API answered in 4-9 s live); an older one is waited for. The
+fetch starts before anything waits for it (`warmProfile`): as the webapp
+pings (its pages opening, Auto Apply's among them) and as a job page's
+panel asks `panel/where`. Not at `run/open`: its seven parts, asked before
+the tabs open, took Chrome's six connections to an HTTP/1.1 API and held
+`applications/next` one round trip (every tab 150 ms later at a 150 ms API);
+write early asks for it once the tabs have opened (`test/batch.extension.spec.ts`). Its parts (profile, bank, preferences, autofill answers, the
+resume, the transcript, the brought fill profile) are asked at once after
+`/auth/me`, not one after another: none needs another's answer, and the
+transcript waits for the resume only to tell their names apart. Live, at a
+few hundred ms a call, that is about three round trips instead of eight.
+`test/plan-fetch.extension.spec.ts`.
+
+**Who is signed in is asked once a minute.** `me()` keeps `/auth/me`'s
+answer for a minute per session token (a batch asked it before nearly every
+call: three round trips after each fill alone); a new token, no session
+(signed out) or a refused answer asks again. `test/plan-fetch.extension.spec.ts`.
+
 **What a student brought from Apply lies under WorkIt's fields.** `GET
 /applicants/{id}/fill-profile` (KAN-369) is the Fill engine's own profile
 and policies the student imported from Apply
@@ -1092,7 +1415,10 @@ leaves the brought one, so a screener or a self-identification answer WorkIt
 has no field for still fills. Policies go the other way (`enginePolicies`):
 the student's brought rules lie over WorkIt's `POLICIES`, since they say how
 that student applies (Apply's how-heard beats WorkIt's default). Its answer bank
-arrives through `GET .../answer-bank` with the rest. `test/apply-profile.spec.ts`.
+arrives through `GET .../answer-bank` with the rest. Each job WorkIt holds
+goes to the engine with its bullets, in their order, one a line, as its
+`description` (Workday's Role Description, as Apply gives it).
+`test/apply-profile.spec.ts`.
 
 **The email it fills is the profile's `contact_email`, else `/auth/me`'s
 sign-in email** (KAN-262). A seeker may apply with a different address than
@@ -1120,6 +1446,31 @@ form first asks (KAN-387, above); otherwise it only reads it, and `engine.js`'s
 read (yes/no as true/false, "declined" as "decline", the rest in
 `frontend/src/lib/autofill-answers.ts`'s own words). The engine picks the
 form's option that says the same thing.
+
+The same bank holds the **Application answers** (KAN-369, My Profile's
+section of that name): `engineProfile`'s `applicationFacts` gives them as
+`logistics.*` (on-site, 40 h, start and end dates, terms, relocation, ranked
+`location_preferences` one place an area (with its city alone), `referrals` from `referred_at`),
+`identity.home_address` (line 1 and zip over the location's city and state),
+`identity.summer_2027_location`, `identity.languages` (spoken and written)
+and `screeners.*` (relatives at a company, a relative who is a public
+official, prior government work, non-compete, pending offers). A screener is
+only the student's own answer, never a default; an empty list is their
+"none". `schoolYear` derives `education.class_year` and
+`returning_to_school_after_internship` from the latest education entry's
+end month (`engineProfile(profile, today)`), with no new input.
+The rest of the section reaches the engine as `identity.age_18_or_over`,
+`identity.pronouns`, `voluntary_self_id.{sexual_orientation, transgender,
+communities}` (decline as "decline"; communities [] is "none of these"),
+`experience_facts.role_interests`, `links.x_twitter_url` and
+`work_authorization.citizenship_countries` (any country; the engine picks it
+from a list of countries of citizenship, two being a dual citizen's). Pay is the
+student's own answer, laid over the policies by `enginePolicies`:
+`compensation.fallback_hourly` (their hourly figure) and
+`accept_stated_rate` (with "Open to the posted range" as the words). From
+the bank, with no new input: `experience_facts.prior_internships_count`
+(jobs titled intern or co-op; unknown while the bank holds no job) and
+`identity.current_company` (the job held now).
 
 - **`work_authorized_us`/`needs_sponsorship` fall back to the onboarding
   "Visa Sponsorship" job-search filter** (`applicant_preferences.visa`,
@@ -1264,6 +1615,518 @@ the overlay lists each as "needs_generation" (`lib-status.js`).
 - **Nothing is persisted.** The question and the generated answer are
   never saved.
 
+## The panel's shell (KAN-394): one docked panel, slots to plug into
+
+The extension's on-page UI is one panel, `src/content/panel.js`
+(`window.WIA.panel`): 380 px wide, fixed to the right edge, full height
+with its own scroll, over the page (the page is never resized), in a
+shadow root on `#workit-autofiller-overlay-host`, so the employer's styles
+can't reach it. **The root is closed**: the page's scripts get null from
+`host.shadowRoot` and see none of its text or buttons; the extension's own
+files reach it through `window.WIA.panel.root` in their isolated world.
+**Every panel action that changes something answers only the student's own
+click** (`event.isTrusted`, through `ui.js`'s `trusted`, which `button()`
+and row-card buttons use): Disconnect Claude, Send report, Use this, Tailor,
+Fill Again, Next job / Next tab, Looks right, Keep, Rewrite, Save answer,
+Stop and Skip, Skip this job, I submitted this, I didn't submit this,
+the essay banner's Generate, the self-ID Save. The marks' root (`marks.js`, the ring and dot) is closed too. Tests: the test copies of the extension
+(`loaded-extension.ts` `openPanel`, over `CLOSED_ROOT_FILES`: panel.js and marks.js) open both roots, since Playwright's
+locators can't reach a closed one; `loadExtension(..., { closedPanel: true })`
+keeps them closed (`test/panel-closed.extension.spec.ts`). There is no bottom-right card any more, and the toolbar
+popup has no fill controls. The header is neutral (white, ink); purple is
+kept for the primary action.
+
+**Slots.** panel.js draws only the frame; every other file plugs into a
+slot by name, `panel.slot(name)`, and adds its styles with
+`panel.addCss(css)` (tokens only):
+
+| Slot | What goes there | Today |
+|---|---|---|
+| `header-actions` | buttons beside ⋯ and Close (kept empty: actions go in the ⋯ menu) | none |
+| `batch-line` | the batch line ("Batch · 3 of 5 ready · Next tab →", Workday's step) | panel-top.js |
+| `job-card` | the job card (title, company, Match score) | panel-top.js |
+| `primary` | the one big button, fixed at the panel's bottom; `panel.setPrimary({ label, onPress, secondary })` or `panel.fillButton(label)` | Autofill This Page / Fill this step (launcher.js), then primary.js: "Next: N need you", Review and submit, Go to Save and Continue, Fill Again's question |
+| `tab:<id>` | a tab's body; `panel.addTab({ id, label })` adds one, the strip shows from two | `tab:autofill`: overlay.js's summary, essay banner, moment cards, parts and rows; `tab:resume`: resume-tab.js (KAN-399); `tab:answers`: answers-tab.js (KAN-400), a placeholder until a fill |
+| `settings` | the settings view, shown by the ⋯ menu's Settings in place of the tab's body (`panel.showSettings`; `panel.onView(hook)` hears it open) | panel-settings.js: Claude connection, Open the panel by itself, Report a problem, Workday Sign-Up, Back |
+| `report` | Report a problem, shown in place of the tab's body; open it with `window.WIA.reportCard.open()` | report.js: the preview, the note, Send report, Back |
+
+**The frame (KAN-369 Q4-Q6).** Top to bottom: the header (WorkIt, ⋯,
+Close: Close is the old Collapse, `data-collapse`); the batch line, job
+card and tab strip, fixed (they never scroll, in every state but signed
+out, where panel-states.js hides the tabs); the tab's body or a view
+(settings, report), which scrolls (`.scroll`); and the `primary` slot,
+fixed at the bottom (`.bottom`, gone while the slot is empty). A view
+covers only the tab's body: the strip stays, and pressing a tab leaves the
+view. **The ⋯ menu** (`panel.menuItem(id, { label, onPress, order } |
+null)`, role menu, shut by Escape, a press elsewhere in the panel or an
+item) holds, by `order`: I submitted this (10) and Skip (20) in a batch
+tab (overlay.mount), Fill Again (30) after a fill (primary.js), Report a
+problem (40) and Settings (50), the shell's own. Each item carries
+`data-<id>` (`[data-skip]`, `[data-submitted]`, `[data-again]`); an item
+that changes something passes its `onPress` through `ui.trusted`. Tests
+open it with `menuItem(host, name)` (test/loaded-extension.ts).
+`test/panel-controls.extension.spec.ts` covers the frame.
+
+**Tabs (KAN-397).** The shell makes three: Autofill, Résumé and Answers.
+Résumé and Answers hold a one-line placeholder (`.tab-placeholder`) until
+their tickets fill them: `panel.slot("tab:resume").replaceChildren(...)`
+(`addTab` with an existing id returns its body). The tab the student
+presses is kept in the page's `sessionStorage` (`workit-panel-tab`), so
+it lasts while the browser tab is open, across page loads and Workday
+steps; `addTab` shows it again once that tab exists. A page that refuses
+storage keeps the choice until it goes. `selectTab` from code doesn't
+keep it.
+
+`batch-line`, `job-card` and `settings` are cards hidden while empty: a
+file that fills one sets `hidden = false`. A file loaded before the shell
+exists waits for it with `panel.onBuilt(hook)`. overlay.js keeps its API
+(`mount`, `refresh`, `addPart`, `momentCard`, ...); `mount` now fills the
+Autofill tab instead of making a host, and `unmount` (a fill again)
+empties it and leaves the shell. panel.js is loaded first by the static
+launcher and again by every fill (`CONTENT_SCRIPT_FILES`,
+`HUMAN_CHECK_FILES`), in the same isolated world: the first copy makes the
+shell, later ones return at once. It also owns the font (`overlay/font`)
+and `keepAttached` (Greenhouse replacing `<html>`).
+
+**When it shows.** A batch tab's panel opens once its fill is done
+(`panel.autoOpen` from `overlay.mount`; on Workday at the first step); a
+job page outside a batch shows only the edge tab, with Autofill This Page
+behind it; other pages show nothing. The student's press on Autofill This
+Page opens it (it is open already).
+
+**The edge tab** replaces the old "WorkIt" pill: Close (the header's
+×, `data-close` kept for older tests) leaves it on the right edge. It is
+dragged up and down (a move under 4 px is a press, which opens the panel);
+its ⋯ menu has **Hide until next visit** (this page only: the next page
+load shows it again) and **Hide on this site**. Per site (host name),
+`panel_sites` in chrome.storage.local (background.js `panel/where`,
+`panel/site`) keeps `{ top, collapsed, hidden }`: where the tab sits, a
+collapse (a batch tab's panel then stays collapsed on that site), and the
+site hide (a batch tab's edge tab still shows). Opening the panel by any
+press lets a collapse and a hide go.
+
+**The toolbar icon and Alt+W.** `panel/where` on a job page sets that
+tab's popup to "" (per tab, so both behaviours coexist), so the icon's
+press reaches `action.onClicked`; it and the `toggle-panel` command
+(Alt+W, changeable at chrome://extensions/shortcuts) call `toolbarPressed`,
+which sends `panel/toggle` to the tab (whichever frame has the shell
+answers). A job page with no shell yet gets one, open; any other tab gets
+its popup back and opened. Off job pages the popup shows who is signed in,
+the batch's status ("2 jobs in your batch · 1 ready · 1 needs you",
+`popup/batch`), Open WorkIt and Workday Sign-Up. A failed profile read shows "WorkIt
+couldn't load your profile." with Try again (KAN-401), never the request's
+words; api.js's `errorMessage` says "WorkIt's server couldn't do that just
+now." for an error answer with no words of its own, never "Request failed
+(404)". `globalThis.workitToolbar`
+is the tests' press of the icon, which no page can press. A test can't
+press an extension command's keys either, so the Alt+W test checks only
+that Chrome bound it.
+
+Tests: `test/panel-shell.extension.spec.ts` (docked, over the page, the
+page's styles kept out; the edge tab alone on a job page and nothing
+elsewhere; Autofill This Page from the panel; drag and hides kept per
+site; a kept collapse in the next batch tab; the toolbar and Alt+W; the
+popup elsewhere), `test/panel-reopen.extension.spec.ts` (Collapse, then
+the edge tab or the toolbar brings the same rows back, no fill).
+
+### The primary button (KAN-396): its words follow the next action
+
+`src/content/primary.js` (`window.WIA.primary`, loaded by every fill after
+the card files) owns the `primary` slot once a fill mounts its rows
+(`overlay.mount` calls `primary.mount`; `overlay.offerNext` hands it the
+walk). One purple button at the panel's bottom (KAN-369 Q5):
+
+- **Before a fill**: `panel.fillButton(panel.startLabel())`: Autofill This
+  Page, or **Fill this step** on a Workday host outside a batch (it fills the
+  step shown; the fill then fills each later step as it shows, and Fill to
+  Review, `workday-walk.js`, is still what presses Save and Continue, only
+  once the student asks).
+- **"Next: 3 need you"** (Next Thing) while anything is red
+  (`status.needsYouCount()`, lib-status.js's one rule). It runs the walk
+  (`batch-tab.js`'s `flagged().keys`: red rows first, then unchecked
+  guesses and Claude's just-arrived answers). In a batch tab it is the cross-tab
+  walk (`batch/next`); outside a batch, this page's rows in page order after
+  the last it went to, then "Nothing else needs you." (`answerTheWalk` now
+  runs in every fill; only a batch tab adds the `batch/flags` listener).
+  What it answers shows under the button (`[data-said]`).
+- **Review and submit** once nothing is red (amber guesses may be left:
+  Alt+N still walks them): scrolls to the employer's Submit
+  (the submit warning's rule: a visible control whose words start with
+  "Submit", never WorkIt's host), rings it (marks.js) and focuses it. It
+  never presses it. A Submit under the open panel (Anduril's sits at the
+  right) collapses the panel to its edge tab, for this page only
+  (`collapse({ keep: false })`), so the student can press it. On a Workday step that isn't the last (`phase` "step")
+  it reads **Go to Save and Continue** and rings Workday's footer button
+  instead; on Review its Submit.
+- **Alt+N**: the `next-thing` command (manifest.json, changeable at
+  chrome://extensions/shortcuts). background.js `commandPressed` sends
+  `panel/next` to the tab; the frame with the button runs Next Thing,
+  whatever the button reads (so a batch tab with nothing left still walks
+  on to the next tab). Tests press it with `globalThis.workitCommand`
+  (`pressNextThing` in test/loaded-extension.ts).
+- The panel's one count line is the Autofill tab's `.summary` (overlay.js):
+  "Required 12 of 14 filled · 3 need you · 1 waiting on Claude", the same
+  `needsYouCount()` as the button and the checklist's red rows.
+- **Fill Again** is the ⋯ menu's; it asks once, over the button, "This
+  replaces what you changed on this page.", with Fill Again and Cancel;
+  Cancel changes nothing.
+- Outside a batch the fill now reads back the student's edits too
+  (content-script.js `watchEdits`, which only a batch ran before), so a row
+  they answer stops being open and the button can reach Review and submit;
+  their answers are still saved only in a batch (keepOwn, card-guess.js).
+- While a Workday step fills, the button reads "Filling…", disabled; the
+  Workday loop calls `primary.refresh()` once the step's phase is set.
+
+**Embedded Greenhouse forms.** The launcher's static content script runs in
+every frame (`all_frames`) of the listed hosts, so a company careers page
+that embeds Greenhouse's form (`boards.greenhouse.io/embed/job_app` in an
+iframe) gets the edge tab and the panel inside the iframe, and its Autofill
+This Page fills that frame (`panel/fill` uses `sender.frameId`). The
+company page itself, like any host the manifest doesn't list, gets
+nothing: no edge tab, and the toolbar icon opens the popup, which has no
+fill controls since KAN-394.
+
+Tests: `test/panel-primary.extension.spec.ts` ("Next: N need you" and the
+count line against the form's own asterisks; Alt+N; Review and submit
+rings Submit and sends nothing; Fill Again's Cancel; Fill this step on
+Workday; the embedded form).
+
+### Live progress (KAN-398): Scanning, Autofilling · N%, Cancel and Skip
+
+`src/content/progress.js` (`window.WIA.progress`, loaded just before
+content-script.js) covers the `primary` slot while a fill runs: the slot
+gets `data-progressing`, which hides its button, and a `[data-progress]`
+block shows "Scanning this page", then "N fields found" (the Question set
+the Plan read), then "Autofilling · 37%" over a bar (its `aria-valuenow`
+counts the fields done), with **Cancel**. The fields themselves are the
+Autofill tab's checklist (groups.js, drawn from the start). `fillShown`
+calls `begin` (with `stay` on Workday, which adds "Stay on this page until
+WorkIt finishes this step."), `found`, `filling` before each `fill/page`
+(a fill that brings on questions adds to the total) and `end` when it
+returns, so on Workday the notice goes with each step's fill.
+
+- **The engine's events.** The engine runs in the page's world, so
+  `filling` returns a key (`workit-` and a `crypto.randomUUID()`, as the
+  submit key, so a page can't guess the event names and stop or skip the
+  fill) that `fill/page` hands the engine's `fillEach` as `events`
+  (engine.js `fillPage`). The engine dispatches
+  `fillengine:field:<key>` on `document` as each field starts and is done,
+  and listens for `fillengine:stop:<key>` and `fillengine:skip:<key>`
+  (detail: the field's name). See the engine README.
+- **Cancel** (titled Stop autofill) stops the fill before the engine's next field (the
+  field being filled finishes). The result comes back `stopped`; the fields
+  not reached get "Not filled: you stopped the fill." (Needs you when
+  required) and a "You stopped the fill" note, no more questions are
+  planned, and a Workday walk ends at that step.
+- **Skip** shows on a checklist row still filling after 5 s (`STUCK_AFTER`,
+  `progress.isStuck`, the row gets `data-stuck`; `progress.skip`). The
+  engine stops waiting for it and goes on; the field comes back `left` and
+  shows as failed, "You skipped this. Answer it yourself.", marked red. It isn't sent to a problem report as an engine error. The skipped
+  fill's own work isn't cancelled in the page (the engine can't abort a
+  filler mid-way), so a slow upload may still land later.
+- A batch tab off Workday has no shell until its fill is done (the
+  hydration rule above), so it shows no progress and nothing can be
+  stopped there.
+
+Tests: `test/panel-progress.extension.spec.ts` (the states in order with
+their counts on Anduril; Stop leaves the résumé unattached and says so; a
+held upload shows Skip on its row after 5 s and turns red; Workday's
+stay-on-page notice shows and goes).
+
+## The panel's other states (KAN-401): signed out, sent, a site it can't fill, errors
+
+`src/content/panel-states.js` (`window.WIA.panelStates`, loaded after
+report.js everywhere it is: manifest, `CONTENT_SCRIPT_FILES`, background.js
+`SHELL_FILES`) and `src/background/panel-states.js`:
+
+- **Signed out**: `panelStates.start()` is what the launcher and the
+  toolbar call in place of `panel.fillButton` before a fill. Signed out
+  (`auth/status`), the panel shows the job card (panel-top.js reads the
+  names without an account) and **Sign in to WorkIt** only: the tabs give
+  way (`.panel[data-signed-out]`). The button opens the webapp's `/login`
+  (`panel/sign-in`; the local webapp when it answers, else WorkIt's site).
+  When the student comes back to the tab signed in, Autofill This Page.
+- **Sent**: once a batch tab's application is marked applied (a submit
+  WorkIt saw, or I submitted this), `panelStates.sent()` puts "Sent ·
+  Marked applied on WorkIt" over the fill's button (kept, hidden), with
+  **Next job →** (`panel/next-tab`) while another tab needs the student and
+  **I didn't submit this** (trusted clicks only, as I submitted this):
+  `batch/unsubmitted` (batch.js `unmarkSubmitted`) posts `finish` with
+  outcome `unsubmitted` and the tab's `state` from before the mark
+  (`tab.before`): Ready sets the application back to queued, anything else
+  to needs_you, with no date (backend pipeline.py), and the tab to that
+  state, in its group.
+- **A site WorkIt can't fill**: every host the manifest lists is a job
+  system the Fill engine fills, so the panel never shows this; the toolbar
+  popup does, on a web page of any other host (not WorkIt's own) that looks
+  like a job posting (`panel-states.js` `looksLikePosting`: a jobs, careers,
+  apply or position part in its path, or a schema.org `JobPosting` block,
+  read in the tab), where the icon's press lets it read the tab's link
+  (activeTab). On any other page the popup is the usual batch status. It says "WorkIt
+  can't fill this site yet" with **Save to WorkIt** (`popup/save`: `POST
+  /jobs/saved-by-link`, which saves the feed's job whose apply link the page
+  is, ignoring query, fragment and a trailing slash; "WorkIt doesn't list
+  this job yet." when there is none) and **Report a problem** (what it sends:
+  job system "unsupported", the posting link as below, the engine, and an
+  optional note, `NOTE_MAX` long; then Send report, `popup/report`), and
+  between them **Request this job system** (KAN-369, `popup/request`:
+  `POST /job-system-requests {"host"}`, the page's host and nothing else;
+  "Requested. WorkIt adds the job systems students ask for most."). The
+  hosts asked are kept in chrome.storage.local `requested_job_systems`, so
+  each is sent once from a browser and the popup then says "You requested
+  this job system." instead of the button (test:
+  `request-system.extension.spec.ts`). Nothing leaves on opening the popup. Its
+  test opens popup.html with `?tab=<id>` and loads a copy of the extension
+  granted the fake host (`loadExtension`'s `grantHosts`), standing in for
+  activeTab, which no test can press.
+- **Between Workday steps**: the panel is never empty. When a step shows
+  (in the same page, or as a new page), the fill's loop resets the rows and
+  at once draws the step's line, "Workday: My Experience · Filling this
+  step…" (content-script.js), with the button at Filling…; the step's rows
+  follow as it fills.
+- **Errors**: every failed request the panel or popup makes is a plain
+  sentence with Try again (or the same button, which retries), never a
+  status code or the route's raw words.
+
+Tests: `test/panel-states.extension.spec.ts`.
+
+## The panel's top (KAN-395): header, batch line, job card
+
+The header (panel.js) is WorkIt's mark (logo.tsx's figure, in ink: the
+header is neutral), ⋯ (the menu, above: Report a problem, Settings, a
+batch tab's I submitted this and Skip, Fill Again) and Close. `src/content/panel-top.js` fills two slots, loaded
+after panel.js everywhere panel.js is (manifest, `CONTENT_SCRIPT_FILES`,
+background.js `SHELL_FILES`):
+
+- **Batch line** (`batch-line`): in a batch tab, "Batch · R of N ready ·
+  Next tab →", N the batch's open tabs and R those in state ready
+  (background `panel/batch-line`, panel-top.js in background/). Next tab
+  shows only while another tab needs the student (needs_you or failed); it
+  goes to the next one after this tab, round from the first
+  (`panel/next-tab`). The line follows the batch: the content script
+  re-asks whenever `workit_batch` changes in chrome.storage.local. On
+  Workday a second line, "Step 3 of 6 · My Experience", is read off
+  Workday's step bar (`progressBarActiveStep`) and kept up as the steps
+  load, in batch tabs and out.
+- **Job card** (`job-card`, `panel/job`): WorkIt's own posting when the
+  student has an application for it (a batch tab's by its job id, any other
+  tab's by the Fill engine's jobOf identity of the page against the
+  posting's form_url / apply_url), from `GET .../applications?scored=true`
+  (read once per 30 s for all tabs): logo (the company's first letter when
+  there is none or the page won't load it), title, company, place
+  (`location_label`), pay ("$45–$55 an hour"), the Match score as a ring
+  (purple, one of the two purple things) with its band (Strong Match at 80,
+  as frontend/src/lib/match.ts), and "You applied on Oct 25" at the applied
+  stage. No application, or signed out: the engine's `jobNames` read gives
+  title and company only. No score: no ring.
+
+Tests: `test/panel-header.extension.spec.ts` (a batch's line, card, ring and
+Next tab; an own tab's header, Report placeholder and applied card; a
+Workday tab's step line).
+
+## Report a problem (KAN-403): a preview, then Send
+
+`src/content/report.js` (loaded after panel-top.js everywhere it is)
+fills the `report` slot. **`window.WIA.reportCard.open()`** opens it: the
+header's ⚑ calls it (a second press closes it), and the settings view and
+the unsupported-site state call the same function. The card lists exactly
+what Send sends, and Send sends just that:
+
+- the job system (the Fill engine's `jobOf` site, "unsupported" when it
+  fills none there), the posting's link (the page's address with only the
+  query parts that name a posting, `report.js` `POSTING_PARAMS`: for, token,
+  gh_jid, jobId, job_id, jobid, jobReqId, career_job_req_id, each a plain
+  id; no other part, fragment or user:password, which can carry the
+  student's ids; the backend refuses any other part), the Fill engine version
+  (`FillEngine.version`, which the engine's build stamps into
+  `dist/engine.js`; `ENGINE_VERSION` in `background/engine.js`);
+- each failed field: its kind (the Question set's), its label's shape
+  (`labelShape`: lower case, quoted names, emails and links out, digits as
+  `#`, only letters and spaces kept) and its error's name: Readback (it
+  shows something other than its answer), FillError (the engine couldn't
+  fill it), Handoff, NoForm, NoAnswer (WorkIt had none), Error;
+- the student's note, optional.
+
+**Never an answer, a reason or what the page shows**: a failed reason can
+quote both. The content script tells report.js each question's kind
+(`window.WIA.report.track`) and each failed field's error name
+(`window.WIA.report.failed`); `engine.js`'s `fillPage` puts the error's
+name on a whole-fill failure. The background (`report/preview`,
+`report/send`) names the page's parts itself from the tab's URL and keeps
+only the allowed parts of each field, so a page's script can add nothing.
+`POST /fill-reports` (backend `routers/fill_reports.py`) stores it with no
+account and refuses any other key (422).
+
+**Nothing is sent but on Send**, one report per press: once sent, the card
+says "Sent. Thanks for telling WorkIt." with Back and no second Send; a
+new report means opening it again. Signed out, Send says "Sign in to WorkIt
+to send a report." **The Web Store listing's privacy practices must declare
+it** (the posting link and the student's note leave the extension): for
+Lisul, before release.
+
+Tests: `test/report.extension.spec.ts` (a batch tab's failed field: the
+preview, nothing sent until Send, the request the fake API receives equals
+the preview and holds no answer or page text, no second Send). Backend:
+`tests/test_fill_reports.py`.
+
+## The Autofill tab's checklist (KAN-397, KAN-369 Q1-Q3)
+
+`src/content/groups.js` (`window.WIA.groups`, loaded before overlay.js)
+draws the Autofill tab as one checklist of every field the fill touches,
+in two sections, **Required** then **Optional** (`.section[data-section]`,
+head `.section-head`). Notes (content-script.js's) stand above them.
+
+- **Listed from the start (Q1).** progress.js's `begin` calls
+  `overlay.live()`, which draws the list in the shell before the fill
+  (only where the shell is up: the student pressed Autofill This Page; a
+  batch tab off Workday has none until its fill is done, the hydration
+  rule). The Plan registers every row before `fill/page`, so the whole list
+  shows at once; `overlay.mount` then adds the header actions and the
+  primary button to the list already drawn.
+- **Marks** (`groups.markOf`, set as `data-mark` on each `.row`): `filling`
+  (spinner, a pending row while `WIA.phase` is "filling"), `filled` (green
+  check), `check` (amber ?, lib-status.js `toCheck`), `needs-you` (red !,
+  lib-status.js `needsYou`, the one rule), `waiting` (blue, on the
+  student's Claude), `empty` (gray: optional left empty), `not-asked` (a
+  required question the form isn't asking now), `note`. A field the engine
+  reports filled (its `fillengine:field` done event) turns green at once;
+  the fill's answer then sets every row as WorkIt read it back.
+- **Order (Q2).** The page's order: each row (a section by its first
+  field) is placed where `window.WIA.fieldOf` finds its field, and rows
+  whose field the page doesn't show yet come after, as registered
+  (`groups.inPageOrder`; KAN-369, decision 1971). Once the fill is done
+  (content-script.js refreshes the list when the phase changes), red and
+  then amber rows rise to the top of their section, the rest in page
+  order. Required questions the form isn't asking now close the Required
+  section, collapsed to "N the form isn't asking now"
+  (`.group[data-group="not-asked"]`).
+- **Repeated sections (Q3).** A field labelled "<Section> <n> / <part>"
+  (Workday's panels, and Greenhouse's Employment block, which the engine
+  labels the same way) or named "<part>--<n>" (Greenhouse's Education
+  block, fill-engine greenhouse.ts `EDUCATION`) belongs to entry n of that
+  section (`groups.entryOf`). A section is one row (`.entries[data-entries]`,
+  its head Workday's "(entries)" question's row when there is one, marked
+  with the worst of its fields) and under it a block per entry
+  (`.entry`), titled by its company or school as the form shows it, else
+  as the Plan fills it (the profile entry's; content-script.js hands each
+  planned answer to `groups.planned`, which keeps only an entry's naming
+  field), else "Work Experience 1" (`.entry-title`), listing the entry's
+  fields with small dots (`.row.sub`). The section goes under Required when
+  any of its fields is required.
+- **Rows (Q4's row parts).** overlay.js's `row` keeps its cards, reasons and
+  click to the field. A question shows two lines until its row is opened
+  (`data-open`: the row the student last pressed, or Next Thing's), and its
+  source badge (`.source`) shows only then.
+
+Tests: `test/checklist.extension.spec.ts` (Anduril: every row listed and
+spinning when the progress first says 0%, then red and amber first;
+Coinbase with two made-up jobs: Work Experience and Education nested, titled
+Globex, Initech and the school; `CHECKLIST_SHOTS=<dir>` saves screenshots),
+`test/panel-tabs.extension.spec.ts` (the marks on Anduril, Looks right and
+Undo turning the guess green and back, the three tabs), the waiting mark in
+`test/waiting-card.extension.spec.ts`.
+
+## The Answers tab (KAN-400)
+
+`src/content/answers-tab.js` (`window.WIA.answersTab`, loaded after
+letter-preview.js in `CONTENT_SCRIPT_FILES`) fills `tab:answers` once a
+page (or a Workday step) is filled: content-script.js calls
+`answersTab.use(prepared)`, and the tab follows lib-status.js's rows from
+then on (it subscribes; it keeps no rows of its own). Its questions: the
+ones written or waiting to be written (`prepared.written`), the ones left
+for the student to write (`rows.written`), the ones a saved answer filled
+in words (`plan.banked`, text boxes), and any cover letter field (label or
+name "cover letter"). Each row shows its label (a press goes to the field,
+`WIA.showField`) and where its answer came from, from the row's status and
+`source`: **Waiting for your Claude**, **Written by your Claude**,
+**Pasted**, **Yours**, Written with AI (the essay route), Saved Answer,
+Guessed, Not written yet, Needs you, Left empty. **See answer** is
+letter-preview.js's toggle and preview (`render(field, { any: true })`:
+any filled row, the student's own answers too), the same open state as the
+Autofill tab's, so both redraw. **Write with Claude** (overlay.js's
+`startClaude`) heads the tab only while a row waits for the student's
+Claude. A form with no cover letter field ends with a "Cover letter · No
+cover letter field" row ("on this step" on Workday, which fills a step at
+a time). Before a fill the shell's placeholder stays.
+
+Tests: `test/panel-answers.extension.spec.ts` (Lumen's practice question
+waiting, then written by the student's Claude, with Write with Claude only
+while it waits and See answer the form's text; Yours; Pasted; Workable's
+cover letter box listed, no "No cover letter field").
+## The panel's settings (KAN-402): Claude, auto-open, report, Workday
+
+`src/content/panel-settings.js` fills the `settings` slot (loaded after
+panel-top.js everywhere it is: manifest, `CONTENT_SCRIPT_FILES`,
+background.js `SHELL_FILES`); `src/background/panel-settings.js` answers
+its messages. The gear shows it in place of the tabs; Back returns.
+
+- **Claude**: "Your Claude is connected." with **Disconnect** (`DELETE
+  /applicants/{id}/connector`, which revokes the sign-in at once, as the
+  webapp's Settings > Connected Apps does), or "Your Claude isn't
+  connected." with **Add to Claude** (a new tab on the webapp's
+  `/connect/claude/add`, which goes on to Claude's Add Custom Connector
+  dialog). Signed out: "Sign in to WorkIt to connect your Claude." The
+  state (`settings/read`, `GET .../connector`) is read again each time the
+  gear opens the view and when the student comes back to the tab.
+  A read that fails says "WorkIt couldn't check your Claude." with **Try
+  again**, which reads it again (KAN-401).
+- **Open the panel by itself** (on by default): `panel_auto_open` in
+  chrome.storage.local, given to panel.js by `panel/where` (`autoOpen`).
+  Off, a batch tab's panel stays closed with its edge tab, as a kept
+  collapse does; the student opens it. Outside a batch nothing opens by
+  itself anyway.
+- **Report a problem**: opens the report card
+  (`window.WIA.reportCard.open()`, report.js), as the header's ⚑ does.
+- **Workday Sign-Up**: opens the extension's options page
+  (`workday/signup-open`). No password field is ever in the panel: it
+  lives in the employer's page.
+
+Tests: `test/panel-settings.extension.spec.ts` (the Claude connection with
+Disconnect and Add to Claude; auto-open off keeps a batch tab's panel
+closed; the gear and Back, Report, Workday Sign-Up opening the options
+page and no password field in the panel).
+
+## The Résumé tab (KAN-399)
+
+`src/content/resume-tab.js` (loaded after panel-top.js wherever it is)
+fills `tab:resume` from `src/background/resume-tab.js` (`resume/tab`,
+`resume/file`, `resume/choose`, `resume/keywords`, `resume/tailor`):
+
+- **Attached**: the file this form gets, by its file name and kind
+  (Uploaded file, Built in WorkIt, Tailored for this job), with
+  **Preview** (the file, from the background, opens as a blob in a new tab).
+- **Keyword match** (GLOSSARY): a built résumé's "3 of 5 keywords" with the
+  matched ("On your résumé") and missing ones, exactly as `GET
+  .../built-resumes/{id}/keyword-match?job_posting_id=` gives them. A
+  posting read for the first time spends one of the day's Tailor uses, so
+  nothing is spent silently: the match shows by itself only for a job whose
+  keywords WorkIt read before (`keywords_read_jobs` in chrome.storage.local,
+  background `keywordsFor`); for any other the tab shows **Check keyword
+  match (uses 1 Tailor run today)**, and only that press reads it. (The
+  backend has no read that never extracts, so a posting the webapp already
+  read still shows the button once.) An uploaded file has none
+  ("Keyword match is for résumés built in WorkIt").
+- **Tailor for this job** opens the website's `/jobs/{job}/tailor` on the
+  origin the student signed in on. Only for a job WorkIt has an
+  application for (`applicationForTab`, panel-top.js's lookup).
+- **Switch résumé**: every upload, the base built résumés and the one
+  tailored for this job, each with **Use this**. A switch keeps the file
+  for the tab (`resume_by_tab` in chrome.storage.session, dropped when the
+  tab closes), saves it as the application's sent resume when the
+  application is open (`PUT .../applications/{job}/resume`, the Auto Apply
+  page's own choice), and fills the form's résumé field again alone
+  through the Fill engine (content-script.js hands each fill's Plan over,
+  `resumeTab.use(fixesOf(prepared))`, the failed card's fill-one-field).
+  Every later Plan in the tab attaches the switched file
+  (background.js `withTabResume`), so a reload or Workday's next step keeps
+  it, and `markSubmitted` records it as sent. Greenhouse replaces an
+  attached file by pressing its Remove file first (engine, greenhouse.ts
+  `upload`).
+
+Tests: `test/panel-resume.extension.spec.ts` (the attached file, Preview,
+the others and Tailor; a switch saved, attached on the form, and its
+Keyword match). `fake-api.ts` has `builtResumes` (render, keyword-match).
+
 ## The overlay: honest per-field results
 
 `lib-status.js` keeps one row per field and computes the headline only
@@ -1315,7 +2178,7 @@ failed delete says "WorkIt couldn't undo it. Try again." Tests:
 next form), `test/greenhouse.spec.ts` (the batch skips self-ID and legal;
 Undo after Looks right ×N).
 
-Both of the extension's surfaces, the popup and the overlay, follow
+Both of the extension's surfaces, the popup and the panel, follow
 WorkIt's design system (`frontend/docs/design.md`). **The tokens are
 defined once, in `src/shared/tokens.js`**: WorkIt's `--color-*`,
 `--radius-*`, `--shadow-lift` and type-scale values, copied by hand from
@@ -1343,7 +2206,7 @@ overlay uses the system font.
   attach to `window.WIA` instead of using `import`/`export`. The load order
   that makes this work lives in exactly one place —
   `src/shared/content-scripts.js` (`ENGINE_FILES` in the MAIN world, then
-  `CONTENT_SCRIPT_FILES`), which the popup and batch apply both use through
+  `CONTENT_SCRIPT_FILES`), which the panel and batch apply both use through
   `injectFill` — and a new content file is added there by hand.
 - **`src/background/engine.js` uses no `chrome.*` API at import time**, so
   the test imports it as it is. Keep `chrome.*` calls in `background.js`.
@@ -1404,13 +2267,11 @@ openness covers:
   `experience_facts.skills`, a "Languages" group first. WorkIt holds no place
   the student lives, so Greenhouse's Country picker beside Phone is left for
   the student.
-- **No "not a veteran" answer.** WorkIt's `veteran_status` is
-  protected_veteran, not_protected_veteran or declined. Since the engine's
-  fix (KAN-329), "I am not a protected veteran" answers only
-  protected-status questions; a plain "Are you a veteran?" or military
-  service question is the student's (a Missing fact). Answering it needs a
-  new value such as `not_veteran`, mapped to "I am not a veteran"; never
-  map not_protected_veteran to false.
+- **"Never served" is its own answer.** WorkIt's `veteran_status` adds
+  `not_veteran` ("I am not a veteran"), which answers "Are you a veteran?",
+  "have you ever served?" (No) and a branch or status (N/A).
+  not_protected_veteran still answers only protected-status questions; never
+  map it to false.
 - **A profile saved before the name split** (KAN-326) has only
   `full_name`, so its first/last name is the first word and the rest:
   wrong for a multi-word given name or a middle name. Once My Profile
