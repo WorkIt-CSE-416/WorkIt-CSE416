@@ -101,6 +101,12 @@ the concurrency group queues a late run rather than overlapping it. Going below
 an hour buys minutes, multiplies that traffic and raises the odds of a board
 rate-limiting the shared GitHub runners, which would stall every job on it.
 
+**Still open: GitHub runs about half of the schedule.** Between 2026-10-16 and
+10-27 it started 50 of the 94 runs due at :17 (53%), a median 102 minutes late,
+so the real gap between runs was a median 5.5 hours, at most 8.7. The fix being
+weighed is a Cloudflare Cron Trigger that starts this workflow through GitHub's
+API at exact times (`scraper/docs/coverage.md`, "Later").
+
 - **Secret:** `DATABASE_URL` (the API's pooler URL, from the root `.env`), in the
   repo's Actions secrets. Without it the run fails at the import step and says so.
 - **Secrets:** `SCOUT_ENDPOINTS_SMALL` and `SCOUT_ENDPOINTS`, for the
