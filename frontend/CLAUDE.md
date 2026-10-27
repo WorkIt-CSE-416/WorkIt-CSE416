@@ -1262,7 +1262,7 @@ the KAN-296 cutover.
   `docs/screens.md`, Applications, has the rest.
 - **Tailor is one step per view** (`(seeker)/jobs/[jobId]/tailor`,
   2026-10-26): every step opens with the same top row (`TailorBar`: Back,
-  the step, its way on). `TailorHeader` (the title, its line and the job
+  the step, its way on). `TailorHeader` (each step's own title and line, and the job
   card) follows it on the pick steps; the tailored resume's page has the slim
   `TailorReviewBar` instead (Back to Choose Keywords, `TailorBack`, the
   step, and Finish; the job in an sr-only h1), so the resume starts near the top, under its own name

@@ -14,7 +14,7 @@ import { SEEKER_GUTTER } from "../../../gutter";
 import { ListingsError } from "../../listing-card";
 import { getJobListing } from "../../listings";
 import { BackToJobs } from "../page-actions";
-import { TailorHeader, TailorReviewBar } from "./tailor-header";
+import { TailorReviewBar } from "./tailor-header";
 import { TailorReview } from "./tailor-suggestions";
 import { TailorScreen } from "./tailor-screen";
 
@@ -29,9 +29,9 @@ export async function generateMetadata({
 /**
  * /jobs/[jobId]/tailor, Tailor (KAN-217, docs/tailor_resume.md): opened
  * from "Tailor My Resume" on a job posting's page. It loads the posting and
- * draws the title, its line and the job card (`TailorHeader`) over every
- * step: the pick views (`TailorScreen`) until the posting has a tailored
- * resume, then that resume's editor, Review Changes, on this route.
+ * draws the pick views (`TailorScreen`, each step with its own title, line
+ * and job card) until the posting has a tailored resume, then that
+ * resume's editor, Review Changes, on this route.
  */
 export default async function TailorPage({
   params,
@@ -128,13 +128,8 @@ export default async function TailorPage({
     <div className={cn("max-w-app mx-auto w-full flex-1 py-6", SEEKER_GUTTER)}>
       <TailorScreen
         jobId={job.id}
+        job={job}
         start={source ? { step: "keywords", source } : undefined}
-        header={
-          <TailorHeader job={job} title={`Tailor Your Resume to ${job.title}`}>
-            Pick a resume and the keywords you have used. WorkIt rewrites its bullets for this
-            posting and never adds a number or tool you did not give; you can undo any change.
-          </TailorHeader>
-        }
       />
     </div>
   );

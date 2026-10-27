@@ -1661,9 +1661,14 @@ with no proposals to accept and no Done (2026-10-25).
 
 - **Opened from "Tailor My Resume"** on the job posting page, which reads
   "Your Tailored Resume" once the student has one for that posting.
-- **The pick steps open the same way** (`TailorHeader`,
-  `tailor-header.tsx`): the page title ("Tailor Your Resume to <job
-  title>"), one line on what Tailor does, then a job card: the employer's logo and name, the title (a link to the job
+- **Each pick step has its own title and line** (`HEADINGS` in
+  `tailor-screen.tsx`, drawn by `TailorHeader`): "Pick the Resume to Start
+  From" (WorkIt saves a tailored copy and leaves the pick as it is), and
+  "Add the Keywords You Have Used" (Tailor Resume then rewrites the
+  bullets, never adds a number or tool, and can be undone; the keyword
+  card's own note says what a picked keyword means). Both read "Tailor
+  Your Resume to <job title>" over one line about the whole flow until
+  2026-10-26. Then a job card: the employer's logo and name, the title (a link to the job
   posting's page) and the facts the posting states, the job page's header
   made small, with no second h1 and no empty fact slots. The intro sat
   inside the picker card until 2026-10-26, as the card's heading and a
@@ -1683,7 +1688,7 @@ with no proposals to accept and no Done (2026-10-25).
 - **One step at a time** (2026-10-26), each under the same top row in the
   brand tint (`TailorBar`): Back, the step on one line ("Pick a Resume ·
   Step 1 of 3"), and the step's way on, Use This Resume, Tailor Resume or
-  Finish. Then the page's title, its line and the job card
+  Finish. Then the step's title, its line and the job card
   (`TailorHeader`), then the step's own view (`TailorScreen` keeps the step in state; a
   reload starts at the pick). The keyword match appeared under the picker
   on one page before, so the student scrolled past the list to read it.

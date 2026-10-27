@@ -1,7 +1,7 @@
 "use client";
 
 import { useRouter } from "next/navigation";
-import { useCallback, useEffect, useState, type ReactNode } from "react";
+import { useCallback, useEffect, useState } from "react";
 
 import {
   ArrowLeftIcon,
@@ -33,7 +33,8 @@ import type { MatchShift, TailorReviewRecord } from "../../../resumes/[resumeId]
 import { loadChoices, ResumeLists, type Choice } from "../../resume-picker";
 import { ResumePreviewDialog } from "./resume-preview";
 import { BackToJobs } from "../page-actions";
-import { TailorBar } from "./tailor-header";
+import type { JobListing } from "../../listings";
+import { TailorBar, TailorHeader } from "./tailor-header";
 import { type TailorStep } from "./tailor-steps";
 
 /** The run's phases, in order, as its loader lists them, by the
@@ -64,6 +65,25 @@ function tailorFirst(choices: Choice[]): Choice | undefined {
 }
 
 /**
+ * Each pick step's own title and line, under its top row. Both steps read
+ * "Tailor Your Resume to {title}" over one line about the whole flow until
+ * 2026-10-26, which told the student nothing about the step in front of
+ * them; the top row already names the step, so the title asks for what the
+ * step needs and the line says what follows from it. The keyword card's
+ * own note says what a picked keyword means, so step 2's line does not.
+ */
+const HEADINGS = {
+  pick: {
+    title: "Pick the Resume to Start From",
+    line: "WorkIt saves a tailored copy for this job and leaves the resume you pick as it is. Preview any resume before you choose.",
+  },
+  keywords: {
+    title: "Add the Keywords You Have Used",
+    line: "Then Tailor Resume rewrites this resume's bullets for the job. It never adds a number or tool you did not give, and you can undo any change.",
+  },
+} as const;
+
+/**
  * The Tailor screen (KAN-217, docs/tailor_resume.md), one step at a time
  * under the step's top row (`TailorBar`: Back, the step, and its way on):
  * Pick a Resume, then Choose Keywords, each its own view. The keyword match sat under the picker on
@@ -89,12 +109,11 @@ function tailorFirst(choices: Choice[]): Choice | undefined {
 export function TailorScreen({
   jobId,
   start,
-  header,
+  job,
 }: {
   jobId: string;
-  /** The page's title, its line and the job card, under the step's top
-   *  row (`TailorHeader`, drawn by the page). */
-  header: ReactNode;
+  /** The posting, for each step's title, line and job card (`TailorHeader`). */
+  job: JobListing;
   /** Where to open: the review's Back opens Choose Keywords for the resume
    *  the run started from (`source`, a picker key such as "built:<id>"), so
    *  the student can pick other keywords and run again. */
@@ -279,7 +298,11 @@ export function TailorScreen({
           )
         }
       />
-      <div className="mt-4">{header}</div>
+      <div className="mt-4">
+        <TailorHeader job={job} title={HEADINGS[step].title}>
+          {HEADINGS[step].line}
+        </TailorHeader>
+      </div>
       <div className="mt-4">
         {step === "pick" && (
           <>
