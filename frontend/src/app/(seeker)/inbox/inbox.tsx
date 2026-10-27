@@ -70,7 +70,7 @@ export function Inbox({ emails, jobs }: { emails: Email[]; jobs: EmailJob[] }) {
         ))}
       </nav>
 
-      <div className="border-border-subtle rounded-card bg-panel mt-4 grid min-h-[34rem] overflow-hidden border md:grid-cols-[minmax(18rem,24rem)_minmax(0,1fr)]">
+      <div className="border-border-subtle rounded-card bg-panel mt-4 grid min-h-[34rem] grid-cols-1 overflow-hidden border md:grid-cols-[minmax(18rem,24rem)_minmax(0,1fr)]">
         <div
           className={cn(
             "border-border-subtle md:border-r",
