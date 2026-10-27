@@ -102,3 +102,10 @@ on that day's responses in `tests/fixtures/providers/`.
 Not read: **SmartRecruiters** (robots.txt disallows us, above); **Waymo** needs
 nothing new, since its postings are on the Greenhouse board `waymo` (build_boards'
 `EXTRA`), linked to its own careers site.
+
+First full read, 2026-10-26, these 361 boards only, no store yet: 180,746 postings
+scanned, and kept (internship or new-grad roles) TikTok 1,490 (1,049 internships),
+Oracle 3,621 (1,621), iCIMS 1,132 (867), SuccessFactors 546 (477). 17
+SuccessFactors sites disallow us in robots.txt and 2 Oracle boards are past the
+10,000 limit; 8 boards changed under the read (Incomplete), all large ones. The
+feed validated against the backend's `JobListing`.
