@@ -320,16 +320,25 @@ days later cannot pass off an old count.
 Known limit: widening a `shortlist.py` pattern makes newly matching postings on
 a watched board count as new once, because only matching postings are stored.
 
-## Nothing closes; the page shows what the last complete read saw
+## Nothing closes; the page shows what the last two complete reads saw
 
 A posting that disappears keeps its last `last_seen_at` and stays in
 `jobs.json`. The scraper never retires a job, so it never wrongly retires one.
 
-`Store.is_listed` keeps a posting only if it was on its board the last time we
-read that board **in full**. **Only a complete listing is evidence that a
-posting is gone**: a timeout, a partial read, or one board seen twice in one
-run is not. Actually closing a posting is a real design for the ticket that
-needs it: two accepted complete absences, at most one miss per board per run.
+`Store.is_listed` keeps a posting only if it was on its board at one of the last
+two times we read that board **in full** (`BoardReads.last_read_at` and
+`prior_read_at`), so it leaves the feed, and the import closes it, after **two
+complete reads in a row** without it. **Only a complete listing is evidence that
+a posting is gone**: a timeout, a partial read, or one board seen twice in one
+run is not, and each run moves a board's reads once at most. One complete read
+was enough until 2026-10-27, and one bad answer closed a board: a hiring system
+mid-outage can answer with an empty list, which reads as a real board with
+nothing open, and the import's half-the-feed guard lets one company's postings
+through. The cost is one more read before a real closing.
+
+**A board holding a posting missed once is read first** in its lane's next run
+(`Store.missed_once`, `Store.to_read`): in a lane with a budget, the second read
+would otherwise wait a whole sweep, about a day on Workday.
 
 **A board we hold postings from that answers "no such board" twice in a row
 was read in full, with nothing open** (`store.update`, `missing`): a 404,
@@ -342,9 +351,11 @@ A board never read that answers so is still unread (a typo has nothing to
 close, and `Store.is_new` reads a board's first read). **A lane where `SURGE`
 (3) or more known boards answer so in one run, and more of them than read
 whole, closes none** (`__main__.scrape`): that is the hiring system changing,
-and one lane is under the import's half-the-feed guard. A revert to code before
-`missing_at` and `RunStats.by_provider` must delete the `scraper-store-*`
-Actions cache, or the old code fails to load `jobs.json`.
+and one lane is under the import's half-the-feed guard. The two answers are the
+two misses, so the first one's time becomes `prior_read_at`. `store.load` drops
+fields it does not know (`_known`), so a revert to this code or later loads a
+newer store; a revert to code before `prior_read_at` must delete the
+`scraper-store-*` Actions cache, or the old code fails to load `jobs.json`.
 
 ## Politeness is ours to enforce
 
@@ -383,8 +394,10 @@ cron in `.github/workflows/scrape.yml`; if they drift, quiet boards are still re
 on a third of runs, only less evenly spaced.
 
 **A lane can have a time budget** (`Provider.budget_s`; Workday's and
-Oracle's, 12 minutes each, run side by side). It starts boards from the front of `Store.to_read`'s order, least
-recently read first, and once its time is up leaves the rest for a later run.
+Oracle's, 12 minutes each, run side by side). It starts boards from the front of
+`Store.to_read`'s order (a board with a posting missed once, then one never
+read, then the least recently read), and once its time is up leaves the rest for
+a later run.
 `--full` keeps the budget: it un-rests quiet boards, it does not make a Workday
 sweep fit in one run. The page's "postings scanned" counts what this run read,
 so it is lower on a run that rested quiet boards or ran out of Workday time.

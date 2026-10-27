@@ -38,8 +38,9 @@ holds unique. One run, in one transaction:
    feed is re-resolved on every run, so an alias added to role_resolver.py
    reaches every job on the next run with no backfill;
 6. closes scraped jobs no longer in the feed. The scraper drops a job only
-   after reading its board in full without it (scraper/CLAUDE.md), so absence
-   is evidence. A job that comes back is published again.
+   after two complete reads of its board in a row without it
+   (scraper/CLAUDE.md, "Nothing closes"), so absence is evidence. A job that
+   comes back is published again.
 
 The report lists the titles that resolved to no role, most jobs first: that
 list is how the aliases grow (docs/search.md).

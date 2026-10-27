@@ -14,7 +14,7 @@ from __future__ import annotations
 import json
 import zlib
 from collections.abc import Iterable
-from dataclasses import asdict, dataclass, field, replace
+from dataclasses import asdict, dataclass, field, fields, replace
 from datetime import UTC, datetime, timedelta
 from pathlib import Path
 
@@ -56,6 +56,10 @@ class BoardReads:
     #: When it first said it does not exist since its last complete read. The next
     #: such answer closes its postings (`update`); one alone is evidence of nothing.
     missing_at: str | None = None
+    #: The complete read before `last_read_at`, None until there have been two. A
+    #: posting seen there and not at the last was missed once, and is still shown
+    #: (`Store.is_listed`).
+    prior_read_at: str | None = None
 
 
 @dataclass(frozen=True, slots=True)
@@ -72,15 +76,35 @@ class Store:
     logos_version: int = 1
 
     def is_listed(self, job: Job) -> bool:
-        """Whether the posting was on its board the last time we read that board.
+        """Whether the posting was on its board at one of the last two complete
+        reads of that board.
 
         ponytail: nothing is ever closed -- a vanished posting stays in the file.
-        It just stops being shown once a *complete* read of its board lacks it. A
-        board we failed to read this run keeps its postings on the page, because a
-        failed read is not evidence that anything went away.
+        It stops being shown once two *complete* reads of its board in a row lack
+        it. One is not enough: a hiring system mid-outage can answer with an empty
+        list, which reads as a real board with nothing open, and that one answer
+        closed every posting on the board in Supabase until the next read. A board
+        we failed to read this run keeps its postings on the page, because a failed
+        read is not evidence that anything went away.
         """
         board = self.boards.get(job.board_key)
-        return board is None or job.last_seen_at == board.last_read_at
+        if board is None:
+            return True
+        return job.last_seen_at is not None and job.last_seen_at in (
+            board.last_read_at,
+            board.prior_read_at,
+        )
+
+    def missed_once(self) -> set[str]:
+        """The boards holding a posting their last complete read lacked and the one
+        before it had: their next complete read decides whether it closes."""
+        return {
+            job.board_key
+            for job in self.jobs
+            if (reads := self.boards.get(job.board_key))
+            and reads.prior_read_at is not None
+            and job.last_seen_at == reads.prior_read_at
+        }
 
     def is_new(self, job: Job) -> bool:
         """First seen in the 24 hours up to this scrape, on a board we already watched.
@@ -113,12 +137,16 @@ class Store:
         listed, and its `last_read_at` simply does not move.
 
         The order is for a lane with a time budget (Workday's): it reads from the
-        front until its time is up, so a board never read comes first, then the one
-        read longest ago, and every board gets its turn. Other lanes read all.
+        front until its time is up. A board holding a posting missed once comes
+        first (`missed_once`), so the second read that closes it, or keeps it, comes
+        on the next run rather than after a whole sweep of the lane (about a day on
+        Workday). Then a board never read, then the one read longest ago, so every
+        board gets its turn. Other lanes read all.
         """
         at = _at(now)
         slot = int(at.timestamp() // RUN_EVERY.total_seconds())
         hot = {job.board_key for job in self.jobs}
+        missed = self.missed_once()
         due = []
         for board in boards:
             reads = self.boards.get(board.key)
@@ -133,7 +161,10 @@ class Store:
         never = datetime.min.replace(tzinfo=UTC)
         return sorted(
             due,
-            key=lambda b: _at(self.boards[b.key].last_read_at) if b.key in self.boards else never,
+            key=lambda b: (
+                b.key not in missed,
+                _at(self.boards[b.key].last_read_at) if b.key in self.boards else never,
+            ),
         )
 
     @property
@@ -169,7 +200,9 @@ def update(
     `missing` is the keys of the boards we hold postings from that said they do not
     exist (`__main__.scrape`). The first answer is only noted; a second with no
     complete read between is a complete read with nothing open, so their postings
-    close. One spurious 404 must not close a company's postings in Supabase.
+    close. One spurious 404 must not close a company's postings in Supabase. The
+    two answers are the two misses `Store.is_listed` needs, so the first one's time
+    becomes the read before.
     """
     before = {job.key: job for job in previous.jobs} if previous else {}
     merged = []
@@ -187,8 +220,12 @@ def update(
 
     boards = dict(previous.boards) if previous else {}
     for key in read:
-        first = boards[key].first_read_at if key in boards else now
-        boards[key] = BoardReads(first_read_at=first, last_read_at=now)
+        old = boards.get(key)
+        boards[key] = BoardReads(
+            first_read_at=old.first_read_at if old else now,
+            last_read_at=now,
+            prior_read_at=old.last_read_at if old else None,
+        )
     for key in missing:
         reads = boards.get(key)
         if reads is None:
@@ -196,7 +233,7 @@ def update(
         if reads.missing_at is None:
             boards[key] = replace(reads, missing_at=now)
         else:
-            boards[key] = replace(reads, last_read_at=now)
+            boards[key] = replace(reads, last_read_at=now, prior_read_at=reads.missing_at)
     logos = dict(previous.logos) if previous else {}
     version = previous.logos_version if previous else 1
     return Store(
@@ -252,12 +289,21 @@ def load(path: Path) -> Store | None:
     payload = json.loads(path.read_text(encoding="utf-8"))
     return Store(
         scraped_at=payload["scraped_at"],
-        stats=RunStats(**payload["stats"]),
+        stats=_known(RunStats, payload["stats"]),
         jobs=[Job.from_row(row) for row in payload["jobs"]],
-        boards={key: BoardReads(**reads) for key, reads in payload["boards"].items()},
+        boards={key: _known(BoardReads, reads) for key, reads in payload["boards"].items()},
         logos=payload.get("logos", {}),
         logos_version=payload.get("logos_version", 1),
     )
+
+
+def _known(cls, row: dict):
+    """`cls(**row)` with only the fields `cls` has, so a store written by newer
+    code still loads after a revert to this code or later. Code from before
+    `prior_read_at` does not filter: a revert past it must delete the
+    `scraper-store-*` Actions cache, or that code fails to load jobs.json."""
+    names = {f.name for f in fields(cls)}
+    return cls(**{key: value for key, value in row.items() if key in names})
 
 
 def save(store: Store, path: Path) -> None:

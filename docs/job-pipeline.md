@@ -132,10 +132,15 @@ website when the board names it (`scraper/docs/logos.md`). A card with neither
 shows the company's initials. A board found with no logo is read again only when
 the logo reader learns a new place to look.
 
-**A job posting only disappears after a complete read of its company job
-board.** If a company job board fails to load, its job postings are kept as
-they were. A Workday company job board is read whole or not at all: every
-page, adding up to the count Workday reports, or the read counts for nothing.
+**A job posting only disappears after two complete reads of its company job
+board in a row without it.** One was enough until 2026-10-27, and one bad
+answer (an empty list from a hiring system having an outage) closed every job
+posting on the board until the next read. A company job board with a job posting
+missed once is read first in its hiring system's next run, so the second read is
+3 hours later, even on Workday. If a company job board fails to load, its job
+postings are kept as they were. A Workday company job board is read whole or not
+at all: every page, adding up to the count Workday reports, or the read counts
+for nothing.
 A company job board that answers "no such board" twice in a row after we have
 read it (the company left that hiring system) counts as a complete read with
 nothing open, so its job postings close. One answer closes nothing, and neither

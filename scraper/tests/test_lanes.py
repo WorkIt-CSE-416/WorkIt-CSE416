@@ -72,6 +72,29 @@ class TestQuietBoards:
         assert self.store().to_read(self.quiet, later) == self.quiet
 
 
+class TestSecondRead:
+    """A posting missed once is still shown, and the next complete read of its board
+    closes it or keeps it. In a lane with a time budget that read must not wait a
+    whole sweep of the lane (about a day on Workday), so the board goes first."""
+
+    def test_a_board_with_a_posting_missed_once_is_read_first(self) -> None:
+        sunday = "2026-10-04T09:00:00+00:00"
+        steady, missed = board("workday", "a.wd1/site"), board("workday", "b.wd1/site")
+        new = board("workday", "c.wd1/site")
+        reads = {
+            b.key: BoardReads(first_read_at=sunday, last_read_at=MONDAY, prior_read_at=sunday)
+            for b in (steady, missed)
+        }
+        jobs = [
+            replace(job(steady), last_seen_at=MONDAY),
+            replace(job(missed), last_seen_at=sunday),
+        ]
+        run = Store(scraped_at=MONDAY, stats=RunStats(), jobs=jobs, boards=reads)
+        assert run.missed_once() == {missed.key}
+        later = "2026-10-05T12:17:00+00:00"
+        assert run.to_read([steady, new, missed], later) == [missed, new, steady]
+
+
 class TestLanes:
     def test_results_come_back_in_boards_csv_order(self, monkeypatch) -> None:
         boards = [board("lever", "a"), board("ashby", "b"), board("lever", "c")]
