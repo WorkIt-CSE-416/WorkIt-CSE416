@@ -107,7 +107,9 @@ const MOVES: Partial<Record<NewEventKind, string>> = {
 /**
  * Interviews & Dates: every event on the application, soonest first, each
  * with its day in the viewer's own zone, its link and note, and Delete; and
- * Add Event. Deleting an event leaves the stage where it is.
+ * Add Event. Deleting an event leaves the stage where it is. Only an event
+ * the student added has Delete: one read from an email stays, as every
+ * email stays in the Inbox as a record (the API refuses its delete too).
  */
 export function TrackerEvents({ jobId, events }: { jobId: string; events: ApplicationEvent[] }) {
   return (
@@ -170,7 +172,7 @@ function EventRow({ event }: { event: ApplicationEvent }) {
           <p className="text-body text-ink-muted mt-1 whitespace-pre-line">{event.note}</p>
         )}
       </div>
-      {event.id && (
+      {event.id && event.source !== "gmail" && (
         <IconButton
           label={`Delete ${event.title}`}
           tooltip="Delete"

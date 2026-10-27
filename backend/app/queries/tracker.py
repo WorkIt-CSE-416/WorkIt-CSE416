@@ -226,12 +226,17 @@ async def dismiss_event(db: AsyncSession, applicant_id: uuid.UUID, event_id: uui
 
 
 async def delete_event(db: AsyncSession, applicant_id: uuid.UUID, event_id: uuid.UUID) -> bool:
-    '''deletes one of the applicant's events; False when they have no such
-    event. The application's stage stays where it is: the student sets it
-    from the stage menu'''
+    '''deletes one of the events the applicant added by hand; False when they
+    have no such event. One read from an email is never deleted: every email
+    stays in the Inbox as a record. The application's stage stays where it
+    is: the student sets it from the stage menu'''
     removed = await db.scalar(
         delete(Application_Event)
-        .where(Application_Event.id == event_id, Application_Event.applicant_id == applicant_id)
+        .where(
+            Application_Event.id == event_id,
+            Application_Event.applicant_id == applicant_id,
+            Application_Event.source == application_event_source.manual,
+        )
         .returning(Application_Event.id)
     )
     if removed is None:

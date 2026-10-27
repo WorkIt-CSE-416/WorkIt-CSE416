@@ -141,7 +141,9 @@ export function AutoApplyButton({
               const result = await queueJob(jobId);
               setError(result.error);
               if (!result.stage) return;
-              setStage(result.stage);
+              // The job may have moved past applied in another tab since
+              // this page was drawn; it reads as Applied, as on first draw.
+              setStage(hasApplied(result.stage) ? "applied" : result.stage);
               if (result.stage === "queued") {
                 void openInBrowser();
                 toast.show({

@@ -28,7 +28,8 @@ export type EmailJob = {
  * kind's pill. One that waits for the student (`status` proposed) has a dot
  * and a bold subject, as an unread email does in Gmail; WorkIt keeps no
  * read state, so the dot means "needs review", not "unread". A row that
- * matched no job says Not Linked. The caller wraps it in its link.
+ * matched no job says Not Linked; one matched to a job the list does not
+ * hold (a queued one) does not. The caller wraps it in its link.
  */
 export function EmailRowContent({
   email,
@@ -84,7 +85,7 @@ export function EmailRowContent({
         <p className="text-note text-ink-meta truncate">{preview(email.note)}</p>
         <div className="mt-1.5 flex flex-wrap items-center gap-1.5">
           <EmailKindPill kind={email.emailKind} />
-          {!job && <Badge tone="outline">Not Linked</Badge>}
+          {!email.jobId && <Badge tone="outline">Not Linked</Badge>}
         </div>
       </div>
     </div>

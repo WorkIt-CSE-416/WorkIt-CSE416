@@ -750,7 +750,9 @@ Find files with a directory listing; these are the rules for where code goes.
   `queries/tracker.py`: the stage menu (`PUT .../applications/{job_id}/stage`,
   applied or later, any direction) and the events (`GET .../events`, with
   `?status=proposed` for Email Updates, `POST
-  .../applications/{job_id}/events`, `DELETE .../events/{event_id}`, and an
+  .../applications/{job_id}/events`, `DELETE .../events/{event_id}` (an
+  event added by hand only: one from an email stays as the Inbox's record,
+  and its delete answers 404), and an
   update's `POST .../events/{event_id}/accept` and `.../dismiss`), and
   the Inbox's `GET .../emails` (every email, every status). An
   event moves its application forward only (`advance`, Accept too). **An
