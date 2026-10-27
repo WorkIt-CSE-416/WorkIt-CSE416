@@ -247,7 +247,7 @@ transaction**: if any step fails, nothing changes.
 | 3. Upsert | New job postings are added, changed ones updated, unchanged ones left alone. A job posting is identified by its apply link. The feed's `roles` keys are ignored (KAN-155): roles come from step 5. A changed description clears the job posting's cached keywords (section 5.1) |
 | 4. Places | Each job posting's place rows are brought in line |
 | 5. Role tags | Each title is matched against the `job_roles` list (section 5.3) and the job posting's `job_role_tags` rows are brought in line. The report lists titles that matched no role |
-| 6. Close | Job postings no longer in the feed are marked closed; one that comes back reopens |
+| 6. Close | Job postings no longer in the feed are marked closed, with the reason the scraper gives in `closings.json` (gone from its company job board, the board gone, no longer kept by the shortlist, or replaced by another copy), else "unknown"; one that comes back reopens |
 
 **Safety net:** the import refuses to close more than half the job postings at
 once and rolls back. A broken scrape fails loudly instead of emptying the site.

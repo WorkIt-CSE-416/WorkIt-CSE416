@@ -79,6 +79,17 @@ module docstring has the steps.
   upgrade head` for `188c8c2d7c14` (drops the old levels). `188c8c2d7c14`
   before the deploy fails every Experience filter and count on the live Jobs
   page (`app/models/CLAUDE.md`, KAN-233).
+- **Each close records why** (`job_postings.closed_reason`, KAN-412):
+  `gone_from_board`, `board_gone`, `filtered_out` or `replaced`, from the
+  scraper's `closings.json` beside the feed (`--closings` names another),
+  else `unknown`. A reopen clears it with `closes_at`. **A missing or
+  malformed file never stops the run**: its closes are real, so they go in
+  as `unknown` and the report says so; a reason not in `CLOSED_REASONS` is
+  filed as `unknown` too, so a newer scraper never fails the CHECK and rolls
+  back the whole import. The report counts this run's closes by reason. To
+  find a bad close, read the jobs one run closed (`closes_at`) by reason,
+  then fix its cause and re-run: a job back in the feed reopens. Reopening
+  by hand does nothing, since the next import closes a job the feed lacks.
 - The feed's `roles` keys (KAN-172) are ignored: `JobListing` doesn't declare
   them, so a new scraper key never fails the import. A job's roles are its
   `job_role_tags`, resolved from its title (KAN-155).
@@ -129,9 +140,10 @@ module docstring has the steps.
   container, so only CI caught it (2026-10-17). Run them with the container
   up before pushing a change to auto apply's queue.
 - **The import's database half is barely tested.** Only its clearing of
-  cached keywords is (`tests/test_keyword_match.py`, which runs
-  `import_feed` on `get_engine()`, the pattern for more); the rest can get
-  tests the same way through the `database` fixture below.
+  cached keywords (`tests/test_keyword_match.py`, which runs `import_feed`
+  on `get_engine()`, the pattern for more) and its closes and their reasons
+  (`tests/test_import_closings.py`) are; the rest can get tests the same
+  way through the `database` fixture below.
 
 ### Tests against real Postgres
 
@@ -978,7 +990,8 @@ removed at cutover, not before. Until then a change must work on both.
   it merges.** It only adds a nullable column and a CHECK every row meets, and
   no code maps it yet, so it is safe for every deploy. The import that writes
   it (why a scraped job closed) follows in its own PR, whose dry-run scrape
-  check and every scheduled import fail on a database without it.
+  check and every scheduled import fail on a database without it; and the
+  model maps it, so a company job's insert fails there too.
 - **Apply `a3d7f1c9e2b4` (`bank_skills.built_resume_id`, resume-local
   skills) before the deploy that maps it.** Every skill insert names the
   column, so deployed first, uploads, Import Again and Add skill answer
