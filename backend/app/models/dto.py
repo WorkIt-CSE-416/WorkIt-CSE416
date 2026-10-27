@@ -170,6 +170,55 @@ class application_stage(enum.StrEnum):
     needs_you= "needs_you"
     skipped= "skipped"
     applied= "applied"
+    # added by a7d3e5f1c2b4 (KAN-413): what happened after applying, set by
+    # hand or by an accepted event (docs/email_tracker.md). Each counts as
+    # applied wherever "has this student applied" is asked (APPLIED_STAGES)
+    interviewing= "interviewing"
+    offer= "offer"
+    rejected= "rejected"
+
+
+# The stages that mean the student applied: the Jobs page hides these jobs,
+# and the Applied button never moves one of the later ones back to applied
+APPLIED_STAGES = (
+    application_stage.applied,
+    application_stage.interviewing,
+    application_stage.offer,
+    application_stage.rejected,
+)
+
+
+class application_event_kind(enum.StrEnum):
+    '''
+    what one dated thing on an application is (application_events.kind,
+    KAN-413). The student adds the last five by hand; a confirmation only
+    comes from an email
+    '''
+    confirmation= "confirmation"
+    assessment= "assessment"
+    interview= "interview"
+    offer= "offer"
+    rejection= "rejection"
+    other= "other"
+
+
+class application_event_status(enum.StrEnum):
+    '''
+    whether an event is on the tracker: one the student typed is accepted
+    from the start; one read from an email waits as proposed until the
+    student accepts or dismisses it
+    '''
+    proposed= "proposed"
+    accepted= "accepted"
+    dismissed= "dismissed"
+
+
+class application_event_source(enum.StrEnum):
+    '''
+    where an event came from: typed by the student, or read from Gmail
+    '''
+    manual= "manual"
+    gmail= "gmail"
 
 
 # --- Experience bank enums (KAN-206) ---
