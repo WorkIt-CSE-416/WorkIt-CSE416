@@ -215,10 +215,21 @@ place. Recovery meant `alembic stamp base --purge` to clear the dangling
 pointer, then dropping and rebuilding the database — the scraped job data in it
 was not recoverable.
 
+**It happened again on 2026-10-27**, from a pushed branch this time:
+KAN-298's `89d598a1667d` (notifications) was applied from its open PR's
+branch, and KAN-413's `a7d3e5f1c2b4` merged to main off the same parent,
+so every `upgrade` from main failed with "Can't locate revision". A
+pushed branch is still a working copy to everyone on main. The fix was
+his file, unchanged, on main beside a merge revision (`c4e8a2f6d1b3`)
+with both as parents: the shared database then upgrades through the one
+it lacks. **Never re-parent an applied migration** to clear two heads:
+Alembic would take its new parent as applied too and skip it.
+
 Two habits follow:
 
-- The migration file and the schema change go up in **one** PR. A migration
-  applied from a working copy is a migration nobody else has.
+- The migration file and the schema change go up in **one** PR, merged
+  before anyone applies it. A migration applied from a working copy, or
+  from a branch not yet on main, is a migration nobody else has.
 - Prefer applying to your own database first. A free Supabase project or local
   Postgres costs nothing and keeps DDL experiments off the shared one.
 
