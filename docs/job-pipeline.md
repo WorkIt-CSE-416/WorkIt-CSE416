@@ -74,6 +74,8 @@ How the refresh behaves:
 | **It only adds** | A company job board a list newly names is added; one already in the file is never dropped, even if the lists stop naming it |
 | **It's safe to fail** | If a list won't download, nothing is changed and the scrape runs on the list as it was |
 | **It isn't saved back** | The additions live only in that run, and each run makes them again. A local run reads the committed `boards.csv`, so re-run `build_boards.py` and commit it now and then to keep the two in step |
+| **It says what it missed** | It prints each list's yield (a list whose links name no company job board gets a warning) and the apply links it could not use, by cause: an employer's own site, a short link, a hiring system behind a company's own address, SmartRecruiters and the others |
+| **`--resolve`, on request** | Finds the company job boards behind short links and companies' careers pages (Greenhouse, iCIMS), each one proved: the board must hold that very job posting. It asks a few hundred sites, so a person runs it and commits the result; the scheduled run never does |
 
 | Hiring system | Company job boards | Who uses it | How a company job board is read |
 |---|---|---|---|
@@ -454,7 +456,7 @@ browser can't restore your place by itself. The app does it instead:
 
 | Limit | Why | What would fix it |
 |---|---|---|
-| Ten hiring systems. The next biggest in the GitHub lists, SmartRecruiters (about 1,200 apply links), goes unread, and so do employers' own careers sites (TikTok, Apple, Amazon, Microsoft) | SmartRecruiters' `robots.txt` disallows us, and each employer's own site needs a reader of its own | Ask SmartRecruiters for access; a reader per large employer |
+| Ten hiring systems. The next biggest in the GitHub lists, SmartRecruiters (about 1,200 apply links), goes unread, and so do employers' own careers sites (TikTok, Apple, Amazon, Microsoft) | SmartRecruiters' `robots.txt` disallows us, and each employer's own site needs a reader of its own | Ask SmartRecruiters for access; a reader per large employer. `build_boards.py` prints the unread apply links by cause, which ranks them (`scraper/docs/coverage.md`) |
 | A Workday job posting can take about 12 hours to appear, or to leave | Its company job boards are read whole, about every fourth run each, within a 12-minute share of each run | More of each run for Workday, or more workers within the same pace |
 | The biggest Workday company job boards are skipped | Over 5,000 job postings, or capped at 2,000 with no filter to split them (Accenture, Walmart, Target, Airbus): 20 company job boards | Read a giant one over several runs, or split a capped one by two filters |
 | About 3 in 10 Workday cards have no logo | Workday's careers-page images are wide banners, so only the website a careers site links is used, and some link none | Find a square image Workday serves |
@@ -466,7 +468,7 @@ browser can't restore your place by itself. The app does it instead:
 | No law, consulting, teaching, arts, policy or customer support job postings, and none whose title names no field ("Engineering Intern") | Held off in KAN-172; a bare title can't be told apart (a civil firm's "Engineering Intern" from a software company's) | Add a category in the scraper, the API and the Jobs page together (no migration: `roles` is plain text) |
 | Some titles land in the wrong category | It is read from the title alone: a trading firm's "Systems Engineer" is IT work read as engineering | Read the description too, or the company's other job postings |
 | Many job postings lack pay, start date or visa | Companies don't state them | Nothing on our side; filters hide these job postings |
-| A company only arrives once a GitHub list names it | The lists are our only source of company job boards | Find company job boards ourselves too (Common Crawl, an archive of the web) |
+| A company only arrives once a GitHub list names it | The lists are our only source of company job boards | `build_boards.py --resolve` finds the ones behind short links and companies' careers pages; next, proved guesses from company names (`scraper/docs/coverage.md`). Common Crawl's `robots.txt` disallows every bot |
 | A new job posting at a quiet company can be about nine hours late | Quiet company job boards are read one run in three | `--full` runs, or reading more often |
 
 ---

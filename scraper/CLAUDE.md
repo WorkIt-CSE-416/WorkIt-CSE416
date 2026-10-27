@@ -9,6 +9,7 @@ python3 -m workit_scraper              # scrape, then write the page, feed.json 
 python3 -m workit_scraper --full       # the same, quiet boards included
 python3 -m workit_scraper --offline    # no network; rewrite both from jobs.json
 python3 build_boards.py                # add the boards the curated lists name now
+python3 build_boards.py --resolve      # and the boards behind short links and careers pages
 GROQ_API_KEY=... python3 label_headings.py  # label the headings no rule names
 uvx pytest                             # the tests
 ```
@@ -419,7 +420,21 @@ uses); postings are always scraped from the employer.
   companies' links until 2026-10-26. Lever's EU boards (`jobs.eu.lever.co`) did
   the same until 2026-10-27; their API is `api.eu.lever.co`, so a Lever token
   is `eu/{slug}` there (`registry._parts`). A pattern that misses says nothing,
-  so check the links no pattern takes, grouped by host, when a list changes.
+  so check the links no pattern takes when a list changes.
+- **Each source prints its yield, and the unread links print by cause**
+  (`harvest`, `UNREAD_CAUSES`). A source whose links name no board gets a `!`
+  line: the vanshb03 list wraps every link in a `go.vansh.nyc` short link, and
+  its 1,942 rows named no board without a word until 2026-10-27. The causes say
+  where the next reader pays off: an employer's own site, a short link, a hiring
+  system behind a company's domain, SmartRecruiters, the other systems.
+- **`--resolve` finds the boards behind three of those causes, each proved**:
+  a short link by where it leads, a careers page with `?gh_jid=` by the
+  Greenhouse board that holds that posting's number, one with `icims` by the
+  tenant whose sitemap lists it. Never a guess: a board under the wrong name
+  puts another company's name on real cards. It asks a few hundred hosts, so it
+  runs on request, never in the scheduled run: run it on a laptop, read the
+  diff of `boards.csv` and commit it. Its tests are built cases (`TestResolve`);
+  the first real run's diff is its live check.
 - **The internship lists are renamed each season** (`Summer2026-Internships` →
   `Summer2027-Internships`). GitHub serves the old address too, but update
   `SOURCES` each season: a list that starts a new repo instead would go unread.
@@ -489,11 +504,11 @@ kept this run, roles on the page, pages read and the lane's seconds
 week beside `feed.json`, so a change to one provider is judged run against run,
 not by the one summary line. `--offline` writes none: it reads nothing.
 
-`build_boards.py` prints the hosts of the apply links no provider's pattern takes,
-most first (`unread_hosts`). That list is where a new reader pays off: iCIMS and
-Oracle topped it before KAN-301. Common Crawl is no way round the curated lists:
-its index API and its data host both disallow every bot in robots.txt
-(2026-10-26), and no hiring system read serves a sitemap of its boards.
+`build_boards.py` prints the unread apply links by cause, with their top hosts
+(`unread_cause`, `unread_hosts`). That table is where a new reader pays off:
+iCIMS and Oracle topped it before KAN-301. Common Crawl is no way round the
+curated lists: its index API and its data host both disallow every bot in
+robots.txt (2026-10-26), and no hiring system read serves a sitemap of its boards.
 
 Limits marked in the code with `ponytail:` comments: nothing is ever closed;
 the whole store is loaded and rewritten each run; only matching postings are
