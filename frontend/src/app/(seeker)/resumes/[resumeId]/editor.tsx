@@ -271,6 +271,10 @@ export function Editor({
   // Suggestions panel, the original resume, or nothing, when the page
   // takes the room
   const [side, setSide] = useState<"suggestions" | "original" | null>("suggestions");
+  // The column beside the page, the panel or the original, sized to the
+  // window from wherever its top is
+  const fitPanel = useFitToWindow();
+  const fitOriginal = useFitToWindow();
 
   /** Starts a request; the returned check stays true while it is the latest. */
   const begin = useCallback(() => {
@@ -762,9 +766,10 @@ export function Editor({
     onSide: showSide,
     hasOriginal: Boolean(original),
   };
-  // The column beside the page sticks level with the toolbar over the page
+  // The column beside the page sticks level with the toolbar over the page,
+  // as tall as the window allows below its top (`useFitToWindow`)
   const sideColumn =
-    "overflow-y-auto overscroll-contain @4xl/main:sticky @4xl/main:top-2 @4xl/main:max-h-[calc(100dvh-8rem)]";
+    "overflow-y-auto overscroll-contain @4xl/main:sticky @4xl/main:top-2 @4xl/main:max-h-(--fit-height)";
 
   const grid = (
     <div
@@ -830,20 +835,25 @@ export function Editor({
           it while it is open. Above the page on a narrow screen. */}
       {/* The panel scrolls its own list under its header, so the column
           only caps its height: scrolled here, the header and the panel's
-          rounded corners went up with the list. 15rem is the chrome above
-          it on Tailor's page (the app bar, the review's top row, the
-          resume's name), so its rounded foot shows before the page
-          scrolls; at 8rem it ran 80px below the window */}
+          rounded corners went up with the list. The cap is measured
+          (`useFitToWindow`): a fixed one, the window less 15rem, ran the
+          panel's foot below the window before the page scrolled and left a
+          gap under it after, once the title row grew */}
       {shownPanel && !asking && (
         <div
           data-keeps-selection
-          className="max-h-scroll-box -order-1 flex flex-col @4xl/main:sticky @4xl/main:top-2 @4xl/main:order-none @4xl/main:max-h-[calc(100dvh-15rem)]"
+          ref={fitPanel}
+          className="max-h-scroll-box -order-1 flex flex-col @4xl/main:sticky @4xl/main:top-2 @4xl/main:order-none @4xl/main:max-h-(--fit-height)"
         >
           {shownPanel}
         </div>
       )}
       {/* The original beside the page; under it on a narrow screen */}
-      {shownOriginal && !asking && <div className={sideColumn}>{shownOriginal}</div>}
+      {shownOriginal && !asking && (
+        <div ref={fitOriginal} className={sideColumn}>
+          {shownOriginal}
+        </div>
+      )}
       {fitToast}
     </div>
   );
@@ -861,6 +871,39 @@ export function Editor({
       {grid}
     </div>
   );
+}
+
+/**
+ * A sticky column's height cap, as `--fit-height` on it: the window below
+ * its top, less a 24px foot. Read again on any scroll (the page scrolls in
+ * `main`, not the window, so the listener captures) and on resize, once a
+ * frame. Before the page scrolls the column's top sits under the title
+ * row; stuck, at its `top`; a fixed cap fitted one and not the other.
+ * Never under 240px, so a short window still shows the panel's top.
+ */
+function useFitToWindow(foot = 24) {
+  const [el, setEl] = useState<HTMLElement | null>(null);
+  useEffect(() => {
+    if (!el) return;
+    let frame = 0;
+    const fit = () => {
+      frame = 0;
+      const room = window.innerHeight - el.getBoundingClientRect().top - foot;
+      el.style.setProperty("--fit-height", `${Math.max(240, Math.round(room))}px`);
+    };
+    const queue = () => {
+      if (!frame) frame = requestAnimationFrame(fit);
+    };
+    fit();
+    document.addEventListener("scroll", queue, { capture: true, passive: true });
+    window.addEventListener("resize", queue);
+    return () => {
+      cancelAnimationFrame(frame);
+      document.removeEventListener("scroll", queue, { capture: true });
+      window.removeEventListener("resize", queue);
+    };
+  }, [el, foot]);
+  return setEl;
 }
 
 /** The sticky bar's box, shared with EditorSkeleton. The brand tint, not the

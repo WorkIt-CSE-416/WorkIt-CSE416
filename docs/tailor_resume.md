@@ -321,9 +321,13 @@ weight.
   the panel's top, then a white button there, and opened the Preview
   dialog; the user wanted the two side by side.
 - **The panel's top stays put and only its sections scroll** under it:
-  the column beside the page caps the panel's height (the window less
-  the 15rem of chrome above it, so its rounded foot shows before the page
-  scrolls) and the section list scrolls inside, so the scroll bar starts
+  the column beside the page caps the panel's height at the window below
+  the column's top, less 24px, measured on every scroll and resize
+  (`useFitToWindow` in the editor; the original resume's column too), and
+  the section list scrolls inside. A fixed cap, the window less 15rem,
+  ran the panel's foot below the window before the page scrolled and
+  left a gap under it once it stuck, after the title row grew. The list
+  scrolls inside, so the scroll bar starts
   under the top and the panel keeps its corners. The column itself
   scrolled until 2026-10-26, which carried the rounded corners off with
   the list. The top holds the title, its count and the type filter.
