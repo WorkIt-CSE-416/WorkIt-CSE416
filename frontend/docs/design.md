@@ -7,10 +7,16 @@ a shell, a page layout, a colour token or a `ui/` component.
 ## The two shells
 
 The two shells are separate layouts on purpose, and they no longer look
-alike. The seeker shell floats: the section panel runs the full height with
-the logo in its header, beside a top bar and the page, each a white
-`rounded-shell` panel on the lavender `--color-frame`, 12px apart and 12px
-from the window. The company shell is still docked: a full-width bar with the
+alike. The seeker shell is flat: one white surface, the section panel
+flush with the window's left edge and running the full height with the logo
+in its header, the top bar along the top beside it, and the page under the
+bar, ruled apart by `--color-border-subtle` hairlines. The panel's header
+and the bar are both 64px with their bottom rule, so the two rules run as
+one line. It floated until 2026-10-27, each part a white `rounded-shell`
+panel 12px apart on the lavender `--color-frame`; the user found that
+frame wasted room and read as three separate containers, so keep it flat:
+no ground colour, no gaps, no rounded or shadowed shell panels. Scout's
+panel docks at the right the same way, with a left rule. The company shell is still docked: a full-width bar with the
 lavender corner cell (`components/sidebar-brand.tsx`, company only now) over
 a full-bleed panel. `app-sidebar.tsx` draws both, as `variant="floating"` or
 the default `docked`. Their other shared parts (the bell, the account menu,
@@ -24,7 +30,7 @@ still near-identical once both sides are real screens.
 
 Seeker pages break on the width they actually get, not the window's: the
 shell renders them inside `@container/main`, because an open panel takes
-280px with its insets. **That width is the one they have with the panel
+256px. **That width is the one they have with the panel
 open, in both states**: collapsing the panel re-centres the page in the room
 it frees and never rearranges it (`(seeker)/layout.tsx`, "A PAGE KEEPS THE
 WIDTH"). Keyed to the `<main>` itself, collapsing between about 800 and

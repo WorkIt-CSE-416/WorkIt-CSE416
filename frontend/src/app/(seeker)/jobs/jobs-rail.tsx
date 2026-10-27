@@ -74,9 +74,8 @@ export function JobsRailFrame({ children }: { children: ReactNode }) {
  * laptop. Below @4xl/main the page is as it was, with Back.
  *
  * Its own scroll, held to the page panel's height while the page scrolls
- * beside it. 6.375rem is the shell's chrome above and below the panel from
- * sm up ((seeker)/layout.tsx: 12px padding, the 64px bar, a 12px gap, 12px
- * padding and the panel's 2px of border); the rail never shows below sm.
+ * beside it. 4rem is the shell's 64px bar above the page
+ * ((seeker)/layout.tsx); the rail never shows below sm.
  */
 function JobsRail({ currentId }: { currentId: string }) {
   const list = useSyncExternalStore(subscribe, readShownList, () => null);
@@ -139,7 +138,7 @@ function JobsRail({ currentId }: { currentId: string }) {
   return (
     <aside
       aria-label="Jobs"
-      className="border-border-subtle sticky top-0 hidden h-[calc(100svh-6.375rem)] w-[calc(clamp(18rem,100cqw_-_60rem,40rem)_+_var(--panel-gain))] shrink-0 flex-col self-start border-r transition-[--panel-gain] duration-200 ease-linear md:in-data-[pinned=false]:[--panel-gain:calc(var(--sidebar-width)_-_var(--sidebar-width-icon))] @4xl/main:flex"
+      className="border-border-subtle sticky top-0 hidden h-[calc(100svh-4rem)] w-[calc(clamp(18rem,100cqw_-_60rem,40rem)_+_var(--panel-gain))] shrink-0 flex-col self-start border-r transition-[--panel-gain] duration-200 ease-linear md:in-data-[pinned=false]:[--panel-gain:calc(var(--sidebar-width)_-_var(--sidebar-width-icon))] @4xl/main:flex"
     >
       <div className="px-4 pt-6 pb-3">
         <h2 className="text-label text-ink">{showable ? listTitle(showable) : "Jobs"}</h2>

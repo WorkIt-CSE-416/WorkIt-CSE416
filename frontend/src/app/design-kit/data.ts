@@ -89,7 +89,7 @@ export const COLOR_GROUPS: ColorGroup[] = [
       { token: "--color-app", role: "Home and design kit ground; uploaded-file row" },
       { token: "--color-panel", role: "Top bar, cards and secondary buttons" },
       { token: "--color-well", role: "Recessed area — the resume dropzone" },
-      { token: "--color-frame", role: "Seeker shell ground, under its floating panels" },
+      { token: "--color-frame", role: "Pale lavender; onboarding story panel fade" },
     ],
   },
   {

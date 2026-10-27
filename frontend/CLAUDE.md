@@ -1146,6 +1146,13 @@ the KAN-296 cutover.
   (130 to 250 ms frames at 4x CPU). A sidebar row eases its current fill to
   the clicked row the moment its link starts navigating (`useLinkStatus`),
   while `aria-current` stays on the committed row.
+- **The seeker shell is flat** (2026-10-27, `docs/design.md`, The two
+  shells): one white surface, the panel, the bar, the page and Scout's
+  panel ruled apart by hairlines, with no lavender frame, gaps, rounded
+  corners or shadows. Three floating panels on `--color-frame` came first;
+  the user found they wasted room and read as separate containers. A
+  height worked out from the shell's chrome (the job rail's
+  `100svh-4rem`) changes with it.
 - **The seeker layout has a `@modal` slot** (KAN-364): a route opened as a
   modal over the current page through an intercepting route, Settings
   for now (`(seeker)/@modal/(.)settings`). A soft navigation to its address

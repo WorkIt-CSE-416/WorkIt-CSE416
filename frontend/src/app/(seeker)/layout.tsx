@@ -24,24 +24,22 @@ import { QueryField } from "./search/query-field";
 import { SeekerSidebar } from "./seeker-sidebar";
 
 /**
- * Chrome shared by every signed-in seeker screen: three white rounded panels
- * floating on a lavender ground (--color-frame). The section panel runs the
- * full height on the left; beside it, the top bar, and under the bar the page
- * itself. It replaced a docked layout (a full-width bar ruled off from a
- * full-bleed panel and a white page) after the user pointed at a dashboard
- * built this way: separate rounded panels read as calmer and more finished
- * than one box cut into regions by hairlines.
+ * Chrome shared by every signed-in seeker screen: one white surface, ruled
+ * into regions by hairlines (--color-border-subtle). The section panel runs
+ * the full height on the left, flush with the window; beside it, the top bar
+ * along the top, and under the bar the page itself.
  *
- * THE INSET IS 12px EVERYWHERE: around the window's edge, between the panel
- * and the bar, and between the bar and the page. The panel pads itself 12px
- * (FLOATING in @/components/app-sidebar), which is why --sidebar-width and
- * --sidebar-width-icon are set here 24px wider than shadcn's own: the panel
- * keeps its 256px open and a 72px collapsed rail, and the in-flow gap shadcn
- * keeps beside it stays the panel's exact width in both states. The column
- * beside it pads itself the same 12px on every side but the left, where the
- * panel's own padding already is. Below md the panel is a sheet, so the
- * column takes the left edge too, and the inset tightens to 8px on a phone,
- * where 12px would be 24px of a 375px screen.
+ * IT WAS THREE FLOATING PANELS until 2026-10-27: white rounded panels 12px
+ * apart on a lavender ground (--color-frame), after a dashboard the user had
+ * pointed at. The user then found the frame wasted room, about 36px of every
+ * width and height went to lavender and gaps, and the three boxes read as
+ * separate containers rather than one app. Keep it flat: no ground colour,
+ * no gaps, no rounded or shadowed shell panels.
+ *
+ * --sidebar-width and --sidebar-width-icon are set here to the panel's own
+ * 256px open and 72px collapsed rail (FLOATING in @/components/app-sidebar
+ * lines its logo, captions and icons up on that rail), so the in-flow gap
+ * shadcn keeps beside the panel is its exact width in both states.
  *
  * The panel is pinned open or opens on hover (KAN-300,
  * components/hover-sidebar.tsx): unpinned, it is the icon rail, and pointing
@@ -79,7 +77,7 @@ import { SeekerSidebar } from "./seeker-sidebar";
  * out below sm, where the bar has room for the toggle, the logo, the
  * magnifier and the photo and little else.
  *
- * THE PAGE PANEL is the one scrolling element, so the bar and the section
+ * THE PAGE is the one scrolling element, so the bar and the section
  * panel stay put and a scrollbar runs only beside the page. SidebarInset
  * renders the <main>, so pages render a <div>; it is the skip link's target.
  *
@@ -154,14 +152,14 @@ export default async function AppLayout({
        document, and the bar and the panel would scroll away with it. */
     <HoverSidebarProvider
       defaultPinned={defaultOpen}
-      className="bg-frame h-svh"
+      className="bg-panel h-svh"
       /* Read by the canvas rule in globals.css, which paints the overscroll
-         strip the frame's lavender to match. */
+         strip white to match. */
       data-shell="seeker"
       style={
         {
-          "--sidebar-width": "17.5rem",
-          "--sidebar-width-icon": "6rem",
+          "--sidebar-width": "16rem",
+          "--sidebar-width-icon": "4.5rem",
         } as React.CSSProperties
       }
     >
@@ -187,8 +185,10 @@ export default async function AppLayout({
       {/* The bar and the page. It holds no --panel-gain: eased here, above
           everything, it restyled the whole page on every frame of a pin
           (see "EVERY READER OF --panel-gain CARRIES ITS OWN" above). */}
-      <div className="flex min-w-0 flex-1 flex-col gap-2 p-2 sm:gap-3 sm:p-3 md:pl-0">
-        <header className="bg-panel border-rail-border shadow-panel rounded-shell flex h-16 shrink-0 items-center gap-3 border px-3 sm:gap-4 sm:px-4">
+      <div className="flex min-w-0 flex-1 flex-col">
+        {/* 64px with its rule, the panel header's height, so the two rules
+            beneath them run as one line across the window. */}
+        <header className="bg-panel border-border-subtle flex h-16 shrink-0 items-center gap-3 border-b px-3 sm:gap-4 sm:px-4">
           <SidebarPinToggle className="text-ink-meta hover:text-ink hover:bg-app size-10 shrink-0 rounded-full [&_svg]:size-4" />
 
           {/* The panel's header carries the logo from md; below that the
@@ -231,10 +231,10 @@ export default async function AppLayout({
             default, which would push the column past h-svh and hand the
             scroll back to the document. overscroll-contain so a fling that
             outruns the page does not chain onto the document. */}
-        {/* A row, so Scout's panel docks beside the page as one more floating
-            panel instead of covering it; min-w-0 lets the page shrink for it.
-            No gap: the panel stays mounted to glide open and closed, and
-            brings its own 12px with it, so a closed one adds nothing.
+        {/* A row, so Scout's panel docks beside the page, ruled off by its
+            own border, instead of covering it; min-w-0 lets the page shrink
+            for it. The panel stays mounted to glide open and closed, and a
+            closed one takes no room.
             data-scout-row lets the page settle as the panel opens and closes
             (scout-page-in and -out in globals.css), and the row clips the
             panel where it slides in and out past the window's edge. */}
@@ -242,7 +242,7 @@ export default async function AppLayout({
           <SidebarInset
             id="content"
             tabIndex={-1}
-            className="bg-panel border-rail-border shadow-panel rounded-shell min-h-0 min-w-0 flex-1 overflow-x-clip overflow-y-auto overscroll-contain border focus:outline-none"
+            className="bg-panel min-h-0 min-w-0 flex-1 overflow-x-clip overflow-y-auto overscroll-contain focus:outline-none"
           >
             {/* The page, as wide as the <main> is with the panel open (see "A
                 PAGE KEEPS THE WIDTH" above), and the container it breaks on.

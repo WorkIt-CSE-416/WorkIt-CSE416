@@ -225,29 +225,24 @@ export type SidebarNavItem = NavRowBase &
 export type SidebarNavGroup = { label?: string; items: SidebarNavItem[] };
 
 /**
- * FLOATING is the seeker shell's panel: a white rounded panel inset 12px on
- * the --color-frame ground, beside a top bar and a page drawn the same way,
- * after the floating-panel dashboards the user pointed at. It runs the full
- * height, so it carries the logo in its own header rather than leaving it to
- * the bar, and a group heading, when a group has one, is a small uppercase
- * caption, the way those dashboards label a panel's sections.
+ * FLOATING is the seeker shell's panel. The name is historical: it floated
+ * as a white rounded panel inset 12px on a lavender frame until 2026-10-27,
+ * when the user found the frame wasted room, and it now sits flush with the
+ * window's left edge, white, ruled off from the bar and the page by one
+ * hairline (see (seeker)/layout.tsx). It runs the full height, so it
+ * carries the logo in its own header rather than leaving it to the bar, and
+ * a group heading, when a group has one, is a small uppercase caption.
  *
  * It is shadcn's default `sidebar` variant restyled, not its own `floating`
- * one. shadcn's floating variant pads the panel 8px and sizes the collapsed
- * rail and the in-flow gap beside it with two separate calc()s that both
- * assume that 8px, so a 12px inset would leave the gap 8px short of the
- * collapsed panel. The default variant sizes both from --sidebar-width and
- * --sidebar-width-icon alone, so the shell widens those by the inset (see
- * its layout.tsx) and the padding is just padding.
+ * one, which pads the panel 8px and sizes the rail and the gap beside it
+ * for that padding. The default variant sizes both from --sidebar-width and
+ * --sidebar-width-icon alone, which the shell sets.
  *
  * DOCKED is the company shell's: the full-bleed lavender panel under a
  * full-width bar, offset by the bar's height. See "WHY IT IS OFFSET".
  */
 const FLOATING =
-  "p-3 group-data-[side=left]:border-r-0 " +
-  "[&>[data-slot=sidebar-inner]]:rounded-shell [&>[data-slot=sidebar-inner]]:border-rail-border " +
-  "[&>[data-slot=sidebar-inner]]:bg-panel [&>[data-slot=sidebar-inner]]:shadow-panel " +
-  "[&>[data-slot=sidebar-inner]]:overflow-hidden [&>[data-slot=sidebar-inner]]:border";
+  "group-data-[side=left]:border-border-subtle [&>[data-slot=sidebar-inner]]:bg-panel";
 
 /**
  * THE FLOATING PANEL'S SPACING is set on one vertical line, 28px in from the
@@ -263,7 +258,7 @@ const FLOATING =
  * whether the panel is open (16 + 12 + 8) or collapsed (72 / 2). The rail was
  * 48px with 32px squares, which left 8px either side and felt pinched; 72
  * gives each icon 28px of air on both sides. The shell sets the matching
- * --sidebar-width-icon (72px plus the panel's 12px inset each side).
+ * --sidebar-width-icon.
  *
  * The captions carry the same 12px inside the group as the rows, so their
  * text starts where the icons do, and each group gets 8px above and below so
@@ -310,18 +305,17 @@ export function AppSidebar({
       collapsible="icon"
       className={cn(
         floating ? FLOATING : "border-rail-border h-auto",
-        // A peek opens over the page (hover-sidebar.tsx); the docked panel
-        // has only a border, so it takes a shadow to read as above it. The
-        // floating one already has its own.
-        peeking && !floating && "shadow-panel",
+        // A peek opens over the page (hover-sidebar.tsx); a panel with only
+        // a border takes a shadow to read as above it.
+        peeking && "shadow-panel",
         className,
       )}
       // Unpinned on a desktop, pointing at the rail or tabbing into it opens
       // it over the page. Never on the phone's sheet, which has no hover.
       {...(!isMobile && hoverProps)}
     >
-      {/* The sheet keeps shadcn's lavender, so on a phone the floating panel
-          paints its own white to match the panels it opens over. */}
+      {/* The sheet keeps shadcn's lavender, so on a phone the seeker panel
+          paints its own white to match the shell it opens over. */}
       <div className={cn("flex size-full min-h-0 flex-col", floating && "bg-panel")}>
         {isMobile && (
           <SidebarHeader className="border-rail-border h-16 shrink-0 flex-row items-center gap-3 border-b px-4 sm:px-8">
@@ -371,9 +365,9 @@ export function AppSidebar({
  * narrowing panel clips it. Nothing swaps mid-way and nothing jumps. The link
  * stays live on the rail, where the mark alone still goes home.
  *
- * 64px tall, the top bar's height, so the panel's header and the bar beside
- * it share one top line and one bottom line, and the logo sits on the bar's
- * centre line as the reference's does.
+ * 64px tall with its bottom rule, the top bar's height, so the header's rule
+ * and the bar's run on as one line across the window, and the logo sits on
+ * the bar's centre line.
  *
  * THE PIN sits at the header's right whenever the panel is open (KAN-300):
  * a panel opened by hover covers the bar's own toggle, since it runs the
@@ -390,7 +384,7 @@ function PanelBrand({ href }: { href: string }) {
   return (
     <SidebarHeader
       className={cn(
-        "h-16 shrink-0 flex-row items-center p-0 pl-7 transition-[padding] duration-200 ease-linear",
+        "border-border-subtle h-16 shrink-0 flex-row items-center border-b p-0 pl-7 transition-[padding] duration-200 ease-linear",
         collapsed && "pl-[19px]",
       )}
     >
