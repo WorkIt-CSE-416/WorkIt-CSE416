@@ -959,6 +959,16 @@ removed at cutover, not before. Until then a change must work on both.
   KAN-212: apply it only where the code that stopped mapping the column
   (`d89a4ef`, on `main` since KAN-212) is deployed. Applied first, an older
   deploy's upload INSERT names the column and fails.
+- **`89d598a1667d` (KAN-298's notifications) is on main ahead of its
+  code**, with the merge revision `c4e8a2f6d1b3` joining it to
+  `a7d3e5f1c2b4` (both branch off `b9e2c4d6f8a1`). It was applied to the
+  shared database from KAN-298's open branch (`alembic/CLAUDE.md`, "Commit
+  the migration in the same PR that applies it"), so its file came to main
+  first, unchanged. Until KAN-298's models merge, main maps neither
+  `notifications` nor `applicant_profiles.job_alerts_enabled`:
+  `alembic revision --autogenerate` proposes dropping both, so delete
+  those lines from any migration it writes, and `alembic check` reports
+  them. The column has a `false` default, so main's inserts are unaffected.
 - **Apply `a7d3e5f1c2b4` (the stages after applied and
   `application_events`, KAN-413) as soon as it merges.** It only adds enum
   values and a table that nothing reads yet, so applying it is safe for
