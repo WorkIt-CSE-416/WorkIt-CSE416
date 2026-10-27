@@ -189,10 +189,13 @@ def board_pages(monkeypatch, pages: dict[tuple[str, int], dict]) -> list[tuple[s
         facets = payload["appliedFacets"]
         value = next(iter(facets.values()))[0] if facets else ""
         asked.append((value, payload["offset"]))
-        assert payload["limit"] == providers.WORKDAY_PAGE and payload["searchText"] == ""
+        assert (
+            payload["limit"] == providers.systems.workday.WORKDAY_PAGE
+            and payload["searchText"] == ""
+        )
         return pages[(value, payload["offset"])]
 
-    monkeypatch.setattr(providers, "_post_json", post)
+    monkeypatch.setattr(providers.fetch, "_post_json", post)
     return asked
 
 
@@ -219,7 +222,7 @@ class TestTokens:
 class TestList:
     def test_a_board_is_read_page_by_page_and_each_page_is_paced(self, monkeypatch) -> None:
         # Shrunk: two postings a page, so three postings take two requests.
-        monkeypatch.setattr(providers, "WORKDAY_PAGE", 2)
+        monkeypatch.setattr(providers.systems.workday, "WORKDAY_PAGE", 2)
         asked = board_pages(
             monkeypatch,
             {
@@ -262,7 +265,7 @@ class TestList:
     def test_pages_that_do_not_add_up_are_no_read(self, monkeypatch) -> None:
         # Shrunk page. A posting added mid-read pushes one along: page two repeats
         # the last of page one, and one posting is never seen.
-        monkeypatch.setattr(providers, "WORKDAY_PAGE", 2)
+        monkeypatch.setattr(providers.systems.workday, "WORKDAY_PAGE", 2)
         board_pages(
             monkeypatch,
             {
@@ -276,14 +279,14 @@ class TestList:
     def test_a_later_page_not_found_is_no_read(self, monkeypatch) -> None:
         # Only the first request can say the board is gone; a 404 on a later page
         # is a page we could not read, and closes nothing.
-        monkeypatch.setattr(providers, "WORKDAY_PAGE", 2)
+        monkeypatch.setattr(providers.systems.workday, "WORKDAY_PAGE", 2)
 
         def post(url: str, payload: dict) -> dict:
             if payload["offset"]:
                 raise BoardNotFound(url)
             return {"total": 3, "jobPostings": AXOS_ROWS[:2]}
 
-        monkeypatch.setattr(providers, "_post_json", post)
+        monkeypatch.setattr(providers.fetch, "_post_json", post)
         with pytest.raises(Incomplete):
             providers.workday(AXOS, "Axos")
 
@@ -298,14 +301,16 @@ class TestList:
         def post(url: str, payload: dict) -> dict:
             raise urllib.error.HTTPError(url, 422, "Unprocessable Entity", None, None)
 
-        monkeypatch.setattr(providers, "_post_json", post)
+        monkeypatch.setattr(providers.fetch, "_post_json", post)
         with pytest.raises(BoardNotFound):
             providers.workday("nosuchtenant123.wd5/external", "Nobody")
 
 
 class TestCappedBoards:
     def test_nvidias_filters_give_its_real_size_and_slices(self) -> None:
-        size, slices = providers._workday_slices({"total": 2000, "facets": NVIDIA_FACETS})
+        size, slices = providers.systems.workday._workday_slices(
+            {"total": 2000, "facets": NVIDIA_FACETS}
+        )
         assert size == 2676
         # Job family: its largest value, Engineering's 1,723, is under the cap.
         # Job type would not do: Regular Employee alone is 2,267.
@@ -314,11 +319,11 @@ class TestCappedBoards:
 
     def test_one_filter_alone_is_not_trusted(self) -> None:
         alone = {"total": 2000, "facets": NVIDIA_FACETS[:1]}
-        assert providers._workday_slices(alone) == (2000, None)
+        assert providers.systems.workday._workday_slices(alone) == (2000, None)
 
     def test_a_capped_board_is_read_in_slices(self, monkeypatch) -> None:
         # Shrunk cap (3): NVIDIA's shape, three postings in two job families.
-        monkeypatch.setattr(providers, "WORKDAY_CAP", 3)
+        monkeypatch.setattr(providers.systems.workday, "WORKDAY_CAP", 3)
         facets = [
             {"facetParameter": "jobFamilyGroup", "values": [
                 {"id": "eng", "count": 2}, {"id": "univ", "count": 1}]},
@@ -362,7 +367,7 @@ class TestPostedOn:
         ],
     )
     def test_a_relative_date_counts_back_from_today(self, text, posted) -> None:
-        assert providers._workday_posted(text, date(2026, 10, 10)) == posted
+        assert providers.systems.workday._workday_posted(text, date(2026, 10, 10)) == posted
 
     def test_the_list_date_is_relative_to_the_day_of_the_read(self, monkeypatch) -> None:
         board_pages(monkeypatch, {("", 0): {"total": 1, "jobPostings": AXOS_ROWS[:1]}})
@@ -389,7 +394,9 @@ class TestRecord:
 
     def test_its_record_gives_places_date_type_and_pay(self, monkeypatch) -> None:
         asked: list[str] = []
-        monkeypatch.setattr(providers, "_get_json", lambda url: asked.append(url) or BOSE_RECORD)
+        monkeypatch.setattr(
+            providers.fetch, "_get_json", lambda url: asked.append(url) or BOSE_RECORD
+        )
         job = providers.describe(self.bose())
         assert asked == [
             "https://boseallaboutme.wd503.myworkdayjobs.com/wday/cxs/boseallaboutme"
@@ -407,7 +414,7 @@ class TestRecord:
         assert job.page is not None and job.page.requisition == "R29270"
 
     def test_remote_type_is_the_stated_work_style(self, monkeypatch) -> None:
-        monkeypatch.setattr(providers, "_get_json", lambda url: GM_RECORD)
+        monkeypatch.setattr(providers.fetch, "_get_json", lambda url: GM_RECORD)
         listed = self.listed(
             "generalmotors.wd5/careers_gm",
             "/job/Sunnyvale-California-United-States-of-America/X_JR-202622146",
@@ -442,10 +449,10 @@ class TestRecord:
     )
     def test_remote_type_wording(self, value, style) -> None:
         # Every value here was a `remoteType` on the first full sweep.
-        assert providers._workday_work_style(value) == style
+        assert providers.systems.workday._workday_work_style(value) == style
 
     def test_the_list_never_overwrites_the_records_date(self, monkeypatch) -> None:
-        monkeypatch.setattr(providers, "_get_json", lambda url: BOSE_RECORD)
+        monkeypatch.setattr(providers.fetch, "_get_json", lambda url: BOSE_RECORD)
         described = providers.describe(self.bose())
         monday = store.update(None, [described], [], RunStats(), "2026-10-07T09:00:00+00:00")
         # The next run's list counts back a day off, then says "30+ Days Ago".
@@ -656,7 +663,7 @@ class TestScrapeOne:
     board = providers.Board("workday", "cat.wd5/caterpillarcareers", "Caterpillar")
 
     def test_a_disallowed_careers_site_is_skipped(self, monkeypatch) -> None:
-        monkeypatch.setattr(providers, "_post_json", lambda url, payload: pytest.fail("read"))
+        monkeypatch.setattr(providers.fetch, "_post_json", lambda url, payload: pytest.fail("read"))
         robots = SimpleNamespace(
             allows=lambda url: "/caterpillarcareers/" not in url, pace=lambda url: None
         )

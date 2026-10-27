@@ -105,7 +105,7 @@ def reads_logo(ats: str) -> bool:
 def page_url(ats: str, token: str) -> str:
     page = providers.PROVIDERS[ats].logo_page
     assert page is not None, f"{ats} has no logo page"
-    return page.format(token, **providers._parts(ats, token))
+    return page.format(token, **providers.registry._parts(ats, token))
 
 
 def extract(ats: str, page: str) -> str | None:

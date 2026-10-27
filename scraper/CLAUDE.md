@@ -58,7 +58,28 @@ one failed silently: the `.eu.` that `PATTERNS` missed dropped 26 companies.
 `polite.SHARED_PACE` and `FOLD_CASE` are now read off the records. Field pairs a
 reader needs together are tested (`TestProviderRecords`).
 
-1. A reader in `providers.py` taking `(token, company)` and returning `list[Job]`.
+**`workit_scraper/providers/` is a package, one module per hiring system** under
+`systems/`: its reader, its page reader if it has one, and its `PROVIDER` record.
+`providers/__init__.py` registers each in `PROVIDERS` and re-exports the public
+names, so `from workit_scraper.providers import Job` still works; a private
+helper stays in its module (`providers.systems.lever._lever_pay`). The shared
+parts are `model` (Board, Page, Job, Provider, the errors), `fetch` (requests,
+`_iso`), `text` (HTML to text, `_page`, work style, places) and `registry`
+(`PROVIDERS`, the URL builders, `describe`). It was one 1,640-line file until
+2026-10-26.
+
+- **Readers call the request helpers through the module, `fetch._get_json(...)`,**
+  never a name imported from it. A test swaps `providers.fetch._get_json` once
+  for every reader; a reader that imported the name would keep the real one and
+  a test would reach the network.
+- **`PROVIDERS` is one dict, made empty in `registry` and filled by
+  `__init__`**, because each reader builds its URLs from the registry and the
+  registry names every reader: filled any earlier, the imports would loop. A
+  test that swaps an entry (`swap_provider`) swaps it for every caller.
+
+1. A module in `providers/systems/` with a reader taking `(token, company)` and
+   returning `list[Job]`, named in `providers/__init__.py`'s imports and
+   `PROVIDERS`.
    One that makes more than one request per board sets `paged`, takes `pace` and
    calls it before each request after the first (Workday's `workday`).
 2. Its `Provider`: `listing_url` (which the reader and the robots check both
@@ -191,7 +212,7 @@ real posting and the measurements behind them.
 ## Description sections
 
 A stored description is its kept sections under fixed headings (KAN-229):
-`providers._page` stores `cap(sections.kept(full))`. `sections.split` reads a
+`providers.text._page` stores `cap(sections.kept(full))`. `sections.split` reads a
 description into role, responsibilities, requirements, preferred, pay, benefits,
 legal and the rest by its headings, and `kept` keeps the intro, Overview,
 Responsibilities, Requirements, Preferred Qualifications, Pay and Details, then

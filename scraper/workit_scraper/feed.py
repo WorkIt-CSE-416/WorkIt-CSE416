@@ -18,7 +18,7 @@ from pathlib import Path
 
 from workit_scraper.shortlist import Role, Tag
 
-# `providers._work_style` yields exactly these three labels, or None. Indexed, not
+# `providers.text._work_style` yields exactly these three labels, or None. Indexed, not
 # `.get`: a fourth label is a change there that must be decided here too, not
 # silently dropped to None.
 WORK_STYLE = {"Remote": "remote", "Hybrid": "hybrid", "On site": "onsite"}
