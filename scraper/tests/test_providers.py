@@ -849,6 +849,108 @@ class TestSharedPace:
         assert polite._pace_key("https://notbamboohr.com") == "https://notbamboohr.com"
 
 
+class Clock:
+    """`time` for `fetch` alone: sleeping moves the clock, and nothing waits."""
+
+    def __init__(self) -> None:
+        self.now = 1000.0
+        self.slept: list[float] = []
+
+    def monotonic(self) -> float:
+        return self.now
+
+    def sleep(self, seconds: float) -> None:
+        self.slept.append(seconds)
+        self.now += seconds
+
+
+def too_many(url: str, retry_after: str | None = None) -> urllib.error.HTTPError:
+    headers = {"Retry-After": retry_after} if retry_after else {}
+    return urllib.error.HTTPError(url, 429, "Too Many Requests", headers, None)
+
+
+class TestHostHold:
+    """A 429 holds every request to its host, not only the one that got it."""
+
+    ACME = "https://acme.wd5.myworkdayjobs.com/wday/cxs/acme/jobs"
+    GLOBEX = "https://globex.wd1.myworkdayjobs.com/wday/cxs/globex/jobs"
+
+    @pytest.fixture(autouse=True)
+    def clock(self, monkeypatch) -> Clock:
+        clock = Clock()
+        monkeypatch.setattr(providers.fetch, "time", clock)
+        monkeypatch.setattr(providers.fetch, "_holds", {})
+        return clock
+
+    def answers(self, *replies):
+        """A fetch that gives each reply in turn: an error is raised, bytes returned."""
+        replies = list(replies)
+
+        def fetch() -> bytes:
+            reply = replies.pop(0)
+            if isinstance(reply, Exception):
+                raise reply
+            return reply
+
+        return fetch
+
+    def test_the_retry_waits_out_the_hold(self, clock: Clock) -> None:
+        fetch = self.answers(too_many(self.ACME), b"{}")
+        assert providers.fetch._fetched(self.ACME, fetch) == b"{}"
+        assert clock.slept == [providers.fetch.HOLD_FIRST]
+
+    def test_another_tenant_on_the_host_waits_too(self, clock: Clock) -> None:
+        with pytest.raises(urllib.error.HTTPError):
+            providers.fetch._fetched(
+                self.ACME, self.answers(too_many(self.ACME), too_many(self.ACME))
+            )
+        clock.slept.clear()
+        providers.fetch._fetched(self.GLOBEX, self.answers(b"{}"))
+        assert clock.slept == [2.0]
+
+    def test_each_hold_after_the_last_is_up_doubles_to_a_minute(self, clock: Clock) -> None:
+        for _ in range(8):
+            providers.fetch._hold("myworkdayjobs.com", None)
+            clock.now += 120
+        assert providers.fetch._holds["myworkdayjobs.com"][1] == providers.fetch.HOLD_LONGEST
+        lengths = []
+        providers.fetch._holds.clear()
+        for _ in range(3):
+            providers.fetch._hold("myworkdayjobs.com", None)
+            lengths.append(providers.fetch._holds["myworkdayjobs.com"][1])
+            clock.now += 120
+        assert lengths == [1.0, 2.0, 4.0]
+
+    def test_a_burst_of_429s_counts_once(self, clock: Clock) -> None:
+        for _ in range(5):
+            providers.fetch._hold("myworkdayjobs.com", None)
+        assert providers.fetch._holds["myworkdayjobs.com"] == (clock.now + 1.0, 1.0)
+
+    def test_retry_after_sets_the_hold_up_to_a_minute(self, clock: Clock) -> None:
+        providers.fetch._hold("myworkdayjobs.com", "7")
+        assert providers.fetch._holds["myworkdayjobs.com"][1] == 7.0
+        clock.now += 10
+        providers.fetch._hold("myworkdayjobs.com", "3600")
+        assert providers.fetch._holds["myworkdayjobs.com"][1] == 60.0
+
+    def test_a_success_after_the_hold_starts_over(self, clock: Clock) -> None:
+        providers.fetch._hold("myworkdayjobs.com", "8")
+        clock.now += 10
+        providers.fetch._fetched(self.ACME, self.answers(b"{}"))
+        assert providers.fetch._holds == {}
+
+    def test_a_success_sent_before_the_hold_leaves_it(self, clock: Clock) -> None:
+        providers.fetch._hold("myworkdayjobs.com", "8")
+        providers.fetch._release("myworkdayjobs.com")
+        assert "myworkdayjobs.com" in providers.fetch._holds
+
+    def test_a_5xx_holds_no_one(self, clock: Clock) -> None:
+        error = urllib.error.HTTPError(self.ACME, 503, "Unavailable", {}, None)
+        providers.fetch._fetched(self.ACME, self.answers(error, b"{}"))
+        assert providers.fetch._holds == {}
+        assert clock.slept == [2]
+
+
 class TestProviderRecords:
     """A field one reader needs without its partner fails nowhere loudly: a page URL
     with no reader is never read, a logo pattern with no page never matches."""

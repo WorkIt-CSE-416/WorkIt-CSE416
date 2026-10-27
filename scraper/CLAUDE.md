@@ -379,6 +379,15 @@ including `build_boards.py`'s fetches from GitHub.
   boards at eight in flight would otherwise run at ~60 requests a second.
 - **A provider is paced as one host even when each company is its own
   origin** (`polite.SHARED_PACE`, for Recruitee, BambooHR and Workday hosts).
+- **A 429 holds the whole host** (`fetch._hold`, as Freehire does): every
+  request to it waits, on every worker, for its `Retry-After`, else
+  `HOLD_FIRST` (1 second), doubling on each 429 after a hold is up, to
+  `HOLD_LONGEST` (a minute), which also caps `Retry-After`. The host is
+  `polite._pace_key`'s, so one Workday tenant's 429 holds all of
+  myworkdayjobs.com. A 429 during a hold is the same burst and counts once; a
+  success after the hold starts the next one at a second again. The request
+  that got it is retried once, after the hold. A 5xx holds no one: it is one
+  server failing, not a host asking us to slow down.
 - `web.get` (and `web.post`, for Workday) refuses a cross-origin redirect:
   robots.txt was checked for the origin we asked for.
 
