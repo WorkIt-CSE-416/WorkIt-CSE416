@@ -28,6 +28,7 @@ import { cn } from "@/lib/cn";
 
 import { Editor } from "../../../resumes/[resumeId]/editor";
 import { wording } from "../../../resumes/[resumeId]/model";
+import { ResumeTitle } from "../../../resumes/[resumeId]/resume-title";
 import {
   changesOf,
   movesOf,
@@ -38,13 +39,12 @@ import {
 } from "../../../resumes/[resumeId]/tailor-review";
 import { OriginalResume } from "./resume-preview";
 import type { JobListing } from "../../listings";
-import { ResumeTitle } from "./resume-title";
 import { TailorJobLine } from "./tailor-header";
 
 /**
  * Tailor's review step (docs/tailor_resume.md, "Suggestions"), kept quiet
  * after Quinncia's resume review: the tailored resume under its name and
- * the editor's slim toolbar (`compact`), and beside it the Suggestions
+ * the editor's slim toolbar (`SlimBar`), and beside it the Suggestions
  * panel or, from the toolbar's View Original, the source resume
  * (`original`). Each changed line has a small dot in the page's margin and
  * is highlighted only while its suggestion is pointed at, focused or open.
@@ -62,7 +62,7 @@ export function TailorReview({
   name,
   job,
   ...editor
-}: ComponentProps<typeof Editor> & {
+}: Omit<ComponentProps<typeof Editor>, "heading"> & {
   /** The tailored resume's name, the page's title. */
   name: string;
   /** The job it is tailored for, named under the title (`TailorJobLine`). */
@@ -86,7 +86,6 @@ export function TailorReview({
       {noRecord}
       <Editor
         {...editor}
-        compact
         heading={
           <div className="flex min-w-0 flex-col gap-0.5">
             <ResumeTitle resumeId={editor.resumeId} name={name} />

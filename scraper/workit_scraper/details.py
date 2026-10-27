@@ -372,7 +372,7 @@ def job_type_label(value: object) -> str | None:
 
 
 _THIS_ROLE = r"\b(?:this|the)\s+(?:role|position|internship|job)\s+is\s+(?:fully\s+|100%\s+)?"
-# Labels, as `providers._work_style` makes them.
+# Labels, as `providers.text._work_style` makes them.
 _WORK_STYLE = tuple(
     (label, re.compile(pattern, re.I))
     for label, pattern in (

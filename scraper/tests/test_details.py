@@ -284,12 +284,12 @@ class TestCloudflare:
     }
 
     def test_in_office_is_a_work_style(self, monkeypatch) -> None:
-        monkeypatch.setattr(providers, "_get_json", lambda url: self.PAGE)
+        monkeypatch.setattr(providers.fetch, "_get_json", lambda url: self.PAGE)
         job = providers.describe_greenhouse(greenhouse_job())
         assert job.facts.work_style == "On site"
 
     def test_the_office_is_the_place(self, monkeypatch) -> None:
-        monkeypatch.setattr(providers, "_get_json", lambda url: self.PAGE)
+        monkeypatch.setattr(providers.fetch, "_get_json", lambda url: self.PAGE)
         job = providers.describe_greenhouse(greenhouse_job())
         assert job.places == ("Lisbon, Portugal",)
 
@@ -329,7 +329,7 @@ class TestWholeDescription:
         }
 
     def fetch(self, monkeypatch, *rows: dict) -> list[Job]:
-        monkeypatch.setattr(providers, "_get_json", lambda url: {"jobs": list(rows)})
+        monkeypatch.setattr(providers.fetch, "_get_json", lambda url: {"jobs": list(rows)})
         return providers.ashby("terranova", "Terranova")
 
     def test_pay_past_the_cut_is_found(self, monkeypatch) -> None:
@@ -465,13 +465,13 @@ class TestProviderPay:
                 ]
             }
         }
-        assert providers._ashby_pay(row) == Pay("USD", 10000, 10000, "month")
+        assert providers.systems.ashby._ashby_pay(row) == Pay("USD", 10000, 10000, "month")
 
     def test_lever_salary_range(self) -> None:
         row = {
             "salaryRange": {"currency": "USD", "interval": "per-hour-wage", "min": 30, "max": 40}
         }
-        assert providers._lever_pay(row) == Pay("USD", 30, 40, "hour")
+        assert providers.systems.lever._lever_pay(row) == Pay("USD", 30, 40, "hour")
 
     def test_greenhouse_ranges_across_zones(self) -> None:
         # Robinhood posts one range per pay zone; the card shows the span.
@@ -479,7 +479,7 @@ class TestProviderPay:
             {"min_cents": 4400, "max_cents": 4400, "currency_type": "USD", "title": "Zone 1"},
             {"min_cents": 3960, "max_cents": 3960, "currency_type": "USD", "title": "Zone 2"},
         ]
-        assert providers._greenhouse_pay(ranges) == Pay("USD", 39.6, 44, "hour")
+        assert providers.systems.greenhouse._greenhouse_pay(ranges) == Pay("USD", 39.6, 44, "hour")
 
     def test_greenhouse_titled_hourly(self) -> None:
         ranges = [
@@ -490,11 +490,11 @@ class TestProviderPay:
                 "title": "Hourly Pay Range",
             }
         ]
-        assert providers._greenhouse_pay(ranges) == Pay("USD", 19, 28, "hour")
+        assert providers.systems.greenhouse._greenhouse_pay(ranges) == Pay("USD", 19, 28, "hour")
 
     def test_greenhouse_employment_type_field(self) -> None:
         metadata = [{"name": "Employment Type", "value": "Full Time"}]  # Attentive
-        assert providers._greenhouse_job_type(metadata) == "full_time"
+        assert providers.systems.greenhouse._greenhouse_job_type(metadata) == "full_time"
 
 
 class TestFeed:
@@ -644,7 +644,7 @@ class TestStatedInterval:
                 ]
             }
         }
-        assert providers._ashby_pay(row) == Pay("USD", 7500, 7500, "month")
+        assert providers.systems.ashby._ashby_pay(row) == Pay("USD", 7500, 7500, "month")
 
     def test_lever_weekly(self) -> None:
         row = {
@@ -655,13 +655,13 @@ class TestStatedInterval:
                 "max": 2000,
             }
         }
-        assert providers._lever_pay(row) == Pay("USD", 1800, 2000, "week")
+        assert providers.systems.lever._lever_pay(row) == Pay("USD", 1800, 2000, "week")
 
     def test_an_impossible_amount_for_the_period_is_dropped(self) -> None:
         row = {
             "salaryRange": {"currency": "USD", "interval": "per-year-salary", "min": 40, "max": 45}
         }
-        assert providers._lever_pay(row) is None
+        assert providers.systems.lever._lever_pay(row) is None
 
 
 def test_ashby_values_are_never_carried_forward() -> None:
@@ -831,11 +831,23 @@ class TestAuditFindings:
 class TestProviderWorkStyleFields:
     def test_greenhouse_working_conditions(self) -> None:
         assert (
-            providers._greenhouse_work_style([{"name": "Working Conditions", "value": "Hybrid"}])
+            providers.systems.greenhouse._greenhouse_work_style(
+                [{"name": "Working Conditions", "value": "Hybrid"}]
+            )
             == "Hybrid"
         )
-        assert providers._greenhouse_work_style([{"name": "Is Remote?", "value": True}]) == "Remote"
-        assert providers._greenhouse_work_style([{"name": "Cost Center", "value": "4991"}]) is None
+        assert (
+            providers.systems.greenhouse._greenhouse_work_style(
+                [{"name": "Is Remote?", "value": True}]
+            )
+            == "Remote"
+        )
+        assert (
+            providers.systems.greenhouse._greenhouse_work_style(
+                [{"name": "Cost Center", "value": "4991"}]
+            )
+            is None
+        )
 
 
 class TestSponsorship:

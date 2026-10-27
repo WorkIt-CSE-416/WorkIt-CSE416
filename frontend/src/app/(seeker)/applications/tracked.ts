@@ -45,7 +45,7 @@ function placeOf(job: JobListing) {
 }
 
 /** Each hiring system's name, by a piece of its hosts. The scraper reads
- *  these (scraper/workit_scraper/providers.py); Workday's company job boards
+ *  these (scraper/workit_scraper/providers/); Workday's company job boards
  *  sit on myworkdayjobs.com. */
 const HIRING_SYSTEMS: [string, string][] = [
   ["greenhouse.io", "Greenhouse"],

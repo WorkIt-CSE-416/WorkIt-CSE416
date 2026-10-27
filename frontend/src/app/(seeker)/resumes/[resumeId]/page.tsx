@@ -13,6 +13,7 @@ import { BackLink } from "../../back-link";
 import { SEEKER_GUTTER } from "../../gutter";
 import { EDITOR_PARENT } from "./back";
 import { Editor } from "./editor";
+import { ResumeTitle } from "./resume-title";
 
 export const metadata: Metadata = { title: "Resume Editor" };
 
@@ -24,7 +25,9 @@ export const metadata: Metadata = { title: "Resume Editor" };
  * render's boxes (KAN-209), edited in place (KAN-218). It needs the render,
  * the bank, the resume's choices and the profile (the header's fields); if
  * any of the last three fails it shows the error state.
- * On a phone it takes the layout in ./phone.tsx (KAN-219).
+ * On a phone it takes the layout in ./phone.tsx (KAN-219). The title is
+ * the editor's title row (`ResumeTitle`, renamed in place, as on Tailor's
+ * review; KAN-411), so a failed load still shows it, over the error.
  *
  * THE RENDER IS STARTED HERE AND NOT AWAITED (KAN-368). It is a LaTeX
  * compile, the slowest read in the app, and every other read here is a
@@ -47,6 +50,7 @@ export default async function ResumeEditorPage({ params }: PageProps<"/resumes/[
   ]);
   const name = resumes.data?.find((r) => r.id === resumeId)?.name ?? "Resume";
   const error = bank.error ?? choices.error ?? profileError;
+  const title = <ResumeTitle as="h1" resumeId={resumeId} name={name} />;
 
   return (
     <div className={cn("max-w-app mx-auto w-full flex-1 py-6", SEEKER_GUTTER)}>
@@ -54,7 +58,6 @@ export default async function ResumeEditorPage({ params }: PageProps<"/resumes/[
           editor had no way back but the sidebar until KAN-258; a phone has
           its own arrow in ./phone.tsx. */}
       <BackLink parent={EDITOR_PARENT} />
-      <h1 className="text-heading text-ink">{name}</h1>
       {bank.data && choices.data && profile ? (
         <Editor
           resumeId={resumeId}
@@ -62,23 +65,27 @@ export default async function ResumeEditorPage({ params }: PageProps<"/resumes/[
           initialBank={bank.data}
           initialChoices={choices.data}
           initialHeader={profile}
+          heading={title}
         />
       ) : (
-        <EmptyState
-          Icon={CloudSlashIcon}
-          title="This Resume Isn't Loading Right Now"
-          className="mt-4"
-          action={
-            <a
-              href={`/resumes/${encodeURIComponent(resumeId)}`}
-              className={buttonClasses({ variant: "secondary", size: "sm" })}
-            >
-              Try Again
-            </a>
-          }
-        >
-          {error}
-        </EmptyState>
+        <>
+          <div className="mt-4">{title}</div>
+          <EmptyState
+            Icon={CloudSlashIcon}
+            title="This Resume Isn't Loading Right Now"
+            className="mt-3"
+            action={
+              <a
+                href={`/resumes/${encodeURIComponent(resumeId)}`}
+                className={buttonClasses({ variant: "secondary", size: "sm" })}
+              >
+                Try Again
+              </a>
+            }
+          >
+            {error}
+          </EmptyState>
+        </>
       )}
     </div>
   );
