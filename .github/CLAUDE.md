@@ -89,8 +89,9 @@ its boards are read for a fixed share of each run and take about four runs to go
 round, which keeps the job well inside its 30-minute timeout (`scraper/CLAUDE.md`).
 **A change to the cron changes `RUN_EVERY` in `scraper/workit_scraper/store.py`
 too**: quiet boards take turns by that slot. Each run keeps `feed.json`,
-`internships.html` and `metrics.json` (each provider's share of the run) as an
-artifact for a week.
+`closings.json` (why each stored job is not in the feed, which the import
+reads beside `feed.json`), `internships.html` and `metrics.json` (each
+provider's share of the run) as an artifact for a week.
 
 It was every six hours until KAN-166. GitHub started those runs up to five hours
 late and skipped some outright (2026-10-08 to 10-09), so a posting could wait
@@ -100,6 +101,12 @@ boards; the scraper's robots.txt and per-site pacing still govern each run, and
 the concurrency group queues a late run rather than overlapping it. Going below
 an hour buys minutes, multiplies that traffic and raises the odds of a board
 rate-limiting the shared GitHub runners, which would stall every job on it.
+
+**Still open: GitHub runs about half of the schedule.** Between 2026-10-16 and
+10-27 it started 50 of the 94 runs due at :17 (53%), a median 102 minutes late,
+so the real gap between runs was a median 5.5 hours, at most 8.7. The fix being
+weighed is a Cloudflare Cron Trigger that starts this workflow through GitHub's
+API at exact times (`scraper/docs/coverage.md`, "Later").
 
 - **Secret:** `DATABASE_URL` (the API's pooler URL, from the root `.env`), in the
   repo's Actions secrets. Without it the run fails at the import step and says so.

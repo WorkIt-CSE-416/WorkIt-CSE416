@@ -152,7 +152,7 @@ def test_cli_passes_embedding_limit(monkeypatch, tmp_path):
     assert import_jobs.main([str(feed), "--embed-limit", "100"]) == 0
     run.assert_awaited_once_with(
         feed, dry_run=False, allow_mass_close=False, embed_limit=100,
-        keywords_limit=import_jobs.KEYWORDS_PER_RUN,
+        keywords_limit=import_jobs.KEYWORDS_PER_RUN, closings_path=None,
     )
 
 
@@ -161,7 +161,17 @@ def test_cli_passes_keywords_limit(monkeypatch, tmp_path):
     monkeypatch.setattr(import_jobs, "_run", run)
     feed = tmp_path / "feed.json"
     assert import_jobs.main([str(feed), "--keywords-limit", "0"]) == 0
-    run.assert_awaited_once_with(feed, dry_run=False, allow_mass_close=False, embed_limit=None, keywords_limit=0)
+    run.assert_awaited_once_with(
+        feed, dry_run=False, allow_mass_close=False, embed_limit=None, keywords_limit=0, closings_path=None,
+    )
+
+
+def test_cli_passes_the_closings_file(monkeypatch, tmp_path):
+    run = AsyncMock(return_value=import_jobs.Report())
+    monkeypatch.setattr(import_jobs, "_run", run)
+    feed, closings = tmp_path / "feed.json", tmp_path / "why.json"
+    assert import_jobs.main([str(feed), "--closings", str(closings)]) == 0
+    assert run.await_args.kwargs["closings_path"] == closings
 
 
 def test_keywords_only_skips_feed_and_import(monkeypatch, capsys):

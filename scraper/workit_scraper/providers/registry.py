@@ -16,7 +16,13 @@ def _parts(ats: str, token: str) -> dict[str, str]:
     tenant `nvidia`, on data centre `wd5`, careers site `nvidiaexternalcareersite`.
     A tenant can run several sites (Boeing has 40), each its own board. An Oracle
     token's two: "edbz.fa.us2/cx" is the host `edbz.fa.us2.oraclecloud.com` and the
-    careers site `cx`."""
+    careers site `cx`. A Lever token is its board's slug, or "eu/{slug}" for a
+    board in Lever's EU data centre, whose API and pages have hosts of their own
+    (`api.eu.lever.co`, `jobs.eu.lever.co`); a slug never holds a "/"."""
+    if ats == "lever":
+        region, _, slug = token.rpartition("/")
+        eu = "eu." if region == "eu" else ""
+        return {"slug": slug, "api": f"api.{eu}lever.co", "site": f"jobs.{eu}lever.co"}
     if ats == "oracle":
         host, site = token.split("/")
         return {"host": host, "site": site}

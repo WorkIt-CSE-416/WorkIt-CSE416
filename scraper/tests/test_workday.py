@@ -667,17 +667,20 @@ class TestScrapeOne:
         robots = SimpleNamespace(
             allows=lambda url: "/caterpillarcareers/" not in url, pace=lambda url: None
         )
-        assert run._scrape_one(self.board, robots) == (run.Outcome.SKIPPED, [])
+        assert run._scrape_one(self.board, robots) == (run.Outcome.SKIPPED, [], "robots.txt")
 
     def test_too_large_is_skipped_and_incomplete_failed(self, swap_provider) -> None:
         robots = SimpleNamespace(allows=lambda url: True, pace=lambda url: None)
-        for error, outcome in ((TooLarge, run.Outcome.SKIPPED), (Incomplete, run.Outcome.FAILED)):
+        for error, outcome, why in (
+            (TooLarge, run.Outcome.SKIPPED, "too large"),
+            (Incomplete, run.Outcome.FAILED, "incomplete"),
+        ):
 
             def fail(token: str, company: str, *, pace, error=error) -> list[Job]:
                 raise error("x")
 
             swap_provider("workday", read=fail)
-            assert run._scrape_one(self.board, robots) == (outcome, [])
+            assert run._scrape_one(self.board, robots) == (outcome, [], why)
 
 
 class TestBudget:
@@ -690,7 +693,7 @@ class TestBudget:
             providers.Board("workday", "c.wd5/y", "C"),
         ]
         swap_provider("workday", budget_s=-1)
-        monkeypatch.setattr(run, "_scrape_one", lambda b, robots: (run.Outcome.OK, []))
+        monkeypatch.setattr(run, "_scrape_one", lambda b, robots: (run.Outcome.OK, [], None))
         _, stats, read, _ = run.scrape(boards, SimpleNamespace(), {})
         assert read == ["lever/b"]
         assert (stats.boards_ok, stats.boards_deferred) == (1, 2)

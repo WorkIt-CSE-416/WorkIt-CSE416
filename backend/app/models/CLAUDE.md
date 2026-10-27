@@ -861,6 +861,16 @@ Anything that lists jobs *across* companies must decide whether it wants
 `posted_at` is when the job board says the job went up; `created_at` is when
 the row was stored. Nothing sets `posted_at` for a company's job yet.
 
+**`closed_reason` says why the feed import closed a scraped job**
+(`bd730e8ab454`, KAN-412): text with the CHECK `job_postings_closed_reason`
+(`gone_from_board`, `board_gone`, `filtered_out`, `replaced`, `unknown`),
+**not an enum**, so a sixth reason is one migration that rolls back, where
+`ALTER TYPE ... ADD VALUE` does not (Enum changes, above). Null while a job is
+open, for a company's own job and for a job closed before the column; there
+is no backfill. Only the import writes it (`../CLAUDE.md`, The feed import).
+A reason added to the CHECK goes into the import's `CLOSED_REASONS` too, or
+the import files it as `unknown`.
+
 **Company search uses a trigram GIN index** on `company_name`
 (`55f3c813be50`), so `ILIKE '%term%'` and the fuzzy `<%` operator look
 matches up instead of scanning. Measured on 2026-10-06: about 140 KB for the

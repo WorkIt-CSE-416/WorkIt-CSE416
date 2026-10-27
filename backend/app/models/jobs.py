@@ -85,6 +85,10 @@ class Job_Post(BaseModel):
                         default=dto.job_post_status.published,
                         server_default=dto.job_post_status.published.name)
     closes_at: Mapped[datetime.datetime | None] = mapped_column(DateTime(timezone=True))
+    # Why the feed import closed a scraped job (bd730e8ab454: gone_from_board,
+    # board_gone, filtered_out, replaced or unknown); null while open, for a
+    # company's own job and for one closed before the column.
+    closed_reason: Mapped[str | None] = mapped_column(Text)
     posted_at: Mapped[datetime.datetime | None] = mapped_column(DateTime(timezone=True))
     # The posting's meaning as a vector
     embedding: Mapped[list[float] | None] = mapped_column(
@@ -129,6 +133,11 @@ class Job_Post(BaseModel):
         CheckConstraint(
             "company_id IS NOT NULL OR (company_name IS NOT NULL AND apply_url IS NOT NULL)",
             name="scraped_job_completed"
+        ),
+        CheckConstraint(
+            "closed_reason IS NULL OR closed_reason IN"
+            " ('gone_from_board','board_gone','filtered_out','replaced','unknown')",
+            name="job_postings_closed_reason"
         ),
 
         Index(  # index by job status ranked from earliest posted to latest 
