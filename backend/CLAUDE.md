@@ -974,6 +974,11 @@ removed at cutover, not before. Until then a change must work on both.
   values and a table that nothing reads yet, so applying it is safe for
   every deploy; the Applications Tracker's stage menu and Add Event, which
   follow in their own PR, answer 500 on a database without it.
+- **Apply `bd730e8ab454` (`job_postings.closed_reason`, KAN-412) as soon as
+  it merges.** It only adds a nullable column and a CHECK every row meets, and
+  no code maps it yet, so it is safe for every deploy. The import that writes
+  it (why a scraped job closed) follows in its own PR, whose dry-run scrape
+  check and every scheduled import fail on a database without it.
 - **Apply `a3d7f1c9e2b4` (`bank_skills.built_resume_id`, resume-local
   skills) before the deploy that maps it.** Every skill insert names the
   column, so deployed first, uploads, Import Again and Add skill answer
