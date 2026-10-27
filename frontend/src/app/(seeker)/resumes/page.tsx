@@ -34,7 +34,7 @@ export default async function ResumesPage() {
   const [resumes, uploaded] = await Promise.all([listBuiltResumes(), listResumes()]);
 
   return (
-    <div className={cn("max-w-app mx-auto w-full flex-1 py-6", SEEKER_GUTTER)}>
+    <div className={cn("max-w-dashboard mx-auto w-full flex-1 py-6", SEEKER_GUTTER)}>
       {resumes.data && !uploaded.error ? (
         <BuiltResumes initial={resumes.data} initialUploaded={uploaded.resumes} />
       ) : (

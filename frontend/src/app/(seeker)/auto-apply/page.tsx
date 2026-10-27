@@ -112,7 +112,7 @@ export default async function AutoApplyPage() {
   }));
 
   return (
-    <div className={cn("max-w-app mx-auto w-full flex-1 py-6", SEEKER_GUTTER)}>
+    <div className={cn("max-w-dashboard mx-auto w-full flex-1 py-6", SEEKER_GUTTER)}>
       {/* So a queued job's page goes back here, not to the feed. */}
       <RememberFeed />
       <AutoApplyPanel hasResume={builtList.length + uploadedList.length > 0}>

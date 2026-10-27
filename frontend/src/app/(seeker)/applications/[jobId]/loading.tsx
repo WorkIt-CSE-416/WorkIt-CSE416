@@ -13,7 +13,7 @@ import { JOB_PAGE_WIDTH, JobViewHeaderSkeleton } from "../../jobs/[jobId]/job-vi
  * the page (./page.tsx) waits on the scored tracker read and on the job
  * page's loader, so a click on a tracker row or card drew nothing new until
  * both answered. Now the prefetched state below is drawn in the click's
- * next frame (../../dashboard/loading.tsx says why only the slow pages have
+ * next frame (../../home/loading.tsx says why only the slow pages have
  * one).
  *
  * PREFETCHING THIS ROUTE IS CHEAP ONLY BECAUSE ITS TITLE IS. A loading

@@ -30,7 +30,7 @@ export const metadata: Metadata = {
  *
  * The URL carries all of it (./query.ts): the view, the search and the
  * Status and field dropdowns in the filter bar, and the list's sort. So the filtering
- * stays on the server, and the Dashboard can link straight to a filtered
+ * stays on the server, and Home can link straight to a filtered
  * list or one application. The list's column layout is the browser's own
  * (./column-layout.ts).
  *
@@ -51,7 +51,7 @@ export const metadata: Metadata = {
  */
 export default async function ApplicationsPage({ searchParams }: PageProps<"/applications">) {
   const query = parseQuery(await searchParams);
-  // The side panel's old links (the Dashboard's Next Up, a bookmark) open
+  // The side panel's old links (Home's Next Up, a bookmark) open
   // the application's own page instead (KAN-256).
   if (query.app) redirect(applicationHref(query.app));
   const [{ applications, error }, updates] = await Promise.all([getTracker(), getUpdatesOnce()]);
@@ -61,28 +61,13 @@ export default async function ApplicationsPage({ searchParams }: PageProps<"/app
   const shown = filterApplications(all, query);
 
   return (
-    // EVERY PIXEL THE PANEL GIVES (KAN-256): no width cap, and when the
-    // sidebar collapses the page takes back the room the shell holds empty.
-    // The shell keeps pages at their open-sidebar width (--panel-gain, "A
-    // PAGE KEEPS THE WIDTH" in ../layout.tsx) so layouts never rearrange
-    // mid-collapse; this page's list is a table that scrolls sideways, so
-    // the room only shows more columns. A negative margin of half the gain on
-    // each side widens the page itself, easing with the panel, while its
-    // @…/main queries still see the open width, so nothing on it reflows.
-    // --panel-gain does not inherit, so this wrapper sets and eases its own
-    // copy with the shell's classes ("EVERY READER OF --panel-gain CARRIES
-    // ITS OWN", ../layout.tsx); without them it reads 0px and the page stops
-    // widening. Reading pages keep --container-app: text past ~80 characters
-    // a line is hard to follow.
-    <div
-      className={cn(
-        "-mx-[calc(var(--panel-gain)/2)] flex-1 py-6 transition-[--panel-gain] duration-200 ease-linear md:in-data-[pinned=false]:[--panel-gain:calc(var(--sidebar-width)_-_var(--sidebar-width-icon))]",
-        SEEKER_GUTTER,
-      )}
-    >
+    // EVERY PIXEL THE SHELL GIVES (KAN-256): no width cap, where every
+    // other seeker page stops at max-w-dashboard. The list is a table that
+    // scrolls sideways, so more room only shows more columns.
+    <div className={cn("flex-1 py-6", SEEKER_GUTTER)}>
       {/* The switcher is two glyphs, so it fits beside the title at every
           width: the subtitle wraps rather than pushing it onto a line of its
-          own. items-start, as on the Dashboard, so the switcher sits level
+          own. items-start, as on Home, so the switcher sits level
           with the title rather than the subtitle. */}
       <div className="flex items-start justify-between gap-4">
         <div className="min-w-0">

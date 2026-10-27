@@ -32,11 +32,12 @@ import { SentNote } from "./sent-note";
  */
 export type JobView = Awaited<ReturnType<typeof loadJobView>>;
 
-/** A job's page width, a little wider than the reading pages' `max-w-app`
- *  (KAN-279): at 1024px the header's six facts felt cramped. About the Role
- *  keeps its own 68ch measure, so its lines do not grow with it. The job page
- *  and the application's own page share it, so the two stay identical. */
-export const JOB_PAGE_WIDTH = "mx-auto w-full max-w-[70rem] flex-1 py-6";
+/** A job's page width: every seeker page's `max-w-dashboard` (2026-10-27;
+ *  it was 70rem, after 1024px left the header's six facts cramped, KAN-279).
+ *  About the Role keeps its own 68ch measure, so its lines do not grow with
+ *  it. The job page and the application's own page share it, so the two
+ *  stay identical. */
+export const JOB_PAGE_WIDTH = "max-w-dashboard mx-auto w-full flex-1 py-6";
 
 /** What the application page already knows about its job from the
  *  tracker's row: its stage and when it was applied. Null when the row is

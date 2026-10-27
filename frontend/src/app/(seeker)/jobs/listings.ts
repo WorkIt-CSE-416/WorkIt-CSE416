@@ -22,7 +22,7 @@ import {
  * imported job_postings rows (backend/app/routers/jobs.py). Mirrors
  * backend/app/schemas/jobs.py field for field. Read by /jobs, by /search (which
  * sends its words as `q`), and by their Load More (./actions) a page at a
- * time. The Dashboard's Strong Matches reads the Best Match scores here too.
+ * time. Home's Strong Matches reads the Best Match scores here too.
  *
  * NOT IN ./data.ts, THOUGH THAT IS THE USUAL SEAM. Client components import
  * ./data's types (`filters.tsx`, `filter-query.ts`), and `apiGet` is
@@ -171,7 +171,7 @@ export async function getRecommendedPage(query: string, offset: number): Promise
 }
 
 /**
- * The seeker's `count` best-scoring open jobs, best first: the Dashboard's Top
+ * The seeker's `count` best-scoring open jobs, best first: Home's Top
  * Matches (KAN-342), from the same scores as Best Match. No score floor, so a
  * new seeker whose bank only gives weak matches still sees their best ones.
  * "empty" when there is nothing to score against (the API's 404 for an empty
@@ -200,7 +200,7 @@ const RECOMMENDED_MAX = 500;
 
 /**
  * When each job posting from the last `days` days that scores at least
- * `minMatch` for the seeker went up: the Dashboard's Strong Matches (KAN-342),
+ * `minMatch` for the seeker went up: Home's Strong Matches (KAN-342),
  * from the same scores as Best Match. "empty" when there is nothing to score
  * against (the API's 404 for an empty bank, or 403 for a company account);
  * null when the API can't say. Pages on past the API's limit, since

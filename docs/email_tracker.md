@@ -3,7 +3,7 @@
 Status: **draft, not yet reviewed by the team.** Build step 1 is built
 (migration `a7d3e5f1c2b4`, not yet applied to the shared database): the
 three stages after applied, the stage menu, and events added by hand,
-which feed the timeline, the Calendar and the Dashboard's Interviewing
+which feed the timeline, the Calendar and Home's Interviewing
 number. Nothing that reads Gmail is built. Every other decision below is a
 proposal; the open questions are at the end.
 
@@ -54,7 +54,7 @@ a mailbox:
 | One email, read | The reading pane, as Gmail lays out an open message: the subject, the pill with the date it names, Open Application and Add to Calendar as icons; one quiet card only when it needs review ("Move Research Internship to Interviewing?", Move and Not Now; or Link to Job); the sender's line ("to me", received time, Reply); the text. Reply opens Gmail on the subject; Add to Calendar opens Google Calendar's own new-event page, filled in |
 | The emails waiting, on the tracker | One line above the Applications Tracker's filters, only while some wait: "3 emails need a look · Open Inbox" |
 | Every email about one job | An **Emails** tab on the application's page, beside Your Application and Job Description, the Inbox's rows for that job; a row opens it in the Inbox |
-| What an accepted email changes | The stage, the application's timeline and Interviews & Dates, the Calendar, and the Dashboard's Next Up, Up Next and Waiting |
+| What an accepted email changes | The stage, the application's timeline and Interviews & Dates, the Calendar, and Home's Next Up, Up Next and Waiting |
 
 **Most emails ask nothing** (open question 2, decided 2026-10-27): an
 email that changes no stage (Application Received, Assessment, Update, or
@@ -88,10 +88,10 @@ Inbox      (All) (Needs Review 3) (Interviews) (Assessments) (Offers) (Rejection
 └────────────────────────────────┴───────────────────────────────────────────┘
 ```
 
-The Calendar page and the Dashboard's Next Up, Up Next and Waiting were
+The Calendar page and Home's Next Up, Up Next and Waiting were
 hidden because the tracker stored no dated events (the sidebar's Calendar
 line is commented out, and `src/proxy.ts` sends `/calendar` to the
-Dashboard). Events typed by hand (flow 6) bring them back before Gmail
+Home). Events typed by hand (flow 6) bring them back before Gmail
 does.
 
 ### 1. Connect Gmail
@@ -431,12 +431,12 @@ Under the $200 a month budget.
 1. **Built: the stages and events by hand.** Migration `a7d3e5f1c2b4`
    (the three stages, `application_events`); the stage menu and
    Interviews & Dates with Add Event and Delete on an application's page;
-   the timeline, the Calendar (back in the sidebar) and the Dashboard's
+   the timeline, the Calendar (back in the sidebar) and Home's
    Interviewing number read them. Useful without Gmail. The migration is
    merged to `main` in its own PR and applied by the user before the
    deploy. **Not done in step 1:** editing an event (delete and add it
-   again), and the Dashboard's Next Up, Up Next and Waiting, still archived
-   (`frontend/docs/screens.md`, Seeker Dashboard).
+   again), and Home's Next Up, Up Next and Waiting, still archived
+   (`frontend/docs/screens.md`, Seeker Home).
 2. **Built: the email screens that need no Google.** The Inbox (`/inbox`,
    a list and a reading pane), the one-line notice on the Applications
    Tracker, the Emails tab on each application's page, `GET .../emails`,
@@ -445,7 +445,7 @@ Under the $200 a month budget.
    marked Coming Soon). They show
    nothing until something proposes an event. Still to do: the
    Applications Tracker's prompt card, which waits for Connect Gmail to
-   work, and the Dashboard's Next Up, Up Next and Waiting.
+   work, and Home's Next Up, Up Next and Waiting.
 3. **Google projects and Connect Gmail:** `gmail_connections` and the
    Gmail columns (a migration), the consent flow, the callback, encrypted
    keys, Disconnect. **Submit for verification now.**

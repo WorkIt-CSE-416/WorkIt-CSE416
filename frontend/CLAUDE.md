@@ -1116,41 +1116,48 @@ the KAN-296 cutover.
   model updates `/privacy` in the same change, with `LEGAL_UPDATED`.
 - **The Calendar is back** (KAN-413): events added on an application's
   page give it something to show, so `src/proxy.ts` no longer sends
-  `/calendar` to the Dashboard and its sidebar row is restored. **The
-  Dashboard's Next Up, Up Next and Waiting are still archived** (KAN-261),
-  their code kept; `docs/screens.md`, Seeker Dashboard, says how to bring
+  `/calendar` to Home and its sidebar row is restored. **The
+  Home's Next Up, Up Next and Waiting are still archived** (KAN-261),
+  their code kept; `docs/screens.md`, Seeker Home, says how to bring
   them back, which the email tracker's build order lists next
   (`../docs/email_tracker.md`).
 - **The Applications board is archived** (KAN-256): the list is the
   default view, and `?view=board` opens it. `applications/board.tsx` stays;
   `docs/screens.md`, Applications, says how to bring it back.
-- **The sidebar is pinned or opens on hover** (KAN-300,
+- **The seeker shell is flat, and its panel is a rail that is always
+  open** (2026-10-27, `docs/design.md`, The two shells): one white surface,
+  the 88px rail, the bar, the page and Scout's panel ruled apart by
+  hairlines, with no lavender frame, gaps, rounded corners or shadows. Each
+  rail tile is an icon over its name (an item's `short` where the name does
+  not fit), and below md the rail is a sheet of full-name rows. The panel
+  never moves the page, so there is no pin, no peek and no `--panel-gain`
+  on the seeker side. **Every seeker page stops at `max-w-dashboard`**
+  (1440px) inside `SEEKER_GUTTER`, so all start at Home's left edge; the
+  Applications Tracker alone has no cap. At `max-w-app` (1024px) they sat
+  centred between wide empty margins beside the rail. Prose keeps its own
+  measure (About the Role's 68ch).
+  The user found the floating panels wasted room, and the 256px panel that
+  opened over the page on hover a flaw. A height worked out from the
+  shell's chrome (the job rail's `100svh-4rem`) changes with it. A sidebar
+  row eases its current fill to the clicked row the moment its link starts
+  navigating (`useLinkStatus`), while `aria-current` stays on the committed
+  row.
+- **The company sidebar is pinned or opens on hover** (KAN-300,
   `components/hover-sidebar.tsx`). A hover opens shadcn's provider over the
   page, so anything sized by the panel's width reads `useSidebarPin().pinned`,
-  never shadcn's `state`, or it moves on every hover (`docs/design.md`).
-  The CSS side of that rule: `HoverSidebarProvider` writes
-  `data-pinned="true"|"false"` on the shadcn wrapper in both shells, and CSS
-  sized by the pinned width keys on it, never on `data-state`, which a peek
-  flips to expanded. **`--panel-gain` is registered with `inherits: false`**
-  (KAN-368), so every element that reads `var(--panel-gain)` must carry
-  `transition-[--panel-gain] duration-200 ease-linear
-  md:in-data-[pinned=false]:[--panel-gain:calc(var(--sidebar-width)_-_var(--sidebar-width-icon))]`
-  itself, or it reads 0px and never moves. The readers today are
-  `[data-scout-page]` in `(seeker)/layout.tsx`, the Applications wrapper,
-  Tailor's review page (`jobs/[jobId]/tailor/page.tsx`: a work area beside
-  its Suggestions panel, so it widens with the sidebar closed, up to
-  `max-w-dashboard`), and the job rail's frame and aside
-  (`jobs/jobs-rail.tsx`); keep the 200 ms
-  linear equal to shadcn's gap. It used to inherit and ease on the column
-  above the page, which restyled about 4,258 elements on every frame of a pin
-  (130 to 250 ms frames at 4x CPU). A sidebar row eases its current fill to
-  the clicked row the moment its link starts navigating (`useLinkStatus`),
-  while `aria-current` stays on the committed row.
+  never shadcn's `state`, or it moves on every hover (`docs/design.md`); in
+  CSS, key on the `data-pinned` that `HoverSidebarProvider` writes, never on
+  `data-state`, which a peek flips to expanded.
+- **The seeker's home is Home, at `/home`** (2026-10-27; it was the
+  Dashboard at `/dashboard`, and the company side keeps its Dashboard).
+  `src/proxy.ts` moves `/dashboard` on to `/home` with its query, for old
+  links and bookmarks. The route handler that sends each account to its
+  own home moved from `/home` to `/go-home` to make room.
 - **The seeker layout has a `@modal` slot** (KAN-364): a route opened as a
   modal over the current page through an intercepting route, Settings
   for now (`(seeker)/@modal/(.)settings`). A soft navigation to its address
   opens the modal there; a hard load reaches the route's own layout, which
-  for Settings draws the same modal over the Dashboard, so Settings is a
+  for Settings draws the same modal over Home, so Settings is a
   modal on every way in (`docs/screens.md`, Settings). The slot's
   `default.tsx` and `[...catchAll]/page.tsx` both render nothing: without
   the catch-all, a link out of the modal to another seeker page would leave
@@ -1164,7 +1171,7 @@ the KAN-296 cutover.
   `<Suspense fallback={null}>` inside `ShallowRouting`, with a
   `display: contents` div inside the boundary** (KAN-368). Without the
   boundary a hard load sent no byte of the shell until the page's slowest
-  read answered (on the Dashboard, a whole scoring pass). Never wrap
+  read answered (on Home, a whole scoring pass). Never wrap
   `{modal}`, and never add a `loading.tsx` beside the layout: it would wrap
   `@modal` too. The div must stay: React plays a `<ViewTransition>` enter on
   a Suspense reveal only when no DOM node sits between the two
@@ -1185,7 +1192,7 @@ the KAN-296 cutover.
   skeleton stands at the height of what replaces it, so nothing below jumps.
   A page with two long reads streams each in its own `<Suspense>` over a
   skeleton of its shape, and starts every read before its first `await` (the
-  Dashboard: only the account is awaited). **Settings' modal has no
+  Home: only the account is awaited). **Settings' modal has no
   `loading.tsx`**: one under `@modal` drew a second modal and backdrop over
   the first; each section streams in its own boundary instead. A clickable
   table row holds its hover tint while its navigation is pending
@@ -1201,9 +1208,9 @@ the KAN-296 cutover.
   must be `○`, `/features/*` `●`, and `.next/prerender-manifest.json` must
   list `/`. CI's build has no env, so it shows `○` even with a `cookies()`
   read (`createSupabaseServerClient` throws first): CI cannot catch this. The
-  404's button goes to `/home` (`app/home/route.ts`), which reads the session
+  404's button goes to `/go-home` (`app/go-home/route.ts`), which reads the session
   on click and redirects with `homePath()`; the label is always "Back to
-  Dashboard".
+  Home".
 - **A fresh visit to `/jobs` draws in one round trip** (KAN-368). The page
   draws Best Match with the saved filters in the same response, and
   `jobs/canonical-url.tsx` then writes that address in place (a shallow
@@ -1249,7 +1256,7 @@ the KAN-296 cutover.
   still applied**: every "did they apply?" check is `hasApplied` in
   `(seeker)/applied.ts`, never `stage === "applied"` (the job cards' Applied
   button, Save's toast, Auto Apply's button, Top Matches' rows). The
-  Dashboard's Interviewing number counts the interviewing stage. **Emails
+  Home's Interviewing number counts the interviewing stage. **Emails
   live on their own page, the Inbox** (`(seeker)/inbox/`, KAN-413): a
   list beside a reading pane over `GET .../emails` (`getEmailsOnce`), with
   each application's Emails tab drawing the same rows. The Applications
@@ -1257,7 +1264,7 @@ the KAN-296 cutover.
   (`getUpdatesOnce`); an email table there was removed as a second copy
   of the list (`docs/screens.md`, Inbox). One pill per email kind
   (`applications/email-kinds.tsx`). No sidebar badge: one was removed; Settings > Integrations is the
-  design only until the Google sign-in is built (`docs/screens.md`). The Dashboard's four numbers are all live and all links
+  design only until the Google sign-in is built (`docs/screens.md`). Home's four numbers are all live and all links
   (KAN-342); its Strong Matches reads the Best Match scores
   (`getMatchDates`), and Top Matches under them lists the twelve
   best-scoring jobs as flat rows that scroll inside a tile, with no score
@@ -1537,7 +1544,8 @@ are in `docs/auth.md`.
   (KAN-368). A new marketing page adds its name to the matcher's lookahead;
   one left out still works, with one proxy call more. Every session-reading
   path and every path with a proxy redirect (`/company*`,
-  `/onboarding/company`, `/calendar`) must stay matched. **Still open:** time
+  `/onboarding/company`, `/dashboard`) must stay matched, and so must
+  `/go-home`, which reads the session. **Still open:** time
   spent only on marketing pages no longer extends the 7-day idle cookie; the
   first app request does. It is a convenience, not security: the
   API is reachable without Next and checks every token. Its session step
@@ -1547,7 +1555,7 @@ are in `docs/auth.md`.
   (`redirectIfSignedIn` in `lib/session.ts`); the landing page at `/` never
   does, so a signed-in student can still read it. Every sign-in path picks
   the destination with `homePath` (`lib/auth.ts`): company, onboarding, or
-  the Dashboard. Before this, a saved session went unnoticed: the landing
+  Home. Before this, a saved session went unnoticed: the landing
   page's Log In always opened the form, and Google's account chooser
   (`prompt: "select_account"` in `oauth-actions.ts`) made it look like a
   fresh sign-in every visit. `/signup/choose-account-type` is not redirected:
@@ -1824,7 +1832,7 @@ are in `docs/auth.md`.
 ## Screens, design and motion
 
 - **Screens**: before changing how a screen behaves (Jobs page and filters, job
-  posting page and card, seeker Dashboard, Applications, Calendar, My Profile,
+  posting page and card, seeker Home, Applications, Calendar, My Profile,
   Resumes & Experiences, Scout's panel, applicant onboarding, Settings,
   company screens), read its section in `docs/screens.md`.
 - **Design**: before changing a shell, a page's layout or widths, a colour

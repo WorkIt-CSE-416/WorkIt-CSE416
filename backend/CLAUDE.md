@@ -1007,7 +1007,7 @@ removed at cutover, not before. Until then a change must work on both.
   `application_events`, KAN-413) before the deploy that writes them.** It
   only adds enum values and a table, so the running code never meets
   them; deployed first, the Applications Tracker, an application's page and
-  the Dashboard's numbers answer 500 for every student (they ask for the new
+  Home's numbers answer 500 for every student (they ask for the new
   stages and `GET .../events`). The Jobs page and matches keep working
   either way: their applied-job filter names only the stages before applied
   (`dto.BEFORE_APPLIED`, the models' CLAUDE.md). Merge the migration to

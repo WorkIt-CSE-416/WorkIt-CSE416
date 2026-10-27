@@ -21,7 +21,7 @@ export const metadata: Metadata = {
  */
 export default function HelpPage() {
   return (
-    <div className={cn("max-w-app mx-auto w-full flex-1 py-6", SEEKER_GUTTER)}>
+    <div className={cn("max-w-dashboard mx-auto w-full flex-1 py-6", SEEKER_GUTTER)}>
       <h1 className="text-heading text-ink">Help</h1>
       <p className="text-body text-ink-meta mt-1">
         Guides for finding roles, applying and tracking your search.

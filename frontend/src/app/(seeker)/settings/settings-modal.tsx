@@ -35,7 +35,7 @@ function sectionOf(pathname: string): SectionKey {
  * Two ways in. A soft navigation from a seeker page (the account menu's
  * Settings) opens it over that page (../@modal/(.)settings), and closing
  * goes back to it. A hard load or a reload of a Settings address opens it
- * over the Dashboard (./layout.tsx), and closing goes there (`closeTo`).
+ * over Home (./layout.tsx), and closing goes there (`closeTo`).
  * Escape, the close button and a click outside all close; with unsaved
  * edits they ask first (./unsaved-changes). That question is nested in the
  * modal's content, so the modal's focus trap lets it take focus.

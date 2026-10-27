@@ -41,7 +41,7 @@ export default async function UploadedResumePage({ params }: PageProps<"/resumes
   const error = listError ?? fileError;
 
   return (
-    <div className={cn("max-w-app mx-auto w-full flex-1 py-6", SEEKER_GUTTER)}>
+    <div className={cn("max-w-dashboard mx-auto w-full flex-1 py-6", SEEKER_GUTTER)}>
       {/* Back to the page that opened it, else the list (../../../back-link.tsx). */}
       <BackLink parent={{ href: "/resumes", name: "Resumes" }} />
       {resume && !error ? (

@@ -21,7 +21,7 @@ import type { Attention } from "./data";
  * What is waiting on the company, in two halves: the longest wait as the
  * page's one solid colour, and the rest as an open list further down. The
  * company's version of the seeker Dashboard's Next up and Up next
- * ((seeker)/dashboard/next-up-hero.tsx and up-next.tsx), and the same shape:
+ * ((seeker)/home/next-up-hero.tsx and up-next.tsx), and the same shape:
  * what is needed first, whose it is second, how long last.
  */
 

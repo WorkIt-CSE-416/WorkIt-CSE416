@@ -4,7 +4,7 @@
  * rectangle. Decoration only.
  *
  * Shared by the two Dashboards' heroes: the seeker's Next Up card
- * ((seeker)/dashboard/next-up-hero.tsx) and the company's Most Urgent card
+ * ((seeker)/home/next-up-hero.tsx) and the company's Most Urgent card
  * (company/attention.tsx). The parent must be `relative overflow-hidden`.
  */
 export function HeroArcs() {

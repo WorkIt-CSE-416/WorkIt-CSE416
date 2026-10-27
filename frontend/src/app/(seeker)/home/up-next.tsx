@@ -13,8 +13,8 @@ import { SectionCard } from "./section-card";
  * "Needs your attention", and the same shape: the commitment first, whose it
  * is second, when last.
  *
- * A tile like every Dashboard section (./section-card.tsx), down the
- * Dashboard's right-hand column.
+ * A tile like every Home section (./section-card.tsx), down the
+ * Home's right-hand column.
  *
  * EACH ROW WEARS ITS STAGE, from ../stage-colors.ts: the same fill and the
  * same white glyph as that stage's board column header.

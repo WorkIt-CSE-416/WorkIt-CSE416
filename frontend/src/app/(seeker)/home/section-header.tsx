@@ -6,7 +6,7 @@ import { SectionLink } from "@/components/ui/section-link";
  * section puts its link in the same place, at the same weight: they had
  * drifted to the bottom of one list and into a sentence-long button on
  * another. The link itself is ui/section-link.tsx, which the company
- * Dashboard uses too.
+ * Home uses too.
  *
  * `link.label` is for a screen reader when the visible words lean on the
  * heading for context ("View All" of what).

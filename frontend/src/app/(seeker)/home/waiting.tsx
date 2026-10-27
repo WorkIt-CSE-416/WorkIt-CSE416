@@ -6,7 +6,7 @@ import { SectionCard } from "./section-card";
 
 /**
  * Applications with no reply yet, by how long they have waited — the seeker's
- * "Time in stage". A tile like the Dashboard's others: the total first, then
+ * "Time in stage". A tile like Home's others: the total first, then
  * one column per verdict, oldest on the right.
  *
  * COLUMNS, NOT A RING. The buckets are ordered and the question is how much

@@ -23,7 +23,7 @@ export function Greeting({
   className,
 }: {
   firstName: string;
-  /** h1 on the Dashboard, where the greeting is the page's heading. */
+  /** h1 on Home, where the greeting is the page's heading. */
   as?: "p" | "h1";
   className?: string;
 }) {

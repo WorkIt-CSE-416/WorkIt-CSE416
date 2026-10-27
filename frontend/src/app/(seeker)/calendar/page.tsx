@@ -25,7 +25,7 @@ export const metadata: Metadata = {
  * day each application went in, every interview, offers and their deadlines,
  * closing dates and follow-ups, each in its kind's stage colour.
  *
- * Month, Week or Agenda, picked like the Dashboard's range
+ * Month, Week or Agenda, picked like Home's range
  * (ui/segmented-control.tsx), and anchored with ?date= (./query.ts). The views
  * render in the browser (./calendar-view.tsx) and read the view and the day
  * from the URL themselves, so changing either moves the URL in place and
@@ -41,7 +41,7 @@ export default async function CalendarPage({ searchParams }: PageProps<"/calenda
   const open = query.app ? applications.find((app) => app.id === query.app) : undefined;
 
   return (
-    <div className={cn("max-w-app mx-auto w-full flex-1 py-6", SEEKER_GUTTER)}>
+    <div className={cn("max-w-dashboard mx-auto w-full flex-1 py-6", SEEKER_GUTTER)}>
       {/* The view switch stays top right wherever the title can keep 300px
           beside it (512px of content), the subtitle wrapping before the
           switch moves; narrower, it sits under the title. */}
