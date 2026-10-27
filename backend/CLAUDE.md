@@ -589,11 +589,18 @@ Find files with a directory listing; these are the rules for where code goes.
   request's may close once streaming starts, and runs to the first line
   before it answers, so every refusal before the model call stays an
   HTTP status. Rules, each with a test in `tests/test_tailor.py`:
-  - **One tailored resume per posting, made once.** A run on a posting that
-    has one answers 409 `{detail: {message, tailored_resume_id}}` before
-    any model call, so it spends no tokens; the student edits that resume
-    instead. Two runs at once: the loser's commit fails on
-    `built_resumes_applicant_posting_key` and answers 409.
+  - **One tailored resume per posting; a second run replaces it in place**
+    (2026-10-26). The run keeps the resume's row (its id, the student's
+    name for it, its star), and once the model has answered clears what
+    the last run and the student's edits made on it alone
+    (`tailor.clear_run`: its own skills and typed wordings) before writing
+    every choice afresh; a failed run leaves it as it was. The posting's
+    variants stay, since another resume may show one. A source that is the
+    posting's own tailored resume answers 422 before any model call: it
+    would read the lines the run clears. Two first runs at once: the
+    loser's commit fails on `built_resumes_applicant_posting_key` and
+    answers 409. It was made once, a second run refused with a 409 to save
+    tokens, until the review's Back to Choose Keywords asked for runs again.
   - **The student picks the source** (KAN-318): the match and the run each
     take exactly one of `built_resume_id` or `uploaded_resume_id` (422
     otherwise; 404 for one not the applicant's). A built resume gives its

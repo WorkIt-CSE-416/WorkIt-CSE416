@@ -113,8 +113,8 @@ import { SeekerSidebar } from "./seeker-sidebar";
  * and eases its own copy with the same classes the page's container below
  * carries: `transition-[--panel-gain] duration-200 ease-linear` and the
  * md:in-data-[pinned=false] value. Today that is the container, the
- * Applications page's wrapper, and the job posting rail's frame and aside
- * (jobs/jobs-rail.tsx); an element that reads it without them silently gets
+ * Applications page's wrapper, Tailor's review page (jobs/[jobId]/tailor/
+ * page.tsx), and the job posting rail's frame and aside (jobs/jobs-rail.tsx); an element that reads it without them silently gets
  * 0px. All of them flip in the frame the pin does and run the same 200ms
  * linear, so they stay in step with each other and with the panel. They key
  * on the pin with an in-data-* variant, which makes Chrome restyle only the

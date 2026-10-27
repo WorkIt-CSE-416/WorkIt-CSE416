@@ -1134,8 +1134,11 @@ the KAN-296 cutover.
   `transition-[--panel-gain] duration-200 ease-linear
   md:in-data-[pinned=false]:[--panel-gain:calc(var(--sidebar-width)_-_var(--sidebar-width-icon))]`
   itself, or it reads 0px and never moves. The readers today are
-  `[data-scout-page]` in `(seeker)/layout.tsx`, the Applications wrapper, and
-  the job rail's frame and aside (`jobs/jobs-rail.tsx`); keep the 200 ms
+  `[data-scout-page]` in `(seeker)/layout.tsx`, the Applications wrapper,
+  Tailor's review page (`jobs/[jobId]/tailor/page.tsx`: a work area beside
+  its Suggestions panel, so it widens with the sidebar closed, up to
+  `max-w-dashboard`), and the job rail's frame and aside
+  (`jobs/jobs-rail.tsx`); keep the 200 ms
   linear equal to shadcn's gap. It used to inherit and ease on the column
   above the page, which restyled about 4,258 elements on every frame of a pin
   (130 to 250 ms frames at 4x CPU). A sidebar row eases its current fill to
@@ -1257,6 +1260,21 @@ the KAN-296 cutover.
   KAN-406): change it there, never per dialog (`docs/screens.md`, Job
   posting page).
   `docs/screens.md`, Applications, has the rest.
+- **Tailor is one step per view** (`(seeker)/jobs/[jobId]/tailor`,
+  2026-10-26): every step opens with the same top row (`TailorBar`: Back,
+  the step, its way on). `TailorHeader` (each step's own title, the job as one line,
+  `TailorJobLine`, and the step's line) follows it on the pick steps, and
+  the review names the job the same way under the resume's name; the tailored resume's page has the slim
+  `TailorReviewBar` instead (Back to Choose Keywords, `TailorBack`, the
+  step, and Finish; the job in an sr-only h1), so the resume starts near the top, under its own name
+  renamed in place (`ResumeTitle`).
+  `TailorScreen` holds the step in state, so Back keeps the pick, the
+  match and the picked keywords; `?step=keywords&source=<picker key>`
+  opens it at Choose Keywords (the review's Back), and a run then
+  replaces the posting's tailored resume. A new step joins `TAILOR_STEPS` in
+  `tailor-steps.tsx` (`docs/screens.md`, Tailor). A wait is never a step:
+  the run is a loader over Choose Keywords (`TailorRunning`), since a
+  Tailor step that only waited read as padding to the user.
 - **/search keeps the filter row, and shows what its words filter by**
   (KAN-308). A new search from the top bar sends only ?q, so it starts
   with no filters; the row stays on /search to narrow the results. The
@@ -1417,20 +1435,29 @@ the KAN-296 cutover.
   (KAN-285). A tick passes `{ replace: true }`, so ticks are not steps of
   Back, as the Applications page's server-side picks replace the URL.
 - **pdf.js (`pdfjs-dist`, pinned exactly) loads on the resume pages
-  only**: the editor (KAN-209) and an upload's page (KAN-366,
+  only**: the editor (KAN-209), an upload's page (KAN-366,
   `(seeker)/resumes/uploaded/[id]`, which draws through the same
-  `PdfPages`), through `import("pdfjs-dist")` inside an effect in
+  `PdfPages`) and Tailor's page (`(seeker)/jobs/[jobId]/tailor`: the
+  editor and a resume card's Preview dialog, `resume-preview.tsx`, which
+  the review's View Original sets beside the page, `OriginalResume`), through `import("pdfjs-dist")` inside an effect in
   `(seeker)/resumes/[resumeId]/pdf-pages.tsx`: about 110 KB gzip plus a
   290 KB worker, which every other page would otherwise pay for, and its
   module touches browser globals, so a top-level import breaks the server
   render. The worker comes from `new URL("pdfjs-dist/build/pdf.worker.min.mjs",
   import.meta.url)`, which Turbopack emits as a static file. After a build,
-  only those two routes' client manifests name the pdf.js chunk.
+  only those routes' client manifests name the pdf.js chunk.
   `npm install` on a Mac dropped two optional `@emnapi/*` entries from the
   lockfile when pdf.js was added; they were put back by hand. Check the
   lockfile diff for removals after adding any dependency. Adding Lenis
   only cleared `"dev": true` on `sharp`'s `@img/*` packages (`next`
   depends on `sharp` too), which is correct and removes no entry.
+- **Tailor's review is the resume editor with props, not a fork**
+  (`(seeker)/resumes/[resumeId]/editor.tsx`): `suggestions` (the panel,
+  and with it the margin dots and tints), `compact` (the slim toolbar),
+  `heading` (the column label) and `phoneBar`. The editor's own page
+  passes none of them and must keep its full toolbar; a change for the
+  review goes behind one of these props, so the two never drift into two
+  editors.
 - **A saved timestamp becomes a calendar day in the browser, never on the
   server.** The server runs in UTC, so a day computed there is a day off for
   the Americas. Swap the local day in after hydration (`useSyncExternalStore`);
@@ -1507,12 +1534,16 @@ are in `docs/auth.md`.
   `"use server"` file a function that fetches a URL or path it is handed**:
   any page script could call it with any argument, an open fetch proxy
   (SSRF; KAN-368). Keep such helpers unexported (`readPdf` in
-  `lib/resume-actions.ts`) or in a `server-only` module
+  `lib/resume-queries.ts`) or in a `server-only` module
   (`lib/job-queries.ts`, `lib/resume-queries.ts`).
 - **A client screen never loads through several server actions**: Next runs
   them one at a time per client, so a page that looks parallel pays N round
   trips in a row (KAN-368). Use one action that runs `Promise.all` on the
-  server, or a server component. Shell components start reads that do not
+  server, or a server component. A slow read the student can repeat while
+  they work goes through a route handler instead, which `fetch` runs
+  beside the actions: Tailor's Preview dialog (`app/api/resume-preview`)
+  renders a PDF on each resume opened, and as an action it would hold Use
+  This Resume's keyword match behind every render. Shell components start reads that do not
   depend on `/auth/me` together with `getCurrentAccount`
   (`account-status.tsx`, `profile-strength.tsx`), or the chip waits on two
   API calls in a row on every hard load and `router.refresh()`.
@@ -1636,7 +1667,9 @@ are in `docs/auth.md`.
   no Generate Resume: a dialog holds a few resumes with the likely pick
   first, and a resume generated mid-dialog is not the file a student
   sent. The dialogs' dropzone sections went with KAN-406, as the
-  Resumes page's had in KAN-362.
+  Resumes page's had in KAN-362. A picker given `onPreview` (Tailor's
+  step 1) adds a Preview eye to each card, which opens the resume and
+  never moves the pick; the other dialogs pass none.
 - **Every resume opens a page of WorkIt's own** (KAN-366): a built resume
   the editor (`(seeker)/resumes/[resumeId]`), an upload its view page
   (`(seeker)/resumes/uploaded/[id]`, the static segment winning over
