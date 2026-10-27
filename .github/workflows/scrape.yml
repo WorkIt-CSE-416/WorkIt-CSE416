@@ -84,6 +84,7 @@ jobs:
           name: scrape-${{ github.run_id }}
           path: |
             scraper/feed.json
+            scraper/closings.json
             scraper/internships.html
             scraper/metrics.json
           retention-days: 7

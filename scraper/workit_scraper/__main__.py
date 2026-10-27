@@ -34,6 +34,9 @@ BOARDS_CSV = ROOT / "boards.csv"
 JOBS_JSON = ROOT / "jobs.json"
 PAGE_HTML = ROOT / "internships.html"
 FEED_JSON = ROOT / "feed.json"
+#: Why each stored posting is not in the feed (`feed.closings`), for the import's
+#: `job_postings.closed_reason`.
+CLOSINGS_JSON = ROOT / "closings.json"
 METRICS_JSON = ROOT / "metrics.json"
 MAX_IN_FLIGHT = 8
 #: A lane in which this many boards we hold postings from say they do not exist,
@@ -363,6 +366,8 @@ def main(argv: list[str] | None = None) -> int:
     roles = pick([job for job in run.jobs if run.is_listed(job)], is_new=run.is_new)
     report.write_html(roles, run.stats, PAGE_HTML, run.scraped_at, counts_new=run.counts_new)
     feed.write(roles, run.logos, FEED_JSON)
+    found = feed.closings(run, roles)
+    feed.write_closings(found, CLOSINGS_JSON)
     if not args.offline:
         by_ats = Counter(role.ats for role in roles)
         steps = widening(scanned)
@@ -377,8 +382,10 @@ def main(argv: list[str] | None = None) -> int:
             steps=steps,
             missed=missed,
             resting=resting,
+            closings=Counter(found.values()),
         )
         print_metrics(run.stats, fresh, by_ats, steps=steps, missed=missed, resting=resting)
+        print(f"\n{len(found):,} stored postings not in the feed: {_reasons(found)}")
 
     print(
         f"\n{run.stats.postings:,} postings -> {len(roles)} distinct roles"
@@ -388,8 +395,13 @@ def main(argv: list[str] | None = None) -> int:
         f" {run.stats.boards_failed} failed,"
         f" {run.stats.boards_deferred} left for a later run)"
     )
-    print(f"wrote {PAGE_HTML} and {FEED_JSON.name}")
+    print(f"wrote {PAGE_HTML}, {FEED_JSON.name} and {CLOSINGS_JSON.name}")
     return 0
+
+
+def _reasons(found: dict[str, str]) -> str:
+    counts = Counter(found.values())
+    return ", ".join(f"{why} {counts[why]:,}" for why in feed.REASONS if counts[why]) or "none"
 
 
 def _per_provider(stats: RunStats, kept: list[Job], roles: Counter[str]) -> dict[str, dict]:
@@ -444,13 +456,17 @@ def write_metrics(
     steps: dict[str, int] | None = None,
     missed: int | None = None,
     resting: dict[str, str] | None = None,
+    closings: Counter[str] | None = None,
 ) -> None:
     """metrics.json: the run's totals and each provider's share, so a change to one
     provider can be measured run against run (the scheduled run keeps it a week),
     and why boards went unread (`unread_by_provider`). With `steps`, what a wider
     shortlist would keep (`widening`); with `missed`, the boards holding a posting
     missed once, whose next complete read decides it; with `resting`, the boards
-    the next runs will not ask (`Store.resting`), by why they last went unread."""
+    the next runs will not ask (`Store.resting`), by why they last went unread;
+    with `closings`, the stored postings not in the feed by reason
+    (`feed.closings`). Those are totals: this run's closes, by reason, are in the
+    import's report."""
     totals = {
         key: value for key, value in asdict(stats).items() if key not in ("by_provider", "unread")
     }
@@ -466,6 +482,8 @@ def write_metrics(
         payload["boards_missed_once"] = missed
     if resting is not None:
         payload["resting"] = unread_by_provider(resting)
+    if closings is not None:
+        payload["closings"] = {why: closings[why] for why in feed.REASONS}
     path.write_text(json.dumps(payload, indent=1, sort_keys=True) + "\n", encoding="utf-8")
 
 

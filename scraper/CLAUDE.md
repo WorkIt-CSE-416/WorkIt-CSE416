@@ -483,6 +483,21 @@ labels. `feed.WORK_STYLE` is indexed, not `.get`: a new label should fail the
 run, not quietly become `null` in the app. The scraper never touches the
 database.
 
+**`closings.json` says why each stored posting is not in the feed**
+(`feed.closings`), keyed by apply URL, and the import writes it as
+`job_postings.closed_reason` on each job it closes: `board_gone` (not listed,
+its board said "no such board"), `gone_from_board` (not listed: two complete
+reads lacked it), `filtered_out` (listed, but `pick` no longer keeps its
+title) or `replaced` (listed and kept, but another copy of its requisition
+leads the card). It is worked out from the store as it is, **never from the
+last run's feed**, so an import that failed or was skipped still finds every
+reason on the next run. Copies at one URL that disagree take the first reason
+in `feed.REASONS`. A reason added here needs the import's list and the CHECK
+from the backend's `bd730e8ab454` widened by a migration first, or the import
+files it as `unknown`, with a warning.
+`metrics.json`'s `closings` counts the file by reason: totals, not this run's
+closes, which are in the import's report.
+
 ## Logos
 
 Read once per board from its board page and kept in `jobs.json`.
