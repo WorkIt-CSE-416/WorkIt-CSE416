@@ -6,9 +6,10 @@ Every number here was measured on 2026-10-27 unless it says otherwise.
 
 **Built:** the board report by source and by cause, `build_boards.py --resolve`,
 Lever's EU boards, the two-read closing rule, a second read first for a board
-with a miss, and three new measures in `metrics.json` (what a wider shortlist
-would keep, whether paged lists are newest first, boards missed once).
-**Next:** the steps below, each decided by the measure it names.
+with a miss, and four new measures in `metrics.json` (what a wider shortlist
+would keep, whether paged lists are newest first, boards missed once, why boards
+went unread). **Next:** the steps below, each decided by the measure it names,
+and the changes proposed from Freehire's design.
 
 ## Where we stood
 
@@ -77,7 +78,7 @@ The rules that keep it safe:
 
 | Step | What | Status | Decided by |
 |---|---|---|---|
-| Measure | The board report, the widening steps, list order, boards missed once | Built | Itself |
+| Measure | The board report, the widening steps, list order, boards missed once, why boards went unread | Built | Itself |
 | Fix the doors | Lever EU; `--resolve` for short links, Greenhouse and iCIMS behind company sites | Built; the first `--resolve` run is still to do | The `boards.csv` diff it makes |
 | Close on two reads | Below | Built | `boards_missed_once` in metrics.json |
 | Workday arrival scan | Read every board's newest pages each run; read whole the boards with the most shown roles | Not built | `newest_first` in metrics.json |
@@ -141,7 +142,8 @@ or more new early-career postings in the last two weeks every 30 minutes on
 weekdays, 13:00 to 02:00 UTC. Tested on the lists: the 219 companies that rule
 picked made 47% of the next two weeks' postings; with two or more, 382 made 55%.
 It needs a delta import first: the import takes 80 to 133 seconds today because
-it re-checks every job's places and roles.
+it re-checks every job's places and roles. Change 4 under "Proposed next" would
+replace this tier with a rule that finds each board's pace by itself.
 
 ## More roles: measured before taken
 
@@ -180,6 +182,37 @@ median 102 minutes late (at most 170). The real gap between runs was a median
    cache. A Cron Trigger's own run stops at 15 minutes, so the Worker starts the
    container and returns. The disk starts empty, so the store moves to R2. It
    costs about $5 to $7 a month.
+
+## Proposed next, from Freehire's design
+
+[Freehire](https://github.com/strelov1/freehire) is an open-source job search
+engine in Go with about 3.4 million open postings (2026-10-20). Its ingest code
+(`internal/ingest`) has solved several problems we have. Each change here is
+proposed, not built.
+
+| # | Change | Freehire's version | Why we need it | Cost |
+|---|---|---|---|---|
+| 1 | Rest a board that keeps failing or is gone | After 3 failures in a row, wait 6 hours, doubling to 24; never for good | The last run asked 191 boards that said "no such board" and 12 that failed, and since boards are never removed, every run asks them again | Small: `BoardReads`, `Store.to_read` |
+| 2 | Pause a whole host after a 429 | A 429 holds every request to that host: its `Retry-After`, else 1 second doubling to 60, reset by a success | We retry one request once. Freehire found Workday throttles hard, and an arrival scan adds 1,525 Workday requests a run | Small: `polite.Robots` |
+| 3 | Never close on an empty list | A board that returns no postings never licenses a close | Two reads stop one empty answer, but a hiring system that answers every board empty for a day would still close them all; `SURGE` covers only "no such board" | Small: the lane guard in `__main__.scrape` |
+| 4 | Rest a board whose kept postings did not change | A hash of the board's posting ids; unchanged, wait 4 hours, doubling to 72; any change resets | An active company adds an early-career posting about once a week, so the hash of its kept postings rarely changes. It makes a 30-minute schedule cheap and replaces the hot tier. Cap the wait at 12 to 24 hours, so arrivals and closings stay fast | Medium: `BoardReads`, `Store.to_read`; `QUIET_EVERY` goes |
+| 5 | Import only what changed | An unchanged posting only refreshes its "last seen"; search and AI work only on changes | The import takes 80 to 133 seconds, because it re-checks every job's places and roles on every run | Medium: a `content_hash` column and its migration |
+| 6 | Store why a posting closed | `closed_reason` on every close | A wrong close can be found and undone as a set | Small: a column and its migration |
+| 7 | Find boards on companies' own careers pages | Read the page and take the first link to a known hiring system, its API addresses included (`api.ashbyhq.com/posting-api/job-board/<org>`) | 1,241 open list postings are on employers' own sites; how many of those pages name a board is not measured | Small to medium: `--resolve` |
+| 8 | Readers for Amazon, Apple and Google | Career-site adapters, with no proxy | 85, 77 and 24 open list postings | One reader each, robots.txt first |
+| 9 | One hiring system per job, on its own schedule | A scheduler, with large providers in parts (Workday in 6) | Workday gets 12 minutes a run and reads 17% of its boards | Large: a store file per provider, then a job each |
+| 10 | One card for a role posted in several cities | A hash of company and title without the place; the copies are marked, never deleted | A product choice: `pick` keys on the apply URL on purpose | Medium, with the Jobs page |
+
+**Residential proxies are under discussion.** Freehire sends some providers
+through them because those sites block data-centre addresses, and for others it
+uses browser-like User-Agents and solves captchas. The `unread` counts in
+metrics.json now say what proxies would unlock; from the lists, only Eightfold's
+boards (about 62 open postings) need nothing more than another address. The
+risks: in *Craigslist v. 3Taps* (2013) a court held that an IP block and a
+cease-and-desist letter revoke permission under the CFAA; Google and the FBI took
+down residential proxy networks built on devices whose owners never agreed
+(NetNut, IPIDEA); and it reverses our rule that a site's "no" is final. A
+decision either way goes in an ADR.
 
 ## How it compares
 
