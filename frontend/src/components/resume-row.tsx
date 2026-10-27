@@ -77,7 +77,6 @@ export function PrimaryStar({
  */
 type ResumeRowProps = {
   resume: ResumeItem;
-  deleting?: boolean;
   /** The upload's page, which the whole card opens. */
   href: string;
   onMakePrimary?: () => void;
@@ -88,7 +87,6 @@ type ResumeRowProps = {
 
 export function ResumeRow({
   resume,
-  deleting = false,
   href,
   onMakePrimary,
   onRename,
@@ -154,7 +152,6 @@ export function ResumeRow({
             label={`Delete ${name}`}
             tooltip="Delete"
             className={cn(ROW_ACTION, "hover:text-danger")}
-            disabled={deleting}
             onClick={onDelete}
           >
             <TrashIcon className="size-4" />

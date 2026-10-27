@@ -205,14 +205,16 @@ export function ShortLabel({ verb }: { verb: string }) {
 export function UploadedRow({
   resume,
   reload,
+  onDelete,
 }: {
   resume: ResumeItem;
   reload: () => Promise<void>;
+  /** The list hides the row and sends the delete (KAN-388). */
+  onDelete: (send: () => Promise<{ error: string | null }>) => void;
 }) {
   const [renaming, setRenaming] = useState(false);
   const [saving, setSaving] = useState(false);
   const [confirming, setConfirming] = useState(false);
-  const [deleting, setDeleting] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const name = resume.original_filename ?? "Resume";
 
@@ -242,14 +244,10 @@ export function UploadedRow({
     await reload();
   }
 
-  // Delete stays disabled until the reload drops the row.
-  async function remove() {
-    setDeleting(true);
-    setError(null);
-    const { error } = await deleteResume(resume.id);
-    if (!error) return reload();
-    setDeleting(false);
-    setError(error);
+  // The row leaves the list at once, so the list runs the delete and
+  // shows a failure (KAN-388).
+  function remove() {
+    onDelete(() => deleteResume(resume.id));
   }
 
   return (
@@ -265,7 +263,6 @@ export function UploadedRow({
       ) : (
         <ResumeRow
           resume={resume}
-          deleting={deleting}
           href={`/resumes/uploaded/${encodeURIComponent(resume.id)}`}
           onMakePrimary={makePrimary}
           onRename={() => setRenaming(true)}
@@ -274,12 +271,7 @@ export function UploadedRow({
         />
       )}
       {confirming && (
-        <DeleteConfirm
-          label="Delete Resume"
-          busy={deleting}
-          onDelete={remove}
-          onKeep={() => setConfirming(false)}
-        >
+        <DeleteConfirm label="Delete Resume" onDelete={remove} onKeep={() => setConfirming(false)}>
           Delete this resume? Files you already sent are kept.
         </DeleteConfirm>
       )}

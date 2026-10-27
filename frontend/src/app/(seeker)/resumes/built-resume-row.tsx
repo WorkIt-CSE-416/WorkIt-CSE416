@@ -38,14 +38,16 @@ import { DownloadNotes, useResumeDownload } from "./download-menu";
 export function BuiltResumeRow({
   resume,
   reload,
+  onDelete,
 }: {
   resume: BuiltResume;
   reload: () => Promise<void>;
+  /** The list hides the row and sends the delete (KAN-388). */
+  onDelete: (send: () => Promise<{ error: string | null }>) => void;
 }) {
   const [renaming, setRenaming] = useState(false);
   const [saving, setSaving] = useState(false);
   const [confirming, setConfirming] = useState(false);
-  const [deleting, setDeleting] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const download = useResumeDownload(resume.id);
 
@@ -68,14 +70,10 @@ export function BuiltResumeRow({
     setRenaming(false);
   }
 
-  // Delete stays disabled until the reload drops the row.
-  async function remove() {
-    setDeleting(true);
-    setError(null);
-    const { error } = await deleteBuiltResume(resume.id);
-    if (!error) return reload();
-    setDeleting(false);
-    setError(error);
+  // The row leaves the list at once, so the list runs the delete and
+  // shows a failure (KAN-388).
+  function remove() {
+    onDelete(() => deleteBuiltResume(resume.id));
   }
 
   // The API sends edited_at equal to created_at until the first change.
@@ -162,12 +160,7 @@ export function BuiltResumeRow({
         <DownloadNotes download={download} />
       </div>
       {confirming && (
-        <DeleteConfirm
-          label="Delete Resume"
-          busy={deleting}
-          onDelete={remove}
-          onKeep={() => setConfirming(false)}
-        >
+        <DeleteConfirm label="Delete Resume" onDelete={remove} onKeep={() => setConfirming(false)}>
           Delete this resume? Files you already sent are kept.
         </DeleteConfirm>
       )}

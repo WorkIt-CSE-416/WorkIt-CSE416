@@ -1717,6 +1717,19 @@ are in `docs/auth.md`.
   card at a time. Only in edit mode do entries show their pencil, skills
   their pencil and ×, and the heading Clear All and Done. Delete Entry is
   at the foot of the editor an entry's pencil opens.
+- **A skill's × and a resume's Delete Resume are optimistic** (KAN-388):
+  the item leaves the screen at once and the delete runs behind it. The
+  screen that holds the list owns the delete, through `useOptimistic` in
+  a transition (`removeSkill` in `bank-screen.tsx`, `remove` in
+  `resumes/built-resumes.tsx`): a failed delete ends the transition with
+  the item still in state, so React puts it back, and the error shows
+  where the list's own errors show, since the row's error line left with
+  the row. A delete that worked drops the item from state itself before
+  any read-back: a failed reload would otherwise bring back an item the
+  API had deleted. Anything else a delete can change still reads back (a
+  resume's delete can move the star). Clear All, Delete Entry and the
+  upload page's Delete still wait for the API behind a busy button: they
+  confirm a count or leave the page.
 - **The Experiences view has a section nav** (KAN-349,
   `(seeker)/bank/section-nav.tsx`): one sticky row of links to the seven
   section cards, each with its count under the current pick, the one in

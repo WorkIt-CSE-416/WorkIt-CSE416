@@ -1458,12 +1458,15 @@ in Docs (suggested answers in the chat, not a banner).
   /applicants/{id}/bank` through `src/lib/bank-actions.ts` on the server; if
   that fails it shows "Your Bank Isn't Loading Right Now" and a Try Again
   link, never fixture rows. A failed save or delete shows the API's message
-  beside the control and leaves the screen as it was.
+  beside the control and leaves the screen as it was. A skill's × is the
+  one exception (KAN-388): the skill leaves at once, and a failed delete
+  puts it back with the message under the card.
 - **One card per section**, in the fixed order (Education, Experience,
   Projects, Leadership & Activities, Awards, Certifications), then Skills.
   Entries come back from the API ongoing first, then newest; the screen
   never sorts. After every change it reads the whole bank again, so the
-  order shown is always the API's.
+  order shown is always the API's; a skill's × only drops that skill,
+  which changes no order.
 - **A card's heading is a + and a pencil** (KAN-363), as LinkedIn's
   profile draws them: the + adds an entry (a skill on Skills), on every
   card; the pencil, shown while the card lists something, opens that
@@ -2007,7 +2010,9 @@ shows "Your Resumes Aren't Loading Right Now" and a Try Again link.
   question, then Delete Resume and Keep It, the two
   buttons wrapping as one, since wrapped apart Keep It sat alone on a line.
   Both went at one click until KAN-258. Deleting a resume keeps the files
-  already sent from it.
+  already sent from it. The card leaves the list as Delete Resume is
+  pressed (KAN-388); a failed delete brings it back, with the error above
+  the list.
 - **No Sent card since 2026-10-18.** It listed every file the student
   downloaded or applied with (KAN-208), to download again or delete. Sent
   resumes are still kept on every Apply (a download keeps nothing since
