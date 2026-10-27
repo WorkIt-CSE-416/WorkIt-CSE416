@@ -42,13 +42,15 @@ import { DownloadNotes, useResumeDownload } from "./download-menu";
 export function BuiltResumeRow({
   resume,
   reload,
+  onDelete,
 }: {
   resume: BuiltResume;
   reload: () => Promise<void>;
+  /** The list hides the row and sends the delete (KAN-388). */
+  onDelete: (send: () => Promise<{ error: string | null }>) => void;
 }) {
   const [renaming, setRenaming] = useState(false);
   const [saving, setSaving] = useState(false);
-  const [deleting, setDeleting] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [previewing, setPreviewing] = useState(false);
   const download = useResumeDownload(resume.id);
@@ -72,14 +74,10 @@ export function BuiltResumeRow({
     setRenaming(false);
   }
 
-  // Delete stays disabled until the reload drops the row.
+  // The row leaves the list at once, so the list runs the delete and
+  // shows a failure (KAN-388).
   async function remove() {
-    setDeleting(true);
-    setError(null);
-    const { error } = await deleteBuiltResume(resume.id);
-    if (!error) return reload();
-    setDeleting(false);
-    setError(error);
+    onDelete(() => deleteBuiltResume(resume.id));
   }
 
   // The API sends edited_at equal to created_at until the first change.
@@ -160,14 +158,12 @@ export function BuiltResumeRow({
               <FileArrowDownIcon aria-hidden className="size-4" />
             </IconButton>
             <DeleteResumeConfirm
-              busy={deleting}
               onDelete={remove}
               trigger={
                 <IconButton
                   label={`Delete ${resume.name}`}
                   tooltip="Delete"
                   className={cn(ROW_ACTION, "hover:text-danger")}
-                  disabled={deleting}
                 >
                   <TrashIcon className="size-4" />
                 </IconButton>
