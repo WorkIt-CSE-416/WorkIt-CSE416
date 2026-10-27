@@ -101,9 +101,9 @@ const STRONG_MATCHES_NOTE: Record<RangeKey, string> = {
  * not yet applied to (KAN-261), the same in every range. Both are a dash
  * when the tracker can't be read.
  *
- * Interviewing is always a dash for now: the API stores no interviewing stage,
- * and a 0 would say the seeker had none. Count `stage === "interviewing"`
- * here once getTracked asks for that stage.
+ * Interviewing is the applications in that stage now (KAN-413: the stage
+ * menu or an interview added on the application's page sets it), the same
+ * in every range; a dash when the tracker can't be read.
  */
 export async function getHeadline(): Promise<Record<RangeKey, DashboardStat[]>> {
   const now = getNow();
@@ -119,6 +119,7 @@ export async function getHeadline(): Promise<Record<RangeKey, DashboardStat[]>> 
       : null;
   const apps = tracker.applications;
   const saved = apps && apps.filter((app) => app.stage === "saved").length;
+  const interviewing = apps && apps.filter((app) => app.stage === "interviewing").length;
   /** Applications sent between `to` and `from` days ago; null on a failed read. */
   const sent = (from: number, to = 0) =>
     apps &&
@@ -164,9 +165,9 @@ export async function getHeadline(): Promise<Record<RangeKey, DashboardStat[]>> 
     {
       key: "interviewing",
       label: "Interviewing",
-      value: null,
+      value: interviewing,
       previous: null,
-      note: "Not tracked yet",
+      note: "Right now",
       href: "/applications?stage=interviewing",
     },
   ];

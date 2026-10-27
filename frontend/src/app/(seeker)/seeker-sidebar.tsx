@@ -2,10 +2,11 @@
 
 import {
   BriefcaseIcon,
-  // CalendarDotsIcon, // the Calendar row, hidden for now (below)
+  CalendarDotsIcon,
   FileTextIcon,
   ListChecksIcon,
   SquaresFourIcon,
+  TrayIcon,
   UserCircleIcon,
 } from "@phosphor-icons/react/ssr";
 import { LightningRoundedIcon } from "@/components/custom-icons";
@@ -65,9 +66,11 @@ const GROUPS: SidebarNavGroup[] = [
       { href: "/jobs", label: "Jobs", Icon: BriefcaseIcon },
       { href: "/auto-apply", label: "Auto Apply", Icon: LightningRoundedIcon },
       { href: "/applications", label: "Applications Tracker", Icon: ListChecksIcon },
-      // Hidden for now (KAN-261): src/proxy.ts sends /calendar to the
-      // Dashboard. Uncomment this and its import to bring it back.
-      // { href: "/calendar", label: "Calendar", Icon: CalendarDotsIcon },
+      // KAN-413: replies about applications, after the tracker they feed.
+      // No count badge: one was built and taken out as out of place.
+      { href: "/inbox", label: "Inbox", Icon: TrayIcon },
+      // Back since KAN-413: interviews, assessments and offers are stored.
+      { href: "/calendar", label: "Calendar", Icon: CalendarDotsIcon },
       { href: "/resumes", also: ["/bank"], label: "Resumes & Experiences", Icon: FileTextIcon },
       { href: "/profile", label: "My Profile", Icon: UserCircleIcon },
     ],

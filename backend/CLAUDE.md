@@ -175,6 +175,13 @@ uv run pytest
   Supabase's keys; return an `AuthenticatedAccount` for a seeded row. A
   profile row needs its `auth.users` row first. `tests/test_database_smoke.py`
   is the pattern.
+- **The feed's viewer is a separate override.** `GET /jobs` reads the
+  viewer from the token through `get_signed_in_applicant_id`, not
+  `get_current_account`, so a test that asks the feed as a student
+  overrides both, or the feed serves it as signed out and lists every job
+  (`tests/test_tracker.py`'s `student` fixture). A test of the Jobs page
+  hiding an applied job passed locally, where the database tests skip, and
+  failed in CI (KAN-413).
 - **A failed migration fails every database test.** The chain runs from
   scratch on each run, so a migration that only works on top of the shared
   database's history shows up here first.
@@ -738,6 +745,21 @@ Find files with a directory listing; these are the rules for where code goes.
   would eventually get its own JSONB-backed slot). One `ESSAY` use per
   generated answer (cap 5, share 10%: on top of the spec's four shares plus
   the assistant's, following the same accepted-overshoot precedent).
+- **The Applications Tracker's own writes** (KAN-413,
+  `../docs/email_tracker.md`) are `routers/tracker.py` over
+  `queries/tracker.py`: the stage menu (`PUT .../applications/{job_id}/stage`,
+  applied or later, any direction) and the events (`GET .../events`, with
+  `?status=proposed` for Email Updates, `POST
+  .../applications/{job_id}/events`, `DELETE .../events/{event_id}` (an
+  event added by hand only: one from an email stays as the Inbox's record,
+  and its delete answers 404), and an
+  update's `POST .../events/{event_id}/accept` and `.../dismiss`), and
+  the Inbox's `GET .../emails` (every email, every status). An
+  event moves its application forward only (`advance`, Accept too). **An
+  email files itself unless it would move the stage or matched no job**
+  (`needs_review`, `file_email`, the Gmail reader's entry point); a stage past
+  applied still counts as applied (`dto.APPLIED_STAGES`, the models'
+  CLAUDE.md). Tests: `tests/test_tracker.py`.
 - **Utils** (`app/utils/`): the resume parser; `app/utils/CLAUDE.md`.
 - **Scripts** (`app/scripts/`): commands run by hand,
   `uv run python -m app.scripts.<name>`.
@@ -970,10 +992,14 @@ removed at cutover, not before. Until then a change must work on both.
   those lines from any migration it writes, and `alembic check` reports
   them. The column has a `false` default, so main's inserts are unaffected.
 - **Apply `a7d3e5f1c2b4` (the stages after applied and
-  `application_events`, KAN-413) as soon as it merges.** It only adds enum
-  values and a table that nothing reads yet, so applying it is safe for
-  every deploy; the Applications Tracker's stage menu and Add Event, which
-  follow in their own PR, answer 500 on a database without it.
+  `application_events`, KAN-413) before the deploy that writes them.** It
+  only adds enum values and a table, so the running code never meets
+  them; deployed first, the Applications Tracker, an application's page and
+  the Dashboard's numbers answer 500 for every student (they ask for the new
+  stages and `GET .../events`). The Jobs page and matches keep working
+  either way: their applied-job filter names only the stages before applied
+  (`dto.BEFORE_APPLIED`, the models' CLAUDE.md). Merge the migration to
+  `main` in its own PR first, then apply it, then test the branch.
 - **Apply `bd730e8ab454` (`job_postings.closed_reason`, KAN-412) as soon as
   it merges.** It only adds a nullable column and a CHECK every row meets, and
   no code maps it yet, so it is safe for every deploy. The import that writes

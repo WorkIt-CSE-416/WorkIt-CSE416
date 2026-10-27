@@ -20,6 +20,7 @@ const PAGES: [RegExp, string][] = [
   [/^\/auto-apply$/, "Auto Apply"],
   [/^\/applications$/, "Applications Tracker"],
   [/^\/applications\/[^/]+$/, "Application"],
+  [/^\/inbox$/, "Inbox"],
   [/^\/calendar$/, "Calendar"],
   [/^\/resumes$/, "Resumes"],
   [/^\/resumes\/uploaded\/[^/]+$/, "Uploaded Resume"],

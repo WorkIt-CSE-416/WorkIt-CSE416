@@ -1,6 +1,6 @@
 import { cache } from "react";
 
-import { getTracked } from "./tracked";
+import { getEmails, getTracked, getUpdates } from "./tracked";
 
 /**
  * The application tracker (KAN-261): the seeker's saved and applied jobs,
@@ -28,3 +28,11 @@ export const getTracker = cache(getTracked);
 export async function getApplications() {
   return (await getTracker()).applications ?? [];
 }
+
+/** The seeker's updates (./tracked.ts), read once per request: the
+ *  Applications Tracker's notice counts the ones that need review. */
+export const getUpdatesOnce = cache(getUpdates);
+
+/** The seeker's emails (./tracked.ts), read once per request: the Inbox
+ *  and an application's Emails tab. */
+export const getEmailsOnce = cache(getEmails);

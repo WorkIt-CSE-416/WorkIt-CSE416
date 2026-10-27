@@ -14,6 +14,7 @@ import { useToast } from "@/components/ui/toast";
 import { openNextApplication } from "@/lib/autofill-extension";
 import { cn } from "@/lib/cn";
 
+import { hasApplied } from "../applied";
 import { queueJob, type ApplicationStage } from "../auto-apply/actions";
 import { openedNote } from "../auto-apply/opened-note";
 import { ApplyButton } from "../jobs/apply-button";
@@ -41,7 +42,7 @@ export type TopMatchRow = {
  *  Apply button treats it. */
 function blockedReason(row: TopMatchRow): string | null {
   if (row.stage === "queued") return "Already queued";
-  if (row.stage === "applied") return "Applied";
+  if (hasApplied(row.stage)) return "Applied";
   if (row.stage === "needs_you") return "Needs you";
   if (row.stage === "skipped") return "Skipped";
   if (!row.autoApply) return "Auto Apply can't fill this one";
@@ -295,7 +296,7 @@ export function TopMatchesList({
                         title={row.title}
                         applyUrl={row.applyUrl}
                         canMarkApplied={canMarkApplied}
-                        applied={row.stage === "applied"}
+                        applied={hasApplied(row.stage)}
                         className="whitespace-nowrap @max-xl/main:flex-1"
                       />
                     </div>

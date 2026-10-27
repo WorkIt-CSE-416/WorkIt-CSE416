@@ -318,7 +318,9 @@ def matching(filters: JobFilters) -> list[ColumnElement[bool]]:
         clauses.append(~exists().where(
             Job_Application.job_id == Job_Post.id,
             Job_Application.applicant_id == filters.applied_by,
-            Job_Application.stage == dto.application_stage.applied,
+            # Applied, and every stage after it (KAN-413). Named as the
+            # stages before applied, which every database has (dto says why)
+            Job_Application.stage.not_in(dto.BEFORE_APPLIED),
         ))
     if filters.no_application_by is not None:
         clauses.append(~exists().where(

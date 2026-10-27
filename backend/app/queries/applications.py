@@ -9,12 +9,12 @@ import datetime
 import uuid
 from typing import Any, NamedTuple
 
-from sqlalchemy import delete, func, select
+from sqlalchemy import case, delete, func, select
 from sqlalchemy.dialects.postgresql import insert
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.models.applications import Job_Application
-from app.models.dto import application_stage
+from app.models.dto import BEFORE_APPLIED, application_stage
 from app.models.jobs import Job_Post
 from app.models.sent_resume import Sent_Resume
 from app.queries.jobs.filters import LISTED
@@ -82,7 +82,9 @@ async def mark_applied(
     # A job queued, skipped or left to the applicant by auto apply becomes
     # applied. One already applied keeps its first date (coalesce), so a
     # second click, or two tabs at once, never moves the day; only the
-    # resume it names can change.
+    # resume it names can change. One past applied (interviewing, offer,
+    # rejected; KAN-413) keeps its stage: "Did You Apply?" on its page names
+    # the resume, and must not move the application back.
     link = {} if sent_resume_id is KEEP else {"sent_resume_id": sent_resume_id}
     await db.execute(
         insert(Job_Application)
@@ -91,7 +93,12 @@ async def mark_applied(
         .on_conflict_do_update(
             index_elements=["applicant_id", "job_id"],
             set_={
-                "stage": application_stage.applied,
+                # Named as the stages before applied, which every database
+                # has (dto.BEFORE_APPLIED says why)
+                "stage": case(
+                    (Job_Application.stage.in_(BEFORE_APPLIED), application_stage.applied),
+                    else_=Job_Application.stage,
+                ),
                 "applied_at": func.coalesce(Job_Application.applied_at, func.now()),
                 **link,
             },

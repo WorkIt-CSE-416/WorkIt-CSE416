@@ -176,6 +176,16 @@ with the failure it prevents.
   proposals and no Done, and the editor marks each change and reverts it.
   Holds the skill placement rule. Read it before changing Tailor or its
   screen.
+- `docs/email_tracker.md`: KAN-413's email tracker design, a draft not yet
+  reviewed. A student connects Gmail (read-only); WorkIt reads only job
+  emails, matches each to an application, and proposes a stage change or a
+  dated event that the student accepts or rejects. It stores no email
+  bodies. Build step 1 is built: the `interviewing`, `offer` and
+  `rejected` stages, the stage menu, `application_events` added by hand
+  (which feed the Calendar), and the Inbox (`/inbox`), where emails live;
+  reading Gmail is not. Read it before changing
+  application stages, the tracker's dated events or anything that reads a
+  student's email.
 - `docs/search.md` — how the Jobs page's search reads a query.
 - `docs/architecture.md` — how the halves fit together, for a reader new to
   the repo.

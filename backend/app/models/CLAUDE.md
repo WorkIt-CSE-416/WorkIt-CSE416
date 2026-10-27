@@ -924,10 +924,13 @@ Its downgrade puts the columns back empty; the old import refills them.
 
 `applications.py`: one row per (applicant, job). The Applied button
 (`routers/applications.py`) writes it `applied`, a Save button `saved`
-(KAN-261); auto apply (`app/auto_apply/`) writes it `queued` and moves it on.
-GET /jobs leaves out that applicant's `applied` jobs (`JobFilters.applied_by`,
-a `NOT EXISTS`); auto apply's matches leave out every stage, `saved` too
-(`no_application_by`), so a batch never picks a saved job. Rules:
+(KAN-261); auto apply (`app/auto_apply/`) writes it `queued` and moves it on;
+the Applications Tracker's stage menu and its events
+(`routers/tracker.py`, KAN-413) move it to `interviewing`, `offer` or
+`rejected`. GET /jobs leaves out that applicant's applied jobs, every stage
+in `dto.APPLIED_STAGES` (`JobFilters.applied_by`, a `NOT EXISTS`); auto
+apply's matches leave out every stage, `saved` too (`no_application_by`),
+so a batch never picks a saved job. Rules:
 
 - **A join table, never an array of applicant ids on `job_postings`.**
   Postgres can't foreign-key an array's elements, so deleted applicants
@@ -943,22 +946,29 @@ a `NOT EXISTS`); auto apply's matches leave out every stage, `saved` too
   `c0467afe819c`, `saved` from `17ea74fa4573`, the last three from
   `a7d3e5f1c2b4`), a column here rather than a second table, so one row is
   one application. `created_at` orders the queue.
-- **Interviewing, offer and rejected are applied too** (KAN-413,
-  `../../../docs/email_tracker.md`); nothing writes them yet. Anything that
-  asks "did this student apply?" will count all four. **In SQL, ask it as
-  `NOT IN dto.BEFORE_APPLIED`, never `IN dto.APPLIED_STAGES`**: Postgres
-  refuses a query that names an enum value its type lacks, so the `IN`
-  form fails on any database without `a7d3e5f1c2b4` (found on the shared
-  database, 2026-10-27, before anything deployed). The four stages before
-  applied exist everywhere.
+- **Interviewing, offer and rejected are applied too** (KAN-413).
+  Anything that asks "did this student apply?" counts all four, never
+  `stage == applied`: the Jobs page's filter, and the Applied button, which
+  keeps a later stage (`mark_applied`'s `CASE`) so "Did You Apply?" on an
+  interviewing job never moves it back. **In SQL, ask it as `NOT IN
+  dto.BEFORE_APPLIED`, never `IN dto.APPLIED_STAGES`**: Postgres refuses a
+  query that names an enum value its type lacks, so with the `IN` form every
+  `GET /jobs` and match read for a signed-in student answered 500 on a
+  database without `a7d3e5f1c2b4` (found on the shared database,
+  2026-10-27, before anything deployed). The four stages before applied
+  exist everywhere. Python checks (`queries/tracker.py`) may use
+  `APPLIED_STAGES`.
+  Every write to one of them dates the row (`coalesce(applied_at, now())`),
+  so a saved job moved straight to interviewing is dated too.
 - **`saved` is a bookmark, not an application** (KAN-261). Nothing queues
   it by itself: batches skip it. Applying, or the job's own Auto Apply
   click, moves it on (`mark_applied`; `queue_applications`, which also
   moves its `created_at` to now so it doesn't jump the queue); saving never
   moves a later stage back (`ON CONFLICT DO NOTHING`), and unsaving deletes
   a `saved` row only, a 409 otherwise. A saved insert names `applied_at`
-  NULL, as a queued one does. Live Activity asks for every stage but saved;
-  the Applications board asks for saved and applied.
+  NULL, as a queued one does. Live Activity asks for the stages auto apply
+  writes; the Applications Tracker asks for saved, applied and the three
+  after it.
 - **`17ea74fa4573` goes on before the deploy that writes `saved`.** It only
   adds the value, so the code running before it never meets it; deployed
   first, every Save answers 500. Applied to the shared database on
@@ -998,8 +1008,8 @@ a `NOT EXISTS`); auto apply's matches leave out every stage, `saved` too
 
 `application_events.py`, `../../../docs/email_tracker.md`: an interview,
 an assessment's due date, an offer, a rejection or a follow-up on one
-application. Nothing writes it yet; the Applications Tracker's Add Event
-and later the email tracker will. Rules:
+application. The student adds them on the application's page; the email
+tracker will propose them into the same table. Rules:
 
 - **When it happens is exactly one of `at` (an instant) and `on_day` (a
   date)** (`application_events_one_when`). The tracker draws the two
@@ -1011,8 +1021,11 @@ and later the email tracker will. Rules:
   deletes its events. `job_id` is nullable for an email that matches no
   application (a later step); `MATCH SIMPLE` then checks nothing, and
   `applicant_id`'s own key still ties the row to its student.
-- **`status` and `source` are there for Gmail**: one typed by hand will be
-  `accepted` and `manual` from the start.
+- **An event moves its application forward, never back**
+  (`queries/tracker.py`'s `advance`, one rank per stage, rejected last).
+  Only the stage menu moves a rejected application or moves one backward.
+- **`status` and `source` are there for Gmail**: one typed by hand is
+  `accepted` and `manual` from the start; reads list `accepted` only.
 - **Three enums of its own** (`application_event_kind`, `_status`,
   `_source`), names equal to values. A new kind is an `ALTER TYPE ... ADD
   VALUE`, as above.
@@ -1077,9 +1090,10 @@ Real, not forgotten. Do not treat their absence as a decision already made.
 
 These belong to later tickets and should not be added here:
 
-- Pipeline stages, interviews, offers, resume scores. Hiring-system clones
-  model all of them; `../../../docs/job_posting.md` starts that work. Jobs and
-  the applied mark (`job_applications`, above) exist now.
+- A company's view of its pipeline stages and resume scores. Hiring-system
+  clones model them; `../../../docs/job_posting.md` starts that work. The
+  student's own stages and events (`job_applications`, `application_events`,
+  above) exist now.
 - Resume storage and parsing — implemented in `resume.py` (model) and
   `../utils/resume_parser.py` (heuristic parser). See `../../../docs/resume.md`
   for design rationale.

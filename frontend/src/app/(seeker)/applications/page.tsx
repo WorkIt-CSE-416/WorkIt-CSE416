@@ -1,14 +1,15 @@
 import { CloudSlashIcon } from "@phosphor-icons/react/ssr";
 import type { Metadata } from "next";
+import Link from "next/link";
 import { redirect } from "next/navigation";
 
-import { BookmarkIcon, SearchIcon } from "@/components/icons";
+import { ArrowRightIcon, BookmarkIcon, SearchIcon } from "@/components/icons";
 import { ButtonLink, buttonClasses } from "@/components/ui/button";
 import { EmptyState } from "@/components/ui/empty-state";
 import { cn } from "@/lib/cn";
 
 import { SEEKER_GUTTER } from "../gutter";
-import { getTracker } from "./data";
+import { getTracker, getUpdatesOnce } from "./data";
 import { ClearFiltersLink, FilterBar } from "./filter-bar";
 import { ApplicationsGrid } from "./grid";
 import { ApplicationsList } from "./list";
@@ -53,7 +54,8 @@ export default async function ApplicationsPage({ searchParams }: PageProps<"/app
   // The side panel's old links (the Dashboard's Next Up, a bookmark) open
   // the application's own page instead (KAN-256).
   if (query.app) redirect(applicationHref(query.app));
-  const { applications, error } = await getTracker();
+  const [{ applications, error }, updates] = await Promise.all([getTracker(), getUpdatesOnce()]);
+  const waiting = updates?.length ?? 0;
   const all = applications ?? [];
 
   const shown = filterApplications(all, query);
@@ -90,6 +92,23 @@ export default async function ApplicationsPage({ searchParams }: PageProps<"/app
 
         <ViewSwitcher />
       </div>
+
+      {/* EMAILS THAT NEED A LOOK (KAN-413): one line, only while some
+          wait. The emails themselves live on their own page, /inbox: a
+          table of them stacked on this list read as a second copy of it. */}
+      {waiting > 0 && (
+        <Link
+          href="/inbox?filter=review"
+          className="border-border-subtle bg-panel rounded-card text-meta text-ink hover:bg-hover focus-visible:ring-brand-ring mt-5 flex items-center gap-2 border px-4 py-2.5 transition-colors duration-150 focus-visible:ring-2 focus-visible:outline-none"
+        >
+          <span aria-hidden="true" className="bg-brand size-2 rounded-full" />
+          {waiting === 1 ? "1 email needs a look" : `${waiting} emails need a look`}
+          <span className="text-brand ml-auto inline-flex items-center gap-1 font-medium">
+            Open Inbox
+            <ArrowRightIcon className="size-4" />
+          </span>
+        </Link>
+      )}
 
       <FilterBar
         apps={all.map(({ role, company, stage, track, workModel, source }) => ({
