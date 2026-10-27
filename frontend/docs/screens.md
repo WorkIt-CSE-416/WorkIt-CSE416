@@ -1734,7 +1734,8 @@ with no proposals to accept and no Done (2026-10-25).
 - **Each card has a Preview button** (an eye, labelled "Preview <name>",
   `onPreview` on `ResumeLists`), which opens the resume in a dialog
   (`ResumePreviewDialog`, `resume-preview.tsx`) without moving the pick.
-  The other resume dialogs pass no `onPreview` and show no eye. A preview
+  The other resume dialogs pass no `onPreview` and show no eye; the
+  Resumes page's built resume rows open the same dialog (KAN-358). A preview
   sat in a column beside the list until 2026-10-26; the list needed the
   width, and a dialog gives the page room to read. The dialog takes a
   name and a `TailorSource`, so the review step opens it too, for View
@@ -1974,7 +1975,11 @@ shows "Your Resumes Aren't Loading Right Now" and a Try Again link.
   (KAN-258, `resumes/built-resume-row.tsx`), from `components/resume-row.tsx`'s box (`RESUME_ROW`), star
   (`PrimaryStar`) and icon buttons (`ROW_ACTION`), so the two lists cannot
   drift apart: the PDF mark, the name, one line with one day, then the
-  star, Rename, **Download PDF** and Delete. **The whole card opens the resume editor**: the
+  star, **Preview**, Rename, **Download PDF** and Delete. Preview (an eye,
+  KAN-358) opens the resume read-only in Tailor's Preview dialog
+  (`ResumePreviewDialog`, rendered as it is now), so a student can look at
+  it without the editor. An upload's row has no eye: its card opens its
+  own read-only page. **The whole card opens the resume editor**: the
   name's link stretches over it and the icons sit above that link, and it
   lifts under the pointer as every whole-target card does (`docs/motion.md`).
   It held Open, PDF and Word buttons until KAN-258, when downloading moved

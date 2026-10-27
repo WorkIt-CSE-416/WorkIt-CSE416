@@ -1439,7 +1439,9 @@ the KAN-296 cutover.
   `(seeker)/resumes/uploaded/[id]`, which draws through the same
   `PdfPages`) and Tailor's page (`(seeker)/jobs/[jobId]/tailor`: the
   editor and a resume card's Preview dialog, `resume-preview.tsx`, which
-  the review's View Original sets beside the page, `OriginalResume`), through `import("pdfjs-dist")` inside an effect in
+  the review's View Original sets beside the page, `OriginalResume`), and
+  the Resumes page, whose built resume rows open that same Preview dialog
+  from an eye (KAN-358), through `import("pdfjs-dist")` inside an effect in
   `(seeker)/resumes/[resumeId]/pdf-pages.tsx`: about 110 KB gzip plus a
   290 KB worker, which every other page would otherwise pay for, and its
   module touches browser globals, so a top-level import breaks the server
@@ -1679,7 +1681,11 @@ are in `docs/auth.md`.
   card, since pdf.js cannot draw one. Its bar (the editor's look) holds
   Make Primary, Rename, Delete and Download, calling what the upload's
   card calls, and reads the name and star back with `router.refresh()`
-  rather than guessing them. An upload's card opened its Storage link in
+  rather than guessing them. A built resume's row also has an eye
+  (KAN-358) that shows it read-only in Tailor's Preview dialog
+  (`ResumePreviewDialog`), so a look never opens the editor; it passes the
+  row's `edited_at` as `version`, because the dialog keeps each answer for
+  the app's life and would show a PDF from before an edit. An upload's card opened its Storage link in
   a new tab until then (`lib/preview-resume.ts`, now gone), so an upload
   left the app and a DOCX simply downloaded.
 - **The Experiences view shows one resume at a time** (KAN-343, ADR 0005,
