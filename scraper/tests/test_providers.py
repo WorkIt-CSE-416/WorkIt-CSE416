@@ -684,6 +684,35 @@ class TestOracle:
         with pytest.raises(providers.Incomplete):
             providers.oracle(self.TOKEN, "Texas Instruments")
 
+    def test_a_later_page_not_found_is_incomplete(self, monkeypatch) -> None:
+        # Only the first request can say the board is gone. A 404 on a later page
+        # is a page we could not read: as "no such board", it closed every posting.
+        self.pages(monkeypatch, self.ROWS)
+        page = providers._get_json
+
+        def answer(url: str) -> object:
+            if not url.endswith("offset=0"):
+                raise providers.BoardNotFound(url)
+            return page(url)
+
+        monkeypatch.setattr(providers, "_get_json", answer)
+        with pytest.raises(providers.Incomplete):
+            providers.oracle(self.TOKEN, "Texas Instruments")
+
+    def test_a_count_of_one_with_nothing_listed_is_incomplete(self, monkeypatch) -> None:
+        # One short of the count is whole, but not when that leaves nothing.
+        self.pages(monkeypatch, [], total=1)
+        with pytest.raises(providers.Incomplete):
+            providers.oracle(self.TOKEN, "Texas Instruments")
+
+    def test_a_list_with_no_count_is_incomplete(self, monkeypatch) -> None:
+        # Read as a count of 0, the first page passed for the whole board.
+        monkeypatch.setattr(providers, "ORACLE_PAGE", 2)
+        answer = {"items": [{"requisitionList": self.ROWS[:2]}]}
+        monkeypatch.setattr(providers, "_get_json", lambda url: answer)
+        with pytest.raises(providers.Incomplete):
+            providers.oracle(self.TOKEN, "Texas Instruments")
+
     def test_a_board_past_the_largest_read_is_too_large(self, monkeypatch) -> None:
         self.pages(monkeypatch, self.ROWS)
         monkeypatch.setattr(providers, "ORACLE_MAX", 2)

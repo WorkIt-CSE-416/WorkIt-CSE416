@@ -273,6 +273,20 @@ class TestList:
         with pytest.raises(Incomplete):
             providers.workday(AXOS, "Axos")
 
+    def test_a_later_page_not_found_is_no_read(self, monkeypatch) -> None:
+        # Only the first request can say the board is gone; a 404 on a later page
+        # is a page we could not read, and closes nothing.
+        monkeypatch.setattr(providers, "WORKDAY_PAGE", 2)
+
+        def post(url: str, payload: dict) -> dict:
+            if payload["offset"]:
+                raise BoardNotFound(url)
+            return {"total": 3, "jobPostings": AXOS_ROWS[:2]}
+
+        monkeypatch.setattr(providers, "_post_json", post)
+        with pytest.raises(Incomplete):
+            providers.workday(AXOS, "Axos")
+
     def test_a_board_past_the_limit_is_skipped_after_one_request(self, monkeypatch) -> None:
         # Dollar Tree's count.
         asked = board_pages(monkeypatch, {("", 0): {"total": 25026, "jobPostings": AXOS_ROWS}})
@@ -670,7 +684,7 @@ class TestBudget:
         ]
         swap_provider("workday", budget_s=-1)
         monkeypatch.setattr(run, "_scrape_one", lambda b, robots: (run.Outcome.OK, []))
-        _, stats, read = run.scrape(boards, SimpleNamespace(), {})
+        _, stats, read, _ = run.scrape(boards, SimpleNamespace(), {})
         assert read == ["lever/b"]
         assert (stats.boards_ok, stats.boards_deferred) == (1, 2)
 

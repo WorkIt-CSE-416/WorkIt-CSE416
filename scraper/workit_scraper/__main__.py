@@ -34,6 +34,10 @@ PAGE_HTML = ROOT / "internships.html"
 FEED_JSON = ROOT / "feed.json"
 METRICS_JSON = ROOT / "metrics.json"
 MAX_IN_FLIGHT = 8
+#: A lane in which this many boards we hold postings from say they do not exist,
+#: and more of them than read whole, closes none of them: that is the hiring
+#: system changing (every Workday tenant a 422), not its companies leaving.
+SURGE = 3
 
 
 class Outcome(Enum):
@@ -118,8 +122,9 @@ def _lane(boards: list[Board], robots: Robots, before: dict[str, Job]):
 
 def scrape(
     boards: list[Board], robots: Robots, before: dict[str, Job]
-) -> tuple[list[Job], RunStats, list[str]]:
-    """Every posting scanned, what happened, and the keys of the boards read in full.
+) -> tuple[list[Job], RunStats, list[str], list[str]]:
+    """Every posting scanned, what happened, the keys of the boards read in full,
+    and the keys of the boards we hold postings from that now say they do not exist.
 
     Each provider is its own lane with its own workers. They used to share one pool,
     and a worker waiting out Lever's one-second Crawl-delay was a worker not
@@ -159,16 +164,32 @@ def scrape(
             )
         },
     )
-    # A board we hold postings from that now says it does not exist has nothing
-    # open: read in full, with none. Not one never read (a typo has nothing to
-    # close), and never a failure, which is evidence of nothing.
+    # A board we hold postings from that now says it does not exist may have
+    # nothing open (`store.update` closes it on the second answer in a row). Not
+    # one never read (a typo has nothing to close), never a failure, which is
+    # evidence of nothing, and never most of a lane at once (SURGE).
     known = {job.board_key for job in before.values()}
+    surged = set()
+    for ats, lane in lanes.items():
+        said = Counter(outcome_of[board.key][0] for board in lane if board.key in known)
+        if said[Outcome.MISSING] >= SURGE and said[Outcome.MISSING] > said[Outcome.OK]:
+            print(
+                f"  !  {ats}: {said[Outcome.MISSING]} boards we hold postings from say they"
+                " do not exist; closing none",
+                file=sys.stderr,
+            )
+            surged.add(ats)
     read = [
         board.key
         for board, (outcome, _) in zip(boards, results, strict=True)
-        if outcome is Outcome.OK or (outcome is Outcome.MISSING and board.key in known)
+        if outcome is Outcome.OK
     ]
-    return scanned, stats, read
+    missing = [
+        board.key
+        for board, (outcome, _) in zip(boards, results, strict=True)
+        if outcome is Outcome.MISSING and board.key in known and board.ats not in surged
+    ]
+    return scanned, stats, read, missing
 
 
 def with_page(job: Job, robots: Robots) -> Job:
@@ -237,14 +258,14 @@ def main(argv: list[str] | None = None) -> int:
             for url in providers.robots_urls(board.ats, board.token)
         )
         before = {job.key: job for job in previous.jobs} if previous else {}
-        scanned, stats, read = scrape(boards, robots, before)
+        scanned, stats, read, missing = scrape(boards, robots, before)
         # Store only what the page is about. Keeping all ~91,000 postings -- the sales,
         # marketing and senior roles included -- would make jobs.json tens of megabytes
         # and tell us nothing we display. `stats.postings` still counts everything
         # scanned, so the funnel on the page stays honest about how wide the net was.
         fresh = [job for job in scanned if classify(job.title)]
         stats = replace(stats, kept=len(fresh))
-        run = store.update(previous, fresh, read, stats, now)
+        run = store.update(previous, fresh, read, stats, now, missing=missing)
         # Only boards with a job on the page need a logo, and each is read once --
         # except that a newer reader reads the ones that had none again, once.
         # Recruitee has none we read (`Provider.logo_page`).
