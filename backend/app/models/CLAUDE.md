@@ -939,9 +939,18 @@ a `NOT EXISTS`); auto apply's matches leave out every stage, `saved` too
 - **CASCADE from both sides**: deleting the account or the job deletes the
   row. A closed job keeps its rows, since closing is a status, not a delete.
 - **`stage` is the status** (`dto.application_stage`: `saved`, `queued`,
-  `needs_you`, `skipped`, `applied`; `c0467afe819c`, `saved` from
-  `17ea74fa4573`), a column here rather than a second table, so one row is
+  `needs_you`, `skipped`, `applied`, `interviewing`, `offer`, `rejected`;
+  `c0467afe819c`, `saved` from `17ea74fa4573`, the last three from
+  `a7d3e5f1c2b4`), a column here rather than a second table, so one row is
   one application. `created_at` orders the queue.
+- **Interviewing, offer and rejected are applied too** (KAN-413,
+  `../../../docs/email_tracker.md`); nothing writes them yet. Anything that
+  asks "did this student apply?" will count all four. **In SQL, ask it as
+  `NOT IN dto.BEFORE_APPLIED`, never `IN dto.APPLIED_STAGES`**: Postgres
+  refuses a query that names an enum value its type lacks, so the `IN`
+  form fails on any database without `a7d3e5f1c2b4` (found on the shared
+  database, 2026-10-27, before anything deployed). The four stages before
+  applied exist everywhere.
 - **`saved` is a bookmark, not an application** (KAN-261). Nothing queues
   it by itself: batches skip it. Applying, or the job's own Auto Apply
   click, moves it on (`mark_applied`; `queue_applications`, which also
@@ -983,8 +992,30 @@ a `NOT EXISTS`); auto apply's matches leave out every stage, `saved` too
   resume; the job posting or the account cascades both. The migration
   backfilled each applied application with its posting's last sent
   resume, which the tracker showed until then.
-- An undo is not built. The tracker's later stages
-  (interviewing, offer) are Out of scope below.
+- An undo is not built.
+
+## application_events — dated things on an application (KAN-413)
+
+`application_events.py`, `../../../docs/email_tracker.md`: an interview,
+an assessment's due date, an offer, a rejection or a follow-up on one
+application. Nothing writes it yet; the Applications Tracker's Add Event
+and later the email tracker will. Rules:
+
+- **When it happens is exactly one of `at` (an instant) and `on_day` (a
+  date)** (`application_events_one_when`). The tracker draws the two
+  differently, an instant in the viewer's zone and a date as it is, so a
+  date must never be stored as midnight UTC: it reads as the day before in
+  the Americas.
+- **Its composite foreign key `(applicant_id, job_id)` to
+  `job_applications` cascades**: Unsave or taking a job out of the queue
+  deletes its events. `job_id` is nullable for an email that matches no
+  application (a later step); `MATCH SIMPLE` then checks nothing, and
+  `applicant_id`'s own key still ties the row to its student.
+- **`status` and `source` are there for Gmail**: one typed by hand will be
+  `accepted` and `manual` from the start.
+- **Three enums of its own** (`application_event_kind`, `_status`,
+  `_source`), names equal to values. A new kind is an `ALTER TYPE ... ADD
+  VALUE`, as above.
 
 ## Identity lives in auth.users
 
