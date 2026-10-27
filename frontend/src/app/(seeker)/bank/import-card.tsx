@@ -3,7 +3,6 @@
 import Link from "next/link";
 import { useEffect, useRef, useState } from "react";
 
-import { SparkleIcon } from "@/components/icons";
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
 import { importResume, type ImportResponse } from "@/lib/bank-actions";
@@ -17,10 +16,8 @@ import { importSummary } from "@/lib/import-summary";
  * Nothing waits for review: entries are in the bank already, and the student
  * fixes them there. Each write reads the bank again through `onSaved`.
  *
- * Model parsing (KAN-222) runs only on the student's click: "Read It With
- * AI" while they have an AI reading left today. Its entries replace what the
- * upload owned, like any import (ADR 0005); a failed reading leaves the bank as it was and shows
- * why.
+ * The card reads with the parser only. Read It With AI (KAN-222) sat beside
+ * Continue until KAN-353.
  *
  * It opens inside intake's chat: Continue hands the space back, and the walk
  * goes on to ask about what the resume did not say.
@@ -43,10 +40,10 @@ export function ImportCard({
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
-  async function run(readWithAi = false) {
+  async function run() {
     setBusy(true);
     setError(null);
-    const { data, error } = await importResume({ resumeId: result?.resume_id, readWithAi });
+    const { data, error } = await importResume({ resumeId: result?.resume_id });
     setBusy(false);
     if (!data) return setError(error);
     setResult(data);
@@ -90,11 +87,6 @@ export function ImportCard({
         <Button size="sm" onClick={onClose} disabled={busy}>
           Continue
         </Button>
-        {result && result.uses_left > 0 && (
-          <Button variant="secondary" size="sm" onClick={() => run(true)} disabled={busy}>
-            <SparkleIcon /> {busy ? "Reading…" : "Read It With AI"}
-          </Button>
-        )}
       </div>
 
       {error && (

@@ -1608,10 +1608,12 @@ are in `docs/auth.md`.
   or a replace (the resume picker's, at the limit), or Import Again's
   response. A newer version of an upload is a delete and an upload: the
   Resumes view's row offered Import Updated Resume until KAN-362, and never
-  a re-read of the stored file, which only ever read the same text. "Read It With
-  AI" (KAN-222) runs only on a click, never on its own, and shows only
-  while `uses_left` is above 0; a failed reading writes nothing and says
-  why.
+  a re-read of the stored file, which only ever read the same text. **No
+  screen offers an AI reading of a resume** (KAN-353): upload, Import Again
+  and intake's Import Your Resume read with the parser only. Read It With
+  AI (KAN-222) sat beside the upload note and in the import card until
+  then; the API's `read_with_ai` and `importResume`'s `readWithAi` stay,
+  with no caller.
 - **The Resumes view is one list of every resume** (KAN-362, KAN-404,
   `(seeker)/resumes/built-resumes.tsx`): uploaded, generated and tailored,
   newest first, each as its card (`components/resume-row.tsx`'s box, star

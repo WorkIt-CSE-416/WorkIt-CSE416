@@ -1509,7 +1509,7 @@ in Docs (suggested answers in the chat, not a banner).
   from the resume question's answers in the chat (the first stage for an
   empty bank, Scout's second line otherwise), offered until the student
   imports once. It says what went into the bank (`lib/import-summary.ts`)
-  and holds Continue and, while an AI reading is left, Read It With AI.
+  and holds Continue (Read It With AI sat beside it until KAN-353).
   Nothing waits for review: the entries are in the bank, and the page
   behind shows them at once.
   Upload Resume (PDF or DOCX) uploads through `uploadResume`, as the Resumes
@@ -1902,9 +1902,8 @@ shows "Your Resumes Aren't Loading Right Now" and a Try Again link.
   <name>" with OK (`resumes/duplicate-resume-dialog.tsx`).
   Intake and onboarding uploads show the message as their error line. **The upload fills the experience bank** (ADR 0003): a
   note under the filter row says what went in ("Added 6 entries and 2 skills
-  from resume.pdf", or "WorkIt couldn't find any entries in …"), links to
-  Experiences, and offers **Read It With AI** while the student has an AI
-  reading left. Before KAN-240 an upload showed nothing, and its facts
+  from resume.pdf", or "WorkIt couldn't find any entries in …") and links
+  to Experiences. It offered Read It With AI until KAN-353. Before KAN-240 an upload showed nothing, and its facts
   reached the bank only if the student found the import inside intake;
   most never did. **A click anywhere on an upload's card opens its own
   page** (`src/components/resume-row.tsx`'s link, KAN-366; Uploaded
