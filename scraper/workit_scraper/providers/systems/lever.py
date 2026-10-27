@@ -78,10 +78,14 @@ def _lever_description(row: dict) -> str | None:
 
 
 PROVIDER = Provider(
-    listing_url="https://api.lever.co/v0/postings/{token}?mode=json",
+    # `api` and `site` are Lever's US hosts, or its EU ones for an "eu/{slug}"
+    # token (`registry._parts`). Its EU boards (jobs.eu.lever.co: Quantinuum,
+    # Cirrus) went unread until 2026-10-27: the pattern missed the `.eu.`, as
+    # Greenhouse's once did.
+    listing_url="https://{api}/v0/postings/{slug}?mode=json",
     read=lever,
-    apply_link=re.compile(r"jobs\.lever\.co/([a-z0-9_.-]+)", re.I),
-    logo_page="https://jobs.lever.co/{}",
+    apply_link=re.compile(r"jobs\.(?:(eu)\.)?lever\.co/([a-z0-9_.-]+)", re.I),
+    logo_page="https://{site}/{slug}",
     # The header logo, not `og:image` -- Lever's is a 1200x630 banner with a
     # tagline. Older uploads use the bucket's dash host, `s3-us-west-2` (Daniels
     # Health).

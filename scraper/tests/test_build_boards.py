@@ -37,6 +37,13 @@ def slugs(link: str) -> list[tuple[str, str]]:
             ("greenhouse", "stubhubinc"),
         ),
         ("https://job-boards.greenhouse.io/stripe/jobs/7012345", ("greenhouse", "stripe")),
+        # Lever's EU data centre (seen 2026-10-27), whose API is api.eu.lever.co:
+        # missing `.eu.` left Quantinuum's and Cirrus's boards unread.
+        (
+            "https://jobs.eu.lever.co/quantinuum/46b3f32c-a2ad-4d4d-bff6-b1bbebf3e382/apply",
+            ("lever", "eu/quantinuum"),
+        ),
+        ("https://jobs.lever.co/palantir/abc", ("lever", "palantir")),
     ],
 )
 def test_an_apply_link_names_its_board(link: str, board: tuple[str, str]) -> None:

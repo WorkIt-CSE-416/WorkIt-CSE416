@@ -416,8 +416,10 @@ uses); postings are always scraped from the employer.
 - **A board on a provider's second host is still its board.** Greenhouse's EU
   boards (`job-boards.eu.greenhouse.io`) answer on the same
   `boards-api.greenhouse.io`, but its apply-link pattern missed the `.eu.` and dropped 26
-  companies' links until 2026-10-26. A pattern that misses says nothing, so
-  check the links no pattern takes, grouped by host, when a list changes.
+  companies' links until 2026-10-26. Lever's EU boards (`jobs.eu.lever.co`) did
+  the same until 2026-10-27; their API is `api.eu.lever.co`, so a Lever token
+  is `eu/{slug}` there (`registry._parts`). A pattern that misses says nothing,
+  so check the links no pattern takes, grouped by host, when a list changes.
 - **The internship lists are renamed each season** (`Summer2026-Internships` →
   `Summer2027-Internships`). GitHub serves the old address too, but update
   `SOURCES` each season: a list that starts a new repo instead would go unread.

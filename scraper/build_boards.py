@@ -65,12 +65,13 @@ WORKDAY_SITE = re.compile(
 
 def tokens(link: str) -> list[tuple[str, str]]:
     """Every (ats, token) an apply link names, lower-cased: slugs are case-blind on
-    every provider, Workday's sites included. Not Oracle's (`Provider.keeps_case`)."""
+    every provider, Workday's sites included. Not Oracle's (`Provider.keeps_case`).
+    A group a pattern may skip (Lever's `eu`) is left out of the token."""
     found = [
         (ats, token if provider.keeps_case else token.lower())
         for ats, provider in PROVIDERS.items()
         for match in provider.apply_link.finditer(link)
-        for token in ["/".join(match.groups())]
+        for token in ["/".join(group for group in match.groups() if group)]
     ]
     found += [
         ("workday", f"{tenant}.{wd}/{site}".lower())

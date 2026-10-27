@@ -14,7 +14,7 @@ from types import SimpleNamespace
 import pytest
 
 from workit_scraper import __main__ as run
-from workit_scraper import polite, providers, store
+from workit_scraper import logos, polite, providers, store
 from workit_scraper.details import Facts, Pay
 from workit_scraper.providers import BoardNotFound, Job, Page
 from workit_scraper.shortlist import classify
@@ -804,6 +804,36 @@ class TestWithPage:
         for ats in ("workable", "bamboohr", "recruitee"):
             run.with_page(self.job(ats), self.robots)
         assert read == ["workable", "bamboohr"]
+
+
+class TestLever:
+    """Lever runs a second data centre in the EU, with hosts of its own: a board
+    there is "eu/{slug}", listed by api.eu.lever.co, its page on jobs.eu.lever.co.
+    Its answer has the US one's shape, so only the addresses are new here; the
+    live EU boards are read by the scrape a PR runs."""
+
+    def test_an_eu_board_is_read_on_levers_eu_hosts(self, monkeypatch) -> None:
+        asked = serve(monkeypatch, [])
+        assert providers.lever("eu/quantinuum", "Quantinuum") == []
+        assert asked == ["https://api.eu.lever.co/v0/postings/quantinuum?mode=json"]
+        assert logos.page_url("lever", "eu/quantinuum") == "https://jobs.eu.lever.co/quantinuum"
+        assert logos.lever_jobs("eu/quantinuum") == (
+            "https://api.eu.lever.co/v0/postings/quantinuum?mode=json&limit=50"
+        )
+
+    def test_a_us_board_keeps_its_addresses(self) -> None:
+        assert providers.listing_url("lever", "palantir") == (
+            "https://api.lever.co/v0/postings/palantir?mode=json"
+        )
+        assert logos.page_url("lever", "palantir") == "https://jobs.lever.co/palantir"
+
+    def test_an_eu_posting_belongs_to_its_eu_board(self, monkeypatch) -> None:
+        url = "https://jobs.eu.lever.co/quantinuum/46b3f32c-a2ad-4d4d-bff6-b1bbebf3e382"
+        serve(
+            monkeypatch, [{"id": "46b3f32c", "text": "Software Engineer Intern", "hostedUrl": url}]
+        )
+        [posting] = providers.lever("eu/quantinuum", "Quantinuum")
+        assert (posting.board_key, posting.apply_url) == ("lever/eu/quantinuum", url)
 
 
 class TestSharedPace:

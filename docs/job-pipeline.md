@@ -79,7 +79,7 @@ How the refresh behaves:
 |---|---|---|---|
 | Greenhouse | 871 | Tech companies of every size | Its list, then each kept job posting's own page |
 | Ashby | 694 | Startups | One request, everything included |
-| Lever | 341 | Startups and mid-size | One request; Lever asks for one second between requests |
+| Lever | 341 | Startups and mid-size | One request; Lever asks for one second between requests. Its EU company job boards are on their own address (`api.eu.lever.co`) |
 | Workable | 178 | Small and mid-size companies | Its list, then each kept job posting's own page (for hybrid and pay) |
 | BambooHR | 42 | Small and mid-size companies | Its list, then each kept job posting's own page (the list has no description) |
 | Recruitee | 2 | Small companies, mostly in Europe | One request, everything included |
