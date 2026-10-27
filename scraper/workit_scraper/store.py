@@ -28,6 +28,12 @@ QUIET_LONGEST = timedelta(days=1)
 #: How often the scheduled run fires (.github/workflows/scrape.yml, every three
 #: hours): the slot that each quiet board's turn comes round in.
 RUN_EVERY = timedelta(hours=3)
+#: A board that went unread this many runs in a row -- it failed, said it does not
+#: exist, or robots.txt refused it -- rests: it is not asked for REST_FIRST, then
+#: twice that after each further miss, up to REST_LONGEST. Never for good.
+REST_AFTER = 3
+REST_FIRST = timedelta(hours=6)
+REST_LONGEST = timedelta(hours=24)
 
 
 @dataclass(frozen=True, slots=True)
@@ -67,6 +73,16 @@ class BoardReads:
 
 
 @dataclass(frozen=True, slots=True)
+class BoardHealth:
+    """A board that went unread on its last runs: how many in a row, why the last
+    time (`RunStats.unread`), and until when it rests, if it does."""
+
+    failures: int
+    why: str
+    rest_until: str | None = None
+
+
+@dataclass(frozen=True, slots=True)
 class Store:
     scraped_at: str
     stats: RunStats
@@ -78,6 +94,18 @@ class Store:
     logos: dict[str, str | None] = field(default_factory=dict)
     #: The `logos.VERSION` that read the boards stored with no logo.
     logos_version: int = 1
+    #: Keyed by `Board.key`: only boards whose last runs left them unread. A
+    #: complete read removes the entry (`update`).
+    health: dict[str, BoardHealth] = field(default_factory=dict)
+
+    def resting(self, now: str) -> set[str]:
+        """The boards not asked for this run, because they kept going unread."""
+        at = _at(now)
+        return {
+            key
+            for key, health in self.health.items()
+            if health.rest_until is not None and _at(health.rest_until) > at
+        }
 
     def is_listed(self, job: Job) -> bool:
         """Whether the posting was on its board at one of the last two complete
@@ -126,7 +154,13 @@ class Store:
 
     def to_read(self, boards: list[Board], now: str, *, everything: bool = False) -> list[Board]:
         """The boards this run reads, least recently read first: every one, except
-        quiet boards not due today (all of them with `everything`, for `--full`).
+        resting boards (`resting`) and quiet boards not due today (all of the quiet
+        ones with `everything`, for `--full`).
+
+        The last run asked 191 boards that said "no such board" and 12 that failed,
+        every run, since boards.csv keeps every board. A board that goes unread
+        REST_AFTER runs in a row now rests, as Freehire's do. Even `--full` does not
+        ask a resting board: it answers as it did a few hours ago.
 
         Most boards in boards.csv have never had a posting we keep -- 282 of 333 on
         Lever, whose one-second Crawl-delay made it most of a run. A quiet board is
@@ -151,8 +185,11 @@ class Store:
         slot = int(at.timestamp() // RUN_EVERY.total_seconds())
         hot = {job.board_key for job in self.jobs}
         missed = self.missed_once()
+        resting = self.resting(now)
         due = []
         for board in boards:
+            if board.key in resting:
+                continue
             reads = self.boards.get(board.key)
             if (
                 everything
@@ -207,6 +244,10 @@ def update(
     close. One spurious 404 must not close a company's postings in Supabase. The
     two answers are the two misses `Store.is_listed` needs, so the first one's time
     becomes the read before.
+
+    `stats.unread` gives each board this run left unread one more miss in a row,
+    and the REST_AFTER-th and later a rest (`rest_for`). A board left for a later
+    run (`Outcome.DEFERRED`) has no reason there, and its count stays.
     """
     before = {job.key: job for job in previous.jobs} if previous else {}
     merged = []
@@ -238,6 +279,14 @@ def update(
             boards[key] = replace(reads, missing_at=now)
         else:
             boards[key] = replace(reads, last_read_at=now, prior_read_at=reads.missing_at)
+    health = dict(previous.health) if previous else {}
+    for key in read:
+        health.pop(key, None)
+    for key, why in stats.unread.items():
+        failures = (health[key].failures if key in health else 0) + 1
+        rest = rest_for(failures)
+        until = (_at(now) + rest).isoformat() if rest else None
+        health[key] = BoardHealth(failures=failures, why=why, rest_until=until)
     logos = dict(previous.logos) if previous else {}
     version = previous.logos_version if previous else 1
     return Store(
@@ -247,7 +296,16 @@ def update(
         boards=boards,
         logos=logos,
         logos_version=version,
+        health=health,
     )
+
+
+def rest_for(failures: int) -> timedelta | None:
+    """How long a board unread `failures` runs in a row rests: none below
+    REST_AFTER, then REST_FIRST, doubling each miss up to REST_LONGEST."""
+    if failures < REST_AFTER:
+        return None
+    return min(REST_FIRST * 2 ** (failures - REST_AFTER), REST_LONGEST)
 
 
 def reread_missing_logos(run: Store, version: int) -> Store:
@@ -298,6 +356,7 @@ def load(path: Path) -> Store | None:
         boards={key: _known(BoardReads, reads) for key, reads in payload["boards"].items()},
         logos=payload.get("logos", {}),
         logos_version=payload.get("logos_version", 1),
+        health={key: _known(BoardHealth, row) for key, row in payload.get("health", {}).items()},
     )
 
 
@@ -317,6 +376,7 @@ def save(store: Store, path: Path) -> None:
         "boards": {key: asdict(reads) for key, reads in store.boards.items()},
         "logos": store.logos,
         "logos_version": store.logos_version,
+        "health": {key: asdict(health) for key, health in store.health.items()},
         "jobs": [job.to_row() for job in sorted(store.jobs, key=lambda job: job.key)],
     }
     path.write_text(json.dumps(payload, indent=1, sort_keys=True) + "\n", encoding="utf-8")

@@ -400,6 +400,18 @@ Oracle's, 12 minutes each, run side by side). It starts boards from the front of
 `Store.to_read`'s order (a board with a posting missed once, then one never
 read, then the least recently read), and once its time is up leaves the rest for
 a later run.
+
+**A board that keeps going unread rests** (`Store.health`, `store.rest_for`),
+as Freehire's do. After `REST_AFTER` (3) runs in a row that left it unread for
+any reason in `RunStats.unread` (a failure, "no such board", robots.txt), no run
+asks it for `REST_FIRST` (6 hours), then twice that after each further miss, up
+to `REST_LONGEST` (a day). One complete read ends it. **Never rest a board for
+good**: a site that blocked us or a board that came back must be found again
+by itself. A board left for a later run has no reason and keeps its count.
+Even `--full` skips a resting board. Before this, the 191 boards that said "no
+such board" and the 12 that failed were asked on every run. The rest does not
+delay a close: "no such board" closes on its second answer, before the third.
+
 `--full` keeps the budget: it un-rests quiet boards, it does not make a Workday
 sweep fit in one run. The page's "postings scanned" counts what this run read,
 so it is lower on a run that rested quiet boards or ran out of Workday time.
@@ -527,6 +539,8 @@ the design they serve and its next steps):
   "robots.txt", "too large" or "no such board". It says whether any site blocks
   GitHub's runners before anyone weighs a move or a proxy: until it, a refusal
   was only a line in the log.
+- **`resting`**: the boards the next runs will not ask (`Store.resting`), in the
+  same shape as `unread`, by why each last went unread.
 
 `build_boards.py` prints the unread apply links by cause, with their top hosts
 (`unread_cause`, `unread_hosts`). That table is where a new reader pays off:

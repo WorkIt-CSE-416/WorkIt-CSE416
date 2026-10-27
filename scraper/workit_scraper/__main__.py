@@ -301,7 +301,8 @@ def main(argv: list[str] | None = None) -> int:
             # from the front until its time is up (`Provider.budget_s`).
             due = previous.to_read(boards, now, everything=args.full)
             rest = "" if args.full else " (quiet ones rest; --full reads all)"
-            print(f"scraping {len(due)} of {len(boards)} boards{rest}\n")
+            print(f"scraping {len(due)} of {len(boards)} boards{rest}")
+            print(f"{len(previous.resting(now)):,} boards rest after going unread\n")
             boards = due
         else:
             print(f"scraping {len(boards)} boards\n")
@@ -347,10 +348,18 @@ def main(argv: list[str] | None = None) -> int:
         by_ats = Counter(role.ats for role in roles)
         steps = widening(scanned)
         missed = len(run.missed_once())
+        resting = {key: run.health[key].why for key in run.resting(run.scraped_at)}
         write_metrics(
-            run.stats, fresh, by_ats, run.scraped_at, METRICS_JSON, steps=steps, missed=missed
+            run.stats,
+            fresh,
+            by_ats,
+            run.scraped_at,
+            METRICS_JSON,
+            steps=steps,
+            missed=missed,
+            resting=resting,
         )
-        print_metrics(run.stats, fresh, by_ats, steps=steps, missed=missed)
+        print_metrics(run.stats, fresh, by_ats, steps=steps, missed=missed, resting=resting)
 
     print(
         f"\n{run.stats.postings:,} postings -> {len(roles)} distinct roles"
@@ -415,12 +424,14 @@ def write_metrics(
     *,
     steps: dict[str, int] | None = None,
     missed: int | None = None,
+    resting: dict[str, str] | None = None,
 ) -> None:
     """metrics.json: the run's totals and each provider's share, so a change to one
     provider can be measured run against run (the scheduled run keeps it a week),
     and why boards went unread (`unread_by_provider`). With `steps`, what a wider
     shortlist would keep (`widening`); with `missed`, the boards holding a posting
-    missed once, whose next complete read decides it."""
+    missed once, whose next complete read decides it; with `resting`, the boards
+    the next runs will not ask (`Store.resting`), by why they last went unread."""
     totals = {
         key: value for key, value in asdict(stats).items() if key not in ("by_provider", "unread")
     }
@@ -434,6 +445,8 @@ def write_metrics(
         payload["widening"] = steps
     if missed is not None:
         payload["boards_missed_once"] = missed
+    if resting is not None:
+        payload["resting"] = unread_by_provider(resting)
     path.write_text(json.dumps(payload, indent=1, sort_keys=True) + "\n", encoding="utf-8")
 
 
@@ -444,6 +457,7 @@ def print_metrics(
     *,
     steps: dict[str, int] | None = None,
     missed: int | None = None,
+    resting: dict[str, str] | None = None,
 ) -> None:
     columns = ("boards", "ok", "missing", "skipped", "failed", "deferred")
     print(f"\n{'provider':11s}" + "".join(f"{c:>9s}" for c in columns), end="")
@@ -462,9 +476,11 @@ def print_metrics(
                 f" first, {row['not_newest_first']:,} do not,"
                 f" {row['order_unclear']:,} give too few dates to tell"
             )
-    if stats.unread:
-        print("\nwhy boards went unread, by provider:")
-        for ats, reasons in sorted(unread_by_provider(stats.unread).items()):
+    for title, unread in (("went unread", stats.unread), ("rest now", resting)):
+        if not unread:
+            continue
+        print(f"\nwhy boards {title}, by provider:")
+        for ats, reasons in sorted(unread_by_provider(unread).items()):
             ranked = sorted(reasons.items(), key=lambda reason: -reason[1]["boards"])
             print(f"  {ats:11s} " + ", ".join(f"{why} {n['boards']:,}" for why, n in ranked))
     if steps:

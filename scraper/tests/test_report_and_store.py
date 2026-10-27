@@ -8,10 +8,11 @@ ways the count was, or could have been, wrong.
 from __future__ import annotations
 
 import json
+from datetime import datetime, timedelta
 from pathlib import Path
 
 from workit_scraper import report, store
-from workit_scraper.providers import Job
+from workit_scraper.providers import Board, Job
 from workit_scraper.shortlist import pick
 from workit_scraper.store import BoardReads, RunStats, Store
 
@@ -177,3 +178,56 @@ class TestFile:
         payload["stats"]["boards_resting"] = 4
         path.write_text(json.dumps(payload), encoding="utf-8")
         assert store.load(path) == saved
+
+
+class TestRest:
+    """A board that keeps going unread rests, and is asked again when its rest is up.
+
+    The last run asked 191 boards that said "no such board" every run; none of these
+    may rest a board that can be read, nor rest one for good."""
+
+    gone = Board("greenhouse", "gone", "Gone")
+
+    def unread(self, previous: Store | None, now: str, why: str = "no such board") -> Store:
+        return store.update(previous, [], [], RunStats(unread={self.gone.key: why}), now)
+
+    def runs(self, count: int, why: str = "no such board") -> Store:
+        run = None
+        for hours in range(count):
+            run = self.unread(run, _plus(MON, hours * 3), why)
+        return run
+
+    def test_two_misses_in_a_row_are_no_rest(self):
+        run = self.runs(2)
+        assert run.health[self.gone.key].failures == 2
+        assert run.resting(_plus(MON, 6)) == set()
+
+    def test_the_third_rests_six_hours_then_twelve_then_a_day_at_most(self):
+        rests = [store.rest_for(failures) for failures in range(3, 8)]
+        assert rests == [timedelta(hours=h) for h in (6, 12, 24, 24, 24)]
+        run = self.runs(3)
+        assert run.health[self.gone.key].rest_until == _plus(MON, 6 + 6)
+
+    def test_a_resting_board_is_not_read_even_with_full_and_is_after_its_rest(self):
+        run = self.runs(3, why="403")
+        assert run.to_read([self.gone], _plus(MON, 11), everything=True) == []
+        assert run.to_read([self.gone], _plus(MON, 12)) == [self.gone]
+
+    def test_one_complete_read_ends_it(self):
+        run = store.update(self.runs(4), [], [self.gone.key], RunStats(), _plus(MON, 30))
+        assert run.health == {}
+        assert self.unread(run, _plus(MON, 33)).health[self.gone.key].failures == 1
+
+    def test_a_board_left_for_a_later_run_keeps_its_count(self):
+        run = store.update(self.runs(2), [], [], RunStats(), _plus(MON, 6))
+        assert run.health[self.gone.key].failures == 2
+
+    def test_it_survives_the_file(self, tmp_path: Path):
+        run = self.runs(3)
+        path = tmp_path / "jobs.json"
+        store.save(run, path)
+        assert store.load(path).health == run.health
+
+
+def _plus(at: str, hours: int) -> str:
+    return (datetime.fromisoformat(at) + timedelta(hours=hours)).isoformat()

@@ -187,8 +187,8 @@ median 102 minutes late (at most 170). The real gap between runs was a median
 
 [Freehire](https://github.com/strelov1/freehire) is an open-source job search
 engine in Go with about 3.4 million open postings (2026-10-20). Its ingest code
-(`internal/ingest`) has solved several problems we have. Each change here is
-proposed, not built.
+(`internal/ingest`) has solved several problems we have. Change 1 is built
+(`Store.health`); the rest are proposed.
 
 | # | Change | Freehire's version | Why we need it | Cost |
 |---|---|---|---|---|
