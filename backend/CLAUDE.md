@@ -959,11 +959,26 @@ removed at cutover, not before. Until then a change must work on both.
   KAN-212: apply it only where the code that stopped mapping the column
   (`d89a4ef`, on `main` since KAN-212) is deployed. Applied first, an older
   deploy's upload INSERT names the column and fails.
+- **`89d598a1667d` (KAN-298's notifications) is on main ahead of its
+  code**, with the merge revision `c4e8a2f6d1b3` joining it to
+  `a7d3e5f1c2b4` (both branch off `b9e2c4d6f8a1`). It was applied to the
+  shared database from KAN-298's open branch (`alembic/CLAUDE.md`, "Commit
+  the migration in the same PR that applies it"), so its file came to main
+  first, unchanged. Until KAN-298's models merge, main maps neither
+  `notifications` nor `applicant_profiles.job_alerts_enabled`:
+  `alembic revision --autogenerate` proposes dropping both, so delete
+  those lines from any migration it writes, and `alembic check` reports
+  them. The column has a `false` default, so main's inserts are unaffected.
 - **Apply `a7d3e5f1c2b4` (the stages after applied and
   `application_events`, KAN-413) as soon as it merges.** It only adds enum
   values and a table that nothing reads yet, so applying it is safe for
   every deploy; the Applications Tracker's stage menu and Add Event, which
   follow in their own PR, answer 500 on a database without it.
+- **Apply `bd730e8ab454` (`job_postings.closed_reason`, KAN-412) as soon as
+  it merges.** It only adds a nullable column and a CHECK every row meets, and
+  no code maps it yet, so it is safe for every deploy. The import that writes
+  it (why a scraped job closed) follows in its own PR, whose dry-run scrape
+  check and every scheduled import fail on a database without it.
 - **Apply `a3d7f1c9e2b4` (`bank_skills.built_resume_id`, resume-local
   skills) before the deploy that maps it.** Every skill insert names the
   column, so deployed first, uploads, Import Again and Add skill answer
