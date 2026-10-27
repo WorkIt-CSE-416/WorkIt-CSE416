@@ -710,15 +710,21 @@ line per email, three columns: Job (logo, role as a link to the
 application, company; No Matching Job for an email that matched none),
 Type (the kind's pill, `applications/email-kinds.tsx`) and Date. **A click
 on a row opens the email** (`applications/email-view.tsx`, a Sheet from
-the right, 672px, after Gmail's reading pane): a toolbar on one line
-(Accept, a dismiss cross, Reply and Open in Gmail disabled until Gmail is
-connected, Open Application, and Add to Calendar, which opens Google
-Calendar's own new-event page filled in, an hour at the email's time or
-the whole due day, with no sign-in of WorkIt's), then the subject and its
-pill, what accepting does ("Moves to Interviewing", mirroring the API's
-`advance`), the sender's line with the date, a job picker for an
-unmatched email (Accept waits for it), and the kept summary with a line
-saying the full email opens in Gmail. The pill is a button too, the row's
+the right, 672px, laid out as Gmail lays out an open message): an icon
+toolbar (Done, which dismisses it, as Gmail's Archive; Open Application;
+Add to Calendar, which opens Google Calendar's own new-event page filled
+in, an hour at the email's time or the whole due day, with no sign-in of
+WorkIt's), then the subject and its pill, one tinted suggestion line with
+the panel's only accept, named for its effect ("Move to Interviewing", or
+"Add to Timeline", mirroring the API's `advance`; for an unmatched email a
+job picker and Add), the sender's line (logo, name, "to me", the received
+time as Gmail prints it, "Tue, Oct 27, 9:42 AM (7 hours ago)", from the
+event's `created_at`, and a reply arrow), the email's text, and a Reply
+button. Reply opens Gmail on a search for the subject until Gmail is
+connected and the message id is kept. The application's Emails clips each
+email's text to two lines. The user cut a version with Accept, a dismiss
+cross, Reply and Open in Gmail as a button row and two worded buttons:
+keep the toolbar to icons and the decision to one line. The pill is a button too, the row's
 keyboard way in. Each decision refreshes the page. **Keep the table this
 simple**: the first version was a card per email with Move to
 Interviewing, Not Right and Wrong Job? under two tabs, plus a count badge

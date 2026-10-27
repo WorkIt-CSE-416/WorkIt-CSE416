@@ -48,6 +48,9 @@ export type ApplicationEvent = {
   /** The API's own kind, which `kind` folds (a confirmation and a follow-up
    *  are both "follow-up"): an email's pill names it. */
   emailKind?: "confirmation" | "assessment" | "interview" | "offer" | "rejection" | "other";
+  /** When WorkIt stored it: an email's received time (the email view's
+   *  sender line). */
+  receivedAt?: string;
 };
 
 export type Application = {

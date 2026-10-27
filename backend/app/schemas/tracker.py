@@ -84,6 +84,9 @@ class EventResponse(BaseModel):
     on_day: datetime.date | None
     note: str | None
     meeting_url: str | None
+    # When WorkIt stored it: for an email, when it was read from the inbox,
+    # which the email view prints as the message's received time
+    created_at: datetime.datetime
 
 
 class EventAccept(BaseModel):

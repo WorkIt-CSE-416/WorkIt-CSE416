@@ -117,7 +117,11 @@ function EmailRow({
             <When at={email.at} />
           </p>
         )}
-        {email.note && <p className="text-body text-ink-muted mt-1">{email.note}</p>}
+        {email.note && (
+          <p className="text-body text-ink-muted mt-1 line-clamp-2" title={email.note}>
+            {email.note}
+          </p>
+        )}
       </div>
       <div className="flex items-center gap-2 sm:justify-end">
         {waiting && email.id ? (

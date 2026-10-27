@@ -68,6 +68,7 @@ type StoredEvent = {
   note: string | null;
   meeting_url: string | null;
   source: "manual" | "gmail";
+  created_at: string;
 };
 
 /** The tracker's kind for each of the API's: an assessment is a deadline
@@ -109,6 +110,7 @@ function toEvent(event: StoredEvent): ApplicationEvent {
     meetingUrl: event.meeting_url,
     source: event.source,
     emailKind: event.kind,
+    receivedAt: event.created_at,
   };
 }
 

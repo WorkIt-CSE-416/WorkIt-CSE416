@@ -1,4 +1,5 @@
 import {
+  ArchiveIcon as Archive,
   ArrowBendUpLeftIcon,
   CalendarPlusIcon as CalendarPlus,
   ColumnsIcon as Columns,
@@ -55,4 +56,10 @@ export function ReplyIcon({ className }: IconProps) {
 /** The email view's Add to Google Calendar. */
 export function CalendarPlusIcon({ className }: IconProps) {
   return <CalendarPlus aria-hidden className={className} />;
+}
+
+/** The email view's Done: leave the email off the tracker, as Gmail's
+ *  Archive takes a message out of the inbox. */
+export function DoneIcon({ className }: IconProps) {
+  return <Archive aria-hidden className={className} />;
 }
