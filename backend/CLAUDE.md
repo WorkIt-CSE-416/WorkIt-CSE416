@@ -738,6 +738,14 @@ Find files with a directory listing; these are the rules for where code goes.
   would eventually get its own JSONB-backed slot). One `ESSAY` use per
   generated answer (cap 5, share 10%: on top of the spec's four shares plus
   the assistant's, following the same accepted-overshoot precedent).
+- **The Applications Tracker's own writes** (KAN-413,
+  `../docs/email_tracker.md`) are `routers/tracker.py` over
+  `queries/tracker.py`: the stage menu (`PUT .../applications/{job_id}/stage`,
+  applied or later, any direction) and the events (`GET .../events`, `POST
+  .../applications/{job_id}/events`, `DELETE .../events/{event_id}`). An
+  event moves its application forward only (`advance`); a stage past
+  applied still counts as applied (`dto.APPLIED_STAGES`, the models'
+  CLAUDE.md). Tests: `tests/test_tracker.py`.
 - **Utils** (`app/utils/`): the resume parser; `app/utils/CLAUDE.md`.
 - **Scripts** (`app/scripts/`): commands run by hand,
   `uv run python -m app.scripts.<name>`.
@@ -960,10 +968,14 @@ removed at cutover, not before. Until then a change must work on both.
   (`d89a4ef`, on `main` since KAN-212) is deployed. Applied first, an older
   deploy's upload INSERT names the column and fails.
 - **Apply `a7d3e5f1c2b4` (the stages after applied and
-  `application_events`, KAN-413) as soon as it merges.** It only adds enum
-  values and a table that nothing reads yet, so applying it is safe for
-  every deploy; the Applications Tracker's stage menu and Add Event, which
-  follow in their own PR, answer 500 on a database without it.
+  `application_events`, KAN-413) before the deploy that writes them.** It
+  only adds enum values and a table, so the running code never meets
+  them; deployed first, the Applications Tracker, an application's page and
+  the Dashboard's numbers answer 500 for every student (they ask for the new
+  stages and `GET .../events`). The Jobs page and matches keep working
+  either way: their applied-job filter names only the stages before applied
+  (`dto.BEFORE_APPLIED`, the models' CLAUDE.md). Merge the migration to
+  `main` in its own PR first, then apply it, then test the branch.
 - **Apply `a3d7f1c9e2b4` (`bank_skills.built_resume_id`, resume-local
   skills) before the deploy that maps it.** Every skill insert names the
   column, so deployed first, uploads, Import Again and Add skill answer

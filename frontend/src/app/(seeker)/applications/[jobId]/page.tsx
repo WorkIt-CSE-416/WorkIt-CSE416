@@ -11,6 +11,7 @@ import { apiGet } from "@/lib/api";
 import { cn } from "@/lib/cn";
 import { getApplicantSession } from "@/lib/session";
 
+import { hasApplied } from "../../applied";
 import type { Application as Stored } from "../../auto-apply/applications";
 import { BackLink } from "../../back-link";
 import { SEEKER_GUTTER } from "../../gutter";
@@ -36,8 +37,8 @@ import { YourApplication } from "./your-application";
  * loading.tsx every visible link to it prefetches its head: each tracker
  * row in view would have run a scoring pass. A closed posting has no job
  * page (`GET /jobs/{id}` is a 404), so its title comes from the seeker's one
- * application instead, read unscored, and only a saved or applied one, as
- * the tracker lists them: any other stage keeps the page's own name.
+ * application instead, read unscored, and only one the tracker lists (saved,
+ * applied or after): a queued one keeps the page's own name.
  */
 export async function generateMetadata({
   params,
@@ -58,7 +59,7 @@ async function getClosedApplication(jobId: string): Promise<Stored | null> {
     const res = await apiGet(`/applicants/${id}/applications/${encodeURIComponent(jobId)}`, token);
     if (!res.ok) return null;
     const app = (await res.json()) as Stored;
-    return app.stage === "saved" || app.stage === "applied" ? app : null;
+    return app.stage === "saved" || hasApplied(app.stage) ? app : null;
   } catch {
     return null;
   }
@@ -110,9 +111,9 @@ export default async function ApplicationPage({ params }: PageProps<"/applicatio
     const row = applications?.find((a) => a.id === jobId);
     if (!row) return null;
     return {
-      // The tracker lists saved and applied jobs only, the two stages it
-      // shares with the job page's buttons.
-      stage: row.stage === "saved" || row.stage === "applied" ? row.stage : null,
+      // The job page's buttons know saved and applied only: a stage after
+      // applied (KAN-413) is applied to them.
+      stage: row.stage === "saved" ? "saved" : "applied",
       appliedAt: row.appliedOn,
     };
   });

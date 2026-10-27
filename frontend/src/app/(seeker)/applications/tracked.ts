@@ -1,18 +1,32 @@
 import "server-only";
 
-import type { SentResume } from "@/lib/sent-resume-actions";
+import { connection } from "next/server";
 
+import { apiGet } from "@/lib/api";
+import { extractErrorMessage } from "@/lib/auth";
+import type { SentResume } from "@/lib/sent-resume-actions";
+import { getApplicantSession } from "@/lib/session";
+
+import type { AfterApplied } from "../auto-apply/actions";
 import { getApplications, type Application as Stored } from "../auto-apply/applications";
 import { formatJobType, formatPlaces, formatSalary, formatWorkStyle } from "../jobs/format";
 import type { JobListing, ListingSalaryPeriod } from "../jobs/listings";
-import type { Application } from "../tracker";
+import type { Application, ApplicationEvent } from "../tracker";
+
+/** The stages the tracker lists: saved, applied and every stage after it
+ *  (KAN-413). Queued, needs-you and skipped are auto apply's, on its page. */
+const TRACKED = ["saved", "applied", "interviewing", "offer", "rejected"] as const;
+type Tracked = "saved" | "applied" | AfterApplied;
 
 /**
  * The seeker's saved and applied jobs, live (KAN-261): a job's Save button
  * and its Applied button (or auto apply's Submitted) write them, and the
  * API's application list reads them back (GET .../applications
- * ?stage=saved&stage=applied&scored=true, backend/app/routers/auto_apply.py),
- * each with the Jobs page's match score. Server-only,
+ * ?stage=saved&stage=applied&...&scored=true, backend/app/routers/auto_apply.py),
+ * each with the Jobs page's match score. Interviewing, Offer and Rejected
+ * (KAN-413) come from the stage menu and from events added on the
+ * application's page; the events themselves are one more read (GET
+ * .../events, `getEvents`), joined here by job id. Server-only,
  * as every read forwards the session's token. ./data.ts caches it per
  * request.
  *
@@ -27,14 +41,74 @@ import type { Application } from "../tracker";
 export async function getTracked(): Promise<
   { applications: Application[]; error: null } | { applications: null; error: string }
 > {
-  const { applications, error } = await getApplications(["saved", "applied"] as const, {
-    scored: true,
-  });
+  const [{ applications, error }, events] = await Promise.all([
+    getApplications(TRACKED, { scored: true }),
+    getEvents(),
+  ]);
   if (applications == null) return { applications: null, error };
+  // Never the applications without their events: an interview missing from
+  // the page would read as no interview.
+  if (events.error != null) return { applications: null, error: events.error };
   return {
-    applications: applications.map((stored) => toApplication(stored, stored.sent_resume ?? null)),
+    applications: applications.map((stored) =>
+      toApplication(stored, stored.sent_resume ?? null, events.byJob.get(stored.job.id) ?? []),
+    ),
     error: null,
   };
+}
+
+/** One event as the API sends it (backend `schemas/tracker.py`). */
+type StoredEvent = {
+  id: string;
+  job_id: string | null;
+  kind: "confirmation" | "assessment" | "interview" | "offer" | "rejection" | "other";
+  title: string;
+  at: string | null;
+  on_day: string | null;
+  note: string | null;
+  meeting_url: string | null;
+};
+
+/** The tracker's kind for each of the API's: an assessment is a deadline
+ *  (its due date), and anything else a follow-up, Applied's violet. */
+const KIND: Record<StoredEvent["kind"], ApplicationEvent["kind"]> = {
+  interview: "interview",
+  offer: "offer",
+  rejection: "rejection",
+  assessment: "deadline",
+  other: "follow-up",
+  confirmation: "follow-up",
+};
+
+/** The seeker's events (GET .../events, soonest first), by job id. */
+async function getEvents(): Promise<
+  { byJob: Map<string, ApplicationEvent[]>; error: null } | { byJob: null; error: string }
+> {
+  await connection();
+  try {
+    const { id, token } = await getApplicantSession();
+    const res = await apiGet(`/applicants/${id}/events`, token);
+    if (!res.ok) return { byJob: null, error: await extractErrorMessage(res) };
+    const byJob = new Map<string, ApplicationEvent[]>();
+    for (const event of (await res.json()) as StoredEvent[]) {
+      if (!event.job_id) continue;
+      const list = byJob.get(event.job_id) ?? [];
+      list.push({
+        id: event.id,
+        kind: KIND[event.kind],
+        title: event.title,
+        // Exactly one is set: an instant, or a bare date the tracker draws
+        // as a whole day.
+        at: event.at ?? event.on_day ?? "",
+        note: event.note,
+        meetingUrl: event.meeting_url,
+      });
+      byJob.set(event.job_id, list);
+    }
+    return { byJob, error: null };
+  } catch {
+    return { byJob: null, error: "Could not reach the server." };
+  }
 }
 
 /** Where the job is, as the Jobs page's card prints it ("Bellevue, WA +2
@@ -94,8 +168,9 @@ function payPerYearOf(job: JobListing) {
 
 /** One stored application as a tracker card, with the resume it sent. */
 function toApplication(
-  { job, stage, added_at, applied_at, open, match, highlights }: Stored<"saved" | "applied">,
+  { job, stage, added_at, applied_at, open, match, highlights }: Stored<Tracked>,
   sent: SentResume | null,
+  events: ApplicationEvent[],
 ) {
   return {
     id: job.id,
@@ -121,6 +196,6 @@ function toApplication(
     highlights: highlights ?? [],
     savedOn: added_at,
     appliedOn: applied_at,
-    events: [],
+    events,
   } satisfies Application;
 }

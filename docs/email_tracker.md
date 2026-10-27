@@ -1,7 +1,11 @@
 # Email tracker: Connect Gmail (KAN-413)
 
-Status: **draft, not yet reviewed by the team.** Nothing built. Every
-decision below is a proposal; the open questions are at the end.
+Status: **draft, not yet reviewed by the team.** Build step 1 is built
+(migration `a7d3e5f1c2b4`, not yet applied to the shared database): the
+three stages after applied, the stage menu, and events added by hand,
+which feed the timeline, the Calendar and the Dashboard's Interviewing
+number. Nothing that reads Gmail is built. Every other decision below is a
+proposal; the open questions are at the end.
 
 ## Goal
 
@@ -33,16 +37,49 @@ offer and dated events are not stored yet." This feature stores them.
 
 ## What the student sees
 
+### Where it lives
+
+**No email page.** Students think in applications, not emails: they ask
+"where does my Stripe application stand", not "what did Stripe send". A
+page of emails would be a second, smaller Gmail, and the tracker would
+still be out of date. So the feature lives on screens that exist:
+
+| Piece | Where |
+|---|---|
+| Connect, "Connected as...", last check, Check now, Disconnect, delete data | A new **Email** section in Settings, beside Notifications and Security |
+| The prompt to connect | A card on the **Applications Tracker** while Gmail is not connected: that is where an empty Interviewing column is felt |
+| Proposals | An **Updates** strip at the top of the Applications Tracker, above the board, with a count badge on the sidebar's Applications Tracker link |
+| Couldn't match | A second tab in the Updates strip |
+| What an accepted update changes | The board's columns, the detail panel's timeline (a small Gmail mark on events from Gmail), the Calendar, and the Dashboard's Next Up, Up Next and Waiting |
+
+```
+Applications Tracker
+┌─────────────────────────────────────────────────────────┐
+│ Updates (3)   Couldn't match (1)                        │
+│ Stripe · SWE Intern: Interview, Tue Nov 4, 2:00 PM      │
+│   [Move to Interviewing] [Not right] [Wrong job?]       │
+│ Figma · Product Design Intern: Rejection                │
+│   [Move to Rejected] [Not right]                        │
+└─────────────────────────────────────────────────────────┘
+ Saved      Applied      Interviewing      Offer
+```
+
+The Calendar page and the Dashboard's Next Up, Up Next and Waiting were
+hidden because the tracker stored no dated events (the sidebar's Calendar
+line is commented out, and `src/proxy.ts` sends `/calendar` to the
+Dashboard). Events typed by hand (flow 6) bring them back before Gmail
+does.
+
 ### 1. Connect Gmail
 
-A **Connect Gmail** card on the Applications page (and in Settings). It
-says what WorkIt reads, what it never does, and, during the pilot, that
-Google will show a "Google hasn't verified this app" screen with how to get
-past it. The button opens Google's consent screen for one permission:
-read-only Gmail.
+Settings > **Email**, or the prompt card on the Applications Tracker. The
+section says what WorkIt reads, what it never does, and, during the pilot,
+that Google will show a "Google hasn't verified this app" screen with how
+to get past it. The button opens Google's consent screen for one
+permission: read-only Gmail.
 
-After consent, Google sends the student back to WorkIt, which shows
-"Connected as ana@gmail.com. Checking your recent emails..."
+After consent, Google sends the student back to Settings > Email, which
+shows "Connected as ana@gmail.com. Checking your recent emails..."
 
 ### 2. First check (backfill)
 
@@ -52,8 +89,8 @@ minutes.
 
 ### 3. A new email arrives
 
-Within about 15 minutes, a proposal appears in **Updates** (a list on the
-Dashboard and a badge on the Applications page):
+Within about 15 minutes, a proposal appears in the **Updates** strip on
+the Applications Tracker, and the sidebar's badge counts it:
 
 > **Stripe · Software Engineer Intern**
 > Interview invite · Tue Nov 4, 2:00 PM ET
@@ -69,7 +106,7 @@ A **Check now** button forces a check, at most once a minute.
 ### 4. Unmatched emails
 
 An email that looks job-related but matches no application shows under
-**Couldn't match** with the company and subject. The student links it to an
+the Updates strip's **Couldn't match** tab, with the company and subject. The student links it to an
 application or dismisses it. Unmatched items are deleted after 30 days.
 
 ### 5. Disconnect
@@ -82,9 +119,11 @@ Google's policy requires that we honour that.
 
 ### 6. Without Gmail
 
-A student can add an interview, offer or rejection by hand on any
-application. This uses the same table and fills the Calendar for students
-who never connect Gmail. It ships first (build order, step 2).
+A student can add an interview, assessment deadline, offer or rejection by
+hand on any application, from **Add Event** in the detail panel, and can
+set any stage from the stage menu. This uses the same table and fills the
+Calendar for students who never connect Gmail. It ships first (build
+order, step 1).
 
 ## How it works
 
@@ -180,14 +219,19 @@ proposes no stage change. The student can still set any stage by hand.
 
 ## Data model
 
-All three changes are migrations (`backend/alembic/CLAUDE.md`). Claude
-writes them and checks them with `--sql`; the user applies them, after the
-migration merges to `main`. Both new tables enable RLS with no policies.
+Each change is a migration (`backend/alembic/CLAUDE.md`). Claude writes
+them and checks them with `--sql`; the user applies them, after the
+migration merges to `main`. Every new table enables RLS with no policies.
+`a7d3e5f1c2b4` (step 1) holds the stages and `application_events` with the
+columns events typed by hand need; step 3's migration adds
+`gmail_connections` and the Gmail columns marked below.
 
 ### `application_stage`: three new values
 
-`interviewing`, `offer`, `rejected`. An `ALTER TYPE ... ADD VALUE` and a
-coordinated deploy, as `models/dto.py` says.
+`interviewing`, `offer`, `rejected` (built). An `ALTER TYPE ... ADD
+VALUE` and a coordinated deploy, as `models/dto.py` says. **Each still
+counts as applied** (`dto.APPLIED_STAGES`): the Jobs page hides the job,
+and the Applied button never moves one back to applied.
 
 ### `gmail_connections` (new)
 
@@ -214,28 +258,44 @@ One dated thing on one application, from Gmail or typed by the student.
 | `kind` | enum: `confirmation`, `assessment`, `interview`, `offer`, `rejection`, `other` | |
 | `status` | enum: `proposed`, `accepted`, `dismissed` | Typed by hand starts `accepted` |
 | `source` | enum: `gmail`, `manual` | |
-| `starts_at` | timestamptz, null | Interview time |
-| `due_at` | timestamptz, null | Assessment deadline, offer "respond by" |
 | `title` | text | "Technical Interview", as `TrackerEvent` names it |
-| `summary` | text, null | One sentence |
-| `meeting_url` | text, null | Zoom or Meet link, if the email has one |
-| `gmail_message_id` | text, null | Unique per applicant; stops a message being read twice |
-| `received_at` | timestamptz, null | |
-| `sender_domain`, `subject` | text, null | Subject cut to 200 characters; shown on unmatched items |
-| `created_at`, `decided_at` | timestamptz | |
+| `at` | timestamptz, null | Something at a time: an interview |
+| `on_day` | date, null | Something due on a day: an assessment. **Exactly one of `at` and `on_day`** (`application_events_one_when`): a date stored as midnight UTC reads as the day before in the Americas |
+| `note` | text, null | The student's note, or a one-line summary of an email |
+| `meeting_url` | text, null | A Zoom, Meet or Teams link; the API takes only `http(s)://` |
+| `created_at`, `updated_at`, `decided_at` | timestamptz | |
+| `gmail_message_id` | text, null | **Step 3.** Unique per applicant; stops a message being read twice |
+| `received_at` | timestamptz, null | **Step 3** |
+| `sender_domain`, `subject` | text, null | **Step 3.** Subject cut to 200 characters; shown on unmatched items |
 
 **We never store the email body.** Only the fields above. The API can fetch
 a message again from Gmail if the student asks to see it.
 
-The API's response shape follows the fixture the screens already render
-(`TrackerEvent` in `tracker.ts`): `interview` maps to its `interview` kind,
-`assessment` and an offer's respond-by date to `deadline`, `offer` to
-`offer`.
+The screens draw an event as `tracker.ts` already drew one
+(`ApplicationEvent`, mapped in `applications/tracked.ts`): `interview`,
+`offer` and `rejection` keep their names, `assessment` is a `deadline`,
+and `other` (Add Event's Follow-Up) and `confirmation` are a `follow-up`.
+
+**An event moves its application forward, never back** (`advance` in
+`queries/tracker.py`): an interview to Interviewing, an offer to Offer, a
+rejection to Rejected, each only when the application is behind it; an
+assessment or a follow-up leaves the stage alone, and nothing but the
+stage menu moves a rejected application. Deleting an event leaves the
+stage where it is.
 
 ## API routes
 
-Layer 3 routes, each calling one layer-2 function, as auto apply's are.
-Every route checks that the caller owns `{id}`.
+Every route checks that the caller owns `{id}`. Built in step 1
+(`backend/app/routers/tracker.py`, over `queries/tracker.py`):
+
+| Method | Path | Does |
+|---|---|---|
+| PUT | `/applicants/{id}/applications/{job_id}/stage` | The stage menu: applied, interviewing, offer or rejected, any direction; an undated application gets today |
+| GET | `/applicants/{id}/events` | Every accepted event, soonest first; the tracker joins them by `job_id` |
+| POST | `/applicants/{id}/applications/{job_id}/events` | Add Event; answers the event and the stage after it |
+| DELETE | `/applicants/{id}/events/{event_id}` | The stage stays |
+
+Planned, for Gmail:
 
 | Method | Path | Does |
 |---|---|---|
@@ -245,10 +305,8 @@ Every route checks that the caller owns `{id}`.
 | POST | `/applicants/{id}/gmail/check` | Check now; at most once a minute |
 | DELETE | `/applicants/{id}/gmail` | Revoke at Google, delete the key and pending proposals; `?all=true` also deletes accepted Gmail events |
 | GET | `/applicants/{id}/events?status=proposed` | Updates and Couldn't match |
-| POST | `/applicants/{id}/events` | Add an event by hand |
-| POST | `/applicants/{id}/events/{event_id}/accept` | Optional `job_id` (Wrong job?); applies the stage change |
+| POST | `/applicants/{id}/events/{event_id}/accept` | Optional `job_id` (Wrong job?); applies the stage change through `advance` |
 | POST | `/applicants/{id}/events/{event_id}/dismiss` | |
-| GET | `/applicants/{id}/applications/{job_id}/events` | The detail panel's timeline |
 | POST | `/internal/gmail/check-all` | For the schedule only; a shared secret, not a student token |
 
 **The callback lands on the Next app**, not the API: Google redirects the
@@ -336,13 +394,20 @@ Under the $200 a month budget.
 
 ## Build order
 
-1. **Migration:** the three stages, `application_events`,
-   `gmail_connections`. Merged to `main`, then applied by the user.
-2. **Events by hand:** add and edit interviews, offers and rejections; the
-   board's Interviewing and Offer columns, the Calendar and the timeline read
-   live data. Useful without Gmail.
-3. **Google projects and Connect Gmail:** the consent flow, the callback,
-   encrypted keys, Disconnect. **Submit for verification now.**
+1. **Built: the stages and events by hand.** Migration `a7d3e5f1c2b4`
+   (the three stages, `application_events`); the stage menu and
+   Interviews & Dates with Add Event and Delete on an application's page;
+   the timeline, the Calendar (back in the sidebar) and the Dashboard's
+   Interviewing number read them. Useful without Gmail. The migration is
+   merged to `main` in its own PR and applied by the user before the
+   deploy. **Not done in step 1:** editing an event (delete and add it
+   again), and the Dashboard's Next Up, Up Next and Waiting, still archived
+   (`frontend/docs/screens.md`, Seeker Dashboard).
+2. **The Dashboard's Next Up, Up Next and Waiting**, now that events are
+   stored.
+3. **Google projects and Connect Gmail:** `gmail_connections` and the
+   Gmail columns (a migration), the consent flow, the callback, encrypted
+   keys, Disconnect. **Submit for verification now.**
 4. **Fetch and filter:** the first check and incremental checks, by hand
    (Check now).
 5. **Match and classify by rules**, proposals, the Updates list and Couldn't
@@ -359,8 +424,9 @@ an MCP tool for updates, Gmail push, Outlook and forwarding.
 
 ## Open questions
 
-1. **Rejected applications:** a Closed column on the board, or hidden from
-   the board and kept in the list view?
+1. **Rejected applications** (decided in step 1, open to change): a stage
+   of its own in red (`--color-danger`), last in the Status filter and in
+   the archived board's columns. The list shows it like any other stage.
 2. **Auto-accept:** should low-risk updates (a confirmation for a job
    already `applied`) apply without asking? Proposal: a setting, off by
    default.
@@ -371,8 +437,8 @@ an MCP tool for updates, Gmail push, Outlook and forwarding.
    scraper's `logos.py` already finds each company's site; should the
    import store it as `company_domain`? Without it, matching relies on
    names and board links.
-5. **Where Connect Gmail lives:** the Applications page, onboarding,
-   Settings, or all three?
+5. **Onboarding:** should it offer Connect Gmail too, beside Settings and
+   the Applications Tracker's prompt ("Where it lives")?
 6. **The schedule's host** until the Cloudflare cutover: GitHub Actions, or
    wait for the Worker's Cron Trigger?
 7. **Applications made outside WorkIt:** a confirmation for a job posting

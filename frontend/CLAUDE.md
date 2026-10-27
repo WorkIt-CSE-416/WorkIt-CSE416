@@ -1114,11 +1114,13 @@ the KAN-296 cutover.
   today; a business or legal decision stays a `TeamToDecide` placeholder,
   never a guess. A change to what WorkIt collects, shares or sends to a
   model updates `/privacy` in the same change, with `LEGAL_UPDATED`.
-- **The Calendar, and the Dashboard's Next Up, Up Next and Waiting, are
-  archived for now** (KAN-261): the tracker stores no dated events or
-  follow-ups yet. `src/proxy.ts` sends `/calendar` to the Dashboard, its
-  sidebar row is commented out, and all their code stays. `docs/screens.md`
-  (Calendar, Seeker Dashboard) says how to bring them back.
+- **The Calendar is back** (KAN-413): events added on an application's
+  page give it something to show, so `src/proxy.ts` no longer sends
+  `/calendar` to the Dashboard and its sidebar row is restored. **The
+  Dashboard's Next Up, Up Next and Waiting are still archived** (KAN-261),
+  their code kept; `docs/screens.md`, Seeker Dashboard, says how to bring
+  them back, which the email tracker's build order lists next
+  (`../docs/email_tracker.md`).
 - **The Applications board is archived** (KAN-256): the list is the
   default view, and `?view=board` opens it. `applications/board.tsx` stays;
   `docs/screens.md`, Applications, says how to bring it back.
@@ -1237,10 +1239,17 @@ the KAN-296 cutover.
   list's cell prevents its clicks and the card's strip sits over the
   stretched link, and a dialog opened from one stops its own clicks, since
   React passes them up through the portal. A row or card opens the application's own page,
-  `/applications/[jobId]` (KAN-256), not a side panel. Interviewing, Offer and
-  dated events stay empty until the API stores them (the Dashboard's
-  Interviews number is a dash, KAN-342); a failed read shows an error, never
-  stand-in cards. The Dashboard's four numbers are all live and all links
+  `/applications/[jobId]` (KAN-256), not a side panel. **Interviewing, Offer
+  and Rejected, and dated events, are stored** (KAN-413,
+  `../docs/email_tracker.md`): the application's page has the stage menu
+  and Interviews & Dates with Add Event (`applications/[jobId]/tracker-controls.tsx`,
+  over `applications/actions.ts`), and the tracker's read joins the events
+  from `GET .../events` (`applications/tracked.ts`); a failed read of
+  either shows an error, never stand-in cards. **A stage past applied is
+  still applied**: every "did they apply?" check is `hasApplied` in
+  `(seeker)/applied.ts`, never `stage === "applied"` (the job cards' Applied
+  button, Save's toast, Auto Apply's button, Top Matches' rows). The
+  Dashboard's Interviewing number counts the interviewing stage. The Dashboard's four numbers are all live and all links
   (KAN-342); its Strong Matches reads the Best Match scores
   (`getMatchDates`), and Top Matches under them lists the twelve
   best-scoring jobs as flat rows that scroll inside a tile, with no score

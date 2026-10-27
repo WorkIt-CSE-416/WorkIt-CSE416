@@ -13,11 +13,17 @@ import { getApplicantSession } from "@/lib/session";
 
 /** Where one application stands: backend `dto.application_stage`. Saved
  *  (KAN-261) is a job's Save button, not a run: it counts as no application
- *  yet, so queueing a saved job queues it. */
-export type ApplicationStage = "saved" | "queued" | "needs_you" | "skipped" | "applied";
+ *  yet, so queueing a saved job queues it. Interviewing, offer and rejected
+ *  (KAN-413) come after applied, set on the Applications Tracker. */
+export type ApplicationStage =
+  "saved" | "queued" | "needs_you" | "skipped" | "applied" | AfterApplied;
+
+/** The stages after applied (KAN-413): the student sets them on the
+ *  Applications Tracker. Each still counts as applied. */
+export type AfterApplied = "interviewing" | "offer" | "rejected";
 
 /** The stages auto apply itself writes: Live Activity's rows. */
-export type RunStage = Exclude<ApplicationStage, "saved">;
+export type RunStage = Exclude<ApplicationStage, "saved" | AfterApplied>;
 
 const SIGNED_OUT = "You're signed out. Sign in again to continue.";
 const UNREACHABLE = "Could not reach the server.";

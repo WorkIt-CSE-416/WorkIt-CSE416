@@ -9,6 +9,7 @@ import { Button } from "@/components/ui/button";
 import { useToast } from "@/components/ui/toast";
 import { openNextApplication, showRunTab, useRunnerJob } from "@/lib/autofill-extension";
 
+import { hasApplied } from "../applied";
 import { dequeueJob, queueJob, type ApplicationStage, type RunStage } from "./actions";
 import { openedNote } from "./opened-note";
 
@@ -62,7 +63,11 @@ export function AutoApplyButton({
   stage: ApplicationStage | null;
 }) {
   const toast = useToast();
-  const [stage, setStage] = useState<RunStage | null>(initial === "saved" ? null : initial);
+  // A stage after applied (interviewing, offer, rejected; KAN-413) reads
+  // as Applied here: the button only says whether auto apply has it.
+  const [stage, setStage] = useState<RunStage | null>(
+    hasApplied(initial) ? "applied" : initial === "saved" ? null : initial,
+  );
   const [error, setError] = useState<string | null>(null);
   const [pending, start] = useTransition();
   // One click at a time: `disabled={pending}` lands a render late, so a

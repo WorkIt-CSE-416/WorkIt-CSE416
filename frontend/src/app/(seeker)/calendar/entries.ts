@@ -16,11 +16,19 @@ export const KIND_LABEL: Record<EventKind, string> = {
   interview: "Interview",
   offer: "Offer",
   deadline: "Deadline",
+  rejection: "Rejection",
 };
 
 /** The legend's order: a search's own order, then the deadlines that
  *  bound it. */
-export const LEGEND_ORDER: EventKind[] = ["applied", "follow-up", "interview", "offer", "deadline"];
+export const LEGEND_ORDER: EventKind[] = [
+  "applied",
+  "follow-up",
+  "interview",
+  "offer",
+  "rejection",
+  "deadline",
+];
 
 /** The colours and glyph an entry wears: its kind's stage (KIND_STAGE). */
 export function lookOf(kind: EventKind) {

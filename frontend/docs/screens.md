@@ -605,8 +605,7 @@ was "Applications", the same word as the page it opened, and Interviewing
 was "Interviews". **The order is the search, left to right**: find, save,
 apply, hear back, as the Applications Tracker's stages and the landing page's route run,
 so the left half is what is left to do and the right half how it is going
-(in the 2 x 2 grid on a phone too). Interviewing, a dash until the tracker
-stores it, sits last as the outcome, not as a gap in the middle. The order
+(in the 2 x 2 grid on a phone too). Interviewing sits last as the outcome, not as a gap in the middle. The order
 was Applications, New Roles, Interviews, Saved, which read out of sequence.
 **Strong Matches wears the violet fill**, where the next application starts,
 so the eye lands on the head of the search. Applied wore it until the
@@ -624,9 +623,11 @@ shows no change, since a score fades with a posting's age and last week's
 postings would always count fewer; with an empty experience bank it says
 "Add your experience first" and opens the bank. It replaced New Roles, a
 count of every posting in the feed, which said nothing about the seeker and
-drew a red change whenever employers posted less. Interviewing is a dash,
-"Not tracked yet": the API stores no interviewing stage, and a 0 would say
-the seeker had none. Saved counts the seeker's live saved jobs (KAN-261)
+drew a red change whenever employers posted less. Interviewing counts the
+applications in that stage now, "Right now", the same in every range
+(KAN-413: the stage menu or an interview added on the application's page
+sets it); it was a dash, "Not tracked yet", until the API stored the
+stage. Saved counts the seeker's live saved jobs (KAN-261)
 and ignores the range. Applied and Saved show a dash when the tracker
 can't be read. **Every tile links**: a click anywhere on a tile opens the
 page that lists what it counts (the Applications Tracker filtered to applied,
@@ -690,7 +691,7 @@ heading, until the user named it Applications Tracker everywhere. The
 marketing site still calls the feature "Application Tracker". The URL, the
 folder and the code keep `applications`: moving the folder would collide
 with every open branch that edits the page. Say "the Applications Tracker"
-in copy; a stage is one of Saved, Applied, Interviewing and Offer
+in copy; a stage is one of Saved, Applied, Interviewing, Offer and Rejected
 (`GLOSSARY.md`).
 
 /applications is the tracker: a list (the default) and a grid over
@@ -700,12 +701,13 @@ and date logic; `local-time.tsx` prints its dates in the viewer's own zone and
 links them to the Calendar.
 
 **The tracker is live, with no fixture** (KAN-261). `applications/tracked.ts`
-reads the seeker's saved and applied jobs from the API
-(`GET /applicants/{id}/applications?stage=saved&stage=applied&scored=true`,
+reads the seeker's applications from the API (`GET
+/applicants/{id}/applications?stage=saved&stage=applied&stage=interviewing&stage=offer&stage=rejected&scored=true`,
 the list Live Activity reads too), written by a job's Save button and its Applied button
-or auto apply; `getTracker` in `data.ts` caches it per request. Interviewing
-and Offer stay empty until the API stores those stages, and nothing on this
-page moves a card between stages. A card is its job posting: its id is the
+or auto apply, and the events on them (`GET /applicants/{id}/events`,
+KAN-413), joined by job id; `getTracker` in `data.ts` caches it per
+request. A stage past applied comes from the stage menu or an event on the
+application's page (below); nothing on this list moves a card. A card is its job posting: its id is the
 posting's, its tile the company's own logo (`application-tile.tsx`; initials
 without one), and its panel links to the posting while it is open ("Posting
 Closed" after). The page has three empty
@@ -751,9 +753,9 @@ cell traps a stretched link, so **the row opens the application on a click
 anywhere** (`components/clickable-row.tsx`, Live Activity's rows too), leaving clicks on links and
 buttons alone and opening a new tab on Cmd or Ctrl; the role is still the
 real link a keyboard reaches. Sorted by Date Applied unless `?sort=` names
-another column (below). Notes / Next Step is a placeholder ("No notes yet") and
-Status is only Saved or Applied until the API stores notes and later
-stages. Resume is the sent resume the application names
+another column (below). Notes / Next Step is a placeholder ("No notes yet")
+until the API stores notes. Status is any of the five stages; Rejected is
+red (`--color-danger`), last in the Status filter. Resume is the sent resume the application names
 (`sent_resume`, KAN-267): the one picked on "Did You Apply?", or the one
 auto apply attached; "Not sent" when the student said No Resume, applied
 before KAN-267 with nothing sent, or deleted that sent resume. **With one, the cell is View Resume** (KAN-267,
@@ -897,11 +899,16 @@ the job's reads. The job's buttons take their stage and applied date from the
 tracker row, and the tab title comes from the posting's own read:
 
 - **Your Application**, the default. One card tinted by its stage
-  (`STAGE_COLOR[stage].panel`: violet for Applied, grey for Saved), so it
+  (`STAGE_COLOR[stage].panel`: violet for Applied, grey for Saved, amber,
+  green and red for the three after), so it
   reads as the seeker's record rather than a second white card under the
   job's header. On the tint: the stage as its glyph on a solid disc and its
-  name (the board's column headers; a badge's fill is the tint itself), a
-  one-line status such as "Waiting to Hear Back", the resume sent (and
+  name (the board's column headers; a badge's fill is the tint itself),
+  and at the row's right the **stage menu** (KAN-413, `StageMenu` in
+  `[jobId]/tracker-controls.tsx`): Applied, Interviewing, Offer or Rejected,
+  any way, "Move To…" on a saved job, since saved is a bookmark it never
+  goes back to; then a one-line status per stage (`HEADLINE`: "Waiting to
+  Hear Back", "In Interviews", "Not Moving Forward"...), the resume sent (and
   when it was saved, for a saved job), the timeline left to right (`Timeline`'s
   `horizontal`; each dot wears its stage's glyph, not a check, KAN-317), and
   two cards of facts (KAN-286): whether the posting is
@@ -915,7 +922,9 @@ tracker row, and the tab title comes from the posting's own read:
   and a save within five seconds is left out (the same click writes both at
   one time; a two-minute window once hid a save made a minute before
   applying); steps further apart keep their own dot,
-  and a tie sorts Saved, Sent, Applied. A closed posting
+  and a tie sorts Saved, Sent, Applied. The application's events follow
+  on the same row (KAN-413): one still ahead is an empty ring, and the
+  first of those is marked Next. A closed posting
   says so in its card only, with no badge beside the stage. The cards
   replaced day counts that did not help: save to apply read 0 for every
   Apply (Apply saves and applies at once), and posted before applying only
@@ -923,7 +932,18 @@ tracker row, and the tab title comes from the posting's own read:
   dropped, as any fixed number of days is a guess. A total applicant count
   would fit, but no hiring system WorkIt reads publishes one; a count of
   WorkIt's own applicants is possible from `job_applications` and would
-  need a field on the tracker's response. The cards and the match are
+  need a field on the tracker's response. **Interviews & Dates** sits
+  under the card (KAN-413, `TrackerEvents`): every event, soonest first,
+  each with its kind's stage glyph, its day in the viewer's zone, Join
+  Meeting for its link, its note and a Delete (the stage stays), and **Add
+  Event**, a dialog: Type (Interview, Assessment, Offer, Rejection,
+  Follow-Up), Title (blank takes the type's name), Date, an optional Time
+  (blank is a whole day, sent as a bare date; a time is the viewer's own,
+  sent as an instant), Meeting Link and Note. Its line says when adding it
+  moves the stage (an interview to Interviewing, unless further along).
+  Each write refreshes the page, so the one tracker read draws it
+  everywhere. Editing an event is not built: delete it and add it again.
+  The cards and the match are
   rounded white boxes on the tint: each
   card a `Card`, the match the Jobs page card's `MatchRail` with
   `standalone` on white, with its reasons (`?scored=true` sends
@@ -1138,15 +1158,12 @@ and "API routes".
 
 ## Calendar
 
-**The Calendar is hidden for now** (KAN-261): `src/proxy.ts` sends
-`/calendar` to the Dashboard, its sidebar row is commented out, and the
-Applications panel's Show on Calendar button is gone. The tracker stores no
-dated events yet, so it could only show the days jobs were applied to. Its
-code stays in place. To bring it back, delete the proxy block, uncomment the
-sidebar row and its import, and put Show on Calendar back in
-`applications/page.tsx` (its comment there says what it linked to). A card's
-next step still links to the Calendar if an application ever has an event,
-so bring the Calendar back before the tracker stores events.
+**The Calendar is back** (KAN-413): it was hidden from KAN-261 (the proxy
+sent `/calendar` to the Dashboard) while the tracker stored no dated
+events. Events added on an application's page fill it now; its sidebar row
+is restored after the Applications Tracker. The Applications panel's Show
+on Calendar button is still gone, since an application opens its own page
+now; a link to the Calendar from that page is not built.
 
 **The Calendar** (`(seeker)/calendar/`) shows every dated entry: the day each
 application went in, interviews, offers and their deadlines, closing dates

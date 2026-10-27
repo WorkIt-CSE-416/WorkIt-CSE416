@@ -113,12 +113,20 @@ The page that holds every job posting a student is following, from saved to offe
 _Avoid_: Applications (alone, for the page), Tracker (alone), My Applications, board
 
 **Stage**:
-Where one application stands in the Applications Tracker: Saved, Applied, Interviewing or Offer.
+Where one application stands in the Applications Tracker: Saved, Applied, Interviewing, Offer or Rejected. Interviewing, Offer and Rejected still count as applied.
 _Avoid_: column, step (the Applications Tracker's Status filter picks stages)
 
 **Application**:
 One job posting a student is following in the Applications Tracker, at one stage.
 _Avoid_: Applications (as the page's name)
+
+**Application event**:
+One dated thing on an application: an interview, an assessment's due date, an offer, a rejection or a follow-up. The student adds it with Add Event; later the email tracker proposes it from an email.
+_Avoid_: event (alone, outside the tracker), appointment, milestone
+
+**Update**:
+An application event the email tracker proposes from one email, which the student accepts or dismisses. Not built yet.
+_Avoid_: notification, alert
 
 **Strong Match**:
 A job posting that scores 80 or more for a student, the Strong Match band and above. The Dashboard's first number, Strong Matches, counts them.
