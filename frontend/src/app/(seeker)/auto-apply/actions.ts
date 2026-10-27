@@ -30,10 +30,13 @@ const UNREACHABLE = "Could not reach the server.";
 
 /** A job's Auto Apply button: queues it (POST .../applications) and answers
  *  its stage. A saved job is queued; one that already has an application
- *  keeps that stage, so the answer is never saved. */
+ *  keeps that stage, so the answer is never saved, and may be a stage past
+ *  applied that the student set on the tracker. */
 export async function queueJob(
   jobId: string,
-): Promise<{ stage: RunStage; error: null } | { stage: null; error: string }> {
+): Promise<
+  { stage: Exclude<ApplicationStage, "saved">; error: null } | { stage: null; error: string }
+> {
   let session;
   try {
     session = await getApplicantSession();
@@ -47,7 +50,10 @@ export async function queueJob(
       session.token,
     );
     if (!res.ok) return { stage: null, error: await extractErrorMessage(res) };
-    return { stage: ((await res.json()) as { stage: RunStage }).stage, error: null };
+    return {
+      stage: ((await res.json()) as { stage: Exclude<ApplicationStage, "saved"> }).stage,
+      error: null,
+    };
   } catch {
     return { stage: null, error: UNREACHABLE };
   }

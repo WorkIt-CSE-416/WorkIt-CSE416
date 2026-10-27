@@ -146,9 +146,12 @@ async def remove_event(
     applicant_id: uuid.UUID = Depends(owned_applicant),
     db: AsyncSession = Depends(get_session),
 ) -> Response:
-    """Deletes one of the applicant's events."""
+    """Deletes one of the events the applicant added by hand."""
     if not await delete_event(db, applicant_id, event_id):
-        raise HTTPException(status.HTTP_404_NOT_FOUND, "That event isn't yours or is gone.")
+        raise HTTPException(
+            status.HTTP_404_NOT_FOUND,
+            "That event isn't yours, is gone, or came from an email.",
+        )
     return Response(status_code=status.HTTP_204_NO_CONTENT)
 
 

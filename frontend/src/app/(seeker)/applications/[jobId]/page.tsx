@@ -177,7 +177,7 @@ export default async function ApplicationPage({ params }: PageProps<"/applicatio
         application={<YourApplication app={app} job={job} sent={view.sent} now={getNow()} />}
         emails={
           <EmailsTab
-            emails={(emails ?? []).filter((email) => email.jobId === app.id)}
+            emails={emails?.filter((email) => email.jobId === app.id) ?? null}
             job={{
               id: app.id,
               role: app.role,

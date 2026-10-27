@@ -26,7 +26,13 @@ export const metadata: Metadata = {
  * reader is built; the six on the shared test data are samples.
  */
 export default async function InboxPage() {
-  const [{ emails, error }, { applications }] = await Promise.all([getEmailsOnce(), getTracker()]);
+  const [{ emails, error: emailsError }, { applications, error: trackerError }] = await Promise.all(
+    [getEmailsOnce(), getTracker()],
+  );
+  // Without the jobs every email would read as Unknown Sender and Not
+  // Linked, so a failed tracker read is the Inbox's failure too, never
+  // stand-ins.
+  const error = emailsError ?? trackerError;
   const jobs = (applications ?? []).map(({ id, role, company, logoUrl, stage }) => ({
     id,
     role,
@@ -42,7 +48,7 @@ export default async function InboxPage() {
         Replies about your applications, filed onto their jobs.
       </p>
 
-      {emails == null ? (
+      {emails == null || applications == null ? (
         <EmptyState
           Icon={CloudSlashIcon}
           title="Your Inbox Isn't Loading"

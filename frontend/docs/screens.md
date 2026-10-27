@@ -997,12 +997,15 @@ the list and the email take turns, with Back to Inbox.
 
 - **The read:** `GET .../emails` (`getEmails`, every status, newest first
   by when it was read) and the tracker's own read for each job's logo,
-  role and stage. A failed read is an error state, never an empty inbox.
+  role and stage. A failed read of either is an error state, never an
+  empty inbox: without the jobs every email read as Unknown Sender and
+  Not Linked. An application's Emails tab says its read failed the same
+  way, never "no emails yet".
 - **A row** (`inbox/email-row.tsx`, shared with the Emails tab): the
   sender's logo and name (the job's company; Unknown Sender unmatched),
   the received time (the time today, else the day), the subject, one
   line of the text past its greeting, the kind's pill, Not Linked when
-  unmatched. A dot and bold text while it needs review (`proposed`):
+  it matched no job (not when its job is one the list does not hold). A dot and bold text while it needs review (`proposed`):
   WorkIt keeps no read state, so the dot means needs review, not unread.
 - **The reading pane** (`inbox/reading-pane.tsx`), as Gmail lays out an
   open message: the subject; the pill with the date the email names;
@@ -1010,9 +1013,13 @@ the list and the email take turns, with Back to Inbox.
   opens Google Calendar's own new-event page, filled in); then, only
   while it needs review, one quiet card: "Move <role> to <stage>?" with
   Move and Not Now, or "Which job is this email about?" with a picker,
-  Link to Job and Not Now; then the sender's line (logo, name, "to me",
+  Link to Job and Not Now; or, for an email matched to a job the Inbox
+  does not list (a queued one), "Add this to your tracker?" with Add and
+  Not Now, since a picker would not hold that job; then the sender's line (logo, name, "to me",
   "Tue, Oct 27, 9:42 AM (8 hours ago)", a reply arrow to Gmail) and the
-  text. Not Now dismisses it from the tracker; the email stays here.
+  text. Not Now dismisses it from the tracker; the email stays here. An
+  email's event has no Delete in Interviews & Dates, and the API refuses
+  its delete: every email stays here as a record.
 - **Most emails ask nothing:** the API files an email that changes no
   stage onto its job when it arrives (`needs_review`, `file_email`).
 - **Pills:** Interview amber, Offer green, Rejection red, Assessment the

@@ -440,3 +440,14 @@ async def test_the_inbox_lists_every_email_whatever_its_status(student, database
     res = await client.get(f"/applicants/{me}/emails")
     assert res.status_code == 200
     assert {(e["id"], e["status"]) for e in res.json()} == {(waiting, "proposed"), (dismissed, "dismissed")}
+
+
+async def test_an_emails_event_is_never_deleted(student, database):
+    client, me = student
+    job = await _applied(client, database)
+    event = await _propose(database, me, job)
+    await client.post(f"/applicants/{me}/events/{event}/accept")
+
+    # It shows in Interviews & Dates once accepted, but stays a record
+    assert (await client.delete(f"/applicants/{me}/events/{event}")).status_code == 404
+    assert [e["id"] for e in (await client.get(f"/applicants/{me}/emails")).json()] == [event]

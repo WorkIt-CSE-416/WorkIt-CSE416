@@ -132,7 +132,10 @@ const RANK: Record<StageKey, number> = {
 /**
  * The one question a waiting email asks, in a quiet card: move the job's
  * stage, or link the email to a job. Not Now leaves it off the tracker
- * (dismissed) and the email stays in the Inbox as a record.
+ * (dismissed) and the email stays in the Inbox as a record. An email the
+ * tracker matched to a job the Inbox does not list (a queued one: the
+ * Inbox lists the tracker's jobs) keeps its match and asks to add it: a
+ * picker there would not hold the job, and a pick would move another one.
  */
 function Decision({ email, job, jobs }: { email: Email; job?: EmailJob; jobs: EmailJob[] }) {
   const router = useRouter();
@@ -165,6 +168,22 @@ function Decision({ email, job, jobs }: { email: Email; job?: EmailJob; jobs: Em
       Not Now
     </Button>
   );
+
+  if (!job && email.jobId) {
+    return (
+      <div className={box}>
+        <p className="text-meta text-ink min-w-0 flex-1">Add this to your tracker?</p>
+        <Button
+          size="sm"
+          disabled={pending}
+          onClick={() => decide(() => acceptUpdate(email.id, null), "Couldn't apply it.")}
+        >
+          Add
+        </Button>
+        {notNow}
+      </div>
+    );
+  }
 
   if (!job) {
     return (
