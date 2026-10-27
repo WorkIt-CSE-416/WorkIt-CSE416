@@ -12,8 +12,10 @@ import { cn } from "@/lib/cn";
 const BOX = "text-subtitle text-ink rounded-control -mx-2 px-2 py-1 font-semibold";
 
 /**
- * The tailored resume's name over the page on Tailor's review step, renamed
- * in place as a document's title is (Google Docs): it reads as plain text,
+ * A built resume's name over the page, in the editor's title row, on its
+ * own page (an h1, the page's title) and on Tailor's review step (an h2
+ * under the step's sr-only h1). Renamed in place as a document's title is
+ * (Google Docs): it reads as plain text,
  * shows a faint outline and a pencil when pointed at, and a click turns it
  * into a field with the same box. Enter or a click away saves it
  * (`renameBuiltResume`), Esc puts the old name back, and an empty name is
@@ -21,9 +23,18 @@ const BOX = "text-subtitle text-ink rounded-control -mx-2 px-2 py-1 font-semibol
  * the page reads it again (`router.refresh`) a moment later, and in that
  * moment the old name flashed back. It was a grey
  * small-capitals label, "RESUME · <name>", which the user found hard to
- * read and could not rename.
+ * read and could not rename. The editor's own page had a plain h1 at
+ * heading size until KAN-411 gave it Tailor's title row.
  */
-export function ResumeTitle({ resumeId, name }: { resumeId: string; name: string }) {
+export function ResumeTitle({
+  resumeId,
+  name,
+  as: Heading = "h2",
+}: {
+  resumeId: string;
+  name: string;
+  as?: "h1" | "h2";
+}) {
   const router = useRouter();
   // The saved name, ahead of the page's own until its refresh lands
   const [shown, setShown] = useState(name);
@@ -60,7 +71,7 @@ export function ResumeTitle({ resumeId, name }: { resumeId: string; name: string
   return (
     <div className="flex min-w-0 flex-col gap-1">
       {draft === null ? (
-        <h2 className="flex min-w-0">
+        <Heading className="flex min-w-0">
           <button
             type="button"
             title="Rename"
@@ -79,7 +90,7 @@ export function ResumeTitle({ resumeId, name }: { resumeId: string; name: string
             <span className="truncate">{shown}</span>
             <PencilIcon className="text-ink-meta size-4 shrink-0 opacity-0 transition-opacity duration-150 group-hover:opacity-100 group-focus-visible:opacity-100" />
           </button>
-        </h2>
+        </Heading>
       ) : (
         <input
           aria-label="Resume Name"

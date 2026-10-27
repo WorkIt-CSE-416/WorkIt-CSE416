@@ -1452,12 +1452,16 @@ the KAN-296 cutover.
   only cleared `"dev": true` on `sharp`'s `@img/*` packages (`next`
   depends on `sharp` too), which is correct and removes no entry.
 - **Tailor's review is the resume editor with props, not a fork**
-  (`(seeker)/resumes/[resumeId]/editor.tsx`): `suggestions` (the panel,
-  and with it the margin dots and tints), `compact` (the slim toolbar),
-  `heading` (the column label) and `phoneBar`. The editor's own page
-  passes none of them and must keep its full toolbar; a change for the
-  review goes behind one of these props, so the two never drift into two
-  editors.
+  (`(seeker)/resumes/[resumeId]/editor.tsx`), and both pages draw one
+  editor design (KAN-411): the title row (`heading`, `ResumeTitle`
+  renamed in place) and the slim toolbar (`SlimBar`). Only the review
+  passes `suggestions` (the panel, and with it the margin dots and tints,
+  the view switch in the title row, no Ask Scout and no Not on This
+  Resume), `original` and `phoneBar`. A change for the review goes behind
+  one of these props, and a change to the bar or the title row changes
+  both pages, so the two never drift into two editors again: until
+  KAN-411 the editor's own page kept a full toolbar of its own, and a
+  student saw two designs.
 - **A saved timestamp becomes a calendar day in the browser, never on the
   server.** The server runs in UTC, so a day computed there is a day off for
   the Americas. Swap the local day in after hydration (`useSyncExternalStore`);

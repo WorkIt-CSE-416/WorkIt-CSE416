@@ -267,7 +267,8 @@ weight.
   ("RESUME · <name>", "SUGGESTIONS · 6") until the user found them muted.
   The job's logo, title and company beside Back crowded the top row.
 - **The toolbar holds only tools for the page**: the editor's slim row
-  (`compact`), one row over the page. At the left, Undo and Redo, UI only
+  (`SlimBar`), one row over the page, the same bar the editor's own page
+  has since KAN-411 (where Ask Scout ends it). At the left, Undo and Redo, UI only
   for now (the editor keeps no history yet, so both stay disabled,
   2026-10-26), then the page count as an amber chip with a warning sign
   and a caret ("⚠ 2 pages ⌄", over one page only), which reads as a
@@ -398,7 +399,7 @@ weight.
   bullet's parts merged into one row. Accept All empties the list.
 - **Only Tailor's page reviews.** The editor takes the panel as a prop
   (`suggestions`); without it, as on `/resumes/[id]`, it shows no dots or
-  tints and keeps its full toolbar. The panel shares the Ask Scout column
+  tints, and its slim toolbar ends on Ask Scout. The panel shares the Ask Scout column
   and gives way to the assistant while it is open.
 - **On a phone** the panel is a sheet opened by "Suggestions (5)" in the
   bottom bar, with the same cards; an open card's Show on Resume closes
