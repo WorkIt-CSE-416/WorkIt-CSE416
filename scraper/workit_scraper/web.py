@@ -41,9 +41,12 @@ def get(url: str, *, timeout: float) -> bytes:
         return response.read()
 
 
-def post(url: str, payload: object, *, timeout: float) -> bytes:
+def post(
+    url: str, payload: object, *, timeout: float, headers: dict[str, str] | None = None
+) -> bytes:
     """POST `payload` as JSON to `url` and return the body. HTTP errors propagate
-    as `HTTPError`. Same User-Agent and same-origin rule as `get`."""
+    as `HTTPError`. Same User-Agent and same-origin rule as `get`; `headers` adds
+    any a provider's search needs (TikTok's `website-path`)."""
     request = urllib.request.Request(
         url,
         data=json.dumps(payload).encode(),
@@ -52,6 +55,7 @@ def post(url: str, payload: object, *, timeout: float) -> bytes:
             "User-Agent": USER_AGENT,
             "Content-Type": "application/json",
             "Accept": "application/json",
+            **(headers or {}),
         },
     )
     with _OPENER.open(request, timeout=timeout) as response:

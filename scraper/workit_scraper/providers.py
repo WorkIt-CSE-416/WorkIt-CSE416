@@ -8,7 +8,9 @@ actual field names, not a DSL that encodes them.
 Every API but Workday's returns a whole board in one response -- verified at
 Stripe (701 postings), OpenAI (829), Palantir (321), Genetec's Workable board (188)
 and Hard Rock Digital's Recruitee board (58). Workday sends 20 postings a request,
-so `workday` pages, and paces every page (scraper/CLAUDE.md, "Workday").
+so `workday` pages, and paces every page (scraper/CLAUDE.md, "Workday"). Oracle,
+TikTok, iCIMS's Jibe sites and SuccessFactors page too (`PAGED`), each read whole or
+not at all (docs/providers.md).
 
 A slug that does not exist is a 404 everywhere but BambooHR, which redirects it
 to its own homepage (`bamboohr` turns that into the same answer). That is what
@@ -97,6 +99,24 @@ LISTING_URL = {
     # postings at a time. Not a documented public API (an accepted risk, like
     # Workable's per-posting page). `token` is "{tenant}.{wd}/{site}".
     "workday": "https://{tenant}.{wd}.myworkdayjobs.com/wday/cxs/{tenant}/{site}/jobs",
+    # Oracle Recruiting Cloud's candidate site calls this public search, unsigned.
+    # `token` is "{pod}/{site}": "ecnf.fa.us2/CX" is the pod ecnf.fa.us2.oraclecloud.com
+    # and its careers site CX (one pod can run several). Paged (`oracle`).
+    "oracle": (
+        "https://{pod}.oraclecloud.com/hcmRestApi/resources/latest/recruitingCEJobRequisitions"
+        "?onlyData=true&expand=requisitionList.secondaryLocations"
+        "&finder=findReqs;siteNumber={site},limit={limit},offset={offset},sortBy=POSTING_DATES_DESC"
+    ),
+    # What lifeattiktok.com's search calls: a POST, one board for all of TikTok.
+    "tiktok": "https://api.lifeattiktok.com/api/v1/public/supplier/search/job/posts",
+    # iCIMS postings as a company's Jibe careers site lists them (careers.amd.com),
+    # which is where the curated lists link them (`?icims=1`). `token` is that host.
+    "icims": "https://{token}/api/jobs?page=1&limit=100",
+    # SuccessFactors' career-site builder (jobs.grainger.com): its own search page,
+    # HTML, a few dozen postings a page. `token` is that host. Sorted by title:
+    # the default order is not stable from page to page (Hershey's repeated 8
+    # postings across pages and left 8 out; by title, 328 of 328, 2026-10-26).
+    "successfactors": "https://{token}/search/?q=&sortColumn=sort_title&sortDirection=asc&startrow=0",
 }
 
 
@@ -104,6 +124,9 @@ def _parts(ats: str, token: str) -> dict[str, str]:
     """A Workday token's three parts: "nvidia.wd5/nvidiaexternalcareersite" is the
     tenant `nvidia`, on data centre `wd5`, careers site `nvidiaexternalcareersite`.
     A tenant can run several sites (Boeing has 40), each its own board."""
+    if ats == "oracle":
+        pod, site = token.split("/")
+        return {"pod": pod, "site": site, "limit": str(ORACLE_PAGE), "offset": "0"}
     if ats != "workday":
         return {}
     host, site = token.split("/")
@@ -148,6 +171,13 @@ JOB_URL = {
     # description, the exact date and the job type are on the posting's own
     # record. `job_id` is the posting's path ("/job/China-Shanghai/..._JR2024692").
     "workday": "https://{tenant}.{wd}.myworkdayjobs.com/wday/cxs/{tenant}/{site}{job_id}",
+    # Oracle's list has a two-line summary; the record has the description.
+    "oracle": (
+        "https://{pod}.oraclecloud.com/hcmRestApi/resources/latest/recruitingCEJobRequisitionDetails"
+        '?expand=all&onlyData=true&finder=ById;Id="{job_id}",siteNumber={site}'
+    ),
+    # The posting's own page, by its path, as on Workday.
+    "successfactors": "https://{token}{job_id}",
 }
 
 
@@ -266,6 +296,11 @@ class Job:
         return cls(**{**known, "page": Page.from_row(page) if isinstance(page, dict) else None})
 
 
+def _get_text(url: str) -> str:
+    """`_get_json` for an HTML page: SuccessFactors' search and posting pages."""
+    return _retry(url, lambda: web.get(url, timeout=TIMEOUT_S)).decode("utf-8", "replace")
+
+
 def _get_json(url: str) -> object:
     """GET and parse JSON, with one retry on a 5xx, a 429 or an explicit Retry-After.
 
@@ -275,16 +310,20 @@ def _get_json(url: str) -> object:
     return _json(url, lambda: web.get(url, timeout=TIMEOUT_S))
 
 
-def _post_json(url: str, payload: object) -> object:
-    """`_get_json` for a POST: Workday's list. A 429 is retried once too, since
-    five of ~1,700 Workday boards answered one on the first full sweep."""
-    return _json(url, lambda: web.post(url, payload, timeout=TIMEOUT_S))
+def _post_json(url: str, payload: object, headers: dict[str, str] | None = None) -> object:
+    """`_get_json` for a POST: Workday's and TikTok's lists. A 429 is retried once
+    too, since five of ~1,700 Workday boards answered one on the first full sweep."""
+    return _json(url, lambda: web.post(url, payload, timeout=TIMEOUT_S, headers=headers))
 
 
 def _json(url: str, fetch: Callable[[], bytes]) -> object:
+    return json.loads(_retry(url, fetch))
+
+
+def _retry(url: str, fetch: Callable[[], bytes]) -> bytes:
     for attempt in (1, 2):
         try:
-            return json.loads(fetch())
+            return fetch()
         except urllib.error.HTTPError as error:
             if error.code == 404:
                 raise BoardNotFound(url) from error
@@ -1108,6 +1147,356 @@ def _greenhouse_pay(ranges: list[dict]) -> details.Pay | None:
     return details.Pay.from_amounts(currencies.pop(), min(cents) / 100, max(cents) / 100, titles)
 
 
+#: Requisitions per Oracle request: a larger `limit` is answered with 200 anyway.
+ORACLE_PAGE = 200
+#: The deepest Oracle's search pages: past an offset of 10,000 it serves nothing
+#: (egud.fa.us2/CX_1 counts 10,757, ejwl.fa.us2/CX 13,426; 2026-10-26).
+ORACLE_MAX = 10_000
+
+
+def oracle(
+    token: str, company: str, *, pace: Callable[[str], None] = lambda url: None
+) -> list[Job]:
+    """Every requisition on an Oracle Recruiting Cloud careers site, read whole or
+    not at all, 200 a request (Oracle's own page sends 25). The search reports
+    `hasMore: false` even mid-board, so the count it gives decides when to stop.
+    A site number the pod does not have is a search with a count of 0, so it reads
+    as an empty board; a pod that does not exist is a 404.
+
+    The count can run a few over what the search serves (ebwg.fa.us2/CX: 115
+    counted, 113 served on one page of 200, nothing after). So a read is whole
+    when its pages never overlapped and either it reached the count or its last
+    page came back short: the search had nothing more to give."""
+    parts = _parts("oracle", token)
+    rows: dict[str, dict] = {}
+    served, expected, offset, short = 0, None, 0, False
+    while expected is None or offset < expected:
+        url = LISTING_URL["oracle"].format(**{**parts, "offset": str(offset)})
+        if offset:
+            pace(url)
+        payload = _get_json(url)
+        assert isinstance(payload, dict)
+        search = (payload.get("items") or [{}])[0]
+        expected = int(search.get("TotalJobsCount") or 0) if expected is None else expected
+        if expected > ORACLE_MAX:
+            raise TooLarge(f"{expected:,} requisitions")
+        page = search.get("requisitionList") or []
+        served += len(page)
+        for row in page:
+            rows.setdefault(str(row["Id"]), row)
+        if len(page) < ORACLE_PAGE:
+            short = True
+            break
+        offset += ORACLE_PAGE
+    if len(rows) != expected and (served != len(rows) or len(rows) > expected or not short):
+        raise Incomplete(f"read {len(rows):,} distinct requisitions of {expected:,}")
+    site = "https://{pod}.oraclecloud.com/hcmUI/CandidateExperience/en/sites/{site}".format(**parts)
+    return [
+        Job(
+            ats="oracle",
+            token=token,
+            company=company,
+            external_id=job_id,
+            title=(row.get("Title") or "").strip(),
+            apply_url=f"{site}/job/{job_id}",
+            location=_oracle_places(row),
+            department=row.get("JobFamily") or None,
+            posted_at=_iso(row.get("PostedDate")),
+            # No page: the list has only a summary (`describe_oracle`).
+        )
+        for job_id, row in rows.items()
+    ]
+
+
+def _oracle_places(row: dict) -> str | None:
+    return _places(
+        [row.get("PrimaryLocation"), *(p.get("Name") for p in row.get("secondaryLocations") or [])]
+    )
+
+
+def describe_oracle(job: Job) -> Job:
+    """The same Oracle requisition with what only its record says: the
+    description (in up to three parts), the exact time it went up, the schedule
+    and the work model."""
+    payload = _get_json(job_url("oracle", job.token, job.external_id))
+    assert isinstance(payload, dict)
+    record = (payload.get("items") or [{}])[0]
+    full, roles = _described(
+        "<br>".join(
+            record.get(part) or ""
+            for part in (
+                "ExternalDescriptionStr",
+                "ExternalResponsibilitiesStr",
+                "ExternalQualificationsStr",
+            )
+        )
+    )
+    return replace(
+        job,
+        posted_at=_iso(record.get("ExternalPostedStartDate")) or job.posted_at,
+        page=_page(
+            job.title,
+            full,
+            roles=roles,
+            stated_type=details.job_type_label(record.get("JobSchedule")),
+            stated_style=_work_style(record.get("WorkplaceType"), job.location),
+        ),
+    )
+
+
+#: Postings per TikTok request; it takes 200 (lifeattiktok.com itself asks for 12).
+TIKTOK_PAGE = 200
+
+
+def tiktok(
+    token: str, company: str, *, pace: Callable[[str], None] = lambda url: None
+) -> list[Job]:
+    """Every posting TikTok lists on lifeattiktok.com (about 4,300), with its
+    description and requirements, read whole or not at all. The search answers
+    "invalid request" without a `website-path` header naming the site. ByteDance's
+    own site (jobs.bytedance.com) is a separate list, and did not answer at all
+    when this was written."""
+    url = listing_url("tiktok", token)
+    rows: dict[str, dict] = {}
+    expected, offset = None, 0
+    while expected is None or offset < expected:
+        if offset:
+            pace(url)
+        payload = _post_json(
+            url,
+            {
+                "keyword": "",
+                "limit": TIKTOK_PAGE,
+                "offset": offset,
+                "recruitment_id_list": [],
+                "job_category_id_list": [],
+                "subject_id_list": [],
+                "location_code_list": [],
+            },
+            headers={"website-path": "tiktok"},
+        )
+        assert isinstance(payload, dict)
+        if payload.get("code") != 0:
+            raise RuntimeError(f"TikTok's search said {payload.get('message')!r}")
+        data = payload.get("data") or {}
+        expected = int(data.get("count") or 0) if expected is None else expected
+        page = data.get("job_post_list") or []
+        for row in page:
+            rows.setdefault(str(row["id"]), row)
+        if not page:
+            break
+        offset += TIKTOK_PAGE
+    if len(rows) != expected:
+        raise Incomplete(f"read {len(rows):,} distinct postings of {expected:,}")
+    jobs = []
+    for job_id, row in rows.items():
+        title = (row.get("title") or "").strip()
+        full, roles = _described(
+            "\n\n".join(row.get(part) or "" for part in ("description", "requirement"))
+        )
+        jobs.append(
+            Job(
+                ats="tiktok",
+                token=token,
+                company=company,
+                external_id=job_id,
+                title=title,
+                apply_url=f"https://lifeattiktok.com/search/{job_id}",
+                location=_tiktok_place(row.get("city_info")),
+                department=_tiktok_root(row.get("job_category")),
+                # The search gives no date.
+                page=_page(title, full, roles=roles),
+            )
+        )
+    return jobs
+
+
+def _tiktok_place(city: dict | None) -> str | None:
+    """ "San Jose, California, United States of America" from a city and its parents."""
+    names = []
+    while city:
+        names.append(city.get("en_name"))
+        city = city.get("parent")
+    return _place(*names) or None
+
+
+def _tiktok_root(category: dict | None) -> str | None:
+    """A category's top level ("R&D" over "Backend"): the closest TikTok has to a
+    department."""
+    while category and category.get("parent"):
+        category = category["parent"]
+    return (category or {}).get("en_name") or None
+
+
+#: Postings per Jibe request (its own page asks for 10).
+JIBE_PAGE = 100
+
+
+def icims(token: str, company: str, *, pace: Callable[[str], None] = lambda url: None) -> list[Job]:
+    """Every iCIMS posting on a company's Jibe careers site, read whole or not at
+    all, with its description. Jibe can front other systems too, so only rows it
+    says are on iCIMS (`ats_code`) are kept. Jibe sites publish a Crawl-delay of
+    5 s, which `pace` keeps between pages.
+
+    A site can list one posting twice (MasTec: 1,258 rows, 1,211 postings, all
+    pages read; 2026-10-26), so the rows served, not the distinct postings, must
+    add up to the count; the twice-listed posting is kept once."""
+    rows: dict[str, dict] = {}
+    served, expected, number = 0, None, 1
+    while expected is None or (number - 1) * JIBE_PAGE < expected:
+        url = f"https://{token}/api/jobs?page={number}&limit={JIBE_PAGE}"
+        if number > 1:
+            pace(url)
+        payload = _get_json(url)
+        assert isinstance(payload, dict)
+        expected = int(payload.get("totalCount") or 0) if expected is None else expected
+        page = [row.get("data") or {} for row in payload.get("jobs") or []]
+        served += len(page)
+        for row in page:
+            rows.setdefault(str(row.get("slug") or row.get("req_id")), row)
+        if not page:
+            break
+        number += 1
+    if served != expected:
+        raise Incomplete(f"read {served:,} postings of {expected:,}")
+    jobs = []
+    for slug, row in rows.items():
+        if row.get("ats_code") != "icims":
+            continue
+        title = (row.get("title") or "").strip()
+        full, roles = _described(
+            "<br>".join(
+                row.get(part) or ""
+                for part in ("description", "responsibilities", "qualifications")
+            )
+        )
+        jobs.append(
+            Job(
+                ats="icims",
+                token=token,
+                company=company,
+                external_id=slug,
+                title=title,
+                # The posting on the company's site, as the curated lists link it;
+                # its Apply goes on to the tenant's icims.com form.
+                apply_url=f"https://{token}/jobs/{slug}?icims=1",
+                location=_place(row.get("city"), row.get("state"), row.get("country"))
+                or row.get("full_location")
+                or None,
+                posted_at=_iso(row.get("posted_date")),
+                page=_page(
+                    title,
+                    full,
+                    roles=roles,
+                    stated_type=details.job_type_label(row.get("employment_type")),
+                ),
+            )
+        )
+    return jobs
+
+
+def successfactors(
+    token: str, company: str, *, pace: Callable[[str], None] = lambda url: None
+) -> list[Job]:
+    """Every posting on a SuccessFactors career site, read whole or not at all,
+    from its search page: a table of title, place and date, as many rows a page
+    as the site chose (Grainger 35). No description: the posting's own page has
+    it (`describe_successfactors`)."""
+    rows: dict[str, tuple[str, str, str, str]] = {}
+    served, expected, ended = 0, None, False
+    while expected is None or len(rows) < expected:
+        url = listing_url("successfactors", token).replace("startrow=0", f"startrow={len(rows)}")
+        if rows:
+            pace(url)
+        text = _get_text(url)
+        total = re.search(r"paginationLabel[^>]*>.*?of\s*<b>([\d,]+)</b>", text, re.S)
+        expected = int(total[1].replace(",", "")) if total else 0 if expected is None else expected
+        page = _successfactors_rows(text)
+        served += len(page)
+        for row in page:
+            rows.setdefault(row[0], row)
+        if not page:
+            # Past the last posting. As on Oracle, the count can run over what the
+            # site serves. Every posting seen is whole even if pages overlapped:
+            # postings with one title can still swap places between pages
+            # (Sonepar: 938 of 938 read, some twice).
+            ended = True
+            break
+    if len(rows) != expected and (served != len(rows) or len(rows) > expected or not ended):
+        raise Incomplete(f"read {len(rows):,} distinct postings of {expected:,}")
+    return [
+        Job(
+            ats="successfactors",
+            token=token,
+            company=company,
+            # The posting's path, which its own page is read by.
+            external_id=path,
+            title=title,
+            apply_url=f"https://{token}{path}",
+            location=place or None,
+            posted_at=_successfactors_date(day, "%b %d, %Y"),
+        )
+        for path, title, place, day in rows.values()
+    ]
+
+
+def _successfactors_rows(text: str) -> list[tuple[str, str, str, str]]:
+    """(path, title, place, date) per row of a search page's results table."""
+    found = []
+    for row in re.findall(r'<tr class="data-row">(.*?)</tr>', text, re.S):
+        link = re.search(r'<a href="([^"]+)" class="jobTitle-link">(.*?)</a>', row, re.S)
+        place = re.search(r'<span class="jobLocation">(.*?)</span>', row, re.S)
+        day = re.search(r'<span class="jobDate">(.*?)</span>', row, re.S)
+        if link:
+            found.append(
+                (
+                    html.unescape(link[1]),
+                    html.unescape(link[2]).strip(),
+                    " ".join(html.unescape(place[1]).split()) if place else "",
+                    " ".join(day[1].split()) if day else "",
+                )
+            )
+    return found
+
+
+def _successfactors_date(text: str | None, layout: str) -> str | None:
+    try:
+        return _iso(datetime.strptime((text or "").strip(), layout).date().isoformat())
+    except ValueError:
+        return None
+
+
+def describe_successfactors(job: Job) -> Job:
+    """The same SuccessFactors posting with its description and the exact time it
+    went up ("Tue Oct 13 07:00:00 UTC 2026"), from its own page."""
+    text = _get_text(job_url("successfactors", job.token, job.external_id))
+    posted = re.search(r'<meta itemprop="datePosted" content="([^"]+)"', text)
+    try:
+        stamp = posted and datetime.strptime(posted[1], "%a %b %d %H:%M:%S UTC %Y")
+    except ValueError:
+        stamp = None
+    full, roles = _described(_element(text, '<span itemprop="description"'))
+    return replace(
+        job,
+        posted_at=_iso(stamp.replace(tzinfo=UTC).isoformat()) if stamp else job.posted_at,
+        page=_page(job.title, full, roles=roles),
+    )
+
+
+def _element(text: str, opening: str) -> str | None:
+    """The element starting at `opening`, up to its own closing tag."""
+    start = text.find(opening)
+    if start < 0:
+        return None
+    tag = re.match(r"<(\w+)", opening)[1]
+    depth = 0
+    for match in re.finditer(rf"<(/?){tag}\b[^>]*>", text[start:]):
+        depth += -1 if match[1] else 1
+        if depth == 0:
+            return text[start : start + match.end()]
+    return text[start:]
+
+
 FETCHERS: dict[str, Callable[[str, str], list[Job]]] = {
     "greenhouse": greenhouse,
     "ashby": ashby,
@@ -1116,11 +1505,15 @@ FETCHERS: dict[str, Callable[[str, str], list[Job]]] = {
     "recruitee": recruitee,
     "bamboohr": bamboohr,
     "workday": workday,
+    "oracle": oracle,
+    "tiktok": tiktok,
+    "icims": icims,
+    "successfactors": successfactors,
 }
 
 #: Providers whose reader makes more than one request per board, and so takes the
 #: run's `pace` to space them (`__main__._scrape_one`).
-PAGED = frozenset({"workday"})
+PAGED = frozenset({"workday", "oracle", "tiktok", "icims", "successfactors"})
 
 
 def describe(job: Job) -> Job:
@@ -1131,4 +1524,6 @@ def describe(job: Job) -> Job:
         "workable": describe_workable,
         "bamboohr": describe_bamboohr,
         "workday": describe_workday,
+        "oracle": describe_oracle,
+        "successfactors": describe_successfactors,
     }[job.ats](job)

@@ -29,7 +29,8 @@ DEFAULT_DELAY_S = 0.1
 #: as gently as it reads Greenhouse's single host, not eight hosts' worth.
 #: Workday (`nvidia.wd5.myworkdayjobs.com`) is one pace across all its data
 #: centres, the cautious reading: ten requests a second to Workday as a whole.
-SHARED_PACE = ("bamboohr.com", "recruitee.com", "myworkdayjobs.com")
+#: Oracle Recruiting Cloud (`ecnf.fa.us2.oraclecloud.com`) is one pace the same way.
+SHARED_PACE = ("bamboohr.com", "recruitee.com", "myworkdayjobs.com", "oraclecloud.com")
 
 #: Hosts whose paths are case-insensitive, so their robots.txt is too. Workday
 #: serves `/NVIDIAExternalCareerSite/` and `/nvidiaexternalcareersite/` alike, and

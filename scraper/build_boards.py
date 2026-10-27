@@ -72,7 +72,25 @@ PATTERNS = {
         r"(?!(?:job|details|wday)/)([a-z0-9_-]+)",
         re.I,
     ),
+    # One board for all of TikTok: lifeattiktok.com/search/{id}, /position/{id}/detail.
+    "tiktok": re.compile(r"//(?:www\.)?(lifeattiktok)\.com/", re.I),
+    # iCIMS postings on a company's Jibe careers site: {host}/jobs/{id}?icims=1.
+    # The board is that host (careers.amd.com), which lists them all.
+    "icims": re.compile(r"//([a-z0-9.-]+)/jobs/\d+[^\s#]*[?&]icims=1", re.I),
+    # A SuccessFactors career site marks its links `?ats=successfactors`; the
+    # board is the site's host (jobs.grainger.com).
+    "successfactors": re.compile(
+        r"//([a-z0-9.-]+)/[^\s?#]*\?(?:[^\s#]*&)?ats=successfactors", re.I
+    ),
 }
+# Oracle Recruiting Cloud:
+# {pod}.oraclecloud.com/hcmUI/CandidateExperience/{lang}/sites/{site}/job/{id},
+# whose token is "{pod}/{site}". The only token whose case is kept: the site
+# number is as Oracle wrote it ("CX_1"), and it goes into the apply link too.
+ORACLE_SITE = re.compile(
+    r"//([a-z0-9.-]+)\.oraclecloud\.com/hcmUI/CandidateExperience/[a-z]{2}(?:-[a-z]{2})?/sites/([a-z0-9_]+)",
+    re.I,
+)
 # The same boards under Workday's other address,
 # wd{N}.myworkdaysite.com/recruiting/{tenant}/{site}: each answers on its tenant's
 # own myworkdayjobs.com host too (Snap's, Magna's), which has the robots.txt.
@@ -84,7 +102,7 @@ WORKDAY_SITE = re.compile(
 
 def tokens(link: str) -> list[tuple[str, str]]:
     """Every (ats, token) an apply link names, lower-cased: slugs are case-blind on
-    every provider, Workday's sites included."""
+    every provider, Workday's sites included. Oracle's site number keeps its case."""
     found = [
         (ats, "/".join(match.groups()).lower())
         for ats, pattern in PATTERNS.items()
@@ -94,6 +112,7 @@ def tokens(link: str) -> list[tuple[str, str]]:
         ("workday", f"{tenant}.{wd}/{site}".lower())
         for wd, tenant, site in WORKDAY_SITE.findall(link)
     ]
+    found += [("oracle", f"{pod.lower()}/{site}") for pod, site in ORACLE_SITE.findall(link)]
     return found
 
 
