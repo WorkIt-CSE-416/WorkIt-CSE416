@@ -1,7 +1,8 @@
 """Talk to one job board and return its postings.
 
-One function per applicant tracking system, registered in `FETCHERS`. Each one
-makes a single GET and maps the response onto `Job`. Explicit functions rather
+One function per applicant tracking system, registered in `PROVIDERS` with
+everything else the scraper knows about that system. Each one makes a single GET
+and maps the response onto `Job`. Explicit functions rather
 than a shared field-map table: a teammate reading `lever()` should see Lever's
 actual field names, not a DSL that encodes them.
 
@@ -27,6 +28,7 @@ import json
 import re
 import time
 import urllib.error
+import urllib.parse
 from collections import Counter
 from collections.abc import Callable, Iterable
 from dataclasses import asdict, dataclass, fields, replace
@@ -78,32 +80,15 @@ class Incomplete(Exception):
     overlapped. Treated as a failed read, so it is evidence of nothing."""
 
 
-# One place both the fetchers and the robots.txt check read the URL from, so a board
-# can never be checked at one address and then fetched at another.
-LISTING_URL = {
-    "greenhouse": "https://boards-api.greenhouse.io/v1/boards/{token}/jobs",
-    # Pay is left out of Ashby's list unless asked for.
-    "ashby": "https://api.ashbyhq.com/posting-api/job-board/{token}?includeCompensation=true",
-    "lever": "https://api.lever.co/v0/postings/{token}?mode=json",
-    # The careers-page widget's feed, which Workable documents for embedding a
-    # board. Without `details=true`: the description comes from a kept posting's
-    # own page, which also has the work model and pay the widget leaves out.
-    "workable": "https://apply.workable.com/api/v1/widget/accounts/{token}",
-    # Recruitee and BambooHR give each company its own subdomain, so its own
-    # origin and robots.txt; `polite` still paces each provider as one host.
-    "recruitee": "https://{token}.recruitee.com/api/offers/",
-    "bamboohr": "https://{token}.bamboohr.com/careers/list",
-    # What a Workday careers page itself calls: a POST of a search, answered 20
-    # postings at a time. Not a documented public API (an accepted risk, like
-    # Workable's per-posting page). `token` is "{tenant}.{wd}/{site}".
-    "workday": "https://{tenant}.{wd}.myworkdayjobs.com/wday/cxs/{tenant}/{site}/jobs",
-}
-
-
 def _parts(ats: str, token: str) -> dict[str, str]:
     """A Workday token's three parts: "nvidia.wd5/nvidiaexternalcareersite" is the
     tenant `nvidia`, on data centre `wd5`, careers site `nvidiaexternalcareersite`.
-    A tenant can run several sites (Boeing has 40), each its own board."""
+    A tenant can run several sites (Boeing has 40), each its own board. An Oracle
+    token's two: "edbz.fa.us2/cx" is the host `edbz.fa.us2.oraclecloud.com` and the
+    careers site `cx`."""
+    if ats == "oracle":
+        host, site = token.split("/")
+        return {"host": host, "site": site}
     if ats != "workday":
         return {}
     host, site = token.split("/")
@@ -112,47 +97,23 @@ def _parts(ats: str, token: str) -> dict[str, str]:
 
 
 def listing_url(ats: str, token: str) -> str:
-    return LISTING_URL[ats].format(token=token, **_parts(ats, token))
+    return PROVIDERS[ats].listing_url.format(token=token, **_parts(ats, token))
 
 
 def robots_urls(ats: str, token: str) -> list[str]:
-    """Every URL robots.txt must allow before a board is read. A Workday tenant's
-    robots.txt names its careers sites, not the API path under them: Caterpillar's
-    disallows `/CaterpillarCareers/`, and reading that site's postings through the
-    API would be reading what the employer asked crawlers to leave alone."""
+    """Every URL robots.txt must allow before a board is read: its list, and its
+    `careers_site` where it has one."""
     urls = [listing_url(ats, token)]
-    if ats == "workday":
-        urls.append("https://{tenant}.{wd}.myworkdayjobs.com/{site}/".format(**_parts(ats, token)))
+    if site := PROVIDERS[ats].careers_site:
+        urls.append(site.format(**_parts(ats, token)))
     return urls
 
 
-# A kept posting's own page, for the providers whose list leaves it out. Each is on
-# its list's origin, so the robots.txt read for the board covers it too.
-JOB_URL = {
-    # Greenhouse's list leaves descriptions out unless asked with `content=true`,
-    # which sends every posting's full HTML -- hundreds of megabytes across all
-    # boards to describe the ~1% we keep. So a kept Greenhouse posting is fetched
-    # on its own, once: the store carries what it says forward after that.
-    # `pay_transparency` adds the pay ranges a board entered in Greenhouse's own
-    # pay fields.
-    "greenhouse": (
-        "https://boards-api.greenhouse.io/v1/boards/{token}/jobs/{job_id}?pay_transparency=true"
-    ),
-    # What Workable's own careers page reads: the description, requirements and
-    # benefits, plus `workplace` (hybrid included) and a salary, neither of which
-    # the widget carries. Six of 14 sampled postings had a salary (2026-10-10).
-    "workable": "https://apply.workable.com/api/v2/accounts/{token}/jobs/{job_id}",
-    # BambooHR's list has no description, no date and no pay.
-    "bamboohr": "https://{token}.bamboohr.com/careers/{job_id}/detail",
-    # Workday's list has the title, the place and a relative date; the
-    # description, the exact date and the job type are on the posting's own
-    # record. `job_id` is the posting's path ("/job/China-Shanghai/..._JR2024692").
-    "workday": "https://{tenant}.{wd}.myworkdayjobs.com/wday/cxs/{tenant}/{site}{job_id}",
-}
-
-
 def job_url(ats: str, token: str, job_id: str) -> str:
-    return JOB_URL[ats].format(token=token, job_id=job_id, **_parts(ats, token))
+    """A kept posting's own page; only for a provider with a `job_url`."""
+    template = PROVIDERS[ats].job_url
+    assert template is not None, f"{ats} has no page to read"
+    return template.format(token=token, job_id=job_id, **_parts(ats, token))
 
 
 @dataclass(frozen=True, slots=True)
@@ -220,11 +181,14 @@ class Job:
     location: str | None = None
     department: str | None = None
     posted_at: str | None = None
-    #: None only for a posting whose own page is not read yet (`JOB_URL`).
+    #: None only for a posting whose own page is not read yet (`Provider.job_url`).
     page: Page | None = None
     # None until `store.update` stamps them; every job read back from jobs.json has both.
     first_seen_at: str | None = None
     last_seen_at: str | None = None
+    #: The work model its list states, for a provider whose posting's own page does
+    #: not (Rippling): the page's facts are read with it (`describe_rippling`).
+    work_style: str | None = None
 
     @property
     def board_key(self) -> str:
@@ -270,7 +234,9 @@ def _get_json(url: str) -> object:
     """GET and parse JSON, with one retry on a 5xx, a 429 or an explicit Retry-After.
 
     A 404 becomes `BoardNotFound`; every other failure propagates, because a board
-    we could not read is not a board we know anything about.
+    we could not read is not a board we know anything about. A paged reader turns
+    one after its first request into `Incomplete`: a page that is not there says
+    nothing about the board.
     """
     return _json(url, lambda: web.get(url, timeout=TIMEOUT_S))
 
@@ -281,10 +247,19 @@ def _post_json(url: str, payload: object) -> object:
     return _json(url, lambda: web.post(url, payload, timeout=TIMEOUT_S))
 
 
+def _get_text(url: str) -> str:
+    """`_get_json` for a page that is not JSON: iCIMS's sitemap and job pages."""
+    return _fetched(url, lambda: web.get(url, timeout=TIMEOUT_S)).decode("utf-8", "replace")
+
+
 def _json(url: str, fetch: Callable[[], bytes]) -> object:
+    return json.loads(_fetched(url, fetch))
+
+
+def _fetched(url: str, fetch: Callable[[], bytes]) -> bytes:
     for attempt in (1, 2):
         try:
-            return json.loads(fetch())
+            return fetch()
         except urllib.error.HTTPError as error:
             if error.code == 404:
                 raise BoardNotFound(url) from error
@@ -840,6 +815,284 @@ def describe_bamboohr(job: Job) -> Job:
     )
 
 
+def rippling(token: str, company: str) -> list[Job]:
+    """A Rippling board, in one request: the list its careers page reads, asked for
+    the page size its own client caps at (1,000). A board past one page is not read
+    (`TooLarge`): a partial list would be evidence of nothing."""
+    payload = _get_json(listing_url("rippling", token))
+    assert isinstance(payload, dict)
+    if (payload.get("totalPages") or 1) > 1:
+        raise TooLarge(f"{payload.get('totalItems'):,} postings")
+    # Like Workable's widget, the list has a job once per office, under one id
+    # (Kraken Robotics' internships: Mount Pearl and Dartmouth).
+    rows: dict[str, list[dict]] = {}
+    for row in payload.get("items") or []:
+        rows.setdefault(str(row["id"]), []).append(row)
+    jobs = []
+    for job_id, copies in rows.items():
+        first = copies[0]
+        offices = [place for row in copies for place in row.get("locations") or []]
+        jobs.append(
+            Job(
+                ats="rippling",
+                token=token,
+                company=company,
+                external_id=job_id,
+                title=(first.get("name") or "").strip(),
+                apply_url=first.get("url") or "",
+                location=_places(place.get("name") for place in offices),
+                department=(first.get("department") or {}).get("name"),
+                # No date and no page: its own record has both (`describe_rippling`).
+                work_style=_rippling_work_style(place.get("workplaceType") for place in offices),
+            )
+        )
+    return jobs
+
+
+def _rippling_work_style(kinds: Iterable[object]) -> str | None:
+    """`REMOTE`, `HYBRID` or `ON_SITE` for each office. A job that may be done
+    remotely in any of them is remote, as on Recruitee, then hybrid."""
+    styles = {_work_style(kind, None) for kind in kinds}
+    return next((style for style in ("Remote", "Hybrid", "On site") if style in styles), None)
+
+
+def describe_rippling(job: Job) -> Job:
+    """The same Rippling posting with what only its own record says: the
+    description (the company's part, then the role's, as its page shows them),
+    the date it went up, its employment type and its pay ranges."""
+    payload = _get_json(job_url("rippling", job.token, job.external_id))
+    assert isinstance(payload, dict)
+    text = payload.get("description") or {}
+    full, roles = _described("".join(text.get(part) or "" for part in ("company", "role")))
+    return replace(
+        job,
+        posted_at=_iso(payload.get("createdOn")) or job.posted_at,
+        page=_page(
+            job.title,
+            full,
+            roles=roles,
+            stated_type=details.job_type_label((payload.get("employmentType") or {}).get("id")),
+            stated_style=job.work_style or _work_style(None, job.location),
+            stated_pay=_rippling_pay(payload.get("payRangeDetails") or []),
+        ),
+    )
+
+
+def _rippling_pay(ranges: list[dict]) -> details.Pay | None:
+    """One range per office; the card's is the widest, when all share a currency
+    and a period (Tavern Research's "USD", "YEAR")."""
+    kinds = {(r.get("currency"), str(r.get("frequency") or "").lower()) for r in ranges}
+    if len(kinds) != 1:
+        return None
+    currency, period = kinds.pop()
+    amounts = [a for r in ranges for a in (r.get("rangeStart"), r.get("rangeEnd"))]
+    if not all(isinstance(a, int | float) for a in amounts):
+        return None
+    return details.Pay.from_interval(currency, min(amounts), max(amounts), period)
+
+
+#: A job's address in an iCIMS sitemap: its number, then its title as a slug.
+_ICIMS_JOB = re.compile(r"<loc>\s*(https://[^<]+?/jobs/(\d+)/([^/<]+)/job)\s*</loc>")
+#: The page's schema.org JobPosting, which search engines read too.
+_LD_JSON = re.compile(r'<script[^>]*type="application/ld\+json"[^>]*>(.*?)</script>', re.S)
+#: What iCIMS writes in a field the employer left empty.
+_UNSET = "UNAVAILABLE"
+
+
+def icims(token: str, company: str) -> list[Job]:
+    """An iCIMS board, in one request: its sitemap, which names every open job by
+    its URL. General Dynamics Mission Systems' listed 723 on 2026-10-26, exactly
+    the count its own search pages total (36 of 20, then 3), against 37 requests
+    to read those. A job's title is only its URL's slug, which classifies the same;
+    its own page has the real one (`describe_icims`).
+
+    Anything that is not a list of URLs (an index of sitemaps) raises
+    `Incomplete`: read as an empty board, it would close every job it has."""
+    text = _get_text(listing_url("icims", token))
+    if "<urlset" not in text:
+        raise Incomplete("not a sitemap of job URLs")
+    jobs = {}
+    for match in _ICIMS_JOB.finditer(text):
+        url, job_id, slug = match.groups()
+        jobs.setdefault(
+            job_id,
+            Job(
+                ats="icims",
+                token=token,
+                company=company,
+                external_id=job_id,
+                title=_icims_title(slug),
+                apply_url=html.unescape(url),
+            ),
+        )
+    return list(jobs.values())
+
+
+def _icims_title(slug: str) -> str:
+    """ "summer-2027-mechanical-engineering-intern--topeka%2c-ks" as words: the
+    title lower-cased, its punctuation mostly gone. "co-op" becomes "coop", which
+    the filter reads as it reads "co-op"; as "co op" every iCIMS co-op was dropped
+    before its page was read."""
+    text = re.sub(r"\bco-op\b", "coop", urllib.parse.unquote(slug), flags=re.I)
+    return " ".join(text.replace("-", " ").split())
+
+
+def describe_icims(job: Job) -> Job:
+    """The same iCIMS posting with what its own page says, from the schema.org
+    JobPosting it carries: the real title, the date it went up, its places, its
+    employment type and the description."""
+    posting = _icims_posting(_get_text(job_url("icims", job.token, job.external_id)))
+    title = html.unescape(str(posting.get("title") or "")).strip() or job.title
+    full, roles = _described(posting.get("description"))
+    places = _places(_icims_place(place) for place in posting.get("jobLocation") or [])
+    return replace(
+        job,
+        title=title,
+        posted_at=_iso(posting.get("datePosted")) or job.posted_at,
+        page=_page(
+            title,
+            full,
+            roles=roles,
+            stated_type=details.job_type_label(posting.get("employmentType")),
+            stated_style=_work_style(None, places),
+            offices=(places,) if places else (),
+        ),
+    )
+
+
+def _icims_posting(page: str) -> dict:
+    """The page's JobPosting, or {} when it has none."""
+    for match in _LD_JSON.finditer(page):
+        try:
+            found = json.loads(match.group(1))
+        except json.JSONDecodeError:
+            continue
+        for item in found if isinstance(found, list) else [found]:
+            if isinstance(item, dict) and item.get("@type") == "JobPosting":
+                return item
+    return {}
+
+
+def _icims_place(place: object) -> str | None:
+    """ "Topeka, KS, US" from a JobPosting place, leaving out what iCIMS marks unset."""
+    address = (place.get("address") if isinstance(place, dict) else None) or {}
+    parts = (address.get(k) for k in ("addressLocality", "addressRegion", "addressCountry"))
+    return _place(*(part for part in parts if part != _UNSET)) or None
+
+
+#: Postings per request: Oracle answers a larger `limit` with 200 (2026-10-26).
+ORACLE_PAGE = 200
+#: The largest Oracle board read, 25 requests, as Workday's `WORKDAY_MAX`.
+ORACLE_MAX = 5000
+
+
+def oracle(
+    token: str, company: str, *, pace: Callable[[str], None] = lambda url: None
+) -> list[Job]:
+    """Every posting on an Oracle Recruiting careers site, read whole or not at all:
+    the list its careers page reads, `ORACLE_PAGE` a request, each paced but the
+    first.
+
+    A read is whole when its distinct postings reach the count Oracle gave, less
+    one in 500 (at least one). A grocer's board (hdhe.fa.em3) counted 404 and listed
+    403 on every way of paging it, both sort orders and two page sizes; of six
+    boards read that day, four added up exactly and one listed 2,541 of 2,543.
+    Strict, the grocer's board would never be read. Fewer is `Incomplete`, a
+    failed read, evidence of nothing."""
+    url = listing_url("oracle", token)
+    rows: dict[str, dict] = {}
+    total, offset = None, 0
+    while total is None or offset < total:
+        if offset:
+            pace(url)
+        try:
+            payload = _get_json(f"{url},limit={ORACLE_PAGE},offset={offset}")
+        except BoardNotFound as error:
+            if not offset:
+                raise
+            raise Incomplete(f"no page at offset {offset:,}") from error
+        assert isinstance(payload, dict)
+        items = payload.get("items")
+        found = (items or [{}])[0]
+        if total is None:
+            # The count decides what a whole read is: without it, the first page
+            # would pass for the whole board.
+            if items is None or (items and "TotalJobsCount" not in found):
+                raise Incomplete("no posting count")
+            total = int(found.get("TotalJobsCount") or 0)
+            if total > ORACLE_MAX:
+                raise TooLarge(f"{total:,} postings")
+        page = found.get("requisitionList") or []
+        for row in page:
+            rows.setdefault(str(row["Id"]), row)
+        if not page:
+            break
+        offset += ORACLE_PAGE
+    if (total and not rows) or len(rows) < total - max(1, total // 500):
+        raise Incomplete(f"read {len(rows):,} distinct postings of {total:,}")
+
+    parts = _parts("oracle", token)
+    site = "https://{host}.oraclecloud.com/hcmUI/CandidateExperience/en/sites/{site}".format(
+        **parts
+    )
+    return [
+        Job(
+            ats="oracle",
+            token=token,
+            company=company,
+            external_id=job_id,
+            title=(row.get("Title") or "").strip(),
+            apply_url=f"{site}/job/{job_id}",
+            location=_places(
+                [
+                    row.get("PrimaryLocation"),
+                    *(p.get("Name") for p in row.get("secondaryLocations") or []),
+                ]
+            ),
+            posted_at=_iso(row.get("PostedDate")),
+            # Only the list states it, where the employer filled it in ("Remote",
+            # "On-site"); the record leaves it blank, as Rippling's does.
+            work_style=_work_style(row.get("WorkplaceType"), None),
+        )
+        for job_id, row in rows.items()
+    ]
+
+
+def describe_oracle(job: Job) -> Job:
+    """The same Oracle posting with what only its own record says: the
+    description in its parts (the job, its responsibilities and qualifications,
+    then the company's), the exact time it went up, and the employer's own fields
+    ("Base Range: $31.00 - $45.00 per hour"), which hold the pay where it is
+    stated."""
+    payload = _get_json(job_url("oracle", job.token, job.external_id))
+    assert isinstance(payload, dict)
+    record = (payload.get("items") or [{}])[0]
+    fields = "".join(
+        f"<p>{html.escape(str(f.get('Prompt')))}: {html.escape(str(f.get('Value')))}</p>"
+        for f in record.get("requisitionFlexFields") or []
+        if f.get("Prompt") and f.get("Value")
+    )
+    parts = [
+        record.get(key) or ""
+        for key in (
+            "ExternalDescriptionStr",
+            "ExternalResponsibilitiesStr",
+            "ExternalQualificationsStr",
+        )
+    ]
+    full, roles = _described("".join([*parts, fields, record.get("CorporateDescriptionStr") or ""]))
+    return replace(
+        job,
+        posted_at=_iso(record.get("ExternalPostedStartDate")) or job.posted_at,
+        page=_page(
+            job.title,
+            full,
+            roles=roles,
+            stated_style=job.work_style or _work_style(None, job.location),
+        ),
+    )
+
+
 #: Postings per request: Workday answers a larger `limit` with a 400.
 WORKDAY_PAGE = 20
 #: The most a Workday list will report. A board answering exactly this is capped:
@@ -890,7 +1143,10 @@ def workday(
         while expected is None or offset < expected:
             if facets or offset:
                 pace(url)
-                page = _workday_page(url, facets, offset)
+                try:
+                    page = _workday_page(url, facets, offset)
+                except BoardNotFound as error:
+                    raise Incomplete(f"no page at offset {offset:,}") from error
             else:
                 page = first
             # Only the first page of a search carries the count; later pages say 0.
@@ -1108,27 +1364,290 @@ def _greenhouse_pay(ranges: list[dict]) -> details.Pay | None:
     return details.Pay.from_amounts(currencies.pop(), min(cents) / 100, max(cents) / 100, titles)
 
 
-FETCHERS: dict[str, Callable[[str, str], list[Job]]] = {
-    "greenhouse": greenhouse,
-    "ashby": ashby,
-    "lever": lever,
-    "workable": workable,
-    "recruitee": recruitee,
-    "bamboohr": bamboohr,
-    "workday": workday,
-}
+@dataclass(frozen=True, slots=True)
+class Provider:
+    """Everything the scraper knows about one hiring system, in one place, so a new
+    one is its reader and one entry in `PROVIDERS` (scraper/CLAUDE.md, "Adding a
+    provider"). Its key there is the `ats` of boards.csv."""
 
-#: Providers whose reader makes more than one request per board, and so takes the
-#: run's `pace` to space them (`__main__._scrape_one`).
-PAGED = frozenset({"workday"})
+    #: The board's list. Both the reader and the robots.txt check read it, so a board
+    #: is never checked at one address and then fetched at another.
+    listing_url: str
+    #: Reads one board, `(token, company) -> list[Job]`; with `pace=` when `paged`.
+    read: Callable[..., list[Job]]
+    #: What an apply link in the curated lists names a board by (build_boards.py):
+    #: its groups, joined by "/", are the token.
+    apply_link: re.Pattern[str]
+    #: A kept posting's own page, when the list leaves out what it says, and the
+    #: function that reads it (`describe`). On the list's origin, so the robots.txt
+    #: read for the board covers it too.
+    job_url: str | None = None
+    describe: Callable[[Job], Job] | None = None
+    #: More than one request per board: `read` takes the run's `pace` and calls it
+    #: before each request after the first (`__main__._scrape_one`).
+    paged: bool = False
+    #: Its list names a posting only by its URL's slug, so the title its page gave
+    #: wins and the store carries it forward (`store.carry`).
+    page_title: bool = False
+    #: Its list dates a posting only roughly (Workday's "Posted 3 Days Ago",
+    #: Oracle's bare day), so the exact date its page gave wins over a bare
+    #: listing's (`store.carry`).
+    page_date: bool = False
+    #: Its token's case is part of it, so build_boards.py keeps it as the apply link
+    #: writes it rather than lower-casing it.
+    keeps_case: bool = False
+    #: Another URL robots.txt must allow before a board is read (`robots_urls`).
+    careers_site: str | None = None
+    #: Each company is its own subdomain of this domain, one provider's servers
+    #: behind them all: they share one pace (`polite.SHARED_PACE`).
+    subdomains: str | None = None
+    #: Its paths are case-blind, so its robots.txt is read case-blind too
+    #: (`polite.FOLD_CASE`). Read by its `subdomains`, which it needs.
+    case_blind: bool = False
+    #: How long its lane may keep starting boards, in seconds (`__main__._lane`).
+    budget_s: int | None = None
+    #: Its board page, for the logo (logos.py); None when no logo is read.
+    logo_page: str | None = None
+    #: The logo on that page. Each accepts only its own image host, and
+    #: frontend/next.config.ts allows exactly these hosts: with the optimizer on,
+    #: next/image throws -- failing the whole page -- on any other; it is off on
+    #: Cloudflare (KAN-169) but stays one line from coming back, so a logo from
+    #: anywhere else must stay out of the feed. None reads only a website (logos.py).
+    logo_pattern: re.Pattern[str] | None = None
+
+
+PROVIDERS: dict[str, Provider] = {
+    "greenhouse": Provider(
+        listing_url="https://boards-api.greenhouse.io/v1/boards/{token}/jobs",
+        read=greenhouse,
+        # An EU board (job-boards.eu.greenhouse.io) is answered by the same
+        # boards-api.greenhouse.io as a US one, so it is the same kind of board.
+        apply_link=re.compile(
+            r"(?:boards|job-boards)(?:\.eu)?\.greenhouse\.io/(?:embed/job_app\?for=)?([a-z0-9_-]+)",
+            re.I,
+        ),
+        # Greenhouse's list leaves descriptions out unless asked with `content=true`,
+        # which sends every posting's full HTML -- hundreds of megabytes across all
+        # boards to describe the ~1% we keep. So a kept Greenhouse posting is fetched
+        # on its own, once: the store carries what it says forward after that.
+        # `pay_transparency` adds the pay ranges a board entered in Greenhouse's own
+        # pay fields.
+        job_url=(
+            "https://boards-api.greenhouse.io/v1/boards/{token}/jobs/{job_id}?pay_transparency=true"
+        ),
+        describe=describe_greenhouse,
+        # `job-boards.`, not `boards.greenhouse.io`: the latter redirects there, and
+        # `web.get` refuses a cross-origin redirect.
+        logo_page="https://job-boards.greenhouse.io/{}",
+        logo_pattern=re.compile(
+            r'"(https://[\w-]*recruiting\.cdn\.greenhouse\.io/external_greenhouse_job_boards/logos/[^"]+)"'
+        ),
+    ),
+    "ashby": Provider(
+        # Pay is left out of Ashby's list unless asked for.
+        listing_url="https://api.ashbyhq.com/posting-api/job-board/{token}?includeCompensation=true",
+        read=ashby,
+        apply_link=re.compile(r"jobs\.ashbyhq\.com/([a-z0-9_.-]+)", re.I),
+        logo_page="https://jobs.ashbyhq.com/{}",
+        # The square mark, not `logoWordmarkImageUrl`: the card's tile is square.
+        logo_pattern=re.compile(
+            r'"logoSquareImageUrl":"(https://app\.ashbyhq\.com/api/images/[^"]+)"'
+        ),
+    ),
+    "lever": Provider(
+        listing_url="https://api.lever.co/v0/postings/{token}?mode=json",
+        read=lever,
+        apply_link=re.compile(r"jobs\.lever\.co/([a-z0-9_.-]+)", re.I),
+        logo_page="https://jobs.lever.co/{}",
+        # The header logo, not `og:image` -- Lever's is a 1200x630 banner with a
+        # tagline. Older uploads use the bucket's dash host, `s3-us-west-2` (Daniels
+        # Health).
+        logo_pattern=re.compile(
+            r'class="main-header-logo"[^>]*>\s*<img[^>]*\ssrc="'
+            r'(https://lever-client-logos\.s3(?:[.-]us-west-2)?\.amazonaws\.com/[^"]+)"'
+        ),
+    ),
+    "workable": Provider(
+        # The careers-page widget's feed, which Workable documents for embedding a
+        # board. Without `details=true`: the description comes from a kept posting's
+        # own page, which also has the work model and pay the widget leaves out.
+        listing_url="https://apply.workable.com/api/v1/widget/accounts/{token}",
+        read=workable,
+        # apply.workable.com/{account}/j/{shortcode}/. A bare apply.workable.com/j/...
+        # names no account, so `j` (and the `api`) is never one.
+        apply_link=re.compile(r"apply\.workable\.com/(?!(?:j|api)/)([a-z0-9_-]+)", re.I),
+        # What Workable's own careers page reads: the description, requirements and
+        # benefits, plus `workplace` (hybrid included) and a salary, neither of which
+        # the widget carries. Six of 14 sampled postings had a salary (2026-10-10).
+        job_url="https://apply.workable.com/api/v2/accounts/{token}/jobs/{job_id}",
+        describe=describe_workable,
+        # The account behind the board, as JSON: what Workable's careers page draws
+        # its header from, and the company's website besides.
+        logo_page="https://apply.workable.com/api/v1/accounts/{}",
+        # The account logo, not `open_graph_logo`. 120px tall: 8 of the first 25 read
+        # were squares, the rest wordmarks up to 720 wide, which the card letterboxes.
+        logo_pattern=re.compile(
+            r'"logo":"(https://workablehr\.s3\.amazonaws\.com/uploads/account/logo/[^"]+)"'
+        ),
+    ),
+    "recruitee": Provider(
+        # Recruitee and BambooHR give each company its own subdomain, so its own
+        # origin and robots.txt; `polite` still paces each provider as one host.
+        listing_url="https://{token}.recruitee.com/api/offers/",
+        read=recruitee,
+        # One subdomain per company: {company}.recruitee.com/o/{offer}. `www` is
+        # the vendor's own site.
+        apply_link=re.compile(r"//(?!www\.)([a-z0-9-]+)\.recruitee\.com", re.I),
+        subdomains="recruitee.com",
+        # No logo yet: it sits inside a 1 MB board page, for the one board we read.
+        # Its cards show initials.
+    ),
+    "bamboohr": Provider(
+        listing_url="https://{token}.bamboohr.com/careers/list",
+        read=bamboohr,
+        # One subdomain per company: {company}.bamboohr.com/careers/{id}.
+        apply_link=re.compile(r"//(?!www\.)([a-z0-9-]+)\.bamboohr\.com", re.I),
+        # BambooHR's list has no description, no date and no pay.
+        job_url="https://{token}.bamboohr.com/careers/{job_id}/detail",
+        describe=describe_bamboohr,
+        subdomains="bamboohr.com",
+        # The careers page carries its header logo as JSON (`poData`).
+        logo_page="https://{}.bamboohr.com/careers",
+        # The uploaded header logo, slashes JSON-escaped. Mostly
+        # `images7.bamboohr.com`, some on the company's own subdomain or
+        # `pandabox.bamboohr.com`: next.config.ts allows `*.bamboohr.com`. Served as
+        # application/octet-stream, but next/image sniffs the bytes (PNGs, all 41
+        # read on 2026-10-19). 36 to 120px tall, mostly wordmarks, which the card
+        # letterboxes.
+        logo_pattern=re.compile(
+            r'"logo":\{[^}]*"url":"(https:\\/\\/[\w-]+\.bamboohr\.com\\/[^"]+)"'
+        ),
+    ),
+    "rippling": Provider(
+        # What a Rippling careers page itself reads (`/api/v2/board/...`), not a
+        # documented public API (an accepted risk, like Workday's). Its robots.txt
+        # disallows only `/internal/` (2026-10-26).
+        listing_url="https://ats.rippling.com/api/v2/board/{token}/jobs?page=0&pageSize=1000",
+        read=rippling,
+        # ats.rippling.com/{locale}/{board}/jobs/{id}. The locale ("en-GB") is
+        # optional, so it is skipped only when a board and `/jobs` follow it.
+        apply_link=re.compile(
+            r"ats\.rippling\.com/(?:[a-z]{2}-[a-z]{2}/)?([a-z0-9_-]+)/jobs", re.I
+        ),
+        # The list has the title, offices and work model; the description, date,
+        # employment type and pay are on the posting's own record.
+        job_url="https://ats.rippling.com/api/v2/board/{token}/jobs/{job_id}",
+        describe=describe_rippling,
+        # No logo: the board's is a signed URL that expires, so a stored one would
+        # break. Its cards show initials.
+    ),
+    "icims": Provider(
+        # Each company is its own host ({prefix}-{company}.icims.com), whose
+        # robots.txt names this sitemap and allows its job pages.
+        listing_url="https://{token}.icims.com/sitemap.xml",
+        read=icims,
+        # careers-gdms.icims.com/jobs/{id}/{slug}/job: the token is the whole host
+        # label, since the prefix varies (careers-, career-, external-). `www` is
+        # the vendor's own site.
+        apply_link=re.compile(r"//(?!www\.)([a-z0-9-]+)\.icims\.com", re.I),
+        # The page inside the careers site's frame, which carries the JobPosting;
+        # the job's number alone finds it.
+        job_url="https://{token}.icims.com/jobs/{job_id}/job?in_iframe=1",
+        describe=describe_icims,
+        page_title=True,
+        subdomains="icims.com",
+        # No logo yet: the page names only the company's website
+        # (`hiringOrganization.sameAs`), often "UNAVAILABLE". Its cards show
+        # initials.
+    ),
+    "oracle": Provider(
+        # What an Oracle Recruiting careers page itself reads, Oracle's documented
+        # REST resource for it. `token` is "{host}/{site}". Its tenants' hosts had
+        # no robots.txt (404, no rules) on 2026-10-26; JPMC's answers a firewall's
+        # 403 to everything, so its board fails each run, as it should.
+        listing_url=(
+            "https://{host}.oraclecloud.com/hcmRestApi/resources/latest/"
+            "recruitingCEJobRequisitions?onlyData=true&expand=requisitionList.secondaryLocations"
+            "&finder=findReqs;siteNumber={site},sortBy=POSTING_DATES_DESC"
+        ),
+        read=oracle,
+        # {host}.oraclecloud.com/hcmUI/CandidateExperience/{locale}/sites/{site}/...
+        # The site code keeps its case: its list answers `cx` as `CX`, but a job's
+        # record leaves out the employer's own fields, pay among them, for any
+        # spelling but its own (Texas Instruments' "Base Range", 2026-10-26).
+        apply_link=re.compile(
+            r"//([a-z0-9.-]+?)\.oraclecloud\.com/hcmUI/CandidateExperience/"
+            r"[a-z]{2}(?:-[a-z]{2})?/sites/([a-z0-9_]+)",
+            re.I,
+        ),
+        keeps_case=True,
+        job_url=(
+            "https://{host}.oraclecloud.com/hcmRestApi/resources/latest/"
+            "recruitingCEJobRequisitionDetails?expand=all&onlyData=true"
+            '&finder=ById;Id="{job_id}",siteNumber={site}'
+        ),
+        describe=describe_oracle,
+        paged=True,
+        page_date=True,
+        # One pace for all of Oracle's tenants, as for Workday's.
+        subdomains="oraclecloud.com",
+        # Its ~190 boards hold some 100,000 postings, 200 a request: read like
+        # Workday's, least recently read first, for as long as Workday's lane runs.
+        budget_s=12 * 60,
+        # No logo yet: the list and record name no image or website.
+    ),
+    "workday": Provider(
+        # What a Workday careers page itself calls: a POST of a search, answered 20
+        # postings at a time. Not a documented public API (an accepted risk, like
+        # Workable's per-posting page). `token` is "{tenant}.{wd}/{site}".
+        listing_url="https://{tenant}.{wd}.myworkdayjobs.com/wday/cxs/{tenant}/{site}/jobs",
+        read=workday,
+        # {tenant}.wd{N}.myworkdayjobs.com/{locale}/{site}/job/..., whose token is
+        # "{tenant}.wd{N}/{site}": all three are needed to reach the board. The
+        # locale ("en-US") is optional, and a site can be two letters itself
+        # (Boeing's "DA"), so a locale is only skipped when a site follows it.
+        # build_boards.WORKDAY_SITE reads Workday's other address.
+        apply_link=re.compile(
+            r"//([a-z0-9-]+\.wd\d+)\.myworkdayjobs\.com/(?:[a-z]{2}(?:-[a-z]{2})?/)?"
+            r"(?!(?:job|details|wday)/)([a-z0-9_-]+)",
+            re.I,
+        ),
+        # Workday's list has the title, the place and a relative date; the
+        # description, the exact date and the job type are on the posting's own
+        # record. `job_id` is the posting's path ("/job/China-Shanghai/..._JR2024692").
+        job_url="https://{tenant}.{wd}.myworkdayjobs.com/wday/cxs/{tenant}/{site}{job_id}",
+        describe=describe_workday,
+        paged=True,
+        page_date=True,
+        # A Workday tenant's robots.txt names its careers sites, not the API path
+        # under them: Caterpillar's disallows `/CaterpillarCareers/`, and reading that
+        # site's postings through the API would be reading what the employer asked
+        # crawlers to leave alone.
+        careers_site="https://{tenant}.{wd}.myworkdayjobs.com/{site}/",
+        # One pace across all its data centres (`nvidia.wd5.myworkdayjobs.com`), the
+        # cautious reading: ten requests a second to Workday as a whole.
+        subdomains="myworkdayjobs.com",
+        # It serves `/NVIDIAExternalCareerSite/` and `/nvidiaexternalcareersite/`
+        # alike, and build_boards.py lower-cases every slug, so a rule written
+        # `Disallow: /CaterpillarCareers/` must still stop `/caterpillarcareers/`.
+        case_blind=True,
+        # It pages 20 postings a request, and its ~1,470 readable boards hold
+        # ~430,000 postings, ~22,000 requests, close to an hour at its pace. So each
+        # run reads boards whole, least recently read first, until this runs out
+        # (~440 boards on 2026-10-10); the rest wait for a later run, which proves
+        # nothing about them either way. A board started in time is finished. 12
+        # minutes keeps a run near 15 of its 30.
+        budget_s=12 * 60,
+        # The careers site's settings, as JSON: what its header draws from. Its logo
+        # (`/{site}/assets/logo`) is the site's banner, not a square -- NVIDIA's is
+        # 1200x627 -- so only the website it names is read (no `logo_pattern`).
+        logo_page="https://{tenant}.{wd}.myworkdayjobs.com/wday/cxs/{tenant}/{site}/approot",
+    ),
+}
 
 
 def describe(job: Job) -> Job:
-    """`job` with its own page read; only for a provider in `JOB_URL`."""
-    # Looked up per call rather than kept in a table, so a test can swap one.
-    return {
-        "greenhouse": describe_greenhouse,
-        "workable": describe_workable,
-        "bamboohr": describe_bamboohr,
-        "workday": describe_workday,
-    }[job.ats](job)
+    """`job` with its own page read; only for a provider with a `describe`."""
+    reader = PROVIDERS[job.ats].describe
+    assert reader is not None, f"{job.ats} has no page to read"
+    return reader(job)

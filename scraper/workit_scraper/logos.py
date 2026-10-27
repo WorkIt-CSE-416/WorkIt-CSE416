@@ -30,52 +30,9 @@ from workit_scraper.polite import Robots
 #: logos are kept -- an image that worked does not need a second look.
 VERSION = 2
 
-# `job-boards.`, not `boards.greenhouse.io`: the latter redirects there, and `web.get`
-# refuses a cross-origin redirect.
-PAGE = {
-    "greenhouse": "https://job-boards.greenhouse.io/{}",
-    "ashby": "https://jobs.ashbyhq.com/{}",
-    "lever": "https://jobs.lever.co/{}",
-    # The account behind the board, as JSON: what Workable's careers page draws
-    # its header from, and the company's website besides.
-    "workable": "https://apply.workable.com/api/v1/accounts/{}",
-    # The careers site's settings, as JSON: what its header draws from. Its logo
-    # (`/{site}/assets/logo`) is the site's banner, not a square -- NVIDIA's is
-    # 1200x627 -- so only the website it names is read.
-    "workday": "https://{tenant}.{wd}.myworkdayjobs.com/wday/cxs/{tenant}/{site}/approot",
-    # The careers page carries its header logo as JSON (`poData`).
-    "bamboohr": "https://{}.bamboohr.com/careers",
-    # No Recruitee yet: its logo sits inside a 1 MB board page, for the one board we
-    # read. Its cards show initials.
-}
-# Each pattern only accepts its ATS's own image host, and `favicon` only Google's.
-# frontend/next.config.ts allows exactly these hosts. With the optimizer on, next/image
-# throws -- failing the whole page -- on any other; it is off on Cloudflare (KAN-169) but
-# stays one line from coming back, so a logo from anywhere else must stay out of the feed.
-PATTERN = {
-    "greenhouse": re.compile(
-        r'"(https://[\w-]*recruiting\.cdn\.greenhouse\.io/external_greenhouse_job_boards/logos/[^"]+)"'
-    ),
-    # The square mark, not `logoWordmarkImageUrl`: the card's tile is square.
-    "ashby": re.compile(r'"logoSquareImageUrl":"(https://app\.ashbyhq\.com/api/images/[^"]+)"'),
-    # The header logo, not `og:image` -- Lever's is a 1200x630 banner with a tagline.
-    # Older uploads use the bucket's dash host, `s3-us-west-2` (Daniels Health).
-    "lever": re.compile(
-        r'class="main-header-logo"[^>]*>\s*<img[^>]*\ssrc="'
-        r'(https://lever-client-logos\.s3(?:[.-]us-west-2)?\.amazonaws\.com/[^"]+)"'
-    ),
-    # The account logo, not `open_graph_logo`. 120px tall: 8 of the first 25 read
-    # were squares, the rest wordmarks up to 720 wide, which the card letterboxes.
-    "workable": re.compile(
-        r'"logo":"(https://workablehr\.s3\.amazonaws\.com/uploads/account/logo/[^"]+)"'
-    ),
-    # The uploaded header logo, slashes JSON-escaped. Mostly `images7.bamboohr.com`,
-    # some on the company's own subdomain or `pandabox.bamboohr.com`: next.config.ts
-    # allows `*.bamboohr.com`. Served as application/octet-stream, but next/image
-    # sniffs the bytes (PNGs, all 41 read on 2026-10-19). 36 to 120px tall, mostly
-    # wordmarks, which the card letterboxes.
-    "bamboohr": re.compile(r'"logo":\{[^}]*"url":"(https:\\/\\/[\w-]+\.bamboohr\.com\\/[^"]+)"'),
-}
+# Each board's page and its logo pattern are its provider's (`Provider.logo_page`,
+# `Provider.logo_pattern`); `favicon` accepts only Google's host, for the same reason
+# those patterns accept only their own.
 # Where Ashby serves uploaded logos -- read only to measure one (see `fetch`).
 ASHBY_IMAGES = "https://app.ashbyhq.com/api/images/"
 # A logo smaller than this looks blurred in the card's 80px tile.
@@ -139,13 +96,22 @@ def favicon(host: str) -> str:
     return f"https://www.google.com/s2/favicons?domain={quote(host)}&sz=128"
 
 
+def reads_logo(ats: str) -> bool:
+    """Whether its provider has a board page to read a logo or website from."""
+    provider = providers.PROVIDERS.get(ats)
+    return provider is not None and provider.logo_page is not None
+
+
 def page_url(ats: str, token: str) -> str:
-    return PAGE[ats].format(token, **providers._parts(ats, token))
+    page = providers.PROVIDERS[ats].logo_page
+    assert page is not None, f"{ats} has no logo page"
+    return page.format(token, **providers._parts(ats, token))
 
 
 def extract(ats: str, page: str) -> str | None:
     # Workday has no pattern: only its website is read.
-    if ats in PATTERN and (match := PATTERN[ats].search(page)):
+    pattern = providers.PROVIDERS[ats].logo_pattern
+    if pattern and (match := pattern.search(page)):
         return html.unescape(match.group(1)).replace("\\/", "/")
     if ats == "ashby" and (site := ASHBY_WEBSITE.search(page)):
         return favicon(urlsplit(site.group(1)).netloc)
@@ -174,7 +140,7 @@ def fetch(boards: list[tuple[str, str, str]]) -> dict[str, str | None]:
     we could not read -- robots.txt, a timeout -- is left out, so the next run tries it
     again.
     """
-    boards = [board for board in boards if board[0] in PAGE]
+    boards = [board for board in boards if reads_logo(board[0])]
     # Each Workday company is its own host, so its robots.txt is read when a worker
     # gets there, not up front. Only the API path is checked: its careers site was
     # checked when the board was read (`providers.robots_urls`), or it has no jobs here.

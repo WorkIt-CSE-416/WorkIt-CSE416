@@ -50,3 +50,117 @@ Workable's and BambooHR's logos are read (`logos.md`); BambooHR's careers page
 carries its logo as JSON, served as `application/octet-stream`, which next/image
 accepts because it sniffs the bytes. Recruitee's sits inside a 1 MB board page for
 the one board we read, so its cards show initials.
+
+## Rippling (KAN-301)
+
+Added 2026-10-26. About 165 companies in the curated lists use it (268 apply links
+on `ats.rippling.com`). Its robots.txt disallows only `/internal/`.
+
+- **The API is what its careers page reads, not a documented one** (an accepted
+  risk, like Workday's): `GET /api/v2/board/{slug}/jobs?page=0&pageSize=1000` lists
+  a board, and `GET /api/v2/board/{slug}/jobs/{id}` is one job's record. The page's
+  own client caps `pageSize` at 1,000, so one request reads a board; one that
+  reports a second page is skipped as too large rather than read in part. The
+  largest of the 7 boards read on 2026-10-26 had 102 postings. A missing board is a
+  404.
+- **The list has a job once per office, under one id** (Kraken Robotics'
+  internships: Mount Pearl and Dartmouth), so rows are merged on it, as Workable's
+  are, and their places joined with "; ".
+- **Only the list states the work model** (`workplaceType`: `ON_SITE`, `REMOTE`,
+  `HYBRID`, per office), and only the record has the description, the date
+  (`createdOn`), the employment type and the pay. So the reader carries the list's
+  work model on `Job.work_style` to the record's read. The location is no
+  substitute: a remote office is often named only "NY" or "Chicago". Remote wins
+  over hybrid over on site across offices, as on Recruitee.
+- **The description comes in two parts**, `company` and `role`, each HTML. The
+  company's part goes first, as the page shows them, and often holds the title and
+  location lines too. `employmentType.id` is the readable one ("Salaried,
+  full-time"); `payRangeDetails` has a range per office with `currency` and
+  `frequency` ("YEAR"), and the card takes the widest when all share both.
+- **No logo**: the board's logo is a signed URL on `secured-assets.ripplingcdn.com`
+  with an `Expires` parameter, so a stored one would stop loading. Its cards show
+  initials.
+- A company's own board can redirect off Rippling (`rippling` itself goes to
+  rippling.com); `web.get` refuses the cross-origin redirect, so it reads as a
+  failed board.
+
+## iCIMS (KAN-301)
+
+Added 2026-10-26. About 320 companies in the curated lists use it (1,471 apply
+links), many in defense and government work. Each company is its own host,
+`{prefix}-{company}.icims.com`, and the prefix varies (`careers-`, `career-`,
+`external-`), so the token is the whole host label. Every host's robots.txt read
+that day names its sitemap and disallows only referral, login, candidate and
+connect pages; Charles Schwab's disallows everything, so it is skipped.
+
+- **A board is its sitemap**, `/sitemap.xml`: every open job's URL, in one request,
+  where its own search pages take one request per 20 jobs. It was complete: General
+  Dynamics Mission Systems' listed 723 jobs, exactly the 36 full search pages and 3
+  on the last, with every searched job in it. Peraton's listed 1,403. A missing
+  company is a 404. Anything that is not a `<urlset>` (an index of sitemaps) is a
+  failed read, never an empty board.
+- **The list names a job only by its URL**, `/jobs/{id}/{slug}/job`. The slug read
+  as words ("reliability engineering intern") classifies the same as the real
+  title, so only kept jobs' pages are read, and the page's title replaces the slug
+  for good (`Provider.page_title`, `store.carry`). One word needed its hyphen:
+  "co-op" read as "co op", which the filter does not know, so every co-op was
+  dropped (7 at Peraton, 5 at General Dynamics); `_icims_title` writes it
+  "coop". Check a new stage word against a slug before trusting the slug.
+- **A job's page carries a schema.org `JobPosting`** (`<script
+  type="application/ld+json">`), which search engines read too: the title,
+  `datePosted`, `employmentType` (`FULL_TIME`, or `OTHER` for many internships),
+  the places (`jobLocation[].address`) and the description as HTML. iCIMS writes
+  "UNAVAILABLE" in a field the employer left empty; such parts are left out. The
+  page is read at `/jobs/{id}/job?in_iframe=1`, the page inside the careers site's
+  frame. Pay is read from the description: General Dynamics states it there
+  ("$22.50 per hour").
+- **No logo yet**: the page names only the company's website
+  (`hiringOrganization.sameAs`), often "UNAVAILABLE". Its cards show initials.
+- **robots.txt is read as each host is reached**, not before the run, as for
+  Workday: one paced read per host, in parallel across the lane. On the first live
+  check one host's robots.txt failed to load and the board was skipped for that
+  run, as an unreachable robots.txt must be.
+- The first run reads every kept job's page once (102 at General Dynamics, 32 at
+  Peraton), so it is longer than the runs after it.
+
+## Oracle Cloud (KAN-301)
+
+Added 2026-10-26. About 190 companies in the curated lists use Oracle Recruiting
+(2,777 apply links): Texas Instruments, Honeywell, JPMorgan Chase, insurers and
+retailers. Each company is a tenant with its own host, `{id}.fa.{dc}.oraclecloud.com`,
+and one or more careers sites (`CX`, `CX_1001`, `Honeywell`), so the token is
+`{host}/{site}`: `edbz.fa.us2/CX`. No tenant read that day had a robots.txt (a 404,
+no rules). JPMC's answers a firewall's 403 to some requests and lists 7,245 jobs,
+past `ORACLE_MAX`, so it is skipped.
+
+- **The list is `recruitingCEJobRequisitions`**, what the careers page reads, with
+  `finder=findReqs;siteNumber={site},...,limit=200,offset=n`. It answers at most
+  200 a request whatever `limit` asks, and its first page carries the count
+  (`TotalJobsCount`). A board is read whole like a Workday board, and like
+  Workday's lane, Oracle's has a 12-minute budget, least recently read first.
+- **The count can run one ahead of the list.** A grocer's board (`hdhe.fa.em3`)
+  counted 404 and listed 403 on every way of paging it: both sort orders and page
+  sizes of 100 and 200. Of the six boards read that day, four added up exactly and
+  one listed 2,541 of 2,543. So a read is whole when it reaches the count less one
+  in 500 (at least one); fewer is `Incomplete`.
+- **A careers site's code keeps its case.** The list answers `cx` as `CX`, and an
+  unknown code falls back to the tenant's default site, but a job's record leaves
+  out the employer's own fields for any spelling but the site's own. Texas
+  Instruments' pay is only there ("Base Range: $31.00 - $45.00 per hour"), so
+  `build_boards.py` keeps the code as the apply link writes it
+  (`Provider.keeps_case`). Two sites of one tenant list different jobs (Jackson's
+  `CX_3` and `CX_5`), so each is its own board.
+- **The list's date is a bare day, the record's an exact time**, and the record's
+  wins over every later bare listing (`Provider.page_date`, as for Workday): before
+  it, every Oracle role went back to midnight on its second run.
+- **The list has the title, date, places and, where the employer fills it in, the
+  work model** (`WorkplaceType`: "Remote", "On-site", "Hybrid"); the record does
+  not repeat it, so it rides on `Job.work_style` as Rippling's does. The record
+  (`recruitingCEJobRequisitionDetails`, `finder=ById;Id="{id}",siteNumber={site}`)
+  has the description in parts (`ExternalDescriptionStr`, responsibilities,
+  qualifications, `CorporateDescriptionStr`), an exact posting time, and
+  `requisitionFlexFields`, each read as a "Prompt: Value" line so the pay reader
+  finds a stated range.
+- **No logo yet**: neither the list nor the record names an image or a website.
+- A tenant that does not exist has no host at all, so its robots.txt cannot be
+  reached and the board is skipped for the run, never read.

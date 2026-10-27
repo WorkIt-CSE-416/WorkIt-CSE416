@@ -29,6 +29,7 @@ Jobs page** (`/jobs`), never a job board, so the two can't be confused.
  on Greenhouse, Lever, ──▶  reads, keeps, reads    ──▶    job_postings
  Ashby, Workable,           the facts                     job_locations
  BambooHR, Recruitee,
+ Rippling, iCIMS, Oracle,
  Workday                    writes feed.json               ▲
                                   │                        │
                                   └──── import script ─────┘
@@ -82,9 +83,13 @@ How the refresh behaves:
 | Workable | 178 | Small and mid-size companies | Its list, then each kept job posting's own page (for hybrid and pay) |
 | BambooHR | 42 | Small and mid-size companies | Its list, then each kept job posting's own page (the list has no description) |
 | Recruitee | 2 | Small companies, mostly in Europe | One request, everything included |
+| Rippling | about 165 | Small and mid-size companies | One request, then each kept job posting's own record (the list has no description, date or pay) |
+| iCIMS | about 320 | Large employers, many in defense and government work | Its sitemap in one request (each job's URL only), then each kept job posting's own page |
+| Oracle Cloud | about 190 | Large employers: chips, banks, insurers, retailers | 200 job postings a request, so a run reads as many company job boards whole as fit in 12 minutes, the least recently read first, as Workday's; then each kept job posting's own record |
 | Workday | 1,700 | Large companies and most non-tech employers: banks, defense, chips, cars, retail, hospitals | 20 job postings a request, so a run reads as many company job boards whole as fit in 12 minutes, the least recently read first; then each kept job posting's own page |
 
-Workable, BambooHR and Recruitee were added in KAN-171, and Workday in KAN-134.
+Workable, BambooHR and Recruitee were added in KAN-171, Workday in KAN-134, and
+Rippling, iCIMS and Oracle Cloud in KAN-301.
 Recruitee has so few company job boards because the GitHub lists barely mention
 it. Workday is the opposite: nearly half the lists' apply links point at it.
 
@@ -113,7 +118,7 @@ other hiring systems finish inside it (about 3 minutes without Workday).
 
 | Step | What happens |
 |---|---|
-| 1. Pick company job boards | One that has ever had a job posting we keep is read every run. The rest ("quiet" ones) are read one day in three, so a first job posting at a quiet company can appear up to two days late. `--full` reads them all. Workday's are read for 12 minutes a run, least recently read first (section 2). |
+| 1. Pick company job boards | One that has ever had a job posting we keep is read every run. The rest ("quiet" ones) are read one run in three, a third of them on each run, so a first job posting at a quiet company can appear about nine hours late. `--full` reads them all. Workday's are read for 12 minutes a run, least recently read first (section 2). |
 | 2. Read politely | Checks each site's `robots.txt`, waits between requests (Lever asks for one second) and names itself honestly. Each hiring system has its own lane of workers, so slow Lever doesn't hold up Greenhouse. BambooHR, Recruitee and Workday give every company its own subdomain, and each hiring system's subdomains share one pace. |
 | 3. Keep the right job postings | Checks each title (section 3.1). About 100,000 job postings are read on the other hiring systems and about 115,000 more on Workday each run. About 3,500 of the first are kept; Workday's first run kept 664, under the five categories before KAN-172. |
 | 4. Fetch full pages | Greenhouse, Workable, BambooHR and Workday lists leave out the description, pay, work style or exact date, so the scraper reads the full page of each kept job posting there, once. |
@@ -131,6 +136,11 @@ the logo reader learns a new place to look.
 board.** If a company job board fails to load, its job postings are kept as
 they were. A Workday company job board is read whole or not at all: every
 page, adding up to the count Workday reports, or the read counts for nothing.
+A company job board that answers "no such board" twice in a row after we have
+read it (the company left that hiring system) counts as a complete read with
+nothing open, so its job postings close. One answer closes nothing, and neither
+does most of one hiring system's company job boards answering so in the same
+run. One we never read is just reported.
 
 ### 3.1 Which job postings are kept
 
@@ -439,7 +449,7 @@ browser can't restore your place by itself. The app does it instead:
 
 | Limit | Why | What would fix it |
 |---|---|---|
-| Seven hiring systems. The next biggest in the GitHub lists go unread: Oracle Cloud (about 3,100 apply links), SmartRecruiters (1,700), iCIMS (1,600) | Each hiring system needs its own reader, and SmartRecruiters' `robots.txt` disallows us | A reader per hiring system, where its `robots.txt` allows |
+| Ten hiring systems. The next biggest in the GitHub lists, SmartRecruiters (about 1,200 apply links), goes unread, and so do employers' own careers sites (TikTok, Apple, Amazon, Microsoft) | SmartRecruiters' `robots.txt` disallows us, and each employer's own site needs a reader of its own | Ask SmartRecruiters for access; a reader per large employer |
 | A Workday job posting can take about 12 hours to appear, or to leave | Its company job boards are read whole, about every fourth run each, within a 12-minute share of each run | More of each run for Workday, or more workers within the same pace |
 | The biggest Workday company job boards are skipped | Over 5,000 job postings, or capped at 2,000 with no filter to split them (Accenture, Walmart, Target, Airbus): 20 company job boards | Read a giant one over several runs, or split a capped one by two filters |
 | About 3 in 10 Workday cards have no logo | Workday's careers-page images are wide banners, so only the website a careers site links is used, and some link none | Find a square image Workday serves |
@@ -452,7 +462,7 @@ browser can't restore your place by itself. The app does it instead:
 | Some titles land in the wrong category | It is read from the title alone: a trading firm's "Systems Engineer" is IT work read as engineering | Read the description too, or the company's other job postings |
 | Many job postings lack pay, start date or visa | Companies don't state them | Nothing on our side; filters hide these job postings |
 | A company only arrives once a GitHub list names it | The lists are our only source of company job boards | Find company job boards ourselves too (Common Crawl, an archive of the web) |
-| A new job posting at a quiet company can be two days late | Quiet company job boards are read one day in three | `--full` runs, or reading more often |
+| A new job posting at a quiet company can be about nine hours late | Quiet company job boards are read one run in three | `--full` runs, or reading more often |
 
 ---
 

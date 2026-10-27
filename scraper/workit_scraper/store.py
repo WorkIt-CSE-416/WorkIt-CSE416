@@ -13,16 +13,21 @@ from __future__ import annotations
 
 import json
 import zlib
+from collections.abc import Iterable
 from dataclasses import asdict, dataclass, field, replace
 from datetime import UTC, datetime, timedelta
 from pathlib import Path
 
-from workit_scraper.providers import Board, Job
+from workit_scraper.providers import PROVIDERS, Board, Job
 
 NEW_WINDOW = timedelta(hours=24)
 #: A quiet board -- read before, never a kept posting -- is read on one run in this
-#: many, and always once this many days have passed since its last read.
+#: many, and always once QUIET_LONGEST has passed since its last read.
 QUIET_EVERY = 3
+QUIET_LONGEST = timedelta(days=1)
+#: How often the scheduled run fires (.github/workflows/scrape.yml, every three
+#: hours): the slot that each quiet board's turn comes round in.
+RUN_EVERY = timedelta(hours=3)
 
 
 @dataclass(frozen=True, slots=True)
@@ -35,8 +40,11 @@ class RunStats:
     boards_missing: int = 0
     boards_skipped: int = 0
     boards_failed: int = 0
-    #: Left for a later run when a lane's time ran out (`__main__.LANE_BUDGET_S`).
+    #: Left for a later run when a lane's time ran out (`Provider.budget_s`).
     boards_deferred: int = 0
+    #: Each provider's share of the run, keyed by `ats` (`__main__.scrape`): its
+    #: boards by outcome, postings scanned, pages read and lane seconds.
+    by_provider: dict[str, dict[str, float]] = field(default_factory=dict)
 
 
 @dataclass(frozen=True, slots=True)
@@ -45,6 +53,9 @@ class BoardReads:
 
     first_read_at: str
     last_read_at: str
+    #: When it first said it does not exist since its last complete read. The next
+    #: such answer closes its postings (`update`); one alone is evidence of nothing.
+    missing_at: str | None = None
 
 
 @dataclass(frozen=True, slots=True)
@@ -91,10 +102,12 @@ class Store:
 
         Most boards in boards.csv have never had a posting we keep -- 282 of 333 on
         Lever, whose one-second Crawl-delay made it most of a run. A quiet board is
-        read on a third of runs, staggered by its key so each run takes its own
-        third, and whenever QUIET_EVERY days have passed, so a missed day of runs
-        does not leave one unread. A new posting on one can arrive two days late;
-        `--full` reads everything.
+        read on a third of runs, staggered by its key over the run's RUN_EVERY slot
+        so each run takes its own third, and whenever QUIET_LONGEST has passed, so
+        missed runs do not leave one unread. A new posting on one can arrive about
+        nine hours late; `--full` reads everything. The stagger was by day until
+        2026-10-26: a day's eight runs read one third eight times, and a posting
+        could wait two days.
 
         Skipping is safe for the rest of the store: a quiet board has nothing
         listed, and its `last_read_at` simply does not move.
@@ -104,6 +117,7 @@ class Store:
         read longest ago, and every board gets its turn. Other lanes read all.
         """
         at = _at(now)
+        slot = int(at.timestamp() // RUN_EVERY.total_seconds())
         hot = {job.board_key for job in self.jobs}
         due = []
         for board in boards:
@@ -112,8 +126,8 @@ class Store:
                 everything
                 or reads is None
                 or board.key in hot
-                or at - _at(reads.last_read_at) >= timedelta(days=QUIET_EVERY)
-                or zlib.crc32(board.key.encode()) % QUIET_EVERY == at.toordinal() % QUIET_EVERY
+                or at - _at(reads.last_read_at) >= QUIET_LONGEST
+                or zlib.crc32(board.key.encode()) % QUIET_EVERY == slot % QUIET_EVERY
             ):
                 due.append(board)
         never = datetime.min.replace(tzinfo=UTC)
@@ -136,7 +150,13 @@ def _at(iso: str) -> datetime:
 
 
 def update(
-    previous: Store | None, fresh: list[Job], read: list[str], stats: RunStats, now: str
+    previous: Store | None,
+    fresh: list[Job],
+    read: list[str],
+    stats: RunStats,
+    now: str,
+    *,
+    missing: Iterable[str] = (),
 ) -> Store:
     """Fold one scrape into the store.
 
@@ -145,6 +165,11 @@ def update(
     this read had none: Greenhouse's list never includes one, and each posting's
     own page is read only once (see `__main__.with_page`). `read` is the keys of the
     boards this run read completely; only those advance their `last_read_at`.
+
+    `missing` is the keys of the boards we hold postings from that said they do not
+    exist (`__main__.scrape`). The first answer is only noted; a second with no
+    complete read between is a complete read with nothing open, so their postings
+    close. One spurious 404 must not close a company's postings in Supabase.
     """
     before = {job.key: job for job in previous.jobs} if previous else {}
     merged = []
@@ -164,6 +189,14 @@ def update(
     for key in read:
         first = boards[key].first_read_at if key in boards else now
         boards[key] = BoardReads(first_read_at=first, last_read_at=now)
+    for key in missing:
+        reads = boards.get(key)
+        if reads is None:
+            continue
+        if reads.missing_at is None:
+            boards[key] = replace(reads, missing_at=now)
+        else:
+            boards[key] = replace(reads, last_read_at=now)
     logos = dict(previous.logos) if previous else {}
     version = previous.logos_version if previous else 1
     return Store(
@@ -194,15 +227,21 @@ def carry(job: Job, before: dict[str, Job]) -> Job:
     bring a fresh page every read, which always wins -- facts an employer changed
     must not linger. A BambooHR listing has no date either: its page gave it one.
 
-    A Workday listing's date is the reverse: it has one, but only counted back
-    from "Posted 3 Days Ago", a day out either way and gone at "30+ Days Ago",
-    while its page gave the exact one. So a bare Workday listing keeps the stored
-    date; one whose page was just read brings that page's date.
+    A Workday or Oracle listing's date is the reverse (`Provider.page_date`): it
+    has one, but only roughly -- Workday's counted back from "Posted 3 Days Ago",
+    a day out either way and gone at "30+ Days Ago", Oracle's a bare day -- while
+    its page gave the exact one. So a bare listing keeps the stored date; one
+    whose page was just read brings that page's date. Without it every Oracle
+    role went back to midnight on its second run.
     """
     old = before.get(job.key)
     if not old:
         return job
-    if job.ats == "workday" and job.page is None:
+    provider = PROVIDERS.get(job.ats)
+    if provider and provider.page_title and job.page is None and old.page is not None:
+        # An iCIMS listing's title is its URL's slug; its page gave the real one.
+        job = replace(job, title=old.title)
+    if provider and provider.page_date and job.page is None:
         return replace(job, page=old.page, posted_at=old.posted_at or job.posted_at)
     return replace(job, page=job.page or old.page, posted_at=job.posted_at or old.posted_at)
 

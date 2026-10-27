@@ -7,3 +7,5 @@ internships.html
 jobs.json
 # The Jobs feed the backend serves, written beside the page from the same roles.
 feed.json
+# Each provider's share of the last live run (`__main__.write_metrics`).
+metrics.json

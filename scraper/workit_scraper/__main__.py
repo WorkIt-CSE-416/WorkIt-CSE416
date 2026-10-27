@@ -11,11 +11,12 @@ from __future__ import annotations
 
 import argparse
 import csv
+import json
 import sys
 import time
 from collections import Counter
 from concurrent.futures import ThreadPoolExecutor
-from dataclasses import replace
+from dataclasses import asdict, replace
 from datetime import UTC, datetime
 from enum import Enum, auto
 from pathlib import Path
@@ -31,14 +32,12 @@ BOARDS_CSV = ROOT / "boards.csv"
 JOBS_JSON = ROOT / "jobs.json"
 PAGE_HTML = ROOT / "internships.html"
 FEED_JSON = ROOT / "feed.json"
+METRICS_JSON = ROOT / "metrics.json"
 MAX_IN_FLIGHT = 8
-#: How long a lane may keep starting boards. Only Workday has one: it pages 20
-#: postings a request, and its ~1,470 readable boards hold ~430,000 postings,
-#: ~22,000 requests, close to an hour at its pace. So each run reads boards whole,
-#: least recently read first, until this runs out (~440 boards on 2026-10-10); the
-#: rest wait for a later run, which proves nothing about them either way. A board
-#: started in time is finished. 12 minutes keeps a run near 15 of its 30.
-LANE_BUDGET_S = {"workday": 12 * 60}
+#: A lane in which this many boards we hold postings from say they do not exist,
+#: and more of them than read whole, closes none of them: that is the hiring
+#: system changing (every Workday tenant a 422), not its companies leaving.
+SURGE = 3
 
 
 class Outcome(Enum):
@@ -65,8 +64,8 @@ def load_boards(path: Path) -> list[Board]:
 
 
 def _scrape_one(board: Board, robots: Robots) -> tuple[Outcome, list[Job]]:
-    fetcher = providers.FETCHERS.get(board.ats)
-    if fetcher is None:
+    provider = providers.PROVIDERS.get(board.ats)
+    if provider is None:
         print(f"  ?  {board.key}: no fetcher for this provider", file=sys.stderr)
         return Outcome.SKIPPED, []
     url = providers.listing_url(board.ats, board.token)
@@ -75,10 +74,10 @@ def _scrape_one(board: Board, robots: Robots) -> tuple[Outcome, list[Job]]:
         return Outcome.SKIPPED, []
     robots.pace(url)
     try:
-        if board.ats in providers.PAGED:
-            jobs = fetcher(board.token, board.company, pace=robots.pace)
+        if provider.paged:
+            jobs = provider.read(board.token, board.company, pace=robots.pace)
         else:
-            jobs = fetcher(board.token, board.company)
+            jobs = provider.read(board.token, board.company)
     except BoardNotFound:
         print(f"  x  {board.key}: no such board")
         return Outcome.MISSING, []
@@ -97,9 +96,13 @@ def _lane(boards: list[Board], robots: Robots, before: dict[str, Job]):
     (`with_page`) -- so Greenhouse's page reads start when its boards are done,
     not after Lever's. Order is kept, so each board gets its own jobs back.
 
-    A lane with a budget (`LANE_BUDGET_S`) starts no board once it has run out."""
-    budget = LANE_BUDGET_S.get(boards[0].ats) if boards else None
-    deadline = time.monotonic() + budget if budget is not None else None
+    A lane with a budget (`Provider.budget_s`) starts no board once it has run out.
+    Also returns how long the lane took and how many pages it read, for the run's
+    metrics."""
+    started = time.monotonic()
+    provider = providers.PROVIDERS.get(boards[0].ats) if boards else None
+    budget = provider.budget_s if provider else None
+    deadline = started + budget if budget is not None else None
 
     def read(board: Board) -> tuple[Outcome, list[Job]]:
         if deadline is not None and time.monotonic() > deadline:
@@ -109,14 +112,19 @@ def _lane(boards: list[Board], robots: Robots, before: dict[str, Job]):
     with ThreadPoolExecutor(MAX_IN_FLIGHT) as pool:
         results = list(pool.map(read, boards))
         listed = [store.carry(job, before) for _, jobs in results for job in jobs]
-        paged = iter(pool.map(lambda job: with_page(job, robots), listed))
-    return [(outcome, [next(paged) for _ in jobs]) for outcome, jobs in results]
+        paged = list(pool.map(lambda job: with_page(job, robots), listed))
+    # `with_page` hands back the same posting when it reads nothing.
+    pages = sum(1 for was, now in zip(listed, paged, strict=True) if now is not was)
+    described = iter(paged)
+    results = [(outcome, [next(described) for _ in jobs]) for outcome, jobs in results]
+    return results, time.monotonic() - started, pages
 
 
 def scrape(
     boards: list[Board], robots: Robots, before: dict[str, Job]
-) -> tuple[list[Job], RunStats, list[str]]:
-    """Every posting scanned, what happened, and the keys of the boards read in full.
+) -> tuple[list[Job], RunStats, list[str], list[str]]:
+    """Every posting scanned, what happened, the keys of the boards read in full,
+    and the keys of the boards we hold postings from that now say they do not exist.
 
     Each provider is its own lane with its own workers. They used to share one pool,
     and a worker waiting out Lever's one-second Crawl-delay was a worker not
@@ -130,7 +138,7 @@ def scrape(
         by_lane = list(pool.map(lambda lane: _lane(lane, robots, before), lanes.values()))
     outcome_of = {
         board.key: result
-        for lane, results in zip(lanes.values(), by_lane, strict=True)
+        for lane, (results, _, _) in zip(lanes.values(), by_lane, strict=True)
         for board, result in zip(lane, results, strict=True)
     }
     results = [outcome_of[board.key] for board in boards]
@@ -143,13 +151,45 @@ def scrape(
         boards_skipped=outcomes[Outcome.SKIPPED],
         boards_failed=outcomes[Outcome.FAILED],
         boards_deferred=outcomes[Outcome.DEFERRED],
+        by_provider={
+            ats: {
+                "boards": len(lane),
+                **Counter(outcome.name.lower() for outcome, _ in lane_results),
+                "postings": sum(len(jobs) for _, jobs in lane_results),
+                "pages": pages,
+                "seconds": round(seconds, 1),
+            }
+            for (ats, lane), (lane_results, seconds, pages) in zip(
+                lanes.items(), by_lane, strict=True
+            )
+        },
     )
+    # A board we hold postings from that now says it does not exist may have
+    # nothing open (`store.update` closes it on the second answer in a row). Not
+    # one never read (a typo has nothing to close), never a failure, which is
+    # evidence of nothing, and never most of a lane at once (SURGE).
+    known = {job.board_key for job in before.values()}
+    surged = set()
+    for ats, lane in lanes.items():
+        said = Counter(outcome_of[board.key][0] for board in lane if board.key in known)
+        if said[Outcome.MISSING] >= SURGE and said[Outcome.MISSING] > said[Outcome.OK]:
+            print(
+                f"  !  {ats}: {said[Outcome.MISSING]} boards we hold postings from say they"
+                " do not exist; closing none",
+                file=sys.stderr,
+            )
+            surged.add(ats)
     read = [
         board.key
         for board, (outcome, _) in zip(boards, results, strict=True)
         if outcome is Outcome.OK
     ]
-    return scanned, stats, read
+    missing = [
+        board.key
+        for board, (outcome, _) in zip(boards, results, strict=True)
+        if outcome is Outcome.MISSING and board.key in known and board.ats not in surged
+    ]
+    return scanned, stats, read, missing
 
 
 def with_page(job: Job, robots: Robots) -> Job:
@@ -163,7 +203,8 @@ def with_page(job: Job, robots: Robots) -> Job:
     asked for. A page that fails or is disallowed leaves the posting without one.
     """
     current = job.page is not None and job.page.version == providers.PAGE_VERSION
-    if job.ats not in providers.JOB_URL or current or not classify(job.title):
+    provider = providers.PROVIDERS.get(job.ats)
+    if provider is None or provider.job_url is None or current or not classify(job.title):
         return job
     url = providers.job_url(job.ats, job.token, job.external_id)
     if not robots.allows(url):
@@ -198,7 +239,7 @@ def main(argv: list[str] | None = None) -> int:
         boards = load_boards(args.boards)
         if previous:
             # Least recently read first, even with --full: Workday's lane reads
-            # from the front until its time is up (LANE_BUDGET_S).
+            # from the front until its time is up (`Provider.budget_s`).
             due = previous.to_read(boards, now, everything=args.full)
             rest = "" if args.full else " (quiet ones rest; --full reads all)"
             print(f"scraping {len(due)} of {len(boards)} boards{rest}\n")
@@ -206,32 +247,34 @@ def main(argv: list[str] | None = None) -> int:
         else:
             print(f"scraping {len(boards)} boards\n")
         # Every origin a run touches, so robots.txt is read once, up front. A
-        # posting's own page shares its board list's origin (`providers.JOB_URL`).
-        # Not Workday's: one host per company, read as its lane reaches each.
+        # posting's own page shares its board list's origin (`Provider.job_url`).
+        # Not a provider with a host per company (`Provider.subdomains`: Workday's
+        # ~1,500, iCIMS's ~300): those are read as their lane reaches each, in
+        # parallel, rather than one after another before the run starts.
         robots = Robots(
             url
             for board in boards
-            if board.ats in providers.FETCHERS and board.ats not in LANE_BUDGET_S
+            if (provider := providers.PROVIDERS.get(board.ats)) and provider.subdomains is None
             for url in providers.robots_urls(board.ats, board.token)
         )
         before = {job.key: job for job in previous.jobs} if previous else {}
-        scanned, stats, read = scrape(boards, robots, before)
+        scanned, stats, read, missing = scrape(boards, robots, before)
         # Store only what the page is about. Keeping all ~91,000 postings -- the sales,
         # marketing and senior roles included -- would make jobs.json tens of megabytes
         # and tell us nothing we display. `stats.postings` still counts everything
         # scanned, so the funnel on the page stays honest about how wide the net was.
         fresh = [job for job in scanned if classify(job.title)]
         stats = replace(stats, kept=len(fresh))
-        run = store.update(previous, fresh, read, stats, now)
+        run = store.update(previous, fresh, read, stats, now, missing=missing)
         # Only boards with a job on the page need a logo, and each is read once --
         # except that a newer reader reads the ones that had none again, once.
-        # Recruitee has none we read (`logos.PAGE`).
+        # Recruitee has none we read (`Provider.logo_page`).
         run = store.reread_missing_logos(run, logos.VERSION)
         unread = sorted(
             {
                 (j.ats, j.token, j.company)
                 for j in run.jobs
-                if run.is_listed(j) and j.board_key not in run.logos and j.ats in logos.PAGE
+                if run.is_listed(j) and j.board_key not in run.logos and logos.reads_logo(j.ats)
             }
         )
         print(f"\nreading {len(unread)} board pages for logos")
@@ -241,6 +284,10 @@ def main(argv: list[str] | None = None) -> int:
     roles = pick([job for job in run.jobs if run.is_listed(job)], is_new=run.is_new)
     report.write_html(roles, run.stats, PAGE_HTML, run.scraped_at, counts_new=run.counts_new)
     feed.write(roles, run.logos, FEED_JSON)
+    if not args.offline:
+        by_ats = Counter(role.ats for role in roles)
+        write_metrics(run.stats, fresh, by_ats, run.scraped_at, METRICS_JSON)
+        print_metrics(run.stats, fresh, by_ats)
 
     print(
         f"\n{run.stats.postings:,} postings -> {len(roles)} distinct roles"
@@ -252,6 +299,42 @@ def main(argv: list[str] | None = None) -> int:
     )
     print(f"wrote {PAGE_HTML} and {FEED_JSON.name}")
     return 0
+
+
+def _per_provider(stats: RunStats, kept: list[Job], roles: Counter[str]) -> dict[str, dict]:
+    """Each provider's counts from the scrape, with the postings it kept this run
+    and the roles it has on the page now."""
+    kept_by = Counter(job.ats for job in kept)
+    return {
+        ats: {**counts, "kept": kept_by[ats], "roles": roles.get(ats, 0)}
+        for ats, counts in stats.by_provider.items()
+    }
+
+
+def write_metrics(
+    stats: RunStats, kept: list[Job], roles: Counter[str] | dict[str, int], at: str, path: Path
+) -> None:
+    """metrics.json: the run's totals and each provider's share, so a change to one
+    provider can be measured run against run (the scheduled run keeps it a week)."""
+    totals = {key: value for key, value in asdict(stats).items() if key != "by_provider"}
+    payload = {
+        "scraped_at": at,
+        "totals": totals,
+        "by_provider": _per_provider(stats, kept, Counter(roles)),
+    }
+    path.write_text(json.dumps(payload, indent=1, sort_keys=True) + "\n", encoding="utf-8")
+
+
+def print_metrics(stats: RunStats, kept: list[Job], roles: Counter[str]) -> None:
+    columns = ("boards", "ok", "missing", "skipped", "failed", "deferred")
+    print(f"\n{'provider':11s}" + "".join(f"{c:>9s}" for c in columns), end="")
+    print(f"{'postings':>10s}{'kept':>7s}{'roles':>7s}{'pages':>7s}{'seconds':>9s}")
+    for ats, row in sorted(_per_provider(stats, kept, roles).items()):
+        print(f"{ats:11s}" + "".join(f"{row.get(c, 0):>9,}" for c in columns), end="")
+        print(
+            f"{row['postings']:>10,}{row['kept']:>7,}{row['roles']:>7,}"
+            f"{row['pages']:>7,}{row['seconds']:>9,.0f}"
+        )
 
 
 if __name__ == "__main__":
