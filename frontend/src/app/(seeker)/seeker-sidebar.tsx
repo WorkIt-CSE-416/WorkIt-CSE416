@@ -57,21 +57,14 @@ import { AppSidebar, type SidebarNavGroup } from "@/components/app-sidebar";
  * rows, Experience Bank and My Resumes, until KAN-249 merged them behind one
  * switcher. Its glyph is FileText, the one on Generate Resume.
  */
-/** The panel's rows. `updates` is the Applications Tracker's badge, the
- *  count of email updates waiting (KAN-413, ./updates-badge.tsx). */
-const groups = (updates?: ReactNode): SidebarNavGroup[] => [
+const GROUPS: SidebarNavGroup[] = [
   {
     // No caption: with one group there is nothing to tell it apart from.
     items: [
       { href: "/dashboard", label: "Dashboard", Icon: SquaresFourIcon },
       { href: "/jobs", label: "Jobs", Icon: BriefcaseIcon },
       { href: "/auto-apply", label: "Auto Apply", Icon: LightningRoundedIcon },
-      {
-        href: "/applications",
-        label: "Applications Tracker",
-        Icon: ListChecksIcon,
-        badge: updates,
-      },
+      { href: "/applications", label: "Applications Tracker", Icon: ListChecksIcon },
       // Back since KAN-413: interviews, assessments and offers are stored.
       { href: "/calendar", label: "Calendar", Icon: CalendarDotsIcon },
       { href: "/resumes", also: ["/bank"], label: "Resumes & Experiences", Icon: FileTextIcon },
@@ -80,13 +73,13 @@ const groups = (updates?: ReactNode): SidebarNavGroup[] => [
   },
 ];
 
-/** `card` is the profile strength card and `updates` the Applications
- *  Tracker's badge, each rendered on the server by the layout (they read the
- *  API) and passed through, since this panel is a client component. */
-export function SeekerSidebar({ card, updates }: { card?: ReactNode; updates?: ReactNode }) {
+/** `card` is the profile strength card, rendered on the server by the layout
+ *  (it reads the API) and passed through, since this panel is a client
+ *  component. */
+export function SeekerSidebar({ card }: { card?: ReactNode }) {
   return (
     <AppSidebar
-      groups={groups(updates)}
+      groups={GROUPS}
       footerCard={card}
       label="Job Search Sections"
       variant="floating"

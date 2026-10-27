@@ -42,6 +42,12 @@ export type ApplicationEvent = {
   note?: string | null;
   /** A Zoom, Meet or Teams link. */
   meetingUrl?: string | null;
+  /** Typed by the student, or read from an email (KAN-413): an
+   *  application's Emails lists the second. */
+  source?: "manual" | "gmail";
+  /** The API's own kind, which `kind` folds (a confirmation and a follow-up
+   *  are both "follow-up"): an email's pill names it. */
+  emailKind?: "confirmation" | "assessment" | "interview" | "offer" | "rejection" | "other";
 };
 
 export type Application = {

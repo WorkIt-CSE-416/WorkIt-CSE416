@@ -88,8 +88,8 @@ class EventResponse(BaseModel):
 
 class EventAccept(BaseModel):
     """POST .../events/{event_id}/accept's optional body: the application to
-    put it on, in place of the one it was matched to (Wrong Job?), or for
-    one that matched none (Couldn't Match)."""
+    put it on, in place of the one it was matched to, or for one that
+    matched none."""
 
     job_id: uuid.UUID | None = None
 

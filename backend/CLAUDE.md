@@ -742,7 +742,7 @@ Find files with a directory listing; these are the rules for where code goes.
   `../docs/email_tracker.md`) are `routers/tracker.py` over
   `queries/tracker.py`: the stage menu (`PUT .../applications/{job_id}/stage`,
   applied or later, any direction) and the events (`GET .../events`, with
-  `?status=proposed` for the Updates strip, `POST
+  `?status=proposed` for Email Updates, `POST
   .../applications/{job_id}/events`, `DELETE .../events/{event_id}`, and an
   update's `POST .../events/{event_id}/accept` and `.../dismiss`). An
   event moves its application forward only (`advance`, Accept too); a stage past

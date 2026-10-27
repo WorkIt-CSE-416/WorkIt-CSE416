@@ -22,7 +22,6 @@ import { ProfileStrength } from "./profile-strength";
 import { ScrollMemory } from "./scroll-memory";
 import { QueryField } from "./search/query-field";
 import { SeekerSidebar } from "./seeker-sidebar";
-import { UpdatesBadge } from "./updates-badge";
 
 /**
  * Chrome shared by every signed-in seeker screen: three white rounded panels
@@ -181,11 +180,6 @@ export default async function AppLayout({
         card={
           <Suspense fallback={null}>
             <ProfileStrength />
-          </Suspense>
-        }
-        updates={
-          <Suspense fallback={null}>
-            <UpdatesBadge />
           </Suspense>
         }
       />

@@ -13,7 +13,7 @@ import { ClearFiltersLink, FilterBar } from "./filter-bar";
 import { ApplicationsGrid } from "./grid";
 import { ApplicationsList } from "./list";
 import { applicationHref, filterApplications, parseQuery } from "./query";
-import { UpdatesStrip } from "./updates";
+import { UpdatesTable } from "./updates";
 import { ViewPanes } from "./view-panes";
 import { ViewSwitcher } from "./view-switcher";
 
@@ -92,8 +92,8 @@ export default async function ApplicationsPage({ searchParams }: PageProps<"/app
         <ViewSwitcher />
       </div>
 
-      {/* UPDATES FROM EMAIL (KAN-413, ./updates.tsx): only while some wait. */}
-      <UpdatesStrip
+      {/* EMAIL UPDATES (KAN-413, ./updates.tsx): only while some wait. */}
+      <UpdatesTable
         updates={updates ?? []}
         applications={all.map(({ id, role, company, logoUrl, stage }) => ({
           id,

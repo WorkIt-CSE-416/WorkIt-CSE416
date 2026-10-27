@@ -13,7 +13,7 @@ GET    /applicants/{id}/events?status=accepted
        The applicant's events in one status, as EventResponses. accepted
        (the default): every event on the tracker, soonest first; the
        timeline, the Calendar and the Dashboard read them, joined to the
-       applications by job_id. proposed: the Updates strip, newest first,
+       applications by job_id. proposed: Email Updates, newest first,
        with job_id null for one that matched no application (Couldn't
        Match).
 POST   /applicants/{id}/applications/{job_id}/events  EventCreate
@@ -26,13 +26,13 @@ DELETE /applicants/{id}/events/{event_id}
        204; the stage stays. 404 for an event not the applicant's.
 POST   /applicants/{id}/events/{event_id}/accept  {"job_id": null}
        An update's Accept: the proposed event goes on the tracker, on
-       `job_id` when the body names one (Wrong Job?, Couldn't Match), else
+       `job_id` when the body names one (an email that matched none), else
        on the application it matched, which it moves forward as Add Event
        does. Answers EventAdded. 404 for an event not the applicant's; 409
        when it was accepted or dismissed already; 422 when it names no
        application the applicant has.
 POST   /applicants/{id}/events/{event_id}/dismiss
-       Not Right, or Couldn't Match's Dismiss: 204, and it stays off the
+       The dismiss cross: 204, and it stays off the
        tracker. 404 for an event not the applicant's; 409 when decided
        already.
 

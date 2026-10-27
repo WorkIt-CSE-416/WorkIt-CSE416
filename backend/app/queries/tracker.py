@@ -147,8 +147,8 @@ async def fetch_events(
 ) -> list[Application_Event]:
     '''
     the applicant's events in `status`. Accepted ones (the timeline, the
-    Calendar, the Dashboard) come soonest first; proposed ones (the Updates
-    strip, unmatched included) newest first, the order they arrived in
+    Calendar, the Dashboard) come soonest first; proposed ones (Email Updates,
+    unmatched included) newest first, the order they arrived in
     '''
     query = select(Application_Event).where(
         Application_Event.applicant_id == applicant_id,
@@ -188,7 +188,7 @@ async def accept_event(
 ) -> tuple[Application_Event, application_stage] | None:
     '''
     an update's Accept: puts a proposed event on the tracker, on `job_id`
-    when given (Wrong Job?, or Couldn't Match's pick) else the application
+    when given (an unmatched email's pick) else the application
     it was matched to, and moves that application forward as Add Event
     does. None when the applicant has no such event; NotProposed when it
     was decided already; NoApplication when it names no application the
@@ -213,7 +213,7 @@ async def accept_event(
 
 
 async def dismiss_event(db: AsyncSession, applicant_id: uuid.UUID, event_id: uuid.UUID) -> bool:
-    '''an update's Not Right, or Couldn't Match's Dismiss: keeps the event
+    '''an update's dismiss cross: keeps the event
     off the tracker. False when the applicant has no such event;
     NotProposed when it was decided already'''
     event = await _proposed(db, applicant_id, event_id)

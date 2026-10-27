@@ -700,23 +700,22 @@ application's own page, `/applications/[jobId]`. `(seeker)/tracker.ts` is the tr
 and date logic; `local-time.tsx` prints its dates in the viewer's own zone and
 links them to the Calendar.
 
-**The Updates strip** (KAN-413, `applications/updates.tsx`) sits under the
-heading, above the filters, only while an update waits: an event the email
-tracker proposed (`GET .../events?status=proposed`, `getUpdates` in
-`applications/tracked.ts`, read once per request with the sidebar's badge
-through `getUpdatesOnce`). Nothing proposes one until the Gmail reading is
-built, so it shows nothing yet. Two tabs, Updates (matched to an
-application) and Couldn't Match. An update's card names the application
-(its logo, company and role), what the email is and its date, and its
-title; its buttons are Accept, named for the move it makes ("Move to
-Interviewing", or "Add to Timeline" when the application is already as far
-along, mirroring the API's `advance`), Not Right (dismiss) and Wrong Job?,
-which swaps the buttons for a picker of the student's applications.
-Couldn't Match cards open on that picker, with Dismiss. Each decision
-refreshes the page. **The sidebar's Applications Tracker row carries a
-count of them** (`updates-badge.tsx`, a layout read in its own
-`<Suspense>`, so it updates on a hard load or a refresh, not on a soft
-navigation); a failed read draws no badge.
+**Email Updates** (KAN-413, `applications/updates.tsx`) is a table under
+the heading, above the filters, framed as Auto Apply's Live Activity is,
+shown only while an email waits: an event the email tracker proposed (`GET
+.../events?status=proposed`, `getUpdates` in `applications/tracked.ts`,
+read once per request through `getUpdatesOnce`, which the application's
+page shares). Nothing proposes one until the Gmail reading is built. One
+row per email: Job (logo, role, company; **Pick a Job** for an email that
+matched none), Email (subject and summary), Type (the kind's pill,
+`applications/email-kinds.tsx`, with what accepting does under it, "Moves
+to Interviewing", mirroring the API's `advance`), Date, and Accept with a
+dismiss cross. Each decision refreshes the page. **Keep it this simple**:
+the first version was a card per email with Move to Interviewing, Not
+Right and Wrong Job? under two tabs, plus a count badge on the sidebar's
+Applications Tracker row, and the user found the buttons confusing and the
+badge out of place; both went. **The application's page lists the same
+emails** under Emails (below).
 
 **The tracker is live, with no fixture** (KAN-261). `applications/tracked.ts`
 reads the seeker's applications from the API (`GET
@@ -961,6 +960,14 @@ tracker row, and the tab title comes from the posting's own read:
   moves the stage (an interview to Interviewing, unless further along).
   Each write refreshes the page, so the one tracker read draws it
   everywhere. Editing an event is not built: delete it and add it again.
+  **Emails** sits under Interviews & Dates (KAN-413,
+  `[jobId]/emails.tsx`): every email about the job, so a confirmation,
+  an assessment or a rejection is kept with its job, not only as a date.
+  One row per email: its kind's pill (with what accepting does, while it
+  waits), its subject, date and summary, and Accept with a dismiss cross
+  while it waits, else an Added pill. Waiting ones first, then the rest,
+  newest first. Accepted ones are the application's events whose `source`
+  is `gmail`; an interview among them also shows in Interviews & Dates.
   The cards and the match are
   rounded white boxes on the tint: each
   card a `Card`, the match the Jobs page card's `MatchRail` with

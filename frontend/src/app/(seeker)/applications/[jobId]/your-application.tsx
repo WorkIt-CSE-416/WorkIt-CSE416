@@ -21,6 +21,8 @@ import {
 } from "../../tracker";
 import { Timeline } from "../timeline";
 import { SentResumeRow } from "../view-resume";
+import type { Update } from "../tracked";
+import { ApplicationEmails } from "./emails";
 import { StageMenu, TrackerEvents } from "./tracker-controls";
 
 const DAY_MS = 24 * 60 * 60 * 1000;
@@ -74,12 +76,15 @@ export function YourApplication({
   job,
   sent,
   now,
+  waiting,
 }: {
   app: Application;
   job: JobListing | null;
   /** The sent resumes linked to this job posting, newest first. */
   sent: SentResume[];
   now: Date;
+  /** Email updates waiting for this application (KAN-413). */
+  waiting: Update[];
 }) {
   const cards: { label: string; value: string | number }[] = [];
   // Every live application has `open`; the type leaves it optional.
@@ -208,6 +213,15 @@ export function YourApplication({
       {/* INTERVIEWS & DATES (KAN-413): the events the student adds, and
           later the ones the email tracker proposes (docs/email_tracker.md). */}
       <TrackerEvents jobId={app.id} events={app.events} />
+
+      {/* EMAILS (KAN-413, ./emails.tsx): every email about this job, the
+          waiting ones with Accept and Dismiss. */}
+      <ApplicationEmails
+        jobId={app.id}
+        stage={app.stage}
+        waiting={waiting}
+        accepted={app.events.filter((event) => event.source === "gmail")}
+      />
 
       {/* WHAT YOU SENT (KAN-317): the resume as the Resumes view draws its
           rows, then the answers the application asked for. Answers are not

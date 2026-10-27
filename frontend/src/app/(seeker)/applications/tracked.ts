@@ -67,6 +67,7 @@ type StoredEvent = {
   on_day: string | null;
   note: string | null;
   meeting_url: string | null;
+  source: "manual" | "gmail";
 };
 
 /** The tracker's kind for each of the API's: an assessment is a deadline
@@ -106,6 +107,8 @@ function toEvent(event: StoredEvent): ApplicationEvent {
     at: event.at ?? event.on_day ?? "",
     note: event.note,
     meetingUrl: event.meeting_url,
+    source: event.source,
+    emailKind: event.kind,
   };
 }
 
@@ -123,19 +126,18 @@ async function getEvents(): Promise<
   return { byJob, error: null };
 }
 
-/** An update: an event the email tracker proposed, waiting for the student
- *  (docs/email_tracker.md, the Updates strip). `jobId` is null for one that
- *  matched no application (Couldn't Match); `source` is the API's own kind,
- *  which says what Accept moves the application to. */
+/** An update: an event the email tracker proposed from one email, waiting
+ *  for the student (docs/email_tracker.md, the Updates table). `jobId` is
+ *  null for one that matched no application; `emailKind` names the email. */
 export type Update = ApplicationEvent & {
   id: string;
   jobId: string | null;
-  source: StoredEvent["kind"];
+  emailKind: StoredEvent["kind"];
 };
 
 /** The seeker's updates, newest first (GET .../events?status=proposed). A
- *  failed read is null: the strip and the sidebar's badge then show
- *  nothing, since an update is news, not the tracker's record. */
+ *  failed read is null: the Updates table and an application's Emails then
+ *  show none waiting, since an update is news, not the tracker's record. */
 export async function getUpdates(): Promise<Update[] | null> {
   const { events } = await readEvents("proposed");
   return (
@@ -143,7 +145,7 @@ export async function getUpdates(): Promise<Update[] | null> {
       ...toEvent(event),
       id: event.id,
       jobId: event.job_id,
-      source: event.kind,
+      emailKind: event.kind,
     })) ?? null
   );
 }

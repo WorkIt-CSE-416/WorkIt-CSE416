@@ -30,5 +30,5 @@ export async function getApplications() {
 }
 
 /** The seeker's updates (./tracked.ts), read once per request: the
- *  Applications Tracker's Updates strip and the sidebar's badge share it. */
+ *  Applications Tracker's Updates table and each application's Emails share it. */
 export const getUpdatesOnce = cache(getUpdates);

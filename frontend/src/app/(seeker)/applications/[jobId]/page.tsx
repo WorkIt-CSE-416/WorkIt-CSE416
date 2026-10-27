@@ -26,7 +26,7 @@ import {
 } from "../../jobs/[jobId]/job-view";
 import { getJobListing } from "../../jobs/listings";
 import type { Application } from "../../tracker";
-import { getNow, getTracker } from "../data";
+import { getNow, getTracker, getUpdatesOnce } from "../data";
 import { ApplicationTabs, TabPanes } from "./tab-panes";
 import { YourApplication } from "./your-application";
 
@@ -117,10 +117,11 @@ export default async function ApplicationPage({ params }: PageProps<"/applicatio
       appliedAt: row.appliedOn,
     };
   });
-  const [{ applications, error }, view] = await Promise.all([
+  const [{ applications, error }, view, updates] = await Promise.all([
     tracker,
     // About the Role alone on its tab, so no Key Requirements read.
     loadJobView(jobId, { descriptionOnly: true, application: known }),
+    getUpdatesOnce(),
   ]);
   const { job } = view;
 
@@ -172,7 +173,15 @@ export default async function ApplicationPage({ params }: PageProps<"/applicatio
 
       {/* Both panes, drawn once; the tab shows one (./tab-panes.tsx). */}
       <TabPanes
-        application={<YourApplication app={app} job={job} sent={view.sent} now={getNow()} />}
+        application={
+          <YourApplication
+            app={app}
+            job={job}
+            sent={view.sent}
+            now={getNow()}
+            waiting={(updates ?? []).filter((update) => update.jobId === app.id)}
+          />
+        }
         job={
           job ? (
             <JobViewBody view={view} job={job} descriptionOnly />

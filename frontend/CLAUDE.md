@@ -1250,10 +1250,11 @@ the KAN-296 cutover.
   `(seeker)/applied.ts`, never `stage === "applied"` (the job cards' Applied
   button, Save's toast, Auto Apply's button, Top Matches' rows). The
   Dashboard's Interviewing number counts the interviewing stage. **Email
-  updates** (KAN-413): the Updates strip on the Applications Tracker
-  (`applications/updates.tsx`) and the sidebar row's count
-  (`updates-badge.tsx`, through `AppSidebar`'s `badge` slot) read proposed
-  events once per request (`getUpdatesOnce`); Settings > Integrations is the
+  updates** (KAN-413): the Email Updates table on the Applications Tracker
+  (`applications/updates.tsx`) and each application's Emails
+  (`applications/[jobId]/emails.tsx`) read proposed events once per
+  request (`getUpdatesOnce`), and name each email's kind with one pill
+  (`applications/email-kinds.tsx`). No sidebar badge: one was removed; Settings > Integrations is the
   design only until the Google sign-in is built (`docs/screens.md`). The Dashboard's four numbers are all live and all links
   (KAN-342); its Strong Matches reads the Best Match scores
   (`getMatchDates`), and Top Matches under them lists the twelve

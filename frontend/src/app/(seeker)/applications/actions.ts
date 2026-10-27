@@ -72,7 +72,7 @@ export async function deleteApplicationEvent(eventId: string) {
 }
 
 /** An update's Accept (POST .../events/{event_id}/accept): it goes on the
- *  tracker, on `jobId` when given (Wrong Job?, Couldn't Match) else on the
+ *  tracker, on `jobId` when given (an unmatched email's pick) else on the
  *  application it matched, which it moves forward as Add Event does. */
 export async function acceptUpdate(eventId: string, jobId: string | null) {
   return send(`/events/${encodeId(eventId)}/accept`, {
@@ -81,7 +81,7 @@ export async function acceptUpdate(eventId: string, jobId: string | null) {
   });
 }
 
-/** An update's Not Right, or Couldn't Match's Dismiss (POST
+/** An update's dismiss cross (POST
  *  .../events/{event_id}/dismiss): it stays off the tracker. */
 export async function dismissUpdate(eventId: string) {
   return send(`/events/${encodeId(eventId)}/dismiss`, { method: "POST" });
