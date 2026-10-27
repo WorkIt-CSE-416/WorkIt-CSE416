@@ -8,11 +8,12 @@ import { EmptyState } from "@/components/ui/empty-state";
 import { cn } from "@/lib/cn";
 
 import { SEEKER_GUTTER } from "../gutter";
-import { getTracker } from "./data";
+import { getTracker, getUpdatesOnce } from "./data";
 import { ClearFiltersLink, FilterBar } from "./filter-bar";
 import { ApplicationsGrid } from "./grid";
 import { ApplicationsList } from "./list";
 import { applicationHref, filterApplications, parseQuery } from "./query";
+import { UpdatesStrip } from "./updates";
 import { ViewPanes } from "./view-panes";
 import { ViewSwitcher } from "./view-switcher";
 
@@ -53,7 +54,7 @@ export default async function ApplicationsPage({ searchParams }: PageProps<"/app
   // The side panel's old links (the Dashboard's Next Up, a bookmark) open
   // the application's own page instead (KAN-256).
   if (query.app) redirect(applicationHref(query.app));
-  const { applications, error } = await getTracker();
+  const [{ applications, error }, updates] = await Promise.all([getTracker(), getUpdatesOnce()]);
   const all = applications ?? [];
 
   const shown = filterApplications(all, query);
@@ -90,6 +91,18 @@ export default async function ApplicationsPage({ searchParams }: PageProps<"/app
 
         <ViewSwitcher />
       </div>
+
+      {/* UPDATES FROM EMAIL (KAN-413, ./updates.tsx): only while some wait. */}
+      <UpdatesStrip
+        updates={updates ?? []}
+        applications={all.map(({ id, role, company, logoUrl, stage }) => ({
+          id,
+          role,
+          company,
+          logoUrl,
+          stage,
+        }))}
+      />
 
       <FilterBar
         apps={all.map(({ role, company, stage, track, workModel, source }) => ({

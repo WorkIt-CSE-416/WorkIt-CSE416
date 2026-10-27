@@ -275,3 +275,111 @@ async def test_unsaving_a_job_deletes_its_events(student, database):
 
     assert (await client.delete(f"/jobs/{job}/saved")).status_code == 204
     assert (await client.get(f"/applicants/{me}/events")).json() == []
+
+
+# --- Updates: proposed events, Accept and Dismiss ---
+
+
+async def _propose(database, applicant_id, job_id, kind="interview", title="Interview invite") -> str:
+    """A proposed event as the email tracker will write one; job_id None is
+    an email that matched no application."""
+    async with database() as session:
+        event_id = await session.scalar(
+            text(
+                "INSERT INTO application_events"
+                " (applicant_id, job_id, kind, status, source, title, at)"
+                " VALUES (:a, :j, :k, 'proposed', 'gmail', :t, '2026-11-04T19:00:00Z') RETURNING id"
+            ),
+            {"a": applicant_id, "j": job_id, "k": kind, "t": title},
+        )
+        await session.commit()
+    return str(event_id)
+
+
+async def test_proposed_events_are_listed_apart_from_the_tracker(student, database):
+    client, me = student
+    job = await _applied(client, database)
+    matched = await _propose(database, me, job)
+    unmatched = await _propose(database, me, None, title="Thanks for applying")
+
+    res = await client.get(f"/applicants/{me}/events", params={"status": "proposed"})
+    assert res.status_code == 200
+    # Newest first, the unmatched one with no job
+    assert [(e["id"], e["job_id"]) for e in res.json()] == [(unmatched, None), (matched, job)]
+    assert (await client.get(f"/applicants/{me}/events")).json() == []
+
+
+async def test_accepting_an_update_moves_its_application_forward(student, database):
+    client, me = student
+    job = await _applied(client, database)
+    event = await _propose(database, me, job)
+
+    res = await client.post(f"/applicants/{me}/events/{event}/accept")
+    assert res.status_code == 200
+    assert res.json()["stage"] == "interviewing"
+    assert res.json()["event"]["status"] == "accepted"
+    assert [e["id"] for e in (await client.get(f"/applicants/{me}/events")).json()] == [event]
+    # Decided once
+    assert (await client.post(f"/applicants/{me}/events/{event}/accept")).status_code == 409
+    assert (await client.post(f"/applicants/{me}/events/{event}/dismiss")).status_code == 409
+
+
+async def test_wrong_job_and_couldnt_match_accept_onto_the_picked_application(student, database):
+    client, me = student
+    matched_to = await _applied(client, database)
+    picked = await _applied(client, database)
+    wrong = await _propose(database, me, matched_to)
+    unmatched = await _propose(database, me, None, kind="rejection")
+
+    res = await client.post(f"/applicants/{me}/events/{wrong}/accept", json={"job_id": picked})
+    assert res.json()["event"]["job_id"] == picked
+    assert (await _row(database, me, picked))[0] == "interviewing"
+    assert (await _row(database, me, matched_to))[0] == "applied"
+
+    # An unmatched update needs a pick, and only one of the student's own
+    assert (await client.post(f"/applicants/{me}/events/{unmatched}/accept")).status_code == 422
+    stranger = await _seed_posting(database)
+    res = await client.post(f"/applicants/{me}/events/{unmatched}/accept", json={"job_id": stranger})
+    assert res.status_code == 422
+    res = await client.post(f"/applicants/{me}/events/{unmatched}/accept", json={"job_id": picked})
+    assert res.json()["stage"] == "rejected"
+
+
+async def test_dismissing_an_update_keeps_it_off_the_tracker(student, database):
+    client, me = student
+    job = await _applied(client, database)
+    event = await _propose(database, me, job, kind="offer")
+
+    assert (await client.post(f"/applicants/{me}/events/{event}/dismiss")).status_code == 204
+    assert (await client.get(f"/applicants/{me}/events")).json() == []
+    assert (await client.get(f"/applicants/{me}/events", params={"status": "proposed"})).json() == []
+    assert (await _row(database, me, job))[0] == "applied"
+
+
+async def test_another_students_update_is_404(student, database):
+    client, me = student
+    other = uuid.uuid4()
+    await _seed_applicant_named(database, other)
+    job = await _seed_posting(database)
+    async with database() as session:
+        await session.execute(
+            text("INSERT INTO job_applications (applicant_id, job_id) VALUES (:a, :j)"),
+            {"a": other, "j": job},
+        )
+        await session.commit()
+    theirs = await _propose(database, other, job)
+    assert (await client.post(f"/applicants/{me}/events/{theirs}/accept")).status_code == 404
+    assert (await client.post(f"/applicants/{me}/events/{theirs}/dismiss")).status_code == 404
+
+
+async def _seed_applicant_named(database, applicant_id: uuid.UUID) -> None:
+    async with database() as session:
+        await session.execute(text("INSERT INTO auth.users (id) VALUES (:id)"), {"id": applicant_id})
+        await session.execute(
+            text(
+                "INSERT INTO applicant_profiles (id, email, full_name)"
+                " VALUES (:id, :email, 'Other Seeker')"
+            ),
+            {"id": applicant_id, "email": f"{applicant_id.hex[:8]}@example.com"},
+        )
+        await session.commit()

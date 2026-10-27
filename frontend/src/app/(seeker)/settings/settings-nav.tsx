@@ -2,7 +2,7 @@
 
 import { useEffect, useRef, type ComponentType } from "react";
 
-import { BellIcon, BriefcaseIcon, LockIcon, UserIcon } from "@/components/icons";
+import { BellIcon, BriefcaseIcon, LockIcon, MailIcon, UserIcon } from "@/components/icons";
 import { cn } from "@/lib/cn";
 
 /** Settings' sections, in nav order. Each has its own address,
@@ -11,6 +11,7 @@ export const SECTIONS = [
   { key: "personal", label: "Personal Details", Icon: UserIcon },
   { key: "security", label: "Sign-In & Security", Icon: LockIcon },
   { key: "notifications", label: "Notifications", Icon: BellIcon },
+  { key: "email", label: "Email", Icon: MailIcon },
   { key: "preferences", label: "Job Preferences", Icon: BriefcaseIcon },
 ] as const satisfies readonly {
   key: string;

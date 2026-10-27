@@ -86,6 +86,14 @@ class EventResponse(BaseModel):
     meeting_url: str | None
 
 
+class EventAccept(BaseModel):
+    """POST .../events/{event_id}/accept's optional body: the application to
+    put it on, in place of the one it was matched to (Wrong Job?), or for
+    one that matched none (Couldn't Match)."""
+
+    job_id: uuid.UUID | None = None
+
+
 class EventAdded(BaseModel):
     """Add Event's answer: the event, and the application's stage after it
     (an interview moves an applied application to interviewing)."""

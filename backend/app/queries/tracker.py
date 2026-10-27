@@ -140,23 +140,89 @@ async def add_event(
     return event, stage or current
 
 
-async def fetch_events(db: AsyncSession, applicant_id: uuid.UUID) -> list[Application_Event]:
-    '''the applicant's accepted events on their applications, soonest first:
-    the timeline, the Calendar and the Dashboard read them'''
+async def fetch_events(
+    db: AsyncSession,
+    applicant_id: uuid.UUID,
+    status: application_event_status = application_event_status.accepted,
+) -> list[Application_Event]:
+    '''
+    the applicant's events in `status`. Accepted ones (the timeline, the
+    Calendar, the Dashboard) come soonest first; proposed ones (the Updates
+    strip, unmatched included) newest first, the order they arrived in
+    '''
+    query = select(Application_Event).where(
+        Application_Event.applicant_id == applicant_id,
+        Application_Event.status == status,
+    )
+    if status == application_event_status.proposed:
+        return list((await db.scalars(query.order_by(Application_Event.created_at.desc()))).all())
     # A day sorts at its start in UTC, ahead of that day's interviews, as
     # the tracker's own sortKey orders them
     when = func.coalesce(Application_Event.at, cast(Application_Event.on_day, DateTime(timezone=True)))
-    return list(
-        (await db.scalars(
-            select(Application_Event)
-            .where(
-                Application_Event.applicant_id == applicant_id,
-                Application_Event.job_id.is_not(None),
-                Application_Event.status == application_event_status.accepted,
-            )
-            .order_by(when, Application_Event.created_at)
-        )).all()
+    return list((await db.scalars(query.order_by(when, Application_Event.created_at))).all())
+
+
+class NotProposed(Exception):
+    '''the event was accepted or dismissed already'''
+
+
+class NoApplication(Exception):
+    '''the event names no application, or one the applicant does not have'''
+
+
+async def _proposed(
+    db: AsyncSession, applicant_id: uuid.UUID, event_id: uuid.UUID
+) -> Application_Event | None:
+    event = await db.scalar(
+        select(Application_Event).where(
+            Application_Event.id == event_id, Application_Event.applicant_id == applicant_id
+        )
     )
+    if event is not None and event.status != application_event_status.proposed:
+        raise NotProposed
+    return event
+
+
+async def accept_event(
+    db: AsyncSession, applicant_id: uuid.UUID, event_id: uuid.UUID, job_id: uuid.UUID | None
+) -> tuple[Application_Event, application_stage] | None:
+    '''
+    an update's Accept: puts a proposed event on the tracker, on `job_id`
+    when given (Wrong Job?, or Couldn't Match's pick) else the application
+    it was matched to, and moves that application forward as Add Event
+    does. None when the applicant has no such event; NotProposed when it
+    was decided already; NoApplication when it names no application the
+    applicant has
+    '''
+    event = await _proposed(db, applicant_id, event_id)
+    if event is None:
+        return None
+    target = job_id or event.job_id
+    current = await fetch_stage(db, applicant_id, target) if target else None
+    if current is None:
+        raise NoApplication
+    event.job_id = target
+    event.status = application_event_status.accepted
+    event.decided_at = func.now()
+    stage = advance(current, event.kind)
+    if stage is not None:
+        await _move(db, applicant_id, target, stage)
+    await db.commit()
+    await db.refresh(event)
+    return event, stage or current
+
+
+async def dismiss_event(db: AsyncSession, applicant_id: uuid.UUID, event_id: uuid.UUID) -> bool:
+    '''an update's Not Right, or Couldn't Match's Dismiss: keeps the event
+    off the tracker. False when the applicant has no such event;
+    NotProposed when it was decided already'''
+    event = await _proposed(db, applicant_id, event_id)
+    if event is None:
+        return False
+    event.status = application_event_status.dismissed
+    event.decided_at = func.now()
+    await db.commit()
+    return True
 
 
 async def delete_event(db: AsyncSession, applicant_id: uuid.UUID, event_id: uuid.UUID) -> bool:

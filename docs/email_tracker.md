@@ -295,6 +295,14 @@ Every route checks that the caller owns `{id}`. Built in step 1
 | POST | `/applicants/{id}/applications/{job_id}/events` | Add Event; answers the event and the stage after it |
 | DELETE | `/applicants/{id}/events/{event_id}` | The stage stays |
 
+Built in step 2 (the Updates strip's routes, which need no Google):
+
+| Method | Path | Does |
+|---|---|---|
+| GET | `/applicants/{id}/events?status=proposed` | The Updates strip, newest first; `job_id` null is Couldn't Match |
+| POST | `/applicants/{id}/events/{event_id}/accept` | Optional `job_id` (Wrong Job?, Couldn't Match); puts it on the tracker and moves the application forward through `advance` |
+| POST | `/applicants/{id}/events/{event_id}/dismiss` | Not Right; it stays off the tracker |
+
 Planned, for Gmail:
 
 | Method | Path | Does |
@@ -304,9 +312,6 @@ Planned, for Gmail:
 | GET | `/applicants/{id}/gmail` | Connected or not, the address, last check |
 | POST | `/applicants/{id}/gmail/check` | Check now; at most once a minute |
 | DELETE | `/applicants/{id}/gmail` | Revoke at Google, delete the key and pending proposals; `?all=true` also deletes accepted Gmail events |
-| GET | `/applicants/{id}/events?status=proposed` | Updates and Couldn't match |
-| POST | `/applicants/{id}/events/{event_id}/accept` | Optional `job_id` (Wrong job?); applies the stage change through `advance` |
-| POST | `/applicants/{id}/events/{event_id}/dismiss` | |
 | POST | `/internal/gmail/check-all` | For the schedule only; a shared secret, not a student token |
 
 **The callback lands on the Next app**, not the API: Google redirects the
@@ -403,8 +408,13 @@ Under the $200 a month budget.
    deploy. **Not done in step 1:** editing an event (delete and add it
    again), and the Dashboard's Next Up, Up Next and Waiting, still archived
    (`frontend/docs/screens.md`, Seeker Dashboard).
-2. **The Dashboard's Next Up, Up Next and Waiting**, now that events are
-   stored.
+2. **Built: the email screens that need no Google.** The Updates strip
+   (Updates and Couldn't Match, Accept, Not Right, Wrong Job?), the
+   sidebar's count, the three routes above, and Settings > Email as a
+   design with Connect Gmail disabled and marked Coming Soon. They show
+   nothing until something proposes an event. Still to do: the
+   Applications Tracker's prompt card, which waits for Connect Gmail to
+   work, and the Dashboard's Next Up, Up Next and Waiting.
 3. **Google projects and Connect Gmail:** `gmail_connections` and the
    Gmail columns (a migration), the consent flow, the callback, encrypted
    keys, Disconnect. **Submit for verification now.**

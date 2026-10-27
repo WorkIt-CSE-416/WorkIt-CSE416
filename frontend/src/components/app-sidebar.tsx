@@ -198,6 +198,10 @@ function Highlight({
 
 type NavRowBase = {
   label: string;
+  /** Drawn at the row's right end, over the row (a count of waiting
+   *  updates, KAN-413): a server-rendered node, usually a
+   *  <SidebarMenuBadge> or nothing. The collapsed rail hides it. */
+  badge?: ReactNode;
   /** A Phosphor icon — see "THE ICONS ARE PHOSPHOR'S" above. */
   Icon: ComponentType<{ className?: string }>;
 };
@@ -571,6 +575,7 @@ function NavRow({
         <span>{label}</span>
         <PendingMark onPending={onPending} />
       </SidebarMenuButton>
+      {item.badge}
     </SidebarMenuItem>
   );
 }

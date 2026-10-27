@@ -70,3 +70,19 @@ export async function deleteApplicationEvent(eventId: string) {
   // Already gone (another tab deleted it): what was asked for is true.
   return { error: status === 404 ? null : error };
 }
+
+/** An update's Accept (POST .../events/{event_id}/accept): it goes on the
+ *  tracker, on `jobId` when given (Wrong Job?, Couldn't Match) else on the
+ *  application it matched, which it moves forward as Add Event does. */
+export async function acceptUpdate(eventId: string, jobId: string | null) {
+  return send(`/events/${encodeId(eventId)}/accept`, {
+    method: "POST",
+    body: JSON.stringify({ job_id: jobId }),
+  });
+}
+
+/** An update's Not Right, or Couldn't Match's Dismiss (POST
+ *  .../events/{event_id}/dismiss): it stays off the tracker. */
+export async function dismissUpdate(eventId: string) {
+  return send(`/events/${encodeId(eventId)}/dismiss`, { method: "POST" });
+}

@@ -1,6 +1,6 @@
 import { cache } from "react";
 
-import { getTracked } from "./tracked";
+import { getTracked, getUpdates } from "./tracked";
 
 /**
  * The application tracker (KAN-261): the seeker's saved and applied jobs,
@@ -28,3 +28,7 @@ export const getTracker = cache(getTracked);
 export async function getApplications() {
   return (await getTracker()).applications ?? [];
 }
+
+/** The seeker's updates (./tracked.ts), read once per request: the
+ *  Applications Tracker's Updates strip and the sidebar's badge share it. */
+export const getUpdatesOnce = cache(getUpdates);

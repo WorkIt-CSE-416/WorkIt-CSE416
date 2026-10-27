@@ -700,6 +700,24 @@ application's own page, `/applications/[jobId]`. `(seeker)/tracker.ts` is the tr
 and date logic; `local-time.tsx` prints its dates in the viewer's own zone and
 links them to the Calendar.
 
+**The Updates strip** (KAN-413, `applications/updates.tsx`) sits under the
+heading, above the filters, only while an update waits: an event the email
+tracker proposed (`GET .../events?status=proposed`, `getUpdates` in
+`applications/tracked.ts`, read once per request with the sidebar's badge
+through `getUpdatesOnce`). Nothing proposes one until the Gmail reading is
+built, so it shows nothing yet. Two tabs, Updates (matched to an
+application) and Couldn't Match. An update's card names the application
+(its logo, company and role), what the email is and its date, and its
+title; its buttons are Accept, named for the move it makes ("Move to
+Interviewing", or "Add to Timeline" when the application is already as far
+along, mirroring the API's `advance`), Not Right (dismiss) and Wrong Job?,
+which swaps the buttons for a picker of the student's applications.
+Couldn't Match cards open on that picker, with Dismiss. Each decision
+refreshes the page. **The sidebar's Applications Tracker row carries a
+count of them** (`updates-badge.tsx`, a layout read in its own
+`<Suspense>`, so it updates on a hard load or a refresh, not on a soft
+navigation); a failed read draws no badge.
+
 **The tracker is live, with no fixture** (KAN-261). `applications/tracked.ts`
 reads the seeker's applications from the API (`GET
 /applicants/{id}/applications?stage=saved&stage=applied&stage=interviewing&stage=offer&stage=rejected&scored=true`,
@@ -2428,7 +2446,7 @@ be given.
 
 ## Settings (`/settings`)
 
-KAN-326. **Settings is always a modal** (KAN-364): four sections, each
+KAN-326. **Settings is always a modal** (KAN-364): five sections, each
 with its own address, `/settings/<section>`; bare `/settings` opens
 Personal Details. **From the account menu (the bar's photo) it opens over
 the current page** (`(seeker)/@modal/(.)settings`, an intercepting route),
@@ -2513,6 +2531,13 @@ fields on the page read as something to fill in.
   to what it saves. Disabled, not live, because a switch that saves nothing
   is what My Profile's Autofill switch was removed for. Keep the list in
   step with the bell's line in `(seeker)/layout.tsx`.
+- **Email** (`/settings/email`, KAN-413, `../../docs/email_tracker.md`):
+  the design only, as Notifications is. What connecting Gmail does, a
+  Connect Gmail button disabled and marked Coming Soon (the Google sign-in
+  is build step 3), What WorkIt Reads and What WorkIt Never Does (each line
+  a claim of the design: read-only, job emails only, no email text kept),
+  and the pilot's unverified-app warning. Its other states (Checking,
+  Connected, Needs Attention) come with the Google sign-in.
 - **Job Preferences** (`/settings/preferences`): onboarding's own first
   step (`RoleStep` in `onboarding/applicant/role-step.tsx`, `dense`: 18px
   labels, tighter rows, h3 headings), on the saved preferences, with Save

@@ -741,9 +741,11 @@ Find files with a directory listing; these are the rules for where code goes.
 - **The Applications Tracker's own writes** (KAN-413,
   `../docs/email_tracker.md`) are `routers/tracker.py` over
   `queries/tracker.py`: the stage menu (`PUT .../applications/{job_id}/stage`,
-  applied or later, any direction) and the events (`GET .../events`, `POST
-  .../applications/{job_id}/events`, `DELETE .../events/{event_id}`). An
-  event moves its application forward only (`advance`); a stage past
+  applied or later, any direction) and the events (`GET .../events`, with
+  `?status=proposed` for the Updates strip, `POST
+  .../applications/{job_id}/events`, `DELETE .../events/{event_id}`, and an
+  update's `POST .../events/{event_id}/accept` and `.../dismiss`). An
+  event moves its application forward only (`advance`, Accept too); a stage past
   applied still counts as applied (`dto.APPLIED_STAGES`, the models'
   CLAUDE.md). Tests: `tests/test_tracker.py`.
 - **Utils** (`app/utils/`): the resume parser; `app/utils/CLAUDE.md`.

@@ -80,35 +80,72 @@ const KIND: Record<StoredEvent["kind"], ApplicationEvent["kind"]> = {
   confirmation: "follow-up",
 };
 
-/** The seeker's events (GET .../events, soonest first), by job id. */
-async function getEvents(): Promise<
-  { byJob: Map<string, ApplicationEvent[]>; error: null } | { byJob: null; error: string }
-> {
+/** The seeker's events in one status (GET .../events?status=), as the API
+ *  orders them; null with the reason when the read failed. */
+async function readEvents(
+  status: "accepted" | "proposed",
+): Promise<{ events: StoredEvent[]; error: null } | { events: null; error: string }> {
   await connection();
   try {
     const { id, token } = await getApplicantSession();
-    const res = await apiGet(`/applicants/${id}/events`, token);
-    if (!res.ok) return { byJob: null, error: await extractErrorMessage(res) };
-    const byJob = new Map<string, ApplicationEvent[]>();
-    for (const event of (await res.json()) as StoredEvent[]) {
-      if (!event.job_id) continue;
-      const list = byJob.get(event.job_id) ?? [];
-      list.push({
-        id: event.id,
-        kind: KIND[event.kind],
-        title: event.title,
-        // Exactly one is set: an instant, or a bare date the tracker draws
-        // as a whole day.
-        at: event.at ?? event.on_day ?? "",
-        note: event.note,
-        meetingUrl: event.meeting_url,
-      });
-      byJob.set(event.job_id, list);
-    }
-    return { byJob, error: null };
+    const res = await apiGet(`/applicants/${id}/events?status=${status}`, token);
+    if (!res.ok) return { events: null, error: await extractErrorMessage(res) };
+    return { events: (await res.json()) as StoredEvent[], error: null };
   } catch {
-    return { byJob: null, error: "Could not reach the server." };
+    return { events: null, error: "Could not reach the server." };
   }
+}
+
+/** One event as the tracker draws it. Exactly one of `at` and `on_day` is
+ *  set: an instant, or a bare date the tracker draws as a whole day. */
+function toEvent(event: StoredEvent): ApplicationEvent {
+  return {
+    id: event.id,
+    kind: KIND[event.kind],
+    title: event.title,
+    at: event.at ?? event.on_day ?? "",
+    note: event.note,
+    meetingUrl: event.meeting_url,
+  };
+}
+
+/** The seeker's accepted events (soonest first), by job id. */
+async function getEvents(): Promise<
+  { byJob: Map<string, ApplicationEvent[]>; error: null } | { byJob: null; error: string }
+> {
+  const { events, error } = await readEvents("accepted");
+  if (events == null) return { byJob: null, error };
+  const byJob = new Map<string, ApplicationEvent[]>();
+  for (const event of events) {
+    if (!event.job_id) continue;
+    byJob.set(event.job_id, [...(byJob.get(event.job_id) ?? []), toEvent(event)]);
+  }
+  return { byJob, error: null };
+}
+
+/** An update: an event the email tracker proposed, waiting for the student
+ *  (docs/email_tracker.md, the Updates strip). `jobId` is null for one that
+ *  matched no application (Couldn't Match); `source` is the API's own kind,
+ *  which says what Accept moves the application to. */
+export type Update = ApplicationEvent & {
+  id: string;
+  jobId: string | null;
+  source: StoredEvent["kind"];
+};
+
+/** The seeker's updates, newest first (GET .../events?status=proposed). A
+ *  failed read is null: the strip and the sidebar's badge then show
+ *  nothing, since an update is news, not the tracker's record. */
+export async function getUpdates(): Promise<Update[] | null> {
+  const { events } = await readEvents("proposed");
+  return (
+    events?.map((event) => ({
+      ...toEvent(event),
+      id: event.id,
+      jobId: event.job_id,
+      source: event.kind,
+    })) ?? null
+  );
 }
 
 /** Where the job is, as the Jobs page's card prints it ("Bellevue, WA +2
