@@ -2531,13 +2531,18 @@ fields on the page read as something to fill in.
   to what it saves. Disabled, not live, because a switch that saves nothing
   is what My Profile's Autofill switch was removed for. Keep the list in
   step with the bell's line in `(seeker)/layout.tsx`.
-- **Email** (`/settings/email`, KAN-413, `../../docs/email_tracker.md`):
-  the design only, as Notifications is. What connecting Gmail does, a
-  Connect Gmail button disabled and marked Coming Soon (the Google sign-in
-  is build step 3), What WorkIt Reads and What WorkIt Never Does (each line
-  a claim of the design: read-only, job emails only, no email text kept),
-  and the pilot's unverified-app warning. Its other states (Checking,
-  Connected, Needs Attention) come with the Google sign-in.
+- **Integrations** (`/settings/integrations`, KAN-413,
+  `../../docs/email_tracker.md`): the apps a student connects, after
+  Claude's connectors list. One row per app (Gmail, Google Calendar),
+  drawn by `settings/setting-row.tsx` as Sign-In & Security's sign-in
+  methods are: the app's own logo (`GmailIcon`, `GoogleCalendarIcon`), its
+  name, one line on what it does, and Connect. The design only, as
+  Notifications is: each Connect disabled and marked Coming Soon until its
+  Google sign-in is built. Keep the page to those rows: a first version
+  (Email) also listed what WorkIt reads and never does and the pilot's
+  unverified-app warning, and the user found it too much text and the
+  Connect button bare without the app's logo. That detail belongs in the
+  step Connect opens.
 - **Job Preferences** (`/settings/preferences`): onboarding's own first
   step (`RoleStep` in `onboarding/applicant/role-step.tsx`, `dense`: 18px
   labels, tighter rows, h3 headings), on the saved preferences, with Save

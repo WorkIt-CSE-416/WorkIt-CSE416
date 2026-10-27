@@ -46,7 +46,7 @@ still be out of date. So the feature lives on screens that exist:
 
 | Piece | Where |
 |---|---|
-| Connect, "Connected as...", last check, Check now, Disconnect, delete data | A new **Email** section in Settings, beside Notifications and Security |
+| Connect, "Connected as...", last check, Check now, Disconnect, delete data | Gmail's row in a new **Integrations** section in Settings, beside Google Calendar's (after Claude's connectors list: each app's logo, name, one line and Connect) |
 | The prompt to connect | A card on the **Applications Tracker** while Gmail is not connected: that is where an empty Interviewing column is felt |
 | Proposals | An **Updates** strip at the top of the Applications Tracker, above the board, with a count badge on the sidebar's Applications Tracker link |
 | Couldn't match | A second tab in the Updates strip |
@@ -72,14 +72,17 @@ does.
 
 ### 1. Connect Gmail
 
-Settings > **Email**, or the prompt card on the Applications Tracker. The
-section says what WorkIt reads, what it never does, and, during the pilot,
-that Google will show a "Google hasn't verified this app" screen with how
-to get past it. The button opens Google's consent screen for one
+Gmail's **Connect** in Settings > **Integrations**, or the prompt card on
+the Applications Tracker. The row stays one line; the step Connect opens
+says what WorkIt reads, what it never does, and, during the pilot, that
+Google will show a "Google hasn't verified this app" screen with how to
+get past it (the first design put all of that on the settings page, and
+the user found it too much). It then opens Google's consent screen for one
 permission: read-only Gmail.
 
-After consent, Google sends the student back to Settings > Email, which
-shows "Connected as ana@gmail.com. Checking your recent emails..."
+After consent, Google sends the student back to Settings > Integrations,
+where Gmail's row shows "Connected as ana@gmail.com. Checking your recent
+emails..."
 
 ### 2. First check (backfill)
 
@@ -111,7 +114,7 @@ application or dismisses it. Unmatched items are deleted after 30 days.
 
 ### 5. Disconnect
 
-Settings > Email > **Disconnect**. WorkIt revokes its access at Google,
+Settings > Integrations > Gmail's **Disconnect**. WorkIt revokes its access at Google,
 deletes the stored key at once and deletes pending proposals. Accepted
 updates stay on the tracker, because they are the student's own record,
 unless the student also ticks "Delete everything WorkIt got from Gmail".
@@ -410,8 +413,9 @@ Under the $200 a month budget.
    (`frontend/docs/screens.md`, Seeker Dashboard).
 2. **Built: the email screens that need no Google.** The Updates strip
    (Updates and Couldn't Match, Accept, Not Right, Wrong Job?), the
-   sidebar's count, the three routes above, and Settings > Email as a
-   design with Connect Gmail disabled and marked Coming Soon. They show
+   sidebar's count, the three routes above, and Settings > Integrations
+   as a design (Gmail and Google Calendar rows, each Connect disabled and
+   marked Coming Soon). They show
    nothing until something proposes an event. Still to do: the
    Applications Tracker's prompt card, which waits for Connect Gmail to
    work, and the Dashboard's Next Up, Up Next and Waiting.
@@ -427,8 +431,8 @@ Under the $200 a month budget.
 7. **The 15-minute schedule.**
 8. **Pilot** with up to 100 students on the prod project.
 
-Later, in rough order: verification codes for the autofill, a calendar
-feed, an interview prep pack when an interview is accepted, "which resume
+Later, in rough order: verification codes for the autofill, Google
+Calendar's Connect (Settings already shows its row; open question 8), an interview prep pack when an interview is accepted, "which resume
 gets interviews" (events joined to `sent_resume_id`), ghosting detection,
 an MCP tool for updates, Gmail push, Outlook and forwarding.
 
@@ -454,6 +458,12 @@ an MCP tool for updates, Gmail push, Outlook and forwarding.
 7. **Applications made outside WorkIt:** a confirmation for a job posting
    WorkIt has could create the application. One WorkIt does not have would
    need a new kind of application with no `job_id`. Pilot or later?
+
+8. **Google Calendar: write to it, or offer a feed?** Connecting it
+   (`calendar.events`, a "sensitive" scope: Google's verification, but no
+   yearly security review) lets WorkIt add each interview to the student's
+   own calendar. A subscribe link needs no Google sign-in but updates only
+   when Google refreshes it, about daily. Settings already has its row.
 
 ## Docs to update with the code
 

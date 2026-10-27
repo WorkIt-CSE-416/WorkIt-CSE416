@@ -1253,7 +1253,7 @@ the KAN-296 cutover.
   updates** (KAN-413): the Updates strip on the Applications Tracker
   (`applications/updates.tsx`) and the sidebar row's count
   (`updates-badge.tsx`, through `AppSidebar`'s `badge` slot) read proposed
-  events once per request (`getUpdatesOnce`); Settings > Email is the
+  events once per request (`getUpdatesOnce`); Settings > Integrations is the
   design only until the Google sign-in is built (`docs/screens.md`). The Dashboard's four numbers are all live and all links
   (KAN-342); its Strong Matches reads the Best Match scores
   (`getMatchDates`), and Top Matches under them lists the twelve
