@@ -2002,12 +2002,14 @@ shows "Your Resumes Aren't Loading Right Now" and a Try Again link.
   at the field's height, as the bank's Skills form is drawn; Escape cancels
   and an unchanged name saves nothing. A sent resume keeps the name it went
   out under.
-- **Delete asks first**, on every resume, drawn as a bank
-  entry's confirm is (`delete-confirm.tsx`, which Experiences uses too): the
-  question, then Delete Resume and Keep It, the two
-  buttons wrapping as one, since wrapped apart Keep It sat alone on a line.
-  Both went at one click until KAN-258. Deleting a resume keeps the files
-  already sent from it.
+- **Delete asks first**, on every resume, in a popover hung from the
+  trash that opened it (KAN-347, `DeleteResumeConfirm` in
+  `delete-confirm.tsx`): the question, then Delete Resume and Keep It, the
+  bank entry's words and buttons. Escape or a click outside keeps the
+  resume. It opened under the card until KAN-347, below the row's notes
+  and away from the icon, and pushed the cards under it down. Both went at
+  one click until KAN-258. Deleting a resume keeps the files already sent
+  from it.
 - **No Sent card since 2026-10-18.** It listed every file the student
   downloaded or applied with (KAN-208), to download again or delete. Sent
   resumes are still kept on every Apply (a download keeps nothing since
@@ -2029,7 +2031,8 @@ here, its facts are edited in Experiences). The server reads the file
 KAN-368), so the browser never opens the Storage link. A DOCX
 cannot be drawn, so its place holds "This File Can't Be Shown Here" and
 Download. Rename turns the heading into the cards' Rename form; Delete
-asks under the bar, as on a card, and then returns to the Resumes view.
+asks in a popover under its button, as a card's trash does, and then
+returns to the Resumes view.
 An id the student has no upload by is a 404; a list or file that fails
 to load shows "This Resume Isn't Loading Right Now" with Try Again. On a
 phone the bar's buttons wrap and the pages take the width.

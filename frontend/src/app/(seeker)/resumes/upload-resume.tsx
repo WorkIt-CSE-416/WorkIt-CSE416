@@ -21,7 +21,6 @@ import {
 } from "@/lib/resume-actions";
 
 import { RenameForm } from "./built-resume-row";
-import { DeleteConfirm } from "./delete-confirm";
 
 // The API's limit, on uploads alone (lib/resume-limits.ts), so the count
 // here matches the API's 409.
@@ -200,8 +199,8 @@ export function ShortLabel({ verb }: { verb: string }) {
 }
 
 /** One uploaded resume: the shared row, or Rename's form in its place,
- *  its errors, and Delete's confirm under it, as a generated resume's row
- *  has (./built-resume-row.tsx). */
+ *  and its errors under it, as a generated resume's row has
+ *  (./built-resume-row.tsx). Delete asks in a popover under the trash. */
 export function UploadedRow({
   resume,
   reload,
@@ -211,7 +210,6 @@ export function UploadedRow({
 }) {
   const [renaming, setRenaming] = useState(false);
   const [saving, setSaving] = useState(false);
-  const [confirming, setConfirming] = useState(false);
   const [deleting, setDeleting] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const name = resume.original_filename ?? "Resume";
@@ -270,18 +268,8 @@ export function UploadedRow({
           onMakePrimary={makePrimary}
           onRename={() => setRenaming(true)}
           onDownload={download}
-          onDelete={() => setConfirming(true)}
-        />
-      )}
-      {confirming && (
-        <DeleteConfirm
-          label="Delete Resume"
-          busy={deleting}
           onDelete={remove}
-          onKeep={() => setConfirming(false)}
-        >
-          Delete this resume? Files you already sent are kept.
-        </DeleteConfirm>
+        />
       )}
       {error && (
         <p role="alert" className="text-note text-danger mt-2">

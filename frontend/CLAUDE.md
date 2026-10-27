@@ -1615,7 +1615,8 @@ are in `docs/auth.md`.
 - **The Resumes view is one list of every resume** (KAN-362, KAN-404,
   `(seeker)/resumes/built-resumes.tsx`): uploaded, generated and tailored,
   newest first, each as its card (`components/resume-row.tsx`'s box, star
-  and icons: star, Rename, Download, Delete), in one card that scrolls
+  and icons: star, Rename, Download, Delete; Delete asks in a popover
+  under the trash, `DeleteResumeConfirm`, KAN-347), in one card that scrolls
   inside itself, five cards high under a heading (`FIVE_ROWS` in
   `resume-list.tsx`, 351px, not the shared `max-h-scroll-box`: with group
   headings, 320px showed three and a half cards). **It is laid

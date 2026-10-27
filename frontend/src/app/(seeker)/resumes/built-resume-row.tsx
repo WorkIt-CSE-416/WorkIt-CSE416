@@ -20,7 +20,7 @@ import { cn } from "@/lib/cn";
 
 import { rememberReturnTo } from "../jobs/[jobId]/page-actions";
 import { LocalDate } from "../local-time";
-import { DeleteConfirm } from "./delete-confirm";
+import { DeleteResumeConfirm } from "./delete-confirm";
 import { DownloadNotes, useResumeDownload } from "./download-menu";
 
 /**
@@ -44,7 +44,6 @@ export function BuiltResumeRow({
 }) {
   const [renaming, setRenaming] = useState(false);
   const [saving, setSaving] = useState(false);
-  const [confirming, setConfirming] = useState(false);
   const [deleting, setDeleting] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const download = useResumeDownload(resume.id);
@@ -147,30 +146,26 @@ export function BuiltResumeRow({
             >
               <FileArrowDownIcon aria-hidden className="size-4" />
             </IconButton>
-            <IconButton
-              label={`Delete ${resume.name}`}
-              tooltip="Delete"
-              className={cn(ROW_ACTION, "hover:text-danger")}
-              onClick={() => setConfirming(true)}
-            >
-              <TrashIcon className="size-4" />
-            </IconButton>
+            <DeleteResumeConfirm
+              busy={deleting}
+              onDelete={remove}
+              trigger={
+                <IconButton
+                  label={`Delete ${resume.name}`}
+                  tooltip="Delete"
+                  className={cn(ROW_ACTION, "hover:text-danger")}
+                  disabled={deleting}
+                >
+                  <TrashIcon className="size-4" />
+                </IconButton>
+              }
+            />
           </div>
         </div>
       )}
       <div className="mt-2 empty:hidden">
         <DownloadNotes download={download} />
       </div>
-      {confirming && (
-        <DeleteConfirm
-          label="Delete Resume"
-          busy={deleting}
-          onDelete={remove}
-          onKeep={() => setConfirming(false)}
-        >
-          Delete this resume? Files you already sent are kept.
-        </DeleteConfirm>
-      )}
       {error && (
         <p role="alert" className="text-note text-danger mt-2">
           {error}
