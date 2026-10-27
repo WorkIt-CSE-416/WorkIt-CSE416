@@ -13,7 +13,8 @@ import {
 import localFont from "next/font/local";
 import { Suspense, use, useCallback, useEffect, useRef, useState, type ReactNode } from "react";
 
-import { ChevronDownIcon, SparkleIcon } from "@/components/icons";
+import { ChevronDownIcon } from "@/components/icons";
+import { ScoutTakeover } from "@/components/scout/scout-takeover";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/shadcn/popover";
 import { Skeleton } from "@/components/shadcn/skeleton";
 import { Button, buttonClasses } from "@/components/ui/button";
@@ -86,20 +87,20 @@ import { Tray } from "./tray";
  * save bumps one request counter, and a response older than the latest
  * request is dropped, so a slow render never paints over a newer edit.
  * On a phone-width screen the same state is laid out by `PhoneEditor`
- * (KAN-219, ./phone.tsx). The assistant (KAN-221, ./assistant.tsx) docks
- * beside the page, or opens in a sheet on a phone, and acts through the same
- * saves. On Tailor's page (`suggestions`), each change the run made is
- * tinted and has a card in the Suggestions panel beside the page, in the
- * assistant's column, to accept or reject; an edit of a changed item
- * through `apply` drops that change.
+ * (KAN-219, ./phone.tsx). The assistant (KAN-221, ./assistant.tsx) opens
+ * in Scout's panel from the top bar's Scout (`ScoutTakeover`), or in a
+ * sheet on a phone, and acts through the same saves. On Tailor's page
+ * (`suggestions`), each change the run made is tinted and has a card in
+ * the Suggestions panel beside the page, to accept or reject; an edit of
+ * a changed item through `apply` drops that change.
  *
  * THE FIRST PDF STREAMS IN (KAN-368). The page starts the render and hands
  * it over unawaited (`initial`), since the LaTeX compile is the slowest read
  * in the app (0.7 to 1s): the bar, the title and Back draw at once, and the
  * page area alone waits, over a page-shaped skeleton (FirstRenderPane, in a
  * <Suspense>, reads it). Until it lands there is nothing to click (the click
- * targets are the render's boxes, KAN-209), Ask Scout and Not on This
- * Resume wait too, and a render that fails shows its own error in the page
+ * targets are the render's boxes, KAN-209), the assistant and Not on
+ * This Resume wait too, and a render that fails shows its own error in the page
  * area. pdf.js starts downloading as the editor mounts, so it is ready when
  * the PDF is. An edit's render never loses to the first one: the first is
  * taken only while there is no other.
@@ -253,7 +254,6 @@ export function Editor({
   const pressed = useRef<{ x: number; y: number } | null>(null);
   const placed = useRef<string | null>(null);
   const phone = usePhone();
-  const [asking, setAsking] = useState(false);
   // The Suggestions card in focus (its lines outlined), the card of the
   // marked line last clicked, and the phone's Suggestions sheet
   const [focused, setFocused] = useState<string | null>(null);
@@ -546,7 +546,7 @@ export function Editor({
     apply(changes);
     select(null);
   };
-  const assistant = (onClose?: () => void, className?: string) => (
+  const assistant = (className: string) => (
     <Assistant
       resumeId={resumeId}
       bank={bank}
@@ -556,7 +556,6 @@ export function Editor({
       onApply={apply}
       onHide={hide}
       onFit={fit}
-      onClose={onClose}
       className={className}
     />
   );
@@ -717,7 +716,7 @@ export function Editor({
               />
             )
           }
-          assistant={assistant(undefined, "h-full rounded-none ring-0")}
+          assistant={assistant("h-full")}
           onSelect={select}
           onType={(text) => selected && type(selected, text)}
           onFlush={flush}
@@ -747,8 +746,6 @@ export function Editor({
       onClose={() => select(null)}
       onFit={fit}
       onUndoFit={undoFit}
-      // Not on Tailor's review: its panel holds the assistant's column
-      onAsk={suggestions || asking ? undefined : () => setAsking(true)}
     />
   );
   const reviewTools: ReviewTools | null = reviewing && {
@@ -766,10 +763,9 @@ export function Editor({
     <div
       className={cn(
         "grid items-start gap-5",
-        asking && "@4xl/main:grid-cols-[minmax(0,1fr)_22rem]",
-        shownPanel && !asking && "@4xl/main:grid-cols-[minmax(0,1fr)_22.5rem]",
+        shownPanel && "@4xl/main:grid-cols-[minmax(0,1fr)_22.5rem]",
         // The two resumes at one width, so a line reads against its twin
-        shownOriginal && !asking && "@4xl/main:grid-cols-2",
+        shownOriginal && "@4xl/main:grid-cols-2",
       )}
     >
       <div className="flex min-w-0 flex-col gap-2">
@@ -810,25 +806,32 @@ export function Editor({
             A toolbar button and modal for it there cluttered the review */}
         {rendered && !suggestions && <Tray bank={bank} choices={choices} onPutBack={apply} />}
       </div>
-      {/* Kept mounted while closed, so the chat survives closing it */}
-      <div
-        data-keeps-selection
-        className={cn(
-          "h-[min(40rem,calc(100dvh-8rem))] min-h-[24rem] @4xl/main:sticky @4xl/main:top-4",
-          !asking && "hidden",
-        )}
-      >
-        {assistant(() => setAsking(false), "animate-rise h-full")}
-      </div>
-      {/* Tailor's suggestions share the assistant's column and give way to
-          it while it is open. Above the page on a narrow screen. */}
+      {/* The assistant lives in Scout's panel, opened from the top bar's
+          Scout (`ScoutTakeover`), so the page has one way to it. Not on
+          Tailor's review, whose Scout stays the job search chat. Kept
+          mounted while the panel is closed, so the chat survives closing
+          it; marked KEEPS_SELECTION, since the panel sits outside the
+          editor and the assistant acts on the selected line. It docked
+          beside the page from a toolbar Ask Scout until KAN-411; the user
+          found two Scout buttons on one page one too many. It waits for the
+          first render, as that button did: the assistant reads its page
+          count and acts through renders, so until then the panel is
+          Scout's job chat */}
+      {rendered && !suggestions && (
+        <ScoutTakeover title="Scout" subtitle="Edits this resume as you talk">
+          <div data-keeps-selection className="flex min-h-0 flex-1 flex-col">
+            {assistant("flex-1")}
+          </div>
+        </ScoutTakeover>
+      )}
+      {/* Tailor's suggestions, above the page on a narrow screen. */}
       {/* The panel scrolls its own list under its header, so the column
           only caps its height: scrolled here, the header and the panel's
           rounded corners went up with the list. The cap is measured
           (`useFitToWindow`): a fixed one, the window less 15rem, ran the
           panel's foot below the window before the page scrolled and left a
           gap under it after, once the title row grew */}
-      {shownPanel && !asking && (
+      {shownPanel && (
         <div
           data-keeps-selection
           ref={fitPanel}
@@ -838,7 +841,7 @@ export function Editor({
         </div>
       )}
       {/* The original beside the page; under it on a narrow screen */}
-      {shownOriginal && !asking && (
+      {shownOriginal && (
         <div ref={fitOriginal} className={sideColumn}>
           {shownOriginal}
         </div>
@@ -915,7 +918,6 @@ function Bar({
   onClose,
   onFit,
   onUndoFit,
-  onAsk,
 }: {
   line: Line | null;
   box: RenderBox | undefined;
@@ -933,8 +935,6 @@ function Bar({
   onClose: () => void;
   onFit: () => void;
   onUndoFit: () => void;
-  /** Opens the assistant; absent while it is open, and on Tailor's review. */
-  onAsk?: () => void;
 }) {
   return (
     <SlimBar
@@ -945,7 +945,6 @@ function Bar({
       download={download}
       onFit={onFit}
       onUndoFit={onUndoFit}
-      onAsk={onAsk}
       editing={
         line &&
         box && (
@@ -1024,11 +1023,11 @@ function History() {
  * page already saves and closes.
  *
  * Download sat in the page's top row beside Finish for a day; the user
- * wanted it back with the page's tools. Ask Scout (`onAsk`), filled, ends
- * the bar on the editor's own page only, in both states, since the
- * assistant acts on the selected line: on the review the panel holds the
- * column the assistant would open in, and a second AI entry beside it
- * split the page's attention. The bar spanned the page and the panel for a
+ * wanted it back with the page's tools. No Ask Scout: on the editor's own
+ * page the top bar's Scout opens the assistant (`ScoutTakeover`), and an
+ * Ask Scout ending this bar for a day was a second Scout button on one
+ * page; on the review the panel holds the page's attention, and a second
+ * AI entry beside it split it. The bar spanned the page and the panel for a
  * day, which put the panel under it, apart from the page; the panel folded
  * to a rail of its own (») until the user found it dated.
  */
@@ -1040,7 +1039,6 @@ function SlimBar({
   download,
   onFit,
   onUndoFit,
-  onAsk,
   editing,
 }: {
   rendered: RenderedPdf | null;
@@ -1050,7 +1048,6 @@ function SlimBar({
   download: ResumeDownload;
   onFit: () => void;
   onUndoFit: () => void;
-  onAsk?: () => void;
   /** The open line's label and actions, or nothing while idle. */
   editing: ReactNode;
 }) {
@@ -1058,13 +1055,6 @@ function SlimBar({
     <span className="text-note text-ink-meta pr-1" aria-live="polite">
       {saving ? "Saving…" : elapsed != null ? `Saved, ${elapsed} ms` : ""}
     </span>
-  );
-  // Off until the first render lands: the assistant reads its page count
-  // and acts through renders
-  const ask = onAsk && (
-    <Button size="sm" onClick={onAsk} disabled={!rendered}>
-      <SparkleIcon /> Ask Scout
-    </Button>
   );
   if (editing) {
     return (
@@ -1083,7 +1073,6 @@ function SlimBar({
           <span className="text-note text-ink-meta">
             <kbd className="bg-ink/5 rounded-xs px-1 font-sans">Esc</kbd> when done
           </span>
-          {ask}
         </div>
       </div>
     );
@@ -1107,10 +1096,8 @@ function SlimBar({
       <div className="ml-auto flex shrink-0 items-center gap-2">
         {status}
         {/* Secondary: Finish, in the row above, is the review's one filled
-            button, and Ask Scout the editor page's. In the brand fill too,
-            the two competed */}
+            button. In the brand fill too, the two competed */}
         <DownloadMenu download={download} />
-        {ask}
       </div>
     </div>
   );
@@ -1436,7 +1423,7 @@ function FirstRenderPane({
 /**
  * The desktop editor before anything has loaded, for ./loading.tsx: the
  * title row's title, then the slim bar's box with Undo and Redo and its
- * end (Download, Ask Scout) as bars, over a page's skeleton, in the
+ * end (Download) as bars, over a page's skeleton, in the
  * editor's own layout, so the editor that replaces it keeps every edge
  * where it was.
  */
@@ -1450,10 +1437,7 @@ export function EditorSkeleton() {
       <div className="flex min-w-0 flex-col gap-2">
         <div className={SLIM_BAR}>
           <Skeleton className="h-6 w-14" />
-          <div className="ml-auto flex items-center gap-2">
-            <Skeleton className="h-9 w-28" />
-            <Skeleton className="h-9 w-28" />
-          </div>
+          <Skeleton className="ml-auto h-9 w-28" />
         </div>
         <PageSkeleton />
       </div>

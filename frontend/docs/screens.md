@@ -2081,8 +2081,8 @@ student who opened a resume from Experiences landed on another view.
   Phone" and the next missing link in the bar. Picking a wording (bar or
   assistant) drops the typed draft, so the field shows the picked text.
   Escape, Done or Enter clears the selection (Enter saves first), and so
-  does a press outside the page, the bar and the assistant panel, which
-  carry `data-keeps-selection` (the assistant acts on the selected line).
+  does a press outside the page, the bar and the assistant (in Scout's
+  panel), which carry `data-keeps-selection` (the assistant acts on the selected line).
   The phone editor keeps its own sheet: Enter there only saves.
 - **The title row** (`ResumeTitle`, `[resumeId]/resume-title.tsx`) holds
   the resume's name, renamed in place as on Tailor's review: plain text
@@ -2090,7 +2090,7 @@ student who opened a resume from Experiences landed on another view.
   makes it a field in the same box; Enter or a click away saves
   (`renameBuiltResume`), Esc cancels. It is the page's h1 here and an h2
   on the review, under its step's sr-only h1. It spans the page and the
-  column beside it, so the assistant's column starts level with the bar.
+  column beside it, so the review's panel starts level with the bar.
   It was a plain h1 at heading size until KAN-411; a failed load still
   shows it over the error.
 - **The sticky bar is the slim toolbar** (`SlimBar`), the same on this
@@ -2120,10 +2120,9 @@ student who opened a resume from Experiences landed on another view.
   (`../download-menu.tsx`, KAN-258; it was on each card of the Resumes
   view). It keeps nothing (KAN-267) and holds a PDF with characters the
   font lacks for Download Anyway; the warning and any error show under
-  the bar. Last, on this page only, **Ask Scout**, the brand's filled
-  button and the editor's primary action, in both states, since the
-  assistant acts on the selected line; it is off until the first render
-  lands, and gone while the assistant is open.
+  the bar. **No Ask Scout**: the top bar's Scout opens the assistant
+  (below). Ask Scout ended this bar for a day, filled, and the user
+  found two Scout buttons on one page one too many.
   **Until KAN-411 this page had its own full bar**, brand-tinted, with
   the hint first, the page count and Fit to One Page as one amber group
   (`fit-notice.tsx`'s `FitNotice`, now the phone's), a Done button, and
@@ -2137,12 +2136,10 @@ student who opened a resume from Experiences landed on another view.
   text shows, on the lines of the suggestion in focus or open: an added
   skill green (`positive`, bordered in `positive-ink`), a new wording blue
   (`advanced`), an entry's bullets in a new order amber (`warning-fill`,
-  bordered in `warning-strong`). There the bar
-  has no Ask Scout (the panel holds its column, and a second AI entry
-  split the page's attention) and the page has no "Not on This Resume"
-  (a run's own removals have Reject). The panel sits in the Ask Scout
-  column and gives way to the assistant while it is open; on a phone it
-  is a sheet from the bottom bar. Reject goes through the choices PATCH
+  bordered in `warning-strong`). There the page has no "Not on This
+  Resume" (a run's own removals have Reject), and the top bar's Scout
+  stays the job search chat. The panel sits in the column beside the
+  page; on a phone it is a sheet from the bottom bar. Reject goes through the choices PATCH
   (the wording back to the source's, the old order, the skill hidden),
   and any later edit of a changed item drops that change's mark. The
   run's record is in sessionStorage (`tailorEditsKey`, under
@@ -2182,7 +2179,7 @@ student who opened a resume from Experiences landed on another view.
   LaTeX render without awaiting it; `editor.tsx` reads it with `use()` inside
   a `<Suspense>` around the page area only, over a Letter-sized skeleton with
   its own error state, so Back, the title and the bar do not wait on the
-  compile. Line editing, Ask Scout and the tray stay off until it lands, and
+  compile. Line editing, the assistant and the tray stay off until it lands, and
   the phone's "Click a line" is not offered when the first render failed. pdf.js starts
   downloading as the editor mounts. The editor and an upload's page each have
   a `loading.tsx` in their own frame.
@@ -2211,12 +2208,22 @@ student who opened a resume from Experiences landed on another view.
   switches. Manual checks on a real iPhone: the sheet stays above the
   keyboard, and the field does not zoom; and the render time on cellular
   data, read from "Saved, N ms".
-- **The assistant** (`assistant.tsx`, KAN-221; the KAN-195 prototype's
-  variant E) opens from Ask Scout in the sticky bar and **docks beside the
-  page** from @4xl/main (sticky, never over the page); narrower, it stacks
-  under it. On a phone, Ask Scout in the bottom bar or in a line's sheet
-  opens it in its own sheet. It stays mounted while closed, so closing it
-  keeps the chat; nothing is stored. The look is intake's (variant G:
+- **The assistant** (`assistant.tsx`, KAN-221) **opens from the top
+  bar's Scout, in Scout's panel** (KAN-411): the editor takes the panel
+  over (`ScoutTakeover`, as the Experience Bank does with intake), under
+  "Scout · Edits this resume as you talk", so the page has one way to
+  Scout. The panel's header and X close it. Until the first render lands
+  the panel stays Scout's job chat, since the assistant reads the page
+  count and acts through renders. Not on Tailor's review, whose Scout
+  stays the job chat. Until KAN-411 it opened from Ask Scout in the
+  sticky bar and docked beside the page (the KAN-195 prototype's variant
+  E); with Ask Scout gone from the bar, the top bar's Scout opened only
+  the job chat, which left desktop no way to the assistant, so the panel
+  took it in. Its root is a div: the panel or the phone's sheet holds
+  it, names it and draws its close button. On a phone, Ask Scout in the
+  bottom bar or in a line's sheet opens it in its own sheet. It stays
+  mounted while closed, so closing it keeps the chat; nothing is
+  stored. The look is intake's (variant G:
   lavender panel, Scout's mark) and the bubbles, dots and composer are
   Scout's `chat.tsx`. It does four things, all through the editor's own
   saves: Fit to One Page, hide and move the selected line, and **Make it
@@ -2229,7 +2236,8 @@ student who opened a resume from Experiences landed on another view.
   messages spend one of today's assistant messages ("N messages left
   today"). The sticky bar stays the free path for everything. Manual
   checks: a typed "hide this" on a selected bullet hides it; Make it
-  shorter waits for Use This; the phone sheet opens from both buttons.
+  shorter waits for Use This; the phone sheet opens from both buttons; a
+  click in the panel keeps the selected line.
 
 ## Scout panel
 
@@ -2238,7 +2246,8 @@ Scout, the job assistant, lives in `components/scout/`; its brain is the repo's
 tab (a module store, so no provider). `scout-panel` docks beside the page, never
 over it, and opens only on a click (the Jobs page's Import Your Resume
 counts: `/bank?import=1` opens it on arrival, then drops the param). A page
-can take it over (`scout-takeover.tsx`, the Experience Bank's intake): the
+can take it over (`scout-takeover.tsx`: the Experience Bank's intake, the
+resume editor's assistant): the
 page's content replaces the chat and the panel widens to 448px. It stays mounted and opens in two moves: its
 room appears at once and the page settles into its new width, while the panel
 slides in from the window's edge (`docs/motion.md` has why). Escape or its X
