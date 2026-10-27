@@ -1680,14 +1680,18 @@ with no proposals to accept and no Done (2026-10-25).
   found overwhelming (Quinncia's slim bar was the model); then the
   employer's logo and "Title · Company" beside Back, which crowded it and
   repeated what the tailored resume's name already says.
-- **One step at a time** (2026-10-26): the step timeline (`TailorSteps`,
-  even columns, each label under its circle, so a phone keeps one row)
-  shows Pick a Resume, Choose Keywords and Review Changes, and each step
-  is its own view under it (`TailorScreen` keeps the step in state; a
+- **One step at a time** (2026-10-26), each under the same top row in the
+  brand tint (`TailorBar`): Back, the step on one line ("Pick a Resume ·
+  Step 1 of 3"), and the step's way on, Use This Resume, Tailor Resume or
+  Finish. Then the page's title, its line and the job card
+  (`TailorHeader`), then the step's own view (`TailorScreen` keeps the step in state; a
   reload starts at the pick). The keyword match appeared under the picker
   on one page before, so the student scrolled past the list to read it.
   Pick a Resume shows the list across the full width, and each card's
-  Preview opens that resume in a dialog (below). Choose Keywords has Back and Tailor Resume. Back never loses a pick:
+  Preview opens that resume in a dialog (below). The top row replaced a
+  step timeline (`TailorSteps`, circles and lines), the pick steps' Back
+  above the title, and Use This Resume, Back and Tailor Resume at each
+  card's foot. Back never loses a pick:
   the same resume picked again keeps its match and its picked keywords,
   with no second read. Review Changes is the tailored resume's own page.
   The run was a fourth step, Tailor, until later the same day; it only

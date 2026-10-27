@@ -1,7 +1,7 @@
 "use client";
 
 import { useRouter } from "next/navigation";
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useEffect, useState, type ReactNode } from "react";
 
 import {
   ArrowLeftIcon,
@@ -32,7 +32,9 @@ import {
 import type { MatchShift, TailorReviewRecord } from "../../../resumes/[resumeId]/tailor-review";
 import { loadChoices, ResumeLists, type Choice } from "../../resume-picker";
 import { ResumePreviewDialog } from "./resume-preview";
-import { TailorSteps, type TailorStep } from "./tailor-steps";
+import { BackToJobs } from "../page-actions";
+import { TailorBar } from "./tailor-header";
+import { type TailorStep } from "./tailor-steps";
 
 /** The run's phases, in order, as its loader lists them, by the
  *  streamed run's lines (`TailorStreamEvent`): Retrieving Info until the API
@@ -63,8 +65,8 @@ function tailorFirst(choices: Choice[]): Choice | undefined {
 
 /**
  * The Tailor screen (KAN-217, docs/tailor_resume.md), one step at a time
- * under the step timeline (`TailorSteps`): Pick a Resume, then Choose
- * Keywords, each its own view. The keyword match sat under the picker on
+ * under the step's top row (`TailorBar`: Back, the step, and its way on):
+ * Pick a Resume, then Choose Keywords, each its own view. The keyword match sat under the picker on
  * one page until 2026-10-26, so the student scrolled past the list to read
  * it. The step lives in this component, not the URL: a reload starts again
  * at the pick, which reads nothing the student would lose.
@@ -87,8 +89,12 @@ function tailorFirst(choices: Choice[]): Choice | undefined {
 export function TailorScreen({
   jobId,
   start,
+  header,
 }: {
   jobId: string;
+  /** The page's title, its line and the job card, under the step's top
+   *  row (`TailorHeader`, drawn by the page). */
+  header: ReactNode;
   /** Where to open: the review's Back opens Choose Keywords for the resume
    *  the run started from (`source`, a picker key such as "built:<id>"), so
    *  the student can pick other keywords and run again. */
@@ -238,7 +244,42 @@ export function TailorScreen({
 
   return (
     <>
-      <TailorSteps current={step} />
+      <TailorBar
+        step={step}
+        back={
+          step === "pick" ? (
+            <BackToJobs className="group/back" />
+          ) : (
+            <Button
+              variant="secondary"
+              size="sm"
+              disabled={running}
+              onClick={() => {
+                setError(null);
+                setStep("pick");
+              }}
+            >
+              <ArrowLeftIcon /> Back
+            </Button>
+          )
+        }
+        next={
+          step === "pick" ? (
+            <Button
+              size="sm"
+              onClick={() => pickedChoice && void next(pickedChoice)}
+              disabled={!pickedChoice || reading || uploading}
+            >
+              Use This Resume <ArrowRightIcon />
+            </Button>
+          ) : (
+            <Button size="sm" onClick={run} disabled={running || reading || !match}>
+              <SparkleIcon /> Tailor Resume
+            </Button>
+          )
+        }
+      />
+      <div className="mt-4">{header}</div>
       <div className="mt-4">
         {step === "pick" && (
           <>
@@ -262,13 +303,6 @@ export function TailorScreen({
                     }}
                     upload={{ uploads, onUploaded: uploaded, onBusyChange: onUploadBusy }}
                   />
-                  <Button
-                    className="self-start"
-                    onClick={() => pickedChoice && void next(pickedChoice)}
-                    disabled={!pickedChoice || reading || uploading}
-                  >
-                    Use This Resume <ArrowRightIcon />
-                  </Button>
                 </>
               )}
               {choiceError && (
@@ -303,12 +337,6 @@ export function TailorScreen({
             picked={picked}
             onToggle={toggle}
             onSet={setPicked}
-            onBack={() => {
-              setError(null);
-              setStep("pick");
-            }}
-            onRun={run}
-            running={running}
             error={error}
           />
         )}
@@ -326,8 +354,9 @@ export function TailorScreen({
 /**
  * Choose Keywords: one card, read top to bottom. The match as one line and
  * a bar ("3 of 14 keywords matched"), the matched keywords as quiet tags,
- * then the missing ones to add (`MissingKeywords`), and Back and Tailor
- * Resume at its foot. It was a big "3 of 14", the matched tags in brand
+ * then the missing ones to add (`MissingKeywords`); Back and Tailor Resume
+ * are the step's top row (`TailorBar`), and they sat at its foot until
+ * then. It was a big "3 of 14", the matched tags in brand
  * for the required ones, a checkbox drawn in every missing chip and Add
  * All as a text link, which the user found overloaded (2026-10-26).
  */
@@ -337,9 +366,6 @@ function KeywordCard({
   picked,
   onToggle,
   onSet,
-  onBack,
-  onRun,
-  running,
   error,
 }: {
   match: TailorMatch;
@@ -347,9 +373,6 @@ function KeywordCard({
   picked: Set<string>;
   onToggle: (keyword: string) => void;
   onSet: (next: Set<string>) => void;
-  onBack: () => void;
-  onRun: () => void;
-  running: boolean;
   error: { message: string; status: number | null } | null;
 }) {
   const total = match.matched.length + match.missing.length;
@@ -391,23 +414,18 @@ function KeywordCard({
         />
       )}
 
-      <div className="border-border-subtle flex flex-col gap-2 border-t pt-4">
-        {/* Said before the click, not after: the run has no confirmation */}
-        {match.tailored_resume_id && (
-          <p className="text-note text-ink-meta">
-            This posting already has a tailored resume. Tailor Resume replaces it with a new run.
-          </p>
-        )}
-        <div className="flex flex-wrap justify-between gap-2">
-          <Button variant="secondary" onClick={onBack} disabled={running}>
-            <ArrowLeftIcon /> Back
-          </Button>
-          <Button onClick={onRun} disabled={running}>
-            <SparkleIcon /> Tailor Resume
-          </Button>
+      {/* Said before the click, not after: the run has no confirmation.
+          Back and Tailor Resume are the step's top row (`TailorBar`) */}
+      {(match.tailored_resume_id || error) && (
+        <div className="border-border-subtle flex flex-col gap-2 border-t pt-4">
+          {match.tailored_resume_id && (
+            <p className="text-note text-ink-meta">
+              This posting already has a tailored resume. Tailor Resume replaces it with a new run.
+            </p>
+          )}
+          <TailorError error={error} />
         </div>
-        <TailorError error={error} />
-      </div>
+      )}
     </Card>
   );
 }

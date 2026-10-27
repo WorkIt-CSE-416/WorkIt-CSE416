@@ -126,12 +126,16 @@ export default async function TailorPage({
 
   return (
     <div className={cn("max-w-app mx-auto w-full flex-1 py-6", SEEKER_GUTTER)}>
-      <BackToJobs />
-      <TailorHeader job={job} title={`Tailor Your Resume to ${job.title}`}>
-        Pick a resume and the keywords you have used. WorkIt rewrites its bullets for this posting
-        and never adds a number or tool you did not give; you can undo any change.
-      </TailorHeader>
-      <TailorScreen jobId={job.id} start={source ? { step: "keywords", source } : undefined} />
+      <TailorScreen
+        jobId={job.id}
+        start={source ? { step: "keywords", source } : undefined}
+        header={
+          <TailorHeader job={job} title={`Tailor Your Resume to ${job.title}`}>
+            Pick a resume and the keywords you have used. WorkIt rewrites its bullets for this
+            posting and never adds a number or tool you did not give; you can undo any change.
+          </TailorHeader>
+        }
+      />
     </div>
   );
 }

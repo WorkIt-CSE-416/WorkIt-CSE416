@@ -24,7 +24,11 @@ back and pick other keywords.
 
 ## The flow
 
-The screen shows three steps (`TailorSteps`): Pick a Resume (1 below),
+The screen shows three steps (`TAILOR_STEPS`), each under the same top
+row in the brand tint (`TailorBar`): Back, the step on one line ("Choose
+Keywords · Step 2 of 3"), and the step's way on (Use This Resume, Tailor
+Resume, Finish). It replaced a step timeline and the buttons at each
+card's foot. The steps: Pick a Resume (1 below),
 Choose Keywords (3 and 4), and Review Changes (6). The run (5) is a
 loader over Choose Keywords, not a step: until 2026-10-26 it was a fourth
 step, Tailor, a view that only waited.

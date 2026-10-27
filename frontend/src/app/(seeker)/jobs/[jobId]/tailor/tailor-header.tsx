@@ -18,7 +18,7 @@ import { Fact } from "@/components/ui/fact";
 import type { JobListing } from "../../listings";
 import { toPosting } from "../../to-posting";
 import { TailorBack } from "./tailor-back";
-import { TAILOR_STEPS } from "./tailor-steps";
+import { TAILOR_STEPS, type TailorStep } from "./tailor-steps";
 
 /**
  * The pick views' top: the page title and its line, then the job card.
@@ -123,30 +123,54 @@ function TailorJobCard({ job }: { job: JobListing }) {
  * wanted so the row stands out against the content under it.
  */
 export function TailorReviewBar({ job, resumeId }: { job: JobListing; resumeId: string }) {
-  const last = TAILOR_STEPS[TAILOR_STEPS.length - 1];
   return (
-    // In the brand tint with its ring, as the Suggestions panel is, so the
-    // page's frame stands apart from the resume and its tools under it
-    <div className="bg-brand-tint ring-brand-pale grid grid-cols-[1fr_auto_1fr] items-center gap-3 rounded-2xl p-2 ring-1">
+    <>
       <h1 className="sr-only">
         Tailor for {job.title} at {job.company}
       </h1>
-      <TailorBack jobId={job.id} resumeId={resumeId} />
-      {/* One line: the flow's name over the step, two lines, said more
-          than this row needs */}
-      <p className="text-label text-ink truncate text-center font-semibold">
-        {last.label}{" "}
+      <TailorBar
+        step="review"
+        back={<TailorBack jobId={job.id} resumeId={resumeId} />}
+        next={
+          <ButtonLink href={`/jobs/${encodeURIComponent(job.id)}`} size="sm">
+            <CheckIcon aria-hidden className="size-4" /> Finish
+          </ButtonLink>
+        }
+      />
+    </>
+  );
+}
+
+/**
+ * Every Tailor step's top row (2026-10-26): Back at the left, the step on
+ * one line in the middle ("Choose Keywords · Step 2 of 3"), and the step's
+ * way on at the right (Use This Resume, Tailor Resume, Finish), in the
+ * brand tint with its ring, as the Suggestions panel is, so the frame
+ * stands apart from the content under it. It replaced the step timeline
+ * (`TailorSteps`), the pick steps' Back above the title, and the buttons at
+ * each card's foot: one row says where the student is and moves them on.
+ * The step's name over "Step 3 of 3", two lines, said more than it needs.
+ */
+export function TailorBar({
+  step,
+  back,
+  next,
+}: {
+  step: TailorStep;
+  back: ReactNode;
+  next: ReactNode;
+}) {
+  const at = TAILOR_STEPS.findIndex((s) => s.value === step);
+  return (
+    <div className="bg-brand-tint ring-brand-pale grid grid-cols-[1fr_auto_1fr] items-center gap-3 rounded-2xl p-2 ring-1">
+      <div className="flex justify-self-start">{back}</div>
+      <p aria-current="step" className="text-label text-ink truncate text-center font-semibold">
+        {TAILOR_STEPS[at].label}{" "}
         <span className="text-ink-meta font-normal">
-          · Step {TAILOR_STEPS.length} of {TAILOR_STEPS.length}
+          · Step {at + 1} of {TAILOR_STEPS.length}
         </span>
       </p>
-      <ButtonLink
-        href={`/jobs/${encodeURIComponent(job.id)}`}
-        size="sm"
-        className="justify-self-end"
-      >
-        <CheckIcon aria-hidden className="size-4" /> Finish
-      </ButtonLink>
+      <div className="flex justify-self-end">{next}</div>
     </div>
   );
 }
