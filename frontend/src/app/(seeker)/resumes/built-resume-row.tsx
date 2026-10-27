@@ -1,6 +1,6 @@
 "use client";
 
-import { FileArrowDownIcon } from "@phosphor-icons/react/ssr";
+import { EyeIcon, FileArrowDownIcon } from "@phosphor-icons/react/ssr";
 import Link from "next/link";
 import { useState, type FormEvent } from "react";
 
@@ -19,13 +19,17 @@ import {
 import { cn } from "@/lib/cn";
 
 import { rememberReturnTo } from "../jobs/[jobId]/page-actions";
+import { ResumePreviewDialog } from "../jobs/[jobId]/tailor/resume-preview";
 import { LocalDate } from "../local-time";
 import { DeleteResumeConfirm } from "./delete-confirm";
 import { DownloadNotes, useResumeDownload } from "./download-menu";
 
 /**
  * One built resume, drawn as an uploaded one's row is: the file mark, the
- * name and its day, then the star, Rename, Download PDF and Delete.
+ * name and its day, then the star, Preview, Rename, Download PDF and Delete.
+ * Preview (KAN-358, an eye) shows the resume read-only in Tailor's preview
+ * dialog (`ResumePreviewDialog`), rendered as it is now, so a look at it
+ * never opens the editor.
  * Download PDF is the editor's PDF download (`useResumeDownload`: it keeps
  * nothing, with the missing-character warning under the row), on the card
  * since KAN-268. A tailored resume takes the star too since then, and its
@@ -46,6 +50,7 @@ export function BuiltResumeRow({
   const [saving, setSaving] = useState(false);
   const [deleting, setDeleting] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [previewing, setPreviewing] = useState(false);
   const download = useResumeDownload(resume.id);
 
   async function makePrimary() {
@@ -130,6 +135,14 @@ export function BuiltResumeRow({
               onMakePrimary={makePrimary}
             />
             <IconButton
+              label={`Preview ${resume.name}`}
+              tooltip="Preview"
+              className={ROW_ACTION}
+              onClick={() => setPreviewing(true)}
+            >
+              <EyeIcon aria-hidden className="size-4" />
+            </IconButton>
+            <IconButton
               label={`Rename ${resume.name}`}
               tooltip="Rename"
               className={ROW_ACTION}
@@ -163,6 +176,13 @@ export function BuiltResumeRow({
           </div>
         </div>
       )}
+      <ResumePreviewDialog
+        open={previewing}
+        onOpenChange={setPreviewing}
+        label={resume.name}
+        source={{ built_resume_id: resume.id }}
+        version={resume.edited_at}
+      />
       <div className="mt-2 empty:hidden">
         <DownloadNotes download={download} />
       </div>
