@@ -1251,7 +1251,8 @@ the KAN-296 cutover.
   button, Save's toast, Auto Apply's button, Top Matches' rows). The
   Dashboard's Interviewing number counts the interviewing stage. **Email
   updates** (KAN-413): the Email Updates table on the Applications Tracker
-  (`applications/updates.tsx`) and each application's Emails
+  (`applications/updates.tsx`, a row opening the email Gmail-style in
+  `applications/email-view.tsx`) and each application's Emails
   (`applications/[jobId]/emails.tsx`) read proposed events once per
   request (`getUpdatesOnce`), and name each email's kind with one pill
   (`applications/email-kinds.tsx`). No sidebar badge: one was removed; Settings > Integrations is the

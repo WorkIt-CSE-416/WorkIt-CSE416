@@ -1,4 +1,6 @@
 import {
+  ArrowBendUpLeftIcon,
+  CalendarPlusIcon as CalendarPlus,
   ColumnsIcon as Columns,
   GridFourIcon,
   KanbanIcon,
@@ -41,4 +43,16 @@ export function ColumnsIcon({ className }: IconProps) {
  *  themselves wear their own glyphs (../stage-colors.ts). */
 export function StatusIcon({ className }: IconProps) {
   return <RadioButtonIcon aria-hidden className={className} />;
+}
+
+/* Email view (KAN-413) --------------------------------------------------- */
+
+/** The email view's Reply. */
+export function ReplyIcon({ className }: IconProps) {
+  return <ArrowBendUpLeftIcon aria-hidden className={className} />;
+}
+
+/** The email view's Add to Google Calendar. */
+export function CalendarPlusIcon({ className }: IconProps) {
+  return <CalendarPlus aria-hidden className={className} />;
 }

@@ -48,8 +48,9 @@ still be out of date. So the feature lives on screens that exist:
 |---|---|
 | Connect, "Connected as...", last check, Check now, Disconnect, delete data | Gmail's row in a new **Integrations** section in Settings, beside Google Calendar's (after Claude's connectors list: each app's logo, name, one line and Connect) |
 | The prompt to connect | A card on the **Applications Tracker** while Gmail is not connected: that is where an empty Interviewing column is felt |
-| Emails waiting | An **Email Updates** table at the top of the Applications Tracker, above the list: one row per email with its job, subject, a pill for its kind and what accepting does, its date, Accept and a dismiss cross |
-| An email that matched no application | The same table, with a job picker in its Job cell |
+| Emails waiting | An **Email Updates** table at the top of the Applications Tracker, above the list: one line per email, its job, a pill for its kind and its date |
+| One email, read | A click on a row opens it the way Gmail shows it, in a panel from the right: the subject and pill, the sender's line and date, the body (the kept summary), and a toolbar: Accept, Dismiss, Reply and Open in Gmail (once Gmail is connected), Open Application, Add to Calendar (Google Calendar's own new-event page, filled in) |
+| An email that matched no application | Its row says No Matching Job; its panel asks which job it is about, and Accept waits for a pick |
 | Every email about one job | An **Emails** section on that application's page, the waiting ones with Accept and dismiss, the rest marked Added: an email is kept with its job as a record, not only as a date |
 | What an accepted email changes | The stage, the application's timeline and Interviews & Dates, the Calendar, and the Dashboard's Next Up, Up Next and Waiting |
 
@@ -58,7 +59,10 @@ Tracker row) and the user had it removed as out of place. **No tabs or
 named buttons per email.** The first table was a card per email with Move
 to Interviewing, Not Right and Wrong Job?, under Updates and Couldn't Match
 tabs; the user found it confusing and asked for a table with pills and
-simple actions. An email's kind is its pill, the same name and colour
+simple actions; a second table with an Email column, a line under each
+pill and Accept and dismiss on every row made each row tall, so the row
+keeps three columns and the decision moved into the email's own panel. An
+email's kind is its pill, the same name and colour
 everywhere (`applications/email-kinds.tsx`): Application Received, Assessment
 (a coding or design challenge), Interview, Offer, Rejection, Update.
 
@@ -66,12 +70,12 @@ everywhere (`applications/email-kinds.tsx`): Application Received, Assessment
 Applications Tracker
 Email Updates (2)
 ┌──────────────────┬──────────────────────┬────────────────────┬────────┬──────────┐
-│ Job              │ Email                │ Type               │ Date   │          │
-├──────────────────┼──────────────────────┼────────────────────┼────────┼──────────┤
-│ Stripe · SWE Int │ Invitation: Tech...  │ (Interview)        │ Nov 4  │ Accept × │
-│                  │                      │ Moves to Interv... │        │          │
-│ [Pick a Job ▾]   │ Thanks for applying  │ (App. Received)    │ None   │ Accept × │
-└──────────────────┴──────────────────────┴────────────────────┴────────┴──────────┘
+│ Job                          │ Type                 │ Date            │
+├──────────────────────────────┼──────────────────────┼─────────────────┤
+│ Stripe · SWE Intern          │ (Interview)          │ Nov 4, 2:00 PM  │
+│ No Matching Job              │ (Application Rec.)   │ Oct 24          │
+└──────────────────────────────┴──────────────────────┴─────────────────┘
+ click a row → the email, Gmail-style, with its toolbar
  the applications list
 ```
 

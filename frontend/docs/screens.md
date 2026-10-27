@@ -706,15 +706,25 @@ shown only while an email waits: an event the email tracker proposed (`GET
 .../events?status=proposed`, `getUpdates` in `applications/tracked.ts`,
 read once per request through `getUpdatesOnce`, which the application's
 page shares). Nothing proposes one until the Gmail reading is built. One
-row per email: Job (logo, role, company; **Pick a Job** for an email that
-matched none), Email (subject and summary), Type (the kind's pill,
-`applications/email-kinds.tsx`, with what accepting does under it, "Moves
-to Interviewing", mirroring the API's `advance`), Date, and Accept with a
-dismiss cross. Each decision refreshes the page. **Keep it this simple**:
-the first version was a card per email with Move to Interviewing, Not
-Right and Wrong Job? under two tabs, plus a count badge on the sidebar's
-Applications Tracker row, and the user found the buttons confusing and the
-badge out of place; both went. **The application's page lists the same
+line per email, three columns: Job (logo, role as a link to the
+application, company; No Matching Job for an email that matched none),
+Type (the kind's pill, `applications/email-kinds.tsx`) and Date. **A click
+on a row opens the email** (`applications/email-view.tsx`, a Sheet from
+the right, 672px, after Gmail's reading pane): a toolbar on one line
+(Accept, a dismiss cross, Reply and Open in Gmail disabled until Gmail is
+connected, Open Application, and Add to Calendar, which opens Google
+Calendar's own new-event page filled in, an hour at the email's time or
+the whole due day, with no sign-in of WorkIt's), then the subject and its
+pill, what accepting does ("Moves to Interviewing", mirroring the API's
+`advance`), the sender's line with the date, a job picker for an
+unmatched email (Accept waits for it), and the kept summary with a line
+saying the full email opens in Gmail. The pill is a button too, the row's
+keyboard way in. Each decision refreshes the page. **Keep the table this
+simple**: the first version was a card per email with Move to
+Interviewing, Not Right and Wrong Job? under two tabs, plus a count badge
+on the sidebar's Applications Tracker row; the second had an Email column,
+a line under each pill and Accept and dismiss on every row. The user found
+the buttons confusing, the badge out of place and the rows too tall. **The application's page lists the same
 emails** under Emails (below).
 
 **The tracker is live, with no fixture** (KAN-261). `applications/tracked.ts`
