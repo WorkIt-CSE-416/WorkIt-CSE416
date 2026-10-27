@@ -38,7 +38,9 @@ METRICS_JSON = ROOT / "metrics.json"
 MAX_IN_FLIGHT = 8
 #: A lane in which this many boards we hold postings from say they do not exist,
 #: and more of them than read whole, closes none of them: that is the hiring
-#: system changing (every Workday tenant a 422), not its companies leaving.
+#: system changing (every Workday tenant a 422), not its companies leaving. The
+#: same holds for this many answering with an empty list, against those that
+#: listed something.
 SURGE = 3
 
 
@@ -227,8 +229,14 @@ def scrape(
     # nothing open (`store.update` closes it on the second answer in a row). Not
     # one never read (a typo has nothing to close), never a failure, which is
     # evidence of nothing, and never most of a lane at once (SURGE).
+    #
+    # An empty list is a complete read with nothing open, unless most of a lane's
+    # boards we hold postings from answer one at once, as Freehire guards against:
+    # two reads stop one empty answer, but a hiring system answering every board
+    # empty for a run or two would close them all. Those count as no read.
     known = {job.board_key for job in before.values()}
     surged = set()
+    held: set[str] = set()
     for ats, lane in lanes.items():
         said = Counter(outcome_of[board.key][0] for board in lane if board.key in known)
         if said[Outcome.MISSING] >= SURGE and said[Outcome.MISSING] > said[Outcome.OK]:
@@ -238,10 +246,21 @@ def scrape(
                 file=sys.stderr,
             )
             surged.add(ats)
+        empty = [
+            board.key
+            for board in lane
+            if board.key in known and outcome_of[board.key] == (Outcome.OK, [])
+        ]
+        if len(empty) >= SURGE and len(empty) > said[Outcome.OK] - len(empty):
+            print(
+                f"  !  {ats}: {len(empty)} boards we hold postings from list nothing; closing none",
+                file=sys.stderr,
+            )
+            held.update(empty)
     read = [
         board.key
         for board, (outcome, _) in zip(boards, results, strict=True)
-        if outcome is Outcome.OK
+        if outcome is Outcome.OK and board.key not in held
     ]
     missing = [
         board.key

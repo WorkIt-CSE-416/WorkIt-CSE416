@@ -335,7 +335,13 @@ run is not, and each run moves a board's reads once at most. One complete read
 was enough until 2026-10-27, and one bad answer closed a board: a hiring system
 mid-outage can answer with an empty list, which reads as a real board with
 nothing open, and the import's half-the-feed guard lets one company's postings
-through. The cost is one more read before a real closing.
+through. The cost is one more read before a real closing. **Nor does most of a
+lane answering with an empty list at once** (`__main__.scrape`, as Freehire
+guards): when `SURGE` (3) or more known boards in one lane list nothing, and
+more of them than list something, those reads count as none. Two reads stop one
+empty answer, not a hiring system that answers every board empty for a few
+hours. A few empty boards are still read, so a company that closed its last
+posting closes it.
 
 **A board holding a posting missed once is read first** in its lane's next run
 (`Store.missed_once`, `Store.to_read`): in a lane with a budget, the second read

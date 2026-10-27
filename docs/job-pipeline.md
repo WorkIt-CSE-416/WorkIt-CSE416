@@ -137,7 +137,9 @@ the logo reader learns a new place to look.
 **A job posting only disappears after two complete reads of its company job
 board in a row without it.** One was enough until 2026-10-27, and one bad
 answer (an empty list from a hiring system having an outage) closed every job
-posting on the board until the next read. A company job board with a job posting
+posting on the board until the next read. When most of one hiring system's
+company job boards with job postings answer with an empty list in the same run,
+those answers count as no read, so a long outage closes nothing. A company job board with a job posting
 missed once is read first in its hiring system's next run, so the second read is
 3 hours later, even on Workday. If a company job board fails to load, its job
 postings are kept as they were. A Workday company job board is read whole or not

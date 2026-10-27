@@ -193,6 +193,29 @@ class TestVanishedBoards:
         assert (read, missing) == ([boards[0].key], [])
         assert stats.boards_missing == 3
 
+    def empty_lane(self, monkeypatch, empty: int, listing: int) -> list[str]:
+        """The boards read whole in a lane where `empty` boards we hold postings from
+        list nothing and `listing` list one posting each."""
+        boards = [board("greenhouse", f"co{i}") for i in range(empty + listing)]
+        before = {j.key: j for j in map(job, boards)}
+        answers = {b.key: [] for b in boards[:empty]} | {b.key: [job(b)] for b in boards[empty:]}
+        monkeypatch.setattr(
+            run, "_scrape_one", lambda b, robots: (run.Outcome.OK, answers[b.key], None)
+        )
+        # Refused, so no posting's own page is asked for.
+        _, _, read, _ = run.scrape(boards, SimpleNamespace(allows=lambda url: False), before)
+        return read
+
+    def test_most_of_a_lane_empty_at_once_is_no_read(self, monkeypatch) -> None:
+        # A hiring system answering every board with an empty list for two runs
+        # would otherwise close every posting it holds.
+        assert self.empty_lane(monkeypatch, empty=3, listing=1) == ["greenhouse/co3"]
+
+    def test_a_few_empty_boards_are_still_read(self, monkeypatch) -> None:
+        # A company that closed its last posting: its two empty reads close it.
+        assert len(self.empty_lane(monkeypatch, empty=1, listing=3)) == 4
+        assert len(self.empty_lane(monkeypatch, empty=3, listing=3)) == 6
+
     def test_a_board_never_read_stays_unread(self, monkeypatch) -> None:
         # A typo in boards.csv: it has nothing stored, so nothing to close, and it
         # must not look read (`Store.is_new` reads its first read).
