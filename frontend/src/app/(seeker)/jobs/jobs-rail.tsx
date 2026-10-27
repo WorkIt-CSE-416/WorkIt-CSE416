@@ -33,8 +33,8 @@ const JOB_PAGE = /^\/jobs\/([^/]+)$/;
  * layout, above the job's own segment, so it stays mounted, scrolled where
  * it was, as the seeker opens one job after another from it.
  *
- * Beside the rail the job's page stops at 60rem, not its own 70rem, and the
- * rail takes the room that leaves: at 70rem the description ran far wider
+ * Beside the rail the job's page stops at 60rem, not its own full width, and
+ * the rail takes the room that leaves: at 70rem the description ran far wider
  * than the rail's cards.
  */
 export function JobsRailFrame({ children }: { children: ReactNode }) {

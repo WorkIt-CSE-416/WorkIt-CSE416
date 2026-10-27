@@ -61,10 +61,9 @@ export default async function ApplicationsPage({ searchParams }: PageProps<"/app
   const shown = filterApplications(all, query);
 
   return (
-    // EVERY PIXEL THE SHELL GIVES (KAN-256): no width cap. The list is a
-    // table that scrolls sideways, so more room only shows more columns.
-    // Reading pages keep --container-app: text past ~80 characters a line is
-    // hard to follow.
+    // EVERY PIXEL THE SHELL GIVES (KAN-256): no width cap, where every
+    // other seeker page stops at max-w-dashboard. The list is a table that
+    // scrolls sideways, so more room only shows more columns.
     <div className={cn("flex-1 py-6", SEEKER_GUTTER)}>
       {/* The switcher is two glyphs, so it fits beside the title at every
           width: the subtitle wraps rather than pushing it onto a line of its

@@ -23,7 +23,7 @@ import { TailorBar } from "./tailor-header";
  */
 export default function TailorLoading() {
   return (
-    <div className={cn("max-w-app mx-auto w-full flex-1 py-6", SEEKER_GUTTER)}>
+    <div className={cn("max-w-dashboard mx-auto w-full flex-1 py-6", SEEKER_GUTTER)}>
       <TailorBar
         step="pick"
         back={<BackToJobs className="group/back" />}

@@ -41,7 +41,7 @@ export default async function CalendarPage({ searchParams }: PageProps<"/calenda
   const open = query.app ? applications.find((app) => app.id === query.app) : undefined;
 
   return (
-    <div className={cn("max-w-app mx-auto w-full flex-1 py-6", SEEKER_GUTTER)}>
+    <div className={cn("max-w-dashboard mx-auto w-full flex-1 py-6", SEEKER_GUTTER)}>
       {/* The view switch stays top right wherever the title can keep 300px
           beside it (512px of content), the subtitle wrapping before the
           switch moves; narrower, it sits under the title. */}

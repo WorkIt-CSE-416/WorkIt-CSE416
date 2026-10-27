@@ -368,7 +368,11 @@ export const RADII: { token: string; cls: string; role: string }[] = [
 
 export const WIDTHS: { token: string; cls: string; role: string }[] = [
   { token: "--container-auth", cls: "max-w-auth", role: "The sign-in and sign-up card" },
-  { token: "--container-app", cls: "max-w-app", role: "Every reading page's content column" },
+  {
+    token: "--container-app",
+    cls: "max-w-app",
+    role: "The company shell's and the design kit's page column",
+  },
   {
     token: "--container-dashboard",
     cls: "max-w-dashboard",

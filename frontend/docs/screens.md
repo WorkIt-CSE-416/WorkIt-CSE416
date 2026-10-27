@@ -200,8 +200,8 @@ layer). Under the pointer its edge tints, its shadow rises and its title
 turns brand, but it does not lift: a card just under the sticky heading and
 filters lifted into them and was cut off. The id is
 the row's UUID, and `getJobListing` reads `GET /jobs/{id}`, whose 404 (closed, a company's own, no such job) is the page's not-found.
-The page is capped at 70rem (1120px), a little wider than the other reading
-pages' `max-w-app`, which left its facts and checklist cramped (KAN-279).
+The page is capped at `max-w-dashboard`, as every seeker page is
+(2026-10-27); 1024px had left its facts and checklist cramped (KAN-279).
 **A rail of jobs sits on its left** (KAN-297, after Cooper's job board): the
 roles the seeker last saw on /jobs or /search, in that list's order, the open
 one marked, each a link to its own page. Each rail card has the logo, title,
@@ -218,7 +218,7 @@ query and order, and the rail's Load More continues it with the same
 actions. A list over 30 minutes old is fetched again, and a job opened with
 no list (a shared link) shows the newest roles. The rail shows from
 `@4xl/main`; below that the page is as it was. Beside it the job's page
-stops at 60rem, not 70rem, and the rail takes the room past that, from 18rem
+stops at 60rem, and the rail takes the room past that, from 18rem
 to 40rem: 288px at a 1280px window. It scrolls on its own, held to the
 page's height by the shell's 64px bar (4rem); change that with the bar's
 height.
@@ -548,7 +548,7 @@ of grey boxes, and a lavender ground under them read as muted beside the
 shell's white panels; keep both off. Headings and figures are medium weight, figures in
 `--text-figure` (36px), and actions are the app's rectangular buttons (they
 were pills, `shape="pill"`, until KAN-251 made every pill a chip). It
-alone is capped at `max-w-dashboard` (1440px) rather than `max-w-app`.
+is capped at `max-w-dashboard` (1440px), as every seeker page now is.
 From `@4xl/main` (896px, not `@5xl`'s 1024: a 13-inch laptop at 100% zoom
 gives the page about 1010px and fell back to two columns of oversized
 tiles) the four numbers run across the top in a grid of their own

@@ -22,7 +22,7 @@ import { AutoApplyPanel } from "./auto-apply-panel";
  */
 export default function AutoApplyLoading() {
   return (
-    <div className={cn("max-w-app mx-auto w-full flex-1 py-6", SEEKER_GUTTER)}>
+    <div className={cn("max-w-dashboard mx-auto w-full flex-1 py-6", SEEKER_GUTTER)}>
       <AutoApplyPanel hasResume={false}>
         <section aria-labelledby="up-next" aria-busy="true" className="mt-8">
           <div className="flex flex-wrap items-end justify-between gap-3">

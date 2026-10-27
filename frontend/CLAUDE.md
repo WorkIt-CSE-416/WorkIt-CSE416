@@ -1131,7 +1131,11 @@ the KAN-296 cutover.
   rail tile is an icon over its name (an item's `short` where the name does
   not fit), and below md the rail is a sheet of full-name rows. The panel
   never moves the page, so there is no pin, no peek and no `--panel-gain`
-  on the seeker side; a page that wants more room simply has no width cap.
+  on the seeker side. **Every seeker page stops at `max-w-dashboard`**
+  (1440px) inside `SEEKER_GUTTER`, so all start at Home's left edge; the
+  Applications Tracker alone has no cap. At `max-w-app` (1024px) they sat
+  centred between wide empty margins beside the rail. Prose keeps its own
+  measure (About the Role's 68ch).
   The user found the floating panels wasted room, and the 256px panel that
   opened over the page on hover a flaw. A height worked out from the
   shell's chrome (the job rail's `100svh-4rem`) changes with it. A sidebar

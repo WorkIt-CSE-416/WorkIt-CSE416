@@ -53,7 +53,7 @@ export default async function ResumeEditorPage({ params }: PageProps<"/resumes/[
   const title = <ResumeTitle as="h1" resumeId={resumeId} name={name} />;
 
   return (
-    <div className={cn("max-w-app mx-auto w-full flex-1 py-6", SEEKER_GUTTER)}>
+    <div className={cn("max-w-dashboard mx-auto w-full flex-1 py-6", SEEKER_GUTTER)}>
       {/* Back to the page that opened the editor (../../back-link.tsx). The
           editor had no way back but the sidebar until KAN-258; a phone has
           its own arrow in ./phone.tsx. */}

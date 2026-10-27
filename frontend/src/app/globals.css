@@ -239,10 +239,13 @@
   --shadow-lift: 0 2px 4px rgb(18 26 40 / 0.04), 0 10px 24px rgb(18 26 40 / 0.08);
 
   /* App layout ----------------------------------------------------------- */
+  /* The company shell's and the design kit's page column. */
   --container-app: 64rem; /* 1024px — 928px content + 48px padding each side */
-  /* The seeker Dashboard's cap, wider than the rest: a grid of tiles, not
-   * lines of text to read, so it uses a laptop's width and goes three columns
-   * across (KAN-173). Reading pages keep --container-app. */
+  /* Every seeker page's cap (2026-10-27): Home's since KAN-173, and every
+   * other seeker page's once the rail left the 1024px pages centred between
+   * wide empty margins. A block of prose keeps its own measure (About the
+   * Role's 68ch), since text past about 80 characters a line is hard to
+   * follow. */
   --container-dashboard: 90rem; /* 1440px */
 
   /* The seeker Dashboard's tiles (KAN-173): white on the white page panel,

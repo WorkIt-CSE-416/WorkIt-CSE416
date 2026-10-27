@@ -46,7 +46,7 @@ export default async function TailorPage({
   ]);
   if (error != null) {
     return (
-      <div className={cn("max-w-app mx-auto w-full flex-1 py-6", SEEKER_GUTTER)}>
+      <div className={cn("max-w-dashboard mx-auto w-full flex-1 py-6", SEEKER_GUTTER)}>
         <BackToJobs />
         <ListingsError error={error} retryHref={`/jobs/${encodeURIComponent(jobId)}/tailor`} />
       </div>
@@ -117,7 +117,7 @@ export default async function TailorPage({
   }
 
   return (
-    <div className={cn("max-w-app mx-auto w-full flex-1 py-6", SEEKER_GUTTER)}>
+    <div className={cn("max-w-dashboard mx-auto w-full flex-1 py-6", SEEKER_GUTTER)}>
       <TailorScreen
         jobId={job.id}
         job={job}

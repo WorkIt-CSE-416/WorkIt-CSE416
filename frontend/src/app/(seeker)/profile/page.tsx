@@ -118,7 +118,7 @@ export default function ProfilePage() {
   }, [cache, settled, loadFailed, avatarUrl, applicantProfile, answers]);
 
   return (
-    <div className={cn("max-w-app mx-auto w-full flex-1 py-6", SEEKER_GUTTER)}>
+    <div className={cn("max-w-dashboard mx-auto w-full flex-1 py-6", SEEKER_GUTTER)}>
       <div className="mb-6">
         <h1 className="text-heading text-ink">My Profile</h1>
         <p className="text-body text-ink-meta mt-1">

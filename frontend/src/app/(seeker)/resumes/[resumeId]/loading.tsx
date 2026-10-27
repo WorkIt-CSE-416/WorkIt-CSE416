@@ -19,7 +19,7 @@ import { EditorSkeleton } from "./editor";
  */
 export default function ResumeEditorLoading() {
   return (
-    <div className={cn("max-w-app mx-auto w-full flex-1 py-6", SEEKER_GUTTER)}>
+    <div className={cn("max-w-dashboard mx-auto w-full flex-1 py-6", SEEKER_GUTTER)}>
       <BackLink parent={EDITOR_PARENT} />
       <div role="status">
         <span className="sr-only">Loading the resume</span>

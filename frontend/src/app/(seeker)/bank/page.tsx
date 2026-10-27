@@ -38,7 +38,7 @@ export default async function BankPage({ searchParams }: PageProps<"/bank">) {
   const { data, error } = await getBank();
 
   return (
-    <div className={cn("max-w-app mx-auto w-full flex-1 py-6", SEEKER_GUTTER)}>
+    <div className={cn("max-w-dashboard mx-auto w-full flex-1 py-6", SEEKER_GUTTER)}>
       <ResumesHeader
         view="experiences"
         action={data && <OpenScoutButton>Fill With Scout</OpenScoutButton>}

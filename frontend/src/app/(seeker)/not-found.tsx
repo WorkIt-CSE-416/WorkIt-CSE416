@@ -16,7 +16,7 @@ import { SEEKER_GUTTER } from "./gutter";
  */
 export default function SeekerNotFound() {
   return (
-    <div className={cn("max-w-app mx-auto w-full flex-1 py-6", SEEKER_GUTTER)}>
+    <div className={cn("max-w-dashboard mx-auto w-full flex-1 py-6", SEEKER_GUTTER)}>
       <EmptyState
         Icon={SearchIcon}
         title="We Couldn't Find That Page"

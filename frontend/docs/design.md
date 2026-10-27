@@ -39,8 +39,12 @@ collapsed and opened, and a `--panel-gain` length (with its readers on
 Applications, Tailor and the job rail) kept each page at its open-panel
 width through the move; that went with the collapse. Applications has no
 width cap (KAN-256): its list is a table that scrolls sideways, so more
-width only shows more columns. Reading pages keep `--container-app`, since
-text past about 80 characters a line is hard to follow. On Applications and
+width only shows more columns. **Every other seeker page stops at
+`max-w-dashboard` (1440px)**, Home's cap, so all of them start at the same
+left edge beside the rail (2026-10-27): at the old 1024px `max-w-app` they
+sat centred between wide empty margins once the rail freed the room, which
+the user found flawed. A block of prose keeps its own measure (About the
+Role's 68ch), since text past about 80 characters a line is hard to follow. On Applications and
 the Calendar the segmented control sits at the top right of the header
 wherever it fits beside the title, the title wrapping first; Home's range
 switch sits at the top right of the page, beside the greeting, and wraps

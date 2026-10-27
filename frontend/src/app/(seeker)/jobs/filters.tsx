@@ -734,8 +734,7 @@ export function JobFilters({
           label that renders a little wider elsewhere. Those leave room for
           Clear Filters whether or not it shows, so a pick never pushes a
           facet out of the row or All Filters onto a second line (KAN-252).
-          The row is never wider than 928px (max-w-app less its gutters), so
-          it holds five facets. Job Type took Experience's place (KAN-284):
+          From 920px the row holds all five facets. Job Type took Experience's place (KAN-284):
           it is where Internship is picked, and a pick out of sight emptied
           the feed (Student with Full-Time). Experience Level is in the panel
           only; until the scraper keeps experienced roles, its Entry Level
