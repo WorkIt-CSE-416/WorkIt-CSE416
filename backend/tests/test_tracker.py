@@ -12,7 +12,7 @@ import httpx
 import pytest
 from sqlalchemy import text
 
-from app.deps import get_current_account
+from app.deps import get_current_account, get_signed_in_applicant_id
 from app.main import app
 from app.models.dto import application_event_kind as kind
 from app.models.dto import application_stage as stage
@@ -76,10 +76,15 @@ async def student(database):
         account_type=AccountType.APPLICANT,
         onboarding_completed=True,
     )
+    # The feed (GET /jobs) finds its viewer from the token itself, not from
+    # the account: without this it served the student as signed out and
+    # left their applied jobs in.
+    app.dependency_overrides[get_signed_in_applicant_id] = lambda: applicant_id
     transport = httpx.ASGITransport(app=app)
     async with httpx.AsyncClient(transport=transport, base_url="http://test") as client:
         yield client, applicant_id
     app.dependency_overrides.pop(get_current_account, None)
+    app.dependency_overrides.pop(get_signed_in_applicant_id, None)
 
 
 async def _applied(client, database) -> str:
