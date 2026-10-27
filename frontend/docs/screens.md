@@ -1,7 +1,7 @@
 # Screens
 
 How each screen behaves and why: the Jobs page and its filters, the job
-posting page and card, the seeker Dashboard, Applications, the Calendar, My
+posting page and card, the seeker Home, Applications, the Calendar, My
 Profile (resumes, photo), Resumes & Experiences, Scout's panel, applicant
 onboarding, and the company screens. Read the section for a screen before
 changing it.
@@ -219,14 +219,9 @@ actions. A list over 30 minutes old is fetched again, and a job opened with
 no list (a shared link) shows the newest roles. The rail shows from
 `@4xl/main`; below that the page is as it was. Beside it the job's page
 stops at 60rem, not 70rem, and the rail takes the room past that, from 18rem
-to 40rem: 288px at a 1280px window, where the page keeps 683px. **Closing
-the menu widens only the rail**: on job pages the frame spans the whole page
-panel, taking back the --panel-gain the shell leaves around a page, and the
-rail grows by the gain, so the job's page keeps its place and width in both
-states (asked for 2026-10-22: with the menu closed, half the gain stood
-empty left of the rail). It scrolls on its own, held to the page panel's
-height by the shell's chrome (6.375rem); change that with the shell's
-padding or bar height.
+to 40rem: 288px at a 1280px window. It scrolls on its own, held to the
+page's height by the shell's 64px bar (4rem); change that with the bar's
+height.
 It is the mock's `JobDetailHeader` with the card's own facts
 (`listingFacts` in `listing-card.tsx`) and the employer's 40px logo and
 16px name, then one
@@ -377,10 +372,10 @@ each card, Load More's too. A stale one is harmless: a click answers the real
 stage. Back returns to the list the seeker came from: the feed, filters and all, or
 the Auto Apply page (`RememberFeed` on /jobs, /search and /auto-apply keeps
 the last one visited in sessionStorage), or the Resumes page when a
-tailored resume's posting link opened it, or the Dashboard when a Top
+tailored resume's posting link opened it, or Home when a Top
 Matches row opened it (`rememberReturnTo`, KAN-268 and KAN-342, set on the
 click rather than the visit, so a job opened from elsewhere after a look at
-/resumes or the Dashboard does not go Back there). When the seeker came straight from
+/resumes or Home does not go Back there). When the seeker came straight from
 that list (`cameFrom`, (seeker)/scroll-memory.tsx), Back goes back in history
 as the browser's Back does: the router redraws the list it kept at once.
 Following the link instead is a fresh visit, which fetches the feed again and,
@@ -488,9 +483,9 @@ exists. Null still means a fact the posting has none of: its slot is empty
 too, with nothing for a screen reader. A live fetch in a page calls
 `await connection()` so `next build` does not prerender it with no API running.
 
-## Seeker Dashboard
+## Seeker Home
 
-/dashboard is the seeker's home: sign-in lands there.
+/home is the seeker's home: sign-in lands there.
 
 **Next Up, Up Next and Waiting are archived for now** (KAN-261), and the
 header's Find Jobs button is gone (the sidebar's Jobs row and the Good
@@ -512,7 +507,7 @@ the match ring, when it was posted, then Save and Apply Now (the same
 dialog as everywhere, KAN-290). Tailor My Resume sat between them and was
 taken out at the user's ask: the list is for choosing what to apply to. The
 title's link (`top-match-link.tsx`) makes the job page's Back return to the
-Dashboard. **Auto Apply**, at the heading's right beside See More Matches,
+Home. **Auto Apply**, at the heading's right beside See More Matches,
 turns the list into a picker (`top-matches-list.tsx`) of the seeker's best
 matches that auto apply can fill (the same scores with `?auto_apply=true`,
 read beside the top list): the top list may hold none, since auto apply
@@ -545,7 +540,7 @@ the same scrolling frame, which went when Strong Matches replaced New Roles
 and came back ordered by fit at the user's ask. The notes below that name
 New Matches describe the archived three-column layout.
 
-**The seeker Dashboard is a bento of tiles** (KAN-173), modelled on a
+**The seeker Home is a bento of tiles** (KAN-173), modelled on a
 reference the user picked: white tiles with no outline on the white page
 panel, set apart by a soft violet-tinted `--shadow-tile` alone,
 `rounded-shell`, `p-5`, 16px apart. An outline on every tile read as a grid
@@ -571,7 +566,7 @@ positions the tiles; from `@3xl/main` they pair up two by two through
 `grid-flow-dense`; stacked, the numbers come first, then Next Up.
 Activity's canvas is capped in height (`MAX_H2`/`MAX_H3` in
 `streak-canvas.ts`) so its row stays short.
-Draw a new Dashboard section with `SectionCard`, never a one-off box.
+Draw a new Home section with `SectionCard`, never a one-off box.
 Dates and times sit in pills (`<Badge variant="tag" pill>`): Next Up's,
 which links to the Calendar, Up Next's and New Matches' posted time; as 12px
 meta grey in Plus Jakarta Sans they read too faint. A pill sits in its text's
@@ -586,7 +581,7 @@ padding (`-mr-5`) and pads its rows back in (`pr-5`), so the bar runs down
 the tile's side instead of beside the Apply buttons. There is no
 pipeline section: its
 funnel only restated the headline numbers. Everything the page shows is
-live (KAN-342); the one fixture left in `(seeker)/dashboard/data.ts` is the
+live (KAN-342); the one fixture left in `(seeker)/home/data.ts` is the
 archived Waiting tile's buckets. Next Up and Up Next take the tracker's
 upcoming events (`getUpNext`). The tracker stores
 no dated events yet, so Next Up reads "You're All Caught Up" with Browse
@@ -644,13 +639,13 @@ headline (`dashboard/headline.tsx`) is handed every range's figures and reads
 its numbers with the switch's thumb instead of after the server draws the
 page again. The streak always shows the full year regardless of range.
 
-**Activity is a daily streak** (`(seeker)/dashboard/streak.tsx`), no longer
+**Activity is a daily streak** (`(seeker)/home/streak.tsx`), no longer
 a weekly pace chart: the past year of applications per day as a heat map that
 folds into a 3D skyline, adapted from 21st.dev's Contribution Skyline. Its
 heading is Activity; its files and tokens say streak. It opens on the 2D heat
 map, and its four numbers (Past Year, Busiest Day, the two streaks) show only
 there, each in a grey well (`--color-well`) with its dates in a tag pill, as
-the Dashboard draws every date; as open text in ink-muted under each figure
+Home draws every date; as open text in ink-muted under each figure
 they read as loose lines (KAN-342). A number with nothing to date says so in
 its pill ("None yet", "Apply today"), so the four keep one shape. Label,
 figure and pill each take a line of their own: with the pill on the
@@ -665,7 +660,7 @@ and the top of Top Matches show above the fold, and Activity follows it. Before 
 there: the 3D skyline stands alone, with no numbers under it or in its corners. `streak-model.ts`
 is its pure maths (grid, levels, stats, camera), `streak-canvas.ts` the
 canvas engine (no React: the section mounts it once and it re-reads a ref
-every frame), `streak.tsx` the section. It stays beside the Dashboard rather
+every frame), `streak.tsx` the section. It stays beside Home rather
 than in `components/ui` until a second route wants it. The canvas reads its
 colours off the section at mount: `--color-streak-1..4`, a violet ramp
 validated as ordinal in `globals.css`, and `--color-border-subtle` for an
@@ -685,7 +680,7 @@ empty year with a line saying the applications aren't loading.
 sidebar, the browser tab and its heading, and "Back to Applications
 Tracker" on an application's page when the tracker opened it (its Back
 names the page that did, KAN-363). It was "Applications", the word the
-Dashboard also used for a count, so the page and the number read as one
+Home also used for a count, so the page and the number read as one
 thing; then "Tracker" in the sidebar with "Application Tracker" as its
 heading, until the user named it Applications Tracker everywhere. The
 marketing site still calls the feature "Application Tracker". The URL, the
@@ -871,7 +866,7 @@ viewer's own "Tomorrow, 2:00 PM" after hydration.
 the list's `?sort=`. An old `?app=` link (the side panel's) redirects to
 the application's own page. The server does the filtering, so the search
 is a GET form and a pick in a dropdown or in All Filters a URL replace,
-and the Dashboard can link to a filtered list or one application. The
+and Home can link to a filtered list or one application. The
 list's column layout is the one choice kept in the browser instead
 (above). The layout is the exception in how it
 moves, not in where it lives: the page renders all three layouts, each
@@ -902,7 +897,7 @@ URL (`?tab=emails`, `?tab=job`; **Emails**, KAN-413, lists the job's
 emails as the Inbox does, `[jobId]/emails-tab.tsx`, each opening in the
 Inbox) that moves in place (KAN-368,
 `applications/[jobId]/tab-panes.tsx`): the server draws both panes once and
-the tabs change `?tab=` with `useShallowParams`, as the Dashboard range does,
+the tabs change `?tab=` with `useShallowParams`, as Home range does,
 so a click no longer draws the page again with the scored tracker read and
 the job's reads. The job's buttons take their stage and applied date from the
 tracker row, and the tab title comes from the posting's own read:
@@ -1097,7 +1092,7 @@ user removed: each queued job now shows and changes its own resume.
   .../applications/{job_id}/resume` for the job it fills.
 - **Add Jobs**, at Up Next's right, opens the seeker's saved jobs in a
   dialog (`auto-apply/add-jobs-dialog.tsx`). **The one place a seeker
-  queues several jobs at once**: the Jobs page and the Dashboard keep one
+  queues several jobs at once**: the Jobs page and Home keep one
   click per job, and the Applications Tracker is the record. A row's
   checkbox, or a click on the row but its title, picks it; Select All picks
   every job auto apply can fill. One it can't fill (not Greenhouse, for
@@ -1210,7 +1205,7 @@ and "API routes".
 ## Calendar
 
 **The Calendar is back** (KAN-413): it was hidden from KAN-261 (the proxy
-sent `/calendar` to the Dashboard) while the tracker stored no dated
+sent `/calendar` to Home) while the tracker stored no dated
 events. Events added on an application's page fill it now; its sidebar row
 is restored after the Applications Tracker. The Applications panel's Show
 on Calendar button is still gone, since an application opens its own page
@@ -1384,7 +1379,7 @@ One sidebar row, above My Profile, for one page in two views (KAN-249):
 **Resumes** (`/resumes`, the row's link) and **Experiences** (`/bank`, the
 experience bank). Both draw one header (`resumes/header.tsx`; it stays
 beside the Resumes view though `/bank` imports it too, since the two routes
-are one page's views, not two consumers), laid out as the Dashboard's is: the view's own title and line on the left ("Resumes",
+are one page's views, not two consumers), laid out as Home's is: the view's own title and line on the left ("Resumes",
 "Experiences"), and at the top right, level with the foot of that block, a
 segmented switcher between the two views, then on Experiences its
 primary action, Fill With Scout; on a narrow page the controls
@@ -2484,8 +2479,8 @@ with its own address, `/settings/<section>`; bare `/settings` opens
 Personal Details. **From the account menu (the bar's photo) it opens over
 the current page** (`(seeker)/@modal/(.)settings`, an intercepting route),
 and closing goes back to that page. **A hard load or a reload of a
-Settings address opens it over the Dashboard** (`(seeker)/settings/layout.tsx`
-draws the Dashboard page under it), and closing goes to the Dashboard. A
+Settings address opens it over Home** (`(seeker)/settings/layout.tsx`
+draws Home page under it), and closing goes to Home. A
 full Settings page came first; the user asked for the modal on every way
 in. Escape, the close button and a click outside all close. **The modal opens
 before its sections have read** (KAN-368): Personal Details and Job

@@ -88,7 +88,7 @@ import { ViewResumeButton } from "./view-resume";
  * Notes / Next Step is a placeholder for now: nothing stores notes yet, and
  * Status can only be Saved or Applied until the API keeps later stages.
  *
- * Its frame follows the company Dashboard's Recent Applicants
+ * Its frame follows the company Home's Recent Applicants
  * (company/applicants-preview.tsx): one white card, 12px grey headings,
  * rules between rows and no box around each.
  *

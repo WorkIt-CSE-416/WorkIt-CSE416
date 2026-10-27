@@ -9,7 +9,7 @@ import { applicantCall, encodeId } from "@/lib/applicant-call";
  * file is a public POST endpoint: these take a job or event id and the
  * fields, and the applicant is always the session's own. The caller
  * refreshes the page after a success, so the tracker's read draws the
- * change everywhere at once (the list, the Calendar, the Dashboard).
+ * change everywhere at once (the list, the Calendar, Home).
  */
 
 /** The stage menu's picks: applied or later. A record never goes back to a

@@ -22,11 +22,11 @@ import { SectionCard } from "./section-card";
 /**
  * Activity — the seeker's year of applications as a streak heat map that folds
  * up into a 3D skyline and back, two columns wide at the foot of the
- * Dashboard, beside Waiting.
+ * Home, beside Waiting.
  * It replaced a weekly pace chart there and kept its heading (page.tsx says
  * why).
  *
- * In a white card under its heading, like every Dashboard section
+ * In a white card under its heading, like every Home section
  * (./section-card.tsx). The view switch sits where a section's one way
  * onward does, at the top right, in the applications ViewSwitcher's segmented
  * style. Buttons rather than links, because the morph between the views is
@@ -317,7 +317,7 @@ type StatBlock = { label: string; value: string; unit: string; sub: string };
  * One number in the row under the heat map, in a recessed well
  * (--color-well) like the match rail's: its label over it, its unit beside
  * it, and its dates in a pill under it, each on a line of its own, so the
- * four wells keep one shape whatever their words. The Dashboard draws every
+ * four wells keep one shape whatever their words. Home draws every
  * date in a pill (docs/screens.md). The pill sat on the label's line for a
  * while, to save height, and wrapped under "Current Streak" alone, which
  * made that well taller than its three siblings. They were open text in ink-muted under the figure, which
@@ -341,7 +341,7 @@ function Stat({ label, value, unit, sub }: StatBlock) {
 }
 
 /**
- * Activity while the tracker loads (the Dashboard streams it in its own
+ * Activity while the tracker loads (Home streams it in its own
  * <Suspense>, and its loading.tsx draws it too): the heading, the view
  * switch's pill, the heat map's room at its default 150px (--streak-h2's
  * fallback, which the canvas resets to the map's own height on mount) and

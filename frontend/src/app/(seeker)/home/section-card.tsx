@@ -3,7 +3,7 @@ import type { ElementType, HTMLAttributes, Ref } from "react";
 import { cn } from "@/lib/cn";
 
 /**
- * The tile every Dashboard section sits in. One component so every tile is
+ * The tile every Home section sits in. One component so every tile is
  * drawn identically, and so a change to one is a change to all of them.
  *
  * White, with no outline, on the white page panel, set apart by

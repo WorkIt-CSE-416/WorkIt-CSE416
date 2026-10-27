@@ -4,7 +4,7 @@ import type { StageKey } from "./stage-colors";
 
 /**
  * The application tracker's shape, and what the seeker pages work out from
- * it: the Applications board, grid and list, the Dashboard's Next Up and Up
+ * it: the Applications board, grid and list, Home's Next Up and Up
  * Next, and the detail panel's timeline. Saved and applied jobs are live
  * (./applications/tracked.ts, KAN-261). Interviewing, offer and dated events
  * are not stored yet: the shape keeps them for when the API does.

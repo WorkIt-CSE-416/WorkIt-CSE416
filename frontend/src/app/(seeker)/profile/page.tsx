@@ -60,7 +60,7 @@ import { useProfileCache } from "../profile-cache";
  *   Experiences     views of that page
  *
  * Each open section's actions sit at the top right of its heading, as a
- * Dashboard section's "View All" does (./section-action.tsx).
+ * Home section's "View All" does (./section-action.tsx).
  *
  * A FAILED LOAD IS ONE NOTICE AT THE TOP, NOT A RED LINE UNDER EACH THING.
  * The photo, the profile and the answers each come back with their own

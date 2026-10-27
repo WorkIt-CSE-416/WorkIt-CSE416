@@ -75,7 +75,7 @@ request  Browser ──sb-* cookie──▶ Next (src/proxy.ts refreshes the ses
   `complete_oauth_account_type()` reject `AccountType.COMPANY` with 403
   until the business side ships.
 
-## Dashboard settings (live nowhere in code)
+## Home settings (live nowhere in code)
 
 The anon key and project URL ship to the browser, so anyone can call Supabase
 Auth directly. Set these on any new Supabase project:

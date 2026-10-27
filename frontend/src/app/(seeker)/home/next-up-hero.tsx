@@ -11,7 +11,7 @@ import { SectionCard } from "./section-card";
  * The one thing that most needs the seeker: the top of Up Next, lifted out of
  * the list into its own tile beside it.
  *
- * A reminder, the way the Dashboard's reference draws one: a white tile whose
+ * A reminder, the way Home's reference draws one: a white tile whose
  * commitment is set large in brand violet, its date under it, and one filled
  * button at the foot, View Details (a pill until KAN-251). It used to be a violet gradient card with
  * arcs; once the first headline number became the row's filled tile, two
@@ -50,7 +50,7 @@ export function NextUpHero({
             <p className="text-body text-ink-meta mt-0.5">
               {item.role} · {item.company}
             </p>
-            {/* The date in a pill, like every date on the Dashboard, and a
+            {/* The date in a pill, like every date on Home, and a
                 link to that week on the Calendar: its words underline under
                 the pointer. In the text's column, not under the tile, as Up
                 Next's rows set theirs. */}

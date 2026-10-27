@@ -16,7 +16,7 @@ import { AnimatedNumber } from "@/components/ui/animated-number";
 import { cn } from "@/lib/cn";
 import { formatCount } from "@/lib/format-count";
 
-import type { DashboardStat, StatKey } from "./data";
+import type { HomeStat, StatKey } from "./data";
 import { RANGES, type RangeKey } from "./range";
 import { useRange } from "./range-switch";
 import { SectionCard } from "./section-card";
@@ -32,7 +32,7 @@ const STAT_ICONS: Record<StatKey, ComponentType<{ className?: string }>> = {
 
 /**
  * The headline numbers for the range in the URL, one tile each, four across
- * the top of the Dashboard. It is handed every range's figures and picks one
+ * the top of Home. It is handed every range's figures and picks one
  * in the browser, so moving the range switch counts each figure to its new
  * value at once (AnimatedNumber) rather than after the server has drawn the
  * page again.
@@ -49,10 +49,10 @@ const STAT_ICONS: Record<StatKey, ComponentType<{ className?: string }>> = {
  * alone was too slight to say so. A keyboard focus rings the tile.
  *
  * Its own tile rather than components/stat-tile.tsx, which the company
- * Dashboard keeps: this one sets the figure large at medium weight
+ * Home keeps: this one sets the figure large at medium weight
  * (--text-figure) and the change as a small boxed figure before its words.
  */
-export function Headline({ stats }: { stats: Record<RangeKey, DashboardStat[]> }) {
+export function Headline({ stats }: { stats: Record<RangeKey, HomeStat[]> }) {
   const range = useRange();
   const { period, note } = RANGES.find((option) => option.key === range)!;
 

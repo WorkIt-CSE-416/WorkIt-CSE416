@@ -16,7 +16,9 @@ import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/shadcn/too
 import { cn } from "@/lib/cn";
 
 /**
- * THE SIDEBAR IS PINNED OR HOVERED (KAN-300), for both shells.
+ * THE SIDEBAR IS PINNED OR HOVERED (KAN-300), in the company shell. The
+ * seeker shell dropped it on 2026-10-27 for a rail that is always open
+ * (RailSidebarProvider in ./app-sidebar.tsx).
  *
  * Pinned, it stays open and the page makes room, as it always did. Unpinned,
  * it is the icon rail, and pointing at it (or tabbing into it) opens it OVER
@@ -34,8 +36,7 @@ import { cn } from "@/lib/cn";
  * so a peek holds that gap at the rail's width (data-peek below), and
  * anything sized by the pinned width reads `pinned`, never shadcn's `state`:
  * in React through useSidebarPin (the company bar's corner cell,
- * sidebar-brand.tsx), in CSS through data-pinned on the wrapper (the seeker
- * page's --panel-gain).
+ * sidebar-brand.tsx), in CSS through data-pinned on the wrapper.
  */
 
 /** shadcn's own cookie, which the layouts read as the pinned state. */
@@ -149,11 +150,9 @@ export function HoverSidebarProvider({
           setPinned((p) => !p);
         }}
         data-peek={!pinned && peeking}
-        // The pin itself, for CSS that is sized by the pinned width: the
-        // seeker page's --panel-gain readers key on it with an in-data-
-        // variant ((seeker)/layout.tsx, "A PAGE KEEPS THE WIDTH"). Written
+        // The pin itself, for CSS that is sized by the pinned width. Written
         // from the same state, in the same render, as shadcn's data-state,
-        // so the page's ease starts in the very frame the panel's does.
+        // so anything eased by it starts in the very frame the panel does.
         data-pinned={pinned ? "true" : "false"}
         // A peek's panel opens over the page: the gap beside it keeps the
         // rail's width, so the page stays where it is.

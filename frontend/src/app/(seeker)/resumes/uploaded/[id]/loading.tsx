@@ -11,7 +11,7 @@ import { PageSkeleton } from "../../[resumeId]/pdf-pages";
  * draws anything. This is its frame (./viewer.tsx): Back (live), the name as
  * a bar of the title's line, the bar's box with its date and buttons as
  * bars, and a page's skeleton where pdf.js will draw the file.
- * ../../../dashboard/loading.tsx says why only the slow pages have one.
+ * ../../../home/loading.tsx says why only the slow pages have one.
  */
 export default function UploadedResumeLoading() {
   return (

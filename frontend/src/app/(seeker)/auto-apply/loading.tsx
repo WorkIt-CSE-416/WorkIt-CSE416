@@ -11,7 +11,7 @@ import { AutoApplyPanel } from "./auto-apply-panel";
  * with their scores, and both resume lists (./page.tsx). Two of them score,
  * so a click on the sidebar's row drew nothing new for a while; now the
  * prefetched state below is drawn in the click's next frame
- * (../dashboard/loading.tsx says why only the slow pages have one).
+ * (../home/loading.tsx says why only the slow pages have one).
  *
  * The page's own frame: the width, then the real heading block
  * (./auto-apply-panel.tsx), so the title, its line and both buttons sit

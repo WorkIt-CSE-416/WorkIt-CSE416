@@ -17,7 +17,7 @@ export const AGENDA_DAYS = 14;
 /**
  * Two weeks as a list, a day at a time, skipping the days with nothing on
  * them: the time, the entry in its kind's colour and glyph (the same disc as
- * the Dashboard's Up Next), and whose it is. Each entry is a light grey
+ * Home's Up Next), and whose it is. Each entry is a light grey
  * rounded tile, the Month's day tiles, rather than a row in a bordered box.
  * Up Next's View All opens here, and so does a day's number or "+N more" on
  * the Month.

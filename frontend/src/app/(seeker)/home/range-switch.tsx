@@ -12,7 +12,7 @@ export function useRange() {
 }
 
 /**
- * The window the Dashboard reports on: This Week, 30 Days, or the whole
+ * The window Home reports on: This Week, 30 Days, or the whole
  * recruiting season, kept in ?range= (ui/segmented-control.tsx), so a window
  * is shareable and survives a reload.
  *

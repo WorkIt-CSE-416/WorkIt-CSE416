@@ -25,7 +25,7 @@ export const metadata: Metadata = {
  * day each application went in, every interview, offers and their deadlines,
  * closing dates and follow-ups, each in its kind's stage colour.
  *
- * Month, Week or Agenda, picked like the Dashboard's range
+ * Month, Week or Agenda, picked like Home's range
  * (ui/segmented-control.tsx), and anchored with ?date= (./query.ts). The views
  * render in the browser (./calendar-view.tsx) and read the view and the day
  * from the URL themselves, so changing either moves the URL in place and

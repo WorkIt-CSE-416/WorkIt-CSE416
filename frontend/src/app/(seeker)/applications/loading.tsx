@@ -10,7 +10,7 @@ import { ViewSwitcher } from "./view-switcher";
  * awaits the scored tracker read before it draws anything, so without this
  * a click on the sidebar's row changed nothing until that read was done;
  * now the prefetched state below is drawn in the click's next frame
- * (../dashboard/loading.tsx says why only the slow pages have one).
+ * (../home/loading.tsx says why only the slow pages have one).
  *
  * It is the page's own frame (./page.tsx): the same width, which takes back
  * half the panel's gain on each side, the title and its line, the layout
@@ -27,15 +27,8 @@ import { ViewSwitcher } from "./view-switcher";
  */
 export default function ApplicationsLoading() {
   return (
-    // The page's own wrapper classes (./page.tsx): --panel-gain does not
-    // inherit, so a reader without them reads 0px, and the skeleton stood
-    // narrower than the page with the panel unpinned.
-    <div
-      className={cn(
-        "-mx-[calc(var(--panel-gain)/2)] flex-1 py-6 transition-[--panel-gain] duration-200 ease-linear md:in-data-[pinned=false]:[--panel-gain:calc(var(--sidebar-width)_-_var(--sidebar-width-icon))]",
-        SEEKER_GUTTER,
-      )}
-    >
+    // The page's own wrapper classes (./page.tsx).
+    <div className={cn("flex-1 py-6", SEEKER_GUTTER)}>
       <div className="flex items-start justify-between gap-4">
         <div className="min-w-0">
           <h1 className="text-heading text-ink">Applications Tracker</h1>

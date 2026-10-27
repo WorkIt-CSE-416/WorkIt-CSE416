@@ -110,7 +110,7 @@ _Avoid_: unknown field, blank, unanswered
 
 **Applications Tracker**:
 The page that holds every job posting a student is following, from saved to offer.
-_Avoid_: Applications (alone, for the page), Tracker (alone), My Applications, board
+_Avoid_: Applications (alone, for the page), Tracker (alone, except as its sidebar tile, where the full name does not fit), My Applications, board
 
 **Stage**:
 Where one application stands in the Applications Tracker: Saved, Applied, Interviewing, Offer or Rejected. Interviewing, Offer and Rejected still count as applied.
@@ -137,12 +137,16 @@ An application event the email tracker proposes from one email: what Needs Revie
 _Avoid_: notification, alert
 
 **Strong Match**:
-A job posting that scores 80 or more for a student, the Strong Match band and above. The Dashboard's first number, Strong Matches, counts them.
+A job posting that scores 80 or more for a student, the Strong Match band and above. Home's first number, Strong Matches, counts them.
 _Avoid_: good match (for that number), new role, recommendation
 
 **Top Match**:
-One of a student's highest-scoring open jobs, whatever its band. The Dashboard lists them under its numbers.
+One of a student's highest-scoring open jobs, whatever its band. Home lists them under its numbers.
 _Avoid_: recommendation, best job
+
+**Home**:
+A student's start page, at `/home`: their numbers, Top Matches and activity. Sign-in lands there.
+_Avoid_: Dashboard (the seeker's page was renamed; the company side keeps its Dashboard), Overview
 
 ## Jobs
 

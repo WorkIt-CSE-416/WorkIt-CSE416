@@ -32,7 +32,7 @@ export const metadata: Metadata = {
  * ---------------------------------------------------------------------------
  * ONE PRODUCT WITH THE SEEKER DASHBOARD. This page was eleven identical white
  * cards, four of them numbers, and a page of equal boxes has no first place to
- * look. It now uses the seeker Dashboard's surfaces ((seeker)/dashboard/page.tsx)
+ * look. It now uses the seeker Dashboard's surfaces ((seeker)/home/page.tsx)
  * so the two homes read as one app:
  *
  *   the numbers      open under the heading, the stat tiles' plain variant

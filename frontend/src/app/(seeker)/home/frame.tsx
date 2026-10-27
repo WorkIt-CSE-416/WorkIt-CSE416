@@ -7,14 +7,14 @@ import { SEEKER_GUTTER } from "../gutter";
 import { RangeSwitch } from "./range-switch";
 
 /**
- * The Dashboard's frame: the page's width and gutters, the header (the
+ * Home's frame: the page's width and gutters, the header (the
  * heading, its line and the range switch), the numbers' grid, then Top
  * Matches and Activity. The page (./page.tsx) fills it with what it read and
  * ./loading.tsx with skeletons, so the two are one layout by construction:
  * the loading state is replaced by the page without a pixel moving, which
  * two copies of this markup would not keep for long.
  */
-export function DashboardFrame({
+export function HomeFrame({
   heading,
   tiles,
   topMatches,

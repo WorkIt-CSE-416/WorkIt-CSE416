@@ -5,7 +5,7 @@ import { getEmails, getTracked, getUpdates } from "./tracked";
 /**
  * The application tracker (KAN-261): the seeker's saved and applied jobs,
  * live from the API (./tracked.ts). Read by the Applications board, grid and
- * list, the Calendar, and the Dashboard's Saved count, Next Up and Up Next.
+ * list, the Calendar, and Home's Saved count, Next Up and Up Next.
  * Stages past applied (interviewing, offer) and dated events (interviews,
  * deadlines) are not stored yet, so those columns and Up Next stay empty
  * until the API keeps them; ../tracker.ts is the shape they will take.

@@ -652,7 +652,7 @@ export function JobFilters({
       for (const [key, value] of filterEntries(next)) query.append(key, value);
       let search = query.toString();
       // Bare /jobs is a fresh visit, which the page sends on to the saved
-      // preferences, so a cleared row with no ?sort (as the Dashboard's
+      // preferences, so a cleared row with no ?sort (as Home's
       // week and month links open it) names the default order instead.
       if (!search && pathname === "/jobs") search = "sort=match";
       router.replace(search ? `${pathname}?${search}` : pathname, { scroll: false });

@@ -5,7 +5,7 @@ import {
   CalendarDotsIcon,
   FileTextIcon,
   ListChecksIcon,
-  SquaresFourIcon,
+  HouseIcon,
   TrayIcon,
   UserCircleIcon,
 } from "@phosphor-icons/react/ssr";
@@ -15,9 +15,9 @@ import type { ReactNode } from "react";
 import { AppSidebar, type SidebarNavGroup } from "@/components/app-sidebar";
 
 /**
- * The seeker shell's left panel, floating (see FLOATING in
+ * The seeker shell's left panel, the rail (see RAIL in
  * @/components/app-sidebar): the hunt itself, the sections a job seeker
- * moves between all through a search, Dashboard first as the home, with no
+ * moves between all through a search, Home first as the home, with no
  * caption over them. These used to be tabs in the top bar.
  *
  * Nothing about the app rather than the work lives here. Settings, Help and
@@ -57,22 +57,37 @@ import { AppSidebar, type SidebarNavGroup } from "@/components/app-sidebar";
  * either (`also`) and on the resume editor under /resumes. They were two
  * rows, Experience Bank and My Resumes, until KAN-249 merged them behind one
  * switcher. Its glyph is FileText, the one on Generate Resume.
+ *
+ * On the rail a name sits under its icon in a 72px tile, so three names
+ * take a `short` there: Tracker, Resumes and Profile. Each page's heading
+ * and the phone's sheet keep the full name.
  */
 const GROUPS: SidebarNavGroup[] = [
   {
     // No caption: with one group there is nothing to tell it apart from.
     items: [
-      { href: "/dashboard", label: "Dashboard", Icon: SquaresFourIcon },
+      { href: "/home", label: "Home", Icon: HouseIcon },
       { href: "/jobs", label: "Jobs", Icon: BriefcaseIcon },
       { href: "/auto-apply", label: "Auto Apply", Icon: LightningRoundedIcon },
-      { href: "/applications", label: "Applications Tracker", Icon: ListChecksIcon },
+      {
+        href: "/applications",
+        label: "Applications Tracker",
+        short: "Tracker",
+        Icon: ListChecksIcon,
+      },
       // KAN-413: replies about applications, after the tracker they feed.
       // No count badge: one was built and taken out as out of place.
       { href: "/inbox", label: "Inbox", Icon: TrayIcon },
       // Back since KAN-413: interviews, assessments and offers are stored.
       { href: "/calendar", label: "Calendar", Icon: CalendarDotsIcon },
-      { href: "/resumes", also: ["/bank"], label: "Resumes & Experiences", Icon: FileTextIcon },
-      { href: "/profile", label: "My Profile", Icon: UserCircleIcon },
+      {
+        href: "/resumes",
+        also: ["/bank"],
+        label: "Resumes & Experiences",
+        short: "Resumes",
+        Icon: FileTextIcon,
+      },
+      { href: "/profile", label: "My Profile", short: "Profile", Icon: UserCircleIcon },
     ],
   },
 ];
@@ -86,8 +101,8 @@ export function SeekerSidebar({ card }: { card?: ReactNode }) {
       groups={GROUPS}
       footerCard={card}
       label="Job Search Sections"
-      variant="floating"
-      home="/dashboard"
+      variant="rail"
+      home="/home"
     />
   );
 }

@@ -13,7 +13,7 @@ import type { EventKind } from "./tracker";
 
 /**
  * One colour per stage of a search, for every screen that shows one (the
- * Applications board, grid, list and detail panel, the Dashboard's Up Next,
+ * Applications board, grid, list and detail panel, Home's Up Next,
  * and the Calendar) so a colour means the same stage wherever it appears:
  *
  *   saved         grey    not applied yet
@@ -22,7 +22,7 @@ import type { EventKind } from "./tracker";
  *   offer         green   finished well
  *   rejected      red     ended badly (--color-danger, KAN-413)
  *
- * There was a fifth, Heard Back in blue, drawn only by the Dashboard's
+ * There was a fifth, Heard Back in blue, drawn only by Home's
  * pipeline funnel; it went with the funnel. Add a stage here when a screen
  * needs one, and give it a colour no other stage or status holds.
  *
@@ -116,7 +116,7 @@ export const STAGE_COLOR: Record<
 
 /**
  * Which stage's colour and glyph each kind of dated entry wears, on every
- * screen that lists them: the Dashboard's Up Next, the detail panel's
+ * screen that lists them: Home's Up Next, the detail panel's
  * timeline, the Calendar. An interview is Interviewing's amber calendar
  * wherever it appears, and the day an application went in is Applied's violet
  * briefcase. A deadline is a saved job's closing date, so it is Saved's grey

@@ -45,7 +45,7 @@ import {
  * Interviews & Dates with Add Event. Each write goes through ../actions and
  * then refreshes the page, so the tracker's one read (`getTracker`) draws
  * the change on the card, the timeline, the list, the Calendar and the
- * Dashboard alike; nothing here keeps a second copy of the stage or the
+ * Home alike; nothing here keeps a second copy of the stage or the
  * events.
  */
 

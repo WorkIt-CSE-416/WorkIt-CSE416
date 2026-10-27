@@ -33,16 +33,6 @@ const JOB_PAGE = /^\/jobs\/([^/]+)$/;
  * layout, above the job's own segment, so it stays mounted, scrolled where
  * it was, as the seeker opens one job after another from it.
  *
- * WHERE THE RAIL SHOWS, THE FRAME SPANS THE WHOLE PAGE PANEL. The page is
- * kept --panel-gain narrower than the panel and centred ((seeker)/layout.tsx,
- * "A PAGE KEEPS THE WIDTH"), so with the menu closed half the gain stood
- * empty left of the rail. The frame takes it back on both sides and the
- * rail grows by the whole gain, so the job's page keeps its width in both
- * states and only the rail's cards widen. --panel-gain does not inherit, so
- * the frame and the rail each set and ease their own copy with the shell's
- * classes ("EVERY READER OF --panel-gain CARRIES ITS OWN" there); without
- * them they read 0px and the empty half-gain comes back.
- *
  * Beside the rail the job's page stops at 60rem, not its own 70rem, and the
  * rail takes the room that leaves: at 70rem the description ran far wider
  * than the rail's cards.
@@ -51,7 +41,7 @@ export function JobsRailFrame({ children }: { children: ReactNode }) {
   const jobId = JOB_PAGE.exec(usePathname())?.[1];
   if (!jobId) return children;
   return (
-    <div className="flex flex-1 transition-[--panel-gain] duration-200 ease-linear md:in-data-[pinned=false]:[--panel-gain:calc(var(--sidebar-width)_-_var(--sidebar-width-icon))] @4xl/main:mx-[calc(var(--panel-gain)/-2)]">
+    <div className="flex flex-1">
       <JobsRail currentId={decodeURIComponent(jobId)} />
       <div className="flex max-w-[60rem] min-w-0 flex-1 flex-col">{children}</div>
     </div>
@@ -61,14 +51,14 @@ export function JobsRailFrame({ children }: { children: ReactNode }) {
 /**
  * The roles the seeker last saw on /jobs or /search, in that list's order
  * (./shown-list, written by ./feed-list), with the open one marked. A job
- * opened from anywhere else (the Dashboard, a shared link) shows that last
+ * opened from anywhere else (Home, a shared link) shows that last
  * list too, or the newest roles when there is none; a list older than half
  * an hour is fetched again, since roles close. Load More continues the list
  * with its own query, as the list's own Load More would.
  *
  * FROM @4xl/main ONLY. It takes what the page has past the job's 60rem
  * (JobsRailFrame caps the job there beside it), between 18rem and
- * 40rem, plus what a closed menu frees (JobsRailFrame). At a 1280px window
+ * 40rem. At a 1280px window
  * that is 288px and the job keeps 683px, its action bar on one row and its
  * facts in three columns; at 320px from @5xl/main it hid on every 1280px
  * laptop. Below @4xl/main the page is as it was, with Back.
@@ -138,7 +128,7 @@ function JobsRail({ currentId }: { currentId: string }) {
   return (
     <aside
       aria-label="Jobs"
-      className="border-border-subtle sticky top-0 hidden h-[calc(100svh-4rem)] w-[calc(clamp(18rem,100cqw_-_60rem,40rem)_+_var(--panel-gain))] shrink-0 flex-col self-start border-r transition-[--panel-gain] duration-200 ease-linear md:in-data-[pinned=false]:[--panel-gain:calc(var(--sidebar-width)_-_var(--sidebar-width-icon))] @4xl/main:flex"
+      className="border-border-subtle sticky top-0 hidden h-[calc(100svh-4rem)] w-[clamp(18rem,100cqw_-_60rem,40rem)] shrink-0 flex-col self-start border-r @4xl/main:flex"
     >
       <div className="px-4 pt-6 pb-3">
         <h2 className="text-label text-ink">{showable ? listTitle(showable) : "Jobs"}</h2>

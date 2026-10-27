@@ -5,13 +5,13 @@ import { getCurrentAccount } from "@/lib/session";
 
 import { Greeting } from "../greeting";
 import { getAppliedTimes, getHeadline } from "./data";
-import { DashboardFrame } from "./frame";
+import { HomeFrame } from "./frame";
 import { Headline, HeadlineSkeleton } from "./headline";
 import { Streak, StreakSkeleton } from "./streak";
 import { loadTopMatches, TopMatches, TopMatchesSkeleton } from "./top-matches";
 
 export const metadata: Metadata = {
-  title: "Dashboard",
+  title: "Home",
   description: "Where your job search stands.",
 };
 
@@ -50,7 +50,7 @@ export const metadata: Metadata = {
  */
 
 /**
- * /dashboard — the seeker's home, first in the panel and where sign-in lands.
+ * /home — the seeker's home, first in the panel and where sign-in lands.
  * At a glance it answers two questions: is my search working (the numbers),
  * and what do I do next (Next Up, then Up Next). Below that, it shows
  * why, and what is new.
@@ -113,7 +113,7 @@ export const metadata: Metadata = {
  * takes 256px of the window when open. Up Next moves its dates at
  * @md/upnext, keyed to its own tile.
  */
-export default async function DashboardPage() {
+export default async function HomePage() {
   // Every read starts here, before the one await below, so none waits on
   // another: Top Matches' two scoring calls run beside the Strong Matches
   // one, not after it. None of these promises rejects (each answers null or
@@ -129,12 +129,12 @@ export default async function DashboardPage() {
   const firstName = account?.full_name.split(" ")[0];
 
   return (
-    <DashboardFrame
+    <HomeFrame
       heading={
         firstName ? (
           <Greeting as="h1" firstName={firstName} className="text-heading text-ink font-semibold" />
         ) : (
-          <h1 className="text-heading text-ink font-semibold">Dashboard</h1>
+          <h1 className="text-heading text-ink font-semibold">Home</h1>
         )
       }
       tiles={
