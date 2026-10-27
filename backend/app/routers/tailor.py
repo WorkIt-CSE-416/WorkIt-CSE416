@@ -89,7 +89,7 @@ EMPTY_BANK = "Your experience bank is empty. Add what you did first, then Tailor
 ALREADY_TAILORED = "Another run for this posting saved first. Open its tailored resume to see it."
 OWN_SOURCE = "Tailor starts from another resume, not this posting's tailored one. Pick the resume you started from."
 NOTHING_READ = (
-    "WorkIt couldn't read anything from this resume. Pick another, or use Read It With AI on Resumes first."
+    "WorkIt couldn't read anything from this resume. Pick another, or add what you did on Experiences first."
 )
 AI = AIMessages(
     spent="You've used today's Tailor runs. They reset at midnight UTC.",

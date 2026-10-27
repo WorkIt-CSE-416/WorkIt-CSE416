@@ -169,9 +169,10 @@ Each turn the API hands `agent.run` two sets of facts, rendered by
   **no fallback to an uploaded resume**. For an empty bank the block says so
   and says whether an upload exists (`ResumeFacts.has_upload`). An upload
   fills the bank itself (ADR 0003), so an empty bank beside one means the
-  parser read nothing: Scout points at the Jobs page's Import Your Resume
-  and Read It With AI instead of guessing. (It named Import Again on My
-  Profile until that row button became Import Updated Resume.) The block keeps the heading "The
+  parser read nothing: Scout points at uploading another file on Resumes
+  and at Experiences instead of guessing. (It named Import Your Resume and
+  Read It With AI until KAN-353 took the AI reading off every screen, and
+  Import Again on My Profile before that.) The block keeps the heading "The
   user's resume" because the frozen prompt's grounding rules name it so.
 - **The job** — when the panel sends a `job_id` (an "Ask Scout" click, and every
   message after it), the feed's row for it, description included. Descriptions

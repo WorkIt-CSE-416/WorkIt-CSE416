@@ -3,11 +3,11 @@
 import Link from "next/link";
 import { useRef, useState, type ChangeEvent } from "react";
 
-import { PdfIcon, SparkleIcon, UploadIcon } from "@/components/icons";
+import { PdfIcon, UploadIcon } from "@/components/icons";
 import { RESUME_ROW, ResumeRow } from "@/components/resume-row";
 import { RESUME_ACCEPT, resumeFileError } from "@/components/resume-upload";
 import { Button } from "@/components/ui/button";
-import { importResume, type ImportResponse } from "@/lib/bank-actions";
+import { type ImportResponse } from "@/lib/bank-actions";
 import { importSummary } from "@/lib/import-summary";
 import { MAX_UPLOADS } from "@/lib/resume-limits";
 import { openDownload } from "@/lib/save-file";
@@ -38,8 +38,8 @@ const MAX_RESUMES = MAX_UPLOADS;
  *
  * The picked file uploads at once, with the dropzone's checks
  * (`resumeFileError`); the API reads it into the experience bank (ADR
- * 0003), and the note says what went in, with Read It With AI while the
- * student has an AI reading left. The model never reads a resume unasked.
+ * 0003), and the note says what went in. The model never reads an upload:
+ * Read It With AI sat beside the note until KAN-353.
  * A file whose text the student already uploaded keeps nothing and opens
  * the duplicate pop-up (`onDuplicate`, ./duplicate-resume-dialog.tsx,
  * KAN-267), the one Generate opens. A newer version of a file is a delete
@@ -65,7 +65,6 @@ export function useResumeUpload({
   const [uploadError, setUploadError] = useState<string | null>(null);
   // What the last upload wrote into the experience bank.
   const [imported, setImported] = useState<ImportResponse | null>(null);
-  const [importingId, setImportingId] = useState<string | null>(null);
   const inputRef = useRef<HTMLInputElement>(null);
 
   async function handleFile(file: File) {
@@ -91,22 +90,6 @@ export function useResumeUpload({
       setUploadError("Could not upload the resume. Refresh the page and try again.");
     } finally {
       setUploading(null);
-    }
-  }
-
-  // Read It With AI on the last upload: only ever on a click.
-  async function handleReadWithAi(resumeId: string) {
-    if (importingId) return;
-    setUploadError(null);
-    setImportingId(resumeId);
-    try {
-      const { data, error } = await importResume({ resumeId, readWithAi: true });
-      if (data) setImported(data);
-      else setUploadError(error);
-    } catch {
-      setUploadError("Could not import the resume. Refresh the page and try again.");
-    } finally {
-      setImportingId(null);
     }
   }
 
@@ -146,24 +129,12 @@ export function useResumeUpload({
         </p>
       )}
       {shownImport && (
-        <div className="flex flex-wrap items-center gap-x-3 gap-y-2">
-          <p className="text-note text-ink-muted min-w-0 flex-1" aria-live="polite">
-            {importSummary(shownImport, shownImport.filename)}{" "}
-            <Link href="/bank" className="text-brand hover:text-brand-hover underline">
-              Open Experiences
-            </Link>
-          </p>
-          {shownImport.uses_left > 0 && (
-            <Button
-              variant="secondary"
-              size="sm"
-              disabled={importingId !== null}
-              onClick={() => handleReadWithAi(shownImport.resume_id)}
-            >
-              <SparkleIcon /> {importingId ? "Reading…" : "Read It With AI"}
-            </Button>
-          )}
-        </div>
+        <p className="text-note text-ink-muted" aria-live="polite">
+          {importSummary(shownImport, shownImport.filename)}{" "}
+          <Link href="/bank" className="text-brand hover:text-brand-hover underline">
+            Open Experiences
+          </Link>
+        </p>
       )}
     </>
   );
