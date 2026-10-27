@@ -991,6 +991,11 @@ removed at cutover, not before. Until then a change must work on both.
   either way: their applied-job filter names only the stages before applied
   (`dto.BEFORE_APPLIED`, the models' CLAUDE.md). Merge the migration to
   `main` in its own PR first, then apply it, then test the branch.
+- **Apply `bd730e8ab454` (`job_postings.closed_reason`, KAN-412) as soon as
+  it merges.** It only adds a nullable column and a CHECK every row meets, and
+  no code maps it yet, so it is safe for every deploy. The import that writes
+  it (why a scraped job closed) follows in its own PR, whose dry-run scrape
+  check and every scheduled import fail on a database without it.
 - **Apply `a3d7f1c9e2b4` (`bank_skills.built_resume_id`, resume-local
   skills) before the deploy that maps it.** Every skill insert names the
   column, so deployed first, uploads, Import Again and Add skill answer
