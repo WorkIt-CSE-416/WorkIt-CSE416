@@ -79,7 +79,7 @@ never changes another's, and an import runs no duplicate check.
 |---|---|---|
 | **Upload** | `POST /applicants/{id}/resumes` | Inserts every entry and skill the reading found, owned by the new row. Flush the `Resume` row first (the entries point at it). |
 | **Import Updated Resume** (the resume picker's replace at the limit; off the Resumes page's rows since KAN-362) | `PUT /applicants/{id}/resumes/{resume_id}` | **Replaces** the upload's entries and skills: delete what it owns, insert the new reading. No warning. |
-| **Import Again / Read It With AI** | `POST /applicants/{id}/bank/import` | **Replaces**, as Import Updated Resume does. |
+| **Import Again** (with or without `read_with_ai`; no screen sends it since KAN-353) | `POST /applicants/{id}/bank/import` | **Replaces**, as Import Updated Resume does. |
 | **Delete an upload** | `DELETE /applicants/{id}/resumes/{resume_id}` | Deletes its entries and skills (cascade). The confirm is unchanged. |
 | **Add an entry or skill** | the bank's create routes | Under an upload pick: owned by that upload. Under a built resume pick: unowned, and shown on that built resume (a shown choice row at the end of its section), so it stays in view. |
 | **Intake, Tailor's "Have you used X?"** | their own routes | Unowned, as today. |
@@ -103,7 +103,7 @@ never changes another's, and an import runs no duplicate check.
 
 `GET /applicants/{id}/bank` keeps its shape: `resume_ids` on each entry and
 skill, and `resumes` for the Showing card (kind, name, posting, primary,
-created_at, and `edited_at` for the resume table's date, KAN-361).
+created_at, and `edited_at` for the resume list's date, KAN-361).
 
 - **`resume_ids`** is the owning upload (at most one), then the built
   resumes that show the item. `load_holdings` reads the owner from the
@@ -117,10 +117,11 @@ created_at, and `edited_at` for the resume table's date, KAN-361).
 - **The Showing card names the pick** (KAN-361, KAN-363): the resume's
   name, its type or the posting it was tailored for, the Primary star, and
   **Change Resume**, drawn as the Resumes page draws a resume. Change Resume opens **Choose a Resume to Show**, the resume
-  table Auto Apply, Tailor and Did You Apply? share (KAN-360): Generated
-  or Uploaded, a search, names that wrap. A click or the arrow keys move
+  list Auto Apply, Tailor and Did You Apply? share (KAN-360, grouped as
+  the Resumes page since KAN-406): a search, then Uploaded, Generated and
+  Tailored, names that wrap. A click or the arrow keys move
   the pick, and **Show Resume** applies it; Cancel leaves the page as it
-  was. **Not From an Upload** is a row under the table, with its count,
+  was. **Not From an Upload** is a card under the list, with its count,
   while anything no upload owns exists or while it is the pick: it is no
   resume, so it stays out of the shared table, but it shares the dialog's
   radio group.
@@ -191,7 +192,8 @@ created_at, and `edited_at` for the resume table's date, KAN-361).
 
 Stays: Generate, Tailor's ranking, Scout, the recommender, intake and the
 autofiller read the whole bank as today (`copy_key` stays in Generate and
-intake); upload reads with the parser only; Read It With AI on a click; one
+intake); upload reads with the parser only; the model reads only on
+`read_with_ai`, which no screen sends since KAN-353; one
 transaction for the row and the bank writes; the 5-upload limit. The import
 summary (`lib/import-summary.ts`) loses "filled in", since nothing merges.
 

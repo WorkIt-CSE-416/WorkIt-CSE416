@@ -74,7 +74,6 @@ from app.db import get_session
 from app.deps import owned_applicant
 from app.models.built_resume import Built_Resume
 from app.models.jobs import Job_Post
-from app.routers.scout import get_llm
 from app.schemas.built_resume import (
     BuiltResumeCreate,
     BuiltResumeRename,
@@ -90,6 +89,7 @@ from app.services import built_resumes as service
 from app.services import keywords, postings
 from app.services.ai_messages import AIMessages
 from app.services.bank import NotFound
+from app.services.models import get_small_llm
 from app.services.resume_render import (
     HeaderIdentity,
     Rendered,
@@ -346,7 +346,7 @@ async def keyword_match(
     resume_id: uuid.UUID,
     job_posting_id: uuid.UUID | None = Query(None),
     applicant_id: uuid.UUID = Depends(owned_applicant),
-    llm: LLM = Depends(get_llm),
+    llm: LLM = Depends(get_small_llm),
     session: AsyncSession = Depends(get_session),
 ) -> KeywordMatchResponse:
     try:

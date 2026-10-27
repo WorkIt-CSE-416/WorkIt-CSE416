@@ -16,6 +16,7 @@ import { Button } from "@/components/ui/button";
 import { TextField } from "@/components/ui/text-field";
 import { cn } from "@/lib/cn";
 import { PASSWORD_MIN_LENGTH } from "@/lib/password-rules";
+import { Turnstile } from "@/components/turnstile";
 
 import { createAccount, type SignupState } from "./actions";
 
@@ -235,6 +236,8 @@ export function SignupForm({ formId }: { formId: string }) {
               </p>
             </div>
           </div>
+
+          <Turnstile form={formId} resetKey={state} />
 
           {/* Same banner as /login's. It names no single field, so it marks
               none; the field-level messages above do that. */}

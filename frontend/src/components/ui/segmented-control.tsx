@@ -199,8 +199,9 @@ export function SegmentedLinks({
 
 export type SegmentedToggleOption = {
   value: string;
-  /** What the option shows. */
-  label: string;
+  /** What the option shows: text, or text with a count (Tailor's
+   *  Suggestions), named by `ariaLabel` when it is more than text. */
+  label: ReactNode;
   /** Its accessible name, when `label` is abbreviated ("7D"). */
   ariaLabel?: string;
 };

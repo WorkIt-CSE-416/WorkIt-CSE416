@@ -97,10 +97,11 @@ export const hiringSystemsSection = {
 
 /**
  * The hiring systems the scraper reads company job boards from
- * (scraper/workit_scraper/providers.py, LISTING_URL). Keep the two lists
- * the same: a name here is a claim that WorkIt reads it. `logo` is a file
- * in public/hiring-systems/, from the company's own site or its GitHub
- * organization: Google's favicon host had only 16-32px copies of
+ * (scraper/workit_scraper/providers/, PROVIDERS). Keep the two lists
+ * the same: a name here is a claim that WorkIt reads it. Rippling, iCIMS
+ * and Oracle are read but not listed yet: each needs its logo file and a
+ * stream below. `logo` is a file in public/hiring-systems/, from the
+ * company's own site or its GitHub organization: Google's favicon host had only 16-32px copies of
  * BambooHR's and Workday's, which looked blurry. The header's Features
  * menu names the first three.
  */

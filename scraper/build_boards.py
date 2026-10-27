@@ -37,12 +37,15 @@ from __future__ import annotations
 import csv
 import json
 import re
+from collections import Counter
+from collections.abc import Iterable
 from datetime import UTC, datetime
+from urllib.parse import urlsplit
 
 from workit_scraper import web
 from workit_scraper.__main__ import BOARDS_CSV, load_boards
 from workit_scraper.polite import Robots
-from workit_scraper.providers import Board
+from workit_scraper.providers import PROVIDERS, Board
 
 SOURCES = [
     "https://raw.githubusercontent.com/SimplifyJobs/Summer2027-Internships/dev/.github/scripts/listings.json",
@@ -50,48 +53,8 @@ SOURCES = [
     "https://raw.githubusercontent.com/vanshb03/Summer2027-Internships/dev/.github/scripts/listings.json",
 ]
 
-PATTERNS = {
-    "greenhouse": re.compile(
-        r"(?:boards|job-boards)\.greenhouse\.io/(?:embed/job_app\?for=)?([a-z0-9_-]+)", re.I
-    ),
-    "lever": re.compile(r"jobs\.lever\.co/([a-z0-9_.-]+)", re.I),
-    "ashby": re.compile(r"jobs\.ashbyhq\.com/([a-z0-9_.-]+)", re.I),
-    # apply.workable.com/{account}/j/{shortcode}/. A bare apply.workable.com/j/...
-    # names no account, so `j` (and the `api`) is never one.
-    "workable": re.compile(r"apply\.workable\.com/(?!(?:j|api)/)([a-z0-9_-]+)", re.I),
-    # One subdomain per company: {company}.recruitee.com/o/{offer},
-    # {company}.bamboohr.com/careers/{id}. `www` is the vendor's own site.
-    "recruitee": re.compile(r"//(?!www\.)([a-z0-9-]+)\.recruitee\.com", re.I),
-    "bamboohr": re.compile(r"//(?!www\.)([a-z0-9-]+)\.bamboohr\.com", re.I),
-    # {tenant}.wd{N}.myworkdayjobs.com/{locale}/{site}/job/..., whose token is
-    # "{tenant}.wd{N}/{site}": all three are needed to reach the board. The
-    # locale ("en-US") is optional, and a site can be two letters itself (Boeing's
-    # "DA"), so a locale is only skipped when a site follows it.
-    "workday": re.compile(
-        r"//([a-z0-9-]+\.wd\d+)\.myworkdayjobs\.com/(?:[a-z]{2}(?:-[a-z]{2})?/)?"
-        r"(?!(?:job|details|wday)/)([a-z0-9_-]+)",
-        re.I,
-    ),
-    # One board for all of TikTok: lifeattiktok.com/search/{id}, /position/{id}/detail.
-    "tiktok": re.compile(r"//(?:www\.)?(lifeattiktok)\.com/", re.I),
-    # iCIMS postings on a company's Jibe careers site: {host}/jobs/{id}?icims=1.
-    # The board is that host (careers.amd.com), which lists them all.
-    "icims": re.compile(r"//([a-z0-9.-]+)/jobs/\d+[^\s#]*[?&]icims=1", re.I),
-    # A SuccessFactors career site marks its links `?ats=successfactors`; the
-    # board is the site's host (jobs.grainger.com).
-    "successfactors": re.compile(
-        r"//([a-z0-9.-]+)/[^\s?#]*\?(?:[^\s#]*&)?ats=successfactors", re.I
-    ),
-}
-# Oracle Recruiting Cloud:
-# {pod}.oraclecloud.com/hcmUI/CandidateExperience/{lang}/sites/{site}/job/{id},
-# whose token is "{pod}/{site}". The only token whose case is kept: the site
-# number is as Oracle wrote it ("CX_1"), and it goes into the apply link too.
-ORACLE_SITE = re.compile(
-    r"//([a-z0-9.-]+)\.oraclecloud\.com/hcmUI/CandidateExperience/[a-z]{2}(?:-[a-z]{2})?/sites/([a-z0-9_]+)",
-    re.I,
-)
-# The same boards under Workday's other address,
+# Each provider names its boards' apply links (`Provider.apply_link`). These are the
+# same Workday boards under Workday's other address,
 # wd{N}.myworkdaysite.com/recruiting/{tenant}/{site}: each answers on its tenant's
 # own myworkdayjobs.com host too (Snap's, Magna's), which has the robots.txt.
 WORKDAY_SITE = re.compile(
@@ -102,17 +65,17 @@ WORKDAY_SITE = re.compile(
 
 def tokens(link: str) -> list[tuple[str, str]]:
     """Every (ats, token) an apply link names, lower-cased: slugs are case-blind on
-    every provider, Workday's sites included. Oracle's site number keeps its case."""
+    every provider, Workday's sites included. Not Oracle's (`Provider.keeps_case`)."""
     found = [
-        (ats, "/".join(match.groups()).lower())
-        for ats, pattern in PATTERNS.items()
-        for match in pattern.finditer(link)
+        (ats, token if provider.keeps_case else token.lower())
+        for ats, provider in PROVIDERS.items()
+        for match in provider.apply_link.finditer(link)
+        for token in ["/".join(match.groups())]
     ]
     found += [
         ("workday", f"{tenant}.{wd}/{site}".lower())
         for wd, tenant, site in WORKDAY_SITE.findall(link)
     ]
-    found += [("oracle", f"{pod.lower()}/{site}") for pod, site in ORACLE_SITE.findall(link)]
     return found
 
 
@@ -169,21 +132,34 @@ def fetch(url: str, robots: Robots) -> list[dict]:
     return payload if isinstance(payload, list) else []
 
 
+def unread_hosts(links: Iterable[str]) -> Counter[str]:
+    """The hosts of the apply links no provider's pattern takes, counted: where a
+    new reader would add the most (iCIMS and Oracle topped it before KAN-301)."""
+    return Counter(urlsplit(link).hostname or "" for link in links if link and not tokens(link))
+
+
 def harvest() -> dict[tuple[str, str], str]:
-    """Map (ats, token) -> company name, from every apply URL in the curated lists."""
+    """Map (ats, token) -> company name, from every apply URL in the curated lists,
+    and print the hosts of the links it could not use."""
     boards: dict[tuple[str, str], str] = {}
+    links: list[str] = []
     robots = Robots(SOURCES)
     for url in SOURCES:
         rows = fetch(url, robots)
         print(f"  {len(rows):>6,} listings  {url.split('/')[4]}")
         for row in rows:
             link = row.get("url") or ""
+            links.append(link)
             company = (row.get("company_name") or row.get("company") or "").strip()
             for key in tokens(link):
                 # First name wins; later duplicates are the same company.
                 if company and key not in boards:
                     boards[key] = company
                 boards.setdefault(key, key[1])
+    unread = unread_hosts(links)
+    print(f"\n  {sum(unread.values()):,} apply links no reader takes; the most by host:")
+    for host, count in unread.most_common(15):
+        print(f"  {count:>6,}  {host}")
     return boards
 
 

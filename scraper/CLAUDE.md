@@ -5,7 +5,7 @@ The scraper's design and the rules for changing it; repo-wide rules are in
 
 ```sh
 cd scraper
-python3 -m workit_scraper              # scrape, then write the page and feed.json
+python3 -m workit_scraper              # scrape, then write the page, feed.json and metrics.json
 python3 -m workit_scraper --full       # the same, quiet boards included
 python3 -m workit_scraper --offline    # no network; rewrite both from jobs.json
 python3 build_boards.py                # add the boards the curated lists name now
@@ -22,7 +22,7 @@ full run takes about 10 minutes. `--offline` re-renders in seconds from
 ## How it fits together
 
 ```
-boards.csv ─▶ __main__ ─▶ polite.Robots ─▶ providers.FETCHERS ─▶ store.update ─▶ jobs.json
+boards.csv ─▶ __main__ ─▶ polite.Robots ─▶ providers.PROVIDERS ─▶ store.update ─▶ jobs.json
                                                                                    │
                            report.write_html ◀─ shortlist.pick ◀─ Store.is_listed ◀┘
                            feed.write ◀────────────┘  (feed.json ─▶ backend import ─▶ Supabase)
@@ -32,8 +32,8 @@ Each module owns one stage (its docstring says which); every network read goes
 through `web.get` (or Workday's and TikTok's `web.post`) behind `polite.Robots`.
 Greenhouse, Lever, Ashby, Workable, Recruitee and BambooHR return a whole board in
 one request. Workday sends 20 postings a request, which changes how its boards are
-read: `docs/workday.md`. Oracle, TikTok, iCIMS and SuccessFactors page as well
-(`providers.PAGED`): `docs/providers.md`.
+read: `docs/workday.md`. Oracle, TikTok, Jibe and SuccessFactors page as well
+(`Provider.paged`): `docs/providers.md`.
 
 ## This package imports only the standard library
 
@@ -52,36 +52,80 @@ runs pytest where the package is not installed.
 Read the provider's `robots.txt` before writing anything. SmartRecruiters is
 absent because it disallows us, and that is the whole reason (its API's
 robots.txt still said `Disallow: /` to every agent but LinkedIn's on 2026-10-26).
-Oracle, TikTok, iCIMS and SuccessFactors, and the systems still not read, are in
-`docs/providers.md`.
+Rippling, iCIMS, Oracle, TikTok, Jibe and SuccessFactors, and the systems still
+not read, are in `docs/providers.md`.
 
-1. A function in `providers.py` taking `(token, company)` and returning `list[Job]`.
-   One that makes more than one request per board goes in `PAGED` too, takes
-   `pace` and calls it before each request after the first (Workday's `workday`).
-2. Its URL template in `LISTING_URL`, which both the fetcher and the robots
-   check read, so a board is never checked at one address and fetched at another.
-   Anything else robots.txt must allow goes in `robots_urls` (Workday's careers site).
-3. Its name in `FETCHERS`.
-4. Its apply-URL pattern in `build_boards.PATTERNS`, or none of its boards ever
-   reaches `boards.csv`.
-5. If its list leaves out the description or a fact the posting's own page
-   has: the page's URL in `JOB_URL` and a `describe_<ats>` in `describe`'s table.
-6. If its board page has a square logo: `logos.PAGE` and `logos.PATTERN`, and
-   the image host in `frontend/next.config.ts` (see Logos). If it names only the
-   company's website: `logos.PAGE` and a rule in `logos.extract` (Workday).
-7. If each company is its own subdomain: its domain in `polite.SHARED_PACE`.
-8. Its name and domain in `hiringSystems` in
+**Everything the scraper knows about a hiring system is one `Provider` in
+`providers.PROVIDERS`**, keyed by its `ats`. It used to be eight tables in four
+files (`LISTING_URL`, `JOB_URL`, `FETCHERS`, `PAGED`, `build_boards.PATTERNS`,
+`logos.PAGE`, `logos.PATTERN`, `polite.SHARED_PACE`), and a provider missing from
+one failed silently: the `.eu.` that `PATTERNS` missed dropped 26 companies.
+`polite.SHARED_PACE` and `FOLD_CASE` are now read off the records. Field pairs a
+reader needs together are tested (`TestProviderRecords`).
+
+**`workit_scraper/providers/` is a package, one module per hiring system** under
+`systems/`: its reader, its page reader if it has one, and its `PROVIDER` record.
+`providers/__init__.py` registers each in `PROVIDERS` and re-exports the public
+names, so `from workit_scraper.providers import Job` still works; a private
+helper stays in its module (`providers.systems.lever._lever_pay`). The shared
+parts are `model` (Board, Page, Job, Provider, the errors), `fetch` (requests,
+`_iso`), `text` (HTML to text, `_page`, work style, places) and `registry`
+(`PROVIDERS`, the URL builders, `describe`). It was one 1,640-line file until
+2026-10-26.
+
+- **Readers call the request helpers through the module, `fetch._get_json(...)`,**
+  never a name imported from it. A test swaps `providers.fetch._get_json` once
+  for every reader; a reader that imported the name would keep the real one and
+  a test would reach the network.
+- **`PROVIDERS` is one dict, made empty in `registry` and filled by
+  `__init__`**, because each reader builds its URLs from the registry and the
+  registry names every reader: filled any earlier, the imports would loop. A
+  test that swaps an entry (`swap_provider`) swaps it for every caller.
+
+1. A module in `providers/systems/` with a reader taking `(token, company)` and
+   returning `list[Job]`, named in `providers/__init__.py`'s imports and
+   `PROVIDERS`.
+   One that makes more than one request per board sets `paged`, takes `pace` and
+   calls it before each request after the first (Workday's `workday`).
+2. Its `Provider`: `listing_url` (which the reader and the robots check both
+   read, so a board is never checked at one address and fetched at another),
+   `read`, and `apply_link`, or none of its boards ever reaches `boards.csv`.
+   Then what applies:
+   - its list leaves out the description or a fact the posting's own page has:
+     `job_url` and a `describe_<ats>` as `describe`;
+   - robots.txt must allow another URL first: `careers_site` (Workday's);
+   - each company is its own subdomain: `subdomains`, so they share one pace,
+     and `case_blind` if its paths are;
+   - its boards cannot all be read in one run: `budget_s`;
+   - its list names a job only by its URL: `page_title` (iCIMS);
+   - its list dates a job only roughly: `page_date` (Workday, Oracle);
+   - its token's case matters: `keeps_case` (Oracle's site codes);
+   - its board page has a square logo: `logo_page` and `logo_pattern`, and the
+     image host in `frontend/next.config.ts` (see Logos). If it names only the
+     company's website: `logo_page` and a rule in `logos.extract` (Workday).
+3. Its name and domain in `hiringSystems` in
    `frontend/src/app/(landing)/data.ts`: the landing page lists the hiring
-   systems WorkIt reads, and that list must match `LISTING_URL`.
+   systems WorkIt reads, and that list must match `PROVIDERS`.
+
+Tests that fake a provider's function swap its field with the `swap_provider`
+fixture (`tests/conftest.py`): a `Provider` holds the function itself, so
+patching the module's `describe_greenhouse` no longer reaches it.
 
 Each reader's test is built from that day's real responses. Workable,
-Recruitee and BambooHR quirks: `docs/providers.md`. Workday's, and how its
-boards are read over several runs: `docs/workday.md`.
+Recruitee, BambooHR, Rippling, iCIMS and Oracle quirks: `docs/providers.md`.
+Workday's, and how its boards are read over several runs: `docs/workday.md`.
+
+**Still open:** Rippling, iCIMS and Oracle (KAN-301) are read but not on the
+landing page's `hiringSystems` yet: each needs its logo file in
+`frontend/public/hiring-systems/` and a stream of real postings in `data.ts`.
 
 - **A 404 means the board does not exist; a 200 with an empty list means a
   real board with nothing open.** Raise `BoardNotFound` for the first, return
   `[]` for the second. Collapsing them turns a typo in `boards.csv` into "this
-  company stopped hiring", which nobody notices.
+  company stopped hiring", which nobody notices. **Only a board's first request
+  can say it does not exist**: a paged reader turns a 404 on a later page into
+  `Incomplete` (Oracle's and Workday's). As "no such board", one bad page of a
+  large Oracle board closed every posting on it.
 - **Providers disagree about types.** Lever sends `createdAt` as an `int` in
   some records and a numeric string in others; trusting one shape silently
   dropped every Lever board on the first live run. Normalise dates through
@@ -105,23 +149,39 @@ boards are read over several runs: `docs/workday.md`.
 A posting's own text is one value, `providers.Page`: the description (its kept
 sections, cut to `DESCRIPTION_CHARS`), the card's `details.Facts`, and on Greenhouse
 its offices (on Workday, its places and requisition number). Lever, Ashby and
-Recruitee send it with the board's list. Greenhouse, Workable, BambooHR and
-Workday do not (`providers.JOB_URL`): Greenhouse's `content=true` would send
-hundreds of megabytes a run to describe the ~2% we keep, and Workday's list
-has no description, exact date or places. So `__main__.with_page` reads each
-*kept* posting's page once, through the same robots and pacing.
+Recruitee send it with the board's list. Greenhouse, Workable, BambooHR,
+Rippling, iCIMS, Oracle and Workday do not (`Provider.job_url`): Greenhouse's `content=true`
+would send hundreds of megabytes a run to describe the ~2% we keep, and
+Workday's list has no description, exact date or places. So
+`__main__.with_page` reads each *kept* posting's page once, through the same
+robots and pacing.
+
+- **A fact only the list states rides on the `Job` to the page read.**
+  Rippling's list has each office's work model and its job's own record has
+  none, so `rippling` sets `Job.work_style` and `describe_rippling` reads the
+  page's facts with it. Read off the location instead, a remote job named
+  "NY" would have been filed on site.
+- **A title only a URL gave is replaced by the page's, and kept.** iCIMS's
+  list is its sitemap, which names a job by its URL's slug
+  ("reliability-engineering-intern"); that classifies the same, so only kept
+  jobs' pages are read, and `describe_icims` sets the page's title.
+  `Provider.page_title` makes `store.carry` keep it over the next listing's
+  slug, or every card would read in lower case from the second run.
 
 - **The store carries a `Page` forward whole: `job.page or old.page`.** It
   used to be nine fields carried one by one, and a Greenhouse title's "2027"
   overwrote the page's "Summer 2027". `posted_at` is carried the same way, for
-  BambooHR, whose date is only on the page. Workday's is the reverse
-  (`store.carry`): its list has a date counted back from "Posted 3 Days Ago",
-  but the page's exact one wins, so a bare Workday listing keeps the stored
-  date and never drifts by a day or vanishes at "30+ Days Ago".
+  BambooHR, whose date is only on the page. Workday's and Oracle's are the
+  reverse (`Provider.page_date`, `store.carry`): Workday's list has a date
+  counted back from "Posted 3 Days Ago" and Oracle's a bare day, but the page's
+  exact one wins, so a bare listing keeps the stored date and never drifts by a
+  day, vanishes at "30+ Days Ago", or falls back to midnight. Oracle did fall
+  back on its second run until 2026-10-26: a list that dates a posting at all,
+  only roughly, needs `page_date`.
 - **Bump `providers.PAGE_VERSION` whenever a `Page` starts holding something
   new, or a fact's pattern changes**, or stored postings never get it.
   `with_page` re-reads any page under an older version, once per kept
-  Greenhouse, Workable, BambooHR and Workday posting.
+  Greenhouse, Workable, BambooHR, Rippling, iCIMS, Oracle and Workday posting.
 - **Changing `DESCRIPTION_CHARS` does not re-cut stored Greenhouse
   descriptions.** Clear them so the next run fetches them again:
 
@@ -157,7 +217,7 @@ real posting and the measurements behind them.
 ## Description sections
 
 A stored description is its kept sections under fixed headings (KAN-229):
-`providers._page` stores `cap(sections.kept(full))`. `sections.split` reads a
+`providers.text._page` stores `cap(sections.kept(full))`. `sections.split` reads a
 description into role, responsibilities, requirements, preferred, pay, benefits,
 legal and the rest by its headings, and `kept` keeps the intro, Overview,
 Responsibilities, Requirements, Preferred Qualifications, Pay and Details, then
@@ -276,14 +336,31 @@ posting is gone**: a timeout, a partial read, or one board seen twice in one
 run is not. Actually closing a posting is a real design for the ticket that
 needs it: two accepted complete absences, at most one miss per board per run.
 
+**A board we hold postings from that answers "no such board" twice in a row
+was read in full, with nothing open** (`store.update`, `missing`): a 404,
+Workday's 422 or BambooHR's redirect home, when the company has left that
+hiring system. Counted as no read until 2026-10-26, its postings stayed on the
+page for good. The first answer only sets `BoardReads.missing_at`; a complete
+read clears it. One answer closed postings at first, and a Workday or Oracle
+board then waited about 12 hours at the back of its lane's queue to reopen them.
+A board never read that answers so is still unread (a typo has nothing to
+close, and `Store.is_new` reads a board's first read). **A lane where `SURGE`
+(3) or more known boards answer so in one run, and more of them than read
+whole, closes none** (`__main__.scrape`): that is the hiring system changing,
+and one lane is under the import's half-the-feed guard. A revert to code before
+`missing_at` and `RunStats.by_provider` must delete the `scraper-store-*`
+Actions cache, or the old code fails to load `jobs.json`.
+
 ## Politeness is ours to enforce
 
 Every request goes through `web.get` and, before it, `polite.Robots`,
 including `build_boards.py`'s fetches from GitHub.
 
 - `Robots` reads every origin's robots.txt once: up front for the origins it
-  is given, and on first use, paced, for any other (Workday's ~1,500 hosts, of
-  which a run reaches only some). Per RFC 9309, a 4xx means no rules; a 5xx
+  is given, and on first use, paced, for any other: the hosts of every provider
+  with a host per company (`Provider.subdomains`: Workday's ~1,500, iCIMS's
+  ~320, BambooHR's and Recruitee's), read in parallel as the lane reaches each.
+  Per RFC 9309, a 4xx means no rules; a 5xx
   **or an unreachable robots.txt** means complete disallow for the run. An
   outage is not permission.
 - A host whose paths are case-blind has its robots.txt read case-blind too
@@ -300,12 +377,18 @@ including `build_boards.py`'s fetches from GitHub.
 **Speed comes from lanes and quiet boards, never from less pacing.** One lane
 per provider (`__main__.scrape`), so a worker waiting out Lever's delay never
 blocks Greenhouse. Quiet boards rest (`Store.to_read`): a board that has never
-had a kept posting is read on one day in `QUIET_EVERY`, staggered by key, so a
-first posting there can appear two days late; `--full` reads every board. A
-board with any kept posting ever is read every run.
+had a kept posting is read on one run in `QUIET_EVERY`, staggered by key over
+the run's three-hour slot (`RUN_EVERY`), and always after `QUIET_LONGEST` (a
+day), so a first posting there can appear about nine hours late; `--full` reads
+every board. A board with any kept posting ever is read every run. **Stagger by
+run slot, never by day:** until 2026-10-26 it was by day, so a day's eight runs
+read one third eight times, the next two days none of it, and a first posting
+waited up to two days for the same number of requests. `RUN_EVERY` must match the
+cron in `.github/workflows/scrape.yml`; if they drift, quiet boards are still read
+on a third of runs, only less evenly spaced.
 
-**A lane can have a time budget** (`__main__.LANE_BUDGET_S`; only Workday's,
-12 minutes). It starts boards from the front of `Store.to_read`'s order, least
+**A lane can have a time budget** (`Provider.budget_s`; Workday's and
+Oracle's, 12 minutes each, run side by side). It starts boards from the front of `Store.to_read`'s order, least
 recently read first, and once its time is up leaves the rest for a later run.
 `--full` keeps the budget: it un-rests quiet boards, it does not make a Workday
 sweep fit in one run. The page's "postings scanned" counts what this run read,
@@ -322,6 +405,11 @@ uses); postings are always scraped from the employer.
   before anything is written, and the step is `continue-on-error`. Those
   additions live only in that run, so re-run `build_boards.py` and commit
   `boards.csv` now and then.
+- **A board on a provider's second host is still its board.** Greenhouse's EU
+  boards (`job-boards.eu.greenhouse.io`) answer on the same
+  `boards-api.greenhouse.io`, but its apply-link pattern missed the `.eu.` and dropped 26
+  companies' links until 2026-10-26. A pattern that misses says nothing, so
+  check the links no pattern takes, grouped by host, when a list changes.
 - **The internship lists are renamed each season** (`Summer2026-Internships` →
   `Summer2027-Internships`). GitHub serves the old address too, but update
   `SOURCES` each season: a list that starts a new repo instead would go unread.
@@ -345,7 +433,7 @@ database.
 ## Logos
 
 Read once per board from its board page and kept in `jobs.json`.
-**`logos.PATTERN` accepts only each ATS's own image host, and those hosts must
+**`Provider.logo_pattern` accepts only each ATS's own image host, and those hosts must
 match `frontend/next.config.ts`'s `images.remotePatterns` exactly**: `next/image`
 throws on any other host, which fails the whole Jobs page. Workday has no
 pattern: its logo is a wide banner, so its cards show the favicon of the website
@@ -369,8 +457,8 @@ shortlist, and the "new today" and "open roles" path through `store.py` and
 `tests/test_report_and_store.py` has a case for each way that count has been
 wrong. Each provider's reader is tested on its real responses, trimmed:
 `tests/test_providers.py` for Workable, Recruitee and BambooHR,
-`tests/test_workday.py` for Workday, `tests/test_more_providers.py` for Oracle,
-TikTok, iCIMS and SuccessFactors (recorded responses in `tests/fixtures/providers/`). Where a board must be small enough to page
+`tests/test_workday.py` for Workday, `tests/test_more_providers.py` for TikTok,
+Jibe and SuccessFactors (recorded responses in `tests/fixtures/providers/`). Where a board must be small enough to page
 by hand, the page size or cap is shrunk, never the data.
 
 ## Committed data and deliberate limits
@@ -380,8 +468,23 @@ store, the `first_seen_at` history, the per-board read ledger and the offline
 fallback, and it is gitignored: megabytes per run. Each machine keeps its own
 history; the scheduled run keeps its own in the Actions cache. A fresh clone's
 first live run counts nothing as new, and `--offline` refuses to run until a
-live run has written the file. `internships.html` and `feed.json` are
-gitignored output.
+live run has written the file. `internships.html`, `feed.json` and
+`metrics.json` are gitignored output.
+
+## Measure a change by provider
+
+Every live run writes `metrics.json` and prints the same as a table: the run's
+totals, and for each provider its boards by outcome, postings scanned, postings
+kept this run, roles on the page, pages read and the lane's seconds
+(`RunStats.by_provider`, `__main__.write_metrics`). The scheduled run keeps it a
+week beside `feed.json`, so a change to one provider is judged run against run,
+not by the one summary line. `--offline` writes none: it reads nothing.
+
+`build_boards.py` prints the hosts of the apply links no provider's pattern takes,
+most first (`unread_hosts`). That list is where a new reader pays off: iCIMS and
+Oracle topped it before KAN-301. Common Crawl is no way round the curated lists:
+its index API and its data host both disallow every bot in robots.txt
+(2026-10-26), and no hiring system read serves a sitemap of its boards.
 
 Limits marked in the code with `ponytail:` comments: nothing is ever closed;
 the whole store is loaded and rewritten each run; only matching postings are

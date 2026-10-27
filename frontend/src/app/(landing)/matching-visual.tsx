@@ -163,7 +163,7 @@ function ProfileCard({ lit }: { lit: boolean }) {
   // A skill lights up once the scan finds it in a posting.
   const found = new Set(jobs.flatMap((job) => job.keywords).filter(has));
   return (
-    <div className="rounded-xl bg-white p-3 shadow-[0_12px_28px_-16px_rgb(16_48_94/0.5)] ring-1 ring-slate-900/5">
+    <div className="gloss-card rounded-xl p-3">
       <div className="flex items-center gap-2">
         <span className="bg-brand-tint text-brand-ink grid size-8 shrink-0 place-items-center rounded-full text-[11px] font-bold">
           AM
@@ -231,7 +231,7 @@ function WhyPanel() {
   const shared = best.keywords.filter(has);
   return (
     <motion.div
-      className="rounded-xl bg-white/90 p-3 shadow-[0_12px_28px_-16px_rgb(16_48_94/0.5)] ring-1 ring-slate-900/5"
+      className="gloss-card rounded-xl p-3"
       initial={{ opacity: 0, y: 10 }}
       animate={{ opacity: 1, y: 0 }}
       exit={{ opacity: 0, transition: { duration: 0.15 } }}

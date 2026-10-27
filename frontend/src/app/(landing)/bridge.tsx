@@ -1,11 +1,12 @@
 "use client";
 
 import * as React from "react";
-import { createPortal } from "react-dom";
 import {
+  animate,
+  AnimatePresence,
   motion,
+  motionValue,
   useInView,
-  useMotionValue,
   useMotionValueEvent,
   useReducedMotion,
   useScroll,
@@ -19,7 +20,7 @@ import { stages } from "./board-data";
 import { FaviconLogo } from "./favicon-logo";
 import { followedJob, matchingFeature } from "./feature-data";
 import { useMediaQuery } from "./hooks";
-import { useSceneTime, type Cue } from "./scene-time";
+import { useSceneTime, useScrollCue, type Cue } from "./scene-time";
 import { scoreTone } from "./score-tone";
 import { TOUR_TABS, type TourTab } from "./tour-tabs";
 
@@ -33,8 +34,8 @@ import { TOUR_TABS, type TourTab } from "./tour-tabs";
  * ("Thousands of internships open every season"), the few that fit are
  * kept and sorted ("WorkIt finds the ones that fit you"), they stack into
  * one with the four steps under it ("Then it helps with every step after
- * that"), and as the tour comes up those four steps fly into its tab bar
- * (`TabFlight`). Below lg, and with reduced motion, it is a still version
+ * that"), and as the tour comes up its tabs fly in from those four steps
+ * (`useTabFlight`). Below lg, and with reduced motion, it is a still version
  * with no pin. Postings name real employers from the board and Matching,
  * with their scores there; the fit six are the ones the tour and board
  * already show scoring highest.
@@ -126,6 +127,7 @@ export function Bridge() {
   const isDesktop = useMediaQuery(DESKTOP_QUERY);
   const reduceMotion = useReducedMotion();
   if (isDesktop === true && !reduceMotion) return <PinnedBridge />;
+  if (isDesktop === false && !reduceMotion) return <ScrolledBridge />;
   return <StillBridge />;
 }
 
@@ -313,7 +315,7 @@ function PostingCard({
           (`data-sorted`). */}
       <div
         className={cn(
-          "bridge-float flex items-center gap-2.5 rounded-xl bg-white p-2.5 shadow-[0_14px_30px_-18px_rgb(16_48_94/0.5)] ring-1 ring-slate-900/5",
+          "bridge-float gloss-card flex items-center gap-2.5 rounded-xl p-2.5",
           fit && "bridge-fit",
         )}
         style={{ "--float-delay": `${-(index * 0.7) % 6}s` } as React.CSSProperties}
@@ -414,7 +416,254 @@ function Pill({
   );
 }
 
-/** Below lg, and with reduced motion: the same story, still. */
+// --- Below lg: the same story, cued by the scroll, not pinned ---
+
+/** The scroll's cues, in progress from the section's top meeting the
+ * screen's foot to the end of its short pin: the flood rises as the stage
+ * comes up, the fit three sort a third into the pin, the steps light near
+ * its end. Each phase then plays in time ("Scroll cues, time plays",
+ * frontend/CLAUDE.md), and scrolling back plays it back. */
+const PHONE_CUES: Cue[] = [
+  { at: 0.3, to: 0 },
+  { at: 0.7, to: 1 },
+  { at: 0.86, to: 2 },
+];
+/** The phase with the steps, the last. */
+const STEPS_PHASE = 2;
+/** The stage's height, and a card's widest width and its height, in px. */
+const LOOP_H = 330;
+const LOOP_CARD_W = 156;
+const LOOP_CARD_H = 60;
+/** How much the fit three grow as they sort, and once the steps are in. */
+const SORT_SCALE = 1.15;
+const STEPS_SCALE = 1.1;
+/**
+ * Eight postings strewn over the stage: the three that fit among five that
+ * do not, two to a band, each band's pair pushed apart by a share of the
+ * room the stage has spare (`slack`, 0 to 1), dropped by `dy` px, tilted a
+ * few degrees and a touch smaller or larger. Placed so no card covers
+ * another's text at any phone width: twelve cards in three columns, the
+ * fit ones wider, buried the postings under each other, and two even
+ * columns after that read as a table, not a flood.
+ */
+const SCATTER = [
+  { slack: 0.1, dy: 0, rot: -3, scale: 0.95 },
+  { slack: 0.7, dy: 18, rot: 2, scale: 1 },
+  { slack: 0.9, dy: 8, rot: 2.5, scale: 0.93 },
+  { slack: 0.05, dy: 30, rot: -2, scale: 0.97 },
+  { slack: 0.3, dy: 14, rot: -1.5, scale: 1 },
+  { slack: 1, dy: 22, rot: 3, scale: 0.92 },
+  { slack: 0.65, dy: 6, rot: 1.5, scale: 0.96 },
+  { slack: 0.25, dy: 26, rot: -2.5, scale: 0.94 },
+];
+/** The bands' pitch, in px. */
+const BAND = 74;
+const LOOP_POSTINGS = (() => {
+  const fit = POSTINGS.filter((p) => p.fit >= 0 && p.fit < 3).sort((a, b) => a.fit - b.fit);
+  const list = POSTINGS.filter((p) => p.fit < 0).slice(0, 5);
+  [1, 4, 6].forEach((at, k) => list.splice(at, 0, fit[k]));
+  return list.map((posting, i) => ({
+    ...posting,
+    fit: posting.fit >= 0 && posting.fit < 3 ? posting.fit : -1,
+    side: i % 2,
+    band: Math.floor(i / 2),
+    ...SCATTER[i],
+  }));
+})();
+
+/**
+ * Below lg, where the desktop's 260vh pin does not fit a phone: the same
+ * three phases on a short stage, cued by the scroll (`useScrollCue`) over
+ * a pin of a screen and a half. One line at a
+ * time over a short stage, as the pinned scene shows them; until KAN-368
+ * phones showed the three lines stacked over a still list, which read as
+ * three headlines in a row.
+ */
+function ScrolledBridge() {
+  const ref = React.useRef<HTMLElement>(null);
+  const stageRef = React.useRef<HTMLDivElement>(null);
+  const { scrollYProgress } = useScroll({ target: ref, offset: ["start end", "end end"] });
+  const phase = useScrollCue(scrollYProgress, PHONE_CUES);
+  const [width, setWidth] = React.useState(0);
+
+  React.useLayoutEffect(() => {
+    const stage = stageRef.current;
+    if (!stage) return;
+    const measure = () => setWidth(stage.offsetWidth);
+    measure();
+    const observer = new ResizeObserver(measure);
+    observer.observe(stage);
+    return () => observer.disconnect();
+  }, []);
+
+  const line = LINES[Math.max(0, phase)];
+  return (
+    // A short pin, a screen and a half, so the line and the stage stay in
+    // view, under the floating header, while the scroll cues each phase:
+    // unpinned, the 520px section left the screen before its last phase,
+    // and the steps came in with their line already under the header.
+    <section
+      ref={ref}
+      aria-label="From thousands of postings to the ones that fit"
+      className="h-[150svh] px-4 sm:px-6"
+    >
+      <div className="sticky top-20 pt-6 pb-6">
+        <div className="mx-auto max-w-xl text-center">
+          {/* One line at a time, in a slot two lines tall so nothing moves. */}
+          <div className="relative h-[4.5rem] sm:h-[5rem]">
+            <AnimatePresence mode="wait" initial={false}>
+              <motion.p
+                key={line.text}
+                className="text-ink absolute inset-x-0 bottom-0 text-2xl font-semibold tracking-[-0.02em] text-balance sm:text-3xl"
+                initial={{ opacity: 0, y: 10, filter: "blur(4px)" }}
+                animate={{
+                  opacity: 1,
+                  y: 0,
+                  filter: "blur(0px)",
+                  transitionEnd: { filter: "none" },
+                }}
+                exit={{ opacity: 0, y: -10 }}
+                transition={{ duration: 0.35, ease: [0.16, 1, 0.3, 1] }}
+              >
+                {line.text}
+              </motion.p>
+            </AnimatePresence>
+          </div>
+        </div>
+        <div
+          ref={stageRef}
+          aria-hidden="true"
+          className="relative mx-auto mt-6 max-w-sm"
+          style={{ height: LOOP_H }}
+        >
+          {width > 0 &&
+            LOOP_POSTINGS.map((posting, i) => (
+              <LoopCard
+                key={posting.company}
+                posting={posting}
+                index={i}
+                phase={phase}
+                width={width}
+              />
+            ))}
+          <div className="absolute inset-x-0 top-[232px] flex flex-wrap justify-center gap-2">
+            {TOUR_TABS.map((tab, i) => (
+              <motion.span
+                key={tab.id}
+                className="relative"
+                initial={false}
+                animate={phase >= STEPS_PHASE ? { opacity: 1, y: 0 } : { opacity: 0, y: 12 }}
+                transition={{ duration: 0.4, delay: phase >= STEPS_PHASE ? 0.25 + i * 0.12 : 0 }}
+              >
+                <Pill tab={tab} />
+                <motion.span
+                  aria-hidden="true"
+                  className="pointer-events-none absolute inset-0 rounded-full"
+                  style={{ boxShadow: `0 0 0 2px ${tab.glow}` }}
+                  initial={false}
+                  animate={{ opacity: phase >= STEPS_PHASE ? 1 : 0 }}
+                  transition={{ duration: 0.3, delay: phase >= STEPS_PHASE ? 0.9 + i * 0.45 : 0 }}
+                />
+              </motion.span>
+            ))}
+          </div>
+        </div>
+      </div>
+    </section>
+  );
+}
+
+/** A posting on the phone stage: hidden before the first cue, then strewn
+ * in the flood, then either sorted into the centred column, upright and a
+ * little larger (the three that fit), or faded away. Scaled from its top
+ * left corner, so a pose is its corner's place. */
+function LoopCard({
+  posting,
+  index,
+  phase,
+  width,
+}: {
+  posting: (typeof LOOP_POSTINGS)[number];
+  index: number;
+  phase: number;
+  width: number;
+}) {
+  const fit = posting.fit >= 0;
+  const w = Math.min(LOOP_CARD_W, (width - 12) / 2);
+  const slack = Math.max(0, width - 2 * w - 12);
+  const flood = {
+    x: posting.side === 0 ? posting.slack * slack * 0.5 : width - w - posting.slack * slack * 0.5,
+    y: posting.band * BAND + posting.dy,
+    rotate: posting.rot,
+    scale: posting.scale,
+    opacity: 1,
+  };
+  const s = phase >= STEPS_PHASE ? STEPS_SCALE : SORT_SCALE;
+  const sorted = {
+    x: (width - w * s) / 2,
+    y: (phase >= STEPS_PHASE ? 0 : 8) + posting.fit * (LOOP_CARD_H * s + 8),
+    rotate: 0,
+    scale: s,
+    opacity: 1,
+  };
+  const hidden = { ...flood, y: flood.y + 36, opacity: 0 };
+  const pose =
+    phase < 0
+      ? hidden
+      : phase === 0
+        ? flood
+        : fit
+          ? sorted
+          : { ...flood, opacity: 0, scale: posting.scale * 0.94 };
+  return (
+    <motion.div
+      className="absolute top-0 left-0 will-change-transform"
+      style={{
+        width: w,
+        height: LOOP_CARD_H,
+        originX: 0,
+        originY: 0,
+        zIndex: fit ? 10 - posting.fit : 1,
+      }}
+      initial={hidden}
+      animate={pose}
+      transition={{
+        duration: phase === 0 ? 0.7 : 0.6,
+        ease: [0.16, 1, 0.3, 1],
+        delay: phase === 0 ? index * 0.06 : fit ? posting.fit * 0.08 : 0,
+      }}
+    >
+      <div className="gloss-card flex h-full items-center gap-1.5 rounded-xl px-1.5">
+        <FaviconLogo domain={posting.domain} eager className="size-6 shrink-0 rounded-md" />
+        <span className="min-w-0 flex-1">
+          {/* Two lines for the title, so it is read whole, not cut short;
+              the score sits by the company, out of the title's way. */}
+          <span className="text-ink line-clamp-2 text-[12px] leading-[15px] font-semibold">
+            {posting.title}
+          </span>
+          <span className="flex items-center gap-1.5">
+            <span className="text-ink-muted truncate text-[11px]">{posting.company}</span>
+            {fit && (
+              <motion.span
+                className={cn(
+                  "shrink-0 rounded px-1 text-[10.5px] leading-4 font-bold ring-1 ring-inset",
+                  scoreTone(posting.score),
+                )}
+                initial={false}
+                animate={{ opacity: phase >= 1 ? 1 : 0 }}
+                transition={{ duration: 0.3, delay: phase >= 1 ? 0.5 + posting.fit * 0.1 : 0 }}
+              >
+                {posting.score}%
+              </motion.span>
+            )}
+          </span>
+        </span>
+      </div>
+    </motion.div>
+  );
+}
+
+/** With reduced motion: the same story, still. */
 function StillBridge() {
   const fit = POSTINGS.filter((posting) => posting.fit >= 0).sort((a, b) => a.fit - b.fit);
   return (
@@ -436,7 +685,7 @@ function StillBridge() {
         {fit.slice(0, 3).map((posting) => (
           <div
             key={posting.company}
-            className="flex items-center gap-2.5 rounded-xl bg-white p-2.5 shadow-[0_14px_30px_-18px_rgb(16_48_94/0.5)] ring-1 ring-slate-900/5"
+            className="gloss-card flex items-center gap-2.5 rounded-xl p-2.5"
           >
             <FaviconLogo domain={posting.domain} className="size-8 rounded-lg" />
             <span className="min-w-0 flex-1">
@@ -465,116 +714,215 @@ function StillBridge() {
   );
 }
 
-// --- The handoff: the four steps fly into the tour's tab bar ---
+// --- The handoff: the tour's tabs fly in from the four steps ---
 
-const noSubscribe = () => () => {};
+/** A tour tab's flight, in the tab bar's own space: its offset from its
+ * place in the bar (`x`, `y`), its size against the bar's (`scale`), and
+ * how much of the bridge pill's look it still has (`ring`, its colour
+ * ring; `fill`, its white fill, which the clear tabs shed). */
+export type TabPose = {
+  x: MotionValue<number>;
+  y: MotionValue<number>;
+  scale: MotionValue<number>;
+  ring: MotionValue<number>;
+  fill: MotionValue<number>;
+};
+
+/** The tour's rise (`entry`, 0 to 1 as its top comes up the screen) at
+ * which the tabs take off from the bridge, and below which they fly back:
+ * apart, so a reader resting on the line does not set them going to and
+ * fro. At the cue the steps are about a third down the screen and the
+ * bar about three quarters, so the flight plays mid-screen. */
+const TAKE_OFF = 0.38;
+const FLY_BACK = 0.32;
+const FLY_S = 0.75;
+const STAGGER_S = 0.07;
+const SETTLE: [number, number, number, number] = [0.22, 1, 0.36, 1];
+
+const lift = (value: MotionValue<number>, to: number, delay: number, duration: number) =>
+  animate(value, to, { duration, delay, ease: SETTLE });
 
 /**
- * Mounted by the pinned tour. `progress` runs 0 to 1 as the tour scrolls
- * up from the screen's foot to its pin; each frame every pill sits between
- * its place under the bridge's stack (`[data-bridge-pill]`) and its tab
- * (`#tour-tab-<id>`), both measured live since both move. It marks the
- * page while it runs (`data-tab-flight` on <html>: idle, flying, landed),
- * and landing.css hides the bridge's own pills while they fly and the
- * tour's tab bar until they land, so each pill is drawn once. With no
- * flight (below lg, reduced motion, no bridge on the page) the attribute
- * is absent and the tabs simply show.
+ * The hand-off from the bridge's four steps to the tour's tab bar, for
+ * the pinned tour (from lg up, with motion; `on`). Once the tour has risen
+ * to `TAKE_OFF` the tabs themselves take off from where the steps are,
+ * looking as the steps do, and fly to their places in the bar in time,
+ * one after another, shedding the steps' rings and white fills; below
+ * `FLY_BACK` they fly back and the steps show again. The tabs live in the
+ * tour's panel, so they move with the page as the browser scrolls it.
+ * Copies on a fixed layer, placed between the two ends by script on each
+ * scroll, trailed the page by a frame once the wheel went native, and,
+ * placed by the scroll through an ease, sank past the bar and came back
+ * up with it (KAN-368). The state is marked on <html> (`data-tab-flight`:
+ * idle, flying, landed), and landing.css hides the steps while the tabs
+ * are away from them and the tab bar's tabs until they leave, so each
+ * pill is drawn once. With no flight the attribute is absent and the tabs
+ * simply show.
  */
-export function TabFlight({ progress }: { progress: MotionValue<number> }) {
-  const reduceMotion = useReducedMotion();
-  const mounted = React.useSyncExternalStore(
-    noSubscribe,
-    () => true,
-    () => false,
+export function useTabFlight(entry: MotionValue<number>, on: boolean): TabPose[] {
+  const poses = React.useMemo<TabPose[]>(
+    () =>
+      TOUR_TABS.map(() => ({
+        x: motionValue(0),
+        y: motionValue(0),
+        scale: motionValue(1),
+        ring: motionValue(0),
+        fill: motionValue(0),
+      })),
+    [],
   );
+  const state = React.useRef<"idle" | "flying" | "landed">("idle");
+  // Which way the tabs are going: out to the bar, or back to the steps. A
+  // flight runs once each way; each scroll step that set it going again
+  // restarted it, and a stopped run's end settled the tabs too soon.
+  const heading = React.useRef<"out" | "back">("back");
+  const run = React.useRef({ id: 0, moves: [] as { stop: () => void }[] });
 
-  const mark = React.useCallback(
-    (p: number) => {
+  const settle = React.useCallback(
+    (next: "idle" | "flying" | "landed") => {
+      state.current = next;
       const root = document.documentElement;
-      if (reduceMotion || !document.querySelector("[data-bridge-pill]")) {
-        delete root.dataset.tabFlight;
-        return;
-      }
-      const state = p <= 0.01 ? "idle" : p >= 0.985 ? "landed" : "flying";
       // Only on a change: a write every frame restyled the page each time.
-      if (root.dataset.tabFlight !== state) root.dataset.tabFlight = state;
+      if (root.dataset.tabFlight !== next) root.dataset.tabFlight = next;
+      if (next === "flying") return;
+      heading.current = next === "landed" ? "out" : "back";
+      for (const pose of poses) {
+        pose.x.set(0);
+        pose.y.set(0);
+        pose.scale.set(1);
+        pose.ring.set(0);
+        pose.fill.set(0);
+      }
     },
-    [reduceMotion],
+    [poses],
   );
-  useMotionValueEvent(progress, "change", mark);
+
+  // Each tab's offset from its place in the bar to its step, in the bar's
+  // own space (the panel grows into place, so it is drawn smaller).
+  const startsAt = React.useCallback(
+    () =>
+      TOUR_TABS.map((tab, i) => {
+        const step = document.querySelector(`[data-bridge-pill="${tab.id}"]`);
+        const el = document.getElementById(`tour-tab-${tab.id}`);
+        if (!step || !el) return null;
+        const from = step.getBoundingClientRect();
+        const now = el.getBoundingClientRect();
+        const s = now.width / el.offsetWidth || 1;
+        const k = s / poses[i].scale.get();
+        // Where the tab's corner sits with no flight, on screen.
+        const left = now.left - poses[i].x.get() * k;
+        const top = now.top - poses[i].y.get() * k;
+        return { x: (from.left - left) / k, y: (from.top - top) / k, scale: 1 / k, from };
+      }),
+    [poses],
+  );
+
+  /** Plays one flight, and settles in `end` once all of it has played,
+   * unless another flight has started since. */
+  const fly = React.useCallback(
+    (
+      end: "idle" | "landed",
+      to: (i: number) => { x: number; y: number; scale: number; look: number },
+      timing: (i: number) => { delay: number; move: number; lookDelay: number; look: number },
+    ) => {
+      run.current.moves.forEach((move) => move.stop());
+      const id = run.current.id + 1;
+      run.current = { id, moves: [] };
+      heading.current = end === "landed" ? "out" : "back";
+      settle("flying");
+      const done = poses.flatMap((pose, i) => {
+        const target = to(i);
+        const t = timing(i);
+        const moves = [
+          lift(pose.x, target.x, t.delay, t.move),
+          lift(pose.y, target.y, t.delay, t.move),
+          lift(pose.scale, target.scale, t.delay, t.move),
+          lift(pose.ring, target.look, t.lookDelay, t.look),
+          // The first tab is the selected one, white with its own fill.
+          lift(pose.fill, i === 0 ? 0 : target.look, t.lookDelay, t.look),
+        ];
+        run.current.moves.push(...moves);
+        return moves.map((move) => new Promise<void>((resolve) => move.then(resolve)));
+      });
+      Promise.all(done).then(() => {
+        if (run.current.id === id) settle(end);
+      });
+    },
+    [poses, settle],
+  );
+
+  const takeOff = React.useCallback(() => {
+    // From the steps, or turning round on the way back to them.
+    if (state.current === "idle") {
+      const starts = startsAt();
+      // Steps off screen (a jump down the page): no flight to see.
+      if (starts.some((start) => !start || start.from.bottom < 0)) return settle("landed");
+      starts.forEach((start, i) => {
+        const pose = poses[i];
+        pose.x.set(start!.x);
+        pose.y.set(start!.y);
+        pose.scale.set(start!.scale);
+        pose.ring.set(1);
+        pose.fill.set(1);
+      });
+    }
+    fly(
+      "landed",
+      () => ({ x: 0, y: 0, scale: 1, look: 0 }),
+      // The look changes over the end of the move, as the tab arrives.
+      (i) => ({
+        delay: i * STAGGER_S,
+        move: FLY_S,
+        lookDelay: i * STAGGER_S + FLY_S * 0.45,
+        look: FLY_S * 0.55,
+      }),
+    );
+  }, [fly, poses, settle, startsAt]);
+
+  const flyBack = React.useCallback(() => {
+    const starts = startsAt();
+    if (starts.some((start) => !start)) return settle("idle");
+    fly(
+      "idle",
+      (i) => ({ x: starts[i]!.x, y: starts[i]!.y, scale: starts[i]!.scale, look: 1 }),
+      (i) => {
+        const delay = (starts.length - 1 - i) * STAGGER_S * 0.6;
+        return { delay, move: FLY_S * 0.7, lookDelay: delay, look: FLY_S * 0.35 };
+      },
+    );
+  }, [fly, settle, startsAt]);
+
+  useMotionValueEvent(entry, "change", (v) => {
+    if (!on || !document.querySelector("[data-bridge-pill]")) return;
+    if (v >= TAKE_OFF && heading.current === "back") takeOff();
+    else if (v < FLY_BACK && heading.current === "out") flyBack();
+  });
+
   React.useEffect(() => {
-    mark(progress.get());
-    return () => {
-      delete document.documentElement.dataset.tabFlight;
+    const root = document.documentElement;
+    delete root.dataset.tabFlight;
+    if (!on) return;
+    // A load or a return part way down the page starts landed. The steps
+    // mount a moment after the tour (the bridge waits for its media query),
+    // so it waits for them: settled only if they were there at once, the
+    // tab bar showed its tabs while the steps did, and they jumped up to
+    // the steps at take-off.
+    const start = () => {
+      if (!document.querySelector("[data-bridge-pill]")) return false;
+      settle(entry.get() >= TAKE_OFF ? "landed" : "idle");
+      return true;
     };
-  }, [mark, progress]);
+    const watch = start() ? null : new MutationObserver(() => start() && watch?.disconnect());
+    watch?.observe(document.body, { childList: true, subtree: true });
+    const live = run;
+    return () => {
+      watch?.disconnect();
+      // Stopped, and no late end to settle it.
+      live.current.moves.forEach((move) => move.stop());
+      live.current = { id: live.current.id + 1, moves: [] };
+      delete root.dataset.tabFlight;
+    };
+  }, [entry, on, settle]);
 
-  if (!mounted || reduceMotion) return null;
-  return createPortal(
-    <>
-      {TOUR_TABS.map((tab, i) => (
-        <FlyingPill key={tab.id} progress={progress} tab={tab} index={i} />
-      ))}
-    </>,
-    document.body,
-  );
-}
-
-function FlyingPill({
-  progress,
-  tab,
-  index,
-}: {
-  progress: MotionValue<number>;
-  tab: TourTab;
-  index: number;
-}) {
-  const x = useMotionValue(0);
-  const y = useMotionValue(0);
-  const opacity = useMotionValue(0);
-  // It leaves with the bridge pill's ring and lands as the tour's tab: the
-  // first one selected (white), the others clear with grey labels. Drawn
-  // plain, the four rings vanished at take-off, and the three clear tabs
-  // swapped in for white pills at landing.
-  const ring = useMotionValue(1);
-  const fill = useMotionValue(1);
-  const color = useTransform(fill, [0, 1], ["#596980", "#121a28"]);
-
-  const place = React.useCallback(
-    (p: number) => {
-      const flying = p > 0.01 && p < 0.985 && !!document.querySelector("[data-bridge-pill]");
-      opacity.set(flying ? 1 : 0);
-      if (!flying) return;
-      const from = document
-        .querySelector(`[data-bridge-pill="${tab.id}"]`)
-        ?.getBoundingClientRect();
-      const to = document.getElementById(`tour-tab-${tab.id}`)?.getBoundingClientRect();
-      if (!from || !to) return;
-      // A small stagger, so they arrive one after another, and a lift in
-      // the middle, so they arc rather than slide.
-      const t = ease(clamp((p - index * 0.05) / 0.85));
-      x.set(lerp(from.left, to.left, t));
-      y.set(lerp(from.top, to.top, t) - Math.sin(Math.PI * t) * 40);
-      ring.set(1 - t);
-      fill.set(index === 0 ? 1 : 1 - clamp((t - 0.75) / 0.25));
-    },
-    [fill, index, opacity, ring, tab.id, x, y],
-  );
-  useMotionValueEvent(progress, "change", place);
-  React.useEffect(() => place(progress.get()), [place, progress]);
-
-  return (
-    <motion.span
-      aria-hidden="true"
-      className="pointer-events-none fixed top-0 left-0 z-40 will-change-transform"
-      style={{ x, y, opacity }}
-    >
-      <Pill tab={tab} fill={fill} color={color} />
-      <motion.span
-        aria-hidden="true"
-        className="pointer-events-none absolute inset-0 rounded-full"
-        style={{ opacity: ring, boxShadow: `0 0 0 2px ${tab.glow}` }}
-      />
-    </motion.span>
-  );
+  return poses;
 }

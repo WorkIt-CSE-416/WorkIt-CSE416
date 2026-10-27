@@ -22,6 +22,7 @@ import { followedJob } from "./feature-data";
 import { Fit } from "./fit";
 import { useMediaQuery, usePageHidden } from "./hooks";
 import { CONTAINER, PANEL, PANEL_INSET } from "./layout-parts";
+import { SlopWord } from "./slop-word";
 import { CARD_WIDTH, FollowedCard } from "./thread";
 
 /**
@@ -199,7 +200,44 @@ export function Statement() {
   const isDesktop = useMediaQuery(DESKTOP_QUERY);
   const reduceMotion = useReducedMotion();
   if (isDesktop === true && !reduceMotion) return <LoopingStatement />;
+  if (isDesktop === false && !reduceMotion) return <CompactStatement />;
   return <StillStatement />;
+}
+
+/**
+ * Below lg: the same loop, in one column. The beat's caption over the
+ * screening panel alone, drawn at about 0.85 on a phone: the whole scene,
+ * bin and all, drew at 0.58 with 7px labels, which is why phones showed it
+ * still until KAN-368. A rejected page crumples and flies off the panel's
+ * edge, towards where the bin stands on a wider screen.
+ */
+function CompactStatement() {
+  const stageRef = React.useRef<HTMLDivElement>(null);
+  const inView = useInView(stageRef, { amount: 0.4 });
+  const hidden = usePageHidden();
+  const playing = inView && !hidden;
+  const { p, fade } = useStoryLoop(playing);
+  return (
+    <section
+      aria-labelledby="statement-title"
+      data-paused={playing ? undefined : ""}
+      className={cn(PANEL_INSET, "mt-16 sm:mt-24")}
+    >
+      <Panel>
+        <div ref={stageRef} className={cn(CONTAINER, "py-14")}>
+          <Headline />
+          <motion.div className="mt-6" style={{ opacity: fade }}>
+            <Story p={p} compact />
+          </motion.div>
+          <motion.div className="mt-2" style={{ opacity: fade }}>
+            <Fit>
+              <Scene p={p} compact />
+            </Fit>
+          </motion.div>
+        </div>
+      </Panel>
+    </section>
+  );
 }
 
 /** From lg up: a screen-high panel, not pinned, whose story loops while it
@@ -225,7 +263,9 @@ function LoopingStatement() {
               right. */}
           <div className={cn(CONTAINER, "flex h-full flex-col py-10 xl:py-12")}>
             <Headline />
-            <div className="grid min-h-0 flex-1 grid-cols-[1fr_1.1fr] items-center gap-12 pt-6">
+            {/* pt-14: room for the drips off "Slop" above the first
+                caption's chip. */}
+            <div className="grid min-h-0 flex-1 grid-cols-[1fr_1.1fr] items-center gap-12 pt-14">
               <motion.div style={{ opacity: fade }}>
                 <Story p={p} />
               </motion.div>
@@ -355,8 +395,8 @@ function Panel({ children }: { children: React.ReactNode }) {
   );
 }
 
-/** "Slop" gets a red wavy underline, the way a spell checker flags an
- * error (`.slop-wave`, landing.css). It was "Stop sending slop
+/** "Slop" is drawn as AI slop, dripping (`SlopWord`, KAN-368); a red
+ * spell-checker wave under it came first. It was "Stop sending slop
  * applications.", a second "Stop" after the hero's; it now says what the
  * three beats show. */
 function Headline() {
@@ -365,7 +405,7 @@ function Headline() {
       id="statement-title"
       className="text-ink text-[2.5rem] leading-[1.08] font-semibold tracking-[-0.035em] text-balance sm:text-6xl lg:text-[clamp(2.75rem,4.2vw,4rem)]"
     >
-      <span className="slop-wave">Slop</span> applications get skipped.
+      <SlopWord /> applications get skipped.
     </h2>
   );
 }
@@ -459,12 +499,12 @@ function WorkItChip({ moving = false }: { moving?: boolean }) {
  * above it, filling as the story played, was taken out: it read as the
  * scroll's progress, and sat close over the gate's chip.
  */
-function Story({ p }: { p: MotionValue<number> }) {
+function Story({ p, compact = false }: { p: MotionValue<number>; compact?: boolean }) {
   return (
     <div>
       {/* One slot, the captions stacked in it; tall enough for the
-          longest at its widest wrap. */}
-      <div className="relative h-[15rem]">
+          longest at its widest wrap (a size down in one column). */}
+      <div className={cn("relative", compact ? "h-[11.5rem]" : "h-[15rem]")}>
         {BEATS.map((beat, i) => (
           <Caption
             key={beat.gate}
@@ -473,6 +513,7 @@ function Story({ p }: { p: MotionValue<number> }) {
             beat={BEAT_AT[i]}
             chip={<GateChip beat={beat} moving />}
             text={beat.text}
+            compact={compact}
           />
         ))}
         <Caption
@@ -482,6 +523,7 @@ function Story({ p }: { p: MotionValue<number> }) {
           chip={<WorkItChip moving />}
           text={CLOSE}
           strong
+          compact={compact}
         />
       </div>
     </div>
@@ -495,6 +537,7 @@ function Caption({
   chip,
   text,
   strong = false,
+  compact = false,
 }: {
   p: MotionValue<number>;
   index: number;
@@ -502,6 +545,7 @@ function Caption({
   chip: React.ReactNode;
   text: string;
   strong?: boolean;
+  compact?: boolean;
 }) {
   const [start, end] = CAPTION_AT[index];
   // In just after its beat begins (the first is there from the start),
@@ -526,7 +570,8 @@ function Caption({
       {chip}
       <p
         className={cn(
-          "text-ink mt-4 text-2xl leading-[1.3] tracking-[-0.015em] text-pretty xl:text-[1.75rem]",
+          "text-ink mt-4 leading-[1.3] tracking-[-0.015em] text-pretty",
+          compact ? "text-xl" : "text-2xl xl:text-[1.75rem]",
           strong ? "font-semibold" : "font-medium",
         )}
       >
@@ -561,14 +606,20 @@ function Word({
 
 // --- The scene ---
 
-function Scene({ p }: { p: MotionValue<number> }) {
+function Scene({ p, compact = false }: { p: MotionValue<number>; compact?: boolean }) {
   return (
     // shrink-0: everything in it is absolute, so as Fit's flex child it would
     // shrink to the column, and Fit, reading that width, would never scale it.
+    // Compact, it is the screening panel alone, clipped at its edge, with no
+    // bin: a thrown page leaves the panel.
     <div
       aria-hidden="true"
-      className="relative shrink-0"
-      style={{ width: STAGE_W, height: STAGE_H }}
+      className={cn("relative shrink-0", compact && "overflow-hidden")}
+      style={
+        compact
+          ? { width: SCREEN.w, height: SCREEN.y + SCREEN.h }
+          : { width: STAGE_W, height: STAGE_H }
+      }
     >
       <Screen p={p} />
       {BEATS.map((beat, i) => (
@@ -580,7 +631,7 @@ function Scene({ p }: { p: MotionValue<number> }) {
         </Page>
       ))}
       <Finale p={p} />
-      <Bin p={p} />
+      {!compact && <Bin p={p} />}
     </div>
   );
 }
@@ -593,7 +644,7 @@ function Scene({ p }: { p: MotionValue<number> }) {
 function Screen({ p }: { p: MotionValue<number> }) {
   return (
     <div
-      className="absolute rounded-2xl bg-white shadow-[0_24px_50px_-28px_rgb(16_48_94/0.45)] ring-1 ring-slate-900/[0.06]"
+      className="gloss-card absolute rounded-2xl"
       style={{ left: SCREEN.x, top: SCREEN.y, width: SCREEN.w, height: SCREEN.h }}
     >
       <div className="relative flex items-center gap-3 px-4" style={{ height: HEADER_H }}>

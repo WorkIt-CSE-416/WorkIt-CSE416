@@ -38,7 +38,10 @@ const JOB_PAGE = /^\/jobs\/([^/]+)$/;
  * "A PAGE KEEPS THE WIDTH"), so with the menu closed half the gain stood
  * empty left of the rail. The frame takes it back on both sides and the
  * rail grows by the whole gain, so the job's page keeps its width in both
- * states and only the rail's cards widen.
+ * states and only the rail's cards widen. --panel-gain does not inherit, so
+ * the frame and the rail each set and ease their own copy with the shell's
+ * classes ("EVERY READER OF --panel-gain CARRIES ITS OWN" there); without
+ * them they read 0px and the empty half-gain comes back.
  *
  * Beside the rail the job's page stops at 60rem, not its own 70rem, and the
  * rail takes the room that leaves: at 70rem the description ran far wider
@@ -48,7 +51,7 @@ export function JobsRailFrame({ children }: { children: ReactNode }) {
   const jobId = JOB_PAGE.exec(usePathname())?.[1];
   if (!jobId) return children;
   return (
-    <div className="flex flex-1 @4xl/main:mx-[calc(var(--panel-gain)/-2)]">
+    <div className="flex flex-1 transition-[--panel-gain] duration-200 ease-linear md:in-data-[pinned=false]:[--panel-gain:calc(var(--sidebar-width)_-_var(--sidebar-width-icon))] @4xl/main:mx-[calc(var(--panel-gain)/-2)]">
       <JobsRail currentId={decodeURIComponent(jobId)} />
       <div className="flex max-w-[60rem] min-w-0 flex-1 flex-col">{children}</div>
     </div>
@@ -136,7 +139,7 @@ function JobsRail({ currentId }: { currentId: string }) {
   return (
     <aside
       aria-label="Jobs"
-      className="border-border-subtle sticky top-0 hidden h-[calc(100svh-6.375rem)] w-[calc(clamp(18rem,100cqw_-_60rem,40rem)_+_var(--panel-gain))] shrink-0 flex-col self-start border-r @4xl/main:flex"
+      className="border-border-subtle sticky top-0 hidden h-[calc(100svh-6.375rem)] w-[calc(clamp(18rem,100cqw_-_60rem,40rem)_+_var(--panel-gain))] shrink-0 flex-col self-start border-r transition-[--panel-gain] duration-200 ease-linear md:in-data-[pinned=false]:[--panel-gain:calc(var(--sidebar-width)_-_var(--sidebar-width-icon))] @4xl/main:flex"
     >
       <div className="px-4 pt-6 pb-3">
         <h2 className="text-label text-ink">{showable ? listTitle(showable) : "Jobs"}</h2>

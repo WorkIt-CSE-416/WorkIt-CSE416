@@ -1,5 +1,6 @@
-"""Oracle Recruiting Cloud, TikTok, iCIMS (on its Jibe career sites) and
-SuccessFactors (on its career-site builder): each one's response mapped onto `Job`.
+"""TikTok, iCIMS on its Jibe career sites (`jibe`) and SuccessFactors (on its
+career-site builder): each one's response mapped onto `Job`. Oracle and iCIMS's
+own sitemaps are tested in `test_providers.py`.
 
 Every fixture in `fixtures/providers/` is a real response from 2026-10-26, trimmed
 to a few postings and the fields the reader uses (styles stripped from HTML). Where
@@ -15,7 +16,6 @@ import pytest
 
 from build_boards import tokens
 from workit_scraper import providers
-from workit_scraper.providers import Incomplete
 
 FIXTURES = Path(__file__).parent / "fixtures" / "providers"
 
@@ -25,107 +25,12 @@ def fixture(name: str) -> object:
     return json.loads(text) if name.endswith(".json") else text
 
 
-class TestOracle:
-    TOKEN = "ecnf.fa.us2/CX"
-
-    def serve(self, monkeypatch, pages: list[dict]) -> list[str]:
-        asked: list[str] = []
-        answers = iter(pages)
-        monkeypatch.setattr(providers, "_get_json", lambda url: asked.append(url) or next(answers))
-        return asked
-
-    def test_a_requisition_links_its_candidate_page(self, monkeypatch) -> None:
-        asked = self.serve(monkeypatch, [fixture("oracle-list.json")])
-        jobs = providers.oracle(self.TOKEN, "Tradeweb")
-        assert asked == [
-            "https://ecnf.fa.us2.oraclecloud.com/hcmRestApi/resources/latest/"
-            "recruitingCEJobRequisitions?onlyData=true&expand=requisitionList.secondaryLocations"
-            "&finder=findReqs;siteNumber=CX,limit=200,offset=0,sortBy=POSTING_DATES_DESC"
-        ]
-        first = jobs[0]
-        assert (first.ats, first.external_id, first.company) == ("oracle", "301986", "Tradeweb")
-        assert first.title == "Summer 2027 Human Resources Internship"
-        assert first.apply_url == (
-            "https://ecnf.fa.us2.oraclecloud.com/hcmUI/CandidateExperience/en/sites/CX/job/301986"
-        )
-        assert first.location == "New York, NY, United States"
-        assert first.posted_at == "2026-10-26T00:00:00+00:00"
-        # The list has only a short summary: its own record is read once.
-        assert first.page is None
-        assert len(jobs) == 3
-
-    def test_a_board_pages_until_its_count_and_paces_each_page(self, monkeypatch) -> None:
-        payload = fixture("oracle-list.json")
-        rows = payload["items"][0]["requisitionList"]
-        pages = [
-            {"items": [{**payload["items"][0], "requisitionList": rows[:2]}]},
-            {"items": [{**payload["items"][0], "requisitionList": rows[2:]}]},
-        ]
-        monkeypatch.setattr(providers, "ORACLE_PAGE", 2)
-        asked = self.serve(monkeypatch, pages)
-        paced: list[str] = []
-        jobs = providers.oracle(self.TOKEN, "Tradeweb", pace=paced.append)
-        assert [job.external_id for job in jobs] == [row["Id"] for row in rows]
-        assert ["offset=0" in asked[0], "offset=2" in asked[1]] == [True, True]
-        assert len(paced) == 1
-
-    def test_pages_that_overlap_are_incomplete(self, monkeypatch) -> None:
-        # The board changed under us: the second page repeats the first's rows.
-        payload = fixture("oracle-list.json")
-        payload["items"][0]["TotalJobsCount"] = 4
-        monkeypatch.setattr(providers, "ORACLE_PAGE", 3)
-        rows = payload["items"][0]["requisitionList"]
-        again = {"items": [{**payload["items"][0], "requisitionList": rows[:1]}]}
-        self.serve(monkeypatch, [payload, again])
-        with pytest.raises(Incomplete):
-            providers.oracle(self.TOKEN, "Tradeweb")
-
-    def test_a_count_a_few_over_what_the_last_page_serves_is_whole(self, monkeypatch) -> None:
-        # Live, 2026-10-26: ebwg.fa.us2/CX counted 115 and served 113 on one page of
-        # 200, with nothing past it; edel.fa.us2/CX_2001 1,040 and 1,039. The count
-        # includes requisitions the search never serves. A short last page with no
-        # overlap is the whole board.
-        payload = fixture("oracle-list.json")
-        payload["items"][0]["TotalJobsCount"] = 5
-        self.serve(monkeypatch, [payload])
-        assert len(providers.oracle(self.TOKEN, "Tradeweb")) == 3
-
-    def test_a_board_past_the_deepest_page_is_too_large(self, monkeypatch) -> None:
-        payload = fixture("oracle-list.json")
-        payload["items"][0]["TotalJobsCount"] = 13_426  # ejwl.fa.us2/CX
-        self.serve(monkeypatch, [payload])
-        with pytest.raises(providers.TooLarge):
-            providers.oracle(self.TOKEN, "Tradeweb")
-
-    def test_a_site_with_nothing_open_is_empty(self, monkeypatch) -> None:
-        # A site number the pod does not have answers the same way: a search
-        # with a count of 0 (checked live). Only a pod that does not exist 404s.
-        payload = fixture("oracle-list.json")
-        payload["items"][0].update(TotalJobsCount=0, requisitionList=[])
-        self.serve(monkeypatch, [payload])
-        assert providers.oracle("ecnf.fa.us2/NOPE", "Tradeweb") == []
-
-    def test_its_own_record_has_the_description_and_exact_date(self, monkeypatch) -> None:
-        self.serve(monkeypatch, [fixture("oracle-list.json")])
-        job = providers.oracle(self.TOKEN, "Tradeweb")[0]
-        asked = self.serve(monkeypatch, [fixture("oracle-detail.json")])
-        described = providers.describe(job)
-        assert asked == [
-            "https://ecnf.fa.us2.oraclecloud.com/hcmRestApi/resources/latest/"
-            'recruitingCEJobRequisitionDetails?expand=all&onlyData=true&finder=ById;Id="301986",'
-            "siteNumber=CX"
-        ]
-        assert described.posted_at == "2026-10-26T15:44:51+00:00"
-        assert "Tradeweb" in (described.description or "")
-        assert described.page is not None and described.page.version == providers.PAGE_VERSION
-
-
 class TestTikTok:
     def serve(self, monkeypatch, pages: list[dict]) -> list[tuple[str, dict]]:
         asked: list[tuple[str, dict]] = []
         answers = iter(pages)
         monkeypatch.setattr(
-            providers,
+            providers.fetch,
             "_post_json",
             lambda url, body, headers=None: asked.append((url, body, headers)) or next(answers),
         )
@@ -156,12 +61,12 @@ class TestTikTok:
             providers.tiktok("lifeattiktok", "TikTok")
 
 
-class TestICIMS:
+class TestJibe:
     def test_a_jibe_site_lists_its_icims_postings(self, monkeypatch) -> None:
         asked: list[str] = []
         payload = fixture("icims-jibe-list.json")
-        monkeypatch.setattr(providers, "_get_json", lambda url: asked.append(url) or payload)
-        jobs = providers.icims("careers.amd.com", "AMD")
+        monkeypatch.setattr(providers.fetch, "_get_json", lambda url: asked.append(url) or payload)
+        jobs = providers.jibe("careers.amd.com", "AMD")
         assert asked == ["https://careers.amd.com/api/jobs?page=1&limit=100"]
         intern = jobs[0]
         assert intern.title == "2027 PhD AI Model Optimization & Software Engineer Intern/Co-op"
@@ -175,21 +80,21 @@ class TestICIMS:
         payload = fixture("icims-jibe-list.json")
         payload["jobs"].append(payload["jobs"][0])
         payload["totalCount"] = 3
-        monkeypatch.setattr(providers, "_get_json", lambda url: payload)
-        assert len(providers.icims("careers.amd.com", "AMD")) == 2
+        monkeypatch.setattr(providers.fetch, "_get_json", lambda url: payload)
+        assert len(providers.jibe("careers.amd.com", "AMD")) == 2
 
     def test_a_posting_on_another_system_is_left_out(self, monkeypatch) -> None:
         payload = fixture("icims-jibe-list.json")
         payload["jobs"][1]["data"]["ats_code"] = "workday"
-        monkeypatch.setattr(providers, "_get_json", lambda url: payload)
-        assert len(providers.icims("careers.amd.com", "AMD")) == 1
+        monkeypatch.setattr(providers.fetch, "_get_json", lambda url: payload)
+        assert len(providers.jibe("careers.amd.com", "AMD")) == 1
 
 
 class TestSuccessFactors:
     def test_the_search_page_lists_title_place_and_date(self, monkeypatch) -> None:
         asked: list[str] = []
         page = fixture("successfactors-search.html")
-        monkeypatch.setattr(providers, "_get_text", lambda url: asked.append(url) or page)
+        monkeypatch.setattr(providers.fetch, "_get_text", lambda url: asked.append(url) or page)
         jobs = providers.successfactors("jobs.grainger.com", "Grainger")
         assert asked == [
             "https://jobs.grainger.com/search/?q=&sortColumn=sort_title&sortDirection=asc&startrow=0"
@@ -216,7 +121,7 @@ class TestSuccessFactors:
         rows = page.split('<tr class="data-row">')
         first = page.replace('<tr class="data-row">' + rows[2], "")  # row 1 only
         answers = iter([first, page])  # then rows 1 and 2: row 1 again, row 2 new
-        monkeypatch.setattr(providers, "_get_text", lambda url: next(answers))
+        monkeypatch.setattr(providers.fetch, "_get_text", lambda url: next(answers))
         assert len(providers.successfactors("jobs.grainger.com", "Grainger")) == 2
 
     def test_its_own_page_has_the_description(self, monkeypatch) -> None:
@@ -230,7 +135,7 @@ class TestSuccessFactors:
         )
         page = fixture("successfactors-job.html")
         asked: list[str] = []
-        monkeypatch.setattr(providers, "_get_text", lambda url: asked.append(url) or page)
+        monkeypatch.setattr(providers.fetch, "_get_text", lambda url: asked.append(url) or page)
         described = providers.describe(job)
         assert asked == [job.apply_url]
         assert described.posted_at == "2026-10-13T07:00:00+00:00"
@@ -242,18 +147,10 @@ class TestBoardsFromLinks:
     @pytest.mark.parametrize(
         ("link", "board"),
         [
-            (
-                "https://fa-exki-saasfaprod1.fa.ocs.oraclecloud.com/hcmUI/CandidateExperience/en/sites/CX_1/job/27180",
-                ("oracle", "fa-exki-saasfaprod1.fa.ocs/CX_1"),
-            ),
-            (
-                "https://ecnf.fa.us2.oraclecloud.com/hcmUI/CandidateExperience/en/sites/CX/job/301721",
-                ("oracle", "ecnf.fa.us2/CX"),
-            ),
             ("https://lifeattiktok.com/search/7611950589973186821", ("tiktok", "lifeattiktok")),
             (
                 "https://careers.medpace.com/jobs/12729?lang=en-us&icims=1",
-                ("icims", "careers.medpace.com"),
+                ("jibe", "careers.medpace.com"),
             ),
             (
                 "https://jobs.grainger.com/job/CHICAGO-GTG-Intern-Software-Engineer-IL-60661-4555/1419930800/?ats=successfactors",
@@ -266,9 +163,8 @@ class TestBoardsFromLinks:
 
     def test_a_board_is_read_where_its_robots_txt_was_checked(self) -> None:
         for ats, token in [
-            ("oracle", "ecnf.fa.us2/CX"),
             ("tiktok", "lifeattiktok"),
-            ("icims", "careers.amd.com"),
+            ("jibe", "careers.amd.com"),
             ("successfactors", "jobs.grainger.com"),
         ]:
             assert providers.robots_urls(ats, token) == [providers.listing_url(ats, token)]

@@ -26,11 +26,13 @@ import asyncio
 import logging
 import uuid
 
+import httpx
 from fastapi import APIRouter, Depends, HTTPException, status
 from sqlalchemy.exc import IntegrityError
 from sqlalchemy.ext.asyncio import AsyncSession
 from supabase_auth.errors import AuthError
 
+from app.config import get_settings
 from app.db import get_session, get_supabase
 from app.deps import get_current_account, get_verified_identity, load_account
 from app.models.dto import company_role, profile_status
@@ -77,6 +79,41 @@ def _signup_error(exc: AuthError) -> HTTPException:
     return HTTPException(status.HTTP_502_BAD_GATEWAY, "Couldn't create the account. Please try again.")
 
 
+TURNSTILE_VERIFY_URL = "https://challenges.cloudflare.com/turnstile/v0/siteverify"
+
+
+async def _verify_turnstile(token: str | None) -> None:
+    """Verify a Turnstile token server-side. Skips when no secret is configured
+    (local dev). Raises 400 when the token is missing or invalid."""
+    secret = get_settings().turnstile_secret_key
+    if secret is None:
+        return
+    if not token:
+        raise HTTPException(status.HTTP_400_BAD_REQUEST, "CAPTCHA verification required.")
+    try:
+        async with httpx.AsyncClient(timeout=5) as client:
+            resp = await client.post(
+                TURNSTILE_VERIFY_URL,
+                data={"secret": secret, "response": token},
+            )
+        result = resp.json()
+    except (httpx.HTTPError, ValueError) as exc:
+        logger.error("Turnstile verification request failed: %s", exc)
+        raise HTTPException(
+            status.HTTP_503_SERVICE_UNAVAILABLE,
+            "CAPTCHA verification is temporarily unavailable. Please try again.",
+        ) from exc
+    if not result.get("success"):
+        raise HTTPException(status.HTTP_400_BAD_REQUEST, "CAPTCHA verification failed.")
+
+
+async def _send_confirmation(supabase, email: str) -> None:
+    """Ask Supabase for the signup confirmation email. The admin create_user
+    that signup uses sends none of its own (Supabase's docs say so), so
+    without this call a new account could never confirm, and never sign in."""
+    await asyncio.to_thread(supabase.auth.resend, {"type": "signup", "email": email})
+
+
 def _create_company(company_info:CompanySignup)->Company_Profile:
     '''
     function to create a company given the json information file
@@ -111,6 +148,11 @@ async def signup(
     for companies, generate company_id, create company_profile, and return login attributes 
     '''
     account_type = body.account_type
+    if account_type is AccountType.COMPANY:
+        raise HTTPException(status.HTTP_403_FORBIDDEN, "Company signup is not available yet.")
+
+    await _verify_turnstile(body.captcha_token)
+
     supabase = get_supabase()
 
     # Supabase first: each profile's id is its auth.users id, and a foreign
@@ -122,15 +164,32 @@ async def signup(
             {
                 "email": body.email,
                 "password": body.password,
-                "email_confirm": True,
                 "app_metadata": {"account_type": account_type.value},
             },
         )
     except AuthError as exc:
+        # Taken email returns 201 silently — same shape, dummy id, no profile
+        # row created. This prevents leaking whether an email is registered.
+        # An account still unconfirmed gets its email again; a confirmed one
+        # (or a send inside Supabase's 60s limit) refuses, and that refusal
+        # is swallowed so the answer stays the same.
+        if exc.code in ("email_exists", "user_already_exists"):
+            try:
+                await _send_confirmation(supabase, body.email)
+            except AuthError:
+                pass
+            return AuthenticatedAccount(
+                id=uuid.uuid4(),
+                email=body.email,
+                full_name=body.full_name,
+                account_type=account_type,
+                onboarding_completed=False,
+                company_id=None,
+            )
         raise _signup_error(exc) from exc
 
     user_id = uuid.UUID(created.user.id)
-    company_id= None 
+    company_id= None
     names = name_columns(body.full_name, body.first_name, body.middle_name, body.last_name)
     try:
         if account_type is AccountType.APPLICANT:
@@ -139,7 +198,7 @@ async def signup(
                 email=body.email,
                 **names,
             )
-        else:   
+        else:
             new_company = _create_company(body.company)
             company_id = new_company.id
             db.add(new_company)
@@ -163,8 +222,31 @@ async def signup(
         except AuthError:
             logger.exception("Orphaned Supabase auth user %s after a failed signup", created.user.id)
         if isinstance(exc, IntegrityError):
-            raise _email_taken() from exc
+            # Profile collision (another signup raced). Return 201 silently.
+            return AuthenticatedAccount(
+                id=uuid.uuid4(),
+                email=body.email,
+                full_name=body.full_name,
+                account_type=account_type,
+                onboarding_completed=False,
+                company_id=None,
+            )
         raise
+
+    try:
+        await _send_confirmation(supabase, body.email)
+    except AuthError as exc:
+        # No email means no way in: undo the account (deleting the auth user
+        # cascades to the profile row) so a retry can start clean.
+        logger.exception("Couldn't send the confirmation email for %s", user_id)
+        try:
+            await asyncio.to_thread(supabase.auth.admin.delete_user, created.user.id)
+        except AuthError:
+            logger.exception("Orphaned Supabase auth user %s after a failed signup", created.user.id)
+        raise HTTPException(
+            status.HTTP_502_BAD_GATEWAY,
+            "Couldn't send the confirmation email. Please try again.",
+        ) from exc
 
     return AuthenticatedAccount(
         id=profile.id,
@@ -221,6 +303,9 @@ async def complete_oauth_account_type(
     app_metadata.account_type and the profile row both start out missing —
     this sets them the same way signup() does, minus a password to set.
     '''
+    if body.account_type is AccountType.COMPANY:
+        raise HTTPException(status.HTTP_403_FORBIDDEN, "Company signup is not available yet.")
+
     supabase = get_supabase()
 
     if identity.account_type is not None:

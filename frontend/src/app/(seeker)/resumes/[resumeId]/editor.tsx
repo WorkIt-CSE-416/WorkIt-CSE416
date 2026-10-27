@@ -3,15 +3,23 @@
 import {
   ArrowDownIcon,
   ArrowUUpLeftIcon,
+  ArrowUUpRightIcon,
   ArrowUpIcon,
-  CursorClickIcon,
+  CloudSlashIcon,
   EyeSlashIcon,
+  ScissorsIcon,
+  WarningIcon,
 } from "@phosphor-icons/react/ssr";
 import localFont from "next/font/local";
-import { useCallback, useEffect, useRef, useState } from "react";
+import { Suspense, use, useCallback, useEffect, useRef, useState, type ReactNode } from "react";
 
-import { SparkleIcon } from "@/components/icons";
-import { Button } from "@/components/ui/button";
+import { ChevronDownIcon } from "@/components/icons";
+import { ScoutTakeover } from "@/components/scout/scout-takeover";
+import { Popover, PopoverContent, PopoverTrigger } from "@/components/shadcn/popover";
+import { Skeleton } from "@/components/shadcn/skeleton";
+import { Button, buttonClasses } from "@/components/ui/button";
+import { EmptyState } from "@/components/ui/empty-state";
+import { SegmentedToggle } from "@/components/ui/segmented-control";
 import { TextLink } from "@/components/ui/text-link";
 import { updateEntry, type Bank } from "@/lib/bank-actions";
 import {
@@ -34,14 +42,13 @@ import {
   type ResumeDownload,
 } from "../download-menu";
 import { Assistant } from "./assistant";
-import { FitNotice, FitToast } from "./fit-notice";
+import { FitToast } from "./fit-notice";
 import {
   ENTRY_CODECS,
   HEADER_CODECS,
   LINK_FIELDS,
   lineOf,
   move,
-  pageLabel,
   typed,
   wording,
   type Header,
@@ -49,8 +56,21 @@ import {
   type Line,
 } from "./model";
 import { keepFitUndo, readFitUndo } from "./fit-undo";
-import { boxKey, kindLabel, PdfPages } from "./pdf-pages";
+import { boxKey, kindLabel, loadPdfjs, PageSkeleton, PdfPages } from "./pdf-pages";
 import { PhoneEditor, usePhone } from "./phone";
+import {
+  cardsOf,
+  editKey,
+  linesOf,
+  marksOf,
+  reverted,
+  revertAll,
+  revertOf,
+  type RevertTarget,
+  type SuggestionsApi,
+  untouched,
+  useTailorReview,
+} from "./tailor-review";
 import { Tray } from "./tray";
 
 /**
@@ -67,9 +87,23 @@ import { Tray } from "./tray";
  * save bumps one request counter, and a response older than the latest
  * request is dropped, so a slow render never paints over a newer edit.
  * On a phone-width screen the same state is laid out by `PhoneEditor`
- * (KAN-219, ./phone.tsx). The assistant (KAN-221, ./assistant.tsx) docks
- * beside the page, or opens in a sheet on a phone, and acts through the same
- * saves.
+ * (KAN-219, ./phone.tsx). The assistant (KAN-221, ./assistant.tsx) opens
+ * in Scout's panel from the top bar's Scout (`ScoutTakeover`), or in a
+ * sheet on a phone, and acts through the same saves. On Tailor's page
+ * (`suggestions`), each change the run made is tinted and has a card in
+ * the Suggestions panel beside the page, to accept or reject; an edit of
+ * a changed item through `apply` drops that change.
+ *
+ * THE FIRST PDF STREAMS IN (KAN-368). The page starts the render and hands
+ * it over unawaited (`initial`), since the LaTeX compile is the slowest read
+ * in the app (0.7 to 1s): the bar, the title and Back draw at once, and the
+ * page area alone waits, over a page-shaped skeleton (FirstRenderPane, in a
+ * <Suspense>, reads it). Until it lands there is nothing to click (the click
+ * targets are the render's boxes, KAN-209), the assistant and Not on
+ * This Resume wait too, and a render that fails shows its own error in the page
+ * area. pdf.js starts downloading as the editor mounts, so it is ready when
+ * the PDF is. An edit's render never loses to the first one: the first is
+ * taken only while there is no other.
  */
 
 // The attribute on the parts of the editor a press may land on without
@@ -125,6 +159,10 @@ const WRAPS = new Set(["bullet", "coursework", "honors"]);
 
 type Draft = { key: string; text: string };
 
+/** The page's render of the PDF, as renderResumePdf answers it. It never
+ *  rejects: a failure is its `error`. */
+type FirstRender = ReturnType<typeof renderResumePdf>;
+
 function splitKey(key: string) {
   const dot = key.lastIndexOf(".");
   return { item_id: key.slice(0, dot), kind: key.slice(dot + 1) };
@@ -136,14 +174,44 @@ export function Editor({
   initialBank,
   initialChoices,
   initialHeader,
+  phoneBar,
+  suggestions,
+  heading,
+  original,
 }: {
   resumeId: string;
-  initial: RenderedPdf;
+  /** The first render, started by the page and not awaited. */
+  initial: FirstRender;
   initialBank: Bank;
   initialChoices: Choices;
   initialHeader: Header;
+  /** Tailor's Suggestions panel, drawn from the run's record and the
+   *  editor's state (./tailor-review.tsx). Only Tailor's page passes it, so
+   *  only there are changes tinted: a mark with no card to act on would
+   *  mean nothing. */
+  suggestions?: (api: SuggestionsApi) => ReactNode;
+  /** The title row's title (`ResumeTitle`, renamed in place), over the
+   *  page and the column beside it; on Tailor's review the Suggestions or
+   *  Original switch sits at its right (`SideSwitch`). */
+  heading: ReactNode;
+  /** The resume Tailor started from, read-only, which the toolbar's View
+   *  Original sets beside the page in place of the Suggestions panel. */
+  original?: ReactNode;
+  /** A row the phone layout's header shows under its buttons: the page's
+   *  own controls, which the full-screen phone editor would cover. */
+  phoneBar?: ReactNode;
 }) {
-  const [rendered, setRendered] = useState(initial);
+  // Null until the first render lands (FirstRenderPane hands it over).
+  const [rendered, setRendered] = useState<RenderedPdf | null>(null);
+  const adopt = useCallback((first: RenderedPdf) => setRendered((current) => current ?? first), []);
+  // The first render failed: the page area says so, and the phone's bar
+  // stops offering "Click a line", since there is no line to click.
+  const [firstFailed, setFirstFailed] = useState(false);
+  const fail = useCallback(() => setFirstFailed(true), []);
+  // pdf.js downloads while the server compiles, not after.
+  useEffect(() => {
+    void loadPdfjs().catch(() => {});
+  }, []);
   const [bank, setBank] = useState(initialBank);
   const [header, setHeader] = useState(initialHeader);
   const [choices, setChoices] = useState(initialChoices);
@@ -155,10 +223,16 @@ export function Editor({
   const [fitUndo, setFitUndo] = useState<ChoicesUpdate | null>(null);
   // The resume's PDF and Word downloads, here since KAN-258 (../download-menu.tsx)
   const download = useResumeDownload(resumeId);
+  // Tailor's changes awaiting review; `apply` reads the newest through a ref
+  const [review, setReview] = useTailorReview(resumeId);
+  const latestReview = useRef(review);
+  useEffect(() => {
+    latestReview.current = review;
+  });
   // Over one page, a toast says so when the editor opens and again when an
   // edit pushes the resume over (./fit-notice.tsx, KAN-258). The last count
   // is kept in state, so the change is caught while rendering, not after.
-  const over = rendered.page_count > 1;
+  const over = (rendered?.page_count ?? 1) > 1;
   const [toast, setToast] = useState(over);
   const [wasOver, setWasOver] = useState(over);
   if (over !== wasOver) {
@@ -180,7 +254,19 @@ export function Editor({
   const pressed = useRef<{ x: number; y: number } | null>(null);
   const placed = useRef<string | null>(null);
   const phone = usePhone();
-  const [asking, setAsking] = useState(false);
+  // The Suggestions card in focus (its lines outlined), the card of the
+  // marked line last clicked, and the phone's Suggestions sheet
+  const [focused, setFocused] = useState<string | null>(null);
+  const [active, setActive] = useState<string | null>(null);
+  const [suggestionsOpen, setSuggestionsOpen] = useState(false);
+  // What Tailor's review sets beside the page, picked on the toolbar: the
+  // Suggestions panel, the original resume, or nothing, when the page
+  // takes the room
+  const [side, setSide] = useState<"suggestions" | "original" | null>("suggestions");
+  // The column beside the page, the panel or the original, sized to the
+  // window from wherever its top is
+  const fitPanel = useFitToWindow();
+  const fitOriginal = useFitToWindow();
 
   /** Starts a request; the returned check stays true while it is the latest. */
   const begin = useCallback(() => {
@@ -203,7 +289,7 @@ export function Editor({
   );
 
   const apply = useCallback(
-    async (changes: ChoicesUpdate) => {
+    async (changes: ChoicesUpdate, revertedTarget?: RevertTarget) => {
       // A wording picked from the bar or the assistant replaces what was
       // typed, so the field shows the picked wording, not the old draft
       if (changes.bullets?.some((b) => "variant_id" in b)) {
@@ -219,9 +305,19 @@ export function Editor({
         return setError(error);
       }
       setChoices(data);
+      // A change to an item Tailor changed (a revert included) drops its mark
+      const waiting = latestReview.current;
+      if (waiting) {
+        setReview({
+          ...waiting,
+          edits: revertedTarget
+            ? reverted(waiting.edits, revertedTarget, data)
+            : untouched(waiting.edits, changes),
+        });
+      }
       await renderAgain(current);
     },
-    [begin, resumeId, renderAgain],
+    [begin, resumeId, renderAgain, setReview],
   );
 
   /** Changes the profile fields the header prints, then renders again. */
@@ -365,7 +461,7 @@ export function Editor({
     rememberFitUndo(null);
   }
 
-  const box = rendered.boxes.find((b) => boxKey(b) === selected);
+  const box = rendered?.boxes.find((b) => boxKey(b) === selected);
   const line = box ? lineOf(bank, box) : null;
 
   function startText(line: Line) {
@@ -414,8 +510,10 @@ export function Editor({
       className: cn(
         latinModern.className,
         // A negative margin puts the side padding outside the text, so the
-        // text lands on the PDF's own glyphs
-        "bg-panel text-ink ring-brand -mx-[0.4cqw] block resize-none overflow-hidden rounded-[2px] px-[0.4cqw] shadow-md ring-2 outline-none",
+        // text lands on the PDF's own glyphs. The ring alone outlines it: a
+        // shadow read as a soft second edge under the line. 1.5px: at 2px
+        // the user found it too thick over the page's fine type.
+        "bg-panel text-ink ring-brand -mx-[0.4cqw] block resize-none overflow-hidden rounded-[2px] px-[0.4cqw] ring-[1.5px] outline-none",
         "field-sizing-content",
         look.bold && "font-bold",
         look.italic && "italic",
@@ -448,23 +546,22 @@ export function Editor({
     apply(changes);
     select(null);
   };
-  const assistant = (onClose?: () => void, className?: string) => (
+  const assistant = (className: string) => (
     <Assistant
       resumeId={resumeId}
       bank={bank}
       choices={choices}
       line={line?.kind === "header" ? null : line}
-      pageCount={rendered.page_count}
+      pageCount={rendered?.page_count ?? 1}
       onApply={apply}
       onHide={hide}
       onFit={fit}
-      onClose={onClose}
       className={className}
     />
   );
 
   // A phone shows it only with no line's sheet open, which it would cover.
-  const fitToast = toast && !(phone && selected) && (
+  const fitToast = toast && rendered && !(phone && selected) && (
     <FitToast
       pages={rendered.page_count}
       linesOver={rendered.lines_over}
@@ -478,12 +575,113 @@ export function Editor({
     />
   );
 
+  /** The page area: `draw`n from the PDF in hand, or, until the first
+   *  render lands, its skeleton and then FirstRenderPane's error if it
+   *  failed. Both layouts draw their pages through it. */
+  const pdfPane = (draw: (pdf: RenderedPdf) => ReactNode) =>
+    rendered ? (
+      draw(rendered)
+    ) : (
+      <Suspense fallback={<PageSkeleton />}>
+        <FirstRenderPane initial={initial} onLoad={adopt} onFail={fail} resumeId={resumeId} />
+      </Suspense>
+    );
+  // Tailor's review, on Tailor's page only (`suggestions`)
+  const reviewing = suggestions && review ? review : null;
+  const cards = reviewing ? cardsOf(reviewing.edits, choices) : undefined;
+  // Each line's place on the page, so the panel lists entries as the page does
+  const boxOrder = new Map<string, number>();
+  rendered?.boxes.forEach((b, i) => {
+    if (!boxOrder.has(boxKey(b))) boxOrder.set(boxKey(b), i);
+  });
+  const pageOrder = (key: string) => boxOrder.get(key) ?? Number.POSITIVE_INFINITY;
+  const suggestionCount = reviewing ? reviewing.edits.length : 0;
+  // Every changed line has a dot; only the lines of the card in focus or
+  // open are tinted
+  const allMarks = reviewing ? marksOf(reviewing.edits, choices) : undefined;
+  const litEdits = reviewing?.edits.filter((edit) => [focused, active].includes(editKey(edit)));
+  const lit = new Set(litEdits?.flatMap((edit) => linesOf(edit, choices)));
+  const marks = allMarks && new Map([...allMarks].filter(([line]) => lit.has(line)));
+  const dots =
+    allMarks &&
+    new Map([...allMarks].map(([line, mark]) => [line, { mark, lit: lit.has(line) }] as const));
+  // The page scrolls to a suggestion's lines only once it is opened: on
+  // hover it scrolled under the pointer as it crossed the panel, which made
+  // the page swim. Hover still highlights the lines (`lit`, above)
+  const openEdit = reviewing?.edits.find((edit) => editKey(edit) === active);
+  const focus = openEdit ? linesOf(openEdit, choices) : undefined;
+  /** A click on a line selects it, and a changed one also opens its card. */
+  const onLine = (key: string) => {
+    select(selected === key ? null : key);
+    const card = cards?.get(key);
+    if (card) setActive(card);
+  };
+  /** A click on a margin dot opens its card (on a phone, in the sheet). */
+  const onDot = (key: string) => {
+    const card = cards?.get(key);
+    if (!card) return;
+    setActive(card);
+    setSuggestionsOpen(true);
+  };
+  const panel =
+    reviewing &&
+    suggestions?.({
+      record: reviewing,
+      pageOrder,
+      bank,
+      choices,
+      saving,
+      // Accept keeps the saved change and drops it from the record
+      accept: (edit) =>
+        setReview({ ...reviewing, edits: reviewing.edits.filter((e) => e !== edit) }),
+      reject: (edit) => void apply(revertOf({ edit }, choices), { edit }),
+      acceptAll: () => setReview({ ...reviewing, edits: [] }),
+      rejectAll: () => void apply(revertAll(reviewing.edits, choices)),
+      focused,
+      focus: setFocused,
+      show: (key) => {
+        setActive(key);
+        setSuggestionsOpen(false);
+      },
+      active,
+      open: setActive,
+    });
+  // Beside the page, the toolbar's Suggestions shows and hides the panel;
+  // the phone opens it as a sheet from its own button
+  const shownPanel = side === "suggestions" && panel;
+  const shownOriginal = side === "original" && original;
+  /** The toolbar's switch: the panel, the original, or nothing beside the
+   *  page. A hidden panel leaves no line highlighted for a card out of
+   *  sight. */
+  const showSide = (to: "suggestions" | "original" | null) => {
+    if (side === "suggestions" && to !== "suggestions") {
+      setActive(null);
+      setFocused(null);
+    }
+    setSide(to);
+  };
+
   if (phone) {
     const start = line && startText(line);
     return (
       <>
         <PhoneEditor
           rendered={rendered}
+          hint={!(firstFailed && !rendered)}
+          pages={pdfPane((pdf) => (
+            <PdfPages
+              pdf={pdf.pdf}
+              boxes={pdf.boxes}
+              selected={selected}
+              onSelect={onLine}
+              onDrawn={drawn}
+              placeholder={<PageSkeleton />}
+              marks={marks}
+              focus={focus}
+              dots={dots}
+              onDot={onDot}
+            />
+          ))}
           bank={bank}
           choices={choices}
           selected={selected}
@@ -495,6 +693,15 @@ export function Editor({
           error={error}
           fitUndo={fitUndo}
           download={download}
+          bar={phoneBar}
+          suggestions={
+            reviewing && {
+              count: suggestionCount,
+              panel,
+              open: suggestionsOpen,
+              onOpenChange: setSuggestionsOpen,
+            }
+          }
           actions={
             line && (
               <LineActions
@@ -509,46 +716,60 @@ export function Editor({
               />
             )
           }
-          assistant={assistant(undefined, "h-full rounded-none ring-0")}
+          assistant={assistant("h-full")}
           onSelect={select}
           onType={(text) => selected && type(selected, text)}
           onFlush={flush}
           onApply={apply}
           onFit={fit}
           onUndoFit={undoFit}
-          onDrawn={drawn}
         />
         {fitToast}
       </>
     );
   }
 
-  return (
+  const bar = (
+    <Bar
+      line={line}
+      box={box}
+      bank={bank}
+      choices={choices}
+      header={header}
+      rendered={rendered}
+      saving={saving}
+      elapsed={elapsed}
+      fitUndo={fitUndo}
+      download={download}
+      onApply={apply}
+      onSaveHeader={saveHeader}
+      onClose={() => select(null)}
+      onFit={fit}
+      onUndoFit={undoFit}
+    />
+  );
+  const reviewTools: ReviewTools | null = reviewing && {
+    count: suggestionCount,
+    side,
+    onSide: showSide,
+    hasOriginal: Boolean(original),
+  };
+  // The column beside the page sticks level with the toolbar over the page,
+  // as tall as the window allows below its top (`useFitToWindow`)
+  const sideColumn =
+    "overflow-y-auto overscroll-contain @4xl/main:sticky @4xl/main:top-2 @4xl/main:max-h-(--fit-height)";
+
+  const grid = (
     <div
       className={cn(
-        "mt-4 grid items-start gap-5",
-        asking && "@4xl/main:grid-cols-[minmax(0,1fr)_22rem]",
+        "grid items-start gap-5",
+        shownPanel && "@4xl/main:grid-cols-[minmax(0,1fr)_22.5rem]",
+        // The two resumes at one width, so a line reads against its twin
+        shownOriginal && "@4xl/main:grid-cols-2",
       )}
     >
-      <div className="flex min-w-0 flex-col gap-4">
-        <Bar
-          line={line}
-          box={box}
-          bank={bank}
-          choices={choices}
-          header={header}
-          rendered={rendered}
-          saving={saving}
-          elapsed={elapsed}
-          fitUndo={fitUndo}
-          download={download}
-          onApply={apply}
-          onSaveHeader={saveHeader}
-          onClose={() => select(null)}
-          onFit={fit}
-          onUndoFit={undoFit}
-          onAsk={asking ? undefined : () => setAsking(true)}
-        />
+      <div className="flex min-w-0 flex-col gap-2">
+        {bar}
         {error && (
           <p role="alert" className="text-note text-danger">
             {error}
@@ -563,36 +784,124 @@ export function Editor({
             pressed.current = { x: e.clientX - origin.left, y: e.clientY - origin.top };
           }}
         >
-          <PdfPages
-            pdf={rendered.pdf}
-            boxes={rendered.boxes}
-            selected={selected}
-            onSelect={(key) => select(selected === key ? null : key)}
-            field={field}
-            onDrawn={drawn}
-          />
+          {pdfPane((pdf) => (
+            <PdfPages
+              pdf={pdf.pdf}
+              boxes={pdf.boxes}
+              selected={selected}
+              onSelect={onLine}
+              field={field}
+              onDrawn={drawn}
+              placeholder={<PageSkeleton />}
+              marks={marks}
+              focus={focus}
+              dots={dots}
+              onDot={onDot}
+            />
+          ))}
         </div>
-        <Tray bank={bank} choices={choices} onPutBack={apply} />
+        {/* Putting an item back renders again, so it waits for the first. */}
+        {/* Not on Tailor's review: putting a hidden line back is the
+            editor's own page's work, and a run's own removals have Reject.
+            A toolbar button and modal for it there cluttered the review */}
+        {rendered && !suggestions && <Tray bank={bank} choices={choices} onPutBack={apply} />}
       </div>
-      {/* Kept mounted while closed, so the chat survives closing it */}
-      <div
-        data-keeps-selection
-        className={cn(
-          "h-[min(40rem,calc(100dvh-8rem))] min-h-[24rem] @4xl/main:sticky @4xl/main:top-4",
-          !asking && "hidden",
-        )}
-      >
-        {assistant(() => setAsking(false), "animate-rise h-full")}
-      </div>
+      {/* The assistant lives in Scout's panel, opened from the top bar's
+          Scout (`ScoutTakeover`), so the page has one way to it. Not on
+          Tailor's review, whose Scout stays the job search chat. Kept
+          mounted while the panel is closed, so the chat survives closing
+          it; marked KEEPS_SELECTION, since the panel sits outside the
+          editor and the assistant acts on the selected line. It docked
+          beside the page from a toolbar Ask Scout until KAN-411; the user
+          found two Scout buttons on one page one too many. It waits for the
+          first render, as that button did: the assistant reads its page
+          count and acts through renders, so until then the panel is
+          Scout's job chat */}
+      {rendered && !suggestions && (
+        <ScoutTakeover title="Scout" subtitle="Edits this resume as you talk">
+          <div data-keeps-selection className="flex min-h-0 flex-1 flex-col">
+            {assistant("flex-1")}
+          </div>
+        </ScoutTakeover>
+      )}
+      {/* Tailor's suggestions, above the page on a narrow screen. */}
+      {/* The panel scrolls its own list under its header, so the column
+          only caps its height: scrolled here, the header and the panel's
+          rounded corners went up with the list. The cap is measured
+          (`useFitToWindow`): a fixed one, the window less 15rem, ran the
+          panel's foot below the window before the page scrolled and left a
+          gap under it after, once the title row grew */}
+      {shownPanel && (
+        <div
+          data-keeps-selection
+          ref={fitPanel}
+          className="max-h-scroll-box -order-1 flex flex-col @4xl/main:sticky @4xl/main:top-2 @4xl/main:order-none @4xl/main:max-h-(--fit-height)"
+        >
+          {shownPanel}
+        </div>
+      )}
+      {/* The original beside the page; under it on a narrow screen */}
+      {shownOriginal && (
+        <div ref={fitOriginal} className={sideColumn}>
+          {shownOriginal}
+        </div>
+      )}
       {fitToast}
+    </div>
+  );
+  // The title spans the page and the column beside it, so the column starts
+  // level with the toolbar, and the view switch sits at its right end over
+  // the column it changes. The toolbar spanned both too for a day, which
+  // put the panel under it, apart from the page it reviews
+  return (
+    <div className="mt-4 flex flex-col gap-3">
+      <div className="flex flex-wrap items-center gap-x-4 gap-y-2">
+        <div className="min-w-0 flex-1">{heading}</div>
+        {reviewTools && <SideSwitch review={reviewTools} />}
+      </div>
+      {grid}
     </div>
   );
 }
 
-/** The sticky bar above the page: the selected line's actions, or the
- *  page-count chip and Fit to One Page, then Download and Ask Scout at its
- *  end. Sticky, so a line's actions never cover the lines around it (user
- *  story 63), and Download stays in reach down a two-page resume. */
+/**
+ * A sticky column's height cap, as `--fit-height` on it: the window below
+ * its top, less a 24px foot. Read again on any scroll (the page scrolls in
+ * `main`, not the window, so the listener captures) and on resize, once a
+ * frame. Before the page scrolls the column's top sits under the title
+ * row; stuck, at its `top`; a fixed cap fitted one and not the other.
+ * Never under 240px, so a short window still shows the panel's top.
+ */
+function useFitToWindow(foot = 24) {
+  const [el, setEl] = useState<HTMLElement | null>(null);
+  useEffect(() => {
+    if (!el) return;
+    let frame = 0;
+    const fit = () => {
+      frame = 0;
+      const room = window.innerHeight - el.getBoundingClientRect().top - foot;
+      el.style.setProperty("--fit-height", `${Math.max(240, Math.round(room))}px`);
+    };
+    const queue = () => {
+      if (!frame) frame = requestAnimationFrame(fit);
+    };
+    fit();
+    document.addEventListener("scroll", queue, { capture: true, passive: true });
+    window.addEventListener("resize", queue);
+    return () => {
+      cancelAnimationFrame(frame);
+      document.removeEventListener("scroll", queue, { capture: true });
+      window.removeEventListener("resize", queue);
+    };
+  }, [el, foot]);
+  return setEl;
+}
+
+/** The sticky bar above the page (`SlimBar`), on the editor's own page
+ *  and on Tailor's review: the selected line's kind and actions, or the
+ *  page-count chip and Fit to One Page. Sticky, so a line's actions never
+ *  cover the lines around it (user story 63), and Download stays in reach
+ *  down a two-page resume. */
 function Bar({
   line,
   box,
@@ -609,14 +918,14 @@ function Bar({
   onClose,
   onFit,
   onUndoFit,
-  onAsk,
 }: {
   line: Line | null;
   box: RenderBox | undefined;
   bank: Bank;
   choices: Choices;
   header: Header;
-  rendered: RenderedPdf;
+  /** Null until the first render lands. */
+  rendered: RenderedPdf | null;
   saving: boolean;
   elapsed: number | null;
   fitUndo: ChoicesUpdate | null;
@@ -626,86 +935,258 @@ function Bar({
   onClose: () => void;
   onFit: () => void;
   onUndoFit: () => void;
-  /** Opens the assistant; absent while it is open. */
-  onAsk?: () => void;
 }) {
   return (
-    <div
-      data-keeps-selection
-      // The brand tint, not the surface: a secondary button is filled with
-      // the surface colour, so on a surface bar Download and Done showed only
-      // as outlines (KAN-258).
-      className="bg-brand-tint/95 ring-brand-pale sticky top-2 z-20 flex min-h-12 flex-wrap items-center gap-2 rounded-2xl p-1.5 pl-3 shadow-sm ring-1 backdrop-blur"
-      // A press on a button keeps focus in the field, so it does not blur and save first
-      onMouseDown={(e) => {
-        if ((e.target as HTMLElement).closest("button")) e.preventDefault();
-      }}
-    >
-      {line && box ? (
-        <>
-          <span className="text-note text-ink-meta font-semibold">{kindLabel(box.kind)}</span>
-          <LineActions
-            line={line}
-            choices={choices}
-            header={header}
-            onApply={onApply}
-            onSaveHeader={onSaveHeader}
-            onHide={(changes) => {
-              onApply(changes);
-              onClose();
-            }}
-            up={move(bank, choices, line, -1)}
-            down={move(bank, choices, line, 1)}
-          />
-          <Button variant="secondary" size="sm" onClick={onClose}>
-            Done
-          </Button>
-        </>
-      ) : (
-        <>
-          {/* The way in, first and in ink with a brand glyph: as a grey note
-              after the page count it read as fine print (KAN-258). */}
-          <span className="text-label text-ink flex items-center gap-1.5 font-medium">
-            <CursorClickIcon aria-hidden className="text-brand size-4 shrink-0" />
-            Click a line to edit it.
-          </span>
-          {/* The page count only when it is a problem, joined to its fix. A
-              green "1 page" said what the page itself shows, and stood
-              apart from everything else in the bar (KAN-258). */}
-          {rendered.page_count > 1 && (
-            <FitNotice
-              label={pageLabel(rendered.page_count, rendered.lines_over)}
-              onFit={onFit}
-              disabled={saving}
+    <SlimBar
+      rendered={rendered}
+      saving={saving}
+      elapsed={elapsed}
+      fitUndo={fitUndo}
+      download={download}
+      onFit={onFit}
+      onUndoFit={onUndoFit}
+      editing={
+        line &&
+        box && (
+          <>
+            <span className="text-note text-ink-meta font-semibold">{kindLabel(box.kind)}</span>
+            <LineActions
+              movesFirst
+              line={line}
+              choices={choices}
+              header={header}
+              onApply={onApply}
+              onSaveHeader={onSaveHeader}
+              onHide={(changes) => {
+                onApply(changes);
+                onClose();
+              }}
+              up={move(bank, choices, line, -1)}
+              down={move(bank, choices, line, 1)}
             />
-          )}
-          {fitUndo && (
-            <Button variant="secondary" size="sm" onClick={onUndoFit} disabled={saving}>
-              <ArrowUUpLeftIcon aria-hidden /> Undo
-            </Button>
-          )}
-        </>
+          </>
+        )
+      }
+    />
+  );
+}
+
+/** The slim bar's review tools: the changes left, and which column shows
+ *  beside the page. */
+type ReviewTools = {
+  count: number;
+  side: "suggestions" | "original" | null;
+  onSide: (side: "suggestions" | "original" | null) => void;
+  /** False when the run's record names no source resume. */
+  hasOriginal: boolean;
+};
+
+/** The slim bar's box: a quiet white row, not the brand-tinted bar. */
+const SLIM_BAR =
+  "bg-panel/95 ring-border-subtle sticky top-2 z-20 flex min-h-10 flex-wrap items-center gap-2 rounded-xl px-2 py-1 ring-1 backdrop-blur";
+
+/**
+ * Undo and Redo, first on the slim bar in both its states. UI only for now
+ * (2026-10-26): the editor keeps no history yet, so both stay disabled
+ * until it does. Undo Fit stays its own button after a fit.
+ */
+function History() {
+  return (
+    <div className="flex shrink-0 items-center gap-0.5">
+      <Button variant="ghost" size="icon-sm" aria-label="Undo" title="Undo" disabled>
+        <ArrowUUpLeftIcon aria-hidden />
+      </Button>
+      <Button variant="ghost" size="icon-sm" aria-label="Redo" title="Redo" disabled>
+        <ArrowUUpRightIcon aria-hidden />
+      </Button>
+      <span aria-hidden className="bg-border-subtle mx-1 h-5 w-px" />
+    </div>
+  );
+}
+
+/**
+ * The slim bar, the editor's one toolbar, on its own page and on Tailor's
+ * review (KAN-411: the editor's own page had a brand-tinted full bar until
+ * then, with a hint, a Done button and an amber Fit group, so a student saw
+ * two editor designs). Over the page with the column beside it starting
+ * level, holding only tools for the page: Undo and Redo (`History`), then,
+ * idle, the page count as a chip that offers Fit to One Page (over one
+ * page only) and Undo Fit after a fit, and Download at the right,
+ * secondary, since Finish is the review's one filled button. Not on This
+ * Resume was a button here with a modal for a day; the review does not
+ * need it (see the grid). No "Click a line to edit it." hint: the
+ * pointer's own highlight on a line says so. The view switch (Suggestions or Original)
+ * sat at this bar's right until it moved to the title row (`SideSwitch`):
+ * it changes what is shown, not the page. Editing a line (`editing`): its
+ * kind, its moves first, then Hide and the line's own choices, and "Esc
+ * when done" in place of a Done button, since Escape or a click off the
+ * page already saves and closes.
+ *
+ * Download sat in the page's top row beside Finish for a day; the user
+ * wanted it back with the page's tools. No Ask Scout: on the editor's own
+ * page the top bar's Scout opens the assistant (`ScoutTakeover`), and an
+ * Ask Scout ending this bar for a day was a second Scout button on one
+ * page; on the review the panel holds the page's attention, and a second
+ * AI entry beside it split it. The bar spanned the page and the panel for a
+ * day, which put the panel under it, apart from the page; the panel folded
+ * to a rail of its own (») until the user found it dated.
+ */
+function SlimBar({
+  rendered,
+  saving,
+  elapsed,
+  fitUndo,
+  download,
+  onFit,
+  onUndoFit,
+  editing,
+}: {
+  rendered: RenderedPdf | null;
+  saving: boolean;
+  elapsed: number | null;
+  fitUndo: ChoicesUpdate | null;
+  download: ResumeDownload;
+  onFit: () => void;
+  onUndoFit: () => void;
+  /** The open line's label and actions, or nothing while idle. */
+  editing: ReactNode;
+}) {
+  const status = (
+    <span className="text-note text-ink-meta pr-1" aria-live="polite">
+      {saving ? "Saving…" : elapsed != null ? `Saved, ${elapsed} ms` : ""}
+    </span>
+  );
+  if (editing) {
+    return (
+      <div
+        data-keeps-selection
+        className={SLIM_BAR}
+        // A press on a button keeps focus in the field, so it does not blur and save first
+        onMouseDown={(e) => {
+          if ((e.target as HTMLElement).closest("button")) e.preventDefault();
+        }}
+      >
+        <History />
+        {editing}
+        <div className="ml-auto flex items-center gap-2">
+          {status}
+          <span className="text-note text-ink-meta">
+            <kbd className="bg-ink/5 rounded-xs px-1 font-sans">Esc</kbd> when done
+          </span>
+        </div>
+      </div>
+    );
+  }
+  return (
+    <div data-keeps-selection className={SLIM_BAR}>
+      <History />
+      {rendered && rendered.page_count > 1 && (
+        <PagesChip
+          pages={rendered.page_count}
+          linesOver={rendered.lines_over}
+          disabled={saving}
+          onFit={onFit}
+        />
       )}
-      {/* The bar's end wraps as one, so on a narrow page Download and Ask
-          Scout stay together at the right rather than Ask Scout alone. */}
-      <div className="ml-auto flex items-center gap-2">
-        <span className="text-note text-ink-meta pr-2" aria-live="polite">
-          {saving ? "Saving…" : elapsed != null ? `Saved, ${elapsed} ms` : ""}
-        </span>
+      {fitUndo && (
+        <Button variant="ghost" size="xs" onClick={onUndoFit} disabled={saving}>
+          <ArrowUUpLeftIcon aria-hidden /> Undo Fit
+        </Button>
+      )}
+      <div className="ml-auto flex shrink-0 items-center gap-2">
+        {status}
+        {/* Secondary: Finish, in the row above, is the review's one filled
+            button. In the brand fill too, the two competed */}
         <DownloadMenu download={download} />
-        {/* The editor's primary action, so the brand fill: it was an outline,
-            as quiet as Fit to One Page (KAN-258). */}
-        {onAsk && (
-          <Button size="sm" onClick={onAsk}>
-            <SparkleIcon /> Ask Scout
-          </Button>
-        )}
       </div>
     </div>
   );
 }
 
+/**
+ * What sits beside the page on Tailor's review, at the right end of the
+ * resume's title row, over the column it changes: one switch of three,
+ * Resume Only (the page alone at full width, to edit with nothing beside
+ * it), Suggestions (with its count) or Original. One is always chosen, as
+ * in every segmented switch: the page alone was reached by pressing the
+ * chosen option again, which nobody would find. It is a view of the page,
+ * not a tool for it, so it left the toolbar (2026-10-26), which keeps only
+ * what edits the page.
+ */
+function SideSwitch({ review }: { review: ReviewTools }) {
+  return (
+    <SegmentedToggle
+      label="Beside the resume"
+      value={review.side ?? "resume"}
+      onValueChange={(to) =>
+        review.onSide(to === "resume" ? null : (to as "suggestions" | "original"))
+      }
+      options={[
+        { value: "resume", label: "Resume Only" },
+        {
+          value: "suggestions",
+          ariaLabel: `Suggestions, ${review.count}`,
+          label: (
+            <>
+              Suggestions
+              <span className="bg-brand text-on-brand flex h-4.5 min-w-4.5 items-center justify-center rounded-full px-1 text-xs font-semibold tabular-nums">
+                {review.count}
+              </span>
+            </>
+          ),
+        },
+        ...(review.hasOriginal ? [{ value: "original", label: "Original" }] : []),
+      ]}
+    />
+  );
+}
+
+/** The page count as a small amber chip with a warning sign and a caret,
+ *  so it reads as a problem to open; its click offers Fit to One Page. As
+ *  bare text ("2 pages") nobody took it for a button. */
+function PagesChip({
+  pages,
+  linesOver,
+  disabled,
+  onFit,
+}: {
+  pages: number;
+  linesOver: number;
+  disabled: boolean;
+  onFit: () => void;
+}) {
+  const [open, setOpen] = useState(false);
+  return (
+    <Popover open={open} onOpenChange={setOpen}>
+      <PopoverTrigger className="bg-warning-tint text-warning text-note focus-visible:ring-brand-ring hover:ring-warning-fill flex items-center gap-1.5 rounded-full py-1 pr-2 pl-2 font-medium transition-shadow hover:ring-1 focus-visible:ring-2 focus-visible:outline-none">
+        <WarningIcon aria-hidden weight="fill" className="text-warning-strong size-4 shrink-0" />
+        {pages} pages
+        <ChevronDownIcon className="size-3.5" />
+      </PopoverTrigger>
+      <PopoverContent align="start" className="flex w-72 flex-col gap-3">
+        <p className="text-note text-ink-muted">
+          {linesOver > 0
+            ? `About ${linesOver} ${linesOver === 1 ? "line runs" : "lines run"} onto page 2.`
+            : `It runs to ${pages} pages.`}{" "}
+          Fit to One Page hides the least useful lines until it fits.
+        </p>
+        <Button
+          size="sm"
+          disabled={disabled}
+          onClick={() => {
+            setOpen(false);
+            onFit();
+          }}
+        >
+          <ScissorsIcon aria-hidden /> Fit to One Page
+        </Button>
+      </PopoverContent>
+    </Popover>
+  );
+}
+
 function LineActions({
+  movesFirst = false,
   line,
   choices,
   header,
@@ -715,6 +1196,8 @@ function LineActions({
   up,
   down,
 }: {
+  /** Up and down lead, before Hide (the slim bar's order). */
+  movesFirst?: boolean;
   line: Line;
   choices: Choices;
   header: Header;
@@ -788,6 +1271,7 @@ function LineActions({
     let tailored = 0;
     return (
       <>
+        {movesFirst && moves}
         <Button
           variant="secondary"
           size="sm"
@@ -795,7 +1279,7 @@ function LineActions({
         >
           <EyeSlashIcon aria-hidden /> Hide
         </Button>
-        {moves}
+        {!movesFirst && moves}
         {versions.length > 0 &&
           [null, ...versions].map((v) => {
             const on = current === (v?.id ?? null);
@@ -822,6 +1306,7 @@ function LineActions({
   const choice = choices.entries.find((c) => c.entry_id === entry.id);
   return (
     <>
+      {movesFirst && moves}
       <Button
         variant="secondary"
         size="sm"
@@ -829,7 +1314,7 @@ function LineActions({
       >
         <EyeSlashIcon aria-hidden /> Hide Entry
       </Button>
-      {moves}
+      {!movesFirst && moves}
       {entry.section === "education" && choice && (
         <>
           <Button
@@ -888,5 +1373,74 @@ function AddContact({
       onKeyDown={(e) => e.key === "Enter" && e.currentTarget.blur()}
       className="text-note bg-panel text-ink ring-border-subtle focus:ring-brand h-9 w-36 rounded-lg px-2 ring-1 outline-none focus:ring-2"
     />
+  );
+}
+
+/**
+ * Where the first PDF is drawn, while the page's render is on its way: it
+ * suspends on the render (the editor wraps it in a <Suspense> over a
+ * PageSkeleton), then hands a PDF to the editor, which draws it from then
+ * on, or shows why it did not come. The same skeleton stays up for the one
+ * frame before the editor takes it.
+ */
+function FirstRenderPane({
+  initial,
+  onLoad,
+  onFail,
+  resumeId,
+}: {
+  initial: FirstRender;
+  onLoad: (pdf: RenderedPdf) => void;
+  onFail: () => void;
+  resumeId: string;
+}) {
+  const { data, error } = use(initial);
+  useEffect(() => {
+    if (data) onLoad(data);
+    else onFail();
+  }, [data, onLoad, onFail]);
+
+  if (data) return <PageSkeleton />;
+  return (
+    <EmptyState
+      Icon={CloudSlashIcon}
+      title="This Resume Isn't Loading Right Now"
+      action={
+        // A plain link: a full reload is what renders it again.
+        <a
+          href={`/resumes/${encodeURIComponent(resumeId)}`}
+          className={buttonClasses({ variant: "secondary", size: "sm" })}
+        >
+          Try Again
+        </a>
+      }
+    >
+      {error}
+    </EmptyState>
+  );
+}
+
+/**
+ * The desktop editor before anything has loaded, for ./loading.tsx: the
+ * title row's title, then the slim bar's box with Undo and Redo and its
+ * end (Download) as bars, over a page's skeleton, in the
+ * editor's own layout, so the editor that replaces it keeps every edge
+ * where it was.
+ */
+export function EditorSkeleton() {
+  return (
+    <div aria-hidden="true" className="mt-4 flex flex-col gap-3">
+      {/* The title's height (`ResumeTitle`) */}
+      <div className="flex h-8 items-center">
+        <Skeleton className="h-6 w-56 max-w-full" />
+      </div>
+      <div className="flex min-w-0 flex-col gap-2">
+        <div className={SLIM_BAR}>
+          <Skeleton className="h-6 w-14" />
+          <Skeleton className="ml-auto h-9 w-28" />
+        </div>
+        <PageSkeleton />
+      </div>
+    </div>
   );
 }

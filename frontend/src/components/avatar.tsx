@@ -14,6 +14,15 @@ type AvatarProps = { name: string; src?: string | null; className?: string };
  * every page load, so Next's optimizer would re-fetch and re-cache a new copy
  * each time for no gain. It would also need the Supabase host in
  * `images.remotePatterns`.
+ *
+ * LAZY, SO NO NAVIGATION WAITS FOR IT. Inside a <ViewTransition> (every
+ * seeker page, and the Settings modal, sit in (seeker)/template.tsx's), React
+ * holds a navigation's commit for an <img> still loading, up to 800ms, unless
+ * the image has `loading="lazy"` or an onLoad. The photo's signed URL is new
+ * on every load, so it is never cached, and Settings opened only once the
+ * photo had downloaded. Lazy, the modal opens and the photo lands a moment
+ * after, over the circle's own tint (initials show only when there is no
+ * photo at all).
  */
 export function Avatar({ name, src, className }: AvatarProps) {
   const initials = name
@@ -33,7 +42,7 @@ export function Avatar({ name, src, className }: AvatarProps) {
     >
       {src ? (
         // eslint-disable-next-line @next/next/no-img-element -- see the docblock
-        <img src={src} alt="" className="size-full object-cover" />
+        <img src={src} alt="" loading="lazy" className="size-full object-cover" />
       ) : (
         initials
       )}

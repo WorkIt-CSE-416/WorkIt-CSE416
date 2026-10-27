@@ -75,7 +75,6 @@ from app.db import get_session
 from app.deps import get_current_account, owned_applicant
 from app.models.resume import Resume
 from app.queries.bank import owned_upload_id
-from app.routers.scout import get_llm
 from app.schemas.auth import AuthenticatedAccount
 from app.schemas.bank import (
     BankResponse,
@@ -105,6 +104,7 @@ from app.services.bank_import import (
     skill_pairs,
 )
 from app.services.identity import load_identity
+from app.services.models import get_large_llm
 from app.services.usage import Feature, count_use, uses_left
 
 router = APIRouter(prefix="/applicants/{applicant_id}/bank", tags=["bank"])
@@ -134,9 +134,13 @@ async def _writing(session: AsyncSession) -> AsyncIterator[None]:
 @router.get("", response_model=BankResponse)
 async def get_bank(
     applicant_id: uuid.UUID = Depends(owned_applicant),
+    built_resume_id: uuid.UUID | None = None,
     session: AsyncSession = Depends(get_session),
 ) -> BankResponse:
-    bank = await service.load_bank(session, applicant_id)
+    """The bank, with `built_resume_id`'s own skills too when given (the
+    editor of that resume names them). The skills are the applicant's own
+    rows, so an id that is not theirs adds nothing."""
+    bank = await service.load_bank(session, applicant_id, local_to=[built_resume_id] if built_resume_id else [])
     return bank_response(bank, await service.load_holdings(session, applicant_id))
 
 
@@ -350,7 +354,7 @@ async def import_resume(
     body: ImportRequest,
     applicant_id: uuid.UUID = Depends(owned_applicant),
     account: AuthenticatedAccount = Depends(get_current_account),
-    llm: LLM = Depends(get_llm),
+    llm: LLM = Depends(get_large_llm),
     session: AsyncSession = Depends(get_session),
 ) -> ImportResponse:
     resume = await _resume_to_import(session, applicant_id, body.resume_id)

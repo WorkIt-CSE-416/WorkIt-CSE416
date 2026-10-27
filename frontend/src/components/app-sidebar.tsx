@@ -1,8 +1,8 @@
 "use client";
 
-import Link from "next/link";
+import Link, { useLinkStatus } from "next/link";
 import { usePathname } from "next/navigation";
-import { useState, type ComponentType, type ReactNode } from "react";
+import { useEffect, useRef, useState, type ComponentType, type ReactNode } from "react";
 
 import { useSidebarPin } from "@/components/hover-sidebar";
 import { SidebarPinIcon } from "@/components/icons";
@@ -126,8 +126,9 @@ const CURRENT_ITEM = "data-active:text-brand-ink hover:text-brand-ink active:tex
  * each menu draws one hover highlight and one current highlight behind its
  * rows (GlideMenu below), and moves them. Pointing down the panel, the hover
  * fill travels from row to row instead of blinking off one and onto the
- * next; following a link, the current fill travels to the new section while
- * the page changes beside it. Both ride --ease-glide, 320ms.
+ * next; following a link, the current fill travels to the new section from
+ * the click (GlideMenu says how), while the page changes beside it. Both
+ * ride --ease-glide, 320ms.
  *
  * So every row clears the fills shadcn's button paints itself
  * (hover:, active: and data-active: bg-sidebar-accent), each restated with
@@ -421,6 +422,19 @@ function PanelBrand({ href }: { href: string }) {
  * at the current row leaves its stronger fill in charge. The hover fill
  * follows the pointer and keyboard focus (focus-visible only, so a click does
  * not leave it behind), and fades where it is when the pointer leaves.
+ *
+ * THE CURRENT FILL LEAVES ON THE CLICK, not when the new page commits. A
+ * section the router has not prefetched waits on the server before its
+ * pathname changes, and the fill, placed from the pathname, sat on the old
+ * row for that whole wait, so the click looked ignored. Each row's link
+ * reports while its navigation is pending (PendingMark, Next's
+ * useLinkStatus), and the fill glides to that row at once, on the same
+ * 320ms glide; its label takes the current colour with it. The pending row
+ * holds only for the pathname it was clicked from, so the commit, or any
+ * other move, hands the fill back to the pathname. `aria-current` stays on
+ * the committed row: a screen reader is not told of a page that has not
+ * loaded. A prefetched section (one with a loading.tsx) commits in the next
+ * frame, and Next reports no pending state for it.
  */
 function GlideMenu({
   items,
@@ -433,12 +447,27 @@ function GlideMenu({
 }) {
   const [hover, setHover] = useState<{ index: number; glide: boolean } | null>(null);
   const [lastHover, setLastHover] = useState(0);
+  const [pending, setPending] = useState<{ index: number; from: string } | null>(null);
   const current = currentIndex(items, pathname);
+  const lit = pending?.from === pathname ? pending.index : current;
 
   function highlight(index: number) {
     // Glide only from another row; from nothing, appear in place.
     setHover((previous) => ({ index, glide: previous !== null }));
     setLastHover(index);
+  }
+
+  /** A row's link started or stopped navigating. Returns the old state
+   *  where nothing changes, so a report repeated by a re-render is free. */
+  function report(index: number, isPending: boolean) {
+    setPending((previous) => {
+      if (isPending) {
+        return previous?.index === index && previous.from === pathname
+          ? previous
+          : { index, from: pathname };
+      }
+      return previous?.index === index ? null : previous;
+    });
   }
 
   return (
@@ -457,16 +486,18 @@ function GlideMenu({
         glide={hover?.glide ?? false}
         className="bg-rail-hover"
       />
-      <Highlight index={current} visible={current >= 0} glide className="bg-rail-selected" />
+      <Highlight index={lit} visible={lit >= 0} glide className="bg-rail-selected" />
       <SidebarMenu className={cn(MENU, "relative")}>
         {items.map((item, i) => (
           <NavRow
             key={item.label}
             item={item}
             current={i === current}
+            lit={i === lit}
             floating={floating}
             onHighlight={() => highlight(i)}
             onUnhighlight={() => setHover(null)}
+            onPending={(isPending) => report(i, isPending)}
           />
         ))}
       </SidebarMenu>
@@ -477,15 +508,22 @@ function GlideMenu({
 function NavRow({
   item,
   current,
+  lit,
   floating = false,
   onHighlight,
   onUnhighlight,
+  onPending,
 }: {
   item: SidebarNavItem;
+  /** The committed section's row: aria-current. */
   current: boolean;
+  /** Drawn as current: the committed row, or the one whose navigation is
+   *  pending (GlideMenu). */
+  lit: boolean;
   floating?: boolean;
   onHighlight: () => void;
   onUnhighlight: () => void;
+  onPending: (pending: boolean) => void;
 }) {
   const { label, Icon } = item;
   const { setOpenMobile } = useSidebar();
@@ -521,17 +559,37 @@ function NavRow({
   return (
     <SidebarMenuItem onPointerEnter={onHighlight}>
       <SidebarMenuButton
-        isActive={current}
+        isActive={lit}
         tooltip={label}
         render={<Link href={item.href} aria-current={current ? "page" : undefined} />}
         // Closes the phone sheet on the way out; a no-op on the desktop panel.
         onClick={() => setOpenMobile(false)}
         {...focusProps}
-        className={cn(size, ROW, current && CURRENT_ITEM)}
+        className={cn(size, ROW, lit && CURRENT_ITEM)}
       >
         <Icon aria-hidden className="size-4" />
         <span>{label}</span>
+        <PendingMark onPending={onPending} />
       </SidebarMenuButton>
     </SidebarMenuItem>
   );
+}
+
+/**
+ * Inside a row's <Link> (SidebarMenuButton's render prop keeps its children
+ * in the link): tells the menu when that link's navigation starts and ends,
+ * through Next's useLinkStatus, which reads the nearest Link's state. Draws
+ * nothing. The callback is read from a ref, so a re-render's new function
+ * does not report again.
+ */
+function PendingMark({ onPending }: { onPending: (pending: boolean) => void }) {
+  const { pending } = useLinkStatus();
+  const report = useRef(onPending);
+  useEffect(() => {
+    report.current = onPending;
+  });
+  useEffect(() => {
+    report.current(pending);
+  }, [pending]);
+  return null;
 }

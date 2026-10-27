@@ -170,11 +170,16 @@ with the failure it prevents.
   0005: each upload owns its own entries and skills (no merge, no
   duplicate check across resumes; an import replaces what the upload
   owned), and the Experiences view's Showing card picks one resume from
-  the shared resume table (KAN-361), showing what the picked one owns or
-  shows, with Not From an Upload as a row of its own under that table
+  the shared resume list (KAN-361, KAN-406), showing what the picked one
+  owns or shows, with Not From an Upload as a card of its own under it
   (KAN-363). Add saves into the picked resume.
   Read it before changing import, the bank's API shape or the Experiences
   view.
+- `docs/tailor_resume.md` — Tailor's redesign, built (2026-10-25): the student picks a resume and the missing keywords to
+  add, one click rewrites and saves the posting's tailored resume with no
+  proposals and no Done, and the editor marks each change and reverts it.
+  Holds the skill placement rule. Read it before changing Tailor or its
+  screen.
 - `docs/search.md` — how the Jobs page's search reads a query.
 - `docs/architecture.md` — how the halves fit together, for a reader new to
   the repo.

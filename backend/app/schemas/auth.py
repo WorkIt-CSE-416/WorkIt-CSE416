@@ -91,6 +91,7 @@ class SignupRequest(AccountTypeSelection):
     last_name: str | None = Field(None, alias="lastName", max_length=50)
     email: NormalizedEmail
     password: str = Field(min_length=8)
+    captcha_token: str | None = Field(None, alias="captchaToken")
 
 
 class AuthenticatedAccount(BaseModel):

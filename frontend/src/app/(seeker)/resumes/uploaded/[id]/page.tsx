@@ -6,7 +6,7 @@ import { connection } from "next/server";
 import { buttonClasses } from "@/components/ui/button";
 import { EmptyState } from "@/components/ui/empty-state";
 import { cn } from "@/lib/cn";
-import { listResumes, readResumePdf } from "@/lib/resume-actions";
+import { readUploadedResume } from "@/lib/resume-queries";
 
 import { BackLink } from "../../../back-link";
 import { SEEKER_GUTTER } from "../../../gutter";
@@ -24,28 +24,28 @@ export const metadata: Metadata = { title: "Resume" };
  * `uploaded` segment wins over `[resumeId]`, so the editor's route is
  * untouched.
  *
- * The server reads the PDF (`readResumePdf`, base64) and the page draws it
- * with the editor's pdf.js preview (./viewer.tsx). A DOCX cannot be drawn
- * that way, so its page offers Download alone. An upload the student does
- * not have is a 404; a list or file that fails to load shows the error
- * state with Try Again, as the editor does.
+ * The server reads the PDF (`readUploadedResume`, base64) and the page
+ * draws it with the editor's pdf.js preview (./viewer.tsx). That one read
+ * starts the resume list and the file's link together and downloads the
+ * file only for a listed PDF, so an open waits for one API call and the
+ * Storage file, not three calls in a row. A DOCX cannot be drawn that way,
+ * so its page offers Download alone. An upload the student does not have
+ * (not in the list) is a 404; a list or file that fails to load shows the
+ * error state with Try Again, as the editor does.
  */
 export default async function UploadedResumePage({ params }: PageProps<"/resumes/uploaded/[id]">) {
   await connection();
   const { id } = await params;
-  const { resumes, error: listError } = await listResumes();
-  const resume = resumes.find((r) => r.id === id);
+  const { resume, pdf, listError, fileError } = await readUploadedResume(id);
   if (!listError && !resume) notFound();
-  const isPdf = resume?.storage_path.endsWith(".pdf") ?? false;
-  const file = resume && isPdf ? await readResumePdf(id) : { data: null, error: null };
-  const error = listError ?? file.error;
+  const error = listError ?? fileError;
 
   return (
     <div className={cn("max-w-app mx-auto w-full flex-1 py-6", SEEKER_GUTTER)}>
       {/* Back to the page that opened it, else the list (../../../back-link.tsx). */}
       <BackLink parent={{ href: "/resumes", name: "Resumes" }} />
       {resume && !error ? (
-        <UploadedViewer resume={resume} pdf={file.data} />
+        <UploadedViewer resume={resume} pdf={pdf} />
       ) : (
         <>
           <h1 className="text-heading text-ink">{resume?.original_filename ?? "Resume"}</h1>

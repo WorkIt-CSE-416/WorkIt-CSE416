@@ -1,8 +1,8 @@
 # scraper
 
 Finds internship and new-grad software roles on company job boards (Greenhouse,
-Lever, Ashby, Workable, Recruitee, BambooHR, Workday, Oracle Recruiting Cloud, TikTok,
-iCIMS and SuccessFactors) and renders them as one self-contained
+Lever, Ashby, Workable, Recruitee, BambooHR, Rippling, iCIMS, Workday, Oracle
+Recruiting Cloud, TikTok, Jibe and SuccessFactors) and renders them as one self-contained
 HTML page.
 
 ```sh

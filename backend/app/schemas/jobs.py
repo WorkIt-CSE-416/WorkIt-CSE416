@@ -92,6 +92,10 @@ class JobListing(BaseModel):
     # it sponsors, it doesn't, or US citizens only. None when it says nothing,
     # which is most postings. Defaulted so an older feed.json still parses.
     sponsorship: dto.visa_sponsorship | None = None
+    # Match score (0-100) and highlights, filled when a signed-in applicant
+    # with a non-empty bank views the feed; None/[] for everyone else.
+    match: int | None = None
+    highlights: list["Highlight"] = []
     # No roles field: a job's roles are job_role_tags, which the import
     # resolves from the title (KAN-155). The scraper's own "roles" keys in
     # feed.json (KAN-172) are ignored, as any key this model doesn't declare

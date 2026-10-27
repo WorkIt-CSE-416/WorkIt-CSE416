@@ -25,7 +25,7 @@ import { FocusIn } from "./focus-in";
 import { GrowIn } from "./grow-in";
 import { DiagramLabel, HiringSystems, JobCard } from "./hiring-systems";
 import { useMediaQuery, usePageHidden } from "./hooks";
-import { CONTAINER, PANEL, PANEL_INSET, SectionHeading } from "./layout-parts";
+import { CONTAINER, PANEL, PANEL_INSET, SectionHeading, TOUR_COVER_VH } from "./layout-parts";
 import { useLoopClock, useSceneTime, type Cue } from "./scene-time";
 import { GLIDE } from "./story";
 
@@ -80,7 +80,9 @@ const CARDS = 3;
 const MORPH: [number, number] = [0.4, 0.74];
 const PIPE_IN: [number, number] = [0.56, 0.76];
 const OUTLET_IN: [number, number] = [0.66, 0.8];
-const FLOWING = 0.8;
+/** The flow starts as the pipe finishes forming; at 0.8 it waited on the
+ * outlet's fade too, about 0.13 s more after the scroll's cue. */
+const FLOWING = PIPE_IN[1];
 const RING = MORPH[0];
 /** The scroll's cues: the ring from the start, then the pipe once the
  * pinned stretch is a third through. */
@@ -164,6 +166,10 @@ function PinnedPipeline() {
 
   // The scroll cues the phases; time plays them (scene-time.ts).
   const t = useSceneTime(q, CUES, { rate: 0.3, longest: 2.2 });
+  // The shadow the panel casts on the tour as it slides over it, gone as
+  // it pins: without it the grey panel's edge barely showed against the
+  // shaded tour, and the cover read as a fog coming up.
+  const edge = useTransform(entry, [0.85, 1], [1, 0]);
 
   const [layout, setLayout] = React.useState<Layout | null>(null);
   const layoutRef = React.useRef<Layout | null>(null);
@@ -192,8 +198,20 @@ function PinnedPipeline() {
   const spin = useLoopClock(phase === "ring" && inView && !hidden);
 
   return (
-    <section ref={ref} id="hiring-systems" className="h-[220vh]">
+    // It starts `TOUR_COVER_VH` up the page, over the pinned tour's last
+    // stop, and slides up over it as the tour sinks back (product-tour.tsx).
+    <section
+      ref={ref}
+      id="hiring-systems"
+      className="relative z-10 h-[220vh]"
+      style={{ marginTop: `-${TOUR_COVER_VH}vh` }}
+    >
       <div className={cn(PANEL_INSET, "sticky top-0 flex h-dvh flex-col pt-20 pb-4")}>
+        <motion.div
+          aria-hidden="true"
+          className="pointer-events-none absolute inset-x-16 top-16 h-24 rounded-[50%] bg-[rgb(30_20_70/0.3)] blur-2xl"
+          style={{ opacity: edge }}
+        />
         <div className={cn(PANEL, "bg-surface relative isolate min-h-0 flex-1 overflow-hidden")}>
           <div className="relative z-10 px-10 pt-10 xl:px-14">
             <div className="max-w-[32rem]">
@@ -548,6 +566,10 @@ function Flow({
   );
 }
 
+/** A pixel of slack where a place is compared with a coupling it starts
+ * on (Posting). */
+const EPS = 1;
+
 /**
  * One place on the conveyor. Each lap it is given the next hiring system
  * in turn and that system's next posting; it shows from that system's
@@ -570,9 +592,27 @@ function Posting({
   onEnter: (posting: StreamPosting) => void;
 }) {
   const n = hiringSystems.length;
-  const travel = (t: number) => SPEED * t + place * SPACING;
+  // The conveyor starts with a place at the last coupling, the manifold's
+  // outlet, so the first posting clears the coins as the flow begins: the
+  // coins cover the pipe up to there, and from a place further back a
+  // posting rode hidden behind them for seconds.
+  const outletRun = layout.couplings[n - 1] - layout.pipeLeft;
+  const start = outletRun - Math.floor(outletRun / SPACING) * SPACING;
+  const travel = (t: number) => SPEED * t + place * SPACING + start;
   const lapAt = (t: number) => Math.floor(travel(t) / loop);
-  const systemOn = (lap: number) => (((lap * places + place) % n) + n) % n;
+  // On the first lap a place takes the coupling just ahead of where it
+  // starts, so it comes out of it within a second of the flow beginning.
+  // Given the systems in turn from the start, every place but the first
+  // began past its coupling, so it stayed hidden (`fresh`) for a whole
+  // lap: one posting rode an empty pipe for about seven seconds after the
+  // pipe formed, which read as a long delay (KAN-368). A place with no
+  // coupling ahead keeps its turn; it shows from its next lap. Both tests
+  // allow a pixel (`EPS`): the first place starts exactly at the last
+  // coupling, and rounding put it a hair past on some frames and not on
+  // others, so that posting flickered all the way down the pipe.
+  const firstLap = layout.couplings.findIndex((c) => c >= layout.pipeLeft + travel(0) - EPS);
+  const systemOn = (lap: number) =>
+    lap === 0 && firstLap >= 0 ? firstLap : (((lap * places + place) % n) + n) % n;
   const postingOn = (lap: number) => {
     const list = streams[hiringSystems[systemOn(lap)].name];
     const turn = Math.floor((lap * places + place) / n);
@@ -587,7 +627,7 @@ function Posting({
     // Shown only once it has come out of its coupling since the flow began,
     // so the pipe fills from the couplings: shown from the start, three
     // postings appeared at once in the middle of the pipe.
-    const fresh = x - from <= SPEED * t;
+    const fresh = x - from <= SPEED * t + EPS;
     // Where the pill's left edge is when its right edge meets WorkIt's
     // mark: it never goes further, so it never slides under the mark.
     const end = layout.outletX - MARK / 2 - MARK_GAP - PILL_W;
@@ -651,7 +691,7 @@ function Posting({
       style={{ x, y, scale, opacity }}
     >
       <div
-        className="text-ink flex h-7 items-center gap-1.5 rounded-full bg-white py-1 pr-2.5 pl-1 text-[11px] font-medium whitespace-nowrap shadow-[0_4px_10px_-6px_rgba(40,20,90,0.45)] ring-1 ring-slate-900/[0.07]"
+        className="gloss-card text-ink flex h-7 items-center gap-1.5 rounded-full py-1 pr-2.5 pl-1 text-[11px] font-medium whitespace-nowrap"
         style={{ width: PILL_W }}
       >
         <FaviconLogo domain={posting.domain} eager className="size-5 rounded-full" />

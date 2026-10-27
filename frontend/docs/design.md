@@ -33,7 +33,14 @@ the page's right edge to its middle, wrapped the Calendar's view switch, and
 turned the Week into seven columns. The container is `--panel-gain`
 narrower than the `<main>`, a registered length that eases over the panel's
 own 200ms linear, so the page holds its width through the animation; keep
-the two durations equal. A layout that splits into columns uses
+the two durations equal. **`--panel-gain` does not inherit** (KAN-368): the
+inherited version restyled about 4,258 elements on every frame of a pin, so
+only 6 to 8 frames of 24 to 54 ms were drawn. Each reader (`[data-scout-page]`,
+the Applications wrapper, the job rail's frame and aside) carries its own
+`transition-[--panel-gain] duration-200 ease-linear` and the
+`md:in-data-[pinned=false]:[--panel-gain:calc(...)]` override
+(`CLAUDE.md`, the sidebar bullet has the exact classes); a new reader without
+them reads 0px and never moves. A layout that splits into columns uses
 `@3xl/main:` and friends, a card that rearranges itself (the job card) is
 its own `@container`, and both see the same width whether the panel is open
 or not. **Two pages take the freed room back: Applications** (KAN-256)
@@ -91,7 +98,8 @@ Below md the panel is shadcn's sheet, which has no hover, and works as
 before. `components/hover-sidebar.tsx` wraps shadcn's provider rather than
 editing the vendored one: it opens the provider when pinned or hovering.
 **Size anything by the pinned width with `useSidebarPin`, never shadcn's
-`state`**: a hover sets that to "expanded", and the company bar's corner
+`state`**; in CSS, key on the `data-pinned="true"|"false"` that
+`HoverSidebarProvider` writes on the wrapper, for the same reason (KAN-368): a hover sets that to "expanded", and the company bar's corner
 cell, sized by it, widened and pushed the bar on every hover. On the seeker
 shell a hovering panel runs the window's height and covers the bar's
 toggle, so the open panel carries its own pin at its header's right, beside
@@ -308,7 +316,7 @@ resolves to.
 
 There is exactly one Button, `ui/button.tsx`. It answers to shadcn's variant and
 size names (`default`, `secondary`, `outline`, `ghost`, plus WorkIt's own
-`positive`) while painting the mockups' styling, so a component pasted from
+`positive` and `decline`, the quiet red beside a green Accept) while painting the mockups' styling, so a component pasted from
 the shadcn docs composes without edits and still looks like WorkIt.
 Every variant at a size is one box (sm 36px, default 42px, lg 48px), a
 text-only one included, and the Button sizes its glyphs to keep it so: an
@@ -321,8 +329,9 @@ and `card`, which are not re-exports. **A secondary button never sits on
 `--color-surface`**, its own fill: there it shows only as an outline. The
 resume editor's bar and the phone editor's sheets were surface-coloured,
 and Download, Done and Hide all but vanished into them (KAN-258); put
-secondary buttons on white (a card, a sheet) or on a tint (the editor's
-bars take `--color-brand-tint`).
+secondary buttons on white (a card, a sheet, the editor's slim bar on
+`--color-panel`) or on a tint (the phone editor's bars take
+`--color-brand-tint`).
 
 **A button is a rounded rectangle; a pill is a chip** (KAN-251). A button
 acts (saves, opens, sends, goes somewhere); a chip is a choice made in
