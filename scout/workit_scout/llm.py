@@ -16,7 +16,7 @@ from openai import APIConnectionError, APIStatusError, AsyncOpenAI, RateLimitErr
 from pydantic import BaseModel, ValidationError
 
 from workit_scout.identity import Identity
-from workit_scout.settings import Endpoint, ScoutSettings
+from workit_scout.settings import Endpoint, ScoutSettings, Size
 
 logger = logging.getLogger(__name__)
 
@@ -136,8 +136,8 @@ class LLM:
         ]
 
     @classmethod
-    def from_settings(cls, s: ScoutSettings) -> "LLM":
-        return cls(s.chain())
+    def from_settings(cls, s: ScoutSettings, size: Size | None = None) -> "LLM":
+        return cls(s.chain(size))
 
     async def stream(
         self, messages: Sequence[Message], *, identity: Identity

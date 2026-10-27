@@ -1661,29 +1661,166 @@ with no proposals to accept and no Done (2026-10-25).
 
 - **Opened from "Tailor My Resume"** on the job posting page, which reads
   "Your Tailored Resume" once the student has one for that posting.
-- **A posting is tailored once.** When it has a tailored resume, the screen
-  shows it with Open in Editor and offers no run; the API refuses a second
-  run (409), so no tokens are spent on it.
+- **Each pick step has its own title and line** (`HEADINGS` in
+  `tailor-screen.tsx`, drawn by `TailorHeader`): "Pick the Resume to Start
+  From" (WorkIt saves a tailored copy and leaves the pick as it is), and
+  "Add the Keywords You Have Used" (Tailor Resume then rewrites the
+  bullets, never adds a number or tool, and can be undone; the keyword
+  card's own note says what a picked keyword means). Both read "Tailor
+  Your Resume to <job title>" over one line about the whole flow until
+  2026-10-26.
+- **Every step names its job in one line under its title**
+  (`TailorJobLine`), the review's resume name included: the employer's
+  small logo, then "Title · Company", a link to the job posting's page.
+  Step 2's keywords and step 3's changes are read against that job, and
+  the resume's name, which the student can rename, is no stand-in. The
+  pick steps showed a job card until 2026-10-26, with the posting's
+  location, pay, type and level, which help neither pick, and the review
+  showed none. The intro sat
+  inside the picker card until 2026-10-26, as the card's heading and a
+  paragraph; the user wanted the card to hold the list alone.
+- **The review step's header is one slim row** (`TailorReviewBar`,
+  2026-10-26), so the resume starts near the top: Back (`TailorBack`, to
+  Choose Keywords on the run's source, `?step=keywords&source=`),
+  "Review Changes · Step 3 of 3" on one line in the middle, and
+  Finish (filled, to the job posting's page) at the right. The page's h1, "Tailor for
+  <title> at <company>", is for screen readers only. Under it the
+  resume's name leads, renamed in place (`ResumeTitle`, below). The step
+  had the pick steps' Back, the resume's name as a big title, a line, the
+  job card and the timeline, about 300px over the resume, which the user
+  found overwhelming (Quinncia's slim bar was the model); then the
+  employer's logo and "Title · Company" beside Back, which crowded it and
+  repeated what the tailored resume's name already says.
+- **One step at a time** (2026-10-26), each under the same top row in the
+  brand tint (`TailorBar`): Back, the step on one line ("Pick a Resume ·
+  Step 1 of 3"), and the step's way on, Use This Resume, Tailor Resume or
+  Finish. Then the step's title, its job line and its line
+  (`TailorHeader`), then the step's own view (`TailorScreen` keeps the step in state; a
+  reload starts at the pick). The keyword match appeared under the picker
+  on one page before, so the student scrolled past the list to read it.
+  Pick a Resume shows the list across the full width, and each card's
+  Preview opens that resume in a dialog (below). The top row replaced a
+  step timeline (`TailorSteps`, circles and lines), the pick steps' Back
+  above the title, and Use This Resume, Back and Tailor Resume at each
+  card's foot. Back never loses a pick:
+  the same resume picked again keeps its match and its picked keywords,
+  with no second read. Review Changes is the tailored resume's own page.
+  The run was a fourth step, Tailor, until later the same day; it only
+  waited, so the user had it folded into a loader (below).
+- **A posting has one tailored resume, and a new run replaces it.** The
+  posting's Tailor page opens its review once it has one. The review's
+  Back opens Choose Keywords on the run's source (`?step=keywords&source=`;
+  `?step=pick` for Pick a Resume), where a line above Tailor Resume says
+  the run replaces the tailored resume; the run keeps its id, name and
+  star. The posting's own tailored resume is never the first pick and
+  cannot be a source (422). It was tailored once, a second run refused
+  with a 409, until 2026-10-26.
 - **The screen picks through the shared resume list** (KAN-318, KAN-406):
   `ResumeLists` from `jobs/resume-picker.tsx`, as every resume dialog
   does, with its search, Type filter and Upload Resume (the same limit,
   replace step and duplicate rule) and the Uploaded, Generated and
-  Tailored groups. It starts on the resume tailored to this job, else the
-  primary unless that is tailored to another job, else the first resume
-  not tailored to any (`tailorFirst`): tailoring another job's tailored
-  resume starts from that job's changes. Use This Resume reads the
-  resume's keyword match (`matchTailor`); "Reading…" and errors show on
-  the card. An upload is read into the bank and tailored as its own
-  entries; a run changes only what the picked resume shows.
-- **The keyword match** shows "12 of 18", the matched keywords, and the
-  missing ones as toggle chips: the student picks those they have used,
-  to add as skills. A keyword not picked is never written in. A posting
-  with no description shows the "weak match" notice.
-- **Tailor Resume runs once** and saves the posting's tailored resume,
-  then opens it in the editor (`/resumes/[id]`). The run's record of
+  Tailored groups. A dropdown and a dropzone under it stood here first;
+  the dropzone took more room than the list. It starts on the resume
+  tailored to this job, else the primary unless that is tailored to
+  another job, else the first resume not tailored to any (`tailorFirst`):
+  tailoring another job's tailored resume starts from that job's changes.
+  Use This Resume moves to Choose Keywords and reads the resume's keyword
+  match (`matchTailor`); while it reads, the Keyword Match card's place
+  says what WorkIt is doing, over the card's shape (`MatchWaiting`), not
+  made-up stages: the read is one call with none to report. A failed
+  read returns to the pick with its error on the card. An upload is read into the bank and
+  tailored as its own entries; a run changes only what the picked resume
+  shows.
+- **Each card has a Preview button** (an eye, labelled "Preview <name>",
+  `onPreview` on `ResumeLists`), which opens the resume in a dialog
+  (`ResumePreviewDialog`, `resume-preview.tsx`) without moving the pick.
+  The other resume dialogs pass no `onPreview` and show no eye. A preview
+  sat in a column beside the list until 2026-10-26; the list needed the
+  width, and a dialog gives the page room to read. The dialog takes a
+  name and a `TailorSource`, so the review step opens it too, for View
+  Original. A built resume's PDF is rendered (as it is now) and an
+  upload's PDF is read, then drawn page by page with the editor's
+  `PdfPages`, read-only, with no click targets. A DOCX upload gets a
+  note and Download, as its own page does: pdf.js cannot draw one. The
+  PDF comes from `GET /api/resume-preview?built=<id>` or
+  `?uploaded=<id>`, a route handler, not a server action: Next runs a
+  client's actions one at a time, so each render would hold back Use
+  This Resume. Each answer is kept by its resume while the dialog stays
+  mounted, so a late answer for another resume never shows and a resume
+  opened again shows at once. The page's skeleton shows while it loads,
+  and a failure says so in one line with Try Again.
+- **The keyword match is one calm card** (`KeywordCard`, 2026-10-26):
+  "3 of 14 keywords matched" over a bar of the same share, the matched
+  keywords as quiet tags, then Add Missing Keywords: the missing ones as
+  toggle chips (+ when off, a check when on), Required then Preferred,
+  each under its own label (`MissingKeywords`, KAN-408), with a count
+  ("4 of 11 selected"). The student picks those they have used, to add
+  as skills. A short note says a picked one goes into the resume's skills
+  and may be named in its bullets, since picking it lets the truth rule
+  pass it. Select All is a small secondary button and asks first on a
+  tinted line ("Select all 11? Only if you have used every one."); Clear
+  shows beside it once anything is picked. Back and Tailor Resume sit at
+  the card's foot. The user found the card before overloaded: a big
+  "12 of 18", required matched keywords in brand, a checkbox drawn in
+  every chip, and Add All as a text link that turned into Clear All. A
+  keyword not picked is never written in. A posting with no description
+  shows the "weak match" notice.
+- **Tailor Resume runs once** under a loader in the middle of the window
+  (`TailorRunning`, a modal over Choose Keywords that Esc and a click
+  outside do not close, since a run cannot be stopped): a spinner, the
+  resume's name and the keyword count, and the run's phases as they
+  stream (Retrieving Info, Asking AI, Generating Resume, Compiling
+  Resume), the done ones checked. A failed run closes it and shows its
+  error on the card. It saves the posting's tailored resume, then opens
+  it in the editor on this route (`?resumeId=`). The run's record of
   changes and its dropped count go to sessionStorage (`tailorEditsKey` in
   `lib/local-drafts.ts`, cleared by Sign Out) for the editor's review
-  (Resume editor, below).
+  (Resume editor, below), with the keyword match before and after
+  (`MatchShift`). Like the marks, it lives in that tab only.
+- **The review is one resume with a Suggestions panel**
+  (`tailor-suggestions.tsx`, `../../docs/tailor_resume.md`,
+  "Suggestions"), kept quiet after Quinncia's resume review: the
+  resume's name over the page (`ResumeTitle`: plain text that shows a
+  faint outline and a pencil when pointed at, and a click makes it a field
+  in the same box; Enter or a click away saves, Esc cancels), the
+  editor's slim toolbar over the page with the panel level beside it, and
+  "Suggestions" with its count in a
+  filled pill over a 360px panel in the brand tint (the editor's bar's
+  colour) of white sections that sticks beside the page, its top fixed
+  and its sections scrolling under it. The
+  resume's name row holds the view switch at its right, Resume Only (the
+  page alone at full width), Suggestions (with its count) or Original,
+  which sets the source resume beside the tailored one at one width in
+  place of the panel, under a toolbar-like bar with a Read Only tag. The
+  top row sits in the brand tint, rounded. The toolbar holds only tools
+  for the page: at the left Undo and Redo (UI only for now, disabled)
+  and, idle, the page count when over one page as an amber chip with a
+  warning sign and a caret (its click offers Fit to One Page); at the
+  right Download, secondary. No "Not on This Resume" on this page
+  (the editor's own page keeps it); while a line is open, its moves, Hide and its choices with "Esc
+  when done"; no Ask Scout and no Done. Each changed line has a small
+  purple dot in the page's margin and is highlighted (its tint, a 1px dark
+  border, rounded, after Quinncia) only while its suggestion is pointed
+  at or open; a dot or a changed line opens it. The panel's top holds a
+  type filter in the heading row (a dropdown of All Types
+  and each change type, each with its coloured badge, added green,
+  reworded blue, removed red, moved amber, and its count); under it one white section per resume entry, top to bottom
+  as on the page, each heading with the entry's title, organization,
+  count and a caret, and each suggestion a row with its type's badge and
+  a green ✓ and a red ✕, always open over its change (only sections
+  fold): a white outlined card with one row per thing that changed (each
+  moved bullet with an amber "3 → 1" tag), and under the
+  list Reject All and Accept All. Pointing at a row highlights its lines;
+  only a click on its name scrolls the page to them. On a phone the panel is a sheet opened by
+  "Suggestions (n)". With no record (a new tab or device) the editor
+  shows alone, with a line saying the suggestions live in the tab that ran
+  Tailor. A before and after side by side came first (2026-10-26) and was
+  replaced the same day: two full resumes and hover Revert controls showed
+  too much at once; then a panel of open cards over fully tinted lines,
+  which gave everything the same weight; then a grey panel under quiet
+  small-capitals labels ("RESUME · <name>", "SUGGESTIONS · n"), which the
+  user found muted; then numbered cards and dots, which read as an order
+  to follow, and a panel that folded to a rail, which looked dated.
 - An empty bank (409) shows a link to the bank page, where intake starts.
 
 ## Resumes (`/resumes`)
@@ -1922,7 +2059,11 @@ student who opened a resume from Experiences landed on another view.
   this page only), at the line's size, weight and slant, with its baseline
   on the PDF's, so its text covers the printed glyphs and wraps where the
   PDF does; before this, a wider fallback serif wrapped early and the field
-  covered the lines below. It opens with the caret where the press landed
+  covered the lines below. Its 1.5px ring (2px read too thick over the
+  page's fine type) is the line's only outline while it is open: the
+  line's own selected outline sat a few pixels off the field, and with the
+  field's drop shadow it showed as extra lines under the ring, so both go
+  while the field shows, as does a Tailor highlight's border. It opens with the caret where the press landed
   (`caretPositionFromPoint`, measured from the pages' top left, because the
   bar can change height in the same render). It saves after a 700 ms
   pause, on blur, on Enter, or when another line is selected; then the PDF
@@ -1960,19 +2101,31 @@ student who opened a resume from Experiences landed on another view.
   no count: a green "1 page" said what the page itself shows, and stood
   apart from the rest of the bar. Undo is kept in sessionStorage per resume
   (`fit-undo.ts`), so a reload in the same tab still offers it.
-  **After a Tailor run, Review Tailor's Changes sits under the bar**
-  (`tailor-review.tsx`, `../../docs/tailor_resume.md`): each change the run
-  saved, with Revert, and Save, which ends the review. Changed lines are
-  tinted on the page, see-through so the PDF's text shows: a new wording
-  or an added skill green (`positive`), an entry's bullets in a new order
-  amber (`warning-fill`). Revert goes through the choices PATCH (the
-  wording back to the source's, the old order, the skill hidden), and any
-  later edit of a changed item through it drops that change's mark. The
-  card says how many wordings the truth rule left out. The run's record is
-  in sessionStorage (`tailorEditsKey`, under `lib/local-drafts.ts`'s
-  prefix, so Sign Out clears it): a reload in the same tab keeps the
-  review, and a new tab or device opens with none. The phone editor shows
-  the same card above the page and the same tints. The bar also
+  **On Tailor's review step the editor takes a Suggestions panel**
+  (`suggestions`, a render prop; `tailor-review.tsx`,
+  `../../docs/tailor_resume.md`, "Suggestions"). Only then does the page
+  carry the run's changes: a small purple dot in the margin beside each changed
+  line (`dots` on `PdfPages`), and a see-through highlight, so the PDF's
+  text shows, on the lines of the suggestion in focus or open: an added
+  skill green (`positive`, bordered in `positive-ink`), a new wording blue
+  (`advanced`), an entry's bullets in a new order amber (`warning-fill`,
+  bordered in `warning-strong`). The same page passes `compact`, the slim
+  toolbar: Undo and Redo (disabled, UI only); idle, a "⚠ 2 pages" chip
+  whose popover offers Fit to One Page and Download (secondary: Finish is
+  the page's one filled button), with no hint and no "Not on This Resume"; editing
+  a line, its moves first (`LineActions`' `movesFirst`),
+  Hide and its choices, and "Esc when done" for Done. It has no Ask Scout.
+  It also passes `heading`, the label over the page's column; the
+  editor's own page passes neither and keeps this bar. The panel sits in the Ask Scout
+  column and gives way to the assistant while it is open; on a phone it
+  is a sheet from the bottom bar. Reject goes through the choices PATCH
+  (the wording back to the source's, the old order, the skill hidden),
+  and any later edit of a changed item drops that change's mark. The
+  run's record is in sessionStorage (`tailorEditsKey`, under
+  `lib/local-drafts.ts`'s prefix, so Sign Out clears it): a reload in the
+  same tab keeps it, and a new tab or device opens with none. `phoneBar`
+  is a row the phone layout's header shows, for the page's own line,
+  since that layout covers the page. The bar also
   says "Saving…" or the last round trip ("Saved, 412 ms"), the measure for
   the Vercel preview check. **Download** (PDF or Word) and Ask Scout end
   the bar whether or not a line is selected, so Download stays in reach down
@@ -2002,7 +2155,8 @@ student who opened a resume from Experiences landed on another view.
   re-rendering until the page fits and putting back what it did not need
   (`backend/CLAUDE.md`). It never cuts Education, Skills, an entry's first
   bullet, or the top Experience and Projects entry.
-- **"Not on This Resume"** (`tray.tsx`) under the page: entries the resume
+- **"Not on This Resume"** (`tray.tsx`) under the page (not on Tailor's
+  review, where a run's own removals have Reject): entries the resume
   does not show (hidden, or added to the bank after Generate), hidden
   bullets of shown entries, and hidden skills. One click puts one back; an
   entry joins the end of its section with its bullets.

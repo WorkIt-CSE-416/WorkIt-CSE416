@@ -316,7 +316,7 @@ resolves to.
 
 There is exactly one Button, `ui/button.tsx`. It answers to shadcn's variant and
 size names (`default`, `secondary`, `outline`, `ghost`, plus WorkIt's own
-`positive`) while painting the mockups' styling, so a component pasted from
+`positive` and `decline`, the quiet red beside a green Accept) while painting the mockups' styling, so a component pasted from
 the shadcn docs composes without edits and still looks like WorkIt.
 Every variant at a size is one box (sm 36px, default 42px, lg 48px), a
 text-only one included, and the Button sizes its glyphs to keep it so: an

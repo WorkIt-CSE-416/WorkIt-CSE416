@@ -18,7 +18,7 @@ export type Keyword = { keyword: string; kind: "required" | "preferred" };
 export type TailorSource = { built_resume_id: string } | { uploaded_resume_id: string };
 
 /** The picked resume's keyword match before a run. `tailored_resume_id`:
- *  the posting's tailored resume, when it has one (a run is then refused). */
+ *  the posting's tailored resume, when it has one (a run then replaces it). */
 export type TailorMatch = {
   job_posting_id: string;
   tailored_resume_id: string | null;
