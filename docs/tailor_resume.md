@@ -267,7 +267,8 @@ weight.
   ("RESUME · <name>", "SUGGESTIONS · 6") until the user found them muted.
   The job's logo, title and company beside Back crowded the top row.
 - **The toolbar holds only tools for the page**: the editor's slim row
-  (`compact`), one row over the page. At the left, Undo and Redo, UI only
+  (`SlimBar`), one row over the page, the same bar the editor's own page
+  has since KAN-411. At the left, Undo and Redo, UI only
   for now (the editor keeps no history yet, so both stay disabled,
   2026-10-26), then the page count as an amber chip with a warning sign
   and a caret ("⚠ 2 pages ⌄", over one page only), which reads as a
@@ -288,9 +289,10 @@ weight.
   highlight already says.
   Editing a line: its kind, Move Up and Move Down first, then Hide and the
   line's own choices (a bullet's wordings, Education's GPA), and "Esc when
-  done" in place of a Done button. No Ask Scout on this page: the panel
-  holds the column the assistant opens in, and a second AI entry beside it
-  split the page. No Download while a line is open.
+  done" in place of a Done button. No Ask Scout, here or on the editor's
+  own page (whose top bar Scout opens its assistant, KAN-411): on this
+  page the panel holds the column beside the page, and a second AI entry
+  beside it split the page. No Download while a line is open.
 - **Dots, then highlights.** Each changed line has a small dot (8px) in
   the page's left margin, brand purple whatever the change: in each
   type's colour the amber dots read as one more signal among the
@@ -398,8 +400,8 @@ weight.
   bullet's parts merged into one row. Accept All empties the list.
 - **Only Tailor's page reviews.** The editor takes the panel as a prop
   (`suggestions`); without it, as on `/resumes/[id]`, it shows no dots or
-  tints and keeps its full toolbar. The panel shares the Ask Scout column
-  and gives way to the assistant while it is open.
+  tints, and the top bar's Scout opens its assistant. On this page Scout
+  stays the job chat, and the panel holds the column beside the page.
 - **On a phone** the panel is a sheet opened by "Suggestions (5)" in the
   bottom bar, with the same cards; an open card's Show on Resume closes
   the sheet and tints its line, and a dot opens the sheet on its card.

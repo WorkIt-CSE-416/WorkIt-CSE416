@@ -1458,12 +1458,15 @@ in Docs (suggested answers in the chat, not a banner).
   /applicants/{id}/bank` through `src/lib/bank-actions.ts` on the server; if
   that fails it shows "Your Bank Isn't Loading Right Now" and a Try Again
   link, never fixture rows. A failed save or delete shows the API's message
-  beside the control and leaves the screen as it was.
+  beside the control and leaves the screen as it was. A skill's × is the
+  one exception (KAN-388): the skill leaves at once, and a failed delete
+  puts it back with the message under the card.
 - **One card per section**, in the fixed order (Education, Experience,
   Projects, Leadership & Activities, Awards, Certifications), then Skills.
   Entries come back from the API ongoing first, then newest; the screen
   never sorts. After every change it reads the whole bank again, so the
-  order shown is always the API's.
+  order shown is always the API's; a skill's × only drops that skill,
+  which changes no order.
 - **A card's heading is a + and a pencil** (KAN-363), as LinkedIn's
   profile draws them: the + adds an entry (a skill on Skills), on every
   card; the pencil, shown while the card lists something, opens that
@@ -1509,7 +1512,7 @@ in Docs (suggested answers in the chat, not a banner).
   from the resume question's answers in the chat (the first stage for an
   empty bank, Scout's second line otherwise), offered until the student
   imports once. It says what went into the bank (`lib/import-summary.ts`)
-  and holds Continue and, while an AI reading is left, Read It With AI.
+  and holds Continue (Read It With AI sat beside it until KAN-353).
   Nothing waits for review: the entries are in the bank, and the page
   behind shows them at once.
   Upload Resume (PDF or DOCX) uploads through `uploadResume`, as the Resumes
@@ -1734,7 +1737,8 @@ with no proposals to accept and no Done (2026-10-25).
 - **Each card has a Preview button** (an eye, labelled "Preview <name>",
   `onPreview` on `ResumeLists`), which opens the resume in a dialog
   (`ResumePreviewDialog`, `resume-preview.tsx`) without moving the pick.
-  The other resume dialogs pass no `onPreview` and show no eye. A preview
+  The other resume dialogs pass no `onPreview` and show no eye; the
+  Resumes page's built resume rows open the same dialog (KAN-358). A preview
   sat in a column beside the list until 2026-10-26; the list needed the
   width, and a dialog gives the page room to read. The dialog takes a
   name and a `TailorSource`, so the review step opens it too, for View
@@ -1902,9 +1906,8 @@ shows "Your Resumes Aren't Loading Right Now" and a Try Again link.
   <name>" with OK (`resumes/duplicate-resume-dialog.tsx`).
   Intake and onboarding uploads show the message as their error line. **The upload fills the experience bank** (ADR 0003): a
   note under the filter row says what went in ("Added 6 entries and 2 skills
-  from resume.pdf", or "WorkIt couldn't find any entries in …"), links to
-  Experiences, and offers **Read It With AI** while the student has an AI
-  reading left. Before KAN-240 an upload showed nothing, and its facts
+  from resume.pdf", or "WorkIt couldn't find any entries in …") and links
+  to Experiences. It offered Read It With AI until KAN-353. Before KAN-240 an upload showed nothing, and its facts
   reached the bank only if the student found the import inside intake;
   most never did. **A click anywhere on an upload's card opens its own
   page** (`src/components/resume-row.tsx`'s link, KAN-366; Uploaded
@@ -1974,7 +1977,11 @@ shows "Your Resumes Aren't Loading Right Now" and a Try Again link.
   (KAN-258, `resumes/built-resume-row.tsx`), from `components/resume-row.tsx`'s box (`RESUME_ROW`), star
   (`PrimaryStar`) and icon buttons (`ROW_ACTION`), so the two lists cannot
   drift apart: the PDF mark, the name, one line with one day, then the
-  star, Rename, **Download PDF** and Delete. **The whole card opens the resume editor**: the
+  star, **Preview**, Rename, **Download PDF** and Delete. Preview (an eye,
+  KAN-358) opens the resume read-only in Tailor's Preview dialog
+  (`ResumePreviewDialog`, rendered as it is now), so a student can look at
+  it without the editor. An upload's row has no eye: its card opens its
+  own read-only page. **The whole card opens the resume editor**: the
   name's link stretches over it and the icons sit above that link, and it
   lifts under the pointer as every whole-target card does (`docs/motion.md`).
   It held Open, PDF and Word buttons until KAN-258, when downloading moved
@@ -2002,12 +2009,16 @@ shows "Your Resumes Aren't Loading Right Now" and a Try Again link.
   at the field's height, as the bank's Skills form is drawn; Escape cancels
   and an unchanged name saves nothing. A sent resume keeps the name it went
   out under.
-- **Delete asks first**, on every resume, drawn as a bank
-  entry's confirm is (`delete-confirm.tsx`, which Experiences uses too): the
-  question, then Delete Resume and Keep It, the two
-  buttons wrapping as one, since wrapped apart Keep It sat alone on a line.
-  Both went at one click until KAN-258. Deleting a resume keeps the files
-  already sent from it.
+- **Delete asks first**, on every resume, in a popover hung from the
+  trash that opened it (KAN-347, `DeleteResumeConfirm` in
+  `delete-confirm.tsx`): the question, then Delete Resume and Keep It, the
+  bank entry's words and buttons. Escape or a click outside keeps the
+  resume. It opened under the card until KAN-347, below the row's notes
+  and away from the icon, and pushed the cards under it down. Both went at
+  one click until KAN-258. Deleting a resume keeps the files already sent
+  from it. The card
+  leaves the list as Delete Resume is pressed (KAN-388); a failed delete
+  brings it back, with the error above the list.
 - **No Sent card since 2026-10-18.** It listed every file the student
   downloaded or applied with (KAN-208), to download again or delete. Sent
   resumes are still kept on every Apply (a download keeps nothing since
@@ -2029,7 +2040,8 @@ here, its facts are edited in Experiences). The server reads the file
 KAN-368), so the browser never opens the Storage link. A DOCX
 cannot be drawn, so its place holds "This File Can't Be Shown Here" and
 Download. Rename turns the heading into the cards' Rename form; Delete
-asks under the bar, as on a card, and then returns to the Resumes view.
+asks in a popover under its button, as a card's trash does, and then
+returns to the Resumes view.
 An id the student has no upload by is a 404; a list or file that fails
 to load shows "This Resume Isn't Loading Right Now" with Try Again. On a
 phone the bar's buttons wrap and the pages take the width.
@@ -2081,27 +2093,54 @@ student who opened a resume from Experiences landed on another view.
   Phone" and the next missing link in the bar. Picking a wording (bar or
   assistant) drops the typed draft, so the field shows the picked text.
   Escape, Done or Enter clears the selection (Enter saves first), and so
-  does a press outside the page, the bar and the assistant panel, which
-  carry `data-keeps-selection` (the assistant acts on the selected line).
+  does a press outside the page, the bar and the assistant (in Scout's
+  panel), which carry `data-keeps-selection` (the assistant acts on the selected line).
   The phone editor keeps its own sheet: Enter there only saves.
-- **The sticky bar** sits above the page, so a line's actions never cover
-  nearby lines. With a line selected: Hide (Hide Entry), Move Up and Move
-  Down (entries within their section, bullets within their entry, one PATCH
-  that renumbers the siblings), the bullet's wordings (Original, each
-  Tailored version, This Resume's Wording) and, on Education, Show/Hide GPA
-  and Coursework. A press on a bar button keeps focus in the field. With no
-  line selected: the hint "Click a line to edit it." first, in ink at label
-  size with a brand pointer glyph (a grey note after the page count until
-  KAN-258, it read as fine print); then, only over one page, **one amber
-  group** (`fit-notice.tsx`): the warning glyph and the count ("2 pages · 3
-  lines over 1 page", from the render's `lines_over`, an estimate), a
-  hairline, and Fit to One Page in the same amber. An amber badge beside an
-  outline button read as two unrelated things. Then Undo, which shows again
-  everything Fit hid (the response's `undo` body). A one-page resume shows
-  no count: a green "1 page" said what the page itself shows, and stood
-  apart from the rest of the bar. Undo is kept in sessionStorage per resume
-  (`fit-undo.ts`), so a reload in the same tab still offers it.
-  **On Tailor's review step the editor takes a Suggestions panel**
+- **The title row** (`ResumeTitle`, `[resumeId]/resume-title.tsx`) holds
+  the resume's name, renamed in place as on Tailor's review: plain text
+  that shows a faint outline and a pencil when pointed at, and a click
+  makes it a field in the same box; Enter or a click away saves
+  (`renameBuiltResume`), Esc cancels. It is the page's h1 here and an h2
+  on the review, under its step's sr-only h1. It spans the page and the
+  column beside it, so the review's panel starts level with the bar.
+  It was a plain h1 at heading size until KAN-411; a failed load still
+  shows it over the error.
+- **The sticky bar is the slim toolbar** (`SlimBar`), the same on this
+  page and on Tailor's review (KAN-411), so a line's actions never cover
+  nearby lines. It is a quiet white row (`--color-panel`). At its left,
+  Undo and Redo, UI only: the editor keeps no history yet, so both stay
+  disabled. With a line selected: the line's kind, Move Up and Move Down
+  first (`LineActions`' `movesFirst`: entries within their section,
+  bullets within their entry, one PATCH that renumbers the siblings),
+  then Hide (Hide Entry), the bullet's wordings (Original, each Tailored
+  version, This Resume's Wording) and, on Education, Show/Hide GPA and
+  Coursework; at the right, "Esc when done" in place of a Done button,
+  since Escape or a click off the page already saves and closes. A press
+  on a bar button keeps focus in the field. With no line selected, only
+  over one page, the page count as an amber chip with a warning sign and
+  a caret ("⚠ 2 pages ⌄"), which reads as a problem to open; its popover
+  says by how much (the render's `lines_over`, an estimate) and offers
+  Fit to One Page. Then Undo Fit, which shows again everything Fit hid
+  (the response's `undo` body), kept in sessionStorage per resume
+  (`fit-undo.ts`), so a reload in the same tab still offers it. A
+  one-page resume shows no count: a green "1 page" said what the page
+  itself shows. No "Click a line to edit it." hint: the pointer's own
+  highlight on a line says so. In both states the bar says "Saving…" or
+  the last round trip ("Saved, 412 ms"), the measure for the Vercel
+  preview check. Idle, **Download** (PDF, Word or LaTeX) ends the bar,
+  secondary, so it stays in reach down a two-page resume
+  (`../download-menu.tsx`, KAN-258; it was on each card of the Resumes
+  view). It keeps nothing (KAN-267) and holds a PDF with characters the
+  font lacks for Download Anyway; the warning and any error show under
+  the bar. **No Ask Scout**: the top bar's Scout opens the assistant
+  (below). Ask Scout ended this bar for a day, filled, and the user
+  found two Scout buttons on one page one too many.
+  **Until KAN-411 this page had its own full bar**, brand-tinted, with
+  the hint first, the page count and Fit to One Page as one amber group
+  (`fit-notice.tsx`'s `FitNotice`, now the phone's), a Done button, and
+  Download and Ask Scout in both states, while Tailor's review had the
+  slim one: a student saw two editor designs.
+- **On Tailor's review step the editor takes a Suggestions panel**
   (`suggestions`, a render prop; `tailor-review.tsx`,
   `../../docs/tailor_resume.md`, "Suggestions"). Only then does the page
   carry the run's changes: a small purple dot in the margin beside each changed
@@ -2109,42 +2148,25 @@ student who opened a resume from Experiences landed on another view.
   text shows, on the lines of the suggestion in focus or open: an added
   skill green (`positive`, bordered in `positive-ink`), a new wording blue
   (`advanced`), an entry's bullets in a new order amber (`warning-fill`,
-  bordered in `warning-strong`). The same page passes `compact`, the slim
-  toolbar: Undo and Redo (disabled, UI only); idle, a "⚠ 2 pages" chip
-  whose popover offers Fit to One Page and Download (secondary: Finish is
-  the page's one filled button), with no hint and no "Not on This Resume"; editing
-  a line, its moves first (`LineActions`' `movesFirst`),
-  Hide and its choices, and "Esc when done" for Done. It has no Ask Scout.
-  It also passes `heading`, the label over the page's column; the
-  editor's own page passes neither and keeps this bar. The panel sits in the Ask Scout
-  column and gives way to the assistant while it is open; on a phone it
-  is a sheet from the bottom bar. Reject goes through the choices PATCH
+  bordered in `warning-strong`). There the page has no "Not on This
+  Resume" (a run's own removals have Reject), and the top bar's Scout
+  stays the job search chat. The panel sits in the column beside the
+  page; on a phone it is a sheet from the bottom bar. Reject goes through the choices PATCH
   (the wording back to the source's, the old order, the skill hidden),
   and any later edit of a changed item drops that change's mark. The
   run's record is in sessionStorage (`tailorEditsKey`, under
   `lib/local-drafts.ts`'s prefix, so Sign Out clears it): a reload in the
   same tab keeps it, and a new tab or device opens with none. `phoneBar`
   is a row the phone layout's header shows, for the page's own line,
-  since that layout covers the page. The bar also
-  says "Saving…" or the last round trip ("Saved, 412 ms"), the measure for
-  the Vercel preview check. **Download** (PDF or Word) and Ask Scout end
-  the bar whether or not a line is selected, so Download stays in reach down
-  a two-page resume (`../download-menu.tsx`, KAN-258; it was on each card
-  of the Resumes view). It keeps a sent resume and holds a PDF with
-  characters the font lacks for Download Anyway, as Download always has;
-  the warning and any error show under the bar. The status, Download and
-  Ask Scout wrap as one group, so on a narrow page they stay together at
-  the right. **The bar is the brand tint**, not the surface colour, so its
-  secondary buttons stand out (`docs/design.md`, Components), and **Ask
-  WorkIt is the brand's filled button**, the editor's primary action; it
-  was an outline until KAN-258. The phone layout's top and bottom bars take
-  the same tint and its Ask Scout buttons the same fill, and its sheets
-  are white.
+  since that layout covers the page.
+- **The phone layout keeps its own bars** (`phone.tsx`): its top and
+  bottom bars take the brand tint and its Ask Scout buttons the brand's
+  fill, and its sheets are white.
 - **A toast says it first** (`fit-notice.tsx`, KAN-258): when the editor
   opens on a resume over one page, or an edit pushes one over, a toast at
   the bottom right (above the bottom bar on a phone) says by how much, with
   Fit to One Page and a cross. It closes on Fit, on the cross, once the
-  resume fits, or after 10 seconds, since the bar's group keeps the same
+  resume fits, or after 10 seconds, since the bar's chip keeps the same
   fix. On a phone it does not show while a line's sheet is open, which it
   would cover. The editor notices the change while rendering (the last
   count is kept in state), not in an effect.
@@ -2169,8 +2191,8 @@ student who opened a resume from Experiences landed on another view.
   LaTeX render without awaiting it; `editor.tsx` reads it with `use()` inside
   a `<Suspense>` around the page area only, over a Letter-sized skeleton with
   its own error state, so Back, the title and the bar do not wait on the
-  compile. Line editing, Ask Scout and the tray stay off until it lands, and
-  "Click a line" is not offered when the first render failed. pdf.js starts
+  compile. Line editing, the assistant and the tray stay off until it lands, and
+  the phone's "Click a line" is not offered when the first render failed. pdf.js starts
   downloading as the editor mounts. The editor and an upload's page each have
   a `loading.tsx` in their own frame.
 - **On a phone** (`phone.tsx`, the KAN-201 prototype's variant A), below
@@ -2198,12 +2220,22 @@ student who opened a resume from Experiences landed on another view.
   switches. Manual checks on a real iPhone: the sheet stays above the
   keyboard, and the field does not zoom; and the render time on cellular
   data, read from "Saved, N ms".
-- **The assistant** (`assistant.tsx`, KAN-221; the KAN-195 prototype's
-  variant E) opens from Ask Scout in the sticky bar and **docks beside the
-  page** from @4xl/main (sticky, never over the page); narrower, it stacks
-  under it. On a phone, Ask Scout in the bottom bar or in a line's sheet
-  opens it in its own sheet. It stays mounted while closed, so closing it
-  keeps the chat; nothing is stored. The look is intake's (variant G:
+- **The assistant** (`assistant.tsx`, KAN-221) **opens from the top
+  bar's Scout, in Scout's panel** (KAN-411): the editor takes the panel
+  over (`ScoutTakeover`, as the Experience Bank does with intake), under
+  "Scout · Edits this resume as you talk", so the page has one way to
+  Scout. The panel's header and X close it. Until the first render lands
+  the panel stays Scout's job chat, since the assistant reads the page
+  count and acts through renders. Not on Tailor's review, whose Scout
+  stays the job chat. Until KAN-411 it opened from Ask Scout in the
+  sticky bar and docked beside the page (the KAN-195 prototype's variant
+  E); with Ask Scout gone from the bar, the top bar's Scout opened only
+  the job chat, which left desktop no way to the assistant, so the panel
+  took it in. Its root is a div: the panel or the phone's sheet holds
+  it, names it and draws its close button. On a phone, Ask Scout in the
+  bottom bar or in a line's sheet opens it in its own sheet. It stays
+  mounted while closed, so closing it keeps the chat; nothing is
+  stored. The look is intake's (variant G:
   lavender panel, Scout's mark) and the bubbles, dots and composer are
   Scout's `chat.tsx`. It does four things, all through the editor's own
   saves: Fit to One Page, hide and move the selected line, and **Make it
@@ -2216,7 +2248,8 @@ student who opened a resume from Experiences landed on another view.
   messages spend one of today's assistant messages ("N messages left
   today"). The sticky bar stays the free path for everything. Manual
   checks: a typed "hide this" on a selected bullet hides it; Make it
-  shorter waits for Use This; the phone sheet opens from both buttons.
+  shorter waits for Use This; the phone sheet opens from both buttons; a
+  click in the panel keeps the selected line.
 
 ## Scout panel
 
@@ -2225,7 +2258,8 @@ Scout, the job assistant, lives in `components/scout/`; its brain is the repo's
 tab (a module store, so no provider). `scout-panel` docks beside the page, never
 over it, and opens only on a click (the Jobs page's Import Your Resume
 counts: `/bank?import=1` opens it on arrival, then drops the param). A page
-can take it over (`scout-takeover.tsx`, the Experience Bank's intake): the
+can take it over (`scout-takeover.tsx`: the Experience Bank's intake, the
+resume editor's assistant): the
 page's content replaces the chat and the panel widens to 448px. It stays mounted and opens in two moves: its
 room appears at once and the page settles into its new width, while the panel
 slides in from the window's edge (`docs/motion.md` has why). Escape or its X

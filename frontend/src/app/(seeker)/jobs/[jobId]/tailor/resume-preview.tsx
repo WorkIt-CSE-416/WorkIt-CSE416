@@ -33,7 +33,9 @@ import { loadPdfjs, PageSkeleton, PdfPages } from "../../../resumes/[resumeId]/p
  *
  * Each answer is kept by its source for the page's life (`answered`), so a
  * resume shows only its own answer, however late an older one arrives, and
- * a resume opened again shows at once. A failed one says so in a line, with
+ * a resume opened again shows at once. A caller that knows when the
+ * resume last changed passes it as `version` (the Resumes page's eye,
+ * KAN-358), so an answer from before an edit is not shown after it. A failed one says so in a line, with
  * Try Again. Step 1 held the preview as a column beside the list until the
  * list needed the width; a dialog also gives the page room to be read.
  */
@@ -50,12 +52,13 @@ const answered = new Map<string, Preview>();
 
 /** The source's preview, asked for once `enabled`, and a retry for a
  *  failed one. */
-function useResumePreview(source: TailorSource, enabled: boolean) {
+function useResumePreview(source: TailorSource, enabled: boolean, version?: string) {
   const [previews, setPreviews] = useState<Record<string, Preview>>({});
   // Sources asked for and not yet answered, so one opened away and back
   // is not asked for twice.
   const asking = useRef(new Set<string>());
-  const key = keyOf(source);
+  const query = keyOf(source);
+  const key = version ? `${query}@${version}` : query;
   const preview = previews[key] ?? answered.get(key);
   const have = preview !== undefined;
 
@@ -69,7 +72,7 @@ function useResumePreview(source: TailorSource, enabled: boolean) {
       if (!answer.error) answered.set(key, answer);
       setPreviews((all) => ({ ...all, [key]: answer }));
     };
-    fetch(`/api/resume-preview?${key}`)
+    fetch(`/api/resume-preview?${query}`)
       .then(async (res) => {
         const body = (await res.json()) as Partial<Preview>;
         keep({
@@ -78,7 +81,7 @@ function useResumePreview(source: TailorSource, enabled: boolean) {
         });
       })
       .catch(() => keep({ pdf: null, error: "Could not reach the server." }));
-  }, [enabled, key, have]);
+  }, [enabled, key, query, have]);
 
   function retry() {
     answered.delete(key);
@@ -97,12 +100,14 @@ function PreviewPages({
   source,
   label,
   enabled,
+  version,
 }: {
   source: TailorSource;
   label: string;
   enabled: boolean;
+  version?: string;
 }) {
-  const { key, preview, retry } = useResumePreview(source, enabled);
+  const { key, preview, retry } = useResumePreview(source, enabled, version);
   if (!preview) return <PageSkeleton />;
   if (preview.error) {
     return (
@@ -138,12 +143,15 @@ export function ResumePreviewDialog({
   onOpenChange,
   label,
   source,
+  version,
 }: {
   open: boolean;
   onOpenChange: (open: boolean) => void;
   /** The resume's name, the dialog's title. */
   label: string;
   source: TailorSource;
+  /** When the resume last changed; a new one asks for the PDF again. */
+  version?: string;
 }) {
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
@@ -156,7 +164,7 @@ export function ResumePreviewDialog({
           <DialogDescription className="sr-only">A preview of this resume.</DialogDescription>
         </DialogHeader>
         <div className="bg-canvas rounded-card min-h-0 flex-1 overflow-y-auto p-3 sm:p-4">
-          <PreviewPages source={source} label={label} enabled={open} />
+          <PreviewPages source={source} label={label} enabled={open} version={version} />
         </div>
       </DialogContent>
     </Dialog>

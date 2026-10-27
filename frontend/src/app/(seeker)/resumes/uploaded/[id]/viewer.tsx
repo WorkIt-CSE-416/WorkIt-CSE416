@@ -19,7 +19,7 @@ import { openDownload } from "@/lib/save-file";
 import { LocalDate } from "../../../local-time";
 import { PageSkeleton, PdfPages } from "../../[resumeId]/pdf-pages";
 import { RenameForm } from "../../built-resume-row";
-import { DeleteConfirm } from "../../delete-confirm";
+import { DeleteResumeConfirm } from "../../delete-confirm";
 
 /**
  * An uploaded resume's page (KAN-366): its name, then a sticky bar drawn
@@ -36,7 +36,8 @@ import { DeleteConfirm } from "../../delete-confirm";
  * that way, so its place holds the file's name and Download.
  *
  * Rename edits the heading in place, with the form every resume's card
- * uses; Delete asks first under the bar and returns to the Resumes view.
+ * uses; Delete asks first, in a popover under its button, and returns to
+ * the Resumes view.
  */
 export function UploadedViewer({ resume, pdf }: { resume: ResumeItem; pdf: string | null }) {
   const router = useRouter();
@@ -47,7 +48,6 @@ export function UploadedViewer({ resume, pdf }: { resume: ResumeItem; pdf: strin
   // name and the star are always the API's; the form stays open until the
   // new name is in, so the old one never flashes back.
   const [saving, startSaving] = useTransition();
-  const [confirming, setConfirming] = useState(false);
   const [deleting, setDeleting] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
@@ -127,30 +127,21 @@ export function UploadedViewer({ resume, pdf }: { resume: ResumeItem; pdf: strin
             <Button variant="secondary" size="sm" onClick={() => setRenaming(true)}>
               <PencilIcon className="size-4" /> Rename
             </Button>
-            <Button
-              variant="secondary"
-              size="sm"
-              onClick={() => setConfirming(true)}
-              disabled={deleting}
-            >
-              <TrashIcon className="size-4" /> Delete
-            </Button>
+            <DeleteResumeConfirm
+              busy={deleting}
+              onDelete={remove}
+              trigger={
+                <Button variant="secondary" size="sm" disabled={deleting}>
+                  <TrashIcon className="size-4" /> Delete
+                </Button>
+              }
+            />
             <Button size="sm" onClick={download}>
               <FileArrowDownIcon aria-hidden className="size-4" /> Download
             </Button>
           </div>
         </div>
 
-        {confirming && (
-          <DeleteConfirm
-            label="Delete Resume"
-            busy={deleting}
-            onDelete={remove}
-            onKeep={() => setConfirming(false)}
-          >
-            Delete this resume? Files you already sent are kept.
-          </DeleteConfirm>
-        )}
         {error && (
           <p role="alert" className="text-note text-danger">
             {error}

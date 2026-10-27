@@ -1409,7 +1409,9 @@ the KAN-296 cutover.
 - **A page can take Scout's panel over** with `components/scout/
   scout-takeover.tsx`: its children portal into the panel in place of
   Scout's chat while the page is mounted, so the bar's Scout button opens
-  the page's assistant. The Experience Bank puts intake there. Open it only
+  the page's assistant. The Experience Bank puts intake there, and the
+  resume editor its assistant (KAN-411), which is why the editor's
+  toolbar has no Ask Scout. Open it only
   on a click (the panel's rule), never on page load; a link a student
   clicked to get here may open it once, then drop its query param.
 - **The company table (`app/company/table.tsx`) and the Applications list
@@ -1439,7 +1441,9 @@ the KAN-296 cutover.
   `(seeker)/resumes/uploaded/[id]`, which draws through the same
   `PdfPages`) and Tailor's page (`(seeker)/jobs/[jobId]/tailor`: the
   editor and a resume card's Preview dialog, `resume-preview.tsx`, which
-  the review's View Original sets beside the page, `OriginalResume`), through `import("pdfjs-dist")` inside an effect in
+  the review's View Original sets beside the page, `OriginalResume`), and
+  the Resumes page, whose built resume rows open that same Preview dialog
+  from an eye (KAN-358), through `import("pdfjs-dist")` inside an effect in
   `(seeker)/resumes/[resumeId]/pdf-pages.tsx`: about 110 KB gzip plus a
   290 KB worker, which every other page would otherwise pay for, and its
   module touches browser globals, so a top-level import breaks the server
@@ -1452,12 +1456,16 @@ the KAN-296 cutover.
   only cleared `"dev": true` on `sharp`'s `@img/*` packages (`next`
   depends on `sharp` too), which is correct and removes no entry.
 - **Tailor's review is the resume editor with props, not a fork**
-  (`(seeker)/resumes/[resumeId]/editor.tsx`): `suggestions` (the panel,
-  and with it the margin dots and tints), `compact` (the slim toolbar),
-  `heading` (the column label) and `phoneBar`. The editor's own page
-  passes none of them and must keep its full toolbar; a change for the
-  review goes behind one of these props, so the two never drift into two
-  editors.
+  (`(seeker)/resumes/[resumeId]/editor.tsx`), and both pages draw one
+  editor design (KAN-411): the title row (`heading`, `ResumeTitle`
+  renamed in place) and the slim toolbar (`SlimBar`). Only the review
+  passes `suggestions` (the panel, and with it the margin dots and tints,
+  the view switch in the title row, no Not on This Resume, and Scout's
+  panel left to the job chat), `original` and `phoneBar`. A change for the review goes behind
+  one of these props, and a change to the bar or the title row changes
+  both pages, so the two never drift into two editors again: until
+  KAN-411 the editor's own page kept a full toolbar of its own, and a
+  student saw two designs.
 - **A saved timestamp becomes a calendar day in the browser, never on the
   server.** The server runs in UTC, so a day computed there is a day off for
   the Americas. Swap the local day in after hydration (`useSyncExternalStore`);
@@ -1608,14 +1616,17 @@ are in `docs/auth.md`.
   or a replace (the resume picker's, at the limit), or Import Again's
   response. A newer version of an upload is a delete and an upload: the
   Resumes view's row offered Import Updated Resume until KAN-362, and never
-  a re-read of the stored file, which only ever read the same text. "Read It With
-  AI" (KAN-222) runs only on a click, never on its own, and shows only
-  while `uses_left` is above 0; a failed reading writes nothing and says
-  why.
+  a re-read of the stored file, which only ever read the same text. **No
+  screen offers an AI reading of a resume** (KAN-353): upload, Import Again
+  and intake's Import Your Resume read with the parser only. Read It With
+  AI (KAN-222) sat beside the upload note and in the import card until
+  then; the API's `read_with_ai` and `importResume`'s `readWithAi` stay,
+  with no caller.
 - **The Resumes view is one list of every resume** (KAN-362, KAN-404,
   `(seeker)/resumes/built-resumes.tsx`): uploaded, generated and tailored,
   newest first, each as its card (`components/resume-row.tsx`'s box, star
-  and icons: star, Rename, Download, Delete), in one card that scrolls
+  and icons: star, Rename, Download, Delete; Delete asks in a popover
+  under the trash, `DeleteResumeConfirm`, KAN-347), in one card that scrolls
   inside itself, five cards high under a heading (`FIVE_ROWS` in
   `resume-list.tsx`, 351px, not the shared `max-h-scroll-box`: with group
   headings, 320px showed three and a half cards). **It is laid
@@ -1679,7 +1690,11 @@ are in `docs/auth.md`.
   card, since pdf.js cannot draw one. Its bar (the editor's look) holds
   Make Primary, Rename, Delete and Download, calling what the upload's
   card calls, and reads the name and star back with `router.refresh()`
-  rather than guessing them. An upload's card opened its Storage link in
+  rather than guessing them. A built resume's row also has an eye
+  (KAN-358) that shows it read-only in Tailor's Preview dialog
+  (`ResumePreviewDialog`), so a look never opens the editor; it passes the
+  row's `edited_at` as `version`, because the dialog keeps each answer for
+  the app's life and would show a PDF from before an edit. An upload's card opened its Storage link in
   a new tab until then (`lib/preview-resume.ts`, now gone), so an upload
   left the app and a DOCX simply downloaded.
 - **The Experiences view shows one resume at a time** (KAN-343, ADR 0005,
@@ -1717,6 +1732,19 @@ are in `docs/auth.md`.
   card at a time. Only in edit mode do entries show their pencil, skills
   their pencil and ×, and the heading Clear All and Done. Delete Entry is
   at the foot of the editor an entry's pencil opens.
+- **A skill's × and a resume's Delete Resume are optimistic** (KAN-388):
+  the item leaves the screen at once and the delete runs behind it. The
+  screen that holds the list owns the delete, through `useOptimistic` in
+  a transition (`removeSkill` in `bank-screen.tsx`, `remove` in
+  `resumes/built-resumes.tsx`): a failed delete ends the transition with
+  the item still in state, so React puts it back, and the error shows
+  where the list's own errors show, since the row's error line left with
+  the row. A delete that worked drops the item from state itself before
+  any read-back: a failed reload would otherwise bring back an item the
+  API had deleted. Anything else a delete can change still reads back (a
+  resume's delete can move the star). Clear All, Delete Entry and the
+  upload page's Delete still wait for the API behind a busy button: they
+  confirm a count or leave the page.
 - **The Experiences view has a section nav** (KAN-349,
   `(seeker)/bank/section-nav.tsx`): one sticky row of links to the seven
   section cards, each with its count under the current pick, the one in

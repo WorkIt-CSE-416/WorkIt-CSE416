@@ -2,8 +2,8 @@ import { renderResumePdf } from "@/lib/built-resume-actions";
 import { readUploadedPdf } from "@/lib/resume-queries";
 
 /**
- * The PDF of the resume picked in Tailor, for its preview
- * (`(seeker)/jobs/[jobId]/tailor/resume-preview.tsx`): `?built=<id>` renders
+ * The PDF of a resume for its preview (`(seeker)/jobs/[jobId]/tailor/resume-preview.tsx`,
+ * opened in Tailor and from a built resume's eye on the Resumes page): `?built=<id>` renders
  * a built resume (`renderResumePdf`, kept nowhere), `?uploaded=<id>` reads an
  * upload's file (`readUploadedPdf`). It answers `{ pdf, error }`, the PDF in
  * base64 as `PdfPages` takes it; `pdf: null` with no error is a DOCX.
