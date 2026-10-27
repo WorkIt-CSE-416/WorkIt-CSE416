@@ -1450,6 +1450,11 @@ the KAN-296 cutover.
   render. The worker comes from `new URL("pdfjs-dist/build/pdf.worker.min.mjs",
   import.meta.url)`, which Turbopack emits as a static file. After a build,
   only those routes' client manifests name the pdf.js chunk.
+  **A page draws on a hidden canvas, then copies onto the shown one**
+  (`PageCanvas`, KAN-391): setting a canvas's size blanks it, and drawing
+  the new PDF straight onto the shown canvas left it blank for the whole
+  pdf.js draw, a dark flash after every edit's render. Never size or
+  render into the shown canvas before the draw is done.
   `npm install` on a Mac dropped two optional `@emnapi/*` entries from the
   lockfile when pdf.js was added; they were put back by hand. Check the
   lockfile diff for removals after adding any dependency. Adding Lenis

@@ -351,7 +351,10 @@ function MarginDots({
     });
 }
 
-/** One page, redrawn at the canvas's own width in device pixels. */
+/** One page, redrawn at the canvas's own width in device pixels. Each draw
+ *  paints a hidden canvas and copies it over the shown one in one step:
+ *  sizing a canvas blanks it, and a new PDF's page blanked the shown one
+ *  for the whole pdf.js draw, a dark flash after every edit (KAN-391). */
 function PageCanvas({
   pdf,
   page,
@@ -384,10 +387,14 @@ function PageCanvas({
       try {
         const proxy = await pdf.getPage(page);
         const viewport = proxy.getViewport({ scale: target / size.width });
-        element!.width = Math.round(viewport.width);
-        element!.height = Math.round(viewport.height);
-        task = proxy.render({ canvas: element!, viewport });
+        const hidden = document.createElement("canvas");
+        hidden.width = Math.round(viewport.width);
+        hidden.height = Math.round(viewport.height);
+        task = proxy.render({ canvas: hidden, viewport });
         await task.promise;
+        element!.width = hidden.width;
+        element!.height = hidden.height;
+        element!.getContext("2d")!.drawImage(hidden, 0, 0);
       } catch {
         return; // cancelled by a newer draw, or the document was replaced
       }
