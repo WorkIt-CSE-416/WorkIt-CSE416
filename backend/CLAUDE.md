@@ -175,6 +175,13 @@ uv run pytest
   Supabase's keys; return an `AuthenticatedAccount` for a seeded row. A
   profile row needs its `auth.users` row first. `tests/test_database_smoke.py`
   is the pattern.
+- **The feed's viewer is a separate override.** `GET /jobs` reads the
+  viewer from the token through `get_signed_in_applicant_id`, not
+  `get_current_account`, so a test that asks the feed as a student
+  overrides both, or the feed serves it as signed out and lists every job
+  (`tests/test_tracker.py`'s `student` fixture). A test of the Jobs page
+  hiding an applied job passed locally, where the database tests skip, and
+  failed in CI (KAN-413).
 - **A failed migration fails every database test.** The chain runs from
   scratch on each run, so a migration that only works on top of the shared
   database's history shows up here first.
