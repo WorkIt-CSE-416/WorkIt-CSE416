@@ -24,7 +24,8 @@ from pathlib import Path
 from workit_scraper import feed, logos, providers, report, store
 from workit_scraper.polite import Robots
 from workit_scraper.providers import Board, BoardNotFound, Job
-from workit_scraper.shortlist import classify, pick
+from workit_scraper.providers.systems.workday import WORKDAY_CAP
+from workit_scraper.shortlist import WIDENING_STEPS, classify, pick, widening_step
 from workit_scraper.store import RunStats
 
 ROOT = Path(__file__).resolve().parent.parent
@@ -91,14 +92,26 @@ def _scrape_one(board: Board, robots: Robots) -> tuple[Outcome, list[Job]]:
     return Outcome.OK, jobs
 
 
+def newest_first(jobs: list[Job]) -> bool | None:
+    """Whether a board's list names its newest postings first, by the dates the list
+    itself gives (Workday's "Posted 3 Days Ago"; none for "30+ Days Ago", the
+    oldest). None when it gives too few dates to tell. An arrival scan, which would
+    read only a list's first pages each run, needs True (docs/coverage.md)."""
+    dates = [job.posted_at or "" for job in jobs]
+    if len(set(dates)) < 2:
+        return None
+    return all(a >= b for a, b in zip(dates, dates[1:], strict=False))
+
+
 def _lane(boards: list[Board], robots: Robots, before: dict[str, Job]):
     """One provider's boards, then the own pages of their postings that need one
     (`with_page`) -- so Greenhouse's page reads start when its boards are done,
     not after Lever's. Order is kept, so each board gets its own jobs back.
 
     A lane with a budget (`Provider.budget_s`) starts no board once it has run out.
-    Also returns how long the lane took and how many pages it read, for the run's
-    metrics."""
+    Also returns how long the lane took, how many pages it read and, for a provider
+    that pages, how many of its lists named the newest postings first
+    (`newest_first`), for the run's metrics."""
     started = time.monotonic()
     provider = providers.PROVIDERS.get(boards[0].ats) if boards else None
     budget = provider.budget_s if provider else None
@@ -111,13 +124,21 @@ def _lane(boards: list[Board], robots: Robots, before: dict[str, Job]):
 
     with ThreadPoolExecutor(MAX_IN_FLIGHT) as pool:
         results = list(pool.map(read, boards))
+        # Read off the list as it came, before `carry` puts back the dates the
+        # postings' own pages gave. A board read in slices, one per filter value
+        # (Workday's capped ones), is in no one order, so it is left out.
+        order = Counter(
+            newest_first(jobs)
+            for outcome, jobs in results
+            if provider and provider.paged and outcome is Outcome.OK and len(jobs) < WORKDAY_CAP
+        )
         listed = [store.carry(job, before) for _, jobs in results for job in jobs]
         paged = list(pool.map(lambda job: with_page(job, robots), listed))
     # `with_page` hands back the same posting when it reads nothing.
     pages = sum(1 for was, now in zip(listed, paged, strict=True) if now is not was)
     described = iter(paged)
     results = [(outcome, [next(described) for _ in jobs]) for outcome, jobs in results]
-    return results, time.monotonic() - started, pages
+    return results, time.monotonic() - started, pages, order
 
 
 def scrape(
@@ -138,7 +159,7 @@ def scrape(
         by_lane = list(pool.map(lambda lane: _lane(lane, robots, before), lanes.values()))
     outcome_of = {
         board.key: result
-        for lane, (results, _, _) in zip(lanes.values(), by_lane, strict=True)
+        for lane, (results, _, _, _) in zip(lanes.values(), by_lane, strict=True)
         for board, result in zip(lane, results, strict=True)
     }
     results = [outcome_of[board.key] for board in boards]
@@ -158,8 +179,18 @@ def scrape(
                 "postings": sum(len(jobs) for _, jobs in lane_results),
                 "pages": pages,
                 "seconds": round(seconds, 1),
+                # Only a provider that pages has these (`newest_first`).
+                **(
+                    {
+                        "newest_first": order[True],
+                        "not_newest_first": order[False],
+                        "order_unclear": order[None],
+                    }
+                    if order
+                    else {}
+                ),
             }
-            for (ats, lane), (lane_results, seconds, pages) in zip(
+            for (ats, lane), (lane_results, seconds, pages, order) in zip(
                 lanes.items(), by_lane, strict=True
             )
         },
@@ -286,8 +317,12 @@ def main(argv: list[str] | None = None) -> int:
     feed.write(roles, run.logos, FEED_JSON)
     if not args.offline:
         by_ats = Counter(role.ats for role in roles)
-        write_metrics(run.stats, fresh, by_ats, run.scraped_at, METRICS_JSON)
-        print_metrics(run.stats, fresh, by_ats)
+        steps = widening(scanned)
+        missed = len(run.missed_once())
+        write_metrics(
+            run.stats, fresh, by_ats, run.scraped_at, METRICS_JSON, steps=steps, missed=missed
+        )
+        print_metrics(run.stats, fresh, by_ats, steps=steps, missed=missed)
 
     print(
         f"\n{run.stats.postings:,} postings -> {len(roles)} distinct roles"
@@ -311,30 +346,76 @@ def _per_provider(stats: RunStats, kept: list[Job], roles: Counter[str]) -> dict
     }
 
 
+def widening(scanned: list[Job]) -> dict[str, int]:
+    """Every posting this run scanned, under the first step of a wider shortlist that
+    would keep it (`shortlist.widening_step`). A run scans only what it reads, so
+    compare steps with each other, not with a run that rested more boards. Each
+    distinct title is read once: the rules cost about 50 microseconds a title."""
+    titles = Counter(job.title for job in scanned)
+    steps = Counter[str]()
+    for title, count in titles.items():
+        steps[widening_step(title)] += count
+    return {step: steps[step] for step in WIDENING_STEPS}
+
+
 def write_metrics(
-    stats: RunStats, kept: list[Job], roles: Counter[str] | dict[str, int], at: str, path: Path
+    stats: RunStats,
+    kept: list[Job],
+    roles: Counter[str] | dict[str, int],
+    at: str,
+    path: Path,
+    *,
+    steps: dict[str, int] | None = None,
+    missed: int | None = None,
 ) -> None:
     """metrics.json: the run's totals and each provider's share, so a change to one
-    provider can be measured run against run (the scheduled run keeps it a week)."""
+    provider can be measured run against run (the scheduled run keeps it a week).
+    With `steps`, what a wider shortlist would keep (`widening`); with `missed`, the
+    boards holding a posting missed once, whose next complete read decides it."""
     totals = {key: value for key, value in asdict(stats).items() if key != "by_provider"}
-    payload = {
+    payload: dict[str, object] = {
         "scraped_at": at,
         "totals": totals,
         "by_provider": _per_provider(stats, kept, Counter(roles)),
     }
+    if steps is not None:
+        payload["widening"] = steps
+    if missed is not None:
+        payload["boards_missed_once"] = missed
     path.write_text(json.dumps(payload, indent=1, sort_keys=True) + "\n", encoding="utf-8")
 
 
-def print_metrics(stats: RunStats, kept: list[Job], roles: Counter[str]) -> None:
+def print_metrics(
+    stats: RunStats,
+    kept: list[Job],
+    roles: Counter[str],
+    *,
+    steps: dict[str, int] | None = None,
+    missed: int | None = None,
+) -> None:
     columns = ("boards", "ok", "missing", "skipped", "failed", "deferred")
     print(f"\n{'provider':11s}" + "".join(f"{c:>9s}" for c in columns), end="")
     print(f"{'postings':>10s}{'kept':>7s}{'roles':>7s}{'pages':>7s}{'seconds':>9s}")
-    for ats, row in sorted(_per_provider(stats, kept, roles).items()):
+    rows = sorted(_per_provider(stats, kept, roles).items())
+    for ats, row in rows:
         print(f"{ats:11s}" + "".join(f"{row.get(c, 0):>9,}" for c in columns), end="")
         print(
             f"{row['postings']:>10,}{row['kept']:>7,}{row['roles']:>7,}"
             f"{row['pages']:>7,}{row['seconds']:>9,.0f}"
         )
+    for ats, row in rows:
+        if "newest_first" in row:
+            print(
+                f"\n{ats} lists read whole: {row['newest_first']:,} name the newest postings"
+                f" first, {row['not_newest_first']:,} do not,"
+                f" {row['order_unclear']:,} give too few dates to tell"
+            )
+    if steps:
+        print(f"\nwhat a wider shortlist would keep, of the {sum(steps.values()):,} scanned:")
+        for step, count in steps.items():
+            print(f"  {count:>9,}  {step}")
+    if missed is not None:
+        print(f"\n{missed:,} boards hold a posting missed once; their next complete read decides")
 
 
 if __name__ == "__main__":

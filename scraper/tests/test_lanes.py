@@ -250,6 +250,74 @@ class TestMetrics:
         }
 
 
+class TestListOrder:
+    """Whether a paged list names its newest postings first decides whether an
+    arrival scan, which would read only a list's first pages, can work
+    (docs/coverage.md). Each run measures it on the lists it reads whole."""
+
+    NEWER, OLDER = "2026-10-05T00:00:00+00:00", "2026-10-02T00:00:00+00:00"
+
+    def dated(self, b: Board, *dates: str | None) -> list[Job]:
+        return [
+            replace(job(b, str(i), title="Account Executive"), posted_at=d)
+            for i, d in enumerate(dates)
+        ]
+
+    def test_a_list_is_newest_first_when_no_date_follows_an_older_one(self) -> None:
+        b = board("workday", "acme.wd1/site")
+        # None is Workday's "Posted 30+ Days Ago": the oldest, so last.
+        assert run.newest_first(self.dated(b, self.NEWER, self.NEWER, self.OLDER, None)) is True
+        assert run.newest_first(self.dated(b, self.OLDER, self.NEWER)) is False
+        assert run.newest_first(self.dated(b, None, self.NEWER)) is False
+        assert run.newest_first(self.dated(b, self.NEWER)) is None
+        assert run.newest_first(self.dated(b, None, None)) is None
+
+    def test_a_paged_lane_counts_its_lists_by_order(self, monkeypatch) -> None:
+        ordered, unordered = board("workday", "a.wd1/site"), board("workday", "b.wd1/site")
+        lists = {
+            ordered.key: self.dated(ordered, self.NEWER, self.OLDER),
+            unordered.key: self.dated(unordered, self.OLDER, self.NEWER),
+        }
+        monkeypatch.setattr(run, "_scrape_one", lambda b, robots: (run.Outcome.OK, lists[b.key]))
+        robots = SimpleNamespace(allows=lambda url: True, pace=lambda url: None)
+        _, stats, _, _ = run.scrape([ordered, unordered], robots, {})
+        workday = stats.by_provider["workday"]
+        assert (workday["newest_first"], workday["not_newest_first"]) == (1, 1)
+        assert workday["order_unclear"] == 0
+
+    def test_a_provider_that_does_not_page_is_not_measured(self, monkeypatch) -> None:
+        lever = board("lever", "a")
+        monkeypatch.setattr(
+            run, "_scrape_one", lambda b, robots: (run.Outcome.OK, self.dated(b, self.OLDER))
+        )
+        _, stats, _, _ = run.scrape([lever], SimpleNamespace(), {})
+        assert "newest_first" not in stats.by_provider["lever"]
+
+
+class TestWidening:
+    def test_the_metrics_file_says_what_a_wider_shortlist_would_keep(self, tmp_path) -> None:
+        b = board("lever", "a")
+        scanned = [
+            job(b, "1"),
+            job(b, "2", title="Legal Intern"),
+            job(b, "3", title="Senior Software Engineer"),
+            job(b, "4", title="Senior Software Engineer"),
+        ]
+        steps = run.widening(scanned)
+        assert steps == {
+            "kept": 1,
+            "held_field": 1,
+            "no_field": 0,
+            "no_stage": 0,
+            "senior": 2,
+            "outside": 0,
+        }
+        path = tmp_path / "metrics.json"
+        run.write_metrics(RunStats(), [], {}, MONDAY, path, steps=steps, missed=2)
+        written = json.loads(path.read_text(encoding="utf-8"))
+        assert (written["widening"], written["boards_missed_once"]) == (steps, 2)
+
+
 def test_carry_brings_the_page_forward() -> None:
     gh = board("greenhouse", "cloudflare")
     read = Page(providers.PAGE_VERSION, None, Facts(), ("Lisbon, Portugal",))

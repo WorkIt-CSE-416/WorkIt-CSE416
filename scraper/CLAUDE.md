@@ -339,7 +339,8 @@ through. The cost is one more read before a real closing.
 
 **A board holding a posting missed once is read first** in its lane's next run
 (`Store.missed_once`, `Store.to_read`): in a lane with a budget, the second read
-would otherwise wait a whole sweep, about a day on Workday.
+would otherwise wait a whole sweep, about a day on Workday. `metrics.json`
+counts them (`boards_missed_once`).
 
 **A board we hold postings from that answers "no such board" twice in a row
 was read in full, with nothing open** (`store.update`, `missing`): a 404,
@@ -503,6 +504,22 @@ kept this run, roles on the page, pages read and the lane's seconds
 (`RunStats.by_provider`, `__main__.write_metrics`). The scheduled run keeps it a
 week beside `feed.json`, so a change to one provider is judged run against run,
 not by the one summary line. `--offline` writes none: it reads nothing.
+
+Three more measures serve decisions not yet taken (`docs/coverage.md`, which has
+the design they serve and its next steps):
+
+- **`widening`**: every posting scanned, under the first step of a wider
+  shortlist that would keep it (`shortlist.widening_step`: `kept`,
+  `held_field`, `no_field`, `no_stage`, `senior`, `outside`), so the size of
+  each step is known before anyone takes it. A run scans only what it reads, so
+  compare steps with each other. Each distinct title is read once: the rules
+  cost about 50 microseconds a title.
+- **`newest_first`, `not_newest_first`, `order_unclear`** for each provider that
+  pages (Workday, Oracle): whether the lists it read whole name their newest
+  postings first, by the list's own dates, read before `carry` puts back the
+  page's. An arrival scan that reads only a list's first pages needs it; a board
+  read in slices is in no one order and is left out.
+- **`boards_missed_once`** (above, "Nothing closes").
 
 `build_boards.py` prints the unread apply links by cause, with their top hosts
 (`unread_cause`, `unread_hosts`). That table is where a new reader pays off:
