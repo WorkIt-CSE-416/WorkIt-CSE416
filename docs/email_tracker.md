@@ -39,44 +39,53 @@ offer and dated events are not stored yet." This feature stores them.
 
 ### Where it lives
 
-**No email page.** Students think in applications, not emails: they ask
-"where does my Stripe application stand", not "what did Stripe send". A
-page of emails would be a second, smaller Gmail, and the tracker would
-still be out of date. So the feature lives on screens that exist:
+**Email has its own page, the Inbox (`/inbox`).** The first plan put
+emails only on existing screens; built that way, an email table stacked on
+the Applications Tracker read as a second, worse copy of the applications
+list, hid the list below the fold, and showed jobs instead of messages. A
+design critique (2026-10-27) moved email to a page of its own, laid out as
+a mailbox:
 
 | Piece | Where |
 |---|---|
-| Connect, "Connected as...", last check, Check now, Disconnect, delete data | Gmail's row in a new **Integrations** section in Settings, beside Google Calendar's (after Claude's connectors list: each app's logo, name, one line and Connect) |
-| The prompt to connect | A card on the **Applications Tracker** while Gmail is not connected: that is where an empty Interviewing column is felt |
-| Emails waiting | An **Email Updates** table at the top of the Applications Tracker, above the list: one line per email, its job, a pill for its kind and its date |
-| One email, read | A click on a row opens it the way Gmail shows an open message, in a panel from the right: an icon toolbar (Done, Open Application, Add to Calendar), the subject and pill, one tinted suggestion line with one action ("Move to Interviewing"), the sender's line ("to me", received time, Reply), the email's text and a Reply button. Reply opens Gmail on the subject; Add to Calendar opens Google Calendar's own new-event page, filled in |
-| An email that matched no application | Its row says No Matching Job; its panel asks which job it is about, and Accept waits for a pick |
-| Every email about one job | An **Emails** section on that application's page, the waiting ones with Accept and dismiss, the rest marked Added: an email is kept with its job as a record, not only as a date |
+| Connect, "Connected as...", last check, Check now, Disconnect, delete data | Gmail's row in Settings > **Integrations**, beside Google Calendar's (after Claude's connectors list: each app's logo, name, one line and Connect) |
+| Every email | The **Inbox** (`/inbox`, a sidebar row after Applications Tracker, no count badge): filter chips (All, Needs Review with its count, Interviews, Assessments, Offers, Rejections), a list beside a reading pane |
+| One email in the list | The sender's logo and name, the received time, the subject, one line of its text, its kind's pill; a dot and a bold subject while it needs review; Not Linked when it matched no job |
+| One email, read | The reading pane, as Gmail lays out an open message: the subject, the pill with the date it names, Open Application and Add to Calendar as icons; one quiet card only when it needs review ("Move Research Internship to Interviewing?", Move and Not Now; or Link to Job); the sender's line ("to me", received time, Reply); the text. Reply opens Gmail on the subject; Add to Calendar opens Google Calendar's own new-event page, filled in |
+| The emails waiting, on the tracker | One line above the Applications Tracker's filters, only while some wait: "3 emails need a look · Open Inbox" |
+| Every email about one job | An **Emails** tab on the application's page, beside Your Application and Job Description, the Inbox's rows for that job; a row opens it in the Inbox |
 | What an accepted email changes | The stage, the application's timeline and Interviews & Dates, the Calendar, and the Dashboard's Next Up, Up Next and Waiting |
 
-**No badge in the sidebar.** One was built (a count on the Applications
-Tracker row) and the user had it removed as out of place. **No tabs or
-named buttons per email.** The first table was a card per email with Move
-to Interviewing, Not Right and Wrong Job?, under Updates and Couldn't Match
-tabs; the user found it confusing and asked for a table with pills and
-simple actions; a second table with an Email column, a line under each
-pill and Accept and dismiss on every row made each row tall, so the row
-keeps three columns and the decision moved into the email's own panel. An
-email's kind is its pill, the same name and colour
-everywhere (`applications/email-kinds.tsx`): Application Received, Assessment
-(a coding or design challenge), Interview, Offer, Rejection, Update.
+**Most emails ask nothing** (open question 2, decided 2026-10-27): an
+email that changes no stage (Application Received, Assessment, Update, or
+a move the application is already past) is filed onto its application
+when it arrives (backend `needs_review`, `file_email`). Only one that would
+move the stage, or that matched no job, waits in Needs Review. Not Now
+leaves it off the tracker; every email stays in the Inbox as a record.
+
+**What the critique cut**, so it does not come back: a sidebar count badge;
+a card per email with Move to Interviewing, Not Right and Wrong Job?
+under two tabs; a table of emails on the tracker (first with an Email
+column, a line under each pill and Accept and dismiss on every row, then
+three columns opening a side panel); that panel's row of worded buttons;
+loud violet pills for emails that change nothing. An email's kind is its
+pill, the same name and colour everywhere (`applications/email-kinds.tsx`):
+Interview amber, Offer green, Rejection red, Assessment the "advanced"
+tone, Application Received and Update grey.
 
 ```
-Applications Tracker
-Email Updates (2)
-┌──────────────────┬──────────────────────┬────────────────────┬────────┬──────────┐
-│ Job                          │ Type                 │ Date            │
-├──────────────────────────────┼──────────────────────┼─────────────────┤
-│ Stripe · SWE Intern          │ (Interview)          │ Nov 4, 2:00 PM  │
-│ No Matching Job              │ (Application Rec.)   │ Oct 24          │
-└──────────────────────────────┴──────────────────────┴─────────────────┘
- click a row → the email, Gmail-style, with its toolbar
- the applications list
+Inbox      (All) (Needs Review 3) (Interviews) (Assessments) (Offers) (Rejections)
+┌────────────────────────────────┬───────────────────────────────────────────┐
+│ ● Ai2                  9:42 AM │ Invitation: Technical Interview    ⧉  📅 │
+│   Invitation: Technical Int... │ (Interview) Nov 4, 2:00 PM               │
+│   Thanks for your interest...  │ ┌───────────────────────────────────────┐ │
+│   (Interview)                  │ │ Move Research Internship to Inter...? │ │
+│   SEL                  Oct 27  │ │                     [Move] [Not Now]  │ │
+│   Complete your HackerRank...  │ └───────────────────────────────────────┘ │
+│   (Assessment)                 │ (logo) Ai2       Tue, Oct 27, 9:42 AM ↩ │
+│ ● Datadog?             Oct 24  │        to me                             │
+│   (App. Received) (Not Linked) │ Hi Andrew, ...                           │
+└────────────────────────────────┴───────────────────────────────────────────┘
 ```
 
 The Calendar page and the Dashboard's Next Up, Up Next and Waiting were
@@ -107,24 +116,26 @@ minutes.
 
 ### 3. A new email arrives
 
-Within about 15 minutes, a row appears in **Email Updates** on the
-Applications Tracker and in the job's **Emails**: Stripe · Software
-Engineer Intern, "Invitation: Technical Interview", an Interview pill with
-"Moves to Interviewing" under it, Tue Nov 4, 2:00 PM.
+Within about 15 minutes, the email is in the **Inbox** and in the job's
+**Emails** tab. A confirmation, an assessment or an update is filed onto
+its job at once. "Invitation: Technical Interview" from Stripe would move
+the application, so it waits in **Needs Review**, and the Applications
+Tracker's notice counts it. Its reading pane asks "Move Software Engineer
+Intern to Interviewing?":
 
-- **Accept** applies it: the stage changes and the interview goes on the
+- **Move** applies it: the stage changes and the interview goes on the
   timeline and the Calendar.
-- **The cross** dismisses it.
-- **The wrong job** is dismissed for now; moving an email to another job
-  is not built (the API's Accept already takes a `job_id`).
+- **Not Now** leaves it off the tracker; the email stays in the Inbox.
+- **The wrong job:** Not Now for now; moving an email to another job is
+  not built (the API's Accept already takes a `job_id`).
 
 A **Check now** button forces a check, at most once a minute.
 
 ### 4. Unmatched emails
 
-An email that looks job-related but matches no application shows in
-Email Updates with **Pick a Job** in its Job cell; Accept waits for a
-pick. The student links it to an application or dismisses it. Unmatched items are deleted after 30 days.
+An email that looks job-related but matches no application shows in the
+Inbox as Not Linked, in Needs Review; its reading pane asks which job it
+is about, with **Link to Job** and Not Now. The student links it to an application or dismisses it. Unmatched items are deleted after 30 days.
 
 ### 5. Disconnect
 
@@ -312,11 +323,12 @@ Every route checks that the caller owns `{id}`. Built in step 1
 | POST | `/applicants/{id}/applications/{job_id}/events` | Add Event; answers the event and the stage after it |
 | DELETE | `/applicants/{id}/events/{event_id}` | The stage stays |
 
-Built in step 2 (the Email Updates routes, which need no Google):
+Built in step 2 (the Inbox's routes, which need no Google):
 
 | Method | Path | Does |
 |---|---|---|
-| GET | `/applicants/{id}/events?status=proposed` | Email Updates and each job's Emails, newest first; `job_id` null matched no application |
+| GET | `/applicants/{id}/events?status=proposed` | The emails that need review, newest first (the tracker's notice counts them); `job_id` null matched no application |
+| GET | `/applicants/{id}/emails` | The Inbox and each job's Emails tab: every email, whatever its status, newest first by when it was read |
 | POST | `/applicants/{id}/events/{event_id}/accept` | Optional `job_id` (an unmatched email's pick); puts it on the tracker and moves the application forward through `advance` |
 | POST | `/applicants/{id}/events/{event_id}/dismiss` | The cross; it stays off the tracker |
 
@@ -425,9 +437,10 @@ Under the $200 a month budget.
    deploy. **Not done in step 1:** editing an event (delete and add it
    again), and the Dashboard's Next Up, Up Next and Waiting, still archived
    (`frontend/docs/screens.md`, Seeker Dashboard).
-2. **Built: the email screens that need no Google.** Email Updates (a
-   table with kind pills, Accept and dismiss) on the Applications Tracker,
-   Emails on each application's page, the three routes above, and Settings > Integrations
+2. **Built: the email screens that need no Google.** The Inbox (`/inbox`,
+   a list and a reading pane), the one-line notice on the Applications
+   Tracker, the Emails tab on each application's page, `GET .../emails`,
+   the filing rule (`needs_review`, `file_email`), the three routes above, and Settings > Integrations
    as a design (Gmail and Google Calendar rows, each Connect disabled and
    marked Coming Soon). They show
    nothing until something proposes an event. Still to do: the
@@ -455,9 +468,9 @@ an MCP tool for updates, Gmail push, Outlook and forwarding.
 1. **Rejected applications** (decided in step 1, open to change): a stage
    of its own in red (`--color-danger`), last in the Status filter and in
    the archived board's columns. The list shows it like any other stage.
-2. **Auto-accept:** should low-risk updates (a confirmation for a job
-   already `applied`) apply without asking? Proposal: a setting, off by
-   default.
+2. **Auto-accept** (decided 2026-10-27): yes, with no setting. An email
+   that changes no stage is filed at once; only a stage move or an
+   unmatched email asks ("Where it lives").
 3. **Model data terms:** does Scout's provider (Groq) keep or train on what
    we send? Does any configured fallback use a free tier whose terms allow
    training? Email text must never reach one that does.

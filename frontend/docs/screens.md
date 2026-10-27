@@ -700,38 +700,12 @@ application's own page, `/applications/[jobId]`. `(seeker)/tracker.ts` is the tr
 and date logic; `local-time.tsx` prints its dates in the viewer's own zone and
 links them to the Calendar.
 
-**Email Updates** (KAN-413, `applications/updates.tsx`) is a table under
-the heading, above the filters, framed as Auto Apply's Live Activity is,
-shown only while an email waits: an event the email tracker proposed (`GET
-.../events?status=proposed`, `getUpdates` in `applications/tracked.ts`,
-read once per request through `getUpdatesOnce`, which the application's
-page shares). Nothing proposes one until the Gmail reading is built. One
-line per email, three columns: Job (logo, role as a link to the
-application, company; No Matching Job for an email that matched none),
-Type (the kind's pill, `applications/email-kinds.tsx`) and Date. **A click
-on a row opens the email** (`applications/email-view.tsx`, a Sheet from
-the right, 672px, laid out as Gmail lays out an open message): an icon
-toolbar (Done, which dismisses it, as Gmail's Archive; Open Application;
-Add to Calendar, which opens Google Calendar's own new-event page filled
-in, an hour at the email's time or the whole due day, with no sign-in of
-WorkIt's), then the subject and its pill, one tinted suggestion line with
-the panel's only accept, named for its effect ("Move to Interviewing", or
-"Add to Timeline", mirroring the API's `advance`; for an unmatched email a
-job picker and Add), the sender's line (logo, name, "to me", the received
-time as Gmail prints it, "Tue, Oct 27, 9:42 AM (7 hours ago)", from the
-event's `created_at`, and a reply arrow), the email's text, and a Reply
-button. Reply opens Gmail on a search for the subject until Gmail is
-connected and the message id is kept. The application's Emails clips each
-email's text to two lines. The user cut a version with Accept, a dismiss
-cross, Reply and Open in Gmail as a button row and two worded buttons:
-keep the toolbar to icons and the decision to one line. The pill is a button too, the row's
-keyboard way in. Each decision refreshes the page. **Keep the table this
-simple**: the first version was a card per email with Move to
-Interviewing, Not Right and Wrong Job? under two tabs, plus a count badge
-on the sidebar's Applications Tracker row; the second had an Email column,
-a line under each pill and Accept and dismiss on every row. The user found
-the buttons confusing, the badge out of place and the rows too tall. **The application's page lists the same
-emails** under Emails (below).
+**Emails live on their own page, the Inbox** (KAN-413, below). This page
+keeps one line above the filters while any email needs review ("3 emails
+need a look", Open Inbox, to `/inbox?filter=review`), counted from `GET
+.../events?status=proposed` (`getUpdatesOnce`). An email table sat here
+first and read as a second copy of the list, so it went (the Inbox
+section says what else was cut).
 
 **The tracker is live, with no fixture** (KAN-261). `applications/tracked.ts`
 reads the seeker's applications from the API (`GET
@@ -923,8 +897,10 @@ opened. Analytics and explanations go on the Your Application tab only.
 **The bar holds the tabs once there is nothing to do**: an applied job, or a
 closed posting, has no use for Apply, Tailor, Save or Ask Scout, so the bar
 shows the tabs beside Back instead. A saved job with an open posting keeps
-the job page's actions, and its tabs sit under the header. Two tabs, each a
-URL (`?tab=job` for the second) that moves in place (KAN-368,
+the job page's actions, and its tabs sit under the header. Three tabs, each a
+URL (`?tab=emails`, `?tab=job`; **Emails**, KAN-413, lists the job's
+emails as the Inbox does, `[jobId]/emails-tab.tsx`, each opening in the
+Inbox) that moves in place (KAN-368,
 `applications/[jobId]/tab-panes.tsx`): the server draws both panes once and
 the tabs change `?tab=` with `useShallowParams`, as the Dashboard range does,
 so a click no longer draws the page again with the scored tracker read and
@@ -976,14 +952,6 @@ tracker row, and the tab title comes from the posting's own read:
   moves the stage (an interview to Interviewing, unless further along).
   Each write refreshes the page, so the one tracker read draws it
   everywhere. Editing an event is not built: delete it and add it again.
-  **Emails** sits under Interviews & Dates (KAN-413,
-  `[jobId]/emails.tsx`): every email about the job, so a confirmation,
-  an assessment or a rejection is kept with its job, not only as a date.
-  One row per email: its kind's pill (with what accepting does, while it
-  waits), its subject, date and summary, and Accept with a dismiss cross
-  while it waits, else an Added pill. Waiting ones first, then the rest,
-  newest first. Accepted ones are the application's events whose `source`
-  is `gmail`; an interview among them also shows in Interviews & Dates.
   The cards and the match are
   rounded white boxes on the tint: each
   card a `Card`, the match the Jobs page card's `MatchRail` with
@@ -1015,6 +983,48 @@ closed posting has no job page (`GET /jobs/{id}` answers 404), so the header
 shows what the tracker knows, marked Closed, and the description tab says it
 is gone. The cards round elapsed time, as "Posted 8 days ago" does: cut,
 an application sent 47 hours ago read as waiting 1 day.
+
+## Inbox (`/inbox`)
+
+KAN-413, `../../docs/email_tracker.md`. Every email about the student's
+applications, a sidebar row after Applications Tracker (Tray glyph, no
+count badge), laid out as a mailbox: filter chips over a list beside a
+reading pane (`inbox/inbox.tsx`). The filter and the open email are the
+URL (`?filter=all|review|interview|assessment|offer|rejection`,
+`?email=<id>`), moved in place by `ShallowLink`, so a click never asks the
+server and an application's Emails tab can link to one email. Below md
+the list and the email take turns, with Back to Inbox.
+
+- **The read:** `GET .../emails` (`getEmails`, every status, newest first
+  by when it was read) and the tracker's own read for each job's logo,
+  role and stage. A failed read is an error state, never an empty inbox.
+- **A row** (`inbox/email-row.tsx`, shared with the Emails tab): the
+  sender's logo and name (the job's company; Unknown Sender unmatched),
+  the received time (the time today, else the day), the subject, one
+  line of the text past its greeting, the kind's pill, Not Linked when
+  unmatched. A dot and bold text while it needs review (`proposed`):
+  WorkIt keeps no read state, so the dot means needs review, not unread.
+- **The reading pane** (`inbox/reading-pane.tsx`), as Gmail lays out an
+  open message: the subject; the pill with the date the email names;
+  Open Application and Add to Calendar as round icons (Add to Calendar
+  opens Google Calendar's own new-event page, filled in); then, only
+  while it needs review, one quiet card: "Move <role> to <stage>?" with
+  Move and Not Now, or "Which job is this email about?" with a picker,
+  Link to Job and Not Now; then the sender's line (logo, name, "to me",
+  "Tue, Oct 27, 9:42 AM (8 hours ago)", a reply arrow to Gmail) and the
+  text. Not Now dismisses it from the tracker; the email stays here.
+- **Most emails ask nothing:** the API files an email that changes no
+  stage onto its job when it arrives (`needs_review`, `file_email`).
+- **Pills:** Interview amber, Offer green, Rejection red, Assessment the
+  "advanced" tone, Application Received and Update grey
+  (`applications/email-kinds.tsx`).
+- **What the critique cut** (2026-10-27), so it does not come back: a
+  sidebar badge; an email table on the Applications Tracker (cards with
+  Move to Interviewing, Not Right and Wrong Job? under two tabs, then a
+  table with Accept and dismiss on every row, then three columns opening
+  a side panel); that panel's row of worded buttons; violet pills for
+  emails that change nothing; an Emails section stacked on Your
+  Application.
 
 ## Auto Apply
 

@@ -124,8 +124,16 @@ _Avoid_: Applications (as the page's name)
 One dated thing on an application: an interview, an assessment's due date, an offer, a rejection or a follow-up. The student adds it with Add Event; later the email tracker proposes it from an email.
 _Avoid_: event (alone, outside the tracker), appointment, milestone
 
+**Inbox**:
+The page of every email about the student's applications: a list beside a reading pane.
+_Avoid_: Email Updates, mailbox, messages
+
+**Needs Review**:
+An email that waits for the student, because it would move its application's stage or matched no job. Every other email is filed onto its job when it arrives.
+_Avoid_: update (for the email), unread, pending
+
 **Update**:
-An application event the email tracker proposes from one email, which the student accepts or dismisses. Not built yet.
+An application event the email tracker proposes from one email: what Needs Review holds.
 _Avoid_: notification, alert
 
 **Strong Match**:

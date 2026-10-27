@@ -383,3 +383,55 @@ async def _seed_applicant_named(database, applicant_id: uuid.UUID) -> None:
             {"id": applicant_id, "email": f"{applicant_id.hex[:8]}@example.com"},
         )
         await session.commit()
+
+
+# --- The Inbox: emails and auto-filing ---
+
+
+def test_only_an_email_that_would_move_its_application_needs_review():
+    from app.queries.tracker import needs_review
+
+    assert needs_review(stage.applied, kind.interview)
+    assert needs_review(stage.saved, kind.rejection)
+    assert needs_review(None, kind.confirmation)  # matched no application
+    assert not needs_review(stage.applied, kind.confirmation)
+    assert not needs_review(stage.applied, kind.assessment)
+    assert not needs_review(stage.applied, kind.other)
+    assert not needs_review(stage.offer, kind.interview)  # already past it
+
+
+async def test_filing_an_email_files_or_asks_and_never_moves_a_stage(student, database):
+    import datetime
+
+    from app.queries.tracker import NewEvent, file_email
+
+    client, me = student
+    job = await _applied(client, database)
+
+    def new(k):
+        return NewEvent(kind=k, title=f"About {k}", at=datetime.datetime.now(datetime.UTC),
+                        on_day=None, note=None, meeting_url=None)
+
+    async with database() as session:
+        filed = await file_email(session, me, uuid.UUID(job), new(kind.confirmation))
+        asks = await file_email(session, me, uuid.UUID(job), new(kind.interview))
+        stranger = await file_email(session, me, uuid.UUID(await _seed_posting(database)), new(kind.offer))
+    assert filed.status.value == "accepted"
+    assert asks.status.value == "proposed"
+    # A job with no application of the student's is no match
+    assert stranger.job_id is None and stranger.status.value == "proposed"
+    assert (await _row(database, me, job))[0] == "applied"
+
+
+async def test_the_inbox_lists_every_email_whatever_its_status(student, database):
+    client, me = student
+    job = await _applied(client, database)
+    waiting = await _propose(database, me, job)
+    dismissed = await _propose(database, me, job, kind="other", title="Hello")
+    await client.post(f"/applicants/{me}/events/{dismissed}/dismiss")
+    # A typed event is not an email
+    await client.post(f"/applicants/{me}/applications/{job}/events", json=INTERVIEW)
+
+    res = await client.get(f"/applicants/{me}/emails")
+    assert res.status_code == 200
+    assert {(e["id"], e["status"]) for e in res.json()} == {(waiting, "proposed"), (dismissed, "dismissed")}

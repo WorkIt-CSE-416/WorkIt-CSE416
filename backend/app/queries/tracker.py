@@ -238,3 +238,60 @@ async def delete_event(db: AsyncSession, applicant_id: uuid.UUID, event_id: uuid
         return False
     await db.commit()
     return True
+
+
+async def fetch_emails(db: AsyncSession, applicant_id: uuid.UUID) -> list[Application_Event]:
+    '''every event read from the applicant's email, whatever its status,
+    newest first by when it was read: the Inbox (an email stays a record
+    after it is accepted or left off the tracker)'''
+    return list((await db.scalars(
+        select(Application_Event)
+        .where(
+            Application_Event.applicant_id == applicant_id,
+            Application_Event.source == application_event_source.gmail,
+        )
+        .order_by(Application_Event.created_at.desc())
+    )).all())
+
+
+def needs_review(current: application_stage | None, kind: application_event_kind) -> bool:
+    '''
+    whether an email waits for the student. Only one that would move its
+    application (an interview, an offer, a rejection that `advance` takes
+    forward) or that matched no application (current is None) asks; the
+    rest (a confirmation, an assessment, an update, or a move the
+    application is already past) are filed onto their application at once.
+    Decided 2026-10-27 (docs/email_tracker.md, open question 2): asking
+    about every email was busywork
+    '''
+    return current is None or advance(current, kind) is not None
+
+
+async def file_email(
+    db: AsyncSession, applicant_id: uuid.UUID, job_id: uuid.UUID | None, new: NewEvent
+) -> Application_Event:
+    '''
+    keeps one email the email tracker read: filed onto its application
+    (accepted) when `needs_review` says no, else proposed for the Inbox.
+    Filing never moves a stage, since only an email that would move one
+    asks. The Gmail reader (build step 4) is its caller
+    '''
+    current = await fetch_stage(db, applicant_id, job_id) if job_id else None
+    asks = needs_review(current, new.kind)
+    event = Application_Event(
+        applicant_id=applicant_id,
+        job_id=job_id if current is not None else None,
+        kind=new.kind,
+        status=application_event_status.proposed if asks else application_event_status.accepted,
+        source=application_event_source.gmail,
+        title=new.title,
+        at=new.at,
+        on_day=new.on_day,
+        note=new.note,
+        meeting_url=new.meeting_url,
+        decided_at=None if asks else func.now(),
+    )
+    db.add(event)
+    await db.commit()
+    await db.refresh(event)
+    return event

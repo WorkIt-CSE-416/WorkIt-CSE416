@@ -744,8 +744,11 @@ Find files with a directory listing; these are the rules for where code goes.
   applied or later, any direction) and the events (`GET .../events`, with
   `?status=proposed` for Email Updates, `POST
   .../applications/{job_id}/events`, `DELETE .../events/{event_id}`, and an
-  update's `POST .../events/{event_id}/accept` and `.../dismiss`). An
-  event moves its application forward only (`advance`, Accept too); a stage past
+  update's `POST .../events/{event_id}/accept` and `.../dismiss`), and
+  the Inbox's `GET .../emails` (every email, every status). An
+  event moves its application forward only (`advance`, Accept too). **An
+  email files itself unless it would move the stage or matched no job**
+  (`needs_review`, `file_email`, the Gmail reader's entry point); a stage past
   applied still counts as applied (`dto.APPLIED_STAGES`, the models'
   CLAUDE.md). Tests: `tests/test_tracker.py`.
 - **Utils** (`app/utils/`): the resume parser; `app/utils/CLAUDE.md`.

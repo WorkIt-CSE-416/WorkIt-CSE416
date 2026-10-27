@@ -24,6 +24,11 @@ POST   /applicants/{id}/applications/{job_id}/events  EventCreate
        and `on_day` (a date).
 DELETE /applicants/{id}/events/{event_id}
        204; the stage stays. 404 for an event not the applicant's.
+GET    /applicants/{id}/emails
+       The Inbox: every event read from email, whatever its status (an
+       accepted or left-off one stays a record), newest first by when it
+       was read, as EventResponses. Proposed ones need review
+       (queries/tracker.py, needs_review).
 POST   /applicants/{id}/events/{event_id}/accept  {"job_id": null}
        An update's Accept: the proposed event goes on the tracker, on
        `job_id` when the body names one (an email that matched none), else
@@ -59,6 +64,7 @@ from app.queries.tracker import (
     add_event,
     delete_event,
     dismiss_event,
+    fetch_emails,
     fetch_events,
     set_stage,
 )
@@ -99,6 +105,15 @@ async def list_events(
     """The applicant's events in one status."""
     events = await fetch_events(db, applicant_id, event_status)
     return [EventResponse.model_validate(e, from_attributes=True) for e in events]
+
+
+@router.get("/emails", response_model=list[EventResponse])
+async def list_emails(
+    applicant_id: uuid.UUID = Depends(owned_applicant),
+    db: AsyncSession = Depends(get_session),
+) -> list[EventResponse]:
+    """The applicant's emails, newest first."""
+    return [EventResponse.model_validate(e, from_attributes=True) for e in await fetch_emails(db, applicant_id)]
 
 
 @router.post(

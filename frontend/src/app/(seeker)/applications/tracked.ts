@@ -152,6 +152,46 @@ export async function getUpdates(): Promise<Update[] | null> {
   );
 }
 
+/** An email in the Inbox: an event read from email, whatever became of
+ *  it. `status` proposed means it waits for the student (it would move its
+ *  application, or matched none); accepted is on the tracker; dismissed was
+ *  left off it. `jobId` null matched no application. */
+export type Email = ApplicationEvent & {
+  id: string;
+  jobId: string | null;
+  emailKind: StoredEvent["kind"];
+  status: "proposed" | "accepted" | "dismissed";
+  receivedAt: string;
+};
+
+/** The seeker's emails, newest first (GET .../emails), for the Inbox and
+ *  an application's Emails tab. A failed read is an error, never an empty
+ *  inbox, which would say no employer wrote. */
+export async function getEmails(): Promise<
+  { emails: Email[]; error: null } | { emails: null; error: string }
+> {
+  await connection();
+  try {
+    const { id, token } = await getApplicantSession();
+    const res = await apiGet(`/applicants/${id}/emails`, token);
+    if (!res.ok) return { emails: null, error: await extractErrorMessage(res) };
+    const rows = (await res.json()) as (StoredEvent & { status: Email["status"] })[];
+    return {
+      emails: rows.map((event) => ({
+        ...toEvent(event),
+        id: event.id,
+        jobId: event.job_id,
+        emailKind: event.kind,
+        status: event.status,
+        receivedAt: event.created_at,
+      })),
+      error: null,
+    };
+  } catch {
+    return { emails: null, error: "Could not reach the server." };
+  }
+}
+
 /** Where the job is, as the Jobs page's card prints it ("Bellevue, WA +2
  *  more"). The work style is a column of its own (KAN-256), so it is no
  *  longer the fallback here. */

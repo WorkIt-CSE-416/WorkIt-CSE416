@@ -181,8 +181,9 @@ with the failure it prevents.
   emails, matches each to an application, and proposes a stage change or a
   dated event that the student accepts or rejects. It stores no email
   bodies. Build step 1 is built: the `interviewing`, `offer` and
-  `rejected` stages, the stage menu, and `application_events` added by
-  hand, which feed the Calendar; Gmail is not. Read it before changing
+  `rejected` stages, the stage menu, `application_events` added by hand
+  (which feed the Calendar), and the Inbox (`/inbox`), where emails live;
+  reading Gmail is not. Read it before changing
   application stages, the tracker's dated events or anything that reads a
   student's email.
 - `docs/search.md` — how the Jobs page's search reads a query.
