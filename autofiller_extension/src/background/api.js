@@ -460,7 +460,9 @@ async function fetchAutofillProfile() {
  * their last-cached profile here for up to CACHE_TTL_MS, since the cached
  * branch never used to call anything that would notice. One extra
  * chrome.storage read (getSession, below) is cheap insurance against
- * autofilling a stale, signed-out identity.
+ * autofilling a stale, signed-out identity. A profile cached for another
+ * account (a sign-in as someone else on the same Chrome) is never used,
+ * however fresh: it would fill the last student's name into this one's form.
  * @param {{ force?: boolean }} [options]
  * @returns {Promise<import("../shared/types.js").AutofillProfile>}
  */
@@ -469,12 +471,11 @@ export async function getAutofillProfile({ force = false } = {}) {
   if (!session) throw new ApiError(401, "Not signed in");
 
   const { [CACHE_KEY]: cached } = await chrome.storage.local.get(CACHE_KEY);
-  const age = cached ? Date.now() - cached.fetched_at : Infinity;
+  const age = cached?.id === session.user_id ? Date.now() - cached.fetched_at : Infinity;
   if (!force && age < CACHE_TTL_MS) return cached;
   // Past its ten minutes but under a day old: used at once, and fetched again behind (a cold API
-  // took 4-9 s to answer, live), so the next call has the fresh one. Older ones are waited for, as is
-  // one of another account's (a sign-in as someone else; `me` is one call, kept a minute).
-  if (!force && age < STALE_OK_MS && (await me()).id === cached.id) {
+  // took 4-9 s to answer, live), so the next call has the fresh one. Older ones are waited for.
+  if (!force && age < STALE_OK_MS) {
     if (!fetching) refetch().catch((error) => console.warn("[profile] not fetched again:", error.message));
     return cached;
   }

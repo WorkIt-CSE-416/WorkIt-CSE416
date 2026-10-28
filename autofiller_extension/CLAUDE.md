@@ -1418,9 +1418,13 @@ early (`write-early.js`) fetches it as a batch starts, and a fast-loading
 tab's Plan used to ask the whole profile (eight calls, the resume's bytes
 among them) a second time beside it (KAN-369, seen on Rippling). A forced
 fetch (`force`, after an edit) never joins one under way, which may have
-started before the edit. Past its 10 min TTL a profile under a day old,
-and of the account signed in, is used at once while a fresh one is fetched
-behind (a cold API answered in 4-9 s live); an older one is waited for. The
+started before the edit. A cached profile is used only for the account
+signed in, read from the access token's `sub` (`webapp-session.js`) with no
+API call: before KAN-312, one cached under ten minutes ago was used for
+whoever signed in next, so a second student on the same Chrome got the
+first one's name and answers. Past its 10 min TTL a profile under a day old
+is used at once while a fresh one is fetched behind (a cold API answered in
+4-9 s live); an older one is waited for. The
 fetch starts before anything waits for it (`warmProfile`): as the webapp
 pings (its pages opening, Auto Apply's among them) and as a job page's
 panel asks `panel/where`. Not at `run/open`: its seven parts, asked before

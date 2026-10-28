@@ -7,6 +7,8 @@
  * @property {string} access_token
  * @property {string} refresh_token
  * @property {number} expires_at  Unix seconds
+ * @property {string | null} user_id  the signed-in account's id, the access
+ *   token's `sub` (read unverified, to key the cached profile)
  * @property {string} web_origin  the webapp origin the cookie was read from
  */
 
