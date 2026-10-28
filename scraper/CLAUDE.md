@@ -492,6 +492,10 @@ scraper standard-library-only.
   card trusts boards.csv. Supply a verified URL and company through the CLI.
 - Candidate URLs must match an actual provider host, not an embedded URL in a
   query/path or a lookalike hostname. Preserve Oracle token case and Lever region.
+  `board_keys` matches from the host over the path and the query, since Jibe
+  and SuccessFactors name themselves only in the query (`?icims=1`,
+  `?ats=successfactors`); read without it, those links and TikTok's named no
+  board and main's tests failed after KAN-422 merged (2026-10-28).
 - Keep source URLs and statuses in the report. Deduplicate known boards before
   applying the validation limit; truncating curated links first starves discoveries
   behind already-known boards. Automation preserves existing main-catalog names

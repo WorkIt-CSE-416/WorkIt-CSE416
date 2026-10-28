@@ -140,19 +140,12 @@ const CURRENT_ITEM = "data-active:text-brand-ink hover:text-brand-ink active:tex
  * So every row clears the fills shadcn's button paints itself
  * (hover:, active: and data-active: bg-sidebar-accent), each restated with
  * the same modifier so tailwind-merge drops the original, as CURRENT_ITEM
- * explains. The icon still answers the pointer on its own: a 2px nudge
- * toward the label on hover, and a squeeze on press.
+ * explains. The icon stays still. It moved 2px toward its label on hover
+ * and squeezed on press until KAN-426: on top of a gliding fill it read as
+ * the row jumping, a second motion for one pointer move.
  */
 const ROW =
-  "transition-colors duration-150 hover:bg-transparent active:bg-transparent data-active:bg-transparent " +
-  "[&>svg]:transition-transform [&>svg]:duration-200 [&>svg]:ease-glide " +
-  "hover:[&>svg]:translate-x-0.5 active:[&>svg]:scale-90";
-
-/** A rail tile's ROW: the same fills, the icon nudged up toward the name. */
-const TILE_ROW =
-  "transition-colors duration-150 hover:bg-transparent active:bg-transparent data-active:bg-transparent " +
-  "[&>svg]:transition-transform [&>svg]:duration-200 [&>svg]:ease-glide " +
-  "hover:[&>svg]:-translate-y-0.5 active:[&>svg]:scale-90";
+  "transition-colors duration-150 hover:bg-transparent active:bg-transparent data-active:bg-transparent";
 
 /** How a menu draws its rows: the rail's tiles, the rail's phone sheet, or
  *  the company shell's docked rows. */
@@ -521,7 +514,6 @@ function NavRow({
   const { setOpenMobile } = useSidebar();
   const tile = look === "tile";
   const size = tile ? RAIL_BUTTON : look === "sheet" ? RAIL_SHEET_BUTTON : MENU_BUTTON;
-  const row = tile ? TILE_ROW : ROW;
   // A tile shows the short name; the full one stays the accessible name.
   const text = tile && short ? short : label;
   const name = text === label ? undefined : label;
@@ -545,7 +537,7 @@ function NavRow({
           }}
           {...focusProps}
           aria-label={name}
-          className={cn(size, row, "cursor-pointer")}
+          className={cn(size, ROW, "cursor-pointer")}
         >
           <Icon aria-hidden className="size-4" />
           <span>{text}</span>
@@ -565,7 +557,7 @@ function NavRow({
         // Closes the phone sheet on the way out; a no-op on the desktop panel.
         onClick={() => setOpenMobile(false)}
         {...focusProps}
-        className={cn(size, row, lit && CURRENT_ITEM)}
+        className={cn(size, ROW, lit && CURRENT_ITEM)}
       >
         <Icon aria-hidden className="size-4" />
         <span>{text}</span>
