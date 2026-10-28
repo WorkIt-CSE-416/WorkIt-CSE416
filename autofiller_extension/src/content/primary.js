@@ -1,11 +1,13 @@
 // The panel's one button after a fill (KAN-396, KAN-369 Q5), in the shell's
 // "primary" slot, fixed at the panel's bottom (panel.js). Its words follow
 // the student's next action:
-// - "Next: 3 need you" while anything is red (lib-status.js's one rule):
-//   Next Thing, the walk (batch-tab.js's flagged: red first, then amber): in
-//   a batch tab the cross-tab walk (background next-needs-you.js), elsewhere
-//   this page's own rows in page order. Alt+N (the `next-thing` command,
-//   background.js) runs the walk in every state, amber rows too.
+// - "Answer 1 of 3" while anything on this page is red (lib-status.js's one
+//   rule): it goes to this page's first red field in page order and stays
+//   there until the field shows an answer (KAN-424): it never moves on past
+//   a mistake, and never to another tab. "1 of 3" counts the red fields this
+//   page has had since the fill, so it climbs as the student answers them.
+//   Alt+N (the `next-thing` command, background.js) still runs Next Thing,
+//   the walk across the batch's tabs, amber rows too.
 // - Review and submit once nothing is red: it scrolls to the employer's
 //   Submit (the submit warning's rule: a control whose words start with
 //   "Submit") and rings it (marks.js). It never presses it.
@@ -52,13 +54,19 @@ window.WIA = window.WIA || {};
   let style = null;
   let unsubscribe = null;
   let onNext = null;
-  // What the button does now: "next", "submit", "continue" or "filling".
+  // What the button does now: "answer", "submit", "continue" or "filling".
   let action = null;
+  // Every field that has been red on this page since the fill: the "of N" in "Answer 1 of N".
+  const seenRed = new Set();
 
   const visible = (el) => el.checkVisibility?.() ?? Boolean(el.offsetParent);
 
-  /** How many rows need the student (lib-status.js's one rule, KAN-369 Q7): the button's "Next: N need you" and the count line's. */
-  const needsYou = () => window.WIA.status.needsYouCount();
+  /** This page's red rows' keys, in page order (batch-tab.js's flagged, which applies lib-status.js's one rule). */
+  function redKeys() {
+    const view = window.WIA.walk?.flagged?.();
+    if (!view) return [];
+    return view.keys.filter((key) => !view.check.includes(key) && !view.late.includes(key));
+  }
 
   /** The employer's Submit, as the submit warning finds it; never WorkIt's own panel. */
   function submitButton() {
@@ -95,7 +103,7 @@ window.WIA = window.WIA || {};
   }
 
   async function press() {
-    if (action === "next") return next();
+    if (action === "answer") return answer();
     if (action === "continue") {
       const button = [...document.querySelectorAll(WORKDAY_NEXT)].find(visible);
       if (button) return ringControl(button);
@@ -109,7 +117,14 @@ window.WIA = window.WIA || {};
     }
   }
 
-  /** Next Thing: the walk (overlay.offerNext's), and what it answers under the button. Alt+N's too. */
+  /** The first red field on this page, again until it is answered: shown, focused and ringed (batch-tab.js's show). */
+  function answer() {
+    const key = redKeys()[0];
+    if (!key) return render();
+    say(window.WIA.walk.show(key) ? null : "WorkIt can't find this field on the page. Scroll to it and answer it.");
+  }
+
+  /** Next Thing: the walk (overlay.offerNext's), and what it answers under the button. Alt+N's. */
   async function next() {
     if (!onNext) return;
     say(null);
@@ -120,12 +135,17 @@ window.WIA = window.WIA || {};
 
   function render() {
     if (!parts) return;
-    const red = needsYou();
     const filling = window.WIA.phase === "filling";
-    action = filling ? "filling" : red > 0 ? "next" : midWorkday() ? "continue" : "submit";
+    const red = filling ? [] : redKeys();
+    for (const key of red) seenRed.add(key);
+    action = filling ? "filling" : red.length ? "answer" : midWorkday() ? "continue" : "submit";
     const { button } = parts;
     button.disabled = filling;
-    button.textContent = action === "next" ? `Next: ${red} need you` : { filling: "Filling…", continue: "Go to Save and Continue", submit: "Review and submit" }[action];
+    button.textContent =
+      action === "answer"
+        ? `Answer ${seenRed.size - red.length + 1} of ${seenRed.size}`
+        : { filling: "Filling…", continue: "Go to Save and Continue", submit: "Review and submit" }[action];
+    if (action !== "answer" && parts.said.textContent.startsWith("WorkIt can't find this field")) say(null);
   }
 
   /** Fill Again, after the student says yes to its one question: the fill again, in this frame (panel/fill). */
@@ -175,6 +195,7 @@ window.WIA = window.WIA || {};
     window.WIA.panel?.menuItem?.("again", null);
     parts = null;
     onNext = null;
+    seenRed.clear();
   }
 
   /** The walk Next Thing runs (batch-tab.js's answerTheWalk): resolves with a sentence for the student, or null. */

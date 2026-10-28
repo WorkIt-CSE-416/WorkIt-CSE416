@@ -46,7 +46,6 @@ window.WIA = window.WIA || {};
   function styles() {
     const style = document.createElement("style");
     style.textContent = `
-      .summary { padding: 8px 12px; font-size: var(--text-note); color: var(--color-ink-meta); border-bottom: 1px solid var(--color-border); }
       .essay-banner {
         padding: 10px 12px; background: var(--color-advanced-tint); border-bottom: 1px solid var(--color-border);
         font-size: var(--text-note); color: var(--color-ink);
@@ -288,14 +287,7 @@ window.WIA = window.WIA || {};
         : [Object.assign(document.createElement("div"), { className: "empty", textContent: "No fields detected yet." })]),
     );
     root.querySelector(".parts").replaceChildren(...parts.map((part) => part.panel?.(summary)).filter(Boolean));
-    root.querySelector(".summary").textContent =
-      summary.requiredTotal === 0
-        ? "No required fields found"
-        : `Required ${summary.requiredFilled} of ${summary.requiredTotal} filled` +
-          (window.WIA.status.needsYouCount() > 0 ? ` · ${window.WIA.status.needsYouCount()} need you` : ""); // the one rule (lib-status.js); the panel's one count line (KAN-369 Q4)
-    // Rows waiting for the student's Claude, apart: nothing for the student to fix yet (the walk visits them last).
-    const onClaude = summary.fields.filter((r) => r.status === "needs_generation" && r.claude).length;
-    if (onClaude) root.querySelector(".summary").textContent += ` · ${onClaude} waiting on Claude`;
+    // No count line (KAN-424): the checklist's boxes and folded lines carry the counts (groups.js), and the button the red one.
     if (focused?.isConnected && root.activeElement !== focused) focused.focus({ preventScroll: true });
   }
 
@@ -515,8 +507,7 @@ window.WIA = window.WIA || {};
     style = shell.addCss(styles().textContent);
     const tab = shell.slot("tab:autofill");
     tab.innerHTML = `
-      <div class="card fields">
-        <div class="summary"></div>
+      <div class="fields">
         <div class="essay-banner" hidden></div>
         <div class="moments"></div>
         <div class="parts"></div>

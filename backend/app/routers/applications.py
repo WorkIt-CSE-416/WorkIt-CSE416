@@ -63,6 +63,7 @@ from app.db import get_session
 from app.deps import get_current_account
 from app.queries.applications import (
     KEEP,
+    application_stage_of,
     fetch_applied,
     listed_job_by_link,
     mark_applied,
@@ -72,6 +73,7 @@ from app.queries.applications import (
 )
 from app.schemas.applications import (
     JobApplied,
+    JobByLink,
     JobSaved,
     JobSavedByLink,
     MarkApplied,
@@ -136,6 +138,23 @@ async def post_saved_by_link(
     if stage is None:
         raise HTTPException(status.HTTP_404_NOT_FOUND, "WorkIt doesn't list this job yet.")
     return JobSavedByLink(job_id=job_id, stage=stage)
+
+
+@router.post("/listed-by-link", response_model=JobByLink)
+async def post_listed_by_link(
+    body: SaveByLink,
+    account: AuthenticatedAccount = Depends(get_current_account),
+    db: AsyncSession = Depends(get_session),
+) -> JobByLink:
+    """The listed job whose apply link is the page the student is on, and
+    their stage for it: the extension's Track on WorkIt asks before it
+    offers to track (KAN-424). Writes nothing. A POST so the page's link
+    travels in the body, never a URL's query."""
+    applicant_id = _applicant_only(account)
+    job_id = await listed_job_by_link(db, body.url)
+    if job_id is None:
+        raise HTTPException(status.HTTP_404_NOT_FOUND, "WorkIt doesn't list this job yet.")
+    return JobByLink(job_id=job_id, stage=await application_stage_of(db, applicant_id, job_id))
 
 
 @router.post("/{job_id}/saved", response_model=JobSaved)

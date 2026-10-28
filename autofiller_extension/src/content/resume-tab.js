@@ -79,7 +79,7 @@ window.WIA = window.WIA || {};
   async function preview() {
     const answer = await send({ type: "resume/file" });
     if (!answer?.file) {
-      said = "WorkIt couldn't open the résumé. Try again.";
+      said = "WorkIt couldn't open the resume. Try again.";
       return draw();
     }
     const url = URL.createObjectURL(new Blob([bytes(answer.file.base64)], { type: answer.file.mimeType }));
@@ -99,13 +99,13 @@ window.WIA = window.WIA || {};
     paint();
     const answer = await send({ type: "resume/choose", key: option.key });
     if (!answer?.ok || answer.error || !answer.file) {
-      said = answer?.error ?? "WorkIt couldn't switch the résumé. Try again.";
+      said = answer?.error ?? "WorkIt couldn't switch the resume. Try again.";
       return draw();
     }
     const file = answer.file;
     const field = resumeField();
     if (!fixes) said = `Saved. WorkIt attaches ${file.filename} when it fills this page.`;
-    else if (!field) said = `Saved. This form has no résumé field to attach ${file.filename} to.`;
+    else if (!field) said = `Saved. This form has no resume field to attach ${file.filename} to.`;
     else {
       fixes.answers[field] = { file: file.filename, type: file.mimeType, base64: file.base64 };
       const result = await fixes.put(field);
@@ -119,7 +119,7 @@ window.WIA = window.WIA || {};
     const attached = state.attached;
     if (!attached) return section;
     if (attached.kind !== "built" && attached.kind !== "tailored") {
-      section.textContent = `Keyword match is for résumés built in WorkIt.${state.jobId ? " Tailor one for this job." : ""}`;
+      section.textContent = `Keyword match is for resumes built in WorkIt.${state.jobId ? " Tailor one for this job." : ""}`;
       return section;
     }
     if (!state.jobId) {
@@ -145,7 +145,7 @@ window.WIA = window.WIA || {};
     }
     const total = match.matched.length + match.missing.length;
     section.append(el("div", "label", "Keyword match"), el("div", "count", `${match.matched.length} of ${total} keywords`));
-    for (const [kind, words, title] of [["matched", match.matched, "On your résumé"], ["missing", match.missing, "Missing"]]) {
+    for (const [kind, words, title] of [["matched", match.matched, "On your resume"], ["missing", match.missing, "Missing"]]) {
       if (!words.length) continue;
       const list = el("ul", kind);
       for (const word of words) list.append(el("li", null, word));
@@ -180,7 +180,7 @@ window.WIA = window.WIA || {};
     if (!body) return;
     const root = el("div", "resume");
     if (!state) {
-      root.append(el("p", "said", "Sign in to WorkIt to see your résumé here."));
+      root.append(el("p", "said", "Sign in to WorkIt to see your resume here."));
       body.replaceChildren(root);
       return;
     }
@@ -191,7 +191,7 @@ window.WIA = window.WIA || {};
       if (KINDS[state.attached.kind]) file.append(el("div", "kind", KINDS[state.attached.kind]));
       attached.append(file, button("Preview", preview));
     } else {
-      file.append(el("div", "label", "Attached"), el("div", "kind", "No résumé yet. Add one on WorkIt's Resumes page."));
+      file.append(el("div", "label", "Attached"), el("div", "kind", "No resume yet. Add one on WorkIt's Resumes page."));
       attached.append(file);
     }
     root.append(attached, keywordsSection());
@@ -218,7 +218,7 @@ window.WIA = window.WIA || {};
         row.append(text, pick);
         list.append(row);
       }
-      section.append(el("div", "label", "Switch résumé"), list);
+      section.append(el("div", "label", "Switch resume"), list);
       root.append(section);
     }
     const line = el("p", "said", said);

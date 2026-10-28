@@ -698,6 +698,39 @@ export async function saveJobByLink(url) {
 }
 
 /**
+ * POST /jobs/listed-by-link: the feed's job whose apply link is the page at
+ * `url`, and the student's stage for it (null with no application), for the
+ * panel's Track on WorkIt (KAN-424). Writes nothing; a 404 when WorkIt
+ * doesn't list it.
+ * @param {string} url
+ * @returns {Promise<{ job_id: string, stage: string | null }>}
+ */
+export async function listedJobByLink(url) {
+  return apiFetch("/jobs/listed-by-link", { method: "POST", body: JSON.stringify({ url }) });
+}
+
+/**
+ * POST /jobs/{job_id}/saved: keeps the job in the student's Applications as
+ * saved, or keeps the stage it already has (Track on WorkIt, KAN-424).
+ * @param {string} jobId
+ * @returns {Promise<{ stage: string }>}
+ */
+export async function saveJob(jobId) {
+  return apiFetch(`/jobs/${jobId}/saved`, { method: "POST" });
+}
+
+/**
+ * POST /jobs/{job_id}/applied: marks the job applied, as the website's
+ * Applied button does (a tracked tab's submit, KAN-424). Keeps the sent
+ * resume the application names.
+ * @param {string} jobId
+ * @returns {Promise<{ applied_at: string | null }>}
+ */
+export async function markJobApplied(jobId) {
+  return apiFetch(`/jobs/${jobId}/applied`, { method: "POST" });
+}
+
+/**
  * POST /job-system-requests: the popup's Request this job system (KAN-369)
  * on a job page WorkIt can't fill. Sends the page's host and nothing else.
  * @param {string} host

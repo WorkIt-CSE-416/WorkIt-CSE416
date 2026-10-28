@@ -115,7 +115,7 @@ test("the edge tab opens the panel, and its Autofill This Page fills the form", 
   await expect(hostOf(page).locator(`[data-key="${HEARD}"] .source`)).toHaveText("Guessed", { timeout: 60_000 });
   await expect(panelOf(page)).toBeVisible();
   // The checklist shows while the form fills (KAN-369 Q1): the menu's Fill Again comes once it is done.
-  await expect(hostOf(page).locator('[data-slot="primary"] .primary-button').first()).toContainText(/Next:|Review and submit/, { timeout: 60_000 });
+  await expect(hostOf(page).locator('[data-slot="primary"] .primary-button').first()).toContainText(/Answer \d+ of \d+|Review and submit/, { timeout: 60_000 });
   await expect(await menuItem(hostOf(page), "Fill Again")).toBeVisible();
   expect(forms.submissions).toEqual([]);
 });
@@ -201,7 +201,10 @@ test("elsewhere the toolbar icon shows the batch's status and Open WorkIt", asyn
 
   const popup = await loaded.context.newPage();
   await popup.goto(`chrome-extension://${EXTENSION_ID}/src/popup/popup.html`);
+  // Tailored to the batch running (KAN-424): its status, and Go to Next Job.
+  await expect(popup.getByRole("heading", { name: "Your Batch" })).toBeVisible();
   await expect(popup.getByText("1 job in your batch · 1 needs you")).toBeVisible();
+  await expect(popup.getByRole("button", { name: "Go to Next Job" })).toBeVisible();
   await expect(popup.getByRole("button", { name: "Open WorkIt" })).toBeVisible();
   await expect(popup.getByRole("button", { name: "Autofill This Page" })).toHaveCount(0);
   expect(forms.submissions).toEqual([]);

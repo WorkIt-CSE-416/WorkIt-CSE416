@@ -43,7 +43,7 @@ async function anduril(api: FakeApi): Promise<{ form: Page; forms: SavedForms }>
 // Greenhouse shows the attached file's name in place of its file box.
 const attachedName = (form: Page) => form.locator('[aria-labelledby="upload-label-resume"] .file-upload__filename').innerText();
 
-test("the Résumé tab names the attached résumé, previews it, and Tailor opens WorkIt's Tailor for the job", async () => {
+test("the Resume tab names the attached resume, previews it, and Tailor opens WorkIt's Tailor for the job", async () => {
   test.setTimeout(120_000);
   const api = new FakeApi();
   const { form, forms } = await anduril(api);
@@ -52,7 +52,7 @@ test("the Résumé tab names the attached résumé, previews it, and Tailor open
   await expect(tab.locator(".resume-name")).toHaveText(STUDENT.resume.filename);
   expect(await attachedName(form)).toBe(STUDENT.resume.filename);
   // An uploaded file has no Keyword match: only a résumé built in WorkIt does.
-  await expect(tab.locator(".keywords")).toHaveText("Keyword match is for résumés built in WorkIt. Tailor one for this job.");
+  await expect(tab.locator(".keywords")).toHaveText("Keyword match is for resumes built in WorkIt. Tailor one for this job.");
 
   const preview = loaded.context.waitForEvent("page");
   await tab.getByRole("button", { name: "Preview" }).click();

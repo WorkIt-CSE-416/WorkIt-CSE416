@@ -406,9 +406,18 @@ Find files with a directory listing; these are the rules for where code goes.
   `listed_job_by_link`): the extension's toolbar popup on a site it can't
   fill saves the feed's listed job whose apply link is the page, the exact
   link first, else the same link without query, fragment and trailing
-  slash (SQL `split_part`/`rtrim`, no index: the feed is small), through
-  `save_job`. A page no listed job links to is a 404; it never makes a
-  posting. Tests: `tests/test_saved_jobs.py`.
+  slash (SQL `split_part`/`rtrim`, no index: the feed is small), **but only
+  when exactly one listed job has that bare link** (KAN-424): many postings
+  carry their id only in the query (36 Waymo jobs share
+  `careers.withwaymo.com/jobs`), and taking the first saved a different job
+  with no error. A page no listed job links to is a 404; it never makes a
+  posting. **`POST /jobs/listed-by-link`** (KAN-424) is the same lookup
+  with the student's stage (`application_stage_of`) and writes nothing:
+  the extension's Track on WorkIt asks it before it offers to track, then
+  saves with `POST /jobs/{id}/saved` and marks the submit with `POST
+  /jobs/{id}/applied`. It is a POST so the page's link travels in the body;
+  a GET under `/jobs/` would also meet jobs.py's `/{job_id}` first, since
+  that router is included first. Tests: `tests/test_saved_jobs.py`.
   **A student's writing samples and style card** (KAN-384) are
   `queries/writing.py`, behind `routers/writing_samples.py` (the student's
   add, replace, remove) and the connector's tools (their Claude reads the

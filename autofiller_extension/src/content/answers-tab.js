@@ -132,6 +132,9 @@ window.WIA = window.WIA || {};
     ]);
     coverLetter = cover.length > 0;
     workday = Boolean(window.WIA.steps);
+    // A form with nothing written and no cover letter field has no Answers tab (KAN-424): its strip shows Autofill and
+    // Resume. On Workday each step decides again, as each fills.
+    window.WIA.panel?.showTab?.("answers", names.size > 0);
     if (!style?.isConnected) style = window.WIA.panel?.addCss(css);
     unsubscribe?.();
     unsubscribe = window.WIA.status.subscribe(render);

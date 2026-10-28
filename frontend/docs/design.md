@@ -149,7 +149,10 @@ drew it, and it pulled the eye off the form.
 arms up beside "workit" in outlined Figtree Bold); `<Logo>` picks the lockup or
 a half per size, `<LogoLockup>` is the seeker shell's pair. The figure is
 violet and the word ink everywhere, the shells included (2026-10-20, KAN-300;
-the shells drew it all in ink before). There are no logo
+the shells drew it all in ink before). Other companies' marks (Google,
+LinkedIn, Gmail, Google Calendar, and Chrome and Claude for Auto Apply's
+setup, KAN-424) are drawn in `components/icons.tsx` in their own colours;
+Claude's spark is never WorkIt's AI mark. There are no logo
 image files; `public/workit-icon.svg` is the favicon's source (`npm run
 favicon`). Every glyph is **Phosphor's** (`@phosphor-icons/react`, KAN-350), at
 its regular weight. It replaced Lucide, which reads as the default set of

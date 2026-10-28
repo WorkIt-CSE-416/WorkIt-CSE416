@@ -29,6 +29,16 @@ header {
   font-weight: 600;
 }
 
+header .logo {
+  height: 20px;
+  width: auto;
+  display: block;
+}
+
+header .figure {
+  color: var(--color-brand);
+}
+
 main {
   padding: 12px;
 }
@@ -78,6 +88,43 @@ button.secondary {
 }
 
 button.secondary:hover { background: var(--color-hover); }
+
+/* A quiet action at the foot of the popup (Workday Sign-Up): a link's look, a button's behaviour. */
+button.link {
+  width: auto;
+  margin: 12px auto 0;
+  padding: 2px 4px;
+  background: none;
+  color: var(--color-ink-meta);
+  font-size: var(--text-note);
+  line-height: var(--text-note--line-height);
+  font-weight: 500;
+}
+
+button.link:hover { background: none; color: var(--color-ink); text-decoration: underline; }
+
+/* What the student is doing, and its one next step (KAN-424): a batch, the queue, or an empty queue. */
+.home {
+  margin: 12px 0 0;
+  padding: 12px;
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-card);
+}
+
+.home[hidden] { display: none; }
+
+.home-title {
+  margin: 0;
+  font-size: var(--text-label);
+  line-height: var(--text-label--line-height);
+  font-weight: 600;
+}
+
+.home .batch-status {
+  margin: 2px 0 0;
+  font-size: var(--text-note);
+  line-height: var(--text-note--line-height);
+}
 
 button:disabled {
   opacity: 0.5;

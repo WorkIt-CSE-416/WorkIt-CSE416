@@ -4,7 +4,7 @@
 //   (Next tab goes to the batch's next other tab that needs the student),
 //   kept up to date as the batch's tabs change; on Workday, a line with the
 //   step shown, "Step 3 of 6 · My Experience", read off Workday's step bar.
-// - "job-card": the tab's job (logo, title, company, place, pay when known)
+// - "job-card": the tab's job, trimmed (logo when known, title, then company, place and pay on one line)
 //   with its Match score as a ring and its band, and "You applied on Oct 25"
 //   when WorkIt has the application as applied (background panel-top.js).
 //
@@ -16,7 +16,7 @@ window.WIA = window.WIA || {};
   "use strict";
 
   if (window.WIA.panelTop) return;
-  window.WIA.panelTop = true;
+  window.WIA.panelTop = {};
   const panel = window.WIA.panel;
   if (!panel) return;
   const { send } = window.WIA.ui;
@@ -30,28 +30,36 @@ window.WIA = window.WIA || {};
     [data-slot="batch-line"] button:hover { text-decoration: underline; }
     [data-slot="batch-line"] button:focus-visible { outline: 2px solid var(--color-brand); outline-offset: 1px; }
     [data-slot="batch-line"] .step { color: var(--color-ink-muted); }
-    [data-slot="job-card"] .job { display: flex; align-items: flex-start; gap: 10px; }
-    [data-slot="job-card"] .job-logo, [data-slot="job-card"] .job-initial {
-      flex: none; width: 40px; height: 40px; border-radius: var(--radius-control); border: 1px solid var(--color-border);
-      object-fit: contain; background: var(--color-panel); box-sizing: border-box;
+    /* The job card, trimmed (KAN-424): no box of its own and no letter square, since the page already names
+     * the job. The title, then the company and its place and pay on one line, and the Match score small. */
+    [data-slot="job-card"] .job { display: flex; align-items: center; gap: 8px; }
+    [data-slot="job-card"] .job-logo { flex: none; width: 24px; height: 24px; border-radius: 6px; object-fit: contain; }
+    [data-slot="job-card"] .job-text { flex: 1; min-width: 0; }
+    [data-slot="job-card"] .job-title { font-size: var(--text-label); line-height: var(--text-label--line-height); font-weight: 600; color: var(--color-ink); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+    [data-slot="job-card"] .job-line { font-size: var(--text-note); color: var(--color-ink-meta); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+    [data-slot="job-card"] .job-company { color: var(--color-ink-muted); font-weight: 500; }
+    [data-slot="job-card"] .track { margin-top: 6px; }
+    [data-slot="job-card"] .track[hidden] { display: none; }
+    [data-slot="job-card"] .track-button {
+      all: unset; box-sizing: border-box; cursor: pointer; padding: 4px 10px; border-radius: var(--radius-control);
+      border: 1px solid var(--color-border-subtle); background: var(--color-panel); color: var(--color-ink);
+      font-size: var(--text-note); font-weight: 600;
     }
-    [data-slot="job-card"] .job-initial {
-      display: flex; align-items: center; justify-content: center; font-weight: 700; font-size: var(--text-body); color: var(--color-ink-meta); background: var(--color-well);
-    }
-    [data-slot="job-card"] .job-text { flex: 1; min-width: 0; display: flex; flex-direction: column; gap: 2px; }
-    [data-slot="job-card"] .job-title { font-size: var(--text-body); line-height: var(--text-body--line-height); font-weight: 700; color: var(--color-ink); }
-    [data-slot="job-card"] .job-company { font-weight: 600; color: var(--color-ink-muted); }
-    [data-slot="job-card"] .job-meta { font-size: var(--text-note); color: var(--color-ink-meta); }
-    [data-slot="job-card"] .applied { margin-top: 8px; font-size: var(--text-note); font-weight: 600; color: var(--color-positive-ink); }
-    [data-slot="job-card"] .match { flex: none; display: flex; flex-direction: column; align-items: center; gap: 2px; width: 64px; }
-    [data-slot="job-card"] .ring { position: relative; width: 44px; height: 44px; }
-    [data-slot="job-card"] .ring svg { width: 44px; height: 44px; transform: rotate(-90deg); display: block; }
+    [data-slot="job-card"] .track-button:hover { background: var(--color-hover); }
+    [data-slot="job-card"] .track-button:focus-visible { outline: 2px solid var(--color-brand); outline-offset: 2px; }
+    [data-slot="job-card"] .track-button[disabled] { cursor: default; opacity: 0.6; }
+    [data-slot="job-card"] .track-said { font-size: var(--text-note); color: var(--color-ink-meta); }
+    [data-slot="job-card"] .track-said.error { color: var(--color-danger); }
+    [data-slot="job-card"] .applied { margin-top: 4px; font-size: var(--text-note); font-weight: 600; color: var(--color-positive-ink); }
+    [data-slot="job-card"] .match { flex: none; display: flex; align-items: center; gap: 6px; }
+    [data-slot="job-card"] .ring { position: relative; width: 32px; height: 32px; }
+    [data-slot="job-card"] .ring svg { width: 32px; height: 32px; transform: rotate(-90deg); display: block; }
     [data-slot="job-card"] .ring .track { stroke: var(--color-border); }
     [data-slot="job-card"] .ring .arc { stroke: var(--color-brand); }
     [data-slot="job-card"] .ring .score {
-      position: absolute; inset: 0; display: flex; align-items: center; justify-content: center; font-weight: 700; font-size: var(--text-note); color: var(--color-ink);
+      position: absolute; inset: 0; display: flex; align-items: center; justify-content: center; font-weight: 700; font-size: 11px; color: var(--color-ink);
     }
-    [data-slot="job-card"] .band { font-size: var(--text-note); line-height: var(--text-note--line-height); color: var(--color-ink-muted); text-align: center; }
+    [data-slot="job-card"] .band { font-size: var(--text-note); line-height: var(--text-note--line-height); color: var(--color-ink-muted); max-width: 52px; }
   `;
 
   // The Match score's bands, by their lowest score (frontend/src/lib/match.ts; GLOSSARY.md).
@@ -95,32 +103,80 @@ window.WIA = window.WIA || {};
     const answer = await send({ type: "panel/job" });
     const job = answer?.job;
     const place = panel.slot("job-card");
-    if (!place || !job || !(job.title || job.company)) return;
+    if (!place) return;
+    if (!job || !(job.title || job.company)) {
+      // No job to name: the slot holds only Track on WorkIt, shown when the background says this job is listed.
+      place.replaceChildren(trackLine(place));
+      return;
+    }
     const row = el("div", "job");
-    const initial = el("div", "job-initial", (job.company || job.title).trim().charAt(0).toUpperCase());
-    initial.setAttribute("aria-hidden", "true");
     if (job.logo) {
       const logo = el("img", "job-logo");
       logo.alt = "";
       logo.src = job.logo;
-      // A logo the page won't load (its own image rules) leaves the company's first letter.
-      logo.addEventListener("error", () => logo.replaceWith(initial), { once: true });
+      // A logo the page won't load (its own image rules) goes: the company's name is beside it.
+      logo.addEventListener("error", () => logo.remove(), { once: true });
       row.append(logo);
-    } else {
-      row.append(initial);
     }
     const text = el("div", "job-text");
     if (job.title) text.append(el("div", "job-title", job.title));
-    if (job.company) text.append(el("div", "job-company", job.company));
     const meta = [job.location, job.pay && payText(job.pay)].filter(Boolean).join(" · ");
-    if (meta) text.append(el("div", "job-meta", meta));
+    if (job.company || meta) {
+      const line = el("div", "job-line");
+      if (job.company) line.append(el("span", "job-company", job.company));
+      if (meta) line.append(`${job.company ? " · " : ""}${meta}`);
+      text.append(line);
+    }
     row.append(text);
     if (typeof job.match === "number") row.append(ring(job.match));
     const parts = [row];
     if (job.appliedAt) parts.push(el("div", "applied", `You applied on ${dayOf(job.appliedAt)}`));
+    else parts.push(trackLine(place));
     place.replaceChildren(...parts);
     place.hidden = false;
   }
+
+  /**
+   * Track on WorkIt (KAN-424, background/track.js), under the job card of a
+   * form the student opened themselves whose job WorkIt lists: the button
+   * saves it to their Applications and has their submit here mark it
+   * Applied. Tracked, a line says so; once marked, that it was. A batch tab
+   * (batch apply tracks it), a job WorkIt doesn't list, or a signed-out
+   * student shows nothing.
+   */
+  function trackLine(place) {
+    const box = el("div", "track");
+    box.hidden = true;
+    const show = (state) => {
+      // A slot that holds nothing else shows with the line.
+      if (state === "tracked" || state === "applied" || state === "trackable") place.hidden = false;
+      if (state === "tracked") box.replaceChildren(el("div", "track-said", "Tracked on WorkIt. Your submit here marks it Applied."));
+      else if (state === "applied") box.replaceChildren(el("div", "applied", "Marked Applied on WorkIt."));
+      else if (state === "trackable") {
+        const button = el("button", "track-button", "Track on WorkIt");
+        button.type = "button";
+        button.title = "Save this job to your Applications, and mark it Applied when you submit";
+        button.addEventListener(
+          "click",
+          window.WIA.ui.trusted(async () => {
+            button.disabled = true;
+            const answer = await send({ type: "track/start" }).catch(() => null);
+            if (answer?.state) return show(answer.state);
+            button.disabled = false;
+            box.append(el("div", "track-said error", "WorkIt couldn't track this job. Try again."));
+          }),
+        );
+        box.replaceChildren(button);
+      } else return (box.hidden = true);
+      box.hidden = false;
+    };
+    send({ type: "track/state" })
+      .then((answer) => show(answer?.state))
+      .catch(() => {});
+    return box;
+  }
+
+  window.WIA.panelTop.refresh = () => void drawJob();
 
   // The batch line's parts: the batch's (from the background) and Workday's step (from the page).
   let batch = null;

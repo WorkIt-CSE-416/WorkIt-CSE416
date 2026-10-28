@@ -103,7 +103,7 @@ test("a batch tab's submit shows Sent with Next job, and I didn't submit this se
   const primary = host.locator('[data-slot="primary"]');
   await expect(primary.getByText("Sent · Marked applied on WorkIt")).toBeVisible({ timeout: 15_000 });
   expect(api.stages.get("job-0")).toBe("applied");
-  await expect(primary.getByRole("button", { name: /^Next:/ })).toBeHidden();
+  await expect(primary.getByRole("button", { name: /^Answer \d+ of \d+$/ })).toBeHidden();
 
   await primary.getByRole("button", { name: "I didn't submit this" }).click();
   // Back to the state its tab had before the mark: Cohere's tab needed the student, so needs_you (Ready would be queued).

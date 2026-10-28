@@ -172,6 +172,28 @@ export class FakeApi {
       if (!this.stages.has(found.id)) this.stages.set(found.id, "saved");
       return { json: { job_id: found.id, stage: this.stages.get(found.id) } };
     }
+    // Track on WorkIt (KAN-424): the listed job a link is, with the student's stage (writes nothing);
+    // the job kept saved (a stage it has stays); and marked applied, as the website's Applied button does.
+    const byLink = path === "/jobs/listed-by-link" && method === "POST";
+    if (byLink) {
+      const bare = (link: string) => link.split("#")[0].split("?")[0].replace(/\/+$/, "");
+      const { url: link } = JSON.parse(body.toString());
+      const found = [...this.postings.values()].find((posting) => bare(posting.apply_url) === bare(link));
+      if (!found) return { status: 404, json: { detail: "WorkIt doesn't list this job yet." } };
+      return { json: { job_id: found.id, stage: this.stages.get(found.id) ?? null } };
+    }
+    const jobMark = /^\/jobs\/([^/]+)\/(saved|applied)$/.exec(path);
+    if (jobMark && method === "POST") {
+      const [, id, what] = jobMark;
+      if (!this.postings.has(id)) return { status: 404, json: { detail: "That job isn't open any more." } };
+      if (what === "saved") {
+        if (!this.stages.has(id)) this.stages.set(id, "saved");
+        return { json: { stage: this.stages.get(id) } };
+      }
+      this.stages.set(id, "applied");
+      this.appliedAt.set(id, new Date().toISOString());
+      return { json: { applied_at: this.appliedAt.get(id), sent_resume_id: null } };
+    }
     if (path === "/auth/me") return { json: { id: STUDENT.id, email: STUDENT.email, full_name: STUDENT.full_name, account_type: "applicant" } };
 
     const me = `/applicants/${STUDENT.id}`;

@@ -1184,7 +1184,9 @@ the tab's result when it lands. The state (`idle`, `running`, `paused`) is
 the page's own; a return visit starts idle, so Start queues another batch.
 
 **Add to Claude** (KAN-383) is a secondary button with the sparkle, the AI
-mark, between Manage Resumes and Start. It opens Claude's Add Custom
+mark, in the setup strip while the student's Claude isn't connected
+(KAN-424; it sat in the header beside Start, for good, until then). It
+opens Claude's Add Custom
 Connector dialog in a new tab with WorkIt's name and connector address
 (`<api>/mcp`) filled in, so the student checks and confirms and never pastes
 a URL (`src/lib/claude-connector.ts`, Anthropic's documented link). Claude
@@ -1211,12 +1213,13 @@ says Saved, and the open tab fills it within about ten seconds and moves to
 Ready once nothing else needs the student. The count under a box is the
 form's own limit, amber past it. The list is read once as the page loads;
 a saved answer stays, marked Saved, until the next visit. Nothing left
-reads "Nothing Left to Write". **The Auto Apply page links to it** with a
-card over Up Next, "N Written Questions Waiting", while any open
-application has one, which says the student's Claude writes them once
-added and offers **Write with Claude** and **Write Answers** (a secondary
-button with the pencil). **Write with Claude** (`auto-apply/write-with-claude.tsx`,
-also beside Written Answers' heading while a question waits) is a
+reads "Nothing Left to Write". **The Auto Apply page links to it** from
+each Up Next row with questions waiting, whose chip ("2 Questions to
+Write") opens it, and, while the student's Claude isn't connected, from
+the setup strip's Or Write Them Yourself (KAN-424). A card over Up Next,
+"N Written Questions Waiting", did this until KAN-424; it counted the
+questions without saying whose. **Write with Claude** (`auto-apply/write-with-claude.tsx`,
+beside Written Answers' heading while a question waits) is a
 secondary button with the sparkle: it opens a new claude.ai chat in a new
 tab with "Write my WorkIt answers" in its box, not sent, and copies the
 same text, with "Press Enter in Claude (or paste)" under it in meta type.
@@ -1245,17 +1248,71 @@ showed (`auto-apply/answers/new-answers.ts`, written by `seen-now.tsx` once
 the page shows), so the marks clear on the next visit; a student who never
 opened the page sees every own answer New.
 
-**Jobs lead the page** (KAN-359): the heading with **Manage Resumes** (a
-secondary button to Resumes & Experiences) and **Add to Claude** beside
-Start Auto Apply, then
-**Up Next**, and nothing else for now. It opened with a "Resume List" table of every
-resume until KAN-359, then a line naming the default resume, which the
-user removed: each queued job now shows and changes its own resume.
+**Jobs lead the page** (KAN-359): the heading with **Start Auto Apply**,
+its one action, and under the title the queue in a line ("2 ready to apply
+· 1 needs you", each part only when it counts something); then the
+**setup strip**; then **Up Next**, and nothing else for now. It opened
+with a "Resume List" table of every resume until KAN-359, then a line
+naming the default resume, which the user removed: each queued job now
+shows and changes its own resume. Manage Resumes and Add to Claude sat
+beside Start until KAN-424, three bordered buttons of one weight for a
+page with one action.
 
-- **Up Next** (`auto-apply/up-next.tsx`): the queue, oldest first, the
-  order the extension takes it, in Live Activity's table with its "queue"
-  columns (`QUEUE_COLUMNS`): Role, Status, **Resume**, Match, Date Added
-  and the cross. No sorting, since the order is the run's.
+- **The setup banner** (`auto-apply/setup-strip.tsx`, KAN-424): one card
+  under the heading, only while something a batch needs is missing, gone
+  once all of it is done. Three parts across: "Set Up Auto Apply" at
+  subtitle size over "1 of 3 done" at the left, the steps centred in the
+  room between, and Configure at the right (they stack below 42rem of
+  page). With the title small and the steps beside it, the middle stood
+  empty and the banner read as off. Each step is its logo, with a mark on
+  the logo's corner (a green check, or a gray dot), and its name: Chrome
+  Extension (Chrome's mark; asked of the extension itself on load and
+  when the tab comes back into focus), Default Resume (a resume in the
+  brand violet; read on the server) and Claude MCP (Claude's spark; the
+  WorkIt connector in the student's Claude, GET `.../connector`; left out
+  when it can't be read). `ChromeIcon` and `ClaudeIcon` are brand marks in
+  `components/icons.tsx`, in their own colours, beside Google's; Claude's
+  is not WorkIt's AI mark, so Connect wears Claude's spark, never
+  `SparkleIcon`. Its one button is **Configure**, since the
+  banner sets up the tool: it opens the **Set Up Auto Apply** dialog,
+  laid out as a settings page is (after Claude's settings): a row per
+  step, its logo in a 40px bordered tile, its name over its reason in a
+  column of its own, and its control
+  in a fixed column at the right, centred on the row, so every button
+  and status lines up and no text runs under one. The control is the
+  step's action (Install while `NEXT_PUBLIC_EXTENSION_INSTALL_URL` is
+  set, else a Not Installed outline pill, the reason saying to ask the
+  team; Open Resumes, where the star sets the default; Connect, Claude's
+  Add Custom Connector dialog, with Written Answers linked in its reason
+  as the other way), or a green status pill with a check once done
+  (Installed, Starred, Connected). No footer: its × closes it. The first
+  dialog put a mark before each name, let the reasons run toward the
+  button and left "Installed" as loose green text at the row's top, which
+  read as off. A first version showed
+  the first missing step's action on the banner itself ("Set Default"),
+  which read as a puzzle out of context, and named the third step
+  "Claude". The extension counts as done until it answers, so a student
+  with everything set up never sees the banner flash in.
+
+- **Up Next** (`auto-apply/up-next.tsx`): the queue in one table, **the
+  rows that need the student first** (KAN-424; `needsYou`: a closed
+  posting, a fill that couldn't finish, or no resume, each saying why in
+  its chip), then the rest, each part oldest first, the order the
+  extension takes it. A "Needs You · 2" heading over its own table was
+  tried and removed: it said again what the header's line and the chips
+  say. Live Activity's table with its "queue" columns (`QUEUE_COLUMNS`):
+  Role, Status, **Resume**, Match, Date Added and the row's ⋯. No sorting,
+  since the order is the run's. **Only a row that opens something takes a
+  hover tint**, the whole row: a closed posting's row opens nothing, and
+  its frozen Role cell, which followed the row's hover group, once tinted
+  alone.
+- **The Status cell is a chip only where a row isn't simply waiting**
+  (KAN-424, `QueueChip` in `auto-apply/activity-list.tsx`), most urgent
+  first: Posting Closed (danger), Couldn't Finish (warning; "Finish it on
+  the job's page" in its tooltip), No Resume (danger), Working in Browser
+  (advanced, with its ringing dot), "2 Questions to Write" (warning, a link
+  to Written Answers), else an inert Ready. Every row read "Queued" until
+  then, with "Job posting closed" as gray text under it.
 - **The Resume cell is a button** (a bordered pill with a pencil): it
   opens the row's resume picker (`auto-apply/resume-dialog.tsx`), the
   Apply dialog's own resume list (`jobs/resume-picker.tsx`, Job posting
@@ -1307,8 +1364,9 @@ one client step over the server's rows), in flight.
 
 - **The table**: Role (the company's logo, then the role, bold, over the
   company; frozen at the left from 672px of page up, as on Applications),
-  Status, Match (the Applications page's `MatchBadge`, "Not scored" without
-  one), Date Added (when it was queued or marked applied), Date Applied
+  Status, Match (the Applications page's `MatchBadge`, a faint dash without
+  one, "Not scored" for a screen reader only: the words in every row were
+  noise), Date Added (when it was queued or marked applied), Date Applied
   ("Not yet" until then), and a narrow Actions column at the right end,
   its heading for a screen reader only: it holds one icon button with its
   own tooltip, and the word would not fit its 64px.
@@ -1332,30 +1390,23 @@ one client step over the server's rows), in flight.
   open (`components/clickable-row.tsx`, the Applications list's), leaving
   clicks on links and buttons alone; the role is the real link. A closed
   one links nowhere.
-- **Mark applied** (KAN-369, `auto-apply/mark-applied.tsx`): every row not
-  yet applied or skipped has a briefcase (the Applied stage's icon),
-  tooltip "I submitted this: mark applied", for an application the student
-  sent that the extension's submit detection missed. It finishes the
-  application as submitted (`markSubmitted`, POST
-  `.../applications/{job_id}/finish`, which dates it now), refreshes the
-  route so the row shows Applied, and toasts "<role> is marked Applied.".
-  The batch panel's "I submitted this" is the same from the job's tab.
-- **Actions**: icon buttons only, to save width. A queued row has a cross,
-  "Remove from queue" in its tooltip (`auto-apply/remove-from-queue.tsx`),
-  alone in the Actions column: beside the badge, before KAN-285, it read as
-  closing the badge, and a worded Remove button (the first redesign) took
-  width the table needs. It takes the job out of the
-  queue and refreshes the route; a toast then says "<role> from <company>
-  is removed from Auto Apply." with Undo, which queues the job again
-  (`queueJob`): it comes back as a new queued row at the bottom, since the
-  queue orders by when a job was queued. A failure, of either the removal
-  or the Undo, is a toast too. The row open in the extension's tab has a
-  window glyph instead, "Go to the tab" (`showRunTab`), never the cross:
-  taking it out would leave the tab on a job that is gone. No other status
-  has an action. The cross, a
-  job's Auto Apply and Start each take one click at a time (a ref set on
-  the click): `disabled={pending}` lands a render late, so a fast double
-  click once sent two removals and showed the removal toast twice.
+- **Each row's actions are one ⋯ menu** (KAN-424, `auto-apply/row-menu.tsx`),
+  in the narrow Actions column, worded: **Go to Its Tab** (the row open in
+  a batch tab, `showRunTab`), **I Already Applied** (every row not applied
+  or skipped: an application the student sent that the extension's submit
+  detection missed; `markSubmitted`, POST `.../applications/{job_id}/finish`,
+  dated now, then a refresh and the toast "<role> is marked Applied.") and
+  **Remove From Queue** (a queued row only, last and in the danger colour:
+  it takes the job out of the queue and refreshes; the toast "<role> from
+  <company> is removed from Auto Apply." has Undo, which queues it again,
+  at the bottom, since the queue orders by when a job was queued). A
+  failure of any of them is a toast. Until KAN-424 these were bare icon
+  buttons side by side, a briefcase for "I submitted this" and a cross for
+  Remove: no one could read them at 16px, the cross looked like a chevron,
+  and the destructive one sat one slip from the other. A row takes one
+  action at a time (a ref set on the click): `disabled={pending}` lands a
+  render late, so a fast double click once sent two removals and showed
+  the removal toast twice.
 - **The Status filter**: over the table, a Status dropdown, the
   Applications page's (`components/field-facet.tsx`), its options the five
   groups, each with its glyph in its badges' colour, as the Applications

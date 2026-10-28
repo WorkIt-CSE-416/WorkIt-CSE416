@@ -39,6 +39,14 @@ class JobSavedByLink(BaseModel):
     stage: application_stage
 
 
+class JobByLink(BaseModel):
+    """POST /jobs/listed-by-link: the listed job the link is, and the signed-in
+    applicant's stage for it, or null when they have no application (KAN-424)."""
+
+    job_id: uuid.UUID
+    stage: application_stage | None = None
+
+
 class JobSaved(BaseModel):
     """POST /jobs/{job_id}/saved: the job's stage after the save. saved, or
     the stage it already had (queued, applied...), which saving keeps."""

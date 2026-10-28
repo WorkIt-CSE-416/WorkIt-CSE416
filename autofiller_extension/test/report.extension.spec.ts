@@ -125,6 +125,8 @@ test("A field the student edits after WorkIt filled it offers Report this, and a
   // Wrong? shows on a filled row once it is opened, and opens the card with that field marked.
   const email = host.locator('[data-key="email"]');
   await expect(email).toHaveAttribute("data-mark", "filled");
+  // Filled rows fold into one line (KAN-424): opened, the row is there to press.
+  await host.locator('.group[data-group="filled"] .group-head').click();
   await email.locator(".label").click();
   await email.locator('[data-report-trigger="row"]').click();
   const card = host.locator('[data-slot="report"]');

@@ -41,22 +41,15 @@ function renderLoginView(errorText) {
     const base = await webappUrl();
     chrome.tabs.create({ url: `${base}/login` });
   });
-
-  root.querySelector("#recheck-button").addEventListener("click", () => init());
 }
 
 /**
- * The batch's status in a line (background.js popup/batch): how many jobs
- * are in it and how many are ready or need the student.
- * @param {{ jobs: { state: string }[] }} status
+ * The batch's status in a line: how many jobs are in it and how many are
+ * filling, ready or need the student.
+ * @param {{ total: number, filling: number, ready: number, needs: number }} batch
  */
-function batchLine({ jobs }) {
-  if (!jobs.length) return "No batch running.";
-  const count = (state) => jobs.filter((job) => job.state === state).length;
-  const parts = [`${jobs.length} job${jobs.length === 1 ? "" : "s"} in your batch`];
-  const filling = count("filling");
-  const ready = count("ready");
-  const needs = count("needs_you") + count("failed");
+function batchLine({ total, filling, ready, needs }) {
+  const parts = [`${total} job${total === 1 ? "" : "s"} in your batch`];
   if (filling) parts.push(`${filling} filling`);
   if (ready) parts.push(`${ready} ready`);
   if (needs) parts.push(`${needs} need${needs === 1 ? "s" : ""} you`);
@@ -65,7 +58,11 @@ function batchLine({ jobs }) {
 
 /**
  * The popup shows only off job pages (on one, the toolbar icon opens the
- * panel, KAN-394): who is signed in, the batch's status and Open WorkIt.
+ * panel, KAN-394). It is tailored to what the student is doing (KAN-424,
+ * background/popup-home.js), with the one next step as its button: during
+ * a batch, the batch's status and Go to Next Job (the tab that needs them,
+ * else a ready one); with no batch, the queue and Start Auto Apply; with an
+ * empty queue, Find Jobs. Then Open WorkIt and Workday Sign-Up.
  */
 function renderSignedIn(profile) {
   const template = document.getElementById("signed-in-template");
@@ -73,10 +70,7 @@ function renderSignedIn(profile) {
 
   root.querySelector(".name").textContent = profile.full_name;
   root.querySelector(".email").textContent = profile.email;
-  sendMessage({ type: "popup/batch" }).then((status) => {
-    root.querySelector(".batch-status").textContent = status?.ok ? batchLine(status) : "";
-  });
-
+  void showHome();
   void showUnsupported();
 
   root.querySelector("#open-workit-button").addEventListener("click", async () => {
@@ -86,6 +80,51 @@ function renderSignedIn(profile) {
   });
   // The one email and password for every company's Workday (src/options/), kept only in this browser.
   root.querySelector("#workday-signup-button").addEventListener("click", () => chrome.runtime.openOptionsPage());
+}
+
+/** The popup's home: what the student is doing, and its next step (popup/home). */
+async function showHome() {
+  const home = await sendMessage({ type: "popup/home" });
+  const box = root.querySelector(".home");
+  if (!home?.ok || !box) return;
+  const title = box.querySelector(".home-title");
+  const line = box.querySelector(".batch-status");
+  const action = box.querySelector("#home-action");
+  const offer = (label, onPress) => {
+    action.textContent = label;
+    action.hidden = false;
+    action.addEventListener("click", onPress, { once: true });
+  };
+  if (home.batch.total) {
+    title.textContent = "Your Batch";
+    line.textContent = batchLine(home.batch);
+    if (home.batch.needs || home.batch.ready) {
+      offer("Go to Next Job", async () => {
+        await sendMessage({ type: "popup/next" });
+        window.close();
+      });
+    }
+  } else if (home.queued) {
+    title.textContent = "Auto Apply";
+    line.textContent = `${home.queued} job${home.queued === 1 ? "" : "s"} queued.`;
+    offer("Start Auto Apply", async () => {
+      action.disabled = true;
+      action.textContent = "Opening…";
+      const opened = await sendMessage({ type: "popup/start" });
+      if (opened?.ok && opened.opened) return window.close();
+      action.disabled = false;
+      action.hidden = true;
+      line.textContent = opened?.reason === "queue_empty" ? "Your queue is empty." : "WorkIt couldn't start your batch. Try again.";
+    });
+  } else if (home.queued === 0) {
+    title.textContent = "Auto Apply";
+    line.textContent = "Your queue is empty. Queue jobs on WorkIt to apply to them here.";
+    offer("Find Jobs", async () => {
+      chrome.tabs.create({ url: `${await webappUrl()}/jobs` });
+      window.close();
+    });
+  } else return;
+  box.hidden = false;
 }
 
 /** The tab the popup is for: the one its icon was pressed in (`?tab=`, which only the extension's own pages can open, for tests). */

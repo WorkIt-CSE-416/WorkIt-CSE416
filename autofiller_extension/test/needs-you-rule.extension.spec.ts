@@ -12,7 +12,7 @@
 import { expect, test, type Page } from "@playwright/test";
 import { FakeApi } from "./fake-api";
 import { SavedForms } from "./fake-job-systems";
-import { loadExtension, sendFromWebapp, signIn, webapp, type Loaded } from "./loaded-extension";
+import { loadExtension, sendFromWebapp, signIn, webapp, type Loaded, pressNextThing } from "./loaded-extension";
 
 const ANDURIL = "greenhouse-anduril";
 const ASKED = "question_13130330007"; // in person for 12 weeks: no answer, shown
@@ -40,7 +40,7 @@ test("the list, every count line, Next Thing and the page's dots agree on what n
   // Hidden, as a conditional question not asked yet.
   await page.evaluate(([box, id]) => ((0, eval)(box)(id).style.display = "none"), [BOX, HIDDEN]);
   await mainButton(page).click();
-  await expect(mainButton(page)).toContainText("Next:", { timeout: 60_000 });
+  await expect(mainButton(page)).toContainText(/^Answer \d+ of \d+$/, { timeout: 60_000 });
   // The asked question's box goes below the guess's, so page order alone would visit the guess first.
   await page.evaluate(([box, asked, guess]) => {
     const below = (0, eval)(box)(guess);
@@ -52,24 +52,30 @@ test("the list, every count line, Next Thing and the page's dots agree on what n
   await expect(red).toHaveCount(1);
   await expect(red).toHaveAttribute("data-key", ASKED);
   await expect(host.locator(`[data-key="${GUESS}"]`)).toHaveAttribute("data-mark", "check");
-  // The hidden question waits, out of sight, under "1 the form isn't asking now".
-  await expect(host.locator('.group[data-group="not-asked"] .group-head')).toHaveText("1 the form isn't asking now");
+  // The hidden question waits, out of sight, under "1 Not Asked Right Now".
+  await expect(host.locator('.group[data-group="not-asked"] .group-head')).toHaveText("1 Not Asked Right Now");
   await expect(host.locator(`[data-key="${HIDDEN}"]`)).toBeHidden();
 
-  // Every count line says 1.
-  await expect(host.locator(".summary")).toContainText("· 1 need you");
-  await expect(mainButton(page)).toHaveText("Next: 1 need you");
+  // The red box and the button both say 1.
+  await expect(host.locator('.box[data-box="needs-you"] .box-head')).toHaveText("1 Needs Your Answer");
+  await expect(mainButton(page)).toHaveText("Answer 1 of 1");
 
-  // Next Thing: the red row first, though the guess stands above it; a dot on its field.
+  // The button goes to the red row, though the guess stands above it; a dot on its field. Pressed again, it stays there:
+  // the field isn't answered yet (KAN-424).
   await mainButton(page).click();
   await expect(host.locator("[data-current]")).toHaveAttribute("data-key", ASKED);
   await expect(dots(page)).toHaveCount(1);
-  // Then the guess: visited, but no dot (it doesn't need the student).
   await mainButton(page).click();
+  await expect(host.locator("[data-current]")).toHaveAttribute("data-key", ASKED);
+
+  // Next Thing (Alt+N) walks on: the red row, then the guess, visited but with no dot (it doesn't need the student).
+  await pressNextThing(loaded, host);
+  await expect(host.locator("[data-current]")).toHaveAttribute("data-key", ASKED);
+  await pressNextThing(loaded, host);
   await expect(host.locator("[data-current]")).toHaveAttribute("data-key", GUESS);
   await expect(dots(page)).toHaveCount(1);
   // The hidden question is never visited.
-  await mainButton(page).click();
+  await pressNextThing(loaded, host);
   await expect(host.locator('[data-slot="primary"] [data-said]')).toHaveText("Nothing else needs you.");
   expect(forms.submissions).toEqual([]);
 });
@@ -86,7 +92,7 @@ test("in a batch tab, the walk goes to every red row before the guess, and the c
   await expect.poll(() => api.stages.get("job-0"), { timeout: 60_000 }).toBe("needs_you");
   const page = loaded.context.pages().find((p) => p.url() === forms.url(ANDURIL))!;
   const host = hostOf(page);
-  await expect(mainButton(page)).toContainText("Next:");
+  await expect(mainButton(page)).toContainText(/^Answer \d+ of \d+$/);
   // Both questions with no answer go below the guess.
   await page.evaluate(([box, guess, ...red]) => {
     const below = (0, eval)(box)(guess);
@@ -94,13 +100,16 @@ test("in a batch tab, the walk goes to every red row before the guess, and the c
   }, [BOX, GUESS, ASKED, HIDDEN]);
 
   await expect(host.locator('[data-tab="autofill"] .row[data-key][data-mark="needs-you"]')).toHaveCount(2);
-  await expect(host.locator(".summary")).toContainText("· 2 need you");
-  await expect(mainButton(page)).toHaveText("Next: 2 need you");
+  await expect(host.locator('.box[data-box="needs-you"] .box-head')).toHaveText("2 Need Your Answer");
+  await expect(mainButton(page)).toHaveText("Answer 1 of 2");
+  // The button takes the student to this page's first red field and nowhere else.
+  await mainButton(page).click();
+  await expect(host.locator("[data-current]")).toHaveAttribute("data-key", ASKED);
 
   const visited: (string | undefined)[] = [];
   for (let n = 0; n < 3; n++) {
-    const before = visited.at(-1);
-    await mainButton(page).click();
+    const before = n ? visited.at(-1) : undefined;
+    await pressNextThing(loaded, host);
     await expect.poll(() => host.locator("[data-current]").getAttribute("data-key")).not.toBe(before ?? null);
     visited.push((await host.locator("[data-current]").getAttribute("data-key")) ?? undefined);
   }

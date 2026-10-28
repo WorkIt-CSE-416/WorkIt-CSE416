@@ -1,7 +1,9 @@
 """Recognize one public ATS board/posting URL using the provider registry.
 
-Both discovery commands use this boundary. Query text is not scanned for links;
-the Greenhouse embed route is the one explicit query-based board identifier.
+Both discovery commands use this boundary. Query text is not scanned for links.
+The query-based board identifiers are explicit: the Greenhouse embed route, and
+the marks of a company's iCIMS Jibe site (`icims=1`) and SuccessFactors career
+site (`ats=successfactors`), each matched from the link's start (WHOLE_LINK).
 """
 
 from __future__ import annotations
@@ -17,6 +19,13 @@ WORKDAY_SITE = re.compile(
     r"recruiting/([a-z0-9-]+)/([a-z0-9_-]+)",
     re.I,
 )
+# Job systems whose `apply_link` reads past the host and path, so the strict
+# host-and-path match below never sees them: Jibe's and SuccessFactors' patterns
+# end in their query mark, and TikTok's ends mid-path. They were dropped when
+# board_keys replaced build_boards' tokens(), which matched the whole link, and
+# their boards stopped reaching boards.csv (KAN-424). Each is matched from the
+# start of the whole link, never searched for inside it.
+WHOLE_LINK = ("tiktok", "jibe", "successfactors")
 GREENHOUSE_HOSTS = {
     "boards.greenhouse.io",
     "job-boards.greenhouse.io",
@@ -68,6 +77,11 @@ def board_keys(url: str) -> list[tuple[str, str]]:
             return []
         wd, tenant, site = match.groups()
         return [("workday", f"{tenant}.{wd}/{site}".lower())]
+    whole = "//" + address + ("?" + parts.query if parts.query else "")
+    for ats in WHOLE_LINK:
+        if match := PROVIDERS[ats].apply_link.match(whole):
+            token = "/".join(group for group in match.groups() if group)
+            return [(ats, token if PROVIDERS[ats].keeps_case else token.lower())]
     return []
 
 

@@ -38,7 +38,8 @@ async function filled(tab: Page, [name, fields]: Step, n: number, of: number): P
  * yourself": the made-up profile has no answer for it), as a person would.
  */
 async function answerLeft(tab: Page, steps: Step[], n: number): Promise<string[]> {
-  const left = await overlay(tab).locator(".row").filter({ hasText: "Answer it yourself" }).allInnerTexts();
+  // The red box's rows WorkIt had no answer for (groups.js marks them; the box's title says it once).
+  const left = await overlay(tab).locator(".row[data-no-answer]").allInnerTexts();
   const labels = left.map((text) => text.split("\n")[0].trim());
   for (const label of labels) {
     const f = steps[n][1].find((g) => "label" in g && g.label === label) as Field | undefined;

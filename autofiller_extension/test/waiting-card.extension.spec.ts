@@ -48,7 +48,7 @@ test("an answer pasted in the waiting card is saved through WorkIt's checks and 
   const api = new FakeApi().queue({ id: "job-0", apply_url: LUMEN });
   const { name, form, card } = await openLumen(api);
   await expect(card.locator("[data-waited]")).toHaveText(/^Waiting (under a minute|\d+ min)$/);
-  await expect(panelOf(form).locator(".summary")).toContainText("1 waiting on Claude");
+  await expect(panelOf(form).locator('.box[data-box="waiting"] .box-head')).toHaveText("1 Waiting on Your Claude");
   await expect(panelOf(form).locator('.row[data-key][data-mark="waiting"]')).toHaveCount(1);
 
   await card.getByRole("textbox", { name: "Paste an answer" }).fill(ANSWER);
@@ -57,7 +57,7 @@ test("an answer pasted in the waiting card is saved through WorkIt's checks and 
   await expect.poll(() => api.pasted, { timeout: 5_000 }).toEqual([{ jobId: "job-0", name, answer: ANSWER }]);
   await expect(form.locator(`[name='${name}']`)).toHaveValue(ANSWER, { timeout: 5_000 });
   await expect(card).toHaveCount(0);
-  await expect(panelOf(form).locator(".summary")).not.toContainText("waiting on Claude");
+  await expect(panelOf(form).locator('.box[data-box="waiting"]')).toHaveCount(0);
   await expect(panelOf(form).locator('.row[data-key][data-mark="waiting"]')).toHaveCount(0);
 });
 
