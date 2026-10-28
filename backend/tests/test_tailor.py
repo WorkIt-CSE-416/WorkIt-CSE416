@@ -22,14 +22,15 @@ from app.main import app
 from app.models.built_resume import Built_Resume_Skill
 from app.models.jobs import Job_Post
 from app.routers import tailor as tailor_router
-from app.routers.scout import get_llm
 from app.schemas.auth import AccountType, AuthenticatedAccount
 from app.schemas.tailor import Placement
 from app.services import tailor
 from app.services.ai_messages import TOO_LARGE
 from app.services.bank import add_local_skill
 from app.services.keywords import posting_hash
+from app.services.models import get_large_llm, get_small_llm
 from app.services.resume_view import ResumeView, ViewSkill
+from tests import fake_models
 
 pytestmark = pytest.mark.anyio
 
@@ -127,10 +128,12 @@ class Student:
         return await self.post(
             "/tailor", {"job_posting_id": posting, **(source or built(self.base)), "skills": list(skills)})
 
-    async def stream(self, posting: str, skills: list[str] = ()) -> tuple[int, list[dict]]:
-        """A streamed run from the base resume: its status and its lines."""
+    async def stream(
+        self, posting: str, source: dict | None = None, skills: list[str] = ()
+    ) -> tuple[int, list[dict]]:
+        """A streamed run from `source`, by default the base resume: its status and its lines."""
         res = await self.post(
-            "/tailor/stream", {"job_posting_id": posting, **built(self.base), "skills": list(skills)})
+            "/tailor/stream", {"job_posting_id": posting, **(source or built(self.base)), "skills": list(skills)})
         if res.status_code != 200:
             return res.status_code, [res.json()]
         return 200, [json.loads(line) for line in res.text.splitlines() if line.strip()]
@@ -179,11 +182,11 @@ async def student(signed_in):
 def use_model():
     def install(*scripts) -> ScriptedLLM:
         fake = ScriptedLLM(*scripts)
-        app.dependency_overrides[get_llm] = lambda: fake
+        fake_models.use(fake)
         return fake
 
     yield install
-    app.dependency_overrides.pop(get_llm, None)
+    fake_models.clear()
 
 
 async def _seed_posting(database, description: str | None = DESCRIPTION, *, cached=True) -> str:
@@ -627,11 +630,11 @@ async def test_each_run_counts_against_the_tailor_cap(student, database, use_mod
 async def test_a_run_that_extracts_keywords_counts_once(student, database):
     posting = await _seed_posting(database, cached=False)
     fake = QueuedLLM(json.dumps({"keywords": KEYWORDS}), reply()[0])
-    app.dependency_overrides[get_llm] = lambda: fake
+    fake_models.use(fake)
     try:
         body = (await student.tailor(posting)).json()
     finally:
-        app.dependency_overrides.pop(get_llm, None)
+        fake_models.clear()
 
     assert len(fake.prompts) == 2
     assert _words(body["missing"]) == ["Go", "Kubernetes"]
@@ -692,18 +695,43 @@ async def test_a_reword_edit_names_the_wording_it_replaced_for_revert(student, d
     assert "Wrote billing services in python" in await student.words(body["resume"]["id"])
 
 
-async def test_a_second_run_on_a_posting_is_refused_before_the_model(student, database, use_model):
+async def test_a_second_run_replaces_the_tailored_resume_in_place(student, database, use_model):
+    """Back to Choose Keywords and run again: the same resume (its id, the
+    student's name for it), made again, with the last run's own skill gone."""
+    posting = await _seed_posting(database)
+    use_model(reply(
+        rewords=[("b2", "Built Python billing services packaged with Docker")],
+        placements=[{"skill": "Kubernetes", "group": "Tools", "after": 0}]))
+    first = (await student.tailor(posting, skills=["Kubernetes"])).json()["resume"]
+    renamed = await student.client.patch(f"{student.me}/built-resumes/{first['id']}", json={"name": "Mine"})
+    assert renamed.status_code == 200, renamed.text
+    assert (await student.match(posting)).json()["tailored_resume_id"] == first["id"]
+    fake = use_model(reply(rewords=[("b1", "Fixed bugs in a React dashboard written in Python")]))
+
+    res = await student.tailor(posting)
+
+    assert res.status_code == 200, res.text
+    second = res.json()["resume"]
+    assert second["id"] == first["id"] and second["name"] == "Mine"
+    assert fake.prompts
+    shown = await student.words(first["id"])
+    assert "Fixed bugs in a React dashboard written in Python" in shown
+    assert "Wrote billing services in python" in shown and "Kubernetes" not in shown
+    assert [r["id"] for r in await student.resumes() if r["job_posting_id"] == posting] == [first["id"]]
+
+
+async def test_a_run_from_the_posting_s_own_tailored_resume_is_refused_before_the_model(
+    student, database, use_model
+):
     posting = await _seed_posting(database)
     use_model(reply())
     first = (await student.tailor(posting)).json()["resume"]
     fake = use_model(reply())
 
-    res = await student.tailor(posting)
+    res = await student.tailor(posting, source=built(first["id"]))
 
-    assert res.status_code == 409
-    assert res.json()["detail"]["tailored_resume_id"] == first["id"]
+    assert res.status_code == 422
     assert fake.prompts == []
-    assert (await student.match(posting)).json()["tailored_resume_id"] == first["id"]
 
 
 async def test_the_same_wording_reuses_one_variant(student, database, use_model):
@@ -764,10 +792,10 @@ async def test_a_streamed_run_refused_before_the_model_is_an_http_status(student
     first = (await student.tailor(posting)).json()["resume"]
     fake = use_model(reply())
 
-    status, [body] = await student.stream(posting)
+    status, [body] = await student.stream(posting, source=built(first["id"]))
 
-    assert status == 409
-    assert body["detail"]["tailored_resume_id"] == first["id"]
+    assert status == 422
+    assert "detail" in body
     assert fake.prompts == []
 
 
@@ -809,6 +837,21 @@ async def test_another_resume_keeps_a_shared_wording_when_its_first_posting_goes
         await session.commit()
 
     assert "Built Python billing services" in await student.words(kept["id"])
+
+
+async def test_a_run_reads_keywords_with_the_small_model_and_rewrites_with_the_large(student, database):
+    posting = await _seed_posting(database, cached=False)
+    small = ScriptedLLM([json.dumps({"keywords": KEYWORDS})])
+    large = ScriptedLLM(reply())
+    app.dependency_overrides[get_small_llm] = lambda: small
+    app.dependency_overrides[get_large_llm] = lambda: large
+    try:
+        res = await student.tailor(posting)
+    finally:
+        fake_models.clear()
+
+    assert res.status_code == 200, res.text
+    assert (len(small.prompts), len(large.prompts)) == (1, 1)
 
 
 # --- Skill placement (docs/tailor_resume.md) ---------------------------------

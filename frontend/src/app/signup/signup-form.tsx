@@ -23,7 +23,6 @@ import { createAccount, type SignupState } from "./actions";
 const INITIAL_STATE: SignupState = {
   error: null,
   firstName: "",
-  middleName: "",
   lastName: "",
   email: "",
   companyName: "",
@@ -56,8 +55,6 @@ const COMPANY_PATHS = [
 
 type CompanyPath = (typeof COMPANY_PATHS)[number]["value"];
 
-const OPTIONAL = <span className="text-meta text-ink-meta">Optional</span>;
-
 /** Caption over each group of the company form — same type as "Or continue with". */
 const SECTION = "text-caption text-ink-muted uppercase";
 
@@ -83,16 +80,10 @@ export function SignupForm({ formId }: { formId: string }) {
   const [companySize, setCompanySize] = useState("");
   const [sizeAttempted, setSizeAttempted] = useState(false);
 
-  // Confirm Password never reaches the server (see actions.ts) — it exists
-  // purely to catch a typo before submission, so the comparison has to live
-  // here. `confirmAttempted` withholds the message until a submit was
-  // actually blocked by it, rather than flashing "doesn't match" on every
-  // keystroke before the second field is even finished.
+  // Controlled, so a failed submit (a taken email) keeps what was typed:
+  // React resets a form's uncontrolled fields after the action, and a
+  // password is never echoed back from the server.
   const [password, setPassword] = useState("");
-  const [confirmPassword, setConfirmPassword] = useState("");
-  const [confirmAttempted, setConfirmAttempted] = useState(false);
-  const passwordsMismatch = password !== confirmPassword;
-  const confirmInvalid = confirmAttempted && passwordsMismatch;
 
   const isCompany = accountType === "company";
   const showForm = !isCompany || companyPath === "create";
@@ -153,10 +144,6 @@ export function SignupForm({ formId }: { formId: string }) {
               event.preventDefault();
               setSizeAttempted(true);
             }
-            if (passwordsMismatch) {
-              event.preventDefault();
-              setConfirmAttempted(true);
-            }
           }}
           className="mt-5 flex flex-col"
         >
@@ -184,7 +171,13 @@ export function SignupForm({ formId }: { formId: string }) {
               </>
             )}
 
-            <div className="grid grid-cols-1 gap-2.5 sm:grid-cols-3">
+            {/* SIGN-UP ASKS THE MINIMUM (KAN-372): a name, an email and a
+                password. Middle Name and Confirm Password went: a middle name
+                is added in Settings' Personal Details, and sign-up signs the
+                student in at once, so a mistyped password is changed in
+                Settings' Sign-In & Security. Everything else waits for the
+                onboarding step that needs it. */}
+            <div className="grid grid-cols-1 gap-2.5 sm:grid-cols-2">
               <TextField
                 id="first-name"
                 name="firstName"
@@ -194,17 +187,6 @@ export function SignupForm({ formId }: { formId: string }) {
                 maxLength={100}
                 required
                 defaultValue={state.firstName}
-              />
-
-              <TextField
-                id="middle-name"
-                name="middleName"
-                type="text"
-                label="Middle Name"
-                labelAction={OPTIONAL}
-                autoComplete="additional-name"
-                maxLength={55}
-                defaultValue={state.middleName}
               />
 
               <TextField
@@ -234,8 +216,7 @@ export function SignupForm({ formId }: { formId: string }) {
             />
 
             {/* No maxLength: the API sets none, and a 20-character cap here
-                cut a pasted password short in this field but not in Confirm,
-                which then reported a mismatch nobody could see. */}
+                cut a pasted password short without a word. */}
             <div className="flex flex-col gap-1">
               <TextField
                 id="password"
@@ -253,27 +234,6 @@ export function SignupForm({ formId }: { formId: string }) {
               <p id="password-hint" className="text-meta text-ink-meta">
                 At least {PASSWORD_MIN_LENGTH} characters
               </p>
-            </div>
-
-            <div className="flex flex-col gap-1">
-              <TextField
-                id="confirm-password"
-                name="confirmPassword"
-                type="password"
-                label="Confirm Password"
-                icon={LockIcon}
-                autoComplete="new-password"
-                required
-                value={confirmPassword}
-                onChange={(event) => setConfirmPassword(event.target.value)}
-                aria-invalid={confirmInvalid || undefined}
-                aria-describedby={confirmInvalid ? "confirm-password-error" : undefined}
-              />
-              {confirmInvalid && (
-                <p id="confirm-password-error" role="alert" className="text-meta text-danger">
-                  Passwords do not match.
-                </p>
-              )}
             </div>
           </div>
 

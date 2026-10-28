@@ -1,8 +1,12 @@
 import { CloudSlashIcon } from "@phosphor-icons/react/ssr";
 import type { Metadata } from "next";
 
+import { PencilIcon } from "@/components/icons";
+import { ButtonLink } from "@/components/ui/button";
+import { Card } from "@/components/ui/card";
 import { EmptyState } from "@/components/ui/empty-state";
 import { listBuiltResumes } from "@/lib/built-resume-actions";
+import { claudeConnectorLink } from "@/lib/claude-connector";
 import { cn } from "@/lib/cn";
 import { listResumes } from "@/lib/resume-actions";
 
@@ -10,9 +14,11 @@ import { SEEKER_GUTTER } from "../gutter";
 import { RememberFeed } from "../jobs/[jobId]/page-actions";
 import { activityOf } from "./activity-list";
 import { getApplications, getRunApplications } from "./applications";
+import { getWrittenQuestions } from "./answers/questions";
 import { AutoApplyPanel } from "./auto-apply-panel";
 import type { SavedJob } from "./add-jobs-dialog";
 import { UpNext } from "./up-next";
+import { WriteWithClaude } from "./write-with-claude";
 
 export const metadata: Metadata = {
   title: "Auto Apply",
@@ -41,6 +47,14 @@ export const metadata: Metadata = {
  * section after Up Next; ./live-activity.tsx and the table's "history"
  * variant (./activity-list.tsx) are as they were.
  *
+ * WRITTEN QUESTIONS WAITING (KAN-385). While any open application has a
+ * written question with no answer, a card over Up Next says how many and
+ * links to Written Answers (./answers/page.tsx), where a student without
+ * Claude writes or pastes them. A student with Claude can leave them to it;
+ * the card says so, and its Write with Claude (./write-with-claude.tsx)
+ * opens a Claude chat with the trigger in its box. A failed read hides the
+ * card: Up Next says the API is down.
+ *
  * It opened with a Resume List of every resume until KAN-359; the page is
  * about which jobs go out, so jobs lead it.
  *
@@ -58,12 +72,14 @@ export const metadata: Metadata = {
  * SidebarInset is already the <main>.
  */
 export default async function AutoApplyPage() {
-  const [run, saved, built, uploaded] = await Promise.all([
+  const [run, saved, built, uploaded, written] = await Promise.all([
     getRunApplications(),
     getApplications(["saved"] as const, { scored: true }),
     listBuiltResumes(),
     listResumes(),
+    getWrittenQuestions(),
   ]);
+  const toWrite = (written.data ?? []).reduce((n, posting) => n + posting.questions.length, 0);
 
   const builtList = built.data ?? [];
   const uploadedList = (uploaded.resumes ?? []).filter((resume) => resume.storage_path);
@@ -112,10 +128,13 @@ export default async function AutoApplyPage() {
   }));
 
   return (
-    <div className={cn("max-w-app mx-auto w-full flex-1 py-6", SEEKER_GUTTER)}>
+    <div className={cn("max-w-dashboard mx-auto w-full flex-1 py-6", SEEKER_GUTTER)}>
       {/* So a queued job's page goes back here, not to the feed. */}
       <RememberFeed />
-      <AutoApplyPanel hasResume={builtList.length + uploadedList.length > 0}>
+      <AutoApplyPanel
+        hasResume={builtList.length + uploadedList.length > 0}
+        claudeLink={claudeConnectorLink()}
+      >
         {run.error != null ? (
           <EmptyState
             Icon={CloudSlashIcon}
@@ -126,7 +145,29 @@ export default async function AutoApplyPage() {
             We couldn&apos;t reach your applications. Refresh the page in a few minutes.
           </EmptyState>
         ) : (
-          <UpNext items={queue} saved={savedJobs} />
+          <>
+            {toWrite > 0 && (
+              <Card className="mt-6 flex flex-col gap-3 @2xl/main:flex-row @2xl/main:items-center @2xl/main:justify-between">
+                <div className="min-w-0">
+                  <h2 className="text-subtitle text-ink">
+                    {toWrite} Written {toWrite === 1 ? "Question" : "Questions"} Waiting
+                  </h2>
+                  <p className="text-body text-ink-meta mt-0.5">
+                    Your Claude writes them once you add WorkIt to it. Or write them yourself, or
+                    paste answers from any AI.
+                  </p>
+                </div>
+                <div className="flex shrink-0 flex-col gap-2 @md/main:flex-row @md/main:items-start">
+                  <WriteWithClaude />
+                  <ButtonLink href="/auto-apply/answers" variant="secondary" size="sm">
+                    <PencilIcon className="size-4" />
+                    Write Answers
+                  </ButtonLink>
+                </div>
+              </Card>
+            )}
+            <UpNext items={queue} saved={savedJobs} />
+          </>
         )}
       </AutoApplyPanel>
     </div>

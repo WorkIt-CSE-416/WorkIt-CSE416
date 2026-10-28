@@ -46,6 +46,21 @@ export async function readUploadedResume(resumeId: string): Promise<{
   return { resume, pdf: data, listError, fileError: error };
 }
 
+// An upload's PDF alone, base64, for Tailor's preview of the picked resume
+// (/api/resume-preview). The link's path names the stored file, so a DOCX
+// is known before any download and comes back as `pdf: null` with no
+// error: pdf.js cannot draw one. An id the student does not own gets the
+// API's refusal from the link call, so nothing is downloaded for it.
+export async function readUploadedPdf(
+  resumeId: string,
+): Promise<{ pdf: string | null; error: string | null }> {
+  const link = await getResumeFileUrl(resumeId);
+  if (!link.url) return { pdf: null, error: link.error ?? "Could not open the resume." };
+  if (!new URL(link.url).pathname.toLowerCase().endsWith(".pdf")) return { pdf: null, error: null };
+  const { data, error } = await readPdf(link.url);
+  return { pdf: data, error };
+}
+
 // The file behind a link getResumeFileUrl just answered, base64. Not
 // exported: a helper that fetched any URL it was handed must never become an
 // endpoint a page script can call.

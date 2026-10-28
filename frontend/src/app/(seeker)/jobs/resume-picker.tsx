@@ -1,6 +1,6 @@
 "use client";
 
-import { TagIcon } from "@phosphor-icons/react/ssr";
+import { EyeIcon, TagIcon } from "@phosphor-icons/react/ssr";
 import { useEffect, useRef, useState, type ChangeEvent } from "react";
 
 import { FieldFacet, type FacetOption } from "@/components/field-facet";
@@ -13,9 +13,10 @@ import {
   searchWords,
   type ResumeType,
 } from "@/components/resume-list";
-import { PrimaryStar, RESUME_ROW } from "@/components/resume-row";
+import { PrimaryStar, RESUME_ROW, ROW_ACTION } from "@/components/resume-row";
 import { RESUME_ACCEPT, resumeFileError } from "@/components/resume-upload";
 import { Button } from "@/components/ui/button";
+import { IconButton } from "@/components/ui/icon-button";
 import { SearchField } from "@/components/ui/search-field";
 import { cn } from "@/lib/cn";
 import { listBuiltResumes } from "@/lib/built-resume-actions";
@@ -169,6 +170,10 @@ export type PickerUpload = {
  * list (KAN-404): the two read as different apps, and the columns said what
  * a card's one line says. The search and the filter only filter what
  * shows: the pick stays put, so neither drops it.
+ *
+ * With `onPreview`, each card has a Preview button (an eye) that opens the
+ * resume without picking it: Tailor's step 1 shows the resume in a dialog
+ * (`jobs/[jobId]/tailor/resume-preview.tsx`). The other dialogs pass none.
  */
 export function ResumeLists({
   name,
@@ -176,6 +181,7 @@ export function ResumeLists({
   empty,
   picked,
   onPick,
+  onPreview,
   upload,
 }: {
   name: string;
@@ -184,6 +190,8 @@ export function ResumeLists({
   empty: string;
   picked: string | null;
   onPick: (key: string) => void;
+  /** Given, each card has a Preview button that calls it. */
+  onPreview?: (choice: Choice) => void;
   /** Given, the row has Upload Resume. */
   upload?: PickerUpload;
 }) {
@@ -249,7 +257,13 @@ export function ResumeLists({
                 >
                   {rows.map((c) => (
                     <li key={c.key}>
-                      <PickCard choice={c} name={name} picked={picked === c.key} onPick={onPick} />
+                      <PickCard
+                        choice={c}
+                        name={name}
+                        picked={picked === c.key}
+                        onPick={onPick}
+                        onPreview={onPreview}
+                      />
                     </li>
                   ))}
                 </ResumeGroup>
@@ -271,11 +285,13 @@ function PickCard({
   name,
   picked,
   onPick,
+  onPreview,
 }: {
   choice: Choice;
   name: string;
   picked: boolean;
   onPick: (key: string) => void;
+  onPreview?: (choice: Choice) => void;
 }) {
   const edited = c.madeAt != null && c.at != null && Date.parse(c.at) > Date.parse(c.madeAt);
   const day = c.type === "Uploaded" || edited ? c.at : c.madeAt;
@@ -309,6 +325,21 @@ function PickCard({
         </span>
       </span>
       <PrimaryStar name={c.label} primary={c.isDefault} />
+      {onPreview && (
+        // Inside the card's label, so the click must not reach the radio:
+        // a preview never moves the pick.
+        <IconButton
+          label={`Preview ${c.label}`}
+          tooltip="Preview"
+          className={cn(ROW_ACTION, "relative z-10 shrink-0")}
+          onClick={(event) => {
+            event.preventDefault();
+            onPreview(c);
+          }}
+        >
+          <EyeIcon aria-hidden className="size-4" />
+        </IconButton>
+      )}
     </label>
   );
 }

@@ -16,15 +16,17 @@ import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/shadcn/too
 import { cn } from "@/lib/cn";
 
 /**
- * THE SIDEBAR IS PINNED OR HOVERED (KAN-300), for both shells.
+ * THE SIDEBAR IS PINNED OR HOVERED (KAN-300), in the company shell. The
+ * seeker shell dropped it on 2026-10-27 for a rail that is always open
+ * (RailSidebarProvider in ./app-sidebar.tsx).
  *
  * Pinned, it stays open and the page makes room, as it always did. Unpinned,
  * it is the icon rail, and pointing at it (or tabbing into it) opens it OVER
  * the page for as long as the pointer or focus stays: the page underneath
  * neither moves nor reflows, so crossing the rail never shifts what the
  * seeker is reading. Leaving it closes it again. The toggle in the bar pins
- * and unpins, and the choice is the same sidebar_state cookie the layouts
- * read, so it survives a reload. Below md the sidebar is shadcn's sheet,
+ * and unpins, and the choice is the company_sidebar_pinned cookie the layout
+ * reads, so it survives a reload. Below md the sidebar is shadcn's sheet,
  * which has no hover, and works as before.
  *
  * Built around shadcn's provider rather than in it: src/components/shadcn is
@@ -34,12 +36,15 @@ import { cn } from "@/lib/cn";
  * so a peek holds that gap at the rail's width (data-peek below), and
  * anything sized by the pinned width reads `pinned`, never shadcn's `state`:
  * in React through useSidebarPin (the company bar's corner cell,
- * sidebar-brand.tsx), in CSS through data-pinned on the wrapper (the seeker
- * page's --panel-gain).
+ * sidebar-brand.tsx), in CSS through data-pinned on the wrapper.
  */
 
-/** shadcn's own cookie, which the layouts read as the pinned state. */
-const COOKIE = "sidebar_state";
+/** The pin, which the company layout reads back as defaultPinned
+ *  (app/company/layout.tsx spells the same name). Not shadcn's own
+ *  `sidebar_state`, which shadcn writes on every Ctrl or Cmd+B: the seeker
+ *  rail is held open, so a press there wrote `false`, and the company panel
+ *  then opened unpinned (KAN-421). */
+const COOKIE = "company_sidebar_pinned";
 const COOKIE_MAX_AGE = 60 * 60 * 24 * 7;
 
 /** A pause before a peek opens, so a pointer only crossing the rail on its
@@ -81,7 +86,7 @@ export function HoverSidebarProvider({
   className,
   ...props
 }: Omit<ComponentProps<typeof SidebarProvider>, "open" | "onOpenChange" | "defaultOpen"> & {
-  /** The sidebar_state cookie, read by the layout. */
+  /** The company_sidebar_pinned cookie, read by the layout. */
   defaultPinned: boolean;
 }) {
   const [pinned, setPinned] = useState(defaultPinned);
@@ -89,9 +94,9 @@ export function HoverSidebarProvider({
   const timer = useRef<ReturnType<typeof setTimeout>>(undefined);
   const firstRender = useRef(true);
 
-  // shadcn writes its cookie on every toggle, but with the value it computed
-  // from `open`, which a peek has set to true, so a pin from a peek would be
-  // saved as unpinned. This runs after it and writes what was meant.
+  // The pin's own cookie, written here rather than left to shadcn's, which
+  // it computes from `open`: a peek sets that to true, so a pin from a peek
+  // would be saved as unpinned. This writes what was meant.
   useEffect(() => {
     if (firstRender.current) {
       firstRender.current = false;
@@ -149,11 +154,9 @@ export function HoverSidebarProvider({
           setPinned((p) => !p);
         }}
         data-peek={!pinned && peeking}
-        // The pin itself, for CSS that is sized by the pinned width: the
-        // seeker page's --panel-gain readers key on it with an in-data-
-        // variant ((seeker)/layout.tsx, "A PAGE KEEPS THE WIDTH"). Written
+        // The pin itself, for CSS that is sized by the pinned width. Written
         // from the same state, in the same render, as shadcn's data-state,
-        // so the page's ease starts in the very frame the panel's does.
+        // so anything eased by it starts in the very frame the panel does.
         data-pinned={pinned ? "true" : "false"}
         // A peek's panel opens over the page: the gap beside it keeps the
         // rail's width, so the page stays where it is.

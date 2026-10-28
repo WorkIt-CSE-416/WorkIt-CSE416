@@ -16,8 +16,8 @@ from workit_scout.testing import ScriptedLLM
 from app.config import get_settings
 from app.deps import get_current_account
 from app.main import app
-from app.routers.scout import get_llm
 from app.schemas.auth import AccountType, AuthenticatedAccount
+from tests import fake_models
 
 pytestmark = pytest.mark.anyio
 
@@ -82,7 +82,7 @@ async def applicant(database):
 
 def use_model(*scripts) -> ScriptedLLM:
     fake = ScriptedLLM(*scripts)
-    app.dependency_overrides[get_llm] = lambda: fake
+    fake_models.use(fake)
     return fake
 
 

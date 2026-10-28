@@ -13,7 +13,7 @@ import { JOB_PAGE_WIDTH, JobViewHeaderSkeleton } from "./job-view";
  * Jobs page, a rail row, Top Matches or Auto Apply, it drew nothing new
  * until all of them answered; now the prefetched state below is drawn in
  * the click's next frame, beside the rail, which the jobs layout keeps
- * mounted (../jobs-rail.tsx). ../../dashboard/loading.tsx says why only
+ * mounted (../jobs-rail.tsx). ../../home/loading.tsx says why only
  * the slow pages have one.
  *
  * The page's own frame, so the page replaces it in place: the job page's

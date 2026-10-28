@@ -1,0 +1,115 @@
+"""
+The connector's consent page (KAN-377): the webapp's /connect/claude calls
+these with the student's Supabase session, while Claude waits on its sign-in
+to WorkIt (app/connector/oauth.py). `id` is the request id /authorize put in
+the page's link.
+
+GET  /connector/requests/{id}
+     Who asks: {"client_name": "Claude", "redirect_host": "claude.ai"},
+     the host the code goes back to. 404 once the sign-in is answered
+     or over (10 minutes).
+POST /connector/requests/{id}/approve
+     The student's Allow: answers {"redirect_to": ...}, the client's
+     redirect URI with a code it trades for a token at /token. 404 as above.
+POST /connector/requests/{id}/deny
+     The student's Deny: answers {"redirect_to": ...} with
+     error=access_denied. 404 as above.
+
+Student accounts only (403 for a company account): the connector reads a
+student's applications.
+
+GET  /applicants/{applicant_id}/connector
+     {"added": bool}: whether the student's Claude holds a live sign-in to
+     WorkIt (a refresh token not expired or revoked). The extension asks
+     before it shows the add-Claude step on a batch's first essay question
+     (KAN-387), so a student who added it never sees it.
+"""
+
+import uuid
+
+from fastapi import APIRouter, Depends, HTTPException, status
+from pydantic import BaseModel
+from sqlalchemy.ext.asyncio import AsyncSession
+
+from app.connector import oauth
+from app.db import get_session
+from app.deps import get_current_account, owned_applicant
+from app.schemas.auth import AccountType, AuthenticatedAccount
+
+router = APIRouter(prefix="/connector/requests", tags=["connector"])
+added_router = APIRouter(tags=["connector"])
+
+
+class ConsentRequest(BaseModel):
+    client_name: str
+    redirect_host: str
+
+
+class Redirect(BaseModel):
+    redirect_to: str
+
+
+def _student(account: AuthenticatedAccount) -> uuid.UUID:
+    if account.account_type is not AccountType.APPLICANT:
+        raise HTTPException(status.HTTP_403_FORBIDDEN, "Only a student account can connect Claude.")
+    return account.id
+
+
+@router.get("/{request_id}", response_model=ConsentRequest)
+async def consent_request(
+    request_id: uuid.UUID,
+    account: AuthenticatedAccount = Depends(get_current_account),
+    db: AsyncSession = Depends(get_session),
+) -> ConsentRequest:
+    _student(account)
+    try:
+        name, host = await oauth.asker(db, request_id)
+        return ConsentRequest(client_name=name, redirect_host=host)
+    except oauth.NotPending as exc:
+        raise HTTPException(status.HTTP_404_NOT_FOUND, str(exc)) from exc
+
+
+@router.post("/{request_id}/approve", response_model=Redirect)
+async def approve(
+    request_id: uuid.UUID,
+    account: AuthenticatedAccount = Depends(get_current_account),
+    db: AsyncSession = Depends(get_session),
+) -> Redirect:
+    applicant_id = _student(account)
+    try:
+        return Redirect(redirect_to=await oauth.approve(db, request_id, applicant_id))
+    except oauth.NotPending as exc:
+        raise HTTPException(status.HTTP_404_NOT_FOUND, str(exc)) from exc
+
+
+@router.post("/{request_id}/deny", response_model=Redirect)
+async def deny(
+    request_id: uuid.UUID,
+    account: AuthenticatedAccount = Depends(get_current_account),
+    db: AsyncSession = Depends(get_session),
+) -> Redirect:
+    _student(account)
+    try:
+        return Redirect(redirect_to=await oauth.deny(db, request_id))
+    except oauth.NotPending as exc:
+        raise HTTPException(status.HTTP_404_NOT_FOUND, str(exc)) from exc
+
+
+class Added(BaseModel):
+    added: bool
+
+
+@added_router.get("/applicants/{applicant_id}/connector", response_model=Added)
+async def connector_added(
+    applicant_id: uuid.UUID = Depends(owned_applicant),
+    db: AsyncSession = Depends(get_session),
+) -> Added:
+    return Added(added=await oauth.added(db, applicant_id))
+
+
+@added_router.delete("/applicants/{applicant_id}/connector", status_code=status.HTTP_204_NO_CONTENT)
+async def disconnect(
+    applicant_id: uuid.UUID = Depends(owned_applicant),
+    db: AsyncSession = Depends(get_session),
+) -> None:
+    await oauth.disconnect(db, applicant_id)

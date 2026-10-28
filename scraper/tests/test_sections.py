@@ -319,7 +319,7 @@ class TestStoredPage:
             "Benefits\nThe pay for this role is $30-$40 per hour, plus a housing stipend."
         )
 
-        page = providers._page("Data Engineering Intern", full)
+        page = providers.text._page("Data Engineering Intern", full)
 
         # The pay line moves to Pay by what it says (fix 3), out of Benefits.
         assert page.description == (

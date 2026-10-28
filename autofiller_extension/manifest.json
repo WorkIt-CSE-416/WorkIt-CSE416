@@ -14,11 +14,31 @@
     "default_icon": "icons/icon.png",
     "default_title": "WorkIt Autofiller"
   },
+  "options_ui": {
+    "page": "src/options/options.html",
+    "open_in_tab": true
+  },
   "background": {
     "service_worker": "src/background/background.js",
     "type": "module"
   },
-  "permissions": ["storage", "activeTab", "scripting", "cookies"],
+  "content_scripts": [
+    {
+      "matches": ["https://*.greenhouse.io/embed/job_app*"],
+      "js": ["src/content/embed-idle.js"],
+      "world": "MAIN",
+      "run_at": "document_start",
+      "all_frames": true
+    },
+    {
+      "matches": ["https://*.greenhouse.io/*", "https://*.lever.co/*", "https://*.ashbyhq.com/*", "https://*.rippling.com/*", "https://*.workable.com/*", "https://*.eightfold.ai/*", "https://explore.jobs.netflix.net/*", "https://careers.withwaymo.com/*", "https://*.myworkdayjobs.com/*", "https://*.myworkdaysite.com/*", "https://jobs.smartrecruiters.com/*", "https://*.oraclecloud.com/hcmUI/CandidateExperience/*", "https://lifeattiktok.com/*", "https://www.lifeattiktok.com/*", "https://careers.tiktok.com/*", "https://jobs.bytedance.com/*", "https://joinbytedance.com/*", "https://*.successfactors.com/career*", "https://*.successfactors.com/portalcareer*", "https://*.successfactors.eu/career*", "https://*.successfactors.eu/portalcareer*", "https://*.sapsf.com/career*", "https://*.sapsf.com/portalcareer*", "https://*.sapsf.eu/career*", "https://*.sapsf.eu/portalcareer*", "https://*.icims.com/jobs/*"],
+      "js": ["src/shared/tokens.js", "src/content/ui.js", "src/shared/report-parts.js", "src/content/panel.js", "src/content/panel-top.js", "src/content/resume-tab.js", "src/content/panel-settings.js", "src/content/report.js", "src/content/panel-states.js", "src/content/launcher.js"],
+      "run_at": "document_idle",
+      "all_frames": true
+    }
+  ],
+  "permissions": ["storage", "activeTab", "scripting", "cookies", "tabGroups", "webRequest"],
+  "optional_host_permissions": ["https://*/*"],
   "host_permissions": [
     "http://localhost:8000/*",
     "https://api.workitjobs.ai/*",
@@ -33,8 +53,22 @@
     "https://*.workable.com/*",
     "https://*.eightfold.ai/*",
     "https://explore.jobs.netflix.net/*",
+    "https://careers.withwaymo.com/*",
     "https://*.myworkdayjobs.com/*",
-    "https://*.myworkdaysite.com/*"
+    "https://*.myworkdaysite.com/*",
+    "https://*.oraclecloud.com/*",
+    "https://lifeattiktok.com/*",
+    "https://www.lifeattiktok.com/*",
+    "https://careers.tiktok.com/*",
+    "https://jobs.bytedance.com/*",
+    "https://joinbytedance.com/*",
+    "https://jobs.smartrecruiters.com/*",
+    "https://api.smartrecruiters.com/*",
+    "https://*.successfactors.com/*",
+    "https://*.successfactors.eu/*",
+    "https://*.sapsf.com/*",
+    "https://*.sapsf.eu/*",
+    "https://*.icims.com/*"
   ],
   "externally_connectable": {
     "matches": [
@@ -42,5 +76,15 @@
       "https://workitjobs.ai/*",
       "https://workit-web-gamma.vercel.app/*"
     ]
+  },
+  "commands": {
+    "toggle-panel": {
+      "suggested_key": { "default": "Alt+W" },
+      "description": "Open or close the WorkIt panel"
+    },
+    "next-thing": {
+      "suggested_key": { "default": "Alt+N" },
+      "description": "Go to the next thing that needs you"
+    }
   }
 }

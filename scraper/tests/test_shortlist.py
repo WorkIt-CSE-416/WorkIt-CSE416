@@ -9,7 +9,7 @@ were measured on.
 from __future__ import annotations
 
 from workit_scraper.providers import Job
-from workit_scraper.shortlist import CATEGORY_TAGS, Tag, classify, pick
+from workit_scraper.shortlist import CATEGORY_TAGS, Tag, classify, pick, widening_step
 
 
 def job(
@@ -628,3 +628,30 @@ class TestPick:
             ]
         )
         assert roles[-1].posted_at is None
+
+
+class TestWideningStep:
+    """metrics.json counts what each step of a wider shortlist would add, before
+    anyone takes it (docs/coverage.md, "More roles"). Each title was seen live."""
+
+    def test_each_title_counts_under_the_first_step_that_would_keep_it(self):
+        for title, step in (
+            ("Software Engineer Intern", "kept"),
+            ("Legal Intern", "held_field"),  # Sezzle
+            ("Technical Support Engineer - University Graduate 2027", "held_field"),  # Verkada
+            ("Engineering Intern", "no_field"),  # Decagon
+            # Recruits for a program; no stage of the person's own.
+            ("Campus Recruiter, Machine Learning and Quantitative Research", "no_stage"),
+            ("Senior Software Engineer", "senior"),
+            ("Junior/Senior or Staff Software Engineer, Inference / Compute", "senior"),
+            ("Electronics Test and Assembly Technician", "outside"),  # Silvus: `NEVER`
+            (
+                "Advocate Camp Counselor for children w/disabilities, JCC Sports Camp, Summer",
+                "outside",
+            ),
+        ):
+            assert widening_step(title) == step, title
+
+    def test_kept_is_what_classify_keeps(self):
+        for title in ("Software Engineer Intern", "Legal Intern", "Senior Software Engineer"):
+            assert (widening_step(title) == "kept") == bool(classify(title)), title

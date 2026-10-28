@@ -20,9 +20,9 @@ from app.deps import get_current_account
 from app.main import app
 from app.routers import resumes as resumes_router
 from app.routers.resumes import text_hash
-from app.routers.scout import get_llm
 from app.schemas.auth import AccountType, AuthenticatedAccount
-from app.services.bank_import import read
+from app.services.bank_import import read, skill_pairs
+from tests import fake_models
 
 pytestmark = pytest.mark.anyio
 
@@ -152,8 +152,11 @@ def upload(monkeypatch):
     bucket = _Bucket()
     monkeypatch.setattr("app.routers.resumes.get_supabase", lambda: bucket)
 
-    async def send(client, applicant_id, raw_text, *, replacing=None, filename="resume.pdf"):
-        """With `replacing`, Import Updated Resume on that resume's row."""
+    async def send(client, applicant_id, raw_text, *, replacing=None, filename="resume.pdf", preview=False,
+                   replace_matching=False, removed_skills=()):
+        """With `replacing`, Import Updated Resume on that resume's row; with
+        `preview`, the parse preview, which saves nothing; with
+        `replace_matching`, the upload that confirms a preview (KAN-372)."""
         async def extract(contents, ext):
             return raw_text
 
@@ -161,7 +164,11 @@ def upload(monkeypatch):
         files = {"file": (filename, b"%PDF-1.4 not really a pdf", "application/pdf")}
         if replacing:
             return await client.put(f"/applicants/{applicant_id}/resumes/{replacing}", files=files)
-        return await client.post(f"/applicants/{applicant_id}/resumes", files=files)
+        if preview:
+            return await client.post(f"/applicants/{applicant_id}/resumes/preview", files=files)
+        params = {"replace": "matching"} if replace_matching else None
+        data = {"removed_skills": list(removed_skills)} if removed_skills else None
+        return await client.post(f"/applicants/{applicant_id}/resumes", files=files, params=params, data=data)
 
     send.bucket = bucket
     return send
@@ -179,7 +186,8 @@ async def test_an_upload_writes_its_reading_into_the_bank(student, upload):
     assert "parsed_json" not in body
     assert body["status"] == "parsed"
     assert body["bank"] == {
-        "found": 8, "entries_added": 6, "skills_added": 2, "read_by": "parser", "uses_left": 1,
+        "found": 8, "entries_added": 6, "skills_added": 2, "entries_replaced": 0, "skills_replaced": 0,
+        "read_by": "parser", "uses_left": 1,
     }
 
     saved = (await client.get(bank)).json()
@@ -657,6 +665,105 @@ async def test_add_under_another_students_resume_is_not_found(student, database)
     assert (await client.get(bank)).json()["entries"] == []
 
 
+# --- the parse preview and its confirm (KAN-372, ADR 0006) ---------------------------
+
+
+async def test_a_preview_shows_the_reading_and_saves_nothing(student, upload):
+    client, applicant_id, bank = student
+
+    res = await upload(client, applicant_id, RESUME_TEXT, preview=True)
+    assert res.status_code == 200
+    body = res.json()
+    assert [_summary(e) for e in body["entries"]] == [
+        ("education", "Riverside State University", None),
+        ("experience", "Mechanical Engineering Intern", "Harbor Robotics"),
+        ("projects", "Budget Buddy", None),
+        ("leadership", "Vice President", "Society of Women Engineers"),
+        ("awards", "Dean's List", "Riverside State University"),
+        ("certifications", "Certified SolidWorks Associate", None),
+    ]
+    assert body["entries"][1]["bullets"] == [
+        "Designed a sheet-metal bracket that cut assembly time by 20%",
+        "Ran tolerance stack-up analyses in SolidWorks",
+    ]
+    assert [(s["name"], s["group"]) for s in body["skills"]] == [("SolidWorks", "Tools"), ("MATLAB", "Tools")]
+    assert body["duplicate_of"] is None
+
+    # Nothing kept: no file, no resume row, no bank rows.
+    assert upload.bucket.files == {}
+    assert (await client.get(f"/applicants/{applicant_id}/resumes")).json() == []
+    saved = (await client.get(bank)).json()
+    assert (saved["entries"], saved["skills"]) == ([], [])
+
+
+async def test_a_preview_of_an_uploaded_resume_names_the_upload(student, upload):
+    client, applicant_id, _ = student
+    first = (await upload(client, applicant_id, RESUME_TEXT, filename="Sam 2026.pdf")).json()
+
+    body = (await upload(client, applicant_id, RESUME_TEXT, preview=True)).json()
+    assert body["duplicate_of"] == {"resume_id": first["id"], "name": "Sam 2026.pdf"}
+
+
+async def test_a_preview_marks_what_a_confirm_replaces_from_earlier_uploads_only(student, upload):
+    client, applicant_id, bank = student
+    old = (await upload(client, applicant_id, RESUME_TEXT)).json()["id"]
+    saved = (await client.get(bank)).json()
+    old_job = next(e["id"] for e in saved["entries"] if e["section"] == "experience")
+    old_matlab = next(s["id"] for s in saved["skills"] if s["name"] == "MATLAB")
+    # Typed by hand, the same job: never replaced.
+    await client.post(
+        f"{bank}/entries",
+        json={"section": "experience", "title": "mechanical engineering intern", "organization": "harbor robotics"},
+    )
+
+    body = (await upload(client, applicant_id, OTHER_TEXT, preview=True)).json()
+    assert [(e["title"], e["replaces"]) for e in body["entries"]] == [
+        ("Mechanical Engineering Intern", [old_job]), ("Solar Kart", []),
+    ]
+    assert [(s["name"], s["replaces"]) for s in body["skills"]] == [("MATLAB", [old_matlab]), ("Python", [])]
+    assert old in {r["id"] for r in saved["resumes"]}
+
+
+async def test_a_confirmed_preview_replaces_matching_entries_instead_of_adding_copies(student, upload):
+    client, applicant_id, bank = student
+    old = (await upload(client, applicant_id, RESUME_TEXT)).json()["id"]
+    await client.post(
+        f"{bank}/entries",
+        json={"section": "experience", "title": "mechanical engineering intern", "organization": "harbor robotics"},
+    )
+
+    res = await upload(client, applicant_id, OTHER_TEXT, filename="resume-b.pdf", replace_matching=True)
+    assert res.status_code == 200
+    new = res.json()["id"]
+    assert res.json()["bank"] == {
+        "found": 4, "entries_added": 2, "skills_added": 2, "entries_replaced": 1, "skills_replaced": 1,
+        "read_by": "parser", "uses_left": 1,
+    }
+
+    held = _held((await client.get(bank)).json())
+    # One internship and one MATLAB from the uploads, now the newer one's;
+    # the older upload keeps what the newer one does not list; the
+    # student's own entry stays.
+    assert [ids for name, ids in held if name == "Mechanical Engineering Intern"] == [[new]]
+    assert [ids for name, ids in held if name == "MATLAB"] == [[new]]
+    assert ("Budget Buddy", [old]) in held and ("SolidWorks", [old]) in held
+    assert ("mechanical engineering intern", []) in held
+
+    # A third version, confirmed the same way, still leaves one of each.
+    newer = OTHER_TEXT.replace("Built a solar go-kart", "Built and raced a solar go-kart")
+    assert (await upload(client, applicant_id, newer, filename="resume-c.pdf", replace_matching=True)).status_code == 200
+    held = _held((await client.get(bank)).json())
+    assert [name for name, _ in held].count("Solar Kart") == 1
+    assert [name for name, _ in held].count("MATLAB") == 1
+
+
+async def test_another_students_preview_is_refused(student, upload, database):
+    client, _, _ = student
+    async with database() as session:
+        other = await _seed_applicant(session)
+    assert (await upload(client, other, RESUME_TEXT, preview=True)).status_code == 403
+
+
 # --- reading with the model (KAN-222) ----------------------------------------------
 #
 # ScriptedLLM stands in for the model (seam 2); its script is the model's JSON.
@@ -704,11 +811,11 @@ def parsing_caps(monkeypatch):
 def use_model():
     def install(*scripts) -> ScriptedLLM:
         fake = ScriptedLLM(*scripts)
-        app.dependency_overrides[get_llm] = lambda: fake
+        fake_models.use(fake)
         return fake
 
     yield install
-    app.dependency_overrides.pop(get_llm, None)
+    fake_models.clear()
 
 
 def rate_limited() -> RateLimitError:
@@ -829,6 +936,50 @@ def test_the_reading_keeps_the_gpa_scale_and_project_tools():
     assert skills == [("C++", "Languages"), ("Python", "Languages"), ("CMake", None)]
 
 
+def test_a_titles_tool_list_after_a_bar_is_split_off_and_never_glued_onto_a_skill():
+    # Pure, no database: "Role| C++, Go  City, ST" under a "Company  Dates" line
+    # keeps only the role; the tools join the skills, ungrouped, after the
+    # skills section's own. A project's "Name | Group| C++, Go" takes the
+    # last bar's list, so the group never becomes part of a skill.
+    entries, skills = read(
+        "Experience\n"
+        "Northwind Signals  Jun 2098 – Aug 2098\n"
+        "Software Engineer Intern, Telemetry| C++, Go, gRPC  Springfield, IL\n"
+        "• Built a thing.\n"
+        "Bluebird Labs  Jan 2099 – Present\n"
+        "Software Engineer (Part-Time)| Ruby, Rails  Remote\n"
+        "• Built another thing.\n"
+        "Projects\n"
+        "Line Robot  | Robotics Club| C/C++, Arduino  Aug 2097 – Present\n"
+        "• Built a robot.\n"
+        "Skills\nLanguages: C++, Go\n"
+    )
+    jobs = [(e.title, e.organization, e.location) for e in entries if e.section.value == "experience"]
+    assert jobs == [
+        ("Software Engineer Intern, Telemetry", "Northwind Signals", "Springfield, IL"),
+        ("Software Engineer (Part-Time)", "Bluebird Labs", "Remote"),
+    ]
+    assert [e.title for e in entries if e.section.value == "projects"] == ["Line Robot | Robotics Club"]
+    assert skills == [
+        ("C++", "Languages"), ("Go", "Languages"),
+        ("gRPC", None), ("Ruby", None), ("Rails", None), ("C/C++", None), ("Arduino", None),
+    ]
+
+
+def test_a_reading_never_keeps_a_qualification_or_a_glued_name_as_a_skill():
+    pairs = [("Rust", "Languages"), ("Robotics Club| C++", None), ("Computer Science degree", None),
+             ("AI tools", None), ("3+ years of Java", None), ("Docker", "Tools")]
+    assert skill_pairs(pairs) == [("Rust", "Languages"), ("Docker", "Tools")]
+
+
+def test_a_reading_keeps_only_catalog_skills_in_the_resumes_spelling_once_each():
+    pairs = [("ReactJS", "Frameworks"), ("Teamwork", None), ("Communication", None), ("Python", None),
+             ("Leadership", None), ("REST APIs", None), ("React", None), ("Pi Pico", None),
+             ("Microsoft Office Tools", None), ("Problem Solving", None)]
+    assert skill_pairs(pairs) == [("ReactJS", "Frameworks"), ("Python", None), ("REST APIs", None),
+                                  ("Pi Pico", None), ("Microsoft Office Tools", None)]
+
+
 def test_a_model_reading_with_null_lists_still_counts():
     # Groq's gpt-oss sends coursework: null on a job. That is an empty list,
     # not a failed reading.
@@ -873,3 +1024,39 @@ async def test_a_rename_refuses_a_blank_name_and_another_students_resume(student
     stolen = await client.patch(f"/applicants/{applicant_id}/resumes/{theirs}", json={"name": "Mine"})
     assert stolen.status_code == 404
     assert (await client.get(f"/applicants/{applicant_id}/resumes/{resume_id}")).json()["original_filename"] == "resume.pdf"
+
+
+# --- A removed skill stays removed (KAN-369) ----------------------------------
+
+
+def _skill_names(saved: dict) -> list[str]:
+    return sorted(s["name"] for s in saved["skills"])
+
+
+async def test_a_skill_the_student_deletes_is_never_read_in_again_until_they_add_it(student, upload, database):
+    client, applicant_id, bank = student
+    resume_id = await _seed_resume(database, applicant_id, RESUME_TEXT)
+    await client.post(f"{bank}/import", json={"resume_id": str(resume_id)})
+    matlab = next(s for s in (await client.get(bank)).json()["skills"] if s["name"] == "MATLAB")
+
+    assert (await client.delete(f"{bank}/skills/{matlab['id']}")).status_code == 204
+    await client.post(f"{bank}/import", json={"resume_id": str(resume_id)})
+    assert _skill_names((await client.get(bank)).json()) == ["SolidWorks"]
+    preview = (await upload(client, applicant_id, OTHER_TEXT, preview=True)).json()
+    assert [s["name"] for s in preview["skills"]] == ["Python"]
+
+    # Added by hand, it is the student's again, and readings may add it.
+    assert (await client.post(f"{bank}/skills", json={"name": "Matlab"})).status_code == 201
+    await client.post(f"{bank}/import", json={"resume_id": str(resume_id)})
+    assert _skill_names((await client.get(bank)).json()) == ["MATLAB", "Matlab", "SolidWorks"]
+
+
+async def test_a_skill_removed_in_the_preview_is_not_saved_or_read_in_later(student, upload):
+    client, applicant_id, bank = student
+    res = await upload(client, applicant_id, RESUME_TEXT, replace_matching=True, removed_skills=["SolidWorks"])
+    assert res.status_code == 200, res.text
+    resume_id = res.json()["id"]
+    assert _skill_names((await client.get(bank)).json()) == ["MATLAB"]
+
+    await client.post(f"{bank}/import", json={"resume_id": resume_id})
+    assert _skill_names((await client.get(bank)).json()) == ["MATLAB"]

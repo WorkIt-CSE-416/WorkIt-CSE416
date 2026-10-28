@@ -82,5 +82,12 @@ export async function signIn(_prevState: LoginState, formData: FormData): Promis
     return { error: message, email: emailValue };
   }
 
-  redirect(homePath(account));
+  redirect(nextPath(formData.get("next")) ?? homePath(account));
+}
+
+/** Where a sign-in started from another page goes back to (`/login?next=`):
+ *  only the connector's consent page (KAN-377), so the link can't send a
+ *  student anywhere else. */
+function nextPath(next: FormDataEntryValue | null): string | null {
+  return typeof next === "string" && next.startsWith("/connect/claude?") ? next : null;
 }

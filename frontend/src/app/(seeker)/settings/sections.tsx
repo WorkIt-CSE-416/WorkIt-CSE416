@@ -4,6 +4,7 @@ import { Skeleton } from "@/components/shadcn/skeleton";
 import { Card } from "@/components/ui/card";
 import { SectionHeading } from "@/components/ui/section-heading";
 
+import { IntegrationsSection } from "./integrations/section";
 import { NotificationsSection } from "./notifications/section";
 import { PersonalSection } from "./personal/section";
 import { PreferencesSection } from "./preferences/section";
@@ -52,6 +53,7 @@ export function allSections() {
         <NotificationsSection />
       </Suspense>
     ),
+    integrations: <IntegrationsSection />,
     preferences: (
       <Suspense
         fallback={<SectionSkeleton id="job-preferences" title="Job Preferences" fields={4} />}

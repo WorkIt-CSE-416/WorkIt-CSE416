@@ -10,7 +10,7 @@ import type { TimelineStep } from "../tracker";
 
 /**
  * An application's timeline: one dot per step on one rail, in its kind's
- * stage colour (KIND_STAGE), as the Dashboard's Up Next colours it. A step
+ * stage colour (KIND_STAGE), as Home's Up Next colours it. A step
  * behind, and the one the application is waiting on, is filled with its
  * stage's glyph (STAGE_ICON; a resume sent on its own wears the file), the
  * one waiting is marked Next too, and anything further out is an empty

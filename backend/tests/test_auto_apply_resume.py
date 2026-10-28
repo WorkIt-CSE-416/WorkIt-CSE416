@@ -148,9 +148,10 @@ async def test_a_queued_job_can_leave_the_queue_and_come_back(student, storage, 
 
 
 @pytest.mark.parametrize("url", [
-    "https://jobs.lever.co/acme/1",
-    # A company's own careers page embedding Greenhouse: not its form.
-    "https://stripe.com/jobs/search?gh_jid=1",
+    # A job board whose posting names no employer form (KAN-376).
+    "https://www.linkedin.com/jobs/view/1",
+    # A company's own careers page naming no form auto apply fills.
+    "https://stripe.com/jobs/listing/software-engineer/1",
 ])
 async def test_a_job_auto_apply_cannot_fill_is_never_queued(student, database, url):
     client, me = student

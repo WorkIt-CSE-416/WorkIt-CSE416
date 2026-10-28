@@ -11,8 +11,8 @@ import { cn } from "@/lib/cn";
  * The top bar's left cell: the sidebar toggle and the logo, in a cell exactly
  * as wide as the panel below it, ruled off on the right where the panel is.
  * The company shell opens its bar with it; `href` is where the logo goes
- * home to. The seeker shell used it too until it moved to floating panels,
- * where the logo lives in the panel's own header (PanelBrand in
+ * home to. The seeker shell used it too until it moved to floating panels;
+ * its rail now carries the mark in its own header (RailBrand in
  * @/components/app-sidebar).
  * The bar and the panel then read as one frame around the page, the way a
  * dashboard's corner does, instead of a bar whose logo and search float at

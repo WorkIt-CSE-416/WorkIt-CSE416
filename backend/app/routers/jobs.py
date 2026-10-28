@@ -85,6 +85,7 @@ from app.deps import (
     get_signed_in_applicant_id,
 )
 from app.models import dto
+from app.queries.jobs import home
 from app.queries.jobs.facets import (
     fetch_facets,
     fetch_location_options,
@@ -96,6 +97,7 @@ from app.queries.jobs.recommendations import score_jobs
 from app.queries.jobs.search import read_search, terms_in
 from app.schemas.auth import AuthenticatedAccount
 from app.schemas.jobs import (
+    HomeMatches,
     JobCount,
     JobFacets,
     JobListing,
@@ -139,7 +141,7 @@ async def read_filters(
     start_term: list[SeasonKey] = Query([], max_length=12),
     visa: Literal["sponsors"] | None = None,
     # All Filters' "Auto Apply Supported": only job postings auto apply can
-    # fill (Greenhouse for now, app/auto_apply/hosts.py).
+    # fill (every hiring system the Fill engine fills, app/auto_apply/hosts.py).
     auto_apply: bool = False,
     # /search's words, read by the role resolver (JobFilters.query_roles).
     q: str | None = Query(None, max_length=200),
@@ -336,6 +338,35 @@ async def recommended_jobs(
         )
     except EmptyBank as exc:
         raise HTTPException(404, str(exc)) from exc
+
+
+@router.get("/recommended/{applicant_id}/home", response_model=HomeMatches)
+async def recommended_home(
+    applicant_id: uuid.UUID,
+    # Strong Matches' window: Home sends its longest range's days.
+    posted_within: int = Query(ge=1, le=365),
+    min_match: int = Query(ge=0, le=100),
+    limit: int = Query(12, ge=1, le=50),
+    account: AuthenticatedAccount = Depends(get_current_account),
+    db: AsyncSession = Depends(get_session),
+) -> HomeMatches:
+    """Home's matches from one scoring pass (queries/jobs/home.py): the
+    best `limit`, the best `limit` auto apply can fill, and when each job
+    posted within `posted_within` days scoring at least `min_match` went
+    up. Served from the kept result while nothing it was made from has
+    changed. 404 while the bank is empty."""
+    assert_applicant_owns(account, applicant_id)
+    key = (account.id, await home.home_version(db, account.id), posted_within, min_match, limit)
+    if (hit := home.kept(key)) is not None:
+        return hit
+    bank = await load_bank(db, account.id)
+    if not bank.entries and not bank.skills:
+        raise HTTPException(404, "Your experience bank is empty")
+    matches = await home.home_matches(
+        db, account, bank, posted_within=posted_within, min_match=min_match, limit=limit
+    )
+    home.keep(key, matches)
+    return matches
 
 
 @router.get("/{job_id}/requirements", response_model=list[JobRequirement])

@@ -38,7 +38,7 @@ def test_skill_coverage_is_partial_and_independent_of_other_results(monkeypatch,
     applicant_id = uuid4()
     bank_row = _setup(monkeypatch, skills, [.125] * 768)
     posted = datetime.now(UTC)
-    target = SimpleNamespace(**vars(ROW), semantic=.8,
+    target = SimpleNamespace(**vars(ROW), semantic=.8, in_all=True,
                              matched_skills=["python", None] if skills else None, _posted_at=posted)
     other = SimpleNamespace(**{**vars(target), "id": uuid4(), "matched_skills": ["python", "SQL"] if skills else None})
     queries = []
@@ -84,7 +84,8 @@ def test_recommendation_vector_can_be_bound(monkeypatch, stored):
             if isinstance(bind.type, VECTOR):
                 processor = bind.type.bind_processor(dialect())
                 bound_vectors.append(processor(value))
-        row = SimpleNamespace(**vars(ROW), semantic=0.8, matched_skills=["Python"], _posted_at=ROW.posted_at)
+        row = SimpleNamespace(**vars(ROW), semantic=0.8, matched_skills=["Python"],
+                              _posted_at=ROW.posted_at, in_all=True)
         return Mock(all=Mock(return_value=[row]))
 
     db = SimpleNamespace(get=AsyncMock(return_value=bank_row), execute=execute, commit=AsyncMock())
@@ -133,12 +134,36 @@ def test_candidates_are_ranked_and_capped_in_sql(monkeypatch, vector):
     # NULLS LAST matters: Postgres puts NULL first under DESC, so jobs with no
     # embedding would otherwise fill the cap ahead of the real matches.
     expected = (
-        "ORDER BY semantic DESC NULLS LAST, job_postings.posted_at DESC NULLS LAST"
+        "ORDER BY near.semantic DESC NULLS LAST, near.posted_at DESC NULLS LAST"
         if vector
-        else "ORDER BY job_postings.posted_at DESC NULLS LAST"
+        else "ORDER BY near.posted_at DESC NULLS LAST"
     )
     assert expected in sql
-    assert "LIMIT" in sql
+    assert f"<= {recommendations.CANDIDATES}" in sql or "<= $" in sql
+
+
+def test_skills_are_matched_only_on_the_ranked_candidates(monkeypatch):
+    # The ranking subquery reads the vector alone; the text search runs in
+    # the outer query, on the CANDIDATES rows it kept (KAN-425: matching
+    # every listed job's text before the cap tripled a pass's time).
+    applicant_id = uuid4()
+    bank_row = _setup(monkeypatch, ["Python", "SQL"], [0.125] * 768)
+    queries = []
+
+    async def execute(query):
+        queries.append(str(query.compile(dialect=dialect())))
+        return Mock(all=Mock(return_value=[]))
+
+    db = SimpleNamespace(get=AsyncMock(return_value=bank_row), execute=execute, commit=AsyncMock())
+    asyncio.run(jobs.recommended_jobs(
+        applicant_id, limit=20, offset=0, filters=jobs.JobFilters(),
+        account=SimpleNamespace(id=applicant_id, account_type=AccountType.APPLICANT),
+        db=db,
+    ))
+    sql = queries[-1]
+    ranking = sql[sql.index("FROM (SELECT"):sql.index(") AS ranked")]
+    assert "plainto_tsquery" not in ranking
+    assert sql.count("plainto_tsquery") == 2
 
 
 def test_the_bank_embed_in_a_request_has_a_short_timeout(monkeypatch):

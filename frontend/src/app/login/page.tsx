@@ -36,8 +36,10 @@ export default async function LoginPage({ searchParams }: PageProps<"/login">) {
   // which CI's build has none of (the seeker layout's rule).
   await connection();
   await redirectIfSignedIn();
-  // Set by /auth/confirm when an email link was bad, expired or used.
-  const { error } = await searchParams;
+  // The page to go back to after signing in: the connector's consent page
+  // (actions.ts allows only that one). `error` is set by /auth/confirm when an
+  // email link was bad, expired or used.
+  const { next, error } = await searchParams;
   const badLink = error === "confirm_failed" || error === "invalid_link";
 
   return (
@@ -67,7 +69,7 @@ export default async function LoginPage({ searchParams }: PageProps<"/login">) {
             reaches the submission through its hidden input's `form`. */}
         <AccountTypeSwitcher form={FORM_ID} />
 
-        <LoginForm formId={FORM_ID} />
+        <LoginForm formId={FORM_ID} next={typeof next === "string" ? next : undefined} />
 
         <AuthAlternatives />
 

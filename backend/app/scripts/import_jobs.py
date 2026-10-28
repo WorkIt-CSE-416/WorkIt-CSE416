@@ -38,8 +38,11 @@ holds unique. One run, in one transaction:
    feed is re-resolved on every run, so an alias added to role_resolver.py
    reaches every job on the next run with no backfill;
 6. closes scraped jobs no longer in the feed. The scraper drops a job only
-   after reading its board in full without it (scraper/CLAUDE.md), so absence
-   is evidence. A job that comes back is published again.
+   after two complete reads of its board in a row without it
+   (scraper/CLAUDE.md, "Nothing closes"), so absence is evidence. Each close
+   records why in closed_reason, from closings.json beside the feed (or
+   --closings): the scraper's reason, else "unknown". A job that comes back
+   is published again, with no reason.
 
 The report lists the titles that resolved to no role, most jobs first: that
 list is how the aliases grow (docs/search.md).
@@ -54,8 +57,10 @@ Company-posted jobs (company_id set) are never read or written here.
 import argparse
 import asyncio
 import datetime
+import json
 import logging
 import sys
+from collections import Counter
 from collections.abc import Iterable
 from dataclasses import dataclass, field
 from pathlib import Path
@@ -89,11 +94,11 @@ from app.models import dto
 from app.models.job_roles import Job_Role, Job_Role_Tag
 from app.models.jobs import Job_Location, Job_Post
 from app.models.locations import Country, State
-from app.routers.scout import get_llm
 from app.schemas.jobs import JobListing
 from app.services import keywords
 from app.services.location_resolver import LocationResolver, Place, Resolution
 from app.services.matching.embeddings import BATCH_SIZE, embed, job_text
+from app.services.models import get_small_llm
 from app.services.role_resolver import RoleResolver
 
 logger = logging.getLogger(__name__)
@@ -121,6 +126,13 @@ _MASS_CLOSE_FLOOR = 20
 # first run's backlog of thousands spreads over many runs instead of
 # spending the day's quota, or the job's 30 minutes, in one.
 KEYWORDS_PER_RUN = 100
+# Why a scraped job closed (job_postings.closed_reason, bd730e8ab454's CHECK),
+# as the scraper's closings.json names them (scraper/workit_scraper/feed.py's
+# REASONS). A reason it gives that is not here is filed as UNKNOWN, as is a
+# job it gives none for: a scraper newer than this list must not stop real
+# closes, and a missing reason is what this column is for finding.
+CLOSED_REASONS = frozenset({"gone_from_board", "board_gone", "filtered_out", "replaced"})
+UNKNOWN = "unknown"
 
 
 class ImportRefused(Exception):
@@ -153,6 +165,12 @@ class Report:
     updated: int = 0
     unchanged: int = 0
     closed: int = 0
+    # closed_reason -> how many jobs this run closed under it
+    closed_by_reason: dict[str, int] = field(default_factory=dict)
+    # False when the run had no closings.json: every close is UNKNOWN
+    had_closings: bool = True
+    # reasons closings.json gave that CLOSED_REASONS lacks, filed as UNKNOWN
+    strange_reasons: set[str] = field(default_factory=set)
     embedded: int = 0
     keywords: int = 0
     locations_changed: int = 0
@@ -161,6 +179,28 @@ class Report:
     no_place: int = 0
     unresolved: dict[str, tuple[str, ...]] = field(default_factory=dict)
     untagged: dict[str, int] = field(default_factory=dict)
+
+
+def read_closings(path: Path) -> dict[str, str] | None:
+    '''
+    closings.json: apply_url -> why the scraper dropped it. None when the file
+    is missing or not that shape, so the run still closes, as UNKNOWN: a feed
+    from before closings.json, a local run or a lost artifact must not keep
+    real closes open.
+    '''
+    try:
+        found = json.loads(path.read_text(encoding="utf-8"))
+    except FileNotFoundError:
+        return None
+    except ValueError:
+        logger.warning("%s is not JSON; every close this run is %s", path, UNKNOWN)
+        return None
+    if not isinstance(found, dict) or not all(
+        isinstance(k, str) and isinstance(v, str) for k, v in found.items()
+    ):
+        logger.warning("%s is not a map of URLs to reasons; every close this run is %s", path, UNKNOWN)
+        return None
+    return found
 
 
 def parse_posted_at(value: str | None) -> datetime.datetime | None:
@@ -271,8 +311,9 @@ async def _upsert(conn: AsyncConnection, rows: list[dict], report: Report) -> No
                 **{col: stmt.excluded[col] for col in _FEED_COLUMNS},
                 "status": dto.job_post_status.published,
                 # A job closed by an earlier run and back in the feed is open
-                # again, so the date it closed no longer applies.
+                # again, so the date and reason it closed no longer apply.
                 "closes_at": None,
+                "closed_reason": None,
                 # Tailor's cached keywords (KAN-215) came from the old
                 # description; a new one clears them.
                 **{
@@ -377,7 +418,10 @@ async def _sync_roles(
         await conn.execute(insert(_tags).values(fresh[start:start + _CHUNK * 2]))
 
 
-async def _close_missing(conn: AsyncConnection, urls: list[str], report: Report, *, allow_mass_close: bool) -> None:
+async def _close_missing(
+    conn: AsyncConnection, urls: list[str], report: Report, *, allow_mass_close: bool,
+    closings: dict[str, str] | None = None,
+) -> None:
     published_scraped = and_(
         _jobs.c.company_id.is_(None), _jobs.c.status == dto.job_post_status.published
     )
@@ -396,22 +440,39 @@ async def _close_missing(conn: AsyncConnection, urls: list[str], report: Report,
             "Re-run with --allow-mass-close if they really are gone."
         )
 
+    report.had_closings = closings is not None
+    known = {url: why for url, why in (closings or {}).items() if why in CLOSED_REASONS}
+    report.strange_reasons = {why for why in (closings or {}).values() if why not in CLOSED_REASONS}
+    # Two arrays, unnested side by side as (url, reason) rows: one parameter
+    # each, like _text_array's, whatever the file's size.
+    given = func.unnest(
+        _text_array(list(known)), _text_array(list(known.values()))
+    ).table_valued("url", "reason").render_derived()
+    reason = func.coalesce(
+        select(given.c.reason).where(given.c.url == _jobs.c.apply_url).scalar_subquery(),
+        UNKNOWN,
+    )
     now = func.now()
     result = await conn.execute(
         update(_jobs).where(missing).values(
             status=dto.job_post_status.closed,
             closes_at=func.least(func.coalesce(_jobs.c.closes_at, now), now),
+            closed_reason=reason,
             updated_at=now,
-        )
+        ).returning(_jobs.c.closed_reason)
     )
-    report.closed = result.rowcount
+    reasons = Counter(result.scalars().all())
+    report.closed = sum(reasons.values())
+    report.closed_by_reason = dict(reasons)
 
 
 async def import_feed(
-    conn: AsyncConnection, listings: list[JobListing], *, allow_mass_close: bool = False
+    conn: AsyncConnection, listings: list[JobListing], *, allow_mass_close: bool = False,
+    closings: dict[str, str] | None = None,
 ) -> Report:
     '''
-    the whole import, on a connection whose transaction the caller owns
+    the whole import, on a connection whose transaction the caller owns.
+    `closings` is closings.json (`read_closings`); None closes as UNKNOWN.
     '''
     if not listings:
         raise ImportRefused("The feed is empty; nothing was written.")
@@ -445,7 +506,9 @@ async def import_feed(
     ids = await _scraped_ids(conn, list(prepared.places))
     await _sync_locations(conn, prepared.places, ids, report)
     await _sync_roles(conn, prepared.role_tags, ids, report)
-    await _close_missing(conn, list(prepared.places), report, allow_mass_close=allow_mass_close)
+    await _close_missing(
+        conn, list(prepared.places), report, allow_mass_close=allow_mass_close, closings=closings
+    )
     return report
 
 
@@ -561,7 +624,12 @@ def _print_report(report: Report, *, dry_run: bool) -> None:
     print(f"  inserted {report.inserted}, updated {report.updated}, unchanged {report.unchanged}")
     print(f"  embedded {report.embedded}")
     print(f"  keywords extracted {report.keywords}")
-    print(f"  closed (no longer in the feed) {report.closed}")
+    reasons = ", ".join(f"{why} {n}" for why, n in sorted(report.closed_by_reason.items()))
+    print(f"  closed (no longer in the feed) {report.closed}" + (f": {reasons}" if reasons else ""))
+    if not report.had_closings:
+        print(f"  no closings.json beside the feed: every close this run is {UNKNOWN}")
+    if report.strange_reasons:
+        print(f"  reasons this import does not know, filed as {UNKNOWN}: {', '.join(sorted(report.strange_reasons))}")
     print(f"  jobs whose locations changed {report.locations_changed}")
     print(f"  jobs whose job_role_tags changed {report.roles_changed}")
     if report.duplicates:
@@ -577,15 +645,18 @@ def _print_report(report: Report, *, dry_run: bool) -> None:
 
 async def _run(
     path: Path, *, dry_run: bool, allow_mass_close: bool, embed_limit: int | None = None,
-    keywords_limit: int = KEYWORDS_PER_RUN,
+    keywords_limit: int = KEYWORDS_PER_RUN, closings_path: Path | None = None,
 ) -> Report:
     listings = _FEED.validate_json(path.read_bytes())
+    closings = read_closings(closings_path or path.with_name("closings.json"))
     engine = get_engine()
     try:
         async with engine.connect() as conn:
             trans = await conn.begin()
             try:
-                report = await import_feed(conn, listings, allow_mass_close=allow_mass_close)
+                report = await import_feed(
+                    conn, listings, allow_mass_close=allow_mass_close, closings=closings
+                )
             except BaseException:
                 await trans.rollback()
                 raise
@@ -599,7 +670,7 @@ async def _run(
                     logger.warning("Embedding failed after import committed", exc_info=True)
                 if keywords_limit:
                     try:
-                        report.keywords = await _extract_keywords(conn, get_llm(), limit=keywords_limit)
+                        report.keywords = await _extract_keywords(conn, get_small_llm(), limit=keywords_limit)
                     except Exception:
                         logger.warning("Keyword extraction failed after import committed", exc_info=True)
             return report
@@ -620,7 +691,7 @@ async def _run_keywords_only(*, limit: int) -> int:
     engine = get_engine()
     try:
         async with engine.connect() as conn:
-            return await _extract_keywords(conn, get_llm(), limit=limit)
+            return await _extract_keywords(conn, get_small_llm(), limit=limit)
     finally:
         await engine.dispose()
 
@@ -630,6 +701,8 @@ def main(argv: list[str] | None = None) -> int:
     parser.add_argument("feed", nargs="?", type=Path, help="feed.json to import (default: the one GET /jobs reads)")
     parser.add_argument("--dry-run", action="store_true", help="run every step, then roll back")
     parser.add_argument("--allow-mass-close", action="store_true", help="close however many jobs left the feed")
+    parser.add_argument("--closings", type=Path,
+                        help="why each job left the feed (default: closings.json beside the feed)")
     parser.add_argument("--embed-limit", type=int, help="embed at most this many jobs; does not limit feed imports")
     parser.add_argument("--embeddings-only", action="store_true", help="fill missing scraped-job vectors without reading or importing a feed")
     parser.add_argument("--keywords-limit", type=int, default=KEYWORDS_PER_RUN,
@@ -662,6 +735,7 @@ def main(argv: list[str] | None = None) -> int:
         report = asyncio.run(_run(
             path, dry_run=args.dry_run, allow_mass_close=args.allow_mass_close,
             embed_limit=args.embed_limit, keywords_limit=args.keywords_limit,
+            closings_path=args.closings,
         ))
     except FileNotFoundError:
         print(f"No feed at {path}. Run `python3 -m workit_scraper` in scraper/ first.", file=sys.stderr)

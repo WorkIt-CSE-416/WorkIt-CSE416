@@ -8,6 +8,7 @@ import { FakeEightfold } from "../fill-engine/test/fake-eightfold";
 import { FakeJobServer, FORMS, loadHar } from "../fill-engine/test/fake-job-server";
 import { FakeLever } from "../fill-engine/test/fake-lever";
 import { FakeRippling } from "../fill-engine/test/fake-rippling";
+import { FakeWaymo } from "../fill-engine/test/fake-waymo";
 import { FakeWorkable } from "../fill-engine/test/fake-workable";
 import { EDUCATION, FakeWorkday, type Step } from "../fill-engine/test/fake-workday";
 import { formUrl, planFill } from "../src/background/engine.js";
@@ -76,6 +77,33 @@ test("fills a saved Ashby form from a WorkIt profile and submits nothing", async
   expect(skydio.submissions).toEqual([]);
 });
 
+test("a required field the Question set lacks needs the student until it shows an answer", async ({ context }) => {
+  // Ashby's page can ask a required field its own job API doesn't list: the fill never plans it,
+  // so the tab must not be Ready with it empty, and the student is told which field it is.
+  const harvey = new FakeJobServer("ashby-harvey");
+  const page = await harvey.open(context);
+  const PREFERRED = "385365ed-cae7-44ee-982a-feacd6f3c539"; // Preferred First Name
+  const posting = JSON.parse(readFileSync(join(FORMS, "ashby-harvey", "questions.json"), "utf8"));
+  for (const section of posting.data.jobPosting.applicationForm.sections)
+    section.fieldEntries = section.fieldEntries.filter((e: any) => e.field.path !== PREFERRED);
+  await bridge(page, async (url) => {
+    if (url.endsWith("?op=ApiJobPosting")) return JSON.stringify(posting);
+    throw new Error(`${url} answered 404`);
+  });
+  await page.evaluate(() => void ((window as any).WIA = { batch: true })); // a batch tab watches the student's edits
+
+  await inject(page);
+  const { rows } = await settled(page);
+
+  expect(rows.find((r) => r.key === PREFERRED)).toMatchObject({
+    label: "Preferred First Name", required: true, status: "failed", reason: "The form needs this before it sends. Answer it yourself.",
+  });
+  await page.locator(`[data-field-path="${PREFERRED}"] input`).fill("Tess");
+  await expect.poll(() => page.evaluate((key) => (window as any).WIA.status.summary().fields.find((r: any) => r.key === key), PREFERRED))
+    .toMatchObject({ status: "filled", shows: "Tess", source: "student" });
+  expect(harvey.submissions).toEqual([]);
+});
+
 test("fills a saved Rippling form from a WorkIt profile and submits nothing", async ({ context }) => {
   const rippling = new FakeRippling("rippling-rippling");
   const page = await rippling.open(context);
@@ -132,6 +160,21 @@ test("fills a saved Eightfold form from a WorkIt profile, reading its questions 
   expect(netflix.submissions).toEqual([]);
 });
 
+test("fills a saved Waymo careers site form from a WorkIt profile, reading its questions from the page, and submits nothing", async ({ context }) => {
+  // Greenhouse's school search, which the page asks, finds the profile's school.
+  const waymo = new FakeWaymo("waymo-depotautomation", { schools: ["Example State University"] });
+  const page = await waymo.open(context);
+  await bridge(page, api({}));
+
+  await inject(page);
+  const { phase, rows } = await settled(page);
+
+  expect(phase).toBe("filled");
+  expect(shown(rows)).toMatchObject({ first_name: "Test", last_name: "Person", email: "test.person@example.com" });
+  expect(failed(rows)).toEqual({});
+  expect(waymo.submissions).toEqual([]);
+});
+
 // A Workday application of the questions WorkIt can answer, in Workday's steps.
 // My Experience asks its Education entries as a repeating section: the
 // student's school is a new panel, whose fields the step then asks.
@@ -167,9 +210,9 @@ test("fills a Workday application step by step as the student moves on, and subm
     const { phase, rows } = await settled(page);
     const step = rows.find((r) => r.key === "_step")!.label.replace("Workday: ", "");
     steps[step] = shown(rows);
-    // Workday's search names the major its own way: shown, but failed, so the student checks it.
-    expect(failed(rows), step).toEqual(step === "My Experience"
-      ? { "Education 1 / Field of Study": "meant 'Computer Science', page shows 'Computer and Information Science'" } : {});
+    // Workday's search names the major its own way ("Computer and Information Science"): the fill picked
+    // that result because it names the answer, so it reads back as filled, not failed.
+    expect(failed(rows), step).toEqual({});
     if (phase === "last") break;
     expect(phase).toBe("step");
     // The student checks the step and moves on; the step loads as a new page, where the background injects the fill again.
@@ -186,6 +229,7 @@ test("fills a Workday application step by step as the student moves on, and subm
       "My Experience / Education": "1", // how many entries: the new panel is planned and filled next
       "My Experience / Education 1 / School or University": "Example State University",
       "My Experience / Education 1 / Degree": "Bachelor's Degree",
+      "My Experience / Education 1 / Field of Study": "Computer and Information Science",
       "My Experience / Education 1 / From (YYYY)": "2024",
       "My Experience / Resume/CV": "resume.pdf",
       "My Experience / LinkedIn": "https://www.linkedin.com/in/test-person",
@@ -197,6 +241,32 @@ test("fills a Workday application step by step as the student moves on, and subm
     "Voluntary Disclosures": { "Voluntary Disclosures / Veteran Status": "I am not a protected veteran" },
     Review: {},
   });
+  expect(workday.submissions).toEqual([]);
+});
+
+test("Workday's How Did You Hear About Us? gets WorkIt, else LinkedIn, searched for without opening its categories", async ({ context }) => {
+  const tree: [string, string[]][] = [["University", ["Career Fair"]], ["Website", ["Company Website"]], ["Job Board", ["Indeed", "LinkedIn"]], ["Other", []]];
+  const workday = new FakeWorkday("workday-caci", { liveEvents: true,
+    steps: [["My Information", [{ key: "source", label: "How Did You Hear About Us?", kind: "prompt", required: true, tree }]]] });
+  const page = await workday.open(context);
+  await bridge(page, api({}));
+
+  await inject(page);
+  const { rows } = await settled(page);
+
+  expect(failed(rows)).toEqual({});
+  expect(shown(rows)).toMatchObject({ "My Information / How Did You Hear About Us?": "LinkedIn" });
+  expect(await page.evaluate(() => Number(sessionStorage.categoriesOpened || 0))).toBe(0);
+});
+
+test("a Workday degree list of kinds gets the student's own: B.S. is BS", async ({ context }) => {
+  // Xcel's (seen live) lists kinds, not levels: the profile's "B.S." is the type it picks by.
+  const kinds = { ...EDUCATION, panels: 0, fields: EDUCATION.fields.map((f) => (f.key === "degree" ? { ...f, options: ["BA", "BS", "MS"] } : f)) };
+  const workday = new FakeWorkday("workday-caci", { steps: [["My Experience", [kinds, { key: "linkedinQuestion", label: "LinkedIn", kind: "text" }]]], liveEvents: true });
+  const page = await workday.open(context);
+  await bridge(page, api({}));
+  await inject(page);
+  expect(shown((await settled(page)).rows)["My Experience / Education 1 / Degree"]).toBe("BS");
   expect(workday.submissions).toEqual([]);
 });
 
@@ -233,7 +303,8 @@ test("asks the essay route for no more than it takes, though the form's box take
 
   await inject(page);
   await settled(page);
-  await page.evaluate(() => (document.getElementById("workit-autofiller-overlay-host")!.shadowRoot!.querySelector("[data-generate]") as HTMLElement).click());
+  // The student's own click: the panel takes no click a script makes.
+  await page.locator("#workit-autofiller-overlay-host [data-generate]").click();
   await page.waitForFunction(() => !(window as any).WIA.status.summary().fields.some((f: any) => f.status === "needs_generation"));
 
   expect(asked.length).toBeGreaterThan(0);

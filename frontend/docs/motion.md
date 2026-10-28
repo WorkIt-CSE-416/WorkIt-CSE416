@@ -61,7 +61,7 @@ moving at `/design-kit/motion`. The rules:
   there. Do not remove it or move it outside the boundary. The Jobs page gets
   the normal `page-enter` on a sidebar click, with no special case.
 - **A choice the page can already draw never waits on the server.** The
-  Dashboard's range, the Applications layout and the Calendar's view and
+  Home's range, the Applications layout and the Calendar's view and
   span move the query in place (`components/shallow-routing.tsx`): the
   content holds every option and reads the query itself, so it redraws in
   the next frame, where a link to the server made it trail the segmented

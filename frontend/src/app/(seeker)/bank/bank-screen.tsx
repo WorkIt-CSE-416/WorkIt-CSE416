@@ -9,8 +9,10 @@ import {
 } from "@phosphor-icons/react/ssr";
 import {
   Fragment,
+  startTransition,
   useEffect,
   useMemo,
+  useOptimistic,
   useRef,
   useState,
   type FormEvent,
@@ -100,7 +102,13 @@ export function BankScreen({
   /** The URL's `?resume=`: a resume id or "none". */
   resumeParam?: string;
 }) {
-  const [bank, setBank] = useState(initial);
+  const [saved, setBank] = useState(initial);
+  // What the page draws: the bank less any skill whose delete is still on
+  // its way, so a removed skill leaves at once (KAN-388).
+  const [bank, hideSkill] = useOptimistic(saved, (b, id: string) => ({
+    ...b,
+    skills: b.skills.filter((s) => s.id !== id),
+  }));
   const [pick, setPick] = useState<Pick>(() => openingPick(initial.resumes, resumeParam));
   const [editing, setEditing] = useState<Editing>(null);
   const [saving, setSaving] = useState(false);
@@ -194,6 +202,20 @@ export function BankScreen({
     const { data, error } = await getBank();
     if (data) setBank(data);
     return error;
+  }
+
+  // The skill leaves the page first and the delete runs behind it
+  // (KAN-388). A failed delete ends the transition with the skill still in
+  // the bank, so it comes back, with the error. A delete changes nothing
+  // else in the bank, so the page drops the skill itself and reads nothing
+  // back.
+  function removeSkill(id: string, onError: (error: string) => void) {
+    startTransition(async () => {
+      hideSkill(id);
+      const { error } = await deleteSkill(id);
+      if (error) return onError(error);
+      setBank((b) => ({ ...b, skills: b.skills.filter((s) => s.id !== id) }));
+    });
   }
 
   // An "Also on" name shows that resume (KAN-363). The entry it sat on is
@@ -420,6 +442,7 @@ export function BankScreen({
         resumes={bank.resumes}
         pick={current}
         reload={reload}
+        removeSkill={removeSkill}
       />
     </div>
   );
@@ -800,6 +823,7 @@ function SkillsCard({
   resumes,
   pick,
   reload,
+  removeSkill,
 }: {
   skills: Skill[];
   /** The picked resume: a skill added here goes into it. */
@@ -808,6 +832,9 @@ function SkillsCard({
   resumes: BankResume[];
   pick: Pick;
   reload: () => Promise<string | null>;
+  /** Takes the skill off the page at once, then deletes it; a failed
+   *  delete puts it back and hands over the error. */
+  removeSkill: (id: string, onError: (error: string) => void) => void;
 }) {
   const [name, setName] = useState("");
   const [group, setGroup] = useState("");
@@ -855,13 +882,10 @@ function SkillsCard({
     if (reloadError) setError(reloadError);
   }
 
-  async function remove(skill: Skill) {
-    const res = await deleteSkill(skill.id);
-    if (res.error) return setError(res.error);
+  function remove(skill: Skill) {
     setError(null);
     if (editingId === skill.id) close();
-    const reloadError = await reload();
-    if (reloadError) setError(reloadError);
+    removeSkill(skill.id, setError);
   }
 
   return (
