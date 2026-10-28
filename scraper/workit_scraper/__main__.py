@@ -10,11 +10,9 @@ No more than eight boards are in flight at a time, and every fetch goes through
 from __future__ import annotations
 
 import argparse
-import csv
 import json
 import sys
 import time
-import urllib.error
 from collections import Counter
 from concurrent.futures import ThreadPoolExecutor
 from dataclasses import asdict, replace
@@ -23,14 +21,16 @@ from enum import Enum, auto
 from pathlib import Path
 
 from workit_scraper import feed, logos, providers, report, store
+from workit_scraper.board_read import ReadStatus, read_board
+from workit_scraper.catalog import BOARDS_CSV, load_boards
+from workit_scraper.discovery_review import validate_catalog
 from workit_scraper.polite import Robots
-from workit_scraper.providers import Board, BoardNotFound, Job
+from workit_scraper.providers import Board, Job
 from workit_scraper.providers.systems.workday import WORKDAY_CAP
 from workit_scraper.shortlist import WIDENING_STEPS, classify, pick, widening_step
 from workit_scraper.store import RunStats
 
 ROOT = Path(__file__).resolve().parent.parent
-BOARDS_CSV = ROOT / "boards.csv"
 JOBS_JSON = ROOT / "jobs.json"
 PAGE_HTML = ROOT / "internships.html"
 FEED_JSON = ROOT / "feed.json"
@@ -55,71 +55,24 @@ class Outcome(Enum):
     DEFERRED = auto()
 
 
-def load_boards(path: Path) -> list[Board]:
-    with path.open(newline="", encoding="utf-8") as handle:
-        # boards.csv opens with `#` provenance lines naming where the slugs came from
-        # (see build_boards.py). DictReader would take the first of them as the header.
-        rows = list(csv.DictReader(line for line in handle if not line.startswith("#")))
-    boards = []
-    for row in rows:
-        ats = (row.get("ats") or "").strip()
-        token = (row.get("token") or "").strip()
-        if not ats or not token:
-            continue
-        boards.append(Board(ats, token, (row.get("company") or token).strip()))
-    return boards
-
-
 def _scrape_one(board: Board, robots: Robots) -> tuple[Outcome, list[Job], str | None]:
     """One board's read: what happened, its postings, and why it stayed unread
     (None when it was read whole)."""
-    provider = providers.PROVIDERS.get(board.ats)
-    if provider is None:
+    result = read_board(board, robots)
+    if result.reason == "no reader":
         print(f"  ?  {board.key}: no fetcher for this provider", file=sys.stderr)
-        return Outcome.SKIPPED, [], "no reader"
-    url = providers.listing_url(board.ats, board.token)
-    if not all(robots.allows(u) for u in providers.robots_urls(board.ats, board.token)):
+    elif result.reason == "robots.txt":
         print(f"  -  {board.key}: skipped, robots.txt disallows us")
-        return Outcome.SKIPPED, [], "robots.txt"
-    robots.pace(url)
-    try:
-        if provider.paged:
-            jobs = provider.read(board.token, board.company, pace=robots.pace)
-        else:
-            jobs = provider.read(board.token, board.company)
-    except BoardNotFound:
+    elif result.status is ReadStatus.MISSING:
         print(f"  x  {board.key}: no such board")
-        return Outcome.MISSING, [], "no such board"
-    except providers.TooLarge as error:
-        print(f"  -  {board.key}: skipped, too large to read whole ({error})")
-        return Outcome.SKIPPED, [], "too large"
-    except Exception as error:  # noqa: BLE001 - one bad board must not end the run
+    elif result.reason == "too large":
+        print(f"  -  {board.key}: skipped, too large to read whole ({result.error})")
+    elif result.status is ReadStatus.FAILED:
+        error = result.error
         print(f"  !  {board.key}: {type(error).__name__}: {error}", file=sys.stderr)
-        return Outcome.FAILED, [], _why(error)
-    print(f"  ok {board.key}: {len(jobs)} postings")
-    return Outcome.OK, jobs, None
-
-
-def _why(error: Exception) -> str:
-    """What kind of failure a failed read was, for metrics.json: the HTTP status a
-    site answered ("403", "429", "503"), a redirect `web.get` refused to follow, a
-    timeout, a lost connection, a paged read that did not add up, or an answer we
-    could not read. A site that refuses us then shows as a count, not only as a log
-    line, before anyone weighs another way in (docs/coverage.md)."""
-    if isinstance(error, urllib.error.HTTPError):
-        return "redirect" if 300 <= error.code < 400 else str(error.code)
-    if isinstance(error, TimeoutError) or (
-        isinstance(error, urllib.error.URLError) and isinstance(error.reason, TimeoutError)
-    ):
-        return "timeout"
-    if isinstance(error, urllib.error.URLError | ConnectionError):
-        return "connection"
-    if isinstance(error, providers.Incomplete):
-        return "incomplete"
-    # A reader asserts the shape it expects; JSONDecodeError is a ValueError.
-    if isinstance(error, ValueError | AssertionError):
-        return "unreadable answer"
-    return type(error).__name__
+    else:
+        print(f"  ok {board.key}: {len(result.jobs)} postings")
+    return Outcome[result.status.name], result.jobs, result.reason
 
 
 def newest_first(jobs: list[Job]) -> bool | None:
@@ -318,6 +271,13 @@ def main(argv: list[str] | None = None) -> int:
     else:
         now = datetime.now(UTC).isoformat()
         boards = load_boards(args.boards)
+        decisions = args.boards.with_name("discovery-review.json")
+        try:
+            if decisions.exists():
+                validate_catalog(boards, json.loads(decisions.read_text(encoding="utf-8")))
+        except (OSError, ValueError) as error:
+            print(f"Invalid discovery review: {error}", file=sys.stderr)
+            return 1
         if previous:
             # Least recently read first, even with --full: Workday's lane reads
             # from the front until its time is up (`Provider.budget_s`).

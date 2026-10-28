@@ -12,8 +12,11 @@ import urllib.error
 from dataclasses import replace
 from types import SimpleNamespace
 
+import pytest
+
 from workit_scraper import __main__ as run
 from workit_scraper import providers, store
+from workit_scraper.board_read import failure_reason
 from workit_scraper.details import Facts
 from workit_scraper.providers import Board, Job, Page
 from workit_scraper.store import BoardReads, RunStats, Store
@@ -347,7 +350,7 @@ class TestWhyUnread:
             (AssertionError(), "unreadable answer"),
             (KeyError("id"), "KeyError"),
         ):
-            assert run._why(error) == why, error
+            assert failure_reason(error) == why, error
 
     def test_metrics_count_unread_boards_by_provider_and_why(self, monkeypatch, tmp_path) -> None:
         refused = [board("workday", "a.wd1/site"), board("workday", "b.wd1/site")]
@@ -399,6 +402,27 @@ def test_carry_brings_the_page_forward() -> None:
     read = Page(providers.PAGE_VERSION, None, Facts(), ("Lisbon, Portugal",))
     known = replace(job(gh), page=read)
     assert store.carry(job(gh), {known.key: known}).page == read
+
+
+@pytest.mark.parametrize(
+    "ledger",
+    [
+        '{"lever/acme": {"decision": "rejected"}}',
+        "{broken json",
+    ],
+)
+def test_invalid_review_stops_live_scrape_before_network(tmp_path, monkeypatch, capsys, ledger):
+    catalog = tmp_path / "boards.csv"
+    catalog.write_text("ats,token,company\nlever,acme,Acme\n")
+    (tmp_path / "discovery-review.json").write_text(ledger)
+    monkeypatch.setattr(run.store, "load", lambda _: None)
+
+    def no_network(*_a, **_k):
+        pytest.fail("invalid review must stop before network reads")
+
+    monkeypatch.setattr(run, "Robots", no_network)
+    assert run.main(["--boards", str(catalog)]) == 1
+    assert "Invalid discovery review" in capsys.readouterr().err
 
 
 def test_a_listing_never_overwrites_what_the_page_said(monkeypatch) -> None:
