@@ -115,11 +115,11 @@ export const metadata: Metadata = {
  */
 export default async function HomePage() {
   // Every read starts here, before the one await below, so none waits on
-  // another: Top Matches' two scoring calls run beside the Strong Matches
-  // one, not after it. None of these promises rejects (each answers null or
-  // "empty" on a failure; ./top-matches.tsx, loadTopMatches, says why that
-  // matters). getTracker caches the one tracker read the numbers and
-  // Activity share.
+  // another. None of these promises rejects (each answers null or "empty"
+  // on a failure; ./top-matches.tsx, loadTopMatches, says why that
+  // matters). getMatches caches the one scoring call Top Matches and the
+  // Strong Matches number share, getTrackerUnscored the one tracker read
+  // the numbers and Activity share (./data.ts).
   const topMatches = loadTopMatches();
   const stats = getHeadline();
   const applied = getAppliedApplications();

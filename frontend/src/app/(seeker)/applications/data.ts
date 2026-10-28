@@ -22,7 +22,12 @@ export const getNow = cache(() => new Date());
  * cards: backend/CLAUDE.md). cache() so the pages and the components under
  * them read the API once per request.
  */
-export const getTracker = cache(getTracked);
+export const getTracker = cache(() => getTracked());
+
+/** The same tracker without the match scores: Home counts stages and dates
+ *  and shows no card, so it skips the API's scoring of every tracked job
+ *  (KAN-425), one pass of the four Home made at once. */
+export const getTrackerUnscored = cache(() => getTracked({ scored: false }));
 
 /** Every application, as getTracker reads them; none when it failed. */
 export async function getApplications() {

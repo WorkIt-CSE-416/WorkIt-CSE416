@@ -1296,9 +1296,9 @@ the KAN-296 cutover.
   violet, Interviewing yellow (`--color-warning-deep`); a filled
   Activity day opens a table of that day's applications. Its
   Strong Matches reads the Best Match scores
-  (`getMatchDates`), and Top Matches under them lists the twelve
+  (`getMatches`, one read with Top Matches), and Top Matches under them lists the twelve
   best-scoring jobs as flat rows that scroll inside a tile, with no score
-  floor (`getTopMatches`); its Auto Apply button picks jobs for the queue
+  floor; its Auto Apply button picks jobs for the queue
   from the best matches auto apply can fill, each one chosen by the seeker. A job's application
   stage (`saved`, `queued`...) reaches its Save and Auto Apply buttons from
   one read per page. Auto Apply never picks a saved job for a batch; only
@@ -1356,6 +1356,17 @@ the KAN-296 cutover.
   its link re-ran the whole feed fetch and Best Match scoring, so the list
   seemed slow to load; `BackToJobs` now calls `router.back()` when
   `cameFrom()` is its target (`docs/screens.md`, Job posting page).
+  **`staleTimes.dynamic` stays 0** (weighed for Home, KAN-425): it is one
+  setting for every page, and in Next 16 `router.refresh()`, which nearly
+  every save here calls after it writes, clears the client cache for the
+  current page only (Next's own `use-router.md`). With 30 s set, a job
+  saved or marked applied on its page would leave Home, the Applications
+  Tracker and the Jobs page showing the old state for up to 30 s on a
+  return. A slow page is made fast where its data comes from instead: Home's
+  matches are one API call the API keeps (`docs/screens.md`, Seeker Home).
+  Turning it on needs every write to call `revalidatePath` in its server
+  action first, which Next's `revalidatePath.md` says clears every visited
+  page from the client cache.
 - **Every other seeker Back goes to the page that opened it**
   (`(seeker)/back-link.tsx`, KAN-363): `BackLink`, or `useBack` for a
   control drawn its own way (the editor's phone arrow), given the page's
