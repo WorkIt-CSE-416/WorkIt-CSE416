@@ -168,3 +168,34 @@ def test_the_fix_brief_reads_as_the_golden_file():
     golden = (FIXTURES / "fill_brief.md").read_text()
     assert fix_brief(report, engine_commit="fcaaf20d") == golden
 
+
+
+def test_the_script_writes_the_brief_the_fixture_and_the_question_set(tmp_path):
+    from app.scripts.fill_report import write_brief
+
+    report = {**FULL, "id": "7f3c2a10-0000-4000-8000-000000000001", "created_at": "2026-10-28T14:03:05Z", "status": "new"}
+    folder = write_brief(report, tmp_path, commit=None)
+    assert sorted(p.name for p in folder.iterdir()) == ["brief.md", "fill-report-7f3c2a10.html", "question-set.json", "report.json"]
+    assert (folder / "fill-report-7f3c2a10.html").read_text() == FULL["html"]
+    import json
+    assert json.loads((folder / "question-set.json").read_text())[0] == {
+        "name": "first_name", "label": "First Name", "kind": "text", "required": True, "options": [],
+    }
+    assert "`fill-report-7f3c2a10.html`" in (folder / "brief.md").read_text()
+    assert json.loads((folder / "report.json").read_text())["id"] == report["id"]
+
+
+def test_the_script_finds_the_engine_commit_a_version_names():
+    import subprocess
+
+    from app.scripts.fill_report import ENGINE_CHECKOUT, engine_commit
+
+    if not (ENGINE_CHECKOUT / "build.mjs").exists():
+        pytest.skip("no engine checkout (git submodule update --init)")
+    version = subprocess.run(["node", "build.mjs", "--version"], cwd=ENGINE_CHECKOUT, capture_output=True, text=True, check=True).stdout.strip()
+    commit = engine_commit(version)
+    assert commit is not None
+    # The commit found builds the same engine as the checkout: no change to src/ or the version since.
+    same = subprocess.run(["git", "-C", str(ENGINE_CHECKOUT), "diff", "--quiet", commit, "HEAD", "--", "src", "package.json"], check=False)
+    assert same.returncode == 0
+    assert engine_commit("0.0.0+0000000") is None
