@@ -184,6 +184,20 @@ class ScoredJob(JobListing):
     highlights: list[Highlight] = []
 
 
+class HomeMatches(BaseModel):
+    """GET /jobs/recommended/{id}/home: what the seeker's Home shows from
+    the Best Match scores, from one scoring pass (KAN-425)."""
+
+    # The best `limit` jobs, as GET /jobs/recommended lists them: Top Matches.
+    top: list[ScoredJob]
+    # The best `limit` that auto apply can fill (?auto_apply=true): Top
+    # Matches' picking mode.
+    auto_apply: list[ScoredJob]
+    # When each job posted within `posted_within` days that scores at least
+    # `min_match` went up: Strong Matches counts them per range.
+    strong_posted: list[str]
+
+
 class SearchFact(BaseModel):
     """GET /jobs/search-facts: a filter a search's words set ("intern",
     "remote", "summer 2027"), which /search shows so the seeker can see and

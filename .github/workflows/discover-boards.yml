@@ -1,0 +1,47 @@
+name: Propose discovered job boards
+
+on:
+  schedule:
+    - cron: "43 5 * * *"
+  workflow_dispatch:
+
+# Only one rolling discovery PR may be updated at a time.
+concurrency:
+  group: board-discovery
+  cancel-in-progress: false
+
+permissions:
+  contents: write
+  pull-requests: write
+
+jobs:
+  discover:
+    # Only trusted main code may collect leads and update the proposal branch.
+    if: github.ref == 'refs/heads/main'
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: main
+          fetch-depth: 0
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+
+      - name: Collect leads and update the review PR
+        env:
+          GH_TOKEN: ${{ github.token }}
+        # discovery_pr.py persists successful proposals before returning nonzero
+        # for a partial source failure. It never approves or merges the PR.
+        run: python3 scraper/discovery_pr.py --publish
+
+      - name: Keep discovery evidence and candidates for review
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: board-discovery-${{ github.run_id }}-${{ github.run_attempt }}
+          path: scraper/discovery-report.json
+          if-no-files-found: warn
+          retention-days: 30

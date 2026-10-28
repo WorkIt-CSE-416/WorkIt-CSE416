@@ -5,7 +5,8 @@ import { cn } from "@/lib/cn";
 
 import { getApplicationStages } from "../auto-apply/applications";
 import { formatPosted } from "../jobs/format";
-import { getTopMatches, isApplicant, type JobListing } from "../jobs/listings";
+import { isApplicant, type JobListing } from "../jobs/listings";
+import { getMatches } from "./data";
 import { SectionCard } from "./section-card";
 import { LIST } from "./top-matches-frame";
 import { TopMatchesList, type TopMatchRow } from "./top-matches-list";
@@ -13,7 +14,7 @@ import { TopMatchesList, type TopMatchRow } from "./top-matches-list";
 /**
  * Top Matches, under the headline numbers (KAN-342): the seeker's best-scoring
  * open jobs, best first, as flat rows in one tile. The scores are Best
- * Match's (`getTopMatches`), with no score floor, unlike the Strong Matches
+ * Match's (`getMatches`, ./data.ts), with no score floor, unlike the Strong Matches
  * number above: a new seeker's thin experience bank can score every job a
  * Weak Match, and their best weak ones are still where to start.
  *
@@ -30,16 +31,18 @@ import { TopMatchesList, type TopMatchRow } from "./top-matches-list";
  * Suspense boundary only streams what is inside it; it does not start it
  * sooner. Started here, the two scoring calls waited for the page's own
  * reads (the Strong Matches count is a full scoring pass) and only then
- * began, so Top Matches came one whole scoring call late.
+ * began, so Top Matches came one whole scoring call late. Both lists and
+ * the Strong Matches count now come from one call (getMatches, KAN-425),
+ * which whichever starts first makes and the other shares.
  */
-const SHOWN = 12;
 
 /**
- * Top Matches' four reads, started at once: the twelve best, the twelve best
- * that auto apply can fill, whether the viewer is an applicant, and the
- * seeker's stages. The page calls it before its own awaits.
+ * Top Matches' three reads, started at once: the matches (the twelve best
+ * and the twelve best that auto apply can fill), whether the viewer is an
+ * applicant, and the seeker's stages. The page calls it before its own
+ * awaits.
  *
- * NONE OF THE FOUR MAY THROW. Each answers null, "empty", false or {} when
+ * NONE OF THE THREE MAY THROW. Each answers null, "empty", false or {} when
  * the API fails, so this promise never rejects. That matters because it is
  * started before the page awaits anything else: were the page to throw
  * first, nothing would ever await it, and a rejection here would be an
@@ -50,12 +53,7 @@ export function loadTopMatches() {
   // for which rows Auto Apply can still pick, as the Jobs page reads them.
   // The best matches auto apply can fill come alongside, for picking mode:
   // the top list may hold none of them (Greenhouse only, for now).
-  return Promise.all([
-    getTopMatches(SHOWN),
-    getTopMatches(SHOWN, { autoApplyOnly: true }),
-    isApplicant(),
-    getApplicationStages(),
-  ]);
+  return Promise.all([getMatches(), isApplicant(), getApplicationStages()]);
 }
 
 export type TopMatchesData = ReturnType<typeof loadTopMatches>;
@@ -68,7 +66,8 @@ export async function TopMatches({
   data: TopMatchesData;
   className?: string;
 }) {
-  const [top, autoTop, canMarkApplied, stages] = await data;
+  const [matches, canMarkApplied, stages] = await data;
+  const top = matches && matches !== "empty" ? matches.top : matches;
 
   if (top === "empty" || top === null || top.length === 0) {
     return (
@@ -106,7 +105,7 @@ export async function TopMatches({
     <SectionCard aria-labelledby="top-matches" className={className}>
       <TopMatchesList
         rows={top.map(toRow)}
-        autoRows={Array.isArray(autoTop) ? autoTop.map(toRow) : []}
+        autoRows={matches && matches !== "empty" ? matches.autoApply.map(toRow) : []}
         canMarkApplied={canMarkApplied}
       />
     </SectionCard>
@@ -154,6 +153,11 @@ export function TopMatchesSkeleton({ className }: { className?: string }) {
               <span className="flex flex-1 flex-col gap-1.5">
                 <span className="bg-panel h-3.5 w-2/3 animate-pulse rounded" />
                 <span className="bg-panel h-3 w-1/3 animate-pulse rounded" />
+              </span>
+              {/* The match and posted columns, at the list's widths. */}
+              <span className="hidden shrink-0 items-center gap-6 pl-4 @4xl/main:flex">
+                <span className="bg-panel mr-4 h-6 w-16 animate-pulse rounded-full" />
+                <span className="bg-panel mr-8 h-6 w-28 animate-pulse rounded-full" />
               </span>
             </span>
             <span className="flex shrink-0 gap-2 @max-xl/main:w-full">

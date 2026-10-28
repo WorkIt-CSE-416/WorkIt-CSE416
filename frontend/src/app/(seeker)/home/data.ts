@@ -1,6 +1,8 @@
-import { getApplications, getNow, getTracker } from "../applications/data";
-import { getMatchDates } from "../jobs/listings";
-import { upcomingEvents, type EventKind, type TrackerEvent } from "../tracker";
+import { cache } from "react";
+
+import { getApplications, getNow, getTrackerUnscored } from "../applications/data";
+import { getHomeMatches } from "../jobs/listings";
+import { upcomingEvents, type Application, type EventKind, type TrackerEvent } from "../tracker";
 import { rangeDays, type RangeKey } from "./range";
 
 /**
@@ -45,6 +47,19 @@ export type HomeStat = {
  *  never sits under a label its own badge contradicts. */
 const STRONG_MATCH = 80;
 
+/** How many jobs Top Matches lists (./top-matches.tsx). */
+export const TOP_MATCHES_SHOWN = 12;
+
+/**
+ * Home's matches, read once per render: the numbers' Strong Matches and Top
+ * Matches below them share the one API call (getHomeMatches says why it is
+ * one). The window is the longest range's, and at least 30 days, the
+ * month's.
+ */
+export const getMatches = cache(() =>
+  getHomeMatches(Math.max(30, rangeDays("season", getNow())), STRONG_MATCH, TOP_MATCHES_SHOWN),
+);
+
 /** Where the Jobs page shows what Strong Matches counts, best first. Its Date
  *  Posted filter offers a week and a month but no season, so Season opens
  *  the whole Best Match list. */
@@ -79,16 +94,15 @@ const STRONG_MATCHES_NOTE: Record<RangeKey, string> = {
  * in the middle. The order was Applications, New Roles, Interviews, Saved,
  * which read sent, then find, then outcome, then shortlist.
  *
- * GOOD MATCHES WEARS THE VIOLET FILL, where the next application starts: the
- * eye lands on the head of the search and reads on from there. Applied
- * wore it until the reorder, as the number the seeker wholly controls; the
- * user moved it, since a seeker comes to Home to find what to apply
- * to next. A violet 0 is the cost on a week with no good matches.
+ * EACH TILE WEARS ITS OWN COLOUR (KAN-423, ./headline.tsx): a pale tint for
+ * its ground, the solid colour for its glyph's disc. Strong Matches wore the
+ * one violet fill, and Applied before it, until violet proved to be
+ * Applied's stage colour twice over.
  *
  * Strong Matches is the job postings from the range that score Strong Match
  * or better for this seeker (STRONG_MATCH), from the Best Match scores
- * (GET /jobs/recommended). It replaced New Roles, a count of every posting
- * in the feed, which said nothing about the seeker and drew a red change
+ * (GET /jobs/recommended/{id}/home, getMatches). It replaced New Roles, a
+ * count of every posting in the feed, which said nothing about the seeker and drew a red change
  * whenever employers posted less. It shows no change: the score fades with
  * a posting's age, so last week's postings would always count fewer. With
  * an empty experience bank there is nothing to score, so the tile asks for
@@ -108,14 +122,11 @@ const STRONG_MATCHES_NOTE: Record<RangeKey, string> = {
 export async function getHeadline(): Promise<Record<RangeKey, HomeStat[]>> {
   const now = getNow();
   const seasonDays = rangeDays("season", now);
-  const [matched, tracker] = await Promise.all([
-    getMatchDates(Math.max(30, seasonDays), STRONG_MATCH),
-    getTracker(),
-  ]);
-  /** Good matches posted in the last `days` days; null without scores. */
+  const [matched, tracker] = await Promise.all([getMatches(), getTrackerUnscored()]);
+  /** Strong matches posted in the last `days` days; null without scores. */
   const strongMatches = (days: number) =>
-    Array.isArray(matched)
-      ? matched.filter((at) => now.getTime() - Date.parse(at) < days * DAY_MS).length
+    matched && matched !== "empty"
+      ? matched.strongPosted.filter((at) => now.getTime() - Date.parse(at) < days * DAY_MS).length
       : null;
   const apps = tracker.applications;
   const saved = apps && apps.filter((app) => app.stage === "saved").length;
@@ -177,15 +188,29 @@ export async function getHeadline(): Promise<Record<RangeKey, HomeStat[]>> {
 
 /* Activity --------------------------------------------------------------- */
 
+/** One sent application, as Activity needs it: the day it counts on, and
+ *  a row in that day's table (./day-applications.tsx). */
+export type AppliedApplication = Pick<
+  Application,
+  "id" | "role" | "company" | "logoUrl" | "stage"
+> & { appliedOn: string };
+
 /**
- * When each application in the tracker was sent, for Activity's streak: one
- * instant per sent application, or null when the tracker can't be read. The
- * streak turns each into the viewer's own day in the browser
- * (./streak.tsx), since the server's UTC day is a day off for the Americas.
+ * Every application in the tracker that was sent, for Activity's streak, or
+ * null when the tracker can't be read. The streak turns each `appliedOn`
+ * into the viewer's own day in the browser (./streak.tsx), since the
+ * server's UTC day is a day off for the Americas. It was the bare instants
+ * until a filled day opened a table of its applications (KAN-423), which
+ * names each one's job, company and stage.
  */
-export async function getAppliedTimes(): Promise<string[] | null> {
-  const { applications } = await getTracker();
-  return applications && applications.flatMap((app) => (app.appliedOn ? [app.appliedOn] : []));
+export async function getAppliedApplications(): Promise<AppliedApplication[] | null> {
+  const { applications } = await getTrackerUnscored();
+  return (
+    applications &&
+    applications.flatMap(({ id, role, company, logoUrl, stage, appliedOn }) =>
+      appliedOn ? [{ id, role, company, logoUrl, stage, appliedOn }] : [],
+    )
+  );
 }
 
 /* Waiting --------------------------------------------------------------- */

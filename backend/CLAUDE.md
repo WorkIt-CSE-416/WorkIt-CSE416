@@ -575,7 +575,10 @@ Find files with a directory listing; these are the rules for where code goes.
   `GET /jobs/recommended` uses `fetch_recommended` (which calls `score_jobs`);
   the Applications page's cards (KAN-256) get theirs through
   `GET .../applications?scored=true`, which narrows it with
-  `JobFilters.job_ids`. One scoring path, one number per job.
+  `JobFilters.job_ids`. Home's `GET /jobs/recommended/{id}/home` scores
+  its three lists in one `score_job_sets` pass and keeps the result per
+  applicant (`queries/jobs/home.py`, KAN-425). One scoring path, one
+  number per job.
 - **A student reaches only the postings the Jobs page lists**
   (`services/postings.py`'s `LISTED`: published and scraped). Tailor (run
   and its match), the keyword match and Apply load a posting through
