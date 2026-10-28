@@ -18,9 +18,13 @@ import { cn } from "@/lib/cn";
 
 import { Avatar } from "@/components/avatar";
 import type { AutofillAnswers } from "@/lib/autofill-answers";
+import { getBank, type BankEntry } from "@/lib/bank-actions";
+import { ApplicationAnswers } from "./application-answers";
 import { ApplicationQuestions } from "./application-questions";
 import { FIELD_GRID, FIELD_HEADING } from "./field-styles";
 import { SectionAction } from "./section-action";
+import { Transcript } from "./transcript";
+import { WritingSamples } from "./writing-samples";
 import { updateProfile, type ApplicantProfile } from "@/lib/profile-actions";
 import { linkText, safeHref, siteName, webLink } from "@/lib/profile-links";
 import { GitHubGlyph, LinkedInGlyph, OtherLinkGlyph, WebsiteGlyph } from "./icons";
@@ -56,6 +60,12 @@ import { useProfileCache } from "../profile-cache";
  *   Application     an open section: the answers onboarding asked
  *   Questions       (./application-questions, KAN-269), edited the same way
  *                   with a picker each; closed by a hairline
+ *   Application     an open section: the facts screening questions ask
+ *   Answers         (./application-answers, KAN-369) in six groups, and the
+ *                   school year worked out from education; closed by a hairline
+ *   Writing         an open section: up to three samples of the student's
+ *   Samples         own writing for their Claude (./writing-samples,
+ *                   KAN-387), added in place; closed by a hairline
  *   Resumes &       an open section under a plain heading, linking to both
  *   Experiences     views of that page
  *
@@ -80,6 +90,9 @@ export default function ProfilePage() {
   );
   // The answer bank (Application Questions).
   const [answers, setAnswers] = useState<AutofillAnswers | null>(cached?.answers ?? null);
+  // The bank's entries, for Application Answers' School Year. A failed read
+  // leaves it unknown there, not a page error.
+  const [entries, setEntries] = useState<BankEntry[]>([]);
 
   // Profile photo, a signed URL from the API. Settings changes it.
   const [avatarUrl, setAvatarUrl] = useState<string | null>(cached?.avatarUrl ?? null);
@@ -107,6 +120,12 @@ export default function ProfilePage() {
       // The action call itself failed, e.g. stale action IDs after a deploy.
       .catch(() => setLoadFailed(true))
       .finally(() => setSettled(true));
+
+    // Application Answers' School Year reads the bank; a failure leaves it
+    // unknown there, not a page error.
+    getBank()
+      .then(({ data }) => setEntries(data?.entries ?? []))
+      .catch(() => {});
   }, []);
 
   // Save each settled state for the next visit. Not mid-load, and not
@@ -183,6 +202,11 @@ export default function ProfilePage() {
           profile: a failed read shows the notice above, never nine "Not
           answered" lines that would pass for the seeker's real answers. */}
       {answers && <ApplicationQuestions answers={answers} onSaved={setAnswers} />}
+      {answers && <ApplicationAnswers answers={answers} education={entries} onSaved={setAnswers} />}
+
+      <WritingSamples />
+
+      <Transcript />
 
       <section aria-labelledby="resumes" className="mt-6">
         <SectionHeading id="resumes">Resumes &amp; Experiences</SectionHeading>

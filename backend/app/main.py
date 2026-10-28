@@ -2,9 +2,11 @@
 main file for the backend app
 '''
 
+import contextlib
 import logging
 import math
 import time
+from collections.abc import AsyncIterator
 
 from fastapi import FastAPI, Request
 from fastapi.encoders import jsonable_encoder
@@ -12,6 +14,9 @@ from fastapi.exceptions import RequestValidationError
 from fastapi.responses import JSONResponse
 from sqlalchemy import text
 
+from app.auto_apply import pipeline
+from app.connector.server import ROUTES as CONNECTOR_ROUTES
+from app.connector.server import connector
 from app.db import get_sessionmaker
 from app.routers.applications import router as applications_router
 from app.routers.assistant import router as assistant_router
@@ -22,9 +27,15 @@ from app.routers.avatars import router as avatar_router
 from app.routers.bank import router as bank_router
 from app.routers.built_resumes import router as built_resumes_router
 from app.routers.company_jobs import router as company_jobs_router
+from app.routers.connector import added_router as connector_added_router
+from app.routers.connector import router as connector_router
+from app.routers.documents import router as documents_router
 from app.routers.essay_answer import router as essay_answer_router
+from app.routers.fill_reports import router as fill_reports_router
 from app.routers.intake import router as intake_router
+from app.routers.job_system_requests import router as job_system_requests_router
 from app.routers.jobs import router as jobs_router
+from app.routers.pasted_answers import router as pasted_answers_router
 from app.routers.preferences import router as preferences_router
 from app.routers.profiles import router as profile_router
 from app.routers.resumes import router as resume_router
@@ -32,11 +43,21 @@ from app.routers.scout import router as scout_router
 from app.routers.sent_resumes import router as sent_resumes_router
 from app.routers.tailor import router as tailor_router
 from app.routers.tracker import router as tracker_router
+from app.routers.writing_samples import router as writing_samples_router
 
 logger = logging.getLogger(__name__)
 
+
+@contextlib.asynccontextmanager
+async def lifespan(_: FastAPI) -> AsyncIterator[None]:
+    # The connector's MCP server (KAN-377) answers only while this runs.
+    async with connector.running():
+        yield
+
+
 app = FastAPI(
-    title="WorkIt"
+    title="WorkIt",
+    lifespan=lifespan,
 )
 
 app.include_router(auth_router)
@@ -44,6 +65,7 @@ app.include_router(jobs_router)
 app.include_router(applications_router)
 app.include_router(auto_apply_router)
 app.include_router(resume_router)
+app.include_router(documents_router)
 app.include_router(avatar_router)
 app.include_router(company_jobs_router)
 app.include_router(scout_router)
@@ -57,7 +79,28 @@ app.include_router(assistant_router)
 app.include_router(preferences_router)
 app.include_router(autofill_answers_router)
 app.include_router(essay_answer_router)
+app.include_router(connector_router)
+app.include_router(connector_added_router)
+app.include_router(writing_samples_router)
+app.include_router(pasted_answers_router)
+app.include_router(fill_reports_router)
+app.include_router(job_system_requests_router)
 app.include_router(tracker_router)
+# The connector's MCP server and its OAuth endpoints (app/connector/server.py).
+app.router.routes.extend(CONNECTOR_ROUTES)
+
+
+@app.exception_handler(pipeline.NotFound)
+async def not_found(request: Request, exc: pipeline.NotFound) -> JSONResponse:
+    """Auto apply's steps (app/auto_apply/pipeline.py) raise NotFound for no
+    such posting or application, and WrongStage for a step called out of
+    order; every route answers them the same, so they are mapped here once."""
+    return JSONResponse(status_code=404, content={"detail": str(exc)})
+
+
+@app.exception_handler(pipeline.WrongStage)
+async def wrong_stage(request: Request, exc: pipeline.WrongStage) -> JSONResponse:
+    return JSONResponse(status_code=409, content={"detail": str(exc)})
 
 
 @app.exception_handler(RequestValidationError)

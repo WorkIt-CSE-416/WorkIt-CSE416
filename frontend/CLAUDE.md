@@ -31,7 +31,12 @@ them). Notes the scripts don't say:
   `npm ci` in a `node:22` container before pushing.
 - `typecheck` runs `next typegen` first because `LayoutProps`/`PageProps` are
   generated route types that do not exist on a fresh clone; bare `tsc` fails.
-- There is no test runner yet. When one is added, document it here.
+- **Tests are Node's own runner** (`node --test`, Node 24 strips the types),
+  for pure modules only: `npm test`, or one file with
+  `node --test src/lib/autofill-answers.test.ts`. A test sits beside its
+  module as `<name>.test.ts` and imports it with the `.ts` extension
+  (`allowImportingTsExtensions` in tsconfig), so the module under test must
+  use relative imports, not `@/`. There is no component or browser runner.
 - **To test a resume upload**, use a file from `frontend/public/resumes/`.
   The folder is git-ignored because it holds real people's resumes, so put
   your own there once, in the primary checkout: `npm run worktree` and every
@@ -112,7 +117,27 @@ the KAN-296 cutover.
   company screens sit under a real `/company` prefix. A route group adds no URL
   segment, so two groups cannot both define `/profile` and both audiences need
   one; the prefix also makes the auth guard one path check. Auth screens
-  (`login/`, `signup/`) and `design-kit/` sit outside both shells.
+  (`login/`, `signup/`), the connector's consent page (`connect/claude/`,
+  KAN-377) and `design-kit/` sit outside both shells. `/login?next=` goes
+  back only to `/connect/claude` (`login/actions.ts`): never widen it to
+  any path, which would make the sign-in page an open redirect.
+  **Every way into the connector is one link**, `lib/claude-connector.ts`
+  (KAN-383): Claude's Add Custom Connector dialog filled in with WorkIt's
+  name and `<api>/mcp`, or the directory listing once
+  `CLAUDE_CONNECTOR_LINK` is set. Read it on the server and pass it down;
+  never write the claude.ai URL anywhere else. What can't read it (the
+  extension's add-Claude step, KAN-387) opens `/connect/claude/add`, a
+  route handler that redirects to it.
+  **Starting the student's Claude is one link too**: `CLAUDE_START_URL`
+  and `CLAUDE_TRIGGER` in the same file (a new claude.ai chat with "Write
+  my WorkIt answers", the connector prompt's title, in its box, not sent),
+  used only by Write with Claude (`auto-apply/write-with-claude.tsx`),
+  which also copies the trigger since claude.ai's `?q=` is undocumented.
+  Never put the student's data in that link: it lands in browser history.
+  Disconnecting is WorkIt's, in Settings' Sign-In & Security, Connected
+  Apps (`lib/connector-actions.ts`, `DELETE /applicants/{id}/connector`):
+  it revokes every token the student's Claude holds, which removing the
+  connector in Claude alone doesn't.
 - **The business side is hidden until it ships** (KAN-239). `src/proxy.ts`
   redirects `/company` and `/onboarding/company` (and everything under them)
   to `/coming-soon`, "Waiting for Deployment", before its env check, so a
@@ -165,11 +190,12 @@ the KAN-296 cutover.
   fits (under 70), so it reads as the best fits, not as the mass
   copy-paste the statement warns about. **Its copy
   must match what auto apply does** (`auto-apply/architecture.md`,
-  `autofiller_extension/CLAUDE.md`): it fills one application at a time in
-  one background tab and never submits, so the page never says "at once",
-  "in parallel" or that WorkIt sends an application. The team first asked
-  for "49 in parallel"; that was reworded to a queue when the run was
-  checked. Change it if the run changes. Every window is drawn at the
+  `autofiller_extension/CLAUDE.md`): batch apply fills up to five
+  applications at once in background tabs, and never submits: the student
+  presses each employer's Submit, so the page never says WorkIt sends or
+  applies, and never more than five filling at a time. The team first
+  asked for "49 in parallel"; that was reworded to a queue when the run
+  was checked (then one tab at a time). Change it if the run changes. Every window is drawn at the
   stage's size and one transform scales the grid; the far windows are big
   type and bars, filled by CSS transitions, and a ring mounts only one
   step before the camera reaches it. A restart fades the old grid out
@@ -1278,6 +1304,17 @@ the KAN-296 cutover.
   resume picker stores a job's resume as the sent resume its application
   names; the extension does not read it yet (`docs/screens.md`, Auto
   Apply).
+  **Written Answers (`/auto-apply/answers`, KAN-385) saves through the
+  connector's own save** (`PUT .../written-answers`, which runs WorkIt's
+  answer checks): never give pasted text a save of its own, since it may
+  come from any AI, and never send it to the extension; the open tab fills
+  it on its own poll. A failed check is the warning amber under its box,
+  never the danger red (the student fixes it; nothing broke).
+  A question whose answer waits on an Essay fact (KAN-369: a fact the
+  student's Claude asked for rather than invent) shows the question above
+  its box (`answers/fact-box.tsx`), saved with `PUT .../essay-facts` into
+  the experience entry it names; never into the answer box, since the
+  fact is for their Claude to quote, not the answer itself.
   Every resume dialog (Did You Apply?, Tailor's Pick a Resume, Up Next's
   Choose a Resume) picks through one list, `ResumeLists` in
   `jobs/resume-picker.tsx` (KAN-360; grouped as the Resumes page since
@@ -1609,6 +1646,11 @@ are in `docs/auth.md`.
   `updateUser({ password })` sets the new password.
 - **Secure cookie flag** (KAN-293): `sessionCookieOptions` sets
   `secure: process.env.NODE_ENV === "production"`.
+- **Signup asks the minimum** (KAN-372): first and last name, email and
+  password, or Google or LinkedIn. Middle Name and Confirm Password were
+  removed: Settings adds a middle name, and a mistyped password is reset
+  through Forgot Password (`/login/reset-password`). A fact a later step needs
+  (location, links, work authorization) is asked in onboarding, never here.
 - **A key the API's Pydantic schema doesn't declare is dropped silently**, not
   rejected. A field added to a request body here does nothing until
   `backend/app/schemas/` declares it too.
@@ -1792,6 +1834,35 @@ are in `docs/auth.md`.
   `detail` as a string alone showed "Something went wrong" for those.
   A duplicate upload (`uploadResume`'s `duplicateOf`) is no failure for
   onboarding: the file is already there.
+- **Onboarding shows a resume's reading before saving it** (KAN-372, ADR
+  0006): `previewResume` (saves nothing), then `uploadResume(fd, {
+  replaceMatching: true })` on the student's Save Resume, which replaces
+  the other uploads' copies of the same entries. Every other upload screen
+  calls `uploadResume` plain and keeps ADR 0005's one-owner rule. Its
+  Profile step then saves the home `location` and the links through
+  `updateProfile`, checked with `webLink` first, the same fields My Profile
+  edits. Screen: `docs/screens.md`, Applicant onboarding.
+- **Onboarding never asks the self-identification** (KAN-387): its Profile
+  step leaves out `SELF_ID_KEYS` (gender, Hispanic or Latino, race, veteran,
+  disability). The extension asks them on the first form that does and saves
+  them through the same PATCH; My Profile still edits all nine. A new
+  self-identification question goes into `SELF_ID_KEYS` too, and into the
+  extension's copy of the options (`autofiller_extension/src/background/self-id.js`).
+- **Writing samples are edited in My Profile only** (`(seeker)/profile/writing-samples.tsx`,
+  `lib/writing-samples-actions.ts`, KAN-387): the extension's ask after a
+  first written batch links to `/profile#writing-samples`, which opens Add.
+  Keep that anchor. The samples go to the student's own Claude only:
+  never send them to a WorkIt AI route.
+- **The transcript is edited in My Profile only** (`(seeker)/profile/transcript.tsx`,
+  `lib/transcript-actions.ts`, KAN-369): one file, uploaded, replaced or
+  removed there, with the resume's file checks (`resumeFileError`). The
+  autofiller attaches it to a form's transcript upload.
+- **The practice forms (`lib/practice-form.ts`) import nothing** (KAN-378):
+  they are whole HTML pages, served by a route handler, and the extension's
+  end-to-end test imports the module to serve the same bytes, so it can't
+  reach `@/` or React. Their Submit must never send anything; keep it the
+  page script's `/thanks` navigation. They copy WorkIt's tokens by name:
+  change them with `globals.css`.
 - **A built resume's download keeps nothing** (KAN-267): the PDF through
   `renderResumePdf` (base64 and its `file_name`), the Word file and the
   PDF's LaTeX source through `downloadResumeFile(id, "docx" | "tex")`
@@ -1829,6 +1900,20 @@ are in `docs/auth.md`.
   they are still missing, ask the user. Never write the values into a
   committed file, PR or comment: the repo is public.
 
+## Admin pages
+
+`/admin/fill-reports` (fix reports, KAN-369; `../docs/fill-reports.md`) is the
+team's tool, outside both shells: the reports students sent from the
+extension, a report's fields and fix brief, Copy / Download Fix Brief,
+Download Form Fixture, and its status and note. **The API decides who is an
+admin** (`WORKIT_ADMINS`) and answers 403 to anyone else, which the pages
+turn into the 404, so a student never learns the page exists; nothing on
+this side checks a role. The fixture and the brief are route handlers that
+forward the token and answer a download (text/plain for the fixture, never
+rendered: it is an employer page's markup). `lib/fill-reports.ts` is the
+pure half (shapes, the list's query, `node --test`), `fill-report-queries.ts`
+the server-only reads, `fill-report-actions.ts` the triage.
+
 ## Screens, design and motion
 
 - **Screens**: before changing how a screen behaves (Jobs page and filters, job
@@ -1854,7 +1939,7 @@ descriptions and subtitles, other tooltips (so an icon button's label too),
 placeholders, empty-state body copy, error and validation messages, and a
 measured value or annotation outside a badge ("Over 7 days", "vs last week").
 An answer quoted from a self-identification form keeps the form's words and
-case: onboarding's veteran and disability answers ("I am not a protected
+case: the veteran and disability answers ("I am not a protected
 veteran", Form CC-305's "I do not want to answer"), so a student recognises
 the answer the employer's form will show.
 Fixture data stays as written. A label that doubles as a value, like the

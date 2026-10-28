@@ -89,3 +89,6 @@ backend/vendor/
 # Superset: the Run button's PID, read by teardown
 .superset/run.pid
 .superset/config.local.json
+
+# Fix briefs written by backend app.scripts.fill_report (KAN-369): reports stay out of git.
+backend/fill-reports/

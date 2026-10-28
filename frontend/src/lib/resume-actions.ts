@@ -2,7 +2,7 @@
 
 import { apiUpload, apiGet, apiDelete } from "@/lib/api";
 import { apiFetch, errorMessage, extractErrorMessage } from "@/lib/auth";
-import type { ImportResult } from "@/lib/bank-actions";
+import type { EntryFields, ImportResult } from "@/lib/bank-actions";
 import { getApplicantSession } from "@/lib/session";
 
 export type ResumeItem = {
@@ -124,16 +124,48 @@ export async function getResumeFileUrl(
 // ./resume-queries.ts, a server-only module: a render-only read exported
 // from here would be a public endpoint too.
 
+/** One entry of a parse preview: the entry fields, its bullets' text, and
+ *  the ids of the other uploads' entries a confirm replaces (ADR 0006). */
+export type PreviewEntry = EntryFields & { bullets: string[]; replaces: string[] };
+export type PreviewSkill = { name: string; group: string | null; replaces: string[] };
+/** POST .../resumes/preview (KAN-372): what the parser reads in a file,
+ *  with nothing saved. `duplicate_of` names an upload with the same text. */
+export type ResumePreview = {
+  entries: PreviewEntry[];
+  skills: PreviewSkill[];
+  duplicate_of: { resume_id: string; name: string } | null;
+};
+
+// The parse preview (KAN-372, ADR 0006): the API reads the file as an upload
+// does and saves nothing. The student confirms by uploading the same file
+// with `replaceMatching`.
+export async function previewResume(
+  formData: FormData,
+): Promise<{ preview: ResumePreview | null; error: string | null }> {
+  try {
+    const { id, token } = await getApplicantSession();
+    const res = await apiUpload(`/applicants/${id}/resumes/preview`, formData, token);
+    if (!res.ok) return { preview: null, error: await extractErrorMessage(res) };
+    return { preview: await res.json(), error: null };
+  } catch {
+    return { preview: null, error: "Could not reach the server. Is the backend running?" };
+  }
+}
+
 // The API reads the file itself and writes what it read into the experience
 // bank; the client never sends parsed content. A file whose text the student
 // has already uploaded is refused (KAN-267): `error` is "Duplicate Resume
-// found: <name>" and `duplicateOf` that resume's id.
+// found: <name>" and `duplicateOf` that resume's id. `replaceMatching`
+// confirms a parse preview: the other uploads' matching entries and skills
+// are replaced, not copied (ADR 0006).
 export async function uploadResume(
   formData: FormData,
+  { replaceMatching = false }: { replaceMatching?: boolean } = {},
 ): Promise<{ resume: ResumeItem | null; error: string | null; duplicateOf?: string }> {
   try {
     const { id, token } = await getApplicantSession();
-    const res = await apiUpload(`/applicants/${id}/resumes`, formData, token);
+    const query = replaceMatching ? "?replace=matching" : "";
+    const res = await apiUpload(`/applicants/${id}/resumes${query}`, formData, token);
     if (!res.ok) return await refused(res);
     const resume: ResumeItem = await res.json();
     return { resume, error: null };

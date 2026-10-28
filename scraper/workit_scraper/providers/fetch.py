@@ -39,14 +39,16 @@ def _get_json(url: str) -> object:
     return _json(url, lambda: web.get(url, timeout=TIMEOUT_S))
 
 
-def _post_json(url: str, payload: object) -> object:
-    """`_get_json` for a POST: Workday's list. A 429 is retried once too, since
-    five of ~1,700 Workday boards answered one on the first full sweep."""
-    return _json(url, lambda: web.post(url, payload, timeout=TIMEOUT_S))
+def _post_json(url: str, payload: object, headers: dict[str, str] | None = None) -> object:
+    """`_get_json` for a POST: Workday's and TikTok's lists. A 429 is retried once
+    too, since five of ~1,700 Workday boards answered one on the first full sweep.
+    `headers` adds any a search needs (TikTok's `website-path`)."""
+    return _json(url, lambda: web.post(url, payload, timeout=TIMEOUT_S, headers=headers))
 
 
 def _get_text(url: str) -> str:
-    """`_get_json` for a page that is not JSON: iCIMS's sitemap and job pages."""
+    """`_get_json` for a page that is not JSON: iCIMS's sitemap and job pages,
+    SuccessFactors' search and job pages."""
     return _fetched(url, lambda: web.get(url, timeout=TIMEOUT_S)).decode("utf-8", "replace")
 
 

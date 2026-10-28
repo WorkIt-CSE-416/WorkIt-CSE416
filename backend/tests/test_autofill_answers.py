@@ -144,3 +144,34 @@ async def test_a_failed_save_logs_no_answer(database, caplog):
     assert "Saving autofill answers failed" in caplog.text
     assert "non_binary" not in caplog.text
     assert "disability_status" not in caplog.text
+
+
+async def test_application_answers_are_saved_and_read_back(client):
+    body = {
+        "full_time_40h": "yes",
+        "earliest_start": "2027-05-24",
+        "available_terms": ["summer 2027", "fall 2027"],
+        "willing_to_relocate": "no",
+        "postal_code": "00000",
+        "referred_at": [],
+        "prior_government_work": "no",
+    }
+    res = await client.patch(client.url_for, json=body)
+    assert res.status_code == 200
+    saved = res.json()
+    assert {key: saved[key] for key in body} == body
+    assert saved["relatives_at"] is None
+
+
+@pytest.mark.parametrize(
+    "body",
+    [
+        {"earliest_start": "next May"},
+        {"available_terms": ["someday"]},
+        {"onsite_ok": "sometimes"},
+        {"relatives_at": "none"},
+    ],
+)
+async def test_an_application_answer_of_the_wrong_shape_is_refused(client, body):
+    res = await client.patch(client.url_for, json=body)
+    assert res.status_code == 422

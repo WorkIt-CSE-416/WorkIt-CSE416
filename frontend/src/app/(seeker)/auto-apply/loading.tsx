@@ -1,6 +1,7 @@
 import { Skeleton } from "@/components/shadcn/skeleton";
 import { Card } from "@/components/ui/card";
 import { SectionHeading } from "@/components/ui/section-heading";
+import { claudeConnectorLink } from "@/lib/claude-connector";
 import { cn } from "@/lib/cn";
 
 import { SEEKER_GUTTER } from "../gutter";
@@ -23,7 +24,7 @@ import { AutoApplyPanel } from "./auto-apply-panel";
 export default function AutoApplyLoading() {
   return (
     <div className={cn("max-w-dashboard mx-auto w-full flex-1 py-6", SEEKER_GUTTER)}>
-      <AutoApplyPanel hasResume={false}>
+      <AutoApplyPanel hasResume={false} claudeLink={claudeConnectorLink()}>
         <section aria-labelledby="up-next" aria-busy="true" className="mt-8">
           <div className="flex flex-wrap items-end justify-between gap-3">
             <SectionHeading id="up-next">Up Next</SectionHeading>

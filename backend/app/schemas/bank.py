@@ -253,10 +253,42 @@ class ImportResult(BaseModel):
     found: int
     entries_added: int
     skills_added: int
+    # Other uploads' rows the reading replaced: only an upload that confirms
+    # a parse preview replaces any (KAN-372, ADR 0006).
+    entries_replaced: int = 0
+    skills_replaced: int = 0
     # Who read the resume: the heuristic parser, or the model (KAN-222).
     read_by: Literal["parser", "model"] = "parser"
     # Model readings the student has left today, for "Read It With AI".
     uses_left: int
+
+
+class PreviewEntry(DraftEntry):
+    # The other uploads' entries a confirm replaces (bank.upload_matches).
+    replaces: list[UUID] = []
+
+
+class PreviewSkill(BaseModel):
+    name: str
+    group: str | None = None
+    replaces: list[UUID] = []
+
+
+class PreviewDuplicate(BaseModel):
+    """The student's upload with the same text (`routers/resumes.py`'s
+    `text_hash`): confirming would answer 409."""
+
+    resume_id: UUID
+    name: str
+
+
+class ResumePreview(BaseModel):
+    """POST .../resumes/preview (KAN-372, ADR 0006): what the parser reads
+    in a file, before anything is saved."""
+
+    entries: list[PreviewEntry]
+    skills: list[PreviewSkill]
+    duplicate_of: PreviewDuplicate | None = None
 
 
 class ImportResponse(ImportResult):

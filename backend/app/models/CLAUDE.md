@@ -19,8 +19,11 @@ company_profiles  1 ──o{  company_memberships    a complete HR-user account
                             (ON DELETE CASCADE)
 ```
 
-- `applicant_profiles` — identity plus the links and headline the autofiller
-  reuses.
+- `applicant_profiles` — identity plus the links, headline and home
+  `location` the autofiller reuses. `location` (KAN-372) is free text as
+  forms ask it ("Stony Brook, NY"), where the student lives; the places
+  they want jobs in are their preferences (`applicant_locations`), not
+  this.
 - `company_memberships` — identity plus the company it belongs to and its role.
   Many memberships point at one company.
 - `company_profiles` — the employer. One identity for future jobs, HR users and
@@ -263,7 +266,13 @@ change here must keep:
 - **`experience_banks` has one row per applicant, made by the first bank
   change** (an upsert in `clear_embedding`), not at signup. A missing row
   reads as "no embedding yet". Its `embedding` is the only applicant vector
-  the recommender reads (KAN-212).
+  the recommender reads (KAN-212). `removed_skills` (KAN-369) holds the
+  catalog keys (`services/skill_catalog.py` `key`) of the skills the
+  student deleted, or took out of the parse preview: a resume reading
+  (`import_upload`, the preview) and Tailor's "Have you used X?" never add
+  them again. The student adding one by hand (POST .../bank/skills) takes
+  it off the list. The clean-up script's deletes are not the student's and
+  are not remembered.
 - **Section fields are plain nullable columns on `bank_entries`**, not a
   JSONB blob, so later queries (graduation date, Tailor's text search) read
   them directly. `schemas/bank.py`'s `SECTION_FIELDS` says which section
@@ -349,6 +358,19 @@ change here must keep:
   student never both land, and uploads with no text (NULL) never clash.
   Rows from before `d642d93fcfbc` are NULL, not backfilled. The rule and
   its normalization: `../../CLAUDE.md`, "A duplicate resume is refused".
+
+## Student documents — `documents.py` (KAN-369)
+
+- **One file per student and kind** (`student_documents`, PK
+  `(applicant_id, kind)`); the only kind is `transcript` (CHECK). A new
+  kind widens the CHECK in a migration and the router's `Kind`.
+- The file is in the `Resume` bucket under the student's folder
+  (`<applicant_id>/documents/<uuid><ext>`), so Delete Account removes it
+  with the resumes. `storage_path` may be `local:<applicant_id>/<file name>`
+  (services/local_files.py, development only), served from the student's
+  folder in LOCAL_FILES_DIR.
+- Nothing reads its text and no sent copy is kept: a replace or delete
+  removes the old file at once. Written only by `routers/documents.py`.
 
 ## Sent resumes
 
@@ -803,6 +825,62 @@ Application Questions shows and edits them (KAN-269).
 - **Its migration is `a7d3e5c1b942`** (RLS on). It must be on the database
   before the API that maps it deploys.
 
+## The Fill engine's profile — `applicant_profiles.fill_*` (KAN-369)
+
+A student who used Apply (Lisul's own auto-apply tool, which runs the same
+Fill engine) brings its files over with
+`uv run python -m app.scripts.import_apply_profile <applicant_id> <apply_dir>`,
+so WorkIt fills forms as completely as Apply does.
+
+- **Three JSONB columns on `applicant_profiles`**, each `NOT NULL DEFAULT
+  '{}'` with a CHECK that it is an object (migration `7f07adcaef4e`; the
+  table already has RLS on): `fill_profile` (the engine's Profile shape,
+  nested sections: identity, education, screeners, voluntary_self_id...),
+  `fill_policies` (the engine's Policies, only the keys it reads) and
+  `fill_answers` (`{question: {answer, own, choice, company}}`, the Answer bank).
+- **WorkIt's own fields win.** `GET .../fill-profile` serves the profile and
+  policies; the extension lays what it builds from WorkIt's fields
+  (`engineProfile`, `POLICIES`) over them, key by key, and a value WorkIt
+  lacks (null, empty) leaves the stored one. So the import also writes
+  WorkIt's own fields (name, contact email, phone, links, location, the
+  education entry) from the same identity, and they agree.
+- **Only Apply's `source: lisul` entries are the student's own** (`own:
+  true`), as Apply itself treats them (`apply/answer_bank.py`, `LISUL`). A
+  Claude draft (`source: claude`) comes as their Claude's even when
+  `reviewed`: Apply still calls it a draft. The answer bank
+  (`pipeline.answer_bank`) offers the student's own words on applications,
+  then their brought own words, then their Claude's on applications, then
+  the brought drafts, under the same company rule: one about a company only
+  on that company's forms. A draft passes the same checks as their Claude's
+  saved answers and never fills a form that bans AI text (the engine skips
+  an answer that is not `own` there). `choice` (an entry with options, or a
+  list answer: the options ticked) skips the writing checks. Not
+  `written_answers`: those rows belong to an application, and a brought
+  answer has none.
+- **No `files` in `fill_profile`.** The files the profile names come over
+  as WorkIt's own rows instead, only with `LOCAL_FILES_DIR` set: the resume
+  (`files.resume_pdf`) as a `resumes` row, and the unofficial transcript
+  (`files.unofficial_transcript_pdf`) as the student's `transcript`
+  `student_documents` row, the one My Profile's upload writes. Each is
+  copied into `LOCAL_FILES_DIR` (services/local_files.py, development only)
+  and its `storage_path` is `local:<applicant_id>/<file name>`, in the
+  student's own folder so two students' files of one name never overwrite
+  each other: served by `.../bytes` from there, never sent to or removed from Storage.
+- **The student's writing comes too** (`scripts/import_apply_writing.py`),
+  through the same writers as the student's own edits: `writing_samples`
+  only from the Story bank's "own essays" and "own answers" sections (their
+  words, never a question or a note), packed into `MAX_SAMPLES` of
+  `SAMPLE_MAX`, replacing only the samples an import brought (`imported`)
+  and taking only the room the student's own leave; Apply's voice.md as the `style_cards` row, saved after the
+  samples (a sample change deletes it); and Apply's company briefs as
+  `company_briefs` rows only through `briefs.check` and the keep rule of
+  `save_brief` (MIN_FACTS, a higher score). Apply keeps no quote, so the
+  import takes the page's sentence that names the fact's product and holds
+  its numbers; a fact with none is dropped.
+- **Sensitive**: it holds self-identification. Only the owner reads it, and
+  it never goes to a model. The import refuses a database not on this
+  computer.
+
 ## Names: parts and one line (KAN-326)
 
 Both account tables keep `first_name`, `middle_name` and `last_name`, which
@@ -991,8 +1069,15 @@ so a batch never picks a saved job. Rules:
   stage, and `applied_at` NULL (`auto_apply/queries.py`), or the default
   dates a job nobody applied to.
 - **The Applied button upserts**: a saved, queued, skipped or needs_you row
-  becomes applied; an applied row keeps its first `applied_at` (`ON CONFLICT
-  DO UPDATE ... WHERE applied_at IS NULL`).
+  becomes applied, dated now; an applied row keeps its first `applied_at`
+  (`ON CONFLICT DO UPDATE ... applied_at = CASE WHEN stage = 'applied' THEN
+  coalesce(applied_at, now()) ELSE now() END`).
+- **`applied_at` is the submit's time, never the queue's** (KAN-369).
+  Auto apply's finish (`set_stage`) writes `now()` for applied and NULL for
+  any other stage, and the Applied button dates a row not yet applied now,
+  so a row that holds a stale date (an insert that took the `now()`
+  default, as rows written straight to a database copy do) still gets its
+  submit's time. Tests: `tests/test_applied_at.py`.
 - **Apply `c0467afe819c` right after merging.** Until then the deployed
   code's queue routes and stage filters fail on the missing column; the
   Applied button keeps working either way.
@@ -1086,8 +1171,12 @@ Real, not forgotten. Do not treat their absence as a decision already made.
 - Only `company_profiles.id` has a UUID default (Python `uuid4` plus
   `gen_random_uuid()`); every other insert must supply `id`. The account
   tables must keep having none — their id is the `auth.users` id.
-- `autofill_answers` (above) holds only onboarding's nine questions. The
-  rest that forms repeat (availability, relocation) have no key yet.
+- `autofill_answers` (above) holds onboarding's nine questions and the
+  Application answers (KAN-369: availability, start window, relocation,
+  address line and postal code, languages, screener facts, age 18+, pay, the
+  EEO extras, role interests, an X link). Those joined as
+  new keys in the same bank, with no migration. Dates are YYYY-MM-DD strings,
+  terms "summer 2027", and an empty list is the student's own "none".
 - `applicant_profiles.location` and `company_profiles.industry` are absent.
 - `company_profiles.contact_email` is unique, which forbids two companies sharing
   an HR inbox — plausible for subsidiaries. Probably wrong; confirm it is
@@ -1095,6 +1184,68 @@ Real, not forgotten. Do not treat their absence as a decision already made.
 - `updated_at` is maintained by SQLAlchemy's `onupdate`, which covers ORM and
   Core writes but **not** changes made from psql or the Supabase dashboard. A
   database trigger would; autogenerate emits none.
+
+## The connector's tables (KAN-377)
+
+- **`written_answers` is a row per question, keyed by the application**
+  (`(applicant_id, job_id)` to `job_applications`, CASCADE). `name` is the
+  form field's name, so the open tab knows where the answer goes. `own`
+  (KAN-379) marks the student's own words (written into a field WorkIt
+  didn't fill, or replacing what it filled; an edit of a filled answer
+  stays not own): their
+  Claude's save never overwrites it, and `pipeline.answer_bank` offers it
+  first on later forms. `description` (KAN-369) is the help text the form
+  shows under the label, as the tab sent it; NULL when none.
+  `review` (KAN-369, JSONB object) is what the
+  student's Claude's passes found on the answer it saved: `{plan,
+  unsupported}`, its Essay plan as `plans.Plan.stored` writes it and the
+  claim check's claims (rows saved before carry a `rating` and no plan;
+  no code reads the rating, and a row without a plan steers nothing);
+  NULL for a choice, a paste or the student's own edit,
+  and cleared with the answer. An edit to a field the tab never sent (one a saved
+  answer filled) adds a row of its own, `required` false, placed last.
+- **`job_applications.answer_review` is the pre-submit review's one
+  verdict per application** (KAN-369, `app/auto_apply/review.py`, the only
+  writer): `{"answers": {name: answer read}, "flags": {name: reason}}`,
+  NULL until the student's Claude saves one. A snapshot, not a status: a
+  flag counts only while its row's answer equals the one read, so no write
+  path of `written_answers` has to clear it. JSONB on the application, not
+  a column per question: it is written whole, once per review.
+- **`connector_clients`, `connector_requests` and `connector_tokens` belong
+  to `app/connector/oauth.py`**, the one writer. Tokens and codes are kept
+  as sha256 only; a row's `grant_id` ties an access token to its refresh
+  token, so revoking one revokes both. A token's student is
+  `applicant_id`, deleted with the account (CASCADE).
+- **`writing_samples` and `style_cards` are a student's own writing**
+  (KAN-384, `writing.py`): up to three samples (`MAX_SAMPLES`, checked in
+  code, not by the table) and at most one card per student. **Any change to
+  the samples deletes the card in the same transaction**
+  (`queries/writing.py`), so a card always describes the samples the
+  student has now, with no hash or version to keep in step; the connector
+  then asks their Claude for a new one. The copying check (KAN-380) reads
+  the samples through `pipeline.writing_samples` (which calls
+  `queries.writing.sample_texts`), never the table. `imported` marks a
+  sample the Apply import brought; the import replaces only those, so a
+  sample the student added or edited in WorkIt (false) is never deleted by
+  it.
+
+## Company briefs — `company_briefs.py` (KAN-382)
+
+- **One row per company, not per student**: every student applying there
+  reads the same brief. The key is the company's name folded
+  (`briefs.company_key`: "Acme, Inc." and "ACME" are `acme`), since
+  scraped postings carry a name and no company id.
+- `facts` is JSONB, written only by `app/auto_apply/briefs.py` after each
+  fact's quote was found on its page; `saved_at` is NULL while no brief has
+  been kept, and `attempted_at` holds back a company whose last research
+  wasn't kept. Deny-all RLS like every table.
+- **A team's brief is a row too** (KAN-369): `team` is '' for the
+  company's brief, else the team's folded name (`briefs.team_key`), and
+  is part of the primary key, so every posting naming that team reads one
+  brief. `posting_teams` holds the team each job posting names (as the
+  posting writes it, '' for none), written once by the first student's
+  Claude and shared by every student applying to that posting; it goes
+  with the posting (ON DELETE CASCADE). Migration `d2f4a6c8e013`.
 
 ## Out of scope
 

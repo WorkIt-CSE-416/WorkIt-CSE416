@@ -36,8 +36,12 @@ none.
 - `autofiller_extension/` — the ATS autofiller (KAN-164): a Manifest V3
   Chrome extension, no build step, no dependency manifest. It fills through
   the Fill engine, the git submodule `autofiller_extension/fill-engine`
-  pinned to a tag (`git submodule update --init` once per checkout). Adds no backend
-  routes or schema; reads the same endpoints the webapp already has.
+  pinned to a tag (`git submodule update --init` once per checkout). Batch
+  apply (KAN-369) fills up to five tabs at once and gave it routes of its
+  own in `backend/app/routers/auto_apply.py` (a tab's state, its written
+  questions and answers, the answer bank, finish), plus the connector its
+  essays come from (`backend/app/connector/`); `autofiller_extension/CLAUDE.md`
+  lists every endpoint it calls.
 - `.github/` — CI and the scheduled scrape-and-import (KAN-160).
 - `docs/` — team prose that spans the repo (below).
 
@@ -176,6 +180,9 @@ with the failure it prevents.
   proposals and no Done, and the editor marks each change and reverts it.
   Holds the skill placement rule. Read it before changing Tailor or its
   screen.
+- `docs/fill-reports.md` — fix reports (KAN-369): what a fill report from
+  the extension holds, and the Markdown fix brief admins export for a
+  coding agent (sections, markers, where the fixture goes).
 - `docs/email_tracker.md`: KAN-413's email tracker design, a draft not yet
   reviewed. A student connects Gmail (read-only); WorkIt reads only job
   emails, matches each to an application, and proposes a stage change or a

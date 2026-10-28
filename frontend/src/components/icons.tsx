@@ -1,4 +1,5 @@
 import {
+  AirplaneTiltIcon as AirplaneTilt,
   ArrowLeftIcon as ArrowLeft,
   ArrowRightIcon as ArrowRight,
   ArrowSquareOutIcon as ArrowSquareOut,
@@ -23,6 +24,9 @@ import {
   GiftIcon as Gift,
   GlobeIcon as Globe,
   GraduationCapIcon as GraduationCap,
+  CurrencyDollarIcon as CurrencyDollar,
+  CompassIcon as Compass,
+  ChatCircleTextIcon as ChatCircleText,
   HouseIcon as House,
   IdentificationBadgeIcon as IdentificationBadge,
   IdentificationCardIcon as IdentificationCard,
@@ -39,12 +43,14 @@ import {
   PersonArmsSpreadIcon as PersonArmsSpread,
   PlugsConnectedIcon as PlugsConnected,
   PlusIcon as Plus,
+  PushPinIcon as PushPin,
   SealCheckIcon as SealCheck,
   ShieldCheckIcon as ShieldCheck,
   SignOutIcon as SignOut,
   SparkleIcon as Sparkle,
   StarIcon as Star,
   TargetIcon as Target,
+  TranslateIcon as Translate,
   TrashIcon as Trash,
   TrendDownIcon as TrendDown,
   TrendUpIcon as TrendUp,
@@ -60,7 +66,7 @@ import {
   UserTieIcon as UserTie,
 } from "@/components/custom-icons";
 
-import type { AutofillAnswers } from "@/lib/autofill-answers";
+import type { QuestionKey } from "@/lib/autofill-answers";
 
 type IconProps = { className?: string };
 
@@ -546,7 +552,7 @@ export function DisabilityIcon({ className }: IconProps) {
   return <PersonArmsSpread aria-hidden className={className} />;
 }
 
-const ANSWER_ICON: Record<keyof AutofillAnswers, typeof AuthorizationIcon> = {
+const ANSWER_ICON: Record<QuestionKey, typeof AuthorizationIcon> = {
   work_authorized_us: AuthorizationIcon,
   needs_sponsorship: VisaIcon,
   work_authorization_status: CitizenshipIcon,
@@ -556,12 +562,36 @@ const ANSWER_ICON: Record<keyof AutofillAnswers, typeof AuthorizationIcon> = {
   race: RaceIcon,
   veteran_status: VeteranIcon,
   disability_status: DisabilityIcon,
+  sexual_orientation: GenderIcon,
+  transgender: GenderIcon,
+  pronouns: ({ className }: IconProps) => <ChatCircleText aria-hidden className={className} />,
 };
 
 /** An application question's glyph, by its key in the answer bank
  *  (lib/autofill-answers): onboarding's Profile step and My Profile's
  *  Application Questions draw the same one. Moved here from onboarding when
  *  My Profile became the second route to want them (KAN-269). */
-export function answerIcon(key: keyof AutofillAnswers) {
+export function answerIcon(key: QuestionKey) {
   return ANSWER_ICON[key];
+}
+
+/** My Profile's Application answers groups (KAN-369), shared with
+ *  onboarding's Availability step: one glyph a group, by its name. */
+export const ANSWER_GROUP_ICON = {
+  availability: ({ className }: IconProps) => <Clock aria-hidden className={className} />,
+  startWindow: ({ className }: IconProps) => <CalendarBlank aria-hidden className={className} />,
+  relocation: ({ className }: IconProps) => <AirplaneTilt aria-hidden className={className} />,
+  address: ({ className }: IconProps) => <House aria-hidden className={className} />,
+  languages: ({ className }: IconProps) => <Translate aria-hidden className={className} />,
+  screeners: ({ className }: IconProps) => <ListChecks aria-hidden className={className} />,
+  schoolYear: ({ className }: IconProps) => <GraduationCap aria-hidden className={className} />,
+  agePay: ({ className }: IconProps) => <CurrencyDollar aria-hidden className={className} />,
+  interests: ({ className }: IconProps) => <Compass aria-hidden className={className} />,
+  communities: ({ className }: IconProps) => <UsersThree aria-hidden className={className} />,
+};
+
+/** Pinning the WorkIt extension to Chrome's toolbar (KAN-378, onboarding's
+ *  install step): a pin glyph. Not PinIcon, which is a place. */
+export function ToolbarPinIcon({ className }: IconProps) {
+  return <PushPin aria-hidden className={className} />;
 }

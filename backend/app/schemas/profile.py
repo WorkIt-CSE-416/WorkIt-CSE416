@@ -1,5 +1,6 @@
 """Request/response shapes for the applicant profile (GET + PATCH)."""
 
+from typing import Any
 from urllib.parse import urlsplit
 from uuid import UUID
 
@@ -33,6 +34,7 @@ class ApplicantProfileResponse(BaseModel):
     portfolio_url: str | None
     github_url: str | None
     other_url: str | None
+    location: str | None = None
 
     @model_validator(mode="after")
     def _parts_from_full_name(self) -> "ApplicantProfileResponse":
@@ -41,6 +43,15 @@ class ApplicantProfileResponse(BaseModel):
         if self.first_name is None:
             self.first_name, self.middle_name, self.last_name = split_name(self.full_name)
         return self
+
+
+class FillProfile(BaseModel):
+    """The Fill engine's own profile and policies for the student, in the
+    engine's shapes (nested sections by dotted key; models/CLAUDE.md, "The
+    Fill engine's profile"). Empty objects when they brought none."""
+
+    profile: dict[str, Any]
+    policies: dict[str, Any]
 
 
 LINK_FIELDS = ("linkedin_url", "portfolio_url", "github_url", "other_url")
@@ -88,9 +99,11 @@ class ApplicantProfileUpdate(BaseModel):
     portfolio_url: str | None = Field(None, max_length=500)
     github_url: str | None = Field(None, max_length=500)
     other_url: str | None = Field(None, max_length=500)
+    # Where the student lives (KAN-372), as forms ask it: "Stony Brook, NY".
+    location: str | None = Field(None, max_length=100)
 
     @field_validator(
-        "contact_email", "phone_number", "headline", "middle_name", *LINK_FIELDS, mode="before"
+        "contact_email", "phone_number", "headline", "middle_name", "location", *LINK_FIELDS, mode="before"
     )
     @classmethod
     def _blank_is_none(cls, value: object) -> object:

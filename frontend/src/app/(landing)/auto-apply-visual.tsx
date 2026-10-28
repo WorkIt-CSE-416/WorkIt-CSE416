@@ -32,8 +32,9 @@ import { GLIDE, Story, type StoryScene } from "./story";
  * auto apply never submits on its own (auto-apply/architecture.md,
  * "Decisions"). Then the camera pulls back: the same window is the middle
  * of a queue of applications filled for the student, nine, then 25, then
- * 49. The run fills one application at a time, in one background tab, so
- * the copy says a queue and never "at once" or "in parallel". Every window
+ * 49. Batch apply fills at most five applications at once, in background
+ * tabs, and the student submits each, so the copy says a queue and never
+ * that WorkIt sends or applies in parallel. Every window
  * is drawn at the stage's full size and the camera scales the whole grid,
  * so the zoom is one transform and the windows keep their proportions at
  * every step. Timing and the scene title are the shared Story's; with

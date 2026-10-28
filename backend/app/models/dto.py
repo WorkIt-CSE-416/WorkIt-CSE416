@@ -40,6 +40,8 @@ class Experience(PydanticBase):
     start_date: date | None = None
     end_date: date | None = None
     description: str | None = None
+    # the tools after the role: "Software Engineer Intern| C++, Python"
+    technologies: list[str] = []
 
 class Skill(PydanticBase):
     skill_name: str

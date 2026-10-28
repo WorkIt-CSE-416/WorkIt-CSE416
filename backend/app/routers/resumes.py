@@ -9,6 +9,16 @@ parser's reading is not kept anywhere else. The model never reads an upload
 by itself: the student asks for that through Import Again
 (`POST /applicants/{id}/bank/import`). `GET .../{resume_id}` returns one
 resume as the list does.
+**The parse preview** (KAN-372, ADR 0006): `POST .../preview` takes a file
+as upload does and answers what the parser reads in it (`ResumePreview`),
+saving nothing: each entry and skill lists the other uploads' rows a
+confirm would replace, and `duplicate_of` names an upload with the same
+text. The student confirms by uploading the same file with
+`?replace=matching`, which also deletes those rows in the upload's
+transaction (`bank.import_upload`). The skills the student took out of the
+preview (× on a tag) come as form fields `removed_skills`: they are not
+saved and are remembered as removed (KAN-369). A preview never lists a
+skill the student removed.
 **Duplicates** (KAN-267): an upload whose text matches one of the student's
 uploads (`text_hash`, which says what "matches" means) answers 409
 `{"detail": {"message": "Duplicate Resume found: <name>", "resume_id"}}`
@@ -55,8 +65,9 @@ import unicodedata
 import uuid
 from datetime import UTC, datetime
 from pathlib import PurePosixPath
+from typing import Literal
 
-from fastapi import APIRouter, Depends, HTTPException, Query, Response, UploadFile
+from fastapi import APIRouter, Depends, Form, HTTPException, Query, Response, UploadFile
 from sqlalchemy import select
 from sqlalchemy.exc import IntegrityError, SQLAlchemyError
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -67,9 +78,24 @@ from app.models.dto import ResumeStatus
 from app.models.profiles import Applicant_Profile
 from app.models.resume import Resume
 from app.schemas.auth import AuthenticatedAccount
-from app.schemas.bank import ImportResult
+from app.schemas.bank import (
+    ImportResult,
+    PreviewDuplicate,
+    PreviewEntry,
+    PreviewSkill,
+    ResumePreview,
+)
 from app.schemas.resume import ResumeRename
-from app.services import bank, bank_import, built_resumes, sent_resumes
+from app.services import (
+    bank,
+    bank_import,
+    built_resumes,
+    local_files,
+    sent_resumes,
+    skill_catalog,
+    stored_files,
+)
+from app.services.stored_files import BUCKET
 from app.services.text_extraction import UploadRejected
 from app.services.text_extraction import extract as _extract
 from app.services.text_extraction import read_upload as _read_upload
@@ -78,7 +104,6 @@ from app.services.usage import Feature, uses_left
 router = APIRouter()
 logger = logging.getLogger(__name__)
 
-BUCKET = "Resume"
 # The preview link is opened the moment it is made; this only has to outlast
 # the browser's PDF viewer loading a 5 MB file.
 FILE_URL_TTL_SECONDS = 5 * 60
@@ -119,6 +144,37 @@ def _duplicate(resume: Resume) -> HTTPException:
     })
 
 
+@router.post("/applicants/{applicant_id}/resumes/preview", response_model=ResumePreview)
+async def preview_resume(
+    applicant_id: uuid.UUID,
+    file: UploadFile,
+    account: AuthenticatedAccount = Depends(get_current_account),
+    session: AsyncSession = Depends(get_session),
+):
+    """The parse preview (KAN-372, ADR 0006): the file read as an upload
+    reads it, with nothing saved: no Storage file, no row, no bank write. The
+    student confirms by uploading the same file with `?replace=matching`."""
+    assert_applicant_owns(account, applicant_id)
+    try:
+        contents, ext, _ = await _read_upload(file)
+    except UploadRejected as exc:
+        raise HTTPException(exc.status, str(exc)) from exc
+    raw_text = await _extract(contents, ext)
+    entries, skills = bank_import.read(raw_text)
+    # A skill the student removed is no longer offered (KAN-369).
+    removed = await bank.removed_skills(session, applicant_id)
+    skills = [(name, group) for name, group in skills if skill_catalog.key(name) not in removed]
+    same = await _duplicate_of(session, applicant_id, text_hash(raw_text))
+    matches = await bank.upload_matches(session, applicant_id, entries, skills)
+    return ResumePreview(
+        entries=[PreviewEntry(**e.model_dump(), replaces=ids) for e, ids in zip(entries, matches.entries)],
+        skills=[PreviewSkill(name=name, group=group, replaces=ids)
+                for (name, group), ids in zip(skills, matches.skills)],
+        duplicate_of=None if same is None else PreviewDuplicate(
+            resume_id=same.id, name=same.original_filename or "Uploaded resume"),
+    )
+
+
 # Depends grabs get_session before function runs and passes the session into function.
 # FastAPI handles the lifecycle
 
@@ -126,6 +182,12 @@ def _duplicate(resume: Resume) -> HTTPException:
 async def upload_resume(
     applicant_id: uuid.UUID,
     file: UploadFile,
+    # "matching": the upload confirms a parse preview, and replaces the
+    # entries and skills of other uploads its reading matches (ADR 0006).
+    replace: Literal["matching"] | None = Query(None),
+    # The skills the student took out of the parse preview (× on a tag,
+    # KAN-369): not saved, and remembered as removed.
+    removed_skills: list[str] = Form([]),
     account: AuthenticatedAccount = Depends(get_current_account),
     session: AsyncSession = Depends(get_session)
 ):
@@ -186,7 +248,9 @@ async def upload_resume(
         # The bank's entries point at the resume, and no relationship()
         # orders the inserts (models/CLAUDE.md).
         await session.flush()
-        imported = await bank.import_upload(session, applicant_id, resume.id, entries, skills)
+        await bank.remember_removed(session, applicant_id, removed_skills)
+        imported = await bank.import_upload(
+            session, applicant_id, resume.id, entries, skills, replace_matching=replace == "matching")
         left = await uses_left(session, applicant_id, Feature.PARSING)
         await built_resumes.default_if_only(session, applicant_id)
         default_id = await _default_id(session, applicant_id)
@@ -194,7 +258,7 @@ async def upload_resume(
     except Exception as exc:
         await session.rollback()
         # DB failed - remove the file from Storage
-        await _remove_file(client, storage_path, "Failed to remove orphaned file from Storage")
+        await stored_files.remove(get_supabase, storage_path, "Failed to remove orphaned file from Storage")
         await _raise_if_raced(session, exc, applicant_id, digest)
         raise HTTPException(500, "Failed to save resume record")
 
@@ -280,22 +344,14 @@ async def replace_resume(
         await session.commit()
     except Exception as exc:
         await session.rollback()
-        await _remove_file(client, storage_path, "Failed to remove orphaned file from Storage")
+        await stored_files.remove(get_supabase, storage_path, "Failed to remove orphaned file from Storage")
         await _raise_if_raced(session, exc, applicant_id, digest, besides=resume_id)
         raise HTTPException(500, "Failed to save resume record")
 
     if old_path and not await sent_resumes.file_in_use(session, old_path):
-        await _remove_file(client, old_path, "Failed to remove replaced resume file from Storage")
+        await stored_files.remove(get_supabase, old_path, "Failed to remove replaced resume file from Storage")
 
     return _imported(resume, resume.id == default_id, entries, skills, imported, left)
-
-
-async def _remove_file(client, storage_path: str, message: str) -> None:
-    # Best effort: a file left behind is orphaned, but no data is lost.
-    try:
-        await asyncio.to_thread(client.storage.from_(BUCKET).remove, [storage_path])
-    except Exception:
-        logger.exception(message, extra={"storage_path": storage_path})
 
 
 def _imported(resume: Resume, is_default: bool, entries, skills, imported, left: int) -> dict:
@@ -313,6 +369,8 @@ def _imported(resume: Resume, is_default: bool, entries, skills, imported, left:
             found=len(entries) + len(skills),
             entries_added=imported.entries_added,
             skills_added=imported.skills_added,
+            entries_replaced=imported.entries_replaced,
+            skills_replaced=imported.skills_replaced,
             uses_left=left,
         ).model_dump(),
     }
@@ -443,7 +501,8 @@ async def get_resume_file_url(
     the file under its name, as every link does with `download`."""
     assert_applicant_owns(account, applicant_id)
     resume = await _get_owned_resume(session, applicant_id, resume_id)
-    if not resume.storage_path:
+    # A local file (services/local_files.py) has no Storage link.
+    if not resume.storage_path or local_files.is_local(resume.storage_path):
         raise HTTPException(404, "Resume file not found")
     options = (
         {} if resume.storage_path.endswith(".pdf") and not download
@@ -462,13 +521,6 @@ async def get_resume_file_url(
     return {"url": signed.get("signedUrl")}
 
 
-RESUME_MIME_TYPES = {
-    ".pdf": "application/pdf",
-    ".doc": "application/msword",
-    ".docx": "application/vnd.openxmlformats-officedocument.wordprocessingml.document",
-}
-
-
 @router.get("/applicants/{applicant_id}/resumes/{resume_id}/bytes")
 async def get_resume_file_bytes(
     applicant_id: uuid.UUID,
@@ -484,25 +536,26 @@ async def get_resume_file_bytes(
     policy the Storage bucket happens to have, not this app's. Routing the
     bytes through here instead needs no such assumption, at the cost of a
     server round trip through Storage and this app at attach-time instead of
-    a direct browser-to-Storage fetch."""
+    a direct browser-to-Storage fetch. A local resume (`local:<name>`,
+    services/local_files.py; development only) comes from LOCAL_FILES_DIR,
+    never Storage: 404 when the folder is unset or lacks it."""
     assert_applicant_owns(account, applicant_id)
     resume = await _get_owned_resume(session, applicant_id, resume_id)
     if not resume.storage_path:
         raise HTTPException(404, "Resume file not found")
     try:
-        data = await asyncio.to_thread(
-            get_supabase().storage.from_(BUCKET).download, resume.storage_path,
-        )
+        data = await stored_files.read(get_supabase, resume.storage_path)
     except Exception:
         logger.exception("Failed to download resume file", extra={"storage_path": resume.storage_path})
         raise HTTPException(502, "Could not open the resume")
+    if data is None:
+        raise HTTPException(404, "Resume file not found")
     ext = PurePosixPath(resume.storage_path).suffix.lower()
-    media_type = RESUME_MIME_TYPES.get(ext, "application/octet-stream")
     filename = resume.original_filename or f"resume{ext}"
     return Response(
         data,
-        media_type=media_type,
-        headers={"Content-Disposition": f'attachment; filename="{filename}"'},
+        media_type=stored_files.media_type(resume.storage_path),
+        headers={"Content-Disposition": stored_files.attachment(filename)},
     )
 
 
@@ -535,21 +588,6 @@ async def delete_resume(
     # removes the file once nothing uses it.
     if await sent_resumes.file_in_use(session, storage_path):
         return {"detail": "Resume deleted"}
-
-    # DB succeeded — now remove the file from Storage
-    # If this fails the file is orphaned, but no data is lost
-    client = get_supabase()
-    try:
-        await asyncio.to_thread(
-            client.storage.from_(BUCKET).remove,
-            [storage_path],
-        )
-    except Exception:
-        # The database row was already deleted; retain best-effort cleanup behavior,
-        # but record the failure instead of silently ignoring it.
-        logger.exception(
-            "Failed to remove resume file from Storage",
-            extra={"storage_path": storage_path},
-        )
-
+    # DB succeeded: now remove the file (best effort; the row is gone).
+    await stored_files.remove(get_supabase, storage_path, "Failed to remove resume file from Storage")
     return {"detail": "Resume deleted"}
