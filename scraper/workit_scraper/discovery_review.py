@@ -23,6 +23,36 @@ class ReviewUpdate:
     added: int
 
 
+def _validate_ledger(ledger: dict[str, dict]) -> None:
+    if not isinstance(ledger, dict) or any(
+        not isinstance(key, str)
+        or "/" not in key
+        or not all(key.split("/", 1))
+        or not isinstance(row, dict)
+        or row.get("decision") not in ("proposed", "rejected")
+        for key, row in ledger.items()
+    ):
+        raise ValueError("review ledger must map board keys to proposed/rejected records")
+
+
+def validate_catalog(boards: Iterable[Board], ledger: dict[str, dict]) -> None:
+    """Refuse to publish or scrape a catalog containing explicitly rejected boards.
+
+    A ledger edit can precede the bot's next reconciliation. Before merge, the
+    corresponding CSV row must also be removed; main's rows are never silently
+    deleted by reconciliation after an inconsistent review has been merged.
+    """
+    _validate_ledger(ledger)
+    rejected = {
+        board.key for board in boards if ledger.get(board.key, {}).get("decision") == "rejected"
+    }
+    if rejected:
+        raise ValueError(
+            "Remove rejected CSV rows before merge; boards.csv still contains: "
+            + ", ".join(sorted(rejected))
+        )
+
+
 def _http_url(value: object) -> bool:
     if not isinstance(value, str) or any(char.isspace() for char in value):
         return False
@@ -82,14 +112,7 @@ def reconcile(
     until a developer explicitly removes their ledger entry to permit discovery
     again. An already merged catalog row is never removed by this process.
     """
-    if not isinstance(ledger, dict) or any(
-        not isinstance(key, str)
-        or "/" not in key
-        or not isinstance(row, dict)
-        or row.get("decision") not in {"proposed", "rejected"}
-        for key, row in ledger.items()
-    ):
-        raise ValueError("review ledger must map board keys to proposed/rejected records")
+    _validate_ledger(ledger)
     if not isinstance(report, dict) or not isinstance(report.get("candidates"), list):
         raise ValueError("discovery report must contain a candidate list")
     timestamp = report.get("generated_at")
@@ -154,9 +177,11 @@ def render_review(update: ReviewUpdate, base_boards: Iterable[Board]) -> str:
         "that the board responded, not that it belongs to the named company.",
         "",
         "Before merging, check each board's branding and jobs and corroborate ownership",
-        "through the company's official website. Remove uncertain rows from `boards.csv`",
-        "or mark their ledger decision `rejected`. Keep the ledger so future runs remember",
-        "rejections. Merge only after reviewing every remaining addition.",
+        "through the company's official website. Remove rejected rows from `boards.csv`",
+        "before merging. A ledger-only `rejected` decision queues removal for the next",
+        "discovery run; wait for that run or remove the CSV row yourself. Keep the ledger",
+        "so future runs remember rejections. Merge only after checks pass and every",
+        "remaining addition has been reviewed.",
         "",
         "New discovery runs may add rows; review the latest commit before merging.",
         "",

@@ -45,4 +45,3 @@ jobs:
           path: scraper/discovery-report.json
           if-no-files-found: warn
           retention-days: 30
-

@@ -30,7 +30,11 @@ Review the evidence and the real company careers page, then edit the PR branch:
   that correction.
 - Remove a proposed CSV row to reject it. Later runs infer the rejection from the
   existing ledger and do not restore it, even when the same source finds it again.
-  You can also set that board's ledger `decision` to `rejected` explicitly.
+  Setting its ledger `decision` to `rejected` queues removal for the next discovery
+  run; it does not remove the CSV row immediately. **Before merging, remove the
+  rejected CSV row yourself or wait for discovery to remove it.** Run the checks
+  again after removal. CI and the scraper refuse a catalog that still contains
+  explicitly rejected boards.
 - Keep the ledger in the PR when merging, including rejected entries. If all
   proposals are rejected, remove their CSV rows and merge the ledger changes so
   those decisions persist on main. To intentionally reconsider a rejection,
@@ -59,6 +63,12 @@ repository's Actions workflow permissions. The workflow requests `contents:
 write` and `pull-requests: write`; despite the setting's name, it only creates or
 updates a PR, never approves one. Scheduled and manual publishing use trusted
 main code; proposal-branch code is never executed, and only proposal data is read.
+
+As verified on 2026-10-28, this repository's Actions PR-creation setting is still
+disabled, so publishing is not active until it is enabled. PR events created with
+`GITHUB_TOKEN` create approval-required workflow runs: a developer must choose
+**Approve workflows**, then wait for the checks to pass before merging. See
+[GitHub's workflow-trigger documentation](https://docs.github.com/en/actions/how-tos/write-workflows/choose-when-workflows-run/trigger-a-workflow).
 
 The discovery report is uploaded as a workflow artifact for 30 days, including
 failure runs. Independent source failures preserve successful proposals but
@@ -117,8 +127,12 @@ report and catalog must not alias, including symlinks and hard links. Catalog
 updates are atomic and additive; run local writers one at a time.
 
 To preview the rolling PR update, run `python3 scraper/discovery_pr.py` from the
-repository root. Publishing requires its explicit `--publish` flag and GitHub
-credentials. This is separate from the source collector's local `--apply` option.
+repository root with GitHub CLI authentication. The command discovers the
+repository through `gh repo view` outside Actions; `--repo owner/repository`
+overrides that selection. Publishing requires its explicit `--publish` flag and
+a current main checkout. This is separate from the collector's local `--apply`.
+Each cycle uses a stable branch name, so a failed PR-creation request resumes
+the already-pushed proposal on retry instead of creating orphan branches.
 
 New merged boards enter the existing ATS-read, shortlist, feed, and backend-import
 pipeline. Discovery does not change title filters or add new ATS provider readers.

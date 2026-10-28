@@ -1,8 +1,11 @@
+import json
 from copy import deepcopy
+from pathlib import Path
 
 import pytest
 
-from workit_scraper.discovery_review import ReviewUpdate, reconcile, render_review
+from workit_scraper.catalog import load_boards
+from workit_scraper.discovery_review import ReviewUpdate, reconcile, render_review, validate_catalog
 from workit_scraper.providers import Board
 
 AT = "2026-10-28T12:00:00+00:00"
@@ -87,6 +90,52 @@ def test_main_is_authoritative_even_if_ledger_says_rejected():
     )
     assert result.boards == [corrected]
     assert result.added == 0
+
+
+def test_ledger_only_rejection_cannot_pass_catalog_validation_before_merge():
+    with pytest.raises(ValueError, match="Remove rejected CSV rows before merge.*lever/acme"):
+        validate_catalog([BASE, ACME], {ACME.key: proposed(decision="rejected")})
+
+
+def test_rejected_board_merged_without_reconciliation_is_not_safe_to_scrape():
+    ledger = {ACME.key: proposed(decision="rejected")}
+    result = reconcile([BASE, ACME], [BASE, ACME], ledger, report())
+    # Reconciliation preserves main; the scrape/publication boundary must refuse it.
+    assert ACME in result.boards
+    with pytest.raises(ValueError, match="lever/acme"):
+        validate_catalog(result.boards, result.ledger)
+
+
+def test_removed_rejected_rows_and_proposed_rows_pass_catalog_validation():
+    validate_catalog(iter([BASE]), {ACME.key: proposed(decision="rejected")})
+    validate_catalog(iter([BASE, ACME]), {ACME.key: proposed()})
+    validate_catalog([], {})
+
+
+@pytest.mark.parametrize(
+    "ledger",
+    [
+        [],
+        {"/acme": {"decision": "rejected"}},
+        {"lever/": {"decision": "rejected"}},
+        {"lever/acme": {"decision": []}},
+        {"lever/acme": {"decision": {}}},
+        {"lever/acme": None},
+        {"lever/acme": {"decision": "approved"}},
+    ],
+)
+def test_catalog_validation_rejects_malformed_ledger(ledger):
+    with pytest.raises(ValueError, match="review ledger"):
+        validate_catalog([], ledger)
+
+
+def test_repository_catalog_contains_no_rejected_boards():
+    # This intentionally checks committed review data, not a synthetic fixture:
+    # a discovery PR that leaves a rejected row in its CSV must fail scraper CI.
+    scraper = Path(__file__).resolve().parents[1]
+    ledger_path = scraper / "discovery-review.json"
+    ledger = json.loads(ledger_path.read_text(encoding="utf-8")) if ledger_path.exists() else {}
+    validate_catalog(load_boards(scraper / "boards.csv"), ledger)
 
 
 def test_main_rows_deleted_from_proposal_are_restored():

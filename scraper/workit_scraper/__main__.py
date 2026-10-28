@@ -23,6 +23,7 @@ from pathlib import Path
 from workit_scraper import feed, logos, providers, report, store
 from workit_scraper.board_read import ReadStatus, read_board
 from workit_scraper.catalog import BOARDS_CSV, load_boards
+from workit_scraper.discovery_review import validate_catalog
 from workit_scraper.polite import Robots
 from workit_scraper.providers import Board, Job
 from workit_scraper.providers.systems.workday import WORKDAY_CAP
@@ -270,6 +271,13 @@ def main(argv: list[str] | None = None) -> int:
     else:
         now = datetime.now(UTC).isoformat()
         boards = load_boards(args.boards)
+        decisions = args.boards.with_name("discovery-review.json")
+        try:
+            if decisions.exists():
+                validate_catalog(boards, json.loads(decisions.read_text(encoding="utf-8")))
+        except (OSError, ValueError) as error:
+            print(f"Invalid discovery review: {error}", file=sys.stderr)
+            return 1
         if previous:
             # Least recently read first, even with --full: Workday's lane reads
             # from the front until its time is up (`Provider.budget_s`).

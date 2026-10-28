@@ -515,14 +515,19 @@ branch. It reads proposal data but executes only trusted main code. No automatic
 approval, merge, or push to main is permitted. Keep its default a local preview;
 publishing needs explicit `--publish`. Main changes merge into the proposal
 branch without force pushes; conflicts fail visibly. A closed, unmerged PR
-pauses publishing until reopened or its rejection ledger is merged. A merged
-PR starts the next cycle.
+pauses publishing until reopened. Merge that PR with its rejection ledger
+retained to finish the cycle; the next proposal then starts a new cycle.
 
 `discovery-review.json` stores observations and durable review decisions. A
 developer's removal of a proposed CSV row means rejection; never re-add it on
 rediscovery. Preserve company-name corrections and merge rejected ledger entries
-even when no proposed boards are accepted. Explicit `decision: rejected` also
-rejects a proposal. Reconsideration requires a deliberate ledger-entry removal.
+even when no proposed boards are accepted. Explicit `decision: rejected` queues
+CSV removal for the next discovery run; the rejected row must be removed before
+merging, either by the reviewer or by rerunning discovery. CI checks the actual
+catalog against the ledger, and the scraper and publisher must call
+`discovery_review.validate_catalog` before consuming/publishing it. This prevents
+a ledger-only rejection merged between daily runs from becoming an active board.
+Reconsideration requires a deliberate ledger-entry removal.
 `discovery-review.md` is generated from that ledger and must not be hand-edited.
 Evidence includes source/company, ATS/token, posting count, and validation time;
 it is not proof of ownership. There is no company allowlist or trust manifest.
