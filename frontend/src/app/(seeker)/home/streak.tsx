@@ -8,6 +8,8 @@ import { SegmentedToggle } from "@/components/ui/segmented-control";
 import { cn } from "@/lib/cn";
 
 import { localDay } from "../tracker";
+import type { AppliedApplication } from "./data";
+import { DayApplications } from "./day-applications";
 import { MORPH_MS, mountSkyline, type Skyline, type SkylineState } from "./streak-canvas";
 import {
   buildGrid,
@@ -32,8 +34,10 @@ import { SectionCard } from "./section-card";
  * style. Buttons rather than links, because the morph between the views is
  * the point and a navigation would cut it.
  *
- * Hover or tap a day for its count, arrow keys walk the grid, and in 3D a drag
- * orbits (double-click resets). There is no legend or hint row under the
+ * Hover a day for its count, arrow keys walk the grid, and in 3D a drag
+ * orbits (double-click resets). A click, a tap or Enter on a filled day opens
+ * that day's applications in a table (./day-applications.tsx, KAN-423); a
+ * tap on an empty day pins its count. There is no legend or hint row under the
  * stats: the tooltip gives any day's exact count, and darker reads as more
  * without a key. The canvas is ./streak-canvas.ts; the numbers come from
  * ./streak-model.ts. The numbers are ink, never a level's violet: colour
@@ -113,14 +117,18 @@ export function Streak({
   applied,
   className,
 }: {
-  /** When each application was sent; null when the tracker can't be read. */
-  applied: string[] | null;
+  /** Each sent application; null when the tracker can't be read. */
+  applied: AppliedApplication[] | null;
   className?: string;
 }) {
   const today = useSyncExternalStore(noSubscription, localToday, utcToday);
   const local = useSyncExternalStore(noSubscription, inBrowser, onServer);
   const days = useMemo<AppliedDay[]>(
-    () => (applied ?? []).map((at) => ({ date: local ? localDay(at) : at.slice(0, 10), count: 1 })),
+    () =>
+      (applied ?? []).map((app) => ({
+        date: local ? localDay(app.appliedOn) : app.appliedOn.slice(0, 10),
+        count: 1,
+      })),
     [applied, local],
   );
   const model = useMemo(() => {
@@ -137,6 +145,18 @@ export function Streak({
   const [view, setView] = useState<View>("2d");
   const [active, setActive] = useState(-1);
   const [announcement, setAnnouncement] = useState("");
+  // The day whose applications the dialog lists. Kept after it closes, so
+  // the dialog keeps its words while it fades out.
+  const [day, setDay] = useState<{ date: string; open: boolean } | null>(null);
+  const dayApplications = useMemo(
+    () =>
+      day
+        ? (applied ?? [])
+            .filter((app) => localDay(app.appliedOn) === day.date)
+            .sort((a, b) => Date.parse(a.appliedOn) - Date.parse(b.appliedOn))
+        : [],
+    [applied, day],
+  );
 
   const rootRef = useRef<HTMLElement>(null);
   const stageRef = useRef<HTMLDivElement>(null);
@@ -151,6 +171,10 @@ export function Streak({
     target: view === "3d" ? 1 : 0,
     setActive,
     announce: (i) => setAnnouncement(describe(model.cells[i])),
+    open: (i) => {
+      const date = model.cells[i]?.date;
+      if (date) setDay({ date, open: true });
+    },
   };
   const live = useRef(snapshot);
   useEffect(() => {
@@ -275,7 +299,7 @@ export function Streak({
             ref={canvasRef}
             tabIndex={0}
             role="img"
-            aria-label={`${counted(stats.total)} between ${span(stats.first, stats.last, true)}, shown as a ${is3d ? "3D skyline" : "heat map"}. Use the arrow keys to read individual days.`}
+            aria-label={`${counted(stats.total)} between ${span(stats.first, stats.last, true)}, shown as a ${is3d ? "3D skyline" : "heat map"}. Use the arrow keys to read individual days, and Enter to list a day's applications.`}
             className="absolute top-0 left-0 block max-w-none outline-none"
             style={{ touchAction: is3d ? "pan-y" : "auto" }}
           />
@@ -307,6 +331,15 @@ export function Streak({
       <p aria-live="polite" className="sr-only">
         {announcement}
       </p>
+
+      {day && (
+        <DayApplications
+          date={day.date}
+          open={day.open}
+          applications={dayApplications}
+          onClose={() => setDay({ ...day, open: false })}
+        />
+      )}
     </SectionCard>
   );
 }

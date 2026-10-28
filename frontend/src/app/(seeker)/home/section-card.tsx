@@ -12,30 +12,23 @@ import { cn } from "@/lib/cn";
  * A 20px corner (rounded-shell) and 20px inside, so every tile's heading
  * lines up across a row.
  *
- * `tone="brand"` is the one filled tile in a row: solid violet with white
- * type, as the first headline number is.
+ * A tinted tile passes its ground as a `bg-*` class, which `cn` lets win
+ * over the white: the four headline numbers each wear their colour's tint
+ * (KAN-423, ./headline.tsx). A `tone="brand"` prop filled the one violet
+ * tile until then.
  */
 export function SectionCard({
   as = "section",
-  tone = "plain",
   className,
   ...props
 }: {
   as?: "section" | "div";
-  tone?: "plain" | "brand";
   className?: string;
   ref?: Ref<HTMLElement>;
 } & Omit<HTMLAttributes<HTMLElement>, "className">) {
   const Tag = as as ElementType;
 
   return (
-    <Tag
-      className={cn(
-        "rounded-shell shadow-tile relative p-5",
-        tone === "brand" ? "bg-brand text-on-brand" : "bg-panel",
-        className,
-      )}
-      {...props}
-    />
+    <Tag className={cn("rounded-shell shadow-tile bg-panel relative p-5", className)} {...props} />
   );
 }

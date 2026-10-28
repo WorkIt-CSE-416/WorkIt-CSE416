@@ -154,6 +154,7 @@ export const COLOR_GROUPS: ColorGroup[] = [
         role: "Amber as a bar or dot, never text or a glyph's ground",
       },
       { token: "--color-warning-strong", role: "Interviewing's fill, white glyph at 3.19:1" },
+      { token: "--color-warning-deep", role: "Home's Interviewing disc, white glyph at 4.92:1" },
       { token: "--color-danger", role: "UNMEASURED — ended badly" },
       { token: "--color-danger-tint", role: "UNMEASURED" },
       { token: "--color-advanced", role: "UNMEASURED — in flight, late (Interview)" },

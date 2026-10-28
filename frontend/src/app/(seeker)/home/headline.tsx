@@ -16,6 +16,7 @@ import { AnimatedNumber } from "@/components/ui/animated-number";
 import { cn } from "@/lib/cn";
 import { formatCount } from "@/lib/format-count";
 
+import { STAGE_COLOR } from "../stage-colors";
 import type { HomeStat, StatKey } from "./data";
 import { RANGES, type RangeKey } from "./range";
 import { useRange } from "./range-switch";
@@ -31,21 +32,49 @@ const STAT_ICONS: Record<StatKey, ComponentType<{ className?: string }>> = {
 };
 
 /**
+ * Each tile's colours (KAN-423), as the user picked them: Strong Matches
+ * green, Saved grey, Applied violet, Interviewing yellow. `tint` is the
+ * tile's ground, the pale tint each colour already has; `disc` the solid
+ * disc behind its white glyph. Saved, Applied and Interviewing take their
+ * stage's tint from ../stage-colors.ts, the Applications board's panels.
+ * Strong Matches' disc is --color-positive-ink (5.35:1 under white; the
+ * brighter --color-positive holds 2.8:1, under the 3:1 a glyph needs), and
+ * Interviewing's is --color-warning-deep (4.92:1), more yellow than the
+ * stage's own orange-leaning amber. On every tint the ink-meta note holds
+ * 4.7:1 or better and the green or red change 4.5:1 or better. Magenta (the
+ * match ramp), a burnt amber, solid fills and plain white tiles were tried
+ * first and turned down.
+ */
+/** The tiles' order, for the skeleton: getHeadline's order in ./data.ts. */
+const STAT_ORDER: StatKey[] = ["strongMatches", "saved", "applied", "interviewing"];
+
+const STAT_TONE: Record<StatKey, { tint: string; disc: string }> = {
+  strongMatches: { tint: "bg-positive-tint", disc: "bg-positive-ink" },
+  saved: { tint: STAGE_COLOR.saved.tint, disc: STAGE_COLOR.saved.fill },
+  applied: { tint: STAGE_COLOR.applied.tint, disc: STAGE_COLOR.applied.fill },
+  interviewing: { tint: STAGE_COLOR.interviewing.tint, disc: "bg-warning-deep" },
+};
+
+/**
  * The headline numbers for the range in the URL, one tile each, four across
  * the top of Home. It is handed every range's figures and picks one
  * in the browser, so moving the range switch counts each figure to its new
  * value at once (AnimatedNumber) rather than after the server has drawn the
  * page again.
  *
- * Strong Matches is filled violet, the row's one solid colour, and the other
- * three are white (./data.ts says why that tile). Each wears its glyph in a ring at the top right.
+ * Every tile is tinted with the pale shade of its own colour, and wears its
+ * white glyph in a solid disc of that colour at the top right (KAN-423,
+ * STAT_TONE), so the four stand apart at a glance without four loud
+ * blocks. Strong Matches was the one filled tile, in violet, until then:
+ * violet is Applied's stage colour, so the filled tile and the Applied
+ * badges said two things in one colour.
  *
  * EVERY TILE IS A LINK (KAN-342): a click anywhere on a tile opens the page
  * that lists what it counts (the Applications list filtered to its stage,
  * or the Jobs page in Best Match order), its label the link stretched over
- * it. Under the pointer a tile lifts 2px onto --shadow-lift, its ring fills
- * violet (white on the violet tile), and its glyph slides out as an arrow
- * slides in, so the tile reads as clickable; a press settles it. A lift
+ * it. Under the pointer a tile lifts 2px onto --shadow-lift and its glyph
+ * slides out of its disc as an arrow slides in, so the tile reads as
+ * clickable; a press settles it. A lift
  * alone was too slight to say so. A keyboard focus rings the tile.
  *
  * Its own tile rather than components/stat-tile.tsx, which the company
@@ -61,20 +90,18 @@ export function Headline({ stats }: { stats: Record<RangeKey, HomeStat[]> }) {
     <>
       {stats[range].map((stat) => {
         const Icon = STAT_ICONS[stat.key];
-        const brand = stat.key === "strongMatches";
         const change =
           stat.value !== null && stat.previous !== null && period
             ? stat.value - stat.previous
             : null;
-        const labelClass = cn("text-body font-medium", brand ? "text-on-brand" : "text-ink");
 
         return (
           <SectionCard
             key={stat.key}
             as="div"
-            tone={brand ? "brand" : "plain"}
             className={cn(
               "group/stat @container/stat flex flex-col",
+              STAT_TONE[stat.key].tint,
               // Lifts 2px onto --shadow-lift under the pointer and settles
               // on the press, as a whole-target card does (docs/motion.md).
               "ease-glide hover:shadow-lift transition-[translate,scale,box-shadow] duration-200 hover:-translate-y-0.5 active:translate-y-0 active:scale-[0.99] active:duration-150",
@@ -89,7 +116,7 @@ export function Headline({ stats }: { stats: Record<RangeKey, HomeStat[]> }) {
               <Link
                 href={stat.href}
                 className={cn(
-                  labelClass,
+                  "text-body text-ink font-medium",
                   // The overlay sits over the figure too, which is layered (its
                   // count animates), so a click anywhere on the tile lands.
                   "after:absolute after:inset-0 after:z-10 focus-visible:outline-none",
@@ -103,11 +130,8 @@ export function Headline({ stats }: { stats: Record<RangeKey, HomeStat[]> }) {
                   // Only where the tile has room beside its label: in the
                   // narrowest four-column layout a long label wrapped and
                   // dropped its figure below the other three.
-                  "relative hidden size-9 shrink-0 items-center justify-center overflow-hidden rounded-full @[10.5rem]/stat:flex",
-                  "ease-glide transition-colors duration-200",
-                  brand
-                    ? "text-brand bg-white"
-                    : "text-ink border-border-subtle group-hover/stat:border-brand group-hover/stat:bg-brand group-hover/stat:text-on-brand border",
+                  "relative hidden size-9 shrink-0 items-center justify-center overflow-hidden rounded-full text-white @[10.5rem]/stat:flex",
+                  STAT_TONE[stat.key].disc,
                 )}
               >
                 {/* Under the pointer the glyph slides out to the right and
@@ -124,7 +148,7 @@ export function Headline({ stats }: { stats: Record<RangeKey, HomeStat[]> }) {
             {/* Pushed to the foot: a label that wraps makes its tile taller,
                 the row stretches the other three to match, and every figure
                 in the row still sits on one line. */}
-            <p className={cn("text-figure mt-auto pt-3", brand ? "text-on-brand" : "text-ink")}>
+            <p className="text-figure text-ink mt-auto pt-3">
               {stat.value === null ? (
                 "–"
               ) : (
@@ -142,8 +166,7 @@ export function Headline({ stats }: { stats: Record<RangeKey, HomeStat[]> }) {
               className={cn(
                 // h-5 whether it holds the boxed change or plain words, so
                 // the box does not lift its tile's figure 2px above the rest.
-                "text-note animate-fade mt-2 flex h-5 items-center gap-1.5",
-                brand ? "text-white/80" : "text-ink-meta",
+                "text-note animate-fade text-ink-meta mt-2 flex h-5 items-center gap-1.5",
               )}
             >
               {change === null ? (
@@ -154,11 +177,9 @@ export function Headline({ stats }: { stats: Record<RangeKey, HomeStat[]> }) {
                     <span
                       className={cn(
                         "inline-flex items-center gap-0.5 rounded-md border px-1 font-semibold tabular-nums",
-                        brand
-                          ? "border-white/40 text-white"
-                          : change > 0
-                            ? "border-positive/40 text-positive-ink"
-                            : "border-danger/40 text-danger",
+                        change > 0
+                          ? "border-positive/40 text-positive-ink"
+                          : "border-danger/40 text-danger",
                       )}
                     >
                       {change > 0 ? "+" : "−"}
@@ -194,9 +215,8 @@ export function Headline({ stats }: { stats: Record<RangeKey, HomeStat[]> }) {
  * the real one's boxes, row for row, so the grid holds its height and
  * nothing under it moves when the figures land. The label row's 36px, the
  * figure's 12px of padding over its 40px line (--text-figure) and the
- * note's 20px line each hold a bar in place of the words. Strong Matches
- * keeps its violet, the one filled tile, so the row reads as itself while
- * it waits. A fragment, as Headline is: each tile is a cell of the page's
+ * note's 20px line each hold a bar in place of the words, on the tile's own
+ * tint, so the row reads as itself while it waits. A fragment, as Headline is: each tile is a cell of the page's
  * grid.
  *
  * A streamed tile mounts with its figure, and AnimatedNumber prints a first
@@ -205,29 +225,24 @@ export function Headline({ stats }: { stats: Record<RangeKey, HomeStat[]> }) {
 export function HeadlineSkeleton() {
   return (
     <>
-      {Array.from({ length: 4 }, (_, i) => {
-        const brand = i === 0;
-        const bar = brand ? "bg-white/25" : undefined;
-        return (
-          <SectionCard
-            key={i}
-            as="div"
-            tone={brand ? "brand" : "plain"}
-            aria-hidden="true"
-            className="flex flex-col"
-          >
-            <div className="flex min-h-9 items-center">
-              <Skeleton className={cn("h-4 w-24", bar)} />
-            </div>
-            <div className="mt-auto pt-3">
-              <Skeleton className={cn("h-10 w-16", bar)} />
-            </div>
-            <div className="mt-2 flex h-5 items-center">
-              <Skeleton className={cn("h-3 w-28", bar)} />
-            </div>
-          </SectionCard>
-        );
-      })}
+      {STAT_ORDER.map((key) => (
+        <SectionCard
+          key={key}
+          as="div"
+          aria-hidden="true"
+          className={cn("flex flex-col", STAT_TONE[key].tint)}
+        >
+          <div className="flex min-h-9 items-center">
+            <Skeleton className="bg-panel h-4 w-24" />
+          </div>
+          <div className="mt-auto pt-3">
+            <Skeleton className="bg-panel h-10 w-16" />
+          </div>
+          <div className="mt-2 flex h-5 items-center">
+            <Skeleton className="bg-panel h-3 w-28" />
+          </div>
+        </SectionCard>
+      ))}
     </>
   );
 }

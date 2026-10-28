@@ -504,7 +504,11 @@ Match, and their best weak ones are still where to start; the Strong Matches
 number above counts only 80 and up. Each is a flat row in one tile: a well
 with the logo, the title (its link to the job posting page), the company,
 the match ring, when it was posted, then Save and Apply Now (the same
-dialog as everywhere, KAN-290). Tailor My Resume sat between them and was
+dialog as everywhere, KAN-290). From `@4xl/main` the match ring and the
+posted date are columns of their own, centred on the row's height at fixed
+widths, so they line up down the list (KAN-423); squeezed onto the
+company's line they read as one cramped run. Below it they stay on that
+line. Tailor My Resume sat between them and was
 taken out at the user's ask: the list is for choosing what to apply to. The
 title's link (`top-match-link.tsx`) makes the job page's Back return to the
 Home. **Auto Apply**, at the heading's right beside See More Matches,
@@ -552,7 +556,7 @@ is capped at `max-w-dashboard` (1440px), as every seeker page now is.
 From `@4xl/main` (896px, not `@5xl`'s 1024: a 13-inch laptop at 100% zoom
 gives the page about 1010px and fell back to two columns of oversized
 tiles) the four numbers run across the top in a grid of their own
-(Strong Matches filled violet, the only solid tile), and the tiles under them sit in
+(each tinted with its own colour: KAN-423, below), and the tiles under them sit in
 thirds. Left to right is apply, then manage: New Matches two thirds wide
 beside Next Up (a white reminder tile, its title in violet over one filled
 button) over Up Next, then Activity two thirds wide beside Waiting (three
@@ -602,10 +606,23 @@ apply, hear back, as the Applications Tracker's stages and the landing page's ro
 so the left half is what is left to do and the right half how it is going
 (in the 2 x 2 grid on a phone too). Interviewing sits last as the outcome, not as a gap in the middle. The order
 was Applications, New Roles, Interviews, Saved, which read out of sequence.
-**Strong Matches wears the violet fill**, where the next application starts,
-so the eye lands on the head of the search. Applied wore it until the
-reorder; the user moved it, since a seeker comes to find what to apply to
-next. A violet 0 is the cost on a week with no good matches. Applied
+**Each tile is tinted with its own colour, its glyph white in a solid disc
+of that colour** (KAN-423, `STAT_TONE` in `home/headline.tsx`). The user
+picked the colours: Strong Matches green, Saved grey, Applied violet,
+Interviewing yellow. The grounds are the tints each colour already has
+(`--color-positive-tint`, and the stages' tints from `stage-colors.ts`,
+the board's panels); the ink-meta note holds 4.7:1 or better on each, the
+green or red change 4.5:1 or better. The discs: Strong Matches
+`--color-positive-ink` (5.35:1 under the white glyph), Saved and Applied
+their stage fills, Interviewing `--color-warning-deep` (Tailwind's
+yellow-700, 4.92:1), more yellow than the stage's own orange-leaning
+amber. Strong
+Matches' green is Offer's stage hue, a known overlap. Strong Matches was
+the one filled tile, in violet, until then, and Applied before it: violet
+is Applied's stage colour, so the loud tile and the Applied badges said
+two things in one colour. Tried and turned down on the way: the match
+ramp's magenta, a burnt amber, every tile filled with its solid colour,
+and plain white tiles with only the discs coloured. Applied
 counts the tracker's applications sent in the range, against the same
 length of days before it. Strong Matches counts the job postings from the
 range that score Strong Match (80) or better for this seeker (it was Good
@@ -629,8 +646,7 @@ page that lists what it counts (the Applications Tracker filtered to applied,
 interviewing or saved; the Jobs page in Best Match order, filtered to the
 week or 30 days posted). The lists take no date window, so the Applied
 list can hold more than its number. Under the pointer a tile lifts 2px onto
-`--shadow-lift`, its ring fills violet (white on the violet tile), and its
-glyph slides out as an arrow slides in, so it reads as clickable; a press
+`--shadow-lift` and its glyph slides out of its disc as an arrow slides in, so it reads as clickable; a press
 settles it, and reduced motion keeps only the colour. A lift alone, which
 only two linked tiles once had, was too slight to say so. A keyboard focus
 rings the tile. Its range is `?range=`, moved in place: the
@@ -638,6 +654,22 @@ headline (`home/headline.tsx`) is handed every range's figures and reads
 `?range=` itself (`useRange` in `range-switch.tsx`), so a new range counts
 its numbers with the switch's thumb instead of after the server draws the
 page again. The streak always shows the full year regardless of range.
+
+**A filled day opens its applications** (KAN-423,
+`home/day-applications.tsx`): a click, a tap or Enter on a day with any
+applications opens a dialog headed with the day, a table of what was sent
+that day, earliest first (the company tile over the role and company, the
+time it went in on the viewer's clock, its stage's badge now), and View All
+Applications. A row opens that application's page. The day is the viewer's
+own (`localDay`), the day the streak counted it on, so `getAppliedApplications`
+in `data.ts` hands the streak each sent application, not just its instant.
+An empty day opens nothing; a tap on it pins its count as before. **Both
+views draw every day as a rounded square** (KAN-423, `streak-canvas.ts`,
+`RING`): the outline is built on the ground in world units and projected,
+so the 3D skyline stands as rounded pillars, each side shaded by where it
+faces. The 3D view used to round the box's top in screen space by a radius
+that shrank to almost nothing as it rose, so the skyline was square boxes
+beside the heat map's rounded tiles.
 
 **Activity is a daily streak** (`(seeker)/home/streak.tsx`), no longer
 a weekly pace chart: the past year of applications per day as a heat map that
