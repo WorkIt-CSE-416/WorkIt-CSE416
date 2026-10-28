@@ -1303,7 +1303,15 @@ the KAN-296 cutover.
   That dialog is the one place several jobs are queued at once. Up Next's
   resume picker stores a job's resume as the sent resume its application
   names; the extension does not read it yet (`docs/screens.md`, Auto
-  Apply).
+  Apply). **Up Next orders its rows by one rule** (KAN-424): `needsYou` in
+  `auto-apply/activity-list.tsx` (a closed posting, a fill that couldn't
+  finish, no resume) puts those rows first in its one table, and the
+  header's count line reads the same rule, so change it there. A row's
+  rarer actions go in its ⋯ menu (`auto-apply/row-menu.tsx`), worded,
+  never as bare icon buttons beside each other, and the page's setup
+  steps go in the setup banner's Configure dialog, which hides once they
+  are done, never as header buttons that stay. A table row that opens
+  nothing carries no `group/row`, or its frozen cell tints alone on hover.
   **Written Answers (`/auto-apply/answers`, KAN-385) saves through the
   connector's own save** (`PUT .../written-answers`, which runs WorkIt's
   answer checks): never give pasted text a save of its own, since it may
