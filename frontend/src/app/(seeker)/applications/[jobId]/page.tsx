@@ -184,6 +184,7 @@ export default async function ApplicationPage({ params }: PageProps<"/applicatio
               company: app.company,
               logoUrl: app.logoUrl,
               stage: app.stage,
+              appliedOn: app.appliedOn,
             }}
           />
         }

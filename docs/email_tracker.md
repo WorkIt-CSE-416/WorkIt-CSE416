@@ -49,9 +49,9 @@ a mailbox:
 | Piece | Where |
 |---|---|
 | Connect, "Connected as...", last check, Check now, Disconnect, delete data | Gmail's row in Settings > **Integrations**, beside Google Calendar's (after Claude's connectors list: each app's logo, name, one line and Connect) |
-| Every email | The **Inbox** (`/inbox`, a sidebar row after Applications Tracker, no count badge): filter chips (All, Needs Review with its count, Interviews, Assessments, Offers, Rejections), a list beside a reading pane |
-| One email in the list | The sender's logo and name, the received time, the subject, one line of its text, its kind's pill; a dot and a bold subject while it needs review; Not Linked when it matched no job |
-| One email, read | The reading pane, as Gmail lays out an open message: the subject, the pill with the date it names, Open Application and Add to Calendar as icons; one quiet card only when it needs review ("Move Research Internship to Interviewing?", Move and Not Now; or Link to Job); the sender's line ("to me", received time, Reply); the text. Reply opens Gmail on the subject; Add to Calendar opens Google Calendar's own new-event page, filled in |
+| Every email | The **Inbox** (`/inbox`, a sidebar row after Applications Tracker, no count badge): one Status filter dropdown (what the email says: Interviews, Offers...), a Gmail toolbar over the list (select box and menu, Refresh, Mark All as Read; for picked emails Add to Tracker, Set Aside, Mark as Read or Unread, KAN-427), a list beside a reading pane |
+| One email in the list | The sender's logo and name, the received time, the subject, one line of its text, its kind's pill; unread white and bold, read grey and regular, as in Gmail (`read_at`, KAN-427); an empty dashed logo with a broken link when it matched no job (KAN-427) |
+| One email, read | The reading pane, as Gmail lays out an open message: the subject and its pill, View Application and Add to Calendar; only when it needs review, a status banner (KAN-427): the application, its stage now → the stage the email moves it to, Cancel and Confirm, with the interview's or due date's line (Choose Application first for an email that matched none: a view of the Applications Tracker in a modal); the sender's line ("to me", received time, Reply); the text. Reply opens Gmail on the subject; Add to Calendar opens Google Calendar's own new-event page, filled in |
 | The emails waiting, on the tracker | One line above the Applications Tracker's filters, only while some wait: "3 emails need a look · Open Inbox" |
 | Every email about one job | An **Emails** tab on the application's page, beside Your Application and Job Description, the Inbox's rows for that job; a row opens it in the Inbox |
 | What an accepted email changes | The stage, the application's timeline and Interviews & Dates, the Calendar, and Home's Next Up, Up Next and Waiting |
@@ -60,8 +60,9 @@ a mailbox:
 email that changes no stage (Application Received, Assessment, Update, or
 a move the application is already past) is filed onto its application
 when it arrives (backend `needs_review`, `file_email`). Only one that would
-move the stage, or that matched no job, waits in Needs Review. Not Now
-leaves it off the tracker; every email stays in the Inbox as a record.
+move the stage, or that matched no job, waits for review: opened, it shows
+the status banner (KAN-427). Cancel leaves it off the tracker; every email
+stays in the Inbox as a record.
 
 **What the critique cut**, so it does not come back: a sidebar count badge;
 a card per email with Move to Interviewing, Not Right and Wrong Job?
@@ -74,19 +75,25 @@ Interview amber, Offer green, Rejection red, Assessment the "advanced"
 tone, Application Received and Update grey.
 
 ```
-Inbox      (All) (Needs Review 3) (Interviews) (Assessments) (Offers) (Rejections)
-┌────────────────────────────────┬───────────────────────────────────────────┐
-│ ● Ai2                  9:42 AM │ Invitation: Technical Interview    ⧉  📅 │
-│   Invitation: Technical Int... │ (Interview) Nov 4, 2:00 PM               │
-│   Thanks for your interest...  │ ┌───────────────────────────────────────┐ │
-│   (Interview)                  │ │ Move Research Internship to Inter...? │ │
-│   SEL                  Oct 27  │ │                     [Move] [Not Now]  │ │
-│   Complete your HackerRank...  │ └───────────────────────────────────────┘ │
-│   (Assessment)                 │ (logo) Ai2       Tue, Oct 27, 9:42 AM ↩ │
-│ ● Datadog?             Oct 24  │        to me                             │
-│   (App. Received) (Not Linked) │ Hi Andrew, ...                           │
+Inbox      [Status ▾]
+┌────────────────────────────────────────────────────────────────────────────┐
+│ ☐▾  ↻  ⋯                                                       6 emails │
+├────────────────────────────────┬───────────────────────────────────────────┤
+│☐ **Ai2**             **9:42 AM** │ Invitation: Technical Interview          │
+│  **Invitation: Technical...**  │ (Interview)  [View Application] [Add to C…]│
+│  Thanks for your interest...   │ ┌ Update Application Status ────────────┐ │
+│  (Interview)                   │ │ (logo) Research Internship, Robotics  │ │
+│░ SEL                  Oct 27 ░│ │ (Applied) → (Interviewing)            │ │
+│░ Complete your HackerRank... ░│ │               [Cancel] [Confirm]      │ │
+│░                              ░│ │ Adds the interview, Nov 4, 2:00 PM... │ │
+│░                              ░│ └───────────────────────────────────────┘ │
+│░ (Assessment)                ░│ (logo) Ai2       Tue, Oct 27, 9:42 AM ↩ │
+│☐ **Datadog?**         **Oct 24** │        to me                             │
+│  (App. Received)               │ Hi Andrew, ...                           │
 └────────────────────────────────┴───────────────────────────────────────────┘
 ```
+
+(Bold rows are unread on white; ░ marks a read row's grey fill.)
 
 The Calendar page and Home's Next Up, Up Next and Waiting were
 hidden because the tracker stored no dated events (the sidebar's Calendar
@@ -119,14 +126,14 @@ minutes.
 Within about 15 minutes, the email is in the **Inbox** and in the job's
 **Emails** tab. A confirmation, an assessment or an update is filed onto
 its job at once. "Invitation: Technical Interview" from Stripe would move
-the application, so it waits in **Needs Review**, and the Applications
-Tracker's notice counts it. Its reading pane asks "Move Software Engineer
-Intern to Interviewing?":
+the application, so it waits for review, and the Applications Tracker's
+notice counts it. Its reading pane shows the status banner: Software
+Engineer Intern, Applied → Interviewing, with Cancel and Confirm:
 
-- **Move** applies it: the stage changes and the interview goes on the
+- **Confirm** applies it: the stage changes and the interview goes on the
   timeline and the Calendar.
-- **Not Now** leaves it off the tracker; the email stays in the Inbox.
-- **The wrong job:** Not Now for now; moving an email to another job is
+- **Cancel** leaves it off the tracker; the email stays in the Inbox.
+- **The wrong job:** Cancel for now; moving an email to another job is
   not built (the API's Accept already takes a `job_id`).
 
 A **Check now** button forces a check, at most once a minute.
@@ -134,8 +141,8 @@ A **Check now** button forces a check, at most once a minute.
 ### 4. Unmatched emails
 
 An email that looks job-related but matches no application shows in the
-Inbox as Not Linked, in Needs Review; its reading pane asks which job it
-is about, with **Link to Job** and Not Now. The student links it to an application or dismisses it. Unmatched items are deleted after 30 days.
+Inbox with an empty dashed logo, not linked, and waits for review; its status banner asks which
+application it is about: **Choose Application** opens the Tracker's list in a modal, a row picks it, then Cancel or **Confirm**. The student links it to an application or dismisses it. Unmatched items are deleted after 30 days.
 
 ### 5. Disconnect
 

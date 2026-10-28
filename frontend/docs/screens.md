@@ -736,7 +736,7 @@ links them to the Calendar.
 
 **Emails live on their own page, the Inbox** (KAN-413, below). This page
 keeps one line above the filters while any email needs review ("3 emails
-need a look", Open Inbox, to `/inbox?filter=review`), counted from `GET
+need a look", Open Inbox, to `/inbox`), counted from `GET
 .../events?status=proposed` (`getUpdatesOnce`). An email table sat here
 first and read as a second copy of the list, so it went (the Inbox
 section says what else was cut).
@@ -1022,12 +1022,53 @@ an application sent 47 hours ago read as waiting 1 day.
 
 KAN-413, `../../docs/email_tracker.md`. Every email about the student's
 applications, a sidebar row after Applications Tracker (Tray glyph, no
-count badge), laid out as a mailbox: filter chips over a list beside a
-reading pane (`inbox/inbox.tsx`). The filter and the open email are the
-URL (`?filter=all|review|interview|assessment|offer|rejection`,
-`?email=<id>`), moved in place by `ShallowLink`, so a click never asks the
+count badge), laid out as a mailbox: one filter dropdown over a list
+beside a reading pane (`inbox/inbox.tsx`). The filter and the open email
+are the URL (`?status=interview,offer`, `?email=<id>`), moved in place by `ShallowLink`, so a click never asks the
 server and an application's Emails tab can link to one email. Below md
 the list and the email take turns, with Back to Inbox.
+
+- **The filter** (KAN-427) is one of the Applications Tracker's dropdowns
+  (`components/field-facet.tsx`), Status: what the email says of its
+  application (Interviews, Assessments, Offers, Rejections, Application
+  Received, Updates), each option in its pill's glyph and colour as the
+  Tracker's Status options wear their stage's (`emailKindGlyph` in
+  `applications/email-kinds.tsx`: a stage's glyph where the kind has one,
+  a clipboard for an assessment, grey for the two that change nothing),
+  with a cross to clear it. It was six chips (KAN-413),
+  which grew with every kind, then two dropdowns, Kind and a review Status
+  (Needs Review, On Your Tracker, Set Aside). The review one went with the
+  cards' Needs Review badge as noise, and the kinds took the name Status:
+  an interview or an offer is where the application stands. The Tracker's
+  "emails need a look" line links the plain Inbox.
+- **The toolbar** (`inbox/toolbar.tsx`, KAN-427) is Gmail's, over the
+  list: a select box (a click picks every shown email, or unpicks while
+  any is picked; a dash while some are) beside a menu that picks All,
+  None, Read or Unread. While nothing is picked: Refresh
+  (the page's read again) and More, with Mark All as Read. While some are:
+  "N selected", Add to Tracker and Set Aside (the banner's Confirm and Cancel on the
+  picked emails that need review; Add to Tracker skips one with no job and
+  says how many it left), and one read toggle, Mark as Read while any
+  picked is unread, else Mark as Unread. The right end counts the shown
+  emails ("3 of 6"). A row's box sits beside its link, never inside it. A
+  pick lasts while its email is shown; an action clears the picks. Below
+  md the toolbar hides while an email is open.
+- **Read state** (`application_events.read_at`, KAN-427) is Gmail's:
+  opening an email reads it, Mark as Read and Unread set it for the picks
+  (`PUT .../emails/read`), and accepting or setting one aside reads it
+  too. The Inbox draws a mark at once and the write follows; a refused
+  mark is put back with a toast, and a failed read-on-open says nothing
+  (it only stays unread).
+
+The page is exactly the screen under the bar (`h-[calc(100svh-4rem)]`, the
+job rail's height, KAN-427). The heading and the filters stay in
+place; the frame under them takes the rest, the toolbar's row then one that may
+shrink (`grid-rows-[auto_minmax(0,1fr)]`), and the list and the open email each scroll
+inside their own column (`overflow-y-auto overscroll-contain`), so
+scrolling one never moves the other. The frame's floor, `min-h-80`, lets a
+very short window scroll the page instead of leaving a sliver of list.
+Below md the one column shown scrolls the same way, and Back to Inbox sits
+at the top of the email's column.
 
 - **The read:** `GET .../emails` (`getEmails`, every status, newest first
   by when it was read) and the tracker's own read for each job's logo,
@@ -1038,20 +1079,52 @@ the list and the email take turns, with Back to Inbox.
 - **A row** (`inbox/email-row.tsx`, shared with the Emails tab): the
   sender's logo and name (the job's company; Unknown Sender unmatched),
   the received time (the time today, else the day), the subject, one
-  line of the text past its greeting, the kind's pill, Not Linked when
-  it matched no job (not when its job is one the list does not hold). A dot and bold text while it needs review (`proposed`):
-  WorkIt keeps no read state, so the dot means needs review, not unread.
+  line of the text past its greeting, the kind's pill (its glyph and name,
+  the glyph its Status option wears, KAN-427). An email that matched no
+  job shows an empty dashed circle with a broken link in the logo's spot
+  (`SenderAvatar`, shared with the reading pane's sender line; "Not linked
+  to an application" to a screen reader and on hover), not a Not Linked
+  badge, which was a second pill on the row (KAN-427). One whose job the
+  list does not hold (a queued one) is linked, and keeps the envelope.
+  Read and unread are Gmail's (KAN-427, `rowFill`): unread is white with
+  the sender, subject and date in bold, read is grey (`bg-app`) in
+  regular weight with a quieter subject, and the open or picked email is
+  lavender, the open one with a brand bar at its left edge. The pointer
+  raises a row with `--shadow-row` (side hairlines and a short drop), not
+  a fill, which would barely show on grey. An email that waits
+  (`proposed`) has no mark in the list: its status banner says so when it
+  is opened. A brand dot on the sender's logo meant needs review until
+  KAN-427, and read as a mark on the company rather than the email; a
+  Needs Review badge after it was noise beside the kind's pill.
 - **The reading pane** (`inbox/reading-pane.tsx`), as Gmail lays out an
-  open message: the subject; the pill with the date the email names;
-  Open Application and Add to Calendar as round icons (Add to Calendar
-  opens Google Calendar's own new-event page, filled in); then, only
-  while it needs review, one quiet card: "Move <role> to <stage>?" with
-  Move and Not Now, or "Which job is this email about?" with a picker,
-  Link to Job and Not Now; or, for an email matched to a job the Inbox
-  does not list (a queued one), "Add this to your tracker?" with Add and
-  Not Now, since a picker would not hold that job; then the sender's line (logo, name, "to me",
+  open message: the subject and its kind's pill, with View Application and
+  Add to Calendar (Google Calendar's own new-event page, filled in) as
+  secondary buttons at the right, each a glyph and its word (View
+  Application the Tracker's ListChecks, Add to Calendar's CalendarPlus). Both were round icons until KAN-427: the
+  arrow out of a box said "another site" for a page in WorkIt, and the
+  calendar glyph said nothing until hovered. No date sits beside the pill (KAN-427):
+  it repeated the received time on most emails. Then, only while it needs
+  review, the status banner (`Decision`, KAN-427): a head naming the
+  change (Update Application Status, Add to Application Timeline, Link
+  This Email to an Application, Add This Email to Your Tracker), the
+  application's logo, role and company, and a before and after, its stage
+  now → the stage the email moves it to in each stage's pill, or "Stage
+  stays", with Cancel and Confirm; an interview or a due date adds a line
+  with its date ("Adds the interview, Nov 4, 2:00 PM, to its timeline").
+  An email that matched no job shows Choose Application in the
+  application's place: a modal with a view of the Applications Tracker
+  (`inbox/pick-application.tsx`: a search over role and company, and the
+  list's rows, logo over role and company, the stage's pill and the
+  applied day, latest first), where a row's click picks it and closes the
+  modal. The banner then shows the pick with Change, and its before and
+  after; nothing is saved until Confirm. It was a dropdown of "Company ·
+  Role" lines, which hid where each application stood; one matched to a job the
+  Inbox does not list (a queued one) only asks to add it, since a picker
+  would not hold that job. It replaced a one-line question ("Move Intern
+  to Rejected?"), which said neither where the application stood nor
+  which company it was. Then the sender's line (logo, name, "to me",
   "Tue, Oct 27, 9:42 AM (8 hours ago)", a reply arrow to Gmail) and the
-  text. Not Now dismisses it from the tracker; the email stays here. An
+  text. Cancel dismisses it from the tracker; the email stays here. An
   email's event has no Delete in Interviews & Dates, and the API refuses
   its delete: every email stays here as a record.
 - **Most emails ask nothing:** the API files an email that changes no

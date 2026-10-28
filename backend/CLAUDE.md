@@ -1062,7 +1062,9 @@ Find files with a directory listing; these are the rules for where code goes.
   event added by hand only: one from an email stays as the Inbox's record,
   and its delete answers 404), and an
   update's `POST .../events/{event_id}/accept` and `.../dismiss`), and
-  the Inbox's `GET .../emails` (every email, every status). An
+  the Inbox's `GET .../emails` (every email, every status) and its
+  `PUT .../emails/read` (KAN-427, Mark as Read and Unread, all or none;
+  `read_at` keeps the first read, and Accept and dismiss set it too). An
   event moves its application forward only (`advance`, Accept too). **An
   email files itself unless it would move the stage or matched no job**
   (`needs_review`, `file_email`, the Gmail reader's entry point); a stage past

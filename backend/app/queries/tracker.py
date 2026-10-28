@@ -204,6 +204,8 @@ async def accept_event(
     event.job_id = target
     event.status = application_event_status.accepted
     event.decided_at = func.now()
+    # Deciding on an email reads it, as acting on one in Gmail does
+    event.read_at = func.coalesce(Application_Event.read_at, func.now())
     stage = advance(current, event.kind)
     if stage is not None:
         await _move(db, applicant_id, target, stage)
@@ -221,6 +223,34 @@ async def dismiss_event(db: AsyncSession, applicant_id: uuid.UUID, event_id: uui
         return False
     event.status = application_event_status.dismissed
     event.decided_at = func.now()
+    event.read_at = func.coalesce(Application_Event.read_at, func.now())
+    await db.commit()
+    return True
+
+
+async def mark_read(
+    db: AsyncSession, applicant_id: uuid.UUID, event_ids: list[uuid.UUID], read: bool
+) -> bool:
+    '''
+    the Inbox's Mark as Read and Mark as Unread (KAN-427), on every email
+    named, all or none: False, with nothing written, when any id is not one
+    of the applicant's emails. Read keeps the first time it was read (an
+    email read again stays read since then); unread clears it
+    '''
+    ids = set(event_ids)
+    marked = await db.scalars(
+        update(Application_Event)
+        .where(
+            Application_Event.id.in_(ids),
+            Application_Event.applicant_id == applicant_id,
+            Application_Event.source == application_event_source.gmail,
+        )
+        .values(read_at=func.coalesce(Application_Event.read_at, func.now()) if read else None)
+        .returning(Application_Event.id)
+    )
+    if len(set(marked.all())) != len(ids):
+        await db.rollback()
+        return False
     await db.commit()
     return True
 

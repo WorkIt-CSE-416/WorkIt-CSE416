@@ -83,7 +83,7 @@ export default async function ApplicationsPage({ searchParams }: PageProps<"/app
           table of them stacked on this list read as a second copy of it. */}
       {waiting > 0 && (
         <Link
-          href="/inbox?filter=review"
+          href="/inbox"
           className="border-border-subtle bg-panel rounded-card text-meta text-ink hover:bg-hover focus-visible:ring-brand-ring mt-5 flex items-center gap-2 border px-4 py-2.5 transition-colors duration-150 focus-visible:ring-2 focus-visible:outline-none"
         >
           <span aria-hidden="true" className="bg-brand size-2 rounded-full" />

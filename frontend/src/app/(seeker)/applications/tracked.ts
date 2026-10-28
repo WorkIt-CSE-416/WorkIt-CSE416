@@ -162,6 +162,8 @@ export type Email = ApplicationEvent & {
   emailKind: StoredEvent["kind"];
   status: "proposed" | "accepted" | "dismissed";
   receivedAt: string;
+  /** When the student first read it; null is unread (KAN-427). */
+  readAt: string | null;
 };
 
 /** The seeker's emails, newest first (GET .../emails), for the Inbox and
@@ -175,7 +177,10 @@ export async function getEmails(): Promise<
     const { id, token } = await getApplicantSession();
     const res = await apiGet(`/applicants/${id}/emails`, token);
     if (!res.ok) return { emails: null, error: await extractErrorMessage(res) };
-    const rows = (await res.json()) as (StoredEvent & { status: Email["status"] })[];
+    const rows = (await res.json()) as (StoredEvent & {
+      status: Email["status"];
+      read_at: string | null;
+    })[];
     return {
       emails: rows.map((event) => ({
         ...toEvent(event),
@@ -184,6 +189,7 @@ export async function getEmails(): Promise<
         emailKind: event.kind,
         status: event.status,
         receivedAt: event.created_at,
+        readAt: event.read_at,
       })),
       error: null,
     };

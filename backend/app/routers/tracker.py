@@ -29,6 +29,11 @@ GET    /applicants/{id}/emails
        accepted or left-off one stays a record), newest first by when it
        was read, as EventResponses. Proposed ones need review
        (queries/tracker.py, needs_review).
+PUT    /applicants/{id}/emails/read  {"ids": [...], "read": true}
+       The Inbox's Mark as Read and Mark as Unread (KAN-427), all or none:
+       204. Read keeps the time it was first read; unread clears it. 404
+       when any id is not one of the applicant's emails. Opening an email
+       sends it with that one id.
 POST   /applicants/{id}/events/{event_id}/accept  {"job_id": null}
        An update's Accept: the proposed event goes on the tracker, on
        `job_id` when the body names one (an email that matched none), else
@@ -66,9 +71,11 @@ from app.queries.tracker import (
     dismiss_event,
     fetch_emails,
     fetch_events,
+    mark_read,
     set_stage,
 )
 from app.schemas.tracker import (
+    EmailsRead,
     EventAccept,
     EventAdded,
     EventCreate,
@@ -114,6 +121,18 @@ async def list_emails(
 ) -> list[EventResponse]:
     """The applicant's emails, newest first."""
     return [EventResponse.model_validate(e, from_attributes=True) for e in await fetch_emails(db, applicant_id)]
+
+
+@router.put("/emails/read", status_code=status.HTTP_204_NO_CONTENT)
+async def put_emails_read(
+    body: EmailsRead,
+    applicant_id: uuid.UUID = Depends(owned_applicant),
+    db: AsyncSession = Depends(get_session),
+) -> Response:
+    """Marks the emails picked read or unread."""
+    if not await mark_read(db, applicant_id, body.ids, body.read):
+        raise HTTPException(status.HTTP_404_NOT_FOUND, "One of those emails isn't yours or is gone.")
+    return Response(status_code=status.HTTP_204_NO_CONTENT)
 
 
 @router.post(

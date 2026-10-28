@@ -86,3 +86,13 @@ export async function acceptUpdate(eventId: string, jobId: string | null) {
 export async function dismissUpdate(eventId: string) {
   return send(`/events/${encodeId(eventId)}/dismiss`, { method: "POST" });
 }
+
+/** The Inbox's Mark as Read and Mark as Unread (PUT .../emails/read,
+ *  KAN-427), on every email named, all or none; opening an email sends its
+ *  one id. */
+export async function markEmailsRead(eventIds: string[], read: boolean) {
+  return send("/emails/read", {
+    method: "PUT",
+    body: JSON.stringify({ ids: eventIds, read }),
+  });
+}
