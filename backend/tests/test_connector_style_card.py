@@ -10,8 +10,8 @@ import pytest
 
 from tests import test_connector
 from tests.test_connector import (
-    WRITTEN,
     WHY,
+    WRITTEN,
     _api,
     _signed_in_as,
     _student_queues,

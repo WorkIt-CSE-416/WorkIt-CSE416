@@ -10,7 +10,7 @@ from app.auto_apply import plans
 EXPERIENCE = "Software Intern, Acme\n- Cut page load time by 30%\n- Wrote the billing service's tests"
 FACT = "Initech launched Ledger in 37 countries."
 SOURCES = plans.Sources(
-    held=plans.fold("\n".join([EXPERIENCE, "Python", "Initech builds payments software.", FACT])),
+    held=plans.fold(f"{EXPERIENCE}\nPython\nInitech builds payments software.\n{FACT}"),
     experience=plans.fold(EXPERIENCE),
     facts={plans.fold(FACT)},
 )

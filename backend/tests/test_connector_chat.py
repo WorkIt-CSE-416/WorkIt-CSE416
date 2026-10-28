@@ -11,8 +11,8 @@ from app.config import get_settings
 from tests import test_connector
 from tests.test_connector import (
     PROUD,
-    WRITTEN,
     WHY,
+    WRITTEN,
     _student_queues,
     _tab_asks,
     claude,

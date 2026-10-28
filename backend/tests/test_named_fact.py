@@ -13,8 +13,8 @@ from sqlalchemy import text
 
 from app.auto_apply import briefs
 from tests.test_connector import (  # noqa: F401  (fixtures)
-    WRITTEN,
     WHY,
+    WRITTEN,
     _api,
     _describe,
     _student_queues,

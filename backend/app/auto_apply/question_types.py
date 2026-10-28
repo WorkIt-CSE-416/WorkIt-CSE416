@@ -101,7 +101,7 @@ def load() -> dict[str, Guide]:
     """Every type's guide, by type name."""
     guides = {}
     for path in sorted(GUIDES.glob("*.md")):
-        _, front, body = path.read_text().split("---\n", 2)
+        _, front, body = path.read_text(encoding="utf-8").split("---\n", 2)
         meta = yaml.safe_load(front) or {}
         guides[meta["type"]] = Guide(
             type=meta["type"], summary=meta["summary"], company_link=meta["company_link"],

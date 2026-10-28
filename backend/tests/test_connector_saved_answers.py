@@ -17,8 +17,8 @@ import pytest
 
 from tests.test_connector import (
     PROUD,
-    WRITTEN,
     WHY,
+    WRITTEN,
     _api,
     _signed_in_as,
     _student_queues,
