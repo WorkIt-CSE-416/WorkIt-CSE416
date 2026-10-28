@@ -26,12 +26,12 @@ export const metadata: Metadata = { title: "Page Not Found" };
  * a regression.
  *
  * The way back is still the account's own home, decided when the button is
- * clicked rather than when the page renders: /home (app/home/route.ts) reads
+ * clicked rather than when the page renders: /go-home (app/go-home/route.ts) reads
  * the session and redirects with homePath(), so a company account goes to
  * its Overview, an applicant mid-onboarding to onboarding, and everyone else,
- * signed in or not, to the seeker Dashboard. The label says Dashboard, which
+ * signed in or not, to Home. The label says Home, which
  * is where nearly everyone lands while the business side is hidden
- * (KAN-239). No prefetch: a prefetch of /home would run that session lookup
+ * (KAN-239). No prefetch: a prefetch of /go-home would run that session lookup
  * on every 404 view, for a click that rarely comes.
  */
 export default function NotFound() {
@@ -45,8 +45,8 @@ export default function NotFound() {
           The link may be broken, or the page may have moved.
         </p>
 
-        <ButtonLink href="/home" prefetch={false} size="lg" className="mt-6 w-full">
-          Back to Dashboard
+        <ButtonLink href="/go-home" prefetch={false} size="lg" className="mt-6 w-full">
+          Back to Home
         </ButtonLink>
       </div>
     </main>

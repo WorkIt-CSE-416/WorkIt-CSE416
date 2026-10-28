@@ -45,7 +45,14 @@ countries they are a citizen of.
 
 from typing import Annotated, Literal
 
-from pydantic import BaseModel, ConfigDict, Field, StringConstraints, TypeAdapter, ValidationError
+from pydantic import (
+    BaseModel,
+    ConfigDict,
+    Field,
+    StringConstraints,
+    TypeAdapter,
+    ValidationError,
+)
 
 YesNo = Literal["yes", "no"]
 WorkAuthorizationStatus = Literal[

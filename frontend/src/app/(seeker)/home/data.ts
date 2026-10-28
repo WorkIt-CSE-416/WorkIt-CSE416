@@ -4,7 +4,7 @@ import { upcomingEvents, type EventKind, type TrackerEvent } from "../tracker";
 import { rangeDays, type RangeKey } from "./range";
 
 /**
- * The seeker Dashboard's data: the headline numbers per window, the year of
+ * Home's data: the headline numbers per window, the year of
  * applications behind Activity's streak, what is waiting, and Up Next. Good
  * Matches (in `getHeadline`) reads the seeker's Best Match scores;
  * Applied, Saved and Activity read the live tracker (KAN-261,
@@ -12,7 +12,7 @@ import { rangeDays, type RangeKey } from "./range";
  * no stage past applied.
  *
  * UP NEXT IS DERIVED FROM THE TRACKER (../applications/data.ts), not written
- * again here, so the Dashboard and the board name the same companies and the
+ * again here, so Home and the board name the same companies and the
  * same dates. The tracker stores no dated events yet (interviews,
  * deadlines), so Up Next is empty and Next Up says the seeker is caught up.
  * Waiting's buckets below are still a fixture, archived with the tile
@@ -25,7 +25,7 @@ const DAY_MS = 86_400_000;
 
 export type StatKey = "strongMatches" | "saved" | "applied" | "interviewing";
 
-export type DashboardStat = {
+export type HomeStat = {
   key: StatKey;
   label: string;
   /** Null when its source couldn't be read: the tile shows a dash. */
@@ -82,7 +82,7 @@ const STRONG_MATCHES_NOTE: Record<RangeKey, string> = {
  * GOOD MATCHES WEARS THE VIOLET FILL, where the next application starts: the
  * eye lands on the head of the search and reads on from there. Applied
  * wore it until the reorder, as the number the seeker wholly controls; the
- * user moved it, since a seeker comes to the Dashboard to find what to apply
+ * user moved it, since a seeker comes to Home to find what to apply
  * to next. A violet 0 is the cost on a week with no good matches.
  *
  * Strong Matches is the job postings from the range that score Strong Match
@@ -101,11 +101,11 @@ const STRONG_MATCHES_NOTE: Record<RangeKey, string> = {
  * not yet applied to (KAN-261), the same in every range. Both are a dash
  * when the tracker can't be read.
  *
- * Interviewing is always a dash for now: the API stores no interviewing stage,
- * and a 0 would say the seeker had none. Count `stage === "interviewing"`
- * here once getTracked asks for that stage.
+ * Interviewing is the applications in that stage now (KAN-413: the stage
+ * menu or an interview added on the application's page sets it), the same
+ * in every range; a dash when the tracker can't be read.
  */
-export async function getHeadline(): Promise<Record<RangeKey, DashboardStat[]>> {
+export async function getHeadline(): Promise<Record<RangeKey, HomeStat[]>> {
   const now = getNow();
   const seasonDays = rangeDays("season", now);
   const [matched, tracker] = await Promise.all([
@@ -119,6 +119,7 @@ export async function getHeadline(): Promise<Record<RangeKey, DashboardStat[]>> 
       : null;
   const apps = tracker.applications;
   const saved = apps && apps.filter((app) => app.stage === "saved").length;
+  const interviewing = apps && apps.filter((app) => app.stage === "interviewing").length;
   /** Applications sent between `to` and `from` days ago; null on a failed read. */
   const sent = (from: number, to = 0) =>
     apps &&
@@ -133,7 +134,7 @@ export async function getHeadline(): Promise<Record<RangeKey, DashboardStat[]>> 
     season: [sent(seasonDays), null],
   };
 
-  const tiles = (range: RangeKey): DashboardStat[] => [
+  const tiles = (range: RangeKey): HomeStat[] => [
     {
       key: "strongMatches",
       label: "Strong Matches",
@@ -164,9 +165,9 @@ export async function getHeadline(): Promise<Record<RangeKey, DashboardStat[]>> 
     {
       key: "interviewing",
       label: "Interviewing",
-      value: null,
+      value: interviewing,
       previous: null,
-      note: "Not tracked yet",
+      note: "Right now",
       href: "/applications?stage=interviewing",
     },
   ];
@@ -196,7 +197,7 @@ export type WaitBucket = { label: string; count: number; tone: "fresh" | "due" |
  *  Past two weeks is when a follow-up is worth sending.
  *
  *  One bucket per verdict, three in all. It was four, with under a week and
- *  one to two weeks as separate buckets, and the Dashboard drew them as two
+ *  one to two weeks as separate buckets, and Home drew them as two
  *  green columns side by side that read as a mistake. */
 export const WAITING: WaitBucket[] = [
   { label: "Under 2 weeks", count: 15, tone: "fresh" },

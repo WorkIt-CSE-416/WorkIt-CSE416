@@ -65,8 +65,13 @@ CHECKED_WEBSITES = {
 GREENHOUSE_JOBS = "https://boards-api.greenhouse.io/v1/boards/{}/jobs?content=true"
 # Nor do some Lever boards, or they hide every hosted page (Aircall: 404), but the
 # postings API stays public and their descriptions link the site. 50 is plenty for
-# boilerplate.
-LEVER_JOBS = "https://api.lever.co/v0/postings/{}?mode=json&limit=50"
+# boilerplate. On the board's own data centre's host (`lever_jobs`).
+LEVER_JOBS = "https://{api}/v0/postings/{slug}?mode=json&limit=50"
+
+
+def lever_jobs(token: str) -> str:
+    """A Lever board's postings, on its US or EU API host (`registry._parts`)."""
+    return LEVER_JOBS.format(**providers.registry._parts("lever", token))
 
 
 def stated_site(text: str, *names: str) -> str | None:
@@ -147,7 +152,7 @@ def fetch(boards: list[tuple[str, str, str]]) -> dict[str, str | None]:
     robots = Robots(
         [page_url(ats, token) for ats, token, _ in boards if ats != "workday"]
         + [GREENHOUSE_JOBS.format(token) for ats, token, _ in boards if ats == "greenhouse"]
-        + [LEVER_JOBS.format(token) for ats, token, _ in boards if ats == "lever"]
+        + [lever_jobs(token) for ats, token, _ in boards if ats == "lever"]
         + [ASHBY_IMAGES]
     )
 
@@ -208,7 +213,7 @@ def fetch(boards: list[tuple[str, str, str]]) -> dict[str, str | None]:
                 link = GREENHOUSE_LOGO_LINK.search(page)
                 text = " ".join([link.group(1) if link else "", *contents, text])
             elif ats == "lever":
-                jobs = read(LEVER_JOBS.format(token), timeout=30)[0]
+                jobs = read(lever_jobs(token), timeout=30)[0]
                 if not jobs:
                     return None
                 parts = [text]

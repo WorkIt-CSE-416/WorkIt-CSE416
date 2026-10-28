@@ -46,7 +46,7 @@ export default async function TailorPage({
   ]);
   if (error != null) {
     return (
-      <div className={cn("max-w-app mx-auto w-full flex-1 py-6", SEEKER_GUTTER)}>
+      <div className={cn("max-w-dashboard mx-auto w-full flex-1 py-6", SEEKER_GUTTER)}>
         <BackToJobs />
         <ListingsError error={error} retryHref={`/jobs/${encodeURIComponent(jobId)}/tailor`} />
       </div>
@@ -75,20 +75,11 @@ export default async function TailorPage({
 
     return (
       // A WORK AREA, NOT A READING PAGE: the resume and the Suggestions
-      // panel sit side by side, so every pixel helps. No max-w-app, and when
-      // the sidebar collapses the page takes back the room the shell holds
-      // empty (--panel-gain), as the Applications page does (../../../
-      // applications/page.tsx says how; this wrapper carries its own copy of
-      // the property, which does not inherit). The content stops at the
-      // Dashboard's cap, so a very wide window does not blow the resume up.
-      // At max-w-app the resume and panel were squeezed between two wide
-      // margins with the sidebar closed.
-      <div
-        className={cn(
-          "-mx-[calc(var(--panel-gain)/2)] flex-1 py-6 transition-[--panel-gain] duration-200 ease-linear md:in-data-[pinned=false]:[--panel-gain:calc(var(--sidebar-width)_-_var(--sidebar-width-icon))]",
-          SEEKER_GUTTER,
-        )}
-      >
+      // panel sit side by side, so every pixel helps. No max-w-app, as on
+      // the Applications page. The content stops at Home's cap, so
+      // a very wide window does not blow the resume up. At max-w-app the
+      // resume and panel were squeezed between two wide margins.
+      <div className={cn("flex-1 py-6", SEEKER_GUTTER)}>
         <div className="max-w-dashboard mx-auto w-full">
           <TailorReviewBar job={job} resumeId={resume.id} />
           {bank.data && choices.data && profile ? (
@@ -126,7 +117,7 @@ export default async function TailorPage({
   }
 
   return (
-    <div className={cn("max-w-app mx-auto w-full flex-1 py-6", SEEKER_GUTTER)}>
+    <div className={cn("max-w-dashboard mx-auto w-full flex-1 py-6", SEEKER_GUTTER)}>
       <TailorScreen
         jobId={job.id}
         job={job}

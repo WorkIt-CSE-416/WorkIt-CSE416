@@ -36,7 +36,7 @@ import {
 
 /** The tallest the stage grows, in each view. The drawing scales to fit the
  *  stage both ways, so past these it stops growing with the width and centres
- *  instead. Activity shares a row with Waiting on the Dashboard, and an
+ *  instead. Activity shares a row with Waiting on Home, and an
  *  uncapped skyline made that row over 500px tall.
  *
  *  THE SKYLINE TAKES THE ROOM THE HEAT MAP AND ITS NUMBERS SHARE (KAN-342),

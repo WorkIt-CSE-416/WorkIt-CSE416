@@ -1,5 +1,5 @@
 /**
- * The windows the Dashboard reports on, and how ?range= names them. Its own
+ * The windows Home reports on, and how ?range= names them. Its own
  * module because the browser reads the range too: the switch and the
  * headline numbers follow ?range= in place (./range-switch.tsx), and
  * ./data.ts pulls in the tracker's server-only read.
@@ -41,7 +41,7 @@ export function parseRange(value: string | string[] | null | undefined): RangeKe
   return RANGES.some((range) => range.key === value) ? (value as RangeKey) : "week";
 }
 
-/** The Dashboard's URL for a range, leaving the default out. */
+/** Home's URL for a range, leaving the default out. */
 export function rangeHref(key: RangeKey) {
-  return key === "week" ? "/dashboard" : `/dashboard?range=${key}`;
+  return key === "week" ? "/home" : `/home?range=${key}`;
 }

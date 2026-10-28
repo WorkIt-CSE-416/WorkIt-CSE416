@@ -82,6 +82,17 @@ module docstring has the steps.
   upgrade head` for `188c8c2d7c14` (drops the old levels). `188c8c2d7c14`
   before the deploy fails every Experience filter and count on the live Jobs
   page (`app/models/CLAUDE.md`, KAN-233).
+- **Each close records why** (`job_postings.closed_reason`, KAN-412):
+  `gone_from_board`, `board_gone`, `filtered_out` or `replaced`, from the
+  scraper's `closings.json` beside the feed (`--closings` names another),
+  else `unknown`. A reopen clears it with `closes_at`. **A missing or
+  malformed file never stops the run**: its closes are real, so they go in
+  as `unknown` and the report says so; a reason not in `CLOSED_REASONS` is
+  filed as `unknown` too, so a newer scraper never fails the CHECK and rolls
+  back the whole import. The report counts this run's closes by reason. To
+  find a bad close, read the jobs one run closed (`closes_at`) by reason,
+  then fix its cause and re-run: a job back in the feed reopens. Reopening
+  by hand does nothing, since the next import closes a job the feed lacks.
 - The feed's `roles` keys (KAN-172) are ignored: `JobListing` doesn't declare
   them, so a new scraper key never fails the import. A job's roles are its
   `job_role_tags`, resolved from its title (KAN-155).
@@ -134,9 +145,10 @@ module docstring has the steps.
   container, so only CI caught it (2026-10-17). Run them with the container
   up before pushing a change to auto apply's queue.
 - **The import's database half is barely tested.** Only its clearing of
-  cached keywords is (`tests/test_keyword_match.py`, which runs
-  `import_feed` on `get_engine()`, the pattern for more); the rest can get
-  tests the same way through the `database` fixture below.
+  cached keywords (`tests/test_keyword_match.py`, which runs `import_feed`
+  on `get_engine()`, the pattern for more) and its closes and their reasons
+  (`tests/test_import_closings.py`) are; the rest can get tests the same
+  way through the `database` fixture below.
 
 ### Tests against real Postgres
 
@@ -182,6 +194,13 @@ uv run pytest
   Supabase's keys; return an `AuthenticatedAccount` for a seeded row. A
   profile row needs its `auth.users` row first. `tests/test_database_smoke.py`
   is the pattern.
+- **The feed's viewer is a separate override.** `GET /jobs` reads the
+  viewer from the token through `get_signed_in_applicant_id`, not
+  `get_current_account`, so a test that asks the feed as a student
+  overrides both, or the feed serves it as signed out and lists every job
+  (`tests/test_tracker.py`'s `student` fixture). A test of the Jobs page
+  hiding an applied job passed locally, where the database tests skip, and
+  failed in CI (KAN-413).
 - **A failed migration fails every database test.** The chain runs from
   scratch on each run, so a migration that only works on top of the shared
   database's history shows up here first.
@@ -986,6 +1005,21 @@ Find files with a directory listing; these are the rules for where code goes.
   would eventually get its own JSONB-backed slot). One `ESSAY` use per
   generated answer (cap 5, share 10%: on top of the spec's four shares plus
   the assistant's, following the same accepted-overshoot precedent).
+- **The Applications Tracker's own writes** (KAN-413,
+  `../docs/email_tracker.md`) are `routers/tracker.py` over
+  `queries/tracker.py`: the stage menu (`PUT .../applications/{job_id}/stage`,
+  applied or later, any direction) and the events (`GET .../events`, with
+  `?status=proposed` for Email Updates, `POST
+  .../applications/{job_id}/events`, `DELETE .../events/{event_id}` (an
+  event added by hand only: one from an email stays as the Inbox's record,
+  and its delete answers 404), and an
+  update's `POST .../events/{event_id}/accept` and `.../dismiss`), and
+  the Inbox's `GET .../emails` (every email, every status). An
+  event moves its application forward only (`advance`, Accept too). **An
+  email files itself unless it would move the stage or matched no job**
+  (`needs_review`, `file_email`, the Gmail reader's entry point); a stage past
+  applied still counts as applied (`dto.APPLIED_STAGES`, the models'
+  CLAUDE.md). Tests: `tests/test_tracker.py`.
 - **Utils** (`app/utils/`): the resume parser; `app/utils/CLAUDE.md`.
 - **Scripts** (`app/scripts/`): commands run by hand,
   `uv run python -m app.scripts.<name>`.
@@ -1207,6 +1241,31 @@ removed at cutover, not before. Until then a change must work on both.
   KAN-212: apply it only where the code that stopped mapping the column
   (`d89a4ef`, on `main` since KAN-212) is deployed. Applied first, an older
   deploy's upload INSERT names the column and fails.
+- **`89d598a1667d` (KAN-298's notifications) is on main ahead of its
+  code**, with the merge revision `c4e8a2f6d1b3` joining it to
+  `a7d3e5f1c2b4` (both branch off `b9e2c4d6f8a1`). It was applied to the
+  shared database from KAN-298's open branch (`alembic/CLAUDE.md`, "Commit
+  the migration in the same PR that applies it"), so its file came to main
+  first, unchanged. Until KAN-298's models merge, main maps neither
+  `notifications` nor `applicant_profiles.job_alerts_enabled`:
+  `alembic revision --autogenerate` proposes dropping both, so delete
+  those lines from any migration it writes, and `alembic check` reports
+  them. The column has a `false` default, so main's inserts are unaffected.
+- **Apply `a7d3e5f1c2b4` (the stages after applied and
+  `application_events`, KAN-413) before the deploy that writes them.** It
+  only adds enum values and a table, so the running code never meets
+  them; deployed first, the Applications Tracker, an application's page and
+  Home's numbers answer 500 for every student (they ask for the new
+  stages and `GET .../events`). The Jobs page and matches keep working
+  either way: their applied-job filter names only the stages before applied
+  (`dto.BEFORE_APPLIED`, the models' CLAUDE.md). Merge the migration to
+  `main` in its own PR first, then apply it, then test the branch.
+- **Apply `bd730e8ab454` (`job_postings.closed_reason`, KAN-412) as soon as
+  it merges.** It only adds a nullable column and a CHECK every row meets, and
+  no code maps it yet, so it is safe for every deploy. The import that writes
+  it (why a scraped job closed) follows in its own PR, whose dry-run scrape
+  check and every scheduled import fail on a database without it; and the
+  model maps it, so a company job's insert fails there too.
 - **Apply `a3d7f1c9e2b4` (`bank_skills.built_resume_id`, resume-local
   skills) before the deploy that maps it.** Every skill insert names the
   column, so deployed first, uploads, Import Again and Add skill answer

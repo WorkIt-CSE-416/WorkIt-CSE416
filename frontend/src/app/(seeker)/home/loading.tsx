@@ -1,10 +1,10 @@
-import { DashboardFrame, HeadingSkeleton } from "./frame";
+import { HomeFrame, HeadingSkeleton } from "./frame";
 import { HeadlineSkeleton } from "./headline";
 import { StreakSkeleton } from "./streak";
 import { TopMatchesSkeleton } from "./top-matches";
 
 /**
- * The Dashboard while it loads (KAN-368): its own frame (./frame.tsx) with
+ * Home while it loads (KAN-368): its own frame (./frame.tsx) with
  * the skeletons the page streams behind, so the page that replaces it moves
  * nothing. The greeting is a bar until the account arrives; everything else
  * is the page's own fallback.
@@ -24,9 +24,9 @@ import { TopMatchesSkeleton } from "./top-matches";
  * The page-enter motion ((seeker)/template.tsx) now plays on this skeleton,
  * and the page then replaces it without a transition of its own.
  */
-export default function DashboardLoading() {
+export default function HomeLoading() {
   return (
-    <DashboardFrame
+    <HomeFrame
       heading={<HeadingSkeleton />}
       tiles={<HeadlineSkeleton />}
       topMatches={<TopMatchesSkeleton className="mt-4" />}

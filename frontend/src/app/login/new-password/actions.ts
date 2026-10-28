@@ -31,5 +31,5 @@ export async function updatePassword(
     if (account) redirect(homePath(account));
   }
 
-  redirect("/dashboard");
+  redirect("/home");
 }

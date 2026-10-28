@@ -162,10 +162,10 @@ _Avoid_: origin, provenance (in copy), confidence
 
 **Applications Tracker**:
 The page that holds every job posting a student is following, from saved to offer.
-_Avoid_: Applications (alone, for the page), Tracker (alone), My Applications, board
+_Avoid_: Applications (alone, for the page), Tracker (alone, except as its sidebar tile, where the full name does not fit), My Applications, board
 
 **Stage**:
-Where one application stands in the Applications Tracker: Saved, Applied, Interviewing or Offer.
+Where one application stands in the Applications Tracker: Saved, Applied, Interviewing, Offer or Rejected. Interviewing, Offer and Rejected still count as applied.
 _Avoid_: column, step (the Applications Tracker's Status filter picks stages)
 
 **Application**:
@@ -176,13 +176,33 @@ _Avoid_: Applications (as the page's name)
 How well one job posting fits a student, from 0 to 100, in bands named by their lowest score (Strong Match at 80 and above).
 _Avoid_: fit score, fit, match percentage
 
+**Application event**:
+One dated thing on an application: an interview, an assessment's due date, an offer, a rejection or a follow-up. The student adds it with Add Event; later the email tracker proposes it from an email.
+_Avoid_: event (alone, outside the tracker), appointment, milestone
+
+**Inbox**:
+The page of every email about the student's applications: a list beside a reading pane.
+_Avoid_: Email Updates, mailbox, messages
+
+**Needs Review**:
+An email that waits for the student, because it would move its application's stage or matched no job. Every other email is filed onto its job when it arrives.
+_Avoid_: update (for the email), unread, pending
+
+**Update**:
+An application event the email tracker proposes from one email: what Needs Review holds.
+_Avoid_: notification, alert
+
 **Strong Match**:
-A job posting that scores 80 or more for a student, the Strong Match band and above. The Dashboard's first number, Strong Matches, counts them.
+A job posting that scores 80 or more for a student, the Strong Match band and above. Home's first number, Strong Matches, counts them.
 _Avoid_: good match (for that number), new role, recommendation
 
 **Top Match**:
-One of a student's highest-scoring open jobs, whatever its band. The Dashboard lists them under its numbers.
+One of a student's highest-scoring open jobs, whatever its band. Home lists them under its numbers.
 _Avoid_: recommendation, best job
+
+**Home**:
+A student's start page, at `/home`: their numbers, Top Matches and activity. Sign-in lands there.
+_Avoid_: Dashboard (the seeker's page was renamed; the company side keeps its Dashboard), Overview
 
 ## Jobs
 

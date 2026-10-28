@@ -9,12 +9,12 @@ signup or OAuth path.
 - `login/actions.ts` calls `supabase.auth.signInWithPassword()`, then
   `GET /auth/me` with the new access token to learn the account type and
   onboarding state, and redirects off that: an applicant to
-  `/onboarding/applicant` until onboarded and `/dashboard` after, a company
+  `/onboarding/applicant` until onboarded and `/home` after, a company
   account always to `/company`. A new applicant (signup, or a first
   Google/LinkedIn sign-in through `/signup/choose-account-type`) always starts
   on onboarding; a returning one (login, or a returning OAuth sign-in in
   `auth/callback/route.ts`) goes there until `onboarding_completed`, then to
-  `/dashboard`. Saving onboarding's answers (`PUT
+  `/home`. Saving onboarding's answers (`PUT
   /applicants/{id}/preferences`) is what sets it (KAN-231, which ended
   KAN-141's skip). The onboarding page lets a finished applicant back in,
   with their saved answers filled in. Companies skip the onboarding check because

@@ -55,7 +55,9 @@ import { CompanySidebar } from "./company-sidebar";
  *
  * The panel is pinned open or opens on hover (KAN-300,
  * components/hover-sidebar.tsx), and the pin survives a reload: it is the
- * sidebar_state cookie, which this layout reads back as defaultPinned.
+ * company_sidebar_pinned cookie (named there too), which this layout reads
+ * back as defaultPinned. Not shadcn's sidebar_state, which a Ctrl or Cmd+B
+ * on the seeker rail writes.
  *
  * The panel is a client component (it reads the pathname for its active state)
  * and so is its provider. Children still render on the server: a client
@@ -64,7 +66,7 @@ import { CompanySidebar } from "./company-sidebar";
  * now, since the seeker shell's icon buttons need one as well.
  */
 export default async function CompanyLayout({ children }: { children: React.ReactNode }) {
-  const defaultOpen = (await cookies()).get("sidebar_state")?.value !== "false";
+  const defaultOpen = (await cookies()).get("company_sidebar_pinned")?.value !== "false";
 
   return (
     /* flex-col, because SidebarProvider lays its children out in a row by

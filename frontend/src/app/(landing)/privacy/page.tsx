@@ -62,7 +62,8 @@ export default function PrivacyPage() {
         </li>
         <li>
           <strong>Your applications.</strong> The job postings you save or apply to, each
-          application&apos;s stage and dates, and the resume you sent with it.
+          application&apos;s stage and dates, the resume you sent with it, and the interviews,
+          assessments, offers and replies you add to it, with any meeting link and note you write.
         </li>
       </ul>
 

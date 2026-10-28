@@ -114,20 +114,29 @@ def test_mark_applied_turns_a_queued_job_applied_and_keeps_a_first_date():
     db = Recorder(scalar=JOB)  # the job is listed
     asyncio.run(applications.mark_applied(db, APPLICANT, JOB))
     sql = db.sql(1)  # after the "is it listed" read
-    assert "ON CONFLICT (applicant_id, job_id) DO UPDATE SET stage = %(param_1)s" in sql
+    # A stage before applied becomes applied; a later one keeps itself
+    # (KAN-413). Only stages every database has are named.
+    assert "ON CONFLICT (applicant_id, job_id) DO UPDATE SET stage = CASE WHEN" in sql
+    assert "ELSE job_applications.stage END" in sql
     # The first date stays (KAN-267 dropped the WHERE, so a second mark can
     # still change the resume it names); no body leaves that resume alone.
     # One not applied yet is dated now, whatever date it held (KAN-369).
     assert (
-        "applied_at = CASE WHEN (job_applications.stage = %(stage_1)s)"
-        " THEN coalesce(job_applications.applied_at, now()) ELSE now() END"
+        "applied_at = CASE WHEN (job_applications.stage IN (__[POSTCOMPILE_stage_2]))"
+        " THEN now() ELSE coalesce(job_applications.applied_at, now()) END"
     ) in sql
     assert "sent_resume_id" not in sql
 
 
 def test_the_feed_hides_applied_jobs_only():
+    # Interviewing, offer and rejected were applied too (KAN-413), asked as
+    # NOT IN the stages before applied, so the query never names a value a
+    # database without a7d3e5f1c2b4 lacks
     (clause,) = matching(JobFilters(applied_by=APPLICANT))
-    assert "job_applications.stage = 'applied'" in _sql(clause)
+    sql = _sql(clause)
+    assert "job_applications.stage NOT IN ('saved', 'queued', 'needs_you', 'skipped')" in sql
+    for later in ("interviewing", "offer", "rejected"):
+        assert later not in sql
 
 
 def test_matches_hide_every_job_with_an_application_saved_ones_too():

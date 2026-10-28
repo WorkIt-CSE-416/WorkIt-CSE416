@@ -22,12 +22,13 @@ import { SegmentedLinks } from "@/components/ui/segmented-control";
  * renders the pane ?tab= names on the server, since the query is the
  * request's there.
  */
-type Tab = "application" | "job";
+type Tab = "application" | "emails" | "job";
 
 /** The tab the page is showing. Your Application leads: it is what this
  *  page adds to the job's own, so any other ?tab= opens it. */
 function useTab(): Tab {
-  return useShallowParams().get("tab") === "job" ? "job" : "application";
+  const tab = useShallowParams().get("tab");
+  return tab === "job" || tab === "emails" ? tab : "application";
 }
 
 /** The tab switch, in the action bar or under the header (./page.tsx says
@@ -41,6 +42,7 @@ export function ApplicationTabs({ base, className }: { base: string; className?:
       className={className}
       options={[
         { value: "application", label: "Your Application", href: base },
+        { value: "emails", label: "Emails", href: `${base}?tab=emails` },
         { value: "job", label: "Job Description", href: `${base}?tab=job` },
       ]}
     />
@@ -48,6 +50,15 @@ export function ApplicationTabs({ base, className }: { base: string; className?:
 }
 
 /** The pane for the tab shown, of the two the server drew. */
-export function TabPanes({ application, job }: { application: ReactNode; job: ReactNode }) {
-  return useTab() === "job" ? job : application;
+export function TabPanes({
+  application,
+  emails,
+  job,
+}: {
+  application: ReactNode;
+  emails: ReactNode;
+  job: ReactNode;
+}) {
+  const tab = useTab();
+  return tab === "job" ? job : tab === "emails" ? emails : application;
 }

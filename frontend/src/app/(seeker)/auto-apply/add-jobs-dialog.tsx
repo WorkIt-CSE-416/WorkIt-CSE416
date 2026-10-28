@@ -38,7 +38,7 @@ export type SavedJob = {
 /**
  * Up Next's Add Jobs (KAN-359): the seeker's saved jobs in a dialog, to pick
  * several and add them to the queue. THE ONE PLACE A SEEKER QUEUES SEVERAL
- * JOBS AT ONCE: the Jobs page and the Dashboard keep one click per job, and
+ * JOBS AT ONCE: the Jobs page and Home keep one click per job, and
  * the Applications Tracker is the record. It was a Ready to Queue section on
  * this page first, which the user found redundant beside the saved jobs, and
  * before that the Tracker's Saved view.

@@ -32,12 +32,14 @@ export async function proxy(request: NextRequest) {
   if (isBusinessPath(request.nextUrl.pathname)) {
     return NextResponse.redirect(new URL("/coming-soon", request.url));
   }
-  // The Calendar is hidden for now (KAN-261): the tracker stores no dated
-  // events yet, so it could only show the days jobs were applied to. Its code
-  // stays in app/(seeker)/calendar/. Delete this block and uncomment its row
-  // in app/(seeker)/seeker-sidebar.tsx to bring it back.
-  if (isPathUnder(request.nextUrl.pathname, ["/calendar"])) {
-    return NextResponse.redirect(new URL("/dashboard", request.url));
+
+  // The seeker's Dashboard became Home at /home (2026-10-27). Old links,
+  // bookmarks and the browser's own history still name /dashboard, so it
+  // moves them on, its query (?range=) kept.
+  if (request.nextUrl.pathname === "/dashboard") {
+    const home = request.nextUrl.clone();
+    home.pathname = "/home";
+    return NextResponse.redirect(home, 308);
   }
 
   let response = NextResponse.next({ request });
@@ -90,7 +92,7 @@ export const config = {
   // page) is left out too, and each marketing name must be followed by "/"
   // or the end, so /docs/mcp is left out but a seeker path that merely
   // starts with one of the names is not. /login, /signup, /auth/*,
-  // /onboarding/*, /company*, /calendar, /home and every seeker path stay
+  // /onboarding/*, /company*, /go-home, /dashboard and every seeker path stay
   // matched: they read the session, and the redirects above live here. A
   // new marketing page needs its name added below; one left out still works,
   // with one proxy call more.

@@ -7,5 +7,7 @@ internships.html
 jobs.json
 # The Jobs feed the backend serves, written beside the page from the same roles.
 feed.json
+# Why each stored posting is not in the feed, beside it (`feed.closings`).
+closings.json
 # Each provider's share of the last live run (`__main__.write_metrics`).
 metrics.json

@@ -40,8 +40,8 @@ from app.config import get_settings
 from app.db import get_sessionmaker
 from app.models.bank import Bank_Entry, Bank_Skill
 from app.models.dto import bank_section
-from app.services.bank import clear_embedding
 from app.services import skill_catalog
+from app.services.bank import clear_embedding
 from app.services.bank_import import not_a_skill, skill_pairs
 from app.utils.resume_parser import split_tools
 
