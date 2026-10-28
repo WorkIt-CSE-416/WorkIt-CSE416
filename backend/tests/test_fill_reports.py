@@ -28,9 +28,14 @@ REPORT = {
 
 
 @pytest.fixture
-def signed_in():
+async def signed_in(database):
+    # A report names its sender (fix reports, KAN-369), whose auth.users row must exist.
+    account_id = uuid.uuid4()
+    async with database() as session:
+        await session.execute(text("INSERT INTO auth.users (id) VALUES (:id)"), {"id": account_id})
+        await session.commit()
     app.dependency_overrides[get_current_account] = lambda: AuthenticatedAccount(
-        id=uuid.uuid4(), email="sam@example.com", full_name="Sam Seeker",
+        id=account_id, email="sam@example.com", full_name="Sam Seeker",
         account_type=AccountType.APPLICANT, onboarding_completed=True,
     )
     yield

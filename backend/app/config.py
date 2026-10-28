@@ -117,6 +117,11 @@ class Settings(BaseSettings):
     # desktop and mobile apps use https://claude.ai (or .com) callbacks only.
     connector_loopback_redirects: bool = False
 
+    # WorkIt's admins (fix reports, KAN-369): emails or account ids, comma-separated. They read every
+    # fill report and its fix brief (routers/fill_reports.py's /admin routes); no one else does. Unset,
+    # no one is an admin. There is no admin role in the database: the team is a handful of developers.
+    workit_admins: str = ""
+
     # The scraper's output, which app/scripts/import_jobs.py loads into the
     # database by default. Data — nothing from scraper/ is imported, so it
     # stays out of this build.
