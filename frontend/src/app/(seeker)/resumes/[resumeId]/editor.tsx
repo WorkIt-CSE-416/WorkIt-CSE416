@@ -21,11 +21,12 @@ import { Button, buttonClasses } from "@/components/ui/button";
 import { EmptyState } from "@/components/ui/empty-state";
 import { SegmentedToggle } from "@/components/ui/segmented-control";
 import { TextLink } from "@/components/ui/text-link";
-import { updateEntry, type Bank } from "@/lib/bank-actions";
+import type { Bank } from "@/lib/bank-actions";
 import {
   fitToOnePage,
   getChoices,
   renderResumePdf,
+  saveLine,
   updateChoices,
   type Choices,
   type ChoicesUpdate,
@@ -33,7 +34,6 @@ import {
   type RenderedPdf,
 } from "@/lib/built-resume-actions";
 import { cn } from "@/lib/cn";
-import { updateProfile } from "@/lib/profile-actions";
 
 import {
   DownloadMenu,
@@ -44,13 +44,11 @@ import {
 import { Assistant } from "./assistant";
 import { FitToast } from "./fit-notice";
 import {
-  ENTRY_CODECS,
-  HEADER_CODECS,
+  HEADER,
   LINK_FIELDS,
   lineOf,
   move,
   typed,
-  wording,
   type Header,
   type HeaderField,
   type Line,
@@ -77,9 +75,11 @@ import { Tray } from "./tray";
  * The desktop editor (KAN-218): the built resume's own PDF, edited on the
  * page. Click a line and type: the field over it shows the text at once and
  * saves after a pause (SAVE_AFTER_MS) or on blur, then the PDF renders
- * again. A bullet's typing becomes this resume's local variant; an entry's
- * typed fields (`ENTRY_CODECS`) change the bank, and the header's
- * (`HEADER_CODECS`) change the profile. The field is set in Latin Modern,
+ * again. Each typed line is one request, `saveLine` (KAN-391), which saves
+ * and renders: the API reads the text, so a bullet becomes this resume's
+ * local variant, an entry's typed field changes the bank and the header's
+ * the profile, and the browser holds none of those rules. The field opens
+ * on the box's own printed text. The field is set in Latin Modern,
  * the PDF's own font, at the line's size and weight, and opens with the
  * caret where the click landed, so typing starts where the student
  * pointed and wraps where the PDF does. The sticky bar holds the
@@ -157,6 +157,13 @@ const boxAscent = (kind: string) => (kind === "full_name" ? 21 : 8);
 /** Lines that wrap: typed in a textarea as wide as the text column. */
 const WRAPS = new Set(["bullet", "coursework", "honors"]);
 
+// A box reaches 8 pt above its first baseline and 3 pt below its last, and
+// wrapped lines sit 12 pt apart (the API's resume_render ASCENT, DESCENT and
+// WRAPPED_LINE): how many lines a box covers, as its `box_lines` counts them
+const WRAPPED_LINE = 12;
+const boxLines = (box: RenderBox) =>
+  1 + Math.max(0, Math.round((box.y1 - box.y0 - 11) / WRAPPED_LINE));
+
 type Draft = { key: string; text: string };
 
 /** The page's render of the PDF, as renderResumePdf answers it. It never
@@ -217,6 +224,8 @@ export function Editor({
   const [choices, setChoices] = useState(initialChoices);
   const [selected, setSelected] = useState<string | null>(null);
   const [draft, setDraft] = useState<Draft | null>(null);
+  // How many lines the open textarea shows, for the live page's shift
+  const [fieldLines, setFieldLines] = useState<number | null>(null);
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [elapsed, setElapsed] = useState<number | null>(null);
@@ -320,73 +329,79 @@ export function Editor({
     [begin, resumeId, renderAgain, setReview],
   );
 
-  /** Changes the profile fields the header prints, then renders again. */
-  const saveHeader = useCallback(
-    async (changes: Partial<Header>) => {
-      setHeader((h) => ({ ...h, ...changes }));
+  /** Saves one typed line and renders, in one request (KAN-391). The API
+   *  reads the text and answers what it changed. */
+  const saveText = useCallback(
+    async (item_id: string, kind: string, text: string) => {
       const current = begin();
-      const { profile, error } = await updateProfile(changes);
-      if (!current()) return;
-      if (!profile) {
-        setSaving(false);
-        return setError(error);
-      }
-      setHeader(profile);
-      await renderAgain(current);
-    },
-    [begin, renderAgain],
-  );
-
-  /** Saves typed text when it differs from what the resume shows. */
-  const save = useCallback(
-    async (typed: Draft) => {
-      const line = lineOf(bank, splitKey(typed.key));
-      const text = typed.text.trim();
-      if (line?.kind === "bullet") {
-        if (!text || text === wording(choices, line.bullet)) return;
-        return apply({ bullets: [{ bullet_id: line.bullet.id, text }] });
-      }
-      if (line?.kind === "entry") {
-        const codec = ENTRY_CODECS[line.field];
-        const changes = codec && text !== codec.read(line.entry) ? codec.write(text) : null;
-        if (!changes) return;
-        // The bank changes here at once, so a dropped response cannot lose it
+      started.current = performance.now();
+      const { data, error } = await saveLine(resumeId, { item_id, kind, text });
+      // The entry or profile the line changed is kept even when a newer
+      // request owns the page: that request answers only its own change
+      const entry = data?.entry;
+      if (entry) {
         setBank((b) => ({
           ...b,
-          entries: b.entries.map((e) => (e.id === line.entry.id ? { ...e, ...changes } : e)),
+          entries: b.entries.map((e) =>
+            e.id === entry.id ? { ...entry, resume_ids: e.resume_ids } : e,
+          ),
         }));
-        const current = begin();
-        const { error } = await updateEntry(line.entry.id, changes);
-        if (!current()) return;
-        if (error) {
-          setSaving(false);
-          return setError(error);
-        }
-        return renderAgain(current);
       }
-      if (line?.kind === "header") {
-        const codec = HEADER_CODECS[line.field];
-        const changes = codec && text !== codec.read(header) ? codec.write(text) : null;
-        if (!changes) return;
-        await saveHeader(changes);
+      if (data?.profile) setHeader(data.profile);
+      if (!current()) return;
+      setSaving(false);
+      if (!data) return setError(error);
+      if (data.choices) {
+        setChoices(data.choices);
+        // A typed bullet Tailor changed drops its mark
+        const waiting = latestReview.current;
+        const changes = { bullets: [{ bullet_id: item_id, text }] };
+        if (waiting) setReview({ ...waiting, edits: untouched(waiting.edits, changes) });
       }
+      setRendered(data.render);
     },
-    [apply, bank, begin, choices, header, renderAgain, saveHeader],
+    [begin, resumeId, setReview],
   );
 
-  /** Saves a waiting draft now, instead of after the pause. */
-  const flush = useCallback(() => {
-    if (timer.current) clearTimeout(timer.current);
-    timer.current = null;
-    const waiting = pending.current;
-    pending.current = null;
-    if (waiting) void save(waiting);
-  }, [save]);
+  /** Adds a header field the profile lacks, which has no line to click. */
+  const addContact = useCallback(
+    (field: HeaderField, text: string) => void saveText(HEADER, field, text),
+    [saveText],
+  );
+
+  /** Saves typed text when it differs from what the line prints. */
+  const save = useCallback(
+    async (typed: Draft) => {
+      const shown = rendered?.boxes.find((b) => boxKey(b) === typed.key)?.text;
+      const text = typed.text.trim();
+      if (shown === undefined || text === shown) return;
+      const { item_id, kind } = splitKey(typed.key);
+      await saveText(item_id, kind, text);
+    },
+    [rendered, saveText],
+  );
+
+  /** Saves a waiting draft now, instead of after the pause. The pause
+   *  (`paused`) leaves an emptied line waiting: the student is likely
+   *  retyping it, and an empty title or bullet is refused. Leaving the line
+   *  saves it. */
+  const flush = useCallback(
+    (paused = false) => {
+      if (timer.current) clearTimeout(timer.current);
+      timer.current = null;
+      const waiting = pending.current;
+      if (paused && !waiting?.text.trim()) return;
+      pending.current = null;
+      if (waiting) void save(waiting);
+    },
+    [save],
+  );
 
   const select = useCallback(
     (key: string | null) => {
       flush();
       setDraft(null);
+      setFieldLines(null);
       placed.current = null;
       setSelected(key);
     },
@@ -422,7 +437,7 @@ export function Editor({
     setDraft({ key, text });
     pending.current = { key, text };
     if (timer.current) clearTimeout(timer.current);
-    timer.current = setTimeout(() => latestFlush.current(), SAVE_AFTER_MS);
+    timer.current = setTimeout(() => latestFlush.current(true), SAVE_AFTER_MS);
   }
 
   async function fit() {
@@ -463,12 +478,17 @@ export function Editor({
 
   const box = rendered?.boxes.find((b) => boxKey(b) === selected);
   const line = box ? lineOf(bank, box) : null;
+  // The live page (KAN-391): while a wrapping line's typed text differs from
+  // what the PDF prints, the page under it moves by the lines it gained or
+  // lost. When the next PDF lands with that text, the shift is 0 again;
+  // where TeX wraps the same text otherwise, the page jumps then.
+  const changed = box && draft?.key === selected && draft.text.trim() !== box.text;
+  const shift =
+    changed && fieldLines && WRAPS.has(box.kind) ? (fieldLines - boxLines(box)) * WRAPPED_LINE : 0;
 
-  function startText(line: Line) {
-    if (line.kind === "bullet") return wording(choices, line.bullet);
-    if (line.kind === "entry") return ENTRY_CODECS[line.field]?.read(line.entry) ?? null;
-    if (line.kind === "header") return HEADER_CODECS[line.field]?.read(header) ?? null;
-    return null;
+  /** The text a typed line's field opens on: what the line prints. */
+  function startText(line: Line, target: RenderBox) {
+    return typed(line) ? target.text : null;
   }
 
   /** Focuses a field once per selection, with the caret where the press
@@ -487,7 +507,7 @@ export function Editor({
   }
 
   function field(target: RenderBox) {
-    const start = line && startText(line);
+    const start = line && startText(line, target);
     if (start == null || !line) return null;
     const key = boxKey(target);
     const look = typeOf(
@@ -495,10 +515,21 @@ export function Editor({
       line.kind === "entry" || line.kind === "bullet" ? line.entry.section : null,
     );
     const common = {
-      ref: (element: HTMLInputElement | HTMLTextAreaElement | null) => focusAt(key, element),
+      ref: (element: HTMLInputElement | HTMLTextAreaElement | null) => {
+        focusAt(key, element);
+        if (!element || !WRAPS.has(target.kind)) return;
+        // The textarea grows with its text (field-sizing), so its height
+        // says how many lines the typed text wraps to
+        const observer = new ResizeObserver(() => {
+          const height = parseFloat(getComputedStyle(element).lineHeight);
+          if (height > 0) setFieldLines(Math.round(element.offsetHeight / height));
+        });
+        observer.observe(element);
+        return () => observer.disconnect();
+      },
       value: draft?.key === key ? draft.text : start,
       "aria-label": kindLabel(target.kind),
-      onBlur: flush,
+      onBlur: () => flush(),
       onChange: (e: React.ChangeEvent<HTMLInputElement | HTMLTextAreaElement>) =>
         type(key, e.target.value),
       // Enter saves the line and clears the selection, back to the page
@@ -662,7 +693,7 @@ export function Editor({
   };
 
   if (phone) {
-    const start = line && startText(line);
+    const start = line && box && startText(line, box);
     return (
       <>
         <PhoneEditor
@@ -709,7 +740,7 @@ export function Editor({
                 choices={choices}
                 header={header}
                 onApply={apply}
-                onSaveHeader={saveHeader}
+                onSaveHeader={addContact}
                 onHide={hide}
                 up={move(bank, choices, line, -1)}
                 down={move(bank, choices, line, 1)}
@@ -719,7 +750,7 @@ export function Editor({
           assistant={assistant("h-full")}
           onSelect={select}
           onType={(text) => selected && type(selected, text)}
-          onFlush={flush}
+          onFlush={() => flush()}
           onApply={apply}
           onFit={fit}
           onUndoFit={undoFit}
@@ -742,7 +773,7 @@ export function Editor({
       fitUndo={fitUndo}
       download={download}
       onApply={apply}
-      onSaveHeader={saveHeader}
+      onSaveHeader={addContact}
       onClose={() => select(null)}
       onFit={fit}
       onUndoFit={undoFit}
@@ -791,6 +822,7 @@ export function Editor({
               selected={selected}
               onSelect={onLine}
               field={field}
+              shift={shift}
               onDrawn={drawn}
               placeholder={<PageSkeleton />}
               marks={marks}
@@ -931,7 +963,7 @@ function Bar({
   fitUndo: ChoicesUpdate | null;
   download: ResumeDownload;
   onApply: (changes: ChoicesUpdate) => void;
-  onSaveHeader: (changes: Partial<Header>) => void;
+  onSaveHeader: (field: HeaderField, text: string) => void;
   onClose: () => void;
   onFit: () => void;
   onUndoFit: () => void;
@@ -1202,7 +1234,7 @@ function LineActions({
   choices: Choices;
   header: Header;
   onApply: (changes: ChoicesUpdate) => void;
-  onSaveHeader: (changes: Partial<Header>) => void;
+  onSaveHeader: (field: HeaderField, text: string) => void;
   onHide: (changes: ChoicesUpdate) => void;
   up: ChoicesUpdate | null;
   down: ChoicesUpdate | null;
@@ -1355,14 +1387,13 @@ function AddContact({
   onSave,
 }: {
   field: Exclude<HeaderField, "full_name" | "email">;
-  onSave: (changes: Partial<Header>) => void;
+  onSave: (field: HeaderField, text: string) => void;
 }) {
   const label = `Add ${kindLabel(field)}`;
   function save(element: HTMLInputElement) {
     const text = element.value.trim();
     if (!text) return;
-    const changes = HEADER_CODECS[field]?.write(text);
-    if (changes) onSave(changes);
+    onSave(field, text);
     element.value = "";
   }
   return (

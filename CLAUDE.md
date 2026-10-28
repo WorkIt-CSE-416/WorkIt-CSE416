@@ -176,6 +176,14 @@ with the failure it prevents.
   proposals and no Done, and the editor marks each change and reverts it.
   Holds the skill placement rule. Read it before changing Tailor or its
   screen.
+- `docs/live_page.md` — the editor's live page (KAN-391), step 1 partly
+  built: a typed line saves and renders in one request, and the page
+  below it reflows as the student types, while the LaTeX PDF compiles
+  behind it; the PDF stays the only output. The whole page as HTML is
+  not built yet. Typst,
+  for editing in place, is under consideration and would supersede ADR
+  0002. Read it before changing how the editor shows an edit or choosing
+  a renderer.
 - `docs/search.md` — how the Jobs page's search reads a query.
 - `docs/architecture.md` — how the halves fit together, for a reader new to
   the repo.

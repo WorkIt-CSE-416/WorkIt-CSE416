@@ -326,3 +326,104 @@ async def test_another_resumes_local_wording_is_not_offered(student):
     res = await client.patch(f"{me}/built-resumes/{resume_id}/choices",
                              json={"bullets": [{"bullet_id": bullet, "variant_id": local}]})
     assert res.status_code == 404
+
+
+# Typing a line through PUT .../lines (KAN-391): one request saves and renders
+
+def _box(render, kind, item_id=None):
+    return next(b for b in render["boxes"] if b["kind"] == kind and item_id in (None, b["item_id"]))
+
+
+async def _type(client, me, resume_id, item_id, kind, text):
+    return await client.put(f"{me}/built-resumes/{resume_id}/lines",
+                            json={"item_id": item_id, "kind": kind, "text": text})
+
+
+async def test_a_typed_bullet_saves_this_resumes_wording_and_comes_back_rendered(student):
+    _tectonic_or_skip()
+    client, me = student
+    await _fill_bank(client, me)
+    resume_id = await _generate(client, me)
+    bullet = _entry(await _bank(client, me), "Software Intern")["bullets"][0]["id"]
+
+    res = await _type(client, me, resume_id, bullet, "bullet", "Cut page load time by 35%")
+    assert res.status_code == 200, res.text
+    body = res.json()
+    assert _box(body["render"], "bullet", bullet)["text"] == "Cut page load time by 35%"
+    assert next(c for c in body["choices"]["bullets"] if c["bullet_id"] == bullet)["text"] == "Cut page load time by 35%"
+    assert (body["entry"], body["profile"]) == (None, None)
+    # The bank keeps the original: the wording is this resume's own
+    assert _entry(await _bank(client, me), "Software Intern")["bullets"][0]["text"] == "Cut page load time by 30%"
+
+
+async def test_every_box_carries_the_words_it_prints(student):
+    _tectonic_or_skip()
+    client, me = student
+    await _fill_bank(client, me)
+    resume_id = await _generate(client, me)
+    school = _entry(await _bank(client, me), "Stony Brook University")["id"]
+
+    render = (await client.get(f"{me}/built-resumes/{resume_id}/render")).json()
+    assert _box(render, "gpa", school)["text"] == "GPA: 3.8/4.0"
+    assert _box(render, "coursework", school)["text"] == "Relevant Coursework: Data Structures, Algorithms"
+    assert _box(render, "dates", school)["text"] == "Aug. 2023 – Expected May 2027"
+    assert _box(render, "full_name")["text"] == "Sam Seeker"
+    assert _box(render, "github_url")["text"] == "github.com/samseeker"
+    # A skill's box covers its comma too
+    assert [b["text"] for b in render["boxes"] if b["kind"] == "skill"] == ["Python", "Docker"]
+
+
+async def test_a_typed_gpa_drops_its_label_and_saves_the_number_to_the_bank(student):
+    _tectonic_or_skip()
+    client, me = student
+    await _fill_bank(client, me)
+    resume_id = await _generate(client, me)
+    school = _entry(await _bank(client, me), "Stony Brook University")["id"]
+
+    res = await _type(client, me, resume_id, school, "gpa", "GPA: 3.9 / 4")
+    assert res.status_code == 200, res.text
+    body = res.json()
+    assert (body["entry"]["gpa"], body["entry"]["gpa_scale"]) == (3.9, 4.0)
+    assert _box(body["render"], "gpa", school)["text"] == "GPA: 3.9/4.0"
+
+
+async def test_text_the_api_cannot_save_answers_422_and_changes_nothing(student):
+    client, me = student
+    await _fill_bank(client, me)
+    resume_id = await _generate(client, me)
+    bank = await _bank(client, me)
+    school, intern = _entry(bank, "Stony Brook University")["id"], _entry(bank, "Software Intern")
+
+    for item_id, kind, text in (
+        (school, "gpa", "about 3.8"),
+        (intern["id"], "title", "  "),
+        (intern["bullets"][0]["id"], "bullet", ""),
+        (intern["id"], "dates", "June 2025"),  # dates are not typed in the editor
+        ("header", "email", "me@example.com"),  # My Profile sets it
+        ("header", "title", "Intern"),  # an entry's field under the header's id
+    ):
+        res = await _type(client, me, resume_id, item_id, kind, text)
+        assert res.status_code == 422, (kind, res.text)
+    assert (await _type(client, me, resume_id, school, "gpa", "5.0/4.0")).status_code == 422
+    assert await _bank(client, me) == bank
+
+
+async def test_a_typed_link_without_a_scheme_saves_as_https_to_the_profile(student):
+    _tectonic_or_skip()
+    client, me = student
+    await _fill_bank(client, me)
+    resume_id = await _generate(client, me)
+
+    res = await _type(client, me, resume_id, "header", "linkedin_url", "linkedin.com/in/sam")
+    assert res.status_code == 200, res.text
+    body = res.json()
+    assert body["profile"]["linkedin_url"] == "https://linkedin.com/in/sam"
+    assert _box(body["render"], "linkedin_url")["text"] == "linkedin.com/in/sam"
+
+
+async def test_another_students_bullet_cannot_be_typed(student, database):
+    client, me = student
+    await _fill_bank(client, me)
+    resume_id = await _generate(client, me)
+    res = await _type(client, me, resume_id, str(uuid.uuid4()), "bullet", "Anything")
+    assert res.status_code == 404

@@ -52,6 +52,13 @@ resume; KAN-207 renders the bank and retired the proof endpoint.
   reaches `NAME_ASCENT`/`NAME_DESCENT`, since it prints `\Huge`. The editor
   types them into the profile. The render route sends them as `RenderResponse.boxes`
   (`schemas/built_resume.py`).
+  **Each box carries the words it prints** (`Box.text`, KAN-391), labels
+  included ("GPA: 3.8/4.0"): `jakes.body(..., printed=)` notes each marked
+  line's plain text under its marker's name as it writes the line, and
+  `render()` puts it on the box. The editor opens its typing field on it
+  and the live page draws it (`../../../../docs/live_page.md`), so the
+  browser holds no copy of `fields.py`. A new template notes its text the
+  same way, from the same string it escapes, never from a second rule.
 - **`Rendered.lines_over` is read from the boxes** (KAN-218): the distinct
   baselines past page 1, a wrapped box counting each line
   (`box_lines`, `WRAPPED_LINE`). Section headings and the space
@@ -197,9 +204,10 @@ resume; KAN-207 renders the bank and retired the proof endpoint.
 ## Still open
 
 - **The edit-to-PDF round trip on a Vercel preview, warm and cold** (KAN-209):
-  read it from the editor's bar after a save ("Saved, 412 ms", KAN-218). If it feels broken, the fallback
-  is an HTML copy of the page for typing (research option 4), which ADR
-  0002 would have to revisit.
+  read it from the editor's bar after a save ("Saved, 412 ms", KAN-218).
+  The team chose the HTML copy of the page for typing (research option 4)
+  as step 1, with this package's PDF still the only output, and is
+  considering Typst for step 2 (`docs/live_page.md`, ADR 0002's status).
 
 - **The first Vercel preview:** confirm the build log ends "tectonic and its
   cache ready" and that Generate then PDF downloads a resume from the bank

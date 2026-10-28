@@ -550,7 +550,7 @@ async def test_render_gives_the_editor_a_box_for_each_line_with_bank_ids(student
     bank = (await client.get(f"{me}/bank")).json()
 
     boxes = (await client.get(f"{me}/built-resumes/{resume_id}/render")).json()["boxes"]
-    assert boxes and all(set(b) == {"item_id", "kind", "page", "x0", "y0", "x1", "y1"} for b in boxes)
+    assert boxes and all(set(b) == {"item_id", "kind", "page", "x0", "y0", "x1", "y1", "text"} for b in boxes)
     by_item = {}
     for b in boxes:
         by_item.setdefault(b["item_id"], set()).add(b["kind"])

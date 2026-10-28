@@ -6,6 +6,9 @@ from uuid import UUID
 
 from pydantic import BaseModel, StringConstraints
 
+from app.schemas.bank import EntryResponse
+from app.schemas.profile import ApplicantProfileResponse
+
 Name = Annotated[str, StringConstraints(strip_whitespace=True, min_length=1, max_length=80)]
 
 
@@ -51,7 +54,9 @@ class RenderBox(BaseModel):
     (full_name, phone_number, email, linkedin_url, ...). A
     rectangle in PDF points from the page's top left, y growing down;
     `page` counts from 1. One item and kind can have a box on each of two
-    pages when its line splits across a page break."""
+    pages when its line splits across a page break. `text` is the line as
+    printed, labels included ("GPA: 3.8/4.0"): the editor's typing field
+    opens on it, and the live page shows it (KAN-391)."""
 
     item_id: UUID | Literal["header"]
     kind: str
@@ -60,6 +65,7 @@ class RenderBox(BaseModel):
     y0: float
     x1: float
     y1: float
+    text: str = ""
 
 
 class RenderResponse(BaseModel):
@@ -163,6 +169,28 @@ class ChoicesUpdate(BaseModel):
     entries: list[EntryChoiceUpdate] = []
     bullets: list[BulletChoiceUpdate] = []
     skills: list[SkillChoiceUpdate] = []
+
+
+class LineSave(BaseModel):
+    """One line typed in the editor (KAN-391): the clicked box's `item_id`
+    and `kind`, and the text as typed. The API decides what it changes
+    (services/resume_lines.py)."""
+
+    item_id: UUID | Literal["header"]
+    kind: str
+    text: Annotated[str, StringConstraints(max_length=2000)]
+
+
+class LineSaveResponse(BaseModel):
+    """The resume after a typed line, rendered again. `choices` after a
+    bullet, `entry` after an entry field (`resume_ids` empty: the save
+    does not change them), `profile` after a header field; the others
+    null."""
+
+    render: RenderResponse
+    choices: ChoicesResponse | None = None
+    entry: EntryResponse | None = None
+    profile: ApplicantProfileResponse | None = None
 
 
 class FitResponse(BaseModel):

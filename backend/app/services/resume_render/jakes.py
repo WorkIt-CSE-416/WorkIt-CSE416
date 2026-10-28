@@ -6,7 +6,9 @@ through escape_url().
 
 With `marks` (the default) each bullet, entry field and skill is wrapped in
 position markers (`MARKS` in __init__), which give the editor its click
-targets and leave the page itself unchanged.
+targets and leave the page itself unchanged. With `printed`, each marked
+line's plain text goes in it under the marker's name ("<id>.<kind>"), so a
+box carries the words it covers (`Box.text`).
 '''
 
 from app.services.resume_render import (
@@ -30,26 +32,38 @@ from app.services.resume_render.fields import (
 )
 from app.services.resume_view import ResumeView, ViewEntry
 
+Printed = dict[str, str] | None
 
-def _header(identity: HeaderIdentity, marks: bool) -> list[str]:
+
+def _marked(item_id, kind: str, latex: str, text: str, marks: bool, printed: Printed) -> str:
+    '''`latex` between markers, and `text`, the same words unescaped, noted
+    for its box.'''
+    if printed is not None and text:
+        printed[f"{item_id}.{kind}"] = text
+    return mark(item_id, kind, latex) if marks else latex
+
+
+def _header(identity: HeaderIdentity, marks: bool, printed: Printed) -> list[str]:
     # The identity comes from the profile; its markers use HEADER as the id,
     # and each field's profile column as the kind
-    def slot(kind: str, latex: str) -> str:
-        return mark(HEADER, kind, latex) if marks else latex
+    def slot(kind: str, latex: str, text: str) -> str:
+        return _marked(HEADER, kind, latex, text, marks, printed)
 
     # "U.S. Citizen" leads the line. No box: the editor types only the
     # fields it can save, and this one is Application Questions' answer
     contact = [US_CITIZEN] if identity.us_citizen else []
     if identity.phone:
-        contact.append(slot("phone_number", escape(identity.phone)))
+        contact.append(slot("phone_number", escape(identity.phone), identity.phone))
     if identity.email:
         email = escape(identity.email)
-        contact.append(slot("email", rf"\href{{mailto:{escape_url(identity.email)}}}{{\underline{{{email}}}}}"))
+        contact.append(slot(
+            "email", rf"\href{{mailto:{escape_url(identity.email)}}}{{\underline{{{email}}}}}", identity.email
+        ))
     contact += [
-        slot(field, rf"\href{{{escape_url(u)}}}{{\underline{{{escape(link_text(u))}}}}}")
+        slot(field, rf"\href{{{escape_url(u)}}}{{\underline{{{escape(link_text(u))}}}}}", link_text(u))
         for field, u in identity.links
     ]
-    name = slot("full_name", rf"\textbf{{\Huge \scshape {escape(identity.name)}}}")
+    name = slot("full_name", rf"\textbf{{\Huge \scshape {escape(identity.name)}}}", identity.name)
     lines = [r"\begin{center}", rf"{name} \\ \vspace{{1pt}}"]
     if contact:
         lines.append(r"\small " + " $|$ ".join(contact))
@@ -57,13 +71,13 @@ def _header(identity: HeaderIdentity, marks: bool) -> list[str]:
     return lines
 
 
-def _entry(entry: ViewEntry, marks: bool) -> list[str]:
+def _entry(entry: ViewEntry, marks: bool, printed: Printed) -> list[str]:
     h = heading(entry)
     kinds = heading_fields(entry.section)
 
     def slot(name: str) -> str:
-        text = escape(getattr(h, name))
-        return mark(entry.id, kinds[name], text) if marks else text
+        text = getattr(h, name)
+        return _marked(entry.id, kinds[name], escape(text), text, marks, printed)
 
     if entry.section in TWO_ROW:
         line = rf"\resumeSubheading{{{slot('title')}}}{{{slot('right')}}}{{{slot('subtitle')}}}{{{slot('subright')}}}"
@@ -77,38 +91,38 @@ def _entry(entry: ViewEntry, marks: bool) -> list[str]:
         return [line]
     rows = []
     for item_id, kind, text in items:
-        body = mark(item_id, kind, escape(text)) if marks else escape(text)
+        body = _marked(item_id, kind, escape(text), text, marks, printed)
         rows.append(rf"\resumeItem{{{body}}}")
     return [line, r"\resumeItemListStart", *rows, r"\resumeItemListEnd"]
 
 
-def _skills(view: ResumeView, marks: bool) -> str:
+def _skills(view: ResumeView, marks: bool, printed: Printed) -> str:
     rows = []
     for label, skills in skill_lines(view.skills):
         # Each skill's comma stays inside its markers: a marker between two
         # characters drops the kerning between them ("NumPy," moved 0.08 pt)
         names = " ".join(
-            mark(s.id, "skill", text) if marks else text
+            _marked(s.id, "skill", escape(s.name) + comma, s.name + comma, marks, printed)
             for i, s in enumerate(skills)
-            for text in [escape(s.name) + ("," if i < len(skills) - 1 else "")]
+            for comma in ["," if i < len(skills) - 1 else ""]
         )
         rows.append(rf"\textbf{{{escape(label)}}}{{: {names}}}" if label else names)
     return r" \\ ".join(rows)
 
 
-def body(view: ResumeView, identity: HeaderIdentity, *, marks: bool = True) -> str:
+def body(view: ResumeView, identity: HeaderIdentity, *, marks: bool = True, printed: Printed = None) -> str:
     lines = [MARKS] if marks else []
-    lines += _header(identity, marks)
+    lines += _header(identity, marks, printed)
     for section in view.sections:
         lines += [rf"\section{{{escape(SECTION_LABELS[section.section])}}}", r"\resumeSubHeadingListStart"]
         for entry in section.entries:
-            lines += _entry(entry, marks)
+            lines += _entry(entry, marks, printed)
         lines.append(r"\resumeSubHeadingListEnd")
     if view.skills:
         lines += [
             rf"\section{{{SKILLS_LABEL}}}",
             r"\begin{itemize}[leftmargin=0.15in, label={}]",
-            rf"\small{{\item{{{_skills(view, marks)}}}}}",
+            rf"\small{{\item{{{_skills(view, marks, printed)}}}}}",
             r"\end{itemize}",
         ]
     return "\n".join(lines)

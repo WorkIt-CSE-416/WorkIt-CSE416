@@ -351,6 +351,19 @@ Find files with a directory listing; these are the rules for where code goes.
   a write to a choice row leaves the resume's own row as it was:
   `write_choices` and `update_choices` call it, and any new write to a
   resume's choices goes through them or calls it too.
+- **A line typed in the editor is one request: `PUT
+  .../built-resumes/{rid}/lines`** (KAN-391), the clicked box's `item_id`
+  and `kind` with the text as typed. `services/resume_lines.py` (pure)
+  decides what it changes: a bullet the resume's own wording (through
+  `update_choices`), an entry field the bank (`bank.update_entry`), a
+  header field the profile, checked as My Profile's PATCH checks it. The
+  route commits, then renders, and answers the render with what changed.
+  The rules for typed text (a GPA is a number, the label typed back is
+  dropped, a link gets `https://`) live there and nowhere in the browser:
+  until KAN-391 `model.ts` held them, and a GPA it could not read was
+  dropped without a word; now it answers 422 with the reason. A save then
+  a render was two round trips per edit. Tests: `tests/test_resume_lines.py`
+  and the "PUT .../lines" part of `tests/test_resume_editor.py`.
 - **The editor writes a resume's choices in one PATCH**
   (`.../built-resumes/{rid}/choices`, KAN-218): hide, show, move (the
   client renumbers the siblings), the GPA and coursework toggles, typed

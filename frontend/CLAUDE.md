@@ -1460,6 +1460,25 @@ the KAN-296 cutover.
   lockfile diff for removals after adding any dependency. Adding Lenis
   only cleared `"dev": true` on `sharp`'s `@img/*` packages (`next`
   depends on `sharp` too), which is correct and removes no entry.
+- **The editor sends a typed line as typed, and the API reads it**
+  (KAN-391, `saveLine`, `PUT .../built-resumes/{rid}/lines`): one request
+  saves and renders. The field opens on the box's own printed text
+  (`RenderBox.text`), and a line is saved only when the typed text differs
+  from it. Never put a rule for typed text (GPA parsing, a label typed
+  back, `https://` on a link) back in the browser: `model.ts` held them
+  until KAN-391 and dropped a GPA it could not read without a word. The
+  700 ms pause leaves an emptied line waiting, since the student is likely
+  retyping it and an empty title or bullet is refused; leaving the line
+  sends it. "Saved, N ms" now times the save and the render together.
+- **The live page, step 1** (KAN-391, `../docs/live_page.md`): while a
+  wrapping line (a bullet, coursework, honors) is typed in, `PdfPages`
+  clears the line's glyphs and moves everything below it on its page,
+  click targets too, by the lines the textarea gained or lost
+  (`shift`, from a `ResizeObserver` on the field). The canvas is composed
+  from the last pdf.js drawing (`compose` in `pdf-pages.tsx`), so a shift
+  never draws the PDF again. The shift is 0 once the PDF prints the typed
+  text; where TeX wraps it otherwise, the page jumps then. Desktop only:
+  the phone types in a sheet.
 - **Tailor's review is the resume editor with props, not a fork**
   (`(seeker)/resumes/[resumeId]/editor.tsx`), and both pages draw one
   editor design (KAN-411): the title row (`heading`, `ResumeTitle`

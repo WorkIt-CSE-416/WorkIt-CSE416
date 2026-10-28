@@ -18,7 +18,11 @@ import type { Mark } from "./tailor-review";
  * percent of the page, so they need no redraw to follow the canvas's size.
  * `field` draws the selected line's text field over its first box (KAN-218);
  * each page is a size container, so the field's type can be set in `cqw` to
- * match the PDF's at any width. On Tailor's review, `dots` puts a small
+ * match the PDF's at any width. While it shows, the page under it is the
+ * live page's first step (KAN-391, docs/live_page.md): the line's own
+ * glyphs are cleared, and `shift` moves everything below the line on its
+ * page by the points the field grew or shrank, click targets too, so the
+ * page reflows as the student types; the next PDF puts it back. On Tailor's review, `dots` puts a small
  * brand dot in the page's left margin beside each changed line; `marks`
  * highlights the lines of the card in focus or open, in the colour of its
  * change type, and `focus` brings the first of them into view
@@ -149,6 +153,7 @@ export function PdfPages({
   onSelect,
   onDrawn,
   field,
+  shift = 0,
   placeholder,
   marks,
   focus,
@@ -164,6 +169,9 @@ export function PdfPages({
   onDrawn?: () => void;
   /** The text field for the selected line, laid over its first box. */
   field?: (box: RenderBox) => ReactNode;
+  /** Points the field is taller (or, below 0, shorter) than its box: what
+   *  the page under the line moves by while it is typed in. */
+  shift?: number;
   /** Shown until pdf.js has read the PDF: the editor's PageSkeleton, so
    *  its skeleton holds until the canvas. A line of text by default. */
   placeholder?: ReactNode;
@@ -177,6 +185,10 @@ export function PdfPages({
 }) {
   const first = boxes.find((b) => boxKey(b) === selected);
   const typing = first && field?.(first);
+  const live = first && typing ? { ...first, by: shift } : null;
+  // A target below the typed line moves with the page under it
+  const moved = (box: RenderBox) =>
+    live && box.page === live.page && box.y0 >= live.y1 ? live.by : 0;
   const [doc, setDoc] = useState<{ pdf: PDFDocumentProxy; sizes: Size[] } | null>(null);
   const [failed, setFailed] = useState(false);
   const painted = useRef(new Set<number>());
@@ -241,6 +253,7 @@ export function PdfPages({
             pdf={doc.pdf}
             page={i + 1}
             size={size}
+            live={live?.page === i + 1 ? live : null}
             onPainted={() => {
               painted.current.add(i);
               if (painted.current.size === doc.sizes.length) drawn.current?.();
@@ -273,7 +286,7 @@ export function PdfPages({
                   )}
                   style={{
                     left: `${(box.x0 / size.width) * 100}%`,
-                    top: `${(box.y0 / size.height) * 100}%`,
+                    top: `${((box.y0 + moved(box)) / size.height) * 100}%`,
                     width: `${((box.x1 - box.x0) / size.width) * 100}%`,
                     height: `${((box.y1 - box.y0) / size.height) * 100}%`,
                   }}
@@ -351,22 +364,62 @@ function MarginDots({
     });
 }
 
+/** The typed line's box, in PDF points, and how far the page under it
+ *  moves. */
+type Live = Pick<RenderBox, "x0" | "y0" | "x1" | "y1"> & { by: number };
+
+/** The page's drawing onto the shown canvas: as drawn, or with the typed
+ *  line cleared and everything under it moved by `live.by`. The paper is
+ *  white in either theme, as pdf.js paints it. */
+function compose(
+  shown: HTMLCanvasElement,
+  drawn: HTMLCanvasElement,
+  live: Live | null,
+  scale: number,
+) {
+  shown.width = drawn.width;
+  shown.height = drawn.height;
+  const context = shown.getContext("2d")!;
+  context.drawImage(drawn, 0, 0);
+  if (!live) return;
+  const [x0, y0, x1, y1, by] = [live.x0, live.y0, live.x1, live.y1, live.by].map((v) =>
+    Math.round(v * scale),
+  );
+  context.fillStyle = "#fff";
+  context.fillRect(x0, y0, x1 - x0, y1 - y0);
+  if (by === 0) return;
+  const below = drawn.height - y1;
+  context.fillRect(0, y1, drawn.width, below);
+  context.drawImage(drawn, 0, y1, drawn.width, below, 0, y1 + by, drawn.width, below);
+}
+
 /** One page, redrawn at the canvas's own width in device pixels. Each draw
  *  paints a hidden canvas and copies it over the shown one in one step:
  *  sizing a canvas blanks it, and a new PDF's page blanked the shown one
- *  for the whole pdf.js draw, a dark flash after every edit (KAN-391). */
+ *  for the whole pdf.js draw, a dark flash after every edit (KAN-391). The
+ *  hidden canvas is kept, so a `live` change composes again with no draw. */
 function PageCanvas({
   pdf,
   page,
   size,
+  live,
   onPainted,
 }: {
   pdf: PDFDocumentProxy;
   page: number;
   size: Size;
+  live: Live | null;
   onPainted: () => void;
 }) {
   const canvas = useRef<HTMLCanvasElement>(null);
+  const drawnCanvas = useRef<HTMLCanvasElement | null>(null);
+  const latestLive = useRef(live);
+  useEffect(() => {
+    latestLive.current = live;
+    const shown = canvas.current;
+    const drawn = drawnCanvas.current;
+    if (shown && drawn) compose(shown, drawn, live, drawn.width / size.width);
+  }, [live?.x0, live?.y0, live?.x1, live?.y1, live?.by, size.width]); // eslint-disable-line react-hooks/exhaustive-deps
   const painted = useRef(onPainted);
   useEffect(() => {
     painted.current = onPainted;
@@ -392,9 +445,8 @@ function PageCanvas({
         hidden.height = Math.round(viewport.height);
         task = proxy.render({ canvas: hidden, viewport });
         await task.promise;
-        element!.width = hidden.width;
-        element!.height = hidden.height;
-        element!.getContext("2d")!.drawImage(hidden, 0, 0);
+        drawnCanvas.current = hidden;
+        compose(element!, hidden, latestLive.current, hidden.width / size.width);
       } catch {
         return; // cancelled by a newer draw, or the document was replaced
       }

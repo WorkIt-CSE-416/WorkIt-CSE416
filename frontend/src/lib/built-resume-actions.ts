@@ -1,6 +1,8 @@
 "use server";
 
 import { applicantCall, encodeId, type Result } from "@/lib/applicant-call";
+import type { BankEntry } from "@/lib/bank-actions";
+import type { ApplicantProfile } from "@/lib/profile-actions";
 
 /**
  * Built resumes (backend/app/routers/built_resumes.py), as server actions.
@@ -32,7 +34,8 @@ export type BuiltResume = {
  * Where one line sits on the PDF (schemas `RenderBox`): the bank id of the
  * bullet, skill or entry it shows, which part (`kind`: "bullet", "skill", or
  * an entry field such as "title" or "dates"), its page from 1, and its
- * rectangle in PDF points from the page's top left, y growing down.
+ * rectangle in PDF points from the page's top left, y growing down. `text`
+ * is the line as printed, labels included ("GPA: 3.8/4.0").
  */
 export type RenderBox = {
   item_id: string;
@@ -42,6 +45,7 @@ export type RenderBox = {
   y0: number;
   x1: number;
   y1: number;
+  text: string;
 };
 
 /** The PDF, base64, what the student is warned about before saving it, and
@@ -171,6 +175,29 @@ export async function updateChoices(
   return call<Choices>(`/${id(resumeId)}/choices`, {
     method: "PATCH",
     body: JSON.stringify(changes),
+  });
+}
+
+/** The resume after a typed line (KAN-391): the render, and what the line
+ *  changed: the choices after a bullet, the bank entry after an entry field
+ *  (its `resume_ids` empty), the profile after a header field. */
+export type LineSaved = {
+  render: RenderedPdf;
+  choices: Choices | null;
+  entry: BankEntry | null;
+  profile: ApplicantProfile | null;
+};
+
+/** One typed line, saved and rendered in one request: the clicked box's
+ *  item and kind, and the text as typed. The API reads it (a GPA must be a
+ *  number) and answers why when it cannot save it. */
+export async function saveLine(
+  resumeId: string,
+  line: { item_id: string; kind: string; text: string },
+): Promise<Result<LineSaved>> {
+  return call<LineSaved>(`/${id(resumeId)}/lines`, {
+    method: "PUT",
+    body: JSON.stringify(line),
   });
 }
 

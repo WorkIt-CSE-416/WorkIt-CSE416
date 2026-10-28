@@ -36,6 +36,15 @@ GET    /applicants/{id}/built-resumes/{rid}/choices -> ChoicesResponse
 PATCH  /applicants/{id}/built-resumes/{rid}/choices ChoicesUpdate -> ChoicesResponse
        The editor's hide, show, move and toggles, all saved together. An
        item with no row gets one. 404 for an item outside the bank.
+PUT    /applicants/{id}/built-resumes/{rid}/lines  LineSave -> LineSaveResponse
+       One line typed in the editor (KAN-391): saves it, then renders, in
+       one request. {item_id, kind, text} names the clicked box; the API
+       reads the text (services/resume_lines.py): a bullet becomes this
+       resume's wording, an entry field changes the bank, a header field
+       the profile. 422 {detail} for text it cannot save (an empty title, a
+       GPA that is not a number, a kind not typed here), 404 for an item
+       outside the bank. The save is committed before the render, so a 503
+       still keeps it, as a save then a render did.
 POST   /applicants/{id}/built-resumes/{rid}/fit    -> FitResponse {hidden, undo, render}
        Fit to One Page: hides coursework, bullets and whole entries, least
        useful first (resume_view.fit_order), and renders again until the
@@ -65,6 +74,8 @@ import logging
 import uuid
 
 from fastapi import APIRouter, Depends, HTTPException, Query, Response
+from fastapi.exceptions import RequestValidationError
+from pydantic import ValidationError
 from sqlalchemy.exc import SQLAlchemyError
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import undefer
@@ -74,6 +85,7 @@ from app.db import get_session
 from app.deps import owned_applicant
 from app.models.built_resume import Built_Resume
 from app.models.jobs import Job_Post
+from app.models.profiles import Applicant_Profile
 from app.schemas.built_resume import (
     BuiltResumeCreate,
     BuiltResumeRename,
@@ -81,16 +93,21 @@ from app.schemas.built_resume import (
     ChoicesResponse,
     ChoicesUpdate,
     FitResponse,
+    LineSave,
+    LineSaveResponse,
     RenderBox,
     RenderResponse,
 )
 from app.schemas.keywords import KeywordMatchResponse
+from app.schemas.profile import ApplicantProfileResponse, ApplicantProfileUpdate
+from app.services import bank, keywords, postings, resume_lines
 from app.services import built_resumes as service
-from app.services import keywords, postings
 from app.services.ai_messages import AIMessages
 from app.services.bank import NotFound
 from app.services.models import get_small_llm
+from app.services.names import name_columns
 from app.services.resume_render import (
+    HEADER,
     HeaderIdentity,
     Rendered,
     TectonicUnavailable,
@@ -295,6 +312,65 @@ async def update_choices(
         raise HTTPException(404, "Resume or bank item not found")
     await _commit(session, "Failed to save the resume")
     return await service.choices_response(session, resume_id)
+
+
+@router.put("/{resume_id}/lines", response_model=LineSaveResponse)
+async def save_line(
+    body: LineSave,
+    resume_id: uuid.UUID,
+    applicant_id: uuid.UUID = Depends(owned_applicant),
+    session: AsyncSession = Depends(get_session),
+) -> LineSaveResponse:
+    resume = await _owned(session, applicant_id, resume_id)
+    header = body.item_id == HEADER
+    try:
+        line = resume_lines.parse(body.kind, body.text)
+        if (line.target == "header") != header:
+            raise resume_lines.LineError("This line is not typed here.")
+        if line.target == "header":
+            profile = await _save_header(session, applicant_id, line.changes)
+        elif line.target == "bullet":
+            await service.update_choices(
+                session, applicant_id, resume_id, bullets=[{"bullet_id": body.item_id, **line.changes}]
+            )
+        else:
+            entry = await bank.update_entry(session, applicant_id, body.item_id, line.changes)
+    except resume_lines.LineError as exc:
+        raise HTTPException(422, str(exc))
+    except ValidationError as exc:
+        raise RequestValidationError(exc.errors(include_url=False, include_context=False))
+    except NotFound:
+        raise HTTPException(404, "Resume or bank item not found")
+    await _commit(session, "Failed to save the resume")
+
+    _, view = await service.load_view(session, applicant_id, resume_id)
+    rendered = await _render(view, await _identity(session, applicant_id), resume.template)
+    response = LineSaveResponse(render=_render_response(rendered, resume.name))
+    if line.target == "header":
+        response.profile = ApplicantProfileResponse.model_validate(profile)
+    elif line.target == "bullet":
+        response.choices = await service.choices_response(session, resume_id)
+    else:
+        response.entry = bank.entry_response(entry)
+    return response
+
+
+async def _save_header(session: AsyncSession, applicant_id: uuid.UUID, changes: dict) -> Applicant_Profile:
+    """A header field to the profile, checked as My Profile's PATCH checks
+    it; a name typed whole is split into its parts there too
+    (routers/profiles.py)."""
+    ApplicantProfileUpdate.model_validate(changes)
+    profile = await session.get(Applicant_Profile, applicant_id)
+    if profile is None:
+        raise NotFound
+    for field, value in changes.items():
+        if field == "full_name":
+            for column, part in name_columns(value).items():
+                setattr(profile, column, part)
+        else:
+            setattr(profile, field, value)
+    await session.flush()
+    return profile
 
 
 @router.get("/{resume_id}/docx")
