@@ -79,6 +79,7 @@ These sync from the server. Expect:
 |---|---|---|
 | `get_next_application` | Get the next application | `readOnlyHint: true`, `openWorldHint: false` |
 | `save_answers` | Save answers | `readOnlyHint: false`, `destructiveHint: false`, `idempotentHint: true`, `openWorldHint: false` |
+| `save_fact_question` | Ask the student for a fact | `readOnlyHint: false`, `destructiveHint: false`, `idempotentHint: true`, `openWorldHint: false` |
 
 Prompt: `write_my_workit_answers`, titled "Write my WorkIt answers".
 
@@ -88,7 +89,9 @@ and is in the right group (the test fails on a tool without them).
 `save_answers` is marked not destructive: it fills an application's
 unanswered written questions, deletes nothing, sends nothing to an employer,
 and the student reviews every answer in the form before they submit. Claude
-may still ask before each save.
+may still ask before each save. `save_fact_question` is not destructive
+either: it keeps a question for the student on one unanswered question
+(KAN-369) and changes nothing else until the student answers it.
 
 ## 3. Listing
 

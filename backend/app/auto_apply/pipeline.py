@@ -14,6 +14,10 @@ from typing import Literal
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.auto_apply.hosts import refusal
+from app.auto_apply.plans import (  # noqa: F401 (re-exported for the connector)
+    Backed,
+    Plan,
+)
 from app.auto_apply.queries import (
     close_posting,
     fetch_applications,
@@ -49,12 +53,14 @@ from app.auto_apply.stages import (  # noqa: F401 (get_application re-exported)
 )
 from app.auto_apply.written import (  # noqa: F401 (re-exported: callers name these steps as pipeline's)
     Refused,
-    Review,
     ToWrite,
     answer_bank,
+    answer_fact,
     answered_questions,
+    ask_fact,
     ask_questions,
     drop_own_answer,
+    led_before,
     next_to_write,
     read_first,
     save_answers,

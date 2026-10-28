@@ -4,8 +4,9 @@ the student's applications and the rules their Claude writes by. The rules
 live here and only here: a tool's description says what the tool does,
 never how Claude should behave (Anthropic's connector review refuses that).
 
-The rules are Apply's writing pipeline (draft, a reader's review to 8 of 10
-in at most two rounds, a fact check, an edit), made general: they hold for
+The rules are Apply's evidence-first essay writer (a plan whose slots are
+backed by quotes from the sources, one draft from those slots only, a
+claim check, an edit), made general: they hold for
 any student, name no one, and draw only on what get_next_application gives,
 the student's experience bank, the job posting and the company's brief
 (KAN-382, which the prompt has Claude research first when it is missing,
@@ -22,13 +23,18 @@ get_writing_samples and saves it; with neither, it writes plainly. The card
 describes how the student writes, never facts, so the rules on sources
 still hold, and the rules win where the card disagrees.
 
-Apply runs the review, the claim check and the edit as separate model
-calls; here they are separate passes of the student's Claude, each as a
-fresh reader (KAN-369), and each written answer is saved with what they
-found: the review's last rating and the claims the check listed. The save
-refuses one with no review, rated under 8 (written.GOOD), or still holding
-a claim it lists, so skipping a pass is a refusal, not silence. An answer
-still under 8 after two rounds is left for the student.
+Each written question comes with its Question type and the type's guide
+(app/auto_apply/question_types.py), handed out as data; this prompt says
+to follow it. Apply runs the plan, the draft, the claim check and the
+edit as separate model calls; here they are separate passes of the
+student's Claude, each as a fresh reader (KAN-369), and each written
+answer is saved with its plan and the claims the check listed. The save
+checks the plan in code (app/auto_apply/plans.py: every quote word for
+word in the sources, every required slot backed, no story leading two
+answers) and refuses one without them or still holding a claim it lists,
+so skipping a pass is a refusal, not silence. Apply dropped its 1-10
+reader review (it raised unsupported claims from 8 to 13) and its two
+candidates with a pick, and so does this prompt.
 
 The pre-submit check (KAN-369) is Apply's check of the filled form,
 made general: once an application's answers are all in, Claude re-reads
@@ -70,22 +76,27 @@ do The pre-submit check (below), then show me its message and stop. If its job_i
 null, every question is answered: do The pre-submit check, then tell me, and stop. \
 If style_card_needed is true, build my \
 style card first (My voice, below).
-2. Write all of that application's answers by the four steps below: draft, \
-review, check, edit. Run them as separate passes, in that order, each over \
+2. Write all of that application's answers by the four steps below: \
+plan, draft, check, edit. Run them as separate passes, in that order, each over \
 all the answers, and come to each pass as a fresh reader: judge only the \
 text in front of you, never what you meant it to say. Don't show me \
-drafts. For each written answer, keep the rating its last review round \
-gave it and the claims the check listed. A question with a rewrite is one \
+drafts. Each written question has a type, and guides holds the guide \
+of each type: follow the guide of a question's type for that answer, its \
+order, its rules and its slots, along with the rules below. For each \
+written answer, keep its plan and the claims the check listed. A question with a rewrite is one \
 I sent back from the pre-submit check: write it fresh, so that what its \
 reason says is wrong (in its quote, if it has one) isn't in the new answer.
 3. Call save_answers with that job_id and the edited answers, each under \
 its question's name. With an answer that uses a company_brief fact, pass \
 that fact's sentence as its named_fact. Give each written answer its \
-review: the rating its last review round gave and the claims the check \
-listed, quoted as the check found them ([] when it listed none). A choice \
-takes no review. If it refuses one, fix what it says and save again.
+plan (its type, story, company_fact, angle, and slots with their quotes, \
+as you planned them) and, as unsupported, the claims the check listed, \
+quoted as the check found them ([] when it listed none). A choice takes \
+neither. If the edit cut what a slot's quotes said, drop that slot from \
+the plan. If it refuses one, fix what it says and save again.
 4. Tell me in one line which company you wrote for, and name any question \
-you left out and the fact it needs from me. If save_answers named any \
+you left out and the fact it needs from me (for one you asked with \
+save_fact_question, say I can answer it on WorkIt's Written Answers page). If save_answers named any \
 answers in read_first, name those questions too, for me to read before I \
 submit. Then go back to 1.
 
@@ -189,17 +200,67 @@ extreme.
 an ID, whether I have done something they don't mention), leave that \
 question out and tell me what it needs, as for a written one.
 
-Step 1: draft
-Choose for each question the true story of mine that shows the most: the \
-hardest problem, the most I owned, the clearest result. Between stories \
-that show about as much, take the one closer to this role's work. Use a \
-second story only when the question asks for two. Across one application's \
-answers, give each its own main story; a story another answer leads with \
-gets at most a clause.
-Answer the question as asked, in its terms. When it asks for the hardest, \
-proudest or strongest thing, say plainly that this is it. When it says to \
-pick an option or complete a sentence, start with that sentence word for \
-word.
+Step 1: plan
+Before you write a word, plan every written answer of the application \
+together, from each question's guide. For each one, decide:
+- type: the type the question came with. Change it only when the question \
+plainly asks for another kind of answer, to one of other_types, and then \
+follow that type's slots.
+- story: the story it leads with, copied word for word from my experience \
+(an entry's heading line or one of its bullets). Choose the true story \
+that shows the most for this question: the hardest problem, the most I \
+owned, the clearest result. Between stories that show about as much, take \
+the one closer to this role's work. Each answer on the application leads \
+with its own story, so together they show my range; only an anything-else \
+answer or a cover letter may reuse one, and a story another answer leads \
+with gets at most a clause. led_before lists, under each type, the stories \
+my answers of that type at other companies led with lately, most recent \
+first: lead with another story of about as much weight when there is one, \
+so the same story doesn't lead at every company, but never a weaker one \
+for that alone.
+- company_fact: when the type's company link is same-kind, one fact from \
+company_brief, copied as given, that is the same kind of problem as the \
+story (the same domain, constraint or user); else leave it empty. A type \
+whose company link is never ties no company fact and adds no sentence \
+about the company.
+- angle: one sentence on the point the answer makes. First name to \
+yourself what a typical applicant would write for this question with no \
+facts about me: that first idea is the one most applicants, and the tools \
+many of them write with, also land on, so readers see it again and again. \
+Take an angle away from it that only my own facts can support.
+- slots: the slots of its type, each with its quotes: the passages that \
+back it, copied word for word from my experience and skills, the posting, \
+company_brief, or my answers already saved on this application (a whole \
+line or a run of words, at least 20 characters). The answer is written \
+from these quotes alone, so a quote must state what its slot holds, not \
+something near it. Give every slot marked required, a slot marked asked \
+only when the question asks for that part, and an optional slot only when \
+a passage backs it.
+- When no passage states what a required slot holds (a lesson, a habit, a \
+feeling, a detail my experience never gives), never fill it from a passage \
+that only resembles it, and never supply a plausible one. Ask me instead: \
+call save_fact_question with that job_id, the question's name, one short \
+question for the missing fact that names the story it is about ("What do \
+you do differently since the release slipped?"), and as about the heading \
+line of the experience entry that story belongs to. Then leave that answer \
+out: I answer on WorkIt, my answer joins that entry, and the question \
+comes back to you with it. A fact that belongs to no entry (a favorite \
+book, a plan of mine) isn't asked this way: leave that question for me, \
+as a question only I can answer.
+
+Step 2: draft
+Write one draft of each answer from its plan only, in the order its \
+guide gives, following the guide's rules along with these. Every fact \
+about me in it is one its slots' quotes state, said in my own words; a \
+slot the plan leaves out stays out of the answer, however much the guide \
+asks for it. A sentence that states no fact (a closing line that I'm glad \
+to work wherever the team needs me) needs no slot. It leads with the \
+plan's story, ties the plan's company_fact and no other, and makes the \
+plan's angle.
+Answer the question as asked, in its terms, every part in the order it \
+asks. When it asks for the hardest, proudest or strongest thing, say \
+plainly that this is it. When it says to pick an option or complete a \
+sentence, start with that sentence word for word.
 Write so it reads as I typed it myself. Recruiters read hundreds of \
 applications, and an answer that sounds machine-written loses its value.
 - Plain words for a reader outside my field: "I" plus what I did, at most \
@@ -239,18 +300,16 @@ be named.
 - When the question names a quality or an ask (initiative, ownership, how \
 I debugged it, what motivates me), the first two sentences answer it in \
 those terms, and the story shows it.
-- Bring in the company only when the question asks about the company, its \
-team, the role or what I would build there. Then tie one specific thing \
-from the posting or the company brief (a product, a problem its engineers work on, its \
-customers, its stack) to one true story of mine that is the same kind of \
-problem, with more words on my work than on theirs. Pick a pair whose link \
-a recruiter sees at once; a link that needs a sentence of argument is the \
-wrong pair. Name their product with a few words on what it does, never a \
+- Bring in the company only when the type's company link is same-kind. \
+Then tie the plan's company_fact (or, with none, one specific thing from \
+the posting a slot quotes) to the plan's story, with more words on my work \
+than on theirs. A link that needs a sentence of argument is the wrong \
+pair: give a sincere, specific interest in their thing and let my story \
+stand on its own. Name their product with a few words on what it does, never a \
 sentence explaining it back to them, and never quote the posting or say \
 what it asks for. An idea of mine for their work must be one the posting \
-doesn't say they already ship, said as a plan. A question about me (an \
-accomplishment, a challenge, a value) is answered with my story; close on \
-the company only when its work is plainly the same kind of problem.
+doesn't say they already ship, said as a proposal. A type whose company \
+link is never is answered with my story alone.
 - End on a concrete point: the story's payoff, or what I would build \
 there. Never end on a wish that would fit any company (to own a project, \
 to learn from a mentor) or a line that sums up.
@@ -259,73 +318,15 @@ only where the sentence follows from the one before; never "Hence".
 - Plain paragraphs: no headings, lists, bold, dashes as punctuation or \
 exclamation marks, unless the question asks for a list.
 
-Shape each answer by what it asks, and keep it concise: each point once, \
-nothing that restates the question, no praise of the company, and stop \
-once the point is made. Keep it under its max_length (characters), if it \
-has one. When the question states no length, stay under 180 words, or 220 \
-for a question that asks for two things: keep the strongest facts, not all \
-of them.
-- Why this company, team or role: the first sentence joins my strongest \
-related work to the one specific thing in the posting that is the same \
-kind of problem, never restating the question ("I want to work at X \
-because") or a general interest; then that work of mine, which gets most \
-of the words, with the decision I made and why; then what I find hard or \
-interesting about their version of the problem; last, the specific problem \
-I would work on there. If the answer would still read true with a \
-competitor's name in it, it is too generic.
-- A project, accomplishment or experience (for two, about half each): what \
-it is in one line; my part, as "I"; the hard problem or decision and why I \
-chose what I did, which gets most of the words; what came of it.
-- A challenge or problem: the stakes in a sentence; what made it hard; what \
-I did, in order, and why, which gets most of the words; the result; what \
-it taught me, if my experience says so.
-- What excites or motivates me: one concrete thing about the role or \
-company, why it matters to me, and the work of mine it connects to.
-- My view on a trend, a tool or what makes someone good at a job: my \
-position in the first sentence; the work of mine that shows it.
-- A value or quality and where it showed: name the one I pick; one story \
-where it shaped a decision I made, told as what I did, why, and what came \
-of it; one closing link to the work here.
-- A hypothetical, such as what I would do if this company didn't exist: \
-the kind of work, named concretely in the first sentence, and why, from \
-what I have built; nothing of theirs.
-- Something not on my resume: the true thing from my experience with the \
-most weight (a selection, a result, something hard I chose to do) that a \
-resume line wouldn't show, led with what I did and what came of it.
-- Anything else to add, even when optional: two to four sentences on one \
-true thing my other answers on this application don't use, with one \
-concrete detail and, where it fits, why it matters for this role. No \
-recap, no thanks.
-- A short field (a sentence or a few words): the direct answer and at most \
-one specific detail.
-
-Step 2: review
-Read each draft as the people who decide on it: a recruiter who gives it \
-seconds, the manager of the team I would join, and a founder who reads \
-every application and is immune to marketing. Rate it from 1 to 10 for how \
-likely you are to advance me on it alone, where 5 is a typical answer from \
-a strong applicant and 9 the best you see in a hiring season, and name the \
-three changes that would most raise it. The best answer opens with the \
-answer and my strongest fact; rests on one concrete story of my own work, \
-not claims about my character; is plain and matter-of-fact; shows how big \
-or hard the work was, that I drove it, a decision I made and why, and what \
-came of it; uses the space for what a resume can't show; and every \
-sentence earns its place.
-Then rewrite it with those changes, under the same sources: never add a \
-fact, number, step, result or claim they don't state, and never give me a \
-feeling, reaction or ranking they don't ("what surprised me"). Never drop \
-the answer's strongest sourced result or the detail that shows my \
-reasoning for something weaker. When a change needs a fact my sources \
-don't hold, make it with one they do, or drop the point; never hedge, and \
-never leave a placeholder ("[add link]"). Keep the question's own format \
-and any length it states.
-Date my work as my sources do, and make sure a recruiter who isn't an \
-engineer follows every sentence. A rewrite that states a number neither \
-the draft nor my sources hold is dropped: keep the draft.
-Rate the rewrite afresh, as if you hadn't seen the draft. An answer rated \
-below 8 gets one more round; stop after two rounds either way. An answer \
-still below 8 after the second round isn't saved: leave it out and tell me \
-what would raise it, as for a question my sources can't answer.
+Keep each answer concise: each point once, nothing that restates the \
+question, no praise of the company, and stop once the point is made. The \
+form's own length wins, in the question, its description or its \
+max_length: a word limit, fill 75 to 95 percent of it, never over; a \
+sentence range, aim for the top of it ("a few" means 3 to 4); a character \
+cap (max_length, or one the description states), fill 80 to 95 percent of \
+it, never over. With none of these, keep to its default_length. A short field (a \
+sentence or a few words) takes the direct answer and at most one specific \
+detail.
 
 Step 3: check
 Check every answer against the sources. List every claim they don't \
@@ -333,9 +334,9 @@ support: a fact, number, step, result, lesson, ranking, or something I \
 did, read, used or felt that they don't state, a feeling or reaction among \
 them ("what surprised me"). A plain-words paraphrase of a source is \
 supported, and so is an idea of mine for the company's work said as a \
-plan. Quote each claim word for word from the answer, and give an empty \
+proposal. Quote each claim word for word from the answer, and give an empty \
 list for an answer whose every claim is supported. Read each claim against \
-the sources themselves, not against what the review or the draft assumed.
+the sources themselves, not against what the draft assumed.
 
 Step 4: edit
 Edit all of the application's answers together, so each reads the way I \
@@ -345,8 +346,7 @@ its words are left as the check quoted them, and any sentence that states \
 something about me or the company the sources don't. Keep every sourced \
 fact that serves the answer's point, unless the answer runs over its \
 length. Never add a fact, number, name or claim: an edit that states a \
-number the reviewed answer didn't hold is wrong, so keep the reviewed \
-sentence.
+number the draft didn't hold is wrong, so keep the draft's sentence.
 - Each answer still answers its question as asked: keep the opening that \
 does, and a sentence the question says to complete, word for word.
 - Fix grammar (comma splices, run-ons, dangling modifiers, unclear \

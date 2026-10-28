@@ -12,7 +12,7 @@ from sqlalchemy import text
 from app.auto_apply import briefs, pipeline, written
 from app.models.company_briefs import Company_Brief
 from tests.test_connector import (  # noqa: F401  (fixtures)
-    REVIEWED,
+    WRITTEN,
     _student_queues,
     _tab_asks,
     applicant,
@@ -58,10 +58,10 @@ async def test_each_check_refuses_a_failing_answer_and_passes_a_clean_one(runnin
     await _tab_asks(me, job, WHY)
 
     async with claude(applicant) as client:
-        refused = await client.call_tool("save_answers", {"job_id": job, "answers": [{"name": "question_7", "answer": failing, "review": REVIEWED}]})
+        refused = await client.call_tool("save_answers", {"job_id": job, "answers": [{"name": "question_7", "answer": failing, **WRITTEN}]})
         # Nothing reached the tab.
         assert (await _tab_asks(me, job))[0]["answer"] is None
-        saved = await client.call_tool("save_answers", {"job_id": job, "answers": [{"name": "question_7", "answer": CLEAN, "review": REVIEWED}]})
+        saved = await client.call_tool("save_answers", {"job_id": job, "answers": [{"name": "question_7", "answer": CLEAN, **WRITTEN}]})
 
     assert refused.is_error, check
     message = refused.content[0].text
@@ -77,7 +77,7 @@ async def test_an_answer_the_student_reads_first_is_saved_and_named_back(running
 
     async with claude(applicant) as client:
         saved = await client.call_tool("save_answers", {"job_id": job, "answers": [
-            {"name": "question_7", "answer": CLEAN, "review": REVIEWED}, {"name": "question_8", "answer": "At Acme I cut page load time by 30%.", "review": REVIEWED}]})
+            {"name": "question_7", "answer": CLEAN, **WRITTEN}, {"name": "question_8", "answer": "At Acme I cut page load time by 30%.", **WRITTEN}]})
 
     assert saved.is_error is False, saved.content
     # Saved and filled like any answer, but "why here" is named for the student to read before Submit.
@@ -92,7 +92,7 @@ async def test_one_failing_answer_keeps_the_others_from_saving(running, applican
 
     async with claude(applicant) as client:
         refused = await client.call_tool("save_answers", {"job_id": job, "answers": [
-            {"name": "question_7", "answer": CLEAN, "review": REVIEWED}, {"name": "question_8", "answer": "A robust tool!", "review": REVIEWED}]})
+            {"name": "question_7", "answer": CLEAN, **WRITTEN}, {"name": "question_8", "answer": "A robust tool!", **WRITTEN}]})
 
     assert refused.is_error
     assert "question_8" in refused.content[0].text and "question_7" not in refused.content[0].text
@@ -109,7 +109,7 @@ async def test_an_answer_about_one_company_is_never_offered_on_anothers_form(run
 
     async with claude(applicant) as client:
         saved = await client.call_tool("save_answers", {"job_id": acme, "answers": [
-            {"name": "question_7", "answer": CLEAN, "review": REVIEWED}, {"name": "question_8", "answer": general, "review": REVIEWED}]})
+            {"name": "question_7", "answer": CLEAN, **WRITTEN}, {"name": "question_8", "answer": general, **WRITTEN}]})
     assert saved.is_error is False, saved.content
 
     async with database() as db:
@@ -120,26 +120,23 @@ async def test_an_answer_about_one_company_is_never_offered_on_anothers_form(run
     assert {q: a.answer for q, a in on_acme.items()} == {WHY["label"]: CLEAN, proud["label"]: general}
 
 
-async def test_a_written_answer_needs_its_review_at_the_bar_and_keeps_it(running, applicant, database):  # noqa: F811
+async def test_a_written_answer_needs_its_claim_check_and_keeps_it(running, applicant, database):  # noqa: F811
     me, (job,) = await _student_queues(database, applicant, 1)
     await _tab_asks(me, job, WHY)
     cut = ["I led the whole team"]
 
     async with claude(applicant) as client:
-        unreviewed = await client.call_tool("save_answers", {"job_id": job, "answers": [
+        unchecked = await client.call_tool("save_answers", {"job_id": job, "answers": [
             {"name": "question_7", "answer": CLEAN}]})
-        weak = await client.call_tool("save_answers", {"job_id": job, "answers": [
-            {"name": "question_7", "answer": CLEAN, "review": {"rating": 7, "unsupported": []}}]})
         saved = await client.call_tool("save_answers", {"job_id": job, "answers": [
-            {"name": "question_7", "answer": CLEAN, "review": {"rating": 8, "unsupported": cut}}]})
+            {"name": "question_7", "answer": CLEAN, **WRITTEN, "unsupported": cut}]})
 
-    assert unreviewed.is_error and "review" in unreviewed.content[0].text
-    assert weak.is_error and "7" in weak.content[0].text
+    assert unchecked.is_error and "claim check" in unchecked.content[0].text
     assert saved.is_error is False, saved.content
     async with database() as session:
         stored = (await session.execute(text(
             "SELECT review FROM written_answers WHERE job_id = :j AND name = 'question_7'"), {"j": job})).scalar_one()
-    assert stored == {"rating": 8, "unsupported": cut}
+    assert stored["unsupported"] == cut
 
 
 async def test_a_claim_the_check_cut_must_be_gone_from_the_answer(running, applicant, database):  # noqa: F811
@@ -148,7 +145,7 @@ async def test_a_claim_the_check_cut_must_be_gone_from_the_answer(running, appli
 
     async with claude(applicant) as client:
         kept = await client.call_tool("save_answers", {"job_id": job, "answers": [
-            {"name": "question_7", "answer": CLEAN, "review": {"rating": 9, "unsupported": ["cut page load time by 30%"]}}]})
+            {"name": "question_7", "answer": CLEAN, **WRITTEN, "unsupported": ["cut page load time by 30%"]}]})
 
     assert kept.is_error and "still" in kept.content[0].text
     assert (await _tab_asks(me, job))[0]["answer"] is None
@@ -167,9 +164,9 @@ async def test_a_number_from_the_companys_checked_brief_is_allowed_and_an_invent
 
     async with claude(applicant) as client:
         invented = await client.call_tool("save_answers", {"job_id": job, "answers": [
-            {"name": "question_7", "answer": "Ledger reaching 90 countries is why I want in; at Acme I cut page load time by 30%.", "review": REVIEWED}]})
+            {"name": "question_7", "answer": "Ledger reaching 90 countries is why I want in; at Acme I cut page load time by 30%.", **WRITTEN}]})
         from_brief = await client.call_tool("save_answers", {"job_id": job, "answers": [
-            {"name": "question_7", "answer": "Ledger reaching 37 countries is why I want in; at Acme I cut page load time by 30%.", "review": REVIEWED}]})
+            {"name": "question_7", "answer": "Ledger reaching 37 countries is why I want in; at Acme I cut page load time by 30%.", **WRITTEN}]})
 
     assert invented.is_error and "90" in invented.content[0].text, invented.content
     assert from_brief.is_error is False, from_brief.content
@@ -188,7 +185,7 @@ async def test_a_company_named_only_in_skills_or_bullets_is_still_another_applic
 
     async with claude(applicant) as client:
         refused = await client.call_tool("save_answers", {"job_id": job, "answers": [
-            {"name": "question_7", "answer": "At Acme I cut page load time by 30%, and I want that at Globex.", "review": REVIEWED}]})
+            {"name": "question_7", "answer": "At Acme I cut page load time by 30%, and I want that at Globex.", **WRITTEN}]})
 
     assert refused.is_error and "Globex" in refused.content[0].text, refused.content
 
@@ -205,6 +202,113 @@ async def test_where_the_student_worked_or_studied_is_theirs_to_name(running, ap
     answer = f"At {where} I learned to cut page load time by 30%, and I want to keep making pages fast."
 
     async with claude(applicant) as client:
-        saved = await client.call_tool("save_answers", {"job_id": job, "answers": [{"name": "question_7", "answer": answer, "review": REVIEWED}]})
+        saved = await client.call_tool("save_answers", {"job_id": job, "answers": [{"name": "question_7", "answer": answer, **WRITTEN}]})
 
     assert saved.is_error is False, saved.content
+
+
+# --- The Essay plan (KAN-369) ---
+
+def _with(plan_changes: dict) -> dict:
+    return {**WRITTEN, "plan": {**WRITTEN["plan"], **plan_changes}}
+
+
+async def test_a_written_answer_needs_its_plan_and_keeps_it(running, applicant, database):  # noqa: F811
+    me, (job,) = await _student_queues(database, applicant, 1)
+    await _tab_asks(me, job, WHY)
+    invented = {"slots": [{"slot": "answer", "quotes": ["Cut page load time by 45%"]},
+                          {"slot": "episode", "quotes": ["Wrote the billing service's tests"]}]}
+    unbacked = {"slots": [{"slot": "answer", "quotes": ["Cut page load time by 30%"]}]}
+
+    async with claude(applicant) as client:
+        unplanned = await client.call_tool("save_answers", {"job_id": job, "answers": [
+            {"name": "question_7", "answer": CLEAN, "unsupported": []}]})
+        made_up = await client.call_tool("save_answers", {"job_id": job, "answers": [
+            {"name": "question_7", "answer": CLEAN, **_with(invented)}]})
+        bare = await client.call_tool("save_answers", {"job_id": job, "answers": [
+            {"name": "question_7", "answer": CLEAN, **_with(unbacked)}]})
+        assert (await _tab_asks(me, job))[0]["answer"] is None
+        saved = await client.call_tool("save_answers", {"job_id": job, "answers": [
+            {"name": "question_7", "answer": CLEAN, **_with({"story": "Cut page load time by 30%"})}]})
+
+    assert unplanned.is_error and "no plan" in unplanned.content[0].text
+    assert made_up.is_error and "45%" in made_up.content[0].text
+    assert bare.is_error and "episode" in bare.content[0].text
+    assert saved.is_error is False, saved.content
+    async with database() as session:
+        stored = (await session.execute(text(
+            "SELECT review FROM written_answers WHERE job_id = :j AND name = 'question_7'"), {"j": job})).scalar_one()
+    assert stored["plan"]["story"] == "Cut page load time by 30%"
+    assert stored["plan"]["slots"]["episode"] == ["Wrote the billing service's tests"]
+
+
+async def test_no_story_leads_two_answers_on_one_application(running, applicant, database):  # noqa: F811
+    me, (job,) = await _student_queues(database, applicant, 1)
+    proud = {"name": "question_8", "label": "Tell us about a project you are proud of.", "required": False, "max_length": None}
+    await _tab_asks(me, job, WHY, proud)
+    led = _with({"story": "Cut page load time by 30%"})
+
+    async with claude(applicant) as client:
+        together = await client.call_tool("save_answers", {"job_id": job, "answers": [
+            {"name": "question_7", "answer": CLEAN, **led}, {"name": "question_8", "answer": "At Acme I cut page load time by 30%.", **led}]})
+        first = await client.call_tool("save_answers", {"job_id": job, "answers": [{"name": "question_7", "answer": CLEAN, **led}]})
+        again = await client.call_tool("save_answers", {"job_id": job, "answers": [
+            {"name": "question_8", "answer": "At Acme I cut page load time by 30%.", **led}]})
+
+    assert together.is_error and "question_7" in together.content[0].text
+    assert first.is_error is False, first.content
+    assert again.is_error and "already leads" in again.content[0].text
+
+
+async def test_the_plans_company_fact_is_the_answers_named_fact(running, applicant, database):  # noqa: F811
+    me, (job,) = await _student_queues(database, applicant, 1)
+    await _company(database, job, "Initech")
+    fact = "Initech launched Ledger in 37 countries."
+    async with database() as session:
+        session.add(Company_Brief(company_key=briefs.company_key("Initech"), company="Initech", saved_at=text("now()"), facts=[{
+            "category": "launches", "fact": fact, "url": "https://initech.example/news",
+            "quote": "Ledger is now live in 37 countries", "published": "2026-03",
+        }]))
+        await session.commit()
+    await _tab_asks(me, job, WHY)
+    plan = {"type": "why-company", "company_fact": fact, "slots": [
+        {"slot": "company-fact", "quotes": [fact]}, {"slot": "own-match", "quotes": ["Cut page load time by 30%"]}]}
+
+    async with claude(applicant) as client:
+        saved = await client.call_tool("save_answers", {"job_id": job, "answers": [
+            {"name": "question_7", "answer": "Ledger reaching 37 countries is why I want in; at Acme I cut page load time by 30%.",
+             "plan": plan, "unsupported": []}]})
+
+    assert saved.is_error is False, saved.content
+    async with database() as session:
+        named = (await session.execute(text(
+            "SELECT named_fact FROM written_answers WHERE job_id = :j AND name = 'question_7'"), {"j": job})).scalar_one()
+    assert named == {"fact": fact, "url": "https://initech.example/news"}
+
+
+async def test_the_plan_is_told_the_stories_sent_answers_led_with_at_other_companies(running, applicant, database):  # noqa: F811
+    me, (sent, mine, same) = await _student_queues(database, applicant, 3)
+    async with database() as session:
+        await session.execute(text("UPDATE job_postings SET company_name = 'Globex', description = :d WHERE id = :id"),
+                              {"d": "Globex builds fast payment pages for small shops.", "id": sent})
+        await session.execute(text("UPDATE job_postings SET company_name = 'Acme' WHERE id IN (:a, :b)"), {"a": mine, "b": same})
+        await session.commit()
+    why = {**WHY, "label": "Why do you want to work at our company?"}
+    for job in (sent, mine, same):
+        await _tab_asks(me, job, why)
+    plan = {"type": "why-company", "story": "Cut page load time by 30%", "slots": [
+        {"slot": "company-fact", "quotes": ["builds fast payment pages for small shops"]},
+        {"slot": "own-match", "quotes": ["Cut page load time by 30%"]}]}
+
+    async with claude(applicant) as client:
+        saved = await client.call_tool("save_answers", {"job_id": sent, "answers": [
+            {"name": "question_7", "answer": "Fast payment pages matter, and at Acme I cut page load time by 30%.",
+             "plan": plan, "unsupported": []}]})
+        assert saved.is_error is False, saved.content
+        async with database() as session:  # the student sent it
+            await session.execute(text("UPDATE job_applications SET stage = 'applied', applied_at = now() WHERE job_id = :j"), {"j": sent})
+            await session.commit()
+        got = (await client.call_tool("get_next_application", {})).structured_content
+
+    assert got["job_id"] == mine
+    assert got["led_before"] == {"why-company": ["Cut page load time by 30%"]}

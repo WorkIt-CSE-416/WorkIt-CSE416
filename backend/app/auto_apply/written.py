@@ -16,23 +16,27 @@ from typing import Literal
 
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from app.auto_apply import briefs, checks
+from app.auto_apply import briefs, checks, plans
 from app.auto_apply.queries import (
     drop_own_written,
     drop_written,
     fetch_answered,
     fetch_application_companies,
+    fetch_ask,
     fetch_brought_answers,
     fetch_company_names,
     fetch_next_to_write,
+    fetch_plans,
     fetch_posting_text,
     fetch_saved_answers,
+    fetch_sent_plans,
     fetch_stage,
     fetch_unanswered,
     fetch_written,
     put_questions,
     save_own_written,
     save_written,
+    set_ask,
 )
 from app.auto_apply.stages import NotFound, get_application, open_application
 from app.models.written_answers import is_text
@@ -45,10 +49,13 @@ from app.schemas.applications import (
     PostingAnswers,
     PostingQuestions,
     SavedAnswer,
+    SavedFact,
     WrittenAnswer,
     WrittenQuestion,
 )
+from app.services import bank as experience
 from app.services.bank import Bank, load_bank
+from app.services.essay_answer import bank_context
 
 
 async def ask_questions(
@@ -156,7 +163,7 @@ async def next_to_write(
     if found is None:
         return None
     job_id, posting = found
-    questions = [q for q in await fetch_written(db, applicant_id, job_id) if q.answer is None]
+    questions = [q for q in await fetch_written(db, applicant_id, job_id) if q.answer is None and q.ask is None]
     return ToWrite(
         application=await get_application(db, applicant_id, job_id),
         posting=posting,
@@ -168,7 +175,7 @@ async def next_to_write(
 async def save_answers(
     db: AsyncSession, applicant_id: uuid.UUID, job_id: uuid.UUID, answers: dict[str, str],
     *, by: Literal["claude", "student"] = "claude", named: dict[str, str] | None = None,
-    reviews: dict[str, "Review"] | None = None,
+    unsupported: dict[str, list[str]] | None = None, plans_given: dict[str, plans.Plan] | None = None,
 ) -> int:
     """
     Saves the student's Claude's answers to one application's questions
@@ -187,9 +194,13 @@ async def save_answers(
     come from any AI. `named` gives, by question name, the company brief
     fact an answer uses (KAN-369), its sentence as the brief words it: it
     must be one of the brief's facts, and is saved with the answer, which
-    names none without it. Claude's answer written in words also needs its
-    Review (KAN-369, `reviews` by name), kept with it: a missing one, one
-    rated under GOOD, or a cut claim still in the answer is refused. A paste
+    names none without it. Claude's answer written in words also needs the
+    claims its claim check listed (KAN-369, `unsupported` by name, [] when
+    it found none), and its Essay plan (`plans_given` by name), checked by
+    plans.check against the student's sources and the application's other
+    answers and kept with it: a missing list or plan, a listed claim still
+    in the answer, or a plan that fails a check is refused. A plan's
+    company fact is the answer's named fact when it names none. A paste
     needs none. Raises NotFound / WrongStage for an application that isn't
     open, Refused otherwise.
     """
@@ -205,11 +216,16 @@ async def save_answers(
             )
         if not answer.strip():
             raise Refused(f"The answer to {name!r} is empty.", {name: ["The answer is empty."]})
-    facts = await _named_facts(db, job_id, named or {})
     sources, employers, samples = await _check_material(db, applicant_id, job_id)
     if by == "student":
         samples = ()
+    planning = by == "claude" and any(is_text(questions[name].kind) for name in answers)
+    material = await _plan_sources(db, applicant_id, job_id, questions, answers) if planning else None
+    led = {story: name for name, plan in (await fetch_plans(db, applicant_id, job_id)).items()
+           if name not in answers and (story := plans.stories(plan))} if planning else {}
+    named = dict(named or {})
     kept: dict[str, str] = {}
+    planned: dict[str, plans.Plan] = {}
     failing: dict[str, list[str]] = {}
     for name, answer in answers.items():
         q = questions[name]
@@ -221,49 +237,177 @@ async def save_answers(
                 sources=(*sources, q.label), samples=samples, employers=employers, limit=q.max_length, question=q.label,
             ))
             if by == "claude":
-                found += _review_problems(kept[name], (reviews or {}).get(name))
+                found += _claim_problems(kept[name], (unsupported or {}).get(name))
+                found += _plan_problems(name, (plans_given or {}).get(name), material, led, planned)
+                if name in planned and planned[name].company_fact and name not in named:
+                    named[name] = planned[name].company_fact
         if found:
             failing[name] = found
     if failing:
         raise Refused("Nothing was saved. Fix these answers and save them all again:\n" + "\n".join(
             f"- {name!r}: {' '.join(found)}" for name, found in failing.items()
         ), failing)
+    facts = await _named_facts(db, job_id, named)
     await save_written(db, applicant_id, job_id, kept, facts, {
-        name: dataclasses.asdict(review) for name, review in (reviews or {}).items()
-        if by == "claude" and name in kept and is_text(questions[name].kind)
+        name: {"plan": plan.stored(), "unsupported": (unsupported or {})[name]} for name, plan in planned.items()
     })
     await db.commit()
     return sum(1 for name, q in questions.items() if q.answer is None and name not in answers)
 
 
-# The rating (1-10) the reader's review must give an answer before it is
-# saved, as in Apply: what a judge gives a standout answer.
-GOOD = 8
+def _plan_problems(
+    name: str, plan: plans.Plan | None, material: plans.Sources | None, led: dict[str, str],
+    planned: dict[str, plans.Plan],
+) -> list[str]:
+    """What keeps an answer of Claude's from saving on its Essay plan
+    (plans.check). A plan that passes goes in `planned`, as kept, and its
+    story in `led`, so no later answer of the same save leads with it."""
+    if plan is None or material is None:
+        return [("It has no plan: give its type, story, company_fact, angle and slots, each slot with "
+                 "the passages that back it, copied word for word.")]
+    kept, found = plans.check(plan, material, led)
+    if not found:
+        planned[name] = kept
+        if (story := plans.stories(kept.stored())) and kept.type not in plans.REUSABLE:
+            led[story] = name
+    return found
 
 
-@dataclasses.dataclass(frozen=True)
-class Review:
-    """The passes the student's Claude ran on one written answer (the
-    prompt's steps 2-4): the reader's review's last rating, 1-10, and the
-    claims the claim check listed, each quoted from the draft, which the
-    edit cut (empty when it found none)."""
-    rating: int
-    unsupported: list[str]
+async def _plan_sources(
+    db: AsyncSession, applicant_id: uuid.UUID, job_id: uuid.UUID, questions: dict[str, WrittenAnswer],
+    saving: Collection[str],
+) -> plans.Sources:
+    """What an Essay plan's quotes may come from (plans.Sources): the
+    student's experience and skills as the connector gives them, the
+    posting, the company and team brief's facts, and the application's
+    answers already saved to its other questions."""
+    company, title, posting = await fetch_posting_text(db, job_id)
+    experience, skills = bank_context(await load_bank(db, applicant_id))
+    facts = [str(f["fact"]) for f in await briefs.brief_for(db, company, job_id) if f.get("fact")]
+    earlier = [q.answer for name, q in questions.items() if q.answer and name not in saving]
+    held = "\n".join([experience, *skills, company or "", title or "", posting or "", *facts, *earlier])
+    return plans.Sources(plans.fold(held), plans.fold(experience), {plans.fold(f).strip() for f in facts})
 
 
-def _review_problems(answer: str, review: Review | None) -> list[str]:
-    """What keeps an answer of Claude's from saving on its review: none
-    given, a rating under GOOD, or a claim the check cut still in it. A
-    model-free server can't redo the passes; this makes skipping one, or
-    saving what they found weak, a refusal rather than silence."""
-    if review is None:
-        return [("It has no review: give the rating your last review round gave it and the claims "
-                 "the claim check listed (an empty list when it found none).")]
-    if review.rating < GOOD:
-        return [(f"Its review rated it {review.rating} of 10, under {GOOD}: review and rewrite it again, or "
-                 "leave the question out and tell the student what it needs.")]
+# How many recent stories of each Question type the plan steers off (Apply's decision 13).
+LED_BEFORE = 3
+
+
+async def led_before(
+    db: AsyncSession, applicant_id: uuid.UUID, company: str | None, kinds: Collection[str],
+) -> dict[str, list[str]]:
+    """
+    The stories the student's sent answers of each type in `kinds` led
+    with at other companies, the LED_BEFORE most recent each, newest first
+    (KAN-369, Apply's story rotation): their Claude's plan leads with
+    another story of about as much weight, so the same story doesn't lead
+    at every company. Read from the plans kept with each answer
+    (`written_answers.review`); an answer saved without one steers nothing.
+    """
+    here = briefs.company_key(company or "")
+    led: dict[str, list[str]] = {}
+    for theirs, plan in await fetch_sent_plans(db, applicant_id):
+        kind, story = plan.get("type"), str(plan.get("story") or "").strip()
+        if kind not in kinds or not story or briefs.company_key(theirs or "") == here:
+            continue
+        stories = led.setdefault(kind, [])
+        if story not in stories and len(stories) < LED_BEFORE:
+            stories.append(story)
+    return led
+
+
+# Opens a question for the student that an Essay plan's required slot,
+# with no passage of theirs to quote, puts on the Written Answers page and
+# in the batch tab (a Missing fact), as in Apply.
+ASK = "Essay fact: "
+
+
+async def ask_fact(
+    db: AsyncSession, applicant_id: uuid.UUID, job_id: uuid.UUID, name: str, question: str, about: str,
+) -> None:
+    """
+    Keeps the fact the student's Claude asks the student for (KAN-369):
+    an Essay plan's required slot that nothing of theirs states, for one
+    unanswered question in words, `question` opened by ASK. `about` names
+    the experience entry it is about by its heading line, as the connector
+    gave it ("Software Intern, Acme"), so the student's answer can join
+    that entry as a bullet (answer_fact) and later plans can quote it.
+    Until then the question is not handed to their Claude again. Raises
+    NotFound / WrongStage for an application that isn't open, Refused for
+    a question that isn't an unanswered one in words, an empty question,
+    or an `about` no entry's heading matches.
+    """
+    await open_application(db, applicant_id, job_id)
+    q = {q.name: q for q in await fetch_written(db, applicant_id, job_id)}.get(name)
+    if q is None or not is_text(q.kind):
+        raise Refused(f"The application has no question in words named {name!r}. Use the names "
+                      "get_next_application gave.", {name: ["The application has no such question."]})
+    if q.answer is not None:
+        raise Refused(f"The question {name!r} is answered already.", {name: ["It is answered already."]})
+    asked = " ".join(question.split()).removeprefix(ASK.strip()).strip()
+    if not asked:
+        raise Refused("The question for the student is empty.", {name: ["The question is empty."]})
+    entries = {plans.fold(_heading(e)): e for e in (await load_bank(db, applicant_id)).entries}
+    entry = entries.get(plans.fold(about))
+    if entry is None:
+        raise Refused(
+            f"{about!r} is not the heading line of an entry in the experience. Copy the heading of the entry "
+            "the fact is about, as get_next_application gave it.", {name: ["No experience entry has that heading."]})
+    await set_ask(db, applicant_id, job_id, name, {
+        "question": ASK + asked, "entry_id": str(entry.row.id), "entry": _heading(entry),
+    })
+    await db.commit()
+
+
+async def answer_fact(
+    db: AsyncSession, applicant_id: uuid.UUID, job_id: uuid.UUID, name: str, answer: str,
+) -> SavedFact:
+    """
+    The student's answer to the fact their Claude asked for (ask_fact),
+    on the Written Answers page: added to the experience entry it was
+    about as a bullet, through services/bank.py, so their Claude can quote
+    it, and the question goes back to their Claude to write. Raises
+    NotFound with no application, Refused when the question waits on no
+    fact, the answer is empty, or the entry is gone.
+    """
+    if await fetch_stage(db, applicant_id, job_id) is None:
+        raise NotFound("No application for that job.")
+    ask = await fetch_ask(db, applicant_id, job_id, name)
+    text = " ".join(answer.split())
+    if ask is None:
+        raise Refused("That question waits on no fact from you.", {name: ["It waits on no fact."]})
+    if not text:
+        raise Refused("The answer is empty.", {name: ["The answer is empty."]})
+    try:
+        await experience.add_bullet(db, applicant_id, uuid.UUID(ask["entry_id"]), text)
+    except (experience.NotFound, ValueError, KeyError) as exc:
+        await set_ask(db, applicant_id, job_id, name, None)
+        await db.commit()
+        raise Refused(f"The experience entry it was about ({ask.get('entry')}) is gone. Your Claude will plan "
+                      "this answer again.", {name: ["The experience entry is gone."]}) from exc
+    await set_ask(db, applicant_id, job_id, name, None)
+    await db.commit()
+    return SavedFact(entry=ask.get("entry") or "", bullet=text)
+
+
+def _heading(entry) -> str:
+    """An entry's heading line as the connector's experience writes it
+    (services/essay_answer.bank_context)."""
+    return ", ".join(p for p in (entry.row.title, entry.row.organization) if p)
+
+
+def _claim_problems(answer: str, unsupported: list[str] | None) -> list[str]:
+    """What keeps an answer of Claude's from saving on its claim check
+    (the prompt's check, whose claims its edit cut): none given, or a claim
+    it listed still in the answer. A model-free server can't redo the
+    check; this makes skipping it a refusal rather than silence. Apply's
+    1-10 reader review is gone (it raised unsupported claims from 8 to 13),
+    and so is its rating bar."""
+    if unsupported is None:
+        return [("It has no claim check: give the claims the check listed as unsupported "
+                 "(an empty list when it found none).")]
     text = " ".join(answer.casefold().split())
-    left = [claim for claim in review.unsupported if (c := " ".join(claim.casefold().split())) and c in text]
+    left = [claim for claim in unsupported if (c := " ".join(claim.casefold().split())) and c in text]
     return [f"A claim the check listed is still in it: {claim!r}. Cut it, or say only what the sources support."
             for claim in left]
 

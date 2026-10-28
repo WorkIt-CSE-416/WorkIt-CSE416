@@ -5,7 +5,13 @@ whole view of WorkIt (auto-apply/architecture.md, 14.6):
 - `get_next_application` (read-only): the oldest open application with a
   question still unanswered: only its job posting, its unanswered
   questions (in words, or a one-off choice with its options, KAN-369),
-  and the student's experience bank. A job id of null when
+  and the student's experience bank. Each question in words carries its
+  Question type and, when the form states no length, the type's default
+  (app/auto_apply/question_types.py), and `guides` holds the guide of each
+  type the application asks; the prompt says to follow it. `led_before`
+  gives, by type, the stories the student's sent answers at other
+  companies led with lately (KAN-369, story rotation), for the plan to
+  steer off. A job id of null when
   nothing is left, or when this chat has had its share of applications
   (KAN-381, below).
 - `get_research_task` and `save_company_brief`: the shared company
@@ -17,10 +23,19 @@ whole view of WorkIt (auto-apply/architecture.md, 14.6):
   One with only choices goes out (they need no company facts).
 - `save_answers` (a write): saves answers to that application's
   questions, all or none; the open batch tab fills each one. Each written
-  answer carries its review (the rating and the claims the claim check
-  cut, KAN-369), kept with it. Each answer
+  answer carries its Essay plan (type, story, company fact, angle and
+  slots, each slot with quotes from the student's sources, checked by
+  app/auto_apply/plans.py) and the claims its claim check listed and its
+  edit cut (KAN-369), kept with it. Each answer
   may name the company brief fact it uses (`named_fact`), which must be one
   of the brief's, for the Written Answers page to show with it.
+- `save_fact_question` (a write, KAN-369): the fact an Essay plan's
+  required slot needs that nothing of the student's states (a Missing
+  fact), as a question for the student, with the experience entry it is
+  about. It shows on the Written Answers page and in the batch tab; the
+  student's answer joins that entry as a bullet, and the question comes
+  back to their Claude. Until then get_next_application doesn't hand it
+  out.
 - `get_writing_samples` and `save_style_card` (app/connector/style.py,
   KAN-384): the student's writing samples, and the style card their Claude
   builds from them, which get_next_application then gives (`style_card`,
@@ -66,7 +81,7 @@ from mcp.server.mcpserver.exceptions import ToolError
 from mcp_types import ToolAnnotations
 from pydantic import BaseModel, Field
 
-from app.auto_apply import briefs, pipeline
+from app.auto_apply import briefs, pipeline, question_types
 from app.config import get_settings
 from app.connector import account
 from app.connector.prompt import PROMPT, TITLE
@@ -88,6 +103,8 @@ class Question(BaseModel):
     question: str
     required: bool
     max_length: int | None = Field(description="The form's limit in characters, if it has one.")
+    description: str | None = Field(default=None, description=(
+        "What the form shows under the question, such as a length it asks for; null when it shows none."))
     kind: str = Field(
         default="text",
         description='"text": answered in words. "choice": one of options. "choices": one or more of options, '
@@ -97,6 +114,10 @@ class Question(BaseModel):
     rewrite: Rewrite | None = Field(default=None, description=(
         "Set when the student sent this question's answer back to be written again: what the pre-submit "
         "check found wrong with it."))
+    type: str | None = Field(default=None, description=(
+        'The question\'s Question type, one of guides\' or other_types\' keys; null for a choice.'))
+    default_length: str | None = Field(default=None, description=(
+        "The type's usual length in words, given only when the form states no length of its own."))
 
 
 class NextApplication(BaseModel):
@@ -131,25 +152,55 @@ class NextApplication(BaseModel):
     style_card_needed: bool = Field(
         default=False, description="True when the student has writing samples and no style card built from them."
     )
+    guides: dict[str, dict] = Field(default={}, description=(
+        "The guide of each Question type this application's questions have, by type: its company link, its "
+        "slots (each with whether it is required) and its guidance text."))
+    other_types: dict[str, str] = Field(default={}, description="Every other Question type, in one line each.")
+    led_before: dict[str, list[str]] = Field(default={}, description=(
+        "By Question type, the stories the student's sent answers of that type at other companies led with, "
+        "most recent first."))
 
 
-class Review(BaseModel):
-    rating: int = Field(ge=1, le=10, description="The last rating the review gave the answer, from 1 to 10.")
-    unsupported: list[str] = Field(
-        description="Each claim the claim check found the sources don't support, quoted, which the edit cut; "
-        "[] when it found none."
-    )
+def typed(questions: list) -> tuple[list[tuple[str | None, str | None]], dict[str, dict], dict[str, str]]:
+    """Each question's Question type and default length (none for a
+    choice), the guides of the types they have, and the other types' summaries."""
+    guides = question_types.load()
+    asked = [f"{q.label} {q.description or ''}".strip() for q in questions]
+    kinds = [question_types.classify(text) if is_text(q.kind) else None for q, text in zip(questions, asked)]
+    tags = [(kind, kind and question_types.default_length(text, kind, q.max_length))
+            for q, kind, text in zip(questions, kinds, asked)]
+    given = {kind: guides[kind].shown() for kind in kinds if kind}
+    return tags, given, {name: g.summary for name, g in guides.items() if name not in given}
+
+
+class SlotQuotes(BaseModel):
+    slot: str = Field(description="The slot's name, from its type's guide.")
+    quotes: list[str] = Field(description="The passages that back it, each copied word for word from a source.")
+
+
+class EssayPlan(BaseModel):
+    type: str = Field(description="The answer's Question type.")
+    story: str = Field(default="", description="The line of the experience the answer leads with, word for word.")
+    company_fact: str = Field(default="", description="The company_brief fact it ties, as given; empty for none.")
+    angle: str = Field(default="", description="The point the answer makes, in one sentence.")
+    slots: list[SlotQuotes] = Field(description="The slots of its type the answer fills, each with its quotes.")
 
 
 class Answer(BaseModel):
     name: str = Field(description="The question's name, from get_next_application.")
     answer: str = Field(max_length=ANSWER_MAX)
-    review: Review | None = Field(
-        default=None, description='Required for a question of kind "text"; none for a choice.'
-    )
+    unsupported: list[str] | None = Field(default=None, description=(
+        "Each claim the claim check found the sources don't support, quoted, which the edit cut; [] when it "
+        'found none. Required for a question of kind "text"; none for a choice.'))
+    plan: EssayPlan | None = Field(default=None, description=(
+        'The plan the answer was written from. Required for a question of kind "text"; none for a choice.'))
     named_fact: str | None = Field(default=None, max_length=400, description=(
         "The company_brief fact the answer uses, copied as get_next_application gave it, so the student "
         "can read up on it; leave it out when the answer uses none."))
+
+
+class Asked(BaseModel):
+    left: int = Field(description="How many of the application's questions are still unanswered.")
 
 
 class Saved(BaseModel):
@@ -194,6 +245,13 @@ class Reviewed(BaseModel):
         "Answers (question names) that changed since get_review_task gave them: not reviewed, and offered again."))
 
 
+def _plan(given: EssayPlan) -> pipeline.Plan:
+    return pipeline.Plan(
+        type=given.type.strip(), story=given.story, company_fact=given.company_fact, angle=given.angle,
+        slots=tuple(pipeline.Backed(s.slot.strip(), tuple(q for q in s.quotes if q.strip())) for s in given.slots),
+    )
+
+
 def handed(chat: str) -> list[uuid.UUID]:
     """The job ids a chat value names; none for a value that isn't one."""
     try:
@@ -227,6 +285,10 @@ def register(server: MCPServer) -> None:
             research = found is not None and any(is_text(q.kind) for q in found.questions) \
                 and await briefs.needs_research(db, found.application.job.company)
             card, card_needed = await writing.card_state(db, student.id)
+            led = await pipeline.led_before(
+                db, student.id, found.application.job.company,
+                {question_types.classify(f"{q.label} {q.description or ''}") for q in found.questions if is_text(q.kind)},
+            ) if found else {}
             sent_back = await pipeline.rewrites(db, student.id, found.application.job.id) if found else {}
         if found is None:
             return NextApplication(job_id=None, chat=chat)
@@ -245,6 +307,7 @@ def register(server: MCPServer) -> None:
         if research:
             return NextApplication(job_id=None, chat=chat, research_first=job.company)
         experience, skills = bank_context(found.bank)
+        tags, guides, other_types = typed(found.questions)
         return NextApplication(
             job_id=str(job.id),
             chat=",".join(str(j) for j in [*skip, job.id]),
@@ -254,16 +317,21 @@ def register(server: MCPServer) -> None:
             questions=[
                 Question(
                     name=q.name, question=q.label, required=q.required, max_length=q.max_length,
+                    description=q.description,
                     kind="text" if is_text(q.kind) else q.kind, options=q.options,
                     rewrite=Rewrite(**sent_back[q.name]) if q.name in sent_back else None,
+                    type=kind, default_length=length,
                 )
-                for q in found.questions
+                for q, (kind, length) in zip(found.questions, tags)
             ],
             experience=experience,
             skills=skills,
             company_brief=brief,
             style_card=card,
             style_card_needed=card_needed,
+            guides=guides,
+            other_types=other_types,
+            led_before=led,
         )
 
     @server.tool(
@@ -272,8 +340,10 @@ def register(server: MCPServer) -> None:
             "Saves answers to one WorkIt job application's written questions, all or none, and fills "
             "them into the application's open tab in the student's browser. Refuses an answer to a "
             "question the application doesn't have, an empty one, or one that fails WorkIt's checks (over the question's "
-            "max_length among them), with every reason. A written answer is saved with its review, and refused "
-            "without one, rated under 8, or still holding a claim it lists as unsupported."
+            "max_length among them), with every reason. A written answer is saved with its plan and the claims "
+            "its check listed as unsupported, and refused without them, while it still holds a listed claim, "
+            "or when its plan fails WorkIt's checks (a quote not word for word in the sources, a required slot "
+            "with no quote, a story another answer leads with)."
         ),
         annotations=ToolAnnotations(readOnlyHint=False, destructiveHint=False, idempotentHint=True, openWorldHint=False),
     )
@@ -287,7 +357,8 @@ def register(server: MCPServer) -> None:
             try:
                 left = await pipeline.save_answers(
                     db, student.id, job, {a.name: a.answer for a in answers},
-                    reviews={a.name: pipeline.Review(a.review.rating, a.review.unsupported) for a in answers if a.review},
+                    unsupported={a.name: a.unsupported for a in answers if a.unsupported is not None},
+                    plans_given={a.name: _plan(a.plan) for a in answers if a.plan},
                     named={a.name: a.named_fact for a in answers if a.named_fact},
                 )
                 first = await pipeline.read_first(db, student.id, job, [a.name for a in answers])
@@ -296,6 +367,39 @@ def register(server: MCPServer) -> None:
             except (pipeline.WrongStage, pipeline.Refused) as exc:
                 raise ToolError(str(exc)) from exc
         return Saved(saved=len(answers), left=left, read_first=first)
+
+    @server.tool(
+        title="Ask the student for a fact",
+        description=(
+            "Saves a question for the student about a fact one written question's answer needs, for one "
+            "WorkIt application: the student sees it on WorkIt's Written Answers page and in the "
+            "application's tab, and their answer is added to the experience entry it is about. The "
+            "question is not given by get_next_application again until they answer. Refuses a question "
+            "the application doesn't have, one already answered, or an entry the experience doesn't have."
+        ),
+        annotations=ToolAnnotations(readOnlyHint=False, destructiveHint=False, idempotentHint=True, openWorldHint=False),
+    )
+    async def save_fact_question(
+        job_id: str,
+        name: Annotated[str, Field(description="The question's name, from get_next_application.")],
+        question: Annotated[str, Field(min_length=1, max_length=300, description="The question for the student.")],
+        about: Annotated[str, Field(min_length=1, max_length=400, description=(
+            "The heading line of the experience entry the fact is about, as experience gives it."))],
+    ) -> Asked:
+        try:
+            job = uuid.UUID(job_id)
+        except ValueError as exc:
+            raise ToolError("job_id is not one get_next_application gave.") from exc
+        async with get_sessionmaker()() as db:
+            student = await account.current_student(db)
+            try:
+                await pipeline.ask_fact(db, student.id, job, name, question, about)
+                left = sum(1 for q in await pipeline.written_answers(db, student.id, job) if q.answer is None)
+            except pipeline.NotFound as exc:
+                raise ToolError("No such application. Use the job_id get_next_application gave.") from exc
+            except (pipeline.WrongStage, pipeline.Refused) as exc:
+                raise ToolError(str(exc)) from exc
+        return Asked(left=left)
 
     @server.tool(
         title="Get a review task",

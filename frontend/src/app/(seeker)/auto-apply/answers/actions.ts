@@ -10,7 +10,9 @@ import { getApplicantSession } from "@/lib/session";
  * (PUT .../applications/{job_id}/written-answers). The API saves it through
  * the connector's own step, so it passes the same checks as an answer from
  * the student's Claude except copying from their own samples, and the open
- * batch tab fills it the same way. Its delete (KAN-369): one of the
+ * batch tab fills it the same way. Its fact save (KAN-369): the student's
+ * answer to a fact their Claude asked for, which joins their experience.
+ * Its delete (KAN-369): one of the
  * student's own answers in Your Answers taken back
  * (DELETE .../applications/{job_id}/answers?name=). Every
  * export of a "use server" file is a public POST endpoint: the applicant is
@@ -49,6 +51,39 @@ export async function saveWrittenAnswer(
     return { saved: false, reasons: reasons?.[name] ?? [], error: errorMessage(body) };
   } catch {
     return { saved: false, reasons: [], error: OFFLINE };
+  }
+}
+
+export type FactResult = { saved: true; entry: string } | { saved: false; error: string };
+
+/**
+ * The student's answer to the fact their Claude asked for one question
+ * (KAN-369, PUT .../applications/{job_id}/essay-facts): saved as a bullet of
+ * the experience entry it is about, after which their Claude writes the
+ * answer on its next run.
+ */
+export async function saveEssayFact(
+  jobId: string,
+  name: string,
+  answer: string,
+): Promise<FactResult> {
+  let session;
+  try {
+    session = await getApplicantSession();
+  } catch {
+    return { saved: false, error: SIGNED_OUT };
+  }
+  try {
+    const res = await apiFetch(
+      `/applicants/${encodeId(session.id)}/applications/${encodeId(jobId)}/essay-facts`,
+      { method: "PUT", body: JSON.stringify({ name, answer }) },
+      session.token,
+    );
+    const body = await res.json().catch(() => null);
+    if (res.ok) return { saved: true, entry: (body as { entry: string }).entry };
+    return { saved: false, error: errorMessage(body) };
+  } catch {
+    return { saved: false, error: OFFLINE };
   }
 }
 

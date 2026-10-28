@@ -23,6 +23,7 @@ from sqlalchemy import (
     func,
     literal,
     null,
+    or_,
     select,
     update,
 )
@@ -343,6 +344,7 @@ async def put_questions(
                 "label": insert_rows.excluded.label,
                 "required": insert_rows.excluded.required,
                 "max_length": insert_rows.excluded.max_length,
+                "description": insert_rows.excluded.description,
                 "kind": insert_rows.excluded.kind,
                 "options": insert_rows.excluded.options,
                 "position": insert_rows.excluded.position,
@@ -361,13 +363,22 @@ async def fetch_written(
         .where(Written_Answer.applicant_id == applicant_id, Written_Answer.job_id == job_id)
         .order_by(Written_Answer.position, Written_Answer.name)
     )
-    return [
-        WrittenAnswer(
-            name=r.name, label=r.label, required=r.required, max_length=r.max_length, kind=r.kind, options=r.options,
-            answer=r.answer,
-        )
-        for r in rows
-    ]
+    return [_written(r) for r in rows]
+
+
+def _written(r: Written_Answer) -> WrittenAnswer:
+    """A row as its question and saved answer, with the fact its student's
+    Claude asked for while it has no answer (KAN-369)."""
+    ask = (r.review or {}).get("ask") if r.answer is None else None
+    return WrittenAnswer(
+        name=r.name, label=r.label, required=r.required, max_length=r.max_length, description=r.description,
+        kind=r.kind, options=r.options, answer=r.answer, ask=ask and ask.get("question"), ask_about=ask and ask.get("entry"),
+    )
+
+
+def _not_asked():
+    """In SQL: the row waits on no fact from the student (KAN-369)."""
+    return or_(Written_Answer.review.is_(None), ~Written_Answer.review.has_key("ask"))
 
 
 async def fetch_next_to_write(
@@ -376,13 +387,15 @@ async def fetch_next_to_write(
     """The oldest open application (queued or needs_you, its job posting
     open) with a question still unanswered, leaving out the jobs in `skip`:
     its job id and the posting's description. None when nothing is left to
-    write."""
+    write. A question waiting on a fact from the student (an Essay fact)
+    is not one left: it goes back to their Claude once they answer."""
     unanswered = (
         select(Written_Answer.job_id)
         .where(
             Written_Answer.applicant_id == applicant_id,
             Written_Answer.job_id == Job_Application.job_id,
             Written_Answer.answer.is_(None),
+            _not_asked(),
         )
         .exists()
     )
@@ -428,12 +441,7 @@ async def fetch_unanswered(
     found: dict[uuid.UUID, tuple[uuid.UUID, str | None, str | None, list[WrittenAnswer]]] = {}
     for r, company, title in rows:
         posting = found.setdefault(r.job_id, (r.job_id, company, title, []))
-        posting[3].append(
-            WrittenAnswer(
-                name=r.name, label=r.label, required=r.required, max_length=r.max_length, kind=r.kind,
-                options=r.options, answer=None,
-            )
-        )
+        posting[3].append(_written(r))
     return list(found.values())
 
 
@@ -488,11 +496,7 @@ async def fetch_review(
         .where(Written_Answer.applicant_id == applicant_id, Written_Answer.job_id == job_id)
         .order_by(Written_Answer.position, Written_Answer.name)
     )
-    return review, [
-        (WrittenAnswer(name=r.name, label=r.label, required=r.required, max_length=r.max_length, kind=r.kind,
-                       options=r.options, answer=r.answer), r.own)
-        for r in rows
-    ]
+    return review, [(_written(r), r.own) for r in rows]
 
 
 async def set_answer_review(db: AsyncSession, applicant_id: uuid.UUID, job_id: uuid.UUID, review: dict) -> None:
@@ -529,6 +533,74 @@ async def fetch_answered(
     for r, company, title in rows:
         found.setdefault(r.job_id, (r.job_id, company, title, []))[3].append(r)
     return list(found.values())
+
+
+async def set_ask(db: AsyncSession, applicant_id: uuid.UUID, job_id: uuid.UUID, name: str, ask: dict | None) -> None:
+    """Keeps (or, with None, clears) the fact the student's Claude asks
+    the student for on an unanswered question (KAN-369), as the row's
+    review. Flushes; the caller commits."""
+    await db.execute(
+        update(Written_Answer)
+        .where(
+            Written_Answer.applicant_id == applicant_id,
+            Written_Answer.job_id == job_id,
+            Written_Answer.name == name,
+            Written_Answer.answer.is_(None),
+        )
+        .values(review={"ask": ask} if ask else None)
+    )
+
+
+async def fetch_ask(db: AsyncSession, applicant_id: uuid.UUID, job_id: uuid.UUID, name: str) -> dict | None:
+    """The fact the student's Claude asks the student for on this
+    unanswered question (set_ask), or None."""
+    review = await db.scalar(
+        select(Written_Answer.review).where(
+            Written_Answer.applicant_id == applicant_id,
+            Written_Answer.job_id == job_id,
+            Written_Answer.name == name,
+            Written_Answer.answer.is_(None),
+        )
+    )
+    ask = (review or {}).get("ask")
+    return ask if isinstance(ask, dict) else None
+
+
+async def fetch_sent_plans(db: AsyncSession, applicant_id: uuid.UUID) -> list[tuple[str | None, dict]]:
+    """The Essay plan of every answer of the student's Claude on an
+    application they sent (applied), newest first, each with its posting's
+    company (KAN-369, story rotation)."""
+    rows = await db.execute(
+        select(Job_Post.company_name, Written_Answer.review["plan"])
+        .join(
+            Job_Application,
+            and_(Job_Application.applicant_id == Written_Answer.applicant_id, Job_Application.job_id == Written_Answer.job_id),
+        )
+        .join(Job_Post, Job_Post.id == Written_Answer.job_id)
+        .where(
+            Written_Answer.applicant_id == applicant_id,
+            Written_Answer.answer.is_not(None),
+            Written_Answer.review.has_key("plan"),
+            Job_Application.stage == application_stage.applied,
+        )
+        .order_by(Written_Answer.answered_at.desc(), Written_Answer.job_id, Written_Answer.name)
+    )
+    return [(company, plan) for company, plan in rows if isinstance(plan, dict)]
+
+
+async def fetch_plans(db: AsyncSession, applicant_id: uuid.UUID, job_id: uuid.UUID) -> dict[str, dict]:
+    """The Essay plan each answer of the student's Claude on this
+    application was saved with (KAN-369), by question name."""
+    rows = await db.execute(
+        select(Written_Answer.name, Written_Answer.review["plan"])
+        .where(
+            Written_Answer.applicant_id == applicant_id,
+            Written_Answer.job_id == job_id,
+            Written_Answer.answer.is_not(None),
+            Written_Answer.review.has_key("plan"),
+        )
+    )
+    return {name: plan for name, plan in rows if isinstance(plan, dict)}
 
 
 async def save_written(

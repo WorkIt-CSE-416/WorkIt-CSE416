@@ -305,13 +305,44 @@ Find files with a directory listing; these are the rules for where code goes.
   parroting them; a student may paste their own words). Re-checks of a
   saved answer (`ask_questions`, `answer_bank`) leave the copy check out
   for the same reason: the save ran it.
-  **Claude's written answer carries its review** (KAN-369): the rating its
-  last review round gave and the claims the claim check listed (the
-  prompt's separate passes), stored as `written_answers.review`. The save
-  refuses one with none, rated under `written.GOOD` (8, Apply's bar), or
-  still holding a listed claim; a choice and a paste take none, and the
-  student's edit clears it (the review was of Claude's text). The server
-  can't redo the passes; this makes skipping one a refusal, not silence.
+  **Claude's written answer carries its Essay plan and claim check**
+  (KAN-369, Apply's evidence-first writer): the plan it was written from
+  (type, story, company fact, angle, and its type's slots, each with
+  quotes) and the claims the prompt's check listed (`unsupported`), stored
+  in `written_answers.review` as `{plan, unsupported}`. `plans.check`
+  (pure, `tests/test_plans.py`) holds the plan to the sources the
+  connector gave (`written._plan_sources`: the experience as
+  `bank_context` writes it, skills, posting, brief facts, the
+  application's other saved answers): each quote word for word and at
+  least 20 characters folded, every required slot quoted, an optional one
+  without dropped, the story a line of the experience leading no other
+  answer on the application (anything-else and cover letters may reuse
+  one), the company fact one of the brief's on a type that links the
+  company; a plan's company fact is the answer's named fact when it names
+  none. **A required slot nothing backs is asked, never invented**
+  (Apply's Missing fact): their Claude calls `save_fact_question`
+  (`written.ask_fact`), which keeps `{"ask": {question, entry_id,
+  entry}}` in the unanswered row's `review`, the question opened by
+  "Essay fact: " and the entry matched by its heading line as
+  `bank_context` writes it. A row waiting on one is not handed to their
+  Claude (`queries._not_asked`), and `GET .../questions` and the Written
+  Answers page show it as `ask` and `ask_about`. The student's answer
+  (`PUT .../essay-facts`, `written.answer_fact`) joins that entry as a
+  bullet through `services/bank.py` and clears the ask, so the question
+  goes back to their Claude with a fact to quote. A fact that belongs to
+  no entry (a favorite book) stays a question for the student, as
+  before. Tests: `tests/test_essay_facts.py`. **Story rotation**
+  (Apply's decision 13): `get_next_application`'s `led_before` gives, by
+  Question type, the stories the student's sent (applied) answers at
+  other companies led with, the 3 newest each (`written.led_before`, read
+  from the plans in `review`), and the prompt steers the plan off them;
+  an answer saved before plans existed steers nothing. The save refuses one
+  without the plan or the list, failing the plan, or still holding a
+  listed claim; a choice and a paste take none, and the
+  student's edit clears it (the check was of Claude's text). The server
+  can't redo the check; this makes skipping it a refusal, not silence.
+  There is no reader's 1-10 rating any more: Apply dropped it, since it
+  raised unsupported claims from 8 to 13.
   A refusal's `Refused.reasons` holds each answer's reasons by question
   name, for the page to show under its box. Tests: `tests/test_pasted_answers.py`.
   **An answer may name the brief fact it uses** (KAN-369): the connector's
@@ -435,6 +466,20 @@ Find files with a directory listing; these are the rules for where code goes.
   mark a test `research_gate` to keep the real rule, and stub
   `needs_research` with the other brief calls wherever they are stubbed
   (`scripts/ship_check.py`).
+  **Every written question has a Question type** (KAN-369, Apply's
+  essay writer made general): `auto_apply/question_types.py` classifies a
+  question into one of 15 types or `general`, and each type's guide is a
+  file in `auto_apply/type_guides/` whose front matter code reads (its
+  summary, company link, default length, match patterns and slots) and
+  whose body is guidance `get_next_application` hands out as data (each
+  question its type and default length, `guides` by type). A question's
+  help text (`written_answers.description`, what the form shows under the
+  label, which the tab sends as it sends `max_length`) goes out with it,
+  is read with the label to classify it, and a length it states replaces
+  the type's default; the prompt holds the stated-limit rules (a word
+  limit 75-95%, a sentence range its top, a character cap 80-95%). A guide names
+  no student and lists no banned word; change its slots and the save's
+  plan check changes with them. Tests: `tests/test_question_types.py`.
   **Every saved answer passes the checks in code first**
   (`app/auto_apply/checks.py`, KAN-380; pure, `tests/test_answer_checks.py`):
   machine-made words, a run copied from the student's writing samples, a

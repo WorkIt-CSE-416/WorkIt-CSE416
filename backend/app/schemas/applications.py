@@ -150,10 +150,15 @@ OPTIONS_MAX = 300
 OPTION_MAX = 500
 
 
+# The most of a question's help text the tab sends (KAN-369): the extension cuts it there.
+DESCRIPTION_MAX = 1000
+
+
 class WrittenQuestion(BaseModel):
     """One question a batch tab's form needs answered by the student's
     Claude (KAN-377): the form field's `name` the answer fills, its label,
-    and the form's own limit. A one-off choice nothing else fills (KAN-369)
+    the form's own limit, and the help text the form shows under the label
+    (`description`, KAN-369: "3-4 sentences", "250 words max"). A one-off choice nothing else fills (KAN-369)
     has `kind` "choice" (one of `options`) or "choices" (one or more) and
     its options as the form words them; a question written in words has
     neither."""
@@ -164,6 +169,7 @@ class WrittenQuestion(BaseModel):
     label: str = Field(min_length=1, max_length=LABEL_MAX)
     required: bool
     max_length: int | None = Field(default=None, ge=1)
+    description: str | None = Field(default=None, max_length=DESCRIPTION_MAX)
     kind: Literal["choice", "choices"] | None = None
     options: list[Annotated[str, StringConstraints(min_length=1, max_length=OPTION_MAX)]] | None = Field(
         default=None, min_length=1, max_length=OPTIONS_MAX,
@@ -192,13 +198,18 @@ class WrittenAnswer(WrittenQuestion):
     words, which it doesn't hold up) and, when it found it wrong, why
     (`flag`): the tab shows that as needing the student (KAN-369), with the
     sentence it means (`flag_quote`) and whether it names the wrong company
-    (`flag_hard`)."""
+    (`flag_hard`). While the student's Claude waits on a fact only the
+    student can give (KAN-369, a Missing fact), `ask` is its question
+    ("Essay fact: ...") and `ask_about` the experience entry the student's
+    answer is saved under."""
 
     answer: str | None
     reviewed: bool = False
     flag: str | None = None
     flag_quote: str | None = None
     flag_hard: bool = False
+    ask: str | None = None
+    ask_about: str | None = None
 
 
 class FlagAnswer(BaseModel):
@@ -305,6 +316,25 @@ class PastedAnswers(BaseModel):
     model_config = ConfigDict(extra="forbid")
 
     answers: list[PastedAnswer] = Field(min_length=1, max_length=50)
+
+
+class FactAnswer(BaseModel):
+    """PUT .../applications/{job_id}/essay-facts: the student's answer to
+    the fact their Claude asked for one question (KAN-369), saved as a
+    bullet of the experience entry it was about."""
+
+    model_config = ConfigDict(extra="forbid")
+
+    name: str = Field(min_length=1, max_length=200)
+    answer: str = Field(min_length=1, max_length=500)
+
+
+class SavedFact(BaseModel):
+    """Where the student's answer to an Essay fact went: the experience
+    entry (its heading) and the bullet's text."""
+
+    entry: str
+    bullet: str
 
 
 class SavedAnswers(BaseModel):

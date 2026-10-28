@@ -53,7 +53,7 @@ from pathlib import Path
 from types import SimpleNamespace
 from unittest import mock
 
-from app.auto_apply import briefs, checks, pipeline, review, written
+from app.auto_apply import briefs, checks, pipeline, plans, review, written
 from app.config import get_settings
 from app.connector import account, style, tools
 from app.connector import briefs as brief_tools
@@ -159,6 +159,19 @@ def stub(folder: Path, chat: int) -> Iterator[tools.MCPServer]:
                           and not any(checks.names(source, a["company"]) for source in sources))
         return sources, employers, samples
 
+    async def plan_sources(db, applicant_id, job_id, questions, saving):
+        # As written._plan_sources: what an Essay plan may quote, folded.
+        app = apps[named[job_id]]
+        earlier = [q.answer for name, q in questions.items() if q.answer and name not in saving]
+        held = "\n".join([data["experience"], *data["skills"], app["company"], app["title"], app["posting"], *earlier])
+        return plans.Sources(plans.fold(held), plans.fold(data["experience"]), set())
+
+    async def no_plans(db, applicant_id, job_id):
+        return {}
+
+    async def nothing_sent(db, applicant_id):
+        return []
+
     async def sample_texts(db, applicant_id):
         return samples
 
@@ -188,6 +201,9 @@ def stub(folder: Path, chat: int) -> Iterator[tools.MCPServer]:
             (written, "open_application", open_application),
             (written, "save_written", save_written),
             (written, "_check_material", check_material),
+            (written, "_plan_sources", plan_sources),
+            (written, "fetch_plans", no_plans),
+            (written, "fetch_sent_plans", nothing_sent),
             (writing, "sample_texts", sample_texts),
             (writing, "fetch_style_card", style_card),
             (writing, "card_state", card_state),

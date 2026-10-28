@@ -252,8 +252,12 @@ async def test_a_refresh_token_used_twice_at_once_gives_one_pair(running, applic
 # --- The tools and the prompt ---
 
 WHY = {"name": "question_7", "label": "Why do you want to work at Acme?", "required": True, "max_length": 600}
-# The passes Claude ran on a written answer, which save_answers takes with it (KAN-369).
-REVIEWED = {"rating": 8, "unsupported": []}
+# What Claude's passes found on a written answer, which save_answers takes with it (KAN-369):
+# its Essay plan, each required slot quoted from the student's bank (_fill_bank), and its claim check.
+PLAN = {"type": "general", "story": "", "company_fact": "", "angle": "Fast pages.", "slots": [
+    {"slot": "answer", "quotes": ["Cut page load time by 30%"]},
+    {"slot": "episode", "quotes": ["Wrote the billing service's tests"]}]}
+WRITTEN = {"plan": PLAN, "unsupported": []}
 PROUD = {"name": "question_8", "label": "Tell us about a project you are proud of.", "required": False, "max_length": None}
 
 
@@ -307,15 +311,39 @@ async def test_the_next_application_is_read_only_and_holds_only_that_application
     assert (got["company"], got["title"]) == ("Acme", "Intern")
     assert got["posting"] == "Acme builds rockets. You will write flight software."
     assert got["questions"] == [
-        {"name": "question_7", "question": WHY["label"], "required": True, "max_length": 600, "kind": "text", "options": None, "rewrite": None},
-        {"name": "question_8", "question": PROUD["label"], "required": False, "max_length": None, "kind": "text", "options": None, "rewrite": None},
+        {"name": "question_7", "question": WHY["label"], "required": True, "max_length": 600, "description": None,
+         "kind": "text", "options": None, "rewrite": None, "type": "why-company", "default_length": None},
+        {"name": "question_8", "question": PROUD["label"], "required": False, "max_length": None, "description": None,
+         "kind": "text", "options": None, "rewrite": None, "type": "best-project", "default_length": "80-120 words"},
     ]
+    # The guide of each type the application asks, with its slots; the rest in a line each.
+    assert set(got["guides"]) == {"why-company", "best-project"}
+    assert {s["name"] for s in got["guides"]["why-company"]["slots"]} >= {"company-fact", "own-match"}
+    assert "failure" in got["other_types"] and "why-company" not in got["other_types"]
     # The student's experience bank, to write from.
     assert "Software Intern, Acme" in got["experience"]
     assert "- Cut page load time by 30%" in got["experience"]
     assert "Python" in got["skills"]
     # Nothing from the other application.
     assert "Another company" not in str(got)
+
+
+async def test_a_questions_help_text_reaches_claude_and_its_stated_length_wins(running, applicant, database):
+    me, (job,) = await _student_queues(database, applicant, 1)
+    stated = {**PROUD, "description": "In 3-4 sentences, tell us what you built and why."}
+    plain = {**PROUD, "name": "question_9", "label": "What is a project you are proud of?", "description": "Any project counts."}
+    back = await _tab_asks(me, job, stated, plain)
+
+    async with claude(applicant) as client:
+        got = (await client.call_tool("get_next_application", {})).structured_content
+
+    # Kept with the question, and handed to Claude with it.
+    assert [q["description"] for q in back] == [stated["description"], plain["description"]]
+    first, second = got["questions"]
+    assert first["description"] == stated["description"]
+    # The form's own length wins: no default when the help text states one.
+    assert first["default_length"] is None
+    assert second["default_length"] == "80-120 words"
 
 
 async def test_saved_answers_reach_the_tab_and_the_next_application_moves_on(running, applicant, database):
@@ -325,7 +353,7 @@ async def test_saved_answers_reach_the_tab_and_the_next_application_moves_on(run
     answer = "I want to build flight software at Acme, and my internship there taught me the codebase."
 
     async with claude(applicant) as client:
-        saved = await client.call_tool("save_answers", {"job_id": first, "answers": [{"name": "question_7", "answer": answer, "review": REVIEWED}]})
+        saved = await client.call_tool("save_answers", {"job_id": first, "answers": [{"name": "question_7", "answer": answer, **WRITTEN}]})
         after = await client.call_tool("get_next_application", {})
 
     assert saved.is_error is False, saved.content
@@ -352,11 +380,11 @@ async def test_a_bad_save_is_refused_and_nothing_is_kept(running, applicant, dat
 
     async with claude(applicant) as client:
         too_long = await client.call_tool("save_answers", {"job_id": job, "answers": [
-            {"name": "question_7", "answer": "x" * 601, "review": REVIEWED}]})
+            {"name": "question_7", "answer": "x" * 601, **WRITTEN}]})
         unknown = await client.call_tool("save_answers", {"job_id": job, "answers": [
-            {"name": "question_7", "answer": "Fine.", "review": REVIEWED}, {"name": "question_99", "answer": "No such question.", "review": REVIEWED}]})
+            {"name": "question_7", "answer": "Fine.", **WRITTEN}, {"name": "question_99", "answer": "No such question.", **WRITTEN}]})
         not_mine = await client.call_tool("save_answers", {"job_id": theirs, "answers": [
-            {"name": "question_7", "answer": "Not my application.", "review": REVIEWED}]})
+            {"name": "question_7", "answer": "Not my application.", **WRITTEN}]})
 
     assert too_long.is_error and unknown.is_error and not_mine.is_error
     assert (await _tab_asks(me, job))[0]["answer"] is None
@@ -401,7 +429,7 @@ async def test_the_connector_calls_no_model(running, applicant, database, monkey
 
     async with claude(applicant) as client:
         assert not (await client.call_tool("get_next_application", {})).is_error
-        assert not (await client.call_tool("save_answers", {"job_id": job, "answers": [{"name": "question_7", "answer": "Yes.", "review": REVIEWED}]})).is_error
+        assert not (await client.call_tool("save_answers", {"job_id": job, "answers": [{"name": "question_7", "answer": "Yes.", **WRITTEN}]})).is_error
 
 
 async def test_every_tool_carries_the_annotations_anthropics_directory_asks_for(running, applicant):

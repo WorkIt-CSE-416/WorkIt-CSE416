@@ -48,6 +48,9 @@ class Written_Answer(BaseModel):
     position: Mapped[int] = mapped_column(Integer)
     # the form's own limit in characters, when it has one
     max_length: Mapped[int | None] = mapped_column(Integer)
+    # what the form shows under the label ("3-4 sentences", "250 words
+    # max"), as the Fill engine read it (KAN-369); NULL when it shows none
+    description: Mapped[str | None] = mapped_column(Text)
     # a one-off choice nothing else fills (KAN-369): "choice" takes one of
     # `options`, "choices" one or more; NULL for a question written in words
     kind: Mapped[str | None] = mapped_column(Text)
@@ -61,10 +64,11 @@ class Written_Answer(BaseModel):
     # before their Claude's. Their Claude's save never replaces it, and it is
     # the answer later forms reuse for the same question
     own: Mapped[bool] = mapped_column(server_default=text("false"))
-    # the passes the student's Claude ran on the answer it saved here
-    # (KAN-369): {"rating": the reader's review's last rating, 1-10,
-    # "unsupported": the claims the claim check listed and the edit cut}.
-    # NULL for a choice, a pasted answer or the student's own words
+    # what the student's Claude's passes found on the answer it saved here
+    # (KAN-369): {"plan": its Essay plan (type, story, company_fact, angle,
+    # slots: {slot: [quotes]}), "unsupported": the claims the claim check
+    # listed and the edit cut}. NULL for a choice, a pasted answer or the
+    # student's own words
     review: Mapped[dict | None] = mapped_column(JSONB(none_as_null=True))
     # the company brief fact the answer uses, {"fact", "url"} as the brief
     # had it when saved, so the student can read up on it before an

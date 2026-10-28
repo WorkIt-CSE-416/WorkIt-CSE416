@@ -11,8 +11,8 @@ from app.config import get_settings
 from tests import test_connector
 from tests.test_connector import (
     PROUD,
-    REVIEWED,
     WHY,
+    WRITTEN,
     _student_queues,
     _tab_asks,
     claude,
@@ -39,7 +39,7 @@ async def _next(client, chat: str = "") -> dict:
 
 
 async def _save(client, job: str, *names: str) -> None:
-    answers = [{"name": name, "answer": "I built a tool that cut page load time by 30%.", "review": REVIEWED} for name in names]
+    answers = [{"name": name, "answer": "I built a tool that cut page load time by 30%.", **WRITTEN} for name in names]
     result = await client.call_tool("save_answers", {"job_id": job, "answers": answers})
     assert not result.is_error, result.content
 

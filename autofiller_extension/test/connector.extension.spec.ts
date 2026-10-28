@@ -72,6 +72,33 @@ test("an answer the student's Claude saves fills into its open tab", async () =>
   expect(forms.submissions).toEqual([]);
 });
 
+test("a fact the student's Claude asks for shows on its row until the student answers it", async () => {
+  test.setTimeout(120_000);
+  const forms = new SavedForms([HARVEY]);
+  const api = new FakeApi().queue({ id: "job-0", apply_url: forms.url(HARVEY) });
+  await start(api, forms);
+  await expect.poll(() => api.written.get("job-0")?.length, { timeout: 60_000 }).toBe(3);
+  const name = api.written.get("job-0")![0].name;
+  const form = loaded.context.pages().find((p) => p.url().startsWith(forms.url(HARVEY)))!;
+  await expect(row(form, WHY)).toContainText("Waiting for your Claude");
+
+  // Their Claude found nothing of the student's to back a required slot, so it asked (save_fact_question).
+  api.askFact("job-0", name, "Essay fact: What drew you to legal tools?", "Software Intern, Acme");
+
+  // Within one poll, the row says what it needs and where to answer it.
+  await expect(row(form, WHY)).toContainText("Your Claude needs a fact from you first: What drew you to legal tools?", {
+    timeout: 20_000,
+  });
+  await expect(row(form, WHY).getByRole("link", { name: "Written Answers" })).toBeVisible();
+
+  // The student answered on Written Answers: the question is their Claude's again, and its answer fills.
+  api.askFact("job-0", name, null);
+  await expect(row(form, WHY)).toContainText("Waiting for your Claude", { timeout: 20_000 });
+  api.saveAnswer("job-0", name, ANSWER);
+  await expect(box(form, name)).toHaveValue(ANSWER, { timeout: 20_000 });
+  expect(forms.submissions).toEqual([]);
+});
+
 test("the student's own answer is kept when their Claude's arrives later", async () => {
   test.setTimeout(120_000);
   const forms = new SavedForms([HARVEY]);
