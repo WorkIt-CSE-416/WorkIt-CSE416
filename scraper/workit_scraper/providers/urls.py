@@ -47,15 +47,19 @@ def board_keys(url: str) -> list[tuple[str, str]]:
             return []
         return [("greenhouse", names[0].lower())]
 
-    address = host + parts.path
+    # The query rides along because Jibe and SuccessFactors name themselves
+    # there (`?icims=1`, `?ats=successfactors`). Matching stays anchored at
+    # the host, so a link inside the query still names nothing.
+    address = host + parts.path + (f"?{parts.query}" if parts.query else "")
     for ats, provider in PROVIDERS.items():
         # Some registry patterns include // to anchor a company subdomain,
         # others start at the ATS host. Match at the beginning in either case.
         for prefix in ("", "//"):
-            match = provider.apply_link.match(prefix + address)
+            text = prefix + address
+            match = provider.apply_link.match(text)
             if match is None or match.end() < len(prefix + host):
                 continue
-            if (prefix + address)[match.end() : match.end() + 1] not in {"", "/"}:
+            if not _ends_cleanly(text, match.end(), len(prefix + host + parts.path)):
                 continue
             token = "/".join(group for group in match.groups() if group)
             return [(ats, token if provider.keeps_case else token.lower())]
@@ -65,3 +69,17 @@ def board_keys(url: str) -> list[tuple[str, str]]:
         wd, tenant, site = match.groups()
         return [("workday", f"{tenant}.{wd}/{site}".lower())]
     return []
+
+
+def _ends_cleanly(text: str, end: int, path_end: int) -> bool:
+    """Whether a match stops at a boundary rather than mid-name, so
+    `jobs.ashbyhq.com/acme@x` names no board: at a slash or the end, where
+    the path ends, at the next query flag, or on a pattern's own closing
+    slash (TikTok's `lifeattiktok.com/`)."""
+    after = text[end : end + 1]
+    return (
+        after in {"", "/"}
+        or end == path_end
+        or (end > path_end and after == "&")
+        or text[end - 1] == "/"
+    )
