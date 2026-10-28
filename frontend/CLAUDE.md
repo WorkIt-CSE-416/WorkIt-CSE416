@@ -1291,7 +1291,11 @@ the KAN-296 cutover.
   of the list (`docs/screens.md`, Inbox). One pill per email kind
   (`applications/email-kinds.tsx`). No sidebar badge: one was removed; Settings > Integrations is the
   design only until the Google sign-in is built (`docs/screens.md`). Home's four numbers are all live and all links
-  (KAN-342); its Strong Matches reads the Best Match scores
+  (KAN-342), each tinted with its own colour and its white glyph in a
+  solid disc of it (KAN-423): Strong Matches green, Saved grey, Applied
+  violet, Interviewing yellow (`--color-warning-deep`); a filled
+  Activity day opens a table of that day's applications. Its
+  Strong Matches reads the Best Match scores
   (`getMatchDates`), and Top Matches under them lists the twelve
   best-scoring jobs as flat rows that scroll inside a tile, with no score
   floor (`getTopMatches`); its Auto Apply button picks jobs for the queue

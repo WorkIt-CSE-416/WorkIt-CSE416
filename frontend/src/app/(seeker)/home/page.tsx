@@ -4,7 +4,7 @@ import { Suspense } from "react";
 import { getCurrentAccount } from "@/lib/session";
 
 import { Greeting } from "../greeting";
-import { getAppliedTimes, getHeadline } from "./data";
+import { getAppliedApplications, getHeadline } from "./data";
 import { HomeFrame } from "./frame";
 import { Headline, HeadlineSkeleton } from "./headline";
 import { Streak, StreakSkeleton } from "./streak";
@@ -65,7 +65,7 @@ export const metadata: Metadata = {
  * From @4xl/main the numbers run four across the top in their own grid,
  * and Activity runs the full width under them:
  *
- *   Strong Matches (violet)   Saved   Applied   Interviewing
+ *   Strong Matches   Saved   Applied   Interviewing
  *   Top Matches, a scrolling list of rows, See More Matches at its right
  *   Activity, the full width
  *
@@ -73,7 +73,7 @@ export const metadata: Metadata = {
  * why and how to bring them back); the notes below still describe them, for
  * that day.
  *
- * Strong Matches is the one filled tile (./data.ts says why). Next Up is a reminder: its
+ * Each number tile is tinted with its own colour (./headline.tsx). Next Up is a reminder: its
  * commitment in violet over one filled button. Below @4xl/main the numbers
  * pair up two by two.
  *
@@ -122,7 +122,7 @@ export default async function HomePage() {
   // Activity share.
   const topMatches = loadTopMatches();
   const stats = getHeadline();
-  const applied = getAppliedTimes();
+  const applied = getAppliedApplications();
 
   // Only the greeting waits: one plain read, which the bar makes too.
   const account = await getCurrentAccount();
@@ -169,7 +169,7 @@ async function Activity({
   applied,
   className,
 }: {
-  applied: ReturnType<typeof getAppliedTimes>;
+  applied: ReturnType<typeof getAppliedApplications>;
   className?: string;
 }) {
   return <Streak applied={await applied} className={className} />;

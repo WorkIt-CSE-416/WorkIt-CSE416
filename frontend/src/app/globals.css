@@ -356,6 +356,11 @@
    * ink on the bright fill above, which read as the one stage drawn
    * differently. */
   --color-warning-strong: #d97706;
+  /* A yellow deep enough to carry a white glyph: 4.92:1 (Tailwind's
+   * yellow-700). The disc behind Home's Interviewing number (KAN-423), where
+   * the user wanted yellow rather than --color-warning-strong's orange-
+   * leaning amber. #b45309, a burnt amber, came first and read as orange. */
+  --color-warning-deep: #a16207;
   --color-danger: #c02a3d; /* unmeasured: rejected, ended badly */
   --color-danger-tint: #fce9eb;
 
