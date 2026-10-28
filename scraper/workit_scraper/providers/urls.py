@@ -7,7 +7,7 @@ the Greenhouse embed route is the one explicit query-based board identifier.
 from __future__ import annotations
 
 import re
-from urllib.parse import parse_qs, urlsplit
+from urllib.parse import parse_qs, unquote, urlsplit
 
 from workit_scraper.providers.registry import PROVIDERS
 
@@ -35,6 +35,11 @@ def board_keys(url: str) -> list[tuple[str, str]]:
             return []
     except ValueError:
         return []
+    # Browser/server normalization must not turn a link naming this board into
+    # a different board. Ordinary escaped characters in job titles remain valid.
+    segments = [unquote(segment) for segment in parts.path.split("/")]
+    if any(segment in {".", ".."} or "/" in segment or "\\" in segment for segment in segments):
+        return []
     host = parts.hostname.lower()
     if host in GREENHOUSE_HOSTS and parts.path == "/embed/job_app":
         names = parse_qs(parts.query, keep_blank_values=True).get("for", [])
@@ -50,9 +55,13 @@ def board_keys(url: str) -> list[tuple[str, str]]:
             match = provider.apply_link.match(prefix + address)
             if match is None or match.end() < len(prefix + host):
                 continue
+            if (prefix + address)[match.end() : match.end() + 1] not in {"", "/"}:
+                continue
             token = "/".join(group for group in match.groups() if group)
             return [(ats, token if provider.keeps_case else token.lower())]
     if match := WORKDAY_SITE.match("//" + address):
+        if ("//" + address)[match.end() : match.end() + 1] not in {"", "/"}:
+            return []
         wd, tenant, site = match.groups()
         return [("workday", f"{tenant}.{wd}/{site}".lower())]
     return []

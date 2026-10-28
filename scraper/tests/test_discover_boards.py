@@ -390,3 +390,152 @@ def test_partial_source_results_reach_report_and_catalog(tmp_path, monkeypatch, 
     data = json.loads(report.read_text())
     assert data["channel_failures"][0]["source"] == "https://example.com/broken"
     assert data["candidates"][0]["evidence"][0]["company"] == "Acme"
+
+
+@pytest.mark.parametrize(
+    "offset, expected", [(0, "first"), (1, "second"), (2, "first"), (101, "second")]
+)
+def test_offset_rotates_only_eligible_candidates(
+    tmp_path, monkeypatch, swap_provider, offset, expected
+):
+    monkeypatch.setattr(discovery, "Robots", Robots)
+    monkeypatch.setattr(
+        discovery,
+        "collect",
+        lambda *_a, **_k: CollectionResult(
+            [
+                Evidence("https://jobs.lever.co/known", "Known", "source"),
+                Evidence("https://jobs.lever.co/nameless", "", "source"),
+                Evidence("https://jobs.lever.co/first", "First", "source"),
+                Evidence("https://jobs.lever.co/second", "Second", "source"),
+            ]
+        ),
+    )
+    called = []
+    swap_provider("lever", read=lambda token, company: called.append(token) or [])
+    boards, report = tmp_path / "boards.csv", tmp_path / "report.json"
+    boards.write_text("ats,token,company\nlever,known,Known\n")
+    discovery.main(
+        [
+            "--channel",
+            "curated",
+            "--boards",
+            str(boards),
+            "--report",
+            str(report),
+            "--limit",
+            "1",
+            "--offset",
+            str(offset),
+        ]
+    )
+    assert called == [expected]
+    result = json.loads(report.read_text())
+    assert [r["token"] for r in result["candidates"]] == ["known", "nameless", "first", "second"]
+    assert result["generated_at"].endswith("+00:00")
+    assert next(r for r in result["candidates"] if r["token"] == expected)["status"] == "validated"
+    assert "lever,first" not in boards.read_text()
+
+
+def test_rejections_are_excluded_before_validation_budget(tmp_path, monkeypatch, swap_provider):
+    monkeypatch.setattr(discovery, "Robots", Robots)
+    monkeypatch.setattr(
+        discovery,
+        "collect",
+        lambda *_a, **_k: CollectionResult(
+            [
+                Evidence("https://jobs.lever.co/rejected", "Rejected", "source"),
+                Evidence("https://jobs.lever.co/new", "New", "source"),
+            ]
+        ),
+    )
+    ledger = tmp_path / "review.json"
+    ledger.write_text(
+        json.dumps(
+            {"lever/rejected": {"decision": "rejected"}, "lever/new": {"decision": "proposed"}}
+        )
+    )
+    called = []
+    swap_provider("lever", read=lambda token, company: called.append(token) or [])
+    boards, report = tmp_path / "boards.csv", tmp_path / "report.json"
+    discovery.main(
+        [
+            "--channel",
+            "curated",
+            "--exclude",
+            str(ledger),
+            "--boards",
+            str(boards),
+            "--report",
+            str(report),
+            "--limit",
+            "1",
+            "--apply",
+        ]
+    )
+    assert called == ["new"]
+    assert "rejected" not in boards.read_text()
+    assert "lever,new,New" in boards.read_text()
+    assert json.loads(report.read_text())["candidates"][0]["status"] == "rejected"
+
+
+@pytest.mark.parametrize(
+    "content",
+    [
+        "[]",
+        "{",
+        '{"bad": {"decision": "rejected"}}',
+        '{"lever/a": {"decision": []}}',
+        '{"lever/a": {"decision": "unknown"}}',
+    ],
+)
+def test_invalid_review_ledger_fails_before_network(tmp_path, monkeypatch, content):
+    ledger = tmp_path / "review.json"
+    ledger.write_text(content)
+    monkeypatch.setattr(discovery, "Robots", lambda: pytest.fail("must not initialize network"))
+    with pytest.raises(SystemExit) as error:
+        discovery.main(
+            ["--url", "https://jobs.lever.co/acme", "--company", "Acme", "--exclude", str(ledger)]
+        )
+    assert error.value.code == 2
+
+
+@pytest.mark.parametrize("target", ["--report", "--boards"])
+@pytest.mark.parametrize("alias", ["same", "relative", "hardlink"])
+def test_review_ledger_cannot_alias_output(tmp_path, monkeypatch, target, alias):
+    ledger = tmp_path / "review.json"
+    ledger.write_text('{"lever/acme": {"decision": "rejected"}}')
+    before = ledger.read_bytes()
+    output = ledger
+    if alias == "relative":
+        monkeypatch.chdir(tmp_path)
+        output = ledger.relative_to(tmp_path)
+    elif alias == "hardlink":
+        output = tmp_path / "alias.json"
+        os.link(ledger, output)
+    monkeypatch.setattr(discovery, "Robots", lambda: pytest.fail("must not initialize network"))
+    with pytest.raises(SystemExit) as error:
+        discovery.main(
+            [
+                "--url",
+                "https://jobs.lever.co/acme",
+                "--company",
+                "Acme",
+                "--apply",
+                "--exclude",
+                str(ledger),
+                target,
+                str(output),
+            ]
+        )
+    assert error.value.code == 2
+    assert ledger.read_bytes() == before
+
+
+def test_negative_offset_rejected_before_network(monkeypatch):
+    monkeypatch.setattr(discovery, "Robots", lambda: pytest.fail("must not initialize network"))
+    with pytest.raises(SystemExit) as error:
+        discovery.main(
+            ["--url", "https://jobs.lever.co/acme", "--company", "Acme", "--offset", "-1"]
+        )
+    assert error.value.code == 2

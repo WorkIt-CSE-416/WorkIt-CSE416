@@ -11,6 +11,7 @@ import argparse
 import json
 from collections import Counter
 from dataclasses import asdict, dataclass, field
+from datetime import UTC, datetime
 from pathlib import Path
 
 from workit_scraper import web
@@ -71,6 +72,31 @@ def positive(value: str) -> int:
     return number
 
 
+def nonnegative(value: str) -> int:
+    number = int(value)
+    if number < 0:
+        raise argparse.ArgumentTypeError("must be nonnegative")
+    return number
+
+
+def rejected_boards(path: Path | None) -> set[str]:
+    """Only explicit review rejections exclude candidates from validation."""
+    if path is None:
+        return set()
+    data = json.loads(path.read_text(encoding="utf-8"))
+    if not isinstance(data, dict):
+        raise ValueError("review decisions must be an object keyed by ATS/board token")
+    rejected = set()
+    for key, row in data.items():
+        if not isinstance(key, str) or "/" not in key or not all(key.split("/", 1)):
+            raise ValueError("review decision keys must contain ATS/board token")
+        if not isinstance(row, dict) or row.get("decision") not in ("proposed", "rejected"):
+            raise ValueError("each review decision must be proposed or rejected")
+        if row["decision"] == "rejected":
+            rejected.add(key)
+    return rejected
+
+
 def main(argv: list[str] | None = None) -> int:
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--channel", action="append", choices=tuple(CHANNELS))
@@ -84,9 +110,22 @@ def main(argv: list[str] | None = None) -> int:
         help="maximum new boards to validate, and results per channel",
     )
     parser.add_argument("--months", type=positive, default=3)
+    parser.add_argument(
+        "--offset",
+        type=nonnegative,
+        default=0,
+        help="rotate eligible candidates before applying the validation limit",
+    )
+    parser.add_argument(
+        "--exclude", type=Path, help="review ledger; rejected boards are skipped before validation"
+    )
     parser.add_argument("--boards", type=Path, default=BOARDS_CSV)
     parser.add_argument("--report", type=Path, default=Path("discovery-report.json"))
-    parser.add_argument("--apply", action="store_true", help="add validated, named boards")
+    parser.add_argument(
+        "--apply",
+        action="store_true",
+        help="add validated boards locally; review company ownership before committing",
+    )
     args = parser.parse_args(argv)
     if not args.channel and not args.url:
         parser.error("select --channel or provide --url and --company")
@@ -94,6 +133,14 @@ def main(argv: list[str] | None = None) -> int:
         parser.error("--url and --company must be supplied together")
     if same_file(args.boards, args.report):
         parser.error("--report must not identify the --boards catalog")
+    if args.exclude and (
+        same_file(args.exclude, args.boards) or same_file(args.exclude, args.report)
+    ):
+        parser.error("--exclude must differ from --boards and --report")
+    try:
+        rejected = rejected_boards(args.exclude)
+    except (OSError, ValueError) as error:
+        parser.error(f"cannot load review decisions: {error}")
     try:
         for channel in args.channel or ["curated"]:
             validate_options(channel, query=args.query, limit=args.limit, months=args.months)
@@ -122,18 +169,23 @@ def main(argv: list[str] | None = None) -> int:
         print(f"{failure.channel}: {failure.source}: {failure.error}")
     rows = candidates(evidence)
     known = {(b.ats, b.token) for b in load_boards(args.boards)} if args.boards.exists() else set()
-    attempts = 0
+    eligible = []
     for row in rows:
         if (row.ats, row.token) in known:
             row.status = "already_known"
+        elif f"{row.ats}/{row.token}" in rejected:
+            row.status = "rejected"
         elif len(row.companies) != 1:
             row.status = "needs_company" if not row.companies else "conflicting_companies"
-        elif attempts >= args.limit:
-            row.status = "deferred"
         else:
-            validate(row, robots)
-            attempts += 1
-            print(f"{row.ats}/{row.token}: {row.status}")
+            row.status = "deferred"
+            eligible.append(row)
+    if eligible:
+        offset = args.offset % len(eligible)
+        eligible = eligible[offset:] + eligible[:offset]
+    for row in eligible[: args.limit]:
+        validate(row, robots)
+        print(f"{row.ats}/{row.token}: {row.status}")
     print(
         "Boards: "
         + ", ".join(
@@ -141,6 +193,7 @@ def main(argv: list[str] | None = None) -> int:
         )
     )
     report = {
+        "generated_at": datetime.now(UTC).isoformat(),
         "candidates": [asdict(r) for r in rows],
         "channel_failures": [asdict(f) for f in failures],
         "unmatched": [asdict(e) for e in evidence if not board_keys(e.url)],

@@ -8,7 +8,7 @@ cd scraper
 python3 -m workit_scraper              # scrape, then write the page, feed.json and metrics.json
 python3 -m workit_scraper --full       # the same, quiet boards included
 python3 -m workit_scraper --offline    # no network; rewrite both from jobs.json
-python3 build_boards.py                # add the boards the curated lists name now
+python3 build_boards.py                # legacy local import; review changes before merging
 python3 build_boards.py --resolve      # and the boards behind short links and careers pages
 GROQ_API_KEY=... python3 label_headings.py  # label the headings no rule names
 uvx pytest                             # the tests
@@ -433,15 +433,18 @@ so it is lower on a run that rested quiet boards or ran out of Workday time.
 
 ## `boards.csv` is a seed, not a conclusion
 
-`build_boards.py` grows it from public curated internship lists; run it rather
-than hand-editing rows. We take one fact from them (which ATS slug a company
-uses); postings are always scraped from the employer.
+Discovery collects ATS board candidates from public curated lists and other
+sources. A complete provider read shows that a board is live; it does not prove
+the source named the right company. Developers review proposed catalog changes
+before merging them. Postings are always scraped from the employer.
 
-- **The scheduled scrape grows it before every run** (KAN-167). It only ever
-  adds: a board in the file is kept, a list that fails to download raises
-  before anything is written, and the step is `continue-on-error`. Those
-  additions live only in that run, so re-run `build_boards.py` and commit
-  `boards.csv` now and then.
+- **Daily discovery maintains one human-review PR**, separately from the
+  three-hour scrape. It never pushes additions directly to main or merges the
+  PR. Developers retain accepted rows, correct names, and remove rejected rows;
+  a durable ledger prevents removed proposals from being re-added. The rules
+  are below; operation is documented in `docs/discovery.md`.
+  `build_boards.py` remains a manual legacy importer; do not restore it to the
+  scheduled scrape, which would bypass review.
 - **A board on a provider's second host is still its board.** Greenhouse's EU
   boards (`job-boards.eu.greenhouse.io`) answer on the same
   `boards-api.greenhouse.io`, but its apply-link pattern missed the `.eu.` and dropped 26
@@ -466,6 +469,68 @@ uses); postings are always scraped from the employer.
 - **The internship lists are renamed each season** (`Summer2026-Internships` →
   `Summer2027-Internships`). GitHub serves the old address too, but update
   `SOURCES` each season: a list that starts a new repo instead would go unread.
+
+## Discovery review contract
+
+`discover_boards.py` collects candidate boards on demand and through the daily
+`discovery_pr.py` workflow, separately from the three-hour scrape. It uses the
+existing provider registry, robots checks, pacing, and HTTP client. Keep the
+scraper standard-library-only.
+
+- Preview is the default. Local `--apply` adds only new boards whose existing
+  provider reader completed and whose evidence supplies one unambiguous name.
+  An empty successful response is a live board; a failed or partial read is not.
+  A live read does not prove company ownership: developers review catalog changes
+  before merging. Scheduled discovery proposes changes in a PR, never on main.
+- Search URLs without company attribution remain `needs_company` in the report.
+  Do not turn their slugs or search snippets into company names: every downstream
+  card trusts boards.csv. Supply a verified URL and company through the CLI.
+- Candidate URLs must match an actual provider host, not an embedded URL in a
+  query/path or a lookalike hostname. Preserve Oracle token case and Lever region.
+- Keep source URLs and statuses in the report. Deduplicate known boards before
+  applying the validation limit; truncating curated links first starves discoveries
+  behind already-known boards. Automation preserves existing main-catalog names
+  and rows, and preserves reviewers' corrections to proposed company names.
+- API credentials belong only in request headers, not logs or reports. The HTTP
+  client retains its identifying User-Agent and rejects cross-origin redirects.
+- Common Crawl is excluded under the robots restriction recorded in CLAUDE.md.
+  Unsupported ATS URLs are reported; adding readers is a separate provider change.
+
+Usage and credentials: `docs/discovery.md`.
+
+Shared boundaries: `providers/urls.py` owns board URL recognition for both
+commands; `board_read.py` owns the robots/pacing/read result; `catalog.py` owns
+CSV serialization and atomic writes. The collector and legacy builder share these modules, never each other or the
+scrape entry point. The PR orchestrator calls the collector entry point. Keep provider failures distinguishable from empty success.
+
+`discovery_sources.py` declares each curated source's application URL field.
+Do not scan arbitrary metadata recursively: company homepages are not ATS leads.
+`discovery_channels.CHANNELS` owns channel dispatch and query requirements.
+Collection returns evidence and per-source failures; a failed independent source
+must not discard successful evidence. Reports retain company attribution per
+evidence entry, and report/catalog paths must never alias, even during preview.
+
+`discovery_pr.py` maintains one rolling PR on a `codex/board-discovery-<cycle>`
+branch. It reads proposal data but executes only trusted main code. No automatic
+approval, merge, or push to main is permitted. Keep its default a local preview;
+publishing needs explicit `--publish`. Main changes merge into the proposal
+branch without force pushes; conflicts fail visibly. A closed, unmerged PR
+pauses publishing until reopened or its rejection ledger is merged. A merged
+PR starts the next cycle.
+
+`discovery-review.json` stores observations and durable review decisions. A
+developer's removal of a proposed CSV row means rejection; never re-add it on
+rediscovery. Preserve company-name corrections and merge rejected ledger entries
+even when no proposed boards are accepted. Explicit `decision: rejected` also
+rejects a proposal. Reconsideration requires a deliberate ledger-entry removal.
+`discovery-review.md` is generated from that ledger and must not be hand-edited.
+Evidence includes source/company, ATS/token, posting count, and validation time;
+it is not proof of ownership. There is no company allowlist or trust manifest.
+
+The three-hour scrape uses the human-reviewed catalog committed on main and
+must not run `build_boards.py`: its legacy curated-list additions bypass review.
+Empty live boards need the same human review as nonempty boards. Existing
+catalog entries are not retroactively verified by the new process.
 
 ## `feed.json` is the backend's only view of us
 
@@ -530,7 +595,8 @@ by hand, the page size or cap is shrunk, never the data.
 
 ## Committed data and deliberate limits
 
-Only `boards.csv` is committed (`linguist-generated`). `jobs.json` is the
+`boards.csv` is committed (`linguist-generated`), alongside the discovery review
+ledger and generated evidence document when proposals are merged. `jobs.json` is the
 store, the `first_seen_at` history, the per-board read ledger and the offline
 fallback, and it is gitignored: megabytes per run. Each machine keeps its own
 history; the scheduled run keeps its own in the Actions cache. A fresh clone's
@@ -563,7 +629,7 @@ the design they serve and its next steps):
   read in slices is in no one order and is left out.
 - **`boards_missed_once`** (above, "Nothing closes").
 - **`unread`**: why each board a run did not read stayed unread, by provider and
-  reason, with up to five board keys each (`RunStats.unread`, `_why`,
+  reason, with up to five board keys each (`RunStats.unread`, `board_read.failure_reason`,
   `unread_by_provider`): the HTTP status a site answered ("403", "429"),
   "timeout", "connection", "redirect", "incomplete", "unreadable answer",
   "robots.txt", "too large" or "no such board". It says whether any site blocks
