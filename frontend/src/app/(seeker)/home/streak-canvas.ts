@@ -66,6 +66,9 @@ export type SkylineState = {
   setActive: (index: number) => void;
   /** A keyboard move landed on this day; say it to a screen reader. */
   announce: (index: number) => void;
+  /** A filled day was clicked, tapped or given Enter: list its
+   *  applications (KAN-423). An empty day never calls it. */
+  open: (index: number) => void;
 };
 
 export type Skyline = {
@@ -139,22 +142,45 @@ const pointInQuad = (p: Float32Array, o: number, x: number, y: number): boolean 
   return sign !== 0;
 };
 
-const quadPath = (ctx: CanvasRenderingContext2D, p: Float32Array, o: number, r: number) => {
-  if (r < 0.3) {
-    ctx.moveTo(p[o], p[o + 1]);
-    ctx.lineTo(p[o + 2], p[o + 3]);
-    ctx.lineTo(p[o + 4], p[o + 5]);
-    ctx.lineTo(p[o + 6], p[o + 7]);
-    ctx.closePath();
-    return;
-  }
-  ctx.moveTo((p[o + 6] + p[o]) / 2, (p[o + 7] + p[o + 1]) / 2);
-  for (let k = 0; k < 4; k++) {
-    const b = (k + 1) % 4;
-    ctx.arcTo(p[o + k * 2], p[o + k * 2 + 1], p[o + b * 2], p[o + b * 2 + 1], r);
-  }
-  ctx.closePath();
-};
+/**
+ * EVERY DAY IS A ROUNDED PILLAR (KAN-423): the 2D view's rounded square,
+ * raised. The outline is built on the ground in world units and projected,
+ * so its corners stay round from straight down to the corner view and
+ * through the morph between them. The top was the box's top quad rounded in
+ * screen space by a radius that shrank to almost nothing as the grid rose,
+ * so the skyline stood as square boxes beside the heat map's rounded ones.
+ *
+ * The outline runs anticlockwise round the square from its -y edge: ARC
+ * points per corner, each with the angle of the outward normal it sits on.
+ * The side between two outline points faces the angle midway between them,
+ * which is the edge's own normal on a straight run. RADIUS is the share of
+ * the square's side, the 2D view's 0.17 on its 0.78 square.
+ */
+const ARC = 4;
+const RADIUS = 0.22;
+const RING = ARC * 4;
+const RING_ANGLE = Float32Array.from({ length: RING }, (_, j) => {
+  const corner = Math.floor(j / ARC);
+  return ((corner - 1 + (j % ARC) / (ARC - 1)) * Math.PI) / 2;
+});
+/** Each corner's centre, as a step in from the square's (x0, y0) toward
+ *  (x1, y1): 0 keeps the near edge, 1 takes the far one. */
+const CORNER = [
+  [1, 0],
+  [1, 1],
+  [0, 1],
+  [0, 0],
+];
+const SIDE_ANGLE = Float32Array.from({ length: RING }, (_, j) => {
+  const a = RING_ANGLE[j];
+  let b = RING_ANGLE[(j + 1) % RING];
+  if (b < a) b += Math.PI * 2;
+  return (a + b) / 2;
+});
+const SIDE_COS = SIDE_ANGLE.map(Math.cos);
+const SIDE_SIN = SIDE_ANGLE.map(Math.sin);
+const RING_COS = RING_ANGLE.map(Math.cos);
+const RING_SIN = RING_ANGLE.map(Math.sin);
 
 export function mountSkyline(
   elements: {
@@ -207,6 +233,12 @@ export function mountSkyline(
   let hover = new Float32Array(0);
   let polys = new Float32Array(0);
   let faces = new Uint8Array(0);
+  // Scratch for one day's projected outline (see RING).
+  const ring = {
+    gx: new Float32Array(RING),
+    gy: new Float32Array(RING),
+    ty: new Float32Array(RING),
+  };
   let order: number[] = [];
   let months: { week: number; label: string }[] = [];
   // interaction
@@ -346,7 +378,11 @@ export function mountSkyline(
 
     const w = lerp(0.78, 0.9, e);
     const off = (1 - w) / 2;
-    const radius = lerp(0.17, 0.03, e) * s;
+    const r = RADIUS * w;
+    // One day's outline on the ground and at its top, projected; reused.
+    const gx = ring.gx;
+    const gy = ring.gy;
+    const ty = ring.ty;
     const outline = (1 - e) * 0.07;
     const lift = 0.7 * e;
 
@@ -394,31 +430,53 @@ export function mountSkyline(
 
       // The day's level, washed toward ink while it is the active day.
       const L = lv[i] * 3;
-      let r = col[L];
+      let r0 = col[L];
       let g = col[L + 1];
       let bl = col[L + 2];
       const hv = hover[i];
       if (hv > 0.002) {
         const m = 0.16 * hv;
-        r += (ink[0] - r) * m;
+        r0 += (ink[0] - r0) * m;
         g += (ink[1] - g) * m;
         bl += (ink[2] - bl) * m;
       }
-      if (f & 1) {
-        ctx.beginPath();
-        quadPath(ctx, polys, o + 8, 0);
-        ctx.fillStyle = rgba(r * 0.84, g * 0.84, bl * 0.84);
-        ctx.fill();
+      for (let j = 0; j < RING; j++) {
+        const [cx, cy] = CORNER[Math.floor(j / ARC)];
+        const wx = x0 + r + cx * (w - 2 * r) + RING_COS[j] * r;
+        const wy = y0 + r + cy * (w - 2 * r) + RING_SIN[j] * r;
+        gx[j] = px(wx, wy);
+        gy[j] = py(wx, wy, 0);
+        ty[j] = py(wx, wy, z);
       }
-      if (f & 2) {
-        ctx.beginPath();
-        quadPath(ctx, polys, o + 16, 0);
-        ctx.fillStyle = rgba(r * 0.68, g * 0.68, bl * 0.68);
-        ctx.fill();
+      // The sides that face the camera, each shaded by where it faces: the
+      // +y side 0.84 of the top's colour and the +x side 0.68, as the box's
+      // two faces were, and the corners turning between them. Each is
+      // stroked in its own colour too, or the canvas's antialiasing left a
+      // hairline of the page between two sides.
+      if (tall > 0.35) {
+        for (let j = 0; j < RING; j++) {
+          const nx = SIDE_COS[j];
+          const ny = SIDE_SIN[j];
+          if (nx * sn + ny * cs <= 0.01) continue;
+          const k2 = (j + 1) % RING;
+          const shade = 0.76 + 0.08 * (ny - nx);
+          ctx.beginPath();
+          ctx.moveTo(gx[j], gy[j]);
+          ctx.lineTo(gx[k2], gy[k2]);
+          ctx.lineTo(gx[k2], ty[k2]);
+          ctx.lineTo(gx[j], ty[j]);
+          ctx.closePath();
+          ctx.fillStyle = ctx.strokeStyle = rgba(r0 * shade, g * shade, bl * shade);
+          ctx.lineWidth = 0.6;
+          ctx.fill();
+          ctx.stroke();
+        }
       }
       ctx.beginPath();
-      quadPath(ctx, polys, o, radius);
-      ctx.fillStyle = rgba(r, g, bl);
+      ctx.moveTo(gx[0], ty[0]);
+      for (let j = 1; j < RING; j++) ctx.lineTo(gx[j], ty[j]);
+      ctx.closePath();
+      ctx.fillStyle = rgba(r0, g, bl);
       ctx.fill();
       if (outline > 0.004) {
         ctx.strokeStyle = rgba(ink[0], ink[1], ink[2], outline);
@@ -618,7 +676,8 @@ export function mountSkyline(
       hovered = i;
       refreshActive();
     }
-    canvas.style.cursor = target === 1 ? "grab" : i >= 0 ? "pointer" : "default";
+    // A pointer only over a day a click opens: an empty day opens nothing.
+    canvas.style.cursor = target === 1 ? "grab" : i >= 0 && lv[i] > 0 ? "pointer" : "default";
   };
 
   const onUp = (ev: PointerEvent) => {
@@ -630,8 +689,15 @@ export function mountSkyline(
     if (wasMoved) return;
     const [x, y] = local(ev);
     const i = hit(x, y);
-    pinned = i === pinned ? -1 : i;
     if (ev.pointerType !== "mouse") hovered = -1;
+    // A filled day opens its applications; the tooltip it would pin says
+    // no more than the dialog's heading. An empty day pins its tooltip.
+    if (i >= 0 && lv[i] > 0) {
+      refreshActive();
+      state.current.open(i);
+      return;
+    }
+    pinned = i === pinned ? -1 : i;
     refreshActive();
   };
 
@@ -653,6 +719,11 @@ export function mountSkyline(
 
   const KEYS = ["ArrowLeft", "ArrowRight", "ArrowUp", "ArrowDown", "Home", "End", "Escape"];
   const onKey = (ev: KeyboardEvent) => {
+    if ((ev.key === "Enter" || ev.key === " ") && activeIdx >= 0 && lv[activeIdx] > 0) {
+      ev.preventDefault();
+      state.current.open(activeIdx);
+      return;
+    }
     if (!KEYS.includes(ev.key) || !n) return;
     ev.preventDefault();
     if (ev.key === "Escape") {

@@ -2,7 +2,7 @@ import { cache } from "react";
 
 import { getApplications, getNow, getTrackerUnscored } from "../applications/data";
 import { getHomeMatches } from "../jobs/listings";
-import { upcomingEvents, type EventKind, type TrackerEvent } from "../tracker";
+import { upcomingEvents, type Application, type EventKind, type TrackerEvent } from "../tracker";
 import { rangeDays, type RangeKey } from "./range";
 
 /**
@@ -94,11 +94,10 @@ const STRONG_MATCHES_NOTE: Record<RangeKey, string> = {
  * in the middle. The order was Applications, New Roles, Interviews, Saved,
  * which read sent, then find, then outcome, then shortlist.
  *
- * GOOD MATCHES WEARS THE VIOLET FILL, where the next application starts: the
- * eye lands on the head of the search and reads on from there. Applied
- * wore it until the reorder, as the number the seeker wholly controls; the
- * user moved it, since a seeker comes to Home to find what to apply
- * to next. A violet 0 is the cost on a week with no good matches.
+ * EACH TILE WEARS ITS OWN COLOUR (KAN-423, ./headline.tsx): a pale tint for
+ * its ground, the solid colour for its glyph's disc. Strong Matches wore the
+ * one violet fill, and Applied before it, until violet proved to be
+ * Applied's stage colour twice over.
  *
  * Strong Matches is the job postings from the range that score Strong Match
  * or better for this seeker (STRONG_MATCH), from the Best Match scores
@@ -189,15 +188,29 @@ export async function getHeadline(): Promise<Record<RangeKey, HomeStat[]>> {
 
 /* Activity --------------------------------------------------------------- */
 
+/** One sent application, as Activity needs it: the day it counts on, and
+ *  a row in that day's table (./day-applications.tsx). */
+export type AppliedApplication = Pick<
+  Application,
+  "id" | "role" | "company" | "logoUrl" | "stage"
+> & { appliedOn: string };
+
 /**
- * When each application in the tracker was sent, for Activity's streak: one
- * instant per sent application, or null when the tracker can't be read. The
- * streak turns each into the viewer's own day in the browser
- * (./streak.tsx), since the server's UTC day is a day off for the Americas.
+ * Every application in the tracker that was sent, for Activity's streak, or
+ * null when the tracker can't be read. The streak turns each `appliedOn`
+ * into the viewer's own day in the browser (./streak.tsx), since the
+ * server's UTC day is a day off for the Americas. It was the bare instants
+ * until a filled day opened a table of its applications (KAN-423), which
+ * names each one's job, company and stage.
  */
-export async function getAppliedTimes(): Promise<string[] | null> {
+export async function getAppliedApplications(): Promise<AppliedApplication[] | null> {
   const { applications } = await getTrackerUnscored();
-  return applications && applications.flatMap((app) => (app.appliedOn ? [app.appliedOn] : []));
+  return (
+    applications &&
+    applications.flatMap(({ id, role, company, logoUrl, stage, appliedOn }) =>
+      appliedOn ? [{ id, role, company, logoUrl, stage, appliedOn }] : [],
+    )
+  );
 }
 
 /* Waiting --------------------------------------------------------------- */

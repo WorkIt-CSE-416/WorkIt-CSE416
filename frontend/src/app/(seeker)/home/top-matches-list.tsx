@@ -215,6 +215,12 @@ export function TopMatchesList({
           {withStage.map((row, i) => {
             const blocked = blockedReason(row);
             const isPicked = picked.has(row.id);
+            const match = row.match != null && <MatchBadge score={row.match} />;
+            const posted = row.posted && (
+              <Badge variant="tag" pill>
+                {row.posted}
+              </Badge>
+            );
             const details = (
               <div className="flex min-w-0 flex-1 items-center gap-3">
                 <CompanyLogo
@@ -237,13 +243,20 @@ export function TopMatchesList({
                   )}
                   <div className="mt-1 flex min-w-0 flex-wrap items-center gap-x-2 gap-y-1">
                     <span className="text-note text-ink-meta min-w-0 truncate">{row.company}</span>
-                    {row.match != null && <MatchBadge score={row.match} />}
-                    {row.posted && (
-                      <Badge variant="tag" pill>
-                        {row.posted}
-                      </Badge>
-                    )}
+                    <span className="contents @4xl/main:hidden">
+                      {match}
+                      {posted}
+                    </span>
                   </div>
+                </div>
+                {/* From @4xl/main the match and the posted date are columns
+                    of their own (KAN-423), centred on the row's height at
+                    fixed widths, so they line up down the list. Squeezed
+                    on the company's line they read as one cramped run, and
+                    a long company name pushed them out of line. */}
+                <div className="hidden shrink-0 items-center gap-6 pl-4 @4xl/main:flex">
+                  <span className="flex w-20">{match}</span>
+                  <span className="flex w-36">{posted}</span>
                 </div>
               </div>
             );
