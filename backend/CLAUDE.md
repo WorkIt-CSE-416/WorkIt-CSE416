@@ -40,6 +40,7 @@ uv run python -m app.scripts.import_jobs       feed.json → job_postings, job_r
 uv run python -m app.scripts.intake_test_set   intake's fixed test set against the SCOUT_* model (by hand, never CI)
 uv run python -m app.scripts.ship_check ...   the connector's blind read, KAN-386 (by hand, never CI; data outside the repo)
 uv run python -m app.scripts.clean_bank_entries  one-off: split "| C++, Go" off older bank titles, drop read skills the catalog lacks; --typed also drops Tailor-added degrees/"AI tools" (dry run unless --apply; local DB only)
+uv run python -m app.scripts.fill_report <id>   a fill report's fix brief + form fixture into fill-reports/ (--latest; reads DATABASE_URL, writes nothing)
 python3 scripts/fetch_tectonic.py              Tectonic + warm cache into vendor/ (resume PDFs; once per checkout)
 ```
 
@@ -306,21 +307,41 @@ Find files with a directory listing; these are the rules for where code goes.
   **Each listed answer carries `answered_at`** (KAN-369), when it was last
   saved: the page marks the student's own answers (captured from a form)
   New by it until they have seen them. Tests: `tests/test_captured_answers.py`.
-  **Problem reports from the extension's panel** (KAN-403,
-  `routers/fill_reports.py` over `queries/fill_reports.py`, table
-  `fill_reports`): `POST /fill-reports`
-  stores what the student previewed and sent (job system, the posting's
-  link, Fill engine version, each failed field's
-  kind, label shape and error name, their note). The row names no
-  account, though sending needs a sign-in. Every model forbids other keys
-  and the label shape holds only letters, `#` and spaces, so an answer or
-  the page's text is refused (422), never stored. The link is http or
-  https with no sign-in in it and no fragment, and its query keeps only the
-  params that name the posting (`schemas/fill_reports.py` POSTING_PARAMS:
-  Greenhouse's embed `for` and `token`, `gh_jid`, `jobId` and the like),
-  each an id; any other param is refused. It feeds the team's
-  engine repair loop; nothing reads it in the app. Tests:
-  `tests/test_fill_reports.py`.
+  **Problem reports from the extension's panel** (KAN-403, fix reports
+  KAN-369; `routers/fill_reports.py` over `queries/fill_reports.py`, table
+  `fill_reports`, migrations `c4e1a9f2d803`, `e5b8d2a7c914`): `POST
+  /fill-reports` stores what the student previewed and sent: job system,
+  the posting's link, Fill engine version, what opened the card
+  (`trigger`), the context (extension version, browser, the engine's
+  recognition of the page), each field's structure and what the fill did
+  with it (name, label, kind, options, selector, visible, source, the
+  planned answer's shape such as `text:12`, status, reason with values out,
+  read-back, error, marked, edited), the timeline (steps, errors, stacks)
+  and the form's HTML with values out (`html`, at most `HTML_MAX`), and
+  their note. **The row names its sender** (`account_id`, cascading with
+  the account): a student lists their own (`GET /fill-reports/mine`) and
+  reads one of theirs (`GET /fill-reports/{id}`; another's is 404). Values
+  never reach it by design: the extension takes them out before the
+  preview; every model forbids other keys, the shapes are patterns, and
+  `scrub` replaces what still looks like an email or a phone in every
+  free text. The body is read in chunks and refused past `BODY_MAX` (413),
+  never whole. The link is http or https with no sign-in and no fragment,
+  and its query keeps only the params that name the posting
+  (`schemas/fill_reports.py` POSTING_PARAMS), each an id.
+  **Admins** are the emails or account ids on `WORKIT_ADMINS`
+  (`app/config.py`; `deps.get_admin`, 403 to anyone else): there is no
+  admin role in the database. They list (`GET /admin/fill-reports`, newest
+  first, `?job_system=&status=`), read, triage (`PATCH`, status new /
+  triaged / fixed and a note) and export a report: `GET
+  /admin/fill-reports/{id}/brief` is the Markdown fix brief
+  (`services/fill_brief.py`, format in `../docs/fill-reports.md`;
+  `tests/fixtures/fill_brief.md` is a golden copy, so a format change
+  updates both), `.../fixture` the form's HTML as a text/plain download
+  (never served as HTML: it is an employer page's markup). `uv run python
+  -m app.scripts.fill_report <id>` (or `--latest`) writes the brief, the
+  fixture, its question set and the report to `fill-reports/` (gitignored)
+  and names the engine commit the report's engine version was built from.
+  Tests: `tests/test_fill_reports.py`, `tests/test_fill_report_briefs.py`.
   **Job system requests from the extension's popup** (KAN-369,
   `routers/job_system_requests.py`, table `job_system_requests`, migration
   `d8a3f5c1e7b2`): `POST /job-system-requests {"host"}` stores the host of
