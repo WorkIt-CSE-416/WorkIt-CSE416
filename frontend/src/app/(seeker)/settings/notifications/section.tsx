@@ -2,15 +2,14 @@ import { Switch } from "@/components/shadcn/switch";
 import { Badge } from "@/components/ui/badge";
 import { Card } from "@/components/ui/card";
 import { SectionHeading } from "@/components/ui/section-heading";
+import { getProfile } from "@/lib/profile-actions";
 
-/** Each alert, in the order the bell names them ("New matches and replies
- *  from employers will show up here", (seeker)/layout.tsx). */
-const ALERTS = [
-  {
-    key: "new-matches",
-    title: "New Matches",
-    line: "Email me when new job postings fit my job preferences.",
-  },
+import { JobAlertsSwitch } from "./job-alerts-switch";
+
+/** The alerts still waiting on their own feature, disabled and marked Coming
+ *  Soon (KAN-326): nothing stores or sends them yet. New Matches is live
+ *  (KAN-298, below): one flag gates both the bell and the daily email. */
+const COMING_SOON = [
   {
     key: "employer-replies",
     title: "Employer Replies",
@@ -19,23 +18,34 @@ const ALERTS = [
 ] as const;
 
 /**
- * Notifications (KAN-326): the design only. Each alert is a row with its
- * switch, disabled and marked Coming Soon, because nothing stores or sends
- * notifications yet; the notification work (KAN-298) wires each switch to
- * what it saves. Disabled, not live: a switch that saves nothing is what
- * My Profile's Autofill switch was removed for on 2026-10-18
- * (docs/screens.md, My Profile).
+ * Notifications. New Matches' switch is live (KAN-298): it reads and saves
+ * `job_alerts_enabled`, the same flag that gates the daily digest email and
+ * its bell notification. A failed profile read defaults it off, same as a
+ * fresh account: Settings should never block on My Profile's cache, and a
+ * student who can't load their own state here isn't opted into a daily
+ * email either way. The rest stay disabled, same as My Profile's Autofill
+ * switch was removed for on 2026-10-18 (docs/screens.md, My Profile).
  */
-export function NotificationsSection() {
+export async function NotificationsSection() {
+  const { profile } = await getProfile();
+
   return (
     <Card as="section" aria-labelledby="notifications" className="flex flex-col gap-4">
       <SectionHeading id="notifications">Notifications</SectionHeading>
-      <p className="text-body text-ink-meta">
-        Choose which emails you get. WorkIt doesn&apos;t send notifications yet, so these switches
-        turn on when it does.
-      </p>
+      <p className="text-body text-ink-meta">Choose which emails you get.</p>
       <ul className="divide-border-subtle flex flex-col divide-y">
-        {ALERTS.map(({ key, title, line }) => (
+        <li className="flex items-center gap-4 py-3 first:pt-0 last:pb-0">
+          <div className="min-w-0 flex-1">
+            <p id="new-matches-label" className="text-label text-ink font-semibold">
+              New Matches
+            </p>
+            <p id="new-matches-line" className="text-meta text-ink-meta">
+              Email me when new job postings fit my job preferences.
+            </p>
+          </div>
+          <JobAlertsSwitch initialEnabled={profile?.job_alerts_enabled ?? false} />
+        </li>
+        {COMING_SOON.map(({ key, title, line }) => (
           <li key={key} className="flex items-center gap-4 py-3 first:pt-0 last:pb-0">
             <div className="min-w-0 flex-1">
               <p

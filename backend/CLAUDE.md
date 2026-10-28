@@ -1033,6 +1033,38 @@ Find files with a directory listing; these are the rules for where code goes.
   on top of the spec's four shares, which already fill the pool, so a busy
   day can overshoot the pool by that much). Tests:
   `tests/test_editor_assistant.py`.
+- **The daily job-alert digest** (KAN-298) is
+  `app/scripts/send_job_alerts.py`, run daily from a crontab on a
+  user-managed EC2 instance, not GitHub Actions
+  (`.github/workflows/job-alerts.yml` keeps no schedule of its own
+  anymore — `.github/CLAUDE.md`), over `services/job_alerts.py`. It
+  reuses auto apply's own matching, not a second implementation:
+  `build_digest` calls `routers/jobs.py`'s `fetch_recommended` and
+  `auto_apply/rules.py`'s `pick_batch` exactly as `auto_apply/pipeline.py`'s
+  own `_matches` does, at the same `MIN_MATCH`/`BATCH_SIZE` (imported, not
+  retyped), just without `auto_apply_only=True` — a digest links to
+  WorkIt's own `/jobs/{id}` page, never `apply_url`, so it needs no
+  ATS-specific knowledge. `send_job_alert` writes one `notifications` row
+  (`models/CLAUDE.md`, "notifications") and sends one email through
+  `services/email.py`'s `send_email` (AWS SES, the one place a provider
+  swap would touch) from the same computed list — never scored twice.
+  **Authenticates via the EC2 instance's IAM role, never a stored key**:
+  `aws_region`/`ses_from_email` in `config.py` are the only settings, both
+  plain values, nothing to rotate — a run from anywhere without that role
+  (local dev, GitHub Actions) has `send_email` log and return `False`,
+  same as a bounced send. **Still open: the SES account is in its
+  sandbox** (production access not yet requested), so a real send to an
+  address SES hasn't individually verified is rejected the same
+  best-effort way. The AWS/EC2-side setup (SES identity, the IAM role,
+  the instance, the crontab) is a human runbook, run by hand, not code:
+  the steps are in PR #172's description, not committed here, since
+  they're one-time ops setup rather than something future code changes.
+  Gated by `applicant_profiles.job_alerts_enabled`, the
+  Settings opt-in, default off. One applicant's failure (empty bank, a
+  bounced email) is caught and counted, never stopping the run;
+  `--dry-run` builds and reports every digest, writing and sending
+  nothing. Tests: `tests/test_job_alerts.py`, `tests/test_notifications.py`,
+  `tests/test_email.py`.
 - **The autofiller's essay-answer generation** (KAN-164) is
   `routers/essay_answer.py` (`POST /applicants/{id}/essay-answer`) over
   `services/essay_answer.py` — the first route `autofiller_extension/`
@@ -1291,16 +1323,14 @@ removed at cutover, not before. Until then a change must work on both.
   KAN-212: apply it only where the code that stopped mapping the column
   (`d89a4ef`, on `main` since KAN-212) is deployed. Applied first, an older
   deploy's upload INSERT names the column and fails.
-- **`89d598a1667d` (KAN-298's notifications) is on main ahead of its
+- **`89d598a1667d` (KAN-298's notifications) came to main ahead of its
   code**, with the merge revision `c4e8a2f6d1b3` joining it to
   `a7d3e5f1c2b4` (both branch off `b9e2c4d6f8a1`). It was applied to the
   shared database from KAN-298's open branch (`alembic/CLAUDE.md`, "Commit
   the migration in the same PR that applies it"), so its file came to main
-  first, unchanged. Until KAN-298's models merge, main maps neither
-  `notifications` nor `applicant_profiles.job_alerts_enabled`:
-  `alembic revision --autogenerate` proposes dropping both, so delete
-  those lines from any migration it writes, and `alembic check` reports
-  them. The column has a `false` default, so main's inserts are unaffected.
+  first, unchanged. KAN-298's models have since merged, so main maps
+  `notifications` and `applicant_profiles.job_alerts_enabled` again and
+  `alembic check` is clean of them.
 - **Apply `a7d3e5f1c2b4` (the stages after applied and
   `application_events`, KAN-413) before the deploy that writes them.** It
   only adds enum values and a table, so the running code never meets

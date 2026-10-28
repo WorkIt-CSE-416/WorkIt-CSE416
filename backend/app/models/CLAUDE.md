@@ -1125,6 +1125,49 @@ tracker will propose them into the same table. Rules:
   `_source`), names equal to values. A new kind is an `ALTER TYPE ... ADD
   VALUE`, as above.
 
+## notifications — the top bar's bell (KAN-298)
+
+`notification.py`: one row per **digest**, not per job — ten jobs scored in
+one run are one entry ("Your 10 Best Matches Today"), never ten rows
+flooding the bell. The only writer is `../services/job_alerts.py`; `GET`
+and `POST .../notifications/read` (`../routers/notifications.py`) only
+read and mark rows read.
+
+- **`type` is a plain `String(32)`, not an enum.** `"job_alert"` is the
+  only value today; a second notification type later needs no migration,
+  the same reasoning `autofill_answers` being JSONB already gives
+  (above). A reader that doesn't recognize a `type` should still render
+  `title`/`body` rather than fail — the bell is forward-compatible by
+  construction, nothing here enforces it.
+- **`data` holds the digest's own jobs** (`[{"job_id", "title", "company",
+  "match"}, ...]`), checked `jsonb_typeof(data) = 'array'`, so the bell
+  renders each job as a link with no second query back to `job_postings`.
+  `job_id` is a plain string (the posting's `id`, stringified — matching
+  `schemas/jobs.py`'s `JobListing.id` shape), not a foreign key: a
+  notification is a historical record of what was sent, and must still
+  read correctly after the job posting it names closes or is deleted.
+- **`read_at` is null until the applicant opens the bell.** There is no
+  per-notification mark-read, only mark-all (`routers/notifications.py`),
+  matching the bell's own existing copy
+  (`frontend/src/components/notifications-menu.tsx`'s "You're All Caught
+  Up") already treating "opened it" as "now caught up."
+- **Its migration is `89d598a1667d`**, which also adds
+  `applicant_profiles.job_alerts_enabled` (RLS on the new table, no
+  policies). Nothing reads either before the deploy that adds the
+  notifications routes and the Settings toggle, so applying it early is
+  safe; deployed first, Settings' PATCH and the bell's GET both answer
+  with a column or table that doesn't exist yet.
+- **`job_alerts_enabled` needed a Python-side `default=False`, not only
+  `server_default`** — confirmed live: an ORM-constructed
+  `Applicant_Profile()` with the attribute unset read back `None`, because
+  `mapped_column`'s `default=` is applied only at flush (above, "A new
+  column reaches the database..."), and a test that never flushes (a pure
+  in-memory fixture) never sees even that. Any future NOT NULL boolean on
+  this table needs the same pair, and any test that constructs the ORM
+  object directly, never through a session, needs the field passed
+  explicitly — `tests/test_profile.py`'s `_profile()` helper is the
+  example this was caught against.
+
 ## Identity lives in auth.users
 
 Supabase Auth owns credentials (`../../CLAUDE.md`'s Auth section). **No table

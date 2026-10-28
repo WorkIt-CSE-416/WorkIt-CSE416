@@ -5,7 +5,6 @@ import { connection } from "next/server";
 import { Suspense } from "react";
 
 import { LogoLockup } from "@/components/logo";
-import { NotificationsMenu } from "@/components/notifications-menu";
 import { ScoutLauncher } from "@/components/scout/scout-buttons";
 import { ScoutPanel } from "@/components/scout/scout-panel";
 import { RailSidebarProvider } from "@/components/app-sidebar";
@@ -20,6 +19,7 @@ import { ProfileCacheProvider } from "./profile-cache";
 import { ProfileStrength } from "./profile-strength";
 import { ScrollMemory } from "./scroll-memory";
 import { QueryField } from "./search/query-field";
+import { SeekerNotificationsBell } from "./seeker-notifications-bell";
 import { SeekerSidebar } from "./seeker-sidebar";
 
 /**
@@ -170,9 +170,7 @@ export default async function AppLayout({
 
             <ScoutLauncher className={BAR_CIRCLE} />
 
-            <NotificationsMenu className={BAR_CIRCLE}>
-              New matches and replies from employers will show up here.
-            </NotificationsMenu>
+            <SeekerNotificationsBell className={BAR_CIRCLE} />
 
             {/* Streamed: it waits on the API, and nothing else in the bar or
                 the page should wait with it. The fallback holds the photo's

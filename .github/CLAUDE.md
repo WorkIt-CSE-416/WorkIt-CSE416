@@ -137,3 +137,47 @@ API at exact times (`scraper/docs/coverage.md`, "Later").
 - **When it fails, GitHub emails whoever last edited the cron line.** The import
   refuses to close more than half the jobs at once, so a broken scrape fails the
   run instead of emptying the site; nothing is written either way.
+
+## Job alerts (KAN-298)
+
+`workflows/job-alerts.yml` **no longer carries the real daily schedule.**
+The digest (every opted-in applicant's best new matches, scored by the
+same `fetch_recommended` + `pick_batch` auto apply's own batch uses,
+`auto-apply/architecture.md`'s "Match (built)"/"The batch";
+`backend/app/services/job_alerts.py`) now sends through AWS SES
+(`backend/app/services/email.py`), authenticated by the sending EC2
+instance's IAM role — a role's credentials never leave that instance, so
+GitHub's runners structurally cannot send the real mail anymore. The live
+run is a crontab entry on that instance, daily at 13:13 UTC (off the
+hour, same reasoning as the scrape's own cron), running the same
+`app.scripts.send_job_alerts` this workflow calls.
+
+This workflow still exists for two things, both free of real AWS access:
+a PR that touches the digest, the script, `email.py` or this workflow
+runs it once, always `--dry-run` (never calls `send_email` at all); and
+`workflow_dispatch` (Actions → Job alerts → Run workflow, or
+`gh workflow run job-alerts.yml`, input `dry_run`) is still there for a
+manual non-dry run, but with no IAM role attached it can only prove the
+bell-notification path — `send_email` catches the missing-credentials
+error, logs it, and returns `False`, the same best-effort outcome as a
+bounced send.
+
+- **Secrets:** `DATABASE_URL` and `GEMINI_API_KEY` only (both already set
+  for the scrape workflow — reused here, not duplicated).
+  `EMBEDDING_PROVIDER=gemini` is a plain env value here, not a secret, so
+  the digest scores with the semantic part the deployed API itself
+  doesn't have on by default (`backend/CLAUDE.md`'s "Still open" note on
+  that).
+- **One run at a time**, same reasoning as the scrape's concurrency group:
+  two overlapping runs would double-send the same applicant. This guards
+  against two *workflow* runs overlapping; it says nothing about the EC2
+  crontab, which is the user's own to keep from overlapping a workflow run.
+- **It stops silently after 60 days without a commit** to `main`, same as
+  the scrape. Re-enable with `gh workflow enable job-alerts.yml`.
+- **No retry and no queue.** One applicant's failure (an empty bank, a
+  bounced email) is caught, counted in the run's report, and logged; it
+  never stops the rest of the run, and nobody is sent two digests to make
+  up for a missed day.
+- **Still open:** the EC2 crontab has no built-in failure alerting the
+  way this workflow's schedule trigger got from GitHub for free. Not set
+  up yet (a dead-man's-switch ping or a CloudWatch alarm would do it).

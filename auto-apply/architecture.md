@@ -301,10 +301,21 @@ with resumes.
   text reads the student's identity (`load_identity`).
 - An empty experience bank (no entries, no skills): the function raises
   `EmptyBank`, and the route answers 404.
-- **No screen shows the matches.** The Auto Apply page does not list them.
+- **No screen shows the matches directly.** The Auto Apply page does not
+  list them; KAN-298's daily digest (below) is the one place a subset of
+  them reaches the student, as a bell notification and an email, not a
+  live view of this function's own output.
 
 The scoring and its weights are in `backend/app/services/matching/CLAUDE.md`.
 Improving them is someone else's task ("Open questions").
+
+**KAN-298's job-alert digest reuses this section and the next one
+directly** (`backend/app/services/job_alerts.py`'s `build_digest`: the
+same `fetch_recommended` + `pick_batch` call this section and "The batch"
+already describe, at the same `MIN_MATCH`/`BATCH_SIZE`), not a second
+description of either — it only differs by never setting
+`auto_apply_only=True`, since a digest links to WorkIt's own job page,
+never `apply_url`.
 
 ## 7. The batch
 

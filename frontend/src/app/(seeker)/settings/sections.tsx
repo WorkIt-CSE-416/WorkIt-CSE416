@@ -48,7 +48,11 @@ export function allSections() {
         <SecuritySection />
       </Suspense>
     ),
-    notifications: <NotificationsSection />,
+    notifications: (
+      <Suspense fallback={<SectionSkeleton id="notifications" title="Notifications" fields={2} />}>
+        <NotificationsSection />
+      </Suspense>
+    ),
     integrations: <IntegrationsSection />,
     preferences: (
       <Suspense

@@ -68,6 +68,15 @@ class Applicant_Profile(Profile):
     # {question wording: {"answer": text or the options ticked, "own": bool,
     # "company": where it was first asked or null}}
     fill_answers: Mapped[dict] = mapped_column(JSONB, server_default=text("'{}'::jsonb"))
+    # KAN-298: opt-in, off until the student turns it on in Settings — a
+    # new unsolicited daily email should never surprise an existing
+    # account the day this ships. Both defaults, not just server_default:
+    # an ORM INSERT with this attribute unset sends an explicit NULL,
+    # overriding the server-side default entirely (models/CLAUDE.md, "A
+    # new column reaches the database...") — confirmed live, this column
+    # came back None after an ORM-constructed Applicant_Profile() until
+    # `default=False` was added.
+    job_alerts_enabled: Mapped[bool] = mapped_column(default=False, server_default=text("false"))
 
     @property
     def email_for_employers(self) -> str:

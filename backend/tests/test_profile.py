@@ -23,8 +23,13 @@ URL = f"/applicants/{APPLICANT}/profile"
 
 
 def _profile(**fields) -> Applicant_Profile:
+    # job_alerts_enabled defaults here too: this constructs the ORM object
+    # directly in Python, never through a flush, so mapped_column's own
+    # default=False (applied only at flush, models/CLAUDE.md) never kicks
+    # in on its own.
     return Applicant_Profile(
-        id=APPLICANT, email="signin@example.com", full_name="Jake Ryan", **fields
+        id=APPLICANT, email="signin@example.com", full_name="Jake Ryan",
+        job_alerts_enabled=False, **fields
     )
 
 
