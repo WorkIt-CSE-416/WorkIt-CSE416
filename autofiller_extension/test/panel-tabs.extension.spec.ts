@@ -32,17 +32,18 @@ async function anduril(): Promise<{ form: Page; forms: SavedForms }> {
 const hostOf = (form: Page) => form.locator("#workit-autofiller-overlay-host");
 const marked = (form: Page, mark: string) => hostOf(form).locator(`[data-tab="autofill"] .row[data-key][data-mark="${mark}"]`);
 
-test("the checklist marks the guess to check and the two empty questions red; every filled row shows and goes to its field", async () => {
+test("the checklist marks the guess to check and the two empty questions red; the filled rows fold away and still go to their fields", async () => {
   test.setTimeout(120_000);
   const { form, forms } = await anduril();
   const host = hostOf(form);
 
-  await expect(host.locator('[data-tab="autofill"] .section-head')).toHaveText(["Required", "Optional"]);
+  await expect(host.locator('[data-tab="autofill"] .box-head')).toHaveText(["2 Need Your Answer", "1 Guess to Check"]);
   await expect(marked(form, "check")).toHaveCount(1);
   await expect(marked(form, "check")).toHaveAttribute("data-key", HEARD);
   await expect(marked(form, "needs-you")).toHaveCount(2);
   await expect(marked(form, "filled")).toHaveCount(20);
-  // Filled rows are listed, not collapsed, and still go to their fields.
+  // Filled rows fold into one line; opened, each still goes to its field.
+  await host.locator('.group[data-group="filled"] .group-head').click();
   await host.locator('[data-key="first_name"] .label').click();
   await expect(form.locator("#first_name")).toBeFocused();
   expect(forms.submissions).toEqual([]);
@@ -62,23 +63,24 @@ test("the marks follow the rows: a guess that looks right turns green, its Undo 
   await expect(marked(form, "filled")).toHaveCount(20);
 });
 
-test("the three tabs switch, and the tab chosen is kept while the browser tab is open", async () => {
+test("the tabs switch, Answers goes on a form with nothing written, and the tab chosen is kept while the browser tab is open", async () => {
   test.setTimeout(120_000);
   const { form } = await anduril();
   const host = hostOf(form);
   const tabs = host.getByRole("tab");
-  await expect(tabs).toHaveText(["Autofill", "Résumé", "Answers"]);
+  // Anduril's form asks nothing in words and has no cover letter field: no Answers tab (KAN-424).
+  await expect(tabs.filter({ visible: true })).toHaveText(["Autofill", "Resume"]);
   await expect(host.getByRole("tab", { name: "Autofill" })).toHaveAttribute("aria-selected", "true");
 
-  await host.getByRole("tab", { name: "Answers" }).click();
-  await expect(host.getByRole("tab", { name: "Answers" })).toHaveAttribute("aria-selected", "true");
+  await host.getByRole("tab", { name: "Resume" }).click();
+  await expect(host.getByRole("tab", { name: "Resume" })).toHaveAttribute("aria-selected", "true");
   await expect(host.locator(`[data-key="${HEARD}"]`)).toBeHidden();
   await expect(host.getByRole("tabpanel")).toHaveCount(1);
-  await expect(host.getByRole("tabpanel")).toHaveAttribute("data-tab", "answers");
+  await expect(host.getByRole("tabpanel")).toHaveAttribute("data-tab", "resume");
 
-  // The page loads again in the same tab: the panel comes back on Answers.
+  // The page loads again in the same tab: the panel comes back on Resume.
   await form.reload();
   await loaded.worker.evaluate(async (url) => (globalThis as any).workitToolbar((await chrome.tabs.query({ url }))[0]), form.url());
   await expect(host.locator(".panel")).toBeVisible();
-  await expect(host.getByRole("tab", { name: "Answers" })).toHaveAttribute("aria-selected", "true");
+  await expect(host.getByRole("tab", { name: "Resume" })).toHaveAttribute("aria-selected", "true");
 });

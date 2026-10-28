@@ -42,8 +42,9 @@
 // the same question (KAN-379, "batch/own-answer"); the Plan already fills a
 // question answered before from those saved answers.
 //
-// A batch tab also watches for the student's own submit (KAN-374): the
-// engine, in the page, reads the job system's answer to it ("batch/watch").
+// A batch tab, and a tab the student tracks on WorkIt (KAN-424), also
+// watches for the student's own submit (KAN-374): the engine, in the page,
+// reads the job system's answer to it ("batch/watch").
 // A submit that sent the application is told to the background, which marks
 // it applied ("batch/submitted"); one the job system refused shows here as a
 // failed row, with its words, and the tab needs the student again. Its
@@ -329,7 +330,9 @@
 
   // This tab's side of batch apply: its state for the background, Next Thing That Needs You, the student's submit.
   const { report, answerTheWalk, watchSubmit } = window.WIA.batchTab({ batch, note });
-  if (batch) watchSubmit();
+  // Every fill asks: a batch tab and a tab tracked on WorkIt (KAN-424) are watched; any other keeps its key with the
+  // background until Track on WorkIt starts the watch (background.js batch/watch).
+  watchSubmit();
   // Holds the student's Submit while something on the page is still open, and says what (submit-warning.js).
   if (batch) window.WIA.submitWarning();
 

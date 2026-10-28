@@ -31,8 +31,8 @@ function applications() {
   return scored.list;
 }
 
-/** The job's identity the Fill engine reads off a link, for matching a page to a posting. */
-function identity(url) {
+/** The job's identity the Fill engine reads off a link, for matching a page to a posting (and a tracked tab to its job, track.js). */
+export function identity(url) {
   const job = url ? jobOf(url) : null;
   if (!job) return null;
   const { form: _form, onForm: _onForm, ...id } = job;

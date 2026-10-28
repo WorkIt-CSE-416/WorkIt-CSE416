@@ -1,8 +1,8 @@
 // The panel's controls after the clean-up (KAN-369 Q4-Q6): the header is
 // WorkIt, the job and Close; "I submitted this", Skip, Report a problem, Fill
-// Again and Settings sit in one ⋯ menu; one count line; the Autofill / Résumé
-// / Answers tabs stay at the top; and one button sits at the bottom: "Next: N
-// need you" while anything needs the student. Anduril's saved Greenhouse form.
+// Again and Settings sit in one ⋯ menu; the red box counts; the Autofill / Resume
+// / Answers tabs stay at the top; and one button sits at the bottom: "Answer 1
+// of N" while anything needs the student. Anduril's saved Greenhouse form.
 import { expect, test, type Page } from "@playwright/test";
 import { FakeApi } from "./fake-api";
 import { SavedForms } from "./fake-job-systems";
@@ -16,7 +16,7 @@ test.afterEach(() => loaded?.close());
 const hostOf = (page: Page) => page.locator("#workit-autofiller-overlay-host");
 const mainButton = (page: Page) => hostOf(page).locator('[data-slot="primary"] .primary-button').first();
 
-test("after a fill on the student's own tab: Close and ⋯ in the header, one count line, tabs on top, Next: N need you at the bottom", async () => {
+test("after a fill on the student's own tab: Close and ⋯ in the header, the red box, tabs on top, Answer 1 of N at the bottom", async () => {
   test.setTimeout(120_000);
   const forms = new SavedForms([ANDURIL]);
   loaded = await loadExtension([new FakeApi().handler, webapp, forms.handler]);
@@ -26,7 +26,7 @@ test("after a fill on the student's own tab: Close and ⋯ in the header, one co
   const host = hostOf(page);
   await host.getByRole("button", { name: "Show WorkIt panel" }).click({ timeout: 15_000 });
   await mainButton(page).click();
-  await expect(mainButton(page)).toContainText("Next:", { timeout: 60_000 });
+  await expect(mainButton(page)).toContainText(/^Answer \d+ of \d+$/, { timeout: 60_000 });
 
   // The header: WorkIt, ⋯ and Close; nothing else to press there.
   const header = host.locator(".header");
@@ -34,10 +34,10 @@ test("after a fill on the student's own tab: Close and ⋯ in the header, one co
   await expect(header.getByRole("button")).toHaveText(["⋯", "×"]);
   await expect(header.getByRole("button", { name: "Close" })).toBeVisible();
 
-  // The one count line, and the button's N is the same rule's (lib-status.js).
-  const red = Number((await host.locator(".summary").innerText()).match(/Required \d+ of \d+ filled · (\d+) need you/)?.[1]);
+  // The red box's count, and the button's N is the same rule's (lib-status.js).
+  const red = Number((await host.locator('.box[data-box="needs-you"] .box-head').innerText()).match(/^(\d+) Needs? Your Answer$/)?.[1]);
   expect(red).toBeGreaterThan(0);
-  await expect(mainButton(page)).toHaveText(`Next: ${red} need you`);
+  await expect(mainButton(page)).toHaveText(`Answer 1 of ${red}`);
   await expect(host.locator('[data-slot="primary"] [data-required]')).toHaveCount(0);
 
   // The ⋯ menu: Fill Again, Report a problem and Settings; no batch's Skip or I submitted this here.
@@ -60,7 +60,7 @@ test("after a fill on the student's own tab: Close and ⋯ in the header, one co
   await expect(tabs).toBeVisible();
   await host.getByRole("tab", { name: "Autofill" }).click();
   await expect(host.locator('[data-slot="settings"]')).toBeHidden();
-  await expect(host.locator(".summary")).toBeVisible();
+  await expect(host.locator('.box[data-box="needs-you"]')).toBeVisible();
   expect(forms.submissions).toEqual([]);
 });
 
@@ -76,7 +76,7 @@ test("a batch tab's ⋯ menu holds I submitted this and Skip; the header has nei
   await expect.poll(() => api.stages.get("job-0"), { timeout: 60_000 }).toBe("needs_you");
   const form = loaded.context.pages().find((p) => p.url() === forms.url(ANDURIL) && p !== webappPage && !p.isClosed())!;
   const host = hostOf(form);
-  await expect(mainButton(form)).toContainText("Next:", { timeout: 30_000 });
+  await expect(mainButton(form)).toContainText(/^Answer \d+ of \d+$/, { timeout: 30_000 });
 
   await expect(host.locator(".header").getByRole("button")).toHaveText(["⋯", "×"]);
   await host.getByRole("button", { name: "More" }).click();

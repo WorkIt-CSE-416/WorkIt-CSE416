@@ -173,12 +173,19 @@ window.WIA = window.WIA || {};
           return;
         }
         const answer = await send({ type: "batch/submitted" }).catch((error) => ({ ok: false, error: error.message }));
+        // A tab nobody tracks (not a batch's, not tracked on WorkIt): nothing was marked, and nothing is said.
+        if (answer?.ok && answer.untracked) return;
         if (answer?.ok && answer.applied) {
           note("_submit", "Application sent", "WorkIt marked it Applied.", false, true);
-          window.WIA.panelStates?.sent(); // Sent, Next job, I didn't submit this (KAN-401)
+          // A batch tab's: Sent, Next job, I didn't submit this (KAN-401). A tracked tab's job card says it (panel-top.js).
+          if (answer.batch) window.WIA.panelStates?.sent();
+          else window.WIA.panelTop?.refresh?.();
         }
         // The page said so, but WorkIt didn't see the job system take its submit request.
-        else if (answer?.ok) note("_submit", "Did your application go out?", "WorkIt couldn't confirm it with the job system. If it was sent, press I submitted this.", true);
+        else if (answer?.ok) {
+          const how = answer.batch ? "If it was sent, press I submitted this." : "If it was sent, mark it Applied on WorkIt's Applications page.";
+          note("_submit", "Did your application go out?", `WorkIt couldn't confirm it with the job system. ${how}`, true);
+        }
         else note("_submit", "Application sent, but WorkIt didn't mark it Applied", `Mark it Applied on WorkIt's Applications page. (${answer?.error ?? "No answer"})`, true);
       });
       send({ type: "batch/watch", key: SUBMIT_KEY }).catch(() => {});

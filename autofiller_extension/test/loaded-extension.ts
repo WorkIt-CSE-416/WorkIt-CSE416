@@ -201,16 +201,15 @@ export function sendFromWebapp(page: Page, message: unknown): Promise<any> {
 }
 
 /**
- * The student's Next Thing (KAN-396) in the panel `host` (its
- * #workit-autofiller-overlay-host): the bottom button while it reads "Next:
- * N need you", else Alt+N (a tab with nothing red shows Review and submit; Alt+N
- * still runs the batch's walk from there). A test can't press an extension
- * command's keys, so Alt+N is the background's own handler.
+ * The student's Next Thing (KAN-396) from the panel `host` (its
+ * #workit-autofiller-overlay-host): Alt+N, the walk across the batch's tabs.
+ * The bottom button no longer runs it (KAN-424: "Answer 1 of N" stays on its
+ * own page's first red field). A test can't press an extension command's
+ * keys, so Alt+N is the background's own handler, once the fill is done.
  */
 export async function pressNextThing(loaded: Loaded, host: Locator): Promise<void> {
   const button = host.locator('[data-slot="primary"] .primary-button').first();
   for (let n = 0; n < 50 && /Filling/.test((await button.innerText({ timeout: 30_000 })) ?? ""); n++) await host.page().waitForTimeout(200);
-  if (/^Next:/.test(await button.innerText())) return button.click();
   await loaded.worker.evaluate(async (url) => {
     const [tab] = await chrome.tabs.query({ url });
     await (globalThis as any).workitCommand("next-thing", tab);

@@ -1,19 +1,23 @@
-// The Autofill tab's checklist (KAN-369 Q1-Q3): every field the fill
-// touches, listed from the moment the fill starts (overlay.js's live list),
-// in two sections, Required then Optional. Each row has a mark (markOf):
-// a spinner while it waits to be filled, then a green check (filled), an
-// amber ? (a guess or an answer to check, lib-status.js's toCheck), a red !
-// (lib-status.js's one rule, status.needsYou), blue (waiting on the
-// student's Claude) or gray (left empty). Rows follow the page's order (its
-// fields' places, window.WIA.fieldOf); after the fill, red and then amber
-// rows rise to the top of their section. A repeated section (Work
-// Experience, Education: any "<Section> <n> / <part>" fields, entryOf) is
-// one row with a block under it per entry, titled by the entry's company or
-// school (what the form shows, else what the Plan fills it with: the
-// profile entry's), listing its fields with small dots. Notes (content-script.js's) stand above the sections.
-// Required questions the form isn't asking now (hidden, not drawn yet)
-// close the Required section, collapsed. A row keeps everything overlay.js
-// draws in it (its cards, its click to the field). Loaded before overlay.js
+// The Autofill tab's checklist (KAN-369 Q1-Q3, KAN-424): every field the
+// fill touches, listed from the moment the fill starts (overlay.js's live
+// list). While it fills, two sections, Required then Optional, in the
+// page's order (its fields' places, window.WIA.fieldOf), so each mark turns
+// as its field fills. Once the fill is done the list reads by what the
+// student must do (settledNodes): a red box of what needs their answer, an
+// amber box of guesses to check, what waits on their Claude, then filled
+// fields, optional ones left empty and questions the form isn't asking now,
+// each folded into one line. Each row has a mark (markOf), the webapp's
+// Phosphor glyph: a spinner while it waits to be filled, then a green check
+// (filled), an amber question mark (a guess or an answer to check,
+// lib-status.js's toCheck), a red warning (lib-status.js's one rule,
+// status.needsYou), a blue clock (waiting on the student's Claude) or a gray
+// circle (left empty). A repeated section (Work Experience, Education: any
+// "<Section> <n> / <part>" fields, entryOf) is one row with a block under
+// it per entry, titled by the entry's company or school (what the form
+// shows, else what the Plan fills it with: the profile entry's), listing
+// its fields with the same marks, smaller. Notes (content-script.js's)
+// stand above everything. A row keeps everything overlay.js draws in it
+// (its cards, its click to the field). Loaded before overlay.js
 // (shared/content-scripts.js), as window.WIA.groups.
 window.WIA = window.WIA || {};
 
@@ -31,8 +35,10 @@ window.WIA = window.WIA || {};
   // The part of an entry that names it: its block's title.
   const NAMES_IT = /company|employer|organi[sz]ation|school|university|institution/i;
 
-  // The collapsed line of required questions the form isn't asking now, opened by the student for the page's life.
-  let notAskedOpen = false;
+  // The collapsed groups (filled, optional left empty, the form isn't asking now), each opened by the student for the page's life.
+  const opened = new Set();
+  // A red row's reason when WorkIt simply had no answer (content-script.js): its box's title says it once instead.
+  const NO_ANSWER = "WorkIt has no answer for this. Answer it yourself.";
   // What the Plan fills each entry's naming field with (its profile entry's company or school), by row key.
   const plannedNames = new Map();
 
@@ -201,66 +207,150 @@ window.WIA = window.WIA || {};
       }
     }
     const settled = window.WIA.phase !== "filling";
+    if (settled) return [...notes, ...settledNodes(fields, [...required, ...optional], notAsked)];
     const nodes = [...notes];
     for (const [name, list, rest] of [["Required", required, notAsked], ["Optional", optional, []]]) {
       if (!list.length && !rest.length) continue;
-      // Sorted stably: the page's order within each tier.
-      const ordered = settled ? [...list].sort((a, b) => a.tier - b.tier) : list;
       const el = Object.assign(document.createElement("section"), { className: "section" });
       el.dataset.section = name.toLowerCase();
-      el.append(Object.assign(document.createElement("h3"), { className: "section-head", textContent: name }), ...ordered.map((i) => i.node));
-      if (rest.length) el.append(notAskedGroup(rest));
+      el.append(Object.assign(document.createElement("h3"), { className: "section-head", textContent: name }), ...list.map((i) => i.node));
+      if (rest.length) el.append(group("not-asked", `${rest.length} Not Asked Right Now`, rest));
       nodes.push(el);
     }
     return nodes;
   }
 
-  /** "N the form isn't asking now", collapsed: the student can open it, but nothing in it is theirs to do yet. */
-  function notAskedGroup(rows) {
+  /**
+   * Once the fill is done (KAN-424), the list reads by what the student must
+   * do, most urgent first: a red box of what needs their answer, an amber
+   * box of guesses to check, what waits on their Claude, then everything
+   * settled folded into one line each: filled, optional left empty, and the
+   * questions the form isn't asking now. Each box and line counts with
+   * lib-status.js's rules, so they agree with the button.
+   */
+  function settledNodes(fields, items, notAsked) {
+    const { status } = window.WIA;
+    const marks = (i) => (i.node.dataset.entries ? [i.node.querySelector(".entries-head").dataset.mark] : [i.node.dataset.mark]);
+    const by = (mark) => items.filter((i) => marks(i).includes(mark)).map((i) => i.node);
+    const fieldsOnly = fields.filter((f) => !f.note);
+    const nodes = [];
+    const needs = by("needs-you");
+    if (needs.length) {
+      for (const reason of needs.flatMap((n) => [...n.querySelectorAll(".reason")])) {
+        if (reason.textContent !== NO_ANSWER) continue;
+        // The row still says it, for whatever reads the list (a test answering what WorkIt left).
+        reason.closest(".row").dataset.noAnswer = "";
+        reason.remove();
+      }
+      const n = status.needsYouCount();
+      nodes.push(box("needs-you", `${n} ${n === 1 ? "Needs" : "Need"} Your Answer`, needs));
+    }
+    const check = by("check");
+    if (check.length) {
+      const n = fieldsOnly.filter((f) => !status.needsYou(f) && status.toCheck(f)).length;
+      nodes.push(box("check", `${n} ${n === 1 ? "Guess" : "Guesses"} to Check`, check));
+    }
+    const waiting = by("waiting");
+    if (waiting.length) {
+      const n = fieldsOnly.filter((f) => markOf(f) === "waiting").length;
+      nodes.push(box("waiting", `${n} Waiting on Your Claude`, waiting));
+    }
+    // Anything else still open (a row filling again) stays in plain view, and so do two kinds of filled row: one
+    // the student is working with (the one they pressed, or a guess Looks right made theirs, whose card keeps its
+    // Undo in sight), and a written answer WorkIt filled (a cover letter, an essay), which they read before Submit.
+    nodes.push(...by("filling"));
+    const inUse = (node) => node.matches("[data-current], [data-open]") || Boolean(node.querySelector(".row-card, .letter-toggle"));
+    nodes.push(...by("filled").filter(inUse));
+    const filled = by("filled").filter((node) => !inUse(node));
+    const count = filled.reduce((n, node) => n + (node.matches(".row[data-key]") ? 1 : node.querySelectorAll('.row.sub[data-key][data-mark="filled"]').length), 0);
+    if (filled.length) nodes.push(group("filled", `${count} Filled`, filled));
+    const empty = by("empty");
+    if (empty.length) nodes.push(group("empty", `${empty.length} Optional Left Empty`, empty));
+    if (notAsked.length) nodes.push(group("not-asked", `${notAsked.length} Not Asked Right Now`, notAsked));
+    return nodes;
+  }
+
+  /** A titled box of rows that ask something of the student: red, amber or blue by its kind. */
+  function box(kind, title, rows) {
+    const el = Object.assign(document.createElement("section"), { className: "box" });
+    el.dataset.box = kind;
+    el.append(Object.assign(document.createElement("h3"), { className: "box-head", textContent: title }), ...rows);
+    return el;
+  }
+
+  /** A line that folds its rows away ("14 filled"): the student can open it, but nothing in it is theirs to do now. */
+  function group(name, label, rows) {
     const el = Object.assign(document.createElement("div"), { className: "group" });
-    el.dataset.group = "not-asked";
-    const head = Object.assign(document.createElement("button"), { type: "button", className: "group-head", textContent: `${rows.length} the form isn't asking now` });
-    head.setAttribute("aria-expanded", String(notAskedOpen));
+    el.dataset.group = name;
+    const head = Object.assign(document.createElement("button"), { type: "button", className: "group-head", textContent: label });
+    head.dataset.mark = name === "filled" ? "filled" : "empty";
+    head.setAttribute("aria-expanded", String(opened.has(name)));
     head.addEventListener("click", () => {
-      notAskedOpen = !notAskedOpen;
+      if (opened.has(name)) opened.delete(name);
+      else opened.add(name);
       window.WIA.overlay?.refresh?.();
     });
-    for (const r of rows) r.hidden = !notAskedOpen;
+    for (const r of rows) r.hidden = !opened.has(name);
     el.append(head, ...rows);
     return el;
   }
 
+  // Phosphor's paths (@phosphor-icons/react's defs, as the webapp draws them):
+  // fill weight for the three states a field ends in, regular for the rest.
+  const CHECK_CIRCLE = "M128,24A104,104,0,1,0,232,128,104.11,104.11,0,0,0,128,24Zm45.66,85.66-56,56a8,8,0,0,1-11.32,0l-24-24a8,8,0,0,1,11.32-11.32L112,148.69l50.34-50.35a8,8,0,0,1,11.32,11.32Z";
+  const WARNING_CIRCLE = "M128,24A104,104,0,1,0,232,128,104.11,104.11,0,0,0,128,24Zm-8,56a8,8,0,0,1,16,0v56a8,8,0,0,1-16,0Zm8,104a12,12,0,1,1,12-12A12,12,0,0,1,128,184Z";
+  const QUESTION = "M128,24A104,104,0,1,0,232,128,104.11,104.11,0,0,0,128,24Zm0,168a12,12,0,1,1,12-12A12,12,0,0,1,128,192Zm8-48.72V144a8,8,0,0,1-16,0v-8a8,8,0,0,1,8-8c13.23,0,24-9,24-20s-10.77-20-24-20-24,9-24,20v4a8,8,0,0,1-16,0v-4c0-19.85,17.94-36,40-36s40,16.15,40,36C168,125.38,154.24,139.93,136,143.28Z";
+  const CLOCK_COUNTDOWN = "M232,136.66A104.12,104.12,0,1,1,119.34,24,8,8,0,0,1,120.66,40,88.12,88.12,0,1,0,216,135.34,8,8,0,0,1,232,136.66ZM120,72v56a8,8,0,0,0,8,8h56a8,8,0,0,0,0-16H136V72a8,8,0,0,0-16,0Zm40-24a12,12,0,1,0-12-12A12,12,0,0,0,160,48Zm36,24a12,12,0,1,0-12-12A12,12,0,0,0,196,72Zm24,36a12,12,0,1,0-12-12A12,12,0,0,0,220,108Z";
+  const CIRCLE = "M128,24A104,104,0,1,0,232,128,104.11,104.11,0,0,0,128,24Zm0,192a88,88,0,1,1,88-88A88.1,88.1,0,0,1,128,216Z";
+  const CIRCLE_NOTCH = "M232,128a104,104,0,0,1-208,0c0-41,23.81-78.36,60.66-95.27a8,8,0,0,1,6.68,14.54C60.15,61.59,40,93.27,40,128a88,88,0,0,0,176,0c0-34.73-20.15-66.41-51.34-80.73a8,8,0,0,1,6.68-14.54C208.19,49.64,232,87,232,128Z";
+  /** A glyph as a CSS mask image: black, since a mask reads only its alpha. */
+  const glyph = (d) =>
+    `url("data:image/svg+xml,${encodeURIComponent(`<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 256 256'><path d='${d}' fill='black' stroke='black' stroke-width='5' stroke-linejoin='round'/></svg>`)}")`;
+
   const css = `
     .section + .section { border-top: 1px solid var(--color-border); }
     .section-head { margin: 0; padding: 8px 12px 4px; font-size: var(--text-meta); font-weight: 600; color: var(--color-ink-meta); }
-    /* The marks (markOf): a 14 px badge on a row, a small dot on an entry's field. */
+    /* The marks (markOf): the webapp's Phosphor glyphs (frontend/docs/design.md,
+     * "Brand and icons"), a 16 px one on a row and a 12 px one on an entry's
+     * field. Each is a mask over the mark's colour, so the colours stay tokens;
+     * fill weight carries a state, regular the rest, and every glyph has the
+     * webapp's 5-unit outline (globals.css) so it reads as heavy as its icons. */
     .row .dot {
-      width: 14px; height: 14px; margin-top: 2px; box-sizing: border-box; border-radius: 50%;
-      display: inline-flex; align-items: center; justify-content: center;
-      font-size: 10px; font-weight: 700; line-height: 1; color: var(--color-on-brand); background: var(--color-ink-subtle);
+      width: 16px; height: 16px; margin-top: 1px; border-radius: 0; flex: none;
+      background: var(--color-ink-subtle);
+      -webkit-mask: var(--glyph) center / contain no-repeat; mask: var(--glyph) center / contain no-repeat;
+      --glyph: ${glyph(CIRCLE)};
     }
-    .row[data-mark="filled"] .dot { background: var(--color-positive); }
-    .row[data-mark="filled"] .dot::before { content: "✓"; }
-    .row[data-mark="check"] .dot { background: var(--color-warning); }
-    .row[data-mark="check"] .dot::before { content: "?"; }
-    .row[data-mark="needs-you"] .dot { background: var(--color-danger); }
-    .row[data-mark="needs-you"] .dot::before { content: "!"; }
-    .row[data-mark="waiting"] .dot { background: var(--color-advanced); }
-    .row[data-mark="empty"] .dot, .row[data-mark="not-asked"] .dot, .row[data-mark="note"] .dot { background: var(--color-panel); border: 1.5px solid var(--color-ink-subtle); }
-    .row[data-mark="filling"] .dot {
-      background: none; border: 2px solid var(--color-border); border-top-color: var(--color-ink-subtle);
-      animation: workit-spin 800ms linear infinite;
-    }
+    .row[data-mark="filled"] .dot { background: var(--color-positive); --glyph: ${glyph(CHECK_CIRCLE)}; }
+    .row[data-mark="check"] .dot { background: var(--color-warning); --glyph: ${glyph(QUESTION)}; }
+    .row[data-mark="needs-you"] .dot { background: var(--color-danger); --glyph: ${glyph(WARNING_CIRCLE)}; }
+    .row[data-mark="waiting"] .dot { background: var(--color-advanced); --glyph: ${glyph(CLOCK_COUNTDOWN)}; }
+    .row[data-mark="filling"] .dot { --glyph: ${glyph(CIRCLE_NOTCH)}; animation: workit-spin 800ms linear infinite; }
     @keyframes workit-spin { to { transform: rotate(360deg); } }
     @media (prefers-reduced-motion: reduce) { .row[data-mark="filling"] .dot { animation: none; } }
     .entries .entry { margin: 0 12px 4px 34px; padding: 2px 0 4px 10px; border-left: 2px solid var(--color-border); }
     .entry-title { padding: 4px 0 2px; font-size: var(--text-note); font-weight: 600; color: var(--color-ink); }
     .row.sub { padding: 2px 0; font-size: var(--text-note); }
     .row.sub .label { font-weight: 400; color: var(--color-ink-muted); }
-    .row.sub .dot { width: 7px; height: 7px; margin-top: 6px; border-width: 1px; }
-    .row.sub .dot::before { content: none !important; }
-    .group { border-top: 1px solid var(--color-border); }
-    button.group-head { all: unset; box-sizing: border-box; width: 100%; cursor: pointer; display: flex; align-items: center; gap: 6px; padding: 8px 12px; font-size: var(--text-note); font-weight: 500; color: var(--color-ink-muted); }
+    .row.sub .dot { width: 12px; height: 12px; margin-top: 3px; }
+    /* What needs the student, in a box per kind (settledNodes): red, amber, blue. */
+    .box { margin: 8px 0 0; border: 1px solid var(--color-border); border-radius: var(--radius-card); overflow: hidden; }
+    .box-head { margin: 0; padding: 8px 12px; font-size: var(--text-note); font-weight: 600; }
+    .box[data-box="needs-you"] { border-color: var(--color-danger); }
+    .box[data-box="needs-you"] .box-head { background: var(--color-danger-tint); color: var(--color-danger); }
+    .box[data-box="check"] { border-color: var(--color-warning); }
+    .box[data-box="check"] .box-head { background: var(--color-warning-tint); color: var(--color-warning-strong); }
+    .box[data-box="check"] .row[data-guessed] { background: none; }
+    .box[data-box="waiting"] .box-head { color: var(--color-advanced); }
+    .box > .row + .row, .box > .row + .entries, .box > .entries + .row { border-top: 1px solid var(--color-border); }
+    .group { margin: 8px 0 0; border: 1px solid var(--color-border); border-radius: var(--radius-card); }
+    .group:last-child { margin-bottom: 8px; }
+    button.group-head { all: unset; box-sizing: border-box; width: 100%; cursor: pointer; display: flex; align-items: center; gap: 8px; padding: 8px 12px; font-size: var(--text-note); font-weight: 500; color: var(--color-ink-muted); }
+    button.group-head::before {
+      content: ""; width: 16px; height: 16px; flex: none; background: var(--color-ink-subtle);
+      -webkit-mask: var(--glyph) center / contain no-repeat; mask: var(--glyph) center / contain no-repeat; --glyph: ${glyph(CIRCLE)};
+    }
+    button.group-head[data-mark="filled"]::before { background: var(--color-positive); --glyph: ${glyph(CHECK_CIRCLE)}; }
     button.group-head:hover { background: var(--color-hover); }
     button.group-head:focus-visible { outline: 2px solid var(--color-brand); outline-offset: -2px; }
     button.group-head::after {

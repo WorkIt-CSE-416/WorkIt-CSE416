@@ -99,7 +99,7 @@ export async function chooseResume({ tabId, url, key }) {
   const application = await applicationForTab({ tabId, url });
   const jobId = application?.job?.id ?? null;
   const option = (await options(account.id, jobId)).find((o) => o.key === key);
-  if (!option) return { error: "That résumé isn't in WorkIt any more." };
+  if (!option) return { error: "That resume isn't in WorkIt any more." };
   const file = option.kind === "uploaded" ? await uploadedResumeFile(account.id, option.row) : await builtResumeFile(account.id, option.row);
   if (application && OPEN.includes(application.stage)) {
     const sent = file.uploaded_resume_id ? { uploaded_resume_id: file.uploaded_resume_id } : { built_resume_id: file.built_resume_id };

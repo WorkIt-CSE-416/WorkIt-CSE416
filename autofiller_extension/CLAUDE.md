@@ -868,8 +868,8 @@ waits for an opened tab's page and form (`waitForLoad`, `formShows`).
   length; a question without one sends no key.
 - **One rule for "needs you"** (KAN-369 Q7, `lib-status.js`'s
   `status.needsYou`, with `toCheck` and `waitingOnClaude`): the Autofill
-  tab's Needs you rows, the required line's "N need you", the list's
-  summary line, Next Thing's "N things need you", a batch tab's state
+  tab's red box ("2 Need Your Answer"), the button's "Answer 1 of N",
+  Next Thing's "N things need you", a batch tab's state
   (`tabState`, which also waits for required rows on the student's
   Claude), the submit warning and the walk's red dots all use it. A row
   needs the student when it is a "todo" note, or a field the page shows
@@ -1206,6 +1206,50 @@ A batch tab opens a job's form, not its page (`formUrl`: a Lever
 open: a submit refused by Lever (a plain post) shows only on Lever's
 page, not in the panel. With the student's Chrome window behind another app, macOS may
 slow every tab further; not yet measured.
+
+## Track on WorkIt (KAN-424): a form the student opened themselves
+
+A job form the student opens themselves (from the Jobs page or any company
+job board, not a batch tab) whose job WorkIt lists gets **Track on WorkIt**
+under the panel's job card (`content/panel-top.js`'s `trackLine`;
+`background/track.js`). Pressed, the job is saved to their Applications
+(`POST /jobs/{id}/saved`, which keeps any stage it already has) and the tab
+is kept as tracked; their submit there then marks it applied (`POST
+/jobs/{id}/applied`, as the website's Applied button does), and the line
+reads "Marked Applied on WorkIt." Not "Add to Auto Apply": the student is
+already on the form, and a queued job would open again in the next batch.
+
+- **The panel asks before it offers** (`track/state`): `POST
+  /jobs/listed-by-link` names the listed job and the student's stage and
+  writes nothing. A batch tab (batch apply tracks it), a job WorkIt doesn't
+  list, an API that can't answer or a signed-out student shows nothing; a
+  job already applied shows "Marked Applied on WorkIt." With no job card
+  (the engine read no names), the slot shows the line alone.
+- **The same proof as a batch tab's submit** (submit-proof.js): the
+  background's `markAnySubmitted` marks a batch tab's application
+  (`markSubmitted`) or a tracked tab's job (`markTracked`), and nothing for
+  any other tab, so the job system's answer to a submit in a tab nobody
+  tracks marks nothing. Greenhouse's answer proves it alone; elsewhere the
+  page's hint is needed too, as in a batch. **Every fill asks to watch**
+  (`batch/watch`); the background watches a batch tab or a tracked one at
+  once and keeps any other tab's key (`unwatched`) until Track on WorkIt
+  starts its watch, so a press after the fill is caught. `batch/submitted`
+  answers `untracked` for a tab nobody tracks, and the page says nothing.
+- **A tracked tab is one job**: kept in chrome.storage.session
+  (`tracked_tabs`) with the job's identity (the engine's jobOf, as the job
+  card matches a page to a posting); a tab that moves to another job's page
+  stops being tracked (`followTrackedTab`), so its next submit can't mark
+  the wrong job, while a thanks page, which names no job, keeps it. A
+  closed tab is forgotten.
+- **No sent resume is recorded** for a tracked tab's submit (a batch tab's
+  names the resume its fill attached); the application keeps whatever it
+  named. **Not covered:** a tracked tab's submit warning (batch tabs only)
+  and "I didn't submit this" (a batch tab's; a tracked tab's mark is undone
+  on the website's Applications page).
+
+Tests: `test/track.extension.spec.ts` (Ashby's Cohere form: Track, then the
+student's submit marks it applied; an untracked form's submit marks
+nothing; a job WorkIt doesn't list offers nothing).
 
 ## The practice batch (KAN-378): onboarding's batch on WorkIt's own forms
 
@@ -1668,8 +1712,9 @@ the essay banner's Generate, the self-ID Save. The marks' root (`marks.js`, the 
 (`loaded-extension.ts` `openPanel`, over `CLOSED_ROOT_FILES`: panel.js and marks.js) open both roots, since Playwright's
 locators can't reach a closed one; `loadExtension(..., { closedPanel: true })`
 keeps them closed (`test/panel-closed.extension.spec.ts`). There is no bottom-right card any more, and the toolbar
-popup has no fill controls. The header is neutral (white, ink); purple is
-kept for the primary action.
+popup has no fill controls. The header is white, with WorkIt's logo as the
+webapp draws it (the figure violet, the word ink); otherwise purple is kept
+for the primary action.
 
 **Slots.** panel.js draws only the frame; every other file plugs into a
 slot by name, `panel.slot(name)`, and adds its styles with
@@ -1702,8 +1747,14 @@ that changes something passes its `onPress` through `ui.trusted`. Tests
 open it with `menuItem(host, name)` (test/loaded-extension.ts).
 `test/panel-controls.extension.spec.ts` covers the frame.
 
-**Tabs (KAN-397).** The shell makes three: Autofill, Résumé and Answers.
-Résumé and Answers hold a one-line placeholder (`.tab-placeholder`) until
+**Tabs (KAN-397).** The shell makes three: Autofill, Resume and Answers
+(spelled as the webapp spells it, no accents). **The strip is the
+webapp's segmented control** (KAN-424; `frontend/src/components/ui/
+segmented-control.tsx`, its sm size, copied since no build can import
+it): a pill track of 5% ink, equal-width options, and a white thumb that
+glides to the chosen one in 300 ms (`--index` and `--count` on `.tabs`,
+set by `selectTab`; it jumps under reduced motion). Change the two
+together. Resume and Answers hold a one-line placeholder (`.tab-placeholder`) until
 their tickets fill them: `panel.slot("tab:resume").replaceChildren(...)`
 (`addTab` with an existing id returns its body). The tab the student
 presses is kept in the page's `sessionStorage` (`workit-panel-tab`), so
@@ -1746,9 +1797,26 @@ press reaches `action.onClicked`; it and the `toggle-panel` command
 (Alt+W, changeable at chrome://extensions/shortcuts) call `toolbarPressed`,
 which sends `panel/toggle` to the tab (whichever frame has the shell
 answers). A job page with no shell yet gets one, open; any other tab gets
-its popup back and opened. Off job pages the popup shows who is signed in,
-the batch's status ("2 jobs in your batch · 1 ready · 1 needs you",
-`popup/batch`), Open WorkIt and Workday Sign-Up. A failed profile read shows "WorkIt
+its popup back and opened. Signed out, the popup is one line ("Sign in
+to WorkIt to fill job applications.") and **Sign In to WorkIt** (KAN-424):
+the popup reads the session each time it opens, so it needs no Check Again
+button, and it no longer explains that the extension borrows the website's
+sign-in. Off job pages the popup shows who is signed in and is
+**tailored to what the student is doing, not to whether the website is
+open** (KAN-424, `background/popup-home.js`, `popup/home`), with that
+case's one next step as its button: during a batch, "Your Batch", its
+status ("2 jobs in your batch · 1 ready · 1 needs you") and **Go to Next
+Job** (`popup/next`: the first tab that needs the student, else a ready
+one); with no batch, "Auto Apply", "3 jobs queued." and **Start Auto
+Apply** (`popup/start`: the webapp's own `run/open`, so the batch opens
+as from the Auto Apply page); with an empty queue, **Find Jobs** (the
+Jobs page). A queue that can't be read shows nothing rather than "empty".
+Then Open WorkIt and, as a quiet link, Workday Sign-Up. The three answer
+only the popup's own page (`fromPopup`: the sender's URL is the
+extension's popup.html; a content script's is its job page), so a page's
+script can't open a batch or switch tabs. Tests:
+`test/popup-home.extension.spec.ts`, and the batch case in
+`test/panel-shell.extension.spec.ts`. A failed profile read shows "WorkIt
 couldn't load your profile." with Try again (KAN-401), never the request's
 words; api.js's `errorMessage` says "WorkIt's server couldn't do that just
 now." for an error answer with no words of its own, never "Request failed
@@ -1776,14 +1844,18 @@ walk). One purple button at the panel's bottom (KAN-369 Q5):
   step shown; the fill then fills each later step as it shows, and Fill to
   Review, `workday-walk.js`, is still what presses Save and Continue, only
   once the student asks).
-- **"Next: 3 need you"** (Next Thing) while anything is red
-  (`status.needsYouCount()`, lib-status.js's one rule). It runs the walk
-  (`batch-tab.js`'s `flagged().keys`: red rows first, then unchecked
-  guesses and Claude's just-arrived answers). In a batch tab it is the cross-tab
-  walk (`batch/next`); outside a batch, this page's rows in page order after
-  the last it went to, then "Nothing else needs you." (`answerTheWalk` now
-  runs in every fill; only a batch tab adds the `batch/flags` listener).
-  What it answers shows under the button (`[data-said]`).
+- **"Answer 1 of 3"** while anything on this page is red (KAN-424;
+  lib-status.js's one rule, through `batch-tab.js`'s `flagged()`). It goes
+  to this page's first red field in page order (`walk.show`: scrolled to,
+  focused, ringed) and, pressed again, **to the same field until it shows
+  an answer**: it never moves on past a mistake and never leaves the tab.
+  "of 3" counts every field that has been red on this page since the fill
+  (`seenRed`), so the first number climbs as the student answers them. It
+  replaced "Next: 3 need you" (KAN-396), which ran Next Thing: each press
+  moved on whether the field was answered or not, and in a batch tab went
+  to another tab while this one still had open mistakes; its words also
+  read like "next job". Next Thing itself is Alt+N's (below). What the
+  button answers shows under it (`[data-said]`).
 - **Review and submit** once nothing is red (amber guesses may be left:
   Alt+N still walks them): scrolls to the employer's Submit
   (the submit warning's rule: a visible control whose words start with
@@ -1795,13 +1867,18 @@ walk). One purple button at the panel's bottom (KAN-369 Q5):
   instead; on Review its Submit.
 - **Alt+N**: the `next-thing` command (manifest.json, changeable at
   chrome://extensions/shortcuts). background.js `commandPressed` sends
-  `panel/next` to the tab; the frame with the button runs Next Thing,
-  whatever the button reads (so a batch tab with nothing left still walks
-  on to the next tab). Tests press it with `globalThis.workitCommand`
+  `panel/next` to the tab; the frame with the button runs Next Thing (the
+  walk: `batch-tab.js`'s `flagged().keys`, red rows first, then unchecked
+  guesses and Claude's just-arrived answers; in a batch tab across the
+  batch's tabs, `batch/next`; outside one, this page's rows in page order
+  after the last it went to, then "Nothing else needs you."), whatever the
+  button reads (so a batch tab with nothing left still walks on to the
+  next tab). Tests press it with `globalThis.workitCommand`
   (`pressNextThing` in test/loaded-extension.ts).
-- The panel's one count line is the Autofill tab's `.summary` (overlay.js):
-  "Required 12 of 14 filled · 3 need you · 1 waiting on Claude", the same
-  `needsYouCount()` as the button and the checklist's red rows.
+- **There is no count line** (KAN-424). The Autofill tab's `.summary`
+  ("Required 12 of 14 filled · 3 need you · 1 waiting on Claude") said
+  the button's count again; the checklist's box titles and folded lines
+  (groups.js) carry the counts now, by the same rules.
 - **Fill Again** is the ⋯ menu's; it asks once, over the button, "This
   replaces what you changed on this page.", with Fill Again and Cancel;
   Cancel changes nothing.
@@ -1821,8 +1898,8 @@ company page itself, like any host the manifest doesn't list, gets
 nothing: no edge tab, and the toolbar icon opens the popup, which has no
 fill controls since KAN-394.
 
-Tests: `test/panel-primary.extension.spec.ts` ("Next: N need you" and the
-count line against the form's own asterisks; Alt+N; Review and submit
+Tests: `test/panel-primary.extension.spec.ts` ("Answer 1 of N" against
+the red box, staying on the first red field; Alt+N; Review and submit
 rings Submit and sends nothing; Fill Again's Cancel; Fill this step on
 Workday; the embedded form).
 
@@ -1928,8 +2005,9 @@ Tests: `test/panel-states.extension.spec.ts`.
 
 ## The panel's top (KAN-395): header, batch line, job card
 
-The header (panel.js) is WorkIt's mark (logo.tsx's figure, in ink: the
-header is neutral), ⋯ (the menu, above: Report a problem, Settings, a
+The header (panel.js) is WorkIt's logo (logo.tsx's lockup, the figure
+violet and the word "workit" in ink, as the webapp and the popup's header
+draw it; change the copies together), ⋯ (the menu, above: Report a problem, Settings, a
 batch tab's I submitted this and Skip, Fill Again) and Close. `src/content/panel-top.js` fills two slots, loaded
 after panel.js everywhere panel.js is (manifest, `CONTENT_SCRIPT_FILES`,
 background.js `SHELL_FILES`):
@@ -1948,10 +2026,12 @@ background.js `SHELL_FILES`):
   student has an application for it (a batch tab's by its job id, any other
   tab's by the Fill engine's jobOf identity of the page against the
   posting's form_url / apply_url), from `GET .../applications?scored=true`
-  (read once per 30 s for all tabs): logo (the company's first letter when
-  there is none or the page won't load it), title, company, place
-  (`location_label`), pay ("$45–$55 an hour"), the Match score as a ring
-  (purple, one of the two purple things) with its band (Strong Match at 80,
+  (read once per 30 s for all tabs). **Trimmed (KAN-424)**, since the page
+  already names the job: no box of its own and no letter square; the logo
+  when the API has one (24 px; gone if the page won't load it), the title,
+  then one line of company, place (`location_label`) and pay ("$45–$55 an
+  hour"), and the Match score as a small ring
+  (purple) with its band (Strong Match at 80,
   as frontend/src/lib/match.ts), and "You applied on Oct 25" at the applied
   stage. No application, or signed out: the engine's `jobNames` read gives
   title and company only. No score: no ring.
@@ -2062,21 +2142,39 @@ head `.section-head`). Notes (content-script.js's) stand above them.
   primary button to the list already drawn.
 - **Marks** (`groups.markOf`, set as `data-mark` on each `.row`): `filling`
   (spinner, a pending row while `WIA.phase` is "filling"), `filled` (green
-  check), `check` (amber ?, lib-status.js `toCheck`), `needs-you` (red !,
-  lib-status.js `needsYou`, the one rule), `waiting` (blue, on the
-  student's Claude), `empty` (gray: optional left empty), `not-asked` (a
-  required question the form isn't asking now), `note`. A field the engine
+  check), `check` (amber question mark, lib-status.js `toCheck`),
+  `needs-you` (red warning, lib-status.js `needsYou`, the one rule),
+  `waiting` (blue clock, on the student's Claude), `empty` (gray circle:
+  optional left empty), `not-asked` (a required question the form isn't
+  asking now), `note`. **Each mark is the webapp's Phosphor glyph**
+  (CheckCircle, Question and WarningCircle at fill weight for the states a
+  field ends in; ClockCountdown, Circle and CircleNotch at regular), drawn
+  as a CSS mask over its token colour with the webapp's 5-unit outline
+  (`groups.js`'s `glyph`, paths copied from `@phosphor-icons/react`), so the
+  panel's checklist reads as the website's icons do. Before KAN-424 they
+  were ✓, ? and ! typed into coloured circles. A field the engine
   reports filled (its `fillengine:field` done event) turns green at once;
   the fill's answer then sets every row as WorkIt read it back.
 - **Order (Q2).** The page's order: each row (a section by its first
   field) is placed where `window.WIA.fieldOf` finds its field, and rows
   whose field the page doesn't show yet come after, as registered
-  (`groups.inPageOrder`; KAN-369, decision 1971). Once the fill is done
-  (content-script.js refreshes the list when the phase changes), red and
-  then amber rows rise to the top of their section, the rest in page
-  order. Required questions the form isn't asking now close the Required
-  section, collapsed to "N the form isn't asking now"
-  (`.group[data-group="not-asked"]`).
+  (`groups.inPageOrder`; KAN-369, decision 1971). That is the list while
+  the fill runs, in Required and Optional sections. **Once the fill is
+  done** (content-script.js refreshes the list when the phase changes) it
+  reads by what the student must do (KAN-424, `settledNodes`), each part in
+  page order: a red box, "2 Need Your Answer" (`.box[data-box="needs-you"]`,
+  counted by `needsYouCount()`, as the button), whose rows drop WorkIt's
+  "has no answer for this" reason since the title says it; an amber box,
+  "1 Guess to Check"; a blue one, "1 Waiting on Your Claude"; then folded
+  lines (`.group[data-group]`, a press opens one for the page's life):
+  "20 Filled", "2 Optional Left Empty" and "1 Not Asked Right Now" (the
+  required questions the form isn't asking now). **A filled row the
+  student is working with stays in sight** above the folded line: the one
+  they pressed (`data-open`, `data-current`) or one holding a row card (a
+  guess they said looks right keeps its Undo there). Before KAN-424 every
+  filled row was listed in full and red and amber rose to the top of their
+  section, which buried the two rows that mattered under twenty that
+  didn't.
 - **Repeated sections (Q3).** A field labelled "<Section> <n> / <part>"
   (Workday's panels, and Greenhouse's Employment block, which the engine
   labels the same way) or named "<part>--<n>" (Greenhouse's Education
@@ -2088,7 +2186,7 @@ head `.section-head`). Notes (content-script.js's) stand above them.
   as the Plan fills it (the profile entry's; content-script.js hands each
   planned answer to `groups.planned`, which keeps only an entry's naming
   field), else "Work Experience 1" (`.entry-title`), listing the entry's
-  fields with small dots (`.row.sub`). The section goes under Required when
+  fields with the same marks at 12 px (`.row.sub`). The section goes under Required when
   any of its fields is required.
 - **Rows (Q4's row parts).** overlay.js's `row` keeps its cards, reasons and
   click to the field. A question shows two lines until its row is opened
@@ -2124,7 +2222,12 @@ Autofill tab's, so both redraw. **Write with Claude** (overlay.js's
 `startClaude`) heads the tab only while a row waits for the student's
 Claude. A form with no cover letter field ends with a "Cover letter · No
 cover letter field" row ("on this step" on Workday, which fills a step at
-a time). Before a fill the shell's placeholder stays.
+a time). Before a fill the shell's placeholder stays. **A form with
+nothing written** (no question in words, none a saved answer filled in
+words, no cover letter field) **has no Answers tab** (KAN-424,
+`panel.showTab("answers", false)`): the strip shows Autofill and Resume,
+the thumb counts only the shown options, and a hidden tab that was chosen
+gives way to the first shown. On Workday each step decides again.
 
 Tests: `test/panel-answers.extension.spec.ts` (Lumen's practice question
 waiting, then written by the student's Claude, with Write with Claude only
@@ -2163,7 +2266,7 @@ Disconnect and Add to Claude; auto-open off keeps a batch tab's panel
 closed; the gear and Back, Report, Workday Sign-Up opening the options
 page and no password field in the panel).
 
-## The Résumé tab (KAN-399)
+## The Resume tab (KAN-399)
 
 `src/content/resume-tab.js` (loaded after panel-top.js wherever it is)
 fills `tab:resume` from `src/background/resume-tab.js` (`resume/tab`,
@@ -2359,6 +2462,10 @@ openness covers:
   stable *local* extension id (so the webapp bridge has something fixed to
   call) — it is not a Chrome Web Store signing key, and publishing for
   real would need its own key and listing.
-- **Icon is a placeholder.** `icons/icon.png` is `frontend/public/
-  workit-icon.png` copied in at one size, referenced for all three manifest
-  sizes (16/48/128) rather than three properly-generated files.
+- **The toolbar icons are rendered from the webapp's own icon**
+  (KAN-424): `icons/icon-{16,32,48,128}.png` are
+  `frontend/public/workit-icon.svg` (the favicon's source) drawn by
+  `test/render-icons.mjs` (`node autofiller_extension/test/render-icons.mjs`,
+  after `npm --prefix autofiller_extension/test ci`). Run it again whenever
+  that SVG changes. The old `icons/icon.png`, a briefcase W from before the
+  logo, is gone.

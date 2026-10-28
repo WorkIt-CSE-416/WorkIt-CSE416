@@ -113,6 +113,16 @@ async def mark_applied(
     return await fetch_applied_at(db, applicant_id, job_id)
 
 
+async def application_stage_of(
+    db: AsyncSession, applicant_id: uuid.UUID, job_id: uuid.UUID
+) -> application_stage | None:
+    '''this applicant's stage for this job, or None when they have no application for it'''
+    return await db.scalar(select(Job_Application.stage).where(
+        Job_Application.applicant_id == applicant_id,
+        Job_Application.job_id == job_id,
+    ))
+
+
 async def save_job(
     db: AsyncSession, applicant_id: uuid.UUID, job_id: uuid.UUID
 ) -> application_stage | None:
@@ -181,15 +191,16 @@ def _bare_link(link):
 async def listed_job_by_link(db: AsyncSession, url: str) -> uuid.UUID | None:
     '''
     the feed's job whose apply link is the page at `url` (the toolbar popup's
-    Save to WorkIt, KAN-401), the same link first, else the same page
-    without its query, fragment or trailing slash; None when the feed has none
+    Save to WorkIt, KAN-401; the panel's Track on WorkIt, KAN-424), the same
+    link first, else the same page without its query, fragment or trailing
+    slash, but only when exactly one listed job has it; None otherwise
     '''
     exact = await db.scalar(select(Job_Post.id).where(Job_Post.apply_url == url, LISTED))
     if exact is not None:
         return exact
-    return await db.scalar(
-        select(Job_Post.id)
-        .where(_bare_link(Job_Post.apply_url) == _bare_link(url), LISTED)
-        .order_by(Job_Post.id)
-        .limit(1)
-    )
+    # Many postings carry their id only in the query (36 Waymo jobs share careers.withwaymo.com/jobs): the bare
+    # link names one of them only when it is the only one, else the wrong job would be saved, or marked applied.
+    bare = (await db.scalars(
+        select(Job_Post.id).where(_bare_link(Job_Post.apply_url) == _bare_link(url), LISTED).limit(2)
+    )).all()
+    return bare[0] if len(bare) == 1 else None

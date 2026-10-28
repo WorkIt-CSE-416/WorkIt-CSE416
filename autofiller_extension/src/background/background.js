@@ -30,6 +30,8 @@ import { injectFill } from "../shared/content-scripts.js";
 import { forgetShownWorkableDraft } from "./tab-load.js";
 import { allowForMe, forgetLogin, markCreated, markRefused, markSignedIn, sentSince, watchWorkdaySends, workdayLogin } from "./workday-logins.js";
 import { writeEarly } from "./write-early.js";
+import { popupHome, showNextJob } from "./popup-home.js";
+import { followTrackedTab, forgetTracked, isTracked, markTracked, track, trackState } from "./track.js";
 import { allowTabSite, allowedSites, pageJobUrl, removeSite, syncSites } from "./site-access.js";
 import { fetchText, planReads } from "./plan-reads.js";
 
@@ -39,6 +41,18 @@ import { fetchText, planReads } from "./plan-reads.js";
  * which the content script, in its isolated world, can't call itself.
  * @param {chrome.runtime.MessageSender} sender
  */
+/**
+ * A submit proven in tab `tabId` (submit-proof.js): a batch tab's marks its
+ * application (batch.js markSubmitted), a tracked tab's its job (track.js
+ * markTracked, KAN-424); any other tab's marks nothing.
+ */
+async function markAnySubmitted(tabId) {
+  return (await inBatch(tabId)) ? markSubmitted(tabId) : markTracked(tabId);
+}
+
+// The submit watches a page's fill asked for while its tab wasn't tracked (batch/watch): started by Track on WorkIt.
+const unwatched = new Map();
+
 function engineIn(sender) {
   const target = { tabId: sender.tab.id, frameIds: [sender.frameId ?? 0] };
   return engineCaller(async (request) => {
@@ -292,16 +306,41 @@ async function handleMessage(message, sender) {
     // request too (submit-proof.js), or, on a job system whose submit
     // request isn't known (Workday, Eightfold, Rippling), from the hint
     // alone. The extension never submits.
+    // A tab the student tracks on WorkIt (KAN-424, track.js) is watched the same way: every fill asks, and a tab
+    // not tracked yet keeps its key here until Track on WorkIt starts its watch.
     case "batch/watch": {
       const job = jobOf(sender.url);
       // A practice form's submit is its thanks page's (submitPractice below), never an application's.
       const site = job && !job.practice ? job.site : null;
-      if (site && (await inBatch(sender.tab.id))) await engineIn(sender)("watchSubmit", site, message.key);
-      return { watching: Boolean(site) };
+      if (!site) return { watching: false };
+      if ((await inBatch(sender.tab.id)) || (await isTracked(sender.tab.id))) {
+        await engineIn(sender)("watchSubmit", site, message.key);
+        return { watching: true };
+      }
+      unwatched.set(sender.tab.id, { site, key: message.key, frameId: sender.frameId ?? 0 });
+      return { watching: false };
     }
 
-    case "batch/submitted":
-      return { applied: await submitHinted(sender.tab.id, markSubmitted, jobOf(sender.url)?.site) };
+    case "batch/submitted": {
+      const batch = await inBatch(sender.tab.id);
+      // A tab nobody tracks: its submit is the student's own business, and nothing is marked.
+      if (!batch && !(await isTracked(sender.tab.id))) return { applied: false, untracked: true };
+      return { applied: await submitHinted(sender.tab.id, markAnySubmitted, jobOf(sender.url)?.site), batch };
+    }
+
+    // Track on WorkIt (KAN-424, track.js): what the panel offers on this tab, and the student's press.
+    case "track/state":
+      return trackState({ tabId: sender.tab.id, url: (await pageJobUrl(sender.tab.id, sender.frameId ?? 0, sender.url ?? "")) ?? sender.url ?? "" });
+    case "track/start": {
+      const tracked = await track({ tabId: sender.tab.id, url: (await pageJobUrl(sender.tab.id, sender.frameId ?? 0, sender.url ?? "")) ?? sender.url ?? "" });
+      // A fill on this page asked to watch before the tab was tracked: its watch starts now.
+      const waiting = unwatched.get(sender.tab.id);
+      if (waiting && tracked.state === "tracked") {
+        unwatched.delete(sender.tab.id);
+        await engineIn({ tab: sender.tab, frameId: waiting.frameId })("watchSubmit", waiting.site, waiting.key).catch(() => {});
+      }
+      return tracked;
+    }
 
     // The panel's "I submitted this" (the student's own click): a submit the job system's answer
     // didn't show (detection missed it), marked applied on the student's word.
@@ -427,9 +466,18 @@ async function handleMessage(message, sender) {
       return disconnectClaude();
     case "settings/auto-open":
       return setAutoOpen(message.on);
-    // The toolbar popup off job pages: the batch's status.
+    // The toolbar popup off job pages: the batch's status, and (KAN-424) what the student is doing, with its next step.
     case "popup/batch":
       return batchStatus();
+    // Only the popup's own page may switch tabs or open a batch (a content script's sender is the job page,
+    // never the extension's popup.html), so a page's script can't press these.
+    case "popup/home":
+      return fromPopup(sender) ? popupHome() : { error: "not_popup" };
+    case "popup/next":
+      return fromPopup(sender) ? showNextJob() : { error: "not_popup" };
+    // Start Auto Apply from the popup: the webapp's own run/open, in the popup's window.
+    case "popup/start":
+      return fromPopup(sender) ? RUNNER_MESSAGES["run/open"](message, {}) : { error: "not_popup" };
 
     // The panel's font (panel.js's loadFont), as base64: the page can't
     // load the extension's own files, which aren't web-accessible.
@@ -470,8 +518,8 @@ async function rememberWorkdayTab(tabId) {
 }
 
 // The job system's answer to a batch tab's submit request (submit-proof.js)
-// is what marks its application applied.
-watchSubmitRequests(markSubmitted);
+// is what marks its application applied; a tracked tab's too (KAN-424).
+watchSubmitRequests(markAnySubmitted);
 watchEmbeddedForms();
 // The employer sites the student allowed keep their scripts; one whose permission went is dropped (site-access.js).
 syncSites().catch((error) => console.warn("[sites] the allowed sites weren't synced:", error.message));
@@ -483,8 +531,11 @@ watchWorkdaySends();
 // form post (a plain HTML post, whose answer only redirects). Host
 // permissions show the tab's link, with no `tabs` permission.
 chrome.tabs.onUpdated.addListener((tabId, change) => {
-  if (!change.url || !submittedPage(change.url)) return;
-  submitHinted(tabId, markSubmitted).catch((error) => console.warn("[batch] the application wasn't marked applied:", error.message));
+  if (!change.url) return;
+  // A tracked tab that moves to another job's page stops being tracked (track.js).
+  followTrackedTab(tabId, change.url).catch(() => {});
+  if (!submittedPage(change.url)) return;
+  submitHinted(tabId, markAnySubmitted).catch((error) => console.warn("[batch] the application wasn't marked applied:", error.message));
 });
 
 chrome.tabs.onUpdated.addListener(async (tabId, change, tab) => {
@@ -536,6 +587,8 @@ chrome.tabs.onUpdated.addListener((tabId, change) => {
 
 chrome.tabs.onRemoved.addListener(async (tabId, removeInfo) => {
   forgetSubmits(tabId);
+  unwatched.delete(tabId);
+  await forgetTracked(tabId);
   await forgetTab(tabId, removeInfo);
   const tabs = await workdayTabs();
   if (tabs.includes(tabId)) await chrome.storage.session.set({ [WORKDAY_TABS_KEY]: tabs.filter((id) => id !== tabId) });
@@ -671,6 +724,9 @@ const RUNNER_MESSAGES = {
     return {};
   },
 };
+
+/** Whether a message comes from the extension's own popup page (its URL), not a content script on a page. */
+const fromPopup = (sender) => sender.id === chrome.runtime.id && (sender.url ?? "").startsWith(chrome.runtime.getURL("src/popup/"));
 
 /** Whether the student pinned the extension to the toolbar; null where Chrome can't say. */
 async function pinned() {

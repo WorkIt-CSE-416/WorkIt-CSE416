@@ -27,8 +27,9 @@ window.WIA = window.WIA || {};
   const FONT_FAMILY = "WorkIt Jakarta Sans";
   // Where the edge tab sits until the student drags it (px from the top).
   const TAB_TOP = 120;
-  // WorkIt's mark (frontend/src/components/logo.tsx), in ink: the header is neutral.
-  const LOGO = `<svg role="img" aria-label="WorkIt" viewBox="0 0 118.48 91"><path d="M7.94 26.87 L33.59 83.06 L59.24 45.19 L84.89 83.06 L110.54 26.87" fill="none" stroke="currentColor" stroke-width="15.88" stroke-linecap="round" stroke-linejoin="round"/><circle cx="59.24" cy="13.44" r="13.44" fill="currentColor"/></svg>`;
+  // WorkIt's logo (frontend/src/components/logo.tsx's lockup): the figure in violet, the word in ink, as the
+  // webapp draws it everywhere (KAN-300). Change the two together.
+  const LOGO = `<svg role="img" aria-label="WorkIt" viewBox="0 0 434.78 91"><g class="figure"><path d="M7.94 26.87 L33.59 83.06 L59.24 45.19 L84.89 83.06 L110.54 26.87" fill="none" stroke="currentColor" stroke-width="15.88" stroke-linecap="round" stroke-linejoin="round"/><circle cx="59.24" cy="13.44" r="13.44" fill="currentColor"/></g><path d="M18 77.7 1 27.7H14.4L24.8 59.9L35.3 27.7H48.3L58.6 59.4L69.1 27.7H82.5L65.5 77.7H52.5L41.8 43.9L31 77.7H18ZM109.6 78.9Q102 78.9 96 75.5Q90.1 72.2 86.8 66.3Q83.4 60.4 83.4 52.7Q83.4 45 86.7 39.1Q90 33.2 95.9 29.9Q101.8 26.5 109.4 26.5Q117.1 26.5 123 29.9Q128.9 33.2 132.2 39.1Q135.5 45 135.5 52.7Q135.5 60.4 132.2 66.3Q128.9 72.2 123.1 75.5Q117.2 78.9 109.6 78.9ZM109.6 66.7Q113.3 66.7 116.1 64.9Q118.9 63.1 120.4 60Q122 56.8 122 52.7Q122 48.6 120.4 45.4Q118.8 42.3 116 40.5Q113.1 38.7 109.4 38.7Q105.8 38.7 102.9 40.5Q100.1 42.3 98.5 45.4Q96.9 48.6 96.9 52.7Q96.9 56.8 98.5 60Q100.1 63.1 103 64.9Q105.9 66.7 109.6 66.7ZM142.7 77.7V27.7H155.9V36.9Q159 32.2 163.7 29.8Q168.5 27.5 173.6 27.5V40.3Q169 40.3 165 41.4Q160.9 42.5 158.4 45Q155.9 47.5 155.9 51.4V77.7H142.7ZM179.1 77.7V7.7H192.3V46.3L209.4 27.7H225.1L206.2 48.8L226.6 77.7H211.1L197.8 58.3L192.3 64.3V77.7H179.1ZM232.2 77.7V27.7H245.4V77.7H232.2ZM238.8 19.6Q235.8 19.6 233.5 17.3Q231.2 15.1 231.2 12Q231.2 8.9 233.5 6.7Q235.8 4.4 238.8 4.4Q241.9 4.4 244.2 6.7Q246.4 8.9 246.4 12Q246.4 15.1 244.2 17.3Q241.9 19.6 238.8 19.6ZM276.7 78.9Q268.4 78.9 264.1 74.8Q259.9 70.7 259.9 63.1V38.9H251.8V27.7H259.9V12.1H273.1V27.7H285.6V38.9H273.1V60.2Q273.1 63.4 274.5 65.1Q275.9 66.7 278.6 66.7Q279.6 66.7 280.8 66.2Q282 65.8 283.3 64.9L287.9 74.8Q285.5 76.6 282.5 77.8Q279.6 78.9 276.7 78.9Z" fill="currentColor" transform="translate(145.78 0)"/></svg>`;
   const { send } = window.WIA.ui;
 
   const SHELL_CSS = `
@@ -45,8 +46,9 @@ window.WIA = window.WIA || {};
       flex: none; display: flex; align-items: center; justify-content: space-between; gap: 8px;
       padding: 10px 12px; background: var(--color-panel); border-bottom: 1px solid var(--color-border);
     }
-    .brand { display: flex; align-items: center; gap: 6px; font-size: var(--text-body); font-weight: 700; color: var(--color-ink); }
-    .brand svg { height: 18px; width: auto; display: block; }
+    .brand { display: flex; align-items: center; color: var(--color-ink); }
+    .brand svg { height: 20px; width: auto; display: block; }
+    .brand .figure { color: var(--color-brand); }
     .header-actions, [data-slot="header-actions"] { display: flex; align-items: center; gap: 4px; }
     .header button {
       all: unset; cursor: pointer; font-size: var(--text-note); font-weight: 500; color: var(--color-ink-muted);
@@ -70,7 +72,7 @@ window.WIA = window.WIA || {};
     .panel-menu button:focus-visible { outline: 2px solid var(--color-brand); outline-offset: -2px; }
     .card { background: var(--color-panel); border: 1px solid var(--color-border); border-radius: var(--radius-card); }
     [data-slot="batch-line"] { padding: 6px 10px; font-size: var(--text-note); color: var(--color-ink-meta); }
-    [data-slot="job-card"] { padding: 12px; }
+    [data-slot="job-card"] { padding: 4px 4px 0; border: 0; background: none; }
     [data-slot="primary"] { display: flex; flex-direction: column; gap: 6px; }
     [data-slot="primary"]:empty { display: none; }
     .primary-button {
@@ -85,13 +87,29 @@ window.WIA = window.WIA || {};
     .primary-button:focus-visible { outline: 2px solid var(--color-brand); outline-offset: 2px; }
     .primary-said { font-size: var(--text-note); color: var(--color-ink-meta); }
     .primary-said[data-error] { color: var(--color-danger); }
-    .tabs { display: flex; gap: 4px; }
-    .tabs button {
-      all: unset; cursor: pointer; padding: 6px 10px; font-size: var(--text-note); font-weight: 600;
-      color: var(--color-ink-meta); border-radius: var(--radius-control);
+    /* The tabs are the webapp's segmented control (frontend/src/components/ui/segmented-control.tsx, its sm
+     * size): a pill track of 5% ink, equal-width options, and a white thumb that glides to the chosen one
+     * (300 ms; it jumps under reduced motion). Change the two together. */
+    .tabs {
+      position: relative; isolation: isolate; display: grid; grid-auto-columns: 1fr; grid-auto-flow: column;
+      padding: 2px; border-radius: 999px; background: color-mix(in srgb, var(--color-ink) 5%, transparent);
     }
-    .tabs button[aria-selected="true"] { color: var(--color-ink); background: var(--color-panel); box-shadow: inset 0 -2px 0 var(--color-ink); }
-    .tabs button:focus-visible { outline: 2px solid var(--color-brand); outline-offset: 1px; }
+    .tabs .thumb {
+      position: absolute; top: 2px; bottom: 2px; left: 2px; z-index: 0; pointer-events: none;
+      width: calc((100% - 4px) / var(--count, 1)); transform: translateX(calc(var(--index, 0) * 100%));
+      border-radius: 999px; background: var(--color-panel);
+      box-shadow: 0 1px 2px color-mix(in srgb, var(--color-ink) 8%, transparent), 0 2px 8px color-mix(in srgb, var(--color-ink) 8%, transparent);
+      transition: transform 300ms cubic-bezier(0.22, 1, 0.36, 1);
+    }
+    @media (prefers-reduced-motion: reduce) { .tabs .thumb { transition: none; } }
+    .tabs button {
+      all: unset; position: relative; z-index: 1; cursor: pointer; height: 32px; padding: 0 12px;
+      display: flex; align-items: center; justify-content: center; white-space: nowrap; border-radius: 999px;
+      font-size: var(--text-note); font-weight: 500; color: var(--color-ink-meta); transition: color 200ms;
+    }
+    .tabs button:hover, .tabs button[aria-selected="true"] { color: var(--color-ink); }
+    .tabs button[hidden] { display: none; }
+    .tabs button:focus-visible { outline: 2px solid var(--color-brand); outline-offset: -2px; }
     .tab { overflow: hidden; }
     .tab-placeholder { margin: 0; padding: 16px 12px; font-size: var(--text-note); color: var(--color-ink-meta); }
     [data-slot="settings"], [data-slot="report"] { padding: 12px; }
@@ -153,7 +171,7 @@ window.WIA = window.WIA || {};
     panel.setAttribute("aria-label", "WorkIt");
     panel.innerHTML = `
       <div class="header">
-        <span class="brand">${LOGO}<span aria-hidden="true">WorkIt</span></span>
+        <span class="brand">${LOGO}</span>
         <span class="header-actions">
           <span data-slot="header-actions"></span>
           <button type="button" data-more-menu aria-label="More" aria-haspopup="menu" aria-expanded="false" title="More">⋯</button>
@@ -164,7 +182,7 @@ window.WIA = window.WIA || {};
       <div class="top">
         <div class="card" data-slot="batch-line" hidden></div>
         <div class="card" data-slot="job-card" hidden></div>
-        <div class="tabs" role="tablist" hidden></div>
+        <div class="tabs" role="tablist" hidden><span class="thumb" aria-hidden="true"></span></div>
       </div>
       <div class="scroll">
         <div data-tabs></div>
@@ -214,9 +232,9 @@ window.WIA = window.WIA || {};
 
     root.append(panel, edge, menu);
     addTab({ id: "autofill", label: "Autofill" });
-    // Résumé and Answers hold a placeholder until their own files fill them (replaceChildren).
+    // Resume and Answers hold a placeholder until their own files fill them (replaceChildren).
     for (const [id, label, text] of [
-      ["resume", "Résumé", "The résumé this form gets will show here."],
+      ["resume", "Resume", "The resume this form gets will show here."],
       ["answers", "Answers", "This job's written answers will show here."],
     ]) addTab({ id, label }).replaceChildren(Object.assign(document.createElement("p"), { className: "tab-placeholder", textContent: text }));
     document.documentElement.appendChild(host);
@@ -451,7 +469,7 @@ window.WIA = window.WIA || {};
 
   /**
    * A tab of the panel's tab area: `id`, `label`. "autofill" is the shell's
-   * own (overlay.js fills it); others (Résumé, Answers) add theirs. The tab
+   * own (overlay.js fills it); others (Resume, Answers) add theirs. The tab
    * strip shows once there are two. Returns the tab's body.
    */
   function addTab({ id, label }) {
@@ -473,7 +491,7 @@ window.WIA = window.WIA || {};
     root.querySelector(".tabs").appendChild(button);
     root.querySelector("[data-tabs]").appendChild(body);
     root.querySelector(".tabs").hidden = tabs.length < 2;
-    selectTab(tabs.includes(keptTab()) ? keptTab() : tabs[0]);
+    selectTab(tabs.includes(keptTab()) && !hiddenTabs.has(keptTab()) ? keptTab() : tabs[0]);
     return body;
   }
 
@@ -494,7 +512,29 @@ window.WIA = window.WIA || {};
     }
   }
 
+  // Tabs a file hid (showTab): the Answers tab on a form with nothing written.
+  const hiddenTabs = new Set();
+
+  /**
+   * Shows or hides a tab's option (KAN-424): a tab with nothing for this page
+   * goes from the strip; hiding the chosen one chooses the first shown.
+   */
+  function showTab(id, shown) {
+    const button = root?.querySelector(`.tabs button[data-tab="${CSS.escape(id)}"]`);
+    if (!button) return;
+    if (shown) hiddenTabs.delete(id);
+    else hiddenTabs.add(id);
+    button.hidden = !shown;
+    const chosen = root.querySelector('.tabs button[aria-selected="true"]')?.dataset.tab;
+    selectTab(chosen && !hiddenTabs.has(chosen) ? chosen : tabs.find((t) => !hiddenTabs.has(t)));
+  }
+
   function selectTab(id) {
+    const strip = root.querySelector(".tabs");
+    // The thumb slides to the chosen option: its place among the shown, equal-width options.
+    const shown = tabs.filter((t) => !hiddenTabs.has(t));
+    strip.style.setProperty("--count", String(shown.length || 1));
+    strip.style.setProperty("--index", String(Math.max(shown.indexOf(id), 0)));
     for (const button of root.querySelectorAll(".tabs button")) button.setAttribute("aria-selected", String(button.dataset.tab === id));
     for (const body of root.querySelectorAll(".tab")) body.hidden = body.dataset.tab !== id;
   }
@@ -589,7 +629,7 @@ window.WIA = window.WIA || {};
 
   const shell = {
     batch: false,
-    where, ensure, open, collapse, autoOpen, toggle, isOpen, showEdge, slot, addCss, addTab, selectTab, showSettings, showView, setPrimary, fillButton, startLabel, onBuilt, menuItem, onView,
+    where, ensure, open, collapse, autoOpen, toggle, isOpen, showEdge, slot, addCss, addTab, selectTab, showTab, showSettings, showView, setPrimary, fillButton, startLabel, onBuilt, menuItem, onView,
     get root() {
       return root;
     },

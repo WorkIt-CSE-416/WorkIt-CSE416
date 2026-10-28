@@ -203,3 +203,51 @@ async def test_save_by_link_saves_the_listed_job_whose_apply_link_the_page_is(st
     res = await client.post("/jobs/saved-by-link", json={"url": "https://careers.example.com/jobs/unknown"})
     assert res.status_code == 404
     assert res.json()["detail"] == "WorkIt doesn't list this job yet."
+
+
+async def test_listed_by_link_names_the_job_and_stage_and_saves_nothing(student, database):
+    # The panel's Track on WorkIt asks before it offers (KAN-424): the job the page is, and the student's stage.
+    client, me = student
+    link = f"https://careers.example.com/jobs/{uuid.uuid4().hex}"
+    async with database() as session:
+        job = await session.scalar(
+            text(
+                "INSERT INTO job_postings (id, title, status, company_name, apply_url, experience_level)"
+                " VALUES (gen_random_uuid(), 'Intern', 'published', 'Acme', :url, 'student') RETURNING id"
+            ),
+            {"url": link},
+        )
+        await session.commit()
+
+    res = await client.post("/jobs/listed-by-link", json={"url": link})
+    assert res.status_code == 200
+    assert res.json() == {"job_id": str(job), "stage": None}
+    assert await _row(database, me, str(job)) is None
+
+    assert (await client.post(f"/jobs/{job}/saved")).status_code == 200
+    res = await client.post("/jobs/listed-by-link", json={"url": f"{link}?utm_source=x"})
+    assert res.json() == {"job_id": str(job), "stage": "saved"}
+
+    res = await client.post("/jobs/listed-by-link", json={"url": "https://careers.example.com/jobs/unknown"})
+    assert res.status_code == 404
+
+
+async def test_a_bare_link_two_listed_jobs_share_names_neither(student, database):
+    # Two postings told apart only by their query (?gh_jid=...): a page with another query is neither, never the first.
+    client, _ = student
+    base = f"https://careers.example.com/{uuid.uuid4().hex}/job"
+    async with database() as session:
+        for n in (1, 2):
+            await session.execute(
+                text(
+                    "INSERT INTO job_postings (id, title, status, company_name, apply_url, experience_level)"
+                    " VALUES (gen_random_uuid(), 'Intern', 'published', 'Acme', :url, 'student')"
+                ),
+                {"url": f"{base}?gh_jid={n}"},
+            )
+        await session.commit()
+
+    assert (await client.post("/jobs/listed-by-link", json={"url": f"{base}?gh_jid=3"})).status_code == 404
+    assert (await client.post("/jobs/saved-by-link", json={"url": f"{base}?gh_jid=3&utm_source=li"})).status_code == 404
+    # Its own link still finds each.
+    assert (await client.post("/jobs/listed-by-link", json={"url": f"{base}?gh_jid=2"})).status_code == 200

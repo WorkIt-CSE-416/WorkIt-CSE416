@@ -58,7 +58,7 @@ async function autofill(forms: SavedForms, name: string, handlers: Handler[] = [
   return { page, atStart: () => page.evaluate(() => (window as any).atStart ?? null) };
 }
 
-test("every field is listed with a spinner from the start, and after the fill red then amber lead the Required section", async () => {
+test("every field is listed with a spinner from the start, and after the fill the red box, then the guesses, then the rest folded away", async () => {
   test.setTimeout(120_000);
   const forms = new SavedForms([ANDURIL]);
   const { page, atStart } = await autofill(forms, ANDURIL);
@@ -66,7 +66,7 @@ test("every field is listed with a spinner from the start, and after the fill re
   await expect(host.locator("[data-progress-said]")).toHaveText(/^Autofilling · \d+%$/, { timeout: 60_000 });
   await expect(host.locator("[data-progress]").getByRole("button", { name: "Cancel" })).toBeVisible();
   await shot(page, "anduril-filling");
-  await expect(mainButton(page)).toContainText(/Next:|Review and submit/, { timeout: 60_000 });
+  await expect(mainButton(page)).toContainText(/Answer \d+ of \d+|Review and submit/, { timeout: 60_000 });
   await shot(page, "anduril-after");
 
   const start = await atStart();
@@ -86,22 +86,27 @@ test("every field is listed with a spinner from the start, and after the fill re
   }, requiredKeys);
   expect(inPageOrder).toBe(true);
 
-  const sections = host.locator('[data-tab="autofill"] .section');
-  await expect(sections.locator(".section-head")).toHaveText(["Required", "Optional"]);
-  const required = sections.nth(0).locator(":scope > .row[data-key], :scope > .entries > .row[data-key]");
-  await expect(required.nth(0)).toHaveAttribute("data-key", ASKED);
-  await expect(required.nth(0)).toHaveAttribute("data-mark", "needs-you");
-  await expect(host.locator(`.row[data-key="${GUESS}"]`)).toHaveAttribute("data-mark", "check");
-  // In the guess's section, only red rows stand above it.
-  const marks = await host.locator('[data-tab="autofill"] .section').evaluateAll((els, guess) => {
-    const section = els.find((el) => el.querySelector(`[data-key="${guess}"]`))!;
-    const rows = [...section.querySelectorAll<HTMLElement>(":scope > .row[data-key]")];
-    return rows.slice(0, rows.findIndex((r) => r.dataset.key === guess)).map((r) => r.dataset.mark);
-  }, GUESS);
-  expect(marks.every((m) => m === "needs-you")).toBe(true);
-  await expect(host.locator('.row[data-mark="filled"]').first()).toBeVisible();
+  // After the fill the list reads by what the student must do (KAN-424): the red box first, then the guesses.
+  const tab = host.locator('[data-tab="autofill"]');
+  await expect(tab.locator(".box-head")).toHaveText([/^\d+ Needs? Your Answer$/, /^\d+ Guess(es)? to Check$/]);
+  const needs = tab.locator('.box[data-box="needs-you"]');
+  const red = needs.locator(":scope > .row[data-key], :scope > .entries > .row[data-key]");
+  await expect(red.first()).toHaveAttribute("data-key", ASKED);
+  expect(await red.evaluateAll((rows) => rows.every((r) => (r as HTMLElement).dataset.mark === "needs-you"))).toBe(true);
+  // The box's title says WorkIt has no answer; no row under it says it again.
+  await expect(needs).not.toContainText("WorkIt has no answer for this");
+  await expect(tab.locator(`.box[data-box="check"] .row[data-key="${GUESS}"]`)).toHaveAttribute("data-mark", "check");
+  // Every filled row folds into one line, opened on a press.
+  const filledLine = tab.locator('.group[data-group="filled"] .group-head');
+  await expect(filledLine).toHaveText(/^\d+ Filled$/);
+  await expect(filledLine).toHaveAttribute("aria-expanded", "false");
+  await expect(tab.locator('.group[data-group="filled"] .row[data-mark="filled"]').first()).toBeHidden();
+  await filledLine.click();
+  await expect(tab.locator('.group[data-group="filled"] .row[data-mark="filled"]').first()).toBeVisible();
   // No source badge until a row is opened; pressing one opens it.
-  const filled = host.locator('.row[data-mark="filled"]').first();
+  // (By its key: an opened row stays in sight above the folded line.)
+  const key = await tab.locator('.group[data-group="filled"] .row[data-mark="filled"]').first().getAttribute("data-key");
+  const filled = tab.locator(`.row[data-key="${key}"]`);
   await expect(filled.locator(".source")).toBeHidden();
   await filled.locator(".label").click();
   await expect(filled.locator(".source")).toBeVisible();
@@ -125,7 +130,7 @@ test("Work Experience and Education show as one row each, with a block per entry
   const host = hostOf(page);
   await expect(host.locator("[data-progress-said]")).toHaveText(/^Autofilling · \d+%$/, { timeout: 60_000 });
   await shot(page, "coinbase-filling");
-  await expect(mainButton(page)).toContainText(/Next:|Review and submit/, { timeout: 60_000 });
+  await expect(mainButton(page)).toContainText(/Answer \d+ of \d+|Review and submit/, { timeout: 60_000 });
 
   const work = host.locator('.entries[data-entries="Work Experience"]');
   await expect(work).toHaveCount(1);

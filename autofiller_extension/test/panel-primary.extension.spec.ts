@@ -1,10 +1,11 @@
 // The panel's one button, at its bottom (KAN-396, KAN-369 Q5): its words
 // follow the student's next action. Autofill This Page before a fill (Fill
-// this step on a Workday step outside a batch); "Next: 3 need you" while
-// anything is red, which Alt+N presses too; Review and submit once nothing
-// is, which scrolls to the employer's Submit and rings it, never pressing it.
-// The count line "Required 12 of 14 filled · 3 need you" is the Autofill
-// tab's. Fill Again, in the ⋯ menu, asks once.
+// this step on a Workday step outside a batch); "Answer 1 of 3" while
+// anything on the page is red, which goes to the page's first red field and
+// stays there until it is answered (KAN-424); Alt+N runs Next Thing, the
+// walk. Review and submit once nothing is red, which scrolls to the
+// employer's Submit and rings it, never pressing it. The red box's title
+// counts what the button does. Fill Again, in the ⋯ menu, asks once.
 import { expect, test, type Frame, type Page } from "@playwright/test";
 import { FakeApi } from "./fake-api";
 import { FakeWorkdays, SavedForms } from "./fake-job-systems";
@@ -19,7 +20,7 @@ type Where = Page | Frame;
 const hostOf = (page: Where) => page.locator("#workit-autofiller-overlay-host");
 const primaryOf = (page: Where) => hostOf(page).locator('[data-slot="primary"]');
 const mainButton = (page: Where) => primaryOf(page).locator(".primary-button").first();
-const requiredLine = (page: Where) => hostOf(page).locator(".summary");
+const needsBox = (page: Where) => hostOf(page).locator('.box[data-box="needs-you"]');
 
 async function start(handlers: Handler[]): Promise<void> {
   loaded = await loadExtension([new FakeApi().handler, webapp, ...handlers]);
@@ -33,19 +34,9 @@ async function filledOwnTab(forms: SavedForms): Promise<Page> {
   await hostOf(page).getByRole("button", { name: "Show WorkIt panel" }).click({ timeout: 15_000 });
   await expect(mainButton(page)).toHaveText("Autofill This Page");
   await mainButton(page).click();
-  await expect(mainButton(page)).toContainText("Next:", { timeout: 60_000 });
+  await expect(mainButton(page)).toContainText(/^Answer \d+ of \d+$/, { timeout: 60_000 });
   return page;
 }
-
-/** What the form itself holds: its required questions (Greenhouse marks their labels with an asterisk) and how many show an answer. */
-const formCounts = (page: Page) =>
-  page.evaluate(() => {
-    const boxes = [...document.querySelectorAll("label")].filter((l) => /\*\s*$/.test(l.textContent ?? "")).map((l) => l.parentElement!);
-    const answered = boxes.filter(
-      (box) => box.querySelector(".select__single-value, .select__multi-value") || [...box.querySelectorAll("input:not(.select__input), textarea")].some((i) => (i as HTMLInputElement).value.trim()),
-    );
-    return { total: boxes.length, filled: answered.length };
-  });
 
 /** The background's press of an extension command (Chrome gives a test no way to press its keys). */
 const pressCommand = (page: Page, command: string) =>
@@ -57,24 +48,27 @@ const pressCommand = (page: Page, command: string) =>
     [page.url(), command],
   );
 
-test("after a fill, Next: N need you goes to what needs you, and the required line matches the form", async () => {
+test("after a fill, Answer 1 of N goes to the page's first red field and stays there until it is answered", async () => {
   test.setTimeout(120_000);
   const forms = new SavedForms([ANDURIL]);
   await start([forms.handler]);
   const page = await filledOwnTab(forms);
 
   const said = (await mainButton(page).innerText()).replace(/\s+/g, " ");
-  const open = Number(said.match(/^Next: (\d+) need you$/)?.[1]);
+  const open = Number(said.match(/^Answer 1 of (\d+)$/)?.[1]);
   expect(open).toBeGreaterThan(0);
-  const { total, filled } = await formCounts(page);
-  expect(total).toBeGreaterThan(0);
-  // "N need you" counts the red rows, never the guesses to check.
-  const needsYou = await hostOf(page).locator('[data-tab="autofill"] .row[data-key][data-mark="needs-you"]').count();
-  await expect(requiredLine(page)).toHaveText(`Required ${filled} of ${total} filled · ${needsYou} need you`);
+  // "of N" counts the red rows, never the guesses to check, and the red box says the same.
+  const red = hostOf(page).locator('[data-tab="autofill"] .row[data-key][data-mark="needs-you"]');
+  await expect(red).toHaveCount(open);
+  await expect(needsBox(page).locator(".box-head")).toHaveText(`${open} ${open === 1 ? "Needs" : "Need"} Your Answer`);
 
-  // Next Thing focuses a field of the form.
+  // The button focuses the first red field of the form, and pressed again, the same one: nothing moved on.
+  const first = await red.first().getAttribute("data-key");
   await mainButton(page).click();
+  await expect(hostOf(page).locator("[data-current]")).toHaveAttribute("data-key", first!);
   await expect.poll(() => page.evaluate(() => document.activeElement !== document.body && !document.activeElement?.closest("#workit-autofiller-overlay-host"))).toBe(true);
+  await mainButton(page).click();
+  await expect(hostOf(page).locator("[data-current]")).toHaveAttribute("data-key", first!);
   expect(forms.submissions).toEqual([]);
 });
 
@@ -97,22 +91,20 @@ test("with nothing red, Review and submit scrolls to the employer's Submit and r
   const forms = new SavedForms([ANDURIL]);
   await start([forms.handler]);
   const page = await filledOwnTab(forms);
-  // The student answers whatever needs them: Next Thing shows each in turn, and they type or say it looks right.
+  // The student answers whatever needs them: the button shows each red field in turn, staying on one until it is
+  // answered, so each answer is read back before the next press.
   for (let n = 0; n < 15 && !/Review and submit/.test(await mainButton(page).innerText()); n++) {
     await mainButton(page).click();
     const row = hostOf(page).locator("[data-current]");
     await expect(row).toHaveCount(1);
-    const looks = row.getByRole("button", { name: "Looks right" });
-    if (await looks.count()) await looks.click();
-    else {
-      // A dropdown WorkIt has no answer for, focused: the student picks its first option.
-      await page.keyboard.press("ArrowDown");
-      await page.keyboard.press("Enter");
-    }
-    await page.waitForTimeout(300);
+    const key = (await row.getAttribute("data-key"))!;
+    // A dropdown WorkIt has no answer for, focused: the student picks its first option.
+    await page.keyboard.press("ArrowDown");
+    await page.keyboard.press("Enter");
+    await expect(hostOf(page).locator(`.row[data-key="${key}"]`)).not.toHaveAttribute("data-mark", "needs-you", { timeout: 10_000 });
   }
   await expect(mainButton(page)).toHaveText("Review and submit");
-  await expect(requiredLine(page)).not.toContainText("need you");
+  await expect(needsBox(page)).toHaveCount(0);
 
   // From where the last answer left the page.
   await mainButton(page).click();
@@ -148,7 +140,7 @@ test("Fill Again asks once; Cancel leaves the page as it is", async () => {
   await primaryOf(page).locator("[data-confirm]").getByRole("button", { name: "Fill Again" }).click();
   // Said yes: the form fills again, and the button comes back once it is done.
   await expect(mainButton(page)).toHaveText("Filling…");
-  await expect(mainButton(page)).toContainText("Next:", { timeout: 90_000 });
+  await expect(mainButton(page)).toContainText(/^Answer \d+ of \d+$/, { timeout: 90_000 });
   expect(forms.submissions).toEqual([]);
 });
 
@@ -176,7 +168,7 @@ test("a filled Workday step with nothing red asks for Save and Continue, not 1 n
   await mainButton(page).click();
   // The step's line tells the student what's next; the button carries it, so it isn't a thing that needs them.
   await expect(mainButton(page)).toHaveText("Go to Save and Continue", { timeout: 60_000 });
-  await expect(requiredLine(page)).not.toContainText("need you");
+  await expect(needsBox(page)).toHaveCount(0);
   expect(workdays.submissions).toEqual([]);
 });
 
