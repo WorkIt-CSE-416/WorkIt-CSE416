@@ -115,6 +115,28 @@ async function showUnsupported() {
     said.hidden = false;
     said.classList.toggle("error", error);
   };
+  // Allow WorkIt on <host> (KAN-369, background/site-access.js): Chrome asks the student for this one site,
+  // from this click (a permission request needs it); then the panel's scripts run there.
+  const allow = box.querySelector("#allow-button");
+  if (page.allowable) {
+    allow.textContent = `Allow WorkIt on ${page.host}`;
+    allow.hidden = false;
+    box.querySelector(".allow-hint").hidden = false;
+  }
+  allow.addEventListener("click", async () => {
+    allow.disabled = true;
+    const granted = await chrome.permissions.request({ origins: [`https://${page.host}/*`] }).catch(() => false);
+    allow.disabled = false;
+    if (!granted) return say("WorkIt wasn't allowed on this site.", true);
+    const answer = await sendMessage({ type: "popup/allow", tabId });
+    if (!answer?.ok) return say("WorkIt couldn't start on this site. Try again.", true);
+    allow.hidden = true;
+    box.querySelector(".allow-hint").hidden = true;
+    if (!answer.found) return say("WorkIt found no application it fills on this page. Request this job system to ask for it.");
+    box.querySelector(".unsupported-line").textContent = "WorkIt can fill this page";
+    for (const button of box.querySelectorAll("#save-button, #request-button, #report-button")) button.hidden = true;
+    say(answer.onPage ? "Its panel is open at the right edge of the page." : "Open WorkIt's tab at the right edge of the application form.");
+  });
   const save = box.querySelector("#save-button");
   save.addEventListener("click", async () => {
     save.disabled = true;

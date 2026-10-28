@@ -30,6 +30,7 @@ import { injectFill } from "../shared/content-scripts.js";
 import { forgetShownWorkableDraft } from "./tab-load.js";
 import { allowForMe, forgetLogin, markCreated, markRefused, markSignedIn, sentSince, watchWorkdaySends, workdayLogin } from "./workday-logins.js";
 import { writeEarly } from "./write-early.js";
+import { allowTabSite, allowedSites, pageJobUrl, removeSite, syncSites } from "./site-access.js";
 import { fetchText, planReads } from "./plan-reads.js";
 
 /**
@@ -123,8 +124,10 @@ async function handleMessage(message, sender) {
       const bank = !plan ? {}
         : jobId ? answerBank(profile.id, jobId).catch(() => ({}))
         : (company) => anyFormAnswerBank(profile.id, company).catch(() => ({}));
+      // On a site the student allowed (site-access.js), the link the engine reads for the page.
+      const url = (await pageJobUrl(sender.tab?.id, sender.frameId ?? 0, sender.url ?? "")) ?? sender.url;
       const answer = await handleFill(message, {
-        url: sender.url, profile, bank, today: today(), call: engineIn(sender), fetchText: plan ? planReads(sender.tab.id) : fetchText, trees: workdayTrees, jobType,
+        url, profile, bank, today: today(), call: engineIn(sender), fetchText: plan ? planReads(sender.tab.id) : fetchText, trees: workdayTrees, jobType,
       });
       // TikTok's sign-in, the student's to go through: the tab is remembered, and its form fills once it shows.
       if (message.type === "fill/plan" && answer.signIn) await rememberSignInTab(sender.tab.id);
@@ -355,7 +358,7 @@ async function handleMessage(message, sender) {
     // page the toolbar icon opens and closes the panel, so the tab has no popup.
     case "panel/where": {
       const url = sender.url ?? "";
-      const job = Boolean(jobOf(url));
+      const job = Boolean(await pageJobUrl(sender.tab?.id, sender.frameId ?? 0, url));
       if (job && sender.tab?.id !== undefined) await chrome.action.setPopup({ tabId: sender.tab.id, popup: "" });
       // A job page's panel will plan a fill: its profile is fetched while the page settles.
       if (job) warmProfile();
@@ -377,12 +380,23 @@ async function handleMessage(message, sender) {
       return reportTab(message.tabId, message.note);
     case "popup/request":
       return requestTabSystem(message.tabId);
+    // Allow WorkIt on <host> (popup.js, KAN-369): the popup's permission request was granted.
+    case "popup/allow": {
+      const allowed = await allowTabSite(message.tabId);
+      if (allowed.onPage) await openShell(message.tabId, false);
+      return allowed;
+    }
+    // The options page's allowed sites, and its Remove.
+    case "sites/list":
+      return { sites: await allowedSites() };
+    case "sites/remove":
+      return removeSite(message.origin);
     case "panel/fill":
       await injectFill(sender.tab.id, { batch: Boolean(message.batch) && (await inBatch(sender.tab.id)), frameId: sender.frameId || undefined });
       return {};
     // The panel's top (panel-top.js, KAN-395): the job card's job, and the batch line.
     case "panel/job":
-      return { job: await jobForTab({ tabId: sender.tab.id, url: sender.url ?? "" }) };
+      return { job: await jobForTab({ tabId: sender.tab.id, url: (await pageJobUrl(sender.tab.id, sender.frameId ?? 0, sender.url ?? "")) ?? sender.url ?? "" }) };
     case "panel/batch-line":
       return { line: await batchLine(sender.tab.id), site: jobOf(sender.url ?? "")?.site ?? null };
     case "panel/next-tab":
@@ -459,6 +473,9 @@ async function rememberWorkdayTab(tabId) {
 // is what marks its application applied.
 watchSubmitRequests(markSubmitted);
 watchEmbeddedForms();
+// The employer sites the student allowed keep their scripts; one whose permission went is dropped (site-access.js).
+syncSites().catch((error) => console.warn("[sites] the allowed sites weren't synced:", error.message));
+chrome.permissions.onRemoved.addListener(() => void syncSites().catch(() => {}));
 watchWorkdaySends();
 
 // A batch tab that moves to a job system's page for a sent application
@@ -563,6 +580,21 @@ async function panelSite(url, change) {
 // What the panel's shell injects when the toolbar icon or Alt+W finds no panel on a job page yet.
 const SHELL_FILES = ["src/shared/tokens.js", "src/content/ui.js", "src/shared/report-parts.js", "src/content/panel.js", "src/content/panel-top.js", "src/content/resume-tab.js", "src/content/panel-settings.js", "src/content/report.js", "src/content/panel-states.js"];
 
+/** Opens the panel's shell in the tab's top frame, as the toolbar icon does on a job page with no edge tab yet
+ * (`inject`: its files first; an allowed site's were just injected with the launcher). */
+async function openShell(tabId, inject = true) {
+  if (inject) await chrome.scripting.executeScript({ target: { tabId }, files: SHELL_FILES });
+  await chrome.scripting.executeScript({
+    target: { tabId },
+    func: async () => {
+      const panel = window.WIA.panel;
+      await panel.ensure();
+      if (!window.WIA.overlay?.state?.()) await window.WIA.panelStates.start();
+      panel.open();
+    },
+  });
+}
+
 /**
  * The toolbar icon (a tab with no popup: a job page, panel/where) and
  * Alt+W: open or close the panel in whichever frame has it. A job page whose
@@ -574,19 +606,7 @@ async function toolbarPressed(tab) {
   if (!tab?.id) return;
   const answer = await chrome.tabs.sendMessage(tab.id, { type: "panel/toggle" }).catch(() => null);
   if (answer?.toggled) return;
-  if (jobOf(tab.url ?? "")) {
-    await chrome.scripting.executeScript({ target: { tabId: tab.id }, files: SHELL_FILES });
-    await chrome.scripting.executeScript({
-      target: { tabId: tab.id },
-      func: async () => {
-        const panel = window.WIA.panel;
-        await panel.ensure();
-        if (!window.WIA.overlay?.state?.()) await window.WIA.panelStates.start();
-        panel.open();
-      },
-    });
-    return;
-  }
+  if (await pageJobUrl(tab.id, 0, tab.url ?? "")) return openShell(tab.id);
   await chrome.action.setPopup({ tabId: tab.id, popup: chrome.runtime.getManifest().action.default_popup });
   await chrome.action.openPopup().catch(() => {});
 }

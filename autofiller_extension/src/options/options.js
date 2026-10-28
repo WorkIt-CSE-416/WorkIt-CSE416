@@ -1,4 +1,4 @@
-// The extension's Workday Sign-Up page (KAN-369), its options page: the one
+// The extension's options page (KAN-369): the Workday Sign-Up, the one
 // registration email and password the student may set for every company's
 // Workday (background/workday-logins.js uses them in place of a password
 // made per company).
@@ -79,3 +79,40 @@ async function prefill() {
 }
 
 prefill();
+
+// Sites You Allowed (background/site-access.js): each employer site the student allowed from the
+// popup, with Remove, which gives the site's permission back to Chrome and stops WorkIt's scripts there.
+const sites = document.getElementById("sites");
+const sitesSaid = document.getElementById("sites-said");
+
+async function listSites() {
+  const answer = await chrome.runtime.sendMessage({ type: "sites/list" }).catch(() => null);
+  if (!answer?.ok) {
+    sitesSaid.textContent = "WorkIt couldn't list your sites. Reload this page to try again.";
+    return;
+  }
+  sites.replaceChildren(
+    ...answer.sites.map((origin) => {
+      const item = document.createElement("li");
+      const name = Object.assign(document.createElement("span"), { textContent: new URL(origin).hostname });
+      const remove = Object.assign(document.createElement("button"), { type: "button", className: "secondary", textContent: "Remove" });
+      remove.setAttribute("aria-label", `Remove ${new URL(origin).hostname}`);
+      remove.addEventListener("click", async () => {
+        remove.disabled = true;
+        const removed = await chrome.runtime.sendMessage({ type: "sites/remove", origin }).catch(() => null);
+        if (!removed?.ok) {
+          remove.disabled = false;
+          sitesSaid.textContent = "WorkIt couldn't remove that site. Try again.";
+          return;
+        }
+        sitesSaid.textContent = `Removed. WorkIt no longer runs on ${new URL(origin).hostname}.`;
+        await listSites();
+      });
+      item.append(name, remove);
+      return item;
+    }),
+  );
+  if (!answer.sites.length) sites.replaceChildren(Object.assign(document.createElement("li"), { className: "muted", textContent: "None yet." }));
+}
+
+listSites();

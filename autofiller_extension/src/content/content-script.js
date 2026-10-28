@@ -151,6 +151,11 @@
         note("_signin", line.replace(/\.$/, ""), `${rest.join(" ")} WorkIt fills the application once its form shows.`.trim());
         return null;
       }
+      // A SuccessFactors career-site posting is its own "form" link: its Apply goes on to the sign-in, then the application.
+      if (prepared.openForm && prepared.site === "successfactors" && prepared.openForm.split("?")[0] === location.href.split("?")[0]) {
+        note("_form", "This page shows the job, not its application", "Press Apply on this page and sign in to SuccessFactors. WorkIt fills the application there.");
+        return null;
+      }
       if (prepared.openForm) {
         note("_form", "This page shows the job, not its application", `Open the application form (${prepared.openForm}), then click Autofill again.`);
         return null;
