@@ -1018,6 +1018,15 @@ removed at cutover, not before. Until then a change must work on both.
   it (why a scraped job closed) follows in its own PR, whose dry-run scrape
   check and every scheduled import fail on a database without it; and the
   model maps it, so a company job's insert fails there too.
+- **Batch apply's migrations (KAN-369, `d1a7c3e5f902` through
+  `f4a8c1d6e273`) are on main ahead of their code**, so they can be applied
+  before the deploy that maps them. The models map
+  `applicant_profiles.location` and `experience_banks.removed_skills`, so
+  deployed first, every signed-in student request answers 500. They only
+  add tables and nullable or defaulted columns (and re-key the new
+  `company_briefs`), so applying them early is safe. Until batch apply's
+  models merge, `alembic revision --autogenerate` proposes dropping its
+  tables and columns: delete those lines from any migration it writes.
 - **Apply `a3d7f1c9e2b4` (`bank_skills.built_resume_id`, resume-local
   skills) before the deploy that maps it.** Every skill insert names the
   column, so deployed first, uploads, Import Again and Add skill answer
