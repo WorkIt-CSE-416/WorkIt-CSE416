@@ -73,13 +73,16 @@ def positive(value: str) -> int:
 
 def main(argv: list[str] | None = None) -> int:
     parser = argparse.ArgumentParser(description=__doc__)
-    parser.add_argument("--channel", action="append",
-                        choices=tuple(CHANNELS))
+    parser.add_argument("--channel", action="append", choices=tuple(CHANNELS))
     parser.add_argument("--query", default="")
     parser.add_argument("--url", help="a known company's ATS board or posting URL")
     parser.add_argument("--company", default="", help="company attributed to --url")
-    parser.add_argument("--limit", type=positive, default=20,
-                        help="maximum new boards to validate, and results per channel")
+    parser.add_argument(
+        "--limit",
+        type=positive,
+        default=20,
+        help="maximum new boards to validate, and results per channel",
+    )
     parser.add_argument("--months", type=positive, default=3)
     parser.add_argument("--boards", type=Path, default=BOARDS_CSV)
     parser.add_argument("--report", type=Path, default=Path("discovery-report.json"))
@@ -131,20 +134,35 @@ def main(argv: list[str] | None = None) -> int:
             validate(row, robots)
             attempts += 1
             print(f"{row.ats}/{row.token}: {row.status}")
-    print("Boards: " + ", ".join(f"{status} {count}" for status, count
-                                in sorted(Counter(r.status for r in rows).items())))
+    print(
+        "Boards: "
+        + ", ".join(
+            f"{status} {count}" for status, count in sorted(Counter(r.status for r in rows).items())
+        )
+    )
     report = {
         "candidates": [asdict(r) for r in rows],
         "channel_failures": [asdict(f) for f in failures],
         "unmatched": [asdict(e) for e in evidence if not board_keys(e.url)],
     }
     args.report.write_text(json.dumps(report, indent=2) + "\n", encoding="utf-8")
-    added = add_boards(args.boards, (
-        Board(row.ats, row.token, row.companies[0]) for row in rows
-        if row.status == "validated" and len(row.companies) == 1
-    )) if args.apply else 0
-    print(f"Report: {args.report}; {added} boards added" if args.apply
-          else f"Preview: {args.report}; use --apply to add validated, named boards")
+    added = (
+        add_boards(
+            args.boards,
+            (
+                Board(row.ats, row.token, row.companies[0])
+                for row in rows
+                if row.status == "validated" and len(row.companies) == 1
+            ),
+        )
+        if args.apply
+        else 0
+    )
+    print(
+        f"Report: {args.report}; {added} boards added"
+        if args.apply
+        else f"Preview: {args.report}; use --apply to add validated, named boards"
+    )
     return 1 if failures else 0
 
 

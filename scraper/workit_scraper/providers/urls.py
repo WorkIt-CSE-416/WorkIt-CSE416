@@ -14,11 +14,14 @@ from workit_scraper.providers.registry import PROVIDERS
 # Workday's alternate public host names the same tenant/site as myworkdayjobs.
 WORKDAY_SITE = re.compile(
     r"//(wd\d+)\.myworkdaysite\.com/(?:[a-z]{2}(?:-[a-z]{2})?/)?"
-    r"recruiting/([a-z0-9-]+)/([a-z0-9_-]+)", re.I,
+    r"recruiting/([a-z0-9-]+)/([a-z0-9_-]+)",
+    re.I,
 )
 GREENHOUSE_HOSTS = {
-    "boards.greenhouse.io", "job-boards.greenhouse.io",
-    "boards.eu.greenhouse.io", "job-boards.eu.greenhouse.io",
+    "boards.greenhouse.io",
+    "job-boards.greenhouse.io",
+    "boards.eu.greenhouse.io",
+    "job-boards.eu.greenhouse.io",
 }
 
 

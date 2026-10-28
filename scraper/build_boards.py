@@ -378,8 +378,11 @@ def main(argv: list[str] | None = None) -> int:
         "# resolved careers pages (--resolve), and boards verified by hand.\n"
         "# Boards are only added, never removed; each board must answer its ATS.\n"
     )
-    write_boards(out, (Board(ats, token, company) for (ats, token), company in boards.items()),
-                 preamble=preamble)
+    write_boards(
+        out,
+        (Board(ats, token, company) for (ats, token), company in boards.items()),
+        preamble=preamble,
+    )
 
     by_ats: dict[str, int] = {}
     for ats, _ in boards:

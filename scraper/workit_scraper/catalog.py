@@ -41,9 +41,15 @@ def _atomic_write(path: Path, content: str) -> None:
     # concurrent read/modify/write transactions. Catalog writers run one at a time.
     temporary = None
     try:
-        with tempfile.NamedTemporaryFile(mode="w", encoding="utf-8", newline="\n",
-                                         dir=path.parent, prefix=path.name + ".",
-                                         suffix=".tmp", delete=False) as handle:
+        with tempfile.NamedTemporaryFile(
+            mode="w",
+            encoding="utf-8",
+            newline="\n",
+            dir=path.parent,
+            prefix=path.name + ".",
+            suffix=".tmp",
+            delete=False,
+        ) as handle:
             temporary = Path(handle.name)
             handle.write(content)
         os.replace(temporary, path)

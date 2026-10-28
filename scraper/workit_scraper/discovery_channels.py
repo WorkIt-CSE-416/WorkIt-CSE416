@@ -97,7 +97,8 @@ def hn_company(text: str) -> str:
     if re.match(
         r"(?i)^(?:we\b|i\b|at\b|our\b|join\b|hiring\b|looking\b|seeking\b|"
         r"senior\b|staff\b|principal\b|lead\b|software\b|backend\b|frontend\b|"
-        r"full[ -]?stack\b|engineer\b|developer\b|sr\.?\b|do you\b)", name
+        r"full[ -]?stack\b|engineer\b|developer\b|sr\.?\b|do you\b)",
+        name,
     ):
         return ""
     return name
@@ -118,8 +119,12 @@ class _SearchLinks(HTMLParser):
             self.links.append(destination)
 
 
-def _attempt(result: CollectionResult, channel: str, source: str,
-             collect_source: Callable[[], list[Evidence]]) -> None:
+def _attempt(
+    result: CollectionResult,
+    channel: str,
+    source: str,
+    collect_source: Callable[[], list[Evidence]],
+) -> None:
     """Independent sources keep their successes; failures carry safe diagnostics."""
     try:
         result.evidence.extend(collect_source())
@@ -131,8 +136,12 @@ def _attempt(result: CollectionResult, channel: str, source: str,
 def curated(read: Read, sources: Iterable[Source]) -> CollectionResult:
     result = CollectionResult()
     for source in sources:
-        _attempt(result, "curated", source.url,
-                 lambda source=source: curated_rows(json.loads(read(source.url)), source))
+        _attempt(
+            result,
+            "curated",
+            source.url,
+            lambda source=source: curated_rows(json.loads(read(source.url)), source),
+        )
     return result
 
 
@@ -151,12 +160,17 @@ def _hn_comments(payload: object, thread_id: str) -> list[Evidence]:
 
 
 def hn(read: Read, months: int) -> CollectionResult:
-    search = "https://hn.algolia.com/api/v1/search_by_date?" + urlencode({
-        "tags": "story,author_whoishiring", "query": "Who is hiring?", "hitsPerPage": 30,
-    })
+    search = "https://hn.algolia.com/api/v1/search_by_date?" + urlencode(
+        {
+            "tags": "story,author_whoishiring",
+            "query": "Who is hiring?",
+            "hitsPerPage": 30,
+        }
+    )
     payload = json.loads(read(search))
-    threads = [row for row in payload["hits"]
-               if "who is hiring?" in row.get("title", "").lower()][:months]
+    threads = [row for row in payload["hits"] if "who is hiring?" in row.get("title", "").lower()][
+        :months
+    ]
     result = CollectionResult()
     for thread in threads:
         identifier = str(thread["objectID"])
@@ -164,9 +178,14 @@ def hn(read: Read, months: int) -> CollectionResult:
             result.failures.append(SourceFailure("hn", search, "invalid thread identifier"))
             continue
         source = f"https://hn.algolia.com/api/v1/items/{identifier}"
-        _attempt(result, "hn", source,
-                 lambda source=source, identifier=identifier:
-                 _hn_comments(json.loads(read(source)), identifier))
+        _attempt(
+            result,
+            "hn",
+            source,
+            lambda source=source, identifier=identifier: _hn_comments(
+                json.loads(read(source)), identifier
+            ),
+        )
     return result
 
 
@@ -184,32 +203,48 @@ def github(read: Read, query: str, limit: int, env: Mapping[str, str]) -> Collec
     token = env.get("GITHUB_TOKEN") or env.get("GH_TOKEN")
     if not token:
         raise DiscoveryError("github needs GITHUB_TOKEN or GH_TOKEN")
-    source = "https://api.github.com/search/code?" + urlencode({
-        "q": query, "per_page": min(limit, 100),
-    })
-    payload = json.loads(read(source, headers={
-        "Authorization": f"Bearer {token}", "Accept": "application/vnd.github.text-match+json",
-    }))
+    source = "https://api.github.com/search/code?" + urlencode(
+        {
+            "q": query,
+            "per_page": min(limit, 100),
+        }
+    )
+    payload = json.loads(
+        read(
+            source,
+            headers={
+                "Authorization": f"Bearer {token}",
+                "Accept": "application/vnd.github.text-match+json",
+            },
+        )
+    )
     if payload.get("incomplete_results"):
         raise DiscoveryError("GitHub returned incomplete search results; narrow the query")
-    return CollectionResult([Evidence(url, "", row["html_url"])
-                             for row in payload["items"]
-                             for fragment in row.get("text_matches", [])
-                             for url in urls(fragment.get("fragment", ""))])
+    return CollectionResult(
+        [
+            Evidence(url, "", row["html_url"])
+            for row in payload["items"]
+            for fragment in row.get("text_matches", [])
+            for url in urls(fragment.get("fragment", ""))
+        ]
+    )
 
 
 def google(read: Read, query: str, limit: int, env: Mapping[str, str]) -> CollectionResult:
     key, cx = env.get("GOOGLE_CSE_KEY"), env.get("GOOGLE_CSE_CX")
     if not key or not cx:
         raise DiscoveryError("google needs GOOGLE_CSE_KEY and GOOGLE_CSE_CX")
-    source = "https://customsearch.googleapis.com/customsearch/v1?" + urlencode({
-        "q": query, "cx": cx, "num": min(limit, 10),
-    })
+    source = "https://customsearch.googleapis.com/customsearch/v1?" + urlencode(
+        {
+            "q": query,
+            "cx": cx,
+            "num": min(limit, 10),
+        }
+    )
     payload = json.loads(read(source, headers={"X-Goog-Api-Key": key}))
     if "error" in payload:
         raise DiscoveryError("Google rejected the search request")
-    return CollectionResult([Evidence(row["link"], "", source)
-                             for row in payload.get("items", [])])
+    return CollectionResult([Evidence(row["link"], "", source) for row in payload.get("items", [])])
 
 
 @dataclass(frozen=True)
@@ -246,13 +281,25 @@ def validate_options(channel: str, *, query: str = "", limit: int = 20, months: 
         raise DiscoveryError(f"{channel} needs an explicit search query")
 
 
-def collect(channel: str, read: Read, *, query: str = "", limit: int = 20, months: int = 3,
-            sources: Iterable[Source] | None = None,
-            environ: Mapping[str, str] | None = None) -> CollectionResult:
+def collect(
+    channel: str,
+    read: Read,
+    *,
+    query: str = "",
+    limit: int = 20,
+    months: int = 3,
+    sources: Iterable[Source] | None = None,
+    environ: Mapping[str, str] | None = None,
+) -> CollectionResult:
     """Collect evidence and source failures; search results alone are capped."""
     validate_options(channel, query=query, limit=limit, months=months)
-    options = Options(query, limit, months, CURATED_SOURCES if sources is None else sources,
-                      os.environ if environ is None else environ)
+    options = Options(
+        query,
+        limit,
+        months,
+        CURATED_SOURCES if sources is None else sources,
+        os.environ if environ is None else environ,
+    )
     try:
         result = CHANNELS[channel].run(read, options)
     except DiscoveryError:
