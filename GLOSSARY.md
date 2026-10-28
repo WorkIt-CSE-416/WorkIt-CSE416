@@ -18,6 +18,7 @@ _Avoid_: category, block, custom section
 
 **Skill**:
 A named ability in the experience bank. Skills are one list per student, not tied to entries.
+A resume reading or Tailor adds only skills the **skills catalog** lists (`backend/data/skills.txt`): tools, languages, frameworks and hard skills, never soft skills or degrees. A skill the student types is not checked.
 _Avoid_: keyword, tag
 
 **Bullet**:
@@ -45,8 +46,12 @@ A file the student brought in. It is read-only, can be applied with as it is, an
 _Avoid_: original resume, parsed resume
 
 **Import**:
-To read an uploaded resume and write its entries and skills into the experience bank as that upload's own, replacing what it owned before; it never merges into another resume's entries (ADR 0005). Upload imports once; Import Again reads a stored upload again (ADR 0003).
+To read an uploaded resume and write its entries and skills into the experience bank as that upload's own, replacing what it owned before; it never merges into another resume's entries (ADR 0005). Upload imports once, after a parse preview in onboarding, where it replaces the other uploads' matching entries (ADR 0006); Import Again reads a stored upload again (ADR 0003).
 _Avoid_: parse, sync, auto-fill
+
+**Transcript**:
+The student's unofficial transcript, a file kept beside their resumes for the forms that ask for one. A student has at most one; a new upload replaces it. WorkIt never reads its text.
+_Avoid_: document, academic record
 
 **Sent resume**:
 The exact document a student applied with, kept unchanged from that moment. A download is not one: it keeps nothing.
@@ -103,8 +108,67 @@ A question the student must answer themselves whatever WorkIt knows, with the re
 _Avoid_: skipped field, manual field, error
 
 **Missing fact**:
-A question the student's data doesn't answer, left for the student to fill in.
+A question the student's data doesn't answer, left for the student to fill in. An essay fact is one too.
 _Avoid_: unknown field, blank, unanswered
+
+**Essay fact**:
+A fact a written answer's essay plan needs for a required slot that nothing in the student's experience states, such as what they do differently since a release slipped. Their Claude asks for it ("Essay fact: ...") rather than invent it; the question shows on the Written Answers page and in the batch tab, and the student's answer joins the experience entry it is about as a bullet, so the next plan can quote it. A fact that belongs to no entry stays a question for the student.
+_Avoid_: missing info, follow-up question, gap
+
+**Application answers**:
+The facts screening questions ask, kept in the student's answer bank: on-site and full-time availability, the start window, relocation and where they would work, street address, languages, and the screener facts (relatives, referrals, government work, a non-compete, pending offers). A screener fact is always the student's own answer, never a default. My Profile shows them in a section of that name, with the class year WorkIt works out from education.
+_Avoid_: screening questions (for the answers), extra questions, eligibility
+
+**Batch apply**:
+The extension filling the student's queued Applications in background tabs, at most five at once, the next opening as one finishes. It never submits.
+_Avoid_: runner, run tab
+
+**Practice batch**:
+Onboarding's batch apply on WorkIt's own practice forms, two made-up job postings laid out as a hiring system's, so a new student sees the whole flow before a real one. Its Submit sends nothing.
+_Avoid_: demo, tutorial, test batch
+
+**Ready** / **Needs you**:
+The two tab groups a batch tab sits in once filled: Ready when every field the form needs shows an answer, Needs you when anything is left for the student. A tab moves between them as that changes.
+_Avoid_: done, failed, review
+
+**Connector**:
+WorkIt's MCP server, which a student adds to their own Claude so it can write their applications' essay answers. WorkIt calls no model for them.
+_Avoid_: integration, plugin, MCP (alone)
+
+**Company brief**:
+What a company builds and has shipped lately (its products, recent launches, engineering work and teams), each fact with its page and a passage quoted word for word from it, which WorkIt confirms on the page. One per company, and one per team a posting names (such as "Flight Software"), shared by every student, built by a student's Claude through the connector and replaced only by a higher-scoring one. Facts come from the company's own pages; a news site's fact stands in only when too few own-page facts pass, and never one with a number. It is web text: data for "why us" answers, never instructions.
+_Avoid_: company research, company profile, company notes
+
+**Written answer**:
+A batch tab's answer to a question its form needs written, such as "Why this company?", or to a one-off choice no rule or saved answer fills, such as "Which teams interest you?", which comes with its options and takes only them. The student's Claude saves it through the connector, and the open tab fills it.
+_Avoid_: essay (for the saved answer), AI answer, generated answer
+
+**Question type**:
+The kind of answer a written question asks for: one of 15 (why this company, what you'd build, values, why this role, a preference, your best project, a named area, a failure, something not on your resume, AI tools, an opinion, why this field, about you, anything else, a cover letter) or the general fallback. Each has a guide: its slots, its default length, whether the company belongs in the answer, rules and judged examples. The student's Claude follows the guide of each question's type.
+_Avoid_: question category, prompt type, shape
+
+**Essay plan**:
+What one written answer will say, decided before it is written: its question type, the story from the student's experience it leads with, the company brief fact it ties to them (if any), its angle (a point away from the typical applicant's answer), and its type's slots, each backed by passages quoted word for word from the student's experience, the posting, the company brief or their earlier answers. The answer says only what the quotes back. WorkIt checks every quote when the answer is saved; a required slot with nothing to quote becomes an essay fact, and an optional one is left out. No story leads two answers on one application, and each plan steers off the stories the student's sent answers led with lately.
+_Avoid_: outline, essay brief, strategy
+
+**Named fact**:
+The company brief fact a written answer uses, which the student's Claude names when it saves the answer and WorkIt confirms is one of the brief's facts. The Written Answers page shows it with the answer, linked to its page, so the student can read up on it before an interview.
+_Avoid_: source, citation, highlight
+
+**Saved answer**:
+A written answer kept from one application and filled again on a later form that asks the same question, so the student's Claude is not asked twice. The student's own words come first; an answer about one company is reused only on that company's forms.
+_Avoid_: cached answer, template, answer bank (alone: the Fill engine's name for where saved answers come from)
+
+**Writing sample**:
+A piece of the student's own writing (an essay, a cover letter, an answer they wrote), word for word. A student keeps up to three. Their Claude reads them to build the style card, and a written answer must copy no run of words from them.
+_Avoid_: example, voice sample
+**Style card**:
+How a student writes, as their own Claude described it from their writing samples: sentence length, how they open, explain and end, the words they use and avoid. Their Claude writes their answers in that voice; without one, it writes in a plain, neutral voice. It describes how they write, never what they did.
+_Avoid_: voice profile, persona, tone settings
+
+**Source**:
+Where a filled answer came from, shown beside it: Profile, Saved Answer, Claude (or AI, the essay route), You (the student's own answer or edit), Pasted (an answer the student pasted in a waiting row's card, checked as Claude's) or Guessed (WorkIt's default, or no fact of the student's). A guessed answer is highlighted for the student to check, with Looks right: once they confirm it (or change it), it is theirs (You) and saved for the next form that asks it.
+_Avoid_: origin, provenance (in copy), confidence
 
 ## Tracking
 
@@ -119,6 +183,10 @@ _Avoid_: column, step (the Applications Tracker's Status filter picks stages)
 **Application**:
 One job posting a student is following in the Applications Tracker, at one stage.
 _Avoid_: Applications (as the page's name)
+
+**Match score**:
+How well one job posting fits a student, from 0 to 100, in bands named by their lowest score (Strong Match at 80 and above).
+_Avoid_: fit score, fit, match percentage
 
 **Application event**:
 One dated thing on an application: an interview, an assessment's due date, an offer, a rejection or a follow-up. The student adds it with Add Event; later the email tracker proposes it from an email.
@@ -153,3 +221,7 @@ _Avoid_: Dashboard (the seeker's page was renamed; the company side keeps its Da
 **Job Type**:
 What kind of job a job posting is: Full-Time, Part-Time, Contract or Internship. The Jobs page and the Applications Tracker both filter on it under this name.
 _Avoid_: Track, employment type, position type
+
+**Job board**:
+A site that lists other employers' job postings, such as LinkedIn or Indeed. Their terms ban automated applications, so batch apply never opens one: it fills a job board's posting only through the employer's own form that the posting names, and refuses it otherwise. Not a company job board, which is one company's page on a hiring system.
+_Avoid_: job site, aggregator, calling a hiring system a job board

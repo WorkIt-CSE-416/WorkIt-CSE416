@@ -21,12 +21,30 @@ from workit_scout.llm import LLM
 
 from app.models.dto import Experience, ParsedResume, bank_section, entry_end_kind
 from app.schemas.bank import DraftEntry, ModelReading
+from app.services import skill_catalog
 from app.utils.resume_parser import parse_resume
 
 _SHORT, _LONG, _NAME = 200, 500, 60
 _COURSEWORK_RE = re.compile(r"^(?:Relevant\s+)?(?:Coursework|Courses)\s*:?\s*", re.IGNORECASE)
 _GPA_LINE_RE = re.compile(r"^GPA\b", re.IGNORECASE)
+# Not a skill: a name still holding a "|" (a title's tail glued on), a
+# qualification ("Computer Science degree", "Bachelor's in ...", "GPA 3.8",
+# "3+ years of Java", a citizenship or clearance), or a generic phrase that
+# names no product ("AI tools", "communication skills"). A product or a role
+# stays: "Scrum Master", "Master Data Management", "Chrome Developer Tools",
+# "CI/CD tools", "User Experience".
+_NOT_A_SKILL_RE = re.compile(
+    r"\||\bdegree\b|\b(?:bachelor|master)(?:'?s)?\s+(?:degree|of|in)\b|\bbachelor(?:'?s)?\b|\bdiploma\b|\bgpa\b"
+    r"|\b\d+\+?\s*(?:years?|yrs)\b|\byears?\s+of\b|\bcitizen(?:ship)?\b|\bclearance\b"
+    r"|^(?:ai|genai|software|development|productivity|collaboration|communication|soft|interpersonal"
+    r"|technical|analytical|leadership|problem[- ]solving)\s+(?:tools|skills)$",
+    re.IGNORECASE,
+)
 logger = logging.getLogger(__name__)
+
+
+def not_a_skill(name: str) -> bool:
+    return bool(_NOT_A_SKILL_RE.search(name.strip()))
 
 
 def _clip(value: str | None, limit: int = _SHORT) -> str | None:
@@ -134,22 +152,24 @@ def draft_entries(parsed: ParsedResume, today: datetime.date | None = None) -> l
 
 def parsed_skills(parsed: ParsedResume) -> list[tuple[str, str | None]]:
     """The parser's skills as (name, group) pairs, for `draft_skills`, then
-    the tools named beside each project ("Robot | C++, Python") that the
-    skills section left out, with no group."""
+    the tools named beside each role and project ("Intern| C++, Python",
+    "Robot | C++, Python") that the skills section left out, with no group."""
     pairs: list[tuple[str, str | None]] = [(s.skill_name, s.category) for s in parsed.skills]
-    return pairs + [(tool, None) for project in parsed.projects for tool in project.technologies]
+    beside = [*parsed.experience, *parsed.projects, *parsed.leadership]
+    return pairs + [(tool, None) for item in beside for tool in item.technologies]
 
 
 def skill_pairs(skills: list[tuple[str, str | None]]) -> list[tuple[str, str | None]]:
-    """(name, group) pairs clipped to the field limits, one per name,
-    ignoring case."""
+    """(name, group) pairs clipped to the field limits, keeping only the
+    skills the catalog knows (`skill_catalog`, KAN-369), in the resume's
+    spelling, one per catalog skill ("ReactJS" and "React" are one)."""
     seen: set[str] = set()
     out: list[tuple[str, str | None]] = []
     for raw_name, group in skills:
         name = _clip(raw_name, _NAME)
-        if not name or name.lower() in seen:
+        if not name or not_a_skill(name) or (known := skill_catalog.canonical(name)) is None or known in seen:
             continue
-        seen.add(name.lower())
+        seen.add(known)
         out.append((name, _clip(group, _NAME)))
     return out
 

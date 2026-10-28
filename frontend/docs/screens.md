@@ -100,7 +100,7 @@ view as chips, or a search picker for the long lists, and no facet popups inside
 it (they landed left or right of their button by the room). Its last section,
 Auto Apply (the Zap glyph a job's Auto Apply button wears), has one chip,
 Auto Apply Supported: on, the feed shows only the job postings auto apply can
-fill, the ones with an Auto Apply button (Greenhouse for now, `?auto_apply=true`,
+fill, the ones with an Auto Apply button (every hiring system the Fill engine fills, `?auto_apply=true`,
 counted by GET /jobs/facets' `auto_apply`); off, every job posting. Like Visa,
 it is in All Filters only (asked for 2026-10-17). Its picks are a
 draft until "Show N Jobs", which counts the draft as it changes (GET /jobs/count
@@ -334,7 +334,7 @@ posting. /jobs and /search read the built resumes once beside the first
 page (`getTailoredJobIds`) and hand each card its answer, as for Auto
 Apply; signed out, every card reads Tailor My Resume. Auto Apply shows only on a job posting the
 API marks `auto_apply` (its hiring system is one auto apply fills:
-Greenhouse for now, `backend/app/auto_apply/hosts.py`); every other job
+every hiring system the Fill engine fills, `backend/app/auto_apply/hosts.py`); every other job
 posting has no Auto Apply at all. It sits between Ask Scout and Apply
 Now on the page and the card alike (`auto-apply/auto-apply-button.tsx`):
 Ask Scout's secondary design with the sidebar's Zap glyph. A click queues
@@ -350,20 +350,19 @@ Apply.", with Undo, which takes the job out again (`dequeueJob`) and turns
 the button back to Auto Apply: Live Activity's cross and Undo, the other way
 round. A failed Undo says so in a toast and leaves the button Queued.
 A click that leaves the job queued then runs Start Auto Apply's pipeline
-without the matching: it asks the extension to open the oldest queued job
-in a background tab beside this one (`openNextApplication`), which is this
-job only when nothing older waits. Once its form is ready, the extension
-switches the student to that tab and fills it (the popup's fill; its
-overlay says what was filled): a hidden tab left most dropdowns empty. A failed
-fill shows nothing here yet. It runs after the click settles, so the
+without the matching: it starts batch apply, or tops up the batch running
+(`openNextApplication`, KAN-370): the extension opens the queued jobs in
+background tabs in this window, at most five filling at once, and sorts
+each filled tab into its "Ready" or "Needs you" tab group. The student
+stays on this page. It runs after the click settles, so the
 button never waits on a page load; only a failure shows, as a line above
-the button (no extension stays silent). The job open in that tab reads
+the button (no extension stays silent). A job open in a batch tab reads
 **Working in Browser** (the AppWindow glyph) on every card that shows it,
-read once per page from the extension (`useRunnerJob` in
+read once per page from the extension (`useBrowserJobs` in
 `src/lib/autofill-extension.ts`, asked again whenever the tab gets focus).
 It goes back to Queued only when the extension says the tab is closed,
 never on a failed answer: coming back from the run's tab once reset it;
-a click switches to the tab (`showRunTab`, tooltip "Go to the tab"), and the job
+a click switches to its tab (`showRunTab(jobId)`, tooltip "Go to the tab"), and the job
 leaves the queue from Live Activity only. Its first state comes from
 the server: the job's page reads its one application (`GET
 .../applications/{job_id}`), and /jobs and /search read every application
@@ -1087,14 +1086,15 @@ matches through the API (`POST .../auto-apply/batches`, the server action
 `startBatch`: 10, leaving out every job they already have an application
 for), says how many in a note under the header, and refreshes the route so
 Live Activity lists them; an error (an empty experience bank) shows there in
-red instead. Then it asks the extension to open the oldest queued
-application's page in a background tab beside this one
-(`openNextApplication` in `src/lib/autofill-extension.ts`, the message
-`run/open`), and the note says so, or why not (no extension, signed out) in
-red (`auto-apply/opened-note.ts`, shared with the job card). A tab already
-on that job stays as it is, so Start never wipes a form in progress. A tab
-the extension opens, it also fills, with the student taken to it
-(KAN-305). Pause and Resume only move
+red instead. Then it starts batch apply (KAN-370): the extension opens the
+queued applications in background tabs, at most five filling at once,
+the next opening as one finishes, and puts each filled tab in its "Ready"
+or "Needs you" tab group (`openNextApplication` in
+`src/lib/autofill-extension.ts`, the message `run/open`). The note says so,
+or why not (no extension, signed out) in red (`auto-apply/opened-note.ts`,
+shared with the job card). Tabs already open stay as they are, so Start
+never wipes a form in progress, and the student is never taken to a tab.
+Pause and Resume only move
 the state. It is off until
 the seeker has a resume (`hasResume`, read on the server with both resume
 lists), and while a batch is queueing. It never waits on
@@ -1102,8 +1102,71 @@ the tab's page load: the note says how many jobs it queued at once and adds
 the tab's result when it lands. The state (`idle`, `running`, `paused`) is
 the page's own; a return visit starts idle, so Start queues another batch.
 
+**Add to Claude** (KAN-383) is a secondary button with the sparkle, the AI
+mark, between Manage Resumes and Start. It opens Claude's Add Custom
+Connector dialog in a new tab with WorkIt's name and connector address
+(`<api>/mcp`) filled in, so the student checks and confirms and never pastes
+a URL (`src/lib/claude-connector.ts`, Anthropic's documented link). Claude
+then signs in to WorkIt through the consent page (`/connect/claude`), and
+the student's own Claude writes the batch's essay answers
+(`auto-apply/architecture.md`, 14.6). Once Anthropic lists WorkIt in its
+connector directory, `CLAUDE_CONNECTOR_LINK` points the button at the
+listing instead.
+
+**Written Answers** (`/auto-apply/answers`, KAN-385) is batch apply
+without Claude. The extension fills every factual field itself and leaves
+the written questions (why this company, a project you're proud of) to the
+student's own Claude through the connector. A student without Claude
+answers them here: every question the batch's open tabs need written and
+have no answer for (`GET .../written-questions`), one white card per job
+posting, oldest application first, each question with a box for their own
+draft or text pasted from any AI (`auto-apply/answers/answer-box.tsx`).
+**Check and Save** sends it through the connector's own save, so WorkIt's
+checks run on it as on Claude's (machine-made words, numbers the student's
+experience and the posting don't hold, another employer's name, the form's
+own limit...). A failing answer shows each reason in the warning amber
+under its box and is not saved, so it never reaches the form; a passing one
+says Saved, and the open tab fills it within about ten seconds and moves to
+Ready once nothing else needs the student. The count under a box is the
+form's own limit, amber past it. The list is read once as the page loads;
+a saved answer stays, marked Saved, until the next visit. Nothing left
+reads "Nothing Left to Write". **The Auto Apply page links to it** with a
+card over Up Next, "N Written Questions Waiting", while any open
+application has one, which says the student's Claude writes them once
+added and offers **Write with Claude** and **Write Answers** (a secondary
+button with the pencil). **Write with Claude** (`auto-apply/write-with-claude.tsx`,
+also beside Written Answers' heading while a question waits) is a
+secondary button with the sparkle: it opens a new claude.ai chat in a new
+tab with "Write my WorkIt answers" in its box, not sent, and copies the
+same text, with "Press Enter in Claude (or paste)" under it in meta type.
+The link holds only that fixed text (`src/lib/claude-connector.ts`).
+**Your Answers**, below, lists every written question already answered
+(`GET .../written-answers`, KAN-369), one white card per job posting at any
+stage, newest application first: the question, the answer as sent and,
+when the student's Claude named one, its **Named fact**, the company brief
+fact the answer uses, linked to the page that states it, so the student can
+read up on it before an interview. Every answer has a muted **Delete**
+under it (KAN-369): the student's own (a Looks right or Save for next time
+in a batch tab), one saved here with Check and Save, and their Claude's;
+not own limits reuse, not removal. It asks first on that line ("Delete
+this answer? Later forms won't fill it.", the red Delete Answer and Keep
+It, as on Resumes), then calls `DELETE
+.../applications/{job_id}/answers?name=&own_only=false` and refreshes the
+list; a question an open tab still asks shows above again, unanswered. A
+failed delete keeps the answer and says why in red under it. The list is left out when nothing is answered or it doesn't load.
+
+**New** (KAN-369): an answer the student typed into a batch tab's form is
+saved as they type, and the tab's panel says "Saved N new answers" with
+**Review**, which opens this page. Each of the student's own answers saved
+since their last visit wears a brand status Badge, New, beside its question.
+The last visit is the `answers_seen` cookie, the newest save time the page
+showed (`auto-apply/answers/new-answers.ts`, written by `seen-now.tsx` once
+the page shows), so the marks clear on the next visit; a student who never
+opened the page sees every own answer New.
+
 **Jobs lead the page** (KAN-359): the heading with **Manage Resumes** (a
-secondary button to Resumes & Experiences) beside Start Auto Apply, then
+secondary button to Resumes & Experiences) and **Add to Claude** beside
+Start Auto Apply, then
 **Up Next**, and nothing else for now. It opened with a "Resume List" table of every
 resume until KAN-359, then a line naming the default resume, which the
 user removed: each queued job now shows and changes its own resume.
@@ -1157,8 +1220,8 @@ opens next, and a newly queued one at the bottom (asked for 2026-10-17).
 The API answers newest first and the page reverses it, so the API's order
 stays as other callers know it. Each stored stage is a row (`activityOf` in
 `auto-apply/activity-list.tsx`): queued Queued, needs_you Couldn't Finish,
-skipped Skipped, applied Applied. The queued job open in the extension's
-tab reads Working in Browser instead (`auto-apply/live-activity.tsx`, the
+skipped Skipped, applied Applied. A queued job open in one of the
+extension's batch tabs reads Working in Browser instead (`auto-apply/live-activity.tsx`, the
 one client step over the server's rows), in flight.
 
 - **The table**: Role (the company's logo, then the role, bold, over the
@@ -1188,6 +1251,14 @@ one client step over the server's rows), in flight.
   open (`components/clickable-row.tsx`, the Applications list's), leaving
   clicks on links and buttons alone; the role is the real link. A closed
   one links nowhere.
+- **Mark applied** (KAN-369, `auto-apply/mark-applied.tsx`): every row not
+  yet applied or skipped has a briefcase (the Applied stage's icon),
+  tooltip "I submitted this: mark applied", for an application the student
+  sent that the extension's submit detection missed. It finishes the
+  application as submitted (`markSubmitted`, POST
+  `.../applications/{job_id}/finish`, which dates it now), refreshes the
+  route so the row shows Applied, and toasts "<role> is marked Applied.".
+  The batch panel's "I submitted this" is the same from the job's tab.
 - **Actions**: icon buttons only, to save width. A queued row has a cross,
   "Remove from queue" in its tooltip (`auto-apply/remove-from-queue.tsx`),
   alone in the Actions column: beside the badge, before KAN-285, it read as
@@ -1283,6 +1354,28 @@ that page. The photo, name and headline are shown here and edited in
 Settings' Personal Details (KAN-326): the identity band's Edit is a link
 there.
 
+**Application Answers (KAN-369)** is an open section under Application
+Questions, edited the same way (Edit at the top right; Cancel and Save under
+the fields; Escape cancels; Save sends only what changed). Its groups:
+Availability (on-site, full time), Start Window (earliest start, latest end,
+the next six terms as chips), Relocation (willing, places ranked best first
+as numbered chips, where they'll live), Address (street and ZIP; city and
+state are the profile's location), Languages (English shown as a suggestion
+until saved), Age and Pay (18 or older; expected dollars an hour, typed by
+the student and never guessed; whether a posted range is fine), More About
+You (kinds of work as chips; an X profile; the countries they are a citizen
+of), Communities (chips, with
+None of These and I Don't Wish to Answer, each standing alone) and Screener
+Facts, one card with Yes and No each and a None of
+These Apply button that answers only the unanswered ones; a Yes on a list
+question asks which companies. School Year (class year, back to school after
+the internship) is worked out from the latest education entry's end month
+(`lib/school-year.ts`) and only shown, with "From your education: ...". The
+same controls are `components/answer-fields.tsx`, shared with onboarding.
+Application Questions also lists the EEO extras (sexual orientation,
+transgender, pronouns), each with a decline answer; onboarding skips them
+with the other self-identification, and the extension never asks them.
+
 **Contact & Links (KAN-262)** is an open section between the identity band
 and Resumes & Experiences. It lists all six fields under visible labels, two
 columns where the page is wide: Contact Email, Phone, LinkedIn, GitHub,
@@ -1341,11 +1434,12 @@ headline line used to leave a gap between the name and the row below.
   field. The section never makes an href of a link that fails the check.
 
 **Application Questions (KAN-269)** is an open section between Contact &
-Links and Resumes & Experiences: the nine questions onboarding's Profile
-step asks (work authorization, sponsorship, citizenship and visa status,
-clearance, and the voluntary gender, Hispanic or Latino, race, veteran and
-disability self-identification), with the seeker's answers
-(`(seeker)/profile/application-questions.tsx`).
+Links and Resumes & Experiences: the nine questions most applications ask
+(work authorization, sponsorship, citizenship and visa status, clearance,
+which onboarding's Profile step asks, and the voluntary gender, Hispanic or
+Latino, race, veteran and disability self-identification, which the
+extension asks on the first form that does, KAN-387), with the seeker's
+answers (`(seeker)/profile/application-questions.tsx`).
 
 - **U.S. Citizen as the citizenship answer puts "U.S. Citizen" on every
   resume header** (PDF, Word and LaTeX), first on the contact line.
@@ -1372,6 +1466,24 @@ disability self-identification), with the seeker's answers
   shows the cached answers and refetches, and a refetch landing mid-edit
   made another tab's newer answers look changed, so Save wrote the cached
   ones back over them (review, 2026-10-20).
+
+**Writing Samples (KAN-384, KAN-387)** is an open section after
+Application Questions (`(seeker)/profile/writing-samples.tsx`): up to three
+pieces of the student's own writing (a class essay, a cover letter), from
+which their own Claude builds a style card through the connector, so the
+answers it writes read the way they write. Optional; WorkIt's own AI never
+reads them.
+
+- **Asked for once, after the first written batch.** The extension's panel
+  asks, with Add Samples and Skip, once the first batch's answers from the
+  student's Claude have all landed, and only when the student has none;
+  Add Samples opens `/profile#writing-samples`, which opens Add at once.
+- **Add, in place.** Add (the section's action, gone at three) opens a text
+  box with Cancel and Save; Escape cancels. The API refuses an empty one or
+  one over 10,000 characters, with its reason under the box.
+- **Each sample is its first three lines, with Remove.** A sample is
+  replaced by removing it and adding the new one: changing a sample drops
+  the style card either way, and Claude builds a new one next time.
 
 **Resumes moved
 out on 2026-10-18**: the Resume card (the uploads and their dropzone) became
@@ -2379,7 +2491,7 @@ stays escaped text otherwise).
 
 ## Applicant onboarding
 
-/onboarding/applicant is a three-step wizard (KAN-231), outside both shells:
+/onboarding/applicant is a five-step wizard (KAN-231), outside both shells:
 each step's question is the page's h1 on a lavender left half
 (`onboarding/applicant/story-panel.tsx`, a band across the top below lg that
 holds the logo and the question alone), and the fields answer it on the
@@ -2390,17 +2502,21 @@ its scrollbar's room kept on every step: when the page scrolled, only the
 long step 1 grew a scrollbar, and the panel and form shifted against step 2.
 Step 1 is Role, Job Type and Workplace (all required), and Start Date,
 Experience Level, Location and Salary Range, Experience Level after Job Type
-(KAN-284); step 2, Profile, is the questions every application asks
-(KAN-283, all optional); step 3 is Resume (KAN-275), with Skip and Continue
-in place of
-Next. Start Date shows only once
+(KAN-284); step 2 is Resume (KAN-275), read and confirmed before it is
+saved (KAN-372); step 3, Profile, is the questions every application asks
+(KAN-283, all optional), right after the resume (KAN-372); step 4,
+Availability, asks on-site and full time, the earliest start and terms, and
+the screener facts card, all optional with Skip (KAN-369; the rest of the
+Application answers are on My Profile); step 5, Extension, and step 6,
+Practice, add the WorkIt extension and run a practice batch (KAN-378). Start Date shows only once
 Internship is picked, and unpicking Internship clears it: a saved season keeps
 only the jobs that name one, which a new-grad role rarely does. Preference Tags, free-text skills, were dropped
 (KAN-231): the feed has no filter for them.
 
 **One step rail counts the whole journey (KAN-259).** The wizard heads its
 fields with the shared `components/stepper.tsx` at `size="lg"`: Role,
-Profile, Resume (`onboarding/applicant/steps.ts`). It replaced a thin bar and
+Resume, Profile, Extension, Practice (`onboarding/applicant/steps.ts`; Availability, KAN-369, is Profile's second page on the rail;
+Resume was last until KAN-372, Profile until KAN-378). It replaced a thin bar and
 a 14px grey "Step 1 of 2" at the foot of the left half: the smallest type on
 the screen, far from the fields, and wrong, since intake then opened six more
 sections on a page of its own. That page carried the rail too, with
@@ -2434,22 +2550,34 @@ bubble on every step. It is all decoration over made-up data, so it is
 aria-hidden, and it holds still under reduced motion.
 
 **Profile asks what every application asks (KAN-283).** Authorization to
-Work and Visa Sponsorship (yes or no), Citizenship and Visa Status, Security
-Clearance, then the voluntary Gender, Hispanic or Latino, Race/Ethnicity,
-Veteran Status and Disability, in the order real forms ask them, each under the question as forms word it. The options
-are real forms' options (`lib/autofill-answers.ts`): gender's are the
-EEO Male, Female and decline plus Non-Binary, which many forms add;
-Hispanic or Latino (KAN-299) is Yes, No or decline, and Race/Ethnicity one
-EEO-1 category or decline, the EEO's own two questions, which every U.S.
-form keeps apart; veteran
-status's three are the U.S. protected veteran self-identification's, disability's
-three are Form CC-305's words. One answer each, as dots; pressing a picked
-answer again clears it. They are not filters: Continue saves them to the
+Work and Visa Sponsorship (yes or no), then Location and Links (KAN-372:
+where the student lives, typed as forms ask it, "Stony Brook, NY", and
+LinkedIn, GitHub and Portfolio or Website; `onboarding/applicant/contact-fields.tsx`),
+then Citizenship and Visa Status and Security
+Clearance, each under the question as forms word it. The options
+are real forms' options (`lib/autofill-answers.ts`). One answer each, as dots; pressing a picked
+answer again clears it. They are not filters: Finish saves them to the
 answer bank (`PATCH /applicants/{id}/autofill-answers`, only the changed
-ones), which auto apply fills forms from. The step was Pay & Visa until
+ones), and the location and links to the profile (`PATCH
+/applicants/{id}/profile`, only the changed ones; My Profile edits the same
+fields), which auto apply fills forms from. A link that is no web address
+is marked under its box and stops Finish before anything saves. The step was Pay & Visa until
 KAN-283: pay moved to step 1, beside the job types that set its units, and
 the visa filter question left onboarding. A visa filter saved before is
 kept, and the Jobs page still sets it.
+
+**The voluntary self-identification is not asked here (KAN-387).** Gender,
+Hispanic or Latino, Race/Ethnicity, Veteran Status and Disability
+(`SELF_ID_KEYS`) wait for the first form that asks one: the extension's panel
+on that form asks them once, with the same options (gender's are the EEO
+Male, Female and decline plus Non-Binary; Hispanic or Latino and
+Race/Ethnicity are the EEO's own two questions, which every U.S. form keeps
+apart; veteran status's three are the U.S. protected veteran
+self-identification's, disability's three Form CC-305's words), saves them
+to the same answer bank, and fills them on that form and every later one.
+Asked at sign-up, they were five more questions before a student had seen a
+single form; asked on the form, the student sees why. My Profile's
+Application Questions still shows and edits all nine.
 
 **Step 1's answers are the Jobs page's filters.** Every question takes
 `FeedFilters` and the options in `jobs/filter-query.ts`, and Role, Location,
@@ -2481,15 +2609,28 @@ text came out semibold.
 **The resume step (KAN-275)** is the dropzone the Resumes view had until KAN-362
 (`components/resume-upload.tsx`), inside the wizard so it keeps Scout's
 panel, the step rail and the footer's Back. Picking a file only holds it,
-with a Remove; Continue is disabled until one is picked, and Skip is the way
-on without one. The dropzone says "Uploading…" only while the file is on its
-way: it once took the save's busy state too, so Skip read as if it had sent
-a file. The footer's "Saving…" covers the save. It replaced intake
+with a Remove; Read Resume is disabled until one is picked, and Skip is the
+way on without one. **The student sees the reading before it is saved
+(KAN-372, ADR 0006; `onboarding/applicant/resume-step.tsx`).** Read Resume
+sends the file to `POST .../resumes/preview`, which saves nothing, and the
+step shows what it found: each entry by section (title, organization and
+dates, bullets), then the skills, each a tag with a × (Remove <name>,
+KAN-369). A skill taken out goes with the upload as `removed_skills`: it is
+not saved, and no later reading or Tailor adds it again. The skills shown
+are only those the skills catalog knows. An entry an earlier upload already holds
+carries Replaces Earlier Copy, and the note above counts them. Save Resume
+uploads the same file with `?replace=matching`, so the earlier copies are
+replaced, not doubled, then opens Profile; Choose Another File drops the
+reading. A file already uploaded says so, and Next goes on. A file with
+nothing read can still be saved. The resume saves at once, before onboarding
+is done; coming back to the step shows "Saved …" over the dropzone. The
+dropzone says "Reading…" only while the file is being read: it once took
+the save's busy state too, so Skip read as if it had sent a file. It replaced intake
 (KAN-214), whose chat asked about each section in turn, on its own page and
 in another design: one upload fills most of the bank in one step, and intake
 still runs on the Experiences view for what the resume missed.
 
-**Continue or Skip saves the answers.** The Profile step's go to the answer
+**Profile's Next saves the answers.** The Profile step's go to the answer
 bank first (`PATCH /applicants/{id}/autofill-answers`, only the changed ones,
 KAN-283), then step 1's as the seeker's preferences (`PUT
 /applicants/{id}/preferences`, KAN-231, which also marks onboarding
@@ -2497,19 +2638,74 @@ complete). The bank goes first because a finished seeker is never sent back
 here, and only My Profile's Application Questions asks those questions
 again. Step 1's fields are `role-step.tsx`, which Settings' Job Preferences
 draws too, so the wizard and Settings ask the same questions.
-Continue then uploads the file through `uploadResume`, and the API reads it
-into the experience bank as it reads any upload (ADR 0003). Both open /jobs,
-whose Best Match order scores the saved filters' jobs against the bank. The
-answers save first: a failed save or upload leaves the seeker on the step,
+Next then opens the Extension step (Finish opened /jobs until KAN-378), so
+a seeker who leaves during the last two steps has a finished profile. A failed save or upload leaves the seeker on the step,
 saying why in the API's words (a sixth upload's 409 among them), and a retry
 saves the answers again harmlessly. Date Posted is not asked: a saved "past
 24 hours" would empty the feed within days. Sign-in sends an applicant here
 until they finish (`docs/auth.md`); a finished one who opens the page again
-finds the wizard filled with their saved answers, and Continue saves the
-edits. `?step=2` opens the wizard on its second step, Profile; intake's "Back to
+finds the wizard filled with their saved answers, and Profile's Next saves
+the edits. `?step=2` opens the wizard on Profile (the second step until
+KAN-372, now the third); intake's "Back to
 Pay & Visa" linked there until KAN-275, and nothing does now. Without saved
 answers `?step=2` opens on the first step, which holds the answers that must
 be given.
+
+**Step 4 adds the extension (KAN-378;
+`onboarding/applicant/extension-step.tsx`).** Two lines, Add WorkIt to
+Chrome and Pin It to the Toolbar, each turning done (a green check and an
+Added or Pinned badge) as the page sees it: the page asks the extension
+(`ping`, `lib/autofill-extension.ts`'s `extensionState`) every 1.5 seconds,
+so no reload is needed. Add to Chrome opens
+`NEXT_PUBLIC_EXTENSION_INSTALL_URL`, the Chrome Web Store listing once there
+is one; unset, the line says to ask the WorkIt team for it. Chrome lets no
+page pin an extension, so the pin line says how (the puzzle piece, then the
+pin) and the extension reports whether it is pinned
+(`chrome.action.getUserSettings`); a pin is asked for, not required. Next
+waits for the extension; Skip opens /jobs.
+
+**Step 5 is a practice batch (KAN-378;
+`onboarding/applicant/practice-step.tsx`).** Start Practice asks the
+extension to open WorkIt's two practice forms (`lib/practice-form.ts`,
+served at `/practice/<company>/<job>/apply`) as a batch: the student sees
+the tabs fill in the background and land in the Ready and Needs you tab
+groups (one asks only facts, the other a written answer), checks each and
+presses the form's own Submit. Each practice job's row shows where it is
+(Waiting, Filling, Ready, Needs You, Submitted, Tab Closed), from the
+extension's `practice/status` every second, with Show Tab while its tab is
+open; the footer's main button is Show Next Tab (a Needs You tab first),
+or Start Again once the tabs were closed. Once both are submitted the step
+says You're Ready and Find Jobs opens /jobs in its Best Match order. A
+first real batch then fills the factual fields only: a batch tab leaves the
+written answers to the student until Claude is added. Skip Practice opens
+/jobs.
+
+**The practice forms look like a hiring system, not like WorkIt**
+(`lib/practice-form.ts`, served by `app/practice/[company]/[job]/[page]/route.ts`).
+Each is a whole HTML page, not a React page: a made-up company's initials
+and posting over a plain form in the system font, laid out as Lever's
+hosted form so the Fill engine's Lever Filler fills it. Its colours are
+WorkIt's tokens copied by name into the page (it loads no app stylesheet;
+change both together), and a band across the top says it is WorkIt's
+practice form. **Its Submit sends nothing**: the form has no action, and
+the page's own script opens the job's `/thanks` page with no data once the
+browser's check of the required fields passes, which the extension counts
+as the submit. The extension's end-to-end test serves the same module
+(`autofiller_extension/test/practice.extension.spec.ts`), so keep it free
+of imports.
+
+## Connect Claude (`/connect/claude`, KAN-377)
+
+The connector's consent page: Claude's sign-in to WorkIt opens it with
+`?request=<id>` (`docs/auth.md`, "Claude's sign-in to WorkIt"). The auth
+screens' card over the skyline, outside both shells. It names the client
+("Claude wants to use your WorkIt account"), says in two lines what it may
+do (read the next application's questions, posting and experience; save
+answers that fill into open tabs), that it writes on the student's own
+Claude plan and that WorkIt never submits, then **Allow** (primary) and
+**Deny** (secondary). Either sends the browser back to Claude. A sign-in
+that is over, or a company account, shows the API's message instead of the
+buttons. Signed out, the page goes to `/login?next=...` first.
 
 ## Settings (`/settings`)
 
@@ -2566,8 +2762,8 @@ fields on the page read as something to fill in.
 
 - **Personal Details** (`/settings/personal`): the photo (Change Photo,
   Remove Photo; it saves on pick, shows the file at once and rolls back if
-  the upload fails), First Name, Middle Name (optional) and Last Name, as
-  signup asks them, and Headline, with Save and Discard. Save sends only
+  the upload fails), First Name, Middle Name (optional; signup no longer
+  asks it, KAN-372) and Last Name, and Headline, with Save and Discard. Save sends only
   what changed; the API joins the parts into the full name every other
   screen prints (`backend/app/models/CLAUDE.md`, Names). These are edited
   here only; My Profile shows them and links here. Saving

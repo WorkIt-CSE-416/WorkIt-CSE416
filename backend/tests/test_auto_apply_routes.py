@@ -68,6 +68,7 @@ def step(monkeypatch, name, result=None, raises=None):
         ("get", "/applications/next", None),
         ("get", f"/applications/{JOB}", None),
         ("post", f"/applications/{JOB}/finish", {"outcome": "skipped"}),
+        ("put", f"/applications/{JOB}/fill", {"state": "ready"}),
         ("post", f"/applications/{JOB}/resume", None),
         ("delete", f"/applications/{JOB}", None),
     ],

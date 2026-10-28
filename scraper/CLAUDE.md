@@ -30,9 +30,11 @@ boards.csv ─▶ __main__ ─▶ polite.Robots ─▶ providers.PROVIDERS ─�
 ```
 
 Each module owns one stage (its docstring says which); every network read goes
-through `web.get` (or Workday's one `web.post`) behind `polite.Robots`. Every
-provider but Workday returns a whole board in one request. Workday sends 20
-postings a request, which changes how its boards are read: `docs/workday.md`.
+through `web.get` (or Workday's and TikTok's `web.post`) behind `polite.Robots`.
+Greenhouse, Lever, Ashby, Workable, Recruitee and BambooHR return a whole board in
+one request. Workday sends 20 postings a request, which changes how its boards are
+read: `docs/workday.md`. Oracle, TikTok, Jibe and SuccessFactors page as well
+(`Provider.paged`): `docs/providers.md`.
 
 ## This package imports only the standard library
 
@@ -49,7 +51,10 @@ runs pytest where the package is not installed.
 ## Adding a provider
 
 Read the provider's `robots.txt` before writing anything. SmartRecruiters is
-absent because it disallows us, and that is the whole reason.
+absent because it disallows us, and that is the whole reason (its API's
+robots.txt still said `Disallow: /` to every agent but LinkedIn's on 2026-10-26).
+Rippling, iCIMS, Oracle, TikTok, Jibe and SuccessFactors, and the systems still
+not read, are in `docs/providers.md`.
 
 **Everything the scraper knows about a hiring system is one `Provider` in
 `providers.PROVIDERS`**, keyed by its `ats`. It used to be eight tables in four
@@ -525,7 +530,8 @@ shortlist, and the "new today" and "open roles" path through `store.py` and
 `tests/test_report_and_store.py` has a case for each way that count has been
 wrong. Each provider's reader is tested on its real responses, trimmed:
 `tests/test_providers.py` for Workable, Recruitee and BambooHR,
-`tests/test_workday.py` for Workday. Where a board must be small enough to page
+`tests/test_workday.py` for Workday, `tests/test_more_providers.py` for TikTok,
+Jibe and SuccessFactors (recorded responses in `tests/fixtures/providers/`). Where a board must be small enough to page
 by hand, the page size or cap is shrunk, never the data.
 
 ## Committed data and deliberate limits

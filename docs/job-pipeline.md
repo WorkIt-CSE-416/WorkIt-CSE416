@@ -369,8 +369,8 @@ applied (stage `applied`; a job only saved, or queued for auto apply, stays in).
 
 Every job posting the API sends carries `auto_apply`: true when its
 `apply_url` is on a hiring system auto apply can fill, which is Greenhouse
-only for now (any `greenhouse.io` host; a company's own page with
-`?gh_jid=` does not count). It is worked out from the URL, never stored. The
+only for now (any `greenhouse.io` host, or a company's own page with
+`?gh_jid=` that embeds its form, outside `SKIP_EMBEDDING`). It is worked out from the URL, never stored. The
 Auto Apply button shows only where it is true, and auto apply's matches and
 queue take only those job postings (`backend/app/auto_apply/hosts.py`).
 

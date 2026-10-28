@@ -21,6 +21,8 @@ export type ApplicantProfile = {
   portfolio_url: string | null;
   github_url: string | null;
   other_url: string | null;
+  /** Where the student lives, as forms ask it: "Stony Brook, NY" (KAN-372). */
+  location: string | null;
 };
 
 export async function getProfile(): Promise<{

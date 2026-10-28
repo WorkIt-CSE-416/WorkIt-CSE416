@@ -13,7 +13,7 @@ from types import SimpleNamespace
 import pytest
 
 import build_boards
-from build_boards import OWN_SITE, Listing, tokens, unread_cause, unread_hosts
+from build_boards import Listing, tokens, unread_cause, unread_hosts
 
 
 def slugs(link: str) -> list[tuple[str, str]]:
@@ -88,31 +88,23 @@ def test_unread_links_are_counted_by_host() -> None:
 @pytest.mark.parametrize(
     ("link", "cause"),
     [
-        # Every link here was in the curated lists on 2026-10-27.
+        # Every link here was in the curated lists on 2026-10-27. Batch apply
+        # (KAN-369) reads Keysight's iCIMS Jibe site, SuccessFactors and TikTok
+        # now, so those three left this list.
         ("https://go.vansh.nyc/o", "a link shortener (--resolve)"),
         (
             "https://generatebiomedicines.com/open-positions?gh_jid=4643139006",
             "Greenhouse behind the company's site (--resolve)",
         ),
         (
-            "https://jobs.keysight.com/jobs/51813?lang=en-us&icims=1",
-            "iCIMS behind the company's site (--resolve)",
-        ),
-        (
             "https://jobs.smartrecruiters.com/RedBull/744000112125687",
             "SmartRecruiters, whose robots.txt disallows us",
-        ),
-        (
-            "https://jobs.halliburton.com/job/Abingdon-Intern_Automation-Geoscientist-OXF-OX14-4RW"
-            "/1369051000/?ats=successfactors",
-            "SuccessFactors",
         ),
         ("https://johndeere.eightfold.ai/careers/job/137479374700", "Eightfold"),
         (
             "https://specialisterne.applytojob.com/apply/Vt3hev3H0E/Software-Engineer-Intern",
             "JazzHR",
         ),
-        ("https://lifeattiktok.com/search/7611950589973186821", OWN_SITE),
     ],
 )
 def test_an_unread_link_is_counted_by_why(link: str, cause: str) -> None:

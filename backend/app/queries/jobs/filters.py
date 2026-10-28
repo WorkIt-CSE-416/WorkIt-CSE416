@@ -36,19 +36,35 @@ from typing import Literal
 
 from sqlalchemy import ColumnElement, and_, case, exists, func, literal_column, or_
 
-from app.auto_apply.hosts import AUTO_APPLY_URL_PATTERN
+from app.auto_apply.hosts import (
+    AUTO_APPLY_URL_PATTERN,
+    JOB_BOARD_URL_PATTERN,
+    NAMED_FORM_PATTERN,
+)
 from app.models import dto
 from app.models.applications import Job_Application
 from app.models.job_roles import Job_Role_Tag
 from app.models.jobs import Job_Location, Job_Post
 from app.services.location_resolver import Place
 from app.services.postings import LISTED  # noqa: F401 (re-export)
-
-# A job posting auto apply takes: its apply_url is on a hiring system the
-# extension fills (app/auto_apply/hosts.py, where JobListing.auto_apply
-# reads the same pattern). The matches and every queueing require it.
-AUTO_APPLY_SUPPORTED = Job_Post.apply_url.op("~*")(AUTO_APPLY_URL_PATTERN)
 from app.services.role_resolver import title_pattern
+
+# The form auto apply opens for a job posting (KAN-376): its apply_url when
+# that is on a hiring system the extension fills (app/auto_apply/hosts.py,
+# where JobListing.auto_apply reads the same pattern); for a job board's
+# posting (LinkedIn, Indeed), the employer's own form its text names; else
+# NULL. A company's own careers page is never followed through its text.
+# Only a job board's row reads its description, so the feed stays light.
+FORM_URL = case(
+    (Job_Post.apply_url.op("~*")(AUTO_APPLY_URL_PATTERN), Job_Post.apply_url),
+    (
+        Job_Post.apply_url.op("~*")(JOB_BOARD_URL_PATTERN),
+        func.replace(func.substring(Job_Post.description, NAMED_FORM_PATTERN), "&amp;", "&"),
+    ),
+)
+# A job posting auto apply takes: it has a form. The matches and every
+# queueing require it.
+AUTO_APPLY_SUPPORTED = FORM_URL.is_not(None)
 
 
 def unplaced_remote() -> ColumnElement[bool]:

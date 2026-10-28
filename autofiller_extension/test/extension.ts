@@ -7,6 +7,7 @@ import { join } from "node:path";
 import type { Page } from "@playwright/test";
 import { CONTENT_SCRIPT_FILES, ENGINE_FILES } from "../src/shared/content-scripts.js";
 import { engineCaller, handleFill, runEngine } from "../src/background/engine.js";
+import { CLOSED_ROOT_FILES, openPanel } from "./loaded-extension";
 
 const EXTENSION = join(__dirname, "..");
 
@@ -39,7 +40,7 @@ export const STUDENT = {
   fetched_at: 0,
 };
 
-export type Row = { key: string; label: string; required: boolean; status: string; reason?: string; shows?: string | string[] };
+export type Row = { key: string; label: string; required: boolean; status: string; reason?: string; shows?: string | string[]; source?: string };
 type Fetch = (url: string, init?: { method: string; body: string }) => Promise<string>;
 
 /** Answers the page's chrome.runtime.sendMessage with the background's fill handler, for every page `page` shows. */
@@ -65,10 +66,15 @@ export async function bridge(page: Page, fetchText: Fetch, profile = STUDENT, es
 export async function inject(page: Page): Promise<void> {
   await page.evaluate(() => {
     const w = window as any;
-    w.chrome = { ...(w.chrome ?? {}), runtime: { sendMessage: (message: unknown) => w.__workitSend(message) } };
+    // No background sends this page a message (a batch tab listens for some).
+    w.chrome = { ...(w.chrome ?? {}), runtime: { sendMessage: (message: unknown) => w.__workitSend(message), onMessage: { addListener() {} } } };
   });
   // Evaluated, not added as script tags, so a page's CSP can't block them (Chrome's injection isn't blocked either).
-  for (const file of [...ENGINE_FILES, ...CONTENT_SCRIPT_FILES]) await page.evaluate(`${readFileSync(join(EXTENSION, file), "utf8")}\n;undefined`);
+  // The panel's and marks' roots open, so the tests' locators reach them (loaded-extension.ts's openPanel).
+  for (const file of [...ENGINE_FILES, ...CONTENT_SCRIPT_FILES]) {
+    const source = readFileSync(join(EXTENSION, file), "utf8");
+    await page.evaluate(`${CLOSED_ROOT_FILES.includes(file) ? openPanel(source, file) : source}\n;undefined`);
+  }
 }
 
 /** Waits for the fill to reach a phase other than "filling" (see content-script.js), and returns it with the overlay's rows. */

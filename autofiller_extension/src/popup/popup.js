@@ -6,7 +6,6 @@
 // every time the popup closes).
 
 import { DEV_WEB_URL, PROD_SITES } from "../shared/config.js";
-import { injectFill } from "../shared/content-scripts.js";
 
 const root = document.getElementById("root");
 
@@ -46,35 +45,150 @@ function renderLoginView(errorText) {
   root.querySelector("#recheck-button").addEventListener("click", () => init());
 }
 
+/**
+ * The batch's status in a line (background.js popup/batch): how many jobs
+ * are in it and how many are ready or need the student.
+ * @param {{ jobs: { state: string }[] }} status
+ */
+function batchLine({ jobs }) {
+  if (!jobs.length) return "No batch running.";
+  const count = (state) => jobs.filter((job) => job.state === state).length;
+  const parts = [`${jobs.length} job${jobs.length === 1 ? "" : "s"} in your batch`];
+  const filling = count("filling");
+  const ready = count("ready");
+  const needs = count("needs_you") + count("failed");
+  if (filling) parts.push(`${filling} filling`);
+  if (ready) parts.push(`${ready} ready`);
+  if (needs) parts.push(`${needs} need${needs === 1 ? "s" : ""} you`);
+  return parts.join(" · ");
+}
+
+/**
+ * The popup shows only off job pages (on one, the toolbar icon opens the
+ * panel, KAN-394): who is signed in, the batch's status and Open WorkIt.
+ */
 function renderSignedIn(profile) {
   const template = document.getElementById("signed-in-template");
   root.replaceChildren(template.content.cloneNode(true));
 
   root.querySelector(".name").textContent = profile.full_name;
   root.querySelector(".email").textContent = profile.email;
-  root.querySelector(".bank-status").textContent = profile.bank
-    ? "Experience bank has data"
-    : "Your experience bank is empty — add entries in WorkIt first";
-
-  root.querySelector("#autofill-button").addEventListener("click", async (event) => {
-    const button = event.currentTarget;
-    button.disabled = true;
-    button.textContent = "Filling…";
-    try {
-      const [tab] = await chrome.tabs.query({ active: true, currentWindow: true });
-      if (!tab?.id) throw new Error("No active tab");
-      await injectFill(tab.id);
-      window.close(); // the on-page overlay takes over from here
-    } catch (error) {
-      button.textContent = "Autofill This Page";
-      button.disabled = false;
-      const hint = root.querySelector(".hint");
-      hint.textContent =
-        error instanceof Error && error.message.includes("Cannot access")
-          ? "Can't run on this page (browser settings or an extension gallery page)."
-          : "Something went wrong starting autofill. Try reloading the page.";
-    }
+  sendMessage({ type: "popup/batch" }).then((status) => {
+    root.querySelector(".batch-status").textContent = status?.ok ? batchLine(status) : "";
   });
+
+  void showUnsupported();
+
+  root.querySelector("#open-workit-button").addEventListener("click", async () => {
+    const base = await webappUrl();
+    chrome.tabs.create({ url: `${base}/auto-apply` });
+    window.close();
+  });
+  // The one email and password for every company's Workday (src/options/), kept only in this browser.
+  root.querySelector("#workday-signup-button").addEventListener("click", () => chrome.runtime.openOptionsPage());
+}
+
+/** The tab the popup is for: the one its icon was pressed in (`?tab=`, which only the extension's own pages can open, for tests). */
+async function pageTabId() {
+  const asked = Number(new URLSearchParams(location.search).get("tab"));
+  if (asked) return asked;
+  return (await chrome.tabs.query({ active: true, currentWindow: true }))[0]?.id;
+}
+
+/**
+ * A web page WorkIt can't fill (KAN-401; background/panel-states.js): says
+ * so, with Save to WorkIt (the feed's job whose apply link the page is, to
+ * the student's Applications), Request this job system (KAN-369: the page's
+ * host only, once per host) and Report a problem (what it sends, then Send
+ * report). Nothing leaves on opening the popup.
+ */
+async function showUnsupported() {
+  const tabId = await pageTabId();
+  const page = tabId ? await sendMessage({ type: "popup/page", tabId }) : null;
+  if (!page?.ok || !page.unsupported) return;
+  const box = root.querySelector(".unsupported");
+  if (!box) return;
+  box.hidden = false;
+  const said = box.querySelector(".said");
+  const say = (text, error = false) => {
+    said.textContent = text;
+    said.hidden = false;
+    said.classList.toggle("error", error);
+  };
+  // Allow WorkIt on <host> (KAN-369, background/site-access.js): Chrome asks the student for this one site,
+  // from this click (a permission request needs it); then the panel's scripts run there.
+  const allow = box.querySelector("#allow-button");
+  if (page.allowable) {
+    allow.textContent = `Allow WorkIt on ${page.host}`;
+    allow.hidden = false;
+    box.querySelector(".allow-hint").hidden = false;
+  }
+  allow.addEventListener("click", async () => {
+    allow.disabled = true;
+    const granted = await chrome.permissions.request({ origins: [`https://${page.host}/*`] }).catch(() => false);
+    allow.disabled = false;
+    if (!granted) return say("WorkIt wasn't allowed on this site.", true);
+    const answer = await sendMessage({ type: "popup/allow", tabId });
+    if (!answer?.ok) return say("WorkIt couldn't start on this site. Try again.", true);
+    allow.hidden = true;
+    box.querySelector(".allow-hint").hidden = true;
+    if (!answer.found) return say("WorkIt found no application it fills on this page. Request this job system to ask for it.");
+    box.querySelector(".unsupported-line").textContent = "WorkIt can fill this page";
+    for (const button of box.querySelectorAll("#save-button, #request-button, #report-button")) button.hidden = true;
+    say(answer.onPage ? "Its panel is open at the right edge of the page." : "Open WorkIt's tab at the right edge of the application form.");
+  });
+  const save = box.querySelector("#save-button");
+  save.addEventListener("click", async () => {
+    save.disabled = true;
+    const answer = await sendMessage({ type: "popup/save", tabId });
+    save.disabled = false;
+    if (answer?.ok) {
+      save.hidden = true;
+      return say("Saved to your Applications.");
+    }
+    // The route's own sentence when it has one ("WorkIt doesn't list this job yet."), never a status code.
+    say(answer?.status === 404 ? answer.error : "WorkIt couldn't save this job. Try again.", true);
+  });
+  const request = box.querySelector("#request-button");
+  if (page.requested) {
+    request.hidden = true;
+    say("You requested this job system.");
+  }
+  request.addEventListener("click", async () => {
+    request.disabled = true;
+    const answer = await sendMessage({ type: "popup/request", tabId });
+    request.disabled = false;
+    if (!answer?.ok) return say("WorkIt couldn't send the request. Try again.", true);
+    request.hidden = true;
+    say("Requested. WorkIt adds the job systems students ask for most.");
+  });
+  box.querySelector("#report-button").addEventListener("click", () => {
+    const list = box.querySelector(".report-parts");
+    const { job_system, posting_url, engine_version } = page.report;
+    list.replaceChildren(
+      ...[`Job system: ${job_system}`, `Link: ${posting_url}`, `Fill engine: ${engine_version}`].map((text) => Object.assign(document.createElement("li"), { textContent: text })),
+    );
+    box.querySelector("#report-note").maxLength = globalThis.WIA.reportParts.NOTE_MAX;
+    box.querySelector(".report").hidden = false;
+  });
+  const send = box.querySelector("#send-report-button");
+  send.addEventListener("click", async () => {
+    send.disabled = true;
+    const note = box.querySelector("#report-note").value.trim();
+    const answer = await sendMessage({ type: "popup/report", tabId, note: note || null });
+    send.disabled = false;
+    if (!answer?.ok) return say("WorkIt couldn't send the report. Try again.", true);
+    box.querySelector(".report").hidden = true;
+    say("Sent. Thanks for telling WorkIt.");
+  });
+}
+
+/** A request that failed: what didn't work, in a sentence, and Try again, which starts the popup over. */
+function renderFailed(sentence) {
+  const template = document.getElementById("failed-template");
+  root.replaceChildren(template.content.cloneNode(true));
+  root.querySelector(".failed").textContent = sentence;
+  root.querySelector("#try-again-button").addEventListener("click", () => init());
 }
 
 async function init() {
@@ -86,10 +200,9 @@ async function init() {
     return;
   }
   const profileResponse = await sendMessage({ type: "profile/get" });
-  if (!profileResponse.ok) {
-    renderLoginView(profileResponse.error);
-    return;
-  }
+  if (!profileResponse.ok && profileResponse.status === 401) return renderLoginView();
+  // Any other failed read (KAN-401): a plain sentence and Try again, never the request's status or words.
+  if (!profileResponse.ok) return renderFailed("WorkIt couldn't load your profile.");
   renderSignedIn(profileResponse.profile);
 }
 

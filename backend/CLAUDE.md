@@ -38,6 +38,9 @@ uv run alembic check                           fail if models lack a migration
 uv run alembic upgrade head                    apply migrations (the user runs it, never Claude)
 uv run python -m app.scripts.import_jobs       feed.json → job_postings, job_role_tags (--dry-run rolls back)
 uv run python -m app.scripts.intake_test_set   intake's fixed test set against the SCOUT_* model (by hand, never CI)
+uv run python -m app.scripts.ship_check ...   the connector's blind read, KAN-386 (by hand, never CI; data outside the repo)
+uv run python -m app.scripts.clean_bank_entries  one-off: split "| C++, Go" off older bank titles, drop read skills the catalog lacks; --typed also drops Tailor-added degrees/"AI tools" (dry run unless --apply; local DB only)
+uv run python -m app.scripts.fill_report <id>   a fill report's fix brief + form fixture into fill-reports/ (--latest; reads DATABASE_URL, writes nothing)
 python3 scripts/fetch_tectonic.py              Tectonic + warm cache into vendor/ (resume PDFs; once per checkout)
 ```
 
@@ -133,9 +136,11 @@ module docstring has the steps.
   (`tests/test_model_sizes.py`, Tailor's split in `tests/test_tailor.py`).
   Overriding `get_llm` alone leaves a route that asks for another size on
   the real model.
-- **An auto apply test seeds a Greenhouse `apply_url`** (`_seed_posting(database,
-  url)` in `tests/test_sent_resumes.py`): the queue refuses every other host
-  (`app/auto_apply/hosts.py`) with a 404. The Greenhouse-only rule broke six
+- **An auto apply test seeds a hiring system's `apply_url`** (Greenhouse in
+  most; `_seed_posting(database, url)` in `tests/test_sent_resumes.py`): the
+  queue refuses every host not in `app/auto_apply/hosts.py` with a 404 (a
+  job board's posting with the reason, KAN-376). The
+  first host rule (Greenhouse only) broke six
   database tests that seeded `example.com`; they skip without the local
   container, so only CI caught it (2026-10-17). Run them with the container
   up before pushing a change to auto apply's queue.
@@ -169,7 +174,9 @@ uv run pytest
   `DIRECT_URL` to the test database before the app reads them (exported
   variables beat the root `.env`), and refuses a `TEST_DATABASE_URL` whose host
   is not localhost. The app's own `get_session` uses the test database, so do
-  not override it in these tests.
+  not override it in these tests. It also pins `CONNECTOR_API_URL` and
+  `CONNECTOR_WEB_URL` to the config defaults (`:8000`, `:3000`), so a `.env`
+  serving the connector on other ports doesn't break the connector tests.
 - **Without the container, database tests skip** with a message saying how to
   start it; the rest run. In CI (`CI` set) they fail instead, so a broken
   service never passes as green. CI's backend job runs the same image as a
@@ -226,10 +233,37 @@ Find files with a directory listing; these are the rules for where code goes.
   feature picks a size there; it never builds an `LLM` itself, so the
   `SCOUT_*` settings stay the one place a model is named
   (`../scout/CLAUDE.md`, "Which model, where").
-- **Auto apply** (`app/auto_apply/`): KAN-223's layers 1 and 2, in three
-  files by kind: `rules.py` pure (no session), `queries.py` database, and
-  `pipeline.py` the steps that call them. Unlike a service, its functions may
-  take a session; its routes still go in `app/routers/`. Read
+- **Auto apply** (`app/auto_apply/`): KAN-223's layers 1 and 2. Layer 1
+  is `rules.py` pure (no session) and `queries.py` database; layer 2 is
+  the steps that call them, `pipeline.py`, which every caller imports.
+  `stages.py` holds what every step checks first (the application exists,
+  its form is open: `open_application`, `get_application`) and the errors
+  for it. `written.py` holds the written-answer steps (the questions a tab
+  sends, the connector's and the Written Answers page's saves, each checked
+  by `checks.py`, and the answer bank); `pipeline.py` re-exports them, so
+  callers keep naming them `pipeline.save_answers` and so on, but a test
+  that fakes one of their layer-1 calls patches `written`. `resume.py`
+  holds the resume steps (`choose_resume`, `prepare_resume`, `FileFailed`),
+  re-exported the same way. `review.py` holds the pre-submit review
+  (`next_to_review`, `save_review`, `reviewed_answers`, KAN-369): once an
+  application's written questions are all answered, the connector's
+  `get_review_task` hands its answers out for a re-read, each with its
+  version (`answer_version`, a hash of its text), and `save_review` keeps
+  the answers whose version still matches, with each flag, as
+  `job_applications.answer_review`; an answer edited meanwhile stays due.
+  A flag may quote its sentence and mark a wrong company; the tab's flag
+  card answers it with `keep` (recorded as `kept`, never flagged again as
+  it stands) or `rewrite` (the answer cleared, the flag kept as `rewrite`
+  for `get_next_application` to hand over with the question).
+  Re-exported the same way; tests: `tests/test_connector_review.py`. A
+  question asked in words (kind NULL, "text" to the connector) is
+  `models/written_answers.is_text`, for a value or, given the column, in
+  SQL: test a question's kind through it, never `kind`'s truth. Unlike a
+  service, its functions may
+  take a session; its routes still go in `app/routers/`. Its `NotFound`
+  and `WrongStage` (`stages.py`, also `pipeline.NotFound`) answer 404 and
+  409 from one handler each in
+  `app/main.py`: a route lets them through rather than catching them. Read
   `../auto-apply/architecture.md`, "The function layers", before adding one:
   a layer-2 step that skips a layer-1 check lets any caller skip it. Its
   resume step (`prepare_resume`) keeps the file through
@@ -239,14 +273,263 @@ Find files with a directory listing; these are the rules for where code goes.
   job's resume** (`choose_resume`, `PUT .../applications/{job_id}/resume`,
   KAN-359) is kept the same way, as the sent resume the application names,
   and `prepare_resume` sends it in place of `pick_resume`'s (`chosen_resume`):
-  no column of its own. Tests: `tests/test_auto_apply_resume.py`. **Which job postings it takes is
-  one list, `app/auto_apply/hosts.py`** (Greenhouse for now): the matches
+  no column of its own. Tests: `tests/test_auto_apply_resume.py`. **Batch
+  apply's tab states live on the stage column, with no table of their own**
+  (KAN-370): a ready tab stays `queued` (it waits for the student's submit),
+  a tab with anything unfilled is `needs_you` (`record_fill`), and
+  `next_application`'s `skip` passes over the jobs the extension already
+  has open. A new stage value would be an `ALTER TYPE` and a coordinated
+  deploy; add one only when a state must outlive its tab.
+  **The panel's I didn't submit this** (KAN-401, `POST .../finish
+  {"outcome": "unsubmitted", "state"}`) undoes a submit: only an applied
+  application, its date cleared, back to the stage its tab had in
+  `PUT .../fill`'s words (ready → `queued`, needs_you → `needs_you`). With
+  no `state` it goes to `needs_you`, never `queued`: a queued application
+  is the batch's next fill, so only a tab the extension says was Ready
+  goes back into it. No column keeps the stage before applied; the
+  extension, which held the tab, says it (tested in
+  `tests/test_applied_at.py`). Tests: `tests/test_batch_apply.py`. **A batch tab's essay questions are
+  rows in `written_answers`** (KAN-377): the tab sends the questions its
+  form needs written (`PUT .../questions`), the student's own Claude saves
+  each answer through the connector, and the tab reads them back
+  (`GET .../questions`) to fill them. Only a queued or needs_you application
+  takes questions. Tests: `tests/test_written_answers.py`. **A student
+  without Claude pastes answers through the same save** (KAN-385,
+  `routers/pasted_answers.py`): the Written Answers page lists every
+  unanswered question by posting (`pipeline.unanswered_questions`) and
+  saves through `pipeline.save_answers`, the connector's own step, so a
+  pasted answer passes the same checks and the tab fills it the same way.
+  Never give pasted text a save path of its own: it may come from any AI.
+  The paste passes `by="student"`, which skips only the copy check against
+  the student's own writing samples (that check stops their Claude
+  parroting them; a student may paste their own words). Re-checks of a
+  saved answer (`ask_questions`, `answer_bank`) leave the copy check out
+  for the same reason: the save ran it.
+  **Claude's written answer carries its Essay plan and claim check**
+  (KAN-369, Apply's evidence-first writer): the plan it was written from
+  (type, story, company fact, angle, and its type's slots, each with
+  quotes) and the claims the prompt's check listed (`unsupported`), stored
+  in `written_answers.review` as `{plan, unsupported}`. `plans.check`
+  (pure, `tests/test_plans.py`) holds the plan to the sources the
+  connector gave (`written._plan_sources`: the experience as
+  `bank_context` writes it, skills, posting, brief facts, the
+  application's other saved answers): each quote word for word and at
+  least 20 characters folded, every required slot quoted, an optional one
+  without dropped, the story a line of the experience leading no other
+  answer on the application (anything-else and cover letters may reuse
+  one), the company fact one of the brief's on a type that links the
+  company; a plan's company fact is the answer's named fact when it names
+  none. **A required slot nothing backs is asked, never invented**
+  (Apply's Missing fact): their Claude calls `save_fact_question`
+  (`written.ask_fact`), which keeps `{"ask": {question, entry_id,
+  entry}}` in the unanswered row's `review`, the question opened by
+  "Essay fact: " and the entry matched by its heading line as
+  `bank_context` writes it. A row waiting on one is not handed to their
+  Claude (`queries._not_asked`), and `GET .../questions` and the Written
+  Answers page show it as `ask` and `ask_about`. The student's answer
+  (`PUT .../essay-facts`, `written.answer_fact`) joins that entry as a
+  bullet through `services/bank.py` and clears the ask, so the question
+  goes back to their Claude with a fact to quote. A fact that belongs to
+  no entry (a favorite book) stays a question for the student, as
+  before. Tests: `tests/test_essay_facts.py`. **Story rotation**
+  (Apply's decision 13): `get_next_application`'s `led_before` gives, by
+  Question type, the stories the student's sent (applied) answers at
+  other companies led with, the 3 newest each (`written.led_before`, read
+  from the plans in `review`), and the prompt steers the plan off them;
+  an answer saved before plans existed steers nothing. The save refuses one
+  without the plan or the list, failing the plan, or still holding a
+  listed claim; a choice and a paste take none, and the
+  student's edit clears it (the check was of Claude's text). The server
+  can't redo the check; this makes skipping it a refusal, not silence.
+  There is no reader's 1-10 rating any more: Apply dropped it, since it
+  raised unsupported claims from 8 to 13.
+  A refusal's `Refused.reasons` holds each answer's reasons by question
+  name, for the page to show under its box. Tests: `tests/test_pasted_answers.py`.
+  **An answer may name the brief fact it uses** (KAN-369): the connector's
+  `named_fact`, `save_answers(named=...)`, must fold-match one of the
+  company brief's facts, or those of the team brief the posting names
+  (the same `brief_for(company, job_id)` the connector hands out, which
+  also widens the number check), or the save is refused; it is kept as
+  `written_answers.named_fact` (`{"fact", "url"}`), cleared with its answer
+  and by the student's own words, and the Written Answers page lists it
+  with the answer (`GET .../written-answers`, `pipeline.answered_questions`).
+  Tests: `tests/test_named_fact.py`.
+  **Each listed answer carries `answered_at`** (KAN-369), when it was last
+  saved: the page marks the student's own answers (captured from a form)
+  New by it until they have seen them. Tests: `tests/test_captured_answers.py`.
+  **Problem reports from the extension's panel** (KAN-403, fix reports
+  KAN-369; `routers/fill_reports.py` over `queries/fill_reports.py`, table
+  `fill_reports`, migrations `c4e1a9f2d803`, `e5b8d2a7c914`): `POST
+  /fill-reports` stores what the student previewed and sent: job system,
+  the posting's link, Fill engine version, what opened the card
+  (`trigger`), the context (extension version, browser, the engine's
+  recognition of the page), each field's structure and what the fill did
+  with it (name, label, kind, options, selector, visible, source, the
+  planned answer's shape such as `text:12`, status, reason with values out,
+  read-back, error, marked, edited), the timeline (steps, errors, stacks)
+  and the form's HTML with values out (`html`, at most `HTML_MAX`), and
+  their note. **The row names its sender** (`account_id`, cascading with
+  the account): a student lists their own (`GET /fill-reports/mine`) and
+  reads one of theirs (`GET /fill-reports/{id}`; another's is 404). Values
+  never reach it by design: the extension takes them out before the
+  preview; every model forbids other keys, the shapes are patterns, and
+  `scrub` replaces what still looks like an email or a phone in every
+  free text. The body is read in chunks and refused past `BODY_MAX` (413),
+  never whole. The link is http or https with no sign-in and no fragment,
+  and its query keeps only the params that name the posting
+  (`schemas/fill_reports.py` POSTING_PARAMS), each an id.
+  **Admins** are the emails or account ids on `WORKIT_ADMINS`
+  (`app/config.py`; `deps.get_admin`, 403 to anyone else): there is no
+  admin role in the database. They list (`GET /admin/fill-reports`, newest
+  first, `?job_system=&status=`), read, triage (`PATCH`, status new /
+  triaged / fixed and a note) and export a report: `GET
+  /admin/fill-reports/{id}/brief` is the Markdown fix brief
+  (`services/fill_brief.py`, format in `../docs/fill-reports.md`;
+  `tests/fixtures/fill_brief.md` is a golden copy, so a format change
+  updates both), `.../fixture` the form's HTML as a text/plain download
+  (never served as HTML: it is an employer page's markup). `uv run python
+  -m app.scripts.fill_report <id>` (or `--latest`) writes the brief, the
+  fixture, its question set and the report to `fill-reports/` (gitignored)
+  and names the engine commit the report's engine version was built from.
+  Tests: `tests/test_fill_reports.py`, `tests/test_fill_report_briefs.py`.
+  **Job system requests from the extension's popup** (KAN-369,
+  `routers/job_system_requests.py`, table `job_system_requests`, migration
+  `d8a3f5c1e7b2`): `POST /job-system-requests {"host"}` stores the host of
+  a job page WorkIt can't fill when the student presses Request this job
+  system. Only a bare lower-case host name is taken (any other key, a
+  scheme, port or path is 422); the row names no account, though sending
+  needs a sign-in. The team ranks the next job systems with `SELECT host,
+  count(*) FROM job_system_requests GROUP BY host`; nothing reads it in the
+  app. Tests: `tests/test_job_system_requests.py`.
+  **Save to WorkIt by a page's link** (KAN-401, `POST /jobs/saved-by-link`
+  in `routers/applications.py`, `queries/applications.py`
+  `listed_job_by_link`): the extension's toolbar popup on a site it can't
+  fill saves the feed's listed job whose apply link is the page, the exact
+  link first, else the same link without query, fragment and trailing
+  slash (SQL `split_part`/`rtrim`, no index: the feed is small), through
+  `save_job`. A page no listed job links to is a 404; it never makes a
+  posting. Tests: `tests/test_saved_jobs.py`.
+  **A student's writing samples and style card** (KAN-384) are
+  `queries/writing.py`, behind `routers/writing_samples.py` (the student's
+  add, replace, remove) and the connector's tools (their Claude reads the
+  samples and saves the card). Tests: `tests/test_writing_samples.py`.
+  **The connector is an MCP server inside this API** (`app/connector/`,
+  KAN-377; `../auto-apply/architecture.md` 14.6): the official MCP SDK at
+  `/mcp`, with WorkIt as its own OAuth server (`connector/oauth.py`; the
+  SDK's endpoints at the root, `/authorize`, `/token`, `/register`,
+  `/revoke`, `/.well-known/...`, added path by path, never a catch-all
+  mount). Only Claude's own callbacks register (`oauth.CLAUDE_CALLBACKS`;
+  loopback only with `connector_loopback_redirects`), so no other page can
+  pose as Claude on the consent page. It answers only inside the app's lifespan, so its tests run
+  `app.router.lifespan_context(app)` (`tests/test_connector.py`, which
+  signs in with the SDK's own client as Claude does). Its tokens reach
+  `/mcp` only. Whether a student added it is `GET
+  /applicants/{id}/connector` (`oauth.added`: a live refresh token; KAN-387,
+  for the extension's add-Claude step; `tests/test_connector_added.py`), and
+  the student's Disconnect is `DELETE` on it (`oauth.disconnect`: every
+  token and approved sign-in of theirs deleted, so `/mcp` refuses at once). **Its tools are layer 3** (`connector/tools.py`): the
+  student comes from the token (`connector/account.py` `current_student`,
+  the one dependency every tool module uses), each tool calls one
+  layer-2 step (`next_to_write`, `save_answers`; the style card's two tools,
+  `connector/style.py`, read and write `queries/writing.py`), and a refusal is a
+  `ToolError` with the reason. **A chat is the `chat` value Claude passes
+  back** (KAN-381): the server keeps no session, so the per-chat cap
+  (`connector_chat_cap`) counts the job ids in that value, and a new chat
+  (no value) resumes at the oldest unanswered application. **A change to
+  the prompt or the cap is checked by a person's blind read, never an AI
+  judge** (KAN-386, `app.scripts.ship_check`): it runs the prompt through
+  `claude -p` on the user's own login against the tools' real code with a
+  stub in place of the database, then shows the connector's answers against
+  another writer's, and a chat's first against its fifth, with the writer
+  hidden. The question set, both answer sets and the picks hold a student's
+  facts, so they live outside this public repo; only the script is here.
+  **Writing rules go in the MCP prompt
+  (`connector/prompt.py`), never in a tool's description**, name no
+  student, and never list banned words (that primes a model; the save
+  checks them, KAN-380), and nothing on this path calls a model. **Every tool takes a title and explicit annotations** (KAN-383, Anthropic's directory refuses a tool without them): `readOnlyHint=True` on a read, so Claude runs it without asking; only `save_*` tools write, each saying `destructiveHint`; `openWorldHint=False` on all. A test lists the tools and checks each one, so a new tool without them fails. **Company
+  briefs are shared by every student** (KAN-382, `auto_apply/briefs.py`,
+  tools in `connector/briefs.py`): a fact is kept only if WorkIt finds its
+  quote on its page, so **every page a brief cites is read through
+  `services/page_fetch.py`**, never a bare `httpx` call: the URL comes from
+  outside, and the fetcher is what refuses internal addresses, other
+  hosts, redirects off them and oversized pages. Tests swap
+  `briefs.fetch_page` for a fake; nothing in the suite reads the web.
+  **The brief comes before the essays** (as in Apply): while an
+  application with a question in words has a company whose brief is
+  missing or over 30 days old and not held back (`briefs.needs_research`),
+  `get_next_application` answers `research_first` with the company and no
+  application; a choice-only application still goes out.
+  `get_research_task`, given the same `chat`, puts that held application
+  first (`briefs.research_task(skip=)`), so it names the company
+  `research_first` named, not an older application's. Tests get every
+  company as researched (an autouse fixture in `tests/conftest.py`);
+  mark a test `research_gate` to keep the real rule, and stub
+  `needs_research` with the other brief calls wherever they are stubbed
+  (`scripts/ship_check.py`).
+  **Every written question has a Question type** (KAN-369, Apply's
+  essay writer made general): `auto_apply/question_types.py` classifies a
+  question into one of 15 types or `general`, and each type's guide is a
+  file in `auto_apply/type_guides/` whose front matter code reads (its
+  summary, company link, default length, match patterns and slots) and
+  whose body is guidance `get_next_application` hands out as data (each
+  question its type and default length, `guides` by type). A question's
+  help text (`written_answers.description`, what the form shows under the
+  label, which the tab sends as it sends `max_length`) goes out with it,
+  is read with the label to classify it, and a length it states replaces
+  the type's default; the prompt holds the stated-limit rules (a word
+  limit 75-95%, a sentence range its top, a character cap 80-95%). A guide names
+  no student and lists no banned word; change its slots and the save's
+  plan check changes with them. Tests: `tests/test_question_types.py`.
+  **Every saved answer passes the checks in code first**
+  (`app/auto_apply/checks.py`, KAN-380; pure, `tests/test_answer_checks.py`):
+  machine-made words, a run copied from the student's writing samples, a
+  number not in the bank, posting or question, another application's
+  company, a sentence over 30 words, a placeholder, the form's own
+  limit (the Fill engine reads it from the live form; the tab sends it as
+  `max_length`), and Apply's editor checks (how it was written, talk of
+  the posting, time counted from today, signposts, more than 2 numbers,
+  low-level detail, a course credited). Each reason says what to change.
+  Apply's holds, in WorkIt: an answer needing the student's input is left
+  out by their Claude (the row stays Needs you); a high-stakes one
+  (`checks.high_stakes`) is saved and filled, and `save_answers` names it
+  in `read_first` for the student to read before Submit. `save_answers` refuses the whole save with every failing
+  answer's reasons, so nothing failing reaches a tab. **No saved answer is
+  filled without passing that form's checks**: when a tab sends the form's
+  own limit (`ask_questions`; a question read early had none), each saved
+  answer of their Claude's is checked again and a failing one dropped
+  (`queries.drop_written`) for their Claude to write again; `answer_bank`
+  offers one of their Claude's on another application only if it passes
+  that application's checks (the engine checks the form's limit on the page). **An answer about one
+  company is offered on that company's forms only** (`checks.company_specific`,
+  read through `pipeline.answer_bank`: reuse saved answers through it, never
+  from `written_answers` directly). A draft of their Claude's brought
+  from Apply with no company (no `first_seen`) that names a company WorkIt
+  knows (`written.companies_named`; the student's own places don't count)
+  is that company's answer. **The student's own words win**
+  (KAN-379): the student's words in a tab (`PUT .../answers`, `own` true:
+  written into a field WorkIt didn't fill, or replacing what it filled) set
+  the row's `own`, which their Claude's later save never overwrites and
+  `answer_bank` offers first, unchecked by the checks meant for their
+  Claude's text (only the company rule, no other application's company
+  named, and the form's limit on the page apply to them); an edit of an answer WorkIt filled (`own`
+  false) stays not own and passes the same checks as their Claude's save;
+  the extension plans every batch form with `GET .../answer-bank`, so a
+  saved question never reaches their Claude, and every form outside a
+  batch with `GET /applicants/{id}/answer-bank?company=` (no application:
+  an answer about a company only when the page's company is that one). Seam-2 tests:
+  `tests/test_connector_saved_answers.py`. Seam-2 tests:
+  `tests/test_connector_checks.py`. The writing samples are KAN-384's;
+  until then `pipeline.writing_samples` holds none. **Which job postings it takes is
+  one list, `app/auto_apply/hosts.py`** (every hiring system the Fill engine fills, KAN-370): the matches
   and `queue_applications` require its SQL form (`AUTO_APPLY_SUPPORTED` in
   `queries/jobs/filters.py`) and `JobListing.auto_apply` its Python form,
   which the Jobs page reads to show the button. One pattern serves both, so
   they agree; the Python form is tested against URLs, the SQL form only by
   the SQL it sends (on 2026-10-17 the two agreed on all 13,308 listed jobs
-  in the dev database).
+  in the dev database). A job board's posting (`JOB_BOARDS`, KAN-376) is
+  taken only through the employer's form its text names: `FORM_URL` reads
+  it in SQL, the listing carries it as `form_url`, and `auto_apply` checks
+  that form (`tests/test_job_board_links.py`).
   matching: `app/services/matching/CLAUDE.md`. Resume PDFs (LaTeX through
   Tectonic): `app/services/resume_render/CLAUDE.md`. A service that reads or
   writes rows (the experience bank, `services/bank.py`) takes the caller's
@@ -324,6 +607,16 @@ Find files with a directory listing; these are the rules for where code goes.
   show it, `load_holdings`) and `resumes`; other `bank_response` callers
   (Scout) send none. Tests: `tests/test_bank_import.py`, "owners" and
   "Add under a resume pick".
+- **Onboarding reads a resume before saving it** (KAN-372, ADR 0006).
+  `POST .../resumes/preview` runs upload's read (`_extract`, then
+  `bank_import.read`) and writes nothing: no Storage file, no row, no bank
+  row. The student confirms with the normal upload plus `?replace=matching`,
+  which also deletes the other uploads' entries and skills the reading
+  matches (`bank.upload_matches`: section, title and organization, or a
+  skill's name, ignoring case; never an entry with no owner), so a newer
+  resume leaves one copy. The preview lists those rows beside each item.
+  Every other upload keeps ADR 0005's no-merge rule. Tests:
+  `tests/test_bank_import.py`, "the parse preview and its confirm".
 - **Import Again** is `POST /applicants/{id}/bank/import`: the same read on
   a stored upload, replacing what it owns, from intake's Use One I
   Uploaded, the Jobs page's empty-bank card and the Experiences view's
@@ -1018,6 +1311,15 @@ removed at cutover, not before. Until then a change must work on both.
   it (why a scraped job closed) follows in its own PR, whose dry-run scrape
   check and every scheduled import fail on a database without it; and the
   model maps it, so a company job's insert fails there too.
+- **Batch apply's migrations (KAN-369, `d1a7c3e5f902` through
+  `f4a8c1d6e273`) are on main ahead of their code**, so they can be applied
+  before the deploy that maps them. The models map
+  `applicant_profiles.location` and `experience_banks.removed_skills`, so
+  deployed first, every signed-in student request answers 500. They only
+  add tables and nullable or defaulted columns (and re-key the new
+  `company_briefs`), so applying them early is safe. Until batch apply's
+  models merge, `alembic revision --autogenerate` proposes dropping its
+  tables and columns: delete those lines from any migration it writes.
 - **Apply `a3d7f1c9e2b4` (`bank_skills.built_resume_id`, resume-local
   skills) before the deploy that maps it.** Every skill insert names the
   column, so deployed first, uploads, Import Again and Add skill answer
@@ -1074,6 +1376,10 @@ removed at cutover, not before. Until then a change must work on both.
   changes two foreign keys (no column the code maps), so either order
   works. Before it, a hard-deleted posting still cascades to tailored
   resumes and their bullet variants.
+- **Apply `c3e5a7b9d146` (`writing_samples`, `style_cards`, KAN-384)
+  before the deploy that reads them.** It only adds tables, so applying it
+  early is safe; deployed first, the connector's get_next_application and
+  the writing-samples routes answer 500.
 - **Apply `f2b8d6c4a913` before deploying KAN-217.** It adds
   `bank_bullet_variants` and `built_resume_bullets.variant_id`, which the
   model maps, so Generate's inserts fail on a database without it.
