@@ -1,4 +1,5 @@
 import {
+  AirplaneTiltIcon as AirplaneTilt,
   ArrowLeftIcon as ArrowLeft,
   ArrowRightIcon as ArrowRight,
   ArrowSquareOutIcon as ArrowSquareOut,
@@ -23,6 +24,9 @@ import {
   GiftIcon as Gift,
   GlobeIcon as Globe,
   GraduationCapIcon as GraduationCap,
+  CurrencyDollarIcon as CurrencyDollar,
+  CompassIcon as Compass,
+  ChatCircleTextIcon as ChatCircleText,
   HouseIcon as House,
   IdentificationBadgeIcon as IdentificationBadge,
   IdentificationCardIcon as IdentificationCard,
@@ -37,15 +41,16 @@ import {
   PaperPlaneTiltIcon as PaperPlaneTilt,
   PencilSimpleIcon as PencilSimple,
   PersonArmsSpreadIcon as PersonArmsSpread,
+  PlugsConnectedIcon as PlugsConnected,
   PlusIcon as Plus,
   PushPinIcon as PushPin,
-  PushPinSlashIcon as PushPinSlash,
   SealCheckIcon as SealCheck,
   ShieldCheckIcon as ShieldCheck,
   SignOutIcon as SignOut,
   SparkleIcon as Sparkle,
   StarIcon as Star,
   TargetIcon as Target,
+  TranslateIcon as Translate,
   TrashIcon as Trash,
   TrendDownIcon as TrendDown,
   TrendUpIcon as TrendUp,
@@ -61,7 +66,7 @@ import {
   UserTieIcon as UserTie,
 } from "@/components/custom-icons";
 
-import type { AutofillAnswers } from "@/lib/autofill-answers";
+import type { QuestionKey } from "@/lib/autofill-answers";
 
 type IconProps = { className?: string };
 
@@ -347,6 +352,12 @@ export function MailIcon({ className }: IconProps) {
   return <Envelope aria-hidden className={className} />;
 }
 
+/** Settings' Integrations: apps a student connects to WorkIt (Gmail,
+ *  Google Calendar; KAN-413). */
+export function IntegrationsIcon({ className }: IconProps) {
+  return <PlugsConnected aria-hidden className={className} />;
+}
+
 /* Auth --------------------------------------------------------------------- */
 
 export function LockIcon({ className }: IconProps) {
@@ -368,7 +379,8 @@ export function TrashIcon({ className }: IconProps) {
 }
 
 /* Brand marks ---------------------------------------------------------------
- * The two OAuth providers' own logos, in their own colours. Unlike every other
+ * The OAuth providers' and Settings' integrations' own logos (Google,
+ * LinkedIn, Gmail, Google Calendar), in their own colours. Unlike every other
  * icon in this file these do not take `currentColor` — a brand mark recoloured
  * to the surrounding text is no longer the brand mark, and both companies'
  * guidelines require the official colours on a light background, which is what
@@ -398,6 +410,47 @@ export function GoogleIcon({ className }: IconProps) {
         fill="#EA4335"
         d="M24 9.5c3.54 0 6.71 1.22 9.21 3.6l6.85-6.85C35.9 2.38 30.47 0 24 0 14.62 0 6.51 5.38 2.55 13.22l7.98 6.19C12.43 13.72 17.74 9.5 24 9.5Z"
       />
+    </svg>
+  );
+}
+
+/** Gmail's four-colour envelope "M" (the 2020 mark). Wider than tall, so it
+ *  sits centred in a square `size-*`. */
+export function GmailIcon({ className }: IconProps) {
+  return (
+    <svg viewBox="52 42 88 66" aria-hidden="true" className={className}>
+      <path fill="#4285F4" d="M58 108h14V74L52 59v43c0 3.32 2.69 6 6 6" />
+      <path fill="#34A853" d="M120 108h14c3.32 0 6-2.69 6-6V59l-20 15" />
+      <path fill="#FBBC04" d="M120 48v26l20-15v-8c0-7.42-8.47-11.65-14.4-7.2" />
+      <path fill="#EA4335" d="M72 74V48l24 18 24-18v26L96 92" />
+      <path fill="#C5221F" d="M52 51v8l20 15V48l-5.6-4.2c-5.94-4.45-14.4-.22-14.4 7.2" />
+    </svg>
+  );
+}
+
+/** Google Calendar's square with its folded corner and "31" (the 2020
+ *  mark). */
+export function GoogleCalendarIcon({ className }: IconProps) {
+  return (
+    <svg viewBox="0 0 200 200" aria-hidden="true" className={className}>
+      <path
+        fill="#FFFFFF"
+        d="M152.6 47.4 105.3 42.1 47.4 47.4 42.1 100l5.3 52.6 52.6 6.6 52.6-6.6 5.3-53.9z"
+      />
+      <path
+        fill="#1A73E8"
+        d="M69 129c-3.9-2.7-6.7-6.5-8.1-11.7l9.1-3.8c.8 3.2 2.3 5.6 4.3 7.3 2.1 1.7 4.6 2.6 7.5 2.6 3 0 5.6-.9 7.7-2.7s3.2-4.1 3.2-6.9c0-2.9-1.1-5.2-3.4-7s-5.1-2.7-8.5-2.7h-5.3v-9h4.7c2.9 0 5.4-.8 7.4-2.4s3-3.7 3-6.5c0-2.4-.9-4.4-2.7-5.9s-4.1-2.2-6.8-2.2c-2.7 0-4.8.7-6.4 2.1s-2.7 3.2-3.4 5.3l-9-3.8c1.2-3.4 3.4-6.4 6.6-9s7.3-3.9 12.3-3.9c3.7 0 7 .7 10 2.1s5.3 3.4 6.9 5.9c1.7 2.5 2.5 5.4 2.5 8.5 0 3.2-.8 5.9-2.3 8.2s-3.5 3.9-5.7 5.1v.5c3 1.2 5.4 3.2 7.3 5.7s2.9 5.6 2.9 9.2-.9 6.8-2.7 9.6-4.3 5-7.5 6.6c-3.2 1.6-6.8 2.4-10.8 2.4-4.6 0-8.9-1.3-12.8-4z"
+      />
+      <path fill="#1A73E8" d="m125 83.7-10 7.3-5-7.6 18-13h6.9v61.2H125z" />
+      <path fill="#EA4335" d="M152.6 200 200 152.6l-23.7-10.5-23.7 10.5-10.5 23.7z" />
+      <path fill="#34A853" d="m36.8 176.3 10.6 23.7h105.2v-47.4H47.4z" />
+      <path
+        fill="#4285F4"
+        d="M15.8 0C7.1 0 0 7.1 0 15.8v136.8l23.7 10.6 23.7-10.6V47.4h105.2l10.6-23.7L152.6 0z"
+      />
+      <path fill="#188038" d="M0 152.6v31.6c0 8.7 7.1 15.8 15.8 15.8h31.6v-47.4z" />
+      <path fill="#FBBC04" d="M152.6 47.4v105.2H200V47.4l-23.7-10.6z" />
+      <path fill="#1967D2" d="M200 47.4V15.8C200 7.1 192.9 0 184.2 0h-31.6v47.4z" />
     </svg>
   );
 }
@@ -499,7 +552,7 @@ export function DisabilityIcon({ className }: IconProps) {
   return <PersonArmsSpread aria-hidden className={className} />;
 }
 
-const ANSWER_ICON: Record<keyof AutofillAnswers, typeof AuthorizationIcon> = {
+const ANSWER_ICON: Record<QuestionKey, typeof AuthorizationIcon> = {
   work_authorized_us: AuthorizationIcon,
   needs_sponsorship: VisaIcon,
   work_authorization_status: CitizenshipIcon,
@@ -509,19 +562,36 @@ const ANSWER_ICON: Record<keyof AutofillAnswers, typeof AuthorizationIcon> = {
   race: RaceIcon,
   veteran_status: VeteranIcon,
   disability_status: DisabilityIcon,
+  sexual_orientation: GenderIcon,
+  transgender: GenderIcon,
+  pronouns: ({ className }: IconProps) => <ChatCircleText aria-hidden className={className} />,
 };
 
 /** An application question's glyph, by its key in the answer bank
  *  (lib/autofill-answers): onboarding's Profile step and My Profile's
  *  Application Questions draw the same one. Moved here from onboarding when
  *  My Profile became the second route to want them (KAN-269). */
-export function answerIcon(key: keyof AutofillAnswers) {
+export function answerIcon(key: QuestionKey) {
   return ANSWER_ICON[key];
 }
 
-/** The sidebar's pin (KAN-300, components/hover-sidebar.tsx): a pin to pin
- *  the panel open, crossed out to unpin it. Not PinIcon, which is a place. */
-export function SidebarPinIcon({ pinned, className }: IconProps & { pinned: boolean }) {
-  const Glyph = pinned ? PushPinSlash : PushPin;
-  return <Glyph aria-hidden className={className} />;
+/** My Profile's Application answers groups (KAN-369), shared with
+ *  onboarding's Availability step: one glyph a group, by its name. */
+export const ANSWER_GROUP_ICON = {
+  availability: ({ className }: IconProps) => <Clock aria-hidden className={className} />,
+  startWindow: ({ className }: IconProps) => <CalendarBlank aria-hidden className={className} />,
+  relocation: ({ className }: IconProps) => <AirplaneTilt aria-hidden className={className} />,
+  address: ({ className }: IconProps) => <House aria-hidden className={className} />,
+  languages: ({ className }: IconProps) => <Translate aria-hidden className={className} />,
+  screeners: ({ className }: IconProps) => <ListChecks aria-hidden className={className} />,
+  schoolYear: ({ className }: IconProps) => <GraduationCap aria-hidden className={className} />,
+  agePay: ({ className }: IconProps) => <CurrencyDollar aria-hidden className={className} />,
+  interests: ({ className }: IconProps) => <Compass aria-hidden className={className} />,
+  communities: ({ className }: IconProps) => <UsersThree aria-hidden className={className} />,
+};
+
+/** Pinning the WorkIt extension to Chrome's toolbar (KAN-378, onboarding's
+ *  install step): a pin glyph. Not PinIcon, which is a place. */
+export function ToolbarPinIcon({ className }: IconProps) {
+  return <PushPin aria-hidden className={className} />;
 }

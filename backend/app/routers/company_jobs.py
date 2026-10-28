@@ -26,7 +26,6 @@ from app.queries.company_jobs import (
     posting,
     set_location,
 )
-from app.routers.scout import get_llm
 from app.schemas.auth import AuthenticatedAccount
 from app.schemas.company_jobs import (
     JobPosting,
@@ -36,6 +35,7 @@ from app.schemas.company_jobs import (
     JobStatusChange,
 )
 from app.services import keywords
+from app.services.models import get_small_llm
 
 logger = logging.getLogger(__name__)
 
@@ -130,7 +130,7 @@ async def create_job(
     tasks: BackgroundTasks,
     account: AuthenticatedAccount = Depends(get_company_member),
     db: AsyncSession = Depends(get_session),
-    llm: LLM = Depends(get_llm),
+    llm: LLM = Depends(get_small_llm),
 ) -> JobPosting:
     '''
     save a new job, as a draft or published, under the caller's company
@@ -192,7 +192,7 @@ async def update_job(
     tasks: BackgroundTasks,
     account: AuthenticatedAccount = Depends(get_company_member),
     db: AsyncSession = Depends(get_session),
-    llm: LLM = Depends(get_llm),
+    llm: LLM = Depends(get_small_llm),
 ) -> JobPosting:
     '''
     replace a job's details with the composer's full form. PUT, not PATCH: the
@@ -243,7 +243,7 @@ async def change_job_status(
     tasks: BackgroundTasks,
     account: AuthenticatedAccount = Depends(get_company_member),
     db: AsyncSession = Depends(get_session),
-    llm: LLM = Depends(get_llm),
+    llm: LLM = Depends(get_small_llm),
 ) -> JobPosting:
     '''
     pause, resume or close a job. Only the moves in _NEXT_STATUSES are

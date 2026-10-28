@@ -13,21 +13,30 @@ import { getApplicantSession } from "@/lib/session";
 
 /** Where one application stands: backend `dto.application_stage`. Saved
  *  (KAN-261) is a job's Save button, not a run: it counts as no application
- *  yet, so queueing a saved job queues it. */
-export type ApplicationStage = "saved" | "queued" | "needs_you" | "skipped" | "applied";
+ *  yet, so queueing a saved job queues it. Interviewing, offer and rejected
+ *  (KAN-413) come after applied, set on the Applications Tracker. */
+export type ApplicationStage =
+  "saved" | "queued" | "needs_you" | "skipped" | "applied" | AfterApplied;
+
+/** The stages after applied (KAN-413): the student sets them on the
+ *  Applications Tracker. Each still counts as applied. */
+export type AfterApplied = "interviewing" | "offer" | "rejected";
 
 /** The stages auto apply itself writes: Live Activity's rows. */
-export type RunStage = Exclude<ApplicationStage, "saved">;
+export type RunStage = Exclude<ApplicationStage, "saved" | AfterApplied>;
 
 const SIGNED_OUT = "You're signed out. Sign in again to continue.";
 const UNREACHABLE = "Could not reach the server.";
 
 /** A job's Auto Apply button: queues it (POST .../applications) and answers
  *  its stage. A saved job is queued; one that already has an application
- *  keeps that stage, so the answer is never saved. */
+ *  keeps that stage, so the answer is never saved, and may be a stage past
+ *  applied that the student set on the tracker. */
 export async function queueJob(
   jobId: string,
-): Promise<{ stage: RunStage; error: null } | { stage: null; error: string }> {
+): Promise<
+  { stage: Exclude<ApplicationStage, "saved">; error: null } | { stage: null; error: string }
+> {
   let session;
   try {
     session = await getApplicantSession();
@@ -41,7 +50,10 @@ export async function queueJob(
       session.token,
     );
     if (!res.ok) return { stage: null, error: await extractErrorMessage(res) };
-    return { stage: ((await res.json()) as { stage: RunStage }).stage, error: null };
+    return {
+      stage: ((await res.json()) as { stage: Exclude<ApplicationStage, "saved"> }).stage,
+      error: null,
+    };
   } catch {
     return { stage: null, error: UNREACHABLE };
   }
@@ -127,5 +139,29 @@ export async function chooseResume(
     return { sent: (await res.json()) as SentResume, error: null };
   } catch {
     return { sent: null, error: UNREACHABLE };
+  }
+}
+
+/** "Mark applied" on a Live Activity row (KAN-369): the student sent this
+ *  application and WorkIt's extension didn't see it. Finishes it as
+ *  submitted (POST .../applications/{job_id}/finish), which dates it now.
+ *  One already applied or skipped answers the API's 409, which says why. */
+export async function markSubmitted(jobId: string): Promise<{ error: string | null }> {
+  let session;
+  try {
+    session = await getApplicantSession();
+  } catch {
+    return { error: SIGNED_OUT };
+  }
+  try {
+    const res = await apiFetch(
+      `/applicants/${session.id}/applications/${encodeURIComponent(jobId)}/finish`,
+      { method: "POST", body: JSON.stringify({ outcome: "submitted" }) },
+      session.token,
+    );
+    if (res.ok) return { error: null };
+    return { error: await extractErrorMessage(res) };
+  } catch {
+    return { error: UNREACHABLE };
   }
 }

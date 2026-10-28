@@ -1,11 +1,9 @@
 "use client";
 
-import { XIcon } from "@phosphor-icons/react/ssr";
 import { useEffect, useRef, useState } from "react";
 
 import { Composer, Message, Typing, ScoutMark } from "@/components/scout/chat";
 import { Chip } from "@/components/ui/chip";
-import { IconButton } from "@/components/ui/icon-button";
 import { askAssistant, type AssistantLine } from "@/lib/assistant-actions";
 import type { Bank } from "@/lib/bank-actions";
 import type { Choices, ChoicesUpdate } from "@/lib/built-resume-actions";
@@ -14,8 +12,10 @@ import { cn } from "@/lib/cn";
 import { move, wording, type BankLine as Line } from "./model";
 
 /**
- * The editor assistant (KAN-221): a chat docked beside the page on a wide
- * screen (the editor prototype's variant E) and in a sheet on a phone. It
+ * The editor assistant (KAN-221): a chat in Scout's panel on a wide screen,
+ * opened from the top bar's Scout (KAN-411; it docked beside the page from
+ * a toolbar Ask Scout until then, the editor prototype's variant E), and in
+ * a sheet on a phone. Either holder draws its header and close button. It
  * fits the resume, hides and moves the selected line, and makes a bullet
  * shorter; it does no other rewording. The look is intake's (variant G) and
  * the bubbles, dots and composer are Scout's (`components/scout/chat.tsx`).
@@ -67,7 +67,6 @@ export function Assistant({
   onApply,
   onHide,
   onFit,
-  onClose,
   className,
 }: {
   resumeId: string;
@@ -80,8 +79,6 @@ export function Assistant({
   /** Hides a line and clears the selection. */
   onHide: (changes: ChoicesUpdate) => void;
   onFit: () => void;
-  /** Absent: the caller draws its own close button (the phone's sheet). */
-  onClose?: () => void;
   className?: string;
 }) {
   const [said, setSaid] = useState<Said[]>([{ role: "assistant", content: HELLO }]);
@@ -166,22 +163,14 @@ export function Assistant({
   }
 
   return (
-    <aside
-      aria-label="Scout"
+    // A div: its holder (Scout's panel, the phone's sheet) is the landmark
+    // and names it, and a second "Scout" inside the panel's was one too many
+    <div
       className={cn(
-        "from-brand-tint to-panel ring-brand-tint flex min-h-0 flex-col overflow-hidden rounded-3xl bg-linear-to-b ring-1",
+        "from-brand-tint to-panel flex min-h-0 flex-col overflow-hidden bg-linear-to-b",
         className,
       )}
     >
-      {onClose && (
-        <div className="border-brand-tint flex items-center gap-2.5 border-b px-4 py-3">
-          <ScoutMark />
-          <span className="text-label text-ink font-semibold">Scout</span>
-          <IconButton label="Close" className="ml-auto" onClick={onClose}>
-            <XIcon aria-hidden className="size-4" />
-          </IconButton>
-        </div>
-      )}
       <div
         ref={log}
         className="flex min-h-0 flex-1 flex-col gap-3 overflow-y-auto overscroll-contain px-4 pt-4 pb-3"
@@ -296,6 +285,6 @@ export function Assistant({
           </p>
         )}
       </div>
-    </aside>
+    </div>
   );
 }

@@ -13,7 +13,7 @@ not per resume, so a built resume is a live view of it (ADR 0001):
 
 ```
 applicant_profiles
-  ├── experience_banks   one row per student: the bank embedding and when it was made
+  ├── experience_banks   one row per student: the bank embedding and when it was made, and the skills the student removed
   ├── bank_entries       one per job, degree, project, club role, award or certification
   │     └── bank_bullets the entry's lines, in order, in their original wording
   └── bank_skills        a plain list, each with an optional group
@@ -93,12 +93,13 @@ review, so the bank stayed empty. The parser's own copy,
 `resumes.parsed_json`, was dropped with it: two stores of the same facts
 drift apart.
 
-**Model parsing** (KAN-222): "Read It With AI", after an upload or an
-Import Again, reads the resume with the model and merges its entries the
-same way. Only the student's click runs it; nothing falls back to it. The
-model gets the text with identity data removed, and each entry it returns is
-checked against the entry schema. It costs one AI reading a day (the parsing
-cap), counted only when it works.
+**Model parsing** (KAN-222): Import Again with `read_with_ai` reads the
+resume with the model and replaces the upload's entries the same way.
+Nothing falls back to it. The model gets the text with identity data
+removed, and each entry it returns is checked against the entry schema. It
+costs one AI reading a day (the parsing cap), counted only when it works.
+"Read It With AI" ran it from the upload note and intake's import card
+until KAN-353 took the button off both; no screen calls it now.
 
 ## Built resumes (KAN-207)
 

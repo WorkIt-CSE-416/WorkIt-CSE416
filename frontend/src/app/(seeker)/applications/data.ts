@@ -1,11 +1,11 @@
 import { cache } from "react";
 
-import { getTracked } from "./tracked";
+import { getEmails, getTracked, getUpdates } from "./tracked";
 
 /**
  * The application tracker (KAN-261): the seeker's saved and applied jobs,
  * live from the API (./tracked.ts). Read by the Applications board, grid and
- * list, the Calendar, and the Dashboard's Saved count, Next Up and Up Next.
+ * list, the Calendar, and Home's Saved count, Next Up and Up Next.
  * Stages past applied (interviewing, offer) and dated events (interviews,
  * deadlines) are not stored yet, so those columns and Up Next stay empty
  * until the API keeps them; ../tracker.ts is the shape they will take.
@@ -22,9 +22,22 @@ export const getNow = cache(() => new Date());
  * cards: backend/CLAUDE.md). cache() so the pages and the components under
  * them read the API once per request.
  */
-export const getTracker = cache(getTracked);
+export const getTracker = cache(() => getTracked());
+
+/** The same tracker without the match scores: Home counts stages and dates
+ *  and shows no card, so it skips the API's scoring of every tracked job
+ *  (KAN-425), one pass of the four Home made at once. */
+export const getTrackerUnscored = cache(() => getTracked({ scored: false }));
 
 /** Every application, as getTracker reads them; none when it failed. */
 export async function getApplications() {
   return (await getTracker()).applications ?? [];
 }
+
+/** The seeker's updates (./tracked.ts), read once per request: the
+ *  Applications Tracker's notice counts the ones that need review. */
+export const getUpdatesOnce = cache(getUpdates);
+
+/** The seeker's emails (./tracked.ts), read once per request: the Inbox
+ *  and an application's Emails tab. */
+export const getEmailsOnce = cache(getEmails);

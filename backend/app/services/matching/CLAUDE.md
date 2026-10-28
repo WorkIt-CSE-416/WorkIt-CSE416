@@ -114,6 +114,10 @@ Nothing in this folder may assume what a software job is. Two consequences:
 - **A stale vector is never stored.** The write is conditional on the bank
   row's `updated_at` being the one read: a change that landed while Gemini
   answered already cleared the embedding, and the next request remakes it.
+  **Storing the vector keeps `updated_at` as it was** (KAN-425):
+  `updated_at` is the bank's last change, and Home's kept matches are
+  keyed on it, so a bump there made the first return after every bank
+  change score again (`tests/test_recommended.py` caught it).
 - **An empty bank (no entries, no skills) answers 404** and costs no call.
 
 ## What the recommender reads from the bank — `bank_input.py`
@@ -146,7 +150,34 @@ the recommender reads changed; the scoring did not.
 (`queries/jobs/recommendations.py`) scores at most `CANDIDATES` (500) of what
 is left: the nearest to the bank by embedding, ordered in SQL with jobs that
 have no vector last, or the newest when the bank has no vector. Python scoring never runs over
-the whole feed. The cost of the cap: a job ranked past it by semantic alone
+the whole feed.
+
+- **The query ranks on the vector alone, then reads the picked rows whole**
+  (KAN-425). A subquery reads each filtered job's id, distance and posting
+  date and ranks them; only the kept rows are joined back for the listing
+  columns and the skill text search. With the skills in the ranking query,
+  Postgres ran every skill's search on every listed job before the cap,
+  reading each posting's text once per skill (438,713 buffers against
+  52,803), and a pass took 10 to 15 s on the shared database instead of 4
+  to 6. Keep anything costly per row out of the ranking subquery.
+- **`score_job_sets` serves several candidate sets from one scan**: each
+  named set is a condition on top of the filters, ranked and capped on its
+  own (a window per set), so each list equals what its own `score_jobs`
+  call returns, and a job in two sets is scored once. `score_jobs` is the
+  one-set case.
+- **Home asks once** (`GET /jobs/recommended/{id}/home`,
+  `queries/jobs/home.py`): the top `limit`, the top `limit` auto apply
+  fills, and the posting dates of the recent ones scoring at least
+  `min_match`. The result is kept in the process for `HOME_CACHE_SECONDS`
+  (600) under the bank's `updated_at`, the newest `job_postings.updated_at`
+  (every import write, embedding and closing sets it) and a hash of the
+  applicant's applied jobs; any change there is a new key. Only Home reads
+  the kept result: `fetch_recommended` and auto apply's callers score
+  fresh every time, as before.
+- **The scan itself is the cost, and the shared database's compute sets
+  it.** 18,000 vectors took 4.4 to 6.7 s there with every page in memory,
+  and 22 to 43 ms on a laptop's Postgres (2026-10-28). An HNSW index is no
+  answer at this size (Still open). The cost of the cap: a job ranked past it by semantic alone
 can't surface on its skills or title. The Jobs page's Best Match order sends
 its filter row's picks as those filters: the seeker's saved preferences on a
 fresh visit (KAN-231, KAN-288).
@@ -205,7 +236,8 @@ the account, not only its id, because the bank's embedding text reads the
 student's identity (`load_identity`). A bank with no entries and no skills
 raises `EmptyBank`, which the route answers as a 404.
 
-- **It scores every listed job each call, then sorts and slices.** Every
+- **It scores every listed job each call, then sorts and slices**, and
+  keeps nothing between calls (Home's kept result is its own route's). Every
   query parameter that narrows the list (the Jobs page's filters,
   `min_match`) applies before `offset`, so a page never comes back short with
   more matches behind it.
@@ -214,6 +246,24 @@ raises `EmptyBank`, which the route answers as a 404.
   weights: retune it when they change.
 
 ## Still open
+
+- **An HNSW index on `job_postings.embedding` is not worth it yet**
+  (assessed 2026-10-28, KAN-425). On a laptop Postgres 17 with pgvector
+  0.8.2 (the shared database's version), 18,000 vectors: the exact top 500
+  took 22 to 43 ms, HNSW with `hnsw.iterative_scan = relaxed_order` 22 to
+  75 ms, and HNSW found 428 of the exact 500 (random vectors, its worst
+  case). So the index saves little at this size and changes which jobs
+  reach the cap. It also needs the query rewritten to `ORDER BY embedding
+  <=> :vec` ascending with a `LIMIT` per set (today's ranking window never
+  uses an index), a second read for the jobs with no vector, and a build of
+  about 27 s locally. Storing the vectors inline (`SET STORAGE PLAIN`, then
+  rewriting the rows) cut the exact scan by a third locally, and moved the
+  vectors into the table's own pages (70 MB there, against 1.2 MB with them
+  out of line). Look first at the database's compute (the same scan is 100
+  times slower there than on a laptop), and revisit HNSW past about 100,000
+  postings. A migration for it was written and checked with `--sql`, never
+  applied or committed: `CREATE INDEX CONCURRENTLY ... USING hnsw (embedding
+  extensions.vector_cosine_ops)` in an autocommit block.
 
 - **Applying the migration that creates the columns.** It's `4485d7a7a712`,
   and it goes on the shared database right after its PR merges, before the

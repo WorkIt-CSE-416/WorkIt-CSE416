@@ -19,8 +19,11 @@ company_profiles  1 ──o{  company_memberships    a complete HR-user account
                             (ON DELETE CASCADE)
 ```
 
-- `applicant_profiles` — identity plus the links and headline the autofiller
-  reuses.
+- `applicant_profiles` — identity plus the links, headline and home
+  `location` the autofiller reuses. `location` (KAN-372) is free text as
+  forms ask it ("Stony Brook, NY"), where the student lives; the places
+  they want jobs in are their preferences (`applicant_locations`), not
+  this.
 - `company_memberships` — identity plus the company it belongs to and its role.
   Many memberships point at one company.
 - `company_profiles` — the employer. One identity for future jobs, HR users and
@@ -263,7 +266,13 @@ change here must keep:
 - **`experience_banks` has one row per applicant, made by the first bank
   change** (an upsert in `clear_embedding`), not at signup. A missing row
   reads as "no embedding yet". Its `embedding` is the only applicant vector
-  the recommender reads (KAN-212).
+  the recommender reads (KAN-212). `removed_skills` (KAN-369) holds the
+  catalog keys (`services/skill_catalog.py` `key`) of the skills the
+  student deleted, or took out of the parse preview: a resume reading
+  (`import_upload`, the preview) and Tailor's "Have you used X?" never add
+  them again. The student adding one by hand (POST .../bank/skills) takes
+  it off the list. The clean-up script's deletes are not the student's and
+  are not remembered.
 - **Section fields are plain nullable columns on `bank_entries`**, not a
   JSONB blob, so later queries (graduation date, Tailor's text search) read
   them directly. `schemas/bank.py`'s `SECTION_FIELDS` says which section
@@ -349,6 +358,19 @@ change here must keep:
   student never both land, and uploads with no text (NULL) never clash.
   Rows from before `d642d93fcfbc` are NULL, not backfilled. The rule and
   its normalization: `../../CLAUDE.md`, "A duplicate resume is refused".
+
+## Student documents — `documents.py` (KAN-369)
+
+- **One file per student and kind** (`student_documents`, PK
+  `(applicant_id, kind)`); the only kind is `transcript` (CHECK). A new
+  kind widens the CHECK in a migration and the router's `Kind`.
+- The file is in the `Resume` bucket under the student's folder
+  (`<applicant_id>/documents/<uuid><ext>`), so Delete Account removes it
+  with the resumes. `storage_path` may be `local:<applicant_id>/<file name>`
+  (services/local_files.py, development only), served from the student's
+  folder in LOCAL_FILES_DIR.
+- Nothing reads its text and no sent copy is kept: a replace or delete
+  removes the old file at once. Written only by `routers/documents.py`.
 
 ## Sent resumes
 
@@ -803,6 +825,62 @@ Application Questions shows and edits them (KAN-269).
 - **Its migration is `a7d3e5c1b942`** (RLS on). It must be on the database
   before the API that maps it deploys.
 
+## The Fill engine's profile — `applicant_profiles.fill_*` (KAN-369)
+
+A student who used Apply (Lisul's own auto-apply tool, which runs the same
+Fill engine) brings its files over with
+`uv run python -m app.scripts.import_apply_profile <applicant_id> <apply_dir>`,
+so WorkIt fills forms as completely as Apply does.
+
+- **Three JSONB columns on `applicant_profiles`**, each `NOT NULL DEFAULT
+  '{}'` with a CHECK that it is an object (migration `7f07adcaef4e`; the
+  table already has RLS on): `fill_profile` (the engine's Profile shape,
+  nested sections: identity, education, screeners, voluntary_self_id...),
+  `fill_policies` (the engine's Policies, only the keys it reads) and
+  `fill_answers` (`{question: {answer, own, choice, company}}`, the Answer bank).
+- **WorkIt's own fields win.** `GET .../fill-profile` serves the profile and
+  policies; the extension lays what it builds from WorkIt's fields
+  (`engineProfile`, `POLICIES`) over them, key by key, and a value WorkIt
+  lacks (null, empty) leaves the stored one. So the import also writes
+  WorkIt's own fields (name, contact email, phone, links, location, the
+  education entry) from the same identity, and they agree.
+- **Only Apply's `source: lisul` entries are the student's own** (`own:
+  true`), as Apply itself treats them (`apply/answer_bank.py`, `LISUL`). A
+  Claude draft (`source: claude`) comes as their Claude's even when
+  `reviewed`: Apply still calls it a draft. The answer bank
+  (`pipeline.answer_bank`) offers the student's own words on applications,
+  then their brought own words, then their Claude's on applications, then
+  the brought drafts, under the same company rule: one about a company only
+  on that company's forms. A draft passes the same checks as their Claude's
+  saved answers and never fills a form that bans AI text (the engine skips
+  an answer that is not `own` there). `choice` (an entry with options, or a
+  list answer: the options ticked) skips the writing checks. Not
+  `written_answers`: those rows belong to an application, and a brought
+  answer has none.
+- **No `files` in `fill_profile`.** The files the profile names come over
+  as WorkIt's own rows instead, only with `LOCAL_FILES_DIR` set: the resume
+  (`files.resume_pdf`) as a `resumes` row, and the unofficial transcript
+  (`files.unofficial_transcript_pdf`) as the student's `transcript`
+  `student_documents` row, the one My Profile's upload writes. Each is
+  copied into `LOCAL_FILES_DIR` (services/local_files.py, development only)
+  and its `storage_path` is `local:<applicant_id>/<file name>`, in the
+  student's own folder so two students' files of one name never overwrite
+  each other: served by `.../bytes` from there, never sent to or removed from Storage.
+- **The student's writing comes too** (`scripts/import_apply_writing.py`),
+  through the same writers as the student's own edits: `writing_samples`
+  only from the Story bank's "own essays" and "own answers" sections (their
+  words, never a question or a note), packed into `MAX_SAMPLES` of
+  `SAMPLE_MAX`, replacing only the samples an import brought (`imported`)
+  and taking only the room the student's own leave; Apply's voice.md as the `style_cards` row, saved after the
+  samples (a sample change deletes it); and Apply's company briefs as
+  `company_briefs` rows only through `briefs.check` and the keep rule of
+  `save_brief` (MIN_FACTS, a higher score). Apply keeps no quote, so the
+  import takes the page's sentence that names the fact's product and holds
+  its numbers; a fact with none is dropped.
+- **Sensitive**: it holds self-identification. Only the owner reads it, and
+  it never goes to a model. The import refuses a database not on this
+  computer.
+
 ## Names: parts and one line (KAN-326)
 
 Both account tables keep `first_name`, `middle_name` and `last_name`, which
@@ -860,6 +938,16 @@ Anything that lists jobs *across* companies must decide whether it wants
 
 `posted_at` is when the job board says the job went up; `created_at` is when
 the row was stored. Nothing sets `posted_at` for a company's job yet.
+
+**`closed_reason` says why the feed import closed a scraped job**
+(`bd730e8ab454`, KAN-412): text with the CHECK `job_postings_closed_reason`
+(`gone_from_board`, `board_gone`, `filtered_out`, `replaced`, `unknown`),
+**not an enum**, so a sixth reason is one migration that rolls back, where
+`ALTER TYPE ... ADD VALUE` does not (Enum changes, above). Null while a job is
+open, for a company's own job and for a job closed before the column; there
+is no backfill. Only the import writes it (`../CLAUDE.md`, The feed import).
+A reason added to the CHECK goes into the import's `CLOSED_REASONS` too, or
+the import files it as `unknown`.
 
 **Company search uses a trigram GIN index** on `company_name`
 (`55f3c813be50`), so `ILIKE '%term%'` and the fuzzy `<%` operator look
@@ -924,10 +1012,13 @@ Its downgrade puts the columns back empty; the old import refills them.
 
 `applications.py`: one row per (applicant, job). The Applied button
 (`routers/applications.py`) writes it `applied`, a Save button `saved`
-(KAN-261); auto apply (`app/auto_apply/`) writes it `queued` and moves it on.
-GET /jobs leaves out that applicant's `applied` jobs (`JobFilters.applied_by`,
-a `NOT EXISTS`); auto apply's matches leave out every stage, `saved` too
-(`no_application_by`), so a batch never picks a saved job. Rules:
+(KAN-261); auto apply (`app/auto_apply/`) writes it `queued` and moves it on;
+the Applications Tracker's stage menu and its events
+(`routers/tracker.py`, KAN-413) move it to `interviewing`, `offer` or
+`rejected`. GET /jobs leaves out that applicant's applied jobs, every stage
+in `dto.APPLIED_STAGES` (`JobFilters.applied_by`, a `NOT EXISTS`); auto
+apply's matches leave out every stage, `saved` too (`no_application_by`),
+so a batch never picks a saved job. Rules:
 
 - **A join table, never an array of applicant ids on `job_postings`.**
   Postgres can't foreign-key an array's elements, so deleted applicants
@@ -939,17 +1030,33 @@ a `NOT EXISTS`); auto apply's matches leave out every stage, `saved` too
 - **CASCADE from both sides**: deleting the account or the job deletes the
   row. A closed job keeps its rows, since closing is a status, not a delete.
 - **`stage` is the status** (`dto.application_stage`: `saved`, `queued`,
-  `needs_you`, `skipped`, `applied`; `c0467afe819c`, `saved` from
-  `17ea74fa4573`), a column here rather than a second table, so one row is
+  `needs_you`, `skipped`, `applied`, `interviewing`, `offer`, `rejected`;
+  `c0467afe819c`, `saved` from `17ea74fa4573`, the last three from
+  `a7d3e5f1c2b4`), a column here rather than a second table, so one row is
   one application. `created_at` orders the queue.
+- **Interviewing, offer and rejected are applied too** (KAN-413).
+  Anything that asks "did this student apply?" counts all four, never
+  `stage == applied`: the Jobs page's filter, and the Applied button, which
+  keeps a later stage (`mark_applied`'s `CASE`) so "Did You Apply?" on an
+  interviewing job never moves it back. **In SQL, ask it as `NOT IN
+  dto.BEFORE_APPLIED`, never `IN dto.APPLIED_STAGES`**: Postgres refuses a
+  query that names an enum value its type lacks, so with the `IN` form every
+  `GET /jobs` and match read for a signed-in student answered 500 on a
+  database without `a7d3e5f1c2b4` (found on the shared database,
+  2026-10-27, before anything deployed). The four stages before applied
+  exist everywhere. Python checks (`queries/tracker.py`) may use
+  `APPLIED_STAGES`.
+  Every write to one of them dates the row (`coalesce(applied_at, now())`),
+  so a saved job moved straight to interviewing is dated too.
 - **`saved` is a bookmark, not an application** (KAN-261). Nothing queues
   it by itself: batches skip it. Applying, or the job's own Auto Apply
   click, moves it on (`mark_applied`; `queue_applications`, which also
   moves its `created_at` to now so it doesn't jump the queue); saving never
   moves a later stage back (`ON CONFLICT DO NOTHING`), and unsaving deletes
   a `saved` row only, a 409 otherwise. A saved insert names `applied_at`
-  NULL, as a queued one does. Live Activity asks for every stage but saved;
-  the Applications board asks for saved and applied.
+  NULL, as a queued one does. Live Activity asks for the stages auto apply
+  writes; the Applications Tracker asks for saved, applied and the three
+  after it.
 - **`17ea74fa4573` goes on before the deploy that writes `saved`.** It only
   adds the value, so the code running before it never meets it; deployed
   first, every Save answers 500. Applied to the shared database on
@@ -962,8 +1069,15 @@ a `NOT EXISTS`); auto apply's matches leave out every stage, `saved` too
   stage, and `applied_at` NULL (`auto_apply/queries.py`), or the default
   dates a job nobody applied to.
 - **The Applied button upserts**: a saved, queued, skipped or needs_you row
-  becomes applied; an applied row keeps its first `applied_at` (`ON CONFLICT
-  DO UPDATE ... WHERE applied_at IS NULL`).
+  becomes applied, dated now; an applied row keeps its first `applied_at`
+  (`ON CONFLICT DO UPDATE ... applied_at = CASE WHEN stage = 'applied' THEN
+  coalesce(applied_at, now()) ELSE now() END`).
+- **`applied_at` is the submit's time, never the queue's** (KAN-369).
+  Auto apply's finish (`set_stage`) writes `now()` for applied and NULL for
+  any other stage, and the Applied button dates a row not yet applied now,
+  so a row that holds a stale date (an insert that took the `now()`
+  default, as rows written straight to a database copy do) still gets its
+  submit's time. Tests: `tests/test_applied_at.py`.
 - **Apply `c0467afe819c` right after merging.** Until then the deployed
   code's queue routes and stage filters fail on the missing column; the
   Applied button keeps working either way.
@@ -983,8 +1097,33 @@ a `NOT EXISTS`); auto apply's matches leave out every stage, `saved` too
   resume; the job posting or the account cascades both. The migration
   backfilled each applied application with its posting's last sent
   resume, which the tracker showed until then.
-- An undo is not built. The tracker's later stages
-  (interviewing, offer) are Out of scope below.
+- An undo is not built.
+
+## application_events — dated things on an application (KAN-413)
+
+`application_events.py`, `../../../docs/email_tracker.md`: an interview,
+an assessment's due date, an offer, a rejection or a follow-up on one
+application. The student adds them on the application's page; the email
+tracker will propose them into the same table. Rules:
+
+- **When it happens is exactly one of `at` (an instant) and `on_day` (a
+  date)** (`application_events_one_when`). The tracker draws the two
+  differently, an instant in the viewer's zone and a date as it is, so a
+  date must never be stored as midnight UTC: it reads as the day before in
+  the Americas.
+- **Its composite foreign key `(applicant_id, job_id)` to
+  `job_applications` cascades**: Unsave or taking a job out of the queue
+  deletes its events. `job_id` is nullable for an email that matches no
+  application (a later step); `MATCH SIMPLE` then checks nothing, and
+  `applicant_id`'s own key still ties the row to its student.
+- **An event moves its application forward, never back**
+  (`queries/tracker.py`'s `advance`, one rank per stage, rejected last).
+  Only the stage menu moves a rejected application or moves one backward.
+- **`status` and `source` are there for Gmail**: one typed by hand is
+  `accepted` and `manual` from the start; reads list `accepted` only.
+- **Three enums of its own** (`application_event_kind`, `_status`,
+  `_source`), names equal to values. A new kind is an `ALTER TYPE ... ADD
+  VALUE`, as above.
 
 ## notifications — the top bar's bell (KAN-298)
 
@@ -1075,8 +1214,12 @@ Real, not forgotten. Do not treat their absence as a decision already made.
 - Only `company_profiles.id` has a UUID default (Python `uuid4` plus
   `gen_random_uuid()`); every other insert must supply `id`. The account
   tables must keep having none — their id is the `auth.users` id.
-- `autofill_answers` (above) holds only onboarding's nine questions. The
-  rest that forms repeat (availability, relocation) have no key yet.
+- `autofill_answers` (above) holds onboarding's nine questions and the
+  Application answers (KAN-369: availability, start window, relocation,
+  address line and postal code, languages, screener facts, age 18+, pay, the
+  EEO extras, role interests, an X link). Those joined as
+  new keys in the same bank, with no migration. Dates are YYYY-MM-DD strings,
+  terms "summer 2027", and an empty list is the student's own "none".
 - `applicant_profiles.location` and `company_profiles.industry` are absent.
 - `company_profiles.contact_email` is unique, which forbids two companies sharing
   an HR inbox — plausible for subsidiaries. Probably wrong; confirm it is
@@ -1085,13 +1228,76 @@ Real, not forgotten. Do not treat their absence as a decision already made.
   Core writes but **not** changes made from psql or the Supabase dashboard. A
   database trigger would; autogenerate emits none.
 
+## The connector's tables (KAN-377)
+
+- **`written_answers` is a row per question, keyed by the application**
+  (`(applicant_id, job_id)` to `job_applications`, CASCADE). `name` is the
+  form field's name, so the open tab knows where the answer goes. `own`
+  (KAN-379) marks the student's own words (written into a field WorkIt
+  didn't fill, or replacing what it filled; an edit of a filled answer
+  stays not own): their
+  Claude's save never overwrites it, and `pipeline.answer_bank` offers it
+  first on later forms. `description` (KAN-369) is the help text the form
+  shows under the label, as the tab sent it; NULL when none.
+  `review` (KAN-369, JSONB object) is what the
+  student's Claude's passes found on the answer it saved: `{plan,
+  unsupported}`, its Essay plan as `plans.Plan.stored` writes it and the
+  claim check's claims (rows saved before carry a `rating` and no plan;
+  no code reads the rating, and a row without a plan steers nothing);
+  NULL for a choice, a paste or the student's own edit,
+  and cleared with the answer. An edit to a field the tab never sent (one a saved
+  answer filled) adds a row of its own, `required` false, placed last.
+- **`job_applications.answer_review` is the pre-submit review's one
+  verdict per application** (KAN-369, `app/auto_apply/review.py`, the only
+  writer): `{"answers": {name: answer read}, "flags": {name: reason}}`,
+  NULL until the student's Claude saves one. A snapshot, not a status: a
+  flag counts only while its row's answer equals the one read, so no write
+  path of `written_answers` has to clear it. JSONB on the application, not
+  a column per question: it is written whole, once per review.
+- **`connector_clients`, `connector_requests` and `connector_tokens` belong
+  to `app/connector/oauth.py`**, the one writer. Tokens and codes are kept
+  as sha256 only; a row's `grant_id` ties an access token to its refresh
+  token, so revoking one revokes both. A token's student is
+  `applicant_id`, deleted with the account (CASCADE).
+- **`writing_samples` and `style_cards` are a student's own writing**
+  (KAN-384, `writing.py`): up to three samples (`MAX_SAMPLES`, checked in
+  code, not by the table) and at most one card per student. **Any change to
+  the samples deletes the card in the same transaction**
+  (`queries/writing.py`), so a card always describes the samples the
+  student has now, with no hash or version to keep in step; the connector
+  then asks their Claude for a new one. The copying check (KAN-380) reads
+  the samples through `pipeline.writing_samples` (which calls
+  `queries.writing.sample_texts`), never the table. `imported` marks a
+  sample the Apply import brought; the import replaces only those, so a
+  sample the student added or edited in WorkIt (false) is never deleted by
+  it.
+
+## Company briefs — `company_briefs.py` (KAN-382)
+
+- **One row per company, not per student**: every student applying there
+  reads the same brief. The key is the company's name folded
+  (`briefs.company_key`: "Acme, Inc." and "ACME" are `acme`), since
+  scraped postings carry a name and no company id.
+- `facts` is JSONB, written only by `app/auto_apply/briefs.py` after each
+  fact's quote was found on its page; `saved_at` is NULL while no brief has
+  been kept, and `attempted_at` holds back a company whose last research
+  wasn't kept. Deny-all RLS like every table.
+- **A team's brief is a row too** (KAN-369): `team` is '' for the
+  company's brief, else the team's folded name (`briefs.team_key`), and
+  is part of the primary key, so every posting naming that team reads one
+  brief. `posting_teams` holds the team each job posting names (as the
+  posting writes it, '' for none), written once by the first student's
+  Claude and shared by every student applying to that posting; it goes
+  with the posting (ON DELETE CASCADE). Migration `d2f4a6c8e013`.
+
 ## Out of scope
 
 These belong to later tickets and should not be added here:
 
-- Pipeline stages, interviews, offers, resume scores. Hiring-system clones
-  model all of them; `../../../docs/job_posting.md` starts that work. Jobs and
-  the applied mark (`job_applications`, above) exist now.
+- A company's view of its pipeline stages and resume scores. Hiring-system
+  clones model them; `../../../docs/job_posting.md` starts that work. The
+  student's own stages and events (`job_applications`, `application_events`,
+  above) exist now.
 - Resume storage and parsing — implemented in `resume.py` (model) and
   `../utils/resume_parser.py` (heuristic parser). See `../../../docs/resume.md`
   for design rationale.

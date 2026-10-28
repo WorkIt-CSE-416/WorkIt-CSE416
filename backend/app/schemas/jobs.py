@@ -101,14 +101,19 @@ class JobListing(BaseModel):
     # feed.json (KAN-172) are ignored, as any key this model doesn't declare
     # is, so a new scraper key never fails the import.
 
-    # Whether auto apply takes this job posting: its apply_url is on a hiring
-    # system the extension fills (app/auto_apply/hosts.py). Worked out from
-    # apply_url, never stored or parsed, so feed.json has no such key; the
-    # Jobs page shows Auto Apply only where it is true.
+    # The employer's form auto apply opens (KAN-376; queries/jobs/filters.py
+    # FORM_URL): apply_url on a hiring system the extension fills, or the
+    # form a job board's posting names. None when there is none, and in
+    # feed.json, which has no such key.
+    form_url: str | None = None
+
+    # Whether auto apply takes this job posting: it has a form on a hiring
+    # system the extension fills (app/auto_apply/hosts.py). Worked out, never
+    # stored or parsed; the Jobs page shows Auto Apply only where it is true.
     @computed_field
     @property
     def auto_apply(self) -> bool:
-        return auto_apply_supported(self.apply_url)
+        return auto_apply_supported(self.form_url or self.apply_url)
 
 
 class JobLocationOption(BaseModel):
@@ -177,6 +182,20 @@ class ScoredJob(JobListing):
     match: int  # 0-100
     score_breakdown: ScoreBreakdown
     highlights: list[Highlight] = []
+
+
+class HomeMatches(BaseModel):
+    """GET /jobs/recommended/{id}/home: what the seeker's Home shows from
+    the Best Match scores, from one scoring pass (KAN-425)."""
+
+    # The best `limit` jobs, as GET /jobs/recommended lists them: Top Matches.
+    top: list[ScoredJob]
+    # The best `limit` that auto apply can fill (?auto_apply=true): Top
+    # Matches' picking mode.
+    auto_apply: list[ScoredJob]
+    # When each job posted within `posted_within` days that scores at least
+    # `min_match` went up: Strong Matches counts them per range.
+    strong_posted: list[str]
 
 
 class SearchFact(BaseModel):

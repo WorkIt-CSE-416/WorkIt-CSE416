@@ -24,10 +24,33 @@ for (const url of [
   "https://lockheedmartin.eightfold.ai/careers/apply?pid=996477106402",
   // Netflix's Eightfold is on its own domain (live, 2026-10-24: the job's names and text failed to fetch).
   "https://explore.jobs.netflix.net/careers/apply?pid=790318904468",
+  "https://careers.withwaymo.com/jobs/2027-summer-intern-bs-depot-automation?gh_jid=8234553",
   "https://nvidia.wd5.myworkdayjobs.com/en-US/University/job/NVIDIA-2027-Internships_JR2023495-1",
+  // TikTok and ByteDance: the posting, the form behind the site's sign-in, and the sign-in on the way to it.
+  "https://lifeattiktok.com/search/7693732178706974981",
+  "https://www.lifeattiktok.com/search/7693732178706974981",
+  "https://lifeattiktok.com/login?redirect_path=/resume/7693732178706974981/apply",
+  "https://careers.tiktok.com/resume/7693732178706974981/apply",
+  "https://jobs.bytedance.com/en/position/7678450462765254965/detail",
+  "https://joinbytedance.com/search/7678450462765254965",
+  "https://jobs.smartrecruiters.com/oneclick-ui/company/BoschGroup/publication/c45a68e0-2aa1-405f-8b08-1e60b5ae778b",
 ]) {
-  test(`the manifest lets the extension reach ${new URL(url).hostname}`, () => {
+  test(`the manifest lets the extension reach ${url}`, () => {
     expect(jobOf(url), url).not.toBeNull();
     expect(manifest.host_permissions.some((p: string) => allows(p, url)), url).toBe(true);
+    // The panel's content scripts load there too, or the page has no panel to fill from.
+    const panel = manifest.content_scripts.find((c: { js: string[] }) => c.js.includes("src/content/panel.js"));
+    expect(panel.matches.some((p: string) => allows(p, url)), url).toBe(true);
   });
 }
+
+// SmartRecruiters' names and text come from its public Posting API, on a host of its own.
+test("the manifest lets the background read SmartRecruiters' Posting API", () => {
+  expect(manifest.host_permissions.some((p: string) => allows(p, "https://api.smartrecruiters.com/v1/companies/BoschGroup/postings/1"))).toBe(true);
+});
+
+// A permission added in a later release disables the extension until the student accepts it, so batch
+// apply's tab groups ask for theirs in the release that brings batch apply (KAN-370).
+test("the manifest asks for tab groups", () => {
+  expect(manifest.permissions).toContain("tabGroups");
+});

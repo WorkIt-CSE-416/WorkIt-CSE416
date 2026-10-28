@@ -40,7 +40,7 @@ banner and no links; Waymo: a 32px careers-site icon) can be listed in
 `logos.CHECKED_WEBSITES`, which wins over everything -- but only with a site a person
 opened and confirmed is the same company.
 
-**`logos.PATTERN` only accepts each ATS's own image host, `favicon` only Google's, and
+**`Provider.logo_pattern` only accepts each ATS's own image host, `favicon` only Google's, and
 those hosts must match `frontend/next.config.ts`'s `images.remotePatterns` exactly.** `next/image` throws on
 any other host, which fails the whole Jobs page, not one card. Greenhouse is read from
 `job-boards.greenhouse.io` because `boards.` redirects there cross-origin; Lever's
@@ -50,7 +50,7 @@ board page is a script shell, so its logo is read from the account JSON
 (`/api/v1/accounts/{slug}`): `logo` on `workablehr.s3.amazonaws.com` under
 `/uploads/account/logo/`, never its `open_graph_logo`. It is 120px tall, a square or
 a wordmark up to 720 wide (17 of the first 25), which the card letterboxes like any
-other wordmark. Recruitee is not in `logos.PAGE` at all (`providers.md`).
+other wordmark. Recruitee has no `logo_page` at all (`providers.md`).
 
 **BambooHR's logo is in its careers page's JSON** (`"logo":{"url":...}` in
 `poData`, slashes escaped), read from `{slug}.bamboohr.com/careers`. On 2026-10-19,
@@ -75,7 +75,7 @@ redirects to vastspace.com), and Latitude on Lever. Those go in
 company.
 
 **Workday gives only a website.** Its logo is a wide banner (`workday.md`), so
-`logos.PATTERN` has no Workday entry, and no Workday image host is allowed. The
+Workday has no `logo_pattern`, and no Workday image host is allowed. The
 page read is the careers site's settings JSON
 (`/wday/cxs/{tenant}/{site}/approot`). Its header's `homePageURL` is the "Home"
 link the employer set: trusted like Ashby's `publicWebsite`, unless it points back

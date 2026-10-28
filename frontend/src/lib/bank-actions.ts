@@ -195,6 +195,10 @@ export type ImportResult = {
   found: number;
   entries_added: number;
   skills_added: number;
+  /** Other uploads' rows the reading replaced: only an upload confirming a
+   *  parse preview replaces any (KAN-372, ADR 0006). */
+  entries_replaced: number;
+  skills_replaced: number;
   /** Who read the resume: the heuristic parser, or the model (KAN-222). */
   read_by: "parser" | "model";
   /** AI readings the student has left today. */

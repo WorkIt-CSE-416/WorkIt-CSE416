@@ -179,3 +179,27 @@ async def test_save_is_for_applicants_only(database):
             assert (await client.delete(f"/jobs/{job}/saved")).status_code == 403
     finally:
         app.dependency_overrides.pop(get_current_account, None)
+
+
+async def test_save_by_link_saves_the_listed_job_whose_apply_link_the_page_is(student, database):
+    # The toolbar popup's Save to WorkIt on a site WorkIt can't fill (KAN-401): the page's link, not a job id.
+    client, me = student
+    link = f"https://careers.example.com/jobs/{uuid.uuid4().hex}"
+    async with database() as session:
+        job = await session.scalar(
+            text(
+                "INSERT INTO job_postings (id, title, status, company_name, apply_url, experience_level)"
+                " VALUES (gen_random_uuid(), 'Intern', 'published', 'Acme', :url, 'student') RETURNING id"
+            ),
+            {"url": f"{link}?source=feed"},
+        )
+        await session.commit()
+
+    res = await client.post("/jobs/saved-by-link", json={"url": f"{link}/#apply"})
+    assert res.status_code == 200
+    assert res.json() == {"job_id": str(job), "stage": "saved"}
+    assert (await _row(database, me, str(job)))[0] == "saved"
+
+    res = await client.post("/jobs/saved-by-link", json={"url": "https://careers.example.com/jobs/unknown"})
+    assert res.status_code == 404
+    assert res.json()["detail"] == "WorkIt doesn't list this job yet."

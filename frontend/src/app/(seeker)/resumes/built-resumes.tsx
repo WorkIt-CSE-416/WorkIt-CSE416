@@ -1,7 +1,7 @@
 "use client";
 
 import { ArrowsDownUpIcon, FileTextIcon, TagIcon } from "@phosphor-icons/react/ssr";
-import { useState } from "react";
+import { startTransition, useOptimistic, useState } from "react";
 
 import { FacetLabel, facetClasses, FieldFacet, type FacetOption } from "@/components/field-facet";
 import {
@@ -176,6 +176,25 @@ export function BuiltResumes({
     setError(built.error ?? uploads.error);
   }
 
+  // A deleted resume leaves the list first and the delete runs behind it
+  // (KAN-388). A failed delete ends the transition with the row still in
+  // its list, so it comes back, with the error above the list: its own
+  // error line went with it. A delete that worked drops the row from its
+  // list before the reload, which a failed reload would otherwise undo;
+  // the reload still runs, since the star can move.
+  const [gone, hide] = useOptimistic<string[], string>([], (keys, key) => [...keys, key]);
+  function remove(key: string, send: () => Promise<{ error: string | null }>) {
+    setError(null);
+    startTransition(async () => {
+      hide(key);
+      const { error } = await send();
+      if (error) return setError(error);
+      setUploaded((rows) => rows.filter((r) => `uploaded:${r.id}` !== key));
+      setResumes((rows) => rows.filter((r) => `built:${r.id}` !== key));
+      await reload();
+    });
+  }
+
   const upload = useResumeUpload({ uploaded, reload, onDuplicate: setDuplicate });
 
   async function generate() {
@@ -221,7 +240,7 @@ export function BuiltResumes({
       primary: r.is_default,
       built: r,
     })),
-  ];
+  ].filter((row) => !gone.includes(row.key));
   const words = searchWords(query);
   const shown = rows
     .filter((row) => types.length === 0 || types.includes(row.type))
@@ -330,9 +349,19 @@ export function BuiltResumes({
                 {pending}
                 {rows.map((row) =>
                   row.type === "uploaded" ? (
-                    <UploadedRow key={row.key} resume={row.upload} reload={reload} />
+                    <UploadedRow
+                      key={row.key}
+                      resume={row.upload}
+                      reload={reload}
+                      onDelete={(send) => remove(row.key, send)}
+                    />
                   ) : (
-                    <BuiltResumeRow key={row.key} resume={row.built} reload={reload} />
+                    <BuiltResumeRow
+                      key={row.key}
+                      resume={row.built}
+                      reload={reload}
+                      onDelete={(send) => remove(row.key, send)}
+                    />
                   ),
                 )}
               </ResumeGroup>

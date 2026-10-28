@@ -22,13 +22,13 @@ from workit_scout.llm import LLM, ScoutUnavailable
 
 from app.db import get_session
 from app.deps import assert_applicant_owns, get_current_account
-from app.routers.scout import get_llm
 from app.schemas.auth import AuthenticatedAccount
 from app.schemas.essay_answer import EssayAnswerRequest, EssayAnswerResponse
 from app.services import essay_answer
 from app.services.ai_messages import AIMessages
 from app.services.bank import load_bank
 from app.services.identity import load_identity
+from app.services.models import get_llm
 from app.services.usage import Feature, count_use, uses_left
 
 router = APIRouter()

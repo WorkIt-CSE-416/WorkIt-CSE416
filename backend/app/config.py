@@ -100,6 +100,28 @@ class Settings(BaseSettings):
     ai_assistant_share: float = 0.1
     ai_essay_share: float = 0.1
 
+    # The connector (KAN-377, app/connector/): where this API and the webapp
+    # are reached from outside. The API's is the OAuth issuer and the MCP
+    # server's address Claude is given (<api>/mcp); the webapp's has the
+    # consent page (<web>/connect/claude). Production sets both.
+    connector_api_url: str = "http://localhost:8000"
+    connector_web_url: str = "http://localhost:3000"
+    # How many applications one chat writes before the connector asks the
+    # student for a new chat (KAN-381): a long chat's later answers get less
+    # of Claude's attention. Lower it if the blind read (KAN-386) finds a
+    # chat's last answers worse than its first.
+    connector_chat_cap: int = 5
+    # Whether a client may register a loopback redirect (http://localhost or
+    # 127.0.0.1, any port, /callback), as Claude Code does. Off in production:
+    # any program on the student's computer can listen there. Claude's web,
+    # desktop and mobile apps use https://claude.ai (or .com) callbacks only.
+    connector_loopback_redirects: bool = False
+
+    # WorkIt's admins (fix reports, KAN-369): emails or account ids, comma-separated. They read every
+    # fill report and its fix brief (routers/fill_reports.py's /admin routes); no one else does. Unset,
+    # no one is an admin. There is no admin role in the database: the team is a handful of developers.
+    workit_admins: str = ""
+
     # The scraper's output, which app/scripts/import_jobs.py loads into the
     # database by default. Data — nothing from scraper/ is imported, so it
     # stays out of this build.
@@ -118,6 +140,13 @@ class Settings(BaseSettings):
     # default, overridden in the scheduled workflow's own env for a
     # preview or local run.
     web_url: str = "https://workit-web-gamma.vercel.app"
+
+    # Development only: a folder on this computer whose files an uploaded
+    # resume may name instead of a Storage path (`local:<applicant_id>/<file name>`,
+    # app/services/local_files.py), so a student's resume brought from Apply
+    # (scripts/import_apply_profile.py) attaches without going to the shared
+    # bucket. Unset (production), such a resume has no file.
+    local_files_dir: Path | None = None
 
     @property
     def app_url(self) -> str:

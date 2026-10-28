@@ -7,7 +7,7 @@ import { EmptyState } from "@/components/ui/empty-state";
 import { LightningRoundedIcon } from "@/components/custom-icons";
 import { Button } from "@/components/ui/button";
 import { SectionHeading } from "@/components/ui/section-heading";
-import { useRunnerJob } from "@/lib/autofill-extension";
+import { useBrowserJobs } from "@/lib/autofill-extension";
 
 import { ActivityTable, type ActivityItem } from "./activity-list";
 import { AddJobsDialog, type SavedJob } from "./add-jobs-dialog";
@@ -25,18 +25,18 @@ import { ResumeDialog } from "./resume-dialog";
  * row's resume picker (./resume-dialog.tsx), where the student picks the
  * resume that job goes out with. The cell shows that pick, else the rule's
  * (./page.tsx). The queued job open in the extension's tab reads Working
- * in Browser (useRunnerJob), with its glyph that goes to the tab.
+ * in Browser (useBrowserJobs), with its glyph that goes to its tab.
  *
  * **Add Jobs** opens the saved jobs to pick and queue (./add-jobs-dialog.tsx),
  * which replaced a Ready to Queue section under this one.
  */
 export function UpNext({ items, saved }: { items: ActivityItem[]; saved: SavedJob[] }) {
-  const runnerJob = useRunnerJob();
+  const browserJobs = useBrowserJobs();
   const [adding, setAdding] = useState(false);
   const [resumeFor, setResumeFor] = useState<ActivityItem | null>(null);
 
   const rows = items.map((item) =>
-    item.id === runnerJob
+    browserJobs.has(item.id)
       ? { ...item, status: "browser" as const, detail: "Open in a background tab" }
       : item,
   );

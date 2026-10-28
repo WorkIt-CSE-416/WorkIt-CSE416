@@ -4,6 +4,7 @@ import { FileArrowDownIcon, StarIcon } from "@phosphor-icons/react/ssr";
 import Link from "next/link";
 
 import { LocalDate } from "@/app/(seeker)/local-time";
+import { DeleteResumeConfirm } from "@/app/(seeker)/resumes/delete-confirm";
 import { PdfIcon, PencilIcon, TrashIcon } from "@/components/icons";
 import { IconButton } from "@/components/ui/icon-button";
 import { cn } from "@/lib/cn";
@@ -71,24 +72,26 @@ export function PrimaryStar({
  * a fifth icon that swapped a newer file onto the row, went in KAN-362: a
  * newer version is a delete and an upload, which leaves the bank the same.
  *
+ * Delete asks first, in a popover under the trash (`DeleteResumeConfirm`,
+ * KAN-347), so `onDelete` runs only on Delete Resume.
+ *
  * The Resumes view passes every action. A screen that only shows a resume passes
  * href alone: the primary's star still marks it, but there is no star
  * to click, no rename, no download and no delete.
  */
 type ResumeRowProps = {
   resume: ResumeItem;
-  deleting?: boolean;
   /** The upload's page, which the whole card opens. */
   href: string;
   onMakePrimary?: () => void;
   onRename?: () => void;
   onDownload?: () => void;
-  onDelete?: () => void;
+  /** Runs once the student confirms. */
+  onDelete?: () => Promise<void>;
 };
 
 export function ResumeRow({
   resume,
-  deleting = false,
   href,
   onMakePrimary,
   onRename,
@@ -150,15 +153,18 @@ export function ResumeRow({
           </IconButton>
         )}
         {onDelete && (
-          <IconButton
-            label={`Delete ${name}`}
-            tooltip="Delete"
-            className={cn(ROW_ACTION, "hover:text-danger")}
-            disabled={deleting}
-            onClick={onDelete}
-          >
-            <TrashIcon className="size-4" />
-          </IconButton>
+          <DeleteResumeConfirm
+            onDelete={onDelete}
+            trigger={
+              <IconButton
+                label={`Delete ${name}`}
+                tooltip="Delete"
+                className={cn(ROW_ACTION, "hover:text-danger")}
+              >
+                <TrashIcon className="size-4" />
+              </IconButton>
+            }
+          />
         )}
       </div>
     </div>

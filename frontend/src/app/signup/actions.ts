@@ -4,17 +4,16 @@ import { redirect } from "next/navigation";
 
 import { apiFetch, extractErrorMessage } from "@/lib/auth";
 
-// firstName/middleName/lastName/email round-trip the submitted values back
+// firstName/lastName/email round-trip the submitted values back
 // into the form on failure. React resets a useActionState-bound form's
 // uncontrolled fields once the action completes, so without this an error
 // (a taken email, say) would wipe every field the user just typed along with
-// it. password/confirmPassword don't need this — signup-form.tsx already
+// it. The password doesn't need this — signup-form.tsx already
 // keeps them in local state, and echoing a password back isn't good practice
 // regardless. The company* fields are only filled on the Create Company path.
 export type SignupState = {
   error: string | null;
   firstName: string;
-  middleName: string;
   lastName: string;
   email: string;
   companyName: string;
@@ -45,7 +44,6 @@ export async function createAccount(
 ): Promise<SignupState> {
   // select all values, they will be None if not for the type
   const firstName = fieldValue(formData, "firstName");
-  const middleName = fieldValue(formData, "middleName");
   const lastName = fieldValue(formData, "lastName");
   const email = fieldValue(formData, "email");
   const accountType = fieldValue(formData, "accountType");
@@ -56,7 +54,6 @@ export async function createAccount(
   const companySize = fieldValue(formData, "companySize");
   const echo = {
     firstName,
-    middleName,
     lastName,
     email,
     companyName,
@@ -66,7 +63,8 @@ export async function createAccount(
   };
 
   // clear the white spaces
-  const name = [firstName, middleName, lastName]
+  // No middle name: sign-up asks the minimum (KAN-372); Settings adds one.
+  const name = [firstName, lastName]
     .map((part) => part.trim())
     .filter((part) => part.trim().length > 0)
     .join(" ");
@@ -84,7 +82,6 @@ export async function createAccount(
       // The parts too (KAN-326), so the API stores the name as typed
       // rather than splitting `name` again.
       firstName: firstName.trim(),
-      middleName: middleName.trim() || null,
       lastName: lastName.trim(),
       email,
       password,

@@ -12,7 +12,7 @@ import { cameFrom, openerOf, restoreScrollOn, subscribeOpener } from "./scroll-m
  *  and the detail pages by what they show. A page not listed is never a
  *  Back link's target; the link goes to its own page's parent instead. */
 const PAGES: [RegExp, string][] = [
-  [/^\/dashboard$/, "Dashboard"],
+  [/^\/home$/, "Home"],
   [/^\/jobs$/, "Jobs"],
   [/^\/jobs\/[^/]+$/, "Job Posting"],
   [/^\/jobs\/[^/]+\/tailor$/, "Tailor"],
@@ -20,6 +20,7 @@ const PAGES: [RegExp, string][] = [
   [/^\/auto-apply$/, "Auto Apply"],
   [/^\/applications$/, "Applications Tracker"],
   [/^\/applications\/[^/]+$/, "Application"],
+  [/^\/inbox$/, "Inbox"],
   [/^\/calendar$/, "Calendar"],
   [/^\/resumes$/, "Resumes"],
   [/^\/resumes\/uploaded\/[^/]+$/, "Uploaded Resume"],

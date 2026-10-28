@@ -560,7 +560,7 @@ text is gone for search, matching, Scout and Tailor.
   Overview, since that is where such a posting states the role
   (`backend/app/services/matching/embeddings.py`, `job_text`).
 
-`providers._page` stores `cap(kept(full))`: the card's facts are read from the
+`providers.text._page` stores `cap(kept(full))`: the card's facts are read from the
 whole text first, so a pay line under Benefits still reaches the card. Search's
 full-text index and Scout read the stored description, extras included, so a
 search for "relocation" still finds a posting that offers it. Matching's

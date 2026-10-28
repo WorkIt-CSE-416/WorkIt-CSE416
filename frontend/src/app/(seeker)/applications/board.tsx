@@ -23,7 +23,7 @@ import { Reflow } from "@/components/reflow";
  * than a coloured edge — so the edge is gone from the card, and the PANEL
  * carries the stage: each column is tinted in its stage's colour
  * (../stage-colors.ts) with a faint border in the same hue, the colours the
- * Dashboard's Up Next uses, and its header leads with the stage's icon, the
+ * Home's Up Next uses, and its header leads with the stage's icon, the
  * same glyph as that stage's rows there. The cards inside stay plain white,
  * so the colour groups them without decorating each one.
  *
@@ -175,7 +175,7 @@ export function ApplicationsBoard({
               className={cn("rounded-card border p-2", STAGE_COLOR[stage].panel)}
             >
               <header className="flex items-center gap-2 px-1 pb-2">
-                {/* The stage's glyph in its solid colour, as the Dashboard's
+                {/* The stage's glyph in its solid colour, as Home's
                   Up Next rows draw it, so a column and its rows there read
                   as the same stage. */}
                 <span

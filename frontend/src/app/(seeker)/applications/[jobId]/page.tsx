@@ -11,6 +11,7 @@ import { apiGet } from "@/lib/api";
 import { cn } from "@/lib/cn";
 import { getApplicantSession } from "@/lib/session";
 
+import { hasApplied } from "../../applied";
 import type { Application as Stored } from "../../auto-apply/applications";
 import { BackLink } from "../../back-link";
 import { SEEKER_GUTTER } from "../../gutter";
@@ -25,7 +26,8 @@ import {
 } from "../../jobs/[jobId]/job-view";
 import { getJobListing } from "../../jobs/listings";
 import type { Application } from "../../tracker";
-import { getNow, getTracker } from "../data";
+import { getEmailsOnce, getNow, getTracker } from "../data";
+import { EmailsTab } from "./emails-tab";
 import { ApplicationTabs, TabPanes } from "./tab-panes";
 import { YourApplication } from "./your-application";
 
@@ -36,8 +38,8 @@ import { YourApplication } from "./your-application";
  * loading.tsx every visible link to it prefetches its head: each tracker
  * row in view would have run a scoring pass. A closed posting has no job
  * page (`GET /jobs/{id}` is a 404), so its title comes from the seeker's one
- * application instead, read unscored, and only a saved or applied one, as
- * the tracker lists them: any other stage keeps the page's own name.
+ * application instead, read unscored, and only one the tracker lists (saved,
+ * applied or after): a queued one keeps the page's own name.
  */
 export async function generateMetadata({
   params,
@@ -58,7 +60,7 @@ async function getClosedApplication(jobId: string): Promise<Stored | null> {
     const res = await apiGet(`/applicants/${id}/applications/${encodeURIComponent(jobId)}`, token);
     if (!res.ok) return null;
     const app = (await res.json()) as Stored;
-    return app.stage === "saved" || app.stage === "applied" ? app : null;
+    return app.stage === "saved" || hasApplied(app.stage) ? app : null;
   } catch {
     return null;
   }
@@ -110,16 +112,17 @@ export default async function ApplicationPage({ params }: PageProps<"/applicatio
     const row = applications?.find((a) => a.id === jobId);
     if (!row) return null;
     return {
-      // The tracker lists saved and applied jobs only, the two stages it
-      // shares with the job page's buttons.
-      stage: row.stage === "saved" || row.stage === "applied" ? row.stage : null,
+      // The job page's buttons know saved and applied only: a stage after
+      // applied (KAN-413) is applied to them.
+      stage: row.stage === "saved" ? "saved" : "applied",
       appliedAt: row.appliedOn,
     };
   });
-  const [{ applications, error }, view] = await Promise.all([
+  const [{ applications, error }, view, { emails }] = await Promise.all([
     tracker,
     // About the Role alone on its tab, so no Key Requirements read.
     loadJobView(jobId, { descriptionOnly: true, application: known }),
+    getEmailsOnce(),
   ]);
   const { job } = view;
 
@@ -172,6 +175,19 @@ export default async function ApplicationPage({ params }: PageProps<"/applicatio
       {/* Both panes, drawn once; the tab shows one (./tab-panes.tsx). */}
       <TabPanes
         application={<YourApplication app={app} job={job} sent={view.sent} now={getNow()} />}
+        emails={
+          <EmailsTab
+            emails={emails?.filter((email) => email.jobId === app.id) ?? null}
+            job={{
+              id: app.id,
+              role: app.role,
+              company: app.company,
+              logoUrl: app.logoUrl,
+              stage: app.stage,
+              appliedOn: app.appliedOn,
+            }}
+          />
+        }
         job={
           job ? (
             <JobViewBody view={view} job={job} descriptionOnly />

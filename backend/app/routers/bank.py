@@ -33,6 +33,8 @@ POST   /applicants/{id}/bank/skills              SkillCreate -> 201 SkillRespons
 PATCH  /applicants/{id}/bank/skills/{skill_id}   SkillUpdate -> SkillResponse (409 if the name exists)
 DELETE /applicants/{id}/bank/skills/{skill_id}   -> 204
 POST   /applicants/{id}/bank/skills/delete       DeleteMany -> 204, as entries/delete
+       A deleted skill is remembered as removed (KAN-369): no reading or
+       Tailor adds it again until the student adds it here by hand.
 POST   /applicants/{id}/bank/import              ImportRequest -> ImportResponse
        Import Again: reads one uploaded resume (resume_id, else the default
        resume, else the newest) with the heuristic parser and writes it into
@@ -73,7 +75,6 @@ from app.db import get_session
 from app.deps import get_current_account, owned_applicant
 from app.models.resume import Resume
 from app.queries.bank import owned_upload_id
-from app.routers.scout import get_llm
 from app.schemas.auth import AuthenticatedAccount
 from app.schemas.bank import (
     BankResponse,
@@ -103,6 +104,7 @@ from app.services.bank_import import (
     skill_pairs,
 )
 from app.services.identity import load_identity
+from app.services.models import get_large_llm
 from app.services.usage import Feature, count_use, uses_left
 
 router = APIRouter(prefix="/applicants/{applicant_id}/bank", tags=["bank"])
@@ -285,6 +287,8 @@ async def add_skill(
     async with _writing(session):
         owner, built = await _target(session, applicant_id, resume_id)
         skill = await service.add_skill(session, applicant_id, body.name, body.group, resume_id=owner)
+        # Added by hand: a skill removed before is the student's again (KAN-369).
+        await service.forget_removed(session, applicant_id, body.name)
         if built is not None:
             await built_resumes.update_choices(
                 session, applicant_id, built, skills=[{"skill_id": skill.id, "shown": True}]
@@ -350,7 +354,7 @@ async def import_resume(
     body: ImportRequest,
     applicant_id: uuid.UUID = Depends(owned_applicant),
     account: AuthenticatedAccount = Depends(get_current_account),
-    llm: LLM = Depends(get_llm),
+    llm: LLM = Depends(get_large_llm),
     session: AsyncSession = Depends(get_session),
 ) -> ImportResponse:
     resume = await _resume_to_import(session, applicant_id, body.resume_id)

@@ -16,7 +16,6 @@ data. workit_scout.facts decides what of each Scout may see.
 """
 
 from collections.abc import AsyncIterator
-from functools import lru_cache
 
 from fastapi import APIRouter, Depends, HTTPException, status
 from fastapi.responses import StreamingResponse
@@ -34,9 +33,7 @@ from workit_scout.schemas import (
     ScoutEvent,
     UsageEvent,
 )
-from workit_scout.settings import ScoutSettings
 
-from app.config import ENV_FILE
 from app.db import get_session, get_sessionmaker
 from app.deps import get_current_account
 from app.models.resume import Resume
@@ -44,6 +41,7 @@ from app.queries.jobs.listings import fetch_listing
 from app.schemas.auth import AccountType, AuthenticatedAccount
 from app.services.bank import bank_response, load_bank
 from app.services.identity import load_identity
+from app.services.models import get_llm
 from app.services.usage import Feature, count_use, uses_left
 
 router = APIRouter(prefix="/scout", tags=["scout"])
@@ -51,16 +49,6 @@ router = APIRouter(prefix="/scout", tags=["scout"])
 _EVENT = TypeAdapter(ScoutEvent)
 
 
-@lru_cache
-def get_scout_settings() -> ScoutSettings:
-    """SCOUT_* from the environment and the repo's .env, read once."""
-    return ScoutSettings(_env_file=ENV_FILE)
-
-
-@lru_cache
-def get_llm() -> LLM:
-    """Built on first use, so the API starts whether or not a model is set up."""
-    return LLM.from_settings(get_scout_settings())
 
 
 async def get_resume_facts(

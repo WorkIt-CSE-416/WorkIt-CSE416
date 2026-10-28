@@ -33,7 +33,7 @@ install time.
 
 | file | owns |
 |---|---|
-| `settings.py` | `SCOUT_*`: the endpoint chain |
+| `settings.py` | `SCOUT_*`: the endpoint chains, the default and one per size |
 | `llm.py` | the one place `openai` is imported; the endpoint chain, streamed and structured calls, identity-data removal on every call |
 | `prompt.py` | the frozen system prompt and the facts block after it |
 | `agent.py` | one turn: prompt + conversation in, events out |
@@ -88,6 +88,17 @@ are now ignored; a deploy that still sets them has no fallback until
 | Production now (spec) | Groq `openai/gpt-oss-120b` (`https://api.groq.com/openai/v1`), the Gemini free tier (`https://generativelanguage.googleapis.com/v1beta/openai/`, `gemini-3.5-flash-lite`, effort `minimal`), Groq `openai/gpt-oss-20b` (effort `low`), Cloudflare Workers AI; set as `SCOUT_ENDPOINTS` on the `workit-api` Vercel project |
 | At launch (spec) | DeepInfra `gpt-oss-120b`, then Groq, with a $50 a month spend limit |
 | Laptops testing on hosted models | Groq `openai/gpt-oss-120b`, then Groq `openai/gpt-oss-20b` (effort `low`), then Gemini `gemini-3.5-flash-lite` once a key is added; as `SCOUT_ENDPOINTS` in the root `.env`. Each Groq model has its own daily quota, so the 20b doubles the free room |
+
+**A feature asks for a size, never a model by name** (KAN-356): `large`
+(`SCOUT_ENDPOINTS_LARGE`) for writing and judgment, `small`
+(`SCOUT_ENDPOINTS_SMALL`) for plain extraction at volume, or the default
+chain. `ScoutSettings.chain(size)` is the size's own chain followed by the
+default chain, an endpoint in both tried once, so a shared fallback (Gemini)
+is written once, in `SCOUT_ENDPOINTS`; an unset size is the default chain
+alone, so a deploy without the size variables behaves as before. A model
+name in code would make a retired model a code change; a size makes it an
+env change. Which feature uses which size is the API's choice
+(`backend/app/services/models.py`), not this package's.
 
 **Production differs from the spec** (checked 2026-10-14 with `vercel env
 pull`): `workit-api` sets no `SCOUT_ENDPOINTS`, only `SCOUT_BASE_URL`,
@@ -158,9 +169,10 @@ Each turn the API hands `agent.run` two sets of facts, rendered by
   **no fallback to an uploaded resume**. For an empty bank the block says so
   and says whether an upload exists (`ResumeFacts.has_upload`). An upload
   fills the bank itself (ADR 0003), so an empty bank beside one means the
-  parser read nothing: Scout points at the Jobs page's Import Your Resume
-  and Read It With AI instead of guessing. (It named Import Again on My
-  Profile until that row button became Import Updated Resume.) The block keeps the heading "The
+  parser read nothing: Scout points at uploading another file on Resumes
+  and at Experiences instead of guessing. (It named Import Your Resume and
+  Read It With AI until KAN-353 took the AI reading off every screen, and
+  Import Again on My Profile before that.) The block keeps the heading "The
   user's resume" because the frozen prompt's grounding rules name it so.
 - **The job** — when the panel sends a `job_id` (an "Ask Scout" click, and every
   message after it), the feed's row for it, description included. Descriptions

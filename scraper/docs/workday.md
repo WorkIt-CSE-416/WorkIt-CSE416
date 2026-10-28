@@ -48,7 +48,7 @@ Airbus, Hitachi Energy, Sysco, ...) are skipped as "too large to read whole". So
 any board past `WORKDAY_MAX` (5,000 postings, 250 requests): Accenture, Dollar Tree,
 CVS, TJX and other retail and hospital chains. 20 boards in all.
 
-**A run reads as many boards as fit in `__main__.LANE_BUDGET_S` (12 minutes)**,
+**A run reads as many boards as fit in its `Provider.budget_s` (12 minutes)**,
 least recently read first (`Store.to_read`), and leaves the rest for a later run
 (`Outcome.DEFERRED`, "left for a later run"). The 1,469 boards we can read hold
 about 432,000 postings: some 22,000 requests, close to an hour at the eight a

@@ -23,9 +23,11 @@ POST /applicants/{id}/tailor        TailorRun {job_posting_id, source, skills} -
      entry's bullets by rank, and the picked missing keywords as skills of
      that resume only, placed by the model's answer. Answers with what it
      changed (`edits`), which the editor marks and can revert until Save.
-     A posting that already has a tailored resume answers 409
-     {detail: {message, tailored_resume_id}} before any model call: the
-     student edits it instead. It tailors only what the source shows.
+     A posting that already has a tailored resume gets it replaced in
+     place: the same id, name and star, every choice and its own skills
+     and wordings made again (Back to Choose Keywords, 2026-10-26). A source
+     that is that tailored resume answers 422 before any model call. It
+     tailors only what the source shows.
      Free while KAN-319 lifts the limit: no Tailor use is checked or
      counted, and uses_left is always the cap. 404 as above; 409 an empty
      bank (send the student to intake) or an upload read as nothing; 503
@@ -56,7 +58,6 @@ from app.db import get_session, get_sessionmaker
 from app.deps import assert_applicant_owns, get_current_account
 from app.models.built_resume import Built_Resume
 from app.models.jobs import Job_Post
-from app.routers.scout import get_llm
 from app.schemas.auth import AuthenticatedAccount
 from app.schemas.built_resume import BuiltResumeResponse
 from app.schemas.tailor import (
@@ -74,6 +75,7 @@ from app.services import built_resumes, keywords, postings, tailor
 from app.services.ai_messages import AIMessages
 from app.services.bank import NotFound, load_bank
 from app.services.identity import load_identity
+from app.services.models import get_large_llm, get_small_llm
 from app.services.resume_view import Choices, build_view
 
 # KAN-319: the Tailor limit is lifted for now; restore with the lines in run().
@@ -84,9 +86,10 @@ logger = logging.getLogger(__name__)
 router = APIRouter(prefix="/applicants/{applicant_id}/tailor", tags=["tailor"])
 
 EMPTY_BANK = "Your experience bank is empty. Add what you did first, then Tailor."
-ALREADY_TAILORED = "This posting already has a tailored resume. Open it in the editor to change it."
+ALREADY_TAILORED = "Another run for this posting saved first. Open its tailored resume to see it."
+OWN_SOURCE = "Tailor starts from another resume, not this posting's tailored one. Pick the resume you started from."
 NOTHING_READ = (
-    "WorkIt couldn't read anything from this resume. Pick another, or use Read It With AI on Resumes first."
+    "WorkIt couldn't read anything from this resume. Pick another, or add what you did on Experiences first."
 )
 AI = AIMessages(
     spent="You've used today's Tailor runs. They reset at midnight UTC.",
@@ -128,7 +131,7 @@ async def match(
     body: TailorMatchRequest,
     applicant_id: uuid.UUID,
     account: AuthenticatedAccount = Depends(get_current_account),
-    llm: LLM = Depends(get_llm),
+    keywords_llm: LLM = Depends(get_small_llm),
     session: AsyncSession = Depends(get_session),
 ) -> TailorMatch:
     assert_applicant_owns(account, applicant_id)
@@ -137,7 +140,7 @@ async def match(
     choices, _ = await _source(session, applicant_id, body)
     bank = await load_bank(session, applicant_id, local_to=_own(body))
     try:
-        found, _ = await keywords.ensure(job, llm)
+        found, _ = await keywords.ensure(job, keywords_llm)
     except ScoutUnavailable as exc:
         raise HTTPException(503, AI.failure(exc)) from exc
     matched, missing = keywords.match(build_view(bank, choices), found)
@@ -158,11 +161,12 @@ async def run(
     body: TailorRun,
     applicant_id: uuid.UUID,
     account: AuthenticatedAccount = Depends(get_current_account),
-    llm: LLM = Depends(get_llm),
+    llm: LLM = Depends(get_large_llm),
+    keywords_llm: LLM = Depends(get_small_llm),
     session: AsyncSession = Depends(get_session),
 ) -> TailorRunResult:
     assert_applicant_owns(account, applicant_id)
-    async for step in _steps(session, applicant_id, account, llm, body):
+    async for step in _steps(session, applicant_id, account, llm, keywords_llm, body):
         if isinstance(step, TailorRunResult):
             return step
     raise AssertionError("a run always ends with its result")
@@ -173,12 +177,13 @@ async def run_streamed(
     body: TailorRun,
     applicant_id: uuid.UUID,
     account: AuthenticatedAccount = Depends(get_current_account),
-    llm: LLM = Depends(get_llm),
+    llm: LLM = Depends(get_large_llm),
+    keywords_llm: LLM = Depends(get_small_llm),
 ) -> StreamingResponse:
     assert_applicant_owns(account, applicant_id)
     # Its own session: the request's may be closed once streaming starts.
     session = get_sessionmaker()()
-    steps = _steps(session, applicant_id, account, llm, body)
+    steps = _steps(session, applicant_id, account, llm, keywords_llm, body)
     try:
         # Every check before the model call runs here, so a refusal (404,
         # 409, a keyword extraction's 503) is still an HTTP status.
@@ -215,10 +220,12 @@ async def _ndjson(events: AsyncIterator[TailorPhase | TailorDone | TailorFailed]
 
 
 async def _steps(
-    session: AsyncSession, applicant_id: uuid.UUID, account: AuthenticatedAccount, llm: LLM, body: TailorRun
+    session: AsyncSession, applicant_id: uuid.UUID, account: AuthenticatedAccount,
+    llm: LLM, keywords_llm: LLM, body: TailorRun,
 ) -> AsyncIterator[TailorPhase | TailorRunResult]:
     """One run: a phase line before and after the model call, then the
-    result. Raises HTTPException as the JSON route answers; the stream turns
+    result. `llm` (large) writes the proposals; `keywords_llm` (small) reads
+    the posting's keywords, as every extraction does. Raises HTTPException as the JSON route answers; the stream turns
     one raised after its first line into an `error` line."""
     # KAN-319: the Tailor limit is lifted for now. Check before anything else
     # left = await uses_left(session, applicant_id, Feature.TAILOR)
@@ -227,17 +234,20 @@ async def _steps(
     left = get_settings().ai_tailor_cap
 
     job = await _posting(session, body.job_posting_id)
-    # One tailored resume per posting, made once: refused before any model
-    # call, so a second run spends no tokens.
-    if (existing := await built_resumes.tailored_for(session, applicant_id, job.id)) is not None:
-        raise HTTPException(409, {"message": ALREADY_TAILORED, "tailored_resume_id": str(existing.id)})
+    # One tailored resume per posting: a second run replaces it in place
+    # (below). It was made once until 2026-10-26, refused here with a 409;
+    # the student now goes Back to Choose Keywords and runs again.
+    existing = await built_resumes.tailored_for(session, applicant_id, job.id)
+    if existing is not None and body.built_resume_id == existing.id:
+        # It would read the lines it is about to clear.
+        raise HTTPException(422, OWN_SOURCE)
     # Before the bank loads: an uploaded source that owns nothing is read into it.
     source, template = await _source(session, applicant_id, body)
     bank = await load_bank(session, applicant_id, local_to=_own(body))
     if not bank.entries:
         raise HTTPException(409, EMPTY_BANK)
     try:
-        found, extracted = await keywords.ensure(job, llm)
+        found, extracted = await keywords.ensure(job, keywords_llm)
     except ScoutUnavailable as exc:
         raise HTTPException(503, AI.failure(exc)) from exc
     if extracted:
@@ -270,10 +280,18 @@ async def _steps(
     changes, dropped = tailor.propose(bank, view, reading, ranks, found, known)
 
     # Saved with no confirmation: the editor marks each change and reverts it.
-    resume = Built_Resume(
-        id=uuid.uuid4(), applicant_id=applicant_id, name=_name(account.full_name, job), template=template, job_posting_id=job.id)
-    session.add(resume)
-    await session.flush()
+    # A posting's tailored resume is replaced in place, so its id (the
+    # review's address), its name (perhaps renamed) and its star stay; only
+    # after the model answered, so a failed run leaves it as it was.
+    if existing is not None:
+        resume = existing
+        await tailor.clear_run(session, resume.id)
+    else:
+        resume = Built_Resume(
+            id=uuid.uuid4(), applicant_id=applicant_id, name=_name(account.full_name, job), template=template,
+            job_posting_id=job.id)
+        session.add(resume)
+        await session.flush()
     try:
         variants = await tailor.save_variants(session, bank, job.id, changes, known, found)
     except tailor.BreaksTruthRule as exc:
@@ -289,7 +307,7 @@ async def _steps(
     try:
         await session.commit()
     except IntegrityError:
-        # Another run for this posting saved first (one per posting).
+        # Two first runs at once: the other saved first (one per posting).
         await session.rollback()
         raise HTTPException(409, ALREADY_TAILORED)
     except SQLAlchemyError:

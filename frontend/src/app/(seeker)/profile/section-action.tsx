@@ -5,7 +5,7 @@ import { Button } from "@/components/ui/button";
 /**
  * A profile section's own action: Add and Edit at the top right of their
  * headings, and Remove Photo on the name's line, beside the photo it removes.
- * It wears the Dashboard's section link (ui/section-link.tsx): 13px, muted ink
+ * It wears Home's section link (ui/section-link.tsx): 13px, muted ink
  * that darkens on hover, the glyph 14px. So a section's one control sits at
  * the same weight on both seeker pages. These were brand ghost buttons at
  * 12px, which read as links in another kit beside "View All".

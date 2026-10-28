@@ -24,6 +24,8 @@ export type ApplicantProfile = {
   /** KAN-298: the Settings opt-in for the daily job-match digest (bell and
    *  email alike). Off until the student turns it on. */
   job_alerts_enabled: boolean;
+  /** Where the student lives, as forms ask it: "Stony Brook, NY" (KAN-372). */
+  location: string | null;
 };
 
 export async function getProfile(): Promise<{

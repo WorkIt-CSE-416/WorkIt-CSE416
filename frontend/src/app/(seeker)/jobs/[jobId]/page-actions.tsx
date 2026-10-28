@@ -18,7 +18,7 @@ import { formatDate } from "@/lib/format-date";
 import { cameFrom, restoreScrollOn } from "../../scroll-memory";
 
 /** The page a job's page was last opened from this session: the feed,
- *  filters and all, the Auto Apply page, the Resumes page, or the Dashboard
+ *  filters and all, the Auto Apply page, the Resumes page, or Home
  *  (its Top Matches). */
 const FEED_KEY = "workit:feed";
 /** Where /jobs itself was last seen, for clearing a search (rememberedJobs). */
@@ -50,7 +50,7 @@ export function RememberFeed() {
 /**
  * Remembers `href` as where a job's page goes Back to, from a link that
  * opens a job's page from a page that is not a list: a tailored resume's
- * card on /resumes (KAN-268), or a Top Matches row on the Dashboard
+ * card on /resumes (KAN-268), or a Top Matches row on Home
  * (KAN-342). Set on the click, not on the visit, as
  * RememberFeed does for lists: a visit to /resumes followed by a job opened
  * from elsewhere would otherwise go Back to /resumes.
@@ -80,7 +80,7 @@ export function rememberedJobs(): string {
 function rememberedFeed(): string {
   try {
     const feed = sessionStorage.getItem(FEED_KEY);
-    if (feed && /^\/(jobs|search|auto-apply|resumes|dashboard)(\?|$)/.test(feed)) return feed;
+    if (feed && /^\/(jobs|search|auto-apply|resumes|home)(\?|$)/.test(feed)) return feed;
   } catch {
     /* storage off: plain /jobs */
   }
@@ -91,7 +91,7 @@ const noSubscription = () => () => {};
 
 /** "Back", to the page the seeker came from: the feed with its filters still
  *  applied, or the Auto Apply page (RememberFeed), or the Resumes page or the
- *  Dashboard (rememberReturnTo), else /jobs, scrolled back to where they left it
+ *  Home (rememberReturnTo), else /jobs, scrolled back to where they left it
  *  (restoreScrollOn, ../../scroll-memory). The server renders /jobs and the
  *  browser swaps in the remembered list after hydration (useSyncExternalStore,
  *  as PostedDate does), so the two never disagree; the label is one word for
