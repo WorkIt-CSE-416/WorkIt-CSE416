@@ -151,6 +151,11 @@
         note("_signin", line.replace(/\.$/, ""), `${rest.join(" ")} WorkIt fills the application once its form shows.`.trim());
         return null;
       }
+      // A SuccessFactors career-site posting is its own "form" link: its Apply goes on to the sign-in, then the application.
+      if (prepared.openForm && prepared.site === "successfactors" && prepared.openForm.split("?")[0] === location.href.split("?")[0]) {
+        note("_form", "This page shows the job, not its application", "Press Apply on this page and sign in to SuccessFactors. WorkIt fills the application there.");
+        return null;
+      }
       if (prepared.openForm) {
         note("_form", "This page shows the job, not its application", `Open the application form (${prepared.openForm}), then click Autofill again.`);
         return null;
@@ -174,7 +179,7 @@
       const { questions, answers, rows } = prepared;
       if (!extra.length) progress.found(questions.length);
       const byName = new Map(questions.map((q) => [q.name, q]));
-      window.WIA.report?.track(questions);
+      window.WIA.report?.track(questions, { answers, sources: prepared.plan.sources }); // a fix report's fields (report.js), values kept on this page
       const isNew = (name) => !shown.has(name) && shown.add(name);
 
       const sources = prepared.plan.sources ?? {};
@@ -211,10 +216,12 @@
       if (Object.keys(left).length && progress.stopped()) return stoppedAt(prepared, left, written, state);
       if (Object.keys(left).length) {
         const events = progress.filling(Object.keys(left).length);
+        window.WIA.report?.follow(events);
         const answer = await send({
           type: "fill/page", site: prepared.site, questions, answers: left, accepted: prepared.plan.accepted, state, sections: prepared.step?.sections, events,
         });
         if (!answer.ok) {
+          window.WIA.report?.log("error", { message: answer.error });
           for (const name of Object.keys(left)) {
             status.setStatus(name, "failed", answer.error);
             window.WIA.report?.failed(name, "Error");
@@ -228,7 +235,7 @@
             // A field the student skipped while it was stuck (Skip, progress.js) is theirs now, not an engine error.
             if (result.status === "left") status.setStatus(name, "failed", "You skipped this. Answer it yourself.");
             else status.setStatus(name, result.status, result.reason, result.shows);
-            if (result.status === "failed") window.WIA.report?.failed(name, result);
+            window.WIA.report?.result(name, result);
           }
           more = answer.more ?? null;
           if (answer.stopped) return stoppedAt(prepared, Object.fromEntries(Object.entries(left).filter(([name]) => !answer.results[name])), written, state);

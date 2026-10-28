@@ -238,8 +238,9 @@ function trackPath(g: Geometry, offset: number) {
  * Match. Left to right from lg up, one lane per hiring system; top to
  * bottom below lg. It plays only in view and in a visible tab, on one
  * clock that stops when it does; with reduced motion it holds one still
- * frame (STILL_AT). The cards and WorkIt's mark are `.glass-card` over
- * violet blobs; nothing above them fades, filters or masks (landing.css).
+ * frame (STILL_AT). The cards are `.gloss-card` and WorkIt's mark is
+ * `.glass-card` over violet blobs; nothing above the mark fades, filters
+ * or masks (landing.css).
  */
 export function HiringSystems() {
   const rootRef = React.useRef<HTMLDivElement>(null);
@@ -344,7 +345,7 @@ export function HiringSystems() {
             {hiringSystems.map((system) => (
               <li
                 key={system.name}
-                className="text-ink flex h-8 items-center gap-2 rounded-xl bg-white pr-2.5 pl-1 text-xs font-medium shadow-[0_6px_16px_-12px_rgba(40,20,90,0.4)] ring-1 ring-slate-900/[0.07] lg:h-10 lg:pr-3 lg:pl-1.5 lg:text-[13px]"
+                className="gloss-card text-ink flex h-8 items-center gap-2 rounded-xl pr-2.5 pl-1 text-xs font-medium lg:h-10 lg:pr-3 lg:pl-1.5 lg:text-[13px]"
               >
                 <FaviconLogo src={system.logo} className="size-6 rounded-lg lg:size-7" />
                 {system.name}
@@ -522,7 +523,7 @@ function StreamChip({
     >
       <div
         className={cn(
-          "text-ink flex items-center gap-2 rounded-xl bg-white py-1 pr-3 pl-1 font-medium shadow-[0_6px_16px_-10px_rgba(40,20,90,0.35)] ring-1 ring-slate-900/[0.07]",
+          "gloss-card text-ink flex items-center gap-2 rounded-xl py-1 pr-3 pl-1 font-medium",
           geometry.wide
             ? "-translate-x-full -translate-y-1/2 text-xs whitespace-nowrap"
             : "w-max -translate-x-1/2 -translate-y-full gap-1.5 pr-2 text-[11px] leading-[14px]",
@@ -567,7 +568,7 @@ export function JobCard({
       ref={ref}
       // Position only: a size animation stretched the glass and its text.
       layout="position"
-      className="glass-card text-ink flex items-center gap-3 rounded-2xl p-3"
+      className="gloss-card text-ink flex items-center gap-3 rounded-2xl p-3"
       initial={{ opacity: 0, x: wide ? -24 : 0, y: wide ? 0 : -12, scale: 0.97 }}
       animate={{ opacity: 1, x: 0, y: 0, scale: 1 }}
       exit={{ opacity: 0, scale: 0.97, transition: { duration: 0.2 } }}

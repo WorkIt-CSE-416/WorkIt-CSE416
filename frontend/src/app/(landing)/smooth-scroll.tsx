@@ -6,10 +6,15 @@ import { usePathname } from "next/navigation";
 import { cancelFrame, frame, useReducedMotion } from "motion/react";
 
 /**
- * Smooth scrolling for the marketing pages, with Lenis on the window: a
- * wheel or trackpad glides to rest instead of stepping, so the pinned,
- * scroll-driven scenes play as one motion. It ticks on motion's own frame
- * loop rather than its own `requestAnimationFrame`, in the first step
+ * Lenis on the window for the marketing pages, with the wheel left native
+ * (`smoothWheel: false`, as twain.ai runs it): Lenis glides anchors and
+ * script scrolls (`scrollPageTo`) only. Its own wheel glide, on until
+ * KAN-368, moved a 300px notch only 70 to 100px in the first 50ms and took
+ * about 250ms to get 90% of the way, and a fast scroll drifted on for over
+ * half a second after the hand stopped, which the team felt as lag.
+ *
+ * It ticks on motion's own frame loop rather than its own
+ * `requestAnimationFrame`, in the first step
  * (`setup`), before motion reads the scroll: ticked in `update`, as Lenis's
  * docs show, every scroll-linked value read the page one step behind, and
  * the flying cards and pills trailed their ends. Touch scrolling stays
@@ -36,6 +41,8 @@ export function SmoothScroll() {
     const instance = new Lenis({
       autoRaf: false,
       anchors: true,
+      // The wheel and trackpad scroll natively (see above).
+      smoothWheel: false,
       // A click on a link stops the glide, so a new page starts still.
       stopInertiaOnNavigate: true,
     });

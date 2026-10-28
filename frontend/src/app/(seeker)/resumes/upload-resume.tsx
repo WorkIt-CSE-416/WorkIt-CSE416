@@ -3,11 +3,11 @@
 import Link from "next/link";
 import { useRef, useState, type ChangeEvent } from "react";
 
-import { PdfIcon, SparkleIcon, UploadIcon } from "@/components/icons";
+import { PdfIcon, UploadIcon } from "@/components/icons";
 import { RESUME_ROW, ResumeRow } from "@/components/resume-row";
 import { RESUME_ACCEPT, resumeFileError } from "@/components/resume-upload";
 import { Button } from "@/components/ui/button";
-import { importResume, type ImportResponse } from "@/lib/bank-actions";
+import { type ImportResponse } from "@/lib/bank-actions";
 import { importSummary } from "@/lib/import-summary";
 import { MAX_UPLOADS } from "@/lib/resume-limits";
 import { openDownload } from "@/lib/save-file";
@@ -21,7 +21,6 @@ import {
 } from "@/lib/resume-actions";
 
 import { RenameForm } from "./built-resume-row";
-import { DeleteConfirm } from "./delete-confirm";
 
 // The API's limit, on uploads alone (lib/resume-limits.ts), so the count
 // here matches the API's 409.
@@ -39,8 +38,8 @@ const MAX_RESUMES = MAX_UPLOADS;
  *
  * The picked file uploads at once, with the dropzone's checks
  * (`resumeFileError`); the API reads it into the experience bank (ADR
- * 0003), and the note says what went in, with Read It With AI while the
- * student has an AI reading left. The model never reads a resume unasked.
+ * 0003), and the note says what went in. The model never reads an upload:
+ * Read It With AI sat beside the note until KAN-353.
  * A file whose text the student already uploaded keeps nothing and opens
  * the duplicate pop-up (`onDuplicate`, ./duplicate-resume-dialog.tsx,
  * KAN-267), the one Generate opens. A newer version of a file is a delete
@@ -66,7 +65,6 @@ export function useResumeUpload({
   const [uploadError, setUploadError] = useState<string | null>(null);
   // What the last upload wrote into the experience bank.
   const [imported, setImported] = useState<ImportResponse | null>(null);
-  const [importingId, setImportingId] = useState<string | null>(null);
   const inputRef = useRef<HTMLInputElement>(null);
 
   async function handleFile(file: File) {
@@ -95,22 +93,6 @@ export function useResumeUpload({
     }
   }
 
-  // Read It With AI on the last upload: only ever on a click.
-  async function handleReadWithAi(resumeId: string) {
-    if (importingId) return;
-    setUploadError(null);
-    setImportingId(resumeId);
-    try {
-      const { data, error } = await importResume({ resumeId, readWithAi: true });
-      if (data) setImported(data);
-      else setUploadError(error);
-    } catch {
-      setUploadError("Could not import the resume. Refresh the page and try again.");
-    } finally {
-      setImportingId(null);
-    }
-  }
-
   function handleSelect(event: ChangeEvent<HTMLInputElement>) {
     const file = event.target.files?.[0];
     event.target.value = "";
@@ -132,7 +114,8 @@ export function useResumeUpload({
         disabled={uploading !== null}
         onClick={() => inputRef.current?.click()}
       >
-        <UploadIcon className="size-4" /> {uploading ? "Uploading…" : "Upload Resume"}
+        <UploadIcon className="size-4" />
+        {uploading ? "Uploading…" : <ShortLabel verb="Upload" />}
       </Button>
       <input ref={inputRef} type="file" accept={RESUME_ACCEPT} onChange={handleSelect} hidden />
     </>
@@ -146,24 +129,12 @@ export function useResumeUpload({
         </p>
       )}
       {shownImport && (
-        <div className="flex flex-wrap items-center gap-x-3 gap-y-2">
-          <p className="text-note text-ink-muted min-w-0 flex-1" aria-live="polite">
-            {importSummary(shownImport, shownImport.filename)}{" "}
-            <Link href="/bank" className="text-brand hover:text-brand-hover underline">
-              Open Experiences
-            </Link>
-          </p>
-          {shownImport.uses_left > 0 && (
-            <Button
-              variant="secondary"
-              size="sm"
-              disabled={importingId !== null}
-              onClick={() => handleReadWithAi(shownImport.resume_id)}
-            >
-              <SparkleIcon /> {importingId ? "Reading…" : "Read It With AI"}
-            </Button>
-          )}
-        </div>
+        <p className="text-note text-ink-muted" aria-live="polite">
+          {importSummary(shownImport, shownImport.filename)}{" "}
+          <Link href="/bank" className="text-brand hover:text-brand-hover underline">
+            Open Experiences
+          </Link>
+        </p>
       )}
     </>
   );
@@ -182,20 +153,37 @@ export function useResumeUpload({
   return { button, notes, pending, uploading: uploading !== null };
 }
 
+/**
+ * "Upload Resume" and "Generate Resume" (./built-resumes.tsx), which say
+ * only the verb where their row is under 24rem (a phone's two even
+ * buttons): there "Generate Resume" needed 161px of a 158px button and
+ * broke onto two lines. "Resume" stays for screen readers, so the name
+ * never changes.
+ */
+export function ShortLabel({ verb }: { verb: string }) {
+  return (
+    <span>
+      {verb}
+      <span className="sr-only @sm:not-sr-only"> Resume</span>
+    </span>
+  );
+}
+
 /** One uploaded resume: the shared row, or Rename's form in its place,
- *  its errors, and Delete's confirm under it, as a generated resume's row
- *  has (./built-resume-row.tsx). */
+ *  and its errors under it, as a generated resume's row has
+ *  (./built-resume-row.tsx). Delete asks in a popover under the trash. */
 export function UploadedRow({
   resume,
   reload,
+  onDelete,
 }: {
   resume: ResumeItem;
   reload: () => Promise<void>;
+  /** The list hides the row and sends the delete (KAN-388). */
+  onDelete: (send: () => Promise<{ error: string | null }>) => void;
 }) {
   const [renaming, setRenaming] = useState(false);
   const [saving, setSaving] = useState(false);
-  const [confirming, setConfirming] = useState(false);
-  const [deleting, setDeleting] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const name = resume.original_filename ?? "Resume";
 
@@ -225,14 +213,10 @@ export function UploadedRow({
     await reload();
   }
 
-  // Delete stays disabled until the reload drops the row.
+  // The row leaves the list at once, so the list runs the delete and
+  // shows a failure (KAN-388).
   async function remove() {
-    setDeleting(true);
-    setError(null);
-    const { error } = await deleteResume(resume.id);
-    if (!error) return reload();
-    setDeleting(false);
-    setError(error);
+    onDelete(() => deleteResume(resume.id));
   }
 
   return (
@@ -248,23 +232,12 @@ export function UploadedRow({
       ) : (
         <ResumeRow
           resume={resume}
-          deleting={deleting}
           href={`/resumes/uploaded/${encodeURIComponent(resume.id)}`}
           onMakePrimary={makePrimary}
           onRename={() => setRenaming(true)}
           onDownload={download}
-          onDelete={() => setConfirming(true)}
-        />
-      )}
-      {confirming && (
-        <DeleteConfirm
-          label="Delete Resume"
-          busy={deleting}
           onDelete={remove}
-          onKeep={() => setConfirming(false)}
-        >
-          Delete this resume? Files you already sent are kept.
-        </DeleteConfirm>
+        />
       )}
       {error && (
         <p role="alert" className="text-note text-danger mt-2">

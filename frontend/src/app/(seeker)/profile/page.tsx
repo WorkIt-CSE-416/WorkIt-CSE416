@@ -18,7 +18,6 @@ import { cn } from "@/lib/cn";
 
 import { Avatar } from "@/components/avatar";
 import type { AutofillAnswers } from "@/lib/autofill-answers";
-import { getAutofillAnswers } from "@/lib/autofill-answers-actions";
 import { getBank, type BankEntry } from "@/lib/bank-actions";
 import { ApplicationAnswers } from "./application-answers";
 import { ApplicationQuestions } from "./application-questions";
@@ -26,10 +25,10 @@ import { FIELD_GRID, FIELD_HEADING } from "./field-styles";
 import { SectionAction } from "./section-action";
 import { Transcript } from "./transcript";
 import { WritingSamples } from "./writing-samples";
-import { getProfile, updateProfile, type ApplicantProfile } from "@/lib/profile-actions";
+import { updateProfile, type ApplicantProfile } from "@/lib/profile-actions";
 import { linkText, safeHref, siteName, webLink } from "@/lib/profile-links";
 import { GitHubGlyph, LinkedInGlyph, OtherLinkGlyph, WebsiteGlyph } from "./icons";
-import { getAvatar } from "@/lib/avatar-actions";
+import { getProfilePage } from "@/lib/profile-page-actions";
 import { SEEKER_GUTTER } from "../gutter";
 import { useProfileCache } from "../profile-cache";
 
@@ -39,7 +38,10 @@ import { useProfileCache } from "../profile-cache";
  * Personal Details (KAN-326), through the band's Edit link, so each has one
  * editor; Contact & Links and Application Questions are edited here.
  * Name, headline, contact details and links come from the applicant_profiles
- * table via getProfile(). A return visit renders the last visit's data at once
+ * table via getProfile(), read with the photo and the answer bank in one
+ * server action, getProfilePage() (@/lib/profile-page-actions), because Next
+ * runs server actions one at a time and three calls from here waited for
+ * each other. A return visit renders the last visit's data at once
  * (../profile-cache.tsx) and refetches it behind the scenes. The tab title
  * is set in ./layout.tsx, because a client page cannot export metadata.
  *
@@ -68,12 +70,13 @@ import { useProfileCache } from "../profile-cache";
  *   Experiences     views of that page
  *
  * Each open section's actions sit at the top right of its heading, as a
- * Dashboard section's "View All" does (./section-action.tsx).
+ * Home section's "View All" does (./section-action.tsx).
  *
  * A FAILED LOAD IS ONE NOTICE AT THE TOP, NOT A RED LINE UNDER EACH THING.
- * The photo and the profile load separately, and a single outage printed
- * as scattered faults. Errors from something the seeker just did (a photo
- * upload) still show beside it, because that is where they are looking.
+ * The photo, the profile and the answers each come back with their own
+ * error, and a single outage printed as scattered faults. Errors from
+ * something the seeker just did (a photo upload) still show beside it,
+ * because that is where they are looking.
  */
 export default function ProfilePage() {
   // The last visit's data, if any, read once. A return visit renders it at
@@ -93,50 +96,48 @@ export default function ProfilePage() {
 
   // Profile photo, a signed URL from the API. Settings changes it.
   const [avatarUrl, setAvatarUrl] = useState<string | null>(cached?.avatarUrl ?? null);
-  const [avatarLoaded, setAvatarLoaded] = useState(cached !== null);
+  // True once the page's read has settled (or a return visit's snapshot
+  // stands in for it), so the snapshot below is never saved mid-load.
+  const [settled, setSettled] = useState(cached !== null);
   const [loadFailed, setLoadFailed] = useState(false);
 
+  // One action for all three reads, never three calls from here: Next runs
+  // server actions one at a time, so three calls waited for each other
+  // (@/lib/profile-page-actions). Each part still has its own error, and a
+  // failed refetch keeps the part a return visit already shows.
   useEffect(() => {
-    getAvatar()
-      .then(({ url, error }) => {
-        // A failed refetch keeps the photo a return visit already shows.
-        if (error) setLoadFailed(true);
-        else setAvatarUrl(url);
+    getProfilePage()
+      .then(({ avatar, profile, answers: bank }) => {
+        if (avatar.error) setLoadFailed(true);
+        else setAvatarUrl(avatar.url);
+
+        if (profile.error) setLoadFailed(true);
+        else if (profile.profile) setApplicantProfile(profile.profile);
+
+        if (bank.error) setLoadFailed(true);
+        else setAnswers(bank.answers);
       })
       // The action call itself failed, e.g. stale action IDs after a deploy.
       .catch(() => setLoadFailed(true))
-      .finally(() => setAvatarLoaded(true));
+      .finally(() => setSettled(true));
 
-    getProfile()
-      .then(({ profile: p, error }) => {
-        if (error) setLoadFailed(true);
-        else if (p) setApplicantProfile(p);
-      })
-      .catch(() => setLoadFailed(true));
-
+    // Application Answers' School Year reads the bank; a failure leaves it
+    // unknown there, not a page error.
     getBank()
       .then(({ data }) => setEntries(data?.entries ?? []))
       .catch(() => {});
-
-    getAutofillAnswers()
-      .then(({ answers: a, error }) => {
-        // A failed refetch keeps the answers a return visit already shows.
-        if (error) setLoadFailed(true);
-        else setAnswers(a);
-      })
-      .catch(() => setLoadFailed(true));
   }, []);
 
   // Save each settled state for the next visit. Not mid-load, and not
   // after a failed load, which would show the next visit an empty profile.
   useEffect(() => {
-    if (avatarLoaded && applicantProfile && answers && !loadFailed) {
+    if (settled && applicantProfile && answers && !loadFailed) {
       cache.write({ avatarUrl, applicantProfile, answers });
     }
-  }, [cache, avatarLoaded, loadFailed, avatarUrl, applicantProfile, answers]);
+  }, [cache, settled, loadFailed, avatarUrl, applicantProfile, answers]);
 
   return (
-    <div className={cn("max-w-app mx-auto w-full flex-1 py-6", SEEKER_GUTTER)}>
+    <div className={cn("max-w-dashboard mx-auto w-full flex-1 py-6", SEEKER_GUTTER)}>
       <div className="mb-6">
         <h1 className="text-heading text-ink">My Profile</h1>
         <p className="text-body text-ink-meta mt-1">

@@ -1,4 +1,4 @@
-import type { ComponentType, ReactNode } from "react";
+import type { ComponentType } from "react";
 
 import { GoogleIcon, LinkedInIcon, LockIcon, MailIcon, SparkleIcon } from "@/components/icons";
 import { Badge } from "@/components/ui/badge";
@@ -15,6 +15,7 @@ import { SecurityNotice } from "./notice";
 import { PasswordDialog } from "./password-form";
 import { ProviderButton } from "./provider-button";
 import { DeleteAccount } from "./delete-account";
+import { SettingRow as Row } from "../setting-row";
 import { SignOutButton } from "./sign-out-button";
 import { WorkdaySignupButton } from "./workday-signup-button";
 
@@ -27,32 +28,6 @@ const PROVIDERS: {
   { provider: "google", name: "Google", Icon: GoogleIcon },
   { provider: "linkedin_oidc", name: "LinkedIn", Icon: LinkedInIcon },
 ];
-
-/** One setting: its glyph, name and value on the left, its action on the right. */
-function Row({
-  Icon,
-  label,
-  value,
-  children,
-}: {
-  Icon: ComponentType<{ className?: string }>;
-  label: string;
-  value: ReactNode;
-  children?: ReactNode;
-}) {
-  return (
-    <li className="flex items-center gap-3 py-3 first:pt-0 last:pb-0">
-      <span className="bg-surface text-ink-muted rounded-control flex size-9 shrink-0 items-center justify-center">
-        <Icon className="size-4" />
-      </span>
-      <div className="min-w-0 flex-1">
-        <p className="text-label text-ink font-semibold">{label}</p>
-        <div className="text-meta text-ink-meta break-all">{value}</div>
-      </div>
-      {children}
-    </li>
-  );
-}
 
 /**
  * Sign-In & Security (KAN-326): each setting is a row, and its form opens

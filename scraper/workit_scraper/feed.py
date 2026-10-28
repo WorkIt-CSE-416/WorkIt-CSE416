@@ -16,9 +16,10 @@ from __future__ import annotations
 import json
 from pathlib import Path
 
-from workit_scraper.shortlist import Role, Tag
+from workit_scraper.shortlist import Role, Tag, classify
+from workit_scraper.store import Store
 
-# `providers._work_style` yields exactly these three labels, or None. Indexed, not
+# `providers.text._work_style` yields exactly these three labels, or None. Indexed, not
 # `.get`: a fourth label is a change there that must be decided here too, not
 # silently dropped to None.
 WORK_STYLE = {"Remote": "remote", "Hybrid": "hybrid", "On site": "onsite"}
@@ -70,3 +71,46 @@ def write(roles: list[Role], logos: dict[str, str | None], path: Path) -> None:
     """Newest first, in `pick()`'s order: the API serves a prefix of this list."""
     rows = [row(role, logos) for role in roles]
     path.write_text(json.dumps(rows, indent=1) + "\n", encoding="utf-8")
+
+
+#: Why a stored posting is not in the feed, as `job_postings.closed_reason` has
+#: them (backend migration bd730e8ab454). The import closes each one it held
+#: under its reason here, and under "unknown" one this file does not name.
+#: Ranked: when copies at one URL disagree, the first reason wins.
+REASONS = ("filtered_out", "replaced", "board_gone", "gone_from_board")
+
+
+def closings(run: Store, roles: list[Role]) -> dict[str, str]:
+    """Why each posting the store holds is missing from the feed, keyed by apply URL.
+
+    Worked out from the store as it is, not from the last run's feed, so an import
+    that failed or was skipped loses nothing: the next one still finds why. Every
+    posting the store holds and the feed lacks is here, whether or not it was ever
+    imported; the import reads only the ones it closes.
+
+    - Not listed, its board said "no such board": `board_gone`.
+    - Not listed (two complete reads lacked it): `gone_from_board`.
+    - Listed, its title no longer kept (`pick` reads every title again):
+      `filtered_out`.
+    - Listed and kept, but another copy of its requisition leads the card:
+      `replaced`. Copies of one requisition share a title, so a copy's own title
+      stands for its card's.
+    """
+    shown = {role.apply_url for role in roles}
+    found: dict[str, str] = {}
+    for job in run.jobs:
+        if job.apply_url in shown:
+            continue
+        if run.is_listed(job):
+            why = "replaced" if classify(job.title) else "filtered_out"
+        else:
+            reads = run.boards.get(job.board_key)
+            why = "board_gone" if reads and reads.missing_at else "gone_from_board"
+        if job.apply_url not in found or REASONS.index(why) < REASONS.index(found[job.apply_url]):
+            found[job.apply_url] = why
+    return found
+
+
+def write_closings(found: dict[str, str], path: Path) -> None:
+    """closings.json, beside feed.json: `closings`, sorted by URL."""
+    path.write_text(json.dumps(found, indent=1, sort_keys=True) + "\n", encoding="utf-8")

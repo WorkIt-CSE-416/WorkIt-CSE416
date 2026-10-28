@@ -150,7 +150,51 @@ def test_cli_passes_embedding_limit(monkeypatch, tmp_path):
     monkeypatch.setattr(import_jobs, "_run", run)
     feed = tmp_path / "feed.json"
     assert import_jobs.main([str(feed), "--embed-limit", "100"]) == 0
-    run.assert_awaited_once_with(feed, dry_run=False, allow_mass_close=False, embed_limit=100)
+    run.assert_awaited_once_with(
+        feed, dry_run=False, allow_mass_close=False, embed_limit=100,
+        keywords_limit=import_jobs.KEYWORDS_PER_RUN, closings_path=None,
+    )
+
+
+def test_cli_passes_keywords_limit(monkeypatch, tmp_path):
+    run = AsyncMock(return_value=import_jobs.Report())
+    monkeypatch.setattr(import_jobs, "_run", run)
+    feed = tmp_path / "feed.json"
+    assert import_jobs.main([str(feed), "--keywords-limit", "0"]) == 0
+    run.assert_awaited_once_with(
+        feed, dry_run=False, allow_mass_close=False, embed_limit=None, keywords_limit=0, closings_path=None,
+    )
+
+
+def test_cli_passes_the_closings_file(monkeypatch, tmp_path):
+    run = AsyncMock(return_value=import_jobs.Report())
+    monkeypatch.setattr(import_jobs, "_run", run)
+    feed, closings = tmp_path / "feed.json", tmp_path / "why.json"
+    assert import_jobs.main([str(feed), "--closings", str(closings)]) == 0
+    assert run.await_args.kwargs["closings_path"] == closings
+
+
+def test_keywords_only_skips_feed_and_import(monkeypatch, capsys):
+    run = AsyncMock(return_value=4)
+    import_run = AsyncMock()
+    monkeypatch.setattr(import_jobs, "_run_keywords_only", run)
+    monkeypatch.setattr(import_jobs, "_run", import_run)
+    monkeypatch.setattr(import_jobs, "get_settings", Mock(side_effect=AssertionError("must not resolve feed")))
+    assert import_jobs.main(["--keywords-only", "--keywords-limit", "5"]) == 0
+    run.assert_awaited_once_with(limit=5)
+    import_run.assert_not_awaited()
+    assert "extracted keywords for 4 scraped jobs; no feed imported" in capsys.readouterr().out
+
+
+@pytest.mark.parametrize("args", [
+    ["--keywords-limit", "-1"],
+    ["--keywords-only", "--embeddings-only"],
+    ["--keywords-only", "--dry-run"],
+])
+def test_bad_keyword_flags_are_refused(args):
+    with pytest.raises(SystemExit) as exc:
+        import_jobs.main(args)
+    assert exc.value.code == 2
 
 
 @pytest.mark.parametrize("limit", [None, 1])

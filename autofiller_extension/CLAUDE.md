@@ -391,9 +391,44 @@ drawn during Greenhouse's start-up makes it redraw the form, see the
 overlay), asks the background `panel/where` (the engine's `jobOf` on the
 page's link, and whether the tab is a batch's), and on a job page outside
 a batch draws only the edge tab. Nothing fills, nothing is read from the
-form, and other pages get nothing drawn. A page on any other host is
-never touched: the panel has no way in there (an embedded Greenhouse form
-on a company's own site is filled only by batch apply, decision 956).
+form, and other pages get nothing drawn. **Any posting there, in
+WorkIt's feed or not**: nothing here asks the API whether it knows the
+job (the job card falls back to the engine's `jobNames`, the answer bank
+to the page's company), so a posting the student found anywhere fills as
+a feed job does (`test/any-site.extension.spec.ts`; live, 2026-10-28: a
+Discord Greenhouse posting not in the feed filled 15 of 17 required
+fields, and Lever, Ashby and Workday postings showed Autofill). The entry
+runs in every frame (`all_frames`), so a job system's form embedded in an
+employer's page (Greenhouse's `embed/job_app` iframe on Databricks',
+Stripe's or Airbnb's careers site) gets the edge tab and fills inside its
+frame, though the employer's page itself is out of reach. A page on any
+other host is never touched unless the student allows that site (below).
+
+**Employer career sites the student allows (KAN-369,
+`background/site-access.js`).** No site beyond the job systems' hosts is
+asked at install: `optional_host_permissions` is `https://*/*`, and the
+toolbar popup on a posting-like page of another host offers **Allow
+WorkIt on <host>**, whose click calls `chrome.permissions.request` for
+that one origin (it needs the click; Simplify and Jobright ask the same
+way). Once granted, `popup/allow` keeps the origin (chrome.storage.local
+`allowed_sites`), registers the launcher's files for it
+(`registerContentScripts`, id `site-<host>`, kept across restarts), runs
+them in the tab at once, and answers what it found: the engine's own
+reading of the page (`pageJobUrl`: `jobOf` of the link, or a
+SuccessFactors career-site posting its page marks with rmkcdn assets or
+`data-careersite-propertyid`, read as `ats=successfactors`), in which case
+the panel opens; or a frame showing a form the engine covers ("Open
+WorkIt's tab at the right edge of the application form"); or nothing
+("WorkIt found no application it fills on this page.", with Request this
+job system kept). `panel/where`, `fill/*` and the toolbar read the page
+through `pageJobUrl`. A SuccessFactors posting's panel says to press Apply
+and sign in (its form is the career site's, which the manifest covers).
+The options page's Sites You Allowed lists them with Remove
+(`sites/remove`: `chrome.permissions.remove`, then the scripts go);
+Chrome's own removal is followed at the worker's start and on
+`permissions.onRemoved`. Batch apply is unchanged: it opens only links the
+API names. Not covered yet: iCIMS Jibe and Workday on company hosts, and
+`tiktokusds.com`, which the engine's `jobOf` doesn't read.
 
 **The one other trigger is the student's own Auto Apply click** (KAN-305,
 KAN-370): batch apply fills the tabs it opened for that click (below). It
@@ -1358,9 +1393,9 @@ checking the student owns the application: a tab's state (`PUT
 .../questions`), the student's edits (`PUT .../answers`), the answer bank
 (`GET .../answer-bank`), the sent resume and finish (`PUT .../resume`,
 `POST .../finish`), and whether Claude is connected (`GET
-.../connector`). Report a problem (KAN-403) sends `POST /fill-reports`
-(`routers/fill_reports.py`): no applicant in the path and no account in
-the row, the report's parts only. The popup's Request this job system
+.../connector`). Report a problem (KAN-403, fix reports KAN-369) sends
+`POST /fill-reports` (`routers/fill_reports.py`): no applicant in the path;
+the row names the signed-in sender, who alone can read it back. The popup's Request this job system
 (KAN-369) sends `POST /job-system-requests` (`routers/job_system_requests.py`):
 the host alone, no account in the row. The rest are older:
 
@@ -1648,7 +1683,7 @@ slot by name, `panel.slot(name)`, and adds its styles with
 | `primary` | the one big button, fixed at the panel's bottom; `panel.setPrimary({ label, onPress, secondary })` or `panel.fillButton(label)` | Autofill This Page / Fill this step (launcher.js), then primary.js: "Next: N need you", Review and submit, Go to Save and Continue, Fill Again's question |
 | `tab:<id>` | a tab's body; `panel.addTab({ id, label })` adds one, the strip shows from two | `tab:autofill`: overlay.js's summary, essay banner, moment cards, parts and rows; `tab:resume`: resume-tab.js (KAN-399); `tab:answers`: answers-tab.js (KAN-400), a placeholder until a fill |
 | `settings` | the settings view, shown by the ⋯ menu's Settings in place of the tab's body (`panel.showSettings`; `panel.onView(hook)` hears it open) | panel-settings.js: Claude connection, Open the panel by itself, Report a problem, Workday Sign-Up, Back |
-| `report` | Report a problem, shown in place of the tab's body; open it with `window.WIA.reportCard.open()` | report.js: the preview, the note, Send report, Back |
+| `report` | Report a problem, shown in place of the tab's body; open it with `window.WIA.reportCard.open({ trigger, field })` | report.js: the preview, Which field is wrong?, the note, Exactly what WorkIt sends, Send report, Back |
 
 **The frame (KAN-369 Q4-Q6).** Top to bottom: the header (WorkIt, ⋯,
 Close: Close is the old Collapse, `data-collapse`); the batch line, job
@@ -1857,7 +1892,8 @@ report.js everywhere it is: manifest, `CONTENT_SCRIPT_FILES`, background.js
   to needs_you, with no date (backend pipeline.py), and the tab to that
   state, in its group.
 - **A site WorkIt can't fill**: every host the manifest lists is a job
-  system the Fill engine fills, so the panel never shows this; the toolbar
+  system the Fill engine fills, so the panel never shows this (an allowed
+  employer site with nothing to fill gets no panel either); the toolbar
   popup does, on a web page of any other host (not WorkIt's own) that looks
   like a job posting (`panel-states.js` `looksLikePosting`: a jobs, careers,
   apply or position part in its path, or a schema.org `JobPosting` block,
@@ -1924,50 +1960,91 @@ Tests: `test/panel-header.extension.spec.ts` (a batch's line, card, ring and
 Next tab; an own tab's header, Report placeholder and applied card; a
 Workday tab's step line).
 
-## Report a problem (KAN-403): a preview, then Send
+## Report a problem (KAN-403, fix reports KAN-369): a preview, then Send
 
-`src/content/report.js` (loaded after panel-top.js everywhere it is)
-fills the `report` slot. **`window.WIA.reportCard.open()`** opens it: the
-header's ⚑ calls it (a second press closes it), and the settings view and
-the unsupported-site state call the same function. The card lists exactly
-what Send sends, and Send sends just that:
+A report is written for the developers' coding agent: an admin exports it
+as a fix brief (`../docs/fill-reports.md`) that says what went wrong, where
+and in which engine file, with the form as a fixture. `src/content/report.js`
+(loaded after panel-top.js everywhere it is) fills the `report` slot.
+**`window.WIA.reportCard.open({ trigger, field })`** opens it: the ⋯ menu's
+Report a problem (a second press closes it), the settings view, the
+unsupported-site state, and a checklist row's button (below), which marks
+its field wrong at once. The card lists exactly what Send sends, and Send
+sends just that:
 
-- the job system (the Fill engine's `jobOf` site, "unsupported" when it
-  fills none there), the posting's link (the page's address with only the
-  query parts that name a posting, `report.js` `POSTING_PARAMS`: for, token,
-  gh_jid, jobId, job_id, jobid, jobReqId, career_job_req_id, each a plain
-  id; no other part, fragment or user:password, which can carry the
-  student's ids; the backend refuses any other part), the Fill engine version
-  (`FillEngine.version`, which the engine's build stamps into
-  `dist/engine.js`; `ENGINE_VERSION` in `background/engine.js`);
-- each failed field: its kind (the Question set's), its label's shape
-  (`labelShape`: lower case, quoted names, emails and links out, digits as
-  `#`, only letters and spaces kept) and its error's name: Readback (it
-  shows something other than its answer), FillError (the engine couldn't
-  fill it), Handoff, NoForm, NoAnswer (WorkIt had none), Error;
-- the student's note, optional.
+- the page (the background names it from the tab's URL): the job system
+  (the Fill engine's `jobOf` site, "unsupported" when it fills none there),
+  the posting's link (only the query parts that name a posting,
+  `POSTING_PARAMS`: for, token, gh_jid, jobId, job_id, jobid, jobReqId,
+  career_job_req_id, each a plain id; no other part, fragment or
+  user:password), the Fill engine version (`ENGINE_VERSION`, which the
+  engine's build stamps: package.json's version and a hash of src/; the
+  backend's `fill_report` script turns it back into a commit), and
+  `context`: the extension's manifest version, the browser ("Chrome 141"),
+  the time, `jobOf`'s recognition (site, on its form, the posting's ids),
+  top frame or iframe; `trigger`: what opened the card (`TRIGGERS`);
+- every field of the fill (the checklist's rows): its name, label (values
+  out), label shape, kind, options, required, the selector WorkIt found it
+  by (`window.WIA.fieldOf`) and whether it shows, the Plan's source, the
+  planned answer's **shape** (`shapeOf`: `text:12`, `option`, `options:3`,
+  `file`, never the answer), status, reason (the planned answer and what
+  the page showed as «planned» and «shown», anything else it quotes as
+  «redacted»), read-back (`matches`, `differs`, `empty`, `unread`), what
+  the page shows as a shape, the error's name (Readback, FillError, Handoff,
+  NoForm, NoAnswer, Error), `edited` (the student changed it after WorkIt
+  filled it) and `marked` (they ticked it under Which field is wrong?);
+- the timeline: the Plan, each field's start and end (the engine's
+  `fillengine:field` events, `report.follow`), whole-fill errors, and an
+  unnamed engine error's stack (`engine.js` `fillPage` puts it on the
+  result), each `t` ms after the first, at most 400;
+- `html`, the form's markup with every value out (`snapshot`): input
+  values, a textarea's or editable box's text, checked, selected and
+  aria-checked marks, scripts, styles, comments, the panel, a link's query
+  (mailto:, tel: and data: links go whole), `on*` attributes, and each
+  personal word; a choice WorkIt made that the page shows outside its
+  option list (a dropdown's chosen value) is «shown». Structure, labels,
+  options, ids, names and classes stay, so it loads in an engine test. The
+  form's own element when the fields share one, else the body;
+  `HTML_MAX` (500,000 characters), cut past it;
+- the student's note, optional (`NOTE_MAX`).
 
-**Never an answer, a reason or what the page shows**: a failed reason can
-quote both. The content script tells report.js each question's kind
-(`window.WIA.report.track`) and each failed field's error name
-(`window.WIA.report.failed`); `engine.js`'s `fillPage` puts the error's
-name on a whole-fill failure. The background (`report/preview`,
-`report/send`) names the page's parts itself from the tab's URL and keeps
-only the allowed parts of each field, so a page's script can add nothing.
-`POST /fill-reports` (backend `routers/fill_reports.py`) stores it with no
-account and refuses any other key (422).
+**Personal values never leave the browser, by design.** Values come out
+twice: on the page (`collect`, with the planned answers and what the page
+showed, which only the page holds; text answers as whole words anywhere,
+choices only where the page shows them as text) and in the background
+(`previewReport`, with the profile's name, email, phone, links, address
+and file names, which only the background holds), each through
+`report-parts.js`'s `redactor`, which also replaces anything that looks
+like an email, a phone number or a file name. The background keeps only
+`FIELD_PARTS` and `TIMELINE_PARTS`, each of its type, and keeps the
+preview in `chrome.storage.session` per tab and frame; the card shows that
+preview whole (Exactly what WorkIt sends: the JSON, `finalize`d with the
+student's marks and note as they type), and Send (`report/send {marked,
+note}`) sends that stored preview through the same `finalize`, so a page
+script can add nothing after the preview. The backend scrubs emails and
+phones once more and refuses any other key (422). Tests:
+`test/report-parts.spec.ts` (the redactor, reasons, shapes, finalize) and
+`test/report.extension.spec.ts` (the fixture profile's values appear
+nowhere in the card or the request, and the request equals the preview).
+
+**Report this, at the moment it goes wrong.** `window.WIA.report.rowAction(field)`
+gives each checklist row its button (overlay.js puts it under the row):
+**Report this** on a field that failed read-back (trigger `readback`) or
+with an engine error (`error`), on a field the student edited after
+WorkIt filled it (`edited`: a filled row that turns the student's, heard
+through `status.subscribe`), and on the fill's own `_error` note; **Wrong?
+Report it** on any other filled row, shown once the row is opened (`row`).
+Each opens the card with that field ticked. NoAnswer rows get none: WorkIt
+had nothing to fill.
 
 **Nothing is sent but on Send**, one report per press: once sent, the card
 says "Sent. Thanks for telling WorkIt." with Back and no second Send; a
 new report means opening it again. Signed out, Send says "Sign in to WorkIt
-to send a report." **The Web Store listing's privacy practices must declare
-it** (the posting link and the student's note leave the extension): for
-Lisul, before release.
-
-Tests: `test/report.extension.spec.ts` (a batch tab's failed field: the
-preview, nothing sent until Send, the request the fake API receives equals
-the preview and holds no answer or page text, no second Send). Backend:
-`tests/test_fill_reports.py`.
+to send a report." The toolbar popup's Report a problem sends the page's
+parts, its context and the note only (`sendReport`). **The Web Store
+listing's privacy practices must declare it** (the posting link, the form's
+structure and the student's note leave the extension): for Lisul, before
+release.
 
 ## The Autofill tab's checklist (KAN-397, KAN-369 Q1-Q3)
 

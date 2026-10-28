@@ -1,7 +1,12 @@
 "use client";
 
-import { useEffect, useRef, useState, type ReactNode, type RefObject } from "react";
+import { createContext, useEffect, useRef, useState, type ReactNode, type RefObject } from "react";
 import { motion } from "motion/react";
+
+/** The scale `Fit` draws its visual at, for a part of the visual that must
+ * stay readable however small the visual is drawn (a story's scene title,
+ * story.tsx). */
+export const FitScale = createContext(1);
 
 /** How far `Fit` may scale a visual up: the stories are drawn at 520px
  * wide, small type included, so past this their 10px labels read as
@@ -68,7 +73,7 @@ export function Fit({
       className="flex w-full justify-center"
       style={{ scale: fit, originY: 0, marginBottom: fit === 1 ? 0 : -height * (1 - fit) }}
     >
-      {children}
+      <FitScale value={fit}>{children}</FitScale>
     </motion.div>
   );
 }

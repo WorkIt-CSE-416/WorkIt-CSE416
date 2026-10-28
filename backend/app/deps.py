@@ -32,6 +32,7 @@ from sqlalchemy import select
 from sqlalchemy.exc import IntegrityError
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from app.config import get_settings
 from app.db import get_session
 from app.models.dto import profile_status
 from app.models.profiles import Applicant_Profile, Company_Membership
@@ -193,6 +194,28 @@ async def get_signed_in_applicant_id(
         return None
 
 
+async def get_signed_in_applicant(
+    credentials: HTTPAuthorizationCredentials | None = Depends(_bearer),
+    db: AsyncSession = Depends(get_session),
+) -> AuthenticatedAccount | None:
+    '''
+    Like get_signed_in_applicant_id but loads the full profile row, needed
+    when the caller must pass an AuthenticatedAccount (score_jobs reads
+    identity). Never 401s: a missing, bad or non-applicant token returns
+    None, so a public page still loads.
+    '''
+    if credentials is None:
+        return None
+    try:
+        claims = await decode_access_token(credentials.credentials)
+        if claims.get("app_metadata", {}).get("account_type") != AccountType.APPLICANT:
+            return None
+        account_id = uuid.UUID(claims["sub"])
+    except (jwt.InvalidTokenError, ValueError):
+        return None
+    return await load_account(db, account_id, AccountType.APPLICANT)
+
+
 def assert_applicant_owns(account: AuthenticatedAccount, applicant_id: uuid.UUID) -> None:
     """Shared ownership guard: the caller must be an applicant whose id matches
     the path. Used by resumes, avatars and profile endpoints."""
@@ -229,4 +252,25 @@ async def get_company_member(
     if account.membership_status != profile_status.active:
         raise _not_a_company_member()
 
+    return account
+
+
+def is_admin(account: AuthenticatedAccount) -> bool:
+    '''whether the account is one of WorkIt's admins: its email or id is on WORKIT_ADMINS (app/config.py)'''
+    allowed = {entry.strip().lower() for entry in get_settings().workit_admins.split(",") if entry.strip()}
+    return str(account.email).lower() in allowed or str(account.id).lower() in allowed
+
+
+async def get_admin(
+    account: AuthenticatedAccount = Depends(get_current_account),
+) -> AuthenticatedAccount:
+    '''
+    for WorkIt's own admin routes (fix reports, KAN-369): the caller must be
+    on WORKIT_ADMINS. The email is the profile row's, which
+    get_current_account keeps equal to the verified token's sign-in email,
+    and signup requires a confirmed email, so no one can claim one they
+    don't hold.
+    '''
+    if not is_admin(account):
+        raise HTTPException(status.HTTP_403_FORBIDDEN, "Only WorkIt's admins can do this.")
     return account

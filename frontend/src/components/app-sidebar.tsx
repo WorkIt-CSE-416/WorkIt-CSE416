@@ -1,12 +1,17 @@
 "use client";
 
-import Link from "next/link";
+import Link, { useLinkStatus } from "next/link";
 import { usePathname } from "next/navigation";
-import { useState, type ComponentType, type ReactNode } from "react";
+import {
+  useEffect,
+  useRef,
+  useState,
+  type ComponentProps,
+  type ComponentType,
+  type ReactNode,
+} from "react";
 
 import { useSidebarPin } from "@/components/hover-sidebar";
-import { SidebarPinIcon } from "@/components/icons";
-import { IconButton } from "@/components/ui/icon-button";
 import { Logo, LogoLockup } from "@/components/logo";
 import {
   Sidebar,
@@ -18,6 +23,7 @@ import {
   SidebarMenu,
   SidebarMenuButton,
   SidebarMenuItem,
+  SidebarProvider,
   SidebarTrigger,
   useSidebar,
 } from "@/components/shadcn/sidebar";
@@ -38,10 +44,11 @@ import { cn } from "@/lib/cn";
  *
  * WHY IT IS OFFSET RATHER THAN FULL-HEIGHT: shadcn's Sidebar positions itself
  * `fixed inset-y-0 h-svh`, which assumes it owns the left edge of the viewport
- * and that any header sits inside the content area beside it. Both shells keep
- * a full-width bar across the top instead, so the panel starts where the bar
- * ends. Each shell passes `top-(--company-bar)!` or `top-(--seeker-bar)!` as
- * `className`: the bar height its own layout.tsx sets once. The override is
+ * and that any header sits inside the content area beside it. The company
+ * shell keeps a full-width bar across the top instead, so its panel starts
+ * where the bar ends: it passes `top-(--company-bar)!` as `className`, the
+ * bar height its layout.tsx sets once. The seeker rail runs the full height,
+ * with no offset. The override is
  * passed in rather than edited into components/shadcn/sidebar.tsx, which
  * `shadcn add` regenerates.
  *
@@ -126,8 +133,9 @@ const CURRENT_ITEM = "data-active:text-brand-ink hover:text-brand-ink active:tex
  * each menu draws one hover highlight and one current highlight behind its
  * rows (GlideMenu below), and moves them. Pointing down the panel, the hover
  * fill travels from row to row instead of blinking off one and onto the
- * next; following a link, the current fill travels to the new section while
- * the page changes beside it. Both ride --ease-glide, 320ms.
+ * next; following a link, the current fill travels to the new section from
+ * the click (GlideMenu says how), while the page changes beside it. Both
+ * ride --ease-glide, 320ms.
  *
  * So every row clears the fills shadcn's button paints itself
  * (hover:, active: and data-active: bg-sidebar-accent), each restated with
@@ -140,9 +148,19 @@ const ROW =
   "[&>svg]:transition-transform [&>svg]:duration-200 [&>svg]:ease-glide " +
   "hover:[&>svg]:translate-x-0.5 active:[&>svg]:scale-90";
 
+/** A rail tile's ROW: the same fills, the icon nudged up toward the name. */
+const TILE_ROW =
+  "transition-colors duration-150 hover:bg-transparent active:bg-transparent data-active:bg-transparent " +
+  "[&>svg]:transition-transform [&>svg]:duration-200 [&>svg]:ease-glide " +
+  "hover:[&>svg]:-translate-y-0.5 active:[&>svg]:scale-90";
+
+/** How a menu draws its rows: the rail's tiles, the rail's phone sheet, or
+ *  the company shell's docked rows. */
+type RowLook = "tile" | "sheet" | "docked";
+
 /**
  * Which row of a menu is the current section, or -1. `exact` rows match
- * only their own path (the company Dashboard, whose path prefixes every
+ * only their own path (the company Home, whose path prefixes every
  * other); the rest also own the pages below them.
  */
 function currentIndex(items: SidebarNavItem[], pathname: string) {
@@ -197,6 +215,9 @@ function Highlight({
 
 type NavRowBase = {
   label: string;
+  /** The name a rail tile shows where `label` does not fit 72px; `label`
+   *  must contain it, so the accessible name holds what is seen. */
+  short?: string;
   /** A Phosphor icon — see "THE ICONS ARE PHOSPHOR'S" above. */
   Icon: ComponentType<{ className?: string }>;
 };
@@ -224,54 +245,51 @@ export type SidebarNavItem = NavRowBase &
 export type SidebarNavGroup = { label?: string; items: SidebarNavItem[] };
 
 /**
- * FLOATING is the seeker shell's panel: a white rounded panel inset 12px on
- * the --color-frame ground, beside a top bar and a page drawn the same way,
- * after the floating-panel dashboards the user pointed at. It runs the full
- * height, so it carries the logo in its own header rather than leaving it to
- * the bar, and a group heading, when a group has one, is a small uppercase
- * caption, the way those dashboards label a panel's sections.
+ * RAIL is the seeker shell's panel: a narrow column that is always open,
+ * each section an icon with its name under it, after Jobright's and
+ * LinkedIn's navigation (2026-10-27). It replaced a 256px panel that
+ * collapsed to an icon rail and opened over the page on hover (KAN-300):
+ * the user found the panel covering the page a flaw, and asked for one
+ * that stays put, narrower, with bigger icons and the names beneath them.
+ * So there is no pin and no peek, and the page never moves for the panel.
  *
- * It is shadcn's default `sidebar` variant restyled, not its own `floating`
- * one. shadcn's floating variant pads the panel 8px and sizes the collapsed
- * rail and the in-flow gap beside it with two separate calc()s that both
- * assume that 8px, so a 12px inset would leave the gap 8px short of the
- * collapsed panel. The default variant sizes both from --sidebar-width and
- * --sidebar-width-icon alone, so the shell widens those by the inset (see
- * its layout.tsx) and the padding is just padding.
+ * 88px wide (--sidebar-width, set by the shell), white, flush with the
+ * window and ruled off by one hairline. Each row is a 72px by 64px tile:
+ * a 24px icon over a 12px name, centred, with 8px of panel either side. A
+ * name that does not fit there takes its item's `short` ("Tracker" for
+ * Applications Tracker), and the full name stays the link's accessible
+ * name, which contains the short one.
+ *
+ * Below md the panel is shadcn's sheet, as before: there the rows go back
+ * to an icon beside the full name (RAIL_SHEET_*), since a sheet has the
+ * room and a phone reads a list faster than a grid of tiles.
+ *
+ * It is shadcn's default `sidebar` variant held open (RailSidebarProvider),
+ * not its `collapsible="none"`, which would drop the phone's sheet.
  *
  * DOCKED is the company shell's: the full-bleed lavender panel under a
  * full-width bar, offset by the bar's height. See "WHY IT IS OFFSET".
  */
-const FLOATING =
-  "p-3 group-data-[side=left]:border-r-0 " +
-  "[&>[data-slot=sidebar-inner]]:rounded-shell [&>[data-slot=sidebar-inner]]:border-rail-border " +
-  "[&>[data-slot=sidebar-inner]]:bg-panel [&>[data-slot=sidebar-inner]]:shadow-panel " +
-  "[&>[data-slot=sidebar-inner]]:overflow-hidden [&>[data-slot=sidebar-inner]]:border";
+const RAIL = "group-data-[side=left]:border-border-subtle [&>[data-slot=sidebar-inner]]:bg-panel";
+const RAIL_GROUP = "px-2 py-2";
+const RAIL_BUTTON =
+  "h-16 flex-col justify-center gap-1 px-1 text-center text-note leading-tight font-medium [&_svg]:size-6 " +
+  // A lighter line than the app's other icons: at 24px globals.css's added
+  // outline (KAN-365) drew a 2px line that read heavy beside the 12px
+  // names (2026-10-27). About 1.7px for Phosphor's 256 grid (16 + 2) and
+  // the custom glyphs' 24 grid alike.
+  "[&_svg[viewBox='0_0_256_256']]:[stroke-width:2] [&_svg[viewBox='0_0_24_24']]:[stroke-width:1.7]";
+const RAIL_SHEET_GROUP = "px-4 py-2";
+const RAIL_SHEET_BUTTON = "h-10 px-3";
+const RAIL_CAPTION = "text-caption text-ink-meta px-3 font-semibold uppercase";
 
-/**
- * THE FLOATING PANEL'S SPACING is set on one vertical line, 28px in from the
- * panel's edge: the logo's mark, the group captions and every
- * row's icon start on it, as the reference dashboard lines up its logo,
- * section labels and icons. The docked panel's 16px put everything close
- * enough to the edge to read as crammed against it, and its logo 5px in.
- *
- * 28 is a 16px group inset plus 12px of row padding, and the numbers are
- * chosen so the icons do not move when the panel collapses. A row is 40px
- * tall, and on the rail it becomes a 40px square with the same 12px padding,
- * centred in a 72px rail by the same 16px inset: its icon's centre is 36px in
- * whether the panel is open (16 + 12 + 8) or collapsed (72 / 2). The rail was
- * 48px with 32px squares, which left 8px either side and felt pinched; 72
- * gives each icon 28px of air on both sides. The shell sets the matching
- * --sidebar-width-icon (72px plus the panel's 12px inset each side).
- *
- * The captions carry the same 12px inside the group as the rows, so their
- * text starts where the icons do, and each group gets 8px above and below so
- * the two read as separate sections rather than one list.
- */
-const FLOATING_GROUP = "px-4 py-2";
-const FLOATING_CAPTION = "text-caption text-ink-meta px-3 font-semibold uppercase";
-const FLOATING_BUTTON =
-  "h-10 px-3 group-data-[collapsible=icon]:size-10! group-data-[collapsible=icon]:p-3!";
+/** The seeker shell's provider: shadcn's, held open on a desktop, so the
+ *  bar's toggle and Ctrl or Cmd+B only open and close the phone's sheet. */
+export function RailSidebarProvider(
+  props: Omit<ComponentProps<typeof SidebarProvider>, "open" | "onOpenChange" | "defaultOpen">,
+) {
+  return <SidebarProvider {...props} open onOpenChange={() => {}} />;
+}
 
 export function AppSidebar({
   groups,
@@ -283,8 +301,8 @@ export function AppSidebar({
   className,
 }: {
   groups: SidebarNavGroup[];
-  /** A card above the footer rows — the seeker's profile strength. It hides
-   *  itself on the collapsed rail. */
+  /** A card above the footer rows — the seeker's profile strength, which
+   *  draws a compact form of itself on the rail. */
   footerCard?: ReactNode;
   /** Rows pinned to the bottom of the panel, apart from the sections: the
    *  things you visit to change how the app works rather than to work in it,
@@ -292,9 +310,9 @@ export function AppSidebar({
   footer?: SidebarNavItem[];
   /** The name of the panel's <nav> landmark, e.g. "Company Sections". */
   label: string;
-  /** See FLOATING above. */
-  variant?: "docked" | "floating";
-  /** Where the floating panel's logo goes home to. */
+  /** See RAIL above. */
+  variant?: "docked" | "rail";
+  /** Where the rail's logo goes home to. */
   home?: string;
   /** The docked shell's bar offset; see "WHY IT IS OFFSET" above. */
   className?: string;
@@ -302,51 +320,61 @@ export function AppSidebar({
   const pathname = usePathname();
   const { isMobile } = useSidebar();
   const { peeking, hoverProps } = useSidebarPin();
-  const floating = variant === "floating";
+  const rail = variant === "rail";
+  // The rail's tiles on a desktop; its sheet below md lists rows.
+  const tiles = rail && !isMobile;
 
   return (
     <Sidebar
       collapsible="icon"
       className={cn(
-        floating ? FLOATING : "border-rail-border h-auto",
+        rail ? RAIL : "border-rail-border h-auto",
         // A peek opens over the page (hover-sidebar.tsx); the docked panel
-        // has only a border, so it takes a shadow to read as above it. The
-        // floating one already has its own.
-        peeking && !floating && "shadow-panel",
+        // has only a border, so it takes a shadow to read as above it.
+        peeking && "shadow-panel",
         className,
       )}
       // Unpinned on a desktop, pointing at the rail or tabbing into it opens
       // it over the page. Never on the phone's sheet, which has no hover.
       {...(!isMobile && hoverProps)}
     >
-      {/* The sheet keeps shadcn's lavender, so on a phone the floating panel
-          paints its own white to match the panels it opens over. */}
-      <div className={cn("flex size-full min-h-0 flex-col", floating && "bg-panel")}>
+      {/* The sheet keeps shadcn's lavender, so on a phone the seeker panel
+          paints its own white to match the shell it opens over. */}
+      <div className={cn("flex size-full min-h-0 flex-col", rail && "bg-panel")}>
         {isMobile && (
           <SidebarHeader className="border-rail-border h-16 shrink-0 flex-row items-center gap-3 border-b px-4 sm:px-8">
             <SidebarTrigger className="text-ink-meta hover:text-ink shrink-0 hover:bg-transparent [&_svg]:size-4" />
-            {floating ? <LogoLockup /> : <Logo size="bar" />}
+            {rail ? <LogoLockup /> : <Logo size="bar" />}
           </SidebarHeader>
         )}
 
-        {floating && !isMobile && home && <PanelBrand href={home} />}
+        {tiles && home && <RailBrand href={home} />}
 
         <nav aria-label={label} className="flex min-h-0 flex-1 flex-col">
-          <SidebarContent className={floating ? "gap-2 pt-3" : "pt-2"}>
+          <SidebarContent className="pt-2">
             {groups.map((group, i) => (
-              <SidebarGroup key={group.label ?? i} className={cn(floating && FLOATING_GROUP)}>
+              <SidebarGroup
+                key={group.label ?? i}
+                className={cn(rail && (tiles ? RAIL_GROUP : RAIL_SHEET_GROUP))}
+              >
                 {group.label && (
-                  <SidebarGroupLabel className={cn(floating && FLOATING_CAPTION)}>
+                  <SidebarGroupLabel className={cn(rail && RAIL_CAPTION)}>
                     {group.label}
                   </SidebarGroupLabel>
                 )}
-                <GlideMenu items={group.items} pathname={pathname} floating={floating} />
+                <GlideMenu
+                  items={group.items}
+                  pathname={pathname}
+                  look={tiles ? "tile" : rail ? "sheet" : "docked"}
+                />
               </SidebarGroup>
             ))}
           </SidebarContent>
 
           {(footerCard || (footer && footer.length > 0)) && (
-            <SidebarFooter className={cn("gap-3 pb-3", floating && "px-4 pb-4")}>
+            <SidebarFooter
+              className={cn("gap-3 pb-3", rail && (tiles ? "px-2 pb-3" : "px-4 pb-4"))}
+            >
               {footerCard}
               {footer && footer.length > 0 && <GlideMenu items={footer} pathname={pathname} />}
             </SidebarFooter>
@@ -358,60 +386,21 @@ export function AppSidebar({
 }
 
 /**
- * The floating panel's logo: <LogoLockup> from @/components/logo, the mark
- * and the word in one 26px box.
- *
- * Open, the mark's ink starts on the panel's 28px line with the captions and
- * the row icons (the drawing has no padding, so the box sits there too).
- * Collapsed, it is centred in the 72px rail instead, its 34px box at 19px: a
- * mark wider than an icon cannot share both their left edge and their
- * centre. So the inset slides between the two on the panel's own 200ms
- * linear, the same time the width takes, while the wordmark fades and the
- * narrowing panel clips it. Nothing swaps mid-way and nothing jumps. The link
- * stays live on the rail, where the mark alone still goes home.
- *
- * 64px tall, the top bar's height, so the panel's header and the bar beside
- * it share one top line and one bottom line, and the logo sits on the bar's
- * centre line as the reference's does.
- *
- * THE PIN sits at the header's right whenever the panel is open (KAN-300):
- * a panel opened by hover covers the bar's own toggle, since it runs the
- * window's full height, so this is where a seeker pins it from without
- * leaving it. It is the same toggle as the bar's (shadcn's toggleSidebar,
- * which hover-sidebar.tsx turns into pin and unpin). Not on the rail, which
- * has no room for it.
+ * The rail's logo: WorkIt's mark alone, centred in a 64px header with a
+ * bottom rule, the top bar's height, so the header's rule and the bar's run
+ * on as one line across the window. The wordmark does not fit 88px. It goes
+ * home, and presses in on the click like every control.
  */
-function PanelBrand({ href }: { href: string }) {
-  const { state, toggleSidebar } = useSidebar();
-  const { pinned } = useSidebarPin();
-  const collapsed = state === "collapsed";
-
+function RailBrand({ href }: { href: string }) {
   return (
-    <SidebarHeader
-      className={cn(
-        "h-16 shrink-0 flex-row items-center p-0 pl-7 transition-[padding] duration-200 ease-linear",
-        collapsed && "pl-[19px]",
-      )}
-    >
-      {/* Presses in on the click like every control, and only that: a logo
-          that moves under the pointer reads as a gimmick. */}
+    <SidebarHeader className="border-border-subtle h-16 shrink-0 flex-row items-center justify-center border-b p-0">
       <Link
         href={href}
+        aria-label="WorkIt Home"
         className="focus-visible:ring-brand-ring flex shrink-0 items-center rounded-xs transition-transform duration-150 ease-out focus-visible:ring-2 focus-visible:outline-none active:scale-[0.97]"
       >
-        <LogoLockup wordmarkHidden={collapsed} />
+        <Logo size="mark" />
       </Link>
-      {!collapsed && (
-        <IconButton
-          label="Pin Sidebar"
-          tooltip={pinned ? "Unpin sidebar" : "Pin sidebar"}
-          aria-pressed={pinned}
-          onClick={toggleSidebar}
-          className="mr-4 ml-auto"
-        >
-          <SidebarPinIcon pinned={pinned} className="size-4" />
-        </IconButton>
-      )}
     </SidebarHeader>
   );
 }
@@ -421,19 +410,34 @@ function PanelBrand({ href }: { href: string }) {
  * at the current row leaves its stronger fill in charge. The hover fill
  * follows the pointer and keyboard focus (focus-visible only, so a click does
  * not leave it behind), and fades where it is when the pointer leaves.
+ *
+ * THE CURRENT FILL LEAVES ON THE CLICK, not when the new page commits. A
+ * section the router has not prefetched waits on the server before its
+ * pathname changes, and the fill, placed from the pathname, sat on the old
+ * row for that whole wait, so the click looked ignored. Each row's link
+ * reports while its navigation is pending (PendingMark, Next's
+ * useLinkStatus), and the fill glides to that row at once, on the same
+ * 320ms glide; its label takes the current colour with it. The pending row
+ * holds only for the pathname it was clicked from, so the commit, or any
+ * other move, hands the fill back to the pathname. `aria-current` stays on
+ * the committed row: a screen reader is not told of a page that has not
+ * loaded. A prefetched section (one with a loading.tsx) commits in the next
+ * frame, and Next reports no pending state for it.
  */
 function GlideMenu({
   items,
   pathname,
-  floating = false,
+  look = "docked",
 }: {
   items: SidebarNavItem[];
   pathname: string;
-  floating?: boolean;
+  look?: RowLook;
 }) {
   const [hover, setHover] = useState<{ index: number; glide: boolean } | null>(null);
   const [lastHover, setLastHover] = useState(0);
+  const [pending, setPending] = useState<{ index: number; from: string } | null>(null);
   const current = currentIndex(items, pathname);
+  const lit = pending?.from === pathname ? pending.index : current;
 
   function highlight(index: number) {
     // Glide only from another row; from nothing, appear in place.
@@ -441,13 +445,30 @@ function GlideMenu({
     setLastHover(index);
   }
 
+  /** A row's link started or stopped navigating. Returns the old state
+   *  where nothing changes, so a report repeated by a re-render is free. */
+  function report(index: number, isPending: boolean) {
+    setPending((previous) => {
+      if (isPending) {
+        return previous?.index === index && previous.from === pathname
+          ? previous
+          : { index, from: pathname };
+      }
+      return previous?.index === index ? null : previous;
+    });
+  }
+
   return (
     <div
       className={cn(
         "relative",
-        // A row's height, open and on the rail: FLOATING_BUTTON's 40px both
-        // ways, MENU_BUTTON's 36px open and shadcn's 32px square collapsed.
-        floating ? "[--row:2.5rem]" : "[--row:2.25rem] group-data-[collapsible=icon]:[--row:2rem]",
+        // A row's height: the rail's 64px tile, its sheet's 40px row, and
+        // MENU_BUTTON's 36px open and shadcn's 32px square collapsed.
+        look === "tile"
+          ? "[--row:4rem]"
+          : look === "sheet"
+            ? "[--row:2.5rem]"
+            : "[--row:2.25rem] group-data-[collapsible=icon]:[--row:2rem]",
       )}
       onPointerLeave={() => setHover(null)}
     >
@@ -457,16 +478,18 @@ function GlideMenu({
         glide={hover?.glide ?? false}
         className="bg-rail-hover"
       />
-      <Highlight index={current} visible={current >= 0} glide className="bg-rail-selected" />
+      <Highlight index={lit} visible={lit >= 0} glide className="bg-rail-selected" />
       <SidebarMenu className={cn(MENU, "relative")}>
         {items.map((item, i) => (
           <NavRow
             key={item.label}
             item={item}
             current={i === current}
-            floating={floating}
+            lit={i === lit}
+            look={look}
             onHighlight={() => highlight(i)}
             onUnhighlight={() => setHover(null)}
+            onPending={(isPending) => report(i, isPending)}
           />
         ))}
       </SidebarMenu>
@@ -477,19 +500,31 @@ function GlideMenu({
 function NavRow({
   item,
   current,
-  floating = false,
+  lit,
+  look = "docked",
   onHighlight,
   onUnhighlight,
+  onPending,
 }: {
   item: SidebarNavItem;
+  /** The committed section's row: aria-current. */
   current: boolean;
-  floating?: boolean;
+  /** Drawn as current: the committed row, or the one whose navigation is
+   *  pending (GlideMenu). */
+  lit: boolean;
+  look?: RowLook;
   onHighlight: () => void;
   onUnhighlight: () => void;
+  onPending: (pending: boolean) => void;
 }) {
-  const { label, Icon } = item;
+  const { label, short, Icon } = item;
   const { setOpenMobile } = useSidebar();
-  const size = floating ? FLOATING_BUTTON : MENU_BUTTON;
+  const tile = look === "tile";
+  const size = tile ? RAIL_BUTTON : look === "sheet" ? RAIL_SHEET_BUTTON : MENU_BUTTON;
+  const row = tile ? TILE_ROW : ROW;
+  // A tile shows the short name; the full one stays the accessible name.
+  const text = tile && short ? short : label;
+  const name = text === label ? undefined : label;
 
   // Keyboard focus moves the hover fill too; a mouse click's focus does not.
   const focusProps = {
@@ -509,10 +544,11 @@ function NavRow({
             void item.action();
           }}
           {...focusProps}
-          className={cn(size, ROW, "cursor-pointer")}
+          aria-label={name}
+          className={cn(size, row, "cursor-pointer")}
         >
           <Icon aria-hidden className="size-4" />
-          <span>{label}</span>
+          <span>{text}</span>
         </SidebarMenuButton>
       </SidebarMenuItem>
     );
@@ -521,17 +557,39 @@ function NavRow({
   return (
     <SidebarMenuItem onPointerEnter={onHighlight}>
       <SidebarMenuButton
-        isActive={current}
+        isActive={lit}
         tooltip={label}
-        render={<Link href={item.href} aria-current={current ? "page" : undefined} />}
+        render={
+          <Link href={item.href} aria-current={current ? "page" : undefined} aria-label={name} />
+        }
         // Closes the phone sheet on the way out; a no-op on the desktop panel.
         onClick={() => setOpenMobile(false)}
         {...focusProps}
-        className={cn(size, ROW, current && CURRENT_ITEM)}
+        className={cn(size, row, lit && CURRENT_ITEM)}
       >
         <Icon aria-hidden className="size-4" />
-        <span>{label}</span>
+        <span>{text}</span>
+        <PendingMark onPending={onPending} />
       </SidebarMenuButton>
     </SidebarMenuItem>
   );
+}
+
+/**
+ * Inside a row's <Link> (SidebarMenuButton's render prop keeps its children
+ * in the link): tells the menu when that link's navigation starts and ends,
+ * through Next's useLinkStatus, which reads the nearest Link's state. Draws
+ * nothing. The callback is read from a ref, so a re-render's new function
+ * does not report again.
+ */
+function PendingMark({ onPending }: { onPending: (pending: boolean) => void }) {
+  const { pending } = useLinkStatus();
+  const report = useRef(onPending);
+  useEffect(() => {
+    report.current = onPending;
+  });
+  useEffect(() => {
+    report.current(pending);
+  }, [pending]);
+  return null;
 }

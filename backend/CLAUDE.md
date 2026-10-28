@@ -40,6 +40,7 @@ uv run python -m app.scripts.import_jobs       feed.json → job_postings, job_r
 uv run python -m app.scripts.intake_test_set   intake's fixed test set against the SCOUT_* model (by hand, never CI)
 uv run python -m app.scripts.ship_check ...   the connector's blind read, KAN-386 (by hand, never CI; data outside the repo)
 uv run python -m app.scripts.clean_bank_entries  one-off: split "| C++, Go" off older bank titles, drop read skills the catalog lacks; --typed also drops Tailor-added degrees/"AI tools" (dry run unless --apply; local DB only)
+uv run python -m app.scripts.fill_report <id>   a fill report's fix brief + form fixture into fill-reports/ (--latest; reads DATABASE_URL, writes nothing)
 python3 scripts/fetch_tectonic.py              Tectonic + warm cache into vendor/ (resume PDFs; once per checkout)
 ```
 
@@ -81,11 +82,32 @@ module docstring has the steps.
   upgrade head` for `188c8c2d7c14` (drops the old levels). `188c8c2d7c14`
   before the deploy fails every Experience filter and count on the live Jobs
   page (`app/models/CLAUDE.md`, KAN-233).
+- **Each close records why** (`job_postings.closed_reason`, KAN-412):
+  `gone_from_board`, `board_gone`, `filtered_out` or `replaced`, from the
+  scraper's `closings.json` beside the feed (`--closings` names another),
+  else `unknown`. A reopen clears it with `closes_at`. **A missing or
+  malformed file never stops the run**: its closes are real, so they go in
+  as `unknown` and the report says so; a reason not in `CLOSED_REASONS` is
+  filed as `unknown` too, so a newer scraper never fails the CHECK and rolls
+  back the whole import. The report counts this run's closes by reason. To
+  find a bad close, read the jobs one run closed (`closes_at`) by reason,
+  then fix its cause and re-run: a job back in the feed reopens. Reopening
+  by hand does nothing, since the next import closes a job the feed lacks.
 - The feed's `roles` keys (KAN-172) are ignored: `JobListing` doesn't declare
   them, so a new scraper key never fails the import. A job's roles are its
   `job_role_tags`, resolved from its title (KAN-155).
 - A `--dry-run` writes and rolls back, leaving dead rows until autovacuum, so
   table sizes read right after one are inflated.
+- **After it commits, it extracts keywords** (KAN-392) for published scraped
+  jobs with none (`_extract_keywords`, through `keywords.read` and Scout's
+  `SCOUT_*` chain): new jobs, and changed ones, whose keywords the upsert
+  cleared. At most `--keywords-limit` model calls a run (default
+  `KEYWORDS_PER_RUN`, 100; 0 skips), so the backlog spreads over runs and
+  quotas; `--keywords-only` runs the pass alone. Each job commits on its
+  own and no transaction stays open across a model call. It reads past the
+  last id tried, never "still NULL": a job whose reply fails its schema
+  stays NULL, and a NULL query read it again forever. It stops at the first
+  `ScoutUnavailable` (no model answers) and counts no student's use.
 
 ### Tests
 
@@ -107,6 +129,13 @@ module docstring has the steps.
   and the test uploads to the real bucket. `tests/test_sent_resumes.py`'s
   `storage` fixture is the pattern: an in-memory bucket that records uploads
   and removals.
+- **A test that calls a model route swaps the model with
+  `tests/fake_models.py`'s `use(fake)`**, which overrides all three
+  sizes (`app/services/models.py`) at once, and `clear()` after; a test of
+  which size a feature asks for overrides one itself
+  (`tests/test_model_sizes.py`, Tailor's split in `tests/test_tailor.py`).
+  Overriding `get_llm` alone leaves a route that asks for another size on
+  the real model.
 - **An auto apply test seeds a hiring system's `apply_url`** (Greenhouse in
   most; `_seed_posting(database, url)` in `tests/test_sent_resumes.py`): the
   queue refuses every host not in `app/auto_apply/hosts.py` with a 404 (a
@@ -116,9 +145,10 @@ module docstring has the steps.
   container, so only CI caught it (2026-10-17). Run them with the container
   up before pushing a change to auto apply's queue.
 - **The import's database half is barely tested.** Only its clearing of
-  cached keywords is (`tests/test_keyword_match.py`, which runs
-  `import_feed` on `get_engine()`, the pattern for more); the rest can get
-  tests the same way through the `database` fixture below.
+  cached keywords (`tests/test_keyword_match.py`, which runs `import_feed`
+  on `get_engine()`, the pattern for more) and its closes and their reasons
+  (`tests/test_import_closings.py`) are; the rest can get tests the same
+  way through the `database` fixture below.
 
 ### Tests against real Postgres
 
@@ -164,6 +194,13 @@ uv run pytest
   Supabase's keys; return an `AuthenticatedAccount` for a seeded row. A
   profile row needs its `auth.users` row first. `tests/test_database_smoke.py`
   is the pattern.
+- **The feed's viewer is a separate override.** `GET /jobs` reads the
+  viewer from the token through `get_signed_in_applicant_id`, not
+  `get_current_account`, so a test that asks the feed as a student
+  overrides both, or the feed serves it as signed out and lists every job
+  (`tests/test_tracker.py`'s `student` fixture). A test of the Jobs page
+  hiding an applied job passed locally, where the database tests skip, and
+  failed in CI (KAN-413).
 - **A failed migration fails every database test.** The chain runs from
   scratch on each run, so a migration that only works on top of the shared
   database's history shows up here first.
@@ -189,6 +226,13 @@ Find files with a directory listing; these are the rules for where code goes.
 - **Services** (`app/services/`): logic with no HTTP or database of its own.
   Never in `models/`, whose `__init__` imports every file as a model. Job
   matching: `app/services/matching/CLAUDE.md`.
+- **Every AI feature gets its model from `app/services/models.py`**
+  (KAN-356), as a FastAPI dependency by size: `get_large_llm` (Tailor's
+  rewrite, Read It With AI, the editor assistant), `get_small_llm` (every
+  keyword extraction) or `get_llm` (Scout, intake, essay answers). A new
+  feature picks a size there; it never builds an `LLM` itself, so the
+  `SCOUT_*` settings stay the one place a model is named
+  (`../scout/CLAUDE.md`, "Which model, where").
 - **Auto apply** (`app/auto_apply/`): KAN-223's layers 1 and 2. Layer 1
   is `rules.py` pure (no session) and `queries.py` database; layer 2 is
   the steps that call them, `pipeline.py`, which every caller imports.
@@ -313,21 +357,41 @@ Find files with a directory listing; these are the rules for where code goes.
   **Each listed answer carries `answered_at`** (KAN-369), when it was last
   saved: the page marks the student's own answers (captured from a form)
   New by it until they have seen them. Tests: `tests/test_captured_answers.py`.
-  **Problem reports from the extension's panel** (KAN-403,
-  `routers/fill_reports.py` over `queries/fill_reports.py`, table
-  `fill_reports`): `POST /fill-reports`
-  stores what the student previewed and sent (job system, the posting's
-  link, Fill engine version, each failed field's
-  kind, label shape and error name, their note). The row names no
-  account, though sending needs a sign-in. Every model forbids other keys
-  and the label shape holds only letters, `#` and spaces, so an answer or
-  the page's text is refused (422), never stored. The link is http or
-  https with no sign-in in it and no fragment, and its query keeps only the
-  params that name the posting (`schemas/fill_reports.py` POSTING_PARAMS:
-  Greenhouse's embed `for` and `token`, `gh_jid`, `jobId` and the like),
-  each an id; any other param is refused. It feeds the team's
-  engine repair loop; nothing reads it in the app. Tests:
-  `tests/test_fill_reports.py`.
+  **Problem reports from the extension's panel** (KAN-403, fix reports
+  KAN-369; `routers/fill_reports.py` over `queries/fill_reports.py`, table
+  `fill_reports`, migrations `c4e1a9f2d803`, `e5b8d2a7c914`): `POST
+  /fill-reports` stores what the student previewed and sent: job system,
+  the posting's link, Fill engine version, what opened the card
+  (`trigger`), the context (extension version, browser, the engine's
+  recognition of the page), each field's structure and what the fill did
+  with it (name, label, kind, options, selector, visible, source, the
+  planned answer's shape such as `text:12`, status, reason with values out,
+  read-back, error, marked, edited), the timeline (steps, errors, stacks)
+  and the form's HTML with values out (`html`, at most `HTML_MAX`), and
+  their note. **The row names its sender** (`account_id`, cascading with
+  the account): a student lists their own (`GET /fill-reports/mine`) and
+  reads one of theirs (`GET /fill-reports/{id}`; another's is 404). Values
+  never reach it by design: the extension takes them out before the
+  preview; every model forbids other keys, the shapes are patterns, and
+  `scrub` replaces what still looks like an email or a phone in every
+  free text. The body is read in chunks and refused past `BODY_MAX` (413),
+  never whole. The link is http or https with no sign-in and no fragment,
+  and its query keeps only the params that name the posting
+  (`schemas/fill_reports.py` POSTING_PARAMS), each an id.
+  **Admins** are the emails or account ids on `WORKIT_ADMINS`
+  (`app/config.py`; `deps.get_admin`, 403 to anyone else): there is no
+  admin role in the database. They list (`GET /admin/fill-reports`, newest
+  first, `?job_system=&status=`), read, triage (`PATCH`, status new /
+  triaged / fixed and a note) and export a report: `GET
+  /admin/fill-reports/{id}/brief` is the Markdown fix brief
+  (`services/fill_brief.py`, format in `../docs/fill-reports.md`;
+  `tests/fixtures/fill_brief.md` is a golden copy, so a format change
+  updates both), `.../fixture` the form's HTML as a text/plain download
+  (never served as HTML: it is an employer page's markup). `uv run python
+  -m app.scripts.fill_report <id>` (or `--latest`) writes the brief, the
+  fixture, its question set and the report to `fill-reports/` (gitignored)
+  and names the engine commit the report's engine version was built from.
+  Tests: `tests/test_fill_reports.py`, `tests/test_fill_report_briefs.py`.
   **Job system requests from the extension's popup** (KAN-369,
   `routers/job_system_requests.py`, table `job_system_requests`, migration
   `d8a3f5c1e7b2`): `POST /job-system-requests {"host"}` stores the host of
@@ -472,6 +536,17 @@ Find files with a directory listing; these are the rules for where code goes.
   session, flushes and never commits, so the router owns the transaction and
   one request can make many changes atomically (an import saving many
   entries).
+- **A resume-local skill is not in the bank** (`docs/tailor_resume.md`):
+  `load_bank` leaves out every skill a built resume owns
+  (`bank_skills.built_resume_id`) unless the caller names that resume in
+  `local_to`. Every reader of one built resume names it: `load_view` (the
+  PDF, Word, LaTeX, keyword match, Fit, sent resumes), the choices PATCH,
+  the editor assistant, Tailor's built source, Generate's duplicate check
+  (all resumes), and `GET /bank?built_resume_id=` (the editor page).
+  Nothing else does, so Scout, the recommender, Generate and the
+  Experiences view never see one. `add_local_skill` writes one and leaves
+  the bank's embedding alone. Tests: `tests/test_tailor.py`, "Resume-local
+  skills".
 - **The experience bank is written only through `services/bank.py`.** It
   holds the ownership scoping, the duplicate check and the clearing of the
   bank embedding on every entry, bullet or skill change; a route or script
@@ -485,14 +560,16 @@ Find files with a directory listing; these are the rules for where code goes.
   embedding (`app/services/matching/CLAUDE.md`); Scout's facts come from
   the bank's API shape (`routers/bank.py`'s `bank_response`) through
   `workit_scout.facts`. An uploaded resume only feeds import.
-- **A job's match score comes from `fetch_recommended` only**, wherever it
-  shows. The Applications page's cards (KAN-256) get theirs through
-  `GET .../applications?scored=true`, which narrows it to the tracked job
-  postings with `JobFilters.job_ids`. A second scoring path would let a
-  card and the Jobs page show two numbers for one job.
+- **A job's match score comes from `score_jobs`**, the same path everywhere.
+  `GET /jobs` enriches each listing with `match` and `highlights` when the
+  viewer is a signed-in applicant with a non-empty bank (KAN-309);
+  `GET /jobs/recommended` uses `fetch_recommended` (which calls `score_jobs`);
+  the Applications page's cards (KAN-256) get theirs through
+  `GET .../applications?scored=true`, which narrows it with
+  `JobFilters.job_ids`. One scoring path, one number per job.
 - **A student reaches only the postings the Jobs page lists**
   (`services/postings.py`'s `LISTED`: published and scraped). Tailor (run
-  and Done), the keyword match and Apply load a posting through
+  and its match), the keyword match and Apply load a posting through
   `postings.listed`, so a company's draft or a closed posting answers 404
   and its text never reaches a model. The one exception: a tailored
   resume's keyword match against its own posting, which still works after
@@ -522,7 +599,7 @@ Find files with a directory listing; these are the rules for where code goes.
   their places on built resumes go, with no warning. Deleting an upload
   deletes its rows (cascade). Upload flushes the `Resume` row first (the
   rows point at it). An item with no owner was made by the student, by
-  intake or by Tailor's "Have you used X?". Add (`POST .../bank/entries`
+  intake or by Tailor's "Have you used X?" (removed). Add (`POST .../bank/entries`
   and `.../skills`) takes `?resume_id=`: an upload owns the new item, a
   built resume gets a shown choice row; its duplicate check and the skill
   name index (`NULLS NOT DISTINCT`) look at one owner only. `GET /bank`
@@ -800,75 +877,143 @@ Find files with a directory listing; these are the rules for where code goes.
   script before a new endpoint joins the chain.
 - **The keyword match** (KAN-215) is `GET .../built-resumes/{rid}/keyword-match`
   over `services/keywords.py`: a job posting's keywords, extracted once by
-  the model and cached on the posting with a hash of its description, and
+  the model and cached on the posting with a hash of its title and the
+  description's job part (`job_part`), all the model read, and
   the pure count of those the built resume view shows (text and skills,
   whole words, ignoring case). **Only an extraction spends a use, and it
   counts under `TAILOR`**; a cached match is free, for every student. Tailor
   (KAN-217) reads them through the same `keywords.ensure` (the cache, else
   an extraction stored on the posting) and counts its run once, not once
   more for the extraction. Which use an extraction spends stays in each
-  router. Tests:
+  router. **Every extraction uses the small model** (`get_small_llm`,
+  KAN-356), Tailor's included: its run routes (JSON and stream) take the
+  large model for the rewrite and the small one for `keywords.ensure`, and
+  its match route only the small one, so a posting's keywords
+  come from one chain whichever path reads them first. Routes pass the
+  model in; `ensure` never loads one, so a test's dependency override
+  reaches it. **Most postings are read before any student asks** (KAN-392):
+  the feed import's keyword pass (The feed import, above), and for a
+  company job, a background task after a save that leaves it published
+  (`company_jobs._fill_keywords`, in its own session after the response,
+  so the composer never waits on a model). A draft is not read: no student
+  sees it and its text keeps changing. Either failure only logs, and
+  `ensure` stays the fallback. **The import and `cached` hash with one
+  function, `posting_text_hash`**: the import's pass (KAN-392) and the
+  title-and-job-part hash (KAN-343) landed separately, the import hashing
+  the description alone, which left every cache it filled stale to
+  Tailor and spent each extraction twice. Tests:
   `tests/test_keyword_match.py` (the cache, its clearing by the import and
-  by the hash, an invalid or failed reply counts nothing, the cap).
-- **Tailor** (KAN-217) is `routers/tailor.py` over `services/tailor.py`.
-  A run (`POST .../tailor`) proposes changes and saves nothing but the
-  count and an uploaded source's reading, merged into the bank; Done (`POST .../tailor/done`) saves the accepted ones on the
-  posting's one tailored resume, approved wordings as bullet variants for
-  the posting. Rules, each with a test in `tests/test_tailor.py`:
-  - **The student picks the source** (KAN-318): run and Done each take
-    exactly one of `built_resume_id` or `uploaded_resume_id` (422
+  by the hash, an invalid or failed reply counts nothing, the cap, the
+  import's pass and the company job's task).
+- **Tailor** (KAN-217, `../docs/tailor_resume.md`) is `routers/tailor.py`
+  over `services/tailor.py`. `POST .../tailor/match` gives the picked
+  source's keyword match (and the posting's tailored resume, if any) for
+  the student to pick the missing keywords to add. A run (`POST
+  .../tailor`) then rewrites, orders and adds those skills and **saves the
+  posting's tailored resume itself, with no confirmation**: proposals,
+  Accept and Reject, Done (`.../tailor/done`) and "Have you used X?" were
+  removed on 2026-10-25. It answers with `edits`, each change and what it
+  replaced, which the editor marks and can revert until Save; the API keeps
+  no record of them. **The Tailor screen runs it streamed**, `POST
+  .../tailor/stream`: the same steps (`_steps`, one generator both routes
+  read) as NDJSON lines, `asking` before the model call, `generating` after
+  it, then `done` or `error`. It opens its own session, since the
+  request's may close once streaming starts, and runs to the first line
+  before it answers, so every refusal before the model call stays an
+  HTTP status. Rules, each with a test in `tests/test_tailor.py`:
+  - **One tailored resume per posting; a second run replaces it in place**
+    (2026-10-26). The run keeps the resume's row (its id, the student's
+    name for it, its star), and once the model has answered clears what
+    the last run and the student's edits made on it alone
+    (`tailor.clear_run`: its own skills and typed wordings) before writing
+    every choice afresh; a failed run leaves it as it was. The posting's
+    variants stay, since another resume may show one. A source that is the
+    posting's own tailored resume answers 422 before any model call: it
+    would read the lines the run clears. Two first runs at once: the
+    loser's commit fails on `built_resumes_applicant_posting_key` and
+    answers 409. It was made once, a second run refused with a 409 to save
+    tokens, until the review's Back to Choose Keywords asked for runs again.
+  - **The student picks the source** (KAN-318): the match and the run each
+    take exactly one of `built_resume_id` or `uploaded_resume_id` (422
     otherwise; 404 for one not the applicant's). A built resume gives its
-    choices. An upload gives the entries and skills it owns
-    (`tailor.upload_source`, ADR 0005), built in memory, never saved;
-    every other entry and skill waits hidden. It never reads an upload
-    that owns something again: a reading replaces what it owns, which
-    would drop those entries from the tailored resume. One that owns
-    nothing is read into the bank first. It used to
-    start from the newest base resume by `created_at`, which ignored the
-    star and the student's edits, and to generate one when there was
-    none. An upload the parser reads nothing from answers 409. Done
-    writes the posting's one tailored resume from whichever source it is
-    sent, so a new source replaces what it showed.
+    choices (and its own skills: a tailored resume can be a source). An
+    upload gives the entries and skills it owns (`tailor.upload_source`,
+    ADR 0005), built in memory, never saved; every other entry and skill
+    waits hidden. It never reads an upload that owns something again: a
+    reading replaces what it owns, which would drop those entries. One
+    that owns nothing is read into the bank first. An upload the parser
+    reads nothing from answers 409. The source never changes.
   - **The truth rule is one pure function**, `services/truth_rule.py`'s
     `invented` (tested directly, `tests/test_truth_rule.py`): a wording
-    with a number or tool in neither its original bullet nor the bank's
-    skills is dropped from the proposals and refused (422) at Done, since
-    the browser can send any text. Change what counts as a tool there and
+    with a number or tool in neither its original bullet nor what the
+    student has already said (`tailor.known`: the resume's skills, the
+    picked missing keywords, and the posting's keywords the resume already
+    shows anywhere, coursework included) is dropped and counted in
+    `dropped`. A missing keyword the student did not pick is in none of
+    these, so "backend" on a designer's bullet is dropped while
+    "algorithms", in the resume's coursework, passes: in the first live run
+    (2026-10-25) the posting-keyword check dropped both rewordings, the
+    second for "algorithms" alone. `propose` and `save_variants` read one
+    `known` list.
+    Both read every bank skill before 2026-10-25, so a wording could bring
+    in another upload's skill. Change what counts as a tool there and
     nowhere else.
-  - **A run tailors only what the picked resume shows** (KAN-318,
-    `tailor.on_resume`): its shown entries and their shown bullets are
-    all that is ranked, sent to the model, reworded, reordered and
-    matched. It never proposes an entry or bullet the resume hides, so a
-    pick keeps its focus and length. "Bring back" (`show_entry`) is gone,
-    and the API refuses it at Done (422). Skills are the exception: every
-    bank skill stays in, so a hidden one that adds a keyword is still
-    proposed, and the truth rule still reads them all. Before this, the
-    whole bank went to the model, and the hidden bullets took places among
-    the best 40 although a reword of one was always dropped.
-  - **A missing keyword that neither the resume's entries nor any bank
-    skill hold is a question** ("Have you used X?"), never words. A hidden
-    entry's words do not count, since the run never brings it back. Only
-    a keyword the skills catalog knows is asked (`services/skill_catalog.py`,
-    KAN-369): a degree, "AI tools" or a soft skill never is, so Yes never
-    adds one. Yes adds the skill through the bank's own routes and shows
-    it, with no AI call.
+  - **A run tailors only what the picked resume shows, read once as its
+    view** (KAN-318): the router builds `build_view(bank, choices)` once,
+    and the rank, the prompt, the handles, the changes, the keyword match
+    and the record of edits all read it. So the model sees the resume the
+    student sees: its shown entries and bullets in the resume's own order
+    and wording, and only its shown skills. `prompt` and `propose` number
+    the handles from the same view, or b3 would name two bullets. A run
+    never adds an entry or bullet the resume hides, so a pick keeps its
+    focus and length. `on_resume`, the bank cut to what shows, was a
+    second copy of the view's rule and is gone.
+  - **A keyword the student does not pick is never written in.** Picked
+    skills (`skills` in the run's body; only missing keywords count, any
+    other name is ignored) go on the tailored resume only, as its own
+    skills (`bank_skills.built_resume_id`, `place_on`), never into the
+    experience bank. The prompt numbers the resume's skills by group
+    (`skill_numbers`) and lists the picked ones to place; the model answers
+    a group and `after` (a number it copies, 0 for first in the group) for
+    each, and `place_skills` checks each placement alone and builds the
+    order (the group wins over the number; at most two new groups;
+    positions come from code, never the model). A hidden bank skill that
+    holds a keyword is no longer offered: it was a card per skill, two
+    when two uploads owned one name.
   - **The model sees handles (b1, e1), never ids**, and no links: an
     entry's link field is left out and the seam removes identity data.
     Postgres text search (`ts_rank`, the posting's words OR'd) ranks the
-    resume's bullets: the best 40 go to the model, and the rank proposes
-    each entry's bullet order. A posting with no description is read by its
-    title, with `weak_match`.
-  - **A change names its entry with the organization** ("Software Intern,
-    Acme"), since two jobs can share a title.
-  - **One run is one `TAILOR` use**, counted after the model answers and
-    the proposals are built; a keyword extraction inside the run is not a
-    second use. **Lifted for now (KAN-319):** the route's `uses_left`
-    check and `count_use` are commented out, it answers `uses_left` as the
-    cap, the Tailor screen hides its "runs left today" and "Each run uses
-    one of today's 2 Tailor runs" lines, and the three
-    cap tests in `test_tailor.py` are skipped. Restore all four together.
-    The keyword match in `routers/built_resumes.py` still spends `TAILOR`
-    uses.
+    resume's bullets, and a run orders each entry's bullets by it. A
+    posting with no description is read by its title, with `weak_match`.
+  - **A run fits Groq's free tier** (8,000 tokens a minute for
+    gpt-oss-120b, prompt and reply together): the prompt is estimated at
+    four characters a token, and over `PROMPT_TOKENS` (5,000) it leaves out
+    the lowest-ranked bullets, keeping every entry's line; the reply asks
+    for `REPLY_TOKENS` (3,000) at most. A request a provider still finds too
+    large moves down the chain (Scout's `RequestTooLarge`); a reply stopped
+    at its cap is `ReplyCutOff`. Each has its own line in
+    `services/ai_messages.py`. There is no cap on how many bullets the model
+    rewords.
+  - **A rewording must keep its bullet** (`keeps_its_bullet`): a third of
+    the original's words (three letters or more; a shared start of four
+    letters counts) must be in it, or it is dropped and counted in
+    `dropped`. The model copies handles, and one copied wrong puts a
+    rewording on another bullet; the truth rule passes it when it adds no
+    number or tool.
+  - **A failed run saves nothing.** The tailored resume, its variants, its
+    choices and its own skills go in one commit after the model answers;
+    only the posting's keyword cache, and what reading an upload wrote,
+    are committed earlier, since they are not the run's.
+  - **An order edit names its entry with the organization** ("Software
+    Intern, Acme"), since two jobs can share a title.
+  - **One run is one `TAILOR` use**, counted after the model answers; a
+    keyword extraction inside the run or the match is not a second use.
+    **Lifted for now (KAN-319):** the route's `uses_left` check and
+    `count_use` are commented out, it answers `uses_left` as the cap, the
+    Tailor screen hides its "Each run uses one of today's 2 Tailor runs"
+    line, and the three cap tests in `test_tailor.py` are skipped. Restore
+    them together. The keyword match in `routers/built_resumes.py` still
+    spends `TAILOR` uses.
 - **The editor assistant** (KAN-221) is `routers/assistant.py` (`POST
   .../built-resumes/{rid}/assistant`) over `services/assistant.py`. The
   model only **reads** the student's message into one action (fit, hide,
@@ -905,6 +1050,21 @@ Find files with a directory listing; these are the rules for where code goes.
   would eventually get its own JSONB-backed slot). One `ESSAY` use per
   generated answer (cap 5, share 10%: on top of the spec's four shares plus
   the assistant's, following the same accepted-overshoot precedent).
+- **The Applications Tracker's own writes** (KAN-413,
+  `../docs/email_tracker.md`) are `routers/tracker.py` over
+  `queries/tracker.py`: the stage menu (`PUT .../applications/{job_id}/stage`,
+  applied or later, any direction) and the events (`GET .../events`, with
+  `?status=proposed` for Email Updates, `POST
+  .../applications/{job_id}/events`, `DELETE .../events/{event_id}` (an
+  event added by hand only: one from an email stays as the Inbox's record,
+  and its delete answers 404), and an
+  update's `POST .../events/{event_id}/accept` and `.../dismiss`), and
+  the Inbox's `GET .../emails` (every email, every status). An
+  event moves its application forward only (`advance`, Accept too). **An
+  email files itself unless it would move the stage or matched no job**
+  (`needs_review`, `file_email`, the Gmail reader's entry point); a stage past
+  applied still counts as applied (`dto.APPLIED_STAGES`, the models'
+  CLAUDE.md). Tests: `tests/test_tracker.py`.
 - **Utils** (`app/utils/`): the resume parser; `app/utils/CLAUDE.md`.
 - **Scripts** (`app/scripts/`): commands run by hand,
   `uv run python -m app.scripts.<name>`.
@@ -1070,7 +1230,9 @@ removed at cutover, not before. Until then a change must work on both.
   real deploy from a laptop.
 - **Production env vars:** `DATABASE_URL`, `SUPABASE_URL`,
   `SUPABASE_SERVICE_KEY`, and Scout's `SCOUT_*` (`../scout/CLAUDE.md`, "Which
-  model, where"); without `SCOUT_*` every Scout reply is "offline". The
+  model, where"); without `SCOUT_*` every Scout reply is "offline".
+  `SCOUT_ENDPOINTS_LARGE` and `SCOUT_ENDPOINTS_SMALL` are optional: unset,
+  each size runs on the default chain. The
   `AI_*` usage limits are optional (defaults in `app/config.py`). **Never
   `DIRECT_URL`**: migrations run by hand, locally, and the deployed API has no
   business holding that connection. Embeddings use Ollama with
@@ -1120,6 +1282,41 @@ removed at cutover, not before. Until then a change must work on both.
   KAN-343) before the deploy that writes them.** The models map both
   tables, so deployed first, every upload, Import Again and `GET /bank`
   answers 500. It only adds two tables, so applying it early is safe.
+- **`b9e2c4d6f8a1` drops `resumes.embedding`**, the contract half of
+  KAN-212: apply it only where the code that stopped mapping the column
+  (`d89a4ef`, on `main` since KAN-212) is deployed. Applied first, an older
+  deploy's upload INSERT names the column and fails.
+- **`89d598a1667d` (KAN-298's notifications) is on main ahead of its
+  code**, with the merge revision `c4e8a2f6d1b3` joining it to
+  `a7d3e5f1c2b4` (both branch off `b9e2c4d6f8a1`). It was applied to the
+  shared database from KAN-298's open branch (`alembic/CLAUDE.md`, "Commit
+  the migration in the same PR that applies it"), so its file came to main
+  first, unchanged. Until KAN-298's models merge, main maps neither
+  `notifications` nor `applicant_profiles.job_alerts_enabled`:
+  `alembic revision --autogenerate` proposes dropping both, so delete
+  those lines from any migration it writes, and `alembic check` reports
+  them. The column has a `false` default, so main's inserts are unaffected.
+- **Apply `a7d3e5f1c2b4` (the stages after applied and
+  `application_events`, KAN-413) before the deploy that writes them.** It
+  only adds enum values and a table, so the running code never meets
+  them; deployed first, the Applications Tracker, an application's page and
+  Home's numbers answer 500 for every student (they ask for the new
+  stages and `GET .../events`). The Jobs page and matches keep working
+  either way: their applied-job filter names only the stages before applied
+  (`dto.BEFORE_APPLIED`, the models' CLAUDE.md). Merge the migration to
+  `main` in its own PR first, then apply it, then test the branch.
+- **Apply `bd730e8ab454` (`job_postings.closed_reason`, KAN-412) as soon as
+  it merges.** It only adds a nullable column and a CHECK every row meets, and
+  no code maps it yet, so it is safe for every deploy. The import that writes
+  it (why a scraped job closed) follows in its own PR, whose dry-run scrape
+  check and every scheduled import fail on a database without it; and the
+  model maps it, so a company job's insert fails there too.
+- **Apply `a3d7f1c9e2b4` (`bank_skills.built_resume_id`, resume-local
+  skills) before the deploy that maps it.** Every skill insert names the
+  column, so deployed first, uploads, Import Again and Add skill answer
+  500. It only adds a nullable column, a check every row meets and
+  indexes, so applying it early is safe. It sits on `c8f2a4e6b913`, which
+  goes on after ADR 0005's deploy (below), so apply both in that order.
 - **ADR 0005 is two migrations around one deploy.** Apply `b5e1c3a7d920`
   (adds `resume_id` to `bank_entries` and `bank_skills`, fills it from
   single-source rows, swaps the skill name index) before the deploy: the
@@ -1262,19 +1459,41 @@ why each rule exists.
   ("Database error deleting user"). Company accounts get a 403 until a
   company owner's delete is designed. Tests: `tests/test_delete_account.py`.
 
+- **Email verification is required** (KAN-293). Signup does not pass
+  `email_confirm: True`, and then asks Supabase for the confirmation email
+  itself (`auth.resend(type="signup")`): the admin `create_user` sends no
+  email of its own, so without that call no new account could ever sign in.
+  If the email can't be sent, signup deletes the auth user (the profile row
+  cascades) and answers 502, so a retry starts clean. The frontend
+  redirects to `/signup/check-email` after signup; the link lands on
+  `/auth/confirm`. A taken email returns 201 silently (same response
+  shape, dummy id, no profile row) and resends the email, which reaches
+  only an account still unconfirmed. Supabase's own CAPTCHA setting stays
+  off: its `/resend` would then want a Turnstile token, and signup has
+  already spent the one it got. Tests: `tests/test_signup.py`.
+- **Turnstile verification on signup** (KAN-293). The `captcha_token` field
+  in `SignupRequest` is verified server-side against `TURNSTILE_SECRET_KEY`
+  (`app/config.py`). When the key is `None` (local dev), verification is
+  skipped.
+- **Company signup is gated** (KAN-293). Both `signup()` and
+  `complete_oauth_account_type()` reject `AccountType.COMPANY` with 403.
+- **Password reset** is handled entirely by the frontend through Supabase's
+  `resetPasswordForEmail` and `updateUser`. No API route is involved.
+
 Still open:
 
-- Email verification and a forgotten-password reset: supported by Supabase,
-  not wired up. A signed-in seeker changes their password in Settings
-  (`frontend/src/lib/account-actions.ts`).
 - Deleting an account from the Supabase dashboard cascades its rows but
   leaves its Storage files; `DELETE /auth/me` removes both.
 - A company account cannot be deleted (403).
 - Joining an existing company: no endpoint; the form's Join tab is a
   placeholder.
-- Every signup `IntegrityError` answers "An account with this email already
-  exists", including a taken `company_profiles.contact_email`. Tell them apart
-  by constraint name in `exc.orig`.
 - Nothing sets a membership's `onboarding_completed_at`, so `/auth/me` always
   reports a company as not onboarded. Whatever builds company onboarding must
   set it.
+
+Accepted risks (KAN-293):
+
+- Per-IP rate limiting: Turnstile is the only bot protection for now. Per-IP
+  limiting is a follow-up after the Cloudflare cutover.
+- OAuth account linking: with email verification on, an attacker cannot
+  confirm someone else's email, so automatic linking is safe.

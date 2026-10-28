@@ -4,7 +4,7 @@ import type { StageKey } from "./stage-colors";
 
 /**
  * The application tracker's shape, and what the seeker pages work out from
- * it: the Applications board, grid and list, the Dashboard's Next Up and Up
+ * it: the Applications board, grid and list, Home's Next Up and Up
  * Next, and the detail panel's timeline. Saved and applied jobs are live
  * (./applications/tracked.ts, KAN-261). Interviewing, offer and dated events
  * are not stored yet: the shape keeps them for when the API does.
@@ -26,16 +26,31 @@ import type { StageKey } from "./stage-colors";
 /** What a dated entry is. Each kind wears one stage's colour and glyph
  *  (KIND_STAGE in ./stage-colors.ts), so a calendar entry and a board column
  *  never disagree about what amber means. */
-export type EventKind = "applied" | "interview" | "offer" | "deadline" | "follow-up";
+export type EventKind = "applied" | "interview" | "offer" | "deadline" | "follow-up" | "rejection";
 
 /** Something dated on one application. The applied date is not stored here:
  *  it is `appliedOn`, and `eventsOf` adds it. */
 export type ApplicationEvent = {
+  /** The API's id (`application_events.id`, KAN-413), what Delete names. */
+  id?: string;
   kind: Exclude<EventKind, "applied">;
   /** "Technical Interview", "Application Closes", "Respond By". */
   title: string;
   /** An instant for something at a time, a bare date for something due on a day. */
   at: string;
+  /** The student's own note. */
+  note?: string | null;
+  /** A Zoom, Meet or Teams link. */
+  meetingUrl?: string | null;
+  /** Typed by the student, or read from an email (KAN-413): an
+   *  application's Emails lists the second. */
+  source?: "manual" | "gmail";
+  /** The API's own kind, which `kind` folds (a confirmation and a follow-up
+   *  are both "follow-up"): an email's pill names it. */
+  emailKind?: "confirmation" | "assessment" | "interview" | "offer" | "rejection" | "other";
+  /** When WorkIt stored it: an email's received time (the email view's
+   *  sender line). */
+  receivedAt?: string;
 };
 
 export type Application = {
@@ -135,7 +150,7 @@ export function eventsOf(app: Application): TrackerEvent[] {
   const applied = app.appliedOn
     ? [{ id: `${app.id}-applied`, kind: "applied" as const, title: "Applied", at: app.appliedOn }]
     : [];
-  const own = app.events.map((event, i) => ({ ...event, id: `${app.id}-${i}` }));
+  const own = app.events.map((event, i) => ({ ...event, id: event.id ?? `${app.id}-${i}` }));
 
   return [...applied, ...own]
     .map((event) => ({ ...event, applicationId: app.id, role: app.role, company: app.company }))

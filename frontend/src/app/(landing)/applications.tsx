@@ -34,7 +34,7 @@ import { CARD_WIDTH, FollowedCard } from "./thread";
  * From lg up it pins: the followed application, the one the statement
  * ended on, waits on the first stop, then rides the route stop by stop,
  * its stage and next step changing as it lands, while the logos
- * that go on fly from one pile to the next. The scroll cues each move and
+ * that go on fly from one pile to the next and the ones left close up. The scroll cues each move and
  * the move plays in time (scene-time.ts), so the card never stops between
  * two stops. At the last stop it is the one offer, where its trip down
  * the page ends.
@@ -69,9 +69,9 @@ type Logo = { company: string; domain: string };
 /**
  * The search's roles, furthest first: the followed application, then the
  * board's interviews, applications and saved roles, then Matching's and the
- * hiring-systems stream's postings. Pile `i` holds the first
- * `stages[i].tally.count`, so every logo that reaches a stop came from the
- * pile before it, and the last one standing is the followed application.
+ * hiring-systems stream's postings. The first `stages[i].tally.count`
+ * reach stop `i`, so every logo that reaches a stop came from the pile
+ * before it, and the last one standing is the followed application.
  */
 const LOGOS: Logo[] = (() => {
   const seen = new Set<string>();
@@ -105,6 +105,13 @@ function slot(j: number, count: number) {
 
 const PILE_HEIGHT = Math.ceil(stages[0].tally.count / PER_ROW) * (TILE + TILE_GAP);
 
+const COUNTS = stages.map((stage) => stage.tally.count);
+/** The last stop logo `j` reaches. */
+const lastStop = (j: number) => COUNTS.findLastIndex((count) => j < count);
+/** The logos left at stop `i` once the route has gone past it, as a range
+ * of LOGOS: the ones that went no further. */
+const leftAt = (i: number): [number, number] => [COUNTS[i + 1] ?? 0, COUNTS[i]];
+
 export function Applications() {
   const isDesktop = useMediaQuery(DESKTOP_QUERY);
   const reduceMotion = useReducedMotion();
@@ -115,12 +122,9 @@ export function Applications() {
 function Heading() {
   return (
     <FocusIn>
-      <SectionHeading
-        align="left"
-        eyebrow={copy.eyebrow}
-        title={copy.title}
-        subtitle={copy.subtitle}
-      />
+      {/* Centred over the route, which runs the container's width: the
+          sections before it open with a heading on the left (KAN-368). */}
+      <SectionHeading eyebrow={copy.eyebrow} title={copy.title} subtitle={copy.subtitle} />
     </FocusIn>
   );
 }
@@ -439,54 +443,93 @@ function Stop({
 }
 
 /**
- * Under each stop, its pile: the first pile full from the start (the roles
- * saved), the others empty slots that fill as the logos that went on fly
- * in from the pile before, a little apart, on an arc.
+ * Under each stop, its pile. Each logo is drawn once and moves: the first
+ * pile is full from the start (the roles saved); as the card glides to a
+ * stop, the logos that go on fly there from the pile before, a little
+ * apart, on an arc, and the ones that went no further close up behind
+ * them. The stops ahead show dashed slots where the logos will land. A
+ * copy of each logo once flew on and left its twin behind, so a role sat
+ * in two piles at once (KAN-368).
  */
 function Piles({ s, stops }: { s: MotionValue<number>; stops: number[] }) {
   return (
     <div aria-hidden="true" className="relative mt-2" style={{ height: PILE_HEIGHT }}>
-      {stages.map((stage, i) =>
-        Array.from({ length: stage.tally.count }, (_, j) => {
-          const at = slot(j, stage.tally.count);
-          return i === 0 ? (
-            <span
-              key={`${i}-${j}`}
-              className="absolute"
-              style={{ left: stops[0] + at.x, top: at.y }}
-            >
-              <LogoTile logo={LOGOS[j]} />
-            </span>
-          ) : (
-            <span
-              key={`${i}-${j}`}
-              className="absolute size-[22px] rounded-[6px] border border-dashed border-slate-300"
-              style={{ left: stops[i] + at.x, top: at.y }}
-            />
-          );
-        }),
-      )}
-      {stages.slice(1).map((stage, k) => {
-        const i = k + 1;
-        const count = stage.tally.count;
-        const before = stages[i - 1].tally.count;
-        return Array.from({ length: count }, (_, j) => {
-          const from = slot(j, before);
-          const to = slot(j, count);
-          return (
-            <FlyingTile
-              key={`fly-${i}-${j}`}
-              s={s}
-              index={j}
-              count={count}
-              stop={i}
-              from={{ x: stops[i - 1] + from.x, y: from.y }}
-              to={{ x: stops[i] + to.x, y: to.y }}
-            />
-          );
-        });
-      })}
+      {stages.slice(1).map((stage, k) => (
+        <Slots key={stage.id} s={s} stop={k + 1} left={stops[k + 1]} />
+      ))}
+      {LOGOS.map((logo, j) => (
+        <MovingTile key={logo.domain} s={s} index={j} stops={stops} />
+      ))}
     </div>
+  );
+}
+
+/** The dashed slots of a stop ahead, gone once its logos have landed. */
+function Slots({ s, stop, left }: { s: MotionValue<number>; stop: number; left: number }) {
+  const opacity = useTransform(s, (v) => 1 - arrivalAt(stop, v));
+  return (
+    <motion.div className="absolute inset-0" style={{ opacity }}>
+      {Array.from({ length: COUNTS[stop] }, (_, j) => {
+        const at = slot(j, COUNTS[stop]);
+        return (
+          <span
+            key={j}
+            className="absolute size-[22px] rounded-[6px] border border-dashed border-slate-300"
+            style={{ left: left + at.x, top: at.y }}
+          />
+        );
+      })}
+    </motion.div>
+  );
+}
+
+const ease = (t: number) => (t < 0.5 ? 4 * t * t * t : 1 - Math.pow(-2 * t + 2, 3) / 2);
+
+/**
+ * One logo, where the route has taken it at `s`: for each glide up to its
+ * last stop it flies from its slot in the pile before to its slot in the
+ * next; on the glide after, it closes up in the pile it stays in, once the
+ * ones going on have left it.
+ */
+function MovingTile({
+  s,
+  index,
+  stops,
+}: {
+  s: MotionValue<number>;
+  index: number;
+  stops: number[];
+}) {
+  const last = lastStop(index);
+  // One pose a frame, as one transform.
+  const transform = useTransform(s, (v) => {
+    const at = slot(index, COUNTS[0]);
+    let x = stops[0] + at.x;
+    let y = at.y;
+    for (let i = 1; i < stages.length; i++) {
+      const a = arrivalAt(i, v);
+      if (a === 0) break;
+      if (i <= last) {
+        const count = COUNTS[i];
+        const stagger = Math.min(0.04, 0.45 / count);
+        const t = clamp((a - index * stagger) / (1 - (count - 1) * stagger));
+        const to = slot(index, count);
+        x = lerp(x, stops[i] + to.x, t);
+        y = lerp(y, to.y, t) - Math.sin(Math.PI * t) * 30;
+      } else if (i === last + 1) {
+        const [from, until] = leftAt(last);
+        const to = slot(index - from, until - from);
+        const t = ease(clamp((a - 0.35) / 0.65));
+        x = lerp(x, stops[last] + to.x, t);
+        y = lerp(y, to.y, t);
+      }
+    }
+    return `translate(${x}px, ${y}px)`;
+  });
+  return (
+    <motion.span className="absolute top-0 left-0 will-change-transform" style={{ transform }}>
+      <LogoTile logo={LOGOS[index]} />
+    </motion.span>
   );
 }
 
@@ -500,44 +543,12 @@ function LogoTile({ logo }: { logo: Logo }) {
   );
 }
 
-/** A logo going on to stop `stop`: it waits on the pile before, over its
- * twin so it cannot be seen, until that pile is reached, then flies. */
-function FlyingTile({
-  s,
-  index,
-  count,
-  stop,
-  from,
-  to,
-}: {
-  s: MotionValue<number>;
-  index: number;
-  count: number;
-  stop: number;
-  from: { x: number; y: number };
-  to: { x: number; y: number };
-}) {
-  const stagger = Math.min(0.04, 0.45 / count);
-  // One pose a frame, as one transform.
-  const transform = useTransform(s, (v) => {
-    const t = clamp((arrivalAt(stop, v) - index * stagger) / (1 - (count - 1) * stagger));
-    const x = lerp(from.x, to.x, t);
-    const y = lerp(from.y, to.y, t) - Math.sin(Math.PI * t) * 30;
-    return `translate(${x}px, ${y}px)`;
-  });
-  const opacity = useTransform(s, (v) => (v >= stop - 1 - 1e-6 ? 1 : 0));
-  return (
-    <motion.span
-      className="absolute top-0 left-0 will-change-transform"
-      style={{ transform, opacity }}
-    >
-      <LogoTile logo={LOGOS[index]} />
-    </motion.span>
-  );
-}
+/** Logos a still pile shows before the rest become a count. */
+const STILL_PILE = 7;
 
-/** Below lg, and with reduced motion: the four stops as a list, every
- * pile full, and the application at its offer. */
+/** Below lg, and with reduced motion: the four stops as a list, each
+ * with the logos left there at the end of the route, and the application
+ * at its offer. */
 function StillApplications() {
   return (
     <section id="applications" className="py-20 sm:py-28">
@@ -546,9 +557,11 @@ function StillApplications() {
         <div className="mt-10 grid gap-10 lg:grid-cols-[auto_1fr] lg:items-start lg:gap-16">
           <FollowedCard stage="offer" className="max-w-full" />
           <ol aria-label="Application stages" className="space-y-7">
-            {stages.map((stage) => {
+            {stages.map((stage, i) => {
               const Icon = stage.icon;
               const count = stage.tally.count;
+              // Each logo once, where it ended up, as on the pinned route.
+              const left = LOGOS.slice(...leftAt(i));
               return (
                 <li key={stage.id} className="flex gap-4">
                   <span className="bg-brand grid size-10 shrink-0 place-items-center rounded-full text-white">
@@ -563,10 +576,18 @@ function StillApplications() {
                       {stage.soon && <SoonChip />}
                     </p>
                     <p className="text-ink-meta mt-0.5 text-sm text-pretty">{stage.description}</p>
-                    <div aria-hidden="true" className="mt-3 flex flex-wrap gap-[5px]">
-                      {LOGOS.slice(0, count).map((logo) => (
+                    {/* Seven at most, then the rest as a count: the full
+                        piles (24, 12) ran to three rows of 16px tiles that
+                        read as noise on a phone (KAN-368). */}
+                    <div aria-hidden="true" className="mt-3 flex flex-wrap items-center gap-[5px]">
+                      {left.slice(0, STILL_PILE).map((logo) => (
                         <LogoTile key={logo.domain} logo={logo} />
                       ))}
+                      {left.length > STILL_PILE && (
+                        <span className="text-ink-meta ml-1 text-xs font-medium tabular-nums">
+                          +{left.length - STILL_PILE}
+                        </span>
+                      )}
                     </div>
                   </div>
                 </li>

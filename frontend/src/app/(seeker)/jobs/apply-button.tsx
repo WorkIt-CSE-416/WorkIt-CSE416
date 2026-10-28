@@ -18,7 +18,7 @@ import { type ResumeItem } from "@/lib/resume-actions";
 import { applyWithResume, type SentDownload } from "@/lib/sent-resume-actions";
 
 import { markApplied } from "./actions";
-import { firstChoice, loadChoices, ResumeLists, UploadPick, type Choice } from "./resume-picker";
+import { firstChoice, loadChoices, ResumeLists, type Choice } from "./resume-picker";
 
 /** "Did You Apply?"'s own choice: the student applied without a resume. */
 const NO_RESUME = "none";
@@ -210,8 +210,8 @@ export function ApplyButton({
                   applied. WorkIt takes it off your Jobs page.
                 </DialogDescription>
               </DialogHeader>
-              {/* Four sections, one radio group (`applied-with`): what WorkIt
-                  made, what the student uploaded, a file they sent instead,
+              {/* One radio group (`applied-with`): every resume in the
+                  list, a file they sent instead (Upload Resume in its row),
                   or none. */}
               {choices == null ? (
                 <p className="text-note text-ink-muted">Loading your resumes…</p>
@@ -219,18 +219,10 @@ export function ApplyButton({
                 <ResumeLists
                   name="applied-with"
                   choices={choices}
-                  emptyBuilt="None yet. Generate Resume on Resumes & Experiences makes one."
-                  emptyUploaded="None yet. Upload the file you sent below."
+                  empty="None yet. Upload the file you sent."
                   picked={appliedWith}
                   onPick={setAppliedWith}
-                />
-              )}
-              {choices != null && (
-                <UploadPick
-                  label="Sent a Different Resume?"
-                  uploads={uploads}
-                  onUploaded={uploaded}
-                  onBusyChange={onUploadBusy}
+                  upload={{ uploads, onUploaded: uploaded, onBusyChange: onUploadBusy }}
                 />
               )}
               {/* No Resume is a button, not a section of its own: pressed, it

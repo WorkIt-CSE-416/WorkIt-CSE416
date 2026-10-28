@@ -63,6 +63,24 @@ export function useSceneTime(
   return time;
 }
 
+/**
+ * The last cue the scroll has reached, as an index (-1 before the first):
+ * for a scene that plays each phase with motion's own transitions instead
+ * of a timeline (the phone bridge, bridge.tsx). Same rules as
+ * `useSceneTime`: a cue holds until the scroll is `BACK` short of it.
+ */
+export function useScrollCue(progress: MotionValue<number>, cues: readonly Cue[]): number {
+  const [cue, setCue] = React.useState(() => cueAt(progress.get(), cues, -1));
+  const current = React.useRef(cue);
+  useMotionValueEvent(progress, "change", (p) => {
+    const next = cueAt(p, cues, current.current);
+    if (next === current.current) return;
+    current.current = next;
+    setCue(next);
+  });
+  return cue;
+}
+
 /** The last cue the scroll has reached, holding the current one until the
  * scroll is `BACK` short of it. */
 function cueAt(p: number, cues: readonly Cue[], current: number) {

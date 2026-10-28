@@ -84,7 +84,9 @@ jobs:
           name: scrape-${{ github.run_id }}
           path: |
             scraper/feed.json
+            scraper/closings.json
             scraper/internships.html
+            scraper/metrics.json
           retention-days: 7
 
       - uses: astral-sh/setup-uv@v3
@@ -98,10 +100,22 @@ jobs:
         env:
           DATABASE_URL: ${{ secrets.DATABASE_URL }}
           GEMINI_API_KEY: ${{ secrets.GEMINI_API_KEY }}
+          # The model the keyword pass reads (scout/CLAUDE.md): the small
+          # chain, then the default chain after it.
+          SCOUT_ENDPOINTS_SMALL: ${{ secrets.SCOUT_ENDPOINTS_SMALL }}
+          SCOUT_ENDPOINTS: ${{ secrets.SCOUT_ENDPOINTS }}
           DRY_RUN: ${{ (github.event_name == 'pull_request' || inputs.dry_run) && '--dry-run' || '' }}
         run: |
           if [ -z "$DATABASE_URL" ]; then
             echo "::error::The DATABASE_URL secret is not set (Settings > Secrets and variables > Actions)."
             exit 1
+          fi
+          # A missing secret arrives as "", which is not unset: Scout's
+          # settings refuse "" as a list.
+          for name in SCOUT_ENDPOINTS_SMALL SCOUT_ENDPOINTS; do
+            if [ -z "${!name}" ]; then unset "$name"; fi
+          done
+          if [ -z "$SCOUT_ENDPOINTS_SMALL" ] && [ -z "$SCOUT_ENDPOINTS" ]; then
+            echo "::warning::No SCOUT_ENDPOINTS_SMALL or SCOUT_ENDPOINTS secret; this run extracts no keywords."
           fi
           uv run python -m app.scripts.import_jobs ../scraper/feed.json ${DRY_RUN:+"$DRY_RUN"}

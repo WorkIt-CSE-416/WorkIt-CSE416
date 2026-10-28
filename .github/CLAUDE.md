@@ -87,6 +87,11 @@ hours gets a new posting onto the site the same day for a ~15 minute run that
 only writes the rows that changed. Twelve of those minutes are Workday's (KAN-134):
 its boards are read for a fixed share of each run and take about four runs to go
 round, which keeps the job well inside its 30-minute timeout (`scraper/CLAUDE.md`).
+**A change to the cron changes `RUN_EVERY` in `scraper/workit_scraper/store.py`
+too**: quiet boards take turns by that slot. Each run keeps `feed.json`,
+`closings.json` (why each stored job is not in the feed, which the import
+reads beside `feed.json`), `internships.html` and `metrics.json` (each
+provider's share of the run) as an artifact for a week.
 
 It was every six hours until KAN-166. GitHub started those runs up to five hours
 late and skipped some outright (2026-10-08 to 10-09), so a posting could wait
@@ -97,8 +102,24 @@ the concurrency group queues a late run rather than overlapping it. Going below
 an hour buys minutes, multiplies that traffic and raises the odds of a board
 rate-limiting the shared GitHub runners, which would stall every job on it.
 
+**Still open: GitHub runs about half of the schedule.** Between 2026-10-16 and
+10-27 it started 50 of the 94 runs due at :17 (53%), a median 102 minutes late,
+so the real gap between runs was a median 5.5 hours, at most 8.7. The fix being
+weighed is a Cloudflare Cron Trigger that starts this workflow through GitHub's
+API at exact times (`scraper/docs/coverage.md`, "Later").
+
 - **Secret:** `DATABASE_URL` (the API's pooler URL, from the root `.env`), in the
   repo's Actions secrets. Without it the run fails at the import step and says so.
+- **Secrets:** `SCOUT_ENDPOINTS_SMALL` and `SCOUT_ENDPOINTS`, for the
+  import's keyword pass (`backend/CLAUDE.md`, The feed import): the small
+  chain (KAN-356), then the default chain after it, each a JSON array on one
+  line, copied from the root `.env`. The four single `SCOUT_*` variables are
+  not passed: a chain says the same in one secret. These are the import's
+  own: the deployed API reads its chains from `CF_API_SECRETS_JSON`, so the
+  import can run on another account's quota than the students' features.
+  Without either the run warns and extracts no keywords; the import itself
+  still runs. The step unsets each one that is empty, because GitHub passes
+  a missing secret as `""`, which Scout's settings refuse as a list.
 - **The company list** (`scraper/boards.csv`) is grown by `build_boards.py`
   before every scrape, from the curated GitHub lists, so a company they name
   today is read on the next run without a commit. It only ever adds; the rules

@@ -2,11 +2,14 @@ import { CompanyLogo } from "@/components/company-logo";
 import { SparkleIcon } from "@/components/icons";
 import { JobDetailHeader } from "@/components/job-detail/job-detail-header";
 import { AskScoutButton } from "@/components/scout/scout-buttons";
+import { Skeleton } from "@/components/shadcn/skeleton";
 import { ButtonLink } from "@/components/ui/button";
+import { Card } from "@/components/ui/card";
 import { Section } from "@/components/ui/section";
 import { listBuiltResumes } from "@/lib/built-resume-actions";
 import { listSentResumes } from "@/lib/sent-resume-actions";
 
+import type { ApplicationStage } from "../../auto-apply/actions";
 import { getApplicationStage } from "../../auto-apply/applications";
 import { AutoApplyButton } from "../../auto-apply/auto-apply-button";
 import { placesOf } from "../format";
@@ -16,7 +19,7 @@ import { SaveJobButton } from "../save-job-button";
 import { factText, toPosting } from "../to-posting";
 import { ApplyButton } from "../apply-button";
 import { JobDescription } from "./description";
-import { KeyRequirementsCard } from "./key-requirements";
+import { getRequirements, KeyRequirementsCard, type Requirement } from "./key-requirements";
 import { AppliedNote, MoreActions } from "./page-actions";
 import { SentNote } from "./sent-note";
 
@@ -29,21 +32,52 @@ import { SentNote } from "./sent-note";
  */
 export type JobView = Awaited<ReturnType<typeof loadJobView>>;
 
-/** A job's page width, a little wider than the reading pages' `max-w-app`
- *  (KAN-279): at 1024px the header's six facts felt cramped. About the Role
- *  keeps its own 68ch measure, so its lines do not grow with it. The job page
- *  and the application's own page share it, so the two stay identical. */
-export const JOB_PAGE_WIDTH = "mx-auto w-full max-w-[70rem] flex-1 py-6";
+/** A job's page width: every seeker page's `max-w-dashboard` (2026-10-27;
+ *  it was 70rem, after 1024px left the header's six facts cramped, KAN-279).
+ *  About the Role keeps its own 68ch measure, so its lines do not grow with
+ *  it. The job page and the application's own page share it, so the two
+ *  stay identical. */
+export const JOB_PAGE_WIDTH = "max-w-dashboard mx-auto w-full flex-1 py-6";
 
-/** Everything the job page reads, in parallel. `job` is null for one that has
- *  closed (or never existed); `error` when the API can't be read. */
-export async function loadJobView(jobId: string) {
-  const [{ job, error }, resumes, sent, applied, stage] = await Promise.all([
+/** What the application page already knows about its job from the
+ *  tracker's row: its stage and when it was applied. Null when the row is
+ *  missing (the page is then not found). */
+export type KnownApplication = { stage: ApplicationStage | null; appliedAt: string | null } | null;
+
+/** No requirements to read: About the Role alone draws no card. */
+const NO_REQUIREMENTS: Promise<Requirement[]> = Promise.resolve([]);
+
+/**
+ * Everything the job page reads, in parallel. `job` is null for one that has
+ * closed (or never existed); `error` when the API can't be read.
+ *
+ * EVERY READ STARTS HERE, AT ONCE, the Key Requirements card's included
+ * (getRequirements, which never rejects). A read a component makes for
+ * itself begins only once the page has rendered it, after all of these.
+ *
+ * The application's own page (/applications/[jobId]) passes two options.
+ * `descriptionOnly`: it draws About the Role alone, so the requirements are
+ * not read. `application`: its tracker row, read beside this one, already
+ * says the stage and when it was applied, so those two reads are skipped
+ * and the row's answers taken instead. It is a promise, not the row, so the
+ * tracker read and these run together rather than one after the other.
+ */
+export async function loadJobView(
+  jobId: string,
+  {
+    descriptionOnly = false,
+    application,
+  }: { descriptionOnly?: boolean; application?: Promise<KnownApplication> } = {},
+) {
+  const [{ job, error }, resumes, sent, applied, stage, requirements] = await Promise.all([
     getJobListing(jobId),
     listBuiltResumes(),
     listSentResumes(),
-    getApplied(jobId),
-    getApplicationStage(jobId),
+    application
+      ? application.then((known) => known && { appliedAt: known.appliedAt })
+      : getApplied(jobId),
+    application ? application.then((known) => known?.stage ?? null) : getApplicationStage(jobId),
+    descriptionOnly ? NO_REQUIREMENTS : getRequirements(jobId),
   ]);
   // The sent resumes linked to this posting, newest first, so the first is
   // the last one sent.
@@ -55,6 +89,7 @@ export async function loadJobView(jobId: string) {
     applied,
     sent: sentHere,
     tailored: resumes.data?.some((r) => r.job_posting_id === job?.id) ?? false,
+    requirements,
   };
 }
 
@@ -112,6 +147,42 @@ export function JobViewHeader({ job }: { job: JobListing }) {
   );
 }
 
+/** JobViewHeader's card while the posting loads (./loading.tsx, and the
+ *  application's page's): the company line, the title and the facts under
+ *  their rule, as JobDetailHeader draws them, each a bar of its line's
+ *  height, so the card is its own size and the page under it holds still. */
+export function JobViewHeaderSkeleton() {
+  return (
+    <Card
+      as="header"
+      padding="lg"
+      elevated={false}
+      aria-hidden="true"
+      className="@container flex flex-col gap-4"
+    >
+      <div>
+        <div className="flex items-center gap-3">
+          <Skeleton className="rounded-control size-10 shrink-0" />
+          <Skeleton className="h-4 w-48" />
+        </div>
+        {/* The title's 32px lines: two below 448px of card, where nearly
+            every title wraps, one above. */}
+        <div className="mt-2 flex h-8 items-center">
+          <Skeleton className="h-7 w-3/4" />
+        </div>
+        <div className="flex h-8 items-center @md:hidden">
+          <Skeleton className="h-7 w-1/2" />
+        </div>
+      </div>
+      <div className="border-border-subtle grid grid-cols-2 gap-x-4 gap-y-2 border-t pt-4 @md:grid-cols-3">
+        {Array.from({ length: 6 }, (_, i) => (
+          <Skeleton key={i} className="h-4 w-4/5" />
+        ))}
+      </div>
+    </Card>
+  );
+}
+
 /** Under the header: what was sent and when it was applied to, the
  *  Key Requirements card, and About the Role. `descriptionOnly` keeps About
  *  the Role alone: the application page's Job Description tab (KAN-256),
@@ -126,7 +197,7 @@ export function JobViewBody({
   job: JobListing;
   descriptionOnly?: boolean;
 }) {
-  const { sent, applied } = view;
+  const { sent, applied, requirements } = view;
   const lastSent = sent[0];
   const places = placesOf(job.location_label ?? job.location);
 
@@ -136,7 +207,10 @@ export function JobViewBody({
         <>
           {lastSent && <SentNote name={lastSent.name} at={lastSent.created_at} />}
           {applied?.appliedAt && <AppliedNote at={applied.appliedAt} />}
-          <KeyRequirementsCard jobId={job.id} minYearsExperience={job.min_years_experience} />
+          <KeyRequirementsCard
+            requirements={requirements}
+            minYearsExperience={job.min_years_experience}
+          />
         </>
       )}
 

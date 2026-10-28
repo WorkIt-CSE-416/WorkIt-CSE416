@@ -14,7 +14,7 @@ import { BackToJobs } from "./page-actions";
  */
 export default function JobNotFound() {
   return (
-    <div className={cn("max-w-app mx-auto w-full flex-1 py-6", SEEKER_GUTTER)}>
+    <div className={cn("max-w-dashboard mx-auto w-full flex-1 py-6", SEEKER_GUTTER)}>
       <EmptyState
         Icon={BriefcaseIcon}
         title="This Job Isn't Available"

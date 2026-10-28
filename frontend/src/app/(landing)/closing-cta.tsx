@@ -1,7 +1,7 @@
 import { cn } from "@/lib/cn";
 
 import { CONTAINER, PANEL, PANEL_INSET } from "./layout-parts";
-import { SocialSignUpButton } from "./social-sign-up";
+import { EmailSignUpLink, SocialSignUpButton } from "./social-sign-up";
 
 /**
  * The closing call to action a marketing page ends on, just above the
@@ -28,9 +28,12 @@ export function ClosingCta({
             {title}
           </h2>
           <p className="text-ink-muted mx-auto mt-4 max-w-xl text-lg text-pretty">{subtitle}</p>
-          <div className="mt-8 flex flex-col items-center justify-center gap-3 sm:flex-row">
+          <div className="mt-8 flex flex-col flex-wrap items-center justify-center gap-3 sm:flex-row">
             <SocialSignUpButton provider="google" />
             <SocialSignUpButton provider="linkedin_oidc" />
+            <div className="w-full text-center sm:basis-full">
+              <EmailSignUpLink />
+            </div>
           </div>
         </div>
       </div>

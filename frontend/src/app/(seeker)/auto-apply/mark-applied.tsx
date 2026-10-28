@@ -42,7 +42,13 @@ export function MarkApplied({ jobId, role }: { jobId: string; role: string }) {
               return;
             }
             router.refresh();
-            toast.show({ message: <><span className="font-medium">{role}</span> is marked Applied.</> });
+            toast.show({
+              message: (
+                <>
+                  <span className="font-medium">{role}</span> is marked Applied.
+                </>
+              ),
+            });
           } finally {
             busy.current = false;
           }

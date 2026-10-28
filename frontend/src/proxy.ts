@@ -11,6 +11,11 @@ import { sessionCookieOptions } from "@/lib/supabase/cookies";
  * @supabase/ssr requires this step: a Server Component cannot write cookies,
  * so without it a session silently dies an hour after sign-in.
  *
+ * It runs on every request that renders session-dependent content, not on
+ * every request: `config.matcher` below leaves out the static marketing
+ * pages. Time spent only on those pages no longer extends the 7-day idle
+ * cookie (lib/supabase/cookies.ts); the next app request refreshes it.
+ *
  * Not a security boundary. The Python API verifies every token it is handed
  * and is reachable without going through Next at all. A redirect for
  * signed-out users or the seeker/company split can go here as a convenience,
@@ -27,12 +32,14 @@ export async function proxy(request: NextRequest) {
   if (isBusinessPath(request.nextUrl.pathname)) {
     return NextResponse.redirect(new URL("/coming-soon", request.url));
   }
-  // The Calendar is hidden for now (KAN-261): the tracker stores no dated
-  // events yet, so it could only show the days jobs were applied to. Its code
-  // stays in app/(seeker)/calendar/. Delete this block and uncomment its row
-  // in app/(seeker)/seeker-sidebar.tsx to bring it back.
-  if (isPathUnder(request.nextUrl.pathname, ["/calendar"])) {
-    return NextResponse.redirect(new URL("/dashboard", request.url));
+
+  // The seeker's Dashboard became Home at /home (2026-10-27). Old links,
+  // bookmarks and the browser's own history still name /dashboard, so it
+  // moves them on, its query (?range=) kept.
+  if (request.nextUrl.pathname === "/dashboard") {
+    const home = request.nextUrl.clone();
+    home.pathname = "/home";
+    return NextResponse.redirect(home, 308);
   }
 
   let response = NextResponse.next({ request });
@@ -76,8 +83,20 @@ function isPathUnder(pathname: string, prefixes: string[]) {
 }
 
 export const config = {
-  // Everything except build output and static images, which carry no session.
+  // Every request that renders session-dependent content: everything except
+  // build output and static images, which carry no session, and the static
+  // marketing pages. Those are prerendered (app/not-found.tsx says why) and
+  // read no session, so the proxy would only add a function call, one that
+  // can start cold on Vercel, in front of a page the CDN could serve alone.
+  // The pattern ends in `.+` rather than `.*` so the bare "/" (the landing
+  // page) is left out too, and each marketing name must be followed by "/"
+  // or the end, so /docs/mcp is left out but a seeker path that merely
+  // starts with one of the names is not. /login, /signup, /auth/*,
+  // /onboarding/*, /company*, /go-home, /dashboard and every seeker path stay
+  // matched: they read the session, and the redirects above live here. A
+  // new marketing page needs its name added below; one left out still works,
+  // with one proxy call more.
   matcher: [
-    "/((?!_next/static|_next/image|favicon.ico|.*\\.(?:svg|png|jpg|jpeg|gif|webp|ico)$).*)",
+    "/((?!_next/static|_next/image|favicon.ico|(?:pricing|terms|privacy|features|blog|help-center|docs|coming-soon)(?:/|$)|.*\\.(?:svg|png|jpg|jpeg|gif|webp|ico)$).+)",
   ],
 };

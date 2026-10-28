@@ -4,7 +4,7 @@ import { useEffect, useRef, useState, useSyncExternalStore, useTransition } from
 
 import { Button } from "@/components/ui/button";
 
-import { keep, readKept, subscribe } from "./feed-pages";
+import { keep, keepSnapshot, readKept, readSnapshot, subscribe } from "./feed-pages";
 import { PAGE_SIZE } from "./filter-query";
 import type { ApplicationStage } from "../auto-apply/actions";
 import { ListingCard } from "./listing-card";
@@ -36,6 +36,11 @@ import { rememberList } from "./shown-list";
  * `source` picks what Load More asks: the plain feed, or the Best Match
  * order's scored jobs (KAN-231, KAN-288). Their `query` strings differ (the
  * page adds `sort=match`), so kept pages never cross from one to the other.
+ *
+ * THE FIRST PAGE IS KEPT TOO (KAN-287), as a snapshot the feed's Suspense
+ * fallback draws on the next visit (./feed-fallback), so the list paints at
+ * once instead of a skeleton. Cards the fallback already drew don't rise in
+ * a second time when this list replaces them.
  *
  * After a load, focus moves to the first new role's title, where the button
  * was, so a keyboard carries on reading down the list instead of starting
@@ -91,6 +96,15 @@ export function FeedList({
   const [focusId, setFocusId] = useState<string | null>(null);
   const list = useRef<HTMLUListElement>(null);
   const tailoredIds = new Set(tailored);
+  // Whether the fallback drew this list's cards from the snapshot: then they
+  // are already on screen, and rising in again would flicker. Read once.
+  const [fromSnapshot] = useState(() => readSnapshot()?.query === query);
+
+  const firstIds = first.map((job) => job.id).join();
+  useEffect(() => {
+    keepSnapshot({ query, jobs: first, stages, tailored, canMarkApplied, source });
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- when the first page shown changes
+  }, [firstIds, query]);
 
   // The roles as shown, for the rail beside a job's page (./shown-list).
   // Keyed by their ids: `first` and `loaded` are new arrays every render.
@@ -154,8 +168,8 @@ export function FeedList({
           <li
             key={job.id}
             data-job-id={job.id}
-            style={{ animationDelay: `${Math.min(i, 6) * 50}ms` }}
-            className="animate-rise"
+            style={fromSnapshot ? undefined : { animationDelay: `${Math.min(i, 6) * 50}ms` }}
+            className={fromSnapshot ? undefined : "animate-rise"}
           >
             <ListingCard
               job={job}
@@ -171,8 +185,10 @@ export function FeedList({
           <li
             key={job.id}
             data-job-id={job.id}
-            style={{ animationDelay: `${Math.min(i % PAGE_SIZE, 6) * 50}ms` }}
-            className="animate-rise"
+            style={
+              fromSnapshot ? undefined : { animationDelay: `${Math.min(i % PAGE_SIZE, 6) * 50}ms` }
+            }
+            className={fromSnapshot ? undefined : "animate-rise"}
           >
             <ListingCard
               job={job}

@@ -8,8 +8,15 @@ and why they differ: ../CLAUDE.md.
 """
 
 from dataclasses import dataclass
+from typing import Literal
 
 from pydantic_settings import BaseSettings, SettingsConfigDict
+
+# A feature asks for a size, never a model by name, so a provider's renamed
+# or retired model is an env change. "large" is for writing and judgment
+# (Tailor, Read It With AI, the editor assistant), "small" for plain
+# extraction at volume (a job posting's keywords).
+Size = Literal["large", "small"]
 
 
 @dataclass(frozen=True)
@@ -40,8 +47,16 @@ class ScoutSettings(BaseSettings):
     # base_url, model and, optionally, api_key and reasoning_effort. Unset
     # means one endpoint, the one the four fields above name.
     endpoints: list[Endpoint] = []
+    # Each size's own chain (SCOUT_ENDPOINTS_LARGE, SCOUT_ENDPOINTS_SMALL),
+    # same format. The default chain follows it, so the fallback (Gemini,
+    # say) is written once; unset, the size is the default chain alone.
+    endpoints_large: list[Endpoint] = []
+    endpoints_small: list[Endpoint] = []
 
-    def chain(self) -> list[Endpoint]:
-        return self.endpoints or [
+    def chain(self, size: Size | None = None) -> list[Endpoint]:
+        default = self.endpoints or [
             Endpoint(self.base_url, self.model, self.api_key, self.reasoning_effort)
         ]
+        own = {"large": self.endpoints_large, "small": self.endpoints_small}.get(size, [])
+        # An endpoint in both is tried once, where the size's chain puts it.
+        return [*own, *(e for e in default if e not in own)]

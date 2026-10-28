@@ -14,7 +14,7 @@ from sqlalchemy.dialects.postgresql import insert
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.models.applications import Job_Application
-from app.models.dto import application_stage
+from app.models.dto import BEFORE_APPLIED, application_stage
 from app.models.jobs import Job_Post
 from app.models.sent_resume import Sent_Resume
 from app.queries.jobs.filters import LISTED
@@ -82,8 +82,11 @@ async def mark_applied(
     # A job queued, skipped or left to the applicant by auto apply becomes
     # applied, dated now: a date it holds from before is no submit's (an
     # insert that took the column's now() default). One already applied
-    # keeps its first date, so a second click, or two tabs at once, never
-    # moves the day; only the resume it names can change.
+    # keeps its first date (coalesce), so a second click, or two tabs at
+    # once, never moves the day; only the resume it names can change. One
+    # past applied (interviewing, offer, rejected; KAN-413) keeps its stage
+    # and date: "Did You Apply?" on its page names the resume, and must not
+    # move the application back.
     link = {} if sent_resume_id is KEEP else {"sent_resume_id": sent_resume_id}
     await db.execute(
         insert(Job_Application)
@@ -92,11 +95,15 @@ async def mark_applied(
         .on_conflict_do_update(
             index_elements=["applicant_id", "job_id"],
             set_={
-                "stage": application_stage.applied,
+                # Named as the stages before applied, which every database
+                # has (dto.BEFORE_APPLIED says why)
+                "stage": case(
+                    (Job_Application.stage.in_(BEFORE_APPLIED), application_stage.applied),
+                    else_=Job_Application.stage,
+                ),
                 "applied_at": case(
-                    (Job_Application.stage == application_stage.applied,
-                     func.coalesce(Job_Application.applied_at, func.now())),
-                    else_=func.now(),
+                    (Job_Application.stage.in_(BEFORE_APPLIED), func.now()),
+                    else_=func.coalesce(Job_Application.applied_at, func.now()),
                 ),
                 **link,
             },

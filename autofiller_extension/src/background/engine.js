@@ -726,8 +726,8 @@ export async function fillPage({ call, site, questions, answers, accepted, state
   } catch (error) {
     const named = ["FillError", "Handoff", "NoForm"].includes(error.name);
     const reason = named ? error.message : `Fill failed: ${error.message}`;
-    // The error's name, for a problem report (content/report.js), which never carries the reason.
-    const failed = { status: "failed", reason, error: named ? error.name : "Error" };
+    // The error's name, and an unnamed one's stack, for a problem report (content/report.js), which takes the values out of both.
+    const failed = { status: "failed", reason, error: named ? error.name : "Error", ...(!named && error.stack ? { stack: String(error.stack).slice(0, 4000) } : {}) };
     return { results: Object.fromEntries(Object.keys(answers).map((name) => [name, failed])), state };
   }
 }

@@ -56,7 +56,9 @@ export function Footer() {
                   <li key={link.href}>
                     <Link
                       href={link.href}
-                      className="text-sm text-white/80 transition-colors hover:text-white"
+                      // The ::after takes the tap to the middle of the gaps either
+                      // side, 32px in all: the 20px line alone was hard to hit.
+                      className="relative text-sm text-white/80 transition-colors after:absolute after:-inset-x-1 after:-inset-y-1.5 after:content-[''] hover:text-white"
                     >
                       {link.label}
                       {"soon" in link && link.soon === true && (

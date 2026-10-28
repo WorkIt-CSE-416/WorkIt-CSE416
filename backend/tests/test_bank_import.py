@@ -20,9 +20,9 @@ from app.deps import get_current_account
 from app.main import app
 from app.routers import resumes as resumes_router
 from app.routers.resumes import text_hash
-from app.routers.scout import get_llm
 from app.schemas.auth import AccountType, AuthenticatedAccount
 from app.services.bank_import import read, skill_pairs
+from tests import fake_models
 
 pytestmark = pytest.mark.anyio
 
@@ -811,11 +811,11 @@ def parsing_caps(monkeypatch):
 def use_model():
     def install(*scripts) -> ScriptedLLM:
         fake = ScriptedLLM(*scripts)
-        app.dependency_overrides[get_llm] = lambda: fake
+        fake_models.use(fake)
         return fake
 
     yield install
-    app.dependency_overrides.pop(get_llm, None)
+    fake_models.clear()
 
 
 def rate_limited() -> RateLimitError:

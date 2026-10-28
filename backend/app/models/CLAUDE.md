@@ -295,7 +295,18 @@ change here must keep:
   and skills. Null means the student made it. A skill's name is unique
   per owner (`bank_skills_applicant_name_key`, `NULLS NOT DISTINCT`, so
   the student's own skills are one list). Built resumes need no owner
-  column: their shown choice rows say what they hold.
+  column for what they show from the bank: their shown choice rows say it.
+- **A skill can belong to one built resume instead**
+  (`bank_skills.built_resume_id`, `a3d7f1c9e2b4`,
+  `../../../docs/tailor_resume.md`): Tailor's picked skills, which show on
+  the tailored resume only and are not in the experience bank. It still
+  needs a `bank_skills` row, since `built_resume_skills.skill_id` points
+  there. At most one owner (`bank_skills_one_owner_check`); it cascades
+  with its resume; the name index includes it, so a resume's "Go" never
+  clashes with the bank's. `load_bank` leaves these rows out unless the
+  caller names their resume (`local_to`), so a new reader of skills that
+  forgets them still sees only the bank. The same pattern as
+  `bank_bullet_variants.built_resume_id` (below).
 
 ## Built resumes
 
@@ -928,6 +939,16 @@ Anything that lists jobs *across* companies must decide whether it wants
 `posted_at` is when the job board says the job went up; `created_at` is when
 the row was stored. Nothing sets `posted_at` for a company's job yet.
 
+**`closed_reason` says why the feed import closed a scraped job**
+(`bd730e8ab454`, KAN-412): text with the CHECK `job_postings_closed_reason`
+(`gone_from_board`, `board_gone`, `filtered_out`, `replaced`, `unknown`),
+**not an enum**, so a sixth reason is one migration that rolls back, where
+`ALTER TYPE ... ADD VALUE` does not (Enum changes, above). Null while a job is
+open, for a company's own job and for a job closed before the column; there
+is no backfill. Only the import writes it (`../CLAUDE.md`, The feed import).
+A reason added to the CHECK goes into the import's `CLOSED_REASONS` too, or
+the import files it as `unknown`.
+
 **Company search uses a trigram GIN index** on `company_name`
 (`55f3c813be50`), so `ILIKE '%term%'` and the fuzzy `<%` operator look
 matches up instead of scanning. Measured on 2026-10-06: about 140 KB for the
@@ -937,15 +958,13 @@ produces no trigram and scans anyway. `title` had one too, dropped in
 searching company-posted jobs by employer needs a join or a copied name.
 
 **Job matching adds three columns (KAN-139):**
-- **`job_postings.embedding` and `resumes.embedding`** hold embedding vectors,
-  `vector(768)` from pgvector, sized by `dto.EMBEDDING_DIMENSIONS`.
-  **`resumes.embedding` is no longer mapped** (KAN-212 moved the embedding to
-  `experience_banks`): the column stays in the database until a contract
-  migration drops it, written and applied only after the code that stopped
-  mapping it is deployed, as with `824f0b2e3d84` below. Until then
-  `alembic revision --autogenerate` proposes `drop_column('resumes',
-  'embedding')`: delete that line from any migration that is not the drop
-  itself, or the drop ships before the deploy and old code's inserts fail.
+- **`job_postings.embedding`** holds an embedding vector, `vector(768)` from
+  pgvector, sized by `dto.EMBEDDING_DIMENSIONS`. **`resumes.embedding` is
+  gone**: KAN-212 moved the applicant's embedding to `experience_banks` and
+  stopped mapping it, and the contract migration `b9e2c4d6f8a1` dropped it
+  once that code was deployed (2026-10-25), as `824f0b2e3d84` did below.
+  Before the drop, autogenerate proposed `drop_column('resumes',
+  'embedding')` in every migration, and `alembic check` failed on it.
 - **`job_postings.fts`** is a generated `tsvector` of the title (weighted A)
   and description (weighted D), so anything that ranks with `ts_rank` puts a
   title match first (search itself doesn't rank: `@@` ignores weights), with
@@ -966,10 +985,13 @@ What writes them, and why, is `../services/matching/CLAUDE.md`.
 
 **Tailor's keywords are cached on the posting (KAN-215).** `keywords` (JSONB,
 at most 20 `{"keyword", "kind"}`) and `keywords_hash` (the SHA-256 of the
-description they came from), both `deferred`, from `e1c4a7b9d215`. A hash
-that differs from the description's means stale, so a company's edit is
-caught with no extra code; the feed import also clears both when it changes
-a description, so a stale list never sits in the table. Only
+title and the description's job part, `job_part`, which is all the model
+read), both `deferred`, from `e1c4a7b9d215`. A hash that differs means
+stale, so a company's edit to the job or its title is caught with no extra
+code, an edit to its perks
+alone keeps the cache, and a change to `job_part`'s headings refreshes the
+caches it changes. The feed import also clears both when it changes a
+description at all, so a stale list never sits in the table. Only
 `services/keywords.py` reads or writes them. Apply the migration before the
 deploy: the model maps them, so company job creation fails on a database
 without them (above).
@@ -990,10 +1012,13 @@ Its downgrade puts the columns back empty; the old import refills them.
 
 `applications.py`: one row per (applicant, job). The Applied button
 (`routers/applications.py`) writes it `applied`, a Save button `saved`
-(KAN-261); auto apply (`app/auto_apply/`) writes it `queued` and moves it on.
-GET /jobs leaves out that applicant's `applied` jobs (`JobFilters.applied_by`,
-a `NOT EXISTS`); auto apply's matches leave out every stage, `saved` too
-(`no_application_by`), so a batch never picks a saved job. Rules:
+(KAN-261); auto apply (`app/auto_apply/`) writes it `queued` and moves it on;
+the Applications Tracker's stage menu and its events
+(`routers/tracker.py`, KAN-413) move it to `interviewing`, `offer` or
+`rejected`. GET /jobs leaves out that applicant's applied jobs, every stage
+in `dto.APPLIED_STAGES` (`JobFilters.applied_by`, a `NOT EXISTS`); auto
+apply's matches leave out every stage, `saved` too (`no_application_by`),
+so a batch never picks a saved job. Rules:
 
 - **A join table, never an array of applicant ids on `job_postings`.**
   Postgres can't foreign-key an array's elements, so deleted applicants
@@ -1005,17 +1030,33 @@ a `NOT EXISTS`); auto apply's matches leave out every stage, `saved` too
 - **CASCADE from both sides**: deleting the account or the job deletes the
   row. A closed job keeps its rows, since closing is a status, not a delete.
 - **`stage` is the status** (`dto.application_stage`: `saved`, `queued`,
-  `needs_you`, `skipped`, `applied`; `c0467afe819c`, `saved` from
-  `17ea74fa4573`), a column here rather than a second table, so one row is
+  `needs_you`, `skipped`, `applied`, `interviewing`, `offer`, `rejected`;
+  `c0467afe819c`, `saved` from `17ea74fa4573`, the last three from
+  `a7d3e5f1c2b4`), a column here rather than a second table, so one row is
   one application. `created_at` orders the queue.
+- **Interviewing, offer and rejected are applied too** (KAN-413).
+  Anything that asks "did this student apply?" counts all four, never
+  `stage == applied`: the Jobs page's filter, and the Applied button, which
+  keeps a later stage (`mark_applied`'s `CASE`) so "Did You Apply?" on an
+  interviewing job never moves it back. **In SQL, ask it as `NOT IN
+  dto.BEFORE_APPLIED`, never `IN dto.APPLIED_STAGES`**: Postgres refuses a
+  query that names an enum value its type lacks, so with the `IN` form every
+  `GET /jobs` and match read for a signed-in student answered 500 on a
+  database without `a7d3e5f1c2b4` (found on the shared database,
+  2026-10-27, before anything deployed). The four stages before applied
+  exist everywhere. Python checks (`queries/tracker.py`) may use
+  `APPLIED_STAGES`.
+  Every write to one of them dates the row (`coalesce(applied_at, now())`),
+  so a saved job moved straight to interviewing is dated too.
 - **`saved` is a bookmark, not an application** (KAN-261). Nothing queues
   it by itself: batches skip it. Applying, or the job's own Auto Apply
   click, moves it on (`mark_applied`; `queue_applications`, which also
   moves its `created_at` to now so it doesn't jump the queue); saving never
   moves a later stage back (`ON CONFLICT DO NOTHING`), and unsaving deletes
   a `saved` row only, a 409 otherwise. A saved insert names `applied_at`
-  NULL, as a queued one does. Live Activity asks for every stage but saved;
-  the Applications board asks for saved and applied.
+  NULL, as a queued one does. Live Activity asks for the stages auto apply
+  writes; the Applications Tracker asks for saved, applied and the three
+  after it.
 - **`17ea74fa4573` goes on before the deploy that writes `saved`.** It only
   adds the value, so the code running before it never meets it; deployed
   first, every Save answers 500. Applied to the shared database on
@@ -1056,8 +1097,33 @@ a `NOT EXISTS`); auto apply's matches leave out every stage, `saved` too
   resume; the job posting or the account cascades both. The migration
   backfilled each applied application with its posting's last sent
   resume, which the tracker showed until then.
-- An undo is not built. The tracker's later stages
-  (interviewing, offer) are Out of scope below.
+- An undo is not built.
+
+## application_events — dated things on an application (KAN-413)
+
+`application_events.py`, `../../../docs/email_tracker.md`: an interview,
+an assessment's due date, an offer, a rejection or a follow-up on one
+application. The student adds them on the application's page; the email
+tracker will propose them into the same table. Rules:
+
+- **When it happens is exactly one of `at` (an instant) and `on_day` (a
+  date)** (`application_events_one_when`). The tracker draws the two
+  differently, an instant in the viewer's zone and a date as it is, so a
+  date must never be stored as midnight UTC: it reads as the day before in
+  the Americas.
+- **Its composite foreign key `(applicant_id, job_id)` to
+  `job_applications` cascades**: Unsave or taking a job out of the queue
+  deletes its events. `job_id` is nullable for an email that matches no
+  application (a later step); `MATCH SIMPLE` then checks nothing, and
+  `applicant_id`'s own key still ties the row to its student.
+- **An event moves its application forward, never back**
+  (`queries/tracker.py`'s `advance`, one rank per stage, rejected last).
+  Only the stage menu moves a rejected application or moves one backward.
+- **`status` and `source` are there for Gmail**: one typed by hand is
+  `accepted` and `manual` from the start; reads list `accepted` only.
+- **Three enums of its own** (`application_event_kind`, `_status`,
+  `_source`), names equal to values. A new kind is an `ALTER TYPE ... ADD
+  VALUE`, as above.
 
 ## Identity lives in auth.users
 
@@ -1185,9 +1251,10 @@ Real, not forgotten. Do not treat their absence as a decision already made.
 
 These belong to later tickets and should not be added here:
 
-- Pipeline stages, interviews, offers, resume scores. Hiring-system clones
-  model all of them; `../../../docs/job_posting.md` starts that work. Jobs and
-  the applied mark (`job_applications`, above) exist now.
+- A company's view of its pipeline stages and resume scores. Hiring-system
+  clones model them; `../../../docs/job_posting.md` starts that work. The
+  student's own stages and events (`job_applications`, `application_events`,
+  above) exist now.
 - Resume storage and parsing — implemented in `resume.py` (model) and
   `../utils/resume_parser.py` (heuristic parser). See `../../../docs/resume.md`
   for design rationale.

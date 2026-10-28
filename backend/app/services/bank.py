@@ -34,7 +34,7 @@ import uuid
 from collections.abc import Iterable, Mapping, Sequence
 from dataclasses import dataclass
 
-from sqlalchemy import delete, func, select, update
+from sqlalchemy import delete, func, or_, select, update
 from sqlalchemy.dialects.postgresql import insert
 from sqlalchemy.ext.asyncio import AsyncSession
 
@@ -179,13 +179,24 @@ async def _bullets_of(session: AsyncSession, entry_ids: Sequence[uuid.UUID]) -> 
     return out
 
 
-async def load_bank(session: AsyncSession, applicant_id: uuid.UUID) -> Bank:
+async def load_bank(
+    session: AsyncSession, applicant_id: uuid.UUID, *, local_to: Iterable[uuid.UUID] = ()
+) -> Bank:
+    """The applicant's experience bank. Resume-local skills (a built
+    resume's own, `built_resume_id`, docs/tailor_resume.md) are not in the
+    bank: they are left out unless their resume is in `local_to`, so the
+    Experiences view, Generate, Scout, the recommender and the rest never
+    see one. Only a reader of that one resume names it (`load_view`)."""
     rows = list(await session.scalars(select(Bank_Entry).where(Bank_Entry.applicant_id == applicant_id)))
     rows.sort(key=_newest_first)
     bullets = await _bullets_of(session, [r.id for r in rows]) if rows else {}
+    local = list(local_to)
     skills = await session.scalars(
         select(Bank_Skill)
-        .where(Bank_Skill.applicant_id == applicant_id)
+        .where(
+            Bank_Skill.applicant_id == applicant_id,
+            or_(Bank_Skill.built_resume_id.is_(None), Bank_Skill.built_resume_id.in_(local)),
+        )
         .order_by(Bank_Skill.group.asc().nulls_last(), func.lower(Bank_Skill.name))
     )
     return Bank(entries=[Entry(r, bullets[r.id]) for r in rows], skills=list(skills))
@@ -388,6 +399,7 @@ async def _skill_name_taken(
     stmt = select(Bank_Skill.id).where(
         Bank_Skill.applicant_id == applicant_id,
         Bank_Skill.resume_id.is_not_distinct_from(resume_id),
+        Bank_Skill.built_resume_id.is_(None),
         func.lower(Bank_Skill.name) == name.lower(),
     )
     if other_than is not None:
@@ -405,6 +417,21 @@ async def add_skill(
     skill = Bank_Skill(id=uuid.uuid4(), applicant_id=applicant_id, resume_id=resume_id, name=name, group=group)
     session.add(skill)
     await clear_embedding(session, applicant_id)
+    await session.flush()
+    return skill
+
+
+async def add_local_skill(
+    session: AsyncSession, applicant_id: uuid.UUID, built_resume_id: uuid.UUID, name: str, group: str | None = None
+) -> Bank_Skill:
+    """Save a skill that shows on one built resume only and is not in the
+    experience bank (Tailor's picked skills, docs/tailor_resume.md). It is
+    deleted with its resume. The bank's embedding is left as it is: the
+    recommender never reads this skill. The caller gives it a choice row
+    and checks the name is not already on the resume."""
+    skill = Bank_Skill(
+        id=uuid.uuid4(), applicant_id=applicant_id, built_resume_id=built_resume_id, name=name, group=group)
+    session.add(skill)
     await session.flush()
     return skill
 

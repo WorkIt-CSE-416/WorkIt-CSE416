@@ -30,6 +30,8 @@ class ScriptedLLM(LLM):
         self._scripts = {endpoint(n): script for n, script in enumerate(scripts)}
         #: Every prompt sent, in order, as the model would have received it.
         self.prompts: list[list[Message]] = []
+        #: The reply cap each structured call asked for, in order.
+        self.max_tokens: list[int | None] = []
 
     @property
     def system_prompt(self) -> str:
@@ -45,8 +47,9 @@ class ScriptedLLM(LLM):
                 raise item
             yield item
 
-    async def _complete_json(self, client, endpoint, messages, schema) -> str:
+    async def _complete_json(self, client, endpoint, messages, schema, max_tokens=None) -> str:
         # A structured reply is the script's pieces joined, as one answer.
+        self.max_tokens.append(max_tokens)
         return "".join(
             [piece async for piece in self._complete(client, endpoint, messages)]
         )

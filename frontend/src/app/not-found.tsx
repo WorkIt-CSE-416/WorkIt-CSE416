@@ -2,7 +2,6 @@ import type { Metadata } from "next";
 
 import { Logo } from "@/components/logo";
 import { ButtonLink } from "@/components/ui/button";
-import { getCurrentAccount } from "@/lib/session";
 
 export const metadata: Metadata = { title: "Page Not Found" };
 
@@ -14,18 +13,28 @@ export const metadata: Metadata = { title: "Page Not Found" };
  * That is still WorkIt, with a way back in, where Next's stock page was black
  * on white with neither.
  *
- * The way back is the account's own home. A company account goes to its
- * Overview, and everyone else, signed in or not, to the seeker Dashboard.
- * getCurrentAccount() is cached per render and returns null when the API is
- * down, so this page never fails for want of it.
+ * THIS PAGE READS NOTHING FROM THE REQUEST: no cookies, no headers, no
+ * session. Next renders the root not-found into the tree of every page under
+ * the root layout, as the fallback the layout router holds, even when no 404
+ * happens. So one cookies() read here (it used to call getCurrentAccount())
+ * made every route dynamic (all 63 on 2026-10-24), the landing page and the
+ * legal pages included: each visit ran a server render, and for a signed-in
+ * visitor a GET /auth/me to the API, instead of coming from the CDN. A build
+ * with the Supabase keys set (the deploy's) lists / as ○ (static) while this
+ * holds; a build with no env file (CI's check) shows ○ either way, because
+ * the Supabase client throws before it reaches cookies(), so it cannot catch
+ * a regression.
+ *
+ * The way back is still the account's own home, decided when the button is
+ * clicked rather than when the page renders: /go-home (app/go-home/route.ts) reads
+ * the session and redirects with homePath(), so a company account goes to
+ * its Overview, an applicant mid-onboarding to onboarding, and everyone else,
+ * signed in or not, to Home. The label says Home, which
+ * is where nearly everyone lands while the business side is hidden
+ * (KAN-239). No prefetch: a prefetch of /go-home would run that session lookup
+ * on every 404 view, for a click that rarely comes.
  */
-export default async function NotFound() {
-  const account = await getCurrentAccount();
-  const home =
-    account?.account_type === "company"
-      ? { href: "/company", label: "Back to Overview" }
-      : { href: "/dashboard", label: "Back to Dashboard" };
-
+export default function NotFound() {
   return (
     <main className="flex flex-1 items-center justify-center p-6">
       <div className="max-w-auth rounded-card border-border bg-surface shadow-card w-full border p-6 text-center">
@@ -36,8 +45,8 @@ export default async function NotFound() {
           The link may be broken, or the page may have moved.
         </p>
 
-        <ButtonLink href={home.href} size="lg" className="mt-6 w-full">
-          {home.label}
+        <ButtonLink href="/go-home" prefetch={false} size="lg" className="mt-6 w-full">
+          Back to Home
         </ButtonLink>
       </div>
     </main>

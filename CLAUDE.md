@@ -170,11 +170,29 @@ with the failure it prevents.
   0005: each upload owns its own entries and skills (no merge, no
   duplicate check across resumes; an import replaces what the upload
   owned), and the Experiences view's Showing card picks one resume from
-  the shared resume table (KAN-361), showing what the picked one owns or
-  shows, with Not From an Upload as a row of its own under that table
+  the shared resume list (KAN-361, KAN-406), showing what the picked one
+  owns or shows, with Not From an Upload as a card of its own under it
   (KAN-363). Add saves into the picked resume.
   Read it before changing import, the bank's API shape or the Experiences
   view.
+- `docs/tailor_resume.md` — Tailor's redesign, built (2026-10-25): the student picks a resume and the missing keywords to
+  add, one click rewrites and saves the posting's tailored resume with no
+  proposals and no Done, and the editor marks each change and reverts it.
+  Holds the skill placement rule. Read it before changing Tailor or its
+  screen.
+- `docs/fill-reports.md` — fix reports (KAN-369): what a fill report from
+  the extension holds, and the Markdown fix brief admins export for a
+  coding agent (sections, markers, where the fixture goes).
+- `docs/email_tracker.md`: KAN-413's email tracker design, a draft not yet
+  reviewed. A student connects Gmail (read-only); WorkIt reads only job
+  emails, matches each to an application, and proposes a stage change or a
+  dated event that the student accepts or rejects. It stores no email
+  bodies. Build step 1 is built: the `interviewing`, `offer` and
+  `rejected` stages, the stage menu, `application_events` added by hand
+  (which feed the Calendar), and the Inbox (`/inbox`), where emails live;
+  reading Gmail is not. Read it before changing
+  application stages, the tracker's dated events or anything that reads a
+  student's email.
 - `docs/search.md` — how the Jobs page's search reads a query.
 - `docs/architecture.md` — how the halves fit together, for a reader new to
   the repo.
@@ -240,7 +258,9 @@ with the failure it prevents.
 `docs/agents/`. Each person installs the plugin themselves.
 
 - **Issue tracker:** Jira, project KAN on workitsbu.atlassian.net, through the
-  Atlassian MCP server. Ask before creating tickets. `docs/agents/issue-tracker.md`.
+  Atlassian MCP server. Ask before creating tickets. Epic, Story and Task only
+  (no Bug, no Subtask): every Story and Task has an Epic as its parent.
+  `docs/agents/issue-tracker.md`.
 - **Triage labels:** the five default roles, as Jira labels under their own
   names. `docs/agents/triage-labels.md`.
 - **Domain docs:** single-context, one `GLOSSARY.md` and `docs/adr/` at the

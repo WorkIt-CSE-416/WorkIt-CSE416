@@ -54,10 +54,7 @@ export function FollowedCard({
   return (
     <div
       aria-hidden="true"
-      className={cn(
-        "text-ink rounded-2xl bg-white p-5 shadow-[0_24px_48px_-20px_rgb(40_20_90/0.45)] ring-1 ring-slate-900/5",
-        className,
-      )}
+      className={cn("gloss-card text-ink rounded-2xl p-5", className)}
       style={{ width: CARD_WIDTH, ...style }}
       {...rest}
     >

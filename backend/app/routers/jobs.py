@@ -20,6 +20,11 @@ and /jobs/recommended then leave out the jobs that applicant marked as applied
 (job_applications, routers/applications.py). Without a token, or with one
 that isn't an applicant's, every job is listed (get_signed_in_applicant_id).
 
+GET /jobs also enriches each listing with `match` and `highlights` when the
+viewer is a signed-in applicant whose experience bank is non-empty, using the
+same `score_jobs` path as GET /jobs/recommended. A scoring failure is logged
+and swallowed: the feed still loads, just without scores.
+
 This file is the HTTP layer only: the routes, their query parameters and
 read_filters, which turns those into JobFilters. What each filter matches
 and how the database is asked live in app/queries/jobs/ (filters.py has the
@@ -65,6 +70,7 @@ row, so a filter the words set is never invisible (KAN-308).
 """
 
 import datetime
+import logging
 import uuid
 from typing import Annotated, Literal
 
@@ -75,6 +81,7 @@ from app.db import get_session
 from app.deps import (
     assert_applicant_owns,
     get_current_account,
+    get_signed_in_applicant,
     get_signed_in_applicant_id,
 )
 from app.models import dto
@@ -105,6 +112,8 @@ from app.schemas.requirements import JobRequirement
 from app.services import postings, requirements
 from app.services.bank import load_bank
 from app.services.search_facts import without_words
+
+logger = logging.getLogger(__name__)
 
 router = APIRouter(prefix="/jobs", tags=["jobs"])
 
@@ -195,10 +204,30 @@ async def list_jobs(
     # drops by id, or skip one it shows next visit.
     offset: int = Query(0, ge=0, le=100_000),
     filters: JobFilters = Depends(read_filters),
+    account: AuthenticatedAccount | None = Depends(get_signed_in_applicant),
     db: AsyncSession = Depends(get_session),
 ) -> list[JobListing]:
-    """Newest roles first. Empty until the first import has run."""
-    return await fetch_listings(db, limit, filters, offset)
+    """Newest roles first, with match scores when the viewer is a signed-in
+    applicant with a non-empty experience bank. Empty until the first import
+    has run."""
+    listings = await fetch_listings(db, limit, filters, offset)
+    if account is not None and listings:
+        try:
+            bank = await load_bank(db, account.id)
+            if bank.entries or bank.skills:
+                scored = await score_jobs(
+                    db, account, bank,
+                    JobFilters(job_ids=[uuid.UUID(j.id) for j in listings]),
+                )
+                by_id = {s.id: s for s in scored}
+                for listing in listings:
+                    hit = by_id.get(listing.id)
+                    if hit is not None:
+                        listing.match = hit.match
+                        listing.highlights = hit.highlights
+        except Exception:
+            logger.exception("Scoring failed for applicant %s", account.id)
+    return listings
 
 
 @router.get("/count", response_model=JobCount)

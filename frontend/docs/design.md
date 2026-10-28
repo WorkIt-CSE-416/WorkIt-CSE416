@@ -7,12 +7,19 @@ a shell, a page layout, a colour token or a `ui/` component.
 ## The two shells
 
 The two shells are separate layouts on purpose, and they no longer look
-alike. The seeker shell floats: the section panel runs the full height with
-the logo in its header, beside a top bar and the page, each a white
-`rounded-shell` panel on the lavender `--color-frame`, 12px apart and 12px
-from the window. The company shell is still docked: a full-width bar with the
+alike. The seeker shell is flat: one white surface, the section panel
+flush with the window's left edge and running the full height with the logo
+in its header, the top bar along the top beside it, and the page under the
+bar, ruled apart by `--color-border-subtle` hairlines. The panel's header
+and the bar are both 64px with their bottom rule, so the two rules run as
+one line. It floated until 2026-10-27, each part a white `rounded-shell`
+panel 12px apart on the lavender `--color-frame`; the user found that
+frame wasted room and read as three separate containers, so keep it flat:
+no ground colour, no gaps, no rounded or shadowed shell panels. Scout's
+panel docks at the right the same way, with a left rule. The panel is the
+rail (below). The company shell is still docked: a full-width bar with the
 lavender corner cell (`components/sidebar-brand.tsx`, company only now) over
-a full-bleed panel. `app-sidebar.tsx` draws both, as `variant="floating"` or
+a full-bleed panel. `app-sidebar.tsx` draws both, as `variant="rail"` or
 the default `docked`. Their other shared parts (the bell, the account menu,
 the search field) are in `src/components`, and what is left is each bar's
 search target and copy. Each bar's search is a GET `next/form`
@@ -23,32 +30,25 @@ layout never receives searchParams. Lift a `<TopBar>` out only if they are
 still near-identical once both sides are real screens.
 
 Seeker pages break on the width they actually get, not the window's: the
-shell renders them inside `@container/main`, because an open panel takes
-280px with its insets. **That width is the one they have with the panel
-open, in both states**: collapsing the panel re-centres the page in the room
-it frees and never rearranges it (`(seeker)/layout.tsx`, "A PAGE KEEPS THE
-WIDTH"). Keyed to the `<main>` itself, collapsing between about 800 and
-1300px moved the Dashboard from one column to two and its range switch from
-the page's right edge to its middle, wrapped the Calendar's view switch, and
-turned the Week into seven columns. The container is `--panel-gain`
-narrower than the `<main>`, a registered length that eases over the panel's
-own 200ms linear, so the page holds its width through the animation; keep
-the two durations equal. A layout that splits into columns uses
-`@3xl/main:` and friends, a card that rearranges itself (the job card) is
-its own `@container`, and both see the same width whether the panel is open
-or not. **Two pages take the freed room back: Applications** (KAN-256)
-and a job posting's page, whose rail of jobs grows by the gain while the job
-keeps its width (KAN-297, `docs/screens.md`, Job posting page). Applications'
-list is a table that scrolls sideways, so more width only shows more
-columns. The page has no width cap and a negative margin of half
-`--panel-gain` on each side, which widens it with the panel's own easing
-while its `@…/main` queries still see the open width, so nothing on it
-reflows. A page whose layout splits or wraps by width keeps the rule;
-reading pages keep `--container-app`, since text past about 80 characters a
-line is hard to follow. On Applications and the Calendar the segmented control sits at the
-top right of the header wherever it fits beside the title, the title
-wrapping first; the Dashboard's range switch sits at the top right of the page, beside the
-greeting, and wraps under it where the page is narrow.
+shell renders them inside `@container/main`. A layout that splits into
+columns uses `@3xl/main:` and friends, and a card that rearranges itself
+(the job card) is its own `@container`. Scout's panel takes room beside the
+page when open, and the page fits itself to what is left. **The panel never
+changes the page's width**: it is a fixed rail. Until 2026-10-27 it
+collapsed and opened, and a `--panel-gain` length (with its readers on
+Applications, Tailor and the job rail) kept each page at its open-panel
+width through the move; that went with the collapse. Applications has no
+width cap (KAN-256): its list is a table that scrolls sideways, so more
+width only shows more columns. **Every other seeker page stops at
+`max-w-dashboard` (1440px)**, Home's cap, so all of them start at the same
+left edge beside the rail (2026-10-27): at the old 1024px `max-w-app` they
+sat centred between wide empty margins once the rail freed the room, which
+the user found flawed. A block of prose keeps its own measure (About the
+Role's 68ch), since text past about 80 characters a line is hard to follow. On Applications and
+the Calendar the segmented control sits at the top right of the header
+wherever it fits beside the title, the title wrapping first; Home's range
+switch sits at the top right of the page, beside the greeting, and wraps
+under it where the page is narrow.
 Pages render a
 `<div>`, not a `<main>` — shadcn's `SidebarInset` already is the `<main>`.
 
@@ -61,13 +61,13 @@ Settings, Help and Sign Out (with the account header only below lg, where the
 block shows just the photo). A "N New Roles Since Yesterday" pill used to sit
 beside it from xl; it was removed as a distraction, along with the
 `/jobs?limit=500` fetch it made on every page.
-The greeting is the Dashboard's heading, and the resume nudge is the profile
+The greeting is Home's heading, and the resume nudge is the profile
 strength card at the panel's foot (`(seeker)/profile-strength.tsx`), which
 counts only steps the API can see. Only messages backed by real data belong in
 the bar — deadlines go first once the tracker has a backend, and not before.
-The seeker panel holds only the search (Dashboard, Jobs, Auto Apply,
-Applications, Calendar, Resumes & Experiences, My Profile), with no
-caption over it. Settings, Help and Sign Out, once its General
+The seeker panel holds only the search (Home, Jobs, Auto Apply,
+Applications Tracker, Inbox, Calendar, Resumes & Experiences, My Profile),
+with no caption over it. Settings, Help and Sign Out, once its General
 group, live in the bar's account menu and nowhere else. The
 seeker layout redirects to /login when `getSessionUser()` finds no session,
 so the shell never draws a signed-out state and the bar's account block is
@@ -77,43 +77,51 @@ header and Sign Out. The company bar's Sign Out
 is real, but its name is still hard-coded in `company/layout.tsx`.
 
 
-**The panel is pinned or opens on hover (KAN-300), in both shells.**
-Pinned, it stays open and the page makes room, as it always did. Unpinned,
-it is the icon rail; pointing at it opens it over the page after 150ms, and
-it closes 300ms after the pointer leaves, so a pointer crossing the rail
-neither flashes it open nor snaps it shut. Tabbing into it opens it at once,
-and focus leaving it or Escape closes it. The page underneath never moves or
-reflows during a hover: the gap beside the panel keeps the rail's width,
-and the seeker page keeps its collapsed `--panel-gain`. The bar's toggle
-pins and unpins (`aria-pressed`, a "Pin sidebar" / "Unpin sidebar"
-tooltip), as does Ctrl or Cmd+B, and the pin is the `sidebar_state` cookie.
-Below md the panel is shadcn's sheet, which has no hover, and works as
-before. `components/hover-sidebar.tsx` wraps shadcn's provider rather than
-editing the vendored one: it opens the provider when pinned or hovering.
-**Size anything by the pinned width with `useSidebarPin`, never shadcn's
-`state`**: a hover sets that to "expanded", and the company bar's corner
-cell, sized by it, widened and pushed the bar on every hover. On the seeker
-shell a hovering panel runs the window's height and covers the bar's
-toggle, so the open panel carries its own pin at its header's right, beside
-the logo (`app-sidebar.tsx`, PanelBrand): the same toggle, a pin to pin and
-a crossed-out pin to unpin. The company bar's toggle is never covered, so
-its panel has none.
+**The seeker panel is a rail that is always open** (2026-10-27): 88px,
+each section an icon over its name, after Jobright's and LinkedIn's
+navigation, so it never covers the page and never moves it. A name too long
+for the 72px tile takes the item's `short` (Tracker, Resumes, Profile),
+with the full name kept as the accessible name; the rail's icons draw a
+lighter line than the app's other icons (about 1.7px against 2px), which
+read heavy at 24px. The logo is the mark alone, in a 64px header. The
+profile strength card is a ring tile named Setup there. Below md it is
+shadcn's sheet, with an icon beside each full name. `RailSidebarProvider`
+(`app-sidebar.tsx`) holds shadcn's provider open, so the bar's toggle shows
+below md only and opens the sheet. It replaced a 256px panel that pinned or
+opened over the page on hover (KAN-300), which the user found a flaw.
+
+**The company panel is pinned or opens on hover (KAN-300).**
+Pinned, it stays open and the page makes room. Unpinned, it is the icon
+rail; pointing at it opens it over the page after 150ms, and it closes
+300ms after the pointer leaves, so a pointer crossing the rail neither
+flashes it open nor snaps it shut. Tabbing into it opens it at once, and
+focus leaving it or Escape closes it. The bar's toggle pins and unpins
+(`aria-pressed`, a "Pin sidebar" / "Unpin sidebar" tooltip), as does Ctrl or
+Cmd+B, and the pin is the `company_sidebar_pinned` cookie, not shadcn's
+`sidebar_state`, which a Ctrl or Cmd+B on the seeker rail still writes. Below md the panel is
+shadcn's sheet. `components/hover-sidebar.tsx` wraps shadcn's provider
+rather than editing the vendored one: it opens the provider when pinned or
+hovering. **Size anything by the pinned width with `useSidebarPin`, never
+shadcn's `state`**; in CSS, key on the `data-pinned="true"|"false"` that
+`HoverSidebarProvider` writes on the wrapper, for the same reason (KAN-368):
+a hover sets that to "expanded", and the company bar's corner cell, sized
+by it, widened and pushed the bar on every hover.
 
 Shared shell parts in `src/components`: `app-sidebar.tsx` (the left panel both
 shells use: shadcn's Sidebar with WorkIt's row spacing and current-item
 marking; each shell passes its own groups and its bar's height as the offset),
 `sidebar-brand.tsx` (the bar's corner cell: the panel toggle and the logo),
-`hover-sidebar.tsx` (the panel's pinned and hover states, below),
+`hover-sidebar.tsx` (the company panel's pinned and hover states, above),
 `notifications-menu.tsx` (the bell, a popover holding an empty state) and
 `account-menu.tsx` (a name and email header, the shell's rows, then Sign Out;
 Sign In without `onSignOut`).
 
 `components/stat-tile.tsx` is shared by both dashboards, and both use its
-`plain` variant; its card form has no caller today; the seeker Dashboard
-draws its own numbers (`dashboard/headline.tsx`).
+`plain` variant; its card form has no caller today; the seeker Home
+draws its own numbers (`home/headline.tsx`).
 
 The company Dashboard and the seeker Profile still use open sections, the
-seeker Dashboard's old surfaces (it moved to tiles in KAN-173). On
+seeker Home's old surfaces (it moved to tiles in KAN-173). On
 /company: open KPI tiles beside one violet Most Urgent hero, open sections for
 the chart, Highlights and Needs Your Attention, a grey Hiring Pipeline band
 with no cards inside it, and one white card, the Recent Applicants table. On
@@ -195,7 +203,7 @@ the assistant wore two marks. An ESLint rule refuses Phosphor's
 ## Colour
 
 Each stage has one colour and one icon, `(seeker)/stage-colors.ts`, read by
-the Dashboard's Up Next, the Applications list, grid, Status filter and
+Home's Up Next, the Applications list, grid, Status filter and
 application page (and the archived board), and the Calendar alike. A stage
 in the Status filter (its dropdown and All Filters, KAN-282; chips until
 then) leads with its stage's glyph in the stage's text colour, not a
@@ -267,7 +275,7 @@ show beside its field.
 the server and the browser print the same.
 
 **Every choice of one among a few is `ui/segmented-control.tsx`**: the
-Calendar's Month, Week and Agenda, the Dashboard's range, the Applications
+Calendar's Month, Week and Agenda, Home's range, the Applications
 layouts, the sign-in card's Applicant or Company, the company chart's
 range, and Resumes & Experiences' two views. A pill-shaped track (a 5% ink wash, so it reads on the white page and
 the off-white auth card alike, and no outline) with a white thumb that slides
@@ -308,7 +316,7 @@ resolves to.
 
 There is exactly one Button, `ui/button.tsx`. It answers to shadcn's variant and
 size names (`default`, `secondary`, `outline`, `ghost`, plus WorkIt's own
-`positive`) while painting the mockups' styling, so a component pasted from
+`positive` and `decline`, the quiet red beside a green Accept) while painting the mockups' styling, so a component pasted from
 the shadcn docs composes without edits and still looks like WorkIt.
 Every variant at a size is one box (sm 36px, default 42px, lg 48px), a
 text-only one included, and the Button sizes its glyphs to keep it so: an
@@ -321,8 +329,9 @@ and `card`, which are not re-exports. **A secondary button never sits on
 `--color-surface`**, its own fill: there it shows only as an outline. The
 resume editor's bar and the phone editor's sheets were surface-coloured,
 and Download, Done and Hide all but vanished into them (KAN-258); put
-secondary buttons on white (a card, a sheet) or on a tint (the editor's
-bars take `--color-brand-tint`).
+secondary buttons on white (a card, a sheet, the editor's slim bar on
+`--color-panel`) or on a tint (the phone editor's bars take
+`--color-brand-tint`).
 
 **A button is a rounded rectangle; a pill is a chip** (KAN-251). A button
 acts (saves, opens, sends, goes somewhere); a chip is a choice made in
@@ -349,7 +358,7 @@ never changes a button's or chip's box**: a `no-restricted-syntax` rule in
 size, line height or border width in its `className` (as a plain string;
 it cannot read `cn()` or a template string), which may only place it or
 colour a state. That is
-what ended the Dashboard's pill buttons, a 52px Start Auto Apply, the
+what ended Home's pill buttons, a 52px Start Auto Apply, the
 welcome page's stretched buttons (now choice cards) and five hand-drawn
 pills at three heights. `/design-kit/buttons` shows every size and chip with
 its role.

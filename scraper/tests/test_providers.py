@@ -14,16 +14,17 @@ from types import SimpleNamespace
 import pytest
 
 from workit_scraper import __main__ as run
-from workit_scraper import polite, providers, store
+from workit_scraper import logos, polite, providers, store
 from workit_scraper.details import Facts, Pay
 from workit_scraper.providers import BoardNotFound, Job, Page
+from workit_scraper.shortlist import classify
 from workit_scraper.store import RunStats
 
 
 def serve(monkeypatch, payload: object) -> list[str]:
     """Answer every `_get_json` with `payload`, and record the URLs asked for."""
     asked: list[str] = []
-    monkeypatch.setattr(providers, "_get_json", lambda url: asked.append(url) or payload)
+    monkeypatch.setattr(providers.fetch, "_get_json", lambda url: asked.append(url) or payload)
     return asked
 
 
@@ -98,7 +99,7 @@ class TestWorkable:
 
     def test_ely_is_named_once(self) -> None:
         # Thorlabs' Ely has the region "Ely".
-        assert providers._place("Ely", "Ely", "United Kingdom") == "Ely, United Kingdom"
+        assert providers.text._place("Ely", "Ely", "United Kingdom") == "Ely, United Kingdom"
 
     def test_its_page_states_work_model_pay_and_type(self, monkeypatch) -> None:
         asked = serve(monkeypatch, self.DATAVISOR)
@@ -132,13 +133,13 @@ class TestWorkable:
 
     def test_on_site_is_spelled_with_an_underscore(self) -> None:
         # Trexquant's counsel: `"workplace": "on_site"`.
-        assert providers._work_style("on_site", None) == "On site"
+        assert providers.text._work_style("on_site", None) == "On site"
 
     def test_no_such_account_is_a_404(self, monkeypatch) -> None:
         def missing(url: str):
             raise BoardNotFound(url)
 
-        monkeypatch.setattr(providers, "_get_json", missing)
+        monkeypatch.setattr(providers.fetch, "_get_json", missing)
         with pytest.raises(BoardNotFound):
             providers.workable("no-such-board", "Nobody")
 
@@ -235,9 +236,9 @@ class TestRecruitee:
         # Constructed: no board we read states a salary yet. The shape is the
         # example in Recruitee's API reference (docs.recruitee.com, `/offers/`).
         row = {"salary": {"min": "100", "max": "1000", "period": "hour", "currency": "EUR"}}
-        assert providers._recruitee_pay(row) is None  # €1,000 an hour is no wage
+        assert providers.systems.recruitee._recruitee_pay(row) is None  # €1,000 an hour is no wage
         row = {"salary": {"min": "25", "max": "30", "period": "hour", "currency": "EUR"}}
-        assert providers._recruitee_pay(row) == Pay("EUR", 25, 30, "hour")
+        assert providers.systems.recruitee._recruitee_pay(row) == Pay("EUR", 25, 30, "hour")
 
 
 class TestBambooHR:
@@ -328,7 +329,7 @@ class TestBambooHR:
                 "https://www.bamboohr.com/", 302, "refused cross-origin redirect", None, None
             )
 
-        monkeypatch.setattr(providers, "_get_json", redirected)
+        monkeypatch.setattr(providers.fetch, "_get_json", redirected)
         with pytest.raises(BoardNotFound):
             providers.bamboohr("no-such-company", "Nobody")
 
@@ -341,6 +342,441 @@ class TestBambooHR:
         [job] = tuesday.jobs
         assert job.posted_at == "2026-07-06T00:00:00+00:00"
         assert job.facts.pay == Pay("USD", 125_000, 150_000, "year")
+
+
+class TestRippling:
+    """Real responses from 2026-10-26, trimmed. Rippling's list states the work
+    model and its job's own record does not, so the list's is carried to the page."""
+
+    # Kraken Robotics lists one internship once per office, under one id.
+    KRAKEN = {
+        "items": [
+            {
+                "id": "cf84fc0e-616f-4c5a-8f44-1ba6ab761e87",
+                "name": "Internships Opportunities",
+                "url": "https://ats.rippling.com/kraken-robotics-inc/jobs/cf84fc0e-616f-4c5a-8f44-1ba6ab761e87",
+                "department": {"name": "People & Culture"},
+                "locations": [{"name": city, "workplaceType": "ON_SITE"}],
+            }
+            for city in ("Mount Pearl, Canada", "Dartmouth, Canada")
+        ],
+        "page": 0,
+        "pageSize": 1000,
+        "totalItems": 2,
+        "totalPages": 1,
+    }
+    # Tavern Research's Data Scientist I, from its own record.
+    TAVERN = {
+        "uuid": "1a3cfbeb-973a-4528-8fc6-43c04e179ea8",
+        "name": "Data Scientist I",
+        "description": {
+            "company": "<meta><p><b><strong>Data Scientist I</strong></b></p>"
+            "<p>Location: Chicago, IL</p><p><b><strong>About Tavern Research</strong></b></p>"
+            "<p>Tavern Research is a political tech startup building tools and insights.</p>",
+            "role": "<meta><p><b><strong>About You</strong></b></p>"
+            "<ul><li><span>You love rolling up your sleeves to wrestle messy data into shape."
+            "</span></li></ul>",
+        },
+        "workLocations": ["Chicago, IL"],
+        "employmentType": {"label": "SALARIED_FT", "id": "Salaried, full-time"},
+        "createdOn": "2026-01-19T07:59:15.209000-08:00",
+        "payRangeDetails": [
+            {
+                "location": "Chicago, IL",
+                "currency": "USD",
+                "frequency": "YEAR",
+                "rangeStart": 95500.0,
+                "rangeEnd": 113500.0,
+                "isRemote": False,
+            }
+        ],
+    }
+
+    def listed(self, work_style: str | None = "On site") -> Job:
+        return Job(
+            ats="rippling",
+            token="tavernresearch",
+            company="Tavern Research",
+            external_id="1a3cfbeb-973a-4528-8fc6-43c04e179ea8",
+            title="Data Scientist I",
+            apply_url="https://ats.rippling.com/tavernresearch/jobs/1a3cfbeb-973a-4528-8fc6-43c04e179ea8",
+            location="Chicago, IL",
+            work_style=work_style,
+        )
+
+    def test_one_job_in_two_offices_is_one_posting(self, monkeypatch) -> None:
+        asked = serve(monkeypatch, self.KRAKEN)
+        [job] = providers.rippling("kraken-robotics-inc", "Kraken Robotics")
+        assert asked == [
+            "https://ats.rippling.com/api/v2/board/kraken-robotics-inc/jobs?page=0&pageSize=1000"
+        ]
+        assert job.key == "rippling/kraken-robotics-inc#cf84fc0e-616f-4c5a-8f44-1ba6ab761e87"
+        assert job.location == "Mount Pearl, Canada; Dartmouth, Canada"
+        assert job.department == "People & Culture"
+        assert job.work_style == "On site"
+        # Its record is read once it is kept, like a Greenhouse posting's page.
+        assert (job.page, job.posted_at) == (None, None)
+
+    def test_a_job_remote_in_one_office_is_remote(self, monkeypatch) -> None:
+        # As on Recruitee: one that can be done remotely is what a remote filter wants.
+        rows = [dict(row) for row in self.KRAKEN["items"]]
+        rows[1]["locations"] = [{"name": "NY", "workplaceType": "REMOTE"}]
+        serve(monkeypatch, {**self.KRAKEN, "items": rows})
+        [job] = providers.rippling("kraken-robotics-inc", "Kraken Robotics")
+        assert job.work_style == "Remote"
+
+    def test_its_record_gives_text_date_type_and_pay(self, monkeypatch) -> None:
+        asked = serve(monkeypatch, self.TAVERN)
+        job = providers.describe(self.listed())
+        assert asked == [
+            "https://ats.rippling.com/api/v2/board/tavernresearch/jobs/1a3cfbeb-973a-4528-8fc6-43c04e179ea8"
+        ]
+        assert job.posted_at == "2026-01-19T15:59:15.209000+00:00"
+        facts = job.facts
+        assert (facts.work_style, facts.job_type) == ("On site", "full_time")
+        assert facts.pay == Pay("USD", 95_500, 113_500, "year")
+        # Both parts are read, the company's first, as the posting's page shows them;
+        # the sections then file each line under its heading.
+        assert job.description == (
+            "Data Scientist I\nRequirements\n"
+            "• You love rolling up your sleeves to wrestle messy data into shape.\n"
+            "Details\nChicago, IL\n"
+            "About the Company\n"
+            "Tavern Research is a political tech startup building tools and insights."
+        )
+
+    def test_no_such_board_is_not_found(self, monkeypatch) -> None:
+        def missing(url: str):
+            raise BoardNotFound(url)
+
+        monkeypatch.setattr(providers.fetch, "_get_json", missing)
+        with pytest.raises(BoardNotFound):
+            providers.rippling("no-such-board", "Nobody")
+
+    def test_a_board_past_one_page_is_too_large(self, monkeypatch) -> None:
+        # Constructed: no board read had more than 102 postings. A partial list
+        # would be evidence of nothing, so it is not read at all.
+        serve(monkeypatch, {**self.KRAKEN, "totalItems": 1500, "totalPages": 2})
+        with pytest.raises(providers.TooLarge):
+            providers.rippling("kraken-robotics-inc", "Kraken Robotics")
+
+    def test_an_apply_link_names_its_board(self) -> None:
+        from build_boards import tokens
+
+        link = "https://ats.rippling.com/en-GB/foundation-robotics/jobs/6be9c342-d335-4955-83c9-3d4482811307"
+        assert tokens(link) == [("rippling", "foundation-robotics")]
+        assert tokens("https://ats.rippling.com/tavernresearch/jobs/1a3cfbeb") == [
+            ("rippling", "tavernresearch")
+        ]
+
+
+class TestIcims:
+    """Real responses from 2026-10-26, trimmed. A board is its sitemap, which names
+    each job only by its URL; the job's own page has the rest as schema.org JSON."""
+
+    # General Dynamics Mission Systems: 723 jobs in its sitemap, and 723 in its own
+    # search pages (36 of 20, then 3).
+    SITEMAP = (
+        "<?xml version='1.0' encoding='utf-8'?><urlset xmlns=\"http://www.sitemaps.org/schemas/sitemap/0.9\">"
+        "<url><loc>https://careers-gdms.icims.com/jobs/intro</loc></url>"
+        "<url><loc>https://careers-gdms.icims.com/jobs/75689/reliability-engineering-intern/job</loc>"
+        "<lastmod>2026-10-26T12:43:29-04:00</lastmod></url>"
+        "<url><loc>https://careers-gdms.icims.com/jobs/75368/"
+        "deputy-program-manager-of-operations-%28dpmo%29/job</loc>"
+        "<lastmod>2026-10-26T12:03:09-04:00</lastmod></url>"
+        "</urlset>"
+    )
+    # Peraton's Topeka internship, from its own page. "UNAVAILABLE" is what iCIMS
+    # writes in a field the employer left empty.
+    PAGE = (
+        '<html><head><script type="application/ld+json">'
+        '{"hiringOrganization":{"@type":"Organization","name":"Peraton","sameAs":"UNAVAILABLE"},'
+        '"jobLocation":[{"address":{"addressCountry":"US","streetAddress":"UNAVAILABLE",'
+        '"@type":"PostalAddress","postalCode":"UNAVAILABLE","addressLocality":"Topeka",'
+        '"addressRegion":"KS"},"@type":"Place"}],'
+        '"employmentType":"FULL_TIME","@type":"JobPosting",'
+        '"description":"<h2>Peraton Overview</h2>\\n<p>Peraton is a next-generation national'
+        ' security company.</p>",'
+        '"datePosted":"2026-10-08T04:00:00.000Z",'
+        '"title":"Summer 2027 Mechanical Engineering Intern- Topeka, KS",'
+        '"@context":"http://schema.org",'
+        '"url":"https://careers-peraton.icims.com/jobs/172050/'
+        'summer-2027-mechanical-engineering-intern--topeka%2c-ks/job"}'
+        "</script></head><body></body></html>"
+    )
+
+    def listed(self) -> Job:
+        return Job(
+            ats="icims",
+            token="careers-peraton",
+            company="Peraton",
+            external_id="172050",
+            title="summer 2027 mechanical engineering intern topeka, ks",
+            apply_url="https://careers-peraton.icims.com/jobs/172050/"
+            "summer-2027-mechanical-engineering-intern--topeka%2c-ks/job",
+        )
+
+    def serve(self, monkeypatch, text: str) -> list[str]:
+        asked: list[str] = []
+        monkeypatch.setattr(providers.fetch, "_get_text", lambda url: asked.append(url) or text)
+        return asked
+
+    def test_its_sitemap_lists_the_board(self, monkeypatch) -> None:
+        asked = self.serve(monkeypatch, self.SITEMAP)
+        intern, manager = providers.icims("careers-gdms", "General Dynamics Mission Systems")
+        assert asked == ["https://careers-gdms.icims.com/sitemap.xml"]
+        assert intern.key == "icims/careers-gdms#75689"
+        assert intern.apply_url == (
+            "https://careers-gdms.icims.com/jobs/75689/reliability-engineering-intern/job"
+        )
+        # Only the URL names it, which is enough to classify; the page has the rest.
+        assert intern.title == "reliability engineering intern"
+        assert manager.title == "deputy program manager of operations (dpmo)"
+        assert (intern.location, intern.posted_at, intern.page) == (None, None, None)
+
+    def test_a_slug_reads_as_words(self) -> None:
+        title = providers.systems.icims._icims_title(
+            "summer-2027-mechanical-engineering-intern--topeka%2c-ks"
+        )
+        assert title == "summer 2027 mechanical engineering intern topeka, ks"
+
+    def test_a_co_op_slug_still_reads_as_a_co_op(self) -> None:
+        # A hyphen in a slug is a space, but "co op" is no stage the filter knows:
+        # every co-op on iCIMS was dropped before its page was read (7 at Peraton
+        # and 5 at General Dynamics on 2026-10-26). Seen at Peraton.
+        title = providers.systems.icims._icims_title("software-engineering-co-op")
+        assert classify(title) == classify("Software Engineering Co-op")
+        assert classify(title)
+
+    def test_anything_but_a_job_sitemap_is_a_failed_read(self, monkeypatch) -> None:
+        # Constructed: an index of sitemaps names no job, and reading it as an empty
+        # board would close every job the board has.
+        self.serve(monkeypatch, "<sitemapindex><sitemap><loc>x</loc></sitemap></sitemapindex>")
+        with pytest.raises(providers.Incomplete):
+            providers.icims("careers-gdms", "General Dynamics Mission Systems")
+
+    def test_its_page_gives_title_date_places_and_type(self, monkeypatch) -> None:
+        asked = self.serve(monkeypatch, self.PAGE)
+        job = providers.describe(self.listed())
+        assert asked == ["https://careers-peraton.icims.com/jobs/172050/job?in_iframe=1"]
+        assert job.title == "Summer 2027 Mechanical Engineering Intern- Topeka, KS"
+        assert job.posted_at == "2026-10-08T04:00:00+00:00"
+        assert job.places == ("Topeka, KS, US",)
+        assert job.facts.job_type == "full_time"
+        assert "Peraton is a next-generation national security company." in job.description
+
+    def test_the_pages_title_outlives_the_next_listing(self, monkeypatch) -> None:
+        self.serve(monkeypatch, self.PAGE)
+        read = providers.describe(self.listed())
+        monday = store.update(None, [read], [], RunStats(), "2026-10-05T09:00:00+00:00")
+        tuesday = store.update(monday, [self.listed()], [], RunStats(), "2026-10-06T09:00:00+00:00")
+        [job] = tuesday.jobs
+        assert job.title == "Summer 2027 Mechanical Engineering Intern- Topeka, KS"
+
+    def test_an_apply_link_names_its_board(self) -> None:
+        from build_boards import tokens
+
+        link = "https://careers-gdms.icims.com/jobs/70886/entry-level-infrastructure-software-engineer/job"
+        assert tokens(link) == [("icims", "careers-gdms")]
+        assert tokens("https://www.icims.com/") == []
+
+
+class TestOracle:
+    """Real responses from 2026-10-26, trimmed (a page's `TotalJobsCount` is set to
+    the rows kept). Oracle pages 200 a request; the tests shrink the page, never
+    the data."""
+
+    TOKEN = "edbz.fa.us2/CX"  # Texas Instruments' external careers site.
+    ROWS = [
+        {
+            "Id": "25016380",
+            "Title": "Digital Design Verification Engineering Intern",
+            "PostedDate": "2026-10-23",
+            "PrimaryLocation": "Santa Clara, CA, United States",
+            "WorkplaceType": "",
+            "secondaryLocations": [],
+        },
+        {
+            "Id": "25019103",
+            "Title": "Software Engineering Intern - Compiler",
+            "PostedDate": "2026-10-22",
+            "PrimaryLocation": "United States",
+            "WorkplaceType": "",
+            "secondaryLocations": [{"Name": "Sugar Land, TX, United States", "CountryCode": "US"}],
+        },
+        {
+            # Jackson National's (ejko.fa.us2): its list states the work model.
+            "Id": "14790",
+            "Title": "Internship Actuarial",
+            "PostedDate": "2026-10-20",
+            "PrimaryLocation": "Lansing, MI, United States",
+            "WorkplaceType": "Remote",
+            "secondaryLocations": [],
+        },
+    ]
+    # Texas Instruments' design intern, from its own record.
+    DETAIL = {
+        "items": [
+            {
+                "Id": "25016380",
+                "Title": "Digital Design Verification Engineering Intern",
+                "ExternalPostedStartDate": "2026-10-23T20:17:59+00:00",
+                "ExternalDescriptionStr": "<p><b>Change the world. Love your job. </b><br />"
+                "As a Digital IC Design Engineering intern, you'll architect new TI products.</p>",
+                "ExternalQualificationsStr": "<p><strong>Minimum Requirements:</strong></p>"
+                "<ul><li>Currently pursuing an undergraduate or graduate degree in Electrical"
+                " Engineering</li></ul>",
+                "ExternalResponsibilitiesStr": "",
+                "CorporateDescriptionStr": "<div><b>Why TI?</b></div>",
+                "requisitionFlexFields": [
+                    {"Prompt": "Base Range", "Value": "$31.00 - $45.00 per hour"},
+                    {"Prompt": "ECL/GTC Required", "Value": "Yes"},
+                ],
+            }
+        ]
+    }
+
+    def pages(self, monkeypatch, rows: list[dict], total: int | None = None) -> list[str]:
+        """Answer each list request with its page of `rows`, as Oracle does."""
+        asked: list[str] = []
+        monkeypatch.setattr(providers.systems.oracle, "ORACLE_PAGE", 2)
+
+        def answer(url: str) -> object:
+            asked.append(url)
+            offset = int(url.rsplit("offset=", 1)[1].split(",")[0])
+            page = rows[offset : offset + providers.systems.oracle.ORACLE_PAGE]
+            count = len(rows) if total is None else total
+            return {"items": [{"TotalJobsCount": count, "requisitionList": page}]}
+
+        monkeypatch.setattr(providers.fetch, "_get_json", answer)
+        return asked
+
+    def test_a_board_is_read_page_by_page(self, monkeypatch) -> None:
+        asked = self.pages(monkeypatch, self.ROWS)
+        paced: list[str] = []
+        design, compiler, actuarial = providers.oracle(
+            self.TOKEN, "Texas Instruments", pace=paced.append
+        )
+        assert asked == [
+            "https://edbz.fa.us2.oraclecloud.com/hcmRestApi/resources/latest/"
+            "recruitingCEJobRequisitions?onlyData=true&expand=requisitionList.secondaryLocations"
+            f"&finder=findReqs;siteNumber=CX,sortBy=POSTING_DATES_DESC,limit=2,offset={offset}"
+            for offset in (0, 2)
+        ]
+        # The caller paces the first request; the reader each one after it.
+        assert len(paced) == 1
+        assert design.key == "oracle/edbz.fa.us2/CX#25016380"
+        assert design.apply_url == (
+            "https://edbz.fa.us2.oraclecloud.com/hcmUI/CandidateExperience/en/sites/CX/job/25016380"
+        )
+        assert design.posted_at == "2026-10-23T00:00:00+00:00"
+        assert design.location == "Santa Clara, CA, United States"
+        assert compiler.location == "United States; Sugar Land, TX, United States"
+        assert (design.work_style, actuarial.work_style) == (None, "Remote")
+        assert design.page is None
+
+    def test_one_job_short_of_the_count_is_still_whole(self, monkeypatch) -> None:
+        # A grocer's board (hdhe.fa.em3) counted 404 and listed 403 on every way of
+        # paging it, both sort orders and two page sizes: a job counted, never listed.
+        self.pages(monkeypatch, self.ROWS[:2], total=3)
+        assert len(providers.oracle(self.TOKEN, "Texas Instruments")) == 2
+
+    def test_more_missing_than_that_is_incomplete(self, monkeypatch) -> None:
+        self.pages(monkeypatch, self.ROWS[:1], total=3)
+        with pytest.raises(providers.Incomplete):
+            providers.oracle(self.TOKEN, "Texas Instruments")
+
+    def test_a_later_page_not_found_is_incomplete(self, monkeypatch) -> None:
+        # Only the first request can say the board is gone. A 404 on a later page
+        # is a page we could not read: as "no such board", it closed every posting.
+        self.pages(monkeypatch, self.ROWS)
+        page = providers.fetch._get_json
+
+        def answer(url: str) -> object:
+            if not url.endswith("offset=0"):
+                raise providers.BoardNotFound(url)
+            return page(url)
+
+        monkeypatch.setattr(providers.fetch, "_get_json", answer)
+        with pytest.raises(providers.Incomplete):
+            providers.oracle(self.TOKEN, "Texas Instruments")
+
+    def test_a_count_of_one_with_nothing_listed_is_incomplete(self, monkeypatch) -> None:
+        # One short of the count is whole, but not when that leaves nothing.
+        self.pages(monkeypatch, [], total=1)
+        with pytest.raises(providers.Incomplete):
+            providers.oracle(self.TOKEN, "Texas Instruments")
+
+    def test_a_list_with_no_count_is_incomplete(self, monkeypatch) -> None:
+        # Read as a count of 0, the first page passed for the whole board.
+        monkeypatch.setattr(providers.systems.oracle, "ORACLE_PAGE", 2)
+        answer = {"items": [{"requisitionList": self.ROWS[:2]}]}
+        monkeypatch.setattr(providers.fetch, "_get_json", lambda url: answer)
+        with pytest.raises(providers.Incomplete):
+            providers.oracle(self.TOKEN, "Texas Instruments")
+
+    def test_a_board_past_the_largest_read_is_too_large(self, monkeypatch) -> None:
+        self.pages(monkeypatch, self.ROWS)
+        monkeypatch.setattr(providers.systems.oracle, "ORACLE_MAX", 2)
+        with pytest.raises(providers.TooLarge):
+            providers.oracle(self.TOKEN, "Texas Instruments")
+
+    def test_the_records_exact_time_outlives_the_next_listing(self, monkeypatch) -> None:
+        # The list dates a posting by day; its record by the second. A bare listing
+        # the next run must not put it back at midnight.
+        serve(monkeypatch, self.DETAIL)
+        listed = Job(
+            ats="oracle",
+            token=self.TOKEN,
+            company="Texas Instruments",
+            external_id="25016380",
+            title="Digital Design Verification Engineering Intern",
+            apply_url="https://edbz.fa.us2.oraclecloud.com/hcmUI/CandidateExperience/en/sites/CX/job/25016380",
+            posted_at="2026-10-23T00:00:00+00:00",
+        )
+        read = providers.describe(listed)
+        monday = store.update(None, [read], [], RunStats(), "2026-10-24T09:00:00+00:00")
+        tuesday = store.update(
+            monday,
+            [store.carry(listed, {job.key: job for job in monday.jobs})],
+            [],
+            RunStats(),
+            "2026-10-25T09:00:00+00:00",
+        )
+        assert tuesday.jobs[0].posted_at == "2026-10-23T20:17:59+00:00"
+
+    def test_its_record_gives_text_date_and_pay(self, monkeypatch) -> None:
+        asked = serve(monkeypatch, self.DETAIL)
+        listed = Job(
+            ats="oracle",
+            token=self.TOKEN,
+            company="Texas Instruments",
+            external_id="25016380",
+            title="Digital Design Verification Engineering Intern",
+            apply_url="https://edbz.fa.us2.oraclecloud.com/hcmUI/CandidateExperience/en/sites/CX/job/25016380",
+            location="Santa Clara, CA, United States",
+            posted_at="2026-10-23T00:00:00+00:00",
+        )
+        job = providers.describe(listed)
+        assert asked == [
+            "https://edbz.fa.us2.oraclecloud.com/hcmRestApi/resources/latest/"
+            'recruitingCEJobRequisitionDetails?expand=all&onlyData=true&finder=ById;Id="25016380",siteNumber=CX'
+        ]
+        assert job.posted_at == "2026-10-23T20:17:59+00:00"
+        # The pay sits in a field of its own, read as a labelled line.
+        assert job.facts.pay == Pay("USD", 31, 45, "hour")
+        assert "you'll architect new TI products" in job.description
+        assert "Currently pursuing an undergraduate or graduate degree" in job.description
+
+    def test_an_apply_link_names_its_board(self) -> None:
+        from build_boards import tokens
+
+        link = (
+            "https://edbz.fa.us2.oraclecloud.com/hcmUI/CandidateExperience/en/sites/CX/job/25016380"
+        )
+        assert tokens(link) == [("oracle", "edbz.fa.us2/CX")]
+        honeywell = "https://ibqbjb.fa.ocs.oraclecloud.com/hcmUI/CandidateExperience/en-US/sites/Honeywell/job/1"
+        assert tokens(honeywell) == [("oracle", "ibqbjb.fa.ocs/Honeywell")]
 
 
 class TestWithPage:
@@ -356,7 +792,7 @@ class TestWithPage:
             apply_url=f"https://example.test/{ats}/1",
         )
 
-    def test_workable_and_bamboohr_pages_are_read_recruitee_never(self, monkeypatch) -> None:
+    def test_workable_and_bamboohr_pages_are_read_recruitee_never(self, swap_provider) -> None:
         read: list[str] = []
 
         def describe(job: Job) -> Job:
@@ -364,10 +800,40 @@ class TestWithPage:
             return replace(job, page=Page(providers.PAGE_VERSION, "Read.", Facts()))
 
         for ats in ("workable", "bamboohr"):
-            monkeypatch.setattr(providers, f"describe_{ats}", describe)
+            swap_provider(ats, describe=describe)
         for ats in ("workable", "bamboohr", "recruitee"):
             run.with_page(self.job(ats), self.robots)
         assert read == ["workable", "bamboohr"]
+
+
+class TestLever:
+    """Lever runs a second data centre in the EU, with hosts of its own: a board
+    there is "eu/{slug}", listed by api.eu.lever.co, its page on jobs.eu.lever.co.
+    Its answer has the US one's shape, so only the addresses are new here; the
+    live EU boards are read by the scrape a PR runs."""
+
+    def test_an_eu_board_is_read_on_levers_eu_hosts(self, monkeypatch) -> None:
+        asked = serve(monkeypatch, [])
+        assert providers.lever("eu/quantinuum", "Quantinuum") == []
+        assert asked == ["https://api.eu.lever.co/v0/postings/quantinuum?mode=json"]
+        assert logos.page_url("lever", "eu/quantinuum") == "https://jobs.eu.lever.co/quantinuum"
+        assert logos.lever_jobs("eu/quantinuum") == (
+            "https://api.eu.lever.co/v0/postings/quantinuum?mode=json&limit=50"
+        )
+
+    def test_a_us_board_keeps_its_addresses(self) -> None:
+        assert providers.listing_url("lever", "palantir") == (
+            "https://api.lever.co/v0/postings/palantir?mode=json"
+        )
+        assert logos.page_url("lever", "palantir") == "https://jobs.lever.co/palantir"
+
+    def test_an_eu_posting_belongs_to_its_eu_board(self, monkeypatch) -> None:
+        url = "https://jobs.eu.lever.co/quantinuum/46b3f32c-a2ad-4d4d-bff6-b1bbebf3e382"
+        serve(
+            monkeypatch, [{"id": "46b3f32c", "text": "Software Engineer Intern", "hostedUrl": url}]
+        )
+        [posting] = providers.lever("eu/quantinuum", "Quantinuum")
+        assert (posting.board_key, posting.apply_url) == ("lever/eu/quantinuum", url)
 
 
 class TestSharedPace:
@@ -381,3 +847,123 @@ class TestSharedPace:
         assert polite._pace_key("https://apply.workable.com") == "https://apply.workable.com"
         # Not a subdomain of bamboohr.com.
         assert polite._pace_key("https://notbamboohr.com") == "https://notbamboohr.com"
+
+
+class Clock:
+    """`time` for `fetch` alone: sleeping moves the clock, and nothing waits."""
+
+    def __init__(self) -> None:
+        self.now = 1000.0
+        self.slept: list[float] = []
+
+    def monotonic(self) -> float:
+        return self.now
+
+    def sleep(self, seconds: float) -> None:
+        self.slept.append(seconds)
+        self.now += seconds
+
+
+def too_many(url: str, retry_after: str | None = None) -> urllib.error.HTTPError:
+    headers = {"Retry-After": retry_after} if retry_after else {}
+    return urllib.error.HTTPError(url, 429, "Too Many Requests", headers, None)
+
+
+class TestHostHold:
+    """A 429 holds every request to its host, not only the one that got it."""
+
+    ACME = "https://acme.wd5.myworkdayjobs.com/wday/cxs/acme/jobs"
+    GLOBEX = "https://globex.wd1.myworkdayjobs.com/wday/cxs/globex/jobs"
+
+    @pytest.fixture(autouse=True)
+    def clock(self, monkeypatch) -> Clock:
+        clock = Clock()
+        monkeypatch.setattr(providers.fetch, "time", clock)
+        monkeypatch.setattr(providers.fetch, "_holds", {})
+        return clock
+
+    def answers(self, *replies):
+        """A fetch that gives each reply in turn: an error is raised, bytes returned."""
+        replies = list(replies)
+
+        def fetch() -> bytes:
+            reply = replies.pop(0)
+            if isinstance(reply, Exception):
+                raise reply
+            return reply
+
+        return fetch
+
+    def test_the_retry_waits_out_the_hold(self, clock: Clock) -> None:
+        fetch = self.answers(too_many(self.ACME), b"{}")
+        assert providers.fetch._fetched(self.ACME, fetch) == b"{}"
+        assert clock.slept == [providers.fetch.HOLD_FIRST]
+
+    def test_another_tenant_on_the_host_waits_too(self, clock: Clock) -> None:
+        with pytest.raises(urllib.error.HTTPError):
+            providers.fetch._fetched(
+                self.ACME, self.answers(too_many(self.ACME), too_many(self.ACME))
+            )
+        clock.slept.clear()
+        providers.fetch._fetched(self.GLOBEX, self.answers(b"{}"))
+        assert clock.slept == [2.0]
+
+    def test_each_hold_after_the_last_is_up_doubles_to_a_minute(self, clock: Clock) -> None:
+        for _ in range(8):
+            providers.fetch._hold("myworkdayjobs.com", None)
+            clock.now += 120
+        assert providers.fetch._holds["myworkdayjobs.com"][1] == providers.fetch.HOLD_LONGEST
+        lengths = []
+        providers.fetch._holds.clear()
+        for _ in range(3):
+            providers.fetch._hold("myworkdayjobs.com", None)
+            lengths.append(providers.fetch._holds["myworkdayjobs.com"][1])
+            clock.now += 120
+        assert lengths == [1.0, 2.0, 4.0]
+
+    def test_a_burst_of_429s_counts_once(self, clock: Clock) -> None:
+        for _ in range(5):
+            providers.fetch._hold("myworkdayjobs.com", None)
+        assert providers.fetch._holds["myworkdayjobs.com"] == (clock.now + 1.0, 1.0)
+
+    def test_retry_after_sets_the_hold_up_to_a_minute(self, clock: Clock) -> None:
+        providers.fetch._hold("myworkdayjobs.com", "7")
+        assert providers.fetch._holds["myworkdayjobs.com"][1] == 7.0
+        clock.now += 10
+        providers.fetch._hold("myworkdayjobs.com", "3600")
+        assert providers.fetch._holds["myworkdayjobs.com"][1] == 60.0
+
+    def test_a_success_after_the_hold_starts_over(self, clock: Clock) -> None:
+        providers.fetch._hold("myworkdayjobs.com", "8")
+        clock.now += 10
+        providers.fetch._fetched(self.ACME, self.answers(b"{}"))
+        assert providers.fetch._holds == {}
+
+    def test_a_success_sent_before_the_hold_leaves_it(self, clock: Clock) -> None:
+        providers.fetch._hold("myworkdayjobs.com", "8")
+        providers.fetch._release("myworkdayjobs.com")
+        assert "myworkdayjobs.com" in providers.fetch._holds
+
+    def test_a_5xx_holds_no_one(self, clock: Clock) -> None:
+        error = urllib.error.HTTPError(self.ACME, 503, "Unavailable", {}, None)
+        providers.fetch._fetched(self.ACME, self.answers(error, b"{}"))
+        assert providers.fetch._holds == {}
+        assert clock.slept == [2]
+
+
+class TestProviderRecords:
+    """A field one reader needs without its partner fails nowhere loudly: a page URL
+    with no reader is never read, a logo pattern with no page never matches."""
+
+    def test_a_page_url_comes_with_its_reader(self) -> None:
+        for ats, provider in providers.PROVIDERS.items():
+            assert (provider.job_url is None) == (provider.describe is None), ats
+
+    def test_a_logo_pattern_comes_with_its_page(self) -> None:
+        for ats, provider in providers.PROVIDERS.items():
+            assert provider.logo_page or not provider.logo_pattern, ats
+
+    def test_case_blind_names_its_domain(self) -> None:
+        for ats, provider in providers.PROVIDERS.items():
+            assert provider.subdomains or not provider.case_blind, ats
+        assert polite.FOLD_CASE == ("myworkdayjobs.com",)

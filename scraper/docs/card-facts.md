@@ -15,7 +15,7 @@ the description by `details.py`. What neither states stays null, and the card sa
 "not listed" -- except work style and job type, each inferred by a measured rule below.
 
 **Facts are read from the whole description, when it is fetched** (`details.read`, from
-`providers._page`),
+`providers.text._page`),
 and only then is it cut to `DESCRIPTION_CHARS` for storage. Pay is often the last thing
 a posting says, under a long benefits section: reading the stored, cut copy missed it
 on a sixteenth of the feed. So `--offline` re-renders the facts a fetch found but finds

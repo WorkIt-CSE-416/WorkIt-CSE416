@@ -160,7 +160,10 @@ test("on a site WorkIt can't fill, the toolbar popup says so, Save to WorkIt sav
   await popup.getByLabel("Note (optional)").fill("The Apply button opens a new window.");
   await popup.getByRole("button", { name: "Send report" }).click();
   await expect(popup.getByText("Sent. Thanks for telling WorkIt.")).toBeVisible();
-  expect(api.reports).toEqual([{ job_system: "unsupported", posting_url: CAREERS, engine_version: expect.any(String), fields: [], note: "The Apply button opens a new window." }]);
+  expect(api.reports).toEqual([{
+    job_system: "unsupported", posting_url: CAREERS, engine_version: expect.any(String), fields: [], note: "The Apply button opens a new window.",
+    trigger: "menu", context: { extension_version: expect.any(String), browser: expect.any(String), captured_at: expect.any(String), recognition: null, page_url: CAREERS, frame: "top" },
+  }]);
 });
 
 test("the toolbar popup says it can't fill a site only on a page that looks like a job posting", async () => {
