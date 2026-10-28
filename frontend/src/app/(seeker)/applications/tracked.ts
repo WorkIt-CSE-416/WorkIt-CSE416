@@ -38,11 +38,11 @@ type Tracked = "saved" | "applied" | AfterApplied;
  * is the one the student said they sent, not just the last sent to the
  * posting. Null when none was sent or it was deleted since.
  */
-export async function getTracked(): Promise<
+export async function getTracked({ scored = true }: { scored?: boolean } = {}): Promise<
   { applications: Application[]; error: null } | { applications: null; error: string }
 > {
   const [{ applications, error }, events] = await Promise.all([
-    getApplications(TRACKED, { scored: true }),
+    getApplications(TRACKED, { scored }),
     getEvents(),
   ]);
   if (applications == null) return { applications: null, error };

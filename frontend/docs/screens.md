@@ -497,8 +497,8 @@ how to bring them back. The notes below still describe them.
 
 **Top Matches sits under the numbers** (KAN-342, `home/top-matches.tsx`):
 the seeker's twelve best-scoring open jobs, best first, from the Best Match
-scores (`getTopMatches`, `GET /jobs/recommended?limit=12`), with no score
-floor. A new seeker's thin experience bank can score every job a Weak
+scores (`getMatches` in `home/data.ts`, `GET /jobs/recommended/{id}/home`),
+with no score floor. A new seeker's thin experience bank can score every job a Weak
 Match, and their best weak ones are still where to start; the Strong Matches
 number above counts only 80 and up. Each is a flat row in one tile: a well
 with the logo, the title (its link to the job posting page), the company,
@@ -508,8 +508,8 @@ taken out at the user's ask: the list is for choosing what to apply to. The
 title's link (`top-match-link.tsx`) makes the job page's Back return to the
 Home. **Auto Apply**, at the heading's right beside See More Matches,
 turns the list into a picker (`top-matches-list.tsx`) of the seeker's best
-matches that auto apply can fill (the same scores with `?auto_apply=true`,
-read beside the top list): the top list may hold none, since auto apply
+matches that auto apply can fill (the same call's `auto_apply` list, each
+as `?auto_apply=true` lists it): the top list may hold none, since auto apply
 fills Greenhouse alone for now. Each row gets a checkbox in front, the whole
 row toggles it, and its buttons step aside; a row that already has a stage
 (queued, applied) is dimmed with it. "Add N to Queue" queues each pick
@@ -529,8 +529,16 @@ beside the text they squeezed the title to two words a line. The Jobs page's own
 were tried here first and were too tall for a glance: three filled the
 screen. With an empty bank it asks for the bank. It streams in its own
 `<Suspense>` with a skeleton in the same frame, so the numbers never wait on
-scoring, and the page starts its four reads first, before its other awaits,
-or its two scoring calls run one whole call late (KAN-368). The page awaits
+scoring, and the page starts its reads first, before its other awaits, or
+the scoring call runs one whole call late (KAN-368). **Home makes one
+scoring call** (KAN-425): Top Matches, its picking mode and the Strong
+Matches dates come from `GET /jobs/recommended/{id}/home`, one pass the API
+keeps until the bank, the job postings or the applied jobs change, so a
+return to Home is served from it in well under a second. It was three
+`GET /jobs/recommended` calls and the tracker's scored read at once, each
+a full scan of the job postings' vectors, and took 13 to 23 s on
+2026-10-28. The tracker read here is `getTrackerUnscored`: Home shows no
+application's score. The page awaits
 only the account: the headline numbers (the Strong Matches count is a full
 scoring pass), Top Matches and Activity each stream over a skeleton of their
 shape, and `home/loading.tsx` draws the same frame (`HomeFrame`),
@@ -611,8 +619,8 @@ range that score Strong Match (80) or better for this seeker (it was Good
 Matches, counting from 65, until the user renamed it; the threshold moved
 with the name, so a 70% job never sits under a label its own Good Match
 badge contradicts), from the Best
-Match scores (`getMatchDates`, one `GET /jobs/recommended` call with
-`min_match` over the longest range, counted per range in `data.ts`). It
+Match scores (`getMatches`' `strongPosted`: the dates of the postings from
+the longest range scoring 80 or more, counted per range in `data.ts`). It
 shows no change, since a score fades with a posting's age and last week's
 postings would always count fewer; with an empty experience bank it says
 "Add your experience first" and opens the bank. It replaced New Roles, a

@@ -170,63 +170,55 @@ export async function getRecommendedPage(query: string, offset: number): Promise
   }
 }
 
-/**
- * The seeker's `count` best-scoring open jobs, best first: Home's Top
- * Matches (KAN-342), from the same scores as Best Match. No score floor, so a
- * new seeker whose bank only gives weak matches still sees their best ones.
- * "empty" when there is nothing to score against (the API's 404 for an empty
- * bank, or 403 for a company account); null when the API can't say.
- */
-export async function getTopMatches(
-  count: number,
-  { autoApplyOnly = false }: { autoApplyOnly?: boolean } = {},
-): Promise<JobListing[] | "empty" | null> {
-  try {
-    const { id, token } = await getApplicantSession();
-    const params = new URLSearchParams({ limit: String(count) });
-    // Only the job postings auto apply can fill: Top Matches' picking mode.
-    if (autoApplyOnly) params.set("auto_apply", "true");
-    const res = await apiGet(`/jobs/recommended/${id}?${params}`, token);
-    if (res.status === 404 || res.status === 403) return "empty";
-    if (!res.ok) return null;
-    return (await res.json()) as JobListing[];
-  } catch {
-    return null;
-  }
-}
-
-/** The most GET /jobs/recommended returns at once. */
-const RECOMMENDED_MAX = 500;
+/** Home's share of the Best Match scores (KAN-425), from GET
+ *  /jobs/recommended/{id}/home: one scoring pass for all three. */
+export type HomeMatches = {
+  /** The seeker's best-scoring open jobs, best first, with no score floor:
+   *  Top Matches (KAN-342). A new seeker whose bank only gives weak matches
+   *  still sees their best ones. */
+  top: JobListing[];
+  /** The best ones auto apply can fill: Top Matches' picking mode. */
+  autoApply: JobListing[];
+  /** When each job posting from the window that scores at least the floor
+   *  went up: Strong Matches counts them per range. */
+  strongPosted: string[];
+};
 
 /**
- * When each job posting from the last `days` days that scores at least
- * `minMatch` for the seeker went up: Home's Strong Matches (KAN-342),
- * from the same scores as Best Match. "empty" when there is nothing to score
- * against (the API's 404 for an empty bank, or 403 for a company account);
- * null when the API can't say. Pages on past the API's limit, since
- * `min_match` drops the weak ones before the page is cut.
+ * Home's matches, from the same scores as Best Match: the `count` best, the
+ * `count` best auto apply can fill, and the posting dates of those from the
+ * last `days` days that score at least `minMatch`. "empty" when there is
+ * nothing to score against (the API's 404 for an empty bank, or 403 for a
+ * company account); null when the API can't say.
+ *
+ * ONE CALL, NOT THREE. Top Matches, its picking mode and Strong Matches
+ * each asked GET /jobs/recommended, and each call scanned every job
+ * posting's vector, so the three ran side by side on one Postgres (13 to
+ * 23 s on 2026-10-28). The API scores once and keeps the result until the
+ * bank, the job postings or the applied jobs change, so a return to Home is
+ * not scored again (backend/app/queries/jobs/home.py).
  */
-export async function getMatchDates(
+export async function getHomeMatches(
   days: number,
   minMatch: number,
-): Promise<string[] | "empty" | null> {
+  count: number,
+): Promise<HomeMatches | "empty" | null> {
   try {
     const { id, token } = await getApplicantSession();
-    const dates: string[] = [];
-    for (let offset = 0; ; offset += RECOMMENDED_MAX) {
-      const params = new URLSearchParams({
-        posted_within: String(days),
-        min_match: String(minMatch),
-        limit: String(RECOMMENDED_MAX),
-        offset: String(offset),
-      });
-      const res = await apiGet(`/jobs/recommended/${id}?${params}`, token);
-      if (res.status === 404 || res.status === 403) return "empty";
-      if (!res.ok) return null;
-      const jobs = (await res.json()) as JobListing[];
-      dates.push(...jobs.flatMap((job) => (job.posted_at ? [job.posted_at] : [])));
-      if (jobs.length < RECOMMENDED_MAX) return dates;
-    }
+    const params = new URLSearchParams({
+      posted_within: String(days),
+      min_match: String(minMatch),
+      limit: String(count),
+    });
+    const res = await apiGet(`/jobs/recommended/${id}/home?${params}`, token);
+    if (res.status === 404 || res.status === 403) return "empty";
+    if (!res.ok) return null;
+    const body = (await res.json()) as {
+      top: JobListing[];
+      auto_apply: JobListing[];
+      strong_posted: string[];
+    };
+    return { top: body.top, autoApply: body.auto_apply, strongPosted: body.strong_posted };
   } catch {
     return null;
   }

@@ -1,5 +1,7 @@
-import { getApplications, getNow, getTracker } from "../applications/data";
-import { getMatchDates } from "../jobs/listings";
+import { cache } from "react";
+
+import { getApplications, getNow, getTrackerUnscored } from "../applications/data";
+import { getHomeMatches } from "../jobs/listings";
 import { upcomingEvents, type EventKind, type TrackerEvent } from "../tracker";
 import { rangeDays, type RangeKey } from "./range";
 
@@ -45,6 +47,19 @@ export type HomeStat = {
  *  never sits under a label its own badge contradicts. */
 const STRONG_MATCH = 80;
 
+/** How many jobs Top Matches lists (./top-matches.tsx). */
+export const TOP_MATCHES_SHOWN = 12;
+
+/**
+ * Home's matches, read once per render: the numbers' Strong Matches and Top
+ * Matches below them share the one API call (getHomeMatches says why it is
+ * one). The window is the longest range's, and at least 30 days, the
+ * month's.
+ */
+export const getMatches = cache(() =>
+  getHomeMatches(Math.max(30, rangeDays("season", getNow())), STRONG_MATCH, TOP_MATCHES_SHOWN),
+);
+
 /** Where the Jobs page shows what Strong Matches counts, best first. Its Date
  *  Posted filter offers a week and a month but no season, so Season opens
  *  the whole Best Match list. */
@@ -87,8 +102,8 @@ const STRONG_MATCHES_NOTE: Record<RangeKey, string> = {
  *
  * Strong Matches is the job postings from the range that score Strong Match
  * or better for this seeker (STRONG_MATCH), from the Best Match scores
- * (GET /jobs/recommended). It replaced New Roles, a count of every posting
- * in the feed, which said nothing about the seeker and drew a red change
+ * (GET /jobs/recommended/{id}/home, getMatches). It replaced New Roles, a
+ * count of every posting in the feed, which said nothing about the seeker and drew a red change
  * whenever employers posted less. It shows no change: the score fades with
  * a posting's age, so last week's postings would always count fewer. With
  * an empty experience bank there is nothing to score, so the tile asks for
@@ -108,14 +123,11 @@ const STRONG_MATCHES_NOTE: Record<RangeKey, string> = {
 export async function getHeadline(): Promise<Record<RangeKey, HomeStat[]>> {
   const now = getNow();
   const seasonDays = rangeDays("season", now);
-  const [matched, tracker] = await Promise.all([
-    getMatchDates(Math.max(30, seasonDays), STRONG_MATCH),
-    getTracker(),
-  ]);
-  /** Good matches posted in the last `days` days; null without scores. */
+  const [matched, tracker] = await Promise.all([getMatches(), getTrackerUnscored()]);
+  /** Strong matches posted in the last `days` days; null without scores. */
   const strongMatches = (days: number) =>
-    Array.isArray(matched)
-      ? matched.filter((at) => now.getTime() - Date.parse(at) < days * DAY_MS).length
+    matched && matched !== "empty"
+      ? matched.strongPosted.filter((at) => now.getTime() - Date.parse(at) < days * DAY_MS).length
       : null;
   const apps = tracker.applications;
   const saved = apps && apps.filter((app) => app.stage === "saved").length;
@@ -184,7 +196,7 @@ export async function getHeadline(): Promise<Record<RangeKey, HomeStat[]>> {
  * (./streak.tsx), since the server's UTC day is a day off for the Americas.
  */
 export async function getAppliedTimes(): Promise<string[] | null> {
-  const { applications } = await getTracker();
+  const { applications } = await getTrackerUnscored();
   return applications && applications.flatMap((app) => (app.appliedOn ? [app.appliedOn] : []));
 }
 
