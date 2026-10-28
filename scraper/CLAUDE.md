@@ -91,6 +91,12 @@ parts are `model` (Board, Page, Job, Provider, the errors), `fetch` (requests,
 2. Its `Provider`: `listing_url` (which the reader and the robots check both
    read, so a board is never checked at one address and fetched at another),
    `read`, and `apply_link`, or none of its boards ever reaches `boards.csv`.
+   `providers/urls.py`'s `board_keys` matches `apply_link` against the
+   link's host and path only, ending at a path boundary; a pattern that reads
+   the query (Jibe's `icims=1`, SuccessFactors' `ats=successfactors`) or ends
+   mid-path (TikTok's) joins its `WHOLE_LINK`, matched from the whole link's
+   start. Those three were dropped when `board_keys` replaced `build_boards`'
+   `tokens()`, and main's scraper tests failed until KAN-424 put them back.
    Then what applies:
    - its list leaves out the description or a fact the posting's own page has:
      `job_url` and a `describe_<ats>` as `describe`;
