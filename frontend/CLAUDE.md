@@ -1155,7 +1155,9 @@ the KAN-296 cutover.
   the 88px rail, the bar, the page and Scout's panel ruled apart by
   hairlines, with no lavender frame, gaps, rounded corners or shadows. Each
   rail tile is an icon over its name (an item's `short` where the name does
-  not fit), and below md the rail is a sheet of full-name rows. The panel
+  not fit), and below md the rail is a sheet of full-name rows. On hover
+  and press only the fills move; the icon stays still (KAN-426), since a
+  2px icon nudge on top of the gliding fill read as the row jumping. The panel
   never moves the page, so there is no pin, no peek and no `--panel-gain`
   on the seeker side. **Every seeker page stops at `max-w-dashboard`**
   (1440px) inside `SEEKER_GUTTER`, so all start at Home's left edge; the

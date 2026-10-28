@@ -92,6 +92,24 @@ def test_greenhouse_embed_rejects_untrusted_hosts(host):
     assert discovery.board_keys(f"https://{host}/embed/job_app?for=acme") == []
 
 
+@pytest.mark.parametrize(
+    "url",
+    [
+        "https://example.com/apply?url=https://jobs.lever.co/acme",
+        "https://example.com/apply?next=//jobs.ashbyhq.com/acme",
+        "https://jobs.ashbyhq.com/acme@other",
+    ],
+)
+def test_a_board_named_inside_a_query_or_mid_name_is_no_board(url):
+    assert discovery.board_keys(url) == []
+
+
+def test_a_query_after_the_board_still_names_it():
+    assert discovery.board_keys("https://jobs.lever.co/acme/123?lever-source=x") == [
+        ("lever", "acme")
+    ]
+
+
 def test_embedded_jobs_from_different_companies_stay_separate():
     rows = discovery.candidates(
         [
