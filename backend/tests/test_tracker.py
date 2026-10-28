@@ -451,3 +451,63 @@ async def test_an_emails_event_is_never_deleted(student, database):
     # It shows in Interviews & Dates once accepted, but stays a record
     assert (await client.delete(f"/applicants/{me}/events/{event}")).status_code == 404
     assert [e["id"] for e in (await client.get(f"/applicants/{me}/emails")).json()] == [event]
+
+
+# --- read state (KAN-427) ---
+
+
+async def _read_at(client, me) -> dict[str, str | None]:
+    return {e["id"]: e["read_at"] for e in (await client.get(f"/applicants/{me}/emails")).json()}
+
+
+async def test_an_email_arrives_unread_and_marks_read_and_unread(student, database):
+    client, me = student
+    job = await _applied(client, database)
+    first = await _propose(database, me, job)
+    second = await _propose(database, me, job, kind="other", title="Hello")
+    assert await _read_at(client, me) == {first: None, second: None}
+
+    body = {"ids": [first, second], "read": True}
+    assert (await client.put(f"/applicants/{me}/emails/read", json=body)).status_code == 204
+    read = await _read_at(client, me)
+    assert read[first] and read[second]
+
+    # Read again keeps the first time; unread clears only what it names
+    await client.put(f"/applicants/{me}/emails/read", json={"ids": [first], "read": True})
+    assert (await _read_at(client, me))[first] == read[first]
+    await client.put(f"/applicants/{me}/emails/read", json={"ids": [first], "read": False})
+    assert await _read_at(client, me) == {first: None, second: read[second]}
+
+
+async def test_deciding_on_an_email_reads_it(student, database):
+    client, me = student
+    job = await _applied(client, database)
+    accepted = await _propose(database, me, job)
+    dismissed = await _propose(database, me, job, kind="other", title="Hello")
+    await client.post(f"/applicants/{me}/events/{accepted}/accept")
+    await client.post(f"/applicants/{me}/events/{dismissed}/dismiss")
+    assert all((await _read_at(client, me)).values())
+
+
+async def test_marking_read_is_all_or_none_and_only_the_students_emails(student, database):
+    client, me = student
+    job = await _applied(client, database)
+    mine = await _propose(database, me, job)
+    other = uuid.uuid4()
+    await _seed_applicant_named(database, other)
+    async with database() as session:
+        await session.execute(
+            text("INSERT INTO job_applications (applicant_id, job_id) VALUES (:a, :j)"),
+            {"a": other, "j": job},
+        )
+        await session.commit()
+    theirs = await _propose(database, other, job)
+
+    body = {"ids": [mine, theirs], "read": True}
+    assert (await client.put(f"/applicants/{me}/emails/read", json=body)).status_code == 404
+    assert await _read_at(client, me) == {mine: None}
+    # A typed event is not an email either
+    added = (await client.post(f"/applicants/{me}/applications/{job}/events", json=INTERVIEW)).json()
+    body = {"ids": [added["event"]["id"]], "read": True}
+    assert (await client.put(f"/applicants/{me}/emails/read", json=body)).status_code == 404
+    assert (await client.put(f"/applicants/{me}/emails/read", json={"ids": [], "read": True})).status_code == 422

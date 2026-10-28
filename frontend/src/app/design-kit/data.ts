@@ -402,6 +402,11 @@ export const SHADOWS: { token: string; cls: string; role: string }[] = [
     cls: "shadow-lift",
     role: "A whole-card target under the pointer, lifted 2px",
   },
+  {
+    token: "--shadow-row",
+    cls: "shadow-row",
+    role: "A list row under the pointer, Gmail's: the Inbox's emails",
+  },
 ];
 
 export const EASINGS: { token: string; cls: string; role: string }[] = [

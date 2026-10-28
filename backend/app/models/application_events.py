@@ -70,3 +70,7 @@ class Application_Event(BaseModel):
     meeting_url: Mapped[str | None]
     # When the student accepted or dismissed it; null while proposed
     decided_at: Mapped[datetime.datetime | None] = mapped_column(DateTime(timezone=True))
+    # When the student first read the email (KAN-427): opening it, Mark as
+    # Read, or accepting or dismissing it; null is unread, and Mark as
+    # Unread sets it back. Meaningless on an event the student typed
+    read_at: Mapped[datetime.datetime | None] = mapped_column(DateTime(timezone=True))

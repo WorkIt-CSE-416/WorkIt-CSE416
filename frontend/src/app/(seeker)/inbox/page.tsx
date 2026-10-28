@@ -24,6 +24,12 @@ export const metadata: Metadata = {
  * status, and the jobs from the tracker's own read, so a sender's logo and a
  * job's stage match the tracker. Nothing writes emails until the Gmail
  * reader is built; the six on the shared test data are samples.
+ *
+ * THE PAGE IS EXACTLY THE SCREEN UNDER THE BAR (KAN-427), the job rail's
+ * `100svh-4rem` (../jobs/jobs-rail.tsx), as a mailbox is: the heading and
+ * the filters stay put, and the list and the open email each scroll inside
+ * their own column (./inbox.tsx). It used to grow with its longest column,
+ * so the whole page scrolled and took the filters with it.
  */
 export default async function InboxPage() {
   const [{ emails, error: emailsError }, { applications, error: trackerError }] = await Promise.all(
@@ -33,16 +39,22 @@ export default async function InboxPage() {
   // Linked, so a failed tracker read is the Inbox's failure too, never
   // stand-ins.
   const error = emailsError ?? trackerError;
-  const jobs = (applications ?? []).map(({ id, role, company, logoUrl, stage }) => ({
+  const jobs = (applications ?? []).map(({ id, role, company, logoUrl, stage, appliedOn }) => ({
     id,
     role,
     company,
     logoUrl,
     stage,
+    appliedOn,
   }));
 
   return (
-    <div className={cn("max-w-dashboard mx-auto w-full flex-1 py-6", SEEKER_GUTTER)}>
+    <div
+      className={cn(
+        "max-w-dashboard mx-auto flex h-[calc(100svh-4rem)] w-full flex-col py-6",
+        SEEKER_GUTTER,
+      )}
+    >
       <h1 className="text-heading text-ink">Inbox</h1>
       <p className="text-body text-ink-meta mt-1">
         Replies about your applications, filed onto their jobs.

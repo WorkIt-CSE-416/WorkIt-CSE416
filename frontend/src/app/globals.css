@@ -237,6 +237,13 @@
    * so what the click will open stands up from its neighbours. Only ever
    * on hover, and only on a card the whole of which is one target. */
   --shadow-lift: 0 2px 4px rgb(18 26 40 / 0.04), 0 10px 24px rgb(18 26 40 / 0.08);
+  /* A list row under the pointer, as Gmail marks one (KAN-427): hairlines
+   * at its sides and a short drop below, raised over its neighbours. A
+   * shadow, not a fill, because a read row is already grey (--color-app)
+   * and --color-hover on it is a step too small to see. */
+  --shadow-row:
+    inset 1px 0 0 rgb(18 26 40 / 0.1), inset -1px 0 0 rgb(18 26 40 / 0.1),
+    0 1px 2px rgb(18 26 40 / 0.2), 0 1px 3px 1px rgb(18 26 40 / 0.1);
 
   /* App layout ----------------------------------------------------------- */
   /* The company shell's and the design kit's page column. */

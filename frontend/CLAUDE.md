@@ -1285,7 +1285,15 @@ the KAN-296 cutover.
   Home's Interviewing number counts the interviewing stage. **Emails
   live on their own page, the Inbox** (`(seeker)/inbox/`, KAN-413): a
   list beside a reading pane over `GET .../emails` (`getEmailsOnce`), with
-  each application's Emails tab drawing the same rows. The Applications
+  each application's Emails tab drawing the same rows. The page is the
+  screen under the bar (`100svh-4rem`, KAN-427), so the heading and filters
+  stay put and the list and the open email each scroll in their own
+  column; it grew with its longest column until then, and scrolling took
+  the filters away. Its one filter is a Status dropdown (the email
+  kinds), as on the Tracker, over Gmail's toolbar (select, Refresh, Mark as Read or Unread,
+  Add to Tracker, Set Aside), and read state is the API's `read_at`, drawn
+  as Gmail does: unread white and bold, read grey (`rowFill`), the row
+  under the pointer raised by `--shadow-row` (`docs/screens.md`, Inbox). The Applications
   Tracker keeps one line counting the emails that need review
   (`getUpdatesOnce`); an email table there was removed as a second copy
   of the list (`docs/screens.md`, Inbox). One pill per email kind

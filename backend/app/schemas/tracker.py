@@ -87,6 +87,17 @@ class EventResponse(BaseModel):
     # When WorkIt stored it: for an email, when it was read from the inbox,
     # which the email view prints as the message's received time
     created_at: datetime.datetime
+    # When the student first read the email; null is unread (KAN-427)
+    read_at: datetime.datetime | None = None
+
+
+class EmailsRead(BaseModel):
+    """PUT .../emails/read: the Inbox's Mark as Read (`read` true) or Mark
+    as Unread on the emails picked. 500 at most, the most a Select All can
+    pick before the Inbox pages."""
+
+    ids: list[uuid.UUID] = Field(min_length=1, max_length=500)
+    read: bool
 
 
 class EventAccept(BaseModel):
