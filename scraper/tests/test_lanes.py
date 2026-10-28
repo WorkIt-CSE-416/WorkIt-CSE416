@@ -14,6 +14,7 @@ from types import SimpleNamespace
 
 from workit_scraper import __main__ as run
 from workit_scraper import providers, store
+from workit_scraper.board_read import failure_reason
 from workit_scraper.details import Facts
 from workit_scraper.providers import Board, Job, Page
 from workit_scraper.store import BoardReads, RunStats, Store
@@ -347,7 +348,7 @@ class TestWhyUnread:
             (AssertionError(), "unreadable answer"),
             (KeyError("id"), "KeyError"),
         ):
-            assert run._why(error) == why, error
+            assert failure_reason(error) == why, error
 
     def test_metrics_count_unread_boards_by_provider_and_why(self, monkeypatch, tmp_path) -> None:
         refused = [board("workday", "a.wd1/site"), board("workday", "b.wd1/site")]

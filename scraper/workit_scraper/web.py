@@ -34,9 +34,9 @@ class _SameOriginRedirects(urllib.request.HTTPRedirectHandler):
 _OPENER = urllib.request.build_opener(_SameOriginRedirects)
 
 
-def get(url: str, *, timeout: float) -> bytes:
+def get(url: str, *, timeout: float, headers: dict[str, str] | None = None) -> bytes:
     """GET `url` and return the body. HTTP errors propagate as `HTTPError`."""
-    request = urllib.request.Request(url, headers={"User-Agent": USER_AGENT})
+    request = urllib.request.Request(url, headers={**(headers or {}), "User-Agent": USER_AGENT})
     with _OPENER.open(request, timeout=timeout) as response:
         return response.read()
 

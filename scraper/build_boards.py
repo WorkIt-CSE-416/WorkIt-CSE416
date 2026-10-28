@@ -36,7 +36,6 @@ loaded, a failed download leaves boards.csv as it was.
 from __future__ import annotations
 
 import argparse
-import csv
 import json
 import re
 import urllib.error
@@ -48,42 +47,11 @@ from datetime import UTC, datetime
 from urllib.parse import urlsplit
 
 from workit_scraper import web
-from workit_scraper.__main__ import BOARDS_CSV, load_boards
+from workit_scraper.catalog import BOARDS_CSV, load_boards, write_boards
+from workit_scraper.discovery_sources import SOURCES
 from workit_scraper.polite import Robots
 from workit_scraper.providers import PROVIDERS, Board, listing_url
-
-SOURCES = [
-    "https://raw.githubusercontent.com/SimplifyJobs/Summer2027-Internships/dev/.github/scripts/listings.json",
-    "https://raw.githubusercontent.com/SimplifyJobs/New-Grad-Positions/dev/.github/scripts/listings.json",
-    "https://raw.githubusercontent.com/vanshb03/Summer2027-Internships/dev/.github/scripts/listings.json",
-]
-
-# Each provider names its boards' apply links (`Provider.apply_link`). These are the
-# same Workday boards under Workday's other address,
-# wd{N}.myworkdaysite.com/recruiting/{tenant}/{site}: each answers on its tenant's
-# own myworkdayjobs.com host too (Snap's, Magna's), which has the robots.txt.
-WORKDAY_SITE = re.compile(
-    r"//(wd\d+)\.myworkdaysite\.com/(?:[a-z]{2}(?:-[a-z]{2})?/)?recruiting/([a-z0-9-]+)/([a-z0-9_-]+)",
-    re.I,
-)
-
-
-def tokens(link: str) -> list[tuple[str, str]]:
-    """Every (ats, token) an apply link names, lower-cased: slugs are case-blind on
-    every provider, Workday's sites included. Not Oracle's (`Provider.keeps_case`).
-    A group a pattern may skip (Lever's `eu`) is left out of the token."""
-    found = [
-        (ats, token if provider.keeps_case else token.lower())
-        for ats, provider in PROVIDERS.items()
-        for match in provider.apply_link.finditer(link)
-        for token in ["/".join(group for group in match.groups() if group)]
-    ]
-    found += [
-        ("workday", f"{tenant}.{wd}/{site}".lower())
-        for wd, tenant, site in WORKDAY_SITE.findall(link)
-    ]
-    return found
-
+from workit_scraper.providers.urls import board_keys as tokens
 
 # Boards verified by hand to yield early-career software roles, kept because the
 # curated lists miss some of them -- the quant firms especially.
@@ -404,23 +372,14 @@ def main(argv: list[str] | None = None) -> int:
     print(f"\n  {len(boards):,} distinct boards, {len(boards) - before:,} new")
 
     today = datetime.now(UTC).date().isoformat()
-    with out.open("w", newline="", encoding="utf-8") as handle:
-        handle.write(
-            f"# Candidate job boards, last grown by build_boards.py on {today}.\n"
-            "# Board slugs harvested from public apply URLs in the curated internship\n"
-            "# lists at SimplifyJobs/Summer2027-Internships, SimplifyJobs/New-Grad-Positions\n"
-            "# and vanshb03/Summer2027-Internships, the boards behind their short links and\n"
-            "# careers pages (each proved, by --resolve), plus boards verified by hand.\n"
-            "# Boards are only added, never removed, so earlier seasons' stay.\n"
-            "# These are candidates, not conclusions: every board must answer the\n"
-            "# employer's own API before any posting reaches the page.\n"
-        )
-        # csv.writer defaults to CRLF; the repo normalises to LF (see ../.gitattributes)
-        # and asks that CRLF never be committed, so say so rather than rely on the filter.
-        writer = csv.writer(handle, lineterminator="\n")
-        writer.writerow(["ats", "token", "company"])
-        for (ats, token), company in sorted(boards.items()):
-            writer.writerow([ats, token, company])
+    preamble = (
+        f"# Candidate job boards, last grown by build_boards.py on {today}.\n"
+        "# Board slugs harvested from public apply URLs in curated internship lists,\n"
+        "# resolved careers pages (--resolve), and boards verified by hand.\n"
+        "# Boards are only added, never removed; each board must answer its ATS.\n"
+    )
+    write_boards(out, (Board(ats, token, company) for (ats, token), company in boards.items()),
+                 preamble=preamble)
 
     by_ats: dict[str, int] = {}
     for ats, _ in boards:

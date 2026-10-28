@@ -52,7 +52,7 @@ class RunStats:
     #: boards by outcome, postings scanned, pages read and lane seconds.
     by_provider: dict[str, dict[str, float]] = field(default_factory=dict)
     #: Why each board this run did not read stayed unread, keyed by `Board.key`
-    #: (`__main__._why`): the HTTP status a site answered ("403"), "timeout",
+    #: (`board_read.failure_reason`): the HTTP status a site answered ("403"), "timeout",
     #: "robots.txt", "no such board" and the rest.
     unread: dict[str, str] = field(default_factory=dict)
 

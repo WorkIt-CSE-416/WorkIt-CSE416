@@ -11,3 +11,5 @@ feed.json
 closings.json
 # Each provider's share of the last live run (`__main__.write_metrics`).
 metrics.json
+# On-demand board discovery evidence and validation results.
+discovery-report.json
