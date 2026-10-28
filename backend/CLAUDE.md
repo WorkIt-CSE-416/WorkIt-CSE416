@@ -1308,6 +1308,12 @@ removed at cutover, not before. Until then a change must work on both.
   either way: their applied-job filter names only the stages before applied
   (`dto.BEFORE_APPLIED`, the models' CLAUDE.md). Merge the migration to
   `main` in its own PR first, then apply it, then test the branch.
+- **Apply `dc36d2d2321c` (`application_events.read_at`, KAN-427) before
+  the deploy that maps it.** The model selects the column with every event
+  row, so deployed first, the Inbox, the Calendar and every application's
+  events answer 500. It only adds a nullable column and marks the emails
+  already decided as read, so applying it early is safe. It goes to `main`
+  in its own PR first, then is applied, then KAN-427 merges.
 - **Apply `bd730e8ab454` (`job_postings.closed_reason`, KAN-412) as soon as
   it merges.** It only adds a nullable column and a CHECK every row meets, and
   no code maps it yet, so it is safe for every deploy. The import that writes
