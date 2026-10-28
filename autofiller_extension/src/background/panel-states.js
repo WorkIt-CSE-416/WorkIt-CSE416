@@ -10,6 +10,7 @@ import { DEV_WEB_URL, PROD_SITES } from "../shared/config.js";
 import { requestJobSystem, saveJobByLink } from "./api.js";
 import { jobOf } from "./engine.js";
 import { reportOf, sendReport } from "./report.js";
+import { allowedOn } from "./site-access.js";
 
 /**
  * The webapp to sign in at, with no session to name it: the local one when
@@ -80,14 +81,20 @@ async function looksLikePosting(tabId, url) {
 /**
  * What the popup shows for the tab: `unsupported` on a web page WorkIt
  * can't fill that looks like a job posting, with the report it would send
- * (`report`).
+ * (`report`), and whether it may offer Allow WorkIt on its `host`
+ * (`allowable`: an https site the student hasn't allowed).
  * @param {number} tabId
  */
 export async function popupPage(tabId) {
   const url = await linkOf(tabId);
   const web = /^https?:/.test(url) && !OWN_ORIGINS.some((origin) => url.startsWith(origin));
   if (!web || jobOf(url) || onListedHost(url) || !(await looksLikePosting(tabId, url))) return { unsupported: false };
-  return { unsupported: true, report: reportOf(url), requested: (await requestedHosts()).includes(new URL(url).hostname) };
+  const { hostname, protocol } = new URL(url);
+  return {
+    unsupported: true, report: reportOf(url), requested: (await requestedHosts()).includes(hostname),
+    // Allow WorkIt on <host> (site-access.js): an https site the student hasn't allowed yet.
+    host: hostname, allowable: protocol === "https:" && !(await allowedOn(url)),
+  };
 }
 
 // The hosts this browser asked WorkIt to add (chrome.storage.local), so a student asks once per job system.

@@ -38,6 +38,7 @@
     }
   ],
   "permissions": ["storage", "activeTab", "scripting", "cookies", "tabGroups", "webRequest"],
+  "optional_host_permissions": ["https://*/*"],
   "host_permissions": [
     "http://localhost:8000/*",
     "https://api.workitjobs.ai/*",

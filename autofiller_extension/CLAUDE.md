@@ -391,9 +391,44 @@ drawn during Greenhouse's start-up makes it redraw the form, see the
 overlay), asks the background `panel/where` (the engine's `jobOf` on the
 page's link, and whether the tab is a batch's), and on a job page outside
 a batch draws only the edge tab. Nothing fills, nothing is read from the
-form, and other pages get nothing drawn. A page on any other host is
-never touched: the panel has no way in there (an embedded Greenhouse form
-on a company's own site is filled only by batch apply, decision 956).
+form, and other pages get nothing drawn. **Any posting there, in
+WorkIt's feed or not**: nothing here asks the API whether it knows the
+job (the job card falls back to the engine's `jobNames`, the answer bank
+to the page's company), so a posting the student found anywhere fills as
+a feed job does (`test/any-site.extension.spec.ts`; live, 2026-10-28: a
+Discord Greenhouse posting not in the feed filled 15 of 17 required
+fields, and Lever, Ashby and Workday postings showed Autofill). The entry
+runs in every frame (`all_frames`), so a job system's form embedded in an
+employer's page (Greenhouse's `embed/job_app` iframe on Databricks',
+Stripe's or Airbnb's careers site) gets the edge tab and fills inside its
+frame, though the employer's page itself is out of reach. A page on any
+other host is never touched unless the student allows that site (below).
+
+**Employer career sites the student allows (KAN-369,
+`background/site-access.js`).** No site beyond the job systems' hosts is
+asked at install: `optional_host_permissions` is `https://*/*`, and the
+toolbar popup on a posting-like page of another host offers **Allow
+WorkIt on <host>**, whose click calls `chrome.permissions.request` for
+that one origin (it needs the click; Simplify and Jobright ask the same
+way). Once granted, `popup/allow` keeps the origin (chrome.storage.local
+`allowed_sites`), registers the launcher's files for it
+(`registerContentScripts`, id `site-<host>`, kept across restarts), runs
+them in the tab at once, and answers what it found: the engine's own
+reading of the page (`pageJobUrl`: `jobOf` of the link, or a
+SuccessFactors career-site posting its page marks with rmkcdn assets or
+`data-careersite-propertyid`, read as `ats=successfactors`), in which case
+the panel opens; or a frame showing a form the engine covers ("Open
+WorkIt's tab at the right edge of the application form"); or nothing
+("WorkIt found no application it fills on this page.", with Request this
+job system kept). `panel/where`, `fill/*` and the toolbar read the page
+through `pageJobUrl`. A SuccessFactors posting's panel says to press Apply
+and sign in (its form is the career site's, which the manifest covers).
+The options page's Sites You Allowed lists them with Remove
+(`sites/remove`: `chrome.permissions.remove`, then the scripts go);
+Chrome's own removal is followed at the worker's start and on
+`permissions.onRemoved`. Batch apply is unchanged: it opens only links the
+API names. Not covered yet: iCIMS Jibe and Workday on company hosts, and
+`tiktokusds.com`, which the engine's `jobOf` doesn't read.
 
 **The one other trigger is the student's own Auto Apply click** (KAN-305,
 KAN-370): batch apply fills the tabs it opened for that click (below). It
@@ -1845,7 +1880,8 @@ report.js everywhere it is: manifest, `CONTENT_SCRIPT_FILES`, background.js
   to needs_you, with no date (backend pipeline.py), and the tab to that
   state, in its group.
 - **A site WorkIt can't fill**: every host the manifest lists is a job
-  system the Fill engine fills, so the panel never shows this; the toolbar
+  system the Fill engine fills, so the panel never shows this (an allowed
+  employer site with nothing to fill gets no panel either); the toolbar
   popup does, on a web page of any other host (not WorkIt's own) that looks
   like a job posting (`panel-states.js` `looksLikePosting`: a jobs, careers,
   apply or position part in its path, or a schema.org `JobPosting` block,
