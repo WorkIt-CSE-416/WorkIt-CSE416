@@ -216,6 +216,9 @@ window.WIA = window.WIA || {};
       }));
       text.appendChild(skip);
     }
+    // Report this / Wrong? (report.js, KAN-369 fix reports): reports this field, marked wrong.
+    const reportIt = window.WIA.report?.rowAction?.(field);
+    if (reportIt) text.appendChild(reportIt);
     el.append(dot, text);
     return el;
   }
