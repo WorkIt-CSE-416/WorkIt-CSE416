@@ -180,6 +180,9 @@ with the failure it prevents.
   proposals and no Done, and the editor marks each change and reverts it.
   Holds the skill placement rule. Read it before changing Tailor or its
   screen.
+- `docs/fill-reports.md` — fix reports (KAN-369): what a fill report from
+  the extension holds, and the Markdown fix brief admins export for a
+  coding agent (sections, markers, where the fixture goes).
 - `docs/search.md` — how the Jobs page's search reads a query.
 - `docs/architecture.md` — how the halves fit together, for a reader new to
   the repo.

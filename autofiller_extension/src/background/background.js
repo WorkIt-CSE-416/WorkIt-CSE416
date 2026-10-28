@@ -22,7 +22,7 @@ import { nextNeedsYou, walkFrom } from "./next-needs-you.js";
 import { batchLine, jobForTab, showNextTab } from "./panel-top.js";
 import { attachedFile, chooseResume, keywordsFor, openTailor, resumeTab, withTabResume } from "./resume-tab.js";
 import { addClaude, autoOpen, disconnectClaude, readSettings, setAutoOpen } from "./panel-settings.js";
-import { reportOf, sendReport } from "./report.js";
+import { previewReport, sendPreviewed } from "./report.js";
 import { SELF_ID, checkedSelfId, unansweredSelfId } from "./self-id.js";
 import { forgetSubmits, submitHinted, watchSubmitRequests } from "./submit-proof.js";
 import { watchEmbeddedForms } from "./embedded-forms.js";
@@ -399,11 +399,11 @@ async function handleMessage(message, sender) {
     case "resume/tailor":
       return openTailor({ tabId: sender.tab.id, url: sender.url ?? "" });
     // Report a problem (report.js, KAN-403): what the card previews, and its Send.
+    // The draft is the card's (its values already out); the background keeps the allowed parts and keeps them for Send.
     case "report/preview":
-      return reportOf(sender.url ?? "");
+      return previewReport(sender, message.draft);
     case "report/send":
-      await sendReport(sender.url ?? "", message.report);
-      return {};
+      return sendPreviewed(sender, { marked: message.marked, note: message.note });
     // The panel's settings view (panel-settings.js, KAN-402): the Claude connection and auto-open.
     case "settings/read":
       return readSettings();

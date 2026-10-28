@@ -1870,6 +1870,20 @@ are in `docs/auth.md`.
   they are still missing, ask the user. Never write the values into a
   committed file, PR or comment: the repo is public.
 
+## Admin pages
+
+`/admin/fill-reports` (fix reports, KAN-369; `../docs/fill-reports.md`) is the
+team's tool, outside both shells: the reports students sent from the
+extension, a report's fields and fix brief, Copy / Download Fix Brief,
+Download Form Fixture, and its status and note. **The API decides who is an
+admin** (`WORKIT_ADMINS`) and answers 403 to anyone else, which the pages
+turn into the 404, so a student never learns the page exists; nothing on
+this side checks a role. The fixture and the brief are route handlers that
+forward the token and answer a download (text/plain for the fixture, never
+rendered: it is an employer page's markup). `lib/fill-reports.ts` is the
+pure half (shapes, the list's query, `node --test`), `fill-report-queries.ts`
+the server-only reads, `fill-report-actions.ts` the triage.
+
 ## Screens, design and motion
 
 - **Screens**: before changing how a screen behaves (Jobs page and filters, job
