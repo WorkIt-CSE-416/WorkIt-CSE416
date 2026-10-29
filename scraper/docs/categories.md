@@ -22,7 +22,19 @@ database plan (`coverage.md`, "More roles").
   checked first, as before, so "Robotics Data Operator Intern" is `other`,
   never `hardware`. A physician "intern" (a medical resident) is kept with
   the rest: the user chose no exceptions.
-- **Unchanged:** the stage and every guard on it (senior, manager or lead, a
+- **Two stage words joined:** "trainee" (`NEW_GRAD`) and "rotational program"
+  (`PROGRAM`, so a rotational program's manager stays dropped). In the same
+  sample every trainee was entry level (Omnicom Health's "Trainee Account
+  Executive", Crest Industries' "Fabrication Trainee"), and the one rotational
+  program a graduate program (National Life's "Finance Leadership Rotational
+  Program Associate").
+- **Left out on purpose:** "Level I" (59 dropped titles in the sample),
+  "Associate" (35) and "Analyst" (69). Many are entry level ("Software Engineer
+  I", "Associate Product Manager"), but many ask for experience ("Associate
+  Scientist II", "Mold Setter I"), and "UK&I" matched "I". Keeping them needs
+  the description's years of experience: `coverage.md`'s `no_stage` step.
+  "Fellow" and "resident" matched only coaching jobs in the sample.
+- **Unchanged:** every guard on the stage (senior, manager or lead, a
   recruiter for a program, a place), the order of the twelve, `SECOND` and
   the specialties.
 

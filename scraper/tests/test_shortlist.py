@@ -158,6 +158,16 @@ class TestStage:
         )
         assert classify("Credit Analyst") == ()
 
+    def test_a_trainee_and_a_rotational_program_are_new_grad(self):
+        # KAN-430: each title from the 110-board sample of 2026-10-28.
+        assert classify("Trainee Account Executive") == ("new-grad", "sales")  # Omnicom Health
+        assert classify("Fabrication Trainee") == ("new-grad", "other")  # Crest Industries
+        assert classify("Finance Project Coordinator (Trainee)") == ("new-grad", "business")
+        assert classify("Finance Leadership Rotational Program Associate") == (
+            "new-grad",
+            "finance",
+        )  # National Life
+
     def test_a_working_student_is_an_intern(self):
         assert classify("Trader Assistant (Working Student)") == ("intern", "quant")  # IMC
         assert classify("Working Student -- Software Engineer: Munich") == (

@@ -302,7 +302,11 @@ rejected. Tag names are the `Tag` enum, which the page's filter chips read.
   students of every major. Law, consulting, support, the arts, policy and
   teaching, held off until then, are categories of their own; a title naming
   no field, or a trade, operator, medical or hotel job (`OUTSIDE_FIELDS`, the
-  old never list), is `other`.
+  old never list), is `other`. So the stage words are the whole filter: a
+  word joins them only when every live title it matched was early career
+  ("trainee", "rotational program"). "Level I", "Associate" and "Analyst"
+  failed that test and wait for a rule that reads the description
+  (`docs/categories.md`, "Every field, early career only").
 - **`engineer` alone is not a signal**, and reinstating it is the tempting
   mistake: Wade Trim's "Engineer Summer Intern" is civil, Decagon's
   "Engineering Intern" software, and nothing in either title tells them apart.

@@ -158,7 +158,7 @@ since KAN-430, because WorkIt is for college students of every major.
 
 | Check | Passes | Fails |
 |---|---|---|
-| **Early career** | intern, co-op, working student, Summer Analyst, new grad, graduate, entry level, junior, university, campus, apprentice | anything senior, staff, principal, director, VP; a manager or lead unless it is also junior or an intern; a recruiter *for* a university or campus |
+| **Early career** | intern, co-op, working student, Summer Analyst, new grad, graduate, entry level, junior, trainee, university, campus, rotational program, apprentice | anything senior, staff, principal, director, VP; a manager or lead unless it is also junior or an intern; a recruiter *for* a university or campus |
 
 The field then gives the job posting its **category**: one of the twelve in
 the table below, one of the six fields held off until KAN-430 (`law`,

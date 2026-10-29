@@ -131,10 +131,21 @@ NEW_GRAD = rx(
     r"\bentry[- ]level\b",
     r"\bjunior\b",
     r"\bapprentice\b",
+    # Omnicom Health's "Trainee Account Executive", Crest Industries' "Fabrication
+    # Trainee" (KAN-430: every trainee in a 110-board sample was entry level).
+    r"\btrainees?\b",
 )
 # These say a role is for students or graduates as often as they say who a
-# recruiter recruits ("University Recruiter") or where a job is (below).
-PROGRAM = rx(r"\buniversity\b", r"\bcampus\b", r"\bearly[- ]career\b")
+# recruiter recruits ("University Recruiter") or where a job is (below). A
+# rotational program is a graduate program (National Life's "Finance Leadership
+# Rotational Program Associate"); its manager is not a graduate, so it is here,
+# not a stage of the person's own.
+PROGRAM = rx(
+    r"\buniversity\b",
+    r"\bcampus\b",
+    r"\bearly[- ]career\b",
+    r"\brotational programs?\b",
+)
 # Who a role recruits or serves, not who fills it: Stripe's "University Recruiter",
 # Jane Street's "Campus Recruiter, Machine Learning and Quantitative Research",
 # Belvedere's "Early Career Talent Partner - Trading", Bridgewater's "Campus Talent
