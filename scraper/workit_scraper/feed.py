@@ -102,7 +102,11 @@ def closings(run: Store, roles: list[Role]) -> dict[str, str]:
         if job.apply_url in shown:
             continue
         if run.is_listed(job):
-            why = "replaced" if classify_with_description(job.title, job.description) else "filtered_out"
+            why = (
+                "replaced"
+                if classify_with_description(job.title, job.description)
+                else "filtered_out"
+            )
         else:
             reads = run.boards.get(job.board_key)
             why = "board_gone" if reads and reads.missing_at else "gone_from_board"
