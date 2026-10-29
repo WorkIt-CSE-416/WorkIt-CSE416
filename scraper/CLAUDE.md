@@ -441,6 +441,18 @@ Oracle's, 12 minutes each, run side by side). It starts boards from the front of
 read, then the least recently read), and once its time is up leaves the rest for
 a later run.
 
+**Page reads have a deadline too** (`PAGES_UNTIL_S`, 20 minutes from the lanes'
+start, for every lane): after it, no posting's own page is asked for, the lane
+prints how many it left ("… N postings' pages left for the next run"), and the
+next run reads them first, since `needs_page` still says so. A lane's budget
+covers only its board reads. Without the deadline, the batch-apply merge
+(2026-10-28) added SuccessFactors, whose every kept posting needs its page, one
+host at a time; every scheduled run then spent its last 16 minutes on pages with
+nothing in the log, hit the job's 30-minute limit, and was cancelled. **A
+cancelled run saves no store**, so the next one repeated the same pages, and
+nothing was imported for 32 hours. Keep the deadline plus the import (about 10
+minutes) well under `timeout-minutes` in `.github/workflows/scrape.yml` (now 60).
+
 **A board that keeps going unread rests** (`Store.health`, `store.rest_for`),
 as Freehire's do. After `REST_AFTER` (3) runs in a row that left it unread for
 any reason in `RunStats.unread` (a failure, "no such board", robots.txt), no run

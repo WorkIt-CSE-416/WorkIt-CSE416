@@ -129,6 +129,26 @@ class TestLanes:
         # The page read before still speaks for posting 1.
         assert {j.external_id: j.description for j in scanned} == {"1": "Old.", "2": None}
 
+    def test_no_page_is_read_once_the_runs_page_time_is_up(
+        self, monkeypatch, swap_provider, capsys
+    ) -> None:
+        # Every scheduled run from 2026-10-28 spent its last 16 minutes reading
+        # pages, hit the job's limit and saved nothing. Out of time, a posting keeps
+        # no page and the next run reads it.
+        gh = board("greenhouse", "cloudflare")
+        monkeypatch.setattr(run, "PAGES_UNTIL_S", -1)
+        monkeypatch.setattr(
+            run, "_scrape_one", lambda b, robots: (run.Outcome.OK, [job(b, "1"), job(b, "2")], None)
+        )
+        fetched: list[str] = []
+        swap_provider("greenhouse", describe=lambda j: fetched.append(j.external_id) or j)
+        robots = SimpleNamespace(allows=lambda url: True, pace=lambda url: None)
+        scanned, _, _, _ = run.scrape([gh], robots, {})
+        assert fetched == []
+        assert [j.page for j in scanned] == [None, None]
+        assert run.needs_page(scanned[0])
+        assert "greenhouse: 2 postings' pages left for the next run" in capsys.readouterr().out
+
     def test_postings_we_do_not_keep_have_no_page_read(self, monkeypatch, swap_provider) -> None:
         gh = board("greenhouse", "stripe")
         monkeypatch.setattr(

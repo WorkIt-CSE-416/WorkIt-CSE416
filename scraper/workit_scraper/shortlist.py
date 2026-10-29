@@ -963,8 +963,8 @@ def classify(title: str) -> tuple[Tag, ...]:
 # A title with no stage word ("Software Engineer", "Data Analyst") can still be
 # early career if the description states a low experience requirement. Only
 # useful for providers that send the description with the board listing (Ashby,
-# Lever, Recruitee, TikTok, Jibe, SuccessFactors); the rest have no description
-# until a kept posting's page is read, so this adds zero HTTP.
+# Lever, Recruitee, TikTok, Jibe); the rest, SuccessFactors among them, have no
+# description until a kept posting's page is read, so this adds zero HTTP.
 
 EARLY_EXPERIENCE = re.compile(
     r"(?:"

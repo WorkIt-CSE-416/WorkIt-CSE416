@@ -45,6 +45,15 @@ FEED_JSON = ROOT / "feed.json"
 CLOSINGS_JSON = ROOT / "closings.json"
 METRICS_JSON = ROOT / "metrics.json"
 MAX_IN_FLIGHT = 8
+#: No posting's own page is asked for once this long has passed since the lanes
+#: started; the rest wait for the next run, where `needs_page` puts them first in
+#: line again. Board reads have a budget per lane, but page reads had none: after
+#: the batch-apply merge (2026-10-28) added SuccessFactors, whose every kept posting
+#: needs its page, one host at a time, every scheduled run spent 16 minutes on them
+#: after its last board, hit the job's limit (`timeout-minutes` in scrape.yml) and
+#: was cancelled. A cancelled run saves no store, so the next one read the same pages
+#: again, and nothing was imported for 32 hours. Leave the import its 10 minutes.
+PAGES_UNTIL_S = 20 * 60
 #: A lane in which this many boards we hold postings from say they do not exist,
 #: and more of them than read whole, closes none of them: that is the hiring
 #: system changing (every Workday tenant a 422), not its companies leaving. The
@@ -92,13 +101,16 @@ def newest_first(jobs: list[Job]) -> bool | None:
     return all(a >= b for a, b in zip(dates, dates[1:], strict=False))
 
 
-def _lane(boards: list[Board], robots: Robots, before: dict[str, Job]):
+def _lane(
+    boards: list[Board], robots: Robots, before: dict[str, Job], pages_until: float | None = None
+):
     """One provider's boards, then the own pages of their postings that need one
     (`with_page`) -- so Greenhouse's page reads start when its boards are done,
     not after Lever's. Order is kept, so each board gets its own jobs back.
 
-    A lane with a budget (`Provider.budget_s`) starts no board once it has run out.
-    Also returns how long the lane took, how many pages it read, for a provider that
+    A lane with a budget (`Provider.budget_s`) starts no board once it has run out,
+    and no lane starts a page read after `pages_until` (`PAGES_UNTIL_S`). Also
+    returns how long the lane took, how many pages it read, for a provider that
     pages how many of its lists named the newest postings first (`newest_first`),
     and why each board it did not read stayed unread, for the run's metrics."""
     started = time.monotonic()
@@ -124,7 +136,17 @@ def _lane(boards: list[Board], robots: Robots, before: dict[str, Job]):
             if provider and provider.paged and outcome is Outcome.OK and len(jobs) < WORKDAY_CAP
         )
         listed = [store.carry(job, before) for _, jobs in results for job in jobs]
-        paged = list(pool.map(lambda job: with_page(job, robots), listed))
+        late: list[str] = []
+
+        def page(job: Job) -> Job:
+            if pages_until is not None and time.monotonic() > pages_until and needs_page(job):
+                late.append(job.key)
+                return job
+            return with_page(job, robots)
+
+        paged = list(pool.map(page, listed))
+    if late:
+        print(f"  …  {boards[0].ats}: {len(late):,} postings' pages left for the next run")
     # `with_page` hands back the same posting when it reads nothing.
     pages = sum(1 for was, now in zip(listed, paged, strict=True) if now is not was)
     described = iter(paged)
@@ -146,8 +168,11 @@ def scrape(
     lanes: dict[str, list[Board]] = {}
     for board in boards:
         lanes.setdefault(board.ats, []).append(board)
+    pages_until = time.monotonic() + PAGES_UNTIL_S
     with ThreadPoolExecutor(max(len(lanes), 1)) as pool:
-        by_lane = list(pool.map(lambda lane: _lane(lane, robots, before), lanes.values()))
+        by_lane = list(
+            pool.map(lambda lane: _lane(lane, robots, before, pages_until), lanes.values())
+        )
     outcome_of = {
         board.key: result
         for lane, (results, *_) in zip(lanes.values(), by_lane, strict=True)
@@ -232,6 +257,15 @@ def scrape(
     return scanned, stats, read, missing
 
 
+def needs_page(job: Job) -> bool:
+    """Whether `with_page` reads this posting's page: a kept posting of a provider
+    whose list leaves the page out (`Provider.job_url`), with no `Page` under the
+    current PAGE_VERSION."""
+    current = job.page is not None and job.page.version == providers.PAGE_VERSION
+    provider = providers.PROVIDERS.get(job.ats)
+    return bool(provider and provider.job_url and not current and classify(job.title))
+
+
 def with_page(job: Job, robots: Robots) -> Job:
     """The posting with its own page read, if it is a kept Greenhouse, Workable,
     BambooHR or Workday posting with no `Page` under the current PAGE_VERSION;
@@ -242,9 +276,7 @@ def with_page(job: Job, robots: Robots) -> Job:
     Called on postings a board just listed, so one that has left its board is never
     asked for. A page that fails or is disallowed leaves the posting without one.
     """
-    current = job.page is not None and job.page.version == providers.PAGE_VERSION
-    provider = providers.PROVIDERS.get(job.ats)
-    if provider is None or provider.job_url is None or current or not classify(job.title):
+    if not needs_page(job):
         return job
     url = providers.job_url(job.ats, job.token, job.external_id)
     if not robots.allows(url):

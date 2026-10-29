@@ -39,7 +39,11 @@ permissions:
 jobs:
   scrape-and-import:
     runs-on: ubuntu-latest
-    timeout-minutes: 30
+    # A cancelled run saves no store, so the next one repeats its work: every
+    # scheduled run from 2026-10-28 to 10-29 hit 30 minutes reading posting pages
+    # and none imported. The scraper now stops starting page reads 20 minutes in
+    # (`PAGES_UNTIL_S`), so a run should end near 35 minutes; this is headroom.
+    timeout-minutes: 60
     steps:
       - uses: actions/checkout@v4
 
