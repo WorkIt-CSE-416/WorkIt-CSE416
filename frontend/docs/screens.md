@@ -2407,11 +2407,14 @@ shows "Your Resumes Aren't Loading Right Now" and a Try Again link.
   (`src/components/resume-upload.tsx`) is a pure dropzone + file preview —
   it knows nothing about upload logic or limits.
 - **The list** (`resumes/resume-list.tsx`) is one card that scrolls
-  inside itself, five cards high under a group heading (`FIVE_ROWS`,
-  351px; the shared `max-h-scroll-box` of Top Matches and the resume
-  picker showed three and a half once the headings came), so the
-  search and the buttons stay in view however many resumes a student
-  keeps. It is grouped by
+  inside itself and runs down to the foot of the page, 24px above the
+  window's bottom (`ResumeScroll`'s `fill`, KAN-434), never shorter than
+  five cards under a group heading (`FIVE_ROWS`, 351px), so the search
+  and the buttons stay in view however many resumes a student keeps. On
+  a window too short for that the page scrolls too. It stopped at five
+  cards until KAN-434, which left half a laptop screen empty under it;
+  the resume pickers keep five cards, since they sit in a dialog. It is
+  grouped by
   type, as Notion's Group by (KAN-404): **Uploaded**, **Generated**, then
   **Tailored**, each under a heading with its name in a pill (`Badge`,
   brand, alike for all three) and its count, which sticks to the card's

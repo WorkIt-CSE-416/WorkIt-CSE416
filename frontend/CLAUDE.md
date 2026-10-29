@@ -1544,9 +1544,11 @@ the KAN-296 cutover.
   itself at one height, the `--spacing-scroll-box` token (`max-h-scroll-box`
   or `h-scroll-box`, 320px): Add Jobs and Top Matches. Each picked its
   own height before, and Add Jobs grew to 90% of the window. The grouped
-  resume list (the Resumes page and every resume picker) is the one
-  exception: five cards under a group heading (`ResumeScroll`,
-  `components/resume-list.tsx`), since 320px showed three and a half.
+  resume list is the one exception: five cards under a group heading in
+  every resume picker (`ResumeScroll`, `components/resume-list.tsx`),
+  since 320px showed three and a half, and on the Resumes page it scrolls
+  inside itself down to the foot of the page (`fill`, KAN-434), so the
+  search and buttons above it stay in view.
 - **A filter whose rows the page already holds moves the URL in place**
   (`useShallowPush`, `docs/motion.md`): Live Activity's Status and sort
   (KAN-285). A tick passes `{ replace: true }`, so ticks are not steps of
@@ -1748,9 +1750,12 @@ are in `docs/auth.md`.
   newest first, each as its card (`components/resume-row.tsx`'s box, star
   and icons: star, Rename, Download, Delete; Delete asks in a popover
   under the trash, `DeleteResumeConfirm`, KAN-347), in one card that scrolls
-  inside itself, five cards high under a heading (`FIVE_ROWS` in
-  `resume-list.tsx`, 351px, not the shared `max-h-scroll-box`: with group
-  headings, 320px showed three and a half cards). **It is laid
+  inside itself and runs down to the foot of the page (`ResumeScroll`'s
+  `fill` in `components/resume-list.tsx`, KAN-434), never shorter than
+  five cards under a heading (`FIVE_ROWS`, 351px). Capped at five cards,
+  it left half a laptop screen empty under it. The cap is measured from
+  the start of the page, not the window: a cap that grew as the list's top
+  rose would grow the page with it as it scrolled. **It is laid
   out as the Applications Tracker is**, so keep the two alike: the search
   on its own row, then the Type filter (`FieldFacet`, the Applications
   list's dropdown, in `?type=`) and the Sort dropdown (Last Edited, the
@@ -1788,8 +1793,9 @@ are in `docs/auth.md`.
   one row the buttons sat alone at the right, and "Generate Resume"
   broke onto two lines on a phone. **Every resume picker dialog draws
   the same grouped list** (KAN-406): `components/resume-list.tsx` holds
-  the groups, the heading (`ResumeGroup`) and the five-card scroll
-  (`ResumeScroll`), and each screen draws its own cards in it, the
+  the groups, the heading (`ResumeGroup`) and the scroll (`ResumeScroll`:
+  five cards in a picker, the page's foot with `fill`), and each screen
+  draws its own cards in it, the
   Resumes page's with their actions, a picker's with a radio. A change
   to how the list groups or scrolls goes there, so the page and the
   dialogs never drift apart again. The picker's row is the page's row
