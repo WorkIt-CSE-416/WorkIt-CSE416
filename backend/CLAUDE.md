@@ -1349,6 +1349,14 @@ removed at cutover, not before. Until then a change must work on both.
   either way: their applied-job filter names only the stages before applied
   (`dto.BEFORE_APPLIED`, the models' CLAUDE.md). Merge the migration to
   `main` in its own PR first, then apply it, then test the branch.
+- **Apply `7b59d19d13a8` (`job_applications.apply_by`) and `0d8dd3b7d8fd`
+  (`application_events.ends_at`), KAN-429's two, before the deploy that
+  maps them.** The models select each column with every row, so deployed
+  first, the Applications Tracker, the Calendar, Home, every
+  application's events and auto apply's queue answer 500. They only add a
+  nullable date, a nullable timestamp and a CHECK every row meets, so
+  applying them early is safe. They go to `main` in their own PR first,
+  then are applied, then KAN-429 merges.
 - **Apply `dc36d2d2321c` (`application_events.read_at`, KAN-427) before
   the deploy that maps it.** The model selects the column with every event
   row, so deployed first, the Inbox, the Calendar and every application's
