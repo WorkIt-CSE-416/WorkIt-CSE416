@@ -641,7 +641,7 @@ never downloads anything. Re-run the script to refresh it.
 - Towns under 15,000 are absent, which is fine when a state follows
   (`Montpelier, VT`) and a miss when one stands alone. `cities5000` is the
   next size up if that starts to matter.
-- It ships with the Vercel deploy although only the import reads it.
+- It ships with the API's deploy although only the import reads it.
 
 ## Job roles — `job_roles.py`
 

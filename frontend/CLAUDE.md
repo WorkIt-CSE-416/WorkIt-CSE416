@@ -47,9 +47,10 @@ them). Notes the scripts don't say:
 
 **Cloudflare Workers through OpenNext** (KAN-294, ADR 0004): the Worker
 `workit-web` at `workitjobs.ai`, configured in `wrangler.jsonc`, deployed by
-CI with `CLOUDFLARE_API_TOKEN` and `CLOUDFLARE_ACCOUNT_ID`. The Vercel project
-(Root Directory `frontend`, URLs in the root `CLAUDE.md`) keeps running until
-the KAN-296 cutover.
+CI with `CLOUDFLARE_API_TOKEN` and `CLOUDFLARE_ACCOUNT_ID`. This is production.
+The Vercel project (Root Directory `frontend`) is retired: it still builds each
+PR until KAN-296 deletes it, and nothing is set or checked there (root
+`CLAUDE.md`).
 
 - **Scripts**: `cf:build` runs `next build` and turns `.next/` into
   `.open-next/`; `cf:preview` serves that output in the local Workers runtime;
@@ -74,9 +75,8 @@ the KAN-296 cutover.
   If a later adapter rejects it, rename it back to `middleware.ts`
   exporting `middleware` on the Edge runtime (ADR 0004).
 - **`next/image` is unoptimized on Cloudflare** (`next.config.ts`): logos
-  load from their own hosts. Vercel keeps the optimizer until the KAN-296
-  cutover, read from `VERCEL`, which every Vercel build sets and OpenNext's
-  never does. The Cloudflare Images binding bills per unique transformation
+  load from their own hosts. The optimizer is on only where `VERCEL` is set,
+  which only the retired Vercel builds do and OpenNext's never does. The Cloudflare Images binding bills per unique transformation
   past 5,000 a month, which the feed's logos would outrun. Where it is off,
   `remotePatterns` and the SVG settings do nothing; they stay for the day the
   optimizer returns.
@@ -86,12 +86,12 @@ the KAN-296 cutover.
   chunks, CSS and fonts went out with `max-age=0, must-revalidate` and every
   full load paid a 304 round trip per file (28 to 53 ms on workitjobs.ai).
   Never widen it past `/_next/static/*`: HTML and un-hashed `public/` files
-  would stop updating for users after a deploy. Vercel ignores it. After a
+  would stop updating for users after a deploy. After a
   deploy, `curl -sI` one chunk, one CSS file and one woff2 and look for
   `immutable`.
 - **Still open: on Cloudflare the prerendered marketing pages render per
   request** until an incremental cache is set (OpenNext's default is the
-  "dummy" cache), so the prerender gain below is full on Vercel only
+  "dummy" cache), so production does not get the prerender gain below yet
   (KAN-368).
 - **The OpenNext build is not guaranteed on Windows.** Run `cf:*` in WSL, or
   leave them to CI; `dev`, `build` and the rest work natively.
@@ -101,14 +101,14 @@ the KAN-296 cutover.
   confirm emails add `?next=/settings/...` to it; if Supabase sends those to
   its Site URL instead (untested on 2026-10-23), add a `**` wildcard entry
   for each origin's callback. `lib/request-origin.ts` (OAuth sign-in, linking, Change Email)
-  builds the origin from `x-forwarded-host` on Vercel, whose proxy sets it,
+  builds the origin from `x-forwarded-host` on Vercel (retired), whose proxy sets it,
   and from `Host` elsewhere: on Cloudflare `x-forwarded-host` is whatever the
   browser sent. It assumes https for any host
   but localhost when `x-forwarded-proto` is missing; Supabase silently falls
   back to its Site URL for any origin not on the list.
-- **Vercel refuses request bodies over 4.5 MB** before Next runs, while uploads
-  are capped at 5 MB, so a 4.5–5 MB upload fails there with a bare 413.
-  Cloudflare allows 100 MB, so this closes at the KAN-296 cutover.
+- **Uploads up to the 5 MB cap reach Next in production**: Cloudflare allows
+  100 MB request bodies. Vercel, now retired, refused bodies over 4.5 MB
+  before Next ran, so a 4.5–5 MB upload failed there with a bare 413.
 
 ## Architecture
 
@@ -1528,7 +1528,7 @@ the KAN-296 cutover.
   `quiet`, not `blue`, `green`, `plain`.
 - **`components/company-logo.tsx` hosts are allow-listed** in `next.config.ts`
   and must match `scraper/workit_scraper/logos.py`. With the optimizer on, an
-  unlisted host throws and fails the whole page (on Vercel); where
+  unlisted host throws and fails the whole page (wherever the optimizer is on); where
   `images.unoptimized` holds (Cloudflare, Deployment), the list is not checked, so keep it current anyway. It
   measures each logo on load: a square mark
   fills the tile edge to edge, a wide wordmark sits on white with padding.

@@ -85,7 +85,7 @@ are now ignored; a deploy that still sets them has no fallback until
 | Where | Chain |
 | --- | --- |
 | Laptops (default) | Qwen 3.5 4B on Ollama, $0, nothing leaves the machine; nothing to set |
-| Production now (spec) | Groq `openai/gpt-oss-120b` (`https://api.groq.com/openai/v1`), the Gemini free tier (`https://generativelanguage.googleapis.com/v1beta/openai/`, `gemini-3.5-flash-lite`, effort `minimal`), Groq `openai/gpt-oss-20b` (effort `low`), Cloudflare Workers AI; set as `SCOUT_ENDPOINTS` on the `workit-api` Vercel project |
+| Production now (spec) | Groq `openai/gpt-oss-120b` (`https://api.groq.com/openai/v1`), the Gemini free tier (`https://generativelanguage.googleapis.com/v1beta/openai/`, `gemini-3.5-flash-lite`, effort `minimal`), Groq `openai/gpt-oss-20b` (effort `low`), Cloudflare Workers AI; set as `SCOUT_ENDPOINTS` in the API's production secrets (`CF_API_SECRETS_JSON`, `.github/CLAUDE.md`) |
 | At launch (spec) | DeepInfra `gpt-oss-120b`, then Groq, with a $50 a month spend limit |
 | Laptops testing on hosted models | Groq `openai/gpt-oss-120b`, then Groq `openai/gpt-oss-20b` (effort `low`), then Gemini `gemini-3.5-flash-lite` once a key is added; as `SCOUT_ENDPOINTS` in the root `.env`. Each Groq model has its own daily quota, so the 20b doubles the free room |
 
@@ -100,11 +100,12 @@ name in code would make a retired model a code change; a size makes it an
 env change. Which feature uses which size is the API's choice
 (`backend/app/services/models.py`), not this package's.
 
-**Production differs from the spec** (checked 2026-10-14 with `vercel env
-pull`): `workit-api` sets no `SCOUT_ENDPOINTS`, only `SCOUT_BASE_URL`,
-`SCOUT_MODEL` and `SCOUT_API_KEY` for Gemini `gemini-3.5-flash-lite` alone,
-with no fallback. Its key is a Vercel Sensitive variable, so a pull shows
-`[SENSITIVE]`, not the value; a laptop needs its own key from AI Studio.
+**Production differed from the spec when last checked** (2026-10-14, on the
+Vercel project, since retired): it set no `SCOUT_ENDPOINTS`, only
+`SCOUT_BASE_URL`, `SCOUT_MODEL` and `SCOUT_API_KEY` for Gemini
+`gemini-3.5-flash-lite` alone, with no fallback. The Cloudflare API's secrets
+were first copied from those values (`CF_API_SECRETS_JSON`), so read that JSON
+before assuming the spec's chain. A laptop needs its own key from AI Studio.
 Training on prompts is acceptable to the team (2026-10-14), since identity
 data is removed on every call, so Gemini's and Z.ai's free tiers are open
 choices.

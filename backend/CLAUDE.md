@@ -785,7 +785,7 @@ Find files with a directory listing; these are the rules for where code goes.
   `AI_DAILY_POOL` per feature, per UTC day, defaults from the spec. The counts
   live in `ai_usage_counters` (one row per account, or the pool with a NULL
   account, per feature and day). Never count in memory: a restart or a second
-  Vercel instance resets it. Check-then-count can overshoot by one under
+  container instance resets it. Check-then-count can overshoot by one under
   concurrent requests, on purpose; it errs toward the student.
 - **Intake** (KAN-213) is `routers/intake.py` (`POST /intake/turn`) over
   `services/intake.py`, which holds its frozen system prompt. It uses
@@ -1202,7 +1202,7 @@ Find files with a directory listing; these are the rules for where code goes.
   Both cache settings go in `connect_args`; passed to `create_async_engine()`
   they raise `TypeError: Invalid argument(s)`. `hide_parameters=True` keeps
   the values a statement sent out of its error's text, which every route's
-  `logger.exception` writes to the Vercel logs: a failed answer bank save
+  `logger.exception` writes to the deployed API's logs: a failed answer bank save
   logged a student's gender and disability answers (KAN-283,
   `tests/test_autofill_answers.py`). Debug with the SQL, never by turning it
   off.
@@ -1213,12 +1213,12 @@ Find files with a directory listing; these are the rules for where code goes.
 
 ## Deployment
 
-**The target is a Cloudflare Container** at `api.workitjobs.ai` (ADR 0004,
+**Production is a Cloudflare Container** at `api.workitjobs.ai` (ADR 0004,
 KAN-295): `Dockerfile` here, behind the small Worker in `cloudflare/`, on
-Workers Paid. **Vercel stays live until the KAN-296 cutover**: its project
-(Root Directory `backend`, the app one Vercel Function from `[tool.vercel]
-entrypoint` and `vercel.json`) still serves production, and both files are
-removed at cutover, not before. Until then a change must work on both.
+Workers Paid. **Vercel is retired** (2026-10-29): its project (Root Directory
+`backend`, the app one Vercel Function from `[tool.vercel] entrypoint` and
+`vercel.json`) still builds each PR until KAN-296 deletes it, and both files
+go then. A change needs to work on Cloudflare only.
 
 - **The image builds from the repo root**, `docker build --platform
   linux/amd64 -f backend/Dockerfile -t workit-api .`, because `../scout` is a
@@ -1293,9 +1293,10 @@ removed at cutover, not before. Until then a change must work on both.
   `DIRECT_URL`**: migrations run by hand, locally, and the deployed API has no
   business holding that connection. Embeddings use Ollama with
   `nomic-embed-text:v1.5` by default; see `app/services/matching/CLAUDE.md`.
-  **Still open:** the deployed API has no Ollama, so until the Vercel project
-  sets `EMBEDDING_PROVIDER=gemini` and `GEMINI_API_KEY`, recommendations
-  score without the semantic part. The Worker forwards both names when set,
+  **Still open:** the deployed API has no Ollama, so until the API's secrets
+  (`CF_API_SECRETS_JSON`, `../.github/CLAUDE.md`) set
+  `EMBEDDING_PROVIDER=gemini` and `GEMINI_API_KEY`, recommendations score
+  without the semantic part. The Worker forwards both names when set,
   and sets neither itself: `gemini` without a key would fail matching.
 - **`GET /jobs` reads `job_postings`**, filled by the import on a schedule
   (`../.github/CLAUDE.md`). A deploy changes no jobs, and an empty table is an
@@ -1474,15 +1475,15 @@ removed at cutover, not before. Until then a change must work on both.
 - **`vercel.json`'s build command fetches Tectonic** (pinned, SHA-256
   checked) and warms its cache into `vendor/`, which the function bundles.
   A build that cannot fetch it fails rather than shipping without TeX
-  (`app/services/resume_render/CLAUDE.md`). Removed at the KAN-296 cutover.
+  (`app/services/resume_render/CLAUDE.md`). Only the retired Vercel builds run
+  it; it goes with the Vercel project (KAN-296).
 - **`../scout` is installed as a non-editable path source.** uv copies it into
   site-packages at build time; an editable install would point at a folder the
   function (or the image's final layout) need not have.
-- **The container keeps 5 connections open; Vercel opens one per
-  request.** `DB_POOL_SIZE` (`app/config.py`) is 0 by default, which is
+- **The container keeps 5 connections open.** `DB_POOL_SIZE` (`app/config.py`) is 0 by default, which is
   `NullPool`, and the Dockerfile sets 5. Under `NullPool` in the container
   every request spent ~1 s opening its connection, and pages took 3–9 s
-  (2026-10-21). A Vercel Function is short-lived, so it keeps `NullPool`.
+  (2026-10-21). The retired Vercel Function kept `NullPool`, being short-lived.
   `max_overflow` equals the pool size, so three instances hold at most 30
   Supavisor clients, which still pools them onto a few Postgres backends. `pool_pre_ping` and
   `pool_recycle` replace a connection Supavisor has dropped.
@@ -1493,9 +1494,6 @@ removed at cutover, not before. Until then a change must work on both.
   runs (8–30 ms from ENAM; 150 ms from the West Coast). Read it first when
   the deployed API turns slow. They are in the body because Cloudflare drops
   a `Server-Timing` header.
-- **Still open, closes at the KAN-296 cutover:** Vercel's 4.5 MB request-body
-  limit against the 5 MB upload cap (`../frontend/CLAUDE.md`, Deployment).
-  Cloudflare accepts 100 MB bodies.
 
 ## Auth
 

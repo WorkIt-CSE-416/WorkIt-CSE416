@@ -1445,10 +1445,11 @@ refreshes it) rather than this extension trying to fix it quietly. See
 Open Items for what a from-scratch refresh story would need to look like
 if this turns out to be too conservative in practice.
 
-**Two host families until the KAN-296 cutover.** Production runs on
-Cloudflare (`workitjobs.ai`, `api.workitjobs.ai`) and on Vercel
-(`workit-web-gamma.vercel.app`, `workit-api.vercel.app`) at the same time.
-Both share one Supabase project and database. `config.js`'s `PROD_SITES`
+**Two host families until KAN-296.** Production runs on Cloudflare
+(`workitjobs.ai`, `api.workitjobs.ai`). Vercel is retired, but its projects
+(`workit-web-gamma.vercel.app`, `workit-api.vercel.app`) still answer until
+KAN-296 deletes them, on the same Supabase project and database, so the
+published extension keeps both pairs. `config.js`'s `PROD_SITES`
 pairs each webapp origin with its API, Cloudflare first.
 `webapp-session.js` reads the cookie from localhost, then each pair in
 order, and tags the session with the origin it came from. `api.js` then
@@ -1458,7 +1459,7 @@ first pair. The popup's sign-in link opens the first pair's webapp. A
 host in `PROD_SITES` must also be in `manifest.json`'s `host_permissions`
 (and, for a webapp origin, `externally_connectable.matches`); without it,
 the cookie read and the site's Auto Apply message fail silently. Drop the
-Vercel pair and its manifest entries at the cutover. **A new
+Vercel pair and its manifest entries in KAN-296, before the Vercel projects go. **A new
 `host_permissions` entry makes Chrome disable the extension on update
 until each installed user approves the new hosts**, so add hosts in
 batches, not one at a time.

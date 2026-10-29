@@ -44,9 +44,9 @@ one's code and the API on the other's.
   Workers" template, scoped to the WorkIt account and the `workitjobs.ai`
   zone) and `CLOUDFLARE_ACCOUNT_ID`, which wrangler reads from the env.
 - **The API's runtime values are one secret, `CF_API_SECRETS_JSON`**: a JSON
-  object of every variable the API reads in production, copied from Vercel's
-  production env. The job pipes it to `wrangler secret bulk` **before** the
-  deploy: the image rollout restarts the containers with the secrets of that
+  object of every variable the API reads in production (first copied from
+  Vercel's production env, before Vercel was retired). The job pipes it to
+  `wrangler secret bulk` **before** the deploy: the image rollout restarts the containers with the secrets of that
   moment, and a secrets-only version restarts none, so set after, the new
   values reach no container until each sleeps (found 2026-10-21). `secret
   bulk` never deletes a secret, so a key dropped from the JSON keeps its old
