@@ -261,7 +261,7 @@ export default async function JobsPage({ searchParams }: PageProps<"/jobs">) {
   const filters = readFilters(shown);
 
   return (
-    <div className={cn("max-w-app mx-auto w-full flex-1 py-6", SEEKER_GUTTER)}>
+    <div className={cn("max-w-dashboard mx-auto w-full flex-1 py-6", SEEKER_GUTTER)}>
       {canonical && <CanonicalUrl href={canonical} />}
       {/* So a job's page can go back to this list, filters and all. */}
       <RememberFeed />

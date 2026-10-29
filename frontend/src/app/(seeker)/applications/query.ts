@@ -9,7 +9,7 @@ import type { Application } from "../tracker";
  *
  * All of it lives in the query string rather than in component state, so it
  * survives a reload, the back button undoes it, and it can be linked to: the
- * Dashboard's Waiting opens `/applications?view=list&stage=applied`. The
+ * Home's Waiting opens `/applications?view=list&stage=applied`. The
  * server does the filtering, so a pick in a dropdown (Status or a field) or
  * in All Filters replaces the URL. The layout switcher and the list's sort
  * headings move ?view= and ?sort= in place (./view-switcher.tsx), since the

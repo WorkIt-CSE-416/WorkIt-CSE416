@@ -1,14 +1,16 @@
 import { CloudSlashIcon } from "@phosphor-icons/react/ssr";
 import type { Metadata } from "next";
+import Link from "next/link";
 import { redirect } from "next/navigation";
 
-import { BookmarkIcon, SearchIcon } from "@/components/icons";
+import { ArrowRightIcon, BookmarkIcon, SearchIcon } from "@/components/icons";
 import { ButtonLink, buttonClasses } from "@/components/ui/button";
 import { EmptyState } from "@/components/ui/empty-state";
 import { cn } from "@/lib/cn";
 
 import { SEEKER_GUTTER } from "../gutter";
-import { getTracker } from "./data";
+import { INBOX_LIVE } from "../inbox/live";
+import { getTracker, getUpdatesOnce } from "./data";
 import { ClearFiltersLink, FilterBar } from "./filter-bar";
 import { ApplicationsGrid } from "./grid";
 import { ApplicationsList } from "./list";
@@ -29,7 +31,7 @@ export const metadata: Metadata = {
  *
  * The URL carries all of it (./query.ts): the view, the search and the
  * Status and field dropdowns in the filter bar, and the list's sort. So the filtering
- * stays on the server, and the Dashboard can link straight to a filtered
+ * stays on the server, and Home can link straight to a filtered
  * list or one application. The list's column layout is the browser's own
  * (./column-layout.ts).
  *
@@ -50,37 +52,27 @@ export const metadata: Metadata = {
  */
 export default async function ApplicationsPage({ searchParams }: PageProps<"/applications">) {
   const query = parseQuery(await searchParams);
-  // The side panel's old links (the Dashboard's Next Up, a bookmark) open
+  // The side panel's old links (Home's Next Up, a bookmark) open
   // the application's own page instead (KAN-256).
   if (query.app) redirect(applicationHref(query.app));
-  const { applications, error } = await getTracker();
+  const [{ applications, error }, updates] = await Promise.all([
+    getTracker(),
+    // No emails are read while the Inbox is archived (KAN-428).
+    INBOX_LIVE ? getUpdatesOnce() : null,
+  ]);
+  const waiting = updates?.length ?? 0;
   const all = applications ?? [];
 
   const shown = filterApplications(all, query);
 
   return (
-    // EVERY PIXEL THE PANEL GIVES (KAN-256): no width cap, and when the
-    // sidebar collapses the page takes back the room the shell holds empty.
-    // The shell keeps pages at their open-sidebar width (--panel-gain, "A
-    // PAGE KEEPS THE WIDTH" in ../layout.tsx) so layouts never rearrange
-    // mid-collapse; this page's list is a table that scrolls sideways, so
-    // the room only shows more columns. A negative margin of half the gain on
-    // each side widens the page itself, easing with the panel, while its
-    // @…/main queries still see the open width, so nothing on it reflows.
-    // --panel-gain does not inherit, so this wrapper sets and eases its own
-    // copy with the shell's classes ("EVERY READER OF --panel-gain CARRIES
-    // ITS OWN", ../layout.tsx); without them it reads 0px and the page stops
-    // widening. Reading pages keep --container-app: text past ~80 characters
-    // a line is hard to follow.
-    <div
-      className={cn(
-        "-mx-[calc(var(--panel-gain)/2)] flex-1 py-6 transition-[--panel-gain] duration-200 ease-linear md:in-data-[pinned=false]:[--panel-gain:calc(var(--sidebar-width)_-_var(--sidebar-width-icon))]",
-        SEEKER_GUTTER,
-      )}
-    >
+    // EVERY PIXEL THE SHELL GIVES (KAN-256): no width cap, where every
+    // other seeker page stops at max-w-dashboard. The list is a table that
+    // scrolls sideways, so more room only shows more columns.
+    <div className={cn("flex-1 py-6", SEEKER_GUTTER)}>
       {/* The switcher is two glyphs, so it fits beside the title at every
           width: the subtitle wraps rather than pushing it onto a line of its
-          own. items-start, as on the Dashboard, so the switcher sits level
+          own. items-start, as on Home, so the switcher sits level
           with the title rather than the subtitle. */}
       <div className="flex items-start justify-between gap-4">
         <div className="min-w-0">
@@ -90,6 +82,24 @@ export default async function ApplicationsPage({ searchParams }: PageProps<"/app
 
         <ViewSwitcher />
       </div>
+
+      {/* EMAILS THAT NEED A LOOK (KAN-413): one line, only while some
+          wait. The emails themselves live on their own page, /inbox: a
+          table of them stacked on this list read as a second copy of it.
+          Off while the Inbox is archived (KAN-428, ../inbox/live.ts). */}
+      {waiting > 0 && (
+        <Link
+          href="/inbox"
+          className="border-border-subtle bg-panel rounded-card text-meta text-ink hover:bg-hover focus-visible:ring-brand-ring mt-5 flex items-center gap-2 border px-4 py-2.5 transition-colors duration-150 focus-visible:ring-2 focus-visible:outline-none"
+        >
+          <span aria-hidden="true" className="bg-brand size-2 rounded-full" />
+          {waiting === 1 ? "1 email needs a look" : `${waiting} emails need a look`}
+          <span className="text-brand ml-auto inline-flex items-center gap-1 font-medium">
+            Open Inbox
+            <ArrowRightIcon className="size-4" />
+          </span>
+        </Link>
+      )}
 
       <FilterBar
         apps={all.map(({ role, company, stage, track, workModel, source }) => ({

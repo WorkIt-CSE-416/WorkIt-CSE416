@@ -57,15 +57,8 @@ jobs:
           key: scraper-store-${{ github.run_id }}
           restore-keys: scraper-store-
 
-      # boards.csv only grows (build_boards.py), so this adds the companies the
-      # curated lists have named since it was last committed and can never drop
-      # one. It writes nothing unless every list loads, and a failure here leaves
-      # the committed list for the scrape, which still runs.
-      - name: Add companies the curated lists name now
-        working-directory: scraper
-        continue-on-error: true
-        run: python3 build_boards.py
-
+      # Daily discovery proposes additions in a PR. Only the human-reviewed,
+      # merged boards.csv is scraped; do not add unreviewed curated leads here.
       - name: Scrape
         working-directory: scraper
         run: python3 -m workit_scraper ${{ inputs.full && '--full' || '' }}
@@ -84,6 +77,7 @@ jobs:
           name: scrape-${{ github.run_id }}
           path: |
             scraper/feed.json
+            scraper/closings.json
             scraper/internships.html
             scraper/metrics.json
           retention-days: 7

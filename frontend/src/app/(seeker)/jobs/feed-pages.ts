@@ -51,7 +51,7 @@ export function keep({ at = Date.now(), ...pages }: Omit<Kept, "at"> & { at?: nu
 
 /** Drops the kept pages when `path` is the list's own page: a fresh arrival
  *  there starts the list at its first page. An arrival anywhere else leaves
- *  them, so Jobs, then the Dashboard, then Back still finds them. */
+ *  them, so Jobs, then Home, then Back still finds them. */
 export function forgetFeedPages(path: string) {
   if (readKept()?.path === path) store.write(null);
 }

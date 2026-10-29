@@ -5,6 +5,7 @@ import { useRef, useState, useTransition } from "react";
 import { SaveButton } from "@/components/save-button";
 import { useToast } from "@/components/ui/toast";
 
+import { hasApplied } from "../applied";
 import type { ApplicationStage } from "../auto-apply/actions";
 import { saveJob, unsaveJob } from "./actions";
 
@@ -60,10 +61,9 @@ export function SaveJobButton({
         } else if (result.stage !== "saved") {
           setSaved(false);
           toast.show({
-            message:
-              result.stage === "applied"
-                ? `You already applied to ${title}.`
-                : `${title} is already in Auto Apply.`,
+            message: hasApplied(result.stage)
+              ? `You already applied to ${title}.`
+              : `${title} is already in Auto Apply.`,
           });
         }
       } finally {

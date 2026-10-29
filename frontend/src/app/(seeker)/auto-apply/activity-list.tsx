@@ -23,9 +23,7 @@ import {
   TableRow,
 } from "@/components/shadcn/table";
 import { Badge, type BadgeTone } from "@/components/ui/badge";
-import { IconButton } from "@/components/ui/icon-button";
 import { Card } from "@/components/ui/card";
-import { showRunTab } from "@/lib/autofill-extension";
 import { cn } from "@/lib/cn";
 
 import { LocalDate } from "../local-time";
@@ -33,7 +31,7 @@ import { STAGE_ICON } from "../stage-colors";
 import type { RunStage } from "./actions";
 import type { Application } from "./applications";
 import type { Sort, StatusFilter } from "./query";
-import { RemoveFromQueue } from "./remove-from-queue";
+import { RowMenu } from "./row-menu";
 
 type Glyph = ComponentType<{ className?: string }>;
 
@@ -71,7 +69,23 @@ export type ActivityItem = {
   /** That resume as the picker keys it, "built:<id>" or "uploaded:<id>", so
    *  Up Next's resume picker (./resume-dialog.tsx) opens on it. */
   resumeKey?: string | null;
+  /** Its job posting closed: the application can't go out (KAN-424). */
+  closed?: boolean;
+  /** How many of its written questions have no answer yet (./page.tsx, from
+   *  GET .../written-questions); Up Next's chip links them. */
+  questions?: number;
 };
+
+/**
+ * Whether an Up Next row needs the student before it can go out (KAN-424):
+ * its posting closed, its fill couldn't finish, or it would go with no
+ * resume. Up Next lists these first, under Needs You (./up-next.tsx). A row
+ * whose questions wait to be written is still Ready: the student's Claude
+ * writes them, and the chip says so.
+ */
+export function needsYou(item: ActivityItem): boolean {
+  return Boolean(item.closed) || item.status === "failed" || item.resume == null;
+}
 
 /** Each stored stage's status, and the line it needs under its badge. */
 const STAGE_ROW: Record<RunStage, { status: ActivityStatus; detail: string | null }> = {
@@ -93,6 +107,7 @@ export function activityOf(application: Application<RunStage>): ActivityItem {
     status,
     // A closed one waits on nothing: its page is gone.
     detail: open ? detail : "Job posting closed",
+    closed: !open,
     match: application.match ?? null,
     addedAt: application.added_at,
     appliedAt: application.applied_at,
@@ -426,26 +441,32 @@ function Row({
       </TableCell>
 
       <TableCell className={cn(TD, CENTER, "overflow-hidden")}>
-        <div className="flex items-center justify-center gap-2">
-          {IN_FLIGHT.includes(item.status) && (
-            <span
-              aria-hidden="true"
-              className={cn("relative size-1.5 shrink-0 rounded-full", status.dot)}
-            >
-              <span
-                className={cn("animate-status-ping absolute inset-0 rounded-full", status.dot)}
-              />
-            </span>
-          )}
-          <Badge tone={status.tone}>
-            <status.Icon aria-hidden className="mr-1 size-3.5 shrink-0" />
-            {status.label}
-          </Badge>
-        </div>
-        {item.detail && (
-          <p className="text-note text-ink-meta mt-1 truncate" title={item.detail}>
-            {item.detail}
-          </p>
+        {variant === "queue" ? (
+          <QueueChip item={item} />
+        ) : (
+          <>
+            <div className="flex items-center justify-center gap-2">
+              {IN_FLIGHT.includes(item.status) && (
+                <span
+                  aria-hidden="true"
+                  className={cn("relative size-1.5 shrink-0 rounded-full", status.dot)}
+                >
+                  <span
+                    className={cn("animate-status-ping absolute inset-0 rounded-full", status.dot)}
+                  />
+                </span>
+              )}
+              <Badge tone={status.tone}>
+                <status.Icon aria-hidden className="mr-1 size-3.5 shrink-0" />
+                {status.label}
+              </Badge>
+            </div>
+            {item.detail && (
+              <p className="text-note text-ink-meta mt-1 truncate" title={item.detail}>
+                {item.detail}
+              </p>
+            )}
+          </>
         )}
       </TableCell>
 
@@ -479,7 +500,11 @@ function Row({
         {item.match != null ? (
           <MatchBadge score={item.match} />
         ) : (
-          <span className="text-ink-meta">Not scored</span>
+          // A dash, not "Not scored" in every row: the empty cell is the answer.
+          <span className="text-ink-faint">
+            <span aria-hidden="true">–</span>
+            <span className="sr-only">Not scored</span>
+          </span>
         )}
       </TableCell>
 
@@ -494,18 +519,7 @@ function Row({
       )}
 
       <TableCell className={cn(TD, CENTER, "py-0")}>
-        {item.status === "queued" ? (
-          <RemoveFromQueue jobId={item.id} role={item.role} company={item.company} />
-        ) : item.status === "browser" ? (
-          <IconButton
-            label={`Go to the tab with ${item.role}`}
-            tooltip="Go to the tab"
-            className="size-8"
-            onClick={() => void showRunTab()}
-          >
-            <AppWindowIcon aria-hidden className="size-4" />
-          </IconButton>
-        ) : null}
+        {item.status !== "applied" && item.status !== "skipped" && <RowMenu item={item} />}
       </TableCell>
     </>
   );
@@ -518,7 +532,9 @@ function Row({
       {cells}
     </ClickableRow>
   ) : (
-    <TableRow className="group/row animate-fade hover:bg-transparent" style={style}>
+    // No `group/row`: a row that opens nothing takes no hover tint, and with it the frozen Role cell
+    // (which follows the row's group) tinted alone, so half a row lit up (KAN-424).
+    <TableRow className="animate-fade hover:bg-transparent" style={style}>
       {cells}
     </TableRow>
   );
@@ -555,4 +571,79 @@ function SortButton({
       />
     </button>
   );
+}
+
+/**
+ * Up Next's Status cell (KAN-424): one chip only where the row is not
+ * simply waiting its turn, most urgent first. Every row read "Queued"
+ * before, the table being the queue, with the one fact that mattered
+ * ("Job posting closed") as gray text under it.
+ *
+ *   Posting Closed        danger   it can't go out; the ⋯ menu removes it
+ *   Couldn't Finish       warning  the fill left fields; finish it on its page
+ *   No Resume             danger   nothing to attach; the Resume cell picks one
+ *   Working in Browser    advanced open in a batch tab now, with its ringing dot
+ *   2 Questions to Write  warning  a link to Written Answers; their Claude may
+ *                                  write them first
+ *   Ready                 inert    nothing owed
+ */
+function QueueChip({ item }: { item: ActivityItem }) {
+  if (item.closed) {
+    return (
+      <Badge tone="danger">
+        <WarningIcon aria-hidden className="mr-1 size-3.5 shrink-0" />
+        Posting Closed
+      </Badge>
+    );
+  }
+  if (item.status === "failed") {
+    return (
+      <span title="Finish it on the job's page">
+        <Badge tone="warning">
+          <WarningIcon aria-hidden className="mr-1 size-3.5 shrink-0" />
+          Couldn&apos;t Finish
+        </Badge>
+      </span>
+    );
+  }
+  if (item.resume == null) {
+    return (
+      <Badge tone="danger">
+        <WarningIcon aria-hidden className="mr-1 size-3.5 shrink-0" />
+        No Resume
+      </Badge>
+    );
+  }
+  if (IN_FLIGHT.includes(item.status)) {
+    const status = STATUS[item.status];
+    return (
+      <div className="flex items-center justify-center gap-2">
+        <span
+          aria-hidden="true"
+          className={cn("relative size-1.5 shrink-0 rounded-full", status.dot)}
+        >
+          <span className={cn("animate-status-ping absolute inset-0 rounded-full", status.dot)} />
+        </span>
+        <Badge tone={status.tone}>
+          <status.Icon aria-hidden className="mr-1 size-3.5 shrink-0" />
+          {status.label}
+        </Badge>
+      </div>
+    );
+  }
+  if (item.questions) {
+    return (
+      // A link, so the row's own click (it opens the job) leaves it alone (components/clickable-row.tsx).
+      <Link
+        href="/auto-apply/answers"
+        className="focus-visible:ring-brand-ring inline-flex rounded-full hover:underline focus-visible:ring-2 focus-visible:outline-none"
+      >
+        <Badge tone="warning">
+          <PencilLineIcon aria-hidden className="mr-1 size-3.5 shrink-0" />
+          {item.questions} {item.questions === 1 ? "Question" : "Questions"} to Write
+        </Badge>
+      </Link>
+    );
+  }
+  return <Badge tone="inert">Ready</Badge>;
 }

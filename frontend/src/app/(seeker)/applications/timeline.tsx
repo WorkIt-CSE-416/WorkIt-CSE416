@@ -5,12 +5,12 @@ import { Badge } from "@/components/ui/badge";
 import { cn } from "@/lib/cn";
 
 import { When } from "../local-time";
-import { KIND_STAGE, STAGE_COLOR, STAGE_ICON, type StageKey } from "../stage-colors";
+import { KIND_ICON, KIND_STAGE, STAGE_COLOR, STAGE_ICON, type StageKey } from "../stage-colors";
 import type { TimelineStep } from "../tracker";
 
 /**
  * An application's timeline: one dot per step on one rail, in its kind's
- * stage colour (KIND_STAGE), as the Dashboard's Up Next colours it. A step
+ * stage colour (KIND_STAGE), as Home's Up Next colours it. A step
  * behind, and the one the application is waiting on, is filled with its
  * stage's glyph (STAGE_ICON; a resume sent on its own wears the file), the
  * one waiting is marked Next too, and anything further out is an empty
@@ -99,7 +99,12 @@ function Step({
 }) {
   const stage: StageKey =
     step.kind === "saved" ? "saved" : step.kind === "sent" ? "applied" : KIND_STAGE[step.kind];
-  const Glyph = step.kind === "sent" ? FileIcon : STAGE_ICON[stage];
+  const Glyph =
+    step.kind === "sent"
+      ? FileIcon
+      : step.kind === "saved"
+        ? STAGE_ICON.saved
+        : KIND_ICON[step.kind];
   const filled = step.state !== "later";
   const next = step.state === "next";
 

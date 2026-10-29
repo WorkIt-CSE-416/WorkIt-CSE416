@@ -1,4 +1,5 @@
-"""GET and PATCH for the applicant's own profile fields.
+"""GET and PATCH for the applicant's own profile fields, home location
+included (KAN-372).
 
 PATCH updates only the fields present in the body (`model_fields_set`), so a
 field left out keeps its value. The name keeps its four columns in step
@@ -6,6 +7,12 @@ field left out keeps its value. The name keeps its four columns in step
 with the stored ones and joined into full_name; a full_name sent alone (the
 resume editor's header) is split into parts. Both a first and a last name
 are required, as at signup, and the joined name fits full_name's 50.
+
+GET .../fill-profile is the Fill engine's own profile and policies for the
+student (`fill_profile`, `fill_policies`; models/CLAUDE.md, "The Fill
+engine's profile"), which the extension lays its own fields over. Only the
+owner reads it: it holds their self-identification. Nothing writes it but
+scripts/import_apply_profile.py.
 """
 
 import uuid
@@ -17,7 +24,11 @@ from app.db import get_session
 from app.deps import assert_applicant_owns, get_current_account
 from app.models.profiles import Applicant_Profile
 from app.schemas.auth import AuthenticatedAccount
-from app.schemas.profile import ApplicantProfileResponse, ApplicantProfileUpdate
+from app.schemas.profile import (
+    ApplicantProfileResponse,
+    ApplicantProfileUpdate,
+    FillProfile,
+)
 from app.services.names import join_name, name_columns, split_name
 
 NAME_PARTS = ("first_name", "middle_name", "last_name")
@@ -39,6 +50,19 @@ async def get_profile(
     if profile is None:
         raise HTTPException(404, "Profile not found")
     return ApplicantProfileResponse.model_validate(profile)         # makes sure response follows schema
+
+
+@router.get("/applicants/{applicant_id}/fill-profile", response_model=FillProfile)
+async def get_fill_profile(
+    applicant_id: uuid.UUID,
+    account: AuthenticatedAccount = Depends(get_current_account),
+    session: AsyncSession = Depends(get_session),
+) -> FillProfile:
+    assert_applicant_owns(account, applicant_id)
+    profile = await session.get(Applicant_Profile, applicant_id)
+    if profile is None:
+        raise HTTPException(404, "Profile not found")
+    return FillProfile(profile=profile.fill_profile or {}, policies=profile.fill_policies or {})
 
 # partial update
 @router.patch(

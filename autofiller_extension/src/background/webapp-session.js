@@ -43,6 +43,21 @@ function base64UrlDecode(value) {
 }
 
 /**
+ * The access token's `sub` claim (the signed-in account's id), or null for a
+ * token that won't decode. Read unverified: it only picks which cached
+ * profile is this account's, and the API still verifies the token.
+ * @param {string} token
+ * @returns {string | null}
+ */
+function tokenSubject(token) {
+  try {
+    return JSON.parse(base64UrlDecode(token.split(".")[1])).sub ?? null;
+  } catch {
+    return null;
+  }
+}
+
+/**
  * Looks up one cookie by its exact name. Deliberately `chrome.cookies.get`,
  * not `getAll` — confirmed by hand against a live Chrome instance that
  * `getAll` comes back empty for this cookie under every filter shape tried
@@ -124,6 +139,7 @@ function decodeSession(raw) {
     access_token: session.access_token,
     refresh_token: session.refresh_token,
     expires_at: session.expires_at ?? Math.floor(Date.now() / 1000) + 3600,
+    user_id: tokenSubject(session.access_token),
   };
 }
 

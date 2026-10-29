@@ -1,6 +1,7 @@
 // Client for WorkIt's own FastAPI backend. Most calls here reuse an
 // endpoint that already exists for the webapp (backend/app/routers/auth.py,
-// profiles.py, bank.py, preferences.py, autofill_answers.py, auto_apply.py)
+// profiles.py, bank.py, preferences.py, autofill_answers.py, auto_apply.py,
+// documents.py)
 // — straight from the extension's background service worker instead of a
 // Server Action. Two routes are new, built for this extension specifically
 // because no existing one was safe/usable from here: essay-answer
@@ -22,6 +23,10 @@ const CACHE_KEY = "workit_autofill_profile";
 // Re-fetch after this long even on a cache hit, so a profile edit made in
 // the webapp shows up here without an explicit "refresh" click.
 const CACHE_TTL_MS = 10 * 60 * 1000;
+// A profile older than CACHE_TTL_MS but younger than this is used while a fresh one is fetched.
+const STALE_OK_MS = 24 * 60 * 60 * 1000;
+/** The profile fetch under way, if any (getAutofillProfile): its callers share it. */
+let fetching = null;
 
 /** Resolved once per service-worker lifetime, not on every call. */
 let devApiReachable = null;
@@ -74,7 +79,8 @@ async function apiRequest(path, init = {}) {
   const response = await fetch(`${base}${path}`, {
     ...init,
     headers: {
-      "Content-Type": "application/json",
+      // A FormData body (uploadResume) sets its own multipart type, with its boundary.
+      ...(init.body instanceof FormData ? {} : { "Content-Type": "application/json" }),
       Authorization: `Bearer ${session.access_token}`,
       ...init.headers,
     },
@@ -82,22 +88,30 @@ async function apiRequest(path, init = {}) {
 
   if (!response.ok) {
     const body = await response.json().catch(() => ({}));
-    throw new ApiError(response.status, errorMessage(response.status, body));
+    const error = new ApiError(response.status, errorMessage(response.status, body));
+    // A refusal's reasons by question (the paste route's 422, savePastedAnswer), when the route gives them.
+    error.reasons = body?.detail?.reasons;
+    // The resume a duplicate upload matches (POST .../resumes' 409), so the panel can use it instead.
+    error.resumeId = body?.detail?.resume_id ?? null;
+    throw error;
   }
   return response;
 }
 
 /**
  * An error answer's words: the route's own `detail`, or for a body FastAPI
- * refused (a 422 with a list of errors) each error's `msg`, never "[object Object]".
+ * refused (a 422 with a list of errors) each error's `msg`, never "[object Object]"
+ * or a bare status code.
  * @param {number} status
  * @param {{ detail?: string | { msg?: string }[] }} body
  */
 export function errorMessage(status, body) {
   const { detail } = body ?? {};
   if (typeof detail === "string" && detail) return detail;
+  if (typeof detail?.message === "string" && detail.message) return detail.message;
   if (Array.isArray(detail) && detail.length) return detail.map((e) => e?.msg ?? String(e)).join("; ");
-  return `Request failed (${status})`;
+  // No words from the route: a plain sentence, never the status code (KAN-401); the status stays on ApiError.
+  return "WorkIt's server couldn't do that just now.";
 }
 
 /**
@@ -122,13 +136,41 @@ async function apiFetchBinary(path) {
   return response.arrayBuffer();
 }
 
+// Who is signed in, kept a short while per session token (a batch asked it
+// before nearly every call, a round trip each): a new token (another sign-in)
+// or none (signed out) asks again, as does a refused token.
+const ME_TTL_MS = 60 * 1000;
+/** @type {{ token: string, at: number, account: Promise<any> } | null} */
+let account = null;
+
 /** GET /auth/me — also how the popup checks "am I actually signed in". */
 async function me() {
-  return apiFetch("/auth/me");
+  const session = await getSession();
+  if (!session) {
+    account = null;
+    throw new ApiError(401, "Not signed in");
+  }
+  if (account?.token === session.access_token && Date.now() - account.at < ME_TTL_MS) return account.account;
+  const asked = { token: session.access_token, at: Date.now(), account: apiFetch("/auth/me") };
+  account = asked;
+  asked.account.catch(() => {
+    if (account === asked) account = null;
+  });
+  return asked.account;
 }
 
 async function getApplicantProfile(applicantId) {
   return apiFetch(`/applicants/${applicantId}/profile`);
+}
+
+/**
+ * The Fill engine's own profile and policies for the student
+ * (backend/app/routers/profiles.py's get_fill_profile): what they brought
+ * from Apply, `{ profile, policies }`, both empty objects when nothing was.
+ * engine.js lays WorkIt's own fields over them.
+ */
+async function getFillProfile(applicantId) {
+  return apiFetch(`/applicants/${applicantId}/fill-profile`);
 }
 
 /**
@@ -237,6 +279,24 @@ const RESUME_MIME_TYPES = {
   docx: "application/vnd.openxmlformats-officedocument.wordprocessingml.document",
 };
 
+/** An uploaded resume (a GET .../resumes row) as the file the engine attaches, its bytes from this API's own origin. */
+async function uploadedResumeFile(applicantId, row) {
+  const buffer = await getResumeFileBytes(applicantId, row.id);
+  const ext = (row.original_filename?.split(".").pop() || "pdf").toLowerCase();
+  return {
+    filename: row.original_filename || `resume.${ext}`,
+    mimeType: RESUME_MIME_TYPES[ext] ?? "application/octet-stream",
+    base64: arrayBufferToBase64(buffer),
+    uploaded_resume_id: row.id,
+  };
+}
+
+/** A built resume (a GET .../built-resumes row) as the file the engine attaches: its PDF, rendered. */
+async function builtResumeFile(applicantId, row) {
+  const rendered = await getBuiltResumeRender(applicantId, row.id);
+  return { filename: `${row.name || "Resume"}.pdf`, mimeType: "application/pdf", base64: rendered.pdf, built_resume_id: row.id };
+}
+
 /**
  * Whichever resume My Profile calls the student's default — resolved all
  * the way to file bytes here, at profile-fetch time, rather than left as a
@@ -255,32 +315,19 @@ const RESUME_MIME_TYPES = {
  * way, reads the same to the rest of the extension — "nothing to attach" —
  * rather than failing the whole profile load over one optional field.
  * @param {string} applicantId
- * @returns {Promise<{ filename: string, mimeType: string, base64: string } | null>}
+ * Each file names the resume it came from (`uploaded_resume_id` or
+ * `built_resume_id`), so a sent application can say which one went out.
+ * @returns {Promise<{ filename: string, mimeType: string, base64: string, uploaded_resume_id?: string, built_resume_id?: string } | null>}
  */
 async function resolveResumeFile(applicantId) {
   try {
     const uploaded = await getResumes(applicantId);
     const defaultUpload = uploaded.find((r) => r.is_default);
-    if (defaultUpload) {
-      const buffer = await getResumeFileBytes(applicantId, defaultUpload.id);
-      const ext = (defaultUpload.original_filename?.split(".").pop() || "pdf").toLowerCase();
-      return {
-        filename: defaultUpload.original_filename || `resume.${ext}`,
-        mimeType: RESUME_MIME_TYPES[ext] ?? "application/octet-stream",
-        base64: arrayBufferToBase64(buffer),
-      };
-    }
+    if (defaultUpload) return await uploadedResumeFile(applicantId, defaultUpload);
 
     const built = await getBuiltResumes(applicantId);
     const defaultBuilt = built.find((r) => r.is_default);
-    if (defaultBuilt) {
-      const rendered = await getBuiltResumeRender(applicantId, defaultBuilt.id);
-      return {
-        filename: `${defaultBuilt.name || "Resume"}.pdf`,
-        mimeType: "application/pdf",
-        base64: rendered.pdf,
-      };
-    }
+    if (defaultBuilt) return await builtResumeFile(applicantId, defaultBuilt);
 
     // Neither list had an is_default row — a real "no resume" case, not a
     // failure, but logged anyway: silent here and a thrown error below were
@@ -293,6 +340,35 @@ async function resolveResumeFile(applicantId) {
     return null;
   } catch (error) {
     console.warn("resolveResumeFile: failed to resolve a resume file", error);
+    return null;
+  }
+}
+
+/**
+ * The student's unofficial transcript (backend/app/routers/documents.py,
+ * KAN-369), as file bytes, for a form's transcript upload: null when they
+ * have none, or on any failure (best effort, like the resume). Named apart
+ * from the resume when both files share a name, since a planned file is
+ * matched to its bytes by name (engine.js's withFiles).
+ * @param {string} applicantId
+ * @param {Promise<{ filename: string } | null>} resume the resume being resolved (resolveResumeFile, which never rejects)
+ * @returns {Promise<{ filename: string, mimeType: string, base64: string } | null>}
+ */
+async function resolveTranscriptFile(applicantId, resume) {
+  try {
+    const documents = await apiFetch(`/applicants/${applicantId}/documents`);
+    const transcript = documents.find((d) => d.kind === "transcript");
+    if (!transcript) return null;
+    const buffer = await apiFetchBinary(`/applicants/${applicantId}/documents/transcript/bytes`);
+    const ext = (transcript.original_filename?.split(".").pop() || "pdf").toLowerCase();
+    const name = transcript.original_filename || `transcript.${ext}`;
+    return {
+      filename: name === (await resume)?.filename ? `Transcript_${name}` : name,
+      mimeType: RESUME_MIME_TYPES[ext] ?? "application/octet-stream",
+      base64: arrayBufferToBase64(buffer),
+    };
+  } catch (error) {
+    console.warn("resolveTranscriptFile: failed to fetch the transcript", error);
     return null;
   }
 }
@@ -329,11 +405,18 @@ async function fetchAutofillProfile() {
     throw new Error("WorkIt Autofiller is for applicant accounts. Signed in as a company account.");
   }
 
-  const profile = await getApplicantProfile(account.id);
-  const bank = await getBank(account.id);
-  const preferences = await getPreferences(account.id);
-  const answers = await getAutofillAnswers(account.id);
-  const resume = await resolveResumeFile(account.id);
+  // The parts are asked at once: none needs another's answer (the transcript only the resume's name, once both are in).
+  const resuming = resolveResumeFile(account.id);
+  const [profile, bank, preferences, answers, resume, transcript, fill] = await Promise.all([
+    getApplicantProfile(account.id),
+    getBank(account.id),
+    getPreferences(account.id),
+    getAutofillAnswers(account.id),
+    resuming,
+    resolveTranscriptFile(account.id, resuming),
+    // Best effort, like the resume: without it the fill uses WorkIt's fields alone.
+    getFillProfile(account.id).catch(() => null),
+  ]);
   const fallback = inferredAnswers(preferences.visa);
   // A real saved answer always wins; the job-search filter only fills the
   // two questions it can confidently speak to, and only while they're
@@ -349,8 +432,12 @@ async function fetchAutofillProfile() {
     // The contact email employers see; empty means the sign-in email (KAN-262).
     email: profile.contact_email || account.email,
     full_name: account.full_name,
+    first_name: profile.first_name ?? null,
+    middle_name: profile.middle_name ?? null,
+    last_name: profile.last_name ?? null,
     phone_number: profile.phone_number,
     headline: profile.headline,
+    location: profile.location ?? null,
     linkedin_url: profile.linkedin_url,
     portfolio_url: profile.portfolio_url,
     github_url: profile.github_url,
@@ -358,6 +445,8 @@ async function fetchAutofillProfile() {
     bank: bank.entries.length > 0 ? bank : null,
     answers: mergedAnswers,
     resume,
+    transcript,
+    fill,
     fetched_at: Date.now(),
   };
 }
@@ -374,7 +463,9 @@ async function fetchAutofillProfile() {
  * their last-cached profile here for up to CACHE_TTL_MS, since the cached
  * branch never used to call anything that would notice. One extra
  * chrome.storage read (getSession, below) is cheap insurance against
- * autofilling a stale, signed-out identity.
+ * autofilling a stale, signed-out identity. A profile cached for another
+ * account (a sign-in as someone else on the same Chrome) is never used,
+ * however fresh: it would fill the last student's name into this one's form.
  * @param {{ force?: boolean }} [options]
  * @returns {Promise<import("../shared/types.js").AutofillProfile>}
  */
@@ -383,23 +474,331 @@ export async function getAutofillProfile({ force = false } = {}) {
   if (!session) throw new ApiError(401, "Not signed in");
 
   const { [CACHE_KEY]: cached } = await chrome.storage.local.get(CACHE_KEY);
-  if (cached && !force && Date.now() - cached.fetched_at < CACHE_TTL_MS) {
+  const age = cached?.id === session.user_id ? Date.now() - cached.fetched_at : Infinity;
+  if (!force && age < CACHE_TTL_MS) return cached;
+  // Past its ten minutes but under a day old: used at once, and fetched again behind (a cold API
+  // took 4-9 s to answer, live), so the next call has the fresh one. Older ones are waited for.
+  if (!force && age < STALE_OK_MS) {
+    if (!fetching) refetch().catch((error) => console.warn("[profile] not fetched again:", error.message));
     return cached;
   }
 
-  const fresh = await fetchAutofillProfile();
-  await chrome.storage.local.set({ [CACHE_KEY]: fresh });
-  return fresh;
+  // A fetch already under way (write early's, another tab's Plan) is waited for, not asked again;
+  // a forced one starts afresh, since it may follow an edit the one under way began before.
+  if (!force && fetching) return fetching;
+  return refetch();
+}
+
+/** Fetches the profile and caches it; callers meanwhile share it (`fetching`). */
+async function refetch() {
+  const run = fetchAutofillProfile().then(async (fresh) => {
+    await chrome.storage.local.set({ [CACHE_KEY]: fresh });
+    return fresh;
+  });
+  fetching = run;
+  try {
+    return await run;
+  } finally {
+    if (fetching === run) fetching = null;
+  }
+}
+
+/**
+ * Starts the profile fetch, and so wakes a cold API, before anything waits
+ * for it: as a batch starts and as the panel opens, so a tab's Plan finds it
+ * in hand. Never throws; a signed-out student simply fetches nothing.
+ */
+export function warmProfile() {
+  getAutofillProfile().catch(() => {});
 }
 
 /**
  * GET .../applications/next — the oldest queued application whose job
- * posting is open (its `job.apply_url` is the page to open), or null when
- * the queue is empty.
+ * posting is open (its `job.form_url`, else `job.apply_url`, is the page
+ * to open), past the jobs in `skip` (those batch apply has opened), or
+ * null when none is left.
+ * @param {string} applicantId
+ * @param {string[]} [skip]
+ */
+export async function nextApplication(applicantId, skip = []) {
+  const query = new URLSearchParams(skip.map((id) => ["skip", id])).toString();
+  return apiFetch(`/applicants/${applicantId}/applications/next${query ? `?${query}` : ""}`);
+}
+
+/**
+ * PUT .../applications/{job_id}/fill — how a batch tab's fill left the form:
+ * "needs_you" moves the application to needs_you, "ready" back to queued.
+ * @param {string} applicantId
+ * @param {string} jobId
+ * @param {"ready" | "needs_you"} state
+ */
+export async function recordFill(applicantId, jobId, state) {
+  return apiFetch(`/applicants/${applicantId}/applications/${jobId}/fill`, { method: "PUT", body: JSON.stringify({ state }) });
+}
+
+/**
+ * POST /fill-reports — a problem report the student sent from the panel
+ * (KAN-403, background report.js): the job system, posting link, engine
+ * version, each failed field's kind, label shape and error name, and their
+ * note. Never an answer or the page's text.
+ * @param {{ job_system: string, posting_url: string, engine_version: string,
+ *   fields: { kind: string, label_shape: string, error: string }[], note: string | null }} report
+ */
+export async function sendFillReport(report) {
+  return apiFetch("/fill-reports", { method: "POST", body: JSON.stringify(report) });
+}
+
+/**
+ * PUT .../applications/{job_id}/questions — the questions a batch tab's form
+ * needs written (KAN-377), for the student's own Claude to answer through
+ * the connector. Answers every question the application has, with any
+ * answer saved so far.
+ * @param {string} applicantId
+ * @param {string} jobId
+ * @param {{ name: string, label: string, required: boolean, max_length: number | null }[]} questions
+ */
+export async function askQuestions(applicantId, jobId, questions) {
+  return apiFetch(`/applicants/${applicantId}/applications/${jobId}/questions`, { method: "PUT", body: JSON.stringify({ questions }) });
+}
+
+/**
+ * GET .../applications/{job_id}/questions — those questions, each with the
+ * `answer` the student's Claude saved, or null.
+ * @param {string} applicantId
+ * @param {string} jobId
+ */
+export async function writtenAnswers(applicantId, jobId) {
+  return apiFetch(`/applicants/${applicantId}/applications/${jobId}/questions`);
+}
+
+/**
+ * GET .../applications?stage=queued — the student's queued applications,
+ * newest first, each with its job posting's listing (`job.form_url`, else
+ * `job.apply_url`, is its form), for reading their questions early (KAN-379).
  * @param {string} applicantId
  */
-export async function nextApplication(applicantId) {
-  return apiFetch(`/applicants/${applicantId}/applications/next`);
+export async function queuedApplications(applicantId) {
+  return apiFetch(`/applicants/${applicantId}/applications?stage=queued`);
+}
+
+/**
+ * GET .../applications?scored=true — every application, newest first, each
+ * with its job posting's listing, its stage and `applied_at`, and `match`:
+ * the Jobs page's Match score (null for a closed posting or an empty
+ * experience bank). The panel's job card (KAN-395, panel-top.js).
+ * @param {string} applicantId
+ */
+export async function scoredApplications(applicantId) {
+  return apiFetch(`/applicants/${applicantId}/applications?scored=true`);
+}
+
+/**
+ * GET .../applications/{job_id}/answer-bank — the answers saved on the
+ * student's other applications that this one's form may reuse,
+ * `{[question wording]: {answer, own}}`: the Fill engine's Answer bank for
+ * its Plan (KAN-379). Never an answer about another company.
+ * @param {string} applicantId
+ * @param {string} jobId
+ * @returns {Promise<Record<string, { answer: string, own: boolean }>>}
+ */
+export async function answerBank(applicantId, jobId) {
+  return apiFetch(`/applicants/${applicantId}/applications/${jobId}/answer-bank`);
+}
+
+/**
+ * GET .../answer-bank?company= — the same for a form filled outside a batch,
+ * which has no application: every saved answer it may reuse, one about a
+ * company only when `company` (the page's, if read) is that company.
+ * @param {string} applicantId
+ * @param {string} [company]
+ * @returns {Promise<Record<string, { answer: string, own: boolean }>>}
+ */
+export async function anyFormAnswerBank(applicantId, company) {
+  const query = company ? `?company=${encodeURIComponent(company.slice(0, 200))}` : "";
+  return apiFetch(`/applicants/${applicantId}/answer-bank${query}`);
+}
+
+/**
+ * PUT .../applications/{job_id}/answers — the student's own words for one of
+ * a batch tab's questions that need writing (KAN-379): kept as the
+ * application's answer, and saved for every later form that asks it.
+ * @param {string} applicantId
+ * @param {string} jobId
+ * @param {{ name: string, label: string, answer: string }} answer
+ */
+export async function saveOwnAnswer(applicantId, jobId, answer) {
+  return apiFetch(`/applicants/${applicantId}/applications/${jobId}/answers`, { method: "PUT", body: JSON.stringify(answer) });
+}
+
+/**
+ * DELETE .../applications/{job_id}/answers?name= — Undo on the guess card
+ * (KAN-369, card-guess.js): takes back the answer the student saved for
+ * question `name`, so later forms no longer fill it.
+ * @param {string} applicantId
+ * @param {string} jobId
+ * @param {string} name
+ */
+export async function dropOwnAnswer(applicantId, jobId, name) {
+  await apiRequest(`/applicants/${applicantId}/applications/${jobId}/answers?name=${encodeURIComponent(name)}`, { method: "DELETE" });
+}
+
+/**
+ * POST .../applications/{job_id}/review/keep|rewrite — the flag card's answer
+ * to a question the pre-submit review flagged (KAN-369): keep it as it
+ * stands, or send it back to the student's Claude to write again.
+ * @param {string} applicantId
+ * @param {string} jobId
+ * @param {"keep" | "rewrite" | "redo"} action  redo: any answer their Claude wrote, for another version (KAN-424)
+ * @param {string} name
+ * @param {string} [steer]  redo's "how to change it" ("Make it shorter."), if the student said
+ */
+export async function answerFlag(applicantId, jobId, action, name, steer) {
+  const body = steer ? { name, steer } : { name };
+  await apiRequest(`/applicants/${applicantId}/applications/${jobId}/review/${action}`, { method: "POST", body: JSON.stringify(body) });
+}
+
+/**
+ * PUT .../applications/{job_id}/written-answers — an answer the student
+ * pasted in a waiting row's card (KAN-369), saved as the Written Answers
+ * page saves one (KAN-385): checked as their Claude's, saved by="student",
+ * not as their own words. A refusal is an ApiError 422 whose `reasons`
+ * names each question's reasons.
+ * @param {string} applicantId
+ * @param {string} jobId
+ * @param {string} name
+ * @param {string} answer
+ * @returns {Promise<{ saved: number, left: number }>}
+ */
+export async function savePastedAnswer(applicantId, jobId, name, answer) {
+  return apiFetch(`/applicants/${applicantId}/applications/${jobId}/written-answers`, { method: "PUT", body: JSON.stringify({ answers: [{ name, answer }] }) });
+}
+
+/**
+ * PUT .../applications/{job_id}/resume — keeps the resume an application
+ * went out with as its sent resume (the route's `built_resume_id` or
+ * `uploaded_resume_id`, from the profile's resume file).
+ * @param {string} applicantId
+ * @param {string} jobId
+ * @param {{ uploaded_resume_id: string } | { built_resume_id: string }} resume
+ */
+/**
+ * Uploads a résumé file to the student's Resumes (POST .../resumes, the
+ * Resumes page's own upload, which reads it into their Experiences too).
+ * `file` is { filename, mimeType, base64 }. Returns the new row.
+ */
+export async function uploadResume(applicantId, file) {
+  const form = new FormData();
+  const bytes = Uint8Array.from(atob(file.base64), (c) => c.charCodeAt(0));
+  form.append("file", new Blob([bytes], { type: file.mimeType }), file.filename);
+  return apiFetch(`/applicants/${applicantId}/resumes`, { method: "POST", body: form });
+}
+
+export async function recordSentResume(applicantId, jobId, resume) {
+  return apiFetch(`/applicants/${applicantId}/applications/${jobId}/resume`, { method: "PUT", body: JSON.stringify(resume) });
+}
+
+/**
+ * POST .../applications/{job_id}/finish — how an application ended:
+ * "submitted" marks it applied, "skipped" (the student pressed Skip) skipped.
+ * @param {string} applicantId
+ * @param {string} jobId
+ * @param {"submitted" | "skipped" | "failed"} outcome
+ */
+/**
+ * POST /jobs/saved-by-link: saves the feed's job whose apply link is the
+ * page at `url` (the popup's Save to WorkIt on a site WorkIt can't fill, KAN-401).
+ * @param {string} url
+ * @returns {Promise<{ job_id: string, stage: string }>}
+ */
+export async function saveJobByLink(url) {
+  return apiFetch("/jobs/saved-by-link", { method: "POST", body: JSON.stringify({ url }) });
+}
+
+/**
+ * POST /jobs/listed-by-link: the feed's job whose apply link is the page at
+ * `url`, and the student's stage for it (null with no application), for the
+ * panel's Track on WorkIt (KAN-424). Writes nothing; a 404 when WorkIt
+ * doesn't list it.
+ * @param {string} url
+ * @returns {Promise<{ job_id: string, stage: string | null }>}
+ */
+export async function listedJobByLink(url) {
+  return apiFetch("/jobs/listed-by-link", { method: "POST", body: JSON.stringify({ url }) });
+}
+
+/**
+ * POST /jobs/{job_id}/saved: keeps the job in the student's Applications as
+ * saved, or keeps the stage it already has (Track on WorkIt, KAN-424).
+ * @param {string} jobId
+ * @returns {Promise<{ stage: string }>}
+ */
+export async function saveJob(jobId) {
+  return apiFetch(`/jobs/${jobId}/saved`, { method: "POST" });
+}
+
+/**
+ * POST /jobs/{job_id}/applied: marks the job applied, as the website's
+ * Applied button does (a tracked tab's submit, KAN-424). Keeps the sent
+ * resume the application names.
+ * @param {string} jobId
+ * @returns {Promise<{ applied_at: string | null }>}
+ */
+export async function markJobApplied(jobId) {
+  return apiFetch(`/jobs/${jobId}/applied`, { method: "POST" });
+}
+
+/**
+ * POST /job-system-requests: the popup's Request this job system (KAN-369)
+ * on a job page WorkIt can't fill. Sends the page's host and nothing else.
+ * @param {string} host
+ */
+export async function requestJobSystem(host) {
+  return apiFetch("/job-system-requests", { method: "POST", body: JSON.stringify({ host }) });
+}
+
+/**
+ * POST .../finish: the application's outcome. "unsubmitted" also takes the
+ * tab's `state` before the mark ("ready" → queued, "needs_you" → needs_you).
+ */
+export async function finishApplication(applicantId, jobId, outcome, state = undefined) {
+  return apiFetch(`/applicants/${applicantId}/applications/${jobId}/finish`, { method: "POST", body: JSON.stringify(state ? { outcome, state } : { outcome }) });
+}
+
+/**
+ * GET .../connector — whether the student's Claude holds a live sign-in to
+ * WorkIt's connector (`{ added }`, KAN-387).
+ * @param {string} applicantId
+ */
+export async function connectorAdded(applicantId) {
+  return (await apiFetch(`/applicants/${applicantId}/connector`)).added;
+}
+
+/**
+ * DELETE .../connector — revokes the student's Claude's sign-in to WorkIt at
+ * once (the webapp's Settings > Connected Apps Disconnect; the panel's
+ * settings, KAN-402). Answers 204, no body.
+ * @param {string} applicantId
+ */
+export async function disconnectConnector(applicantId) {
+  await apiRequest(`/applicants/${applicantId}/connector`, { method: "DELETE" });
+}
+
+/**
+ * GET .../writing-samples — the student's writing samples (`samples`, KAN-384).
+ * @param {string} applicantId
+ */
+export async function writingSamples(applicantId) {
+  return (await apiFetch(`/applicants/${applicantId}/writing-samples`)).samples;
+}
+
+/**
+ * PATCH .../autofill-answers — saves the answers `changed` names and keeps
+ * the rest (the self-identification a form first asked, KAN-387).
+ * @param {string} applicantId
+ * @param {Record<string, string>} changed
+ */
+export async function saveAutofillAnswers(applicantId, changed) {
+  return apiFetch(`/applicants/${applicantId}/autofill-answers`, { method: "PATCH", body: JSON.stringify(changed) });
 }
 
 /**
@@ -427,4 +826,4 @@ export async function generateEssayAnswer(applicantId, { question, companyName, 
   });
 }
 
-export { ApiError, me };
+export { ApiError, me, getResumes as uploadedResumes, getBuiltResumes as builtResumes, uploadedResumeFile, builtResumeFile };

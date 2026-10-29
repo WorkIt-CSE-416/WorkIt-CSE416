@@ -32,6 +32,7 @@ from sqlalchemy import select
 from sqlalchemy.exc import IntegrityError
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from app.config import get_settings
 from app.db import get_session
 from app.models.dto import profile_status
 from app.models.profiles import Applicant_Profile, Company_Membership
@@ -251,4 +252,25 @@ async def get_company_member(
     if account.membership_status != profile_status.active:
         raise _not_a_company_member()
 
+    return account
+
+
+def is_admin(account: AuthenticatedAccount) -> bool:
+    '''whether the account is one of WorkIt's admins: its email or id is on WORKIT_ADMINS (app/config.py)'''
+    allowed = {entry.strip().lower() for entry in get_settings().workit_admins.split(",") if entry.strip()}
+    return str(account.email).lower() in allowed or str(account.id).lower() in allowed
+
+
+async def get_admin(
+    account: AuthenticatedAccount = Depends(get_current_account),
+) -> AuthenticatedAccount:
+    '''
+    for WorkIt's own admin routes (fix reports, KAN-369): the caller must be
+    on WORKIT_ADMINS. The email is the profile row's, which
+    get_current_account keeps equal to the verified token's sign-in email,
+    and signup requires a confirmed email, so no one can claim one they
+    don't hold.
+    '''
+    if not is_admin(account):
+        raise HTTPException(status.HTTP_403_FORBIDDEN, "Only WorkIt's admins can do this.")
     return account

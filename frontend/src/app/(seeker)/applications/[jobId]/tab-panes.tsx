@@ -5,9 +5,13 @@ import type { ReactNode } from "react";
 import { useShallowParams } from "@/components/shallow-routing";
 import { SegmentedLinks } from "@/components/ui/segmented-control";
 
+import { INBOX_LIVE } from "../../inbox/live";
+
 /**
- * The application page's two tabs (./page.tsx), Your Application and Job
- * Description, kept in ?tab= so a tab can be linked to and survives a reload.
+ * The application page's tabs (./page.tsx), Your Application, Emails and
+ * Job Description, kept in ?tab= so a tab can be linked to and survives a
+ * reload. Emails is hidden while the Inbox is archived (KAN-428), and its
+ * ?tab= opens Your Application then.
  *
  * THE TABS MOVE IN PLACE (`shallow`, components/shallow-routing.tsx). The
  * server draws both panes once and hands them to TabPanes, which shows the
@@ -22,12 +26,13 @@ import { SegmentedLinks } from "@/components/ui/segmented-control";
  * renders the pane ?tab= names on the server, since the query is the
  * request's there.
  */
-type Tab = "application" | "job";
+type Tab = "application" | "emails" | "job";
 
 /** The tab the page is showing. Your Application leads: it is what this
  *  page adds to the job's own, so any other ?tab= opens it. */
 function useTab(): Tab {
-  return useShallowParams().get("tab") === "job" ? "job" : "application";
+  const tab = useShallowParams().get("tab");
+  return tab === "job" || (tab === "emails" && INBOX_LIVE) ? tab : "application";
 }
 
 /** The tab switch, in the action bar or under the header (./page.tsx says
@@ -41,6 +46,8 @@ export function ApplicationTabs({ base, className }: { base: string; className?:
       className={className}
       options={[
         { value: "application", label: "Your Application", href: base },
+        // Archived with the Inbox (KAN-428, ../../inbox/live.ts).
+        ...(INBOX_LIVE ? [{ value: "emails", label: "Emails", href: `${base}?tab=emails` }] : []),
         { value: "job", label: "Job Description", href: `${base}?tab=job` },
       ]}
     />
@@ -48,6 +55,15 @@ export function ApplicationTabs({ base, className }: { base: string; className?:
 }
 
 /** The pane for the tab shown, of the two the server drew. */
-export function TabPanes({ application, job }: { application: ReactNode; job: ReactNode }) {
-  return useTab() === "job" ? job : application;
+export function TabPanes({
+  application,
+  emails,
+  job,
+}: {
+  application: ReactNode;
+  emails: ReactNode | null;
+  job: ReactNode;
+}) {
+  const tab = useTab();
+  return tab === "job" ? job : tab === "emails" ? emails : application;
 }

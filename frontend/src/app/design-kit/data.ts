@@ -89,7 +89,7 @@ export const COLOR_GROUPS: ColorGroup[] = [
       { token: "--color-app", role: "Home and design kit ground; uploaded-file row" },
       { token: "--color-panel", role: "Top bar, cards and secondary buttons" },
       { token: "--color-well", role: "Recessed area — the resume dropzone" },
-      { token: "--color-frame", role: "Seeker shell ground, under its floating panels" },
+      { token: "--color-frame", role: "Pale lavender; onboarding story panel fade" },
     ],
   },
   {
@@ -154,6 +154,7 @@ export const COLOR_GROUPS: ColorGroup[] = [
         role: "Amber as a bar or dot, never text or a glyph's ground",
       },
       { token: "--color-warning-strong", role: "Interviewing's fill, white glyph at 3.19:1" },
+      { token: "--color-warning-deep", role: "Home's Interviewing disc, white glyph at 4.92:1" },
       { token: "--color-danger", role: "UNMEASURED — ended badly" },
       { token: "--color-danger-tint", role: "UNMEASURED" },
       { token: "--color-advanced", role: "UNMEASURED — in flight, late (Interview)" },
@@ -361,14 +362,18 @@ export const RADII: { token: string; cls: string; role: string }[] = [
   {
     token: "--radius-shell",
     cls: "rounded-shell",
-    role: "Seeker shell panels, both Dashboard heroes",
+    role: "Home's and the company Dashboard's heroes and tiles",
   },
   { token: "--radius", cls: "rounded-(--radius)", role: "→ --radius-card · shadcn's base radius" },
 ];
 
 export const WIDTHS: { token: string; cls: string; role: string }[] = [
   { token: "--container-auth", cls: "max-w-auth", role: "The sign-in and sign-up card" },
-  { token: "--container-app", cls: "max-w-app", role: "Every reading page's content column" },
+  {
+    token: "--container-app",
+    cls: "max-w-app",
+    role: "The company shell's and the design kit's page column",
+  },
   {
     token: "--container-dashboard",
     cls: "max-w-dashboard",
@@ -396,6 +401,11 @@ export const SHADOWS: { token: string; cls: string; role: string }[] = [
     token: "--shadow-lift",
     cls: "shadow-lift",
     role: "A whole-card target under the pointer, lifted 2px",
+  },
+  {
+    token: "--shadow-row",
+    cls: "shadow-row",
+    role: "A list row under the pointer, Gmail's: the Inbox's emails",
   },
 ];
 

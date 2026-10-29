@@ -19,15 +19,15 @@ import type { ScoutMessage } from "./stream";
  *
  * Docked beside the page rather than over it. A modal sheet would lock the
  * feed, and the point is to keep scrolling and pressing "Ask Scout" on other
- * cards while it is open. From md it is one more of the shell's floating
- * panels; below md there is no room beside anything, so it covers the window.
+ * cards while it is open. From md it is one more region of the flat shell,
+ * ruled off from the page by its left border; below md there is no room beside anything, so it covers the window.
  *
  * It only ever opens because someone clicked something: an assistant that
  * pops up uninvited is the complaint reviewers make most about Orion.
  *
  * OPENING IS TWO MOVES, NOT A SQUEEZE. The panel stays mounted (inert while
  * closed). From md, opening first makes room in one step: the <aside> takes
- * its 384px and 12px gap at once, so the page lays itself out a single time
+ * its 384px at once, so the page lays itself out a single time
  * at its new width, and settles into it with a short glide from 32px to the
  * right and a fade up (scout-page-in in globals.css, keyed off data-scout on
  * this <aside> through the row in (seeker)/layout.tsx). Meanwhile the panel
@@ -119,19 +119,19 @@ export function ScoutPanel() {
         // edge (the row clips it at the window's).
         "md:visible md:static md:inset-auto md:z-auto md:translate-y-0 md:opacity-100",
         "md:relative md:shrink-0",
-        open ? cn("md:ml-3", width) : "md:ml-0 md:w-0",
+        open ? width : "md:w-0",
       )}
     >
       <div
         className={cn(
           "bg-panel flex h-full flex-col",
-          "md:border-rail-border md:rounded-shell md:shadow-panel md:absolute md:inset-y-0 md:right-0 md:border",
+          "md:border-border-subtle md:absolute md:inset-y-0 md:right-0 md:border-l",
           width,
           // Slides from just past the window's edge into the room made for it.
           "md:transition-[opacity,translate] md:delay-0",
           open
             ? "md:ease-glide md:translate-x-0 md:opacity-100 md:duration-[360ms]"
-            : "md:ease-exit md:translate-x-[calc(100%+12px)] md:opacity-0 md:duration-200",
+            : "md:ease-exit md:translate-x-full md:opacity-0 md:duration-200",
         )}
       >
         <header className="flex shrink-0 items-center gap-3 px-4 pt-4 pb-1">

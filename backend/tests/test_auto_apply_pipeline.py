@@ -9,7 +9,8 @@ from unittest.mock import AsyncMock, MagicMock
 import pytest
 from sqlalchemy.exc import SQLAlchemyError
 
-from app.auto_apply import pipeline
+from app.auto_apply import pipeline, stages
+from app.auto_apply import resume as resume_step
 from app.auto_apply.queries import ResumeChoice
 from app.models.dto import application_stage
 from app.queries.jobs.filters import JobFilters
@@ -41,6 +42,7 @@ def fake_stage(monkeypatch, stage):
     async def fetch_stage(db, applicant_id, job_id):
         return stage
     monkeypatch.setattr(pipeline, "fetch_stage", fetch_stage)
+    monkeypatch.setattr(resume_step, "fetch_stage", fetch_stage)
 
 
 # --- get_matches ---
@@ -53,7 +55,7 @@ def test_get_matches_leaves_out_every_job_with_an_application(monkeypatch):
 
     (kwargs,) = calls
     assert kwargs["filters"].no_application_by == APPLICANT
-    assert kwargs["filters"].auto_apply_only  # Greenhouse only
+    assert kwargs["filters"].auto_apply_only  # the hiring systems the extension fills (hosts.py)
     assert kwargs["filters"].visa == "sponsors"  # the caller's filters still apply
     assert kwargs["min_match"] == pipeline.MIN_MATCH
 
@@ -118,9 +120,10 @@ def test_queue_job_keeps_an_existing_application(monkeypatch):
 
 def test_queue_job_refuses_a_job_that_isnt_open(monkeypatch):
     monkeypatch.setattr(pipeline, "queue_applications", AsyncMock(return_value=set()))
+    monkeypatch.setattr(pipeline, "fetch_open_apply_url", AsyncMock(return_value=None))
     fake_stage(monkeypatch, None)
 
-    with pytest.raises(pipeline.NotFound):
+    with pytest.raises(pipeline.NotFound, match="That job isn't open any more."):
         asyncio.run(pipeline.queue_job(FakeDB(), APPLICANT, JOB))
 
 
@@ -161,7 +164,7 @@ def test_get_application_without_one_is_not_found(monkeypatch):
     async def fetch_application(db, applicant_id, job_id):
         return None
 
-    monkeypatch.setattr(pipeline, "fetch_application", fetch_application)
+    monkeypatch.setattr(stages, "fetch_application", fetch_application)
     with pytest.raises(pipeline.NotFound):
         asyncio.run(pipeline.get_application(None, APPLICANT, JOB))
 
@@ -210,10 +213,10 @@ def fake_pick(monkeypatch, choice, chosen=None):
         return choice
     async def chosen_resume(db, applicant_id, job_id):
         return chosen
-    monkeypatch.setattr(pipeline, "pick_resume", pick_resume)
-    monkeypatch.setattr(pipeline, "chosen_resume", chosen_resume)
+    monkeypatch.setattr(resume_step, "pick_resume", pick_resume)
+    monkeypatch.setattr(resume_step, "chosen_resume", chosen_resume)
     links = AsyncMock()
-    monkeypatch.setattr(pipeline, "link_resume", links)
+    monkeypatch.setattr(resume_step, "link_resume", links)
     return links
 
 
@@ -227,7 +230,7 @@ def fake_send(monkeypatch, name, sent=None, raises=None):
             raise raises
         return sent
 
-    monkeypatch.setattr(pipeline.sent_resumes, name, send)
+    monkeypatch.setattr(resume_step.sent_resumes, name, send)
     return calls
 
 
@@ -299,7 +302,7 @@ def test_prepare_resume_without_a_resume_is_none(monkeypatch):
 )
 def test_prepare_resume_needs_an_open_application(monkeypatch, stage, error):
     fake_stage(monkeypatch, stage)
-    monkeypatch.setattr(pipeline, "pick_resume", AsyncMock(side_effect=AssertionError("picked first")))
+    monkeypatch.setattr(resume_step, "pick_resume", AsyncMock(side_effect=AssertionError("picked first")))
 
     with pytest.raises(error):
         asyncio.run(pipeline.prepare_resume(FakeDB(), FakeStorage(), APPLICANT, JOB))

@@ -8,7 +8,8 @@ cd scraper
 python3 -m workit_scraper              # scrape, then write the page, feed.json and metrics.json
 python3 -m workit_scraper --full       # the same, quiet boards included
 python3 -m workit_scraper --offline    # no network; rewrite both from jobs.json
-python3 build_boards.py                # add the boards the curated lists name now
+python3 build_boards.py                # legacy local import; review changes before merging
+python3 build_boards.py --resolve      # and the boards behind short links and careers pages
 GROQ_API_KEY=... python3 label_headings.py  # label the headings no rule names
 uvx pytest                             # the tests
 ```
@@ -29,9 +30,11 @@ boards.csv ─▶ __main__ ─▶ polite.Robots ─▶ providers.PROVIDERS ─�
 ```
 
 Each module owns one stage (its docstring says which); every network read goes
-through `web.get` (or Workday's one `web.post`) behind `polite.Robots`. Every
-provider but Workday returns a whole board in one request. Workday sends 20
-postings a request, which changes how its boards are read: `docs/workday.md`.
+through `web.get` (or Workday's and TikTok's `web.post`) behind `polite.Robots`.
+Greenhouse, Lever, Ashby, Workable, Recruitee and BambooHR return a whole board in
+one request. Workday sends 20 postings a request, which changes how its boards are
+read: `docs/workday.md`. Oracle, TikTok, Jibe and SuccessFactors page as well
+(`Provider.paged`): `docs/providers.md`.
 
 ## This package imports only the standard library
 
@@ -48,7 +51,10 @@ runs pytest where the package is not installed.
 ## Adding a provider
 
 Read the provider's `robots.txt` before writing anything. SmartRecruiters is
-absent because it disallows us, and that is the whole reason.
+absent because it disallows us, and that is the whole reason (its API's
+robots.txt still said `Disallow: /` to every agent but LinkedIn's on 2026-10-26).
+Rippling, iCIMS, Oracle, TikTok, Jibe and SuccessFactors, and the systems still
+not read, are in `docs/providers.md`.
 
 **Everything the scraper knows about a hiring system is one `Provider` in
 `providers.PROVIDERS`**, keyed by its `ats`. It used to be eight tables in four
@@ -85,6 +91,12 @@ parts are `model` (Board, Page, Job, Provider, the errors), `fetch` (requests,
 2. Its `Provider`: `listing_url` (which the reader and the robots check both
    read, so a board is never checked at one address and fetched at another),
    `read`, and `apply_link`, or none of its boards ever reaches `boards.csv`.
+   `providers/urls.py`'s `board_keys` matches `apply_link` against the
+   link's host and path only, ending at a path boundary; a pattern that reads
+   the query (Jibe's `icims=1`, SuccessFactors' `ats=successfactors`) or ends
+   mid-path (TikTok's) joins its `WHOLE_LINK`, matched from the whole link's
+   start. Those three were dropped when `board_keys` replaced `build_boards`'
+   `tokens()`, and main's scraper tests failed until KAN-424 put them back.
    Then what applies:
    - its list leaves out the description or a fact the posting's own page has:
      `job_url` and a `describe_<ats>` as `describe`;
@@ -320,16 +332,32 @@ days later cannot pass off an old count.
 Known limit: widening a `shortlist.py` pattern makes newly matching postings on
 a watched board count as new once, because only matching postings are stored.
 
-## Nothing closes; the page shows what the last complete read saw
+## Nothing closes; the page shows what the last two complete reads saw
 
 A posting that disappears keeps its last `last_seen_at` and stays in
 `jobs.json`. The scraper never retires a job, so it never wrongly retires one.
 
-`Store.is_listed` keeps a posting only if it was on its board the last time we
-read that board **in full**. **Only a complete listing is evidence that a
-posting is gone**: a timeout, a partial read, or one board seen twice in one
-run is not. Actually closing a posting is a real design for the ticket that
-needs it: two accepted complete absences, at most one miss per board per run.
+`Store.is_listed` keeps a posting only if it was on its board at one of the last
+two times we read that board **in full** (`BoardReads.last_read_at` and
+`prior_read_at`), so it leaves the feed, and the import closes it, after **two
+complete reads in a row** without it. **Only a complete listing is evidence that
+a posting is gone**: a timeout, a partial read, or one board seen twice in one
+run is not, and each run moves a board's reads once at most. One complete read
+was enough until 2026-10-27, and one bad answer closed a board: a hiring system
+mid-outage can answer with an empty list, which reads as a real board with
+nothing open, and the import's half-the-feed guard lets one company's postings
+through. The cost is one more read before a real closing. **Nor does most of a
+lane answering with an empty list at once** (`__main__.scrape`, as Freehire
+guards): when `SURGE` (3) or more known boards in one lane list nothing, and
+more of them than list something, those reads count as none. Two reads stop one
+empty answer, not a hiring system that answers every board empty for a few
+hours. A few empty boards are still read, so a company that closed its last
+posting closes it.
+
+**A board holding a posting missed once is read first** in its lane's next run
+(`Store.missed_once`, `Store.to_read`): in a lane with a budget, the second read
+would otherwise wait a whole sweep, about a day on Workday. `metrics.json`
+counts them (`boards_missed_once`).
 
 **A board we hold postings from that answers "no such board" twice in a row
 was read in full, with nothing open** (`store.update`, `missing`): a 404,
@@ -342,9 +370,11 @@ A board never read that answers so is still unread (a typo has nothing to
 close, and `Store.is_new` reads a board's first read). **A lane where `SURGE`
 (3) or more known boards answer so in one run, and more of them than read
 whole, closes none** (`__main__.scrape`): that is the hiring system changing,
-and one lane is under the import's half-the-feed guard. A revert to code before
-`missing_at` and `RunStats.by_provider` must delete the `scraper-store-*`
-Actions cache, or the old code fails to load `jobs.json`.
+and one lane is under the import's half-the-feed guard. The two answers are the
+two misses, so the first one's time becomes `prior_read_at`. `store.load` drops
+fields it does not know (`_known`), so a revert to this code or later loads a
+newer store; a revert to code before `prior_read_at` must delete the
+`scraper-store-*` Actions cache, or the old code fails to load `jobs.json`.
 
 ## Politeness is ours to enforce
 
@@ -366,6 +396,15 @@ including `build_boards.py`'s fetches from GitHub.
   boards at eight in flight would otherwise run at ~60 requests a second.
 - **A provider is paced as one host even when each company is its own
   origin** (`polite.SHARED_PACE`, for Recruitee, BambooHR and Workday hosts).
+- **A 429 holds the whole host** (`fetch._hold`, as Freehire does): every
+  request to it waits, on every worker, for its `Retry-After`, else
+  `HOLD_FIRST` (1 second), doubling on each 429 after a hold is up, to
+  `HOLD_LONGEST` (a minute), which also caps `Retry-After`. The host is
+  `polite._pace_key`'s, so one Workday tenant's 429 holds all of
+  myworkdayjobs.com. A 429 during a hold is the same burst and counts once; a
+  success after the hold starts the next one at a second again. The request
+  that got it is retried once, after the hold. A 5xx holds no one: it is one
+  server failing, not a host asking us to slow down.
 - `web.get` (and `web.post`, for Workday) refuses a cross-origin redirect:
   robots.txt was checked for the origin we asked for.
 
@@ -383,31 +422,135 @@ cron in `.github/workflows/scrape.yml`; if they drift, quiet boards are still re
 on a third of runs, only less evenly spaced.
 
 **A lane can have a time budget** (`Provider.budget_s`; Workday's and
-Oracle's, 12 minutes each, run side by side). It starts boards from the front of `Store.to_read`'s order, least
-recently read first, and once its time is up leaves the rest for a later run.
+Oracle's, 12 minutes each, run side by side). It starts boards from the front of
+`Store.to_read`'s order (a board with a posting missed once, then one never
+read, then the least recently read), and once its time is up leaves the rest for
+a later run.
+
+**A board that keeps going unread rests** (`Store.health`, `store.rest_for`),
+as Freehire's do. After `REST_AFTER` (3) runs in a row that left it unread for
+any reason in `RunStats.unread` (a failure, "no such board", robots.txt), no run
+asks it for `REST_FIRST` (6 hours), then twice that after each further miss, up
+to `REST_LONGEST` (a day). One complete read ends it. **Never rest a board for
+good**: a site that blocked us or a board that came back must be found again
+by itself. A board left for a later run has no reason and keeps its count.
+Even `--full` skips a resting board. Before this, the 191 boards that said "no
+such board" and the 12 that failed were asked on every run. The rest does not
+delay a close: "no such board" closes on its second answer, before the third.
+
 `--full` keeps the budget: it un-rests quiet boards, it does not make a Workday
 sweep fit in one run. The page's "postings scanned" counts what this run read,
 so it is lower on a run that rested quiet boards or ran out of Workday time.
 
 ## `boards.csv` is a seed, not a conclusion
 
-`build_boards.py` grows it from public curated internship lists; run it rather
-than hand-editing rows. We take one fact from them (which ATS slug a company
-uses); postings are always scraped from the employer.
+Discovery collects ATS board candidates from public curated lists and other
+sources. A complete provider read shows that a board is live; it does not prove
+the source named the right company. Developers review proposed catalog changes
+before merging them. Postings are always scraped from the employer.
 
-- **The scheduled scrape grows it before every run** (KAN-167). It only ever
-  adds: a board in the file is kept, a list that fails to download raises
-  before anything is written, and the step is `continue-on-error`. Those
-  additions live only in that run, so re-run `build_boards.py` and commit
-  `boards.csv` now and then.
+- **Daily discovery maintains one human-review PR**, separately from the
+  three-hour scrape. It never pushes additions directly to main or merges the
+  PR. Developers retain accepted rows, correct names, and remove rejected rows;
+  a durable ledger prevents removed proposals from being re-added. The rules
+  are below; operation is documented in `docs/discovery.md`.
+  `build_boards.py` remains a manual legacy importer; do not restore it to the
+  scheduled scrape, which would bypass review.
 - **A board on a provider's second host is still its board.** Greenhouse's EU
   boards (`job-boards.eu.greenhouse.io`) answer on the same
   `boards-api.greenhouse.io`, but its apply-link pattern missed the `.eu.` and dropped 26
-  companies' links until 2026-10-26. A pattern that misses says nothing, so
-  check the links no pattern takes, grouped by host, when a list changes.
+  companies' links until 2026-10-26. Lever's EU boards (`jobs.eu.lever.co`) did
+  the same until 2026-10-27; their API is `api.eu.lever.co`, so a Lever token
+  is `eu/{slug}` there (`registry._parts`). A pattern that misses says nothing,
+  so check the links no pattern takes when a list changes.
+- **Each source prints its yield, and the unread links print by cause**
+  (`harvest`, `UNREAD_CAUSES`). A source whose links name no board gets a `!`
+  line: the vanshb03 list wraps every link in a `go.vansh.nyc` short link, and
+  its 1,942 rows named no board without a word until 2026-10-27. The causes say
+  where the next reader pays off: an employer's own site, a short link, a hiring
+  system behind a company's domain, SmartRecruiters, the other systems.
+- **`--resolve` finds the boards behind three of those causes, each proved**:
+  a short link by where it leads, a careers page with `?gh_jid=` by the
+  Greenhouse board that holds that posting's number, one with `icims` by the
+  tenant whose sitemap lists it. Never a guess: a board under the wrong name
+  puts another company's name on real cards. It asks a few hundred hosts, so it
+  runs on request, never in the scheduled run: run it on a laptop, read the
+  diff of `boards.csv` and commit it. Its tests are built cases (`TestResolve`);
+  the first real run's diff is its live check.
 - **The internship lists are renamed each season** (`Summer2026-Internships` →
   `Summer2027-Internships`). GitHub serves the old address too, but update
   `SOURCES` each season: a list that starts a new repo instead would go unread.
+
+## Discovery review contract
+
+`discover_boards.py` collects candidate boards on demand and through the daily
+`discovery_pr.py` workflow, separately from the three-hour scrape. It uses the
+existing provider registry, robots checks, pacing, and HTTP client. Keep the
+scraper standard-library-only.
+
+- Preview is the default. Local `--apply` adds only new boards whose existing
+  provider reader completed and whose evidence supplies one unambiguous name.
+  An empty successful response is a live board; a failed or partial read is not.
+  A live read does not prove company ownership: developers review catalog changes
+  before merging. Scheduled discovery proposes changes in a PR, never on main.
+- Search URLs without company attribution remain `needs_company` in the report.
+  Do not turn their slugs or search snippets into company names: every downstream
+  card trusts boards.csv. Supply a verified URL and company through the CLI.
+- Candidate URLs must match an actual provider host, not an embedded URL in a
+  query/path or a lookalike hostname. Preserve Oracle token case and Lever region.
+  `board_keys` matches from the host over the path and the query, since Jibe
+  and SuccessFactors name themselves only in the query (`?icims=1`,
+  `?ats=successfactors`); read without it, those links and TikTok's named no
+  board and main's tests failed after KAN-422 merged (2026-10-28).
+- Keep source URLs and statuses in the report. Deduplicate known boards before
+  applying the validation limit; truncating curated links first starves discoveries
+  behind already-known boards. Automation preserves existing main-catalog names
+  and rows, and preserves reviewers' corrections to proposed company names.
+- API credentials belong only in request headers, not logs or reports. The HTTP
+  client retains its identifying User-Agent and rejects cross-origin redirects.
+- Common Crawl is excluded under the robots restriction recorded in CLAUDE.md.
+  Unsupported ATS URLs are reported; adding readers is a separate provider change.
+
+Usage and credentials: `docs/discovery.md`.
+
+Shared boundaries: `providers/urls.py` owns board URL recognition for both
+commands; `board_read.py` owns the robots/pacing/read result; `catalog.py` owns
+CSV serialization and atomic writes. The collector and legacy builder share these modules, never each other or the
+scrape entry point. The PR orchestrator calls the collector entry point. Keep provider failures distinguishable from empty success.
+
+`discovery_sources.py` declares each curated source's application URL field.
+Do not scan arbitrary metadata recursively: company homepages are not ATS leads.
+`discovery_channels.CHANNELS` owns channel dispatch and query requirements.
+Collection returns evidence and per-source failures; a failed independent source
+must not discard successful evidence. Reports retain company attribution per
+evidence entry, and report/catalog paths must never alias, even during preview.
+
+`discovery_pr.py` maintains one rolling PR on a `codex/board-discovery-<cycle>`
+branch. It reads proposal data but executes only trusted main code. No automatic
+approval, merge, or push to main is permitted. Keep its default a local preview;
+publishing needs explicit `--publish`. Main changes merge into the proposal
+branch without force pushes; conflicts fail visibly. A closed, unmerged PR
+pauses publishing until reopened. Merge that PR with its rejection ledger
+retained to finish the cycle; the next proposal then starts a new cycle.
+
+`discovery-review.json` stores observations and durable review decisions. A
+developer's removal of a proposed CSV row means rejection; never re-add it on
+rediscovery. Preserve company-name corrections and merge rejected ledger entries
+even when no proposed boards are accepted. Explicit `decision: rejected` queues
+CSV removal for the next discovery run; the rejected row must be removed before
+merging, either by the reviewer or by rerunning discovery. CI checks the actual
+catalog against the ledger, and the scraper and publisher must call
+`discovery_review.validate_catalog` before consuming/publishing it. This prevents
+a ledger-only rejection merged between daily runs from becoming an active board.
+Reconsideration requires a deliberate ledger-entry removal.
+`discovery-review.md` is generated from that ledger and must not be hand-edited.
+Evidence includes source/company, ATS/token, posting count, and validation time;
+it is not proof of ownership. There is no company allowlist or trust manifest.
+
+The three-hour scrape uses the human-reviewed catalog committed on main and
+must not run `build_boards.py`: its legacy curated-list additions bypass review.
+Empty live boards need the same human review as nonempty boards. Existing
+catalog entries are not retroactively verified by the new process.
 
 ## `feed.json` is the backend's only view of us
 
@@ -424,6 +567,21 @@ Rows carry the schema's enum values (`onsite`, `new_grad`), not the page's
 labels. `feed.WORK_STYLE` is indexed, not `.get`: a new label should fail the
 run, not quietly become `null` in the app. The scraper never touches the
 database.
+
+**`closings.json` says why each stored posting is not in the feed**
+(`feed.closings`), keyed by apply URL, and the import writes it as
+`job_postings.closed_reason` on each job it closes: `board_gone` (not listed,
+its board said "no such board"), `gone_from_board` (not listed: two complete
+reads lacked it), `filtered_out` (listed, but `pick` no longer keeps its
+title) or `replaced` (listed and kept, but another copy of its requisition
+leads the card). It is worked out from the store as it is, **never from the
+last run's feed**, so an import that failed or was skipped still finds every
+reason on the next run. Copies at one URL that disagree take the first reason
+in `feed.REASONS`. A reason added here needs the import's list and the CHECK
+from the backend's `bd730e8ab454` widened by a migration first, or the import
+files it as `unknown`, with a warning.
+`metrics.json`'s `closings` counts the file by reason: totals, not this run's
+closes, which are in the import's report.
 
 ## Logos
 
@@ -452,12 +610,14 @@ shortlist, and the "new today" and "open roles" path through `store.py` and
 `tests/test_report_and_store.py` has a case for each way that count has been
 wrong. Each provider's reader is tested on its real responses, trimmed:
 `tests/test_providers.py` for Workable, Recruitee and BambooHR,
-`tests/test_workday.py` for Workday. Where a board must be small enough to page
+`tests/test_workday.py` for Workday, `tests/test_more_providers.py` for TikTok,
+Jibe and SuccessFactors (recorded responses in `tests/fixtures/providers/`). Where a board must be small enough to page
 by hand, the page size or cap is shrunk, never the data.
 
 ## Committed data and deliberate limits
 
-Only `boards.csv` is committed (`linguist-generated`). `jobs.json` is the
+`boards.csv` is committed (`linguist-generated`), alongside the discovery review
+ledger and generated evidence document when proposals are merged. `jobs.json` is the
 store, the `first_seen_at` history, the per-board read ledger and the offline
 fallback, and it is gitignored: megabytes per run. Each machine keeps its own
 history; the scheduled run keeps its own in the Actions cache. A fresh clone's
@@ -474,11 +634,36 @@ kept this run, roles on the page, pages read and the lane's seconds
 week beside `feed.json`, so a change to one provider is judged run against run,
 not by the one summary line. `--offline` writes none: it reads nothing.
 
-`build_boards.py` prints the hosts of the apply links no provider's pattern takes,
-most first (`unread_hosts`). That list is where a new reader pays off: iCIMS and
-Oracle topped it before KAN-301. Common Crawl is no way round the curated lists:
-its index API and its data host both disallow every bot in robots.txt
-(2026-10-26), and no hiring system read serves a sitemap of its boards.
+Three more measures serve decisions not yet taken (`docs/coverage.md`, which has
+the design they serve and its next steps):
+
+- **`widening`**: every posting scanned, under the first step of a wider
+  shortlist that would keep it (`shortlist.widening_step`: `kept`,
+  `held_field`, `no_field`, `no_stage`, `senior`, `outside`), so the size of
+  each step is known before anyone takes it. A run scans only what it reads, so
+  compare steps with each other. Each distinct title is read once: the rules
+  cost about 50 microseconds a title.
+- **`newest_first`, `not_newest_first`, `order_unclear`** for each provider that
+  pages (Workday, Oracle): whether the lists it read whole name their newest
+  postings first, by the list's own dates, read before `carry` puts back the
+  page's. An arrival scan that reads only a list's first pages needs it; a board
+  read in slices is in no one order and is left out.
+- **`boards_missed_once`** (above, "Nothing closes").
+- **`unread`**: why each board a run did not read stayed unread, by provider and
+  reason, with up to five board keys each (`RunStats.unread`, `board_read.failure_reason`,
+  `unread_by_provider`): the HTTP status a site answered ("403", "429"),
+  "timeout", "connection", "redirect", "incomplete", "unreadable answer",
+  "robots.txt", "too large" or "no such board". It says whether any site blocks
+  GitHub's runners before anyone weighs a move or a proxy: until it, a refusal
+  was only a line in the log.
+- **`resting`**: the boards the next runs will not ask (`Store.resting`), in the
+  same shape as `unread`, by why each last went unread.
+
+`build_boards.py` prints the unread apply links by cause, with their top hosts
+(`unread_cause`, `unread_hosts`). That table is where a new reader pays off:
+iCIMS and Oracle topped it before KAN-301. Common Crawl is no way round the
+curated lists: its index API and its data host both disallow every bot in
+robots.txt (2026-10-26), and no hiring system read serves a sitemap of its boards.
 
 Limits marked in the code with `ponytail:` comments: nothing is ever closed;
 the whole store is loaded and rewritten each run; only matching postings are

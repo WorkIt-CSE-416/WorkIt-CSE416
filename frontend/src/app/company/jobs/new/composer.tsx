@@ -3,6 +3,8 @@
 import { useRouter } from "next/navigation";
 import { useEffect, useState, useTransition, type MouseEvent } from "react";
 
+import { DateField } from "@/components/date-field";
+import { TextAreaField } from "@/components/text-area-field";
 import { Badge } from "@/components/ui/badge";
 import { Button, ButtonLink } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
@@ -29,7 +31,7 @@ import {
 } from "./data";
 import { SelectField } from "@/components/ui/select-field";
 
-import { DateField, LocationField, TextAreaField } from "./fields";
+import { LocationField } from "./fields";
 import { EyeIcon } from "./icons";
 import { fromCompanyJob, toJobPayload } from "./payload";
 import { JobPreview } from "./preview";
@@ -565,6 +567,8 @@ export function Composer({ job }: { job?: CompanyJob }) {
                     label="Applications Close (Optional)"
                     value={draft.closesAt}
                     onValueChange={(value) => set("closesAt", value)}
+                    from={new Date()}
+                    clearable
                   />
                 </div>
               </section>

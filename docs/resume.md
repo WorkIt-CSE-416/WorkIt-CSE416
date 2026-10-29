@@ -13,7 +13,7 @@ not per resume, so a built resume is a live view of it (ADR 0001):
 
 ```
 applicant_profiles
-  ├── experience_banks   one row per student: the bank embedding and when it was made
+  ├── experience_banks   one row per student: the bank embedding and when it was made, and the skills the student removed
   ├── bank_entries       one per job, degree, project, club role, award or certification
   │     └── bank_bullets the entry's lines, in order, in their original wording
   └── bank_skills        a plain list, each with an optional group

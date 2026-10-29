@@ -75,7 +75,7 @@ request  Browser ──sb-* cookie──▶ Next (src/proxy.ts refreshes the ses
   `complete_oauth_account_type()` reject `AccountType.COMPANY` with 403
   until the business side ships.
 
-## Dashboard settings (live nowhere in code)
+## Supabase dashboard settings (live nowhere in code)
 
 The anon key and project URL ship to the browser, so anyone can call Supabase
 Auth directly. Set these on any new Supabase project:
@@ -141,6 +141,25 @@ token without requiring a profile row. `/oauth/account-type` sets
 creates the profile row; on failure it resets `account_type` to `None` rather
 than deleting the auth user, since that user's Google/LinkedIn session is real
 and did not originate here.
+
+## Claude's sign-in to WorkIt (the connector, KAN-377)
+
+Here WorkIt is the OAuth **server**: a student's Claude signs in to WorkIt
+to reach the connector at `<api>/mcp`. The API serves the OAuth endpoints
+(`backend/app/connector/oauth.py`; `auto-apply/architecture.md` 14.6), and
+the student approves on the webapp's `/connect/claude` with their normal
+Supabase session. Signed out, the page sends them to `/login?next=...`,
+and a password sign-in comes back to it; `next` is honoured for that page
+only, so the link can't send anyone elsewhere. A Google or LinkedIn
+sign-in started there lands on the account's home instead (not carried
+through `/auth/callback` yet); the student opens Claude's link again.
+
+The student disconnects from WorkIt, not only from Claude: My Profile's
+Disconnect calls `DELETE /applicants/{id}/connector`, which deletes every
+access and refresh token given for them (every client) and any sign-in
+they allowed whose code wasn't traded, so the next `/mcp` call is a 401
+and a refresh fails. Removing the connector in Claude alone leaves
+WorkIt's tokens alive until they expire.
 
 ## Identity
 
@@ -221,7 +240,7 @@ Not on OAuth, which has its own challenge.
 - `/auth/confirm?type=recovery`: verifies the OTP, sets a session, redirects
   to `/login/new-password`.
 - `/login/new-password`: new password form, calls `updateUser({ password })`,
-  redirects to the dashboard.
+  redirects to Home (`/home`).
 
 ## Secure cookie flag (KAN-293)
 

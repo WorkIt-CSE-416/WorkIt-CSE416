@@ -26,7 +26,12 @@ import { cn } from "@/lib/cn";
 export type Glyph = ComponentType<{ className?: string }>;
 
 /** One option in a dropdown: a glyph only where it differs by option. */
-export type FacetOption = { value: string; label: string; Icon?: Glyph; iconClassName?: string };
+export type FacetOption = {
+  value: string;
+  label: string;
+  Icon?: Glyph;
+  iconClassName?: string;
+};
 
 /** The Jobs page facet's look: a small secondary button with the brand
  *  tint while it holds a pick and its list is closed. */

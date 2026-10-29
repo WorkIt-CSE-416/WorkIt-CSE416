@@ -20,7 +20,7 @@ import { Timeline } from "./timeline";
 /**
  * One application in full: what it is, where it stands, and its timeline from
  * the day it was saved to the last thing scheduled. Opened by clicking any
- * card or row, and by the Dashboard's Next Up.
+ * card or row, and by Home's Next Up.
  *
  * IT IS A URL, ?app=<id>, not component state. The page renders it when the
  * parameter names an application, so a panel can be linked to, reloads open,
@@ -45,7 +45,7 @@ import { Timeline } from "./timeline";
  * and while the experience bank is empty.
  *
  * Each step wears its kind's stage colour (KIND_STAGE), the same as the
- * Dashboard's Up Next: a step behind is filled with a check, the one the
+ * Home's Up Next: a step behind is filled with a check, the one the
  * application is waiting on is filled and marked Next, and anything further
  * out is an empty ring.
  */
@@ -85,7 +85,7 @@ export function DetailPanel({
     >
       {/* Full width on a phone, 448px from sm. The vendored widths are set
           under data-[side=right], so the overrides have to be too. */}
-      <SheetContent className="gap-0 p-0 data-[side=right]:w-full data-[side=right]:sm:max-w-md">
+      <SheetContent className="gap-0 p-0 data-[side=right]:sm:max-w-md">
         <SheetHeader className="border-border-subtle gap-0 border-b p-5 pr-12">
           <div className="flex items-start gap-3">
             {tile}

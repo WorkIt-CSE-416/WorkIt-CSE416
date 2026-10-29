@@ -20,12 +20,12 @@ export type AuthenticatedAccount = {
 };
 
 /** Where a signed-in account lands: the business side for a company,
- *  onboarding for an applicant who hasn't finished it, the Dashboard after.
+ *  onboarding for an applicant who hasn't finished it, Home after.
  *  Password sign-in, the OAuth callback, and /login and /signup for someone
  *  already signed in all send them here. */
 export function homePath(account: AuthenticatedAccount): string {
   if (account.account_type === "company") return "/company";
-  return account.onboarding_completed ? "/dashboard" : "/onboarding/applicant";
+  return account.onboarding_completed ? "/home" : "/onboarding/applicant";
 }
 
 /** GET /auth/oauth/status's shape — what /auth/callback checks after a

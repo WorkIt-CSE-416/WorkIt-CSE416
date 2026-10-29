@@ -11,6 +11,9 @@ nothing here may reach Supabase.
 DATABASE_URL and DIRECT_URL are pointed at that database before anything
 reads them, so the app's own get_session (and Alembic) use it, and a test
 that forgets an override still cannot reach the root `.env`'s database.
+CONNECTOR_API_URL, CONNECTOR_WEB_URL and CONNECTOR_LOOPBACK_REDIRECTS are pinned
+to the config defaults the same way, so a local `.env` serving the connector
+elsewhere, or allowing Claude Code's loopback sign-in, changes no test.
 """
 
 import asyncio
@@ -38,6 +41,11 @@ _test_url = _server.set(database=f"workit_test_{uuid.uuid4().hex[:8]}")
 os.environ["DATABASE_URL"] = os.environ["DIRECT_URL"] = _test_url.render_as_string(
     hide_password=False
 )
+# The connector's own addresses, as the tests call it (tests/test_connector.py's
+# API and WEB): a developer's .env pointing them at another port breaks OAuth.
+os.environ["CONNECTOR_API_URL"] = "http://localhost:8000"
+os.environ["CONNECTOR_WEB_URL"] = "http://localhost:3000"
+os.environ["CONNECTOR_LOOPBACK_REDIRECTS"] = "false"
 
 
 def _dsn(url) -> str:
@@ -147,3 +155,17 @@ def database(_migrated_database):
 @pytest.fixture
 def anyio_backend():
     return "asyncio"
+
+
+@pytest.fixture(autouse=True)
+def _researched(request, monkeypatch):
+    """Every company counts as researched, so a test about something else
+    gets its application without saving a brief first. Tests marked
+    `research_gate` (tests/test_company_briefs.py) keep the real rule."""
+    if request.node.get_closest_marker("research_gate") is None:
+        from app.auto_apply import briefs
+
+        async def researched(db, company):
+            return False
+
+        monkeypatch.setattr(briefs, "needs_research", researched)

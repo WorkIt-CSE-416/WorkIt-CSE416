@@ -5,6 +5,7 @@ import { useState } from "react";
 
 import { AccountMenu, type AccountMenuItem } from "@/components/account-menu";
 import { Avatar } from "@/components/avatar";
+import { DateField } from "@/components/date-field";
 import { ResumeUpload } from "@/components/resume-upload";
 import { RemovableChip } from "@/components/ui/chip";
 import { SegmentedToggle } from "@/components/ui/segmented-control";
@@ -31,6 +32,7 @@ import { Switch } from "@/components/shadcn/switch";
 import { Button } from "@/components/ui/button";
 import { SelectField } from "@/components/ui/select-field";
 import { useToast } from "@/components/ui/toast";
+import { STAGE_COLOR, STAGE_ICON, STAGE_LABEL } from "@/app/(seeker)/stage-colors";
 
 /**
  * The kit's specimens that hold state or take a function, which a server page
@@ -150,6 +152,46 @@ export function SelectFieldSpecimen() {
         value={value}
         onValueChange={setValue}
         options={["Design", "Engineering", "Marketing", "Operations"]}
+      />
+    </div>
+  );
+}
+
+/** A pick in its glyph and colour, as Create Event's Type draws one. */
+export function GlyphSelectSpecimen() {
+  const [value, setValue] = useState("interviewing");
+
+  return (
+    <div className="w-72">
+      <SelectField
+        id="dk-stage"
+        label="Stage"
+        value={value}
+        onValueChange={setValue}
+        options={(["applied", "interviewing", "offer", "rejected"] as const).map((stage) => ({
+          value: stage,
+          label: STAGE_LABEL[stage],
+          Icon: STAGE_ICON[stage],
+          iconClassName: STAGE_COLOR[stage].onTint,
+        }))}
+      />
+    </div>
+  );
+}
+
+/** An optional date with Clear in its popover. */
+export function DateFieldSpecimen() {
+  const [value, setValue] = useState("");
+
+  return (
+    <div className="w-72">
+      <DateField
+        id="dk-date"
+        label="Apply By"
+        value={value}
+        onValueChange={setValue}
+        placeholder="Pick a day"
+        clearable
       />
     </div>
   );

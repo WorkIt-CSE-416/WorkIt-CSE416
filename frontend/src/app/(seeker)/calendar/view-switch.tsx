@@ -20,7 +20,7 @@ export function useCalendarQuery() {
  * view. In place (`shallow`), so the new view draws with the thumb.
  */
 export function CalendarViewSwitch() {
-  const { view, date } = useCalendarQuery();
+  const { view, date, demo } = useCalendarQuery();
 
   return (
     <SegmentedLinks
@@ -30,7 +30,7 @@ export function CalendarViewSwitch() {
       options={CALENDAR_VIEWS.map((option) => ({
         value: option,
         label: VIEW_LABEL[option],
-        href: calendarHref({ view: option, date }),
+        href: calendarHref({ view: option, date, demo }),
       }))}
     />
   );

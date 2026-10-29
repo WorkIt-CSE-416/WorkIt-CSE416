@@ -10,24 +10,34 @@ atlassian https://mcp.atlassian.com/v2/mcp`, then `/mcp` to sign in.
 
 ## The project's shape
 
-- **Types:** Epic, Story, Task, Subtask. There is no Bug type; a bug is a Story.
+- **Types:** Epic, Story and Task, nothing else.
+  - **Epic**: one outcome that ships, closed when it is live (e.g. KAN-181
+    Resume Builder & Parser, KAN-68 Job Scraper).
+  - **Story**: a change a student can see. A bug fix is a Story, since the
+    student sees the fix.
+  - **Task**: work no student sees: infra, research, chores.
+- **No Bug, no Subtask.** The project never had a Bug type. Subtask blurred
+  into Task, so the team dropped it (2026-10-27); the finished Subtasks under
+  KAN-329 are history, and none are made again.
 - **Statuses:** To Do → In Progress → In PR Review → Done.
-- **Hierarchy:** features hang under an Epic (e.g. KAN-67 Applicant Profile &
-  Resume, KAN-68 Job Scraper) through the `parent` field.
+- **Hierarchy:** two levels. Every Story and Task hangs under an Epic through
+  the `parent` field; none floats. Nothing hangs under a Story or Task.
+- **One ticket, one PR.** A ticket too big for one PR is split into more
+  Stories or Tasks under the same Epic, never into pieces under itself.
 - **GitHub link:** Jira's GitHub integration attaches PRs to a ticket through
   the `KAN-###` in the branch name, so every branch is `KAN-###-slug` off `main`.
 
 ## Conventions
 
 - **Create an issue**: `createJiraIssue` with projectKey `KAN`, type Story
-  (user-facing) or Task (internal), and `parent` set to the right Epic. KAN is
-  the whole team's board: show the user every title and body and get a yes
-  before creating anything.
+  (a student sees it, bug fixes included) or Task (no student sees it), and
+  `parent` set to the right Epic. KAN is the whole team's board: show the user
+  every title and body and get a yes before creating anything.
 - **Read an issue**: `getJiraIssue` (view `evidence` adds links and comments).
 - **List issues**: `searchJiraIssuesUsingJql`, e.g.
   `project = KAN AND status = "To Do" AND labels = ready-for-agent`.
 - **Make an issue a sub-issue of a parent**: set `parent` to the Epic's key.
-  Subtask is only for pieces of a single Story.
+  The parent is always an Epic, never a Story or Task.
 - **Comment on an issue**: `addOrEditJiraIssueComment`.
 - **Apply / remove labels**: `editJiraIssue` on the `labels` field.
 - **Move status**: `transitionJiraIssue`, with the transition id from

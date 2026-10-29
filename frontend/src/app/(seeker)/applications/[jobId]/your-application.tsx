@@ -10,12 +10,30 @@ import type { SentResume } from "@/lib/sent-resume-actions";
 import type { JobListing } from "../../jobs/listings";
 import { MatchRail } from "../../jobs/match-rail";
 import { LocalDate } from "../../local-time";
-import { STAGE_COLOR, STAGE_ICON, STAGE_LABEL } from "../../stage-colors";
-import { sortKey, type Application, type TimelineStep } from "../../tracker";
+import { STAGE_COLOR, STAGE_ICON, STAGE_LABEL, type StageKey } from "../../stage-colors";
+import {
+  eventsOf,
+  isUpcoming,
+  nextEvent,
+  sortKey,
+  type Application,
+  type TimelineStep,
+} from "../../tracker";
 import { Timeline } from "../timeline";
 import { SentResumeRow } from "../view-resume";
+import { ApplyBy } from "./apply-by";
+import { StageMenu, TrackerEvents } from "./tracker-controls";
 
 const DAY_MS = 24 * 60 * 60 * 1000;
+
+/** The card's headline: where the application stands, in a few words. */
+const HEADLINE: Record<StageKey, string> = {
+  saved: "Not Applied Yet",
+  applied: "Waiting to Hear Back",
+  interviewing: "In Interviews",
+  offer: "You Have an Offer",
+  rejected: "Not Moving Forward",
+};
 
 /** The strip's columns from 448px of card, by how many cards it has: a
  *  literal class each, so Tailwind sees them. */
@@ -133,10 +151,13 @@ export function YourApplication({
               <span className={cn("text-label font-semibold", STAGE_COLOR[app.stage].onTint)}>
                 {STAGE_LABEL[app.stage]}
               </span>
+              {/* The stage menu (KAN-413): the student says where it
+                  stands once the employer answers. */}
+              <span className="ml-auto">
+                <StageMenu jobId={app.id} stage={app.stage} />
+              </span>
             </div>
-            <h2 className="text-title text-ink mt-3 font-bold">
-              {app.appliedOn ? "Waiting to Hear Back" : "Not Applied Yet"}
-            </h2>
+            <h2 className="text-title text-ink mt-3 font-bold">{HEADLINE[app.stage]}</h2>
             {/* No applied date here: the days-since card and the timeline
                 both carry it. */}
             <p className="text-body text-ink-meta mt-1">
@@ -149,7 +170,17 @@ export function YourApplication({
               {app.resume ? <>Sent {app.resume}</> : "No resume sent through WorkIt"}
             </p>
 
-            <Timeline steps={timeline(app, sent)} horizontal className="mt-5" />
+            {/* Before it goes in, the student's own day to apply by
+                (KAN-429), which the Calendar shows. */}
+            {!app.appliedOn && (
+              <ApplyBy
+                jobId={app.id}
+                applyBy={app.applyBy ?? null}
+                closesAt={app.closesAt ?? null}
+              />
+            )}
+
+            <Timeline steps={timeline(app, sent, now)} horizontal className="mt-5" />
 
             {/* The cards: a figure over its words, a rounded white
                 box each. justify-end puts the figure at the top (the column
@@ -184,6 +215,10 @@ export function YourApplication({
           )}
         </div>
       </Card>
+
+      {/* INTERVIEWS & DATES (KAN-413): the events the student adds, and
+          later the ones the email tracker proposes (docs/email_tracker.md). */}
+      <TrackerEvents jobId={app.id} events={app.events} />
 
       {/* WHAT YOU SENT (KAN-317): the resume as the Resumes view draws its
           rows, then the answers the application asked for. Answers are not
@@ -243,8 +278,10 @@ const SAME_CLICK_MS = 5 * 1000;
 const RANK: Partial<Record<TimelineStep["kind"], number>> = { saved: 0, sent: 1, applied: 2 };
 
 /**
- * Saved, each resume sent, then applied, oldest first. All behind it: the
- * tracker stores nothing still to come (../../tracker.ts).
+ * Saved, each resume sent, applied, then the application's events
+ * (KAN-413), oldest first. An event still ahead is an empty ring, and the
+ * first of those is marked Next (`nextEvent`), as the Calendar's panel
+ * marks it.
  *
  * WHAT ONE ACTION WROTE IS ONE STEP (KAN-317). Apply writes the save, the
  * sent resume and the application within a second, in no fixed order, so
@@ -256,7 +293,7 @@ const RANK: Partial<Record<TimelineStep["kind"], number>> = { saved: 0, sent: 1,
  * a minute later did two things. Steps further apart keep their own dot;
  * a tie still sorts Saved, Sent, Applied.
  */
-function timeline(app: Application, sent: SentResume[]): TimelineStep[] {
+function timeline(app: Application, sent: SentResume[], now: Date): TimelineStep[] {
   const applied = app.appliedOn ? sortKey(app.appliedOn) : null;
   const withApplying = (at: string, within = ONE_ACTION_MS) =>
     applied != null && Math.abs(sortKey(at) - applied) <= within;
@@ -284,6 +321,17 @@ function timeline(app: Application, sent: SentResume[]): TimelineStep[] {
       // What You Sent, under this card, names the resume.
       note: alone.length < sent.length ? "Resume sent" : undefined,
       state: "done",
+    });
+  }
+  const next = nextEvent(app, now);
+  for (const event of eventsOf(app)) {
+    if (event.kind === "applied") continue;
+    steps.push({
+      id: event.id,
+      kind: event.kind,
+      title: event.title,
+      at: event.at,
+      state: event.id === next?.id ? "next" : isUpcoming(event.at, now) ? "later" : "done",
     });
   }
   return steps.sort(

@@ -7,9 +7,9 @@ import { EmptyState } from "@/components/ui/empty-state";
 import { LightningRoundedIcon } from "@/components/custom-icons";
 import { Button } from "@/components/ui/button";
 import { SectionHeading } from "@/components/ui/section-heading";
-import { useRunnerJob } from "@/lib/autofill-extension";
+import { useBrowserJobs } from "@/lib/autofill-extension";
 
-import { ActivityTable, type ActivityItem } from "./activity-list";
+import { ActivityTable, needsYou, type ActivityItem } from "./activity-list";
 import { AddJobsDialog, type SavedJob } from "./add-jobs-dialog";
 import { ResumeDialog } from "./resume-dialog";
 
@@ -19,24 +19,31 @@ import { ResumeDialog } from "./resume-dialog";
  * Finish) stay in it too: they wait on the seeker, and with History
  * archived (./page.tsx) no other table lists them.
  *
+ * **Rows that need the student come first (KAN-424)**, then the rest, each
+ * in the run's order: `needsYou` in ./activity-list.tsx (a closed posting,
+ * a fill that couldn't finish, or no resume), whose chips say why. One table
+ * with no group headings: a "Needs You · 2" heading under Up Next's said
+ * again what the header's line and the chips say.
+ *
  * Live Activity's table in its "queue" variant (./activity-list.tsx): Role,
- * Status, Resume, Match, Date Added and the cross, with no sorting, since
+ * Status (a chip only where a row isn't simply waiting), Resume, Match,
+ * Date Added and the row's ⋯ menu (./row-menu.tsx), with no sorting, since
  * this order is the run's. **The Resume cell is a button**: it opens the
  * row's resume picker (./resume-dialog.tsx), where the student picks the
  * resume that job goes out with. The cell shows that pick, else the rule's
  * (./page.tsx). The queued job open in the extension's tab reads Working
- * in Browser (useRunnerJob), with its glyph that goes to the tab.
+ * in Browser (useBrowserJobs), and its ⋯ menu goes to its tab.
  *
  * **Add Jobs** opens the saved jobs to pick and queue (./add-jobs-dialog.tsx),
  * which replaced a Ready to Queue section under this one.
  */
 export function UpNext({ items, saved }: { items: ActivityItem[]; saved: SavedJob[] }) {
-  const runnerJob = useRunnerJob();
+  const browserJobs = useBrowserJobs();
   const [adding, setAdding] = useState(false);
   const [resumeFor, setResumeFor] = useState<ActivityItem | null>(null);
 
   const rows = items.map((item) =>
-    item.id === runnerJob
+    browserJobs.has(item.id)
       ? { ...item, status: "browser" as const, detail: "Open in a background tab" }
       : item,
   );
@@ -53,7 +60,8 @@ export function UpNext({ items, saved }: { items: ActivityItem[]; saved: SavedJo
 
       {rows.length > 0 ? (
         <ActivityTable
-          items={rows}
+          // Needs You first, then the rest, each in the run's order (a stable sort).
+          items={[...rows.filter(needsYou), ...rows.filter((row) => !needsYou(row))]}
           sort="queue"
           onSort={() => {}}
           variant="queue"

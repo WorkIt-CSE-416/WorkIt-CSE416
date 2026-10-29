@@ -182,3 +182,96 @@ async def test_another_students_recommendations_are_forbidden(student, database)
     async with database() as session:
         other = await _seed_applicant(session)
     assert (await _recommended(client, other)).status_code == 403
+
+
+async def _seed_postings(database) -> dict[str, str]:
+    """Three listed postings: one auto apply fills, posted today; one it
+    can't, posted today; one it can't, posted 200 days ago. Ids by name."""
+    ids = {}
+    async with database() as session:
+        for name, url, days in [
+            ("filled", "https://boards.greenhouse.io/acme/jobs/1", 0),
+            ("recent", "https://jobs.example/recent", 0),
+            ("old", "https://jobs.example/old", 200),
+        ]:
+            ids[name] = str((await session.execute(
+                text(
+                    "INSERT INTO job_postings (title, company_name, apply_url, status, experience_level, posted_at)"
+                    " VALUES ('Python Engineer', 'Acme', :url, 'published', 'new_grad',"
+                    " now() - make_interval(days => :days)) RETURNING id"
+                ),
+                {"url": url, "days": days},
+            )).scalar())
+        await session.commit()
+    return ids
+
+
+def _home(client, applicant_id):
+    return client.get(f"/jobs/recommended/{applicant_id}/home?posted_within=30&min_match=0")
+
+
+async def test_home_matches_are_the_three_recommended_lists(student, gemini, database):
+    # One pass (KAN-425) must give each list its own GET /jobs/recommended
+    # call: the top, the ones auto apply fills, and the recent ones' dates.
+    client, me, _ = student
+    ids = await _seed_postings(database)
+    await _add(client, me, "skills", {"name": "Python"})
+
+    res = await _home(client, me)
+    assert res.status_code == 200, res.text
+    home = res.json()
+
+    def listed(query: str):
+        return client.get(f"/jobs/recommended/{me}?{query}")
+
+    top, filled, recent = [(await listed(q)).json() for q in (
+        "limit=12", "limit=12&auto_apply=true", "posted_within=30&min_match=0&limit=500",
+    )]
+    assert [j["id"] for j in home["top"]] == [j["id"] for j in top]
+    assert [j["match"] for j in home["top"]] == [j["match"] for j in top]
+    assert [j["id"] for j in home["auto_apply"]] == [j["id"] for j in filled] == [ids["filled"]]
+    assert home["strong_posted"] == [j["posted_at"] for j in recent]
+    assert len(home["strong_posted"]) == 2
+
+
+async def test_home_matches_are_kept_until_the_bank_or_applied_jobs_change(
+    student, gemini, database, monkeypatch
+):
+    from app.queries.jobs import home
+
+    client, me, _ = student
+    ids = await _seed_postings(database)
+    await _add(client, me, "skills", {"name": "Python"})
+    passes = []
+    score_job_sets = home.score_job_sets
+
+    async def counted(*args, **kwargs):
+        passes.append(1)
+        return await score_job_sets(*args, **kwargs)
+
+    monkeypatch.setattr(home, "score_job_sets", counted)
+
+    assert (await _home(client, me)).status_code == 200
+    assert (await _home(client, me)).status_code == 200
+    assert len(passes) == 1  # the return visit is served from the kept result
+
+    await _add(client, me, "skills", {"name": "SQL"})
+    assert (await _home(client, me)).status_code == 200
+    assert len(passes) == 2  # a bank change scores again
+
+    async with database() as session:
+        await session.execute(
+            text("INSERT INTO job_applications (applicant_id, job_id, stage) VALUES (:a, :j, 'applied')"),
+            {"a": me, "j": ids["recent"]},
+        )
+        await session.commit()
+    res = await _home(client, me)
+    assert len(passes) == 3  # so does marking a job applied, which drops out
+    assert ids["recent"] not in [j["id"] for j in res.json()["top"]]
+
+
+async def test_another_students_home_matches_are_forbidden(student, database):
+    client, _, _ = student
+    async with database() as session:
+        other = await _seed_applicant(session)
+    assert (await _home(client, other)).status_code == 403

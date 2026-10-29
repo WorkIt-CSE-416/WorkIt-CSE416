@@ -9,7 +9,7 @@ import { useShallowParams, useShallowPush } from "@/components/shallow-routing";
 import { Button } from "@/components/ui/button";
 import { EmptyState } from "@/components/ui/empty-state";
 import { IconButton } from "@/components/ui/icon-button";
-import { useRunnerJob } from "@/lib/autofill-extension";
+import { useBrowserJobs } from "@/lib/autofill-extension";
 
 import { ActivityTable, GROUPS, sortItems, STATUS, type ActivityItem } from "./activity-list";
 import { activityHref, parseActivityQuery, STATUS_FILTERS, type StatusFilter } from "./query";
@@ -31,7 +31,7 @@ const STATUS_OPTIONS: FacetOption[] = STATUS_FILTERS.filter(
  * so the filter offers only these statuses.
  *
  * It adds the one row the server cannot know: the queued job posting open
- * in the extension's run tab reads Working in Browser (useRunnerJob), in
+ * in one of the extension's batch tabs reads Working in Browser (useBrowserJobs), in
  * flight, and has a glyph that goes to the tab instead of the cross, since
  * taking it out of the queue would leave the tab on a job that is gone.
  * Every other row is as the server drew it.
@@ -50,11 +50,11 @@ const STATUS_OPTIONS: FacetOption[] = STATUS_FILTERS.filter(
 export function LiveActivity({ items }: { items: ActivityItem[] }) {
   const query = parseActivityQuery(useShallowParams());
   const push = useShallowPush();
-  const runnerJob = useRunnerJob();
+  const browserJobs = useBrowserJobs();
   const statusButton = useRef<HTMLButtonElement>(null);
 
   const rows = items.map((item) =>
-    item.status === "queued" && item.id === runnerJob
+    item.status === "queued" && browserJobs.has(item.id)
       ? { ...item, status: "browser" as const, detail: "Open in a background tab" }
       : item,
   );

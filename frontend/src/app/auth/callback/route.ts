@@ -90,7 +90,7 @@ export async function GET(request: NextRequest) {
 
   // A returning sign-in. A first sign-in went to choose-account-type above,
   // which starts an applicant on onboarding. With no account the API said
-  // nothing useful, so the Dashboard's own sign-in check takes it from there.
-  const destination = oauthStatus.account ? homePath(oauthStatus.account) : "/dashboard";
+  // nothing useful, so Home's own sign-in check takes it from there.
+  const destination = oauthStatus.account ? homePath(oauthStatus.account) : "/home";
   return NextResponse.redirect(`${origin}${destination}`);
 }

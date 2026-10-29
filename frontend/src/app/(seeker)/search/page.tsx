@@ -188,7 +188,7 @@ export default async function SearchPage({ searchParams }: PageProps<"/search">)
      no count, since nothing has been searched for them to narrow or count. */
   if (!query) {
     return (
-      <div className={cn("max-w-app mx-auto w-full flex-1 py-6", SEEKER_GUTTER)}>
+      <div className={cn("max-w-dashboard mx-auto w-full flex-1 py-6", SEEKER_GUTTER)}>
         <h1 className="text-heading text-ink">Search Jobs</h1>
         {subtitle}
 
@@ -216,7 +216,7 @@ export default async function SearchPage({ searchParams }: PageProps<"/search">)
   const key = feedQuery(filters, query);
 
   return (
-    <div className={cn("max-w-app mx-auto w-full flex-1 py-6", SEEKER_GUTTER)}>
+    <div className={cn("max-w-dashboard mx-auto w-full flex-1 py-6", SEEKER_GUTTER)}>
       {/* So a job's page can come back to these results. */}
       <RememberFeed />
       {/* One transition for a filter change, so the results dim the moment

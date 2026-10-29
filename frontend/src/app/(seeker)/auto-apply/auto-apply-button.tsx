@@ -7,8 +7,9 @@ import { useRef, useState, useTransition } from "react";
 import { CheckIcon } from "@/components/icons";
 import { Button } from "@/components/ui/button";
 import { useToast } from "@/components/ui/toast";
-import { openNextApplication, showRunTab, useRunnerJob } from "@/lib/autofill-extension";
+import { openNextApplication, showRunTab, useBrowserJobs } from "@/lib/autofill-extension";
 
+import { hasApplied } from "../applied";
 import { dequeueJob, queueJob, type ApplicationStage, type RunStage } from "./actions";
 import { openedNote } from "./opened-note";
 
@@ -44,7 +45,7 @@ const STAGE_LABEL: Record<RunStage, string> = {
  * that leaves the job queued asks the extension to open the oldest queued
  * job in its background tab beside this one (openNextApplication). That is
  * this job only when nothing older waits. The job open there reads Working
- * in Browser, on every card that shows it (useRunnerJob), and a click
+ * in Browser, on every card that shows it (useBrowserJobs), and a click
  * switches to that tab instead of taking the job out of the queue. The
  * opening runs after the click settles, so the button never waits on a
  * page load; only a failure shows (no extension stays silent: most
@@ -62,13 +63,17 @@ export function AutoApplyButton({
   stage: ApplicationStage | null;
 }) {
   const toast = useToast();
-  const [stage, setStage] = useState<RunStage | null>(initial === "saved" ? null : initial);
+  // A stage after applied (interviewing, offer, rejected; KAN-413) reads
+  // as Applied here: the button only says whether auto apply has it.
+  const [stage, setStage] = useState<RunStage | null>(
+    hasApplied(initial) ? "applied" : initial === "saved" ? null : initial,
+  );
   const [error, setError] = useState<string | null>(null);
   const [pending, start] = useTransition();
   // One click at a time: `disabled={pending}` lands a render late, so a
   // fast double click queued twice, raising two toasts and two opens.
   const busy = useRef(false);
-  const inBrowser = useRunnerJob() === jobId;
+  const inBrowser = useBrowserJobs().has(jobId);
 
   if (stage && stage !== "queued") {
     return (
@@ -92,7 +97,12 @@ export function AutoApplyButton({
 
   if (stage === "queued" && inBrowser) {
     return (
-      <Button variant="secondary" size="sm" title="Go to the tab" onClick={() => void showRunTab()}>
+      <Button
+        variant="secondary"
+        size="sm"
+        title="Go to the tab"
+        onClick={() => void showRunTab(jobId)}
+      >
         <AppWindowIcon aria-hidden className="size-4" />
         Working in Browser
       </Button>
@@ -136,7 +146,9 @@ export function AutoApplyButton({
               const result = await queueJob(jobId);
               setError(result.error);
               if (!result.stage) return;
-              setStage(result.stage);
+              // The job may have moved past applied in another tab since
+              // this page was drawn; it reads as Applied, as on first draw.
+              setStage(hasApplied(result.stage) ? "applied" : result.stage);
               if (result.stage === "queued") {
                 void openInBrowser();
                 toast.show({

@@ -1,0 +1,68 @@
+name: Job alerts
+
+# KAN-298's daily job-match digest (bell notification + email). The real
+# daily schedule now runs from a crontab on a user-managed EC2 instance,
+# whose IAM role is what send_email (AWS SES) actually authenticates
+# with — GitHub's runners have no AWS credentials and never will, so this
+# workflow keeps no schedule trigger of its own. It still proves the
+# digest-building and bell-notification path on every relevant PR (always
+# --dry-run, so it never calls send_email) and stays available to run by
+# hand. Root CLAUDE.md's CI section and .github/CLAUDE.md's own "Job
+# alerts" section have more.
+on:
+  workflow_dispatch:
+    inputs:
+      dry_run:
+        description: "Build and report every digest; write and send nothing"
+        type: boolean
+        default: false
+  # A change to the digest or this file proves the whole path once, always
+  # as a dry run, before it merges.
+  pull_request:
+    branches: [main]
+    paths:
+      - ".github/workflows/job-alerts.yml"
+      - "backend/app/scripts/send_job_alerts.py"
+      - "backend/app/services/job_alerts.py"
+      - "backend/app/services/email.py"
+      - "backend/app/models/notification.py"
+
+# One run at a time: two runs at once would double-send the same applicant.
+concurrency:
+  group: job-alerts
+  cancel-in-progress: false
+
+permissions:
+  contents: read
+
+jobs:
+  send-job-alerts:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+
+      - uses: astral-sh/setup-uv@v3
+
+      - name: Install the backend
+        working-directory: backend
+        run: uv sync --locked
+
+      - name: Send today's digests
+        working-directory: backend
+        env:
+          DATABASE_URL: ${{ secrets.DATABASE_URL }}
+          GEMINI_API_KEY: ${{ secrets.GEMINI_API_KEY }}
+          EMBEDDING_PROVIDER: gemini
+          WEB_URL: https://workit-web-gamma.vercel.app
+          DRY_RUN: ${{ (github.event_name == 'pull_request' || inputs.dry_run) && '--dry-run' || '' }}
+        run: |
+          if [ -z "$DATABASE_URL" ]; then
+            echo "::error::The DATABASE_URL secret is not set (Settings > Secrets and variables > Actions)."
+            exit 1
+          fi
+          uv run python -m app.scripts.send_job_alerts ${DRY_RUN:+"$DRY_RUN"}

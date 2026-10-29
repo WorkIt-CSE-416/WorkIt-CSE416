@@ -18,6 +18,7 @@ import {
   formatSalary,
   formatWorkStyle,
 } from "./format";
+import { hasApplied } from "../applied";
 import type { ApplicationStage } from "../auto-apply/actions";
 import { AutoApplyButton } from "../auto-apply/auto-apply-button";
 import { ApplyButton } from "./apply-button";
@@ -143,7 +144,7 @@ export function ListingCard({
             title={job.title}
             applyUrl={job.apply_url}
             canMarkApplied={canMarkApplied}
-            applied={stage === "applied"}
+            applied={hasApplied(stage)}
             onApplied={onApplied}
           />
         </>

@@ -10,10 +10,10 @@ import { getApplications, getNow } from "../applications/data";
 import { DetailPanel } from "../applications/detail-panel";
 import { applicationHref } from "../applications/query";
 import { SEEKER_GUTTER } from "../gutter";
-import { allEvents, timelineOf } from "../tracker";
+import { allEvents, sortKey, timelineOf } from "../tracker";
 import { CalendarView } from "./calendar-view";
+import { sampleWeek } from "./demo";
 import { calendarHref, parseCalendarQuery } from "./query";
-import { CalendarViewSwitch } from "./view-switch";
 
 export const metadata: Metadata = {
   title: "Calendar",
@@ -25,15 +25,17 @@ export const metadata: Metadata = {
  * day each application went in, every interview, offers and their deadlines,
  * closing dates and follow-ups, each in its kind's stage colour.
  *
- * Month, Week or Agenda, picked like the Dashboard's range
+ * Month, Week or Agenda, picked like Home's range
  * (ui/segmented-control.tsx), and anchored with ?date= (./query.ts). The views
  * render in the browser (./calendar-view.tsx) and read the view and the day
  * from the URL themselves, so changing either moves the URL in place and
  * never comes back here; this page passes them every entry from the tracker
  * (../applications/data.ts) and draws the parts that need no zone.
  *
- * An entry opens its application's detail panel, the same one Applications
- * opens, here over the calendar, with a way across to Applications.
+ * An entry opens its own card (./event-card.tsx), and the card's View
+ * Application opens the application's detail panel, the same one
+ * Applications opens, here over the calendar, with a way across to
+ * Applications.
  */
 export default async function CalendarPage({ searchParams }: PageProps<"/calendar">) {
   const query = parseCalendarQuery(await searchParams);
@@ -41,22 +43,39 @@ export default async function CalendarPage({ searchParams }: PageProps<"/calenda
   const open = query.app ? applications.find((app) => app.id === query.app) : undefined;
 
   return (
-    <div className={cn("max-w-app mx-auto w-full flex-1 py-6", SEEKER_GUTTER)}>
-      {/* The view switch stays top right wherever the title can keep 300px
-          beside it (512px of content), the subtitle wrapping before the
-          switch moves; narrower, it sits under the title. */}
-      <div className="flex flex-col items-start gap-4 @[36rem]/main:flex-row @[36rem]/main:justify-between">
-        <div className="min-w-0">
-          <h1 className="text-heading text-ink">Calendar</h1>
-          <p className="text-body text-ink-meta mt-1">
-            Every date in your search, from the day you applied to the offer deadline.
-          </p>
-        </div>
+    // THE PAGE IS THE SCREEN UNDER THE BAR (KAN-429), as Google Calendar's
+    // is: the calendar's toolbar on top and the view taking every pixel
+    // under it, so the page itself never scrolls; the Month's weeks share
+    // that height and Week, Day and Agenda scroll inside their own box. A
+    // window too short for that (under 32rem) lets the page scroll. The
+    // visible heading and subtitle went: the toolbar's span title says
+    // where you are, and they cost the grid a row.
+    <div
+      className={cn(
+        "max-w-dashboard mx-auto flex h-[calc(100svh-4rem)] min-h-[32rem] w-full flex-col py-4",
+        SEEKER_GUTTER,
+      )}
+    >
+      <h1 className="sr-only">Calendar</h1>
 
-        <CalendarViewSwitch />
-      </div>
-
-      <CalendarView events={allEvents(applications)} />
+      <CalendarView
+        applications={applications.map(({ id, role, company, logoUrl, stage, appliedOn }) => ({
+          id,
+          role,
+          company,
+          logoUrl,
+          stage,
+          appliedOn,
+        }))}
+        events={
+          // The sample week, in local development only (./demo.ts).
+          query.demo && process.env.NODE_ENV === "development"
+            ? [...allEvents(applications), ...sampleWeek(applications, getNow())].sort(
+                (a, b) => sortKey(a.at) - sortKey(b.at),
+              )
+            : allEvents(applications)
+        }
+      />
 
       {open && (
         <DetailPanel
@@ -70,7 +89,7 @@ export default async function CalendarPage({ searchParams }: PageProps<"/calenda
           }}
           tile={<ApplicationTile application={open} size="md" />}
           steps={timelineOf(open, getNow())}
-          closeHref={calendarHref({ view: query.view, date: query.date })}
+          closeHref={calendarHref({ view: query.view, date: query.date, demo: query.demo })}
           footer={
             <Link
               href={applicationHref(open.id)}

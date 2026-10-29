@@ -28,6 +28,15 @@ DELETE /jobs/{job_id}/saved  takes it back out of saved: 204, and also when
                              it was never saved. 409 when it is past saved
                              (queued, applied...): that is a record, not a
                              bookmark.
+POST /jobs/saved-by-link     {"url": "<the page's link>"}: the extension's
+                             Save to WorkIt on a site it can't fill
+                             (KAN-401). Saves the feed's listed job whose
+                             apply link is that page (the same link first,
+                             else the same one without query, fragment and
+                             trailing slash) as POST /jobs/{job_id}/saved
+                             does, and answers {"job_id", "stage"}. 404
+                             "WorkIt doesn't list this job yet." when no
+                             listed job has that link.
 
 The Applications board reads saved and applied jobs through auto apply's
 list, GET /applicants/{id}/applications?stage=saved&stage=applied
@@ -37,9 +46,12 @@ Applicant accounts only (403 for a company's); the applicant is the token's,
 never a path or body field. A job that isn't open (closed, a company's own,
 no such job) is a 404 to mark or save, as GET /jobs/{job_id} is to read.
 
-Its own router, beside jobs.py's, for the same /jobs prefix: the paths
-here have one more segment than GET /jobs/{job_id}, so neither shadows the
-other whatever the order they're registered in.
+Its own router, beside jobs.py's, for the same /jobs prefix. The
+/jobs/{job_id}/... paths have one more segment than GET /jobs/{job_id}, and
+POST /jobs/saved-by-link has the same two segments but a method jobs.py
+never serves (its routes are all GETs), so neither router shadows the other
+whatever the order they're registered in. A GET on a two-segment path here
+would need registering before jobs.py's catch-all (routers/CLAUDE.md).
 """
 
 import uuid
@@ -51,13 +63,22 @@ from app.db import get_session
 from app.deps import get_current_account
 from app.queries.applications import (
     KEEP,
+    application_stage_of,
     fetch_applied,
+    listed_job_by_link,
     mark_applied,
     save_job,
     sent_to_job,
     unsave_job,
 )
-from app.schemas.applications import JobApplied, JobSaved, MarkApplied
+from app.schemas.applications import (
+    JobApplied,
+    JobByLink,
+    JobSaved,
+    JobSavedByLink,
+    MarkApplied,
+    SaveByLink,
+)
 from app.schemas.auth import AccountType, AuthenticatedAccount
 
 router = APIRouter(prefix="/jobs", tags=["applications"])
@@ -99,6 +120,41 @@ async def post_applied(
     if await mark_applied(db, applicant_id, job_id, sent_resume_id) is None:
         raise HTTPException(status.HTTP_404_NOT_FOUND, "That job isn't open any more.")
     return JobApplied(**(await fetch_applied(db, applicant_id, job_id))._asdict())
+
+
+@router.post("/saved-by-link", response_model=JobSavedByLink)
+async def post_saved_by_link(
+    body: SaveByLink,
+    account: AuthenticatedAccount = Depends(get_current_account),
+    db: AsyncSession = Depends(get_session),
+) -> JobSavedByLink:
+    """Saves the job whose apply link is the page the student is on: the
+    extension's Save to WorkIt on a site it can't fill (KAN-401)."""
+    applicant_id = _applicant_only(account)
+    job_id = await listed_job_by_link(db, body.url)
+    if job_id is None:
+        raise HTTPException(status.HTTP_404_NOT_FOUND, "WorkIt doesn't list this job yet.")
+    stage = await save_job(db, applicant_id, job_id)
+    if stage is None:
+        raise HTTPException(status.HTTP_404_NOT_FOUND, "WorkIt doesn't list this job yet.")
+    return JobSavedByLink(job_id=job_id, stage=stage)
+
+
+@router.post("/listed-by-link", response_model=JobByLink)
+async def post_listed_by_link(
+    body: SaveByLink,
+    account: AuthenticatedAccount = Depends(get_current_account),
+    db: AsyncSession = Depends(get_session),
+) -> JobByLink:
+    """The listed job whose apply link is the page the student is on, and
+    their stage for it: the extension's Track on WorkIt asks before it
+    offers to track (KAN-424). Writes nothing. A POST so the page's link
+    travels in the body, never a URL's query."""
+    applicant_id = _applicant_only(account)
+    job_id = await listed_job_by_link(db, body.url)
+    if job_id is None:
+        raise HTTPException(status.HTTP_404_NOT_FOUND, "WorkIt doesn't list this job yet.")
+    return JobByLink(job_id=job_id, stage=await application_stage_of(db, applicant_id, job_id))
 
 
 @router.post("/{job_id}/saved", response_model=JobSaved)

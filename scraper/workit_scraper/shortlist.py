@@ -878,17 +878,23 @@ SPECIALTIES: dict[Tag, tuple[tuple[Tag, re.Pattern[str]], ...]] = {
 }
 
 
+def _discipline(title: str) -> tuple[str, Tag | None]:
+    """Whose discipline the title names first: "ours" with its category, "held"
+    (a field we hold off on), "never" (`NEVER`) or "none"."""
+    if NEVER.search(title):
+        return "never", None
+    for tag, pattern in CATEGORIES:
+        if pattern.search(title):
+            return ("held", None) if tag is HELD else ("ours", tag)
+    if BUSINESS_WEAK.search(title) and not OTHER_JOB.search(title):
+        return "ours", Tag.BUSINESS
+    return "none", None
+
+
 def first_category(title: str) -> Tag | None:
     """The first discipline the title names, or None for a title naming none of
     ours or one we hold off on."""
-    if NEVER.search(title):
-        return None
-    for tag, pattern in CATEGORIES:
-        if pattern.search(title):
-            return tag
-    if BUSINESS_WEAK.search(title) and not OTHER_JOB.search(title):
-        return Tag.BUSINESS
-    return None
+    return _discipline(title)[1]
 
 
 def categories(title: str) -> tuple[Tag, ...]:
@@ -919,6 +925,35 @@ def classify(title: str) -> tuple[Tag, ...]:
     if not found or (found[0] is Tag.HR and not at.personal):
         return ()
     return (at.tag, *found)
+
+
+#: The steps a wider shortlist could take, in order, and what each would add
+#: (docs/coverage.md, "More roles"). `widening_step` files every scanned title
+#: under the first that would keep it, and metrics.json counts them, so the size
+#: of each step is measured before anyone takes it.
+WIDENING_STEPS = (
+    "kept",  # kept now
+    "held_field",  # early career, in a field we hold off on: law, consulting, the arts
+    "no_field",  # early career, naming no field: "Engineering Intern", "Research Intern"
+    "no_stage",  # in our fields, no stage word: "Software Engineer I", "Data Analyst"
+    "senior",  # in our fields, senior: "Senior Software Engineer"
+    "outside",  # none of our fields at any level: nurses, retail, trades
+)
+
+
+def widening_step(title: str) -> str:
+    """The first of `WIDENING_STEPS` that would keep this title, by `classify`'s
+    own rules."""
+    if classify(title):
+        return "kept"
+    kind, _ = _discipline(title) if title else ("none", None)
+    if stage(title):
+        # Ours with a stage and still dropped is a recruiter for a program
+        # ("Campus Recruiter"): no stage of the person's own.
+        return {"held": "held_field", "none": "no_field", "ours": "no_stage"}.get(kind, "outside")
+    if kind != "ours":
+        return "outside"
+    return "senior" if SENIOR.search(title) else "no_stage"
 
 
 @dataclass(frozen=True, slots=True)
