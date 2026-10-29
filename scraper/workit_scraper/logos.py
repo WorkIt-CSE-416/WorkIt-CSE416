@@ -74,10 +74,24 @@ CHECKED_WEBSITES = _checked(CHECKED_CSV)
 # vendor's, and so is its logo (micron.eightfold.ai gave Eightfold's).
 VENDOR_DOMAINS = frozenset(
     {
-        "ashbyhq.com", "avature.net", "bamboohr.com", "eightfold.ai", "google.com",
-        "greenhouse.io", "icims.com", "lever.co", "myworkday.com", "myworkdayjobs.com",
-        "myworkdaysite.com", "oraclecloud.com", "phenompeople.com", "rippling.com",
-        "smartrecruiters.com", "successfactors.com", "talentbrew.com", "taleo.net",
+        "ashbyhq.com",
+        "avature.net",
+        "bamboohr.com",
+        "eightfold.ai",
+        "google.com",
+        "greenhouse.io",
+        "icims.com",
+        "lever.co",
+        "myworkday.com",
+        "myworkdayjobs.com",
+        "myworkdaysite.com",
+        "oraclecloud.com",
+        "phenompeople.com",
+        "rippling.com",
+        "smartrecruiters.com",
+        "successfactors.com",
+        "talentbrew.com",
+        "taleo.net",
         "workable.com",
     }
 )
